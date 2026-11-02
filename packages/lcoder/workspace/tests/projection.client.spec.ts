@@ -7,9 +7,10 @@
 import { describe, expect, it } from 'vitest'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { WorkspaceDirectoryListing, WorkspaceFileText } from '@deepseek-ai/dsh-api-workspace-files/types'
-import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
+import type { RemoteFailure, RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
+import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 import {
-  loadWorkspaceProjection, rulesTextToRows, RULES_FILE, TASKS_DIR, taskTextToRow,
+  loadWorkspaceProjection, rulesTextToRows, RULES_FILE, SPEC_DIR, TASKS_DIR, taskTextToRow,
 } from '../src/client/projection.ts'
 import type { ProjectionFilesRemote } from '../src/client/projection.ts'
 
@@ -44,8 +45,17 @@ function ok<T>(value: T): RemoteResult<T> {
   return { ok: true, value }
 }
 
-function fail(message: string, code = 'workspace-file/not-found'): RemoteResult<never> {
-  return { ok: false, error: Object.assign(new Error(message), { code }) }
+/**
+ * 造一次远程失败。参数就用 `RemoteFailure` 本身：它是 code 判别联合，
+ * 一个带泛型参数的 `RemoteError<Code>` 落不进去，具体的实例才可以。
+ */
+function fail(error: RemoteFailure): RemoteResult<never> {
+  return { ok: false, error }
+}
+
+/** 目标不存在——投影把它当空集的那一种。显式标注 `RemoteFailure`：构造器泛型默认会放宽成全联合。 */
+function notFound(path: string): RemoteFailure {
+  return new RemoteError('workspace-file/not-found', `no entry at "${path}"`, { path })
 }
 
 /** 最小的文件面替身：目录与文件都从内存映射里来。 */
@@ -55,7 +65,7 @@ function fakeFiles(
   listError?: RemoteResult<never>,
 ): ProjectionFilesRemote {
   return {
-    list: async (sessionId, path) => {
+    list: async (_sessionId, path) => {
       if (listError !== undefined && path === TASKS_DIR) return listError
       return ok({
         path,
@@ -65,9 +75,9 @@ function fakeFiles(
     },
     readPage: async (_sessionId, path) => {
       const text = files[path]
-      if (text === undefined) return fail(`"${path}" does not exist`)
+      if (text === undefined) return fail(notFound(path))
       return ok({
-        absolutePath: `/w/${path}`, version: 'v1', path, offset: 1, text, lines: text.split('\n').length, eof: true,
+        absolutePath: `/w/${path}`, version: 'v1', offset: 1, text, lines: text.split('\n').length, eof: true,
       } satisfies WorkspaceFileText)
     },
   }
@@ -92,6 +102,15 @@ describe('文件投影', () => {
     expect(rows).toHaveLength(1)
     expect(rows[0]).toMatchObject({ id: 'R-LOGIN-01', status: 'confirmed' })
     expect(rulesTextToRows('not: a rules file')).toEqual([])
+  })
+
+  it('读的路径就是 kernel 落盘的路径：规格库根是 .spec', () => {
+    // 这条断言是防分叉的：kernel 的 taskPath(root, id) 是 `<root>/tasks/<id>.yaml`、
+    // saveRules 写 `<root>/spec/rules.yaml`，而它的 root 是 `.spec` 目录。
+    // 投影一旦改成别的路径，画出来的就是另一套事实，而这里不会有任何类型错误。
+    expect(SPEC_DIR).toBe('.spec')
+    expect(TASKS_DIR).toBe('.spec/tasks')
+    expect(RULES_FILE).toBe('.spec/spec/rules.yaml')
   })
 
   it('loadWorkspaceProjection 并行读任务与规则，任务按 id 排序', async () => {
@@ -134,7 +153,9 @@ describe('文件投影', () => {
   })
 
   it('目录真的读不了（权限等）时记说明，而不是静默当空', async () => {
-    const files = fakeFiles({}, {}, fail('"tasks" refused', 'workspace-file/refused'))
+    // 一个真实的「不是缺失」的失败码：投影必须把它说出来，不能当空集咽掉。
+    const refused = new RemoteError('workspace-file/too-large', '"tasks" refused', { path: TASKS_DIR, limit: 1 })
+    const files = fakeFiles({}, {}, fail(refused))
     const projection = await loadWorkspaceProjection(files, SESSION, new AbortController().signal)
 
     expect(projection.tasks).toEqual([])

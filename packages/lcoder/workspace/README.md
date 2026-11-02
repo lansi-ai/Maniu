@@ -14,24 +14,32 @@ LCoder 的三栏工作台，作为 **DSH 的 client UI 插件**存在。
 | 正文 | `src/client/WorkspaceBody.tsx` | 三栏：任务 / 规格-代码 / 对话 |
 
 数据面已接，走**文件投影**（`src/client/projection.ts`）：任务与规格本来就是
-kernel 落在仓库里的 YAML（`tasks/*.yaml`、`spec/rules.yaml`），是唯一事实源，
-UI 直接读文件画出来。读文件用上游现成的 `workspaceFiles` 远程命名空间——
-**没有自建 Remote、没有 typert 生成器、没有宿主侧挂载**。状态机判断不进 UI，
+kernel 落在 `.spec/` 里的 YAML（`.spec/tasks/*..yaml`、`.spec/spec/rules.yaml`），
+是唯一事实源，UI 直接读文件画出来。读文件用上游现成的 `workspaceFiles` 远程
+命名空间——**没有自建 Remote、没有 typert 生成器**。状态机判断不进 UI，
 仍归 kernel；投影面经槽位 `inject` 工厂按会话注入，没绑面或没工作区时
 三栏保持骨架态。
+
+> 路径必须与 kernel 的落盘一致（`task-store.taskPath` 与 `spec-store.saveRules`
+> 都以 `.spec` 为 root）。`projection.client.spec.ts` 里有一条断言专门锁这个，
+> 因为分叉不会有任何类型错误，只会画出错的数据。
 
 ## 怎么挂上去（不改上游 patch 文件）
 
 上游的浏览器插件清单在 `packages/bundle/web-app/cordis.patch.yml`，我们**不碰它**。
-自己的 patch 层是仓库根的 `lcoder/cordis.patch.yml`：
+自己的 patch 层是仓库根的 `lcoder/cordis.patch.yml`，一次插两行——宿主侧的
+kernel（agent 工具）和浏览器侧的工作台（页签）：
 
 ```yaml
 - insert:
+    - id: lcoder-kernel
+      name: '@lcoder/kernel'
+
     - id: ui-lcoder-workspace
       name: '@lcoder/workspace'
 ```
 
-在仓库根启动时把它叠上去：
+在仓库根启动时把它叠上去（工作目录就是规格库所在的仓库，`.spec` 的父目录）：
 
 ```sh
 pnpm dsh web --patch lcoder/cordis.patch.yml

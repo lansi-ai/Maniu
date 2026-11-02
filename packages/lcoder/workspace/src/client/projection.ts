@@ -43,9 +43,17 @@ export interface ProjectionFilesRemote {
   readPage(sessionId: SessionId, path: string, signal: AbortSignal): Promise<RemoteResult<WorkspaceFileText>>
 }
 
-/** kernel 约定的布局：任务在 `tasks/`，规则库在 `spec/rules.yaml`。 */
-export const TASKS_DIR = 'tasks'
-export const RULES_FILE = 'spec/rules.yaml'
+/**
+ * kernel 约定的布局：`.spec` 目录是规格库根，任务在它下面的 `tasks/`，
+ * 规则库在它下面的 `spec/rules.yaml`。
+ *
+ * 这里必须与 `@lcoder/kernel` 的两处落盘保持一致（`task-store.taskPath` 与
+ * `spec-store.saveRules` 都以 `.spec` 为 root）——UI 是这些文件的投影，
+ * 路径一旦分叉，画出来的就是另一套事实。
+ */
+export const SPEC_DIR = '.spec'
+export const TASKS_DIR = `${SPEC_DIR}/tasks`
+export const RULES_FILE = `${SPEC_DIR}/spec/rules.yaml`
 
 /** 单页行数上限：任务与规则 YAML 都是几十行的量级，500 足够且低于宿主默认页。 */
 export const PAGE_LINES = 500

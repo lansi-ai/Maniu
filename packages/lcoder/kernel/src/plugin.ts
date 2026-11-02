@@ -23,7 +23,7 @@ export const name = 'lcoder'
 export const inject = ['tools']
 
 export interface LcoderConfig {
-  /** `.spec` 根目录，通常是仓库根。默认取进程工作目录。 */
+  /** `.spec` 目录本身（其下是 `tasks/`、`spec/`）。默认取进程工作目录下的 `.spec`。 */
   root?: string
   /** 是否在加载时打印工具面自检。默认 true。 */
   selfCheck?: boolean
@@ -53,7 +53,9 @@ interface PluginContext {
 }
 
 export function apply(ctx: PluginContext, config: LcoderConfig = {}): void {
-  const root = config.root ?? process.cwd()
+  // 默认落在进程工作目录的 `.spec` 下，而不是工作目录本身：规格库是一个
+  // 隐藏目录，`tasks/` 与 `spec/` 都在它里面（与 spec-store / task-store 一致）。
+  const root = config.root ?? join(process.cwd(), '.spec')
   const tools = [
     ...createSpecTools(root),
     ...createTaskTools(root),
