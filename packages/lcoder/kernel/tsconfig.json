@@ -1,13 +1,17 @@
 {
   "extends": "../../../tsconfig.base.json",
   "compilerOptions": {
-    // 本包先做「类型检查」，产物交给 tsdown。
-    // 不设 rootDir：base 的 paths 会把 workspace 依赖解析到它们的 src，
-    // 一旦设了 rootDir，别人的源文件就会触发 TS6059。
-    "composite": false,
-    "declaration": false,
-    "declarationMap": false,
-    "noEmit": true
+    // 与上游 host 包同形：src 是工程边界，产物落在 lib/types，
+    // 真正的 js 由 tsdown 从 lib/types 出。
+    "rootDir": "src",
+    "outDir": "lib/types"
   },
-  "include": ["src", "tests"]
+  "include": [
+    "src"
+  ],
+  "references": [
+    {
+      "path": "../../core/tools"
+    }
+  ]
 }

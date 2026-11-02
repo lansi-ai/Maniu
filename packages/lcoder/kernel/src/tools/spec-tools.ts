@@ -55,6 +55,7 @@ export function createSpecTools(root: string): ToolDefinition[] {
         include_states: { type: 'boolean', description: '是否一并返回状态机，默认 false' },
       },
       output: { schema: { type: 'json' }, render: renderJson },
+      // oxlint-disable-next-line typescript/require-await -- execute 的契约要求返回 Promise（ToolDefinition.execute），这里是同步实现。
       async execute(args) {
         const snap = loadSpec(root)
         const kw = args.keyword?.toLowerCase()
@@ -96,6 +97,7 @@ export function createSpecTools(root: string): ToolDefinition[] {
         symbol: { type: 'string', description: '文件内的符号名，如类名或方法名' },
       },
       output: { schema: { type: 'json' }, render: renderJson },
+      // oxlint-disable-next-line typescript/require-await -- execute 的契约要求返回 Promise（ToolDefinition.execute），这里是同步实现。
       async execute(args) {
         const snap = loadSpec(root)
         const rule = snap.rules.find(r => r.id === args.rule_id)
@@ -130,6 +132,7 @@ export function createSpecTools(root: string): ToolDefinition[] {
         fail_if: { type: 'array', items: { type: 'string' } },
       },
       output: { schema: { type: 'json' }, render: renderJson },
+      // oxlint-disable-next-line typescript/require-await -- execute 的契约要求返回 Promise（ToolDefinition.execute），这里是同步实现。
       async execute(args) {
         const draft: Contract = Contract.parse({
           id: args.task_id,

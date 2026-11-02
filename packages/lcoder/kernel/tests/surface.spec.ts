@@ -84,12 +84,12 @@ describe('SurfaceSwitcher', () => {
     sw.dispose()
 
     expect(lifts[0]).toHaveBeenCalledTimes(1)
-    expect(() => sw.apply('closed')).toThrow(/已销毁/)
+    expect(() =>{  sw.apply('closed') }).toThrow(/已销毁/)
   })
 
   it('没挂过掩码时 dispose 不炸', () => {
     const { gate } = makeGate()
-    expect(() => new SurfaceSwitcher(gate).dispose()).not.toThrow()
+    expect(() =>{  new SurfaceSwitcher(gate).dispose() }).not.toThrow()
   })
 })
 

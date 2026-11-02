@@ -42,7 +42,7 @@ function call(
   args: Record<string, unknown>,
   run?: Runner,
 ) {
-  const tools = createEditTools(root, run ? { run: run as never } : {})
+  const tools = createEditTools(root, run ? { run: run } : {})
   const tool = tools.find(t => t.name === toolName)
   if (!tool) throw new Error(`没有这个工具：${toolName}`)
   const exec = (tool as unknown as { execute: (a: unknown, e: unknown) => Promise<unknown> })
@@ -128,11 +128,11 @@ describe('签约态工具集', () => {
       content: 'x',
     }).then(
       () => null,
-      (e: Error) => e,
+      (e: unknown) => e,
     )
 
     expect(err).not.toBeNull()
-    expect(String(err?.message)).toContain('任务编号')
+    expect(String((err as Error | null)?.message)).toContain('任务编号')
   })
 
   it('evidence 目录不存在时自动创建', async () => {

@@ -43,10 +43,16 @@ export const spawnRunner: CommandRunner = command =>
 
     let stdout = ''
     let stderr = ''
-    child.stdout?.on('data', (chunk: Buffer) => (stdout += chunk.toString('utf8')))
-    child.stderr?.on('data', (chunk: Buffer) => (stderr += chunk.toString('utf8')))
-    child.on('error', err => resolvePromise({ code: -1, stdout, stderr: String(err) }))
-    child.on('close', code => resolvePromise({ code: code ?? -1, stdout, stderr }))
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- spawn 的 stdout/stderr 类型带 null，但 shell 模式下必然有管道。
+    child.stdout?.on('data', (chunk: Buffer) => { stdout += chunk.toString('utf8') })
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- 同上。
+    child.stderr?.on('data', (chunk: Buffer) => { stderr += chunk.toString('utf8') })
+    child.on('error', (err) => {
+      resolvePromise({ code: -1, stdout, stderr: String(err) })
+    })
+    child.on('close', (code) => {
+      resolvePromise({ code: code ?? -1, stdout, stderr })
+    })
   })
 
 /** 把相对路径解析到仓库内部；越界直接抛。 */
@@ -106,6 +112,7 @@ export function createEditTools(root: string, deps: EditToolDeps = {}): ToolDefi
         limit: { type: 'integer', description: '最多读取的行数' },
       },
       output: { schema: { type: 'json' }, render: renderJson },
+      // oxlint-disable-next-line typescript/require-await -- execute 的契约要求返回 Promise（ToolDefinition.execute），这里是同步实现。
       async execute(args) {
         const abs = resolveInsideRoot(root, args.path)
         const raw = readFileSync(abs, 'utf8')
@@ -132,6 +139,7 @@ export function createEditTools(root: string, deps: EditToolDeps = {}): ToolDefi
         content: { type: 'string', required: true, description: '文件的完整新内容' },
       },
       output: { schema: { type: 'json' }, render: renderJson },
+      // oxlint-disable-next-line typescript/require-await -- execute 的契约要求返回 Promise（ToolDefinition.execute），这里是同步实现。
       async execute(args) {
         const abs = resolveInsideRoot(root, args.path)
         mkdirSync(dirname(abs), { recursive: true })
@@ -186,6 +194,7 @@ export function createEditTools(root: string, deps: EditToolDeps = {}): ToolDefi
         content: { type: 'string', required: true, description: '证据正文（命令输出摘要等）' },
       },
       output: { schema: { type: 'json' }, render: renderJson },
+      // oxlint-disable-next-line typescript/require-await -- execute 的契约要求返回 Promise（ToolDefinition.execute），这里是同步实现。
       async execute(args) {
         const taskId = assertTaskId(args.task_id)
         const taskDir = resolveInsideRoot(root, join('evidence', taskId))

@@ -56,6 +56,7 @@ export function createTaskTools(specRoot: string): ToolDefinition[] {
         task_id: { type: 'string', description: '任务编号，如 T-01' },
       },
       output: { schema: { type: 'json' }, render: renderJson },
+      // oxlint-disable-next-line typescript/require-await -- execute 的契约要求返回 Promise（ToolDefinition.execute），这里是同步实现。
       async execute(args) {
         if (args.task_id) {
           const t = loadTask(specRoot, args.task_id)
@@ -88,6 +89,7 @@ export function createTaskTools(specRoot: string): ToolDefinition[] {
         task_id: { type: 'string', required: true, description: '任务编号' },
       },
       output: { schema: { type: 'json' }, render: renderJson },
+      // oxlint-disable-next-line typescript/require-await -- execute 的契约要求返回 Promise（ToolDefinition.execute），这里是同步实现。
       async execute(args) {
         const task = loadTask(specRoot, args.task_id)
 
@@ -103,7 +105,7 @@ export function createTaskTools(specRoot: string): ToolDefinition[] {
             task_id: task.id,
             state: task.state,
             violations: violations.map(v => ({
-              checker: String(v.checker),
+              checker: v.checker,
               subject: v.subject,
               detail: v.detail,
               hint: v.hint,
