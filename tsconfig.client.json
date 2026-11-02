@@ -27,6 +27,7 @@
     // realpath semantics vary by host. Load package CSS declarations directly.
     "packages/client/*/src/css-modules.d.ts",
     "packages/experimental/*/src/css-modules.d.ts",
+    "packages/lcoder/*/src/css-modules.d.ts",
     "packages/client/*/tests/**/*.ts",
     "packages/client/*/tests/**/*.tsx",
     "benchmarks/**/*.client.ts",
@@ -170,6 +171,7 @@
     { "path": "./packages/api/workspace-files/tsconfig.client.json" },
     { "path": "./packages/client/web" },
     { "path": "./packages/context/file-reference" },
+    { "path": "./packages/lcoder/workspace" },
     { "path": "./apps/web" }
   ]
 }

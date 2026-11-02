@@ -1,19 +1,11 @@
-import { defineConfig } from 'tsdown'
+import { clientBundle } from '../../client/tsdown.client.ts'
 
 /**
- * 与上游 client 包一致的打包方式：产出 lib/index.js（宿主侧入口）
- * 与 lib/client.js（浏览器侧入口）。
+ * 与上游 client 插件同一套打包预设：宿主侧入口 `lib/index.js` 由 `tsc -b`
+ * 编出来（见 tsconfig.json 的 references），浏览器侧产物 `lib/client.js`
+ * 由这里按 `clientBundle` 的闭包工厂格式产出——CSS 也一并在这里编进去。
  *
- * 目前两边共用同一个空入口；第二步接入页签时，
- * client 侧会被真正用上，index 侧保持为空即可。
+ * 用上游预设而不是自己写一份 `defineConfig`：网页端的加载器只认这一种
+ * 产物形状（`__ModuleLoader__.load`），自己拼一份迟早对不上。
  */
-export default defineConfig({
-  entry: {
-    index: 'src/client/index.ts',
-    client: 'src/client/index.ts',
-  },
-  format: 'esm',
-  platform: 'neutral',
-  dts: true,
-  clean: true,
-})
+export default clientBundle(import.meta.dirname, ['lib/types/index.js'])

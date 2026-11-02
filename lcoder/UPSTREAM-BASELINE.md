@@ -48,8 +48,9 @@ upstream = deepseek-ai/deepseek-harness
 | 路径 | 内容 |
 |---|---|
 | `lcoder/` | 本目录：基线登记、接触面清单、脚本、我们自己的说明 |
+| `lcoder/cordis.patch.yml` | 我们的 patch 层：只往浏览器插件清单里插一行工作台，不改上游 patch |
 | `packages/lcoder/kernel/` | 规格库、任务状态机、检查器、工具实现（原 LCoder 项目迁入） |
-| `packages/lcoder/workspace/` | 三栏工作台的 client UI 插件（待建） |
+| `packages/lcoder/workspace/` | 三栏工作台的 client UI 插件 |
 
 > 目录必须放在 `packages/<组>/<包>` 两级下——`pnpm-workspace.yaml` 的 glob 是 `packages/*/*`。
 
@@ -58,6 +59,8 @@ upstream = deepseek-ai/deepseek-harness
 | 文件 | 改什么 | 为什么必须改 |
 |---|---|---|
 | `pnpm-lock.yaml` | 加依赖后由 `pnpm install` 重写 | 引入 workspace 外的包（`yaml`）必然改动 lock；不提交 lock 会让安装不可复现 |
+| `tsconfig.client.json` | 两行：`references` 里加 `./packages/lcoder/workspace`，`include` 里加 `packages/lcoder/*/src/css-modules.d.ts` | client 聚合编译只扫被 reference 的工程。不加这两行，`pnpm typecheck` 根本看不到我们的 client 代码和测试，等于把验收门禁关掉一半；CSS 的模块声明也必须显式进 include，否则聚合程序读我们的 `.module.css` 导入会报错 |
+| `tsconfig.host.json` | 一行：`references` 里加 `./packages/lcoder/kernel` | 同理，host 聚合编译靠 references 把包划进工程边界。kernel 的测试被 `packages/*/*/tests/**/*.ts` 收进了 host 聚合，但 kernel 的 src 不在任何工程里，编译直接报 TS6307 |
 
 规矩：改动写在文件里的 `lcoder:` 前缀注释下，方便 grep 定位，也方便升级时用 `git diff upstream/master...HEAD -- <文件>` 一眼看清。
 

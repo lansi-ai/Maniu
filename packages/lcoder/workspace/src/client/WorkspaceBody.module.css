@@ -1,0 +1,111 @@
+/* 工作台正文：一条表头，下面三栏。颜色一律取 ui-theme 的语义变量，
+   这样明暗两套主题都不用另写一份。 */
+.root {
+  container-type: inline-size;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  box-sizing: border-box;
+  min-width: 0;
+  height: 100%;
+  min-height: 0;
+  color: var(--dsw-alias-label-primary);
+  font-size: var(--dsh-content-font-size-secondary, 13px);
+  line-height: 1.5;
+}
+
+/* 与上游 files 页同高的一条表头：右侧栏的内容都从同一条线开始。 */
+.header {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+  align-items: baseline;
+  box-sizing: border-box;
+  height: 38px;
+  padding: 0 16px 0;
+  overflow: hidden;
+  border-bottom: 0.5px solid var(--dsw-alias-border-l3);
+}
+
+.title {
+  flex: none;
+  font-weight: 600;
+}
+
+/* 工作区根：路径长的时候从左边截，末尾的目录名比开头的盘符有用。 */
+.path {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  direction: rtl;
+  text-align: left;
+}
+
+.muted {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.columns {
+  display: grid;
+  flex: 1 1 auto;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+}
+
+/* 每栏自带左规矩，第一栏不要——线只在栏与栏之间。 */
+.column {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  padding: 10px 12px;
+  overflow: auto;
+  border-left: 0.5px solid var(--dsw-alias-border-l3);
+}
+
+.column:first-child {
+  border-left: 0;
+}
+
+.heading {
+  flex: none;
+  margin: 0 0 8px;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.pending {
+  margin: 0;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+/* 窄于三栏放得下的时候塌成单栏，横线接替竖线。 */
+@container (width < 620px) {
+  .columns {
+    grid-template-columns: minmax(0, 1fr);
+    overflow: auto;
+  }
+
+  .column {
+    flex: none;
+    border-left: 0;
+    border-top: 0.5px solid var(--dsw-alias-border-l3);
+  }
+
+  .column:first-child {
+    border-top: 0;
+  }
+}

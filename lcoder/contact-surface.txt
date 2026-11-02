@@ -6,3 +6,5 @@
 # 我们自己的新增目录（lcoder/、packages/lcoder/*）不用登记——新增永不冲突。
 
 pnpm-lock.yaml
+tsconfig.client.json
+tsconfig.host.json

@@ -1,0 +1,14 @@
+# LCoder 自己的 patch 层。
+#
+# 只做一件事：把工作台的 client 插件插进浏览器插件清单。上游的
+# `packages/bundle/web-app/cordis.patch.yml` 一个字都不改——patch 是叠加的，
+# 我们的层在 bundle 层之后应用，插入的行追加在清单末尾。
+#
+# 用法（在仓库根执行）：
+#   pnpm dsh web --patch lcoder/cordis.patch.yml
+#
+# 行里不写 config：这个包没有配置面。`dsh.client.inject` 声明在
+# packages/lcoder/workspace/package.json 里，浏览器侧的依赖顺序由它决定。
+- insert:
+    - id: ui-lcoder-workspace
+      name: '@lcoder/workspace'
