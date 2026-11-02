@@ -79,6 +79,17 @@ describe('签约态工具集', () => {
     expect(existsSync(join(root, '..', 'escape.ts'))).toBe(false)
   })
 
+  it('file_read 把 CRLF 归一化成 LF，行号在 Windows 上也稳定', async () => {
+    const root = makeRoot()
+    mkdirSync(join(root, 'src'), { recursive: true })
+    writeFileSync(join(root, 'src/crlf.ts'), '第一行\r\n第二行\r\n第三行', 'utf8')
+
+    const r = await call('file_read', root, { path: 'src/crlf.ts' })
+
+    expect(r.total_lines).toBe(3)
+    expect(r.content).toBe('第一行\n第二行\n第三行')
+  })
+
   it('cmd_run 拒绝未登记的命令，并列出可用命令', async () => {
     await expect(call('cmd_run', makeRoot(), { command_id: 'rm -rf /' })).rejects.toThrow(
       /未登记的命令.*build\(ai-auto\)/s,

@@ -11,7 +11,7 @@
  */
 import { spawn } from 'node:child_process'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
@@ -37,6 +37,8 @@ export const spawnRunner: CommandRunner = command =>
   new Promise((resolvePromise) => {
     const child = spawn(command.cmd, {
       cwd: command.cwd,
+      // Windows 桌面端用 cmd.exe、POSIX 用 /bin/sh；注意 Windows 上 timeout
+      // 只杀 shell 本身，孙进程可能存活——需要精确清场时注入自定义 CommandRunner。
       shell: true,
       timeout: command.timeout * 1000,
     })
@@ -116,7 +118,8 @@ export function createEditTools(root: string, deps: EditToolDeps = {}): ToolDefi
       async execute(args) {
         const abs = resolveInsideRoot(root, args.path)
         const raw = readFileSync(abs, 'utf8')
-        const lines = raw.split('\n')
+        // Windows 桌面端的文件多半是 CRLF，先归一化再分行，行号与内容才稳定。
+        const lines = raw.replace(/\r\n/g, '\n').split('\n')
         const start = Math.max(0, (args.offset ?? 1) - 1)
         const end = args.limit === undefined ? lines.length : start + args.limit
 
@@ -207,7 +210,8 @@ export function createEditTools(root: string, deps: EditToolDeps = {}): ToolDefi
         return {
           task_id: args.task_id,
           kind: name,
-          path: relative(root, file).split('\\').join('/'),
+          // 目标平台是 Windows 桌面端：sep 在 win32 是 '\'，与 validate/spec-store 的归一化保持同一写法。
+          path: relative(root, file).split(sep).join('/'),
           bytes: Buffer.byteLength(args.content, 'utf8'),
         }
       },
