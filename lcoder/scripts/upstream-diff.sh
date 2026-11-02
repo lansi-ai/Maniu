@@ -21,8 +21,10 @@ if ! git rev-parse --verify --quiet "$UPSTREAM_REF" >/dev/null; then
   exit 2
 fi
 
-# 我们相对上游改动的全部文件，排除我们自己的新增目录
-changed=$(git diff --name-only "$UPSTREAM_REF"...HEAD \
+# 我们相对上游改动的全部文件，排除我们自己的新增目录。
+# 用 `git diff <ref>`（工作区 vs 上游），不是 `<ref>...HEAD`——后者只比提交，
+# 看不见还没提交的改动，而那恰恰是最该被抓住的。
+changed=$(git diff --name-only "$UPSTREAM_REF" \
   | grep -v '^lcoder/' \
   | grep -v '^packages/lcoder-' || true)
 
