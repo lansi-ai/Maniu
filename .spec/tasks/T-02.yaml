@@ -1,0 +1,20 @@
+id: T-02
+title: 宿主侧挂载 kernel，让 agent 工具真跑起来
+grade: A
+state: implementing
+rules:
+  - R-01
+  - R-03
+scope:
+  irreversible:
+    - 宿主插件清单
+  allowed_paths:
+    - lcoder/cordis.patch.yml
+    - packages/lcoder/kernel/
+evidence_required:
+  - typecheck
+  - vitest
+  - lint
+  - smoke
+opened_at: 2026-11-02T22:25:00+08:00
+closed_at: null
