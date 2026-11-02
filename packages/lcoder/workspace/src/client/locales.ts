@@ -23,9 +23,14 @@ export const zh = {
   'column.tasks': '任务',
   'column.spec': '规格 / 代码',
   'column.conversation': '对话',
-  'column.tasks.pending': '任务列表接入 @lcoder/kernel 的任务状态机后显示。',
-  'column.spec.pending': '规格条目与它对应的代码位置，接入规格库后显示。',
+  'column.tasks.pending': '绑定会话工作区后，这里显示 tasks/ 下的任务文件。',
+  'column.spec.pending': '绑定会话工作区后，这里显示 spec/rules.yaml 的规格条目。',
   'column.conversation.pending': '对话由会话自己渲染；这一栏留给逐条对齐。',
+  'projection.loading': '读取规格文件…',
+  'projection.error': '读取失败',
+  'projection.problems': '部分文件没有读出来：',
+  'tasks.empty': '这个工作区还没有 tasks/ 任务文件。',
+  'rules.empty': '这个工作区还没有 spec/rules.yaml。',
 } satisfies Record<string, string>
 
 /** 工作台词典的键集。 */
@@ -41,7 +46,12 @@ export const en = {
   'column.tasks': 'Tasks',
   'column.spec': 'Spec / code',
   'column.conversation': 'Conversation',
-  'column.tasks.pending': 'The task list appears once the @lcoder/kernel task state machine is wired in.',
-  'column.spec.pending': 'Spec entries and the code they point at appear once the spec library is wired in.',
+  'column.tasks.pending': 'Bind a session workspace to see tasks/ task files here.',
+  'column.spec.pending': 'Bind a session workspace to see spec/rules.yaml entries here.',
   'column.conversation.pending': 'The session renders the conversation itself; this column is for aligning it row by row.',
+  'projection.loading': 'Reading spec files…',
+  'projection.error': 'Failed to read',
+  'projection.problems': 'Some files could not be read:',
+  'tasks.empty': 'This workspace has no tasks/ files yet.',
+  'rules.empty': 'This workspace has no spec/rules.yaml yet.',
 } satisfies Record<LcoderWorkspaceKey, string>

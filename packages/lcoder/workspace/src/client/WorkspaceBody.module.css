@@ -92,6 +92,86 @@
   line-height: 1.6;
 }
 
+/* ── 投影数据的行 ─────────────────────────────────────────── */
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  min-width: 0;
+  padding: 2px 0;
+}
+
+.rowId {
+  flex: none;
+  color: var(--dsw-alias-label-tertiary);
+  font-family: var(--dsh-content-font-family-mono, monospace);
+  font-size: 11px;
+}
+
+.rowTitle {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* 状态小徽：中性底色，只有收口是明确的完成色，读不懂的状态一律中性。 */
+.chip {
+  flex: none;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: var(--dsw-alias-fill-secondary);
+  color: var(--dsw-alias-label-secondary);
+  font-size: 10px;
+  line-height: 16px;
+}
+
+.chip.state_closed {
+  background: var(--dsw-alias-fill-success-muted, var(--dsw-alias-fill-secondary));
+  color: var(--dsw-alias-label-success, var(--dsw-alias-label-primary));
+}
+
+.chip.confirmed {
+  background: var(--dsw-alias-fill-success-muted, var(--dsw-alias-fill-secondary));
+  color: var(--dsw-alias-label-success, var(--dsw-alias-label-primary));
+}
+
+.chip.draft {
+  color: var(--dsw-alias-label-tertiary);
+}
+
+/* 读取说明：文件缺一角时如实说，不挡另外两路。 */
+.problems {
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 0.5px dashed var(--dsw-alias-border-l3);
+}
+
+.problemsTitle {
+  margin: 0 0 2px;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+}
+
+.problem {
+  margin: 0;
+  overflow: hidden;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 /* 窄于三栏放得下的时候塌成单栏，横线接替竖线。 */
 @container (width < 620px) {
   .columns {

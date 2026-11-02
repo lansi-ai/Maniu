@@ -44,6 +44,8 @@ async function boot() {
   ctx.provide('sidebarRightTabs', tabs as never)
   ctx.provide('slots', slots as never)
   ctx.provide('locale', locale as never)
+  // 正文注册时会把 workspaceFiles 窄化成投影面；这里只看注册形状，远程面给空壳即可。
+  ctx.provide('remote', { workspaceFiles: {} } as never)
   const fiber = ctx.plugin({ inject: [...inject], apply })
   await fiber.await()
   return { ctx, tabs, registered, dictionaries, fiber, slots, locale }
