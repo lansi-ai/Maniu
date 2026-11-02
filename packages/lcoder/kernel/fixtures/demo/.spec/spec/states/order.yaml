@@ -1,0 +1,11 @@
+id: order
+module: order
+statuses: [PendingPayment, PendingShipment, Shipped, Refunding, Refunded, Cancelled]
+transitions:
+  - { from: PendingPayment, to: Cancelled, trigger: cancel }
+  - { from: PendingPayment, to: PendingShipment, trigger: pay_success }
+  - { from: PendingShipment, to: Shipped, trigger: ship }
+  - { from: PendingShipment, to: Refunding, trigger: refund_apply }
+  - { from: Shipped, to: Refunding, trigger: refund_apply }
+  - { from: Refunding, to: Refunded, trigger: refund_success }
+  - { from: Refunding, to: PendingShipment, trigger: refund_rejected }

@@ -1,0 +1,18 @@
+rules:
+  - id: R-01
+    module: order
+    kind: rule
+    text: 下单需登录
+    source: { doc: prd.md#4.2 }
+    status: confirmed
+    found_at:
+      - { file: src/price.ts, symbol: calculateCommission }
+    acceptance:
+      - { kind: test, ref: tests/price.test.ts::计算佣金 }
+  - id: R-02
+    module: settlement
+    kind: formula
+    text: 佣金 = max(round(实付 × 费率, 2), 1.00)
+    source: { doc: prd.md#6.3, quote: 平台佣金 = 订单实付 × 佣金率，最低一元 }
+    status: draft
+    found_at: []

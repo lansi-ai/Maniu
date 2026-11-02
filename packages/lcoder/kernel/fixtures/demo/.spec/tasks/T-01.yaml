@@ -1,0 +1,11 @@
+id: T-01
+title: 佣金支持 0（自营免佣）
+grade: B
+state: drafting
+rules: [R-02]
+scope:
+  irreversible: [settlement_formula]
+  allowed_paths: [src/]
+evidence_required: [build, test]
+opened_at: 2026-11-02T15:00:00+08:00
+closed_at: null

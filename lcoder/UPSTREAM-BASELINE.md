@@ -47,15 +47,17 @@ upstream = deepseek-ai/deepseek-harness
 
 | 路径 | 内容 |
 |---|---|
-| `lcoder/` | 本目录：基线登记、脚本、我们自己的说明 |
-| `packages/lcoder-kernel/` | 规格库、任务状态机、检查器、工具实现（原 LCoder 项目代码迁入） |
-| `packages/lcoder-workspace/` | 三栏工作台的 client UI 插件 |
+| `lcoder/` | 本目录：基线登记、接触面清单、脚本、我们自己的说明 |
+| `packages/lcoder/kernel/` | 规格库、任务状态机、检查器、工具实现（原 LCoder 项目迁入） |
+| `packages/lcoder/workspace/` | 三栏工作台的 client UI 插件（待建） |
+
+> 目录必须放在 `packages/<组>/<包>` 两级下——`pnpm-workspace.yaml` 的 glob 是 `packages/*/*`。
 
 ### 修改的上游文件（冲突点）
 
 | 文件 | 改什么 | 为什么必须改 |
 |---|---|---|
-| （暂无） | | |
+| `pnpm-lock.yaml` | 加依赖后由 `pnpm install` 重写 | 引入 workspace 外的包（`yaml`）必然改动 lock；不提交 lock 会让安装不可复现 |
 
 规矩：改动写在文件里的 `lcoder:` 前缀注释下，方便 grep 定位，也方便升级时用 `git diff upstream/master...HEAD -- <文件>` 一眼看清。
 

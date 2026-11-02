@@ -1,0 +1,144 @@
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+
+import { afterAll, describe, expect, it, vi } from 'vitest'
+
+import { createEditTools, safeEvidenceName } from '../src/tools/edit-tools.js'
+
+const dirs: string[] = []
+afterAll(() => {
+  for (const d of dirs) rmSync(d, { recursive: true, force: true })
+})
+
+const ENV = `repo:
+  url: https://example.com/r.git
+  branch: main
+  push_mode: branch
+commands:
+  - id: build
+    cmd: echo build
+    exec: ai-auto
+  - id: test
+    cmd: echo test
+    exec: ai-confirm
+  - id: deploy-prod
+    cmd: echo deploy
+    exec: human
+`
+
+function makeRoot(): string {
+  const root = mkdtempSync(join(tmpdir(), 'lcoder-edit-'))
+  dirs.push(root)
+  writeFileSync(join(root, 'env.yaml'), ENV, 'utf8')
+  return root
+}
+
+type Runner = (c: unknown) => Promise<{ code: number; stdout: string; stderr: string }>
+
+function call(
+  toolName: string,
+  root: string,
+  args: Record<string, unknown>,
+  run?: Runner,
+) {
+  const tools = createEditTools(root, run ? { run: run as never } : {})
+  const tool = tools.find(t => t.name === toolName)
+  if (!tool) throw new Error(`没有这个工具：${toolName}`)
+  const exec = (tool as unknown as { execute: (a: unknown, e: unknown) => Promise<unknown> })
+    .execute
+  return exec(args, {}) as Promise<Record<string, unknown>>
+}
+
+describe('签约态工具集', () => {
+  it('提供四个工具（读取 + 写入 + 命令 + 证据）', () => {
+    expect(createEditTools(makeRoot()).map(t => t.name)).toEqual([
+      'file_read',
+      'file_edit',
+      'cmd_run',
+      'evidence_attach',
+    ])
+  })
+
+  it('file_edit 写入文件，自动建父目录', async () => {
+    const root = makeRoot()
+    const r = await call('file_edit', root, { path: 'src/deep/order.ts', content: 'export {};' })
+
+    expect(r.written).toBe(true)
+    expect(readFileSync(join(root, 'src/deep/order.ts'), 'utf8')).toBe('export {};')
+  })
+
+  it('file_edit 拒绝越界路径与绝对路径', async () => {
+    const root = makeRoot()
+    await expect(call('file_edit', root, { path: '../escape.ts', content: 'x' })).rejects.toThrow(
+      /越出仓库范围/,
+    )
+    await expect(
+      call('file_edit', root, { path: 'C:/Windows/evil.ts', content: 'x' }),
+    ).rejects.toThrow(/绝对路径/)
+    expect(existsSync(join(root, '..', 'escape.ts'))).toBe(false)
+  })
+
+  it('cmd_run 拒绝未登记的命令，并列出可用命令', async () => {
+    await expect(call('cmd_run', makeRoot(), { command_id: 'rm -rf /' })).rejects.toThrow(
+      /未登记的命令.*build\(ai-auto\)/s,
+    )
+  })
+
+  it('cmd_run 不让模型执行 human / ai-confirm 的命令', async () => {
+    const root = makeRoot()
+    await expect(call('cmd_run', root, { command_id: 'deploy-prod' })).rejects.toThrow(
+      /只能由人执行/,
+    )
+    await expect(call('cmd_run', root, { command_id: 'test' })).rejects.toThrow(/需要人确认/)
+  })
+
+  it('cmd_run 对 ai-auto 命令执行并把结果摘要返回', async () => {
+    const run = vi.fn().mockResolvedValue({ code: 0, stdout: 'all good', stderr: '' })
+    const r = await call('cmd_run', makeRoot(), { command_id: 'build' }, run)
+
+    expect(run).toHaveBeenCalledTimes(1)
+    expect(r).toMatchObject({ command_id: 'build', ok: true, code: 0, stdout: 'all good' })
+  })
+
+  it('cmd_run 失败时 ok 为 false，不抛错（失败是正常结果）', async () => {
+    const run = vi.fn().mockResolvedValue({ code: 2, stdout: '', stderr: 'boom' })
+    const r = await call('cmd_run', makeRoot(), { command_id: 'build' }, run)
+    expect(r.ok).toBe(false)
+    expect(r.code).toBe(2)
+  })
+
+  it('evidence_attach 落到 evidence/<task>/<kind>.log 并清洗文件名', async () => {
+    const root = makeRoot()
+    const r = await call('evidence_attach', root, {
+      task_id: 'T-014',
+      kind: 'Build Output',
+      content: 'ok',
+    })
+
+    expect(r.path).toBe('evidence/T-014/build-output.log')
+    expect(readFileSync(join(root, 'evidence/T-014/build-output.log'), 'utf8')).toBe('ok')
+    expect(safeEvidenceName('../../etc/passwd')).toBe('------etc-passwd')
+  })
+
+  it('evidence_attach 的 task_id 非法直接拒绝（join 会吃掉 ../，必须在原始输入上校验）', async () => {
+    const err = await call('evidence_attach', makeRoot(), {
+      task_id: '../x',
+      kind: 'build',
+      content: 'x',
+    }).then(
+      () => null,
+      (e: Error) => e,
+    )
+
+    expect(err).not.toBeNull()
+    expect(String(err?.message)).toContain('任务编号')
+  })
+
+  it('evidence 目录不存在时自动创建', async () => {
+    const root = makeRoot()
+    mkdirSync(join(root, 'evidence'), { recursive: true })
+    const r = await call('evidence_attach', root, { task_id: 'T-01', kind: 'test', content: 'x' })
+    expect(r.bytes).toBe(1)
+  })
+})
