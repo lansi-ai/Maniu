@@ -26,7 +26,7 @@ fi
 # 看不见还没提交的改动，而那恰恰是最该被抓住的。
 changed=$(git diff --name-only "$UPSTREAM_REF" \
   | grep -v '^lcoder/' \
-  | grep -v '^packages/lcoder-' || true)
+  | grep -v '^packages/lcoder/' || true)
 
 # 已登记的接触面（去掉注释与空行）
 listed=""
