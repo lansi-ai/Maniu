@@ -10,6 +10,7 @@ import { Context } from '@deepseek-ai/cordis'
 import { SidebarRightTabRegistry } from '@deepseek-ai/dsh-client-ui-sidebar-right/src/client/tab-registry.ts'
 import { apply, inject } from '../src/client/index.ts'
 import { WORKSPACE_ID, WORKSPACE_KIND } from '../src/client/definition.ts'
+import { Shell } from '../src/client/shell/Shell.tsx'
 import { WorkspaceBody } from '../src/client/WorkspaceBody.tsx'
 import { en, zh } from '../src/client/locales.ts'
 
@@ -21,9 +22,10 @@ interface Recorded {
   component: unknown
 }
 
-async function boot() {
+async function boot(config: { shell?: boolean } = { shell: false }) {
   const ctx = new Context()
   const tabs = new SidebarRightTabRegistry(ctx)
+  const selectPanel = vi.fn()
   const registered: Recorded[] = []
   const slots = {
     inject: vi.fn((_name: string, register: () => () => void) => register()),
@@ -46,14 +48,15 @@ async function boot() {
   ctx.provide('locale', locale as never)
   // 正文注册时会把 workspaceFiles 窄化成投影面；这里只看注册形状，远程面给空壳即可。
   ctx.provide('remote', { workspaceFiles: {} } as never)
-  const fiber = ctx.plugin({ inject: [...inject], apply })
+  ctx.provide('layout', { selectPanel } as never)
+  const fiber = ctx.plugin({ inject: [...inject], apply }, config)
   await fiber.await()
-  return { ctx, tabs, registered, dictionaries, fiber, slots, locale }
+  return { ctx, tabs, registered, dictionaries, fiber, slots, locale, selectPanel }
 }
 
 describe('@lcoder/workspace apply', () => {
-  it('把页签类型、两本词典、正文都挂上去', async () => {
-    const h = await boot()
+  it('shell: false 时把页签类型、两本词典、正文都挂上去', async () => {
+    const h = await boot({ shell: false })
     try {
       expect(h.tabs.get(WORKSPACE_KIND)?.id).toBe(WORKSPACE_ID)
       expect(h.dictionaries.get('lcoderWorkspace')).toEqual({ zh, en })
@@ -68,8 +71,24 @@ describe('@lcoder/workspace apply', () => {
     } finally { await h.fiber.dispose() }
   })
 
+  it('默认注册整壳主面板并选中 lcoder-home', async () => {
+    const h = await boot({ shell: true })
+    try {
+      expect(h.dictionaries.get('lcoderWorkspace')).toEqual({ zh, en })
+      expect(h.registered).toHaveLength(1)
+      expect(h.registered[0]).toMatchObject({
+        name: 'main',
+        key: 'lcoder-home',
+        locale: 'lcoderWorkspace',
+        component: Shell,
+      })
+      expect(h.selectPanel).toHaveBeenCalledWith('lcoder-home')
+      expect(h.tabs.get(WORKSPACE_KIND)).toBeUndefined()
+    } finally { await h.fiber.dispose() }
+  })
+
   it('卸载后三处注册都不留痕，所以重载是安全的', async () => {
-    const h = await boot()
+    const h = await boot({ shell: false })
     await h.fiber.dispose()
     expect(h.tabs.get(WORKSPACE_KIND)).toBeUndefined()
     expect(h.registered).toEqual([])
