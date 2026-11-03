@@ -127,3 +127,19 @@ describe('起草态工具集', () => {
     ).rejects.toThrow()
   })
 })
+
+describe('还没有 .spec 的仓库', () => {
+  it('spec_query 给空规格库加下一步，而不是 ENOENT', async () => {
+    const parent = mkdtempSync(join(tmpdir(), 'lcoder-nospec-'))
+    dirs.push(parent)
+    const root = join(parent, '.spec')
+
+    const empty = await call('spec_query', root, {})
+    expect(empty).toMatchObject({ count: 0, rules: [] })
+    expect(empty.states).toBeUndefined()
+    expect(String(empty.note)).toContain('task_draft')
+
+    const withStates = await call('spec_query', root, { include_states: true })
+    expect(withStates).toMatchObject({ count: 0, rules: [], states: [] })
+  })
+})

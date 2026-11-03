@@ -21,6 +21,7 @@ import { Env } from '../schema/spec.js'
 import type { Command } from '../schema/spec.js'
 import { resolveRoot } from '../kernel/spec-root.js'
 import type { RootInput } from '../kernel/spec-root.js'
+import { assertTaskId } from '../kernel/task-store.js'
 
 const renderJson = (_args: unknown, value: unknown): { type: 'text'; text: string }[] => [
   { type: 'text', text: JSON.stringify(value, null, 2) },
@@ -79,19 +80,6 @@ export function safeEvidenceName(kind: string): string {
     throw new Error(`非法的证据类型名：${kind}`)
   }
   return cleaned
-}
-
-/**
- * 任务编号必须在校验**原始输入**，不能先 join 再校验——
- * `path.join('evidence', '../x')` 会归一化成 `x`，越界校验就形同虚设。
- */
-const TASK_ID = /^[A-Z]+-\d{2,}$/
-
-export function assertTaskId(id: string): string {
-  if (!TASK_ID.test(id)) {
-    throw new Error(`非法的任务编号：${id}（应形如 T-014）`)
-  }
-  return id
 }
 
 function loadEnv(root: string): Env {
@@ -211,6 +199,7 @@ export function createEditTools(rootInput: RootInput, deps: EditToolDeps = {}): 
       // oxlint-disable-next-line typescript/require-await -- execute 的契约要求返回 Promise（ToolDefinition.execute），这里是同步实现。
       async execute(args, exec) {
         const root = resolveRoot(rootInput, exec)
+        // 编号先校验再 join：`join('evidence', '../x')` 归一化后越界校验就形同虚设。
         const taskId = assertTaskId(args.task_id)
         const taskDir = resolveInsideRoot(root, join('evidence', taskId))
         const name = safeEvidenceName(args.kind)

@@ -98,6 +98,55 @@ export function openTask(input: OpenTaskInput): Task {
 
 // ── 落盘 ────────────────────────────────────────────────────
 
+/** 任务编号的唯一形态：与规格条目同一套稳定编号（T-01 / DEMO-014）。 */
+const TASK_ID = /^[A-Z]+-\d{2,}$/
+
+/**
+ * 校验任务编号形态，不合法就抛。
+ * @param id - 调用方（模型或 UI）给出的编号。
+ * @returns 原样返回校验过的编号。
+ */
+export function assertTaskId(id: string): string {
+  if (!TASK_ID.test(id)) {
+    throw new Error(`非法的任务编号：${id}（应形如 T-014）`)
+  }
+  return id
+}
+
+/**
+ * 下一个可用的 `T-<序号>` 编号：取现有 T- 编号的最大序号加一，两位起排。
+ * 其它前缀（如 `DEMO-01`）不参与计数，示例数据不会挤占正式编号。
+ * @param tasks - 规格库里已有的任务。
+ * @returns 未被占用的编号。
+ */
+export function nextTaskId(tasks: readonly Task[]): string {
+  let max = 0
+  for (const task of tasks) {
+    const digits = /^T-(\d+)$/.exec(task.id)?.[1]
+    if (digits !== undefined) max = Math.max(max, Number.parseInt(digits, 10))
+  }
+  return `T-${String(max + 1).padStart(2, '0')}`
+}
+
+/**
+ * 标题查重键：空白一律不算差异，比较不区分大小写——中文标题里的空格常常只是
+ * 打字噪声，把连续空白换成一个空格仍会判成两个任务。
+ */
+function titleKey(title: string): string {
+  return title.toLowerCase().replace(/\s+/g, '')
+}
+
+/**
+ * 按标题找已存在的任务——立项时同一个诉求写两遍是常见的重复来源。
+ * @param tasks - 规格库里已有的任务。
+ * @param title - 准备新建的标题。
+ * @returns 命中的既有任务；没有则 undefined。
+ */
+export function findByTitle(tasks: readonly Task[], title: string): Task | undefined {
+  const key = titleKey(title)
+  return tasks.find(task => titleKey(task.title) === key)
+}
+
 export function taskPath(root: string, id: string): string {
   return join(root, 'tasks', `${id}.yaml`)
 }
