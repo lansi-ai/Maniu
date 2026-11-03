@@ -53,15 +53,15 @@ tracks:
       note: B 级；规则 R-01, R-02；证据 typecheck, vitest, lint
     - id: T-03
       title: 三栏共享选中项：点任务看它的契约与证据
-      status: todo
+      status: done
       face: 用户端
       type: 开发
       owner: lance
       created: '2026-11-02'
-      date: ''
+      date: '2026-11-03'
       dep: []
       inferred: false
-      note: B 级；规则 R-02；证据 vitest
+      note: 被 T-05/T-08 外壳取代：单面板 + 抽屉，任务选中与详情/悬浮对话已承担；三栏共享选中项不再维护
     - id: T-05
       title: LCoder 专属外壳：项目切换 + 任务板 + 悬浮对话
       status: done
@@ -86,15 +86,26 @@ tracks:
       note: B 级；任务/规则/项目信息/打开仓库与工作区会话已接；密码只存引用，本机 local.yaml 缺失时显示未配置；真实悬浮对话消息拆 T-08；workspace README/快照随 T-08 补；证据 typecheck(5), vitest(107), lint, test:docs(21), smoke（真实 DEMO-01、项目信息、打开仓库通过）
     - id: T-08
       title: 悬浮对话接真实会话消息
-      status: todo
+      status: done
       face: 用户端
       type: 开发
       owner: lance
       created: '2026-11-03'
-      date: ''
+      date: '2026-11-03'
       dep: [T-06]
       inferred: false
-      note: B 级；把悬浮对话从静态消息换成真实会话：选中任务后发送启动咒语并渲染消息；补 workspace README 与快照；证据 typecheck, vitest, lint, test:docs, smoke
+      note: B 级；真实会话发送/事件窗口渲染/续聊已接；运行状态来自会话快照；kernel file_read/file_edit 改按仓库根；desktop profile 预设已切 @lcoder/kernel（旧 lcoder 链接待 T-09 清理）；README/快照待 T-09；证据 typecheck(5), vitest(108), lint, test:docs(21), smoke（助手读 E:/Projects/LCoder/.spec 与代码）
+    - id: T-09
+      title: README/快照与旧预设收口
+      status: todo
+      face: 用户端
+      type: 文档
+      owner: lance
+      created: '2026-11-03'
+      date: ''
+      dep: [T-08]
+      inferred: false
+      note: B 级；更新 workspace/kernel README 反映外壳、项目信息、打开仓库、真实会话与文件根修复；补快照；清理 desktop profile 旧 lcoder 链接与残留；证据 typecheck, vitest, lint, test:docs
     - id: T-07
       title: 项目信息抽屉 + project.yaml + 去掉左栏
       status: done
