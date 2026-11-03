@@ -15,8 +15,8 @@ English | [中文](active-context.zh.md)
 - **Offline board**: `docs/tasks-html/index.html` (double-click to open; contains overview, status board, hierarchy tree, matrix, and filters).
 - **Regeneration command**: `python scripts/build-tasks-html.py`.
 
-- **Current focus**: T-06 wiring the LCoder shell to real `.spec` data and sessions (todo).
-- **Completed**: T-01 file projection; T-02 host mount; T-04 specification root and documentation gates; T-05 LCoder shell (demo data); T-07 project info drawer, left-rail removal, and the `.spec/project.yaml` schema.
+- **Current focus**: T-08 wiring the floating conversation to a real session (todo).
+- **Completed**: T-01 file projection; T-02 host mount; T-04 specification root and documentation gates; T-05 LCoder shell; T-06 real `.spec`/`project.yaml`/workspace-session data; T-07 project info drawer and the `.spec/project.yaml` schema.
 - **Next step**: see §04.
 
 ## 03. Key decisions and architectural context (Key Decisions & Context)
@@ -30,19 +30,21 @@ English | [中文](active-context.zh.md)
   - The LCoder shell direction is approved: project switch + task board as the first screen; a task opens a conversation with the dev-flow startup prompt; during the modification phase the main window becomes a floating conversation window while the task board window stays; only Settings is retained.
   - The shell occupies the `lcoder-home` main panel by default; `shell: false` falls back to the old right-sidebar workbench tab. The desktop profile disables `ui-sidebar` so the shell's own left rail is the only navigation.
   - Project info lives in `.spec/project.yaml`; password and token fields store only references (`passwordRef`). The drawer masks them by default and the eye reveals a locally resolved value, never committed and never sent to the model.
+  - The shell reads real tasks/rules from the session workspace's `.spec` and project info from `.spec/project.yaml`. The project picker's "Open repository" creates or reuses a workspace and a session so a new repository can be read without leaving the shell.
 - **Risks and technical debt**:
   - The contract-signing channel is not implemented; P3 requires writing YAML by hand.
   - `task_transition` has no tool entry.
   - The product example `DEMO-01` is in `drafting` with no contract; the example `env.yaml` is in place.
   - The edit tools still resolve `file_read` / `file_edit` against the specification root; the real-repository acceptance step must confirm whether they should use the repository root.
   - The desktop profile still links the old `WorkBuddy/LCoder` package alongside the current `@lcoder/*` packages; the old preset can be removed once the shell is the only LCoder surface.
-  - The shell's first version uses demo data; T-06 wires projects/tasks and the project-info drawer to the session workspace's `.spec`/`project.yaml`, and the floating conversation to a real session.
-  - `passwordRef` resolution from `.spec/local.yaml` or environment variables is not implemented yet; the drawer currently shows demo values.
+  - The floating conversation still renders static messages; T-08 wires it to a real session and sends the startup prompt.
+  - `.spec/local.yaml` is absent in the demo repo, so the drawer's eye shows 未配置; the local resolution path is implemented but unexercised.
+  - The workspace README and snapshots still describe the old right-bar workbench tab; T-08 updates them.
 
 ## 04. Next immediate actions (Next Immediate Actions)
 
-- **Currently working on**: T-06, replacing the shell's demo data with the session workspace's real `.spec`/`project.yaml` projection and using a real session for the floating conversation.
-- **About to execute**: read `.spec/project.yaml` for the project-info drawer, resolve `passwordRef` locally, reuse `loadWorkspaceProjection` for tasks, bind the selected task to a session; keep the shell's layout and prompt generation unchanged; run `pnpm typecheck` / `pnpm lint` / `pnpm exec vitest run packages/lcoder` / `pnpm run test:docs` before closing the task.
+- **Currently working on**: T-08, replacing the floating conversation's static messages with a real session and sending the dev-flow startup prompt.
+- **About to execute**: bind the selected task to the workspace session, send the prompt through the session controller, render real messages in the floating window, and update the workspace README/snapshots; run `pnpm typecheck` / `pnpm lint` / `pnpm exec vitest run packages/lcoder` / `pnpm run test:docs` before closing the task.
 - **Development evidence**: gate output is recorded in the task note in `docs/tasks.yaml` or the commit message; `.spec/evidence` serves product tasks only.
 - **Board regeneration**: after a development status change, edit `docs/tasks.yaml` first, then run `python scripts/build-tasks-html.py`.
 - **Documentation gates**: green after T-02 and T-04; package READMEs and bilingual pairs must stay green whenever documents change.
