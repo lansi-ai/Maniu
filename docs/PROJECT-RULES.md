@@ -1,123 +1,125 @@
-# LCoder 项目规则（PROJECT-RULES）
+# LCoder project rules (PROJECT-RULES)
 
-> 本文件是项目规则的单一入口。通用纪律（红线、任务分级、提交纪律）由 dev-flow 的 `task-flow` 技能单源定义，本文只写项目专属约束与落地路径。
+English | [中文](PROJECT-RULES.zh.md)
 
-## 0. 项目快照（开工必知）
+> This file is the single entry point for project rules. The generic discipline (red lines, task grading, commit discipline) is defined by the `task-flow` skill from dev-flow; this document records only project-specific constraints and where they land.
 
-- **产品**：LCoder —— 面向 Windows 桌面端的规格驱动开发工作台，把 `.spec` 规格库、任务状态机与 agent 工具面收放做成 DeepSeek Harness 的插件层。
-- **技术栈**：TypeScript（ESM）· Node ≥24.9 · pnpm workspaces · Cordis · React 18
-- **基线版本**：DeepSeek Harness `0.2.2-alpha.2`，commit `ce7073d5`（2026-10-30）
-- **当前主线**：MVP-0 —— 工作台在本地跑通，收口 T-02
-- **命名**：包名 `@lcoder/kernel`、`@lcoder/workspace`；主线分支 `lcoder/main`
-- **架构**：[UPSTREAM-BASELINE.md](../lcoder/UPSTREAM-BASELINE.md)（上游关系与接触面）、[architecture.md](architecture.md)（上游架构）
+## 0. Project snapshot (read before starting)
 
-## 1. 硬约束红线（项目专属 · 永不违反）
+- **Product**: LCoder, a specification-driven development workbench for Windows desktop, packaging the `.spec` specification library, task state machine, and agent tool-surface control as a DeepSeek Harness plugin layer.
+- **Stack**: TypeScript (ESM) · Node ≥24.9 · pnpm workspaces · Cordis · React 18
+- **Baseline**: DeepSeek Harness `0.2.2-alpha.2`, released 2026-10-30
+- **Current main line**: MVP-0, getting the workbench running locally and closing T-02
+- **Naming**: packages `@lcoder/kernel` and `@lcoder/workspace`; main branch `lcoder/main`
+- **Architecture**: [UPSTREAM-BASELINE.md](../lcoder/UPSTREAM-BASELINE.md) (upstream relationship and contact surface), [architecture.md](architecture.md) (upstream architecture)
 
-- 🚫 不改任何上游文件；确需修改必须先进 [contact-surface.txt](../lcoder/contact-surface.txt)，并在 [UPSTREAM-BASELINE.md](../lcoder/UPSTREAM-BASELINE.md) §3 写明「改什么 / 为什么」。
-- 🚫 `.spec` 下的任务与规格 YAML 是 **LCoder 产品数据**的唯一事实源；UI 只读不写，状态机判断不进 UI。它不是本仓库的开发任务台账。
-- 🚫 目标平台是 Windows 桌面端；路径处理按 Windows 优先（盘符、反斜杠、大小写不敏感）。
-- 🚫 `contract_sign` 永不注册为模型工具；契约只能由人签署，`by: agent` 视为无效。
-- 🚫 能新增就不修改；改上游只改装配层（patch 层、聚合 tsconfig），不碰组件内部实现。
-- 🚫 新增接触点必须人工评审；`upstream-diff.sh` 只报冲突，不判断改动深度。
-- ✅ 规格条目必须有出处与代码落点；没有出处的条目不得置为 `confirmed`。
+## 1. Hard red lines (project-specific · never violate)
 
-## 2. 目录放置
+- 🚫 Do not modify any upstream file. When a modification is genuinely required, first add the file to [contact-surface.txt](../lcoder/contact-surface.txt) and record what and why in [UPSTREAM-BASELINE.md](../lcoder/UPSTREAM-BASELINE.md) §3.
+- 🚫 The task and specification YAML under `.spec` is the single source of truth for **LCoder product data**; the UI only reads it, and state-machine decisions never live in the UI. It is not this repository's development task ledger.
+- 🚫 The target platform is Windows desktop; handle paths Windows-first (drive letters, backslashes, case-insensitive).
+- 🚫 `contract_sign` is never registered as a model tool; only a human may sign a contract, and `by: agent` is invalid.
+- 🚫 Prefer adding over modifying; upstream changes touch only the assembly layer (patch layer, aggregate tsconfig), never component internals.
+- 🚫 Every new contact point requires human review; `upstream-diff.sh` reports conflicts but cannot judge how deep a change goes.
+- ✅ Every specification entry needs a source and a code binding; an entry without a source may not be `confirmed`.
 
-| 你要创建的内容 | 放这里 |
+## 2. Directory placement
+
+| What you create | Where it goes |
 |---|---|
-| 规格条目 | `.spec/spec/rules.yaml` |
-| 状态机定义 | `.spec/spec/states/*.yaml` |
-| 产品任务数据（LCoder 运行时） | `.spec/tasks/T-xx.yaml` |
-| 产品任务契约 | `.spec/contracts/<ID>.contract.yaml` |
-| 产品任务证据 | `.spec/evidence/<ID>/<name>.log` |
-| 验收命令与环境 | `.spec/env.yaml`；敏感值写 `.spec/local.yaml`，不提交 |
-| 宿主插件（agent 工具） | `packages/lcoder/kernel/src/` |
-| 浏览器侧插件（工作台 UI） | `packages/lcoder/workspace/src/client/` |
-| 二开装配、基线与脚本 | `lcoder/` |
-| 仓库治理文档 | `docs/PROJECT-RULES.md`、`docs/active-context.md`、`docs/prd-and-design.md` |
-| 开发台账（dev-flow） | `docs/tasks.yaml`（人维护，开发进度唯一源） |
-| 离线任务看板 | `docs/tasks-html/index.html`（由 `docs/tasks.yaml` 生成，勿手改） |
-| 包测试 | `packages/lcoder/<包>/tests/` |
-| 排障坑档 | `lcoder/PITFALLS.md` |
+| Specification entries | `.spec/spec/rules.yaml` |
+| State-machine definitions | `.spec/spec/states/*.yaml` |
+| Product task data (LCoder runtime) | `.spec/tasks/T-xx.yaml` |
+| Product task contracts | `.spec/contracts/<ID>.contract.yaml` |
+| Product task evidence | `.spec/evidence/<ID>/<name>.log` |
+| Acceptance commands and environment | `.spec/env.yaml`; sensitive values go in `.spec/local.yaml`, which is not committed |
+| Host plugin (agent tools) | `packages/lcoder/kernel/src/` |
+| Browser-side plugin (workbench UI) | `packages/lcoder/workspace/src/client/` |
+| Second-development assembly, baseline, and scripts | `lcoder/` |
+| Repository governance documents | `docs/PROJECT-RULES.md`, `docs/active-context.md`, `docs/prd-and-design.md` |
+| Development ledger (dev-flow) | `docs/tasks.yaml` (human-maintained, the single source of development progress) |
+| Offline task board | `docs/tasks-html/index.html` (generated from `docs/tasks.yaml`, never edited by hand) |
+| Package tests | `packages/lcoder/<package>/tests/` |
+| Troubleshooting notebook | `lcoder/PITFALLS.md` |
 
-- 包必须放在 `packages/<组>/<包>` 两级；`pnpm-workspace.yaml` 只识别 `packages/*/*`。
-- 跨包引用只用包名与导出，不直接 import 上游内部路径。
+- Packages live at `packages/<group>/<package>`; `pnpm-workspace.yaml` only recognizes `packages/*/*`.
+- Cross-package references use package names and exports only; never import upstream internal paths.
 
-## 3. 工作流（任务分级）
+## 3. Workflow (task grading)
 
-### 任务分级
+### Task grading
 
-| 分级 | 适用范围 | 必须执行的流程 |
+| Grade | Scope | Required process |
 |---|---|---|
-| A | 契约/架构/规则变更（`!`）、里程碑、发版、上游升级 | 契约确认 → 全链门禁 → 台账登记 → 看板更新 → 汇报勾选 |
-| B | 常规功能开发（1–3 文件） | 契约确认（或已明确则降级内部自检）→ 编码 → 门禁 → 看板一行收口 |
-| C | 小修 ≤3 文件、无契约/架构变更 | 直接修 → 门禁 → 提交；**不强制更新看板**（除非碰里程碑，日末/发版统一收口）；坑档可当日批次末统一写 |
+| A | Contract/architecture/rule changes (`!`), milestones, releases, upstream upgrades | contract confirmation → full-chain gates → ledger entry → board update → report checklist |
+| B | Ordinary feature work (1–3 files) | contract confirmation (or an internal check when already explicit) → coding → gates → one board line |
+| C | Small fix ≤3 files, no contract/architecture change | fix → gates → commit; board update not mandatory (unless it touches a milestone, then batched at day end/release); the pitfalls notebook may be batched at day end |
 
-分级与任务台账的 `grade` 字段一致；台账唯一源是 `.spec/tasks/*.yaml`。
+The grade matches the `grade` field in the development ledger `docs/tasks.yaml`. The single source of development progress is `docs/tasks.yaml`; `.spec/tasks/*.yaml` is product data.
 
-### 开工流程（A/B 类）
+### Start process (grades A/B)
 
-1. 读 [active-context.md](active-context.md)，确认与「当前焦点/下一步」一致。
-2. 读 `docs/tasks.yaml` 与 `docs/PROJECT-RULES.md`，确认本任务的分级、范围与所需证据。`.spec` 只在开发 LCoder 规格库功能时读取；示例任务 `DEMO-01` 不是开发任务。
-3. 契约确认：一句话总结 Input/Output、异常边界、MVP 边界；用户已明确授权 → 降级内部自检。
-4. 编码：契约先行 → 实现 → 测试；单任务 1–3 文件；禁留 TODO。
+1. Read [active-context.md](active-context.md) and confirm the work matches the current focus and next step.
+2. Read `docs/tasks.yaml` and `docs/PROJECT-RULES.md`; confirm the task's grade, scope, and required evidence. Read `.spec` only when developing LCoder's specification-library features; the example task `DEMO-01` is not a development task.
+3. Confirm the contract in one sentence: input/output, failure boundaries, MVP boundary; when the user has explicitly authorized the scope, downgrade to an internal check.
+4. Code: contract first → implementation → tests; one task touches 1–3 files; no TODO stubs.
 
-### 完成门禁（必过）
+### Completion gates (must pass)
 
-- [ ] `pnpm typecheck` 全绿
-- [ ] `pnpm lint` 全绿
-- [ ] `pnpm exec vitest run packages/lcoder` 全绿；改上游共享面时跑全仓 `pnpm test`
-- [ ] 文档或包 README 变更时 `pnpm run test:docs` 全绿
-- [ ] 开发证据：门禁命令输出记录在 `docs/tasks.yaml` 的任务 note 或提交说明；`.spec/evidence` 只服务产品任务
-- [ ] 若本次变更同时触及产品任务（`.spec`），按 kernel 的 P1/P3/P4 另行验证；开发任务本身不写 `.spec` 契约
-- [ ] **双源同步**：契约 / 统计口径 / 目录约定 / 异常策略 / 扫描范围变更时，同时更新 [prd-and-design.md](prd-and-design.md) 与 `docs/PROJECT-RULES.md`——只改一处即视为漂移
-- [ ] 开发台账更新：先改 `docs/tasks.yaml`，再跑 `python scripts/build-tasks-html.py`；`docs/active-context.md` 只更新当前焦点。产品数据（`.spec`）的变更另走产品流程，不写进开发台账
-- [ ] bug 修复必写坑档 [PITFALLS.md](../lcoder/PITFALLS.md)（四段式，编号顺延）
-- [ ] 给最终汇报：变更清单 + commit 指令
+- [ ] `pnpm typecheck` is green
+- [ ] `pnpm lint` is green
+- [ ] `pnpm exec vitest run packages/lcoder` is green; run the repository-wide `pnpm test` when an upstream shared surface changes
+- [ ] `pnpm run test:docs` is green when documents or package READMEs change
+- [ ] Development evidence: gate output is recorded in the `docs/tasks.yaml` task note or the commit message; `.spec/evidence` serves product tasks only
+- [ ] When the change also touches a product task (`.spec`), verify P1/P3/P4 through the kernel; the development task itself does not write a `.spec` contract
+- [ ] **Dual-source sync**: when a contract, counting rule, directory convention, failure policy, or scan scope changes, update [prd-and-design.md](prd-and-design.md) and `docs/PROJECT-RULES.md` together; changing only one is drift
+- [ ] Update the development ledger: edit `docs/tasks.yaml` first, then run `python scripts/build-tasks-html.py`; `docs/active-context.md` updates only the current focus. Product data (`.spec`) follows the product process and does not enter the development ledger
+- [ ] Bug fixes always update the pitfalls notebook [PITFALLS.md](../lcoder/PITFALLS.md) (four-part form, next number in sequence)
+- [ ] Final report: change list plus commit instructions
 
-### 特殊场景
+### Special cases
 
-- 上游新版本：按 [UPSTREAM-BASELINE.md](../lcoder/UPSTREAM-BASELINE.md) §4 演练——`pnpm install`、`pnpm build`、`pnpm --filter @lcoder/kernel test`、`./lcoder/scripts/upstream-diff.sh`，全绿才合回 `lcoder/main`。
-- 规则演进：技术栈、目录或流程变化 → 同步更新本文件对应节。
-- 看板膨胀：`docs/active-context.md` 超 100 行 → 先归档完成史，再考虑拆轨。
+- Upstream new release: rehearse according to [UPSTREAM-BASELINE.md](../lcoder/UPSTREAM-BASELINE.md) §4 — `pnpm install`, `pnpm build`, `pnpm exec vitest run packages/lcoder`, `./lcoder/scripts/upstream-diff.sh`; merge back to `lcoder/main` only when everything is green.
+- Rule evolution: stack, directory, or process changes update the matching section of this file.
+- Board growth: when `docs/active-context.md` exceeds 100 lines, archive completed history first, then consider splitting tracks.
 
-## 4. 提交规范
+## 4. Commit conventions
 
-- 格式：`<type>(<scope>): <summary>` ≤50 字符；契约破坏性变更 type 后加 `!`。
-- type：feat / fix / docs / refactor / style / chore / test / build。
-- scope：`kernel` / `workspace` / `lcoder` / `spec` / `docs`。
-- 原子提交：完成看板一个节点（1–3 文件）即 commit；禁混提。
-- 多窗口并行：一条功能线 = 分支 + worktree 独立目录；并行 ≤3 线；共享契约文件只在基线改。
+- Format: `<type>(<scope>): <summary>` ≤50 characters; destructive contract changes add `!` after the type.
+- Types: feat / fix / docs / refactor / style / chore / test / build.
+- Scopes: `kernel` / `workspace` / `lcoder` / `spec` / `docs`.
+- Atomic commits: commit as soon as one board node is complete (1–3 files); never mix unrelated changes.
+- Parallel windows: one feature line = one branch + one worktree directory; at most 3 lines in parallel; shared contract files change only on the baseline.
 
-## 5. 字典索引
+## 5. Dictionary index
 
-| 文档 | 用途 |
+| Document | Purpose |
 |---|---|
-| [active-context.md](active-context.md) | 当前看板（开工第一读） |
-| [prd-and-design.md](prd-and-design.md) | 产品与方案口径 |
-| `docs/tasks.yaml` | 开发台账（dev-flow，唯一源） |
-| `docs/tasks-html/index.html` | 离线任务看板（由开发台账生成，勿手改） |
-| `.spec/spec/rules.yaml` | 产品规格条目（LCoder 运行时） |
-| `.spec/tasks/` | 产品任务数据（LCoder 运行时，非开发台账） |
-| `.spec/contracts/` | 任务契约 |
-| `.spec/evidence/` | 收口证据 |
-| `.spec/env.yaml` | 验收命令与环境 |
-| [UPSTREAM-BASELINE.md](../lcoder/UPSTREAM-BASELINE.md) | 上游基线、接触面、升级演练 |
-| [contact-surface.txt](../lcoder/contact-surface.txt) | 改过的上游文件清单 |
-| [RUN.md](../lcoder/RUN.md) | 启动与验证手册 |
-| [PITFALLS.md](../lcoder/PITFALLS.md) | 排障坑档（grep 坑号） |
-| [architecture.md](architecture.md) | 上游架构（改 `packages/` 前必读） |
-| [AGENTS.md](AGENTS.md) | 上游文档标准 |
+| [active-context.md](active-context.md) | Current board (read first when starting) |
+| [prd-and-design.md](prd-and-design.md) | Product and design decisions |
+| `docs/tasks.yaml` | Development ledger (dev-flow, single source) |
+| `docs/tasks-html/index.html` | Offline task board (generated from the development ledger, never edited by hand) |
+| `.spec/spec/rules.yaml` | Product specification entries (LCoder runtime) |
+| `.spec/tasks/` | Product task data (LCoder runtime, not the development ledger) |
+| `.spec/contracts/` | Task contracts |
+| `.spec/evidence/` | Completion evidence |
+| `.spec/env.yaml` | Acceptance commands and environment |
+| [UPSTREAM-BASELINE.md](../lcoder/UPSTREAM-BASELINE.md) | Upstream baseline, contact surface, upgrade drill |
+| [contact-surface.txt](../lcoder/contact-surface.txt) | List of modified upstream files |
+| [RUN.md](../lcoder/RUN.md) | Startup and verification manual |
+| [PITFALLS.md](../lcoder/PITFALLS.md) | Troubleshooting notebook (grep the pitfall number) |
+| [architecture.md](architecture.md) | Upstream architecture (read before changing `packages/`) |
+| [AGENTS.md](AGENTS.md) | Upstream documentation standard |
 
-## 6. 环境注意
+## 6. Environment notes
 
-- Node 要求 `>=24.9.0`；本机用 `pnpm env use --global 24`，不要改系统 Node。
-- 首次安装 `pnpm install`；首次启动前跑 `pnpm run build:artifacts`。
-- 启动：`pnpm dsh web --patch lcoder/cordis.patch.yml --no-open --port 3080`。
-- `@lcoder/*` 要在 `~/.dsh/profiles/web` 用 `link:` 接入；换机或重建 `~/.dsh` 后重做。
-- Windows 上 kill `dev:web` 不会带走子进程；换实例前按进程树清理，再确认端口空闲。
-- 不要给 `dev:web` 接管道；输出重定向到文件再读，否则日志会被缓冲到进程结束。
-- 插件路径是批量 combo URL，不是 `plugins/<name>/client.js`；单独请求会 404。
-- 文档门禁：`pnpm run test:docs`；包 README 必须有 `kind` / `description` frontmatter 与 `Summary` / `Table of Contents` / `Dev Note` 骨架。
-- 看板：先改 `docs/tasks.yaml`，再跑 `python scripts/build-tasks-html.py`；产物是 `docs/tasks-html/index.html`。`.spec` 不参与看板生成。
-- 上游文档要求每段一个物理行（`verify-md-wrap`）；新增 `docs/` 文档按此写。
+- Node must be `>=24.9.0`; on this machine use `pnpm env use --global 24` and do not change the system Node.
+- First install: `pnpm install`; before the first launch run `pnpm run build:artifacts`.
+- Launch: `pnpm dsh web --patch lcoder/cordis.patch.yml --no-open --port 3080`.
+- `@lcoder/*` must be linked into `~/.dsh/profiles/web` with `link:`; repeat after changing machines or rebuilding `~/.dsh`.
+- On Windows, killing `dev:web` does not kill child processes; clean the process tree and confirm the port is free before starting another instance.
+- Do not pipe `dev:web`; redirect output to a file and read it, or the log stays buffered until the process exits.
+- Plugin paths are batch combo URLs, not `plugins/<name>/client.js`; a single request returns 404.
+- Documentation gate: `pnpm run test:docs`; package READMEs need the `kind` / `description` frontmatter and the `Summary` / `Table of Contents` / `Dev Note` skeleton.
+- Board: edit `docs/tasks.yaml` first, then run `python scripts/build-tasks-html.py`; the artifact is `docs/tasks-html/index.html`. `.spec` does not participate in board generation.
+- The upstream documentation standard requires one physical line per paragraph (`verify-md-wrap`); write new `docs/` documents the same way.

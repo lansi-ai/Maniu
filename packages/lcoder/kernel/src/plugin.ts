@@ -14,6 +14,8 @@ import { createEditTools, spawnRunner } from './tools/edit-tools.js'
 import { createSpecTools } from './tools/spec-tools.js'
 import { createTaskTools } from './tools/task-tools.js'
 import { SURFACE, checkSurface } from './kernel/surface.js'
+import { resolveRoot, sessionSpecRoot } from './kernel/spec-root.js'
+import type { RootInput, SpecRootContext } from './kernel/spec-root.js'
 import { listTasks } from './kernel/task-store.js'
 import type { TaskState } from './schema/spec.js'
 
@@ -23,7 +25,12 @@ export const name = 'lcoder'
 export const inject = ['tools']
 
 export interface LcoderConfig {
-  /** `.spec` 目录本身（其下是 `tasks/`、`spec/`）。默认取进程工作目录下的 `.spec`。 */
+  /**
+   * 没有会话 cwd 时使用的 `.spec` 目录（其下是 `tasks/`、`spec/`）。
+   * 有会话时规格根固定为 `session.header.cwd/.spec`，本字段不参与。
+   * 部署可用 cordis patch 的 `!!js` 读环境变量，例如
+   * `root: !!js process.env.LCODER_SPEC_ROOT || undefined`。
+   */
   root?: string
   /** 是否在加载时打印工具面自检。默认 true。 */
   selfCheck?: boolean
@@ -44,7 +51,7 @@ interface ToolRegistry {
    * scoped registrations stay visible`。我们在 preset 作用域注册，属于 scoped，
    * restrict 盖不住。`when` 没有这个限制。
    */
-  register(definition: unknown, options?: { when?: () => boolean }): () => void
+  register(definition: unknown, options?: { when?: (context: SpecRootContext) => boolean }): () => void
 }
 
 interface PluginContext {
@@ -53,19 +60,27 @@ interface PluginContext {
 }
 
 export function apply(ctx: PluginContext, config: LcoderConfig = {}): void {
-  // 默认落在进程工作目录的 `.spec` 下，而不是工作目录本身：规格库是一个
-  // 隐藏目录，`tasks/` 与 `spec/` 都在它里面（与 spec-store / task-store 一致）。
-  const root = config.root ?? join(process.cwd(), '.spec')
+  // 备案根：没有会话 cwd 时（headless、启动自检）落在进程工作目录的 `.spec` 下，
+  // 而不是工作目录本身——规格库是一个隐藏目录，`tasks/` 与 `spec/` 都在它里面。
+  const fallbackRoot = config.root ?? join(process.cwd(), '.spec')
+  /** 每次调用按当前会话解析；没有会话时退回备案根。 */
+  const rootInput: RootInput = context => sessionSpecRoot(context, fallbackRoot)
   const tools = [
-    ...createSpecTools(root),
-    ...createTaskTools(root),
-    ...createEditTools(root, { run: spawnRunner }),
+    ...createSpecTools(rootInput),
+    ...createTaskTools(rootInput),
+    ...createEditTools(rootInput, { run: spawnRunner }),
   ]
 
   const taskId = config.taskId
+  const reportedRoots = new Set<string>()
   /** 每次求值时都重读磁盘：契约签了、任务转移了，工具面立刻跟着变。 */
-  const currentState = (): TaskState | null => {
+  const currentState = (context?: SpecRootContext): TaskState | null => {
     try {
+      const root = resolveRoot(rootInput, context)
+      if (!reportedRoots.has(root)) {
+        reportedRoots.add(root)
+        console.error(`[lcoder] 规格根：${root}`)
+      }
       const tasks = listTasks(root)
       const task = taskId ? tasks.find(t => t.id === taskId) : tasks[0]
       return task?.state ?? null
@@ -77,8 +92,8 @@ export function apply(ctx: PluginContext, config: LcoderConfig = {}): void {
   for (const tool of tools) {
     const mount = () =>
       ctx.tools.register(tool, {
-        when: () => {
-          const state = currentState()
+        when: (context) => {
+          const state = currentState(context)
           // 没有任务就没有契约可用；此时保守放开，让检查器去拦，
           // 而不是静默禁用一切——禁用会让"为什么什么都干不了"无从排查。
           if (state === null) return true
@@ -97,7 +112,7 @@ export function apply(ctx: PluginContext, config: LcoderConfig = {}): void {
     if (check.orphan.length > 0) {
       console.error(`[lcoder] 已注册但任何状态都看不到的工具：${check.orphan.join(', ')}`)
     }
-    console.error(`[lcoder] 已在 ${join(root)} 注册 ${tools.length} 个工具`)
+    console.error(`[lcoder] 已注册 ${tools.length} 个工具；无会话 cwd 时规格根 ${fallbackRoot}，有会话时取 session.header.cwd/.spec`)
   }
 
 }

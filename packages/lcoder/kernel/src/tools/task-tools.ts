@@ -16,6 +16,8 @@ import { parse as parseYaml } from 'yaml'
 import { checkP1, checkP3, checkP4 } from '../checkers/index.js'
 import type { Violation } from '../checkers/index.js'
 import { loadSpec, textCodeIndexFromDir } from '../kernel/spec-store.js'
+import { resolveRoot } from '../kernel/spec-root.js'
+import type { RootInput } from '../kernel/spec-root.js'
 import { listTasks, loadTask, saveTask, transition } from '../kernel/task-store.js'
 import { Contract } from '../schema/spec.js'
 
@@ -44,10 +46,7 @@ function loadEvidence(specRoot: string, taskId: string): Record<string, number> 
   return out
 }
 
-export function createTaskTools(specRoot: string): ToolDefinition[] {
-  /** `.spec` 的上一级就是被开发的仓库根，落点路径相对它。 */
-  const repoRoot = resolve(specRoot, '..')
-
+export function createTaskTools(specRootInput: RootInput): ToolDefinition[] {
   return [
     defineTool({
       name: 'task_read',
@@ -57,7 +56,8 @@ export function createTaskTools(specRoot: string): ToolDefinition[] {
       },
       output: { schema: { type: 'json' }, render: renderJson },
       // oxlint-disable-next-line typescript/require-await -- execute 的契约要求返回 Promise（ToolDefinition.execute），这里是同步实现。
-      async execute(args) {
+      async execute(args, exec) {
+        const specRoot = resolveRoot(specRootInput, exec)
         if (args.task_id) {
           const t = loadTask(specRoot, args.task_id)
           return {
@@ -90,7 +90,10 @@ export function createTaskTools(specRoot: string): ToolDefinition[] {
       },
       output: { schema: { type: 'json' }, render: renderJson },
       // oxlint-disable-next-line typescript/require-await -- execute 的契约要求返回 Promise（ToolDefinition.execute），这里是同步实现。
-      async execute(args) {
+      async execute(args, exec) {
+        const specRoot = resolveRoot(specRootInput, exec)
+        /** `.spec` 的上一级就是被开发的仓库根，落点路径相对它。 */
+        const repoRoot = resolve(specRoot, '..')
         const task = loadTask(specRoot, args.task_id)
 
         const violations: Violation[] = [

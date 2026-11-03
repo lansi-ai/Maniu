@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for active-context.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/active-context.md
+/activation-context-and-task-board-active-context-md:
+  en: 36905b34d205760f
+  zh: 492aca3a5d8ee9cf
+/activation-context-and-task-board-active-context-md/01-current-sprint-goal-current-sprint-goal:
+  en: 5cc7088a55be76d4
+  zh: 33000caf3f2d33ed
+/activation-context-and-task-board-active-context-md/02-task-board-task-board:
+  en: ab7f4c8bac08a539
+  zh: 15edf73149b7f838
+/activation-context-and-task-board-active-context-md/03-key-decisions-and-architectural-context-key-decisions-context:
+  en: 5e352ad1cb5ddf23
+  zh: f8a5773871de6c9a
+/activation-context-and-task-board-active-context-md/04-next-immediate-actions-next-immediate-actions:
+  en: d144d638b999a827
+  zh: 57f6072b4ffce410
+/activation-context-and-task-board-active-context-md/05-rule-self-evolution-maintenance:
+  en: 97712c237791b61c
+  zh: e4d1bb822ffb592b

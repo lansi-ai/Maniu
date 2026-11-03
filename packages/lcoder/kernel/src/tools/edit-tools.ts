@@ -19,6 +19,8 @@ import { parse as parseYaml } from 'yaml'
 
 import { Env } from '../schema/spec.js'
 import type { Command } from '../schema/spec.js'
+import { resolveRoot } from '../kernel/spec-root.js'
+import type { RootInput } from '../kernel/spec-root.js'
 
 const renderJson = (_args: unknown, value: unknown): { type: 'text'; text: string }[] => [
   { type: 'text', text: JSON.stringify(value, null, 2) },
@@ -100,7 +102,7 @@ export interface EditToolDeps {
   run?: CommandRunner
 }
 
-export function createEditTools(root: string, deps: EditToolDeps = {}): ToolDefinition[] {
+export function createEditTools(rootInput: RootInput, deps: EditToolDeps = {}): ToolDefinition[] {
   const run = deps.run ?? spawnRunner
 
   return [
@@ -115,7 +117,8 @@ export function createEditTools(root: string, deps: EditToolDeps = {}): ToolDefi
       },
       output: { schema: { type: 'json' }, render: renderJson },
       // oxlint-disable-next-line typescript/require-await -- execute 的契约要求返回 Promise（ToolDefinition.execute），这里是同步实现。
-      async execute(args) {
+      async execute(args, exec) {
+        const root = resolveRoot(rootInput, exec)
         const abs = resolveInsideRoot(root, args.path)
         const raw = readFileSync(abs, 'utf8')
         // Windows 桌面端的文件多半是 CRLF，先归一化再分行，行号与内容才稳定。
@@ -143,7 +146,8 @@ export function createEditTools(root: string, deps: EditToolDeps = {}): ToolDefi
       },
       output: { schema: { type: 'json' }, render: renderJson },
       // oxlint-disable-next-line typescript/require-await -- execute 的契约要求返回 Promise（ToolDefinition.execute），这里是同步实现。
-      async execute(args) {
+      async execute(args, exec) {
+        const root = resolveRoot(rootInput, exec)
         const abs = resolveInsideRoot(root, args.path)
         mkdirSync(dirname(abs), { recursive: true })
         writeFileSync(abs, args.content, 'utf8')
@@ -159,7 +163,8 @@ export function createEditTools(root: string, deps: EditToolDeps = {}): ToolDefi
         command_id: { type: 'string', required: true, description: 'env.yaml 里 commands[].id' },
       },
       output: { schema: { type: 'json' }, render: renderJson },
-      async execute(args) {
+      async execute(args, exec) {
+        const root = resolveRoot(rootInput, exec)
         const env = loadEnv(root)
         const command = env.commands.find(c => c.id === args.command_id)
 
@@ -198,7 +203,8 @@ export function createEditTools(root: string, deps: EditToolDeps = {}): ToolDefi
       },
       output: { schema: { type: 'json' }, render: renderJson },
       // oxlint-disable-next-line typescript/require-await -- execute 的契约要求返回 Promise（ToolDefinition.execute），这里是同步实现。
-      async execute(args) {
+      async execute(args, exec) {
+        const root = resolveRoot(rootInput, exec)
         const taskId = assertTaskId(args.task_id)
         const taskDir = resolveInsideRoot(root, join('evidence', taskId))
         const name = safeEvidenceName(args.kind)

@@ -1,74 +1,113 @@
+---
+description: "The LCoder workbench tab: a read-only three-column projection of .spec tasks and rules over the upstream workspaceFiles remote, with no model-facing contribution."
+kind: "package-reference"
+---
+
 # @lcoder/workspace
 
-LCoder 的三栏工作台，作为 **DSH 的 client UI 插件**存在。
+English | [中文](README.zh.md)
 
-## 现状
+## Summary
 
-**页签已注册，正文是三栏骨架。** 两步走的第一步（挂载）和第二步的结构部分都完成了：
+`@lcoder/workspace` adds the LCoder workbench tab to the right sidebar. The tab reads `.spec` task and rule YAML through the upstream `workspaceFiles` remote and draws three columns: tasks, specification and code bindings, and the conversation. It is read-only: state-machine decisions stay in the kernel, and the browser never writes product data. Mount it through the LCoder patch layer when you already run the kernel; it has no configuration surface and no separate Remote. Without a bound workspace the columns stay as a skeleton.
 
-| 注册项 | 位置 | 说明 |
-|---|---|---|
-| 页签类型 | `src/client/definition.ts` | kind `lcoder-workspace`，`priority: extension`，不认领任何 `dsh-resource://` 地址 |
-| 引导页入口 | 同上 `guide` | `order: 20`，点开就是本 kind |
-| 词典 | `src/client/locales.ts` | 命名空间 `lcoderWorkspace`，zh / en |
-| 正文 | `src/client/WorkspaceBody.tsx` | 三栏：任务 / 规格-代码 / 对话 |
+## Table of Contents
 
-数据面已接，走**文件投影**（`src/client/projection.ts`）：任务与规格本来就是
-kernel 落在 `.spec/` 里的 YAML（`.spec/tasks/*..yaml`、`.spec/spec/rules.yaml`），
-是唯一事实源，UI 直接读文件画出来。读文件用上游现成的 `workspaceFiles` 远程
-命名空间——**没有自建 Remote、没有 typert 生成器**。状态机判断不进 UI，
-仍归 kernel；投影面经槽位 `inject` 工厂按会话注入，没绑面或没工作区时
-三栏保持骨架态。
+- [Use this package](#use-this-package)
+- [Understand the implementation](#understand-the-implementation)
+- [Further Exploration](#further-exploration)
+- [Model Experience](#model-experience)
+- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
+- [Dev Note](#dev-note)
 
-> 路径必须与 kernel 的落盘一致（`task-store.taskPath` 与 `spec-store.saveRules`
-> 都以 `.spec` 为 root）。`projection.client.spec.ts` 里有一条断言专门锁这个，
-> 因为分叉不会有任何类型错误，只会画出错的数据。
+-----
 
-## 怎么挂上去（不改上游 patch 文件）
+<a id="use-this-package"></a>
+## Use this package
 
-上游的浏览器插件清单在 `packages/bundle/web-app/cordis.patch.yml`，我们**不碰它**。
-自己的 patch 层是仓库根的 `lcoder/cordis.patch.yml`，一次插两行——宿主侧的
-kernel（agent 工具）和浏览器侧的工作台（页签）：
+Mount the package in the LCoder patch layer and open the workbench tab in a session bound to a repository that contains `.spec`.
+
+### When to choose it
+
+Choose it when the kernel already runs in the same composition and the user needs to read tasks and rules without asking the model. Do not choose it for editing specification data or for state transitions: the package is a projection, and the kernel owns both writes and state-machine decisions.
+
+### Minimal configuration
 
 ```yaml
 - insert:
-    - id: lcoder-kernel
-      name: '@lcoder/kernel'
-
     - id: ui-lcoder-workspace
       name: '@lcoder/workspace'
 ```
 
-在仓库根启动时把它叠上去（工作目录就是规格库所在的仓库，`.spec` 的父目录）：
+| Field | Default | Meaning |
+|---|---|---|
+| (none) | — | The package has no configuration surface |
 
-```sh
-pnpm dsh web --patch lcoder/cordis.patch.yml
-```
+The package mounts as a plugin row through the patch layer; it has no `dsh plugin add` installation path.
 
-patch 层是叠加的，我们这层在 bundle 层之后应用，所以只是往清单末尾追加一行。
-`contact-surface.txt` 里不会因此多出条目——**挂载不改任何上游文件**。
+-----
 
-<small>写法已核实，见 `packages/bundle/web-app/cordis.patch.yml:298` 的 `ui-sidebar-files` 行。</small>
+<a id="understand-the-implementation"></a>
+## Understand the implementation
 
-## 上下文与产物
+<details>
+<summary>Implementation internals — click to expand</summary>
 
-- 浏览器侧依赖：`slots` / `locale` / `sidebarRightTabs`（`src/client/index.ts` 的 `inject`）
-- 打包走上游预设 `clientBundle`（`tsdown.config.ts`），产物是 `lib/client.js` 的闭包工厂格式
-- `tsc -b` 的入口在根 `tsconfig.client.json` 的 `references` 里，所以 `pnpm typecheck` 会覆盖本包
-- 改完跑：`pnpm typecheck` · `pnpm exec vitest run packages/lcoder/workspace` · `pnpm --filter @lcoder/workspace run bundle`
+The package registers three client contributions: a sidebar tab type, a locale namespace, and a pane body. The body receives a projection function through the slot `inject` factory, so the package depends on the slot runtime, the locale service, the tab registry, and the remote face, and it stays inactive when any of them is missing.
 
-## 下一步
+The data path is `src/client/projection.ts`: it calls `files.list` and `files.readPage` on the `workspaceFiles` namespace, parses the YAML, and returns rows plus per-file problems. The host resolves relative paths against the session workspace (`session.header.cwd`), and the kernel resolves its specification root from the same session header, so the tools and the UI read one `.spec`.
 
-1. 一个按会话的 store：三栏共享当前选中项（点任务看它的契约与证据）
-2. 右栏：与对话的逐条对齐（对话本身仍由会话渲染，不重复画）
-3. 数据刷新：现在进入页签时拉一次；之后可用 `workspaceFiles.changes`
-   监听 `tasks/` 目录做增量刷新
-4. 宿主侧：kernel 目前还没有挂载进宿主组合，agent 侧工具要真正跑起来
-   还差这一步（到时再定挂载方式，尽量仍走 patch 层）
+| File | Responsibility |
+|---|---|
+| `src/client/definition.ts` | Tab kind, id, priority, and guide entry |
+| `src/client/index.ts` | Service injection, locale registration, and pane slot registration |
+| `src/client/projection.ts` | Read `.spec` YAML through `workspaceFiles` and build display rows |
+| `src/client/WorkspaceBody.tsx` | Render the three columns and the empty or error states |
 
-## 参考实现
+</details>
 
-写页签时照这两个包抄，别自己发明：
+-----
 
-- `packages/client/ui-sidebar-files` —— 页签定义 + store + 组件，最完整的范例
-- `packages/client/ui-agent-preset` —— 设置页形态，与我们的"规格台"最接近
+<a id="further-exploration"></a>
+## Further Exploration
+
+- `packages/lcoder/kernel` — the host plugin that writes the YAML this package reads.
+- `packages/client/ui-sidebar-files` — the closest upstream tab implementation with a store and component.
+- `packages/client/ui-agent-preset` — a settings-page shape close to the workbench.
+- `lcoder/RUN.md` — startup, mounting, and the verification steps.
+
+-----
+
+## Model Experience
+
+### Workbench UI
+
+#### What the model sees
+
+Nothing. The workbench reads `.spec` YAML through `workspaceFiles` and renders it in the browser; it registers no tool, prompt section, or model schema.
+
+#### Token effect
+
+None; this package never builds a model request.
+
+#### KV Cache effect
+
+None; no request prefix changes.
+
+## Known Limitations and Deferred Work
+
+<a id="known-limitations-and-deferred-work"></a>
+
+- The kernel's `file_read` / `file_edit` still treat the specification root as their boundary; real-repository acceptance will decide whether they should use the repository root.
+- The workbench reads once when the tab opens; incremental refresh through `workspaceFiles.changes` is deferred.
+- The shared selection across the three columns is deferred to T-03.
+
+<a id="dev-note"></a>
+### Dev Note
+
+<details>
+<summary>Working context for maintainers — click to expand</summary>
+
+Build with `pnpm --filter @lcoder/workspace run bundle`; the root `tsconfig.client.json` includes this package through `references`, so `pnpm typecheck` covers it. Run the package tests with `pnpm exec vitest run packages/lcoder/workspace`.
+
+</details>

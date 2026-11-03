@@ -1,20 +1,22 @@
-# demo —— LCoder 的被测仓库
+# demo — the repository under test
 
-极简，但每一处都能证伪：
+English | [中文](README.zh.md)
 
-| 文件 | 用来验证什么 |
+Minimal, but every part can falsify something:
+
+| File | What it verifies |
 |---|---|
-| `src/price.ts` | `R-01` 的落点。改名会让 P1 失败 |
-| `.spec/spec/rules.yaml` | `R-01` 已确认且有落点；`R-02` 是 draft 无落点（P1 应跳过它） |
-| `.spec/spec/states/order.yaml` | 状态机，后续 P5′ 用 |
-| `.spec/tasks/T-01.yaml` | 起始状态 `drafting`——未签契约，模型不该能碰 `src/` |
-| `.spec/env.yaml` | `build`/`test` 是 `ai-auto`；`deploy-prod` 是 `human`（模型必须被拒） |
+| `src/price.ts` | The binding of `R-01`; renaming it makes P1 fail |
+| `.spec/spec/rules.yaml` | `R-01` is confirmed and has a binding; `R-02` is draft with no binding (P1 should skip it) |
+| `.spec/spec/states/order.yaml` | State machine, used later by P5′ |
+| `.spec/tasks/T-01.yaml` | Starts in `drafting` — with no signed contract, the model must not touch `src/` |
+| `.spec/env.yaml` | `build`/`test` are `ai-auto`; `deploy-prod` is `human` (the model must be rejected) |
 
-把 `LCoder` 的 preset 指向 `.spec` 目录（不是仓库根）。
+Point the LCoder preset at the `.spec` directory (not the repository root).
 
-预期：
+Expected:
 
-- `spec_query` 能查到 `R-01`、`R-02`
-- `spec_bind` 能给 `R-02` 加落点并写回
-- `cmd_run build` 能跑；`cmd_run deploy-prod` 必须被拒
-- 任务在 `drafting` 时，`file_edit` 不在工具面里——这是 S1 的判据
+- `spec_query` finds `R-01` and `R-02`
+- `spec_bind` adds a binding to `R-02` and writes it back
+- `cmd_run build` runs; `cmd_run deploy-prod` must be rejected
+- While the task is in `drafting`, `file_edit` is absent from the tool surface — that is the S1 criterion
