@@ -11,8 +11,8 @@ import { useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from './shell-data.ts'
-import { buildShellPrompt, SHELL_PROJECTS, SHELL_STATES } from './shell-data.ts'
-import type { ShellProject, ShellTask, ShellTaskState } from './shell-data.ts'
+import { buildShellPrompt, SHELL_PROJECT_INFO, SHELL_PROJECTS, SHELL_STATES } from './shell-data.ts'
+import type { ShellProject, ShellProjectInfo, ShellTask, ShellTaskState } from './shell-data.ts'
 import css from './Shell.module.css'
 
 /** `main` 键控面板的组合 props：运行时标准 seat + 本包词典。 */
@@ -52,11 +52,21 @@ export function Shell({ t }: ShellProps): ReactNode {
   const [prompt, setPrompt] = useState('')
   const [chat, setChat] = useState<ShellTask | null>(null)
   const [settings, setSettings] = useState(false)
+  const [drawer, setDrawer] = useState(false)
+  const [revealed, setRevealed] = useState<Record<string, boolean>>({})
   const [copied, setCopied] = useState(false)
   const nextProject = useRef(SHELL_PROJECTS.length + 1)
 
   const project = projects.find(p => p.id === projectId) ?? projects[0]
   if (project === undefined) return null
+
+  const info: ShellProjectInfo = SHELL_PROJECT_INFO[project.id] ?? {
+    kind: 'library',
+    repoUrl: '',
+    branch: project.branch,
+    docs: { product: 'README.md', architecture: 'docs/architecture.md', tests: 'tests' },
+    environments: [],
+  }
 
   const openTask = (task: ShellTask): void => {
     setDetail(task)
@@ -135,16 +145,12 @@ export function Shell({ t }: ShellProps): ReactNode {
 
   return (
     <div className={css.shell} data-theme={dark ? 'dark' : 'light'}>
-      <aside className={css.sidebar}>
-        <div className={css.brand}>
-          <div className={css.logo}>L</div>
-          <div>
-            <h1 className={css.brandTitle}>LCoder</h1>
-            <p className={css.brandSub}>规格驱动开发工作台</p>
-          </div>
+      <header className={css.topbar}>
+        <div className={css.topBrand}>
+          <div className={css.topLogo}>L</div>
+          <span className={css.topTitle}>LCoder</span>
         </div>
-
-        <button type="button" className={css.projectSwitch} title={t('shell.switchProject')} onClick={() => { setProjectPicker(true) }}>
+        <button type="button" className={css.topProject} title={t('shell.switchProject')} onClick={() => { setProjectPicker(true) }}>
           <span className={css.psLogo}>{project.name.slice(0, 1).toUpperCase()}</span>
           <span className={css.psText}>
             <span className={css.psName}>{project.name}</span>
@@ -152,37 +158,14 @@ export function Shell({ t }: ShellProps): ReactNode {
           </span>
           <span className={css.psChevron}>⌄</span>
         </button>
-
-        <div className={css.specCard}>
-          <div className={css.specRow}>
-            <span className={`${css.pill} ${css.pillBrand}`}>{t('shell.currentSpec')}</span>
-            <span className={css.pill}>{project.summary}</span>
-          </div>
-          <div className={css.specPath}>{project.path}/.spec</div>
-          <div className={css.specRow}>
-            <span className={css.pill}>{t('shell.tasks')} <b>{project.tasks.length}</b></span>
-            <span className={css.pill}>{t('shell.rules')} <b>{project.rules}</b></span>
-          </div>
-        </div>
-
-        <div className={css.sidebarFoot}>
-          <button type="button" className={css.ghostBtn} onClick={() => { setSettings(true) }}>⚙ {t('shell.settings')}</button>
-          <button type="button" className={css.ghostBtn} onClick={() => { setDark(value => !value) }}>◐ {t('shell.theme')}</button>
-        </div>
-      </aside>
+        <div className={css.spacer} />
+        <button type="button" className={css.secondaryBtn} onClick={() => { setDrawer(true) }}>ⓘ {t('shell.projectInfo')}</button>
+        <button type="button" className={css.iconBtn} title={t('shell.theme')} onClick={() => { setDark(value => !value) }}>◐</button>
+        <button type="button" className={css.iconBtn} title={t('shell.settings')} onClick={() => { setSettings(true) }}>⚙</button>
+        <button type="button" className={css.primaryBtn} onClick={addTask}>+ {t('shell.newTask')}</button>
+      </header>
 
       <main className={css.main}>
-        <header className={css.topbar}>
-          <div className={css.title}>
-            <h2>{project.name}</h2>
-            <div className={css.sub}><span className={css.subCode}>{project.path}</span><span>·</span><span>{project.branch}</span></div>
-          </div>
-          <div className={css.spacer} />
-          <button type="button" className={css.iconBtn} title={t('shell.theme')} onClick={() => { setDark(value => !value) }}>◐</button>
-          <button type="button" className={css.secondaryBtn} onClick={() => { const first = project.tasks[0]; if (first !== undefined) openTask(first) }}>{t('shell.openSpec')}</button>
-          <button type="button" className={css.primaryBtn} onClick={addTask}>+ {t('shell.newTask')}</button>
-        </header>
-
         <div className={css.boardWrap}>
           <div className={css.boardHead}>
             <h3>{t('shell.board')}</h3>
@@ -193,6 +176,78 @@ export function Shell({ t }: ShellProps): ReactNode {
           </div>
         </div>
       </main>
+
+      {drawer ? (
+        <div className={css.drawerBackdrop} onClick={(event) => { if (event.target === event.currentTarget) setDrawer(false) }}>
+          <aside className={css.drawer}>
+            <div className={css.drawerHead}>
+              <div className={css.grow}>
+                <h3>{t('shell.projectInfo')}</h3>
+                <p>{t('shell.projectInfoHint')}</p>
+              </div>
+              <button type="button" className={css.iconBtn} onClick={() => { setDrawer(false) }}>✕</button>
+            </div>
+            <div className={css.drawerBody}>
+              <section className={css.drawerSection}>
+                <h4>{t('shell.basic')}</h4>
+                <div className={css.infoGrid}>
+                  <div className={css.infoRow}><span>{t('shell.kind')}</span><b>{info.kind}</b></div>
+                  <div className={css.infoRow}>
+                    <span>{t('shell.repoUrl')}</span>
+                    {info.repoUrl === ''
+                      ? <b>—</b>
+                      : <a href={info.repoUrl} target="_blank" rel="noreferrer">{info.repoUrl}</a>}
+                  </div>
+                  <div className={css.infoRow}><span>{t('shell.branch')}</span><b>{info.branch}</b></div>
+                  <div className={css.infoRow}><span>{t('shell.specRoot')}</span><code>{project.path}/.spec</code></div>
+                </div>
+              </section>
+
+              <section className={css.drawerSection}>
+                <h4>{t('shell.docs')}</h4>
+                <div className={css.docRow}><span>{t('shell.productDoc')}</span><code>{info.docs.product}</code></div>
+                <div className={css.docRow}><span>{t('shell.architectureDoc')}</span><code>{info.docs.architecture}</code></div>
+                <div className={css.docRow}><span>{t('shell.tests')}</span><code>{info.docs.tests}</code></div>
+              </section>
+
+              <section className={css.drawerSection}>
+                <h4>{t('shell.environments')}</h4>
+                {info.kind !== 'web' || info.environments.length === 0
+                  ? <p className={css.empty}>{t('shell.webOnly')}</p>
+                  : info.environments.map((env) => {
+                    const passwordKey = `${env.id}.password`
+                    const shown = revealed[passwordKey] === true
+                    return (
+                      <div key={env.id} className={css.envCard}>
+                        <div className={css.envHead}>
+                          <b>{env.label}</b>
+                          <span className={css.pill}>{env.note ?? ''}</span>
+                        </div>
+                        <div className={css.infoRow}><span>{t('shell.server')}</span><code>{env.server}</code></div>
+                        <div className={css.infoRow}><span>{t('shell.dbHost')}</span><code>{env.database.host}:{env.database.port}</code></div>
+                        <div className={css.infoRow}><span>{t('shell.dbName')}</span><code>{env.database.name}</code></div>
+                        <div className={css.infoRow}><span>{t('shell.dbUser')}</span><code>{env.database.user}</code></div>
+                        <div className={css.infoRow}>
+                          <span>{t('shell.password')}</span>
+                          <code>{shown ? env.database.passwordPreview : '••••••'}</code>
+                          <button
+                            type="button"
+                            className={css.eyeBtn}
+                            title={shown ? t('shell.hide') : t('shell.reveal')}
+                            onClick={() => { setRevealed(prev => ({ ...prev, [passwordKey]: !prev[passwordKey] })) }}
+                          >
+                            {shown ? '🙈' : '👁'}
+                          </button>
+                        </div>
+                        <div className={css.secretRef}>{env.database.passwordRef} · {t('shell.secretNote')}</div>
+                      </div>
+                    )
+                  })}
+              </section>
+            </div>
+          </aside>
+        </div>
+      ) : null}
 
       {projectPicker ? (
         <div className={css.modalBackdrop} onClick={(event) => { if (event.target === event.currentTarget) setProjectPicker(false) }}>

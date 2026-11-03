@@ -31,6 +31,100 @@ export interface ShellProject {
   readonly tasks: readonly ShellTask[]
 }
 
+/** 项目类型决定是否展示环境信息。 */
+export type ShellProjectKind = 'web' | 'desktop' | 'library'
+
+/** 一个部署环境；敏感值只存引用，预览值仅用于演示。 */
+export interface ShellEnvironment {
+  readonly id: string
+  readonly label: string
+  readonly server: string
+  readonly database: {
+    readonly host: string
+    readonly port: string
+    readonly name: string
+    readonly user: string
+    /** `.spec/project.yaml` 只存这个引用名。 */
+    readonly passwordRef: string
+    /** 本地解析后的演示值；真实实现从 local.yaml/环境变量读取。 */
+    readonly passwordPreview: string
+  }
+  readonly note?: string
+}
+
+/** 项目信息抽屉的数据。 */
+export interface ShellProjectInfo {
+  readonly kind: ShellProjectKind
+  readonly repoUrl: string
+  readonly branch: string
+  readonly docs: {
+    readonly product: string
+    readonly architecture: string
+    readonly tests: string
+  }
+  readonly environments: readonly ShellEnvironment[]
+}
+
+const WEB_ENVIRONMENTS: readonly ShellEnvironment[] = [
+  {
+    id: 'dev',
+    label: 'dev',
+    server: 'https://dev.lcoder.example.com',
+    database: { host: 'dev-db.internal', port: '5432', name: 'lcoder_dev', user: 'lcoder', passwordRef: 'LCODER_DEV_DB_PASSWORD', passwordPreview: 'demo-dev-password' },
+    note: '开发环境，允许重置数据',
+  },
+  {
+    id: 'staging',
+    label: 'staging',
+    server: 'https://staging.lcoder.example.com',
+    database: { host: 'staging-db.internal', port: '5432', name: 'lcoder_staging', user: 'lcoder', passwordRef: 'LCODER_STAGING_DB_PASSWORD', passwordPreview: 'demo-staging-password' },
+    note: '预发环境，按发布候选验证',
+  },
+  {
+    id: 'prod',
+    label: 'prod',
+    server: 'https://lcoder.example.com',
+    database: { host: 'prod-db.internal', port: '5432', name: 'lcoder_prod', user: 'lcoder', passwordRef: 'LCODER_PROD_DB_PASSWORD', passwordPreview: 'demo-prod-password' },
+    note: '生产环境，变更需人工审批',
+  },
+]
+
+/** 演示数据；真实实现读 `.spec/project.yaml`。 */
+export const SHELL_PROJECT_INFO: Readonly<Record<string, ShellProjectInfo>> = {
+  lcoder: {
+    kind: 'web',
+    repoUrl: 'https://github.com/example/lcoder',
+    branch: 'lcoder/main',
+    docs: {
+      product: 'docs/prd-and-design.md',
+      architecture: 'docs/architecture.md',
+      tests: 'packages/lcoder/workspace/tests',
+    },
+    environments: WEB_ENVIRONMENTS,
+  },
+  test: {
+    kind: 'desktop',
+    repoUrl: 'https://github.com/example/test',
+    branch: 'main',
+    docs: { product: 'README.md', architecture: 'docs/architecture.md', tests: 'tests' },
+    environments: [],
+  },
+  desktop: {
+    kind: 'desktop',
+    repoUrl: 'https://github.com/example/desktop',
+    branch: 'main',
+    docs: { product: 'README.md', architecture: 'docs/architecture.md', tests: 'tests' },
+    environments: [],
+  },
+  sidecar: {
+    kind: 'library',
+    repoUrl: 'https://github.com/example/sidecar',
+    branch: 'main',
+    docs: { product: 'README.md', architecture: 'docs/architecture.md', tests: 'tests' },
+    environments: [],
+  },
+}
+
 /** 看板列，顺序即视觉顺序。 */
 export const SHELL_STATES: readonly { readonly id: ShellTaskState; readonly labelKey: LcoderWorkspaceKey }[] = [
   { id: 'drafting', labelKey: 'shell.drafting' },

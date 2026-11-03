@@ -1,0 +1,39 @@
+# 项目信息示例：外壳的「项目信息」抽屉读这里。
+# 密码/Token 只写引用名，实际值由本机 .spec/local.yaml 或环境变量解析；
+# 不要把明文凭据写进这个文件。
+kind: web
+repo:
+  url: https://example.com/lcoder-demo.git
+  branch: main
+docs:
+  product: docs/prd-and-design.md
+  architecture: docs/architecture.md
+  tests: packages/lcoder/workspace/tests
+environments:
+  dev:
+    server: https://dev.lcoder.example.com
+    database:
+      host: dev-db.internal
+      port: 5432
+      name: lcoder_dev
+      user: lcoder
+      passwordRef: LCODER_DEV_DB_PASSWORD
+    note: 开发环境，允许重置数据
+  staging:
+    server: https://staging.lcoder.example.com
+    database:
+      host: staging-db.internal
+      port: 5432
+      name: lcoder_staging
+      user: lcoder
+      passwordRef: LCODER_STAGING_DB_PASSWORD
+    note: 预发环境，按发布候选验证
+  prod:
+    server: https://lcoder.example.com
+    database:
+      host: prod-db.internal
+      port: 5432
+      name: lcoder_prod
+      user: lcoder
+      passwordRef: LCODER_PROD_DB_PASSWORD
+    note: 生产环境，变更需人工审批

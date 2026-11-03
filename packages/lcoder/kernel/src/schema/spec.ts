@@ -184,6 +184,40 @@ export const Env = z.object({
 })
 export type Env = z.infer<typeof Env>
 
+/** 项目类型决定外壳是否展示部署环境。 */
+export const ProjectKind = z.enum(['web', 'desktop', 'library'])
+export type ProjectKind = z.infer<typeof ProjectKind>
+
+/** 一个部署环境；密码只存引用名，实际值由本机 local.yaml 或环境变量解析。 */
+export const ProjectEnvironment = z.object({
+  server: z.string().min(1).optional(),
+  database: z.object({
+    host: z.string().min(1),
+    port: z.union([z.string().min(1), z.number().int().positive()]).optional(),
+    name: z.string().min(1),
+    user: z.string().min(1),
+    passwordRef: z.string().min(1),
+  }).optional(),
+  note: z.string().optional(),
+})
+export type ProjectEnvironment = z.infer<typeof ProjectEnvironment>
+
+/** `.spec/project.yaml`：项目交付、文档与部署环境。 */
+export const ProjectInfo = z.object({
+  kind: ProjectKind,
+  repo: z.object({
+    url: z.string().min(1),
+    branch: z.string().min(1),
+  }),
+  docs: z.object({
+    product: z.string().optional(),
+    architecture: z.string().optional(),
+    tests: z.string().optional(),
+  }).default({}),
+  environments: z.record(z.string().min(1), ProjectEnvironment).default({}),
+})
+export type ProjectInfo = z.infer<typeof ProjectInfo>
+
 // ── 目录布局 ↔ schema 的绑定 ────────────────────────────────
 
 /**
@@ -196,4 +230,5 @@ export const SpecLayout = [
   { glob: 'tasks/*.yaml', schema: Task, many: true },
   { glob: 'contracts/*.contract.yaml', schema: Contract, many: true },
   { glob: 'env.yaml', schema: Env, many: false },
+  { glob: 'project.yaml', schema: ProjectInfo, many: false },
 ] as const

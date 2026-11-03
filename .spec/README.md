@@ -7,5 +7,6 @@
 - **示例任务**：`DEMO-01`（`drafting`）。
 - **示例状态机**：`spec/states/order.yaml`。
 - **示例命令**：`env.yaml`。
+- **示例项目信息**：`project.yaml`（仓库、文档、web 环境；密码只存引用，不落明文）。
 
 需要管理真实项目时，把本目录替换为目标工作区的 `.spec`。
