@@ -1,7 +1,7 @@
 /**
  * 工具面装配：把「任务状态」翻译成「模型能看见哪些工具」。
  *
- * 机制已核实（见 docs/reference/dsh-runtime-api.md）：
+ * 机制已核实（见 docs/subsystems/tools.md）：
  *   `agent.ctx.tools.restrict({ allow })` 返回的就是**解除限制的 disposer**。
  *   本模块不直接依赖 Cordis，只依赖那个函数的形状，边界处适配一次。
  *
@@ -23,7 +23,7 @@ import type { TaskState } from '../schema/spec.js'
  *
  * **注意 `contract_sign` 不在这里，也永远不该在。**
  * 模型能调用的工具就等于模型能给自己签字，S1（未签契约不能改代码）当场失效。
- * 签署是人机命令（`ctx.commands`，不经过模型回合），见 docs/reference/dsh-define-tool.md。
+ * 签署是人机命令（`ctx.commands`，不经过模型回合），见 docs/cookbook/adding-a-tool.md。
  */
 export const SURFACE: Readonly<Record<TaskState, readonly string[]>> = {
   drafting: ['file_read', 'spec_query', 'spec_bind', 'task_read', 'contract_draft'],

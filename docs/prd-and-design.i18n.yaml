@@ -1,0 +1,46 @@
+# Bilingual-pair consistency record for prd-and-design.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/prd-and-design.md
+/lcoder-product-and-design-document-prd:
+  en: 2ae0a6080cb062a2
+  zh: 01c6b9a9ed699204
+/lcoder-product-and-design-document-prd/0-document-scope:
+  en: bcb1b4b2202a92b6
+  zh: bb92badaf5e82840
+/lcoder-product-and-design-document-prd/1-background-and-problem:
+  en: ed33698b054b0659
+  zh: 86a4361cfb563328
+/lcoder-product-and-design-document-prd/2-product-positioning:
+  en: 9df4b4c8ed054912
+  zh: ce2a7bcef1677dbf
+/lcoder-product-and-design-document-prd/3-relationship-with-upstream:
+  en: 7f399ae0dcc34d48
+  zh: 487dec4b3e93d864
+/lcoder-product-and-design-document-prd/4-core-concepts:
+  en: 1feb41f2036a421d
+  zh: 019c261c63be740d
+/lcoder-product-and-design-document-prd/5-core-flow-five-states:
+  en: 1fd0071da4c653c8
+  zh: 281836e8480121c1
+/lcoder-product-and-design-document-prd/6-tool-surface:
+  en: 22029cf1fe91459f
+  zh: 7f12e28896b61c26
+/lcoder-product-and-design-document-prd/7-data-plane:
+  en: b0a1c6c7abfcd5cf
+  zh: 246c0fd0105bde60
+/lcoder-product-and-design-document-prd/8-mvp-scope-mvp-0:
+  en: eacd6c91d85b1cc6
+  zh: 026e0d616375ac7b
+/lcoder-product-and-design-document-prd/9-acceptance-criteria:
+  en: 6d9408823b53e488
+  zh: 3fe5018f0ab506e4
+/lcoder-product-and-design-document-prd/10-key-decisions:
+  en: 6c75fa0394a12330
+  zh: 63eb7ab9ebd87d2a
+/lcoder-product-and-design-document-prd/11-risks-and-technical-debt:
+  en: 6784494f29c786eb
+  zh: f7fe795719b34fb4
+/lcoder-product-and-design-document-prd/12-running-entry-points:
+  en: 529bc09b2e050c7b
+  zh: 0fd6ac7960a98dd4

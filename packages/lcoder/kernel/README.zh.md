@@ -1,0 +1,121 @@
+---
+description: "LCoder 的宿主插件：九个规格、任务与编辑工具的可见性随任务状态收放，规格根按会话工作区解析。"
+kind: "package-reference"
+---
+
+# @lcoder/kernel
+
+[English](README.md) | 中文
+
+## 概述
+
+`@lcoder/kernel` 向 DeepSeek Harness 宿主注册 LCoder 的九个规格与任务工具。工具面随当前任务状态收放：`drafting` 只给读取与契约工具，`contracted` 增加编辑、命令执行与证据，`closed` 只读。规格根跟随会话工作区，因此桌面端宿主读目标仓库的 `.spec`，而不是它的 profile 目录。宿主提供 `tools` 服务后，通过 LCoder patch 层挂载本包。`contract_sign` 刻意不存在。
+
+## 目录
+
+- [使用本包](#use-this-package)
+- [了解实现](#understand-the-implementation)
+- [延伸阅读](#further-exploration)
+- [模型体验](#model-experience)
+- [已知限制与后续工作](#known-limitations-and-deferred-work)
+- [开发备注](#dev-note)
+
+-----
+
+<a id="use-this-package"></a>
+## 使用本包
+
+在 LCoder patch 层挂载插件，并让会话绑定 agent 要工作的仓库，其下应有 `.spec`。
+
+### 何时选择它
+
+当 DeepSeek Harness 组合已经提供 `tools` 服务，且 agent 应在 LCoder 五态任务流下工作时选择它。不要把它当通用文件编辑工具包：工具面按任务状态 fail-closed，契约未签时 `file_edit` 与 `cmd_run` 不可见。
+
+### 最小配置
+
+```yaml
+- insert:
+    - id: lcoder-kernel
+      name: '@lcoder/kernel'
+      config:
+        root: !!js process.env.LCODER_SPEC_ROOT || undefined
+```
+
+| 字段 | 默认值 | 含义 |
+|---|---|---|
+| `root` | `process.cwd()/.spec` | 会话没有 cwd 时的备案规格根 |
+| `selfCheck` | `true` | 加载时打印工具面自检 |
+| `taskId` | 第一个任务 | 用哪个任务的状态选择工具面 |
+
+本插件通过 patch 层作为插件行挂载，没有 `dsh plugin add` 安装路径。一次工具调用从 `session.header.cwd/.spec` 解析规格根；没有会话 cwd 时用 `root`，没有 `root` 时用 `process.cwd()/.spec`。
+
+-----
+
+<a id="understand-the-implementation"></a>
+## 了解实现
+
+<details>
+<summary>实现内幕——点击展开</summary>
+
+插件具名导出 `name`、`inject` 与 `apply`，与上游函数插件形态一致。它注入 `tools`，为每个定义注册一个 `when` 条件，每个 model step 求值一次。条件每次都从磁盘读取任务状态，因此签契约或推进任务会立刻改变可见工具。
+
+每个工具工厂接受固定根或解析函数。解析函数只读窄会话事实 `agent.session.header.cwd`；插件把同一个解析函数交给九个工具，因此同一会话在规格、任务与编辑操作上看到同一个规格根。
+
+| 文件 | 职责 |
+|---|---|
+| `src/plugin.ts` | 工具注册、工具面收放与加载自检 |
+| `src/kernel/spec-root.ts` | 会话优先的规格根解析 |
+| `src/kernel/spec-store.ts` | 规则与状态机的读写 |
+| `src/kernel/task-store.ts` | 任务对象、迁移与落盘 |
+| `src/tools/spec-tools.ts`、`src/tools/task-tools.ts`、`src/tools/edit-tools.ts` | 九个模型工具 |
+| `src/checkers/index.ts` | P1、P3、P4 收口检查器 |
+
+</details>
+
+-----
+
+<a id="further-exploration"></a>
+## 延伸阅读
+
+- `packages/lcoder/workspace` —— 同一批 `.spec` 文件的浏览器侧投影。
+- `lcoder/cordis.patch.yml` —— 挂载两个 LCoder 包的 patch 层。
+- `lcoder/RUN.md` —— 启动与验证。
+- `lcoder/UPSTREAM-BASELINE.md` —— 上游关系与接触面。
+
+-----
+
+<a id="model-experience"></a>
+## 模型体验
+
+### 已注册工具
+
+#### 模型看到什么
+
+九个工具的名称、描述与 `parameters` JSON Schema，按当前任务状态经 `when` 过滤。`contract_sign` 永不出现在其中。
+
+#### Token 影响
+
+每个可见工具的描述与参数 schema 都在每一步占用请求 token；`when` 隐藏一个工具时，该步的声明也随之消失。
+
+#### KV Cache 影响
+
+可见工具集只在任务状态迁移时变化。同状态重复应用是空操作，迁移会让请求前缀从第一个变化的工具 schema token 起失效。
+
+## 已知限制与后续工作
+
+<a id="known-limitations-and-deferred-work"></a>
+
+- `contract_sign` 按设计不存在；契约由人在模型回合之外签署。
+- `task_transition` 没有工具入口；推进任务需要编辑其 YAML。
+- `file_read` / `file_edit` 当前以规格根为边界；真实仓库验收时需确认是否应改用仓库根。
+- P1 使用文本索引，注释或字符串里的同名标识符会造成误报。
+
+<a id="dev-note"></a>
+### 开发备注
+
+<details>
+<summary>维护者工作上下文——点击展开</summary>
+
+构建用 `pnpm --filter @lcoder/kernel run bundle`；根 `tsconfig.host.json` 通过 `references` 包含本包，所以 `pnpm typecheck` 会覆盖它。包测试用 `pnpm exec vitest run packages/lcoder/kernel`。
+
+</details>

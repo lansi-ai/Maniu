@@ -1,44 +1,47 @@
-# 激活上下文与任务看板 (active-context.md)
+# Activation context and task board (active-context.md)
 
-## 01. 当前迭代目标 (Current Sprint Goal)
+English | [中文](active-context.zh.md)
 
-- **版本阶段**：MVP-0 —— 工作台在本地跑通。
-- **核心业务价值**：agent 在工作台里按 `.spec` 规格与任务状态机工作，改动有契约、有证据、可复核。
-- **关键交付物**：kernel 挂载并注册九个工具；右栏工作台三栏；文件投影读出任务与规则。
+## 01. Current sprint goal (Current Sprint Goal)
 
-## 02. 任务看板 (Task Board)
+- **Version stage**: MVP-0 — get the workbench running locally.
+- **Core business value**: the agent works inside the workbench against the `.spec` specification and task state machine, and every change has a contract, evidence, and reviewability.
+- **Key deliverables**: the kernel mounts and registers nine tools; the right sidebar workbench has three columns; the file projection reads tasks and rules.
 
-- **开发台账（dev-flow）**：`docs/tasks.yaml`，人维护，是开发进度的唯一源。
-- **产品数据（LCoder）**：`.spec/` 是产品示例数据（订单佣金：`DR-01`/`DR-02`、`DEMO-01`），供 kernel 与 UI 读取；它与开发台账 ID 不重叠，改产品数据不改变开发进度。
-- **离线看板**：`docs/tasks-html/index.html`（双击打开，含概览、状态看板、层级树、矩阵与筛选）。
-- **重跑命令**：`python scripts/build-tasks-html.py`。
+## 02. Task board (Task Board)
 
-- **当前焦点**：T-02 收口（开发看板 `doing`）。
-- **已完成**：T-01 文件投影。
-- **下一步**：见 §04。
+- **Development ledger (dev-flow)**: `docs/tasks.yaml`, human-maintained, the single source of development progress.
+- **Product data (LCoder)**: `.spec/` is product example data (order commission: `DR-01`/`DR-02`, `DEMO-01`), read by the kernel and the UI; its IDs do not overlap the development ledger, and changing product data does not change development progress.
+- **Offline board**: `docs/tasks-html/index.html` (double-click to open; contains overview, status board, hierarchy tree, matrix, and filters).
+- **Regeneration command**: `python scripts/build-tasks-html.py`.
 
-## 03. 关键决策与架构遗留 (Key Decisions & Context)
+- **Current focus**: T-04 specification root (doing), together with T-02's documentation gate.
+- **Completed**: T-01 file projection.
+- **Next step**: see §04.
 
-- **已做出的关键技术决策**：
-  - 数据面走文件投影，不自建 Remote、不引 typert 生成器。
-  - 工具面按状态 fail-closed；`contract_sign` 不进模型工具。
-  - 挂载只走 `lcoder/cordis.patch.yml`，不改上游清单。
-  - `.spec/tasks` 是产品数据；`docs/tasks.yaml` 是开发台账；两者不互相派生，看板只从开发台账生成。
-- **风险与技术债记录**：
-  - 契约签署通道未实现，P3 只能人工写 YAML。
-  - `task_transition` 没有工具入口。
-  - 产品示例 `DEMO-01` 处于 `drafting`，尚无契约；示例 `env.yaml` 已就位。
-  - `packages/lcoder/workspace/README.md` 未过上游包 README 标准，`test:docs` 当前红。
+## 03. Key decisions and architectural context (Key Decisions & Context)
 
-## 04. 下一步即时行动 (Next Immediate Actions)
+- **Key technical decisions made**:
+  - The data plane uses file projection: no self-built Remote and no typert generator.
+  - The tool surface is fail-closed by state; `contract_sign` never enters the model tools.
+  - Mounting goes through `lcoder/cordis.patch.yml` only and never changes upstream manifests.
+  - `.spec/tasks` is product data; `docs/tasks.yaml` is the development ledger; neither derives from the other, and the board is generated only from the ledger.
+  - The specification root follows the session workspace (`session.header.cwd/.spec`); without a session cwd it falls back to the configured root, then to `process.cwd()/.spec`.
+- **Risks and technical debt**:
+  - The contract-signing channel is not implemented; P3 requires writing YAML by hand.
+  - `task_transition` has no tool entry.
+  - The product example `DEMO-01` is in `drafting` with no contract; the example `env.yaml` is in place.
+  - The edit tools still resolve `file_read` / `file_edit` against the specification root; the real-repository acceptance step must confirm whether they should use the repository root.
 
-- **当前正在处理**：T-02 收口。
-- **即将执行**：修两份包 README → `pnpm typecheck` / `pnpm lint` / `pnpm exec vitest run packages/lcoder` → 起服务做 smoke → 更新 `docs/tasks.yaml` 状态。
-- **开发证据**：门禁命令输出记录在 `docs/tasks.yaml` 的任务 note 或提交说明；`.spec/evidence` 只服务产品任务。
-- **看板重跑**：开发状态变化后先改 `docs/tasks.yaml`，再执行 `python scripts/build-tasks-html.py`。
-- **前置修复**：按上游包 README 规范重写 `packages/lcoder/workspace/README.md`，补 `packages/lcoder/kernel/README.md`。
-- **AI 交互指令提示**：后续会话可直接提示「按 active-context.md 的下一步继续执行」。
+## 04. Next immediate actions (Next Immediate Actions)
 
-## 05. 规则自我演进维护
+- **Currently working on**: T-04, making the specification root explicit per session and converging the three documentation contradictions.
+- **About to execute**: run `pnpm typecheck` / `pnpm lint` / `pnpm exec vitest run packages/lcoder` / `pnpm run test:docs`; start the Web host on port 3081 under a worktree-local `DSH_HOME` for the browser smoke.
+- **Development evidence**: gate output is recorded in the task note in `docs/tasks.yaml` or the commit message; `.spec/evidence` serves product tasks only.
+- **Board regeneration**: after a development status change, edit `docs/tasks.yaml` first, then run `python scripts/build-tasks-html.py`.
+- **Prerequisite fix**: close T-02's documentation gate (package README skeleton and bilingual pairs) before claiming the T-04 documentation gate is green.
+- **AI interaction hint**: later sessions can be told "continue with the next step in active-context.md".
 
-本文件为动态看板。每次开发任务收口或业务需求变更时，先改 `docs/tasks.yaml`（开发台账），再跑 `python scripts/build-tasks-html.py`，最后按 [PROJECT-RULES.md](PROJECT-RULES.md) §3 的更新协议更新本文件的当前焦点；只维护当前窗口，完成史留在 git。产品数据（`.spec`）的变更另走产品流程，不通过本看板。C 类小任务不强制更新，日末或发版统一收口。
+## 05. Rule self-evolution maintenance
+
+This file is a dynamic board. Whenever a development task closes or business requirements change, first edit `docs/tasks.yaml` (the development ledger), then run `python scripts/build-tasks-html.py`, and finally update the current focus in this file according to §3 of [PROJECT-RULES.md](PROJECT-RULES.md); only the current window is maintained and completed history stays in git. Product data (`.spec`) changes follow the product process and do not pass through this board. Grade C small tasks are not mandatory to record; they are closed together at day end or release.

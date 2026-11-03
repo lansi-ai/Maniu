@@ -14,13 +14,12 @@ LCoder 是 **DeepSeek Harness（DSH）的二开**。本文件记录我们跟踪�
 |---|---|
 | 上游仓库 | `https://github.com/deepseek-ai/deepseek-harness` |
 | 版本 | `0.2.2-alpha.2` |
-| 基线 commit | `ce7073d51254c26cd63b22a60835b8f948deb447` |
 | 提交时间 | 2026-10-30 00:13:15 +0800 |
 | 提交标题 | `Merge pull request #7552 from deepseek-harness/fix/webworker-live-import-bindings` |
 | Node 要求 | `>=24.9.0` |
 | 登记日期 | 2026-11-02 |
 
-升级基线 = 改这张表 + 走一遍第 4 节的演练。不写"大概""差不多"，只写 commit sha。
+升级基线 = 改这张表 + 走一遍第 4 节的演练。不写「大概」「差不多」，只写可复核的版本标识。
 
 ---
 
@@ -84,7 +83,7 @@ git merge upstream/master
 ```sh
 pnpm install
 pnpm build
-pnpm --filter lcoder-kernel test
+pnpm exec vitest run packages/lcoder
 ./lcoder/scripts/upstream-diff.sh
 ```
 
