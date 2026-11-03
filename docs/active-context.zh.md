@@ -15,8 +15,8 @@
 - **离线看板**：`docs/tasks-html/index.html`（双击打开，含概览、状态看板、层级树、矩阵与筛选）。
 - **重跑命令**：`python scripts/build-tasks-html.py`。
 
-- **当前焦点**：T-05 LCoder 专属外壳（doing）。
-- **已完成**：T-01 文件投影；T-02 宿主挂载；T-04 规格根与文档门禁。
+- **当前焦点**：T-06 外壳接真实 `.spec` 与会话（todo）。
+- **已完成**：T-01 文件投影；T-02 宿主挂载；T-04 规格根与文档门禁；T-05 LCoder 外壳（演示数据）。
 - **下一步**：见 §04。
 
 ## 03. 关键决策与架构遗留 (Key Decisions & Context)
@@ -28,17 +28,19 @@
   - `.spec/tasks` 是产品数据；`docs/tasks.yaml` 是开发台账；两者不互相派生，看板只从开发台账生成。
   - 规格根跟随会话工作区（`session.header.cwd/.spec`）；没有会话 cwd 时退回配置的 root，再退回 `process.cwd()/.spec`。
   - LCoder 外壳方向已确认：首页=项目+任务板；左上项目切换弹窗；选任务弹对话并自动填 dev-flow 启动咒语；修改阶段主窗缩成悬浮对话窗、任务板窗保留；只保留设置。
+  - 外壳默认占用 `lcoder-home` 主面板；`shell: false` 回退旧的右栏工作台页签。桌面 profile 禁用 `ui-sidebar`，外壳自己的左栏是唯一导航。
 - **风险与技术债记录**：
   - 契约签署通道未实现，P3 只能人工写 YAML。
   - `task_transition` 没有工具入口。
   - 产品示例 `DEMO-01` 处于 `drafting`，尚无契约；示例 `env.yaml` 已就位。
   - edit 工具的 `file_read` / `file_edit` 仍以规格根为边界；真实仓库验收时需确认是否应改用仓库根。
-  - 桌面 profile 仍链接旧的 `WorkBuddy/LCoder` 包；T-05 需要把当前 `@lcoder/*` 挂进去。
+  - 桌面 profile 仍同时链接旧的 `WorkBuddy/LCoder` 包与当前 `@lcoder/*` 包；外壳成为唯一 LCoder 界面后可移除旧预设。
+  - 外壳首版使用演示数据；T-06 把项目/任务接到会话工作区的 `.spec`，悬浮对话接到真实会话。
 
 ## 04. 下一步即时行动 (Next Immediate Actions)
 
-- **当前正在处理**：T-05，LCoder 专属外壳：首页项目切换+任务板，任务详情生成 dev-flow 启动咒语，修改阶段主窗缩成悬浮对话窗。
-- **即将执行**：把当前 `@lcoder/kernel` 与 `@lcoder/workspace` 挂进桌面 profile，再按已确认的原型实现外壳侧栏与任务板；收口前跑 `pnpm typecheck` / `pnpm lint` / `pnpm exec vitest run packages/lcoder` / `pnpm run test:docs`。
+- **当前正在处理**：T-06，把外壳的演示数据换成会话工作区的真实 `.spec` 投影，悬浮对话使用真实会话。
+- **即将执行**：复用 `loadWorkspaceProjection` 读项目/任务，选中任务绑定到会话；保持外壳布局与启动咒语生成不变；收口前跑 `pnpm typecheck` / `pnpm lint` / `pnpm exec vitest run packages/lcoder` / `pnpm run test:docs`。
 - **开发证据**：门禁命令输出记录在 `docs/tasks.yaml` 的任务 note 或提交说明；`.spec/evidence` 只服务产品任务。
 - **看板重跑**：开发状态变化后先改 `docs/tasks.yaml`，再执行 `python scripts/build-tasks-html.py`。
 - **文档门禁**：已随 T-02 与 T-04 收口；改文档时包 README 与中英配对必须保持全绿。

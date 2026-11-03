@@ -64,15 +64,26 @@ tracks:
       note: B 级；规则 R-02；证据 vitest
     - id: T-05
       title: LCoder 专属外壳：项目切换 + 任务板 + 悬浮对话
-      status: doing
+      status: done
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-03'
+      date: '2026-11-03'
+      dep: [T-02, T-04]
+      inferred: false
+      note: A 级；首版外壳已进桌面客户端（演示数据）：主窗=项目+任务板，左上项目切换弹窗；任务详情自动填 dev-flow 启动咒语；修改阶段缩成悬浮对话窗、任务板窗保留；只保留设置；shell:false 回退旧页签。证据 typecheck(5), vitest(107), lint, test:docs(21), smoke（整壳渲染与三交互通过）；真实 .spec/会话接线见 T-06
+    - id: T-06
+      title: 外壳接真实 .spec 与会话
+      status: todo
       face: 用户端
       type: 开发
       owner: lance
       created: '2026-11-03'
       date: ''
-      dep: [T-02, T-04]
+      dep: [T-05]
       inferred: false
-      note: A 级；原型已确认：主窗=项目+任务板，左上项目切换弹窗；选任务弹对话并自动填 dev-flow 启动咒语；修改阶段主窗缩成悬浮对话窗、任务板窗保留；只保留设置。先原型后实现；证据 typecheck, vitest, lint, test:docs, smoke
+      note: B 级；把外壳的项目/任务板从演示数据换成会话工作区的 .spec 投影；选中任务后的悬浮对话使用真实会话渲染；补 workspace README 与快照；证据 typecheck, vitest, lint, test:docs, smoke
 milestones:
 - name: MVP-0 工作台本地跑通
   track: lcoder

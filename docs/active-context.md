@@ -15,8 +15,8 @@ English | [中文](active-context.zh.md)
 - **Offline board**: `docs/tasks-html/index.html` (double-click to open; contains overview, status board, hierarchy tree, matrix, and filters).
 - **Regeneration command**: `python scripts/build-tasks-html.py`.
 
-- **Current focus**: T-05 LCoder-specific shell (doing).
-- **Completed**: T-01 file projection; T-02 host mount; T-04 specification root and documentation gates.
+- **Current focus**: T-06 wiring the LCoder shell to real `.spec` data and sessions (todo).
+- **Completed**: T-01 file projection; T-02 host mount; T-04 specification root and documentation gates; T-05 LCoder shell (demo data).
 - **Next step**: see §04.
 
 ## 03. Key decisions and architectural context (Key Decisions & Context)
@@ -28,17 +28,19 @@ English | [中文](active-context.zh.md)
   - `.spec/tasks` is product data; `docs/tasks.yaml` is the development ledger; neither derives from the other, and the board is generated only from the ledger.
   - The specification root follows the session workspace (`session.header.cwd/.spec`); without a session cwd it falls back to the configured root, then to `process.cwd()/.spec`.
   - The LCoder shell direction is approved: project switch + task board as the first screen; a task opens a conversation with the dev-flow startup prompt; during the modification phase the main window becomes a floating conversation window while the task board window stays; only Settings is retained.
+  - The shell occupies the `lcoder-home` main panel by default; `shell: false` falls back to the old right-sidebar workbench tab. The desktop profile disables `ui-sidebar` so the shell's own left rail is the only navigation.
 - **Risks and technical debt**:
   - The contract-signing channel is not implemented; P3 requires writing YAML by hand.
   - `task_transition` has no tool entry.
   - The product example `DEMO-01` is in `drafting` with no contract; the example `env.yaml` is in place.
   - The edit tools still resolve `file_read` / `file_edit` against the specification root; the real-repository acceptance step must confirm whether they should use the repository root.
-  - The desktop profile still links the old `WorkBuddy/LCoder` package; T-05 must mount the current `@lcoder/*` packages into it.
+  - The desktop profile still links the old `WorkBuddy/LCoder` package alongside the current `@lcoder/*` packages; the old preset can be removed once the shell is the only LCoder surface.
+  - The shell's first version uses demo data; T-06 wires projects/tasks to the session workspace's `.spec` and the floating conversation to a real session.
 
 ## 04. Next immediate actions (Next Immediate Actions)
 
-- **Currently working on**: T-05, the LCoder-specific shell: a project switch and task board as the first screen, a task detail that generates the dev-flow startup prompt, and a floating conversation window during the modification phase.
-- **About to execute**: mount the current `@lcoder/kernel` and `@lcoder/workspace` into the desktop profile, then build the shell sidebar and task board against the approved prototype; run `pnpm typecheck` / `pnpm lint` / `pnpm exec vitest run packages/lcoder` / `pnpm run test:docs` before claiming the slice is done.
+- **Currently working on**: T-06, replacing the shell's demo data with the session workspace's real `.spec` projection and using a real session for the floating conversation.
+- **About to execute**: reuse `loadWorkspaceProjection` for projects/tasks, bind the selected task to a session, and keep the shell's layout and prompt generation unchanged; run `pnpm typecheck` / `pnpm lint` / `pnpm exec vitest run packages/lcoder` / `pnpm run test:docs` before closing the task.
 - **Development evidence**: gate output is recorded in the task note in `docs/tasks.yaml` or the commit message; `.spec/evidence` serves product tasks only.
 - **Board regeneration**: after a development status change, edit `docs/tasks.yaml` first, then run `python scripts/build-tasks-html.py`.
 - **Documentation gates**: green after T-02 and T-04; package READMEs and bilingual pairs must stay green whenever documents change.
