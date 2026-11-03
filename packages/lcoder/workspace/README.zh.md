@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`@lcoder/workspace` 是 LCoder 的外壳。它展示当前项目、从会话工作区 `.spec` 读出的五态任务板、从 `.spec/project.yaml` 读出的项目信息抽屉，以及把 dev-flow 启动咒语发送到真实会话的悬浮对话。项目选择器可以打开另一个仓库，创建或复用它的工作区并建一个会话。kernel 已运行时通过 LCoder patch 层挂载；`shell: false` 保留旧的右栏工作台页签。外壳对产品数据只读：状态机判断与写入都归 kernel。
+`@lcoder/workspace` 是 LCoder 的外壳。它展示当前项目、从会话工作区 `.spec` 读出的五态任务板、从 `.spec/project.yaml` 读出的项目信息抽屉，以及把 dev-flow 启动咒语发送到真实会话的悬浮对话。项目选择器可以打开另一个仓库，创建或复用它的工作区并建一个会话。看板为空时给出立项咒语，文档路径取自 `.spec/project.yaml` 声明的交付文档。kernel 已运行时通过 LCoder patch 层挂载；`shell: false` 保留旧的右栏工作台页签。外壳对产品数据只读：状态机判断与写入都归 kernel。
 
 ## 目录
 
@@ -55,13 +55,13 @@ kind: "package-reference"
 
 本包注册外壳主面板；`shell: false` 时注册旧的页签。外壳通过框架 hooks 读工作区与会话列表，通过 `workspaceFiles` 读 `.spec/tasks`、`.spec/spec/rules.yaml`、`.spec/project.yaml` 与 `.spec/local.yaml`，并通过会话控制器发送提示。项目选择器的「打开仓库」调用 `workspaces.create` 与 `sessions.create`，然后选中新工作区。
 
-悬浮对话订阅会话事件窗口并渲染用户/助手文本；输入框向同一会话继续发送提示。本包自身不注册模型工具、提示词段落或 schema。
+悬浮对话订阅会话事件窗口并渲染用户/助手文本；输入框向同一会话继续发送提示。磁盘上没有任务时，看板的立项动作填入并发送分析咒语，而不是逐任务的启动咒语。本包自身不注册模型工具、提示词段落或 schema。
 
 | 文件 | 职责 |
 |---|---|
 | `src/client/index.ts` | 外壳注册、文件/提示回调，以及 `shell: false` 页签 |
 | `src/client/shell/Shell.tsx` | 项目切换、任务板、项目信息抽屉、任务详情与悬浮对话 |
-| `src/client/shell/shell-data.ts` | 外壳类型、启动咒语与会话消息提取 |
+| `src/client/shell/shell-data.ts` | 外壳类型、逐任务启动咒语、立项咒语与会话消息提取 |
 | `src/client/shell/Shell.module.css` | 外壳布局与浮层样式 |
 | `src/client/projection.ts` | `.spec` 任务/规则、`project.yaml` 与 `local.yaml` 读取 |
 | `src/client/definition.ts` | 回退模式的页签 kind、id、优先级与引导入口 |
@@ -88,7 +88,7 @@ kind: "package-reference"
 
 #### 模型看到什么
 
-外壳不注册工具、提示词段落或 schema。用户从悬浮对话发送的提示按普通会话输入到达模型；任务与项目数据通过 `workspaceFiles` 读取，不注入请求。
+外壳不注册工具、提示词段落或 schema。用户从悬浮对话发送的提示（含立项咒语）按普通会话输入到达模型；任务与项目数据通过 `workspaceFiles` 读取，不注入请求。
 
 #### Token 影响
 

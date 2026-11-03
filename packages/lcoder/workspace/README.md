@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`@lcoder/workspace` is LCoder's shell. It shows the selected project, a five-state task board read from the session workspace's `.spec`, a project-info drawer read from `.spec/project.yaml`, and a floating conversation that sends the dev-flow startup prompt through the real session. The project picker can open another repository, creating or reusing its workspace and a session. Mount it through the LCoder patch layer when the kernel already runs; `shell: false` keeps the older right-sidebar workbench tab. The shell is read-only over product data: state-machine decisions and writes stay in the kernel.
+`@lcoder/workspace` is LCoder's shell. It shows the selected project, a five-state task board read from the session workspace's `.spec`, a project-info drawer read from `.spec/project.yaml`, and a floating conversation that sends the dev-flow startup prompt through the real session. The project picker can open another repository, creating or reusing its workspace and a session. An empty board offers an onboarding prompt built from the delivery documents declared in `.spec/project.yaml`. Mount it through the LCoder patch layer when the kernel already runs; `shell: false` keeps the older right-sidebar workbench tab. The shell is read-only over product data: state-machine decisions and writes stay in the kernel.
 
 ## Table of Contents
 
@@ -55,13 +55,13 @@ The package mounts as a plugin row through the patch layer; it has no `dsh plugi
 
 The package registers the shell main panel and, with `shell: false`, the older tab. The shell reads the workspace and session lists through the framework hooks, uses `workspaceFiles` for `.spec/tasks`, `.spec/spec/rules.yaml`, `.spec/project.yaml`, and `.spec/local.yaml`, and sends prompts through the session controller. The project picker's Open repository calls `workspaces.create` and `sessions.create`, then selects the new workspace.
 
-The floating conversation subscribes to the session event window and renders user/assistant text; the input sends another prompt to the same session. The package itself registers no model tool, prompt section, or schema.
+The floating conversation subscribes to the session event window and renders user/assistant text; the input sends another prompt to the same session. With no task on disk, the board's onboarding action fills and sends the analysis prompt instead of a per-task startup prompt. The package itself registers no model tool, prompt section, or schema.
 
 | File | Responsibility |
 |---|---|
 | `src/client/index.ts` | Shell registration, file/prompt callbacks, and the `shell: false` tab |
 | `src/client/shell/Shell.tsx` | Project switch, task board, project-info drawer, task detail, and floating conversation |
-| `src/client/shell/shell-data.ts` | Shell types, startup prompt, and session message extraction |
+| `src/client/shell/shell-data.ts` | Shell types, the per-task startup prompt, the onboarding prompt, and session message extraction |
 | `src/client/shell/Shell.module.css` | Shell layout and overlay styles |
 | `src/client/projection.ts` | `.spec` tasks/rules, `project.yaml`, and `local.yaml` reads |
 | `src/client/definition.ts` | Tab kind, id, priority, and guide entry for the fallback mode |
@@ -87,7 +87,7 @@ The floating conversation subscribes to the session event window and renders use
 
 #### What the model sees
 
-The shell registers no tool, prompt section, or schema. A user prompt sent from the floating conversation reaches the model as ordinary session input; task and project data are read through `workspaceFiles` and are not injected into requests.
+The shell registers no tool, prompt section, or schema. A user prompt sent from the floating conversation, including the onboarding prompt, reaches the model as ordinary session input; task and project data are read through `workspaceFiles` and are not injected into requests.
 
 #### Token effect
 

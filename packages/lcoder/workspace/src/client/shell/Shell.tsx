@@ -16,7 +16,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { loadLocalSecrets, loadProjectInfo, loadWorkspaceProjection } from '../projection.ts'
 import type { ProjectionFilesRemote, TaskRow } from '../projection.ts'
-import { buildShellPrompt, SHELL_STATES } from './shell-data.ts'
+import { buildOnboardingPrompt, buildShellPrompt, SHELL_STATES } from './shell-data.ts'
 import type { ShellMessage, ShellProjectInfo, ShellTask, ShellTaskState } from './shell-data.ts'
 import css from './Shell.module.css'
 
@@ -211,6 +211,27 @@ export function Shell({
     void sendPrompt(sessionId, prompt).catch((error: unknown) => { setChatError(String(error)) })
   }
 
+  /**
+   * 零任务仓库的立项入口：把 `.spec/project.yaml` 声明的交付文档交给模型，
+   * 让它先调研再逐个建 drafting 任务。外壳只读文件、不判断状态机。
+   */
+  const startOnboarding = (): void => {
+    const text = buildOnboardingPrompt(
+      { name: projectName, path: projectPath, branch: projectBranch },
+      info?.docs ?? { product: '', architecture: '', tests: '' },
+    )
+    setDetail(null)
+    setChatError(null)
+    setPrompt(text)
+    setCopied(false)
+    setChat({ id: '', title: t('shell.onboardingChat'), state: 'drafting', grade: '-', rules: [], evidence: [], surface: '' })
+    if (sessionId === undefined || sendPrompt === undefined) {
+      setChatError(t('shell.noSession'))
+      return
+    }
+    void sendPrompt(sessionId, text).catch((error: unknown) => { setChatError(String(error)) })
+  }
+
   const sendDraft = async (): Promise<void> => {
     const text = draft.trim()
     if (text === '' || sessionId === undefined || sendPrompt === undefined) return
@@ -308,6 +329,12 @@ export function Shell({
                     <div className={css.board}>
                       {SHELL_STATES.map(state => renderColumn(state))}
                     </div>
+                    {tasks.length === 0 ? (
+                      <div className={css.onboardingBar}>
+                        <p className={css.onboardingText}>{t('shell.onboardingEmpty')} {t('shell.onboardingHint')}</p>
+                        <button type="button" className={css.primaryBtn} onClick={startOnboarding}>{t('shell.onboardingCta')}</button>
+                      </div>
+                    ) : null}
                     {problems.length > 0 ? (
                       <div className={css.problems}>
                         <p className={css.problemsTitle}>{t('shell.problems')}</p>
@@ -511,7 +538,7 @@ export function Shell({
             <div className={css.chatWindow}>
               <div className={css.chatHead}>
                 <div className={css.grow}>
-                  <h4>{chat.id} · {chat.title}</h4>
+                  <h4>{chat.id === '' ? chat.title : `${chat.id} · ${chat.title}`}</h4>
                   <p>LCoder · {t(STATE_LABEL[chat.state])} · {t('shell.chatHint')}</p>
                 </div>
                 <span className={css.pill}>{chatRunning ? t('shell.running') : t('shell.chatReady')}</span>
