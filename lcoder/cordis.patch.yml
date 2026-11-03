@@ -7,16 +7,21 @@
 # 用法（在仓库根执行）：
 #   pnpm dsh web --patch lcoder/cordis.patch.yml
 #
-# 两行都不写 config：
-#   - `@lcoder/kernel` 的 `root` 默认就是进程工作目录下的 `.spec`，
-#     而 `dsh web` 是在仓库根起的；换别的工作目录就在命令行覆盖它。
-#   - `@lcoder/workspace` 没有配置面。它的 `dsh.client.inject` 声明在
-#     packages/lcoder/workspace/package.json 里，浏览器侧依赖顺序由它决定。
+# `@lcoder/kernel` 的规格根这样取：
+#   1. 有会话时取 `session.header.cwd/.spec`——桌面端宿主 cwd 是 profile，
+#      不是目标仓库，只有会话工作区才是正确来源；
+#   2. 没有会话 cwd 时（headless、启动自检）用下面的 `root` 配置；
+#   3. `root` 未设置时退回进程工作目录下的 `.spec`。
+# `@lcoder/workspace` 没有配置面。它的 `dsh.client.inject` 声明在
+# packages/lcoder/workspace/package.json 里，浏览器侧依赖顺序由它决定。
 - insert:
     # 宿主侧：注册六个工具（规格/任务/编辑），工具面按当前任务状态收放。
     # `tools` 服务由 base 清单的 `- id: tools` 行提供，所以这一行能激活。
     - id: lcoder-kernel
       name: '@lcoder/kernel'
+      config:
+        # 部署可用环境变量指定无会话时的规格根；留空则用进程工作目录。
+        root: !!js process.env.LCODER_SPEC_ROOT || undefined
 
     # 浏览器侧：右栏的工作台页签。数据走文件投影，读的是上面那个 kernel
     # 落盘的同一批 YAML（`.spec/tasks/*.yaml`、`.spec/spec/rules.yaml`）。

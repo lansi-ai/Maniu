@@ -57,10 +57,12 @@ pnpm --filter @lcoder/kernel bundle
 按顺序看四件事：
 
 1. **服务活着**：日志里有 `dsh web: http://127.0.0.1:3080/?token=…`
-2. **kernel 挂上了**：日志里有 `[lcoder] 已在 E:\Projects\LCoder\.spec 注册 9 个工具`
+2. **kernel 挂上了**：日志里有 `[lcoder] 已注册 9 个工具；无会话 cwd 时规格根 …`
    —— 这一行是 kernel 的 selfCheck 打的，说明宿主侧工具真注册了
-3. **没有激活失败**：不应该出现 `N entries did not activate`
-4. **工作台进了浏览器清单**：带会话取首页，插件组合 URL 里要有
+3. **规格根对着目标仓库**：会话里第一次求值工具面时日志出现 `[lcoder] 规格根：<仓库>/.spec`
+   —— 有会话时它必须是目标仓库，而不是 profile 目录
+4. **没有激活失败**：不应该出现 `N entries did not activate`
+5. **工作台进了浏览器清单**：带会话取首页，插件组合 URL 里要有
    `@lcoder/workspace/client.js`
 
 ```sh
@@ -72,6 +74,20 @@ curl -s -c /tmp/cj -b /tmp/cj -L "http://127.0.0.1:3080/?token=$TOKEN" | grep -o
 页签列表里应该多出「工作台」。三栏要出数据，会话还得绑定一个工作区目录——
 仓库根有一份示例 `.spec/`（`DR-01`/`DR-02` 两条规则、`DEMO-01` 一个任务），
 可以直接选仓库根。它是产品示例数据，不是开发台账；开发进度见 `docs/tasks.yaml`。
+
+## 规格根从哪来
+
+kernel 按下面的顺序确定 `.spec` 目录：
+
+1. 有会话时：`session.header.cwd/.spec`，即会话创建时绑定的仓库；
+2. 没有会话 cwd（headless、启动自检）：`LCODER_SPEC_ROOT` 或 patch 里的 `root`；
+3. 都没有：`process.cwd()/.spec`。
+
+桌面端宿主子进程的 cwd 是 profile 目录，不是目标仓库，所以只能靠会话工作区定位真实规格库。`LCODER_SPEC_ROOT` 通过 `lcoder/cordis.patch.yml` 的 `!!js` 注入，只作兜底或显式覆盖。
+
+## 并联工作树
+
+并行窗口用独立 worktree 时，给 smoke 单独的 `DSH_HOME`，不要改主窗口共用的 `~/.dsh/profiles/web`；端口换 3081。首次先 `pnpm install`、`pnpm run build:artifacts`，再按第 2 节把 worktree 的两个包 `link:` 进 worktree 自己的 profile。
 
 ## 踩过的坑
 

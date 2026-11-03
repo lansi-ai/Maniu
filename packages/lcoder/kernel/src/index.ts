@@ -14,6 +14,7 @@ export * from './schema/spec.js'
 export * from './schema/validate.js'
 
 export * from './kernel/spec-store.js'
+export * from './kernel/spec-root.js'
 export * from './kernel/task-store.js'
 export * from './kernel/surface.js'
 

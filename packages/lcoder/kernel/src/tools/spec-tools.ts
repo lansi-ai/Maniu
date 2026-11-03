@@ -8,7 +8,7 @@
  * S1 当场失效。签署是人机命令，不经过模型回合。
  *
  * 输出统一用 `{ type: 'json' }` + JSON 渲染。代价是没有输出校验，
- * 理由与后续收紧计划见 docs/reference/dsh-define-tool.md。
+ * 理由与后续收紧计划见 docs/cookbook/adding-a-tool.md。
  */
 import { createHash } from 'node:crypto'
 import { mkdirSync, writeFileSync } from 'node:fs'
@@ -20,6 +20,8 @@ import { stringify as stringifyYaml } from 'yaml'
 
 import { Contract } from '../schema/spec.js'
 import { loadSpec, saveRules } from '../kernel/spec-store.js'
+import { resolveRoot } from '../kernel/spec-root.js'
+import type { RootInput } from '../kernel/spec-root.js'
 
 const renderJson = (_args: unknown, value: unknown): { type: 'text'; text: string }[] => [
   { type: 'text', text: JSON.stringify(value, null, 2) },
@@ -42,7 +44,7 @@ export function contractPath(root: string, taskId: string): string {
   return join(root, 'contracts', `${taskId}.contract.yaml`)
 }
 
-export function createSpecTools(root: string): ToolDefinition[] {
+export function createSpecTools(rootInput: RootInput): ToolDefinition[] {
   return [
     defineTool({
       name: 'spec_query',
@@ -56,7 +58,8 @@ export function createSpecTools(root: string): ToolDefinition[] {
       },
       output: { schema: { type: 'json' }, render: renderJson },
       // oxlint-disable-next-line typescript/require-await -- execute 的契约要求返回 Promise（ToolDefinition.execute），这里是同步实现。
-      async execute(args) {
+      async execute(args, exec) {
+        const root = resolveRoot(rootInput, exec)
         const snap = loadSpec(root)
         const kw = args.keyword?.toLowerCase()
 
@@ -98,7 +101,8 @@ export function createSpecTools(root: string): ToolDefinition[] {
       },
       output: { schema: { type: 'json' }, render: renderJson },
       // oxlint-disable-next-line typescript/require-await -- execute 的契约要求返回 Promise（ToolDefinition.execute），这里是同步实现。
-      async execute(args) {
+      async execute(args, exec) {
+        const root = resolveRoot(rootInput, exec)
         const snap = loadSpec(root)
         const rule = snap.rules.find(r => r.id === args.rule_id)
         if (!rule) throw new Error(`找不到规格条目 ${args.rule_id}，先用 spec_query 确认编号`)
@@ -133,7 +137,8 @@ export function createSpecTools(root: string): ToolDefinition[] {
       },
       output: { schema: { type: 'json' }, render: renderJson },
       // oxlint-disable-next-line typescript/require-await -- execute 的契约要求返回 Promise（ToolDefinition.execute），这里是同步实现。
-      async execute(args) {
+      async execute(args, exec) {
+        const root = resolveRoot(rootInput, exec)
         const draft: Contract = Contract.parse({
           id: args.task_id,
           change: args.change,
