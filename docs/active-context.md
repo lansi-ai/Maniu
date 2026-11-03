@@ -15,7 +15,7 @@ English | [中文](active-context.zh.md)
 - **Offline board**: `docs/tasks-html/index.html` (double-click to open; contains overview, status board, hierarchy tree, matrix, and filters).
 - **Regeneration command**: `python scripts/build-tasks-html.py`.
 
-- **Current focus**: M0.4 real-repository acceptance (open a new incantation).
+- **Current focus**: T-10 zero-task onboarding is implemented on `lcoder/t10-onboarding` (three commits) and gated green; its desktop acceptance is blocked by T-12, the desktop `Open repository` hang.
 - **Completed**: T-01 file projection; T-02 host mount; T-04 specification root and documentation gates; T-05 LCoder shell; T-06 real `.spec`/`project.yaml`/workspace-session data; T-07 project info drawer and the `.spec/project.yaml` schema; T-08 real floating conversation; T-09 README, tests, and old preset cleanup. T-03 is superseded by the shell and closed.
 - **Next step**: see §04.
 
@@ -42,12 +42,15 @@ English | [中文](active-context.zh.md)
   - The floating conversation renders final user/assistant text, not the full DSH conversation UI (tool cards, live token streaming).
   - `.spec/local.yaml` is absent in the demo repo, so the drawer's eye shows 未配置; the local resolution path is implemented but unexercised.
   - The task board reads the first session in the selected workspace; a task-specific session per task is deferred.
+  - Desktop `Open repository` never returns: `ctx.workspaces.create` stays pending while the workspace list reads fine, so no workspace or session can be created in a fresh desktop home (T-12). This blocks T-10's desktop acceptance and M0.4.
+  - The kernel loads twice in the desktop profile, once under `preset-lcoder` and once under the `lcoder-kernel` insert; the boot log prints the ten-tool line twice.
   - The real run drafted `.spec/contracts/DEMO-01.contract.yaml` (unsigned, untracked); keep or discard is a product decision.
 
 ## 04. Next immediate actions (Next Immediate Actions)
 
-- **Currently working on**: M0.4 real-repository acceptance, to be opened as a separate incantation.
-- **About to execute**: choose a real repository/workspace, verify the project-info drawer, task board, kernel tools, and floating conversation end-to-end; decide whether to keep the untracked DEMO-01 contract; run `pnpm typecheck` / `pnpm lint` / `pnpm exec vitest run packages/lcoder` / `pnpm run test:docs` before closing the milestone.
+- **Currently working on**: T-12 diagnosis, then T-10 desktop closure. The signed-off contract is implemented: empty-board onboarding surface, `task_draft`, and the shell's empty-board action, with `pnpm typecheck`, `pnpm lint`, `pnpm exec vitest run packages/lcoder` (140 tests) and `pnpm run test:docs` green in the worktree.
+- **About to execute**: find why `workspaces.create` never resolves on the desktop composition, reopen `E:/Projects/LCoder-onboard-demo` (a docs-only repository with no `.spec`), then verify the board's onboarding action and `task_draft` end to end before flipping T-10 to `done`.
+- **Open decision**: the untracked `.spec/contracts/DEMO-01.contract.yaml` drafted by the earlier real run still needs a keep-or-discard call.
 - **Development evidence**: gate output is recorded in the task note in `docs/tasks.yaml` or the commit message; `.spec/evidence` serves product tasks only.
 - **Board regeneration**: after a development status change, edit `docs/tasks.yaml` first, then run `python scripts/build-tasks-html.py`.
 - **Documentation gates**: green after T-02 and T-04; package READMEs and bilingual pairs must stay green whenever documents change.

@@ -15,7 +15,7 @@
 - **离线看板**：`docs/tasks-html/index.html`（双击打开，含概览、状态看板、层级树、矩阵与筛选）。
 - **重跑命令**：`python scripts/build-tasks-html.py`。
 
-- **当前焦点**：M0.4 真实仓库验收（另开咒语）。
+- **当前焦点**：T-10 零任务立项已在 `lcoder/t10-onboarding` 实现（三个提交）并过完门禁；它的桌面端验收被 T-12「打开仓库永不返回」卡住。
 - **已完成**：T-01 文件投影；T-02 宿主挂载；T-04 规格根与文档门禁；T-05 LCoder 外壳；T-06 真实 `.spec`/`project.yaml`/工作区会话数据；T-07 项目信息抽屉与 `.spec/project.yaml` schema；T-08 真实悬浮对话；T-09 README、测试与旧预设收口。T-03 已被外壳取代并关闭。
 - **下一步**：见 §04。
 
@@ -42,12 +42,15 @@
   - 悬浮对话只渲染最终用户/助手文本，不含完整 DSH 会话 UI（工具卡片、逐 token 流式）。
   - 演示仓库没有 `.spec/local.yaml`，抽屉眼睛显示「未配置」；本机解析路径已实现但尚未实测。
   - 任务板读取所选工作区的第一个会话；每个任务单独建会话尚未实现。
+  - 桌面端「打开仓库」不返回：`ctx.workspaces.create` 一直悬挂，而工作区列表读得动，全新 DSH_HOME 里建不出工作区与会话（T-12）；T-10 的桌面验收与 M0.4 都被它挡住。
+  - kernel 在桌面 profile 被装载两遍（`preset-lcoder` 段与 `lcoder-kernel` 两处 insert），启动日志里「已注册 10 个工具」出现两次。
   - 真实运行起草了 `.spec/contracts/DEMO-01.contract.yaml`（未签署、未跟踪）；保留还是丢弃由产品决定。
 
 ## 04. 下一步即时行动 (Next Immediate Actions)
 
-- **当前正在处理**：M0.4 真实仓库验收，另开咒语执行。
-- **即将执行**：选一个真实仓库/工作区，端到端验证项目信息抽屉、任务板、kernel 工具与悬浮对话；决定未跟踪的 DEMO-01 契约去留；收口前跑 `pnpm typecheck` / `pnpm lint` / `pnpm exec vitest run packages/lcoder` / `pnpm run test:docs`。
+- **当前正在处理**：T-10 已 Sign-off 并实现（台账 `doing`），worktree 分支 `lcoder/t10-onboarding` 三个提交：空看板立项面、`task_draft`、外壳空态立项动作；worktree 内 `pnpm typecheck`、`pnpm lint`、`pnpm exec vitest run packages/lcoder`（140 tests）、`pnpm run test:docs` 全绿。
+- **即将执行**：查清 `workspaces.create` 为何不返回，重新打开 `E:/Projects/LCoder-onboard-demo`（只有产品文档、没有 `.spec`），端到端验证看板立项动作与 `task_draft`，再把 T-10 置 done。
+- **待定决策**：早前真实运行留下的未跟踪 `.spec/contracts/DEMO-01.contract.yaml` 要留还是删。
 - **开发证据**：门禁命令输出记录在 `docs/tasks.yaml` 的任务 note 或提交说明；`.spec/evidence` 只服务产品任务。
 - **看板重跑**：开发状态变化后先改 `docs/tasks.yaml`，再执行 `python scripts/build-tasks-html.py`。
 - **文档门禁**：已随 T-02 与 T-04 收口；改文档时包 README 与中英配对必须保持全绿。
