@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`@lcoder/workspace` is LCoder's shell. It shows the selected project, a five-state task board read from the session workspace's `.spec`, a project-info drawer read from `.spec/project.yaml`, and a floating conversation that sends the dev-flow startup prompt through the real session. The project picker can open another repository, creating or reusing its workspace and a session. An empty board offers an onboarding prompt built from the delivery documents declared in `.spec/project.yaml`. Mount it through the LCoder patch layer when the kernel already runs; `shell: false` keeps the older right-sidebar workbench tab. The shell is read-only over product data: state-machine decisions and writes stay in the kernel.
+`@lcoder/workspace` is LCoder's shell. It shows the selected project, a five-state task board from the session workspace's `.spec`, a project-info drawer from `.spec/project.yaml`, and a floating conversation that sends the startup prompt through the real session. The project picker can open another repository, creating or reusing its workspace and a session. An empty board offers an onboarding prompt from the delivery documents declared there. Mount it through the LCoder patch layer when the kernel already runs; `shell: false` keeps the older right-sidebar tab. The shell is read-only over product data: state-machine decisions and writes stay in the kernel.
 
 ## Table of Contents
 

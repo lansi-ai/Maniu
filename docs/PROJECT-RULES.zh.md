@@ -16,7 +16,7 @@
 ## 1. 硬约束红线（项目专属 · 永不违反）
 
 - 🚫 不改任何上游文件；确需修改必须先进 [contact-surface.txt](../lcoder/contact-surface.txt)，并在 [UPSTREAM-BASELINE.md](../lcoder/UPSTREAM-BASELINE.md) §3 写明「改什么 / 为什么」。
-- 🚫 `.spec` 下的任务与规格 YAML 是 **LCoder 产品数据**的唯一事实源；UI 只读不写，状态机判断不进 UI。它不是本仓库的开发任务台账。
+- 🚫 `.spec` 下的任务与规格 YAML 是 **LCoder 产品数据**的唯一事实源；UI 只读不写，状态机判断不进 UI。它不是本仓库的开发任务台账。kernel 是唯一写入口：模型可以经 `task_draft` 新建 `drafting` 任务，但不能推进状态、不能签契约、不能改规格条目。
 - 🚫 目标平台是 Windows 桌面端；路径处理按 Windows 优先（盘符、反斜杠、大小写不敏感）。
 - 🚫 `contract_sign` 永不注册为模型工具；契约只能由人签署，`by: agent` 视为无效。
 - 🚫 能新增就不修改；改上游只改装配层（patch 层、聚合 tsconfig），不碰组件内部实现。
@@ -119,6 +119,7 @@
 - `@lcoder/*` 要在 `~/.dsh/profiles/web` 用 `link:` 接入；换机或重建 `~/.dsh` 后重做。
 - Windows 上 kill `dev:web` 不会带走子进程；换实例前按进程树清理，再确认端口空闲。
 - 不要给 `dev:web` 接管道；输出重定向到文件再读，否则日志会被缓冲到进程结束。
+- 一条桌面线一个 worktree：主窗用默认 Electron inspector 端口（9229/9222/9230），feature worktree 用 `DSH_DESKTOP_MAIN_INSPECT_PORT`、`DSH_DESKTOP_RENDERER_DEBUG_PORT`、`DSH_DESKTOP_HOST_INSPECT_PORT` 设一组预留端口，端口号记在该任务的台账备注里。`apps/desktop/scripts/dev.ts` 把 `DSH_HOME` 与 Electron `userData` 指进 `apps/desktop/.desktop-build/development/`，worktree 不写主窗的 `~/.dsh`；`@lcoder/*` 的 link 要指向 worktree 自己的包目录。
 - 插件路径是批量 combo URL，不是 `plugins/<name>/client.js`；单独请求会 404。
 - 文档门禁：`pnpm run test:docs`；包 README 必须有 `kind` / `description` frontmatter 与 `Summary` / `Table of Contents` / `Dev Note` 骨架。
 - 看板：先改 `docs/tasks.yaml`，再跑 `python scripts/build-tasks-html.py`；产物是 `docs/tasks-html/index.html`。`.spec` 不参与看板生成。

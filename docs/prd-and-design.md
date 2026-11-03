@@ -39,7 +39,7 @@ The following five states are the task flow inside the LCoder product; developme
 
 | State | Entry condition | Model-visible capability | Exit |
 |---|---|---|---|
-| `drafting` | Task created, contract unsigned | Read code, query specifications, bind locations, draft the contract | A human signs the contract, then `contracted` |
+| `drafting` | Task created, contract unsigned | Read code, query specifications, bind locations, draft the contract and further tasks | A human signs the contract, then `contracted` |
 | `contracted` | Contract signed by a human | Adds editing, command execution, evidence attachment | Enter `implementing` |
 | `implementing` | Implementing against the contract | Same as above | Only `verifying`, or back to `contracted` to re-sign |
 | `verifying` | Evidence complete | Adds `task_close` | `closed` after P1/P3/P4; otherwise back to `implementing` |
@@ -47,9 +47,11 @@ The following five states are the task flow inside the LCoder product; developme
 
 The state machine only judges graph legality; whether a task may enter `contracted` also depends on a signed contract, decided by P3 and kept out of the state machine. Closure is `task_close` chaining three checkers: P1 gives every entry a binding, P3 requires a human signature for irreversible items, and P4 requires evidence for every entry; if any fails, the state does not change.
 
+A repository with no task on disk is not a sixth state. Until the first `task_draft` lands there, the kernel applies the onboarding surface described in §6.
+
 ## 6. Tool surface
 
-The kernel registers nine tools with the host: `file_read`, `file_edit`, `cmd_run`, `evidence_attach`, `spec_query`, `spec_bind`, `contract_draft`, `task_read`, and `task_close`. The tool surface follows the task state, using an allow list (fail-closed): an unconfigured tool is invisible by default, so a missed configuration means "cannot use" rather than "can use beyond authority". `contract_sign` is never registered as a model tool: a model that can call a signing tool can sign for itself. Registration uses `when`, evaluated once per model step, instead of `restrict`; `restrict` only applies to globally registered tools and cannot cover scoped registrations.
+The kernel registers ten tools with the host: `file_read`, `file_edit`, `cmd_run`, `evidence_attach`, `spec_query`, `spec_bind`, `contract_draft`, `task_read`, `task_draft`, and `task_close`. The tool surface follows the task state, using an allow list (fail-closed): an unconfigured tool is invisible by default, so a missed configuration means "cannot use" rather than "can use beyond authority". A repository whose task state is unreadable — no `.spec`, or an empty `tasks/` — gets the onboarding surface `file_read`, `spec_query`, `task_read`, `task_draft`, so investigation and task drafting work there while editing and command execution do not. `contract_sign` is never registered as a model tool: a model that can call a signing tool can sign for itself. Registration uses `when`, evaluated once per model step, instead of `restrict`; `restrict` only applies to globally registered tools and cannot cover scoped registrations. `when` therefore reaches only this package's registrations: tools registered globally by a shipped bundle (`read`, `write`, `edit`, `glob`, `grep`, `bash`, `pwsh`) stay visible to every Agent in the profile, and covering them takes an Agent-scope `restrict` (§11).
 
 ## 7. Data plane
 
@@ -59,13 +61,13 @@ The kernel's specification root follows the session workspace: a tool call uses 
 
 ## 8. MVP scope (MVP-0)
 
-This phase delivers: the host mounts the kernel, nine tools register and follow the task state; a "Workbench" tab appears in the right sidebar; the three columns connect to the file projection; one local command starts everything.
+This phase delivers: the host mounts the kernel, and the registered tools follow the task state; a "Workbench" tab appears in the right sidebar; the three columns connect to the file projection; one local command starts everything.
 
 Explicitly out of scope: a contract-signing UI or human command; an independent `task_transition` tool; incremental refresh; multiple workspaces and a permission model; remote sync; full bilingual rework of upstream documents.
 
 ## 9. Acceptance criteria
 
-- After startup the log shows the nine tool-registration lines and the `http://127.0.0.1:3080` address, with no activation failures.
+- After startup the log shows the ten tool-registration lines and the resolved specification root, with no activation failures.
 - The browser plugin manifest contains `@lcoder/workspace/client.js`, and the right sidebar shows the "Workbench" tab.
 - After the session binds a workspace directory, the three columns read the tasks and rules under `.spec`.
 - `pnpm typecheck`, `pnpm lint`, and `pnpm exec vitest run packages/lcoder` are green; `pnpm run test:docs` is green when documents change.
@@ -85,6 +87,7 @@ Explicitly out of scope: a contract-signing UI or human command; an independent 
 
 - The contract-signing channel is missing: P3 requires a human signature, but there is no signing UI or human command yet, so a YAML file must be edited by hand.
 - `implementing → verifying` has no tool entry; advancing the state requires editing the task file by hand.
+- The onboarding surface removes this package's editing and command tools only. Bundle-registered tools stay available to every Agent in the profile, so an un-onboarded repository does not lose code-editing capability from LCoder alone; an Agent-scope `restrict` covering them is tracked as T-11.
 - The product example `DEMO-01` is in `drafting` with no contract yet; the example `env.yaml` is in place.
 - Development tasks do not use `.spec` contracts or evidence; see [PROJECT-RULES.md](PROJECT-RULES.md) §3 for the development gates.
 - Upstream upgrades must check the three tsconfig/lock contact surfaces and the root `AGENTS.md` entry; conflicts require human review.

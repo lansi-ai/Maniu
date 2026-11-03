@@ -13,14 +13,14 @@ const PROJECT = { name: 'Demo 商城', path: 'E:/Projects/demo', branch: 'main' 
 
 describe('立项咒语', () => {
   it('声明了交付文档时逐条给出路径，并要求先读再立项', () => {
-    const docs: ShellOnboardingDocs = { product: 'docs/prd.md', architecture: 'docs/arch.md', tests: '' }
+    const docs: ShellOnboardingDocs = { product: 'docs/prd-and-design.md', architecture: 'docs/architecture.md', tests: '' }
     const text = buildOnboardingPrompt(PROJECT, docs)
 
     expect(text).toContain('@task-flow 立项分析：Demo 商城（E:/Projects/demo）')
     expect(text).toContain('- 规格根：E:/Projects/demo/.spec')
     expect(text).toContain('- 项目：Demo 商城（E:/Projects/demo，main）')
-    expect(text).toContain('- 产品文档：docs/prd.md')
-    expect(text).toContain('- 架构文档：docs/arch.md')
+    expect(text).toContain('- 产品文档：docs/prd-and-design.md')
+    expect(text).toContain('- 架构文档：docs/architecture.md')
     expect(text).not.toContain('测试用例：')
     expect(text).toContain('先 task_read 确认空看板，再 file_read 逐个读上面的文档')
     expect(text).toContain('每个任务调一次 task_draft，状态固定 drafting')
@@ -37,7 +37,7 @@ describe('立项咒语', () => {
   })
 
   it('不承诺模型能改代码或自己签契约', () => {
-    const text = buildOnboardingPrompt(PROJECT, { product: 'docs/prd.md', architecture: '', tests: '' })
+    const text = buildOnboardingPrompt(PROJECT, { product: 'docs/prd-and-design.md', architecture: '', tests: '' })
 
     expect(text).toContain('不要改业务代码，不要给自己签契约')
     expect(text).not.toContain('file_edit')
