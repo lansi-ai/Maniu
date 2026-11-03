@@ -62,6 +62,17 @@ tracks:
       dep: []
       inferred: false
       note: B 级；规则 R-02；证据 vitest
+    - id: T-05
+      title: LCoder 专属外壳：项目切换 + 任务板 + 悬浮对话
+      status: doing
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-03'
+      date: ''
+      dep: [T-02, T-04]
+      inferred: false
+      note: A 级；原型已确认：主窗=项目+任务板，左上项目切换弹窗；选任务弹对话并自动填 dev-flow 启动咒语；修改阶段主窗缩成悬浮对话窗、任务板窗保留；只保留设置。先原型后实现；证据 typecheck, vitest, lint, test:docs, smoke
 milestones:
 - name: MVP-0 工作台本地跑通
   track: lcoder

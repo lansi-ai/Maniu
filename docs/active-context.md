@@ -15,7 +15,7 @@ English | [中文](active-context.zh.md)
 - **Offline board**: `docs/tasks-html/index.html` (double-click to open; contains overview, status board, hierarchy tree, matrix, and filters).
 - **Regeneration command**: `python scripts/build-tasks-html.py`.
 
-- **Current focus**: T-03 shared selection across the three columns (todo).
+- **Current focus**: T-05 LCoder-specific shell (doing).
 - **Completed**: T-01 file projection; T-02 host mount; T-04 specification root and documentation gates.
 - **Next step**: see §04.
 
@@ -27,16 +27,18 @@ English | [中文](active-context.zh.md)
   - Mounting goes through `lcoder/cordis.patch.yml` only and never changes upstream manifests.
   - `.spec/tasks` is product data; `docs/tasks.yaml` is the development ledger; neither derives from the other, and the board is generated only from the ledger.
   - The specification root follows the session workspace (`session.header.cwd/.spec`); without a session cwd it falls back to the configured root, then to `process.cwd()/.spec`.
+  - The LCoder shell direction is approved: project switch + task board as the first screen; a task opens a conversation with the dev-flow startup prompt; during the modification phase the main window becomes a floating conversation window while the task board window stays; only Settings is retained.
 - **Risks and technical debt**:
   - The contract-signing channel is not implemented; P3 requires writing YAML by hand.
   - `task_transition` has no tool entry.
   - The product example `DEMO-01` is in `drafting` with no contract; the example `env.yaml` is in place.
   - The edit tools still resolve `file_read` / `file_edit` against the specification root; the real-repository acceptance step must confirm whether they should use the repository root.
+  - The desktop profile still links the old `WorkBuddy/LCoder` package; T-05 must mount the current `@lcoder/*` packages into it.
 
 ## 04. Next immediate actions (Next Immediate Actions)
 
-- **Currently working on**: T-03, a per-session store for the shared selection so a task click shows its contract and evidence.
-- **About to execute**: design the selection state and the three-column interaction, then run `pnpm typecheck` / `pnpm lint` / `pnpm exec vitest run packages/lcoder` / `pnpm run test:docs`.
+- **Currently working on**: T-05, the LCoder-specific shell: a project switch and task board as the first screen, a task detail that generates the dev-flow startup prompt, and a floating conversation window during the modification phase.
+- **About to execute**: mount the current `@lcoder/kernel` and `@lcoder/workspace` into the desktop profile, then build the shell sidebar and task board against the approved prototype; run `pnpm typecheck` / `pnpm lint` / `pnpm exec vitest run packages/lcoder` / `pnpm run test:docs` before claiming the slice is done.
 - **Development evidence**: gate output is recorded in the task note in `docs/tasks.yaml` or the commit message; `.spec/evidence` serves product tasks only.
 - **Board regeneration**: after a development status change, edit `docs/tasks.yaml` first, then run `python scripts/build-tasks-html.py`.
 - **Documentation gates**: green after T-02 and T-04; package READMEs and bilingual pairs must stay green whenever documents change.

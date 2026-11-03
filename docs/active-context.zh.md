@@ -15,7 +15,7 @@
 - **离线看板**：`docs/tasks-html/index.html`（双击打开，含概览、状态看板、层级树、矩阵与筛选）。
 - **重跑命令**：`python scripts/build-tasks-html.py`。
 
-- **当前焦点**：T-03 三栏共享选中项（todo）。
+- **当前焦点**：T-05 LCoder 专属外壳（doing）。
 - **已完成**：T-01 文件投影；T-02 宿主挂载；T-04 规格根与文档门禁。
 - **下一步**：见 §04。
 
@@ -27,16 +27,18 @@
   - 挂载只走 `lcoder/cordis.patch.yml`，不改上游清单。
   - `.spec/tasks` 是产品数据；`docs/tasks.yaml` 是开发台账；两者不互相派生，看板只从开发台账生成。
   - 规格根跟随会话工作区（`session.header.cwd/.spec`）；没有会话 cwd 时退回配置的 root，再退回 `process.cwd()/.spec`。
+  - LCoder 外壳方向已确认：首页=项目+任务板；左上项目切换弹窗；选任务弹对话并自动填 dev-flow 启动咒语；修改阶段主窗缩成悬浮对话窗、任务板窗保留；只保留设置。
 - **风险与技术债记录**：
   - 契约签署通道未实现，P3 只能人工写 YAML。
   - `task_transition` 没有工具入口。
   - 产品示例 `DEMO-01` 处于 `drafting`，尚无契约；示例 `env.yaml` 已就位。
   - edit 工具的 `file_read` / `file_edit` 仍以规格根为边界；真实仓库验收时需确认是否应改用仓库根。
+  - 桌面 profile 仍链接旧的 `WorkBuddy/LCoder` 包；T-05 需要把当前 `@lcoder/*` 挂进去。
 
 ## 04. 下一步即时行动 (Next Immediate Actions)
 
-- **当前正在处理**：T-03，为三栏共享选中项建一个按会话的 store，点任务能看它的契约与证据。
-- **即将执行**：设计选中状态与三栏交互，再跑 `pnpm typecheck` / `pnpm lint` / `pnpm exec vitest run packages/lcoder` / `pnpm run test:docs`。
+- **当前正在处理**：T-05，LCoder 专属外壳：首页项目切换+任务板，任务详情生成 dev-flow 启动咒语，修改阶段主窗缩成悬浮对话窗。
+- **即将执行**：把当前 `@lcoder/kernel` 与 `@lcoder/workspace` 挂进桌面 profile，再按已确认的原型实现外壳侧栏与任务板；收口前跑 `pnpm typecheck` / `pnpm lint` / `pnpm exec vitest run packages/lcoder` / `pnpm run test:docs`。
 - **开发证据**：门禁命令输出记录在 `docs/tasks.yaml` 的任务 note 或提交说明；`.spec/evidence` 只服务产品任务。
 - **看板重跑**：开发状态变化后先改 `docs/tasks.yaml`，再执行 `python scripts/build-tasks-html.py`。
 - **文档门禁**：已随 T-02 与 T-04 收口；改文档时包 README 与中英配对必须保持全绿。
