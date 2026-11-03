@@ -271,6 +271,21 @@ describe('task_draft 立项', () => {
     ).rejects.toThrow(/rules 只能留空/)
   })
 
+  it('有规格库但还没有条目时，报出可用编号为空', async () => {
+    const repo = makeUnscopedRepo()
+    const spec = join(repo, '.spec')
+    mkdirSync(join(spec, 'tasks'), { recursive: true })
+    writeFileSync(join(spec, 'tasks', 'T-01.yaml'), [
+      'id: T-01', 'title: 已有任务', 'grade: C', 'state: drafting', 'rules: []',
+      'scope:', '  irreversible: []', '  allowed_paths: []', 'evidence_required: []',
+      'opened_at: 2026-11-02T15:00:00+08:00', 'closed_at: null', '',
+    ].join('\n'), 'utf8')
+
+    await expect(
+      call(spec, 'task_draft', { title: '引用不存在的条目', grade: 'B', rules: ['R-01'] }),
+    ).rejects.toThrow(/可用编号：（规格库还没有条目）/)
+  })
+
   it('没有 .spec 时 task_read 给空表；指定编号才报错', async () => {
     const spec = join(makeUnscopedRepo(), '.spec')
     await expect(call(spec, 'task_read', {})).resolves.toMatchObject({ tasks: [] })
