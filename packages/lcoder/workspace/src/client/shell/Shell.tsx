@@ -17,7 +17,7 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { loadLocalSecrets, loadProjectInfo, loadWorkspaceProjection } from '../projection.ts'
 import type { ProjectionFilesRemote, TaskRow } from '../projection.ts'
 import { buildShellPrompt, SHELL_STATES } from './shell-data.ts'
-import type { ShellProjectInfo, ShellTask, ShellTaskState } from './shell-data.ts'
+import type { ShellMessage, ShellProjectInfo, ShellTask, ShellTaskState } from './shell-data.ts'
 import css from './Shell.module.css'
 
 /** `main` 键控面板的组合 props：运行时标准 seat + 本包词典 + 文件投影面。 */
@@ -29,6 +29,12 @@ export type ShellProps =
     readonly files?: ProjectionFilesRemote
     /** 把仓库路径注册成工作区并建一个会话；返回可用于读取 `.spec` 的会话。 */
     readonly openRepository?: (path: string) => Promise<{ workspaceId: string; sessionId: SessionId }>
+    /** 向真实会话发送一条文本提示。 */
+    readonly sendPrompt?: (sessionId: SessionId, text: string) => Promise<void>
+    /** 读真实会话的消息窗口。 */
+    readonly readMessages?: (sessionId: SessionId) => readonly ShellMessage[]
+    /** 订阅会话事件窗口变化。 */
+    readonly subscribeSession?: (sessionId: SessionId, listener: () => void) => () => void
   }
 
 /** 状态到词典键的映射，避免把状态字符串当展示文案。 */
@@ -94,7 +100,9 @@ function resolveSecrets(info: ShellProjectInfo, secrets: Readonly<Record<string,
  * @param props - 槽位组合进来的 props。
  * @returns 顶栏 + 任务板 + 项目信息抽屉 + 浮层。
  */
-export function Shell({ t, files, openRepository, useSessions, useWorkspaces }: ShellProps): ReactNode {
+export function Shell({
+  t, files, openRepository, sendPrompt, readMessages, subscribeSession, useSessions, useWorkspaces,
+}: ShellProps): ReactNode {
   const workspaces = useWorkspaces(state => state.items)
   const sessionRows = useSessions(state => state.byId)
 
@@ -117,6 +125,9 @@ export function Shell({ t, files, openRepository, useSessions, useWorkspaces }: 
   const [repoPath, setRepoPath] = useState('')
   const [opening, setOpening] = useState(false)
   const [repoError, setRepoError] = useState<string | null>(null)
+  const [messages, setMessages] = useState<readonly ShellMessage[]>([])
+  const [chatError, setChatError] = useState<string | null>(null)
+  const [draft, setDraft] = useState('')
 
   const workspace = workspaces.find(item => String(item.workspaceId) === workspaceId) ?? workspaces[0]
   const activeWorkspaceId = workspace === undefined ? null : String(workspace.workspaceId)
@@ -128,6 +139,7 @@ export function Shell({ t, files, openRepository, useSessions, useWorkspaces }: 
   const specRoot = projectPath === '' ? '' : `${projectPath}/.spec`
   const hasWorkspace = workspace !== undefined
   const hasSession = sessionId !== undefined
+  const chatRunning = sessionId === undefined ? false : sessionRows[sessionId]?.running ?? false
 
   useEffect(() => {
     if (files === undefined || workspace === undefined || sessionId === undefined) {
@@ -162,6 +174,16 @@ export function Shell({ t, files, openRepository, useSessions, useWorkspaces }: 
     return () => { controller.abort() }
   }, [files, activeWorkspaceId, sessionId])
 
+  useEffect(() => {
+    if (chat === null || sessionId === undefined || readMessages === undefined || subscribeSession === undefined) {
+      setMessages([])
+      return
+    }
+    const refresh = (): void => { setMessages(readMessages(sessionId)) }
+    refresh()
+    return subscribeSession(sessionId, refresh)
+  }, [chat, sessionId, readMessages, subscribeSession])
+
   const openTask = (task: ShellTask): void => {
     setDetail(task)
     setPrompt(buildShellPrompt({ name: projectName, path: projectPath, branch: projectBranch }, task))
@@ -176,6 +198,29 @@ export function Shell({ t, files, openRepository, useSessions, useWorkspaces }: 
       },
       () => { setCopied(false) },
     )
+  }
+
+  const startConversation = (task: ShellTask): void => {
+    setChat(task)
+    setDetail(null)
+    setChatError(null)
+    if (sessionId === undefined || sendPrompt === undefined) {
+      setChatError(t('shell.noSession'))
+      return
+    }
+    void sendPrompt(sessionId, prompt).catch((error: unknown) => { setChatError(String(error)) })
+  }
+
+  const sendDraft = async (): Promise<void> => {
+    const text = draft.trim()
+    if (text === '' || sessionId === undefined || sendPrompt === undefined) return
+    setDraft('')
+    setChatError(null)
+    try {
+      await sendPrompt(sessionId, text)
+    } catch (error: unknown) {
+      setChatError(String(error))
+    }
   }
 
   const submitRepo = async (): Promise<void> => {
@@ -440,7 +485,7 @@ export function Shell({ t, files, openRepository, useSessions, useWorkspaces }: 
               <button type="button" className={css.secondaryBtn} onClick={copyPrompt}>{copied ? t('shell.copied') : t('shell.copyPrompt')}</button>
               <div className={css.spacer} />
               <button type="button" className={css.secondaryBtn} onClick={() => { setDetail(null) }}>{t('shell.cancel')}</button>
-              <button type="button" className={css.primaryBtn} onClick={() => { setChat(detail); setDetail(null) }}>{t('shell.startChat')}</button>
+              <button type="button" className={css.primaryBtn} onClick={() => { startConversation(detail) }}>{t('shell.startChat')}</button>
             </div>
           </div>
         </div>
@@ -469,26 +514,42 @@ export function Shell({ t, files, openRepository, useSessions, useWorkspaces }: 
                   <h4>{chat.id} · {chat.title}</h4>
                   <p>LCoder · {t(STATE_LABEL[chat.state])} · {t('shell.chatHint')}</p>
                 </div>
-                <span className={css.pill}>{t(STATE_LABEL[chat.state])}</span>
+                <span className={css.pill}>{chatRunning ? t('shell.running') : t('shell.chatReady')}</span>
                 <button type="button" className={css.iconBtn} title={t('shell.expand')} onClick={() => { setChat(null) }}>⤢</button>
               </div>
               <div className={css.chatBody}>
-                <div className={`${css.msg} ${css.msgSys}`}>
-                  <span className={css.who}>{t('shell.chatSystem')}</span>
-                  {t('shell.chatGenerated')}
-                </div>
-                <div className={`${css.msg} ${css.msgUser}`}>
-                  <span className={css.who}>你</span>
-                  {t('shell.chatUser')}
-                </div>
-                <div className={`${css.msg} ${css.msgSys}`}>
-                  <span className={css.who}>LCoder</span>
-                  {t('shell.chatReply')}
-                </div>
+                {messages.length === 0
+                  ? (
+                    <div className={`${css.msg} ${css.msgSys}`}>
+                      <span className={css.who}>LCoder</span>
+                      {chatRunning ? t('shell.chatWaiting') : t('shell.chatEmpty')}
+                    </div>
+                  )
+                  : messages.map((message, index) => (
+                    <div
+                      key={`${message.role}-${String(index)}`}
+                      className={`${css.msg} ${message.role === 'user' ? css.msgUser : css.msgSys}`}
+                    >
+                      <span className={css.who}>{message.role === 'user' ? '你' : 'LCoder'}</span>
+                      {message.text}
+                    </div>
+                  ))}
+                {chatError === null ? null : <p className={css.problem}>{chatError}</p>}
               </div>
               <div className={css.chatInput}>
-                <input placeholder={t('shell.placeholder')} />
-                <button type="button" className={css.primaryBtn}>{t('shell.send')}</button>
+                <input
+                  value={draft}
+                  placeholder={t('shell.placeholder')}
+                  onChange={(event) => { setDraft(event.target.value) }}
+                />
+                <button
+                  type="button"
+                  className={css.primaryBtn}
+                  disabled={draft.trim() === '' || sessionId === undefined || sendPrompt === undefined}
+                  onClick={() => { void sendDraft() }}
+                >
+                  {t('shell.send')}
+                </button>
               </div>
             </div>
             <div className={css.caption}>{t('shell.chatHint')}</div>

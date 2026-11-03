@@ -113,6 +113,10 @@ export const zh = {
   'shell.openRepo': '打开仓库',
   'shell.repoPathHint': '例如 E:/Projects/LCoder',
   'shell.opening': '正在打开…',
+  'shell.chatWaiting': '等待模型回复…',
+  'shell.chatEmpty': '还没有消息。启动咒语发送后，回复会出现在这里。',
+  'shell.running': '运行中',
+  'shell.chatReady': '会话已连接',
 } satisfies Record<string, string>
 
 /** 工作台词典的键集。 */
@@ -218,4 +222,8 @@ export const en = {
   'shell.openRepo': 'Open repository',
   'shell.repoPathHint': 'e.g. E:/Projects/LCoder',
   'shell.opening': 'Opening…',
+  'shell.chatWaiting': 'Waiting for the model…',
+  'shell.chatEmpty': 'No messages yet; replies appear after the startup prompt is sent.',
+  'shell.running': 'Running',
+  'shell.chatReady': 'Session connected',
 } satisfies Record<LcoderWorkspaceKey, string>

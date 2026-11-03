@@ -4,6 +4,7 @@
  * 数据来自会话工作区的 `.spec`：任务/规则走 `projection.ts`，项目信息走
  * `.spec/project.yaml`；本文件只保留类型与纯模板，不再持有演示数据。
  */
+import type { SessionEventLikeEntry } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { LcoderWorkspaceKey } from '../locales.ts'
 
 /** 五态任务状态。 */
@@ -62,6 +63,43 @@ export const SHELL_STATES: readonly { readonly id: ShellTaskState; readonly labe
   { id: 'verifying', labelKey: 'shell.verifying' },
   { id: 'closed', labelKey: 'shell.closed' },
 ]
+
+/** 悬浮对话里的一条真实消息。 */
+export interface ShellMessage {
+  readonly role: 'user' | 'assistant'
+  readonly text: string
+}
+
+/**
+ * 从会话事件窗口提取可展示的用户/助手文本。工具结果与图片块忽略。
+ * @param entries - 会话事件窗口。
+ * @returns 按日志顺序排列的消息。
+ */
+export function messagesFromEntries(entries: readonly SessionEventLikeEntry[]): ShellMessage[] {
+  const out: ShellMessage[] = []
+  for (const entry of entries) {
+    if (entry.type !== 'event') continue
+    if (entry.event.type === 'user/message') {
+      const text = textOf(entry.event.data)
+      if (text !== '') out.push({ role: 'user', text })
+    } else if (entry.event.type === 'assistant/message') {
+      const text = textOf(entry.event.data.message)
+      if (text !== '') out.push({ role: 'assistant', text })
+    }
+  }
+  return out
+}
+
+/** 消息/内容块里的文本；其他形状一律忽略。 */
+function textOf(value: unknown): string {
+  if (typeof value === 'string') return value
+  if (Array.isArray(value)) return value.map(textOf).join('')
+  if (value === null || typeof value !== 'object') return ''
+  const record = value as Record<string, unknown>
+  if (typeof record.text === 'string') return record.text
+  if (record.content !== undefined) return textOf(record.content)
+  return ''
+}
 
 /** 启动咒语需要的项目事实。 */
 export interface ShellPromptProject {

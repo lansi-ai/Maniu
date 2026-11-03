@@ -41,8 +41,12 @@ function call(
   root: string,
   args: Record<string, unknown>,
   run?: Runner,
+  repoRoot?: string,
 ) {
-  const tools = createEditTools(root, run ? { run: run } : {})
+  const tools = createEditTools(root, {
+    ...(run === undefined ? {} : { run }),
+    ...(repoRoot === undefined ? {} : { repoRoot }),
+  })
   const tool = tools.find(t => t.name === toolName)
   if (!tool) throw new Error(`没有这个工具：${toolName}`)
   const exec = (tool as unknown as { execute: (a: unknown, e: unknown) => Promise<unknown> })
@@ -66,6 +70,22 @@ describe('签约态工具集', () => {
 
     expect(r.written).toBe(true)
     expect(readFileSync(join(root, 'src/deep/order.ts'), 'utf8')).toBe('export {};')
+  })
+
+  it('repoRoot 与规格根分离：文件落仓库根，证据落规格根', async () => {
+    const repo = mkdtempSync(join(tmpdir(), 'lcoder-repo-'))
+    dirs.push(repo)
+    const spec = join(repo, '.spec')
+    mkdirSync(spec, { recursive: true })
+    writeFileSync(join(spec, 'env.yaml'), ENV, 'utf8')
+
+    const written = await call('file_edit', spec, { path: 'src/order.ts', content: 'export {};' }, undefined, repo)
+    expect(written.written).toBe(true)
+    expect(readFileSync(join(repo, 'src/order.ts'), 'utf8')).toBe('export {};')
+    expect(existsSync(join(spec, 'src/order.ts'))).toBe(false)
+
+    await call('evidence_attach', spec, { task_id: 'T-01', kind: 'test', content: 'ok' }, undefined, repo)
+    expect(readFileSync(join(spec, 'evidence/T-01/test.log'), 'utf8')).toBe('ok')
   })
 
   it('file_edit 拒绝越界路径与绝对路径', async () => {

@@ -100,10 +100,16 @@ function loadEnv(root: string): Env {
 
 export interface EditToolDeps {
   run?: CommandRunner
+  /**
+   * `file_read` / `file_edit` 的根。规格根（`rootInput`）保存 `env.yaml` 与
+   * `evidence/`；文件工具必须读仓库根，默认仍是规格根以兼容独立使用。
+   */
+  repoRoot?: RootInput
 }
 
 export function createEditTools(rootInput: RootInput, deps: EditToolDeps = {}): ToolDefinition[] {
   const run = deps.run ?? spawnRunner
+  const fileRootInput = deps.repoRoot ?? rootInput
 
   return [
     defineTool({
@@ -118,7 +124,7 @@ export function createEditTools(rootInput: RootInput, deps: EditToolDeps = {}): 
       output: { schema: { type: 'json' }, render: renderJson },
       // oxlint-disable-next-line typescript/require-await -- execute 的契约要求返回 Promise（ToolDefinition.execute），这里是同步实现。
       async execute(args, exec) {
-        const root = resolveRoot(rootInput, exec)
+        const root = resolveRoot(fileRootInput, exec)
         const abs = resolveInsideRoot(root, args.path)
         const raw = readFileSync(abs, 'utf8')
         // Windows 桌面端的文件多半是 CRLF，先归一化再分行，行号与内容才稳定。
@@ -147,7 +153,7 @@ export function createEditTools(rootInput: RootInput, deps: EditToolDeps = {}): 
       output: { schema: { type: 'json' }, render: renderJson },
       // oxlint-disable-next-line typescript/require-await -- execute 的契约要求返回 Promise（ToolDefinition.execute），这里是同步实现。
       async execute(args, exec) {
-        const root = resolveRoot(rootInput, exec)
+        const root = resolveRoot(fileRootInput, exec)
         const abs = resolveInsideRoot(root, args.path)
         mkdirSync(dirname(abs), { recursive: true })
         writeFileSync(abs, args.content, 'utf8')

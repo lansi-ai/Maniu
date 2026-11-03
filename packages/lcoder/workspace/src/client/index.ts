@@ -27,6 +27,8 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { WORKSPACE_ID, workspaceDefinition } from './definition.ts'
 import { en, zh } from './locales.ts'
 import { loadWorkspaceProjection, PAGE_LINES } from './projection.ts'
+import { messagesFromEntries } from './shell/shell-data.ts'
+import type { ShellMessage } from './shell/shell-data.ts'
 import { Shell } from './shell/Shell.tsx'
 import { WorkspaceBody } from './WorkspaceBody.tsx'
 import type { ProjectionFilesRemote } from './projection.ts'
@@ -96,9 +98,28 @@ export function apply(ctx: ClientContext, config: Config = {}): void {
       const sessionId = await ctx.sessions.create({ workspaceId: workspace.workspaceId })
       return { workspaceId: String(workspace.workspaceId), sessionId }
     }
+    const sendPrompt = async (sessionId: SessionId, text: string): Promise<void> => {
+      const binding = ctx.sessions.binding(sessionId)
+      if (binding === undefined) throw new Error('会话尚未就绪，请先打开仓库或新建会话')
+      const result = await binding.session.prompt([{ type: 'text', text }], 'queue')
+      if (!result.ok) throw new Error(result.error.message)
+    }
+    const readMessages = (sessionId: SessionId): readonly ShellMessage[] => {
+      const binding = ctx.sessions.binding(sessionId)
+      return binding === undefined ? [] : messagesFromEntries(binding.eventSource.getSnapshot().entries)
+    }
+    const subscribeSession = (sessionId: SessionId, listener: () => void): (() => void) => {
+      const binding = ctx.sessions.binding(sessionId)
+      return binding === undefined ? () => {} : binding.eventSource.subscribe(listener)
+    }
     ctx.effect(() => ctx.slots.inject('main', () => {
       const dispose = ctx.slots.register(
-        { name: 'main', key: 'lcoder-home', locale: NS, inject: () => ({ files, openRepository }) },
+        {
+          name: 'main',
+          key: 'lcoder-home',
+          locale: NS,
+          inject: () => ({ files, openRepository, sendPrompt, readMessages, subscribeSession }),
+        },
         Shell,
       )
       // The frame renders `conversation` until a key is selected; choose the

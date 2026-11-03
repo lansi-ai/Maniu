@@ -8,7 +8,7 @@
  * 工具面的收放（restrict 掩码）需要 Agent 作用域，由 surface 在会话侧接管，
  * 不在这里做——否则会变成全局限制，把每个 Agent 都罩住（DSH 会直接抛错）。
  */
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 
 import { createEditTools, spawnRunner } from './tools/edit-tools.js'
 import { createSpecTools } from './tools/spec-tools.js'
@@ -65,10 +65,12 @@ export function apply(ctx: PluginContext, config: LcoderConfig = {}): void {
   const fallbackRoot = config.root ?? join(process.cwd(), '.spec')
   /** 每次调用按当前会话解析；没有会话时退回备案根。 */
   const rootInput: RootInput = context => sessionSpecRoot(context, fallbackRoot)
+  // 规格根保存 env/evidence；文件工具必须读仓库根（规格根的上一级）。
+  const repoRootInput: RootInput = context => resolve(rootInput(context), '..')
   const tools = [
     ...createSpecTools(rootInput),
     ...createTaskTools(rootInput),
-    ...createEditTools(rootInput, { run: spawnRunner }),
+    ...createEditTools(rootInput, { run: spawnRunner, repoRoot: repoRootInput }),
   ]
 
   const taskId = config.taskId
