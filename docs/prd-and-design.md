@@ -1,0 +1,93 @@
+# LCoder 产品与设计文档（PRD）
+
+## 0. 文档定位
+
+本文汇总 LCoder 的业务共识与方案设计，是 [PROJECT-RULES.md](PROJECT-RULES.md) 的口径来源。产品运行时的任务与规格数据不写在这里；LCoder 产品数据的唯一事实源是工作区下的 `.spec/`。
+
+本仓库同时存在两类任务资产，不能混用：`.spec/tasks` 是 **LCoder 产品数据**，供 kernel 与 UI 读取；`docs/tasks.yaml` 是 **开发 LCoder 这个项目的开发台账**（dev-flow），由人维护。两者不互相派生；仓库根的 `.spec` 已替换为订单佣金示例（`DR-01`/`DR-02`、`DEMO-01`），与开发台账 ID 不重叠。
+
+## 1. 背景与问题
+
+Agent 编码的常见失败不是不会写代码，而是不知道「凭什么算做完」：需求散落在对话里，验收靠模型自述，改动边界没有记录。LCoder 把「规格 → 契约 → 实施 → 验证 → 收口」做成可执行的状态机，并把规格库存成仓库里的 YAML，让 agent 与人读同一份事实、按同一套判据收口。底座选用 DeepSeek Harness：它提供插件化的宿主、工具注册、会话与 UI 扩展点，适合做二开而不是重写运行时。
+
+## 2. 产品定位
+
+一句话定位：LCoder 是面向 Windows 桌面端的规格驱动开发工作台，把 `.spec` 规格库、任务状态机与 agent 工具面收放做成 DeepSeek Harness 的插件层。目标用户是使用 agent 做真实仓库开发的个人与小团队，需要可审计、可复现的改动依据。价值主张是模型只能在该看到的工具面里工作，每次收口都留下契约、证据与规格落点。
+
+## 3. 与上游的关系
+
+LCoder 是 DeepSeek Harness 的二开，不 fork 业务实现，也不直接 import 上游内部路径。当前基线是 `0.2.2-alpha.2`，commit `ce7073d51254c26cd63b22a60835b8f948deb447`，提交时间 2026-10-30。分支模型：`master` 是只读上游镜像；`lcoder/main` 是主线；同步上游走 `sync/upstream-<版本>` 临时分支，全绿后合回主线。挂载原则见 [UPSTREAM-BASELINE.md](../lcoder/UPSTREAM-BASELINE.md)：能新增就不修改；改上游只改装配层；每个接触点登记并人工评审。
+
+## 4. 核心概念
+
+| 概念 | 落点 | 说明 |
+|---|---|---|
+| 规格条目 `RuleEntry` | `.spec/spec/rules.yaml` | 稳定编号、出处、状态、代码落点与验收引用 |
+| 状态机 `StateMachine` | `.spec/spec/states/*.yaml` | 状态集合、合法迁移与守卫 |
+| 任务 `Task` | `.spec/tasks/T-xx.yaml` | 五态、分级、允许路径、不可逆项、所需证据 |
+| 契约 `Contract` | `.spec/contracts/T-xx.contract.yaml` | change / not_change / acceptance / fail_if，加人签 |
+| 证据 `Evidence` | `.spec/evidence/T-xx/*.log` | 非空才算证据 |
+| 环境 `Env` | `.spec/env.yaml` | 仓库、验收命令、凭据来源 |
+
+形状的唯一来源是 [packages/lcoder/kernel/src/schema/spec.ts](../packages/lcoder/kernel/src/schema/spec.ts)：schema 只保证形状对，语义合规由检查器承担。
+
+## 5. 核心流程（五态）
+
+以下五态是 LCoder 产品内的任务流程；开发 LCoder 本身的开发任务用 A/B/C 分级，见 [PROJECT-RULES.md](PROJECT-RULES.md) §3，两套流程不要混用。
+
+| 状态 | 进入条件 | 模型可见能力 | 出口 |
+|---|---|---|---|
+| `drafting` | 任务建立，契约未签 | 读代码、查规格、绑定落点、起草契约 | 人签契约后进入 `contracted` |
+| `contracted` | 契约由人签署 | 增加编辑、跑命令、附证据 | 进入 `implementing` |
+| `implementing` | 按契约实施 | 同上 | 只能进 `verifying`，或退回归 `contracted` 重签 |
+| `verifying` | 证据齐备 | 增加 `task_close` | 通过 P1/P3/P4 后 `closed`；不过退回 `implementing` |
+| `closed` | 终态 | 只读 | 无 |
+
+状态机只管图的合法性；「能否进 `contracted`」还取决于契约是否签署，由 P3 判定，不塞进状态机。收口由 `task_close` 串起三道检查器：P1 条目有落点、P3 不可逆项有人签、P4 条目有证据；任一不过则状态不变。
+
+## 6. 工具面
+
+kernel 向宿主注册九个工具：`file_read`、`file_edit`、`cmd_run`、`evidence_attach`、`spec_query`、`spec_bind`、`contract_draft`、`task_read`、`task_close`。工具面按任务状态收放，采用 allow 列表（fail-closed）；未配置的工具默认不可见，漏配的后果是「用不了」而不是「越权能用」。`contract_sign` 永不注册为模型工具：模型能调用签署工具，就等于模型能给自己签字。注册时用 `when` 在每次 model step 求值，而不是 `restrict`；`restrict` 只对全局注册生效，作用域注册盖不住。
+
+## 7. 数据面
+
+工作台直接读 `.spec` 下的 YAML，通过上游 `workspaceFiles` 远程命名空间做文件投影，不自建 Remote，也不引 typert 生成器。投影面按会话注入；没有绑定工作区时三栏保持骨架态。状态机判断不进 UI，仍归 kernel。路径必须与 kernel 落盘一致：`task-store.taskPath` 与 `spec-store.saveRules` 都以 `.spec` 为根；分叉不会有类型错误，只会画出错的数据。
+
+## 8. MVP 范围（MVP-0）
+
+本阶段交付：宿主挂载 kernel，九个工具可注册并按状态收放；右栏出现「工作台」页签；三栏骨架接上文件投影；本地一条命令可启动。
+
+明确不做：契约签署 UI 或人机命令；独立的 `task_transition` 工具；增量刷新；多工作区与权限模型；远端同步；上游文档的全量双语改造。
+
+## 9. 验收标准
+
+- 启动后日志出现九个工具注册行与 `http://127.0.0.1:3080` 地址，且没有激活失败。
+- 浏览器插件清单包含 `@lcoder/workspace/client.js`，右栏出现「工作台」页签。
+- 会话绑定工作区目录后，三栏能读出 `.spec` 的任务与规则。
+- `pnpm typecheck`、`pnpm lint`、`pnpm exec vitest run packages/lcoder` 全绿；文档变更时 `pnpm run test:docs` 全绿。
+
+## 10. 关键决策
+
+| 编号 | 决策 | 理由 |
+|---|---|---|
+| D1 | 数据面走文件投影，不用 typert Remote | 读的是唯一事实源，UI 不承担状态机逻辑 |
+| D2 | 挂载走独立 patch 层 | 不改上游清单，升级冲突面最小 |
+| D3 | 工具面 fail-closed | 漏配导致能力缺失，而不是权限扩大 |
+| D4 | 签署不进模型工具 | 模型不能给自己签字，S1 才成立 |
+| D5 | 产品数据与开发台账分离 | `.spec/tasks` 是产品数据；`docs/tasks.yaml` 是开发台账；看板只从开发台账生成 |
+| D6 | 单轨治理 | 一个责任线、一个下一步，`active-context.md` 用单文件 |
+
+## 11. 风险与技术债
+
+- 契约签署通道缺失：P3 要求人签，但当前没有签署 UI 或人机命令，只能人工写 YAML。
+- `implementing → verifying` 没有工具入口，状态推进需要人工改任务文件。
+- 产品示例 `DEMO-01` 处于 `drafting`，尚无契约；示例 `env.yaml` 已就位。
+- 开发任务不使用 `.spec` 契约与证据，开发门禁见 [PROJECT-RULES.md](PROJECT-RULES.md) §3。
+- `packages/lcoder/workspace/README.md` 未按上游包 README 规范编写，`pnpm run test:docs` 当前失败。
+- 上游升级需要同时核对三个 tsconfig/lock 接触面与根 `AGENTS.md` 入口，冲突必须人工评审。
+- Windows 上 `dev:web` 的子进程不随 shell 退出，换实例前要按进程树清理。
+- 当前仓库吃狗粮，根 `.spec` 里是 LCoder 自己的开发项；它与 `docs/tasks.yaml` 内容重合但归属不同，漂移时以开发台账为进度依据。
+
+## 12. 运行入口
+
+启动、挂载、验证四步与踩坑记录见 [RUN.md](../lcoder/RUN.md)。开发进度与下一步见 [active-context.md](active-context.md)；开发看板见 [docs/tasks-html/index.html](tasks-html/index.html)。

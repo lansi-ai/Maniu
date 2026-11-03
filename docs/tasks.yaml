@@ -1,0 +1,59 @@
+# LCoder 开发台账（dev-flow 资产）。与 .spec/tasks（LCoder 产品数据）无关，勿混淆。
+# 旧版 .spec 任务原文归档在 lcoder/archive/spec-dev-2026-11-03/。
+project: LCoder
+iteration: MVP-0 工作台本地跑通
+updated: '2026-11-03'
+generator: scripts/build-tasks-html.py
+tracks:
+- id: lcoder
+  name: LCoder 工作线
+  short: LCoder
+  kind: 二开工作线
+  dir: packages/lcoder
+  owner: lance
+  modules:
+  - id: kernel
+    name: 内核与宿主
+    tasks:
+    - id: T-02
+      title: 宿主侧挂载 kernel，让 agent 工具真跑起来
+      status: doing
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-02'
+      date: ''
+      dep: []
+      inferred: false
+      note: A 级；规则 R-01, R-03；证据 typecheck, vitest, lint, smoke
+  - id: workspace
+    name: 工作台 UI
+    tasks:
+    - id: T-01
+      title: 工作台三栏接上数据面（文件投影）
+      status: done
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-02'
+      date: '2026-11-02'
+      dep: []
+      inferred: false
+      note: B 级；规则 R-01, R-02；证据 typecheck, vitest, lint
+    - id: T-03
+      title: 三栏共享选中项：点任务看它的契约与证据
+      status: todo
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-02'
+      date: ''
+      dep: []
+      inferred: false
+      note: B 级；规则 R-02；证据 vitest
+milestones:
+- name: MVP-0 工作台本地跑通
+  track: lcoder
+  status: doing
+  date: ''
+  gate: typecheck + vitest + lint + smoke

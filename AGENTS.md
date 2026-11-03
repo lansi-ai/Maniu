@@ -2,6 +2,11 @@
 
 DeepSeek Harness is an all-plugin Cordis agent harness. Read [docs/architecture.md](docs/architecture.md) before changing `packages/`; follow [docs/AGENTS.md](docs/AGENTS.md) for documentation.
 
+## LCoder 二次开发入口
+
+- 规则与红线：`docs/PROJECT-RULES.md`；当前看板：`docs/active-context.md`；产品与方案：`docs/prd-and-design.md`。
+- 定位：LCoder 是 DeepSeek Harness 的 Windows 桌面端二开；`.spec` 是产品数据源，开发台账在 `docs/tasks.yaml`。
+
 ## Pre-stable APIs and released Session data
 
 Public APIs are pre-stable; update every consumer. Follow [version/status](docs/session-format-status.md) and [type acknowledgements](docs/cookbook/reviewing-persistence-type-changes.md). [Adjacent migration](.agents/notes/implemented/architecture/2026-08-31-released-session-format-migrations.md) may add a version-named successor but never move, overwrite, or delete committed generations; predecessors imply neither fallback nor downgrade support. SQLite uses monotonic `SCHEMA_VERSION`.

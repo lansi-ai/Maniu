@@ -1,42 +1,24 @@
 rules:
-  - id: R-01
-    module: 上游关系
-    kind: invariant
-    text: 不改任何上游文件；一切定制走 lcoder/ 下的 patch 层叠加
+  - id: DR-01
+    module: settlement
+    kind: formula
+    text: 佣金 = max(round(实付 × 费率, 2), 1.00)
     source:
-      doc: 项目约定
-      quote: 挂载原则——不改任何上游文件，用我们自己的 patch 层
+      doc: packages/lcoder/kernel/fixtures/demo/README.md
+      quote: 平台佣金 = 订单实付 × 佣金率，最低一元
     status: confirmed
     found_at:
-      - file: lcoder/cordis.patch.yml
+      - file: packages/lcoder/kernel/fixtures/demo/src/price.ts
+        symbol: calculateCommission
     acceptance:
-      - kind: script
-        ref: lcoder/scripts/upstream-diff.sh
+      - kind: manual
+        ref: packages/lcoder/kernel/fixtures/demo/README.md
 
-  - id: R-02
-    module: 数据面
-    kind: invariant
-    text: 任务与规格的 YAML 是唯一事实源，UI 只读不写；状态机判断不进 UI
+  - id: DR-02
+    module: settlement
+    kind: rule
+    text: 自营订单佣金可以为 0
     source:
-      doc: 项目约定
-      quote: 文件投影，不是 typert Remote
-    status: confirmed
-    found_at:
-      - file: packages/lcoder/workspace/src/client/projection.ts
-    acceptance:
-      - kind: test
-        ref: packages/lcoder/workspace/tests/projection.client.spec.ts
-
-  - id: R-03
-    module: 运行环境
-    kind: invariant
-    text: 目标平台是 Windows 桌面端；路径处理按 Windows 优先
-    source:
-      doc: 项目约定
-      quote: 目标平台是 Windows 桌面端（用户 2026-11-02 明确）
-    status: confirmed
-    found_at:
-      - file: packages/lcoder/kernel/src/kernel/spec-store.ts
-    acceptance:
-      - kind: test
-        ref: packages/lcoder/kernel/tests/spec-store.spec.ts
+      doc: packages/lcoder/kernel/fixtures/demo/README.md
+    status: draft
+    found_at: []
