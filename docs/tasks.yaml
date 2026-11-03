@@ -97,15 +97,15 @@ tracks:
       note: B 级；真实会话发送/事件窗口渲染/续聊已接；运行状态来自会话快照；kernel file_read/file_edit 改按仓库根；desktop profile 预设已切 @lcoder/kernel（旧 lcoder 链接待 T-09 清理）；README/快照待 T-09；证据 typecheck(5), vitest(108), lint, test:docs(21), smoke（助手读 E:/Projects/LCoder/.spec 与代码）
     - id: T-09
       title: README/快照与旧预设收口
-      status: todo
+      status: done
       face: 用户端
       type: 文档
       owner: lance
       created: '2026-11-03'
-      date: ''
+      date: '2026-11-03'
       dep: [T-08]
       inferred: false
-      note: B 级；更新 workspace/kernel README 反映外壳、项目信息、打开仓库、真实会话与文件根修复；补快照；清理 desktop profile 旧 lcoder 链接与残留；证据 typecheck, vitest, lint, test:docs
+      note: B 级；workspace/kernel README 成对更新（外壳、项目信息、打开仓库、真实会话、文件根）；补 project.yaml/local.yaml 读取测试；desktop profile 移除旧 lcoder 链接；证据 typecheck(5), vitest(110), lint, test:docs(21), smoke（清理后启动无导入错误，LCoder/DEMO-01 正常）
     - id: T-07
       title: 项目信息抽屉 + project.yaml + 去掉左栏
       status: done
@@ -120,6 +120,6 @@ tracks:
 milestones:
 - name: MVP-0 工作台本地跑通
   track: lcoder
-  status: doing
-  date: ''
+  status: done
+  date: '2026-11-03'
   gate: typecheck + vitest + lint + smoke

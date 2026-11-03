@@ -15,8 +15,8 @@ English | [中文](active-context.zh.md)
 - **Offline board**: `docs/tasks-html/index.html` (double-click to open; contains overview, status board, hierarchy tree, matrix, and filters).
 - **Regeneration command**: `python scripts/build-tasks-html.py`.
 
-- **Current focus**: T-09 closing README, snapshots, and the old desktop preset (todo).
-- **Completed**: T-01 file projection; T-02 host mount; T-04 specification root and documentation gates; T-05 LCoder shell; T-06 real `.spec`/`project.yaml`/workspace-session data; T-07 project info drawer and the `.spec/project.yaml` schema; T-08 real floating conversation. T-03 is superseded by the shell and closed.
+- **Current focus**: M0.4 real-repository acceptance (open a new incantation).
+- **Completed**: T-01 file projection; T-02 host mount; T-04 specification root and documentation gates; T-05 LCoder shell; T-06 real `.spec`/`project.yaml`/workspace-session data; T-07 project info drawer and the `.spec/project.yaml` schema; T-08 real floating conversation; T-09 README, tests, and old preset cleanup. T-03 is superseded by the shell and closed.
 - **Next step**: see §04.
 
 ## 03. Key decisions and architectural context (Key Decisions & Context)
@@ -41,13 +41,13 @@ English | [中文](active-context.zh.md)
   - The desktop profile still links the old `WorkBuddy/LCoder` package alongside the current `@lcoder/*` packages; the old preset can be removed once the shell is the only LCoder surface.
   - The floating conversation renders final user/assistant text, not the full DSH conversation UI (tool cards, live token streaming).
   - `.spec/local.yaml` is absent in the demo repo, so the drawer's eye shows 未配置; the local resolution path is implemented but unexercised.
-  - The workspace/kernel READMEs and snapshots still describe the old right-bar tab and the old file-root limitation; T-09 updates them.
-  - The desktop profile still links the old WorkBuddy `lcoder` package even though the preset now points at `@lcoder/kernel`; T-09 removes the link.
+  - The task board reads the first session in the selected workspace; a task-specific session per task is deferred.
+  - The real run drafted `.spec/contracts/DEMO-01.contract.yaml` (unsigned, untracked); keep or discard is a product decision.
 
 ## 04. Next immediate actions (Next Immediate Actions)
 
-- **Currently working on**: T-09, bringing the workspace/kernel READMEs, snapshots, and the desktop profile's old LCoder link in line with the shell.
-- **About to execute**: update both README pairs for the shell, project info, Open repository, real conversation, and the file-root fix; add or refresh snapshots; remove the old WorkBuddy `lcoder` link; run `pnpm typecheck` / `pnpm lint` / `pnpm exec vitest run packages/lcoder` / `pnpm run test:docs` before closing the task.
+- **Currently working on**: M0.4 real-repository acceptance, to be opened as a separate incantation.
+- **About to execute**: choose a real repository/workspace, verify the project-info drawer, task board, kernel tools, and floating conversation end-to-end; decide whether to keep the untracked DEMO-01 contract; run `pnpm typecheck` / `pnpm lint` / `pnpm exec vitest run packages/lcoder` / `pnpm run test:docs` before closing the milestone.
 - **Development evidence**: gate output is recorded in the task note in `docs/tasks.yaml` or the commit message; `.spec/evidence` serves product tasks only.
 - **Board regeneration**: after a development status change, edit `docs/tasks.yaml` first, then run `python scripts/build-tasks-html.py`.
 - **Documentation gates**: green after T-02 and T-04; package READMEs and bilingual pairs must stay green whenever documents change.
