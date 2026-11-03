@@ -26,6 +26,7 @@ async function boot(config: { shell?: boolean } = { shell: false }) {
   const ctx = new Context()
   const tabs = new SidebarRightTabRegistry(ctx)
   const selectPanel = vi.fn()
+  const toggleSidebar = vi.fn()
   const registered: Recorded[] = []
   const slots = {
     inject: vi.fn((_name: string, register: () => () => void) => register()),
@@ -48,10 +49,10 @@ async function boot(config: { shell?: boolean } = { shell: false }) {
   ctx.provide('locale', locale as never)
   // 正文注册时会把 workspaceFiles 窄化成投影面；这里只看注册形状，远程面给空壳即可。
   ctx.provide('remote', { workspaceFiles: {} } as never)
-  ctx.provide('layout', { selectPanel } as never)
+  ctx.provide('layout', { selectPanel, toggleSidebar } as never)
   const fiber = ctx.plugin({ inject: [...inject], apply }, config)
   await fiber.await()
-  return { ctx, tabs, registered, dictionaries, fiber, slots, locale, selectPanel }
+  return { ctx, tabs, registered, dictionaries, fiber, slots, locale, selectPanel, toggleSidebar }
 }
 
 describe('@lcoder/workspace apply', () => {
@@ -83,6 +84,7 @@ describe('@lcoder/workspace apply', () => {
         component: Shell,
       })
       expect(h.selectPanel).toHaveBeenCalledWith('lcoder-home')
+      expect(h.toggleSidebar).toHaveBeenCalled()
       expect(h.tabs.get(WORKSPACE_KIND)).toBeUndefined()
     } finally { await h.fiber.dispose() }
   })

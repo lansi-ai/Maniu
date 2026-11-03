@@ -90,6 +90,9 @@ export function apply(ctx: ClientContext, config: Config = {}): void {
       // LCoder shell once it is registered. `retainMainPanels` keeps it while
       // the entry stays registered.
       ctx.layout.selectPanel('lcoder-home' as MainPanelId)
+      // 外壳自带左栏；DSH 侧栏轨道没有 occupant，仍会按默认宽度占位。
+      // 折叠这条空轨道，让主面板占满窗口。
+      ctx.layout.toggleSidebar()
       return dispose
     }), 'lcoder-workspace: shell main panel')
     return
