@@ -15,8 +15,8 @@ English | [中文](active-context.zh.md)
 - **Offline board**: `docs/tasks-html/index.html` (double-click to open; contains overview, status board, hierarchy tree, matrix, and filters).
 - **Regeneration command**: `python scripts/build-tasks-html.py`.
 
-- **Current focus**: T-04 specification root (doing), together with T-02's documentation gate.
-- **Completed**: T-01 file projection.
+- **Current focus**: T-03 shared selection across the three columns (todo).
+- **Completed**: T-01 file projection; T-02 host mount; T-04 specification root and documentation gates.
 - **Next step**: see §04.
 
 ## 03. Key decisions and architectural context (Key Decisions & Context)
@@ -35,11 +35,11 @@ English | [中文](active-context.zh.md)
 
 ## 04. Next immediate actions (Next Immediate Actions)
 
-- **Currently working on**: T-04, making the specification root explicit per session and converging the three documentation contradictions.
-- **About to execute**: run `pnpm typecheck` / `pnpm lint` / `pnpm exec vitest run packages/lcoder` / `pnpm run test:docs`; start the Web host on port 3081 under a worktree-local `DSH_HOME` for the browser smoke.
+- **Currently working on**: T-03, a per-session store for the shared selection so a task click shows its contract and evidence.
+- **About to execute**: design the selection state and the three-column interaction, then run `pnpm typecheck` / `pnpm lint` / `pnpm exec vitest run packages/lcoder` / `pnpm run test:docs`.
 - **Development evidence**: gate output is recorded in the task note in `docs/tasks.yaml` or the commit message; `.spec/evidence` serves product tasks only.
 - **Board regeneration**: after a development status change, edit `docs/tasks.yaml` first, then run `python scripts/build-tasks-html.py`.
-- **Prerequisite fix**: close T-02's documentation gate (package README skeleton and bilingual pairs) before claiming the T-04 documentation gate is green.
+- **Documentation gates**: green after T-02 and T-04; package READMEs and bilingual pairs must stay green whenever documents change.
 - **AI interaction hint**: later sessions can be told "continue with the next step in active-context.md".
 
 ## 05. Rule self-evolution maintenance

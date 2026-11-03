@@ -15,8 +15,8 @@
 - **离线看板**：`docs/tasks-html/index.html`（双击打开，含概览、状态看板、层级树、矩阵与筛选）。
 - **重跑命令**：`python scripts/build-tasks-html.py`。
 
-- **当前焦点**：T-04 规格根（doing），并行收口 T-02 的文档门禁。
-- **已完成**：T-01 文件投影。
+- **当前焦点**：T-03 三栏共享选中项（todo）。
+- **已完成**：T-01 文件投影；T-02 宿主挂载；T-04 规格根与文档门禁。
 - **下一步**：见 §04。
 
 ## 03. 关键决策与架构遗留 (Key Decisions & Context)
@@ -35,11 +35,11 @@
 
 ## 04. 下一步即时行动 (Next Immediate Actions)
 
-- **当前正在处理**：T-04，让规格根按会话语义可显式指定，并收敛三处文档矛盾。
-- **即将执行**：跑 `pnpm typecheck` / `pnpm lint` / `pnpm exec vitest run packages/lcoder` / `pnpm run test:docs`；在 worktree 独立 `DSH_HOME` 下用 3081 端口起 Web 宿主做浏览器 smoke。
+- **当前正在处理**：T-03，为三栏共享选中项建一个按会话的 store，点任务能看它的契约与证据。
+- **即将执行**：设计选中状态与三栏交互，再跑 `pnpm typecheck` / `pnpm lint` / `pnpm exec vitest run packages/lcoder` / `pnpm run test:docs`。
 - **开发证据**：门禁命令输出记录在 `docs/tasks.yaml` 的任务 note 或提交说明；`.spec/evidence` 只服务产品任务。
 - **看板重跑**：开发状态变化后先改 `docs/tasks.yaml`，再执行 `python scripts/build-tasks-html.py`。
-- **前置修复**：先收口 T-02 的文档门禁（包 README 骨架与中英配对），否则 T-04 的文档门禁无法宣称全绿。
+- **文档门禁**：已随 T-02 与 T-04 收口；改文档时包 README 与中英配对必须保持全绿。
 - **AI 交互指令提示**：后续会话可直接提示「按 active-context.md 的下一步继续执行」。
 
 ## 05. 规则自我演进维护

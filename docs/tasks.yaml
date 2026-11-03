@@ -17,26 +17,26 @@ tracks:
     tasks:
     - id: T-02
       title: 宿主侧挂载 kernel，让 agent 工具真跑起来
-      status: doing
+      status: done
       face: 用户端
       type: 开发
       owner: lance
       created: '2026-11-02'
-      date: ''
+      date: '2026-11-03'
       dep: []
       inferred: false
-      note: A 级；规则 R-01, R-03；证据 typecheck, vitest, lint, smoke
+      note: A 级；规则 R-01, R-03；证据 typecheck, vitest, lint, test:docs, smoke（3081 九工具注册、无激活失败）；文档门禁随 T-04 收口
     - id: T-04
       title: 规格根可显式指定 + 文档矛盾收敛
-      status: doing
+      status: done
       face: 用户端
       type: 开发
       owner: lance
       created: '2026-11-03'
-      date: ''
+      date: '2026-11-03'
       dep: []
       inferred: false
-      note: B 级；规则 R-01, R-03；调研：root 现取 process.cwd()/.spec，桌面宿主 cwd=profile；workspaceFiles 按 session header.cwd 解析；!!js 在 with(ctx) 下可读 process.env。方案：会话 header.cwd/.spec 优先，config.root（LCODER_SPEC_ROOT）兜底，再退 process.cwd()/.spec。worktree 浏览器 smoke 用 3081（3080 被主窗口占用）。证据 typecheck, vitest, lint, test:docs, smoke
+      note: B 级；规则 R-01, R-03；方案：会话 header.cwd/.spec 优先，config.root（LCODER_SPEC_ROOT）兜底，再退 process.cwd()/.spec；!!js 在 with(ctx) 下可读 process.env。证据 typecheck, vitest(106), lint, test:docs(21), smoke（3081 九工具、root=worktree/.spec、无激活失败）。已知遗留：edit 工具 file_read/file_edit 仍以规格根为边界，留待真实仓库验收确认
   - id: workspace
     name: 工作台 UI
     tasks:
