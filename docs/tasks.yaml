@@ -26,6 +26,17 @@ tracks:
       dep: []
       inferred: false
       note: A 级；规则 R-01, R-03；证据 typecheck, vitest, lint, smoke
+    - id: T-04
+      title: 规格根可显式指定 + 文档矛盾收敛
+      status: doing
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-03'
+      date: ''
+      dep: []
+      inferred: false
+      note: B 级；规则 R-01, R-03；调研：root 现取 process.cwd()/.spec，桌面宿主 cwd=profile；workspaceFiles 按 session header.cwd 解析；!!js 在 with(ctx) 下可读 process.env。方案：会话 header.cwd/.spec 优先，config.root（LCODER_SPEC_ROOT）兜底，再退 process.cwd()/.spec。worktree 浏览器 smoke 用 3081（3080 被主窗口占用）。证据 typecheck, vitest, lint, test:docs, smoke
   - id: workspace
     name: 工作台 UI
     tasks:
