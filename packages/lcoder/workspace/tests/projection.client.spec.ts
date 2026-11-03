@@ -10,7 +10,8 @@ import type { WorkspaceDirectoryListing, WorkspaceFileText } from '@deepseek-ai/
 import type { RemoteFailure, RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 import {
-  loadWorkspaceProjection, rulesTextToRows, RULES_FILE, SPEC_DIR, TASKS_DIR, taskTextToRow,
+  loadLocalSecrets, loadProjectInfo, loadWorkspaceProjection, LOCAL_FILE, PROJECT_FILE,
+  rulesTextToRows, RULES_FILE, SPEC_DIR, TASKS_DIR, taskTextToRow,
 } from '../src/client/projection.ts'
 import type { ProjectionFilesRemote } from '../src/client/projection.ts'
 
@@ -82,6 +83,69 @@ function fakeFiles(
     },
   }
 }
+
+describe('项目信息', () => {
+  const PROJECT_YAML = [
+    'kind: web',
+    'repo:',
+    '  url: https://example.com/r.git',
+    '  branch: main',
+    'docs:',
+    '  product: docs/PROJECT-RULES.md',
+    '  architecture: docs/prd-and-design.md',
+    '  tests: tests',
+    'environments:',
+    '  dev:',
+    '    server: https://dev.example.com',
+    '    database:',
+    '      host: db.example.com',
+    '      port: 5432',
+    '      name: app',
+    '      user: app',
+    '      passwordRef: DB_PASSWORD',
+  ].join('\n')
+
+  it('loadProjectInfo 读仓库、文档与 web 环境；缺失返回 null', async () => {
+    const info = await loadProjectInfo(
+      fakeFiles({}, { [PROJECT_FILE]: PROJECT_YAML }),
+      SESSION,
+      new AbortController().signal,
+    )
+    expect(info).toMatchObject({
+      info: {
+        kind: 'web',
+        repoUrl: 'https://example.com/r.git',
+        branch: 'main',
+        docs: { product: 'docs/PROJECT-RULES.md', architecture: 'docs/prd-and-design.md', tests: 'tests' },
+        environments: [{
+          id: 'dev',
+          server: 'https://dev.example.com',
+          database: {
+            host: 'db.example.com',
+            port: '5432',
+            name: 'app',
+            user: 'app',
+            passwordRef: 'DB_PASSWORD',
+          },
+        }],
+      },
+      problems: [],
+    })
+
+    const missing = await loadProjectInfo(fakeFiles({}, {}), SESSION, new AbortController().signal)
+    expect(missing).toEqual({ info: null, problems: [] })
+  })
+
+  it('loadLocalSecrets 读 secrets 映射；缺失返回空表', async () => {
+    const secrets = await loadLocalSecrets(
+      fakeFiles({}, { [LOCAL_FILE]: 'secrets:\n  DB_PASSWORD: local-secret\n' }),
+      SESSION,
+      new AbortController().signal,
+    )
+    expect(secrets).toEqual({ DB_PASSWORD: 'local-secret' })
+    expect(await loadLocalSecrets(fakeFiles({}, {}), SESSION, new AbortController().signal)).toEqual({})
+  })
+})
 
 describe('文件投影', () => {
   it('taskTextToRow 读标准任务文件；title 缺失就放弃这一行', () => {

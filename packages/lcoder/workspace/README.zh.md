@@ -1,5 +1,5 @@
 ---
-description: "LCoder 工作台页签：通过上游 workspaceFiles 远程只读投影 .spec 任务与规则的三栏界面，不产生任何模型侧贡献。"
+description: "LCoder 专属外壳：项目切换、五态任务板、项目信息抽屉，以及基于会话工作区 .spec 的真实悬浮对话。"
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`@lcoder/workspace` 在右栏增加 LCoder 工作台页签。页签通过上游 `workspaceFiles` 远程读取 `.spec` 下的任务与规则 YAML，画出三栏：任务、规格与代码落点、对话。它是只读投影：状态机判断留在 kernel，浏览器从不写入产品数据。已经运行 kernel 时，通过 LCoder patch 层挂载它；它没有配置面，也不自建 Remote。没有绑定工作区时，三栏保持骨架态。
+`@lcoder/workspace` 是 LCoder 的外壳。它展示当前项目、从会话工作区 `.spec` 读出的五态任务板、从 `.spec/project.yaml` 读出的项目信息抽屉，以及把 dev-flow 启动咒语发送到真实会话的悬浮对话。项目选择器可以打开另一个仓库，创建或复用它的工作区并建一个会话。kernel 已运行时通过 LCoder patch 层挂载；`shell: false` 保留旧的右栏工作台页签。外壳对产品数据只读：状态机判断与写入都归 kernel。
 
 ## 目录
 
@@ -25,11 +25,11 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用本包
 
-在 LCoder patch 层挂载本包，然后在绑定了含 `.spec` 仓库的会话里打开工作台页签。
+在 LCoder patch 层挂载本包。`shell` 为 true（默认）时注册并选中 `lcoder-home` 主面板；项目选择器列出 Host 工作区，「打开仓库」注册一个目录并创建会话。
 
 ### 何时选择它
 
-当同一组合里已经运行 kernel，且用户需要在不询问模型的情况下读取任务与规则时选择它。不要用它编辑规格数据或做状态迁移：本包只是投影，写入与状态机判断都归 kernel。
+当 kernel 已运行、用户应从 LCoder 的项目/任务外壳工作时选择它。不要用它编辑规格数据或做状态迁移：外壳只投影产品数据，写入与状态机判断归 kernel。只需要旧的右栏工作台页签时把 `shell` 设为 false。
 
 ### 最小配置
 
@@ -41,7 +41,7 @@ kind: "package-reference"
 
 | 字段 | 默认值 | 含义 |
 |---|---|---|
-| （无） | — | 本包没有配置面 |
+| `shell` | `true` | 在 `lcoder-home` 主面板渲染 LCoder 外壳；`false` 保留右栏页签 |
 
 本包通过 patch 层作为插件行挂载，没有 `dsh plugin add` 安装路径。
 
@@ -53,16 +53,19 @@ kind: "package-reference"
 <details>
 <summary>实现内幕——点击展开</summary>
 
-本包注册三项浏览器侧贡献：页签类型、词典命名空间与正文。正文通过槽位 `inject` 工厂拿到投影函数，因此本包依赖槽位运行时、词典服务、页签注册表与远程面；缺少任何一项就不激活。
+本包注册外壳主面板；`shell: false` 时注册旧的页签。外壳通过框架 hooks 读工作区与会话列表，通过 `workspaceFiles` 读 `.spec/tasks`、`.spec/spec/rules.yaml`、`.spec/project.yaml` 与 `.spec/local.yaml`，并通过会话控制器发送提示。项目选择器的「打开仓库」调用 `workspaces.create` 与 `sessions.create`，然后选中新工作区。
 
-数据路径在 `src/client/projection.ts`：它调用 `workspaceFiles` 命名空间上的 `files.list` 与 `files.readPage`，解析 YAML，返回展示行与逐文件问题。宿主按会话工作区（`session.header.cwd`）解析相对路径，kernel 也从同一个会话头解析规格根，因此工具与 UI 读同一个 `.spec`。
+悬浮对话订阅会话事件窗口并渲染用户/助手文本；输入框向同一会话继续发送提示。本包自身不注册模型工具、提示词段落或 schema。
 
 | 文件 | 职责 |
 |---|---|
-| `src/client/definition.ts` | 页签 kind、id、优先级与引导页入口 |
-| `src/client/index.ts` | 服务注入、词典注册与正文槽位注册 |
-| `src/client/projection.ts` | 通过 `workspaceFiles` 读 `.spec` YAML 并构造展示行 |
-| `src/client/WorkspaceBody.tsx` | 渲染三栏与空态、错误态 |
+| `src/client/index.ts` | 外壳注册、文件/提示回调，以及 `shell: false` 页签 |
+| `src/client/shell/Shell.tsx` | 项目切换、任务板、项目信息抽屉、任务详情与悬浮对话 |
+| `src/client/shell/shell-data.ts` | 外壳类型、启动咒语与会话消息提取 |
+| `src/client/shell/Shell.module.css` | 外壳布局与浮层样式 |
+| `src/client/projection.ts` | `.spec` 任务/规则、`project.yaml` 与 `local.yaml` 读取 |
+| `src/client/definition.ts` | 回退模式的页签 kind、id、优先级与引导入口 |
+| `src/client/WorkspaceBody.tsx` | 回退页签的三栏正文 |
 
 </details>
 
@@ -71,37 +74,38 @@ kind: "package-reference"
 <a id="further-exploration"></a>
 ## 延伸阅读
 
-- `packages/lcoder/kernel` —— 写本包所读 YAML 的宿主插件。
-- `packages/client/ui-sidebar-files` —— 最完整的上游页签实现，含 store 与组件。
-- `packages/client/ui-agent-preset` —— 与工作台最接近的设置页形态。
-- `lcoder/RUN.md` —— 启动、挂载与验证步骤。
+- `packages/lcoder/kernel` —— 宿主插件；它的文件工具使用仓库根。
+- `lcoder/RUN.md` —— 启动、桌面 profile 与 smoke 步骤。
+- `packages/client/ui-workspace` —— 项目选择器背后的上游工作区模型。
+- `packages/lcoder/kernel/fixtures/demo` —— 带 `.spec` 的演示仓库。
 
 -----
 
 <a id="model-experience"></a>
 ## 模型体验
 
-### 工作台 UI
+### Shell UI
 
 #### 模型看到什么
 
-没有。工作台通过 `workspaceFiles` 读 `.spec` YAML 并在浏览器里渲染；它不注册工具、提示词段落或模型 schema。
+外壳不注册工具、提示词段落或 schema。用户从悬浮对话发送的提示按普通会话输入到达模型；任务与项目数据通过 `workspaceFiles` 读取，不注入请求。
 
 #### Token 影响
 
-没有；本包从不构造模型请求。
+本包不产生额外影响；用户提示与回复是普通会话内容。
 
 #### KV Cache 影响
 
-没有；不改变任何请求前缀。
+没有；本包不改变请求前缀。
 
 ## 已知限制与后续工作
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- kernel 的 `file_read` / `file_edit` 仍以规格根为边界；真实仓库验收时需确认是否应改用仓库根。
-- 工作台在页签打开时读一次；通过 `workspaceFiles.changes` 做增量刷新尚未实现。
-- 三栏共享选中项推迟到 T-03。
+- 悬浮对话只从会话事件窗口渲染最终用户/助手文本，不是完整 DSH 会话 UI（工具卡片、逐 token 流式）。
+- 任务板读取所选工作区的第一个会话；每个任务单独建会话尚未实现。
+- 外壳在所选工作区或会话变化时重载；通过 `workspaceFiles.changes` 的增量刷新尚未实现。
+- 项目信息抽屉从 `.spec/local.yaml` 解析 `passwordRef`；环境变量解析尚未实现。
 
 <a id="dev-note"></a>
 ### 开发备注
@@ -109,6 +113,6 @@ kind: "package-reference"
 <details>
 <summary>维护者工作上下文——点击展开</summary>
 
-构建用 `pnpm --filter @lcoder/workspace run bundle`；根 `tsconfig.client.json` 通过 `references` 包含本包，所以 `pnpm typecheck` 会覆盖它。包测试用 `pnpm exec vitest run packages/lcoder/workspace`。
+构建用 `pnpm --filter @lcoder/workspace run bundle`；根 `tsconfig.client.json` 通过 `references` 包含本包，所以 `pnpm typecheck` 会覆盖它。包测试用 `pnpm exec vitest run packages/lcoder/workspace`。改页签路径时保持 `shell: false` 回退可用。
 
 </details>

@@ -3,50 +3,50 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/lcoder/workspace/README.md
 /:
-  en: 370dee5bd9e8f675
-  zh: 3b7a7c48b4a46035
+  en: 579f7f9b4ed6f6d6
+  zh: 94765dfdf979910c
 /lcoder-workspace:
   en: 31dfb0c1516250ab
   zh: ba84854ed0d135dc
 /lcoder-workspace/summary:
-  en: 7f1c76892165b60c
-  zh: 7af3abf00eb3346f
+  en: 05c732b93b866ae6
+  zh: 57902e22dc5ae140
 /lcoder-workspace/table-of-contents:
   en: d152484eb41ac6b4
   zh: ce40cab8e7534137
 /lcoder-workspace/use-this-package:
-  en: 29cd349807b9a40c
-  zh: 608200883696899e
+  en: 6f631efd7f7ebb88
+  zh: 8b33088281087868
 /lcoder-workspace/use-this-package/when-to-choose-it:
-  en: 838f4e680b9d6688
-  zh: 60a34d3d3f990bd7
+  en: d299c1418962fdd1
+  zh: 006fdc36c26c8794
 /lcoder-workspace/use-this-package/minimal-configuration:
-  en: 46536b3de58f37e5
-  zh: 954aefbbfe2b98f8
+  en: c8a29781f08527bc
+  zh: 1b2bd1624185fdb0
 /lcoder-workspace/understand-the-implementation:
-  en: 5471062d1381c421
-  zh: 0d29f9a2be1d841e
+  en: 25d2a0a75e5cc555
+  zh: 7965638cd687dabc
 /lcoder-workspace/further-exploration:
-  en: 6901467c00a63c20
-  zh: 25c63dfc29bd4e0d
+  en: 049a3143f1297b06
+  zh: c473145c86a0f175
 /lcoder-workspace/model-experience:
   en: 215e7ba838619b7b
   zh: a311da3843709f90
-/lcoder-workspace/model-experience/workbench-ui:
-  en: d9e5fbf43f9e898e
-  zh: 3dcf1589e95358c7
-/lcoder-workspace/model-experience/workbench-ui/what-the-model-sees:
-  en: 53dc9bcd35b58adf
-  zh: 4b3d5aeeed53369a
-/lcoder-workspace/model-experience/workbench-ui/token-effect:
-  en: dca82e29346fccbc
-  zh: 49b458497211f2ca
-/lcoder-workspace/model-experience/workbench-ui/kv-cache-effect:
-  en: 26f6dafc7a9efae1
-  zh: 6c9d37c9613b84bd
+/lcoder-workspace/model-experience/shell-ui:
+  en: dff726517046664d
+  zh: dff726517046664d
+/lcoder-workspace/model-experience/shell-ui/what-the-model-sees:
+  en: 052fa6dddf857f13
+  zh: 92ff7c08047bef6d
+/lcoder-workspace/model-experience/shell-ui/token-effect:
+  en: 5b37455ecb039048
+  zh: 97088abfb8d196c9
+/lcoder-workspace/model-experience/shell-ui/kv-cache-effect:
+  en: 23a330138dae57ad
+  zh: 0fa47c1864e92997
 /lcoder-workspace/known-limitations-and-deferred-work:
-  en: e62b3c7ceda741eb
-  zh: 169e3d10fdf88cc3
+  en: e8e8b93b4776b8f2
+  zh: d7fb751ddde3479c
 /lcoder-workspace/known-limitations-and-deferred-work/dev-note:
-  en: 6c8692be229b1128
-  zh: 24f059896cde18ac
+  en: b11a9ab0c18fcccd
+  zh: 2b7c2a14140f0493

@@ -1,5 +1,5 @@
 ---
-description: "The LCoder workbench tab: a read-only three-column projection of .spec tasks and rules over the upstream workspaceFiles remote, with no model-facing contribution."
+description: "The LCoder shell: project switch, five-state task board, project-info drawer, and a real floating conversation over the session workspace's .spec."
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`@lcoder/workspace` adds the LCoder workbench tab to the right sidebar. The tab reads `.spec` task and rule YAML through the upstream `workspaceFiles` remote and draws three columns: tasks, specification and code bindings, and the conversation. It is read-only: state-machine decisions stay in the kernel, and the browser never writes product data. Mount it through the LCoder patch layer when you already run the kernel; it has no configuration surface and no separate Remote. Without a bound workspace the columns stay as a skeleton.
+`@lcoder/workspace` is LCoder's shell. It shows the selected project, a five-state task board read from the session workspace's `.spec`, a project-info drawer read from `.spec/project.yaml`, and a floating conversation that sends the dev-flow startup prompt through the real session. The project picker can open another repository, creating or reusing its workspace and a session. Mount it through the LCoder patch layer when the kernel already runs; `shell: false` keeps the older right-sidebar workbench tab. The shell is read-only over product data: state-machine decisions and writes stay in the kernel.
 
 ## Table of Contents
 
@@ -25,11 +25,11 @@ English | [中文](README.zh.md)
 <a id="use-this-package"></a>
 ## Use this package
 
-Mount the package in the LCoder patch layer and open the workbench tab in a session bound to a repository that contains `.spec`.
+Mount the package in the LCoder patch layer. When `shell` is true (the default) it registers the `lcoder-home` main panel and selects it; the project picker lists the Host workspaces, and Open repository registers a directory and creates a session.
 
 ### When to choose it
 
-Choose it when the kernel already runs in the same composition and the user needs to read tasks and rules without asking the model. Do not choose it for editing specification data or for state transitions: the package is a projection, and the kernel owns both writes and state-machine decisions.
+Choose it when the kernel already runs and the user should work from LCoder's project/task shell. Do not choose it for editing specification data or for state transitions: the shell projects product data, and the kernel owns writes and state-machine decisions. Set `shell: false` when only the older right-sidebar workbench tab is wanted.
 
 ### Minimal configuration
 
@@ -41,7 +41,7 @@ Choose it when the kernel already runs in the same composition and the user need
 
 | Field | Default | Meaning |
 |---|---|---|
-| (none) | — | The package has no configuration surface |
+| `shell` | `true` | Render the LCoder shell in the `lcoder-home` main panel; `false` keeps the right-sidebar tab |
 
 The package mounts as a plugin row through the patch layer; it has no `dsh plugin add` installation path.
 
@@ -53,16 +53,19 @@ The package mounts as a plugin row through the patch layer; it has no `dsh plugi
 <details>
 <summary>Implementation internals — click to expand</summary>
 
-The package registers three client contributions: a sidebar tab type, a locale namespace, and a pane body. The body receives a projection function through the slot `inject` factory, so the package depends on the slot runtime, the locale service, the tab registry, and the remote face, and it stays inactive when any of them is missing.
+The package registers the shell main panel and, with `shell: false`, the older tab. The shell reads the workspace and session lists through the framework hooks, uses `workspaceFiles` for `.spec/tasks`, `.spec/spec/rules.yaml`, `.spec/project.yaml`, and `.spec/local.yaml`, and sends prompts through the session controller. The project picker's Open repository calls `workspaces.create` and `sessions.create`, then selects the new workspace.
 
-The data path is `src/client/projection.ts`: it calls `files.list` and `files.readPage` on the `workspaceFiles` namespace, parses the YAML, and returns rows plus per-file problems. The host resolves relative paths against the session workspace (`session.header.cwd`), and the kernel resolves its specification root from the same session header, so the tools and the UI read one `.spec`.
+The floating conversation subscribes to the session event window and renders user/assistant text; the input sends another prompt to the same session. The package itself registers no model tool, prompt section, or schema.
 
 | File | Responsibility |
 |---|---|
-| `src/client/definition.ts` | Tab kind, id, priority, and guide entry |
-| `src/client/index.ts` | Service injection, locale registration, and pane slot registration |
-| `src/client/projection.ts` | Read `.spec` YAML through `workspaceFiles` and build display rows |
-| `src/client/WorkspaceBody.tsx` | Render the three columns and the empty or error states |
+| `src/client/index.ts` | Shell registration, file/prompt callbacks, and the `shell: false` tab |
+| `src/client/shell/Shell.tsx` | Project switch, task board, project-info drawer, task detail, and floating conversation |
+| `src/client/shell/shell-data.ts` | Shell types, startup prompt, and session message extraction |
+| `src/client/shell/Shell.module.css` | Shell layout and overlay styles |
+| `src/client/projection.ts` | `.spec` tasks/rules, `project.yaml`, and `local.yaml` reads |
+| `src/client/definition.ts` | Tab kind, id, priority, and guide entry for the fallback mode |
+| `src/client/WorkspaceBody.tsx` | Three-column body for the fallback tab |
 
 </details>
 
@@ -71,36 +74,37 @@ The data path is `src/client/projection.ts`: it calls `files.list` and `files.re
 <a id="further-exploration"></a>
 ## Further Exploration
 
-- `packages/lcoder/kernel` — the host plugin that writes the YAML this package reads.
-- `packages/client/ui-sidebar-files` — the closest upstream tab implementation with a store and component.
-- `packages/client/ui-agent-preset` — a settings-page shape close to the workbench.
-- `lcoder/RUN.md` — startup, mounting, and the verification steps.
+- `packages/lcoder/kernel` — the host plugin; its file tools use the repository root.
+- `lcoder/RUN.md` — startup, the desktop profile, and the smoke steps.
+- `packages/client/ui-workspace` — the upstream workspace model behind the project picker.
+- `packages/lcoder/kernel/fixtures/demo` — the demo repository with a `.spec`.
 
 -----
 
 ## Model Experience
 
-### Workbench UI
+### Shell UI
 
 #### What the model sees
 
-Nothing. The workbench reads `.spec` YAML through `workspaceFiles` and renders it in the browser; it registers no tool, prompt section, or model schema.
+The shell registers no tool, prompt section, or schema. A user prompt sent from the floating conversation reaches the model as ordinary session input; task and project data are read through `workspaceFiles` and are not injected into requests.
 
 #### Token effect
 
-None; this package never builds a model request.
+None from this package; user prompts and replies are ordinary session content.
 
 #### KV Cache effect
 
-None; no request prefix changes.
+None; the package does not change request prefixes.
 
 ## Known Limitations and Deferred Work
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- The kernel's `file_read` / `file_edit` still treat the specification root as their boundary; real-repository acceptance will decide whether they should use the repository root.
-- The workbench reads once when the tab opens; incremental refresh through `workspaceFiles.changes` is deferred.
-- The shared selection across the three columns is deferred to T-03.
+- The floating conversation renders final user/assistant text from the session event window, not the full DSH conversation UI (tool cards, live token streaming).
+- The task board reads the first session in the selected workspace; a task-specific session per task is deferred.
+- The shell reloads when the selected workspace or session changes; incremental refresh through `workspaceFiles.changes` is deferred.
+- The project-info drawer resolves `passwordRef` from `.spec/local.yaml`; environment-variable resolution is deferred.
 
 <a id="dev-note"></a>
 ### Dev Note
@@ -108,6 +112,6 @@ None; no request prefix changes.
 <details>
 <summary>Working context for maintainers — click to expand</summary>
 
-Build with `pnpm --filter @lcoder/workspace run bundle`; the root `tsconfig.client.json` includes this package through `references`, so `pnpm typecheck` covers it. Run the package tests with `pnpm exec vitest run packages/lcoder/workspace`.
+Build with `pnpm --filter @lcoder/workspace run bundle`; the root `tsconfig.client.json` includes this package through `references`, so `pnpm typecheck` covers it. Run the package tests with `pnpm exec vitest run packages/lcoder/workspace`. Keep the `shell: false` fallback working when the tab path changes.
 
 </details>

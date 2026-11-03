@@ -59,7 +59,7 @@ The plugin mounts as a row through the patch layer; it has no `dsh plugin add` i
 
 The plugin named-exports `name`, `inject`, and `apply`, matching the upstream function-plugin form. It injects `tools` and registers each definition with a `when` condition that is evaluated once per model step. The condition reads the task state from disk on every step, so signing a contract or advancing a task changes the visible tools immediately.
 
-Every tool factory accepts either a fixed root or a resolver. The resolver reads the narrow session fact `agent.session.header.cwd`; the plugin supplies one resolver to all nine tools, so a single session sees one specification root across spec, task, and edit operations.
+Every tool factory accepts either a fixed root or a resolver. The resolver reads the narrow session fact `agent.session.header.cwd`; the plugin supplies one resolver to all nine tools, so a single session sees one specification root across spec and task operations. The file tools receive the repository root (the specification root's parent), while `cmd_run`, `env.yaml`, and evidence stay under the specification root.
 
 | File | Responsibility |
 |---|---|
@@ -106,7 +106,6 @@ The visible tool set changes only on a task-state transition. Re-applying the sa
 
 - `contract_sign` is absent by design; a human signs contracts outside the model turn.
 - `task_transition` has no tool entry; advancing a task requires editing its YAML.
-- `file_read` / `file_edit` currently resolve against the specification root; real-repository acceptance will decide whether they should use the repository root.
 - P1 uses a text index, so a symbol name in a comment or string can produce a false positive.
 
 <a id="dev-note"></a>
