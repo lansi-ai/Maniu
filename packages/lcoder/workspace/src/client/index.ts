@@ -15,6 +15,8 @@
  */
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
+import type {} from '@deepseek-ai/dsh-api-session-controller/client'
+import type {} from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type { MainPanelId } from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
@@ -50,21 +52,28 @@ const NS = 'lcoderWorkspace'
 /** 插件名，与包名一致，loader 据此在诊断里说话。 */
 export const name = '@lcoder/workspace'
 
-/** 浏览器侧必需的服务：槽位运行时、词典、页签注册表、远程面、布局选择。 */
-export const inject = ['slots', 'locale', 'sidebarRightTabs', 'remote', 'layout']
+/** 浏览器侧必需的服务：槽位运行时、词典、页签注册表、远程文件面、布局与工作区。 */
+export const inject = [
+  'slots', 'locale', 'sidebarRightTabs', 'remote', 'remote.workspaceFiles', 'layout', 'workspaces', 'sessions',
+]
 
 /**
  * 把上游的 `workspaceFiles` 窄化成本包的文件面。
  * 适配层只做参数搬运：真正的读取策略（读哪些路径、单页多大）都在 projection 里。
  */
+function projectionFiles(ctx: ClientContext): ProjectionFilesRemote {
+  return {
+    list: (id: SessionId, path: string, signal: AbortSignal) =>
+      ctx.remote.workspaceFiles.list(id, path, signal),
+    readPage: (id: SessionId, path: string, signal: AbortSignal) =>
+      ctx.remote.workspaceFiles.read(id, path, { offset: 1, limit: PAGE_LINES }, signal),
+  }
+}
+
+/** 页签模式注入的投影工厂。 */
 function workspaceInject(ctx: ClientContext): (sessionId: SessionId) => WorkspaceInject {
   return () => {
-    const files: ProjectionFilesRemote = {
-      list: (id: SessionId, path: string, signal: AbortSignal) =>
-        ctx.remote.workspaceFiles.list(id, path, signal),
-      readPage: (id: SessionId, path: string, signal: AbortSignal) =>
-        ctx.remote.workspaceFiles.read(id, path, { offset: 1, limit: PAGE_LINES }, signal),
-    }
+    const files = projectionFiles(ctx)
     return { projection: (id: SessionId, signal: AbortSignal) => loadWorkspaceProjection(files, id, signal) }
   }
 }
@@ -81,9 +90,15 @@ export function apply(ctx: ClientContext, config: Config = {}): void {
   // 客户端半的 loader 行不一定会收到宿主行 config；整壳是产品默认，
   // 只有显式 shell: false 才回退旧页签。
   if (config.shell !== false) {
+    const files = projectionFiles(ctx)
+    const openRepository = async (path: string): Promise<{ workspaceId: string; sessionId: SessionId }> => {
+      const workspace = await ctx.workspaces.create({ path })
+      const sessionId = await ctx.sessions.create({ workspaceId: workspace.workspaceId })
+      return { workspaceId: String(workspace.workspaceId), sessionId }
+    }
     ctx.effect(() => ctx.slots.inject('main', () => {
       const dispose = ctx.slots.register(
-        { name: 'main', key: 'lcoder-home', locale: NS },
+        { name: 'main', key: 'lcoder-home', locale: NS, inject: () => ({ files, openRepository }) },
         Shell,
       )
       // The frame renders `conversation` until a key is selected; choose the

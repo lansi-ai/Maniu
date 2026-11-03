@@ -11,6 +11,7 @@ import { parse as parseYaml } from 'yaml'
 import type {
   WorkspaceDirectoryListing, WorkspaceFileText,
 } from '@deepseek-ai/dsh-api-workspace-files/types'
+import type { ShellEnvironment, ShellProjectInfo } from './shell/shell-data.ts'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 
@@ -20,6 +21,10 @@ export interface TaskRow {
   readonly title: string
   readonly state: string
   readonly grade: string
+  /** 任务声明的规则编号；外壳与启动咒语直接使用。 */
+  readonly rules: readonly string[]
+  /** 收口要求的证据类型；外壳与启动咒语直接使用。 */
+  readonly evidence: readonly string[]
 }
 
 /** 中栏一条规格条目。 */
@@ -54,6 +59,8 @@ export interface ProjectionFilesRemote {
 export const SPEC_DIR = '.spec'
 export const TASKS_DIR = `${SPEC_DIR}/tasks`
 export const RULES_FILE = `${SPEC_DIR}/spec/rules.yaml`
+export const PROJECT_FILE = `${SPEC_DIR}/project.yaml`
+export const LOCAL_FILE = `${SPEC_DIR}/local.yaml`
 
 /** 单页行数上限：任务与规则 YAML 都是几十行的量级，500 足够且低于宿主默认页。 */
 export const PAGE_LINES = 500
@@ -94,7 +101,14 @@ export function taskTextToRow(fileName: string, text: string): TaskRow | undefin
     title,
     state: asText(fields.state) ?? 'unknown',
     grade: asText(fields.grade) ?? '-',
+    rules: stringArray(fields.rules),
+    evidence: stringArray(fields.evidence_required),
   }
+}
+
+/** 字符串数组字段：只收字符串项，其余忽略。 */
+function stringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []
 }
 
 /** 规则库文本 → 展示行。解析失败给空表；缺字段的条目跳过——展示面不替规格库补事实。 */
@@ -192,6 +206,120 @@ async function loadRules(
     return { rows: [], problems }
   }
   return { rows: rulesTextToRows(page.value.text), problems: [] }
+}
+
+/** `.spec/project.yaml` 的读取结果；文件缺失不算错误。 */
+export interface ProjectInfoLoad {
+  readonly info: ShellProjectInfo | null
+  readonly problems: readonly string[]
+}
+
+/**
+ * 读 `.spec/project.yaml`。密码字段只保留引用名；解析值由调用方从
+ * `.spec/local.yaml` 或环境变量补齐。
+ * @param files - 窄化文件面。
+ * @param sessionId - 提供相对路径基准的会话。
+ * @param signal - 取消信号。
+ * @returns 项目信息与逐文件问题。
+ */
+export async function loadProjectInfo(
+  files: ProjectionFilesRemote,
+  sessionId: SessionId,
+  signal: AbortSignal,
+): Promise<ProjectInfoLoad> {
+  const page = await files.readPage(sessionId, PROJECT_FILE, signal)
+  if (!page.ok) {
+    return isMissing(page.error, PROJECT_FILE)
+      ? { info: null, problems: [] }
+      : { info: null, problems: [`${PROJECT_FILE}: ${messageOf(page.error)}`] }
+  }
+
+  let doc: Record<string, unknown> | undefined
+  try {
+    doc = recordOf(parseYaml(page.value.text))
+  } catch {
+    doc = undefined
+  }
+  if (doc === undefined) return { info: null, problems: [`${PROJECT_FILE}: 不是能读的 YAML`] }
+
+  const kind = doc.kind === 'web' || doc.kind === 'desktop' || doc.kind === 'library' ? doc.kind : 'library'
+  const repo = recordOf(doc.repo)
+  const docs = recordOf(doc.docs)
+  const environmentRecords = recordOf(doc.environments) ?? {}
+  const environments: ShellEnvironment[] = Object.entries(environmentRecords).flatMap(([id, raw]) => {
+    const env = recordOf(raw)
+    if (env === undefined) return []
+    const database = recordOf(env.database)
+    const server = asText(env.server)
+    const note = asText(env.note)
+    const port = database?.port
+    return [{
+      id,
+      label: id,
+      ...(server === undefined ? {} : { server }),
+      ...(note === undefined ? {} : { note }),
+      ...(database === undefined
+        ? {}
+        : {
+          database: {
+            host: asText(database.host) ?? '',
+            ...(typeof port === 'string'
+              ? { port }
+              : typeof port === 'number' ? { port: String(port) } : {}),
+            name: asText(database.name) ?? '',
+            user: asText(database.user) ?? '',
+            passwordRef: asText(database.passwordRef) ?? '',
+          },
+        }),
+    }]
+  })
+
+  return {
+    info: {
+      kind,
+      repoUrl: asText(repo?.url) ?? '',
+      branch: asText(repo?.branch) ?? '—',
+      docs: {
+        product: asText(docs?.product) ?? '',
+        architecture: asText(docs?.architecture) ?? '',
+        tests: asText(docs?.tests) ?? '',
+      },
+      environments,
+    },
+    problems: [],
+  }
+}
+
+/**
+ * 读本机 `.spec/local.yaml` 里的敏感值。文件不存在返回空表；
+ * 这个值只留在浏览器内存里，不写日志、不进模型请求。
+ * @param files - 窄化文件面。
+ * @param sessionId - 提供相对路径基准的会话。
+ * @param signal - 取消信号。
+ * @returns `passwordRef` → 本机值的映射。
+ */
+export async function loadLocalSecrets(
+  files: ProjectionFilesRemote,
+  sessionId: SessionId,
+  signal: AbortSignal,
+): Promise<Record<string, string>> {
+  const page = await files.readPage(sessionId, LOCAL_FILE, signal)
+  if (!page.ok) return {}
+
+  let doc: Record<string, unknown> | undefined
+  try {
+    doc = recordOf(parseYaml(page.value.text))
+  } catch {
+    return {}
+  }
+  if (doc === undefined) return {}
+
+  const source = recordOf(doc.secrets) ?? doc
+  const out: Record<string, string> = {}
+  for (const [name, value] of Object.entries(source)) {
+    if (typeof value === 'string') out[name] = value
+  }
+  return out
 }
 
 /**

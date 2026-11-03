@@ -1,24 +1,35 @@
 /**
  * LCoder 专属外壳：主面板内的项目切换 + 任务看板 + 悬浮对话。
  *
- * 这一版是已确认原型的可运行版本：项目/任务先用静态数据把布局与交互跑通，
- * 真实 `.spec` 投影与 session 绑定在下一刀接入；组件的数据入口保持不变。
+ * 数据来自当前会话工作区的 `.spec`：任务/规则走 `loadWorkspaceProjection`，
+ * 项目信息走 `.spec/project.yaml`，敏感值按 `passwordRef` 从 `.spec/local.yaml`
+ * 解析后只留在浏览器内存里。没有工作区或会话时显示空态，不编造数据。
  *
  * 外壳占用 `main` 的 `lcoder-home` 键；DSH 原生侧栏在桌面 profile 里禁用，
- * 因此这里的左栏就是 LCoder 自己的导航，不再常驻 DSH 的工作区列表。
+ * 启动时折叠空轨道，主面板占满窗口。
  */
-import { useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import type {} from './shell-data.ts'
-import { buildShellPrompt, SHELL_PROJECT_INFO, SHELL_PROJECTS, SHELL_STATES } from './shell-data.ts'
-import type { ShellProject, ShellProjectInfo, ShellTask, ShellTaskState } from './shell-data.ts'
+import type {} from '@deepseek-ai/dsh-client-ui-session/client'
+import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import { loadLocalSecrets, loadProjectInfo, loadWorkspaceProjection } from '../projection.ts'
+import type { ProjectionFilesRemote, TaskRow } from '../projection.ts'
+import { buildShellPrompt, SHELL_STATES } from './shell-data.ts'
+import type { ShellProjectInfo, ShellTask, ShellTaskState } from './shell-data.ts'
 import css from './Shell.module.css'
 
-/** `main` 键控面板的组合 props：运行时标准 seat + 本包词典。 */
+/** `main` 键控面板的组合 props：运行时标准 seat + 本包词典 + 文件投影面。 */
 export type ShellProps =
   & PropsRuntime<'main', 'lcoder-home'>
   & PropsLocale<'lcoderWorkspace'>
+  & {
+    /** 文件投影面；没有时外壳保持空态。 */
+    readonly files?: ProjectionFilesRemote
+    /** 把仓库路径注册成工作区并建一个会话；返回可用于读取 `.spec` 的会话。 */
+    readonly openRepository?: (path: string) => Promise<{ workspaceId: string; sessionId: SessionId }>
+  }
 
 /** 状态到词典键的映射，避免把状态字符串当展示文案。 */
 const STATE_LABEL = {
@@ -38,14 +49,56 @@ const STATE_DOT: Record<ShellTaskState, string | undefined> = {
   closed: css.stateClosed,
 }
 
+/** 状态到工具面的展示文案；与 kernel 的 SURFACE 同义。 */
+const SURFACE: Record<ShellTaskState, string> = {
+  drafting: '读 / 契约',
+  contracted: '读 / 契约 / 编辑',
+  implementing: '全量',
+  verifying: '全量 + 收口',
+  closed: '只读',
+}
+
+const KNOWN_STATES: ReadonlySet<string> = new Set(SHELL_STATES.map(state => state.id))
+
+function shellState(value: string): ShellTaskState {
+  return KNOWN_STATES.has(value) ? value as ShellTaskState : 'drafting'
+}
+
+function toShellTask(row: TaskRow): ShellTask {
+  const state = shellState(row.state)
+  return {
+    id: row.id,
+    title: row.title,
+    state,
+    grade: row.grade,
+    rules: row.rules,
+    evidence: row.evidence,
+    surface: SURFACE[state],
+  }
+}
+
+function resolveSecrets(info: ShellProjectInfo, secrets: Readonly<Record<string, string>>): ShellProjectInfo {
+  return {
+    ...info,
+    environments: info.environments.map((env) => {
+      const database = env.database
+      if (database === undefined) return env
+      const value = secrets[database.passwordRef]
+      return value === undefined ? env : { ...env, database: { ...database, passwordValue: value } }
+    }),
+  }
+}
+
 /**
  * 外壳主组件。
  * @param props - 槽位组合进来的 props。
- * @returns 左栏 + 任务板 + 浮层。
+ * @returns 顶栏 + 任务板 + 项目信息抽屉 + 浮层。
  */
-export function Shell({ t }: ShellProps): ReactNode {
-  const [projects, setProjects] = useState<ShellProject[]>(() => [...SHELL_PROJECTS])
-  const [projectId, setProjectId] = useState(SHELL_PROJECTS[0]?.id ?? 'lcoder')
+export function Shell({ t, files, openRepository, useSessions, useWorkspaces }: ShellProps): ReactNode {
+  const workspaces = useWorkspaces(state => state.items)
+  const sessionRows = useSessions(state => state.byId)
+
+  const [workspaceId, setWorkspaceId] = useState<string | null>(null)
   const [dark, setDark] = useState(false)
   const [projectPicker, setProjectPicker] = useState(false)
   const [detail, setDetail] = useState<ShellTask | null>(null)
@@ -55,53 +108,64 @@ export function Shell({ t }: ShellProps): ReactNode {
   const [drawer, setDrawer] = useState(false)
   const [revealed, setRevealed] = useState<Record<string, boolean>>({})
   const [copied, setCopied] = useState(false)
-  const nextProject = useRef(SHELL_PROJECTS.length + 1)
+  const [tasks, setTasks] = useState<readonly ShellTask[]>([])
+  const [rulesCount, setRulesCount] = useState(0)
+  const [info, setInfo] = useState<ShellProjectInfo | null>(null)
+  const [problems, setProblems] = useState<readonly string[]>([])
+  const [loading, setLoading] = useState(false)
+  const [sessionOverride, setSessionOverride] = useState<SessionId | null>(null)
+  const [repoPath, setRepoPath] = useState('')
+  const [opening, setOpening] = useState(false)
+  const [repoError, setRepoError] = useState<string | null>(null)
 
-  const project = projects.find(p => p.id === projectId) ?? projects[0]
-  if (project === undefined) return null
+  const workspace = workspaces.find(item => String(item.workspaceId) === workspaceId) ?? workspaces[0]
+  const activeWorkspaceId = workspace === undefined ? null : String(workspace.workspaceId)
+  const sessionId = sessionOverride ?? workspace?.sessionIds[0]
+  const session = sessionId === undefined ? undefined : sessionRows[sessionId]
+  const projectPath = session?.cwd ?? workspace?.path ?? ''
+  const projectName = workspace?.title ?? 'LCoder'
+  const projectBranch = info?.branch ?? '—'
+  const specRoot = projectPath === '' ? '' : `${projectPath}/.spec`
+  const hasWorkspace = workspace !== undefined
+  const hasSession = sessionId !== undefined
 
-  const info: ShellProjectInfo = SHELL_PROJECT_INFO[project.id] ?? {
-    kind: 'library',
-    repoUrl: '',
-    branch: project.branch,
-    docs: { product: 'README.md', architecture: 'docs/architecture.md', tests: 'tests' },
-    environments: [],
-  }
+  useEffect(() => {
+    if (files === undefined || workspace === undefined || sessionId === undefined) {
+      setTasks([])
+      setRulesCount(0)
+      setInfo(null)
+      setProblems([])
+      setLoading(false)
+      return
+    }
+    const controller = new AbortController()
+    setLoading(true)
+    Promise.all([
+      loadWorkspaceProjection(files, sessionId, controller.signal),
+      loadProjectInfo(files, sessionId, controller.signal),
+      loadLocalSecrets(files, sessionId, controller.signal),
+    ]).then(([projection, projectInfo, secrets]) => {
+      if (controller.signal.aborted) return
+      setTasks(projection.tasks.map(toShellTask))
+      setRulesCount(projection.rules.length)
+      setProblems([...projection.problems, ...projectInfo.problems])
+      setInfo(projectInfo.info === null ? null : resolveSecrets(projectInfo.info, secrets))
+      setLoading(false)
+    }).catch((error: unknown) => {
+      if (controller.signal.aborted) return
+      setTasks([])
+      setRulesCount(0)
+      setInfo(null)
+      setProblems([String(error)])
+      setLoading(false)
+    })
+    return () => { controller.abort() }
+  }, [files, activeWorkspaceId, sessionId])
 
   const openTask = (task: ShellTask): void => {
     setDetail(task)
-    setPrompt(buildShellPrompt(project, task))
+    setPrompt(buildShellPrompt({ name: projectName, path: projectPath, branch: projectBranch }, task))
     setCopied(false)
-  }
-
-  const addTask = (): void => {
-    const task: ShellTask = {
-      id: `T-${100 + project.tasks.length + 1}`,
-      title: t('shell.newTaskPlaceholder'),
-      state: 'drafting',
-      grade: 'B',
-      rules: ['R-01'],
-      evidence: ['build'],
-      surface: '读 / 契约',
-    }
-    setProjects(current => current.map(p => p.id === project.id ? { ...p, tasks: [task, ...p.tasks] } : p))
-    openTask(task)
-  }
-
-  const addProject = (): void => {
-    const n = nextProject.current++
-    const next: ShellProject = {
-      id: `project-${String(n)}`,
-      name: `新项目 ${String(n)}`,
-      path: `E:/Projects/new-project-${String(n)}`,
-      branch: 'main',
-      rules: 0,
-      summary: '新建项目',
-      tasks: [],
-    }
-    setProjects(current => [...current, next])
-    setProjectId(next.id)
-    setProjectPicker(false)
   }
 
   const copyPrompt = (): void => {
@@ -114,8 +178,26 @@ export function Shell({ t }: ShellProps): ReactNode {
     )
   }
 
+  const submitRepo = async (): Promise<void> => {
+    if (openRepository === undefined) return
+    const path = repoPath.trim()
+    if (path === '') return
+    setOpening(true)
+    setRepoError(null)
+    try {
+      const opened = await openRepository(path)
+      setWorkspaceId(opened.workspaceId)
+      setSessionOverride(opened.sessionId)
+      setProjectPicker(false)
+    } catch (error: unknown) {
+      setRepoError(String(error))
+    } finally {
+      setOpening(false)
+    }
+  }
+
   const renderColumn = (state: (typeof SHELL_STATES)[number], compact = false): ReactNode => {
-    const tasks = project.tasks.filter(task => task.state === state.id)
+    const columnTasks = tasks.filter(task => task.state === state.id)
     return (
       <div key={state.id} className={css.column}>
         <div className={css.columnHead}>
@@ -123,11 +205,11 @@ export function Shell({ t }: ShellProps): ReactNode {
             <span className={`${css.stateDot ?? ''} ${STATE_DOT[state.id] ?? ''}`} />
             {t(state.labelKey)}
           </span>
-          <span className={css.count}>{tasks.length}</span>
+          <span className={css.count}>{columnTasks.length}</span>
         </div>
-        {tasks.length === 0
+        {columnTasks.length === 0
           ? <div className={css.empty}>{t('shell.empty')}</div>
-          : tasks.map(task => (
+          : columnTasks.map(task => (
             <button type="button" key={task.id} className={css.taskCard} onClick={() => { openTask(task) }}>
               <div className={css.taskId}><span>{task.id}</span><span>{task.grade}</span></div>
               <div className={css.taskTitle}>{task.title}</div>
@@ -151,10 +233,10 @@ export function Shell({ t }: ShellProps): ReactNode {
           <span className={css.topTitle}>LCoder</span>
         </div>
         <button type="button" className={css.topProject} title={t('shell.switchProject')} onClick={() => { setProjectPicker(true) }}>
-          <span className={css.psLogo}>{project.name.slice(0, 1).toUpperCase()}</span>
+          <span className={css.psLogo}>{(projectName || 'L').slice(0, 1).toUpperCase()}</span>
           <span className={css.psText}>
-            <span className={css.psName}>{project.name}</span>
-            <span className={css.psPath}>{project.path}</span>
+            <span className={css.psName}>{projectName}</span>
+            <span className={css.psPath}>{projectPath || '—'}</span>
           </span>
           <span className={css.psChevron}>⌄</span>
         </button>
@@ -162,7 +244,6 @@ export function Shell({ t }: ShellProps): ReactNode {
         <button type="button" className={css.secondaryBtn} onClick={() => { setDrawer(true) }}>ⓘ {t('shell.projectInfo')}</button>
         <button type="button" className={css.iconBtn} title={t('shell.theme')} onClick={() => { setDark(value => !value) }}>◐</button>
         <button type="button" className={css.iconBtn} title={t('shell.settings')} onClick={() => { setSettings(true) }}>⚙</button>
-        <button type="button" className={css.primaryBtn} onClick={addTask}>+ {t('shell.newTask')}</button>
       </header>
 
       <main className={css.main}>
@@ -171,9 +252,25 @@ export function Shell({ t }: ShellProps): ReactNode {
             <h3>{t('shell.board')}</h3>
             <span className={css.boardHint}>{t('shell.boardHint')}</span>
           </div>
-          <div className={css.board}>
-            {SHELL_STATES.map(state => renderColumn(state))}
-          </div>
+          {!hasWorkspace
+            ? <p className={css.empty}>{t('shell.noWorkspace')}</p>
+            : loading
+              ? <p className={css.empty}>{t('shell.loading')}</p>
+              : !hasSession
+                ? <p className={css.empty}>{t('shell.noSession')}</p>
+                : (
+                  <>
+                    <div className={css.board}>
+                      {SHELL_STATES.map(state => renderColumn(state))}
+                    </div>
+                    {problems.length > 0 ? (
+                      <div className={css.problems}>
+                        <p className={css.problemsTitle}>{t('shell.problems')}</p>
+                        {problems.map(problem => <p key={problem} className={css.problem}>{problem}</p>)}
+                      </div>
+                    ) : null}
+                  </>
+                )}
         </div>
       </main>
 
@@ -191,58 +288,67 @@ export function Shell({ t }: ShellProps): ReactNode {
               <section className={css.drawerSection}>
                 <h4>{t('shell.basic')}</h4>
                 <div className={css.infoGrid}>
-                  <div className={css.infoRow}><span>{t('shell.kind')}</span><b>{info.kind}</b></div>
+                  <div className={css.infoRow}><span>{t('shell.kind')}</span><b>{info?.kind ?? '—'}</b></div>
                   <div className={css.infoRow}>
                     <span>{t('shell.repoUrl')}</span>
-                    {info.repoUrl === ''
+                    {info?.repoUrl === undefined || info.repoUrl === ''
                       ? <b>—</b>
                       : <a href={info.repoUrl} target="_blank" rel="noreferrer">{info.repoUrl}</a>}
                   </div>
-                  <div className={css.infoRow}><span>{t('shell.branch')}</span><b>{info.branch}</b></div>
-                  <div className={css.infoRow}><span>{t('shell.specRoot')}</span><code>{project.path}/.spec</code></div>
+                  <div className={css.infoRow}><span>{t('shell.branch')}</span><b>{info?.branch ?? '—'}</b></div>
+                  <div className={css.infoRow}><span>{t('shell.specRoot')}</span><code>{specRoot || '—'}</code></div>
+                  <div className={css.infoRow}><span>{t('shell.tasks')}</span><b>{tasks.length}</b></div>
+                  <div className={css.infoRow}><span>{t('shell.rules')}</span><b>{rulesCount}</b></div>
                 </div>
               </section>
 
               <section className={css.drawerSection}>
                 <h4>{t('shell.docs')}</h4>
-                <div className={css.docRow}><span>{t('shell.productDoc')}</span><code>{info.docs.product}</code></div>
-                <div className={css.docRow}><span>{t('shell.architectureDoc')}</span><code>{info.docs.architecture}</code></div>
-                <div className={css.docRow}><span>{t('shell.tests')}</span><code>{info.docs.tests}</code></div>
+                <div className={css.docRow}><span>{t('shell.productDoc')}</span><code>{info?.docs.product || '—'}</code></div>
+                <div className={css.docRow}><span>{t('shell.architectureDoc')}</span><code>{info?.docs.architecture || '—'}</code></div>
+                <div className={css.docRow}><span>{t('shell.tests')}</span><code>{info?.docs.tests || '—'}</code></div>
               </section>
 
               <section className={css.drawerSection}>
                 <h4>{t('shell.environments')}</h4>
-                {info.kind !== 'web' || info.environments.length === 0
-                  ? <p className={css.empty}>{t('shell.webOnly')}</p>
-                  : info.environments.map((env) => {
-                    const passwordKey = `${env.id}.password`
-                    const shown = revealed[passwordKey] === true
-                    return (
-                      <div key={env.id} className={css.envCard}>
-                        <div className={css.envHead}>
-                          <b>{env.label}</b>
-                          <span className={css.pill}>{env.note ?? ''}</span>
+                {info === null
+                  ? <p className={css.empty}>{t('shell.projectInfoMissing')}</p>
+                  : info.kind !== 'web' || info.environments.length === 0
+                    ? <p className={css.empty}>{t('shell.webOnly')}</p>
+                    : info.environments.map((env) => {
+                      const database = env.database
+                      const passwordKey = `${env.id}.password`
+                      const shown = revealed[passwordKey] === true
+                      return (
+                        <div key={env.id} className={css.envCard}>
+                          <div className={css.envHead}>
+                            <b>{env.label}</b>
+                            <span className={css.pill}>{env.note ?? ''}</span>
+                          </div>
+                          <div className={css.infoRow}><span>{t('shell.server')}</span><code>{env.server ?? '—'}</code></div>
+                          {database === undefined ? null : (
+                            <>
+                              <div className={css.infoRow}><span>{t('shell.dbHost')}</span><code>{database.host}:{database.port ?? '—'}</code></div>
+                              <div className={css.infoRow}><span>{t('shell.dbName')}</span><code>{database.name}</code></div>
+                              <div className={css.infoRow}><span>{t('shell.dbUser')}</span><code>{database.user}</code></div>
+                              <div className={css.infoRow}>
+                                <span>{t('shell.password')}</span>
+                                <code>{shown ? (database.passwordValue ?? t('shell.unconfigured')) : '••••••'}</code>
+                                <button
+                                  type="button"
+                                  className={css.eyeBtn}
+                                  title={shown ? t('shell.hide') : t('shell.reveal')}
+                                  onClick={() => { setRevealed(prev => ({ ...prev, [passwordKey]: !prev[passwordKey] })) }}
+                                >
+                                  {shown ? '🙈' : '👁'}
+                                </button>
+                              </div>
+                              <div className={css.secretRef}>{database.passwordRef} · {t('shell.secretNote')}</div>
+                            </>
+                          )}
                         </div>
-                        <div className={css.infoRow}><span>{t('shell.server')}</span><code>{env.server}</code></div>
-                        <div className={css.infoRow}><span>{t('shell.dbHost')}</span><code>{env.database.host}:{env.database.port}</code></div>
-                        <div className={css.infoRow}><span>{t('shell.dbName')}</span><code>{env.database.name}</code></div>
-                        <div className={css.infoRow}><span>{t('shell.dbUser')}</span><code>{env.database.user}</code></div>
-                        <div className={css.infoRow}>
-                          <span>{t('shell.password')}</span>
-                          <code>{shown ? env.database.passwordPreview : '••••••'}</code>
-                          <button
-                            type="button"
-                            className={css.eyeBtn}
-                            title={shown ? t('shell.hide') : t('shell.reveal')}
-                            onClick={() => { setRevealed(prev => ({ ...prev, [passwordKey]: !prev[passwordKey] })) }}
-                          >
-                            {shown ? '🙈' : '👁'}
-                          </button>
-                        </div>
-                        <div className={css.secretRef}>{env.database.passwordRef} · {t('shell.secretNote')}</div>
-                      </div>
-                    )
-                  })}
+                      )
+                    })}
               </section>
             </div>
           </aside>
@@ -257,31 +363,51 @@ export function Shell({ t }: ShellProps): ReactNode {
               <button type="button" className={css.iconBtn} onClick={() => { setProjectPicker(false) }}>✕</button>
             </div>
             <div className={css.modalBody}>
-              <div className={css.projectPicker}>
-                {projects.map(item => (
-                  <button
-                    type="button"
-                    key={item.id}
-                    className={`${css.projectOption} ${item.id === project.id ? css.projectOptionActive : ''}`}
-                    onClick={() => { setProjectId(item.id); setProjectPicker(false) }}
-                  >
-                    <span className={css.psLogo}>{item.name.slice(0, 1).toUpperCase()}</span>
-                    <span className={css.poText}>
-                      <span className={css.poName}>{item.name}</span>
-                      <span className={css.poPath}>{item.path}</span>
-                    </span>
-                    <span className={css.poCount}>
-                      {item.tasks.length} {t('shell.tasks')}
-                    </span>
-                    {item.id === project.id ? <span className={css.poCheck}>✓</span> : null}
-                  </button>
-                ))}
+              {workspaces.length === 0
+                ? <p className={css.empty}>{t('shell.noWorkspace')}</p>
+                : (
+                  <div className={css.projectPicker}>
+                    {workspaces.map((item) => {
+                      const id = String(item.workspaceId)
+                      return (
+                        <button
+                          type="button"
+                          key={id}
+                          className={`${css.projectOption} ${id === activeWorkspaceId ? css.projectOptionActive : ''}`}
+                          onClick={() => { setWorkspaceId(id); setSessionOverride(null); setProjectPicker(false) }}
+                        >
+                          <span className={css.psLogo}>{(item.title || 'L').slice(0, 1).toUpperCase()}</span>
+                          <span className={css.poText}>
+                            <span className={css.poName}>{item.title}</span>
+                            <span className={css.poPath}>{item.path}</span>
+                          </span>
+                          <span className={css.poCount}>{item.sessionIds.length} {t('shell.sessions')}</span>
+                          {id === activeWorkspaceId ? <span className={css.poCheck}>✓</span> : null}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              <div className={css.repoOpen}>
+                <input
+                  className={css.repoInput}
+                  value={repoPath}
+                  placeholder={t('shell.repoPathHint')}
+                  onChange={(event) => { setRepoPath(event.target.value) }}
+                />
+                <button
+                  type="button"
+                  className={css.primaryBtn}
+                  disabled={opening || openRepository === undefined || repoPath.trim() === ''}
+                  onClick={() => { void submitRepo() }}
+                >
+                  {opening ? t('shell.opening') : t('shell.openRepo')}
+                </button>
               </div>
+              {repoError === null ? null : <p className={css.problem}>{repoError}</p>}
             </div>
             <div className={css.modalFoot}>
               <span className={css.boardHint}>{t('shell.projectSource')}</span>
-              <div className={css.spacer} />
-              <button type="button" className={css.secondaryBtn} onClick={addProject}>{t('shell.newProject')}</button>
             </div>
           </div>
         </div>
@@ -293,7 +419,7 @@ export function Shell({ t }: ShellProps): ReactNode {
             <div className={css.modalHead}>
               <div className={css.grow}>
                 <h3>{detail.id} · {detail.title}</h3>
-                <p>{project.name} / {project.summary} · {t('shell.specRoot')} {project.path}/.spec</p>
+                <p>{projectName} / {projectPath} · {t('shell.specRoot')} {specRoot || '—'}</p>
               </div>
               <span className={css.pill}>{t(STATE_LABEL[detail.state])}</span>
               <button type="button" className={css.iconBtn} onClick={() => { setDetail(null) }}>✕</button>
@@ -301,8 +427,8 @@ export function Shell({ t }: ShellProps): ReactNode {
             <div className={css.modalBody}>
               <div className={css.metaGrid}>
                 <div className={css.meta}><div className={css.metaK}>{t('shell.grade')}</div><div className={css.metaV}>{detail.grade}</div></div>
-                <div className={css.meta}><div className={css.metaK}>{t('shell.rules')}</div><div className={css.metaV}>{detail.rules.join(', ')}</div></div>
-                <div className={css.meta}><div className={css.metaK}>{t('shell.evidence')}</div><div className={css.metaV}>{detail.evidence.join(', ')}</div></div>
+                <div className={css.meta}><div className={css.metaK}>{t('shell.rules')}</div><div className={css.metaV}>{detail.rules.join(', ') || '—'}</div></div>
+                <div className={css.meta}><div className={css.metaK}>{t('shell.evidence')}</div><div className={css.metaV}>{detail.evidence.join(', ') || '—'}</div></div>
                 <div className={css.meta}><div className={css.metaK}>{t('shell.surface')}</div><div className={css.metaV}>{detail.surface}</div></div>
               </div>
               <div className={css.field}>
@@ -327,8 +453,8 @@ export function Shell({ t }: ShellProps): ReactNode {
             <div className={css.boardWindow}>
               <div className={css.miniHead}>
                 <div className={css.grow}>
-                  <h4>{project.name} · {t('shell.board')}</h4>
-                  <p>{t('shell.chatHint')} · {t('shell.specRoot')} {project.path}/.spec</p>
+                  <h4>{projectName} · {t('shell.board')}</h4>
+                  <p>{t('shell.chatHint')} · {t('shell.specRoot')} {specRoot || '—'}</p>
                 </div>
                 <span className={`${css.pill} ${css.pillBrand}`}>{t('shell.tasks')}</span>
               </div>
@@ -379,7 +505,7 @@ export function Shell({ t }: ShellProps): ReactNode {
             </div>
             <div className={css.modalBody}>
               <div className={css.settingsGrid}>
-                <div className={css.settingRow}><div className={css.settingLabel}><span className={css.settingLabelB}>{t('shell.specRoot')}</span><span className={css.settingLabelSpan}>{project.path}/.spec</span></div><span className={css.pill}>{t('shell.sessionBound')}</span></div>
+                <div className={css.settingRow}><div className={css.settingLabel}><span className={css.settingLabelB}>{t('shell.specRoot')}</span><span className={css.settingLabelSpan}>{specRoot || '—'}</span></div><span className={css.pill}>{t('shell.sessionBound')}</span></div>
                 <div className={css.settingRow}><div className={css.settingLabel}><span className={css.settingLabelB}>{t('shell.model')}</span><span className={css.settingLabelSpan}>DeepSeek-V4.1-Flash High</span></div><span className={css.pill}>{t('shell.default')}</span></div>
                 <div className={css.settingRow}><div className={css.settingLabel}><span className={css.settingLabelB}>{t('shell.floating')}</span><span className={css.settingLabelSpan}>{t('shell.floatingHint')}</span></div><button type="button" className={`${css.switch} ${css.switchOn}`} /></div>
                 <div className={css.settingRow}><div className={css.settingLabel}><span className={css.settingLabelB}>{t('shell.theme')}</span><span className={css.settingLabelSpan}>Light / Dark</span></div><button type="button" className={`${css.switch} ${dark ? css.switchOn : ''}`} onClick={() => { setDark(value => !value) }} /></div>
@@ -391,7 +517,7 @@ export function Shell({ t }: ShellProps): ReactNode {
         </div>
       ) : null}
 
-      <div className={css.demoBadge}>LCoder 外壳 · 演示数据</div>
+      <div className={css.demoBadge}>LCoder · {t('shell.realData')}</div>
     </div>
   )
 }

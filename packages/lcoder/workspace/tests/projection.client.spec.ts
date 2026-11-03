@@ -90,6 +90,8 @@ describe('文件投影', () => {
       title: '登录接口限流',
       state: 'contracted',
       grade: 'B',
+      rules: ['R-LOGIN-01'],
+      evidence: ['test'],
     })
     expect(taskTextToRow('T-015.yaml', 'grade: A')).toBeUndefined()
     expect(taskTextToRow('T-016.yaml', '- 只是\n- 一个数组')).toBeUndefined()

@@ -102,6 +102,17 @@ export const zh = {
   'shell.secretNote': '密码只存引用；眼睛显示本机解析值，不入库、不进模型。',
   'shell.webOnly': '仅 web 项目显示环境信息',
   'shell.close': '关闭',
+  'shell.loading': '读取规格库…',
+  'shell.noWorkspace': '还没有工作区。',
+  'shell.noSession': '这个工作区还没有会话，先新建一个会话再读取 .spec。',
+  'shell.projectInfoMissing': '这个工作区没有 .spec/project.yaml。',
+  'shell.unconfigured': '未配置',
+  'shell.problems': '部分文件没有读出来：',
+  'shell.realData': '真实 .spec',
+  'shell.sessions': '会话',
+  'shell.openRepo': '打开仓库',
+  'shell.repoPathHint': '例如 E:/Projects/LCoder',
+  'shell.opening': '正在打开…',
 } satisfies Record<string, string>
 
 /** 工作台词典的键集。 */
@@ -196,4 +207,15 @@ export const en = {
   'shell.secretNote': 'Passwords are references; the eye reveals the locally resolved value, never committed or sent to the model.',
   'shell.webOnly': 'Environments appear for web projects only',
   'shell.close': 'Close',
+  'shell.loading': 'Reading the spec…',
+  'shell.noWorkspace': 'No workspace yet.',
+  'shell.noSession': 'This workspace has no session yet; create one to read .spec.',
+  'shell.projectInfoMissing': 'This workspace has no .spec/project.yaml.',
+  'shell.unconfigured': 'Not configured',
+  'shell.problems': 'Some files could not be read:',
+  'shell.realData': 'Live .spec',
+  'shell.sessions': 'sessions',
+  'shell.openRepo': 'Open repository',
+  'shell.repoPathHint': 'e.g. E:/Projects/LCoder',
+  'shell.opening': 'Opening…',
 } satisfies Record<LcoderWorkspaceKey, string>

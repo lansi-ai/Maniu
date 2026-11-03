@@ -166,6 +166,12 @@
 .tag { font-size: 10.5px; color: var(--lc-muted); background: var(--lc-surface-3); border-radius: 5px; padding: 1px 5px; }
 .tagOk { color: var(--lc-brand); background: var(--lc-brand-soft); }
 .empty { color: var(--lc-faint); font-size: 11.5px; padding: 10px 2px; }
+.problems {
+  margin-top: 12px; border: 1px solid var(--lc-line); border-radius: 10px;
+  padding: 10px 12px; background: var(--lc-surface-2);
+}
+.problemsTitle { margin: 0 0 4px; font-size: 11.5px; color: var(--lc-warn); }
+.problem { margin: 2px 0; font-size: 11.5px; color: var(--lc-muted); word-break: break-word; }
 
 .modalBackdrop {
   position: absolute; inset: 0; background: rgba(9, 14, 24, .42);
@@ -197,6 +203,12 @@
 }
 
 .projectPicker { display: grid; gap: 6px; }
+.repoOpen { display: flex; gap: 8px; margin-top: 12px; }
+.repoInput {
+  flex: 1; min-width: 0; border: 1px solid var(--lc-line); border-radius: 9px;
+  padding: 8px 10px; background: var(--lc-surface-2); color: var(--lc-ink);
+}
+.primaryBtn:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
 .projectOption {
   display: flex; align-items: center; gap: 10px; width: 100%;
   border: 1px solid var(--lc-line); background: var(--lc-surface-2);
