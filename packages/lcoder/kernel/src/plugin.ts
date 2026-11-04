@@ -14,7 +14,7 @@ import { createContractSignCommand } from './commands/contract-sign.js'
 import { createEditTools, spawnRunner } from './tools/edit-tools.js'
 import { createSpecTools } from './tools/spec-tools.js'
 import { createTaskTools } from './tools/task-tools.js'
-import { allowedTools, checkSurface } from './kernel/surface.js'
+import { allowedTools, checkSurface, parseRole } from './kernel/surface.js'
 import { hasSpecRoot, resolveRoot, sessionSpecRoot } from './kernel/spec-root.js'
 import type { RootInput, SpecRootContext } from './kernel/spec-root.js'
 import { listTasks } from './kernel/task-store.js'
@@ -41,6 +41,13 @@ export interface LcoderConfig {
    * （`file_read`、`spec_query`、`task_read`、`task_draft`）。
    */
   taskId?: string
+  /**
+   * 本插件实例所属角色，取值 `intake` / `architect` / `dev` / `review`。
+   * 角色是工具面的天花板：与任务状态允许的清单求交，只减不加。
+   * 不给则不设天花板，保持只有状态一维的行为。每个角色 preset 各挂一行本插件，
+   * 所以这一项由装配层的 preset 写死，不由会话运行时决定。
+   */
+  role?: string
 }
 
 interface ToolRegistry {
@@ -74,6 +81,8 @@ interface CommandRegistry {
 }
 
 export function apply(ctx: PluginContext, config: LcoderConfig = {}): void {
+  // 角色在装载时就校验：配错名字要立刻响，不能静默按「无角色」装配出一个能力更大的会话。
+  const role = parseRole(config.role)
   // 备案根：没有会话 cwd 时（headless、启动自检）落在进程工作目录的 `.spec` 下，
   // 而不是工作目录本身——规格库是一个隐藏目录，`tasks/` 与 `spec/` 都在它里面。
   const fallbackRoot = config.root ?? join(process.cwd(), '.spec')
@@ -116,7 +125,8 @@ export function apply(ctx: PluginContext, config: LcoderConfig = {}): void {
         when: (context) => {
           // 取不到任务状态（没有 `.spec`，或 `tasks/` 是空的）时按空看板最小面收：
           // 立项需要的读与建任务能力留着，改代码与跑命令的能力不放。
-          return allowedTools(currentState(context)).includes(tool.name)
+          // 角色再收一层：这个 preset 拿不到的工具，任何状态都不会放出来。
+          return allowedTools(currentState(context), role).includes(tool.name)
         },
       })
     if (ctx.effect) ctx.effect(mount, `lcoder.tool(${tool.name})`)
@@ -137,7 +147,7 @@ export function apply(ctx: PluginContext, config: LcoderConfig = {}): void {
     if (check.orphan.length > 0) {
       console.error(`[lcoder] 已注册但任何状态都看不到的工具：${check.orphan.join(', ')}`)
     }
-    console.error(`[lcoder] 已注册 ${tools.length} 个工具与 /${signCommand.name} 命令；无会话 cwd 时规格根 ${fallbackRoot}，有会话时取 session.header.cwd/.spec`)
+    console.error(`[lcoder] 已注册 ${tools.length} 个工具与 /${signCommand.name} 命令；角色 ${role ?? '未设（只按状态收放）'}，无会话 cwd 时规格根 ${fallbackRoot}，有会话时取 session.header.cwd/.spec`)
   }
 
 }

@@ -46,6 +46,7 @@ Choose it when a DeepSeek Harness composition already provides the `tools` servi
 | `root` | `process.cwd()/.spec` | Fallback specification root when the session has no cwd |
 | `selfCheck` | `true` | Print the tool-surface self-check at load |
 | `taskId` | first task | Task whose state selects the tool surface; with no task readable, the onboarding surface applies |
+| `role` | unset | Role ceiling: `intake`, `architect`, `dev`, or `review`. The surface intersects the state mask with that role's tools, so a role only removes capability; an unknown value fails at load |
 
 The plugin mounts as a row through the patch layer; it has no `dsh plugin add` installation path. A tool call resolves the specification root from `session.header.cwd/.spec`; without a session cwd it uses `root`, and without `root` it uses `process.cwd()/.spec`.
 

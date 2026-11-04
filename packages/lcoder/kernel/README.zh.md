@@ -46,6 +46,7 @@ kind: "package-reference"
 | `root` | `process.cwd()/.spec` | 会话没有 cwd 时的备案规格根 |
 | `selfCheck` | `true` | 加载时打印工具面自检 |
 | `taskId` | 第一个任务 | 用哪个任务的状态选择工具面；读不到任务时按立项面收 |
+| `role` | 未设 | 角色天花板，取值 `intake`、`architect`、`dev`、`review`；工具面取状态掩码与该角色工具表的交集，角色只会减去能力，配错角色名在装载时即失败 |
 
 本插件通过 patch 层作为插件行挂载，没有 `dsh plugin add` 安装路径。一次工具调用从 `session.header.cwd/.spec` 解析规格根；没有会话 cwd 时用 `root`，没有 `root` 时用 `process.cwd()/.spec`。
 

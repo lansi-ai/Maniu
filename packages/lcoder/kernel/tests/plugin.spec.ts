@@ -187,6 +187,43 @@ describe('插件装配', () => {
     expect(harness.commands.map(c => c.name)).toContain('contract_sign')
   })
 
+  it('角色装配：评审在已签契约状态下仍动不了代码', () => {
+    const { repo, spec } = makeRepo()
+    setState(repo, 'contracted')
+    const harness = makeHarness()
+    const registrations = mounted(harness, { root: spec, role: 'review', selfCheck: false })
+
+    const shown = visible(registrations, sessionAt(repo))
+    expect(shown).not.toContain('file_edit')
+    expect(shown).not.toContain('cmd_run')
+    expect(shown).toContain('file_read')
+    expect(shown).toContain('task_read')
+  })
+
+  it('角色与状态同时收：起草态的评审只剩三个读工具', () => {
+    const { repo, spec } = makeRepo()
+    const harness = makeHarness()
+    const registrations = mounted(harness, { root: spec, role: 'review', selfCheck: false })
+
+    expect(visible(registrations, sessionAt(repo))).toEqual(['file_read', 'spec_query', 'task_read'])
+  })
+
+  it('不配角色时状态表原样生效，保持单维旧行为', () => {
+    const { repo, spec } = makeRepo()
+    setState(repo, 'contracted')
+    const harness = makeHarness()
+    const registrations = mounted(harness, { root: spec, selfCheck: false })
+
+    expect(visible(registrations, sessionAt(repo))).toEqual(sorted(SURFACE.contracted))
+  })
+
+  it('配错角色名在装载时就响，不静默按无角色装配', () => {
+    const { spec } = makeRepo()
+    const harness = makeHarness()
+
+    expect(() => { apply(harness.ctx, { root: spec, role: 'pm' }) }).toThrow('未知角色')
+  })
+
   it('effect 交出的句柄能解除注册', () => {
     const { spec } = makeRepo()
     const harness = makeHarness()

@@ -79,13 +79,70 @@ export const SURFACE: Readonly<Record<TaskState, readonly string[]>> = {
  */
 export const UNSCOPEED_SURFACE: readonly string[] = ['file_read', 'spec_query', 'task_read', 'task_draft']
 
+// ── 角色天花板 ─────────────────────────────────────────────
+
+/** 一个会话所属的角色；一个角色就是一个 Agent preset，装配层用 `role` 配置本插件。 */
+export type RoleId = 'intake' | 'architect' | 'dev' | 'review'
+
+/** 全部角色，`Config.role` 的取值域。 */
+export const ROLES: readonly RoleId[] = ['intake', 'architect', 'dev', 'review']
+
 /**
- * 某个状态（或空看板）允许的工具名。
+ * 每个角色最多能拿到哪些工具。
+ *
+ * 与 `SURFACE` 求交后才进模型视野，所以这张表只会让能力变少，不会越过状态：
+ * `contract_sign` 不在任何一行里，它是人机命令（见文件头那条注意）。
+ * `dev` 这一行必须等于 `allToolNames()`，否则新增工具会静默地对实施角色隐身，
+ * `surface.spec.ts` 用一条断言钉住这个等式。
+ */
+export const ROLE_TOOLS: Readonly<Record<RoleId, readonly string[]>> = {
+  /** 立项/产品：读产品文档、读规格、读任务，再把调研结论立成起草态任务。 */
+  intake: ['file_read', 'spec_query', 'task_read', 'task_draft'],
+  /** 架构/契约：加上给规格条目绑落点和起草契约，仍然动不了代码。 */
+  architect: ['file_read', 'spec_query', 'spec_bind', 'task_read', 'task_draft', 'contract_draft'],
+  /** 实施：不设天花板，状态说了算。 */
+  dev: [
+    'file_read',
+    'spec_query',
+    'spec_bind',
+    'task_read',
+    'task_draft',
+    'contract_draft',
+    'file_edit',
+    'cmd_run',
+    'evidence_attach',
+    'task_close',
+  ],
+  /** 评审：只读复核，外加挂证据与收口；永远不给改代码与跑命令。 */
+  review: ['file_read', 'spec_query', 'task_read', 'evidence_attach', 'task_close'],
+}
+
+/**
+ * 校验装配层传来的角色名。
+ * @param value - `Config.role` 的原始值；`undefined` 表示不设角色。
+ * @returns 角色或 null。
+ * @throws 配置了不认识的角色名——配错要当场响，不能静默按无角色装配。
+ */
+export function parseRole(value: unknown): RoleId | null {
+  if (value === undefined) return null
+  if (typeof value === 'string' && (ROLES as readonly string[]).includes(value)) return value as RoleId
+  throw new TypeError(`[lcoder] 未知角色：${typeof value === 'string' ? value : typeof value}，可用角色 ${ROLES.join(' / ')}`)
+}
+
+/**
+ * 某个状态（或空看板）在某角色下的工具面。
+ *
+ * 状态是进度，角色是天花板：两者求交，谁也不会凭空多出对方给不了的能力。
+ * `role` 为 null 时不设天花板，保持只有状态一维的旧行为。
  * @param state - 当前任务状态；没有任务时传 null。
+ * @param role - 本插件实例所属角色；未配置时传 null。
  * @returns 模型可见的工具名清单。
  */
-export function allowedTools(state: TaskState | null): readonly string[] {
-  return state === null ? UNSCOPEED_SURFACE : SURFACE[state]
+export function allowedTools(state: TaskState | null, role: RoleId | null = null): readonly string[] {
+  const byState = state === null ? UNSCOPEED_SURFACE : SURFACE[state]
+  if (role === null) return byState
+  const ceiling = new Set(ROLE_TOOLS[role])
+  return byState.filter(name => ceiling.has(name))
 }
 
 /** 所有掩码里出现过的工具名，去重。 */
