@@ -18,7 +18,7 @@ English | [中文](PROJECT-RULES.zh.md)
 - 🚫 Do not modify any upstream file. When a modification is genuinely required, first add the file to [contact-surface.txt](../lcoder/contact-surface.txt) and record what and why in [UPSTREAM-BASELINE.md](../lcoder/UPSTREAM-BASELINE.md) §3.
 - 🚫 The task and specification YAML under `.spec` is the single source of truth for **LCoder product data**; the UI only reads it, and state-machine decisions never live in the UI. It is not this repository's development task ledger. The kernel is the only writer: a model may file a `drafting` task through `task_draft`, and may not advance task state, sign a contract, or edit specification entries.
 - 🚫 The target platform is Windows desktop; handle paths Windows-first (drive letters, backslashes, case-insensitive).
-- 🚫 `contract_sign` is never registered as a model tool; only a human may sign a contract, and `by: agent` is invalid.
+- 🚫 `contract_sign` is never registered as a model tool; only a human may sign a contract, and `by: agent` is invalid. It is registered on the human-command surface instead, and P3 invalidates a signature whose hash no longer covers the contract body.
 - 🚫 Prefer adding over modifying; upstream changes touch only the assembly layer (patch layer, aggregate tsconfig), never component internals.
 - 🚫 Every new contact point requires human review; `upstream-diff.sh` reports conflicts but cannot judge how deep a change goes.
 - ✅ Every specification entry needs a source and a code binding; an entry without a source may not be `confirmed`.

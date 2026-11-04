@@ -2,7 +2,7 @@
 # 旧版 .spec 任务原文归档在 lcoder/archive/spec-dev-2026-11-03/。
 project: LCoder
 iteration: MVP-0 工作台本地跑通
-updated: '2026-11-03'
+updated: '2026-11-04'
 generator: scripts/build-tasks-html.py
 tracks:
 - id: lcoder
@@ -136,6 +136,17 @@ tracks:
       dep: [T-15]
       inferred: false
       note: "A 级（用户 2026-11-04 定为产品约束，不是偏好）。约束两条：LCoder 的开发与验证不得依赖本机是否安装了桌面版或 dsh，也不得改变本机已安装的那些应用。落地点四处。一是 docs/PROJECT-RULES.md 与 .zh 的 §6 首条，写清 DSH_HOME 一律指仓内目录、桌面 userData 留在 apps/desktop/.desktop-build/development/electron-user-data，并列出禁止项——写 ~/.dsh、写 AppData、动注册表、装卸应用、杀非本次会话拉起的进程。二是 lcoder/RUN.md：开头加隔离前言，第 2 与第 3 节的 profile 路径与启动命令改成仓内 home，新增「桌面端」章节说明 dev.ts 的默认值就是仓内、dev:desktop 不要设 DSH_HOME、LCoder 挂载要写进那份仓内 home 并按 worktree 换 inspector 端口，并联工作树一节同步改写，踩过的坑里补一条「别把 DSH_HOME 指到 ~/.dsh」。三是 .gitignore 增 .dsh-home/（仓根隔离 home 的落点）。四是本条自身的由来：上一轮为了做 documentsDirectory 判别，把 DSH_HOME 显式设成 ~/.dsh 起了桌面实例，并往 ~/.dsh/profiles/desktop/cordis.patch.yml 追加了一个条目、留了 .bak-workspacecfg 备份；该改动已按备份原样还原、备份已删、还原后 workspace-controller 命中数为 0 且字节数回到 3264，同轮 ~/.dsh 侧还留有一个此前经批准建的空目录 sessions。证据与门禁：parse 18 条、python scripts/build-tasks-html.py、pnpm run test:docs 21 门禁、verify-translation-pairing --write 重录双语哈希。后续所有运行与验收按本条口径执行，桌面验收仍只认真窗口手点。"
+    - id: T-20
+      title: 契约签署人机命令——宿主写签名，并让 P3 认正文哈希
+      status: doing
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-04'
+      date: '2026-11-04'
+      dep: [T-10]
+      inferred: false
+      note: "A 级；补齐 PRD 风险首条「签署通道缺失」。现状缺口三处。一是 PROJECT-RULES §1 写明 contract_sign 永不注册为模型工具、只有人可签，但宿主侧没有任何签署入口，sig 字段只能手改 YAML。二是 spec-tools 的 contractHash 算完只出现在工具返回值里，落到文件后无人复算，sig.hash 形同装饰。三是外壳看不见契约（归 T-21）。范围（微契约）：输入是命令名后的任务编号，输出是写进 .spec/contracts/<id>.contract.yaml 的 sig，异常边界为无规格根、无契约文件、已签且正文未变、正文在签后改过四种，MVP 不做撤签与批量签。落点：新命令 contract_sign 走 dsh-commands 的人机命令面（命令名匹配其小写正则，处理器收到 agent 后按 agent.session.header.cwd 解析规格根，与工具同一来源）；宿主复算正文哈希后写 by 为 human、at 取执行时刻、hash 为复算值；已签且哈希相同判为重复签署并拒绝，哈希变了则重签换新值。不新增模型工具、不进 SURFACE、不改状态机——状态流转仍手写 YAML，与需求确认口径一致。同期把 P3 接上哈希校验，checkP3 增加正文哈希参数，签名哈希与正文哈希不符即为违规，task_close 复算并传入，让「签署后正文不可变」从注释变成门禁。装配代价：命令面由 base bundle 提供（packages/bundle/base 装 dsh-commands），kernel 的 inject 增 commands，代价是装配里缺命令面时整个 kernel 不激活，桌面、web 与 CLI 都组 base 所以不受影响。2026-11-04 落地四处：新文件 kernel/contract.ts 收拢契约读写与复算（contractPath、contractHash、loadContractFact、saveContract），spec-tools 与 task-tools 改用它；新文件 src/commands/contract-sign.ts 是命令本体，按结构声明命令面形状、不依赖 dsh-commands 包；checkers 的 P3 改吃 ContractFact，签名哈希与正文复算值不符即判违规；plugin.ts 的 inject 增 commands 并在 selfCheck 行点名命令。门禁 typecheck(5)、vitest(18 files / 169 tests)、oxlint(packages/lcoder 0 error)、test:docs(21)，双语 pairing 哈希已 --write 重录；两个包重新 bundle，产物里 contract_sign 命中 kernel 8 处与 client 2 处。桌面端到端与真窗口回执仍未取，本条保持 doing。"
 
   - id: workspace
     name: 工作台 UI
@@ -228,6 +239,19 @@ tracks:
       dep: [T-05]
       inferred: false
       note: A 级；去掉左侧栏，项目切换/项目信息/设置收进顶栏；右侧抽屉展示交付文档、架构、测试、仓库与 web 环境；新增 .spec/project.yaml schema 与示例；敏感值只存引用，眼睛按需显示解析值，默认掩码；证据 typecheck, vitest(107), lint, test:docs(21), smoke（抽屉/眼睛通过）；真实 .spec/project.yaml 读取与 local.yaml 解析见 T-06
+
+    - id: T-21
+      title: 外壳契约栏——任务详情显示契约正文并给出签署按钮
+      status: doing
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-04'
+      date: '2026-11-04'
+      dep: [T-20]
+      inferred: false
+      note: "B 级；依赖 T-20 的 contract_sign。现状缺口：projection.ts 只读 .spec/tasks 与 .spec/spec/rules.yaml，contracts 目录完全不进屏——人看不到契约正文就无从签字，签署只能退回手改 YAML。范围：契约文件读成展示行（编号、改什么、不改什么、怎么算过、什么算失败、签署人、签署时间），任务详情弹窗展示选中任务的那份契约，未签署时给签署按钮，点击走 ctx.remote.commands.execute 派 /contract_sign 加任务编号，客户端 inject 增 remote.commands，落签后重读投影刷新状态。文案进词典中英双份，遵循 locale-owned。一条边界要在界面说清：哈希只在宿主复算，浏览器不算 SHA-256（node:crypto 不进渲染端），所以外壳只报有没有签、谁签的、签于何时，不承诺识别签署之后的正文改动，那一条由 task_close 的 P3 判。验收只认桌面端手点。2026-11-04 已落地：projection.ts 新增 CONTRACTS_DIR、ContractRow、contractTextToRow 与 loadContracts，投影结果多出 contracts 一路，目录缺失算空集、坏文件只记说明；client/index.ts 的 inject 增 remote.commands，注入 signContract 回调把 /contract_sign 交给人机命令面并原样带回宿主那句人话；Shell.tsx 的任务详情弹窗加契约四段、签署状态行与签署按钮，签完把 reload 加一重读投影；词典加十三键中英各一份。门禁同 T-20 一起跑，桌面端到端未取，本条保持 doing。"
+
 milestones:
 - name: MVP-0 工作台本地跑通
   track: lcoder

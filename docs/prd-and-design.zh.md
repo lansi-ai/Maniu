@@ -45,13 +45,13 @@ LCoder 是 DeepSeek Harness 的二开，不 fork 业务实现，也不直接 imp
 | `verifying` | 证据齐备 | 增加 `task_close` | 通过 P1/P3/P4 后 `closed`；不过退回 `implementing` |
 | `closed` | 终态 | 只读 | 无 |
 
-状态机只管图的合法性；「能否进 `contracted`」还取决于契约是否签署，由 P3 判定，不塞进状态机。收口由 `task_close` 串起三道检查器：P1 条目有落点、P3 不可逆项有人签、P4 条目有证据；任一不过则状态不变。
+状态机只管图的合法性；「能否进 `contracted`」还取决于契约是否签署，由 P3 判定，不塞进状态机。收口由 `task_close` 串起三道检查器：P1 条目有落点、P3 不可逆项有人签且签名仍覆盖当前正文、P4 条目有证据；任一不过则状态不变。
 
 磁盘上没有任务的仓库不是第六个状态：在第一个 `task_draft` 落盘之前，kernel 按 §6 的立项面收。
 
 ## 6. 工具面
 
-kernel 向宿主注册十个工具：`file_read`、`file_edit`、`cmd_run`、`evidence_attach`、`spec_query`、`spec_bind`、`contract_draft`、`task_read`、`task_draft`、`task_close`。工具面按任务状态收放，采用 allow 列表（fail-closed）；未配置的工具默认不可见，漏配的后果是「用不了」而不是「越权能用」。读不到任务状态的仓库（没有 `.spec`，或 `tasks/` 为空）拿的是立项面 `file_read`、`spec_query`、`task_read`、`task_draft`：能调研、能立任务，拿不到本包的编辑与命令能力。`contract_sign` 永不注册为模型工具：模型能调用签署工具，就等于模型能给自己签字。注册时用 `when` 在每次 model step 求值，而不是 `restrict`；`restrict` 只对全局注册生效，作用域注册盖不住。`when` 也因此只覆盖本包的注册：bundle 全局注册的工具（`read`、`write`、`edit`、`glob`、`grep`、`bash`、`pwsh`）对该 profile 的每个 Agent 仍可见，要收住它们需要 Agent 作用域的 `restrict`（见 §11）。
+kernel 向宿主注册十个工具：`file_read`、`file_edit`、`cmd_run`、`evidence_attach`、`spec_query`、`spec_bind`、`contract_draft`、`task_read`、`task_draft`、`task_close`。工具面按任务状态收放，采用 allow 列表（fail-closed）；未配置的工具默认不可见，漏配的后果是「用不了」而不是「越权能用」。读不到任务状态的仓库（没有 `.spec`，或 `tasks/` 为空）拿的是立项面 `file_read`、`spec_query`、`task_read`、`task_draft`：能调研、能立任务，拿不到本包的编辑与命令能力。`contract_sign` 永不注册为模型工具：模型能调用签署工具，就等于模型能给自己签字。它注册在人机命令面上——`/contract_sign <任务编号>` 不经过模型回合，宿主复算契约正文哈希后写 `sig`，调用与回执都记进会话日志。注册时用 `when` 在每次 model step 求值，而不是 `restrict`；`restrict` 只对全局注册生效，作用域注册盖不住。`when` 也因此只覆盖本包的注册：bundle 全局注册的工具（`read`、`write`、`edit`、`glob`、`grep`、`bash`、`pwsh`）对该 profile 的每个 Agent 仍可见，要收住它们需要 Agent 作用域的 `restrict`（见 §11）。
 
 ## 7. 数据面
 
@@ -61,13 +61,13 @@ kernel 的规格根跟随会话工作区：一次工具调用取 `session.header
 
 ## 8. MVP 范围（MVP-0）
 
-本阶段交付：宿主挂载 kernel，注册的工具按状态收放；右栏出现「工作台」页签；三栏骨架接上文件投影；本地一条命令可启动。
+本阶段交付：宿主挂载 kernel，注册的工具按状态收放；右栏出现「工作台」页签；三栏骨架接上文件投影；人在工作台里签署契约、由宿主写签名；本地一条命令可启动。
 
-明确不做：契约签署 UI 或人机命令；独立的 `task_transition` 工具；增量刷新；多工作区与权限模型；远端同步；上游文档的全量双语改造。
+明确不做：工作台代推任务状态（状态仍由人手写 `.spec/tasks/*.yaml`）；独立的 `task_transition` 工具；增量刷新；多工作区与权限模型；远端同步；上游文档的全量双语改造。
 
 ## 9. 验收标准
 
-- 启动后日志出现十个工具注册行与解析出的规格根，且没有激活失败。
+- 启动后日志出现解析出的规格根，以及点明十个工具与 `/contract_sign` 的注册行，且没有激活失败。
 - 浏览器插件清单包含 `@lcoder/workspace/client.js`，右栏出现「工作台」页签。
 - 会话绑定工作区目录后，三栏能读出 `.spec` 的任务与规则。
 - `pnpm typecheck`、`pnpm lint`、`pnpm exec vitest run packages/lcoder` 全绿；文档变更时 `pnpm run test:docs` 全绿。
@@ -85,7 +85,7 @@ kernel 的规格根跟随会话工作区：一次工具调用取 `session.header
 
 ## 11. 风险与技术债
 
-- 契约签署通道缺失：P3 要求人签，但当前没有签署 UI 或人机命令，只能人工写 YAML。
+- 签署已接通：人机命令 `/contract_sign` 由宿主写签名，工作台的任务详情展示契约正文并给出签署动作。浏览器不写 `.spec`；签名哈希不再覆盖正文时 P3 判签名作废。任务状态流转仍是手写 YAML。
 - `implementing → verifying` 没有工具入口，状态推进需要人工改任务文件。
 - 立项面只收住本包的编辑与命令工具；bundle 注册的工具对该 profile 的每个 Agent 仍可用，所以未立项仓库不会因为 LCoder 就失去改代码能力。用 Agent 作用域 `restrict` 收住它们记为 T-11。
 - 产品示例 `DEMO-01` 处于 `drafting`，尚无契约；示例 `env.yaml` 已就位。

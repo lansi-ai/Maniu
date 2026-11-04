@@ -64,7 +64,7 @@ pnpm --filter @lcoder/kernel bundle
 按顺序看四件事：
 
 1. **服务活着**：日志里有 `dsh web: http://127.0.0.1:3080/?token=…`
-2. **kernel 挂上了**：日志里有 `[lcoder] 已注册 9 个工具；无会话 cwd 时规格根 …`
+2. **kernel 挂上了**：日志里有 `[lcoder] 已注册 10 个工具与 /contract_sign 命令；无会话 cwd 时规格根 …`
    —— 这一行是 kernel 的 selfCheck 打的，说明宿主侧工具真注册了
 3. **规格根对着目标仓库**：会话里第一次求值工具面时日志出现 `[lcoder] 规格根：<仓库>/.spec`
    —— 有会话时它必须是目标仓库，而不是 profile 目录
@@ -137,7 +137,7 @@ pnpm --filter @lcoder/workspace bundle   # 只重打外壳产物；start:desktop
 
 启动日志里按顺序确认三件事：`desktop development: DSH_HOME=<仓内路径>` 与
 `inspectors main=9229, renderer=9222, host=9230`、`dsh web: http://127.0.0.1:<port>/?token=…`
-的 ready 行、`[lcoder] 已注册 10 个工具`。三条都齐才算宿主活着。
+的 ready 行、`[lcoder] 已注册 10 个工具与 /contract_sign 命令`。三条都齐才算宿主活着。
 一条桌面线一个 worktree：feature worktree 用 `DSH_DESKTOP_MAIN_INSPECT_PORT` /
 `DSH_DESKTOP_RENDERER_DEBUG_PORT` / `DSH_DESKTOP_HOST_INSPECT_PORT` 换一组预留端口，
 端口号写进该任务的台账备注；主窗保留默认 9229/9222/9230。

@@ -6,7 +6,7 @@ English | [中文](active-context.zh.md)
 
 - **Version stage**: MVP-0 — get the workbench running locally.
 - **Core business value**: the agent works inside the workbench against the `.spec` specification and task state machine, and every change has a contract, evidence, and reviewability.
-- **Key deliverables**: the kernel mounts and registers nine tools; the right sidebar workbench has three columns; the file projection reads tasks and rules.
+- **Key deliverables**: the kernel mounts and registers ten tools plus the `/contract_sign` human command; the right sidebar workbench has three columns; the file projection reads tasks, rules, and contracts.
 
 ## 02. Task board (Task Board)
 
@@ -15,7 +15,7 @@ English | [中文](active-context.zh.md)
 - **Offline board**: `docs/tasks-html/index.html` (double-click to open; contains overview, status board, hierarchy tree, matrix, and filters).
 - **Regeneration command**: `python scripts/build-tasks-html.py`.
 
-- **Current focus**: T-10 zero-task onboarding is implemented on `lcoder/t10-onboarding` (three commits) and gated green; its desktop acceptance is blocked by T-12, the desktop `Open repository` hang.
+- **Current focus**: T-10 (zero-task onboarding) and T-20/T-21 (contract signing in the workbench) are implemented and gated green; all three wait on one piece of evidence — a human click in the desktop window on `E:/Projects/LCoder-target-demo`.
 - **Completed**: T-01 file projection; T-02 host mount; T-04 specification root and documentation gates; T-05 LCoder shell; T-06 real `.spec`/`project.yaml`/workspace-session data; T-07 project info drawer and the `.spec/project.yaml` schema; T-08 real floating conversation; T-09 README, tests, and old preset cleanup. T-03 is superseded by the shell and closed.
 - **Next step**: see §04.
 
@@ -48,8 +48,8 @@ English | [中文](active-context.zh.md)
 
 ## 04. Next immediate actions (Next Immediate Actions)
 
-- **Currently working on**: T-12 diagnosis, then T-10 desktop closure. The signed-off contract is implemented: empty-board onboarding surface, `task_draft`, and the shell's empty-board action, with `pnpm typecheck`, `pnpm lint`, `pnpm exec vitest run packages/lcoder` (140 tests) and `pnpm run test:docs` green in the worktree.
-- **About to execute**: find why `workspaces.create` never resolves on the desktop composition, reopen `E:/Projects/LCoder-onboard-demo` (a docs-only repository with no `.spec`), then verify the board's onboarding action and `task_draft` end to end before flipping T-10 to `done`.
+- **Currently working on**: T-20 and T-21 closure. Signing runs on the human-command surface (`packages/lcoder/kernel/src/commands/contract-sign.ts`), P3 invalidates a signature whose hash no longer covers the contract body, and the task panel shows that task's contract with a sign action. Gates: `pnpm typecheck` (5), `pnpm exec vitest run packages/lcoder` (18 files, 169 tests), oxlint on `packages/lcoder`, `pnpm run test:docs` (21), both packages re-bundled.
+- **About to execute**: in the desktop window, open `E:/Projects/LCoder-target-demo`, use the onboarding action to get a drafting task, have the model draft its contract, sign it from the task panel, and confirm `.spec/contracts/<id>.contract.yaml` carries `by: human` with a hash P3 accepts. The same click also closes T-10's remaining evidence.
 - **Open decision**: the untracked `.spec/contracts/DEMO-01.contract.yaml` drafted by the earlier real run still needs a keep-or-discard call.
 - **Development evidence**: gate output is recorded in the task note in `docs/tasks.yaml` or the commit message; `.spec/evidence` serves product tasks only.
 - **Board regeneration**: after a development status change, edit `docs/tasks.yaml` first, then run `python scripts/build-tasks-html.py`.

@@ -6,7 +6,7 @@
 
 - **版本阶段**：MVP-0 —— 工作台在本地跑通。
 - **核心业务价值**：agent 在工作台里按 `.spec` 规格与任务状态机工作，改动有契约、有证据、可复核。
-- **关键交付物**：kernel 挂载并注册九个工具；右栏工作台三栏；文件投影读出任务与规则。
+- **关键交付物**：kernel 挂载并注册十个工具与 `/contract_sign` 人机命令；右栏工作台三栏；文件投影读出任务、规则与契约。
 
 ## 02. 任务看板 (Task Board)
 
@@ -15,7 +15,7 @@
 - **离线看板**：`docs/tasks-html/index.html`（双击打开，含概览、状态看板、层级树、矩阵与筛选）。
 - **重跑命令**：`python scripts/build-tasks-html.py`。
 
-- **当前焦点**：T-10 零任务立项已在 `lcoder/t10-onboarding` 实现（三个提交）并过完门禁；它的桌面端验收被 T-12「打开仓库永不返回」卡住。
+- **当前焦点**：T-10 零任务立项与 T-20/T-21 工作台内签署都已实现并过完门禁；三条等的都是同一份证据——桌面窗口在 `E:/Projects/LCoder-target-demo` 上人工点一次。
 - **已完成**：T-01 文件投影；T-02 宿主挂载；T-04 规格根与文档门禁；T-05 LCoder 外壳；T-06 真实 `.spec`/`project.yaml`/工作区会话数据；T-07 项目信息抽屉与 `.spec/project.yaml` schema；T-08 真实悬浮对话；T-09 README、测试与旧预设收口。T-03 已被外壳取代并关闭。
 - **下一步**：见 §04。
 
@@ -48,8 +48,8 @@
 
 ## 04. 下一步即时行动 (Next Immediate Actions)
 
-- **当前正在处理**：T-10 已 Sign-off 并实现（台账 `doing`），worktree 分支 `lcoder/t10-onboarding` 三个提交：空看板立项面、`task_draft`、外壳空态立项动作；worktree 内 `pnpm typecheck`、`pnpm lint`、`pnpm exec vitest run packages/lcoder`（140 tests）、`pnpm run test:docs` 全绿。
-- **即将执行**：查清 `workspaces.create` 为何不返回，重新打开 `E:/Projects/LCoder-onboard-demo`（只有产品文档、没有 `.spec`），端到端验证看板立项动作与 `task_draft`，再把 T-10 置 done。
+- **当前正在处理**：T-20 与 T-21 收口。签署走人机命令面（`packages/lcoder/kernel/src/commands/contract-sign.ts`），P3 判签名哈希是否仍覆盖当前正文，任务详情面板显示该任务的契约并给出签署动作。门禁 `pnpm typecheck`（5）、`pnpm exec vitest run packages/lcoder`（18 files / 169 tests）、oxlint 对 `packages/lcoder`、`pnpm run test:docs`（21）全绿，两个包已重新 bundle。
+- **即将执行**：在桌面窗口打开 `E:/Projects/LCoder-target-demo`，用立项动作拿到 drafting 任务，让模型起草契约，再从任务面板签署，确认 `.spec/contracts/<id>.contract.yaml` 里写的是 `by: human` 且哈希被 P3 认。同一次点击也补齐 T-10 缺的那份证据。
 - **待定决策**：早前真实运行留下的未跟踪 `.spec/contracts/DEMO-01.contract.yaml` 要留还是删。
 - **开发证据**：门禁命令输出记录在 `docs/tasks.yaml` 的任务 note 或提交说明；`.spec/evidence` 只服务产品任务。
 - **看板重跑**：开发状态变化后先改 `docs/tasks.yaml`，再执行 `python scripts/build-tasks-html.py`。
