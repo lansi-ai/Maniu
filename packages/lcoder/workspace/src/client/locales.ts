@@ -141,6 +141,11 @@ export const zh = {
   'shell.chatEmpty': '还没有消息。启动咒语发送后，回复会出现在这里。',
   'shell.running': '运行中',
   'shell.chatReady': '会话已连接',
+  'shell.taskUnstarted': '未开始',
+  'shell.taskAwaiting': '等你回答',
+  'shell.taskFirstTurn': '等首个回合',
+  'shell.taskFailed': '失败',
+  'shell.taskIdle': '空闲',
 } satisfies Record<string, string>
 
 /** 工作台词典的键集。 */
@@ -274,4 +279,9 @@ export const en = {
   'shell.chatEmpty': 'No messages yet; replies appear after the startup prompt is sent.',
   'shell.running': 'Running',
   'shell.chatReady': 'Session connected',
+  'shell.taskUnstarted': 'Not started',
+  'shell.taskAwaiting': 'Waiting for you',
+  'shell.taskFirstTurn': 'Awaiting first turn',
+  'shell.taskFailed': 'Failed',
+  'shell.taskIdle': 'Idle',
 } satisfies Record<LcoderWorkspaceKey, string>
