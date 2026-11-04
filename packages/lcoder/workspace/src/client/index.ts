@@ -29,7 +29,7 @@ import { withOpenDeadline } from './open-failure.ts'
 import { en, zh } from './locales.ts'
 import { loadWorkspaceProjection, PAGE_LINES } from './projection.ts'
 import { messagesFromEntries } from './shell/shell-data.ts'
-import type { ShellMessage } from './shell/shell-data.ts'
+import type { ShellMessage, ShellSignResult } from './shell/shell-data.ts'
 import { Shell } from './shell/Shell.tsx'
 import { WorkspaceBody } from './WorkspaceBody.tsx'
 import type { ProjectionFilesRemote } from './projection.ts'
@@ -41,7 +41,7 @@ export type { LcoderWorkspaceKey } from './locales.ts'
 export type { ShellProps } from './shell/Shell.tsx'
 export type { WorkspaceBodyProps, WorkspaceInject } from './WorkspaceBody.tsx'
 export type {
-  ProjectionFilesRemote, RuleRow, TaskRow, WorkspaceProjection,
+  ContractRow, ProjectionFilesRemote, RuleRow, TaskRow, WorkspaceProjection,
 } from './projection.ts'
 
 /** 插件配置：默认占用 main 的 `lcoder-home`，渲染 LCoder 整壳。 */
@@ -64,9 +64,9 @@ const NS = 'lcoderWorkspace'
 /** 插件名，与包名一致，loader 据此在诊断里说话。 */
 export const name = '@lcoder/workspace'
 
-/** 浏览器侧必需的服务：槽位运行时、词典、页签注册表、远程文件面、布局与工作区。 */
+/** 浏览器侧必需的服务：槽位运行时、词典、页签注册表、远程文件面、命令面、布局与工作区。 */
 export const inject = [
-  'slots', 'locale', 'sidebarRightTabs', 'remote', 'remote.workspaceFiles', 'layout', 'workspaces', 'sessions',
+  'slots', 'locale', 'sidebarRightTabs', 'remote', 'remote.workspaceFiles', 'remote.commands', 'layout', 'workspaces', 'sessions',
 ]
 
 /**
@@ -117,6 +117,16 @@ export function apply(ctx: ClientContext, config: Config = {}): void {
       const result = await binding.session.prompt([{ type: 'text', text }], 'queue')
       if (!result.ok) throw new Error(result.error.message)
     }
+    /**
+     * 把人机命令 `/contract_sign <编号>` 交给宿主编排：签名由 kernel 写进 `.spec`，
+     * 浏览器不碰规格库文件。回执里那句人话由宿主给出，外壳原样显示、不改写。
+     */
+    const signContract = async (sessionId: SessionId, taskId: string): Promise<ShellSignResult> => {
+      const result = await ctx.remote.commands.execute(sessionId, `/contract_sign ${taskId}`, [])
+      if (!result.ok) return { ok: false, text: `${result.error.code}: ${result.error.message}` }
+      if (result.value === undefined) return { ok: false, text: t('shell.commandUnavailable') }
+      return { ok: result.value.result.kind === 'success', text: result.value.result.text ?? '' }
+    }
     const readMessages = (sessionId: SessionId): readonly ShellMessage[] => {
       const binding = ctx.sessions.binding(sessionId)
       return binding === undefined ? [] : messagesFromEntries(binding.eventSource.getSnapshot().entries)
@@ -131,7 +141,7 @@ export function apply(ctx: ClientContext, config: Config = {}): void {
           name: 'main',
           key: 'lcoder-home',
           locale: NS,
-          inject: () => ({ files, openRepository, sendPrompt, readMessages, subscribeSession }),
+          inject: () => ({ files, openRepository, sendPrompt, signContract, readMessages, subscribeSession }),
         },
         Shell,
       )

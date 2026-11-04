@@ -38,7 +38,7 @@ function propsOf(
 /** 一份最小的投影结果。 */
 function projectionOf(rows: Partial<WorkspaceProjection>): WorkspaceProjection {
   return {
-    tasks: [], rules: [], problems: [], ...rows,
+    tasks: [], rules: [], contracts: [], problems: [], ...rows,
   }
 }
 

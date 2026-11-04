@@ -10,8 +10,8 @@ import type { WorkspaceDirectoryListing, WorkspaceFileText } from '@deepseek-ai/
 import type { RemoteFailure, RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 import {
-  loadLocalSecrets, loadProjectInfo, loadWorkspaceProjection, LOCAL_FILE, PROJECT_FILE,
-  rulesTextToRows, RULES_FILE, SPEC_DIR, TASKS_DIR, taskTextToRow,
+  loadLocalSecrets, loadProjectInfo, loadWorkspaceProjection, CONTRACTS_DIR, LOCAL_FILE, PROJECT_FILE,
+  contractTextToRow, rulesTextToRows, RULES_FILE, SPEC_DIR, TASKS_DIR, taskTextToRow,
 } from '../src/client/projection.ts'
 import type { ProjectionFilesRemote } from '../src/client/projection.ts'
 
@@ -227,5 +227,70 @@ describe('文件投影', () => {
     expect(projection.tasks).toEqual([])
     expect(projection.problems[0]).toContain('refused')
     expect(projection.problems[0]).toContain(TASKS_DIR)
+  })
+})
+
+describe('契约', () => {
+  const CONTRACT_YAML = [
+    'id: T-014',
+    'change:',
+    '  - 佣金下限改为可配置',
+    'not_change:',
+    '  - 结算表结构',
+    'acceptance:',
+    '  - 费率为 0 时不生成结算记录',
+    'affected_tests: []',
+    'fail_if:',
+    '  - 历史结算金额变化',
+    'sig:',
+    '  by: human',
+    '  at: 2026-11-04T10:00:00+08:00',
+    '  hash: sha256:abcdef0123456789',
+  ].join('\n')
+
+  it('一份已签署的契约读成展示行，签名状态照文件说', () => {
+    expect(contractTextToRow('T-014.contract.yaml', CONTRACT_YAML)).toEqual({
+      id: 'T-014',
+      change: ['佣金下限改为可配置'],
+      notChange: ['结算表结构'],
+      acceptance: ['费率为 0 时不生成结算记录'],
+      failIf: ['历史结算金额变化'],
+      signedBy: 'human',
+      signedAt: '2026-11-04T10:00:00+08:00',
+    })
+  })
+
+  it('未签署与 agent 自签分开：后者不算签过', () => {
+    const unsigned = CONTRACT_YAML.replace(/sig:[\s\S]*$/, 'sig: null')
+    expect(contractTextToRow('T-014.contract.yaml', unsigned)?.signedBy).toBeNull()
+    expect(contractTextToRow('T-014.contract.yaml', CONTRACT_YAML.replace('by: human', 'by: agent'))?.signedBy).toBe('agent')
+  })
+
+  it('读不懂的契约给 undefined：缺正文或缺验收都算', () => {
+    expect(contractTextToRow('T-014.contract.yaml', 'id: T-014\nchange: 不是数组\nacceptance: [x]\n')).toBeUndefined()
+    expect(contractTextToRow('T-014.contract.yaml', 'id: T-014\nchange: [x]\n')).toBeUndefined()
+    expect(contractTextToRow('T-014.contract.yaml', '{{{')).toBeUndefined()
+  })
+
+  it('投影带出 contracts 目录，坏文件只记说明', async () => {
+    const files = fakeFiles(
+      { [CONTRACTS_DIR]: ['T-014.contract.yaml', '坏掉的.contract.yaml'], [TASKS_DIR]: [] },
+      {
+        [`${CONTRACTS_DIR}/T-014.contract.yaml`]: CONTRACT_YAML,
+        [`${CONTRACTS_DIR}/坏掉的.contract.yaml`]: 'not: a: contract',
+      },
+    )
+    const projection = await loadWorkspaceProjection(files, SESSION, new AbortController().signal)
+
+    expect(projection.contracts.map(row => row.id)).toEqual(['T-014'])
+    expect(projection.problems.join(' ')).toContain('坏掉的.contract.yaml')
+  })
+
+  it('还没有 contracts 目录时是空集，不算故障', async () => {
+    const projection = await loadWorkspaceProjection(
+      fakeFiles({}, {}), SESSION, new AbortController().signal,
+    )
+    expect(projection.contracts).toEqual([])
+    expect(projection.problems).toEqual([])
   })
 })

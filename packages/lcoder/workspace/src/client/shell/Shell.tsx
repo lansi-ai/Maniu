@@ -15,10 +15,10 @@ import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { loadLocalSecrets, loadProjectInfo, loadWorkspaceProjection } from '../projection.ts'
-import type { ProjectionFilesRemote, TaskRow } from '../projection.ts'
+import type { ContractRow, ProjectionFilesRemote, TaskRow } from '../projection.ts'
 import { describeOpenFailure } from '../open-failure.ts'
 import { buildOnboardingPrompt, buildShellPrompt, SHELL_STATES } from './shell-data.ts'
-import type { ShellMessage, ShellProjectInfo, ShellTask, ShellTaskState } from './shell-data.ts'
+import type { ShellMessage, ShellProjectInfo, ShellSignResult, ShellTask, ShellTaskState } from './shell-data.ts'
 import css from './Shell.module.css'
 
 /** `main` 键控面板的组合 props：运行时标准 seat + 本包词典 + 文件投影面。 */
@@ -32,6 +32,8 @@ export type ShellProps =
     readonly openRepository?: (path: string) => Promise<{ workspaceId: string; sessionId: SessionId }>
     /** 向真实会话发送一条文本提示。 */
     readonly sendPrompt?: (sessionId: SessionId, text: string) => Promise<void>
+    /** 派 `/contract_sign <编号>` 让人签署契约；签名由宿主写盘。 */
+    readonly signContract?: (sessionId: SessionId, taskId: string) => Promise<ShellSignResult>
     /** 读真实会话的消息窗口。 */
     readonly readMessages?: (sessionId: SessionId) => readonly ShellMessage[]
     /** 订阅会话事件窗口变化。 */
@@ -102,7 +104,7 @@ function resolveSecrets(info: ShellProjectInfo, secrets: Readonly<Record<string,
  * @returns 顶栏 + 任务板 + 项目信息抽屉 + 浮层。
  */
 export function Shell({
-  t, files, openRepository, sendPrompt, readMessages, subscribeSession, useSessions, useWorkspaces,
+  t, files, openRepository, sendPrompt, signContract, readMessages, subscribeSession, useSessions, useWorkspaces,
 }: ShellProps): ReactNode {
   const workspaces = useWorkspaces(state => state.items)
   const sessionRows = useSessions(state => state.byId)
@@ -118,6 +120,11 @@ export function Shell({
   const [revealed, setRevealed] = useState<Record<string, boolean>>({})
   const [copied, setCopied] = useState(false)
   const [tasks, setTasks] = useState<readonly ShellTask[]>([])
+  const [contracts, setContracts] = useState<readonly ContractRow[]>([])
+  /** 签完一次就把投影重读一遍：`contracts` 里的签名状态是文件的事实，不是界面的记忆。 */
+  const [reload, setReload] = useState(0)
+  const [signing, setSigning] = useState(false)
+  const [signResult, setSignResult] = useState<ShellSignResult | null>(null)
   const [rulesCount, setRulesCount] = useState(0)
   const [info, setInfo] = useState<ShellProjectInfo | null>(null)
   const [problems, setProblems] = useState<readonly string[]>([])
@@ -145,6 +152,7 @@ export function Shell({
   useEffect(() => {
     if (files === undefined || workspace === undefined || sessionId === undefined) {
       setTasks([])
+      setContracts([])
       setRulesCount(0)
       setInfo(null)
       setProblems([])
@@ -160,6 +168,7 @@ export function Shell({
     ]).then(([projection, projectInfo, secrets]) => {
       if (controller.signal.aborted) return
       setTasks(projection.tasks.map(toShellTask))
+      setContracts(projection.contracts)
       setRulesCount(projection.rules.length)
       setProblems([...projection.problems, ...projectInfo.problems])
       setInfo(projectInfo.info === null ? null : resolveSecrets(projectInfo.info, secrets))
@@ -167,13 +176,14 @@ export function Shell({
     }).catch((error: unknown) => {
       if (controller.signal.aborted) return
       setTasks([])
+      setContracts([])
       setRulesCount(0)
       setInfo(null)
       setProblems([String(error)])
       setLoading(false)
     })
     return () => { controller.abort() }
-  }, [files, activeWorkspaceId, sessionId])
+  }, [files, activeWorkspaceId, sessionId, reload])
 
   useEffect(() => {
     if (chat === null || sessionId === undefined || readMessages === undefined || subscribeSession === undefined) {
@@ -189,6 +199,31 @@ export function Shell({
     setDetail(task)
     setPrompt(buildShellPrompt({ name: projectName, path: projectPath, branch: projectBranch }, task))
     setCopied(false)
+    setSignResult(null)
+  }
+
+  /** 选中任务的那份契约；没有就是还没起草。 */
+  const detailContract = detail === null
+    ? undefined
+    : contracts.find(row => row.id === detail.id)
+
+  /**
+   * 签署选中任务的契约。浏览器不写盘：这一句派给人机命令，签名由 kernel 写进
+   * `.spec/contracts/`，回来再重读投影——界面显示的是文件的事实，不是点击的记忆。
+   */
+  const signSelected = async (): Promise<void> => {
+    if (detail === null || sessionId === undefined || signContract === undefined) return
+    setSigning(true)
+    setSignResult(null)
+    try {
+      setSignResult(await signContract(sessionId, detail.id))
+      setReload(value => value + 1)
+    } catch (error: unknown) {
+      // 远程调用本身失败（连接断了、会话没绑定）；命令的失败回执不走这里。
+      setSignResult({ ok: false, text: String(error) })
+    } finally {
+      setSigning(false)
+    }
   }
 
   const copyPrompt = (): void => {
@@ -504,6 +539,53 @@ export function Shell({
                 <div className={css.meta}><div className={css.metaK}>{t('shell.rules')}</div><div className={css.metaV}>{detail.rules.join(', ') || '—'}</div></div>
                 <div className={css.meta}><div className={css.metaK}>{t('shell.evidence')}</div><div className={css.metaV}>{detail.evidence.join(', ') || '—'}</div></div>
                 <div className={css.meta}><div className={css.metaK}>{t('shell.surface')}</div><div className={css.metaV}>{detail.surface}</div></div>
+              </div>
+              <div className={css.field}>
+                <label>{t('shell.contract')} <span className={css.labelHint}>{t('shell.contractHint')}</span></label>
+                {detailContract === undefined ? (
+                  <p className={css.empty}>{t('shell.contractMissing')}</p>
+                ) : (
+                  <>
+                    <div className={css.metaGrid}>
+                      <div className={css.meta}>
+                        <div className={css.metaK}>{t('shell.contractChange')}</div>
+                        <div className={css.metaV}>{detailContract.change.join('；')}</div>
+                      </div>
+                      <div className={css.meta}>
+                        <div className={css.metaK}>{t('shell.contractNotChange')}</div>
+                        <div className={css.metaV}>{detailContract.notChange.join('；') || '—'}</div>
+                      </div>
+                      <div className={css.meta}>
+                        <div className={css.metaK}>{t('shell.contractAcceptance')}</div>
+                        <div className={css.metaV}>{detailContract.acceptance.join('；')}</div>
+                      </div>
+                      <div className={css.meta}>
+                        <div className={css.metaK}>{t('shell.contractFailIf')}</div>
+                        <div className={css.metaV}>{detailContract.failIf.join('；') || '—'}</div>
+                      </div>
+                    </div>
+                    <p className={css.secretRef}>
+                      {detailContract.signedBy === 'human'
+                        ? `${t('shell.signedAt')} ${detailContract.signedAt ?? '—'}`
+                        : detailContract.signedBy === 'agent'
+                          ? t('shell.signedByAgent')
+                          : t('shell.unsigned')}
+                    </p>
+                    {detailContract.signedBy === 'human' ? null : (
+                      <button
+                        type="button"
+                        className={css.primaryBtn}
+                        disabled={signing || signContract === undefined || !hasSession}
+                        onClick={() => { void signSelected() }}
+                      >
+                        {signing ? t('shell.signing') : t('shell.sign')}
+                      </button>
+                    )}
+                    {signResult === null ? null : (
+                      <p className={signResult.ok ? css.secretRef : css.problem}>{signResult.text}</p>
+                    )}
+                  </>
+                )}
               </div>
               <div className={css.field}>
                 <label>{t('shell.startPrompt')} <span className={css.labelHint}>{t('shell.promptHint')}</span></label>

@@ -71,6 +71,16 @@ export interface ShellMessage {
 }
 
 /**
+ * 一次签署命令的回执。
+ * `text` 是宿主给出的那句人话（写了哪个文件、签名覆盖哪一版正文），
+ * 外壳原样显示，不改写也不本地化——那句话属于宿主。
+ */
+export interface ShellSignResult {
+  readonly ok: boolean
+  readonly text: string
+}
+
+/**
  * 从会话事件窗口提取可展示的用户/助手文本。工具结果与图片块忽略。
  * @param entries - 会话事件窗口。
  * @returns 按日志顺序排列的消息。

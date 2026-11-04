@@ -35,10 +35,29 @@ export interface RuleRow {
   readonly text: string
 }
 
+/**
+ * 一份契约的展示数据。
+ *
+ * 只展示文件里写着的事实：`signedBy` 是 `sig.by`，`signedAt` 是 `sig.at`。
+ * 「签名是否还覆盖当前正文」要复算 sha256，那是宿主的活（`node:crypto` 不进渲染端），
+ * 所以外壳不承诺识别签后改动——收口时由 P3 判。
+ */
+export interface ContractRow {
+  readonly id: string
+  readonly change: readonly string[]
+  readonly notChange: readonly string[]
+  readonly acceptance: readonly string[]
+  readonly failIf: readonly string[]
+  /** 签署人；没有签名时是 null，`agent` 表示这是模型自己签的、不算数。 */
+  readonly signedBy: 'human' | 'agent' | null
+  readonly signedAt: string | null
+}
+
 /** 一次投影的结果：能画的行，加上读不到/读不懂的部分各自的说明。 */
 export interface WorkspaceProjection {
   readonly tasks: readonly TaskRow[]
   readonly rules: readonly RuleRow[]
+  readonly contracts: readonly ContractRow[]
   readonly problems: readonly string[]
 }
 
@@ -58,6 +77,7 @@ export interface ProjectionFilesRemote {
  */
 export const SPEC_DIR = '.spec'
 export const TASKS_DIR = `${SPEC_DIR}/tasks`
+export const CONTRACTS_DIR = `${SPEC_DIR}/contracts`
 export const RULES_FILE = `${SPEC_DIR}/spec/rules.yaml`
 export const PROJECT_FILE = `${SPEC_DIR}/project.yaml`
 export const LOCAL_FILE = `${SPEC_DIR}/local.yaml`
@@ -137,7 +157,35 @@ export function rulesTextToRows(text: string): RuleRow[] {
 }
 
 /**
- * 读取一个会话的文件投影。两路读取互不阻塞；任何一路失败只记说明，
+ * 一份契约 YAML 的文本 → 展示行。签名缺省按未签署处理；
+ * 读不懂的文件返回 undefined，由调用方记进 problems，不编造一份契约。
+ */
+export function contractTextToRow(fileName: string, text: string): ContractRow | undefined {
+  let fields: Record<string, unknown> | undefined
+  try {
+    fields = recordOf(parseYaml(text))
+  } catch {
+    return undefined
+  }
+  if (fields === undefined) return undefined
+  const change = stringArray(fields.change)
+  const acceptance = stringArray(fields.acceptance)
+  if (change.length === 0 || acceptance.length === 0) return undefined
+  const sig = recordOf(fields.sig)
+  const by = sig?.by
+  return {
+    id: asText(fields.id) ?? fileName.replace(/\.contract\.yaml$/, ''),
+    change,
+    notChange: stringArray(fields.not_change),
+    acceptance,
+    failIf: stringArray(fields.fail_if),
+    signedBy: by === 'human' || by === 'agent' ? by : null,
+    signedAt: sig === undefined ? null : (asText(sig.at) ?? null),
+  }
+}
+
+/**
+ * 读取一个会话的文件投影。三路读取互不阻塞；任何一路失败只记说明，
  * 不让整份投影落空——三栏宁可缺一角，不要全白。
  */
 export async function loadWorkspaceProjection(
@@ -145,14 +193,16 @@ export async function loadWorkspaceProjection(
   sessionId: SessionId,
   signal: AbortSignal,
 ): Promise<WorkspaceProjection> {
-  const [tasks, rules] = await Promise.all([
+  const [tasks, rules, contracts] = await Promise.all([
     loadTasks(files, sessionId, signal),
     loadRules(files, sessionId, signal),
+    loadContracts(files, sessionId, signal),
   ])
   return {
     tasks: tasks.rows,
     rules: rules.rows,
-    problems: [...tasks.problems, ...rules.problems],
+    contracts: contracts.rows,
+    problems: [...tasks.problems, ...rules.problems, ...contracts.problems],
   }
 }
 
@@ -206,6 +256,47 @@ async function loadRules(
     return { rows: [], problems }
   }
   return { rows: rulesTextToRows(page.value.text), problems: [] }
+}
+
+/**
+ * 读 `.spec/contracts/` 下的契约。目录不存在是常态（还没起草），不算故障。
+ */
+async function loadContracts(
+  files: ProjectionFilesRemote,
+  sessionId: SessionId,
+  signal: AbortSignal,
+): Promise<{ rows: ContractRow[]; problems: string[] }> {
+  const rows: ContractRow[] = []
+  const problems: string[] = []
+
+  const listed = await files.list(sessionId, CONTRACTS_DIR, signal)
+  if (!listed.ok) {
+    if (!isMissing(listed.error, CONTRACTS_DIR)) {
+      problems.push(`${CONTRACTS_DIR}/: ${messageOf(listed.error)}`)
+    }
+    return { rows, problems }
+  }
+
+  const names = listed.value.entries
+    .filter(entry => entry.type === 'file' && entry.name.endsWith('.contract.yaml'))
+    .map(entry => entry.name)
+
+  await Promise.all(names.map(async (name) => {
+    const page = await files.readPage(sessionId, `${CONTRACTS_DIR}/${name}`, signal)
+    if (!page.ok) {
+      problems.push(`${CONTRACTS_DIR}/${name}: ${messageOf(page.error)}`)
+      return
+    }
+    const row = contractTextToRow(name, page.value.text)
+    if (row === undefined) {
+      problems.push(`${CONTRACTS_DIR}/${name}: 不是能读的契约文件`)
+      return
+    }
+    rows.push(row)
+  }))
+
+  rows.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+  return { rows, problems }
 }
 
 /** `.spec/project.yaml` 的读取结果；文件缺失不算错误。 */

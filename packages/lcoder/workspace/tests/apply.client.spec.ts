@@ -26,6 +26,7 @@ async function boot(
   config: { shell?: boolean; openTimeoutMs?: number } = { shell: false },
   workspaces: { create: (input: { path: string }) => unknown } = { create: vi.fn() },
   sessions: { create: (input: { workspaceId: unknown }) => unknown } = { create: vi.fn() },
+  commands: { execute: ReturnType<typeof vi.fn> } = { execute: vi.fn() },
 ) {
   const ctx = new Context()
   const tabs = new SidebarRightTabRegistry(ctx)
@@ -54,14 +55,15 @@ async function boot(
   ctx.provide('slots', slots as never)
   ctx.provide('locale', locale as never)
   // 正文注册时会把 workspaceFiles 窄化成投影面；这里只看注册形状，远程面给空壳即可。
-  ctx.provide('remote', { workspaceFiles: {} } as never)
+  ctx.provide('remote', { workspaceFiles: {}, commands } as never)
   ctx.provide('remote.workspaceFiles', {} as never)
+  ctx.provide('remote.commands', commands as never)
   ctx.provide('workspaces', workspaces as never)
   ctx.provide('sessions', sessions as never)
   ctx.provide('layout', { selectPanel, toggleSidebar } as never)
   const fiber = ctx.plugin({ inject: [...inject], apply }, config)
   await fiber.await()
-  return { ctx, tabs, registered, dictionaries, fiber, slots, locale, selectPanel, toggleSidebar, injections }
+  return { ctx, tabs, registered, dictionaries, fiber, slots, locale, selectPanel, toggleSidebar, injections, commands }
 }
 
 describe('@lcoder/workspace apply', () => {
@@ -126,6 +128,50 @@ describe('@lcoder/workspace apply', () => {
     try {
       const openRepository = h.injections[0]?.openRepository as (path: string) => Promise<unknown>
       await expect(openRepository('E:/Projects/x')).rejects.toThrow(/session\/create/)
+    } finally { await h.fiber.dispose() }
+  })
+
+  it('签署把人机命令交给宿主，并把宿主那句人话原样带回来', async () => {
+    const execute = vi.fn().mockResolvedValue({
+      ok: true,
+      value: { commandId: 'c1', result: { kind: 'success', text: 'T-01 的契约已由人签署于 10:00' } },
+    })
+    const h = await boot({ shell: true }, { create: vi.fn() }, { create: vi.fn() }, { execute })
+    try {
+      const face = h.injections[0] as { signContract: (id: string, taskId: string) => Promise<{ ok: boolean; text: string }> }
+      const r = await face.signContract('session-1', 'T-01')
+      expect(execute.mock.calls[0]?.[1]).toBe('/contract_sign T-01')
+      expect(r).toEqual({ ok: true, text: 'T-01 的契约已由人签署于 10:00' })
+    } finally { await h.fiber.dispose() }
+  })
+
+  it('这个装配没有命令面 → 报无法签署，不假装签好了', async () => {
+    const execute = vi.fn().mockResolvedValue({ ok: true, value: undefined })
+    const h = await boot({ shell: true }, { create: vi.fn() }, { create: vi.fn() }, { execute })
+    try {
+      const face = h.injections[0] as { signContract: (id: string, taskId: string) => Promise<{ ok: boolean; text: string }> }
+      expect(await face.signContract('session-1', 'T-01')).toEqual({ ok: false, text: 'shell.commandUnavailable' })
+    } finally { await h.fiber.dispose() }
+  })
+
+  it('宿主拒绝签署 → 失败回执连同原因一起交出', async () => {
+    const execute = vi.fn().mockResolvedValue({
+      ok: true,
+      value: { commandId: 'c2', result: { kind: 'error', text: '找不到 T-01 的契约' } },
+    })
+    const h = await boot({ shell: true }, { create: vi.fn() }, { create: vi.fn() }, { execute })
+    try {
+      const face = h.injections[0] as { signContract: (id: string, taskId: string) => Promise<{ ok: boolean; text: string }> }
+      expect(await face.signContract('session-1', 'T-01')).toEqual({ ok: false, text: '找不到 T-01 的契约' })
+    } finally { await h.fiber.dispose() }
+  })
+
+  it('远程调用本身失败 → 交出 code 与 message', async () => {
+    const execute = vi.fn().mockResolvedValue({ ok: false, error: { code: 'session-not-found', message: '会话没在' } })
+    const h = await boot({ shell: true }, { create: vi.fn() }, { create: vi.fn() }, { execute })
+    try {
+      const face = h.injections[0] as { signContract: (id: string, taskId: string) => Promise<{ ok: boolean; text: string }> }
+      expect(await face.signContract('session-1', 'T-01')).toEqual({ ok: false, text: 'session-not-found: 会话没在' })
     } finally { await h.fiber.dispose() }
   })
 
