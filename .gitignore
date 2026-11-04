@@ -41,6 +41,7 @@ apps/web/dist/
 .dsh-build/
 .dsh-home/
 .dsh-report/
+lcoder/logs/
 .playwright-mcp/
 .orig
 .worktrees/

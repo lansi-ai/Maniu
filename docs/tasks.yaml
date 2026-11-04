@@ -60,8 +60,8 @@ tracks:
       inferred: false
       note: A 级；跨 kernel 与装配层。kernel 的 when 只覆盖本包注册，base bundle 全局注册的 read/write/edit/glob/grep/bash/pwsh 对该 profile 的每个 Agent 都可见，所以「零任务仓库拿不到改代码能力」这条承诺尚未成立。要做：在 preset 作用域启用 SurfaceSwitcher 的 allow 掩码，名单含上游只读工具与本包立项工具，并解决每次 model step 按任务状态重算与前缀缓存代价。另需把桌面 profile 的 LCoder patch（preset-lcoder 段、agent-preset-registry 的 selectedDefault、ui-sidebar.disabled、两条 link）落进仓库，目前只存在于本机，换机即失效。
     - id: T-12
-      title: 主窗口 workspace API 人工可复现失败（原「手段问题」结论作废）
-      status: todo
+      title: 桌面端「打开仓库」人工可复现失败——根因是本机 OS 文档目录查询挂死
+      status: done
       face: 用户端
       type: 缺陷
       owner: lance
@@ -69,7 +69,7 @@ tracks:
       date: '2026-11-03'
       dep: [T-06]
       inferred: false
-      note: B 级候选，根因未定先不分级；T-10 桌面验收时撞见。现象：worktree 全新 DSH_HOME 的桌面端里，外壳项目切换弹窗填 E:/Projects/LCoder-onboard-demo 或 E:/Projects/LCoder 点「打开仓库」，按钮停在「正在打开…」超过 10 秒，home/storages/workspace.json 的 workspaceIds 始终为空——ctx.workspaces.create 从不 resolve；同一会话的 workspaces 列表能读回（看板显示「还没有工作区」），说明客户端与宿主链路通、只有 create 挂住。换 Windows 反斜杠路径、补 agent-default-model 与 ui-settings-account（step 为 done）后仍复现；期间宿主还崩过一次（electron-user-data/logs/crash-*-host.log 记 dsh desktop host exited with 4294967295，崩前已打印「[lcoder] 已注册 10 个工具」，且 kernel 因 preset 段与 lcoder-kernel 两处 insert 被装载两遍）。待查：create 是否在等一个 UI 侧目录授权（外壳禁用 ui-sidebar 后没有承载面）；kernel 双装载是否也该收成一处。2026-11-04 二次改判：上一条「人工可建成、属验收手段问题」的结论作废——用户手点同样失败，DevTools 控制台证据见 T-15，这是人工可复现的 workspace API 失败——同一动作在 worktree 实例（健康宿主、无残锁）仍挂 12 秒不返回，差异点待定（合成事件没走原生目录授权面？）。验收手段换成人工点击或换路径，不再按缺陷排期。过夜补充观察：该窗口挂到次日 09:28 出现「[connection] connection lost, retry #1」，工作区表仍为空；同一 profile 启动时还有一次与 create 无关的出站请求超时（[TypeError: fetch failed] / UND_ERR_HEADERS_TIMEOUT），本机代理未开时先不把它当同一根因；客户端插件清单里 dsh-api-workspace-controller 与 dsh-client-ui-directory-picker-native 都已装载，所以 create 可能在等一个原生目录授权面。
+      note: "B 级缺陷，已收口。现象：全新 home 首启动后点「打开仓库」，按钮停在「正在打开…」超过十秒，workspaceIds 长期为空，人工与自动化都能复现，所以不是验收手段问题——本条早期两次改判（先判「人工可建成、属手段问题」，后判「整条 dsh-app 通道报错」）都已作废，取证过程与数据在 T-15。根因：宿主向操作系统查询文档目录那一步在本机挂住不返回（同一条命令在 Git Bash 里 0.17 秒返回），它卡住首启动的 initializeDefault，再因为注册表队列被一条永不 settle 的操作占死，把后面的 create 一起拖住。规避：在桌面 profile patch 里给 workspace-controller 配 documentsDirectory 指向一个真实存在的目录，不配就永久挂；仓内那份桌面 profile （apps/desktop/.desktop-build/development/home/profiles/desktop/cordis.patch.yml）已带这行，lcoder/RUN.md 桌面章节与 docs/PROJECT-RULES.md 及 .zh 的 §6 都把它写成启动要求，现象与判据记在坑档 W-08。实测证据：仓内 home 的单变量 A/B 显示配上后 22 个请求全部应答，workspace.json 从 227 字节长成 3 条工作区（default-workspace 建于 15:35:04、I:/Downloads/TodayBalanceQuery 建于 15:37:01、E:/Projects/LCoder 建于 15:47:24），每条各带一个 session，用户实测报「现在可以正常打开仓库了」。上游三条缺陷（documentsLookupTimeoutMs 的 10 秒上限没兜住等待、失败静默没有错误码与堆栈、一条 pending 永久占死注册表队列）留在 T-16 继续跟进，本仓不修，是否对外发声等用户拍。取证材料归置（C 级一次性整理，不单独上板）：仓根散落的 .probe-desktop 系列日志与 lcoder/web.log 统一移到 lcoder/logs/，.gitignore 加一行 lcoder/logs/。另纠正一条历史读数：本条早期记的「宿主崩过一次、exited with 4294967295」发生在 dev.ts 被主动 Stop-Process 杀自己实例的同刻，同码也出现在我们每次正常停实例的日志尾部，所以那条更像杀进程产物而不是崩溃；当时引用的 crash-*-host.log 所在目录现在electron-user-data/logs 下是空的。"
     - id: T-13
       title: 桌面 profile 挂载重建——从 ~/.dsh 迁至仓内 dev home 并收口
       status: done
