@@ -63,6 +63,8 @@ interface Registration {
 interface Harness {
   readonly ctx: Parameters<typeof apply>[0]
   readonly registrations: Registration[]
+  /** 命令面收到的定义，用来证明签署走的是人机命令而不是工具。 */
+  readonly commands: Array<{ readonly name: string }>
   readonly effectLabels: string[]
   /** 逐个跑 effect，返回每个 effect 交出的解除句柄。 */
   runEffects(): Array<() => void>
@@ -71,6 +73,7 @@ interface Harness {
 /** 结构满足插件所需的最小 ctx；`withEffect: false` 时不注入 effect 面。 */
 function makeHarness(options: { withEffect?: boolean } = {}): Harness {
   const registrations: Registration[] = []
+  const commands: Array<{ readonly name: string }> = []
   const effects: Array<{ label: string; run: () => () => void }> = []
   const ctx = {
     tools: {
@@ -81,6 +84,13 @@ function makeHarness(options: { withEffect?: boolean } = {}): Harness {
           when: config?.when ?? (() => true),
           dispose,
         })
+        return dispose
+      },
+    },
+    commands: {
+      register(definition: unknown): () => void {
+        const dispose = vi.fn()
+        commands.push(definition as { name: string })
         return dispose
       },
     },
@@ -96,6 +106,7 @@ function makeHarness(options: { withEffect?: boolean } = {}): Harness {
           },
         },
     registrations,
+    commands,
     get effectLabels(): string[] {
       return effects.map(effect => effect.label)
     },
@@ -158,9 +169,22 @@ describe('插件装配', () => {
     const harness = makeHarness()
     apply(harness.ctx, { root: spec, selfCheck: false })
 
-    expect(harness.effectLabels.sort()).toEqual(TOOL_NAMES.map(name => `lcoder.tool(${name})`).sort())
+    expect(harness.effectLabels.sort()).toEqual(
+      [...TOOL_NAMES.map(name => `lcoder.tool(${name})`), 'lcoder.command(contract_sign)'].sort(),
+    )
     harness.runEffects()
     expect(harness.registrations.map(r => r.name).sort()).toEqual(TOOL_NAMES)
+    expect(harness.commands.map(c => c.name)).toEqual(['contract_sign'])
+  })
+
+  it('签署不是工具：contract_sign 只进命令面', () => {
+    const { spec } = makeRepo()
+    const harness = makeHarness()
+    apply(harness.ctx, { root: spec, selfCheck: false })
+    harness.runEffects()
+
+    expect(harness.registrations.map(r => r.name)).not.toContain('contract_sign')
+    expect(harness.commands.map(c => c.name)).toContain('contract_sign')
   })
 
   it('effect 交出的句柄能解除注册', () => {

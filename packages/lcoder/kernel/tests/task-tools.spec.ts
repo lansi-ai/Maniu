@@ -6,11 +6,22 @@ import { fileURLToPath } from 'node:url'
 import { afterAll, describe, expect, it } from 'vitest'
 
 import { createTaskTools } from '../src/tools/task-tools.js'
+import { contractHash, saveContract } from '../src/kernel/contract.js'
+import { Contract } from '../src/schema/spec.js'
 
 const dirs: string[] = []
 afterAll(() => {
   for (const d of dirs) rmSync(d, { recursive: true, force: true })
 })
+
+/** 写一份已由人签署的契约；签名里的哈希按正文复算，与 P3 校验同源。 */
+function writeHumanContract(spec: string, body: Record<string, unknown>): void {
+  const contract = Contract.parse(body)
+  saveContract(spec, Contract.parse({
+    ...contract,
+    sig: { by: 'human', at: '2026-11-02T15:00:00+08:00', hash: contractHash(contract) },
+  }))
+}
 
 // 相对测试文件定位，避免依赖运行时的 cwd
 const DEMO = fileURLToPath(new URL('../fixtures/demo', import.meta.url))
@@ -79,12 +90,7 @@ describe('任务工具', () => {
     mkdirSync(join(spec, 'evidence', 'T-01'), { recursive: true })
     writeFileSync(join(spec, 'evidence', 'T-01', 'build.log'), 'ok', 'utf8')
     writeFileSync(join(spec, 'evidence', 'T-01', 'test.log'), 'ok', 'utf8')
-    mkdirSync(join(spec, 'contracts'), { recursive: true })
-    writeFileSync(
-      join(spec, 'contracts', 'T-01.contract.yaml'),
-      ['id: T-01', 'change: [x]', 'acceptance: [y]', 'sig:', '  by: human', '  at: 2026-11-02T15:00:00+08:00', '  hash: sha256:x', ''].join('\n'),
-      'utf8',
-    )
+    writeHumanContract(spec, { id: 'T-01', change: ['x'], acceptance: ['y'] })
 
     // 检查器全过，但 implementing 不能直接 closed —— 这一层由状态机守
     await expect(call(spec, 'task_close', { task_id: 'T-01' })).rejects.toThrow(
@@ -123,6 +129,26 @@ describe('任务工具', () => {
     expect(checkers).toContain('P1')
   })
 
+  it('签完又改正文 → 收口被 P3 拦下，签名作废', async () => {
+    const { repo, spec } = makeRepo()
+    setState(repo, 'verifying')
+    mkdirSync(join(spec, 'evidence', 'T-01'), { recursive: true })
+    writeFileSync(join(spec, 'evidence', 'T-01', 'build.log'), 'ok', 'utf8')
+    writeFileSync(join(spec, 'evidence', 'T-01', 'test.log'), 'ok', 'utf8')
+
+    // 先按这一版正文签一次，再把正文改掉：签名里的哈希成了旧版的。
+    const signed = Contract.parse({ id: 'T-01', change: ['原方案'], acceptance: ['单测'] })
+    const sig = { by: 'human', at: '2026-11-02T15:00:00+08:00', hash: contractHash(signed) }
+    saveContract(spec, Contract.parse({ ...signed, sig }))
+    saveContract(spec, Contract.parse({ id: 'T-01', change: ['原方案', '签后又加了一条'], acceptance: ['单测'], sig }))
+
+    const r = await call(spec, 'task_close', { task_id: 'T-01' })
+    expect(r.ok).toBe(false)
+    expect(r.state).toBe('verifying')
+    const p3 = (r.violations as { checker: string; detail: string }[]).filter(v => v.checker === 'P3')
+    expect(p3.map(v => v.detail).join(' ')).toContain('签署后正文被改过')
+  })
+
   it('全部条件满足 → 收口成功并落盘为 closed', async () => {
     const { repo, spec } = makeRepo()
     setState(repo, 'verifying')
@@ -130,24 +156,14 @@ describe('任务工具', () => {
     writeFileSync(join(spec, 'evidence', 'T-01', 'build.log'), 'ok', 'utf8')
     writeFileSync(join(spec, 'evidence', 'T-01', 'test.log'), 'ok', 'utf8')
     // 触及不可逆项，必须有人签的契约
-    mkdirSync(join(spec, 'contracts'), { recursive: true })
-    writeFileSync(
-      join(spec, 'contracts', 'T-01.contract.yaml'),
-      [
-        'id: T-01',
-        'change: [R-02 下限改为可配置]',
-        'not_change: []',
-        'acceptance: [费率为 0 时不生成结算记录]',
-        'affected_tests: []',
-        'fail_if: []',
-        'sig:',
-        '  by: human',
-        '  at: 2026-11-02T15:00:00+08:00',
-        '  hash: sha256:x',
-        '',
-      ].join('\n'),
-      'utf8',
-    )
+    writeHumanContract(spec, {
+      id: 'T-01',
+      change: ['R-02 下限改为可配置'],
+      not_change: [],
+      acceptance: ['费率为 0 时不生成结算记录'],
+      affected_tests: [],
+      fail_if: [],
+    })
 
     const r = await call(spec, 'task_close', { task_id: 'T-01' })
     expect(r.ok).toBe(true)

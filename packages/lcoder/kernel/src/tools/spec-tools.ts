@@ -10,15 +10,11 @@
  * 输出统一用 `{ type: 'json' }` + JSON 渲染。代价是没有输出校验，
  * 理由与后续收紧计划见 docs/cookbook/adding-a-tool.md。
  */
-import { createHash } from 'node:crypto'
-import { mkdirSync, writeFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
-import { stringify as stringifyYaml } from 'yaml'
 
 import { Contract } from '../schema/spec.js'
+import { contractHash, saveContract } from '../kernel/contract.js'
 import { loadSpec, saveRules } from '../kernel/spec-store.js'
 import { hasSpecRoot, resolveRoot } from '../kernel/spec-root.js'
 import type { RootInput } from '../kernel/spec-root.js'
@@ -26,23 +22,6 @@ import type { RootInput } from '../kernel/spec-root.js'
 const renderJson = (_args: unknown, value: unknown): { type: 'text'; text: string }[] => [
   { type: 'text', text: JSON.stringify(value, null, 2) },
 ]
-
-/** 契约正文的稳定哈希：字段顺序固定，`sig` 不参与（签名不能覆盖它自己）。 */
-export function contractHash(contract: Omit<Contract, 'sig'>): string {
-  const canonical = JSON.stringify({
-    id: contract.id,
-    change: contract.change,
-    not_change: contract.not_change,
-    acceptance: contract.acceptance,
-    affected_tests: contract.affected_tests,
-    fail_if: contract.fail_if,
-  })
-  return `sha256:${createHash('sha256').update(canonical, 'utf8').digest('hex')}`
-}
-
-export function contractPath(root: string, taskId: string): string {
-  return join(root, 'contracts', `${taskId}.contract.yaml`)
-}
 
 export function createSpecTools(rootInput: RootInput): ToolDefinition[] {
   return [
@@ -158,10 +137,7 @@ export function createSpecTools(rootInput: RootInput): ToolDefinition[] {
           sig: null,
         })
 
-        const path = contractPath(root, draft.id)
-        mkdirSync(dirname(path), { recursive: true })
-        writeFileSync(path, stringifyYaml(draft), 'utf8')
-
+        const path = saveContract(root, draft)
         const hash = contractHash(draft)
         return {
           task_id: draft.id,

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
 import { checkP1, checkP3, checkP4 } from '../src/checkers/index.js'
+import { contractHash } from '../src/kernel/contract.js'
+import type { ContractFact } from '../src/kernel/contract.js'
 import { textCodeIndex } from '../src/kernel/spec-store.js'
 import type { SpecSnapshot } from '../src/kernel/spec-store.js'
 import { Contract, RuleEntry, Task } from '../src/schema/spec.js'
@@ -45,6 +47,15 @@ function contract(over: Record<string, unknown> = {}): Contract {
   })
 }
 
+/** 正文哈希按同一份正文算一次即可；`sig` 不参与计算。 */
+const BODY_HASH = contractHash(contract())
+
+/** 一份契约事实：正文固定，签名可控——签名里的哈希与正文复算值不符就是「签完又改」。 */
+function fact(sig: { by: 'human' | 'agent'; at: string; hash: string } | null): ContractFact {
+  const body = contract({ sig })
+  return { contract: body, bodyHash: contractHash(body) }
+}
+
 describe('P1 条目有落点', () => {
   it('落点存在且指向真实符号 → 通过', () => {
     const s = snap([{ found_at: [{ file: 'a.ts', symbol: 'createOrder' }] }])
@@ -87,10 +98,7 @@ describe('P3 不可逆项需人签署', () => {
   })
 
   it('契约未签署 → 违规', () => {
-    const r = checkP3(
-      task({ scope: { irreversible: ['settlement_formula'] } }),
-      contract({ sig: null }),
-    )
+    const r = checkP3(task({ scope: { irreversible: ['settlement_formula'] } }), fact(null))
     expect(r.ok).toBe(false)
     expect(r.violations[0]?.detail).toContain('未签署')
   })
@@ -98,18 +106,32 @@ describe('P3 不可逆项需人签署', () => {
   it('agent 自己签的字不算数', () => {
     const r = checkP3(
       task({ scope: { irreversible: ['settlement_formula'] } }),
-      contract({ sig: { by: 'agent', at: AT, hash: 'sha256:x' } }),
+      fact({ by: 'agent', at: AT, hash: BODY_HASH }),
     )
     expect(r.ok).toBe(false)
     expect(r.violations[0]?.detail).toContain('agent')
   })
 
-  it('人签署后通过', () => {
+  it('人签署且签名覆盖当前正文 → 通过', () => {
     const r = checkP3(
       task({ scope: { irreversible: ['settlement_formula'] } }),
-      contract({ sig: { by: 'human', at: AT, hash: 'sha256:x' } }),
+      fact({ by: 'human', at: AT, hash: BODY_HASH }),
     )
     expect(r.ok).toBe(true)
+  })
+
+  it('签完又改正文 → 签名作废', () => {
+    const r = checkP3(
+      task({ scope: { irreversible: ['settlement_formula'] } }),
+      fact({ by: 'human', at: AT, hash: 'sha256:签的那一版' }),
+    )
+    expect(r.ok).toBe(false)
+    expect(r.violations[0]?.detail).toContain('签署后正文被改过')
+    expect(r.violations[0]?.hint).toContain('重签')
+  })
+
+  it('没触及不可逆项时不查签名', () => {
+    expect(checkP3(task(), fact({ by: 'human', at: AT, hash: 'sha256:无关' })).ok).toBe(true)
   })
 })
 

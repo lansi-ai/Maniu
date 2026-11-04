@@ -4,12 +4,13 @@
  * 形态对齐上游最小插件（如 `@deepseek-ai/dsh-persona`）：
  * 具名导出 `name` / `inject` / `apply`，Cordis 的 loader 按包名加载后取这三样。
  *
- * 本插件只做一件事：**把十个工具注册进注册表**。
+ * 本插件做两件事：**把十个工具注册进注册表**，**把签署契约注册成人机命令**。
  * 工具面的收放（restrict 掩码）需要 Agent 作用域，由 surface 在会话侧接管，
  * 不在这里做——否则会变成全局限制，把每个 Agent 都罩住（DSH 会直接抛错）。
  */
 import { join, resolve } from 'node:path'
 
+import { createContractSignCommand } from './commands/contract-sign.js'
 import { createEditTools, spawnRunner } from './tools/edit-tools.js'
 import { createSpecTools } from './tools/spec-tools.js'
 import { createTaskTools } from './tools/task-tools.js'
@@ -21,8 +22,8 @@ import type { TaskState } from './schema/spec.js'
 
 export const name = 'lcoder'
 
-/** 依赖工具注册表；没有 tools 服务时本插件不会被激活。 */
-export const inject = ['tools']
+/** 依赖工具注册表与人机命令面；两者缺一样本插件都不该激活。 */
+export const inject = ['tools', 'commands']
 
 export interface LcoderConfig {
   /**
@@ -57,7 +58,19 @@ interface ToolRegistry {
 
 interface PluginContext {
   tools: ToolRegistry
+  /**
+   * 人机命令面（`@deepseek-ai/dsh-commands`）。命令不经过模型回合：
+   * 人点一次，宿主做一件事，`command/run` 与 `command/done` 进会话日志。
+   * 签署契约必须走这里——注册成工具就等于模型能给自己签字。
+   */
+  commands: CommandRegistry
   effect?(callback: () => () => void, label?: string): void
+}
+
+/** 注册人机命令所需的最小面；形状与 dsh-commands 的 `register` 一致。 */
+interface CommandRegistry {
+  /** 注册一条命令；返回解除注册的句柄。同名重复注册由命令面抛错。 */
+  register(definition: unknown): () => void
 }
 
 export function apply(ctx: PluginContext, config: LcoderConfig = {}): void {
@@ -110,6 +123,12 @@ export function apply(ctx: PluginContext, config: LcoderConfig = {}): void {
     else mount()
   }
 
+  // 签署命令按同一个规格根解析：工具与命令读写同一份 `.spec`，否则签完收口读不到。
+  const signCommand = createContractSignCommand(rootInput)
+  const mountCommand = () => ctx.commands.register(signCommand)
+  if (ctx.effect) ctx.effect(mountCommand, `lcoder.command(${signCommand.name})`)
+  else mountCommand()
+
   if (config.selfCheck ?? true) {
     const check = checkSurface(tools.map(t => t.name))
     if (check.missing.length > 0) {
@@ -118,7 +137,7 @@ export function apply(ctx: PluginContext, config: LcoderConfig = {}): void {
     if (check.orphan.length > 0) {
       console.error(`[lcoder] 已注册但任何状态都看不到的工具：${check.orphan.join(', ')}`)
     }
-    console.error(`[lcoder] 已注册 ${tools.length} 个工具；无会话 cwd 时规格根 ${fallbackRoot}，有会话时取 session.header.cwd/.spec`)
+    console.error(`[lcoder] 已注册 ${tools.length} 个工具与 /${signCommand.name} 命令；无会话 cwd 时规格根 ${fallbackRoot}，有会话时取 session.header.cwd/.spec`)
   }
 
 }

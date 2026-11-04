@@ -6,12 +6,13 @@
  *   2. **纯函数。** 不读盘、不调模型、不看时间。同样的输入永远给同样的结论。
  *   3. **每条违规都要说下一步。** 只说"不通过"等于把问题退回到人身上。
  *
- * P1 判「有没有落点」，P3 判「不可逆项有没有人签」，P4 判「有没有证据」。
+ * P1 判「有没有落点」，P3 判「不可逆项有没有人签、签的是不是当前正文」，P4 判「有没有证据」。
  * 三条合起来回答一个问句：**这个任务凭什么算做完了。**
  */
 import type { CodeIndex, SpecSnapshot } from '../kernel/spec-store.js'
 import { findBindingIssues } from '../kernel/spec-store.js'
-import type { Contract, Task } from '../schema/spec.js'
+import type { ContractFact } from '../kernel/contract.js'
+import type { Task } from '../schema/spec.js'
 
 export type CheckerId = 'P1' | 'P3' | 'P4'
 
@@ -74,19 +75,23 @@ export function checkP1(snapshot: SpecSnapshot, index: CodeIndex): CheckResult {
 
 /**
  * 触及不可逆对象（对外接口 / 数据结构 / 权限 / 金额计算）时，
- * 契约必须存在、已签署，且签署人必须是 human。
+ * 契约必须存在、已签署，签署人必须是 human，且签名必须覆盖**当前**正文。
  *
  * `by: 'agent'` 也要拦——那是"模型给自己签字"，比没签更危险，
  * 因为它看起来像签过了。
+ *
+ * 哈希比对拦的是另一种情形：字签过了，正文随后被改。`sig.hash` 是签署那一刻
+ * 正文的复算值，与传进来的 `bodyHash` 不一致，签名作废、必须重签。所以这里要的
+ * 不是"文件里写着签过"，而是"按现在的文件重算出来签过"。
  */
-export function checkP3(task: Task, contract: Contract | null): CheckResult {
+export function checkP3(task: Task, fact: ContractFact | null): CheckResult {
   const irreversible = task.scope.irreversible
   if (irreversible.length === 0) return summarize([])
 
   const items = irreversible.join('、')
   const violations: Violation[] = []
 
-  if (!contract) {
+  if (fact === null) {
     violations.push({
       checker: 'P3',
       subject: task.id,
@@ -96,12 +101,13 @@ export function checkP3(task: Task, contract: Contract | null): CheckResult {
     return summarize(violations)
   }
 
+  const contract = fact.contract
   if (contract.sig === null) {
     violations.push({
       checker: 'P3',
       subject: task.id,
       detail: `契约存在但未签署，任务却要动不可逆项（${items}）`,
-      hint: '请人在界面上签署契约；模型不能自行签署',
+      hint: '请在界面上用 /contract_sign 签署契约；模型不能自行签署',
     })
   } else if (contract.sig.by !== 'human') {
     violations.push({
@@ -109,6 +115,13 @@ export function checkP3(task: Task, contract: Contract | null): CheckResult {
       subject: task.id,
       detail: `不可逆项（${items}）的契约由 agent 签署，不具备效力`,
       hint: '必须由人重新签署——模型给自己签的字不算数',
+    })
+  } else if (contract.sig.hash !== fact.bodyHash) {
+    violations.push({
+      checker: 'P3',
+      subject: task.id,
+      detail: `契约在签署后正文被改过（签名覆盖 ${contract.sig.hash.slice(0, 19)}…，当前正文 ${fact.bodyHash.slice(0, 19)}…）`,
+      hint: '改动未经确认，签名已作废；请人用 /contract_sign 重签',
     })
   }
 

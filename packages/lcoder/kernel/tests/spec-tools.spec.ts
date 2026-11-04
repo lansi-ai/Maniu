@@ -4,7 +4,8 @@ import { dirname, join } from 'node:path'
 
 import { afterAll, describe, expect, it } from 'vitest'
 
-import { contractHash, createSpecTools } from '../src/tools/spec-tools.js'
+import { createSpecTools } from '../src/tools/spec-tools.js'
+import { contractHash } from '../src/kernel/contract.js'
 
 const dirs: string[] = []
 afterAll(() => {
