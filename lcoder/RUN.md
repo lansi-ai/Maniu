@@ -125,8 +125,7 @@ LCoder 的挂载写进那份仓内 home 的 profile（`apps/desktop/.desktop-bui
     documentsDirectory: 'E:\Projects\LCoder\apps\desktop\.desktop-build\development\docs'
 ```
 
-目录要真实存在（上面那行指向 dev.ts 同级的 `docs/`）。这一行是**规避**，不是修复：
-上游那条查询的 10 秒超时没有生效、失败又不发声，属 T-15 记的两个残留缺陷；配置命中后
+目录要真实存在（上面那行指向 dev.ts 同级的 `docs/`）。这一行是**规避**，不是修复：队头卡住后 workspace 命名空间不会自愈属设计特征（`commands.ts` 里没有 deadline），而「10 秒超时没兜住」一项未经证实、已按 T-16 降级；配置命中后
 `initializeDefault` 会在该目录下建出 `deepseek-harness/default-workspace`。web 侧可以用
 `--dump-config` 证明这行命中，桌面侧 CLI 拒绝 profile 名 `desktop`，所以桌面的判据是落盘数字。
 

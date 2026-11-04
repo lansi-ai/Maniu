@@ -114,7 +114,7 @@
 ## 6. 环境注意
 
 - **隔离是产品约束，不是偏好。** LCoder 的开发与验证既不得依赖本机是否安装了桌面版或 `dsh`，也不得改变本机已装的那些应用。每次运行都把 `DSH_HOME` 指向仓库内目录（仓根 `.dsh-home/`，已进 `.gitignore`；worktree 用各自仓内 home），桌面 `userData` 留在 `apps/desktop/.desktop-build/development/electron-user-data`——`apps/desktop/scripts/dev.ts` 本来就默认到这里。禁止：写 `~/.dsh`、写 `AppData`、动注册表、安装或卸载应用、杀不是本次会话拉起的进程。
-- **本机桌面 profile 必须配 `documentsDirectory`。** 宿主向操作系统问「文档目录在哪」在这台机器上会挂住，于是首启动的 `workspace/initializeDefault` 永不 settle，并把注册表队列占死，后面「打开仓库」一起没应答，且全程没有报错。同一份代码、同一个仓内 home、只改这一行的实测：不配时两个调用都无应答、`storages/workspace.json` 停在 227 字节且 `workspaceIds` 为空；配上后 22 个请求全部应答、文件变 758 字节并登记出默认工作区。这是针对「本机查询挂死 + 上游两个缺陷（10 秒超时没兜住等待、失败不发声）」的规避，配置写法见 `lcoder/RUN.md`。
+- **本机桌面 profile 必须配 `documentsDirectory`。** 宿主向操作系统问「文档目录在哪」在这台机器上会挂住，于是首启动的 `workspace/initializeDefault` 永不 settle，并把注册表队列占死，后面「打开仓库」一起没应答，且全程没有报错。同一份代码、同一个仓内 home、只改这一行的实测：不配时两个调用都无应答、`storages/workspace.json` 停在 227 字节且 `workspaceIds` 为空；配上后 22 个请求全部应答、文件变 758 字节并登记出默认工作区。这是对本机查询挂死的规避；队头卡住后该命名空间不会自愈属设计特征（`commands.ts` 里没有 deadline），而 10 秒超时是否兜得住这次等待未经证实，配置写法见 `lcoder/RUN.md`。
 - Node 要求 `>=24.9.0`；本机用 `pnpm env use --global 24`，不要改系统 Node。
 - 首次安装 `pnpm install`；首次启动前跑 `pnpm run build:artifacts`。
 - 启动：`DSH_HOME='<仓内绝对路径>\.dsh-home' pnpm dsh web --patch lcoder/cordis.patch.yml --no-open --port 3080`（Git Bash 里路径要写成 Windows 形式，否则 profile 静默起不来）。
