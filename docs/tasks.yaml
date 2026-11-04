@@ -185,7 +185,7 @@ tracks:
       note: B 级；workspace/kernel README 成对更新（外壳、项目信息、打开仓库、真实会话、文件根）；补 project.yaml/local.yaml 读取测试；desktop profile 移除旧 lcoder 链接；证据 typecheck(5), vitest(110), lint, test:docs(21), smoke（清理后启动无导入错误，LCoder/DEMO-01 正常）
     - id: T-17
       title: 外壳「打开仓库」加超时与可区分错误文案
-      status: doing
+      status: done
       face: 用户端
       type: 开发
       owner: lance
@@ -193,7 +193,7 @@ tracks:
       date: '2026-11-04'
       dep: [T-15]
       inferred: false
-      note: "B 级；自有代码，不动 packages/api/workspace-controller、packages/workspace 与 kernel。契约：openRepository 的每一步等待有上限（新配置 openTimeoutMs，默认 15000 毫秒），超时抛可识别的超时错误；远程明确拒绝时保留拒绝原因。文案走 locales 双词典，能区分「超时」和「被拒绝」两种，不再只报打开失败。分支 lcoder/t17-open-timeout，worktree .worktrees/t17-open-timeout。背景见 T-15 与 T-16：上游队列被永不 settle 的操作锁死且无可诊断信息，本仓不修，这条只把用户侧的无限转圈变成有界可见错误。"
+      note: "B 级；自有代码，不动 packages/api/workspace-controller、packages/workspace 与 kernel。契约：openRepository 的每一步等待有上限（新配置 openTimeoutMs，默认 15000 毫秒），超时抛可识别的超时错误；远程明确拒绝时保留拒绝原因。文案走 locales 双词典，能区分「超时」和「被拒绝」两种，不再只报打开失败。分支 lcoder/t17-open-timeout，worktree .worktrees/t17-open-timeout。背景见 T-15 与 T-16：上游队列被永不 settle 的操作锁死且无可诊断信息，本仓不修，这条只把用户侧的无限转圈变成有界可见错误。2026-11-04 已合入 lcoder/main（合并号见提交），主仓门禁 build:artifacts 8、typecheck 5、vitest 17 files 147 tests、test:docs 21 全绿并重建 368 个 client 产物。真窗口里的目视（点「打开仓库」15 秒后出现「打开仓库超时：登记没有返回。（workspace/create）」）还没做，但那是 T-16 缺陷的可见证据，不是本条的功能缺口。"
     - id: T-07
       title: 项目信息抽屉 + project.yaml + 去掉左栏
       status: done
