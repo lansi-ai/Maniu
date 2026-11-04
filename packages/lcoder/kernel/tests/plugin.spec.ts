@@ -30,7 +30,9 @@ const TOOL_NAMES = [
   'evidence_attach',
   'file_edit',
   'file_read',
+  'project_draft',
   'spec_bind',
+  'spec_draft',
   'spec_query',
   'task_close',
   'task_draft',
@@ -206,7 +208,7 @@ describe('插件装配', () => {
     expect(harness.registrations.map(r => r.name)).toHaveLength(TOOL_NAMES.length)
   })
 
-  it('仓库还没有 .spec 时只放开四个立项工具', () => {
+  it('仓库还没有 .spec 时只放开六个立项工具', () => {
     const { repo, spec } = makeUnscopedRepo()
     const registrations = mounted(makeHarness(), { root: spec, selfCheck: false })
 
@@ -254,7 +256,7 @@ describe('插件装配', () => {
     harness.runEffects()
 
     const text = logged.mock.calls.map(call => String(call[0])).join('\n')
-    expect(text).toContain('已注册 10 个工具')
+    expect(text).toContain('已注册 12 个工具')
     expect(text).not.toContain('掩码声明了但未注册')
     expect(text).not.toContain('任何状态都看不到')
   })

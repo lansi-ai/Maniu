@@ -4,7 +4,7 @@
  * 形态对齐上游最小插件（如 `@deepseek-ai/dsh-persona`）：
  * 具名导出 `name` / `inject` / `apply`，Cordis 的 loader 按包名加载后取这三样。
  *
- * 本插件做两件事：**把十个工具注册进注册表**，**把签署契约注册成人机命令**。
+ * 本插件做两件事：**把十二个工具注册进注册表**，**把签署契约注册成人机命令**。
  * 工具面的收放（restrict 掩码）需要 Agent 作用域，由 surface 在会话侧接管，
  * 不在这里做——否则会变成全局限制，把每个 Agent 都罩住（DSH 会直接抛错）。
  */
@@ -12,6 +12,7 @@ import { join, resolve } from 'node:path'
 
 import { createContractSignCommand } from './commands/contract-sign.js'
 import { createEditTools, spawnRunner } from './tools/edit-tools.js'
+import { createProjectTools } from './tools/project-tools.js'
 import { createSpecTools } from './tools/spec-tools.js'
 import { createTaskTools } from './tools/task-tools.js'
 import { allowedTools, checkSurface } from './kernel/surface.js'
@@ -37,8 +38,8 @@ export interface LcoderConfig {
   selfCheck?: boolean
   /**
    * 装载时按哪个任务的状态决定工具面。
-   * 不给则取 `.spec/tasks/` 下第一个任务；一个任务都没有就退回空看板最小面
-   * （`file_read`、`spec_query`、`task_read`、`task_draft`）。
+   * 不给则取 `.spec/tasks/` 下第一个任务；一个任务都没有就退回立项面
+   * （`file_read`、`project_draft`、`spec_query`、`spec_draft`、`task_read`、`task_draft`）。
    */
   taskId?: string
 }
@@ -82,6 +83,7 @@ export function apply(ctx: PluginContext, config: LcoderConfig = {}): void {
   // 规格根保存 env/evidence；文件工具必须读仓库根（规格根的上一级）。
   const repoRootInput: RootInput = context => resolve(rootInput(context), '..')
   const tools = [
+    ...createProjectTools(rootInput),
     ...createSpecTools(rootInput),
     ...createTaskTools(rootInput),
     ...createEditTools(rootInput, { run: spawnRunner, repoRoot: repoRootInput }),

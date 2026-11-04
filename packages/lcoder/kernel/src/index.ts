@@ -14,12 +14,14 @@ export * from './schema/spec.js'
 export * from './schema/validate.js'
 
 export * from './kernel/spec-store.js'
+export * from './kernel/project-store.js'
 export * from './kernel/spec-root.js'
 export * from './kernel/task-store.js'
 export * from './kernel/surface.js'
 
 export * from './checkers/index.js'
 
+export * from './tools/project-tools.js'
 export * from './tools/spec-tools.js'
 export * from './tools/edit-tools.js'
 export * from './tools/task-tools.js'
