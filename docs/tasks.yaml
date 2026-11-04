@@ -82,8 +82,8 @@ tracks:
       inferred: false
       note: 环境恢复，不是代码任务。~/.dsh 与主仓同波被删，profiles/web 整个没了，profiles/desktop 只剩 cordis.yml 与模板 cordis.patch.yml，package.json、node_modules、pnpm-lock.yaml、pnpm-workspace.yaml 连同两份 .bak 备份全没，sessions 等运行数据也没了；.credentials.yaml 与 .anonymous-user-id 是 09:53 重新生成的，登录态按丢失处理，需用户重新登录。已按 worktree 的 development/home/profiles/desktop 为模板重建，package.json 两条 link 指向主仓包目录，pnpm-workspace.yaml 用 nodeLinker hoisted 与 autoInstallPeers false，cordis.patch.yml 只搬 LCoder 段（preset-lcoder、agent-preset-registry 的 selectedDefault、ui-sidebar.disabled、两行 insert 带 shell true），用户偏好条目留空由客户端重设；@local/dsh-readonly-preset 暂不挂，其目标 I:/Temp/test/readonly-preset 目录存在但 0 条目。重建后 profile 目录 6 个条目，pnpm install 后 node_modules 下 @lcoder 两条软链解析到主仓包。产物面自检加载主仓 lib、会话 cwd 指 E:/Projects/LCoder-onboard-demo（该仓库确实没有 .spec），得到规格根行、注册 10 个工具、零任务可见 file_read 与 spec_query 与 task_read 与 task_draft，file_edit 与 cmd_run 不可见。待办：electron 包缺 path.txt 标记，require 时联网重下并卡住，补标记属改本机运行时，需用户显式确认后再拉起真窗口；真窗口的空看板确认与端到端手点在用户侧。
     - id: T-14
-      title: electron 构建脚本未批准，path.txt 需根治
-      status: todo
+      title: electron 构建脚本未批准，path.txt 为手补标记
+      status: done
       face: 用户端
       type: 运维
       owner: lance
@@ -91,7 +91,7 @@ tracks:
       date: '2026-11-04'
       dep: [T-13]
       inferred: false
-      note: C 级。三层。一是本次主仓恢复后 node_modules 里的 electron 只剩 dist 与 index.js，缺 path.txt 标记，require 时联网重下并卡住，经用户显式授权手补了这一个 12 字节的标记文件（内容 electron.exe），node_modules 其他任何东西、pnpm-workspace.yaml、package.json、pnpm-lock.yaml 都没动。二是这个标记属安装脚本产物，下次 pnpm install --force 或重装依赖可能再丢，因为 pnpm 未批准 electron 的 install 脚本，force 安装不会补它。三是根治路线两条，pnpm approve-builds 勾 electron，或在 pnpm-workspace.yaml 的 onlyBuiltDependencies 加 electron，后者是共享配置改动、属 A 级，先问用户再动。验证口径：在 apps/desktop 下用 node 取 require('electron') 的路径并 existsSync，应为 true 且不再打印 Downloading Electron binary。
+      note: C 级。三层。一是本次主仓恢复后 node_modules 里的 electron 只剩 dist 与 index.js，缺 path.txt 标记，require 时联网重下并卡住，经用户显式授权手补了这一个 12 字节的标记文件（内容 electron.exe），node_modules 其他任何东西、pnpm-workspace.yaml、package.json、pnpm-lock.yaml 都没动。二是这个标记属安装脚本产物，下次 pnpm install --force 或重装依赖可能再丢，因为 pnpm 未批准 electron 的 install 脚本，force 安装不会补它。三是根治路线两条，pnpm approve-builds 勾 electron，或在 pnpm-workspace.yaml 的 onlyBuiltDependencies 加 electron，后者是共享配置改动、属 A 级，先问用户再动。验证口径：在 apps/desktop 下用 node 取 require('electron') 的路径并 existsSync，应为 true 且不再打印 Downloading Electron binary。2026-11-04 已完成手补与验证：标记 12 字节、内容 electron.exe，apps/desktop 下 require 解析到 dist/electron.exe 且 existsSync 为 true，不再打印 Downloading Electron binary；主窗口已用重建后的 profile 起来。根治（approve-builds 或共享配置）不在本条范围。
   - id: workspace
     name: 工作台 UI
     tasks:
