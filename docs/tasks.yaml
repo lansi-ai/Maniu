@@ -147,6 +147,29 @@ tracks:
       dep: [T-10]
       inferred: false
       note: "A 级；补齐 PRD 风险首条「签署通道缺失」。现状缺口三处。一是 PROJECT-RULES §1 写明 contract_sign 永不注册为模型工具、只有人可签，但宿主侧没有任何签署入口，sig 字段只能手改 YAML。二是 spec-tools 的 contractHash 算完只出现在工具返回值里，落到文件后无人复算，sig.hash 形同装饰。三是外壳看不见契约（归 T-21）。范围（微契约）：输入是命令名后的任务编号，输出是写进 .spec/contracts/<id>.contract.yaml 的 sig，异常边界为无规格根、无契约文件、已签且正文未变、正文在签后改过四种，MVP 不做撤签与批量签。落点：新命令 contract_sign 走 dsh-commands 的人机命令面（命令名匹配其小写正则，处理器收到 agent 后按 agent.session.header.cwd 解析规格根，与工具同一来源）；宿主复算正文哈希后写 by 为 human、at 取执行时刻、hash 为复算值；已签且哈希相同判为重复签署并拒绝，哈希变了则重签换新值。不新增模型工具、不进 SURFACE、不改状态机——状态流转仍手写 YAML，与需求确认口径一致。同期把 P3 接上哈希校验，checkP3 增加正文哈希参数，签名哈希与正文哈希不符即为违规，task_close 复算并传入，让「签署后正文不可变」从注释变成门禁。装配代价：命令面由 base bundle 提供（packages/bundle/base 装 dsh-commands），kernel 的 inject 增 commands，代价是装配里缺命令面时整个 kernel 不激活，桌面、web 与 CLI 都组 base 所以不受影响。2026-11-04 落地四处：新文件 kernel/contract.ts 收拢契约读写与复算（contractPath、contractHash、loadContractFact、saveContract），spec-tools 与 task-tools 改用它；新文件 src/commands/contract-sign.ts 是命令本体，按结构声明命令面形状、不依赖 dsh-commands 包；checkers 的 P3 改吃 ContractFact，签名哈希与正文复算值不符即判违规；plugin.ts 的 inject 增 commands 并在 selfCheck 行点名命令。门禁 typecheck(5)、vitest(18 files / 169 tests)、oxlint(packages/lcoder 0 error)、test:docs(21)，双语 pairing 哈希已 --write 重录；两个包重新 bundle，产物里 contract_sign 命中 kernel 8 处与 client 2 处。桌面端到端与真窗口回执仍未取，本条保持 doing。"
+    - id: T-23
+      title: 全新空文件夹的项目引导流——对话式问清需求再落 .spec
+      status: todo
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-04'
+      date: '2026-11-04'
+      dep: [T-10]
+      inferred: false
+      note: "A 级（新增写盘能力与立项面）；分支 lcoder/t23-empty-intake，worktree .worktrees/t23-empty-intake，桌面 inspector 端口登记表 main 9339 / renderer 9332 / host 9340。现状已核：UNSCOPEED_SURFACE 四工具（kernel/src/kernel/surface.ts:80），无 .spec 时 plugin.ts:93-111 的 currentState 返回 null 走该面；task_draft 无 .spec 可立项（tools/task-tools.ts:99-165，saveTask 在 kernel/task-store.ts:154-159 递归建 .spec/tasks）；spec_bind 找不到条目即抛（tools/spec-tools.ts:92-104），建不出第一条规格；没有任何工具写 .spec/project.yaml，该文件只被外壳投影读（workspace/src/client/projection.ts:316-382）；外壳 buildOnboardingPrompt 不依赖任务、文档三项全空时改为要求先问用户（workspace/src/client/shell/shell-data.ts:163-187）。范围：把「只有空文件夹」变成一条对话式引导——agent 逐项问业务目标、边界、验收与文档位置，拿到回答再落 project.yaml、规格条目与首条 drafting 任务，看板读回。拿不准的口径先与用户确认并 Sign-off，再写代码。验收只认桌面端手点。"
+    - id: T-25
+      title: 多任务并行与多角色互相调用——一仓多会话、preset 角色与委派
+      status: todo
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-04'
+      date: '2026-11-04'
+      dep: [T-24]
+      inferred: false
+      note: "A 级（装配层新增角色 preset 与委派预算）；分支 lcoder/t25-multi-role，worktree .worktrees/t25-multi-role，桌面 inspector 端口登记表 main 9359 / renderer 9352 / host 9360。现状已核：subagent 服务名 subagents（packages/subagent/subagent/src/index.ts:131-168），Config 里 maxActiveSubagents 默认 8、maxDepth 默认 1 且 volatile（同文件 186-198），远端只发布 prompt 与 interruptByParent（449-452、518-524），深度记账在 src/depth.ts:11-51 取会话头 delegationDepth 与运行时值的最大者；委派工具启动子 agent 后立即返回其 id，可并行多路（packages/subagent/tool-subagent/src/index.ts:208-219）；角色由 PresetDefinition 声明 id/name/description/order/plugins（packages/preset/agent-preset-registry/src/definition.ts:5-11），桌面 profile 现有 preset-lcoder（default standard、selectedDefault lcoder、plugins 为 persona 话术加 @lcoder/kernel，见 apps/desktop/.desktop-build/development/home/profiles/desktop/cordis.patch.yml 的 18-45 行）；客户端选角色走 remote.agentPresets 的 list/read/select，select 仅允许首个回合之前，之后抛 agent-preset/locked（registry/src/index.ts:364-383）；ctx.sessions.create 可指名 agentPreset（packages/api/session-controller/src/client/contract/sessions.ts:88-93），工作区与会话是 1 比 N，外壳目前只用第一条。范围：一仓多会话各绑一条任务、按角色定义 2 到 3 个 preset、角色之间用委派互相调用，并按角色收放工具面。角色清单、谁能调谁、深度预算先与用户确认并 Sign-off。不改上游包内部实现，改动只落在装配层与 packages/lcoder。验收只认桌面端手点。"
+
 
   - id: workspace
     name: 工作台 UI
@@ -262,6 +285,18 @@ tracks:
       dep: [T-08]
       inferred: false
       note: "B 级；2026-11-04 用户在桌面端点「开始对话」后没有任何回音，靶仓会话日志解出来只有 session header 一行、零条 user/message。已核实现状：准入阶段被拒时外壳会显示（sendPrompt 把 ok:false 抛成 chatError），但缺模型凭据时提示其实被接受——packages/api/session-controller/src/commands.ts 的 prompt 只做内容与附件校验就 agent.followup() 入队，user/message 要等回合认领输入才落日志；真失败发生在 agent 侧，经 agent/error 转发成 api-session/error，落到客户端会话快照的 lastAgentError（packages/api/session-controller/src/client/sessions/session.ts:944 起），而同文件的 promptError 记准入失败。外壳只读 eventSource 的事件条目，从不读这两个字段，所以现象是「发了，什么都没发生」。上游已有可用信号：session/modelCatalog 返回 routableProviders、groups 与 failures，另有 session/model-unavailable 与 session/provider-models-unavailable 两个码。范围（用户 2026-11-04 拍定两条）：一、只提示去哪儿配，不碰凭据面——外壳进项目即查 modelCatalog，routableProviders 为空且每组 models 也为空时在看板顶部与对话浮层就地提示「宿主侧没有可用模型」，写清 DEEPSEEK_API_KEY 或仓内 home 的 .env、改完要重启；工作台不录入密钥、不接 credentials 面。二、没有可用模型就禁用发送，原因挂在按钮上；凭据后补由 llm/models-updated、llm/adapters-updated 与 credentials/record-updated 触发重查来解锁。三、把快照的 promptError 与 lastAgentError 显示到浮层，不再静默。落点三处：新增 client/model-status.ts 放纯判定（目录有无可用模型、错误条目归一成词典键加细节），client/index.ts 的 inject 增 remote.session 并注入三个回调，Shell.tsx 接一条 modelReady 状态与两处提示面；文案进词典中英双份。验收只认桌面端手点。2026-11-04 已落地：判定与提示分三处——新增 client/model-status.ts 放纯判定（catalogHasModel、statusFromCatalog、statusOfFailure、noticeFromSnapshot），client/index.ts 注入 checkModels、subscribeModels、readSessionNotice 三个回调且 inject 增 remote.session，Shell.tsx 接一条 modelStatus 状态加看板横幅与浮层提示，empty 时禁用「开始对话」「立项分析」与浮层发送并把原因挂在按钮 title 上；op 为 stop 的 promptError 不显示，本壳没有停止动作。unknown 只说不清、不禁用，避免把查询故障说成配置缺失。门禁 typecheck(5)、vitest(19 files / 183 tests)、oxlint 对 packages/lcoder 0 error、test:docs(21)，双语 pairing 已重录，workspace 已重新 bundle。补上凭据后由 llm/models-updated、llm/adapters-updated 与 credentials/record-updated 触发重查解锁。桌面端到端未取（本机仍无模型凭据），本条保持 doing。"
+
+    - id: T-24
+      title: 任务卡片显示对话状态——谁在跑这条任务、跑到哪、有没有失败
+      status: todo
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-04'
+      date: '2026-11-04'
+      dep: [T-22]
+      inferred: false
+      note: "B 级（若需要 Task schema 加会话关联则升 A 并先与用户确认）；分支 lcoder/t24-card-status，worktree .worktrees/t24-card-status，桌面 inspector 端口登记表 main 9349 / renderer 9342 / host 9350。现状已核：客户端 SessionSnapshot 暴露 sessionId、pendingSubmissions、running、subagent、removed、openState、openError、hasMore、loadingOlder、promptError、blank、lastAgentError、promptAttempted、awaitingFirstTurn（packages/api/session-controller/src/client/contract/snapshot.ts:69-91，buildSnapshot 见 sessions/session.ts:925-951）；外壳现在只用 useSessions(state => state.byId) 行上的 cwd 与 running 两项（workspace/src/client/shell/Shell.tsx:118、154-155、161），细粒度字段要走 ctx.sessions.binding(id).session.getSnapshot()；卡片渲染段 renderColumn 在 Shell.tsx:348-375，只画编号、分级、标题、规则标签与工具面文案，没有任何对话状态；任务与会话目前是唯一对应（工作区取 sessionIds[0]，Shell.tsx:151-153），Task schema 里没有会话关联字段——这条是本任务真正要先定的口径。范围：定出任务到会话的映射判据并显示到卡片上（在跑、等待首个回合、空闲、失败、已完结），失败取 promptError 与 lastAgentError。验收只认桌面端手点。"
 
 
 milestones:
