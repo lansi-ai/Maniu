@@ -91,7 +91,7 @@ Every tool factory accepts either a fixed root or a resolver. The resolver reads
 
 #### What the model sees
 
-The ten tool names, descriptions, and `parameters` JSON Schemas, filtered by the current task state through `when`; a repository without a readable task state sees the onboarding surface. `contract_sign` is never present.
+The ten tool names, descriptions, and `parameters` JSON Schemas, filtered by the current task state through `when` and then narrowed by the configured role ceiling; a repository without a readable task state sees the onboarding surface. `contract_sign` and `task_bind` are never present.
 
 #### Token effect
 
@@ -99,7 +99,11 @@ Every visible tool description and parameter schema occupies request tokens on e
 
 #### KV Cache effect
 
-The visible tool set changes only on a task-state transition. Re-applying the same state is a no-op, and a transition invalidates the request prefix from the first changed tool schema token.
+The visible tool set changes only on a task-state transition. Re-applying the same state is a no-op, and a transition invalidates the request prefix from the first changed tool schema token. The role ceiling is fixed when the plugin mounts, so it never moves mid-session.
+
+### Human commands
+
+`contract_sign` signs a task's contract as a human and `task_bind` claims a task for the current session. Both write `.spec` from the host, both land on the command surface rather than the tool surface, and neither appears in a model request: a callable tool would let the model sign its own contract or pick its own tool surface.
 
 ## Known Limitations and Deferred Work
 

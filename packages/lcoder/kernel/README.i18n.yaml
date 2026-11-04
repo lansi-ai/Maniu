@@ -36,14 +36,17 @@
   en: a16d0961a3504ff2
   zh: cb31599adb4c7f0c
 /lcoder-kernel/model-experience/registered-tools/what-the-model-sees:
-  en: d7c4f820e0bd48fc
-  zh: 8a3a115dbeeaf4be
+  en: 28e2bf1d1c74aa2a
+  zh: 264dbc2191387a3c
 /lcoder-kernel/model-experience/registered-tools/token-effect:
   en: 96e3087ddc03dd14
   zh: cc71ba26943a9e71
 /lcoder-kernel/model-experience/registered-tools/kv-cache-effect:
-  en: e06c1a0395b1be0b
-  zh: 621e61273782dce7
+  en: 17e398ac57bc55d6
+  zh: 5e33660058244801
+/lcoder-kernel/model-experience/human-commands:
+  en: c1a1c5a76dcd8225
+  zh: 5f4691b70abcc0f6
 /lcoder-kernel/known-limitations-and-deferred-work:
   en: 4fa87df57b9cf930
   zh: b737e631579abfb5

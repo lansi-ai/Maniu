@@ -4,13 +4,14 @@
  * 形态对齐上游最小插件（如 `@deepseek-ai/dsh-persona`）：
  * 具名导出 `name` / `inject` / `apply`，Cordis 的 loader 按包名加载后取这三样。
  *
- * 本插件做两件事：**把十个工具注册进注册表**，**把签署契约注册成人机命令**。
+ * 本插件做两件事：**把十个工具注册进注册表**，**把签署契约与任务认领注册成人机命令**。
  * 工具面的收放（restrict 掩码）需要 Agent 作用域，由 surface 在会话侧接管，
  * 不在这里做——否则会变成全局限制，把每个 Agent 都罩住（DSH 会直接抛错）。
  */
 import { join, resolve } from 'node:path'
 
 import { createContractSignCommand } from './commands/contract-sign.js'
+import { createTaskBindCommand } from './commands/task-bind.js'
 import { createEditTools, spawnRunner } from './tools/edit-tools.js'
 import { createSpecTools } from './tools/spec-tools.js'
 import { createTaskTools } from './tools/task-tools.js'
@@ -134,11 +135,17 @@ export function apply(ctx: PluginContext, config: LcoderConfig = {}): void {
     else mount()
   }
 
-  // 签署命令按同一个规格根解析：工具与命令读写同一份 `.spec`，否则签完收口读不到。
+  // 两条人机命令按同一个规格根解析：工具与命令读写同一份 `.spec`，否则签完收口读不到。
   const signCommand = createContractSignCommand(rootInput)
   const mountCommand = () => ctx.commands.register(signCommand)
   if (ctx.effect) ctx.effect(mountCommand, `lcoder.command(${signCommand.name})`)
   else mountCommand()
+
+  // 认领关系同样只由人写：模型能调就等于自己挑工具面。
+  const bindCommand = createTaskBindCommand(rootInput)
+  const mountBind = () => ctx.commands.register(bindCommand)
+  if (ctx.effect) ctx.effect(mountBind, `lcoder.command(${bindCommand.name})`)
+  else mountBind()
 
   if (config.selfCheck ?? true) {
     const check = checkSurface(tools.map(t => t.name))
@@ -148,7 +155,7 @@ export function apply(ctx: PluginContext, config: LcoderConfig = {}): void {
     if (check.orphan.length > 0) {
       console.error(`[lcoder] 已注册但任何状态都看不到的工具：${check.orphan.join(', ')}`)
     }
-    console.error(`[lcoder] 已注册 ${tools.length} 个工具与 /${signCommand.name} 命令；角色 ${role ?? '未设（只按状态收放）'}，无会话 cwd 时规格根 ${fallbackRoot}，有会话时取 session.header.cwd/.spec`)
+    console.error(`[lcoder] 已注册 ${tools.length} 个工具与 /${signCommand.name}、/${bindCommand.name} 命令；角色 ${role ?? '未设（只按状态收放）'}，无会话 cwd 时规格根 ${fallbackRoot}，有会话时取 session.header.cwd/.spec`)
   }
 
 }
