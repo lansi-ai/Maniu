@@ -251,6 +251,18 @@ tracks:
       dep: [T-20]
       inferred: false
       note: "B 级；依赖 T-20 的 contract_sign。现状缺口：projection.ts 只读 .spec/tasks 与 .spec/spec/rules.yaml，contracts 目录完全不进屏——人看不到契约正文就无从签字，签署只能退回手改 YAML。范围：契约文件读成展示行（编号、改什么、不改什么、怎么算过、什么算失败、签署人、签署时间），任务详情弹窗展示选中任务的那份契约，未签署时给签署按钮，点击走 ctx.remote.commands.execute 派 /contract_sign 加任务编号，客户端 inject 增 remote.commands，落签后重读投影刷新状态。文案进词典中英双份，遵循 locale-owned。一条边界要在界面说清：哈希只在宿主复算，浏览器不算 SHA-256（node:crypto 不进渲染端），所以外壳只报有没有签、谁签的、签于何时，不承诺识别签署之后的正文改动，那一条由 task_close 的 P3 判。验收只认桌面端手点。2026-11-04 已落地：projection.ts 新增 CONTRACTS_DIR、ContractRow、contractTextToRow 与 loadContracts，投影结果多出 contracts 一路，目录缺失算空集、坏文件只记说明；client/index.ts 的 inject 增 remote.commands，注入 signContract 回调把 /contract_sign 交给人机命令面并原样带回宿主那句人话；Shell.tsx 的任务详情弹窗加契约四段、签署状态行与签署按钮，签完把 reload 加一重读投影；词典加十三键中英各一份。门禁同 T-20 一起跑，桌面端到端未取，本条保持 doing。"
+    - id: T-22
+      title: 没有可用模型时外壳静默——提示去哪儿配，并挂住发送
+      status: doing
+      face: 用户端
+      type: 缺陷
+      owner: lance
+      created: '2026-11-04'
+      date: '2026-11-04'
+      dep: [T-08]
+      inferred: false
+      note: "B 级；2026-11-04 用户在桌面端点「开始对话」后没有任何回音，靶仓会话日志解出来只有 session header 一行、零条 user/message。已核实现状：准入阶段被拒时外壳会显示（sendPrompt 把 ok:false 抛成 chatError），但缺模型凭据时提示其实被接受——packages/api/session-controller/src/commands.ts 的 prompt 只做内容与附件校验就 agent.followup() 入队，user/message 要等回合认领输入才落日志；真失败发生在 agent 侧，经 agent/error 转发成 api-session/error，落到客户端会话快照的 lastAgentError（packages/api/session-controller/src/client/sessions/session.ts:944 起），而同文件的 promptError 记准入失败。外壳只读 eventSource 的事件条目，从不读这两个字段，所以现象是「发了，什么都没发生」。上游已有可用信号：session/modelCatalog 返回 routableProviders、groups 与 failures，另有 session/model-unavailable 与 session/provider-models-unavailable 两个码。范围（用户 2026-11-04 拍定两条）：一、只提示去哪儿配，不碰凭据面——外壳进项目即查 modelCatalog，routableProviders 为空且每组 models 也为空时在看板顶部与对话浮层就地提示「宿主侧没有可用模型」，写清 DEEPSEEK_API_KEY 或仓内 home 的 .env、改完要重启；工作台不录入密钥、不接 credentials 面。二、没有可用模型就禁用发送，原因挂在按钮上；凭据后补由 llm/models-updated、llm/adapters-updated 与 credentials/record-updated 触发重查来解锁。三、把快照的 promptError 与 lastAgentError 显示到浮层，不再静默。落点三处：新增 client/model-status.ts 放纯判定（目录有无可用模型、错误条目归一成词典键加细节），client/index.ts 的 inject 增 remote.session 并注入三个回调，Shell.tsx 接一条 modelReady 状态与两处提示面；文案进词典中英双份。验收只认桌面端手点。2026-11-04 已落地：判定与提示分三处——新增 client/model-status.ts 放纯判定（catalogHasModel、statusFromCatalog、statusOfFailure、noticeFromSnapshot），client/index.ts 注入 checkModels、subscribeModels、readSessionNotice 三个回调且 inject 增 remote.session，Shell.tsx 接一条 modelStatus 状态加看板横幅与浮层提示，empty 时禁用「开始对话」「立项分析」与浮层发送并把原因挂在按钮 title 上；op 为 stop 的 promptError 不显示，本壳没有停止动作。unknown 只说不清、不禁用，避免把查询故障说成配置缺失。门禁 typecheck(5)、vitest(19 files / 183 tests)、oxlint 对 packages/lcoder 0 error、test:docs(21)，双语 pairing 已重录，workspace 已重新 bundle。补上凭据后由 llm/models-updated、llm/adapters-updated 与 credentials/record-updated 触发重查解锁。桌面端到端未取（本机仍无模型凭据），本条保持 doing。"
+
 
 milestones:
 - name: MVP-0 工作台本地跑通

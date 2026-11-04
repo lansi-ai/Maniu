@@ -105,6 +105,18 @@ pnpm run dev:desktop > lcoder/desktop.log 2>&1     # 不要接管道；也不要
 `apps/desktop/.desktop-build/development/home`，`userData` 默认到同级 `electron-user-data`，
 两者都在仓内、都被忽略。显式设成 `~/.dsh` 会让这次验证直接写本机安装态，禁止。
 
+对话还需要模型钥匙，而它不会跟着 home 走：仓内那份 `.credentials.yaml` 只有 web 登录态记录，
+没有 provider 凭据。缺它的现象是「发了没反应」——宿主把消息收进入队就返回接受，回合才失败，
+会话日志里连 `user/message` 都没有。外壳会提示「宿主侧没有可用模型」并拦住发送，配法是把钥匙
+交进宿主进程的环境，别写进任何会被提交的文件：
+
+```sh
+export DEEPSEEK_API_KEY=…            # 只在本机环境里；仓库根的 .env 已被 .gitignore 忽略
+pnpm run dev:desktop > lcoder/desktop.log 2>&1
+```
+
+`dev.ts` 用 `...process.env` 起子进程，环境变量会传到宿主；改完必须重启实例。
+
 LCoder 的挂载写进那份仓内 home 的 profile（`apps/desktop/.desktop-build/development/home/profiles/desktop/`）：
 `cordis.patch.yml` 放 LCoder 段，`package.json` 里用 `link:` 指向**当前检出**的
 `packages/lcoder/kernel` 与 `packages/lcoder/workspace`（worktree 里就跑 worktree 的包，别指回主仓）。
