@@ -109,6 +109,27 @@ LCoder 的挂载写进那份仓内 home 的 profile（`apps/desktop/.desktop-bui
 `cordis.patch.yml` 放 LCoder 段，`package.json` 里用 `link:` 指向**当前检出**的
 `packages/lcoder/kernel` 与 `packages/lcoder/workspace`（worktree 里就跑 worktree 的包，别指回主仓）。
 
+### 本机必读：桌面 profile 要配 `documentsDirectory`
+
+在本机这类环境里，宿主向操作系统问「文档目录在哪」会挂住不返回（同一条命令在 Git Bash 里
+0.17 秒返回），于是首启动的 `workspace/initializeDefault` 永不 settle，并把注册表队列占死——
+之后「打开仓库」也一起没应答，宿主日志零报错。实测的对照是同一份代码、同一个仓内 home、
+只改这一行：不配时 `initializeDefault` 与 `create` 都无应答、`storages/workspace.json` 停在
+227 字节且 `workspaceIds` 为空；配了之后 22 个请求全部应答、文件变成 758 字节并登记出默认工作区。
+
+```yaml
+# home/profiles/desktop/cordis.patch.yml
+- id: workspace-controller
+  name: "@deepseek-ai/dsh-api-workspace-controller"
+  config:
+    documentsDirectory: 'E:\Projects\LCoder\apps\desktop\.desktop-build\development\docs'
+```
+
+目录要真实存在（上面那行指向 dev.ts 同级的 `docs/`）。这一行是**规避**，不是修复：
+上游那条查询的 10 秒超时没有生效、失败又不发声，属 T-15 记的两个残留缺陷；配置命中后
+`initializeDefault` 会在该目录下建出 `deepseek-harness/default-workspace`。web 侧可以用
+`--dump-config` 证明这行命中，桌面侧 CLI 拒绝 profile 名 `desktop`，所以桌面的判据是落盘数字。
+
 ```sh
 pnpm run dev:desktop          # 构建产物后启动（改过 src 用这个）
 pnpm run start:desktop        # 同上但跳过重建
