@@ -102,7 +102,7 @@ tracks:
       date: '2026-11-04'
       dep: [T-13]
       inferred: false
-      note: 人工可复现，非验收手段问题。用户截图里 DevTools 控制台原文四行：「POST dsh-app://app/api/workspace/initializeDefault  net::ERR_UNEXPECTED   rpc.ts:35」「POST dsh-app://app/api/workspace/create             net::ERR_UNEXPECTED   rpc.ts:35」「GET  dsh-app://app/plugins/events                   net::ERR_FAILED 200 (OK)   events:1」「Failed to load resource: net::ERR_FAILED            events:1」。关键点是启动时该发的 initializeDefault 也 ERR_UNEXPECTED，连事件流都 ERR_FAILED，所以不是 create 永不 settle，而是整条 dsh-app:// 后端通道报错；Electron Security Warning (Insecure CSP) 与本条无关。现象还包括弹窗列表显示「还没有工作区。」、按钮停在「正在打开…」。11 月 3 日用户在同一个主窗口手点曾成功建出 LCoder-onboard-demo（当时 profile 是删除前原状），所以这是新引入的回归。二分口径见 T-13 与本轮记录：worktree 那份 home 正常则回归在重建的主 profile（比对 readonly preset、略去的偏好条目、pnpm-workspace.yaml 与 package.json 字段差异），两边都坏则查 dsh-app:// 协议处理器、events 路由与 storages 数据层结构。
+      note: "人工可复现，非验收手段问题。用户截图里 DevTools 控制台原文四行：「POST dsh-app://app/api/workspace/initializeDefault  net::ERR_UNEXPECTED   rpc.ts:35」「POST dsh-app://app/api/workspace/create             net::ERR_UNEXPECTED   rpc.ts:35」「GET  dsh-app://app/plugins/events                   net::ERR_FAILED 200 (OK)   events:1」「Failed to load resource: net::ERR_FAILED            events:1」。关键点是启动时该发的 initializeDefault 也 ERR_UNEXPECTED，连事件流都 ERR_FAILED，所以不是 create 永不 settle，而是整条 dsh-app:// 后端通道报错；Electron Security Warning (Insecure CSP) 与本条无关。现象还包括弹窗列表显示「还没有工作区。」、按钮停在「正在打开…」。11 月 3 日用户在同一个主窗口手点曾成功建出 LCoder-onboard-demo（当时 profile 是删除前原状），所以这是新引入的回归。二分口径见 T-13 与本轮记录：worktree 那份 home 正常则回归在重建的主 profile（比对 readonly preset、略去的偏好条目、pnpm-workspace.yaml 与 package.json 字段差异），两边都坏则查 dsh-app:// 协议处理器、events 路由与 storages 数据层结构。"
   - id: workspace
     name: 工作台 UI
     tasks:
