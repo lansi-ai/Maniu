@@ -113,7 +113,7 @@ tracks:
       date: '2026-11-04'
       dep: [T-15]
       inferred: false
-      note: "上游缺陷，按 R-01 只登记与上报，未进接触面就不改代码。位置在 packages/api/workspace-controller/src/commands.ts 的 enqueue 与 packages/workspace/workspace/src/index.ts 的 enqueueOperation。机制：enqueue 的 tail 在 rejection 时会释放（result.then 两个分支都置 undefined），所以只有永不 settle 的操作能把队列永久占住；一旦发生，同队列后续调用全部无应答，对外只表现为请求挂住，没有错误码、没有堆栈、没有任何可诊断信息，用户侧只看到按钮停在「正在打开…」。期望行为：队列里的操作要有超时或可取消的完成保证，失败要给出结构化错误并可被上层可见上报（对齐 dsh-error-handling 的失败保证口径）。本机证据与差分数字见 T-15。处置：等用户批准进接触面后再决定是加临时观测还是提上游 issue。"
+      note: "上游缺陷，本仓只登记与上报、不对外发声（用户 2026-11-04 拍板）：不提上游 Issue、不申请进接触面、不改 packages/api/workspace-controller 与 packages/workspace 的任何代码。触发条件是队列里某个操作永不 settle——不是抛错，enqueue 的 tail 在 rejection 分支也会释放。影响面是整个 workspace 命名空间串行锁死，后续 create、rename、delete、initializeDefault 全部无应答；对外只表现为请求挂住，没有错误码、没有堆栈、没有任何可诊断信息，用户侧只看到按钮停在「正在打开…」。我们侧的规避是外壳给 openRepository 加超时与可见错误（属自有代码，另立任务再做）。本机取证见 T-15：三种输入全挂、活跃请求恒为 1 且无 Timer、session/list 与 arguments-invalid 秒回。取证现状：宿主 inspector 上 Debugger.enable 加 setAsyncCallStackDepth 64 后等 45 秒取 getAsyncCallStacks，异步栈总数 0，抓不到 pending 帧；按「栈指到哪才动手」的口径没有建 ~/.dsh/sessions 做实验，等下一步指令。"
   - id: workspace
     name: 工作台 UI
     tasks:
