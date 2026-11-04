@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from 'vitest'
 
-import { buildOnboardingPrompt } from '../src/client/shell/shell-data.ts'
+import { buildIntakePrompt, buildOnboardingPrompt } from '../src/client/shell/shell-data.ts'
 import type { ShellOnboardingDocs } from '../src/client/shell/shell-data.ts'
 
 const PROJECT = { name: 'Demo 商城', path: 'E:/Projects/demo', branch: 'main' }
@@ -42,5 +42,37 @@ describe('立项咒语', () => {
     expect(text).toContain('不要改业务代码，不要给自己签契约')
     expect(text).not.toContain('file_edit')
     expect(text).not.toContain('cmd_run')
+  })
+})
+
+describe('空文件夹的项目引导咒语', () => {
+  const text = buildIntakePrompt(PROJECT)
+
+  it('从项目身份问起，一次一问且硬上限 7 问', () => {
+    expect(text).toContain('@task-flow 项目引导：Demo 商城（E:/Projects/demo）')
+    expect(text).toContain('E:/Projects/demo/.spec 还不存在')
+    expect(text).toContain('一次只问一问，拿到回答再问下一问，总数不超过 7 问')
+    for (let n = 1; n <= 7; n++) expect(text).toContain(`${n}. `)
+    expect(text).not.toContain('8. ')
+  })
+
+  it('按 project_draft、spec_draft、task_draft 的顺序落盘', () => {
+    const project = text.indexOf('project_draft 登记 .spec/project.yaml')
+    const rule = text.indexOf('spec_draft 登记一条 status 为 draft')
+    const task = text.indexOf('task_draft 立一条 drafting 任务')
+    expect(project).toBeGreaterThanOrEqual(0)
+    expect(project).toBeLessThan(rule)
+    expect(rule).toBeLessThan(task)
+    expect(text).toContain('文件已存在就只回读现值，不覆盖')
+    expect(text).toContain('绝不改已登记的条目')
+  })
+
+  it('列的是立项面的工具，不承诺改代码与签字', () => {
+    expect(text).toContain('file_read、project_draft、spec_query、spec_draft、task_read、task_draft')
+    expect(text).not.toContain('file_edit')
+    expect(text).not.toContain('cmd_run')
+    expect(text).toContain('不起草契约')
+    expect(text).toContain('绝不给自己签字')
+    expect(text).toContain('不要留半截文件')
   })
 })

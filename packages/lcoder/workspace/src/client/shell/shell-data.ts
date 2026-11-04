@@ -154,6 +154,40 @@ export interface ShellOnboardingDocs {
 }
 
 /**
+ * 生成空文件夹的项目引导咒语：`.spec` 与 `project.yaml` 都不存在时，先按 7 问把
+ * 项目身份、文档位置与第一条规格问清，再逐项落盘。提示词走会话的 `user/message`，
+ * 所以模型可见内容可从日志复原。
+ * @param project - 当前项目。
+ * @returns 可直接发送的提示词。
+ */
+export function buildIntakePrompt(project: ShellPromptProject): string {
+  return `@task-flow 项目引导：${project.name}（${project.path}）
+
+第 0 步 现状：
+- 规格根：${project.path}/.spec 还不存在。
+- 项目：${project.name}（${project.path}，${project.branch}）
+- 任务：一个都读不到，.spec/project.yaml 也没登记——这个仓库还没立项。
+- 你现在拿到的是立项面：file_read、project_draft、spec_query、spec_draft、task_read、task_draft。改代码与跑命令的能力不在这条面上。
+
+请按 7 问引导，一次只问一问，拿到回答再问下一问，总数不超过 7 问：
+1. 这个项目要办成的业务目标是什么？一句话说清。
+2. 项目类型是 web、desktop 还是 library？
+3. 仓库地址与主线分支名是什么？还没有远端就填计划地址或仓库目录。
+4. 产品文档在哪个仓库内路径？没有就说没有，不要猜路径。
+5. 架构文档在哪个路径？（同上）
+6. 测试用例或验收脚本在哪个路径？（同上）
+7. 第一条要遵守的规格条目是什么？说清所属模块、类型（rule、formula、invariant、enum、state_machine、api）、正文与出处文档。
+
+落盘顺序（都走工具，不要用通用写文件能力，也不要手写文件）：
+- 第 2、3、4、5、6 问答完 → project_draft 登记 .spec/project.yaml；文件已存在就只回读现值，不覆盖。
+- 第 7 问答完 → spec_draft 登记一条 status 为 draft 的规格；正文或编号撞车就换措辞，绝不改已登记的条目。
+- 第 1 问答完 → task_draft 立一条 drafting 任务，标题用业务目标，rules 填刚登记的编号。
+- 立完就停：不改业务代码，不起草契约，绝不给自己签字。
+
+任何一步失败就如实说「哪一步已落盘、哪一步没落盘」，不要留半截文件，也不要假装写成。`
+}
+
+/**
  * 生成零任务仓库的立项分析咒语：把产品文档路径交给模型，让 agent 先调研再逐个建
  * drafting 任务。提示词走会话的 `user/message`，所以模型可见内容可从日志复原。
  * @param project - 当前项目。
