@@ -26,6 +26,8 @@ import type {} from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { WORKSPACE_ID, workspaceDefinition } from './definition.ts'
 import { withOpenDeadline } from './open-failure.ts'
+import { noticeFromSnapshot, statusFromCatalog, statusOfFailure } from './model-status.ts'
+import type { ModelStatus, ShellSessionNotice } from './model-status.ts'
 import { en, zh } from './locales.ts'
 import { loadWorkspaceProjection, PAGE_LINES } from './projection.ts'
 import { messagesFromEntries } from './shell/shell-data.ts'
@@ -43,6 +45,7 @@ export type { WorkspaceBodyProps, WorkspaceInject } from './WorkspaceBody.tsx'
 export type {
   ContractRow, ProjectionFilesRemote, RuleRow, TaskRow, WorkspaceProjection,
 } from './projection.ts'
+export type { ModelStatus, ShellSessionNotice } from './model-status.ts'
 
 /** 插件配置：默认占用 main 的 `lcoder-home`，渲染 LCoder 整壳。 */
 export interface Config {
@@ -64,9 +67,10 @@ const NS = 'lcoderWorkspace'
 /** 插件名，与包名一致，loader 据此在诊断里说话。 */
 export const name = '@lcoder/workspace'
 
-/** 浏览器侧必需的服务：槽位运行时、词典、页签注册表、远程文件面、命令面、布局与工作区。 */
+/** 浏览器侧必需的服务：槽位运行时、词典、页签注册表、远程文件面、命令面、会话面、布局与工作区。 */
 export const inject = [
-  'slots', 'locale', 'sidebarRightTabs', 'remote', 'remote.workspaceFiles', 'remote.commands', 'layout', 'workspaces', 'sessions',
+  'slots', 'locale', 'sidebarRightTabs', 'remote', 'remote.workspaceFiles', 'remote.commands', 'remote.session',
+  'layout', 'workspaces', 'sessions',
 ]
 
 /**
@@ -127,6 +131,30 @@ export function apply(ctx: ClientContext, config: Config = {}): void {
       if (result.value === undefined) return { ok: false, text: t('shell.commandUnavailable') }
       return { ok: result.value.result.kind === 'success', text: result.value.result.text ?? '' }
     }
+    /**
+     * 宿主侧还有没有能跑的模型。目录查询本身失败时报 unknown 而不是 empty：
+     * 查询故障不能当成「没有凭据」，否则我们会把一次网络问题说成配置缺失。
+     */
+    const checkModels = async (): Promise<ModelStatus> => {
+      const catalog = await ctx.remote.session.modelCatalog()
+      return catalog.ok
+        ? statusFromCatalog(catalog.value)
+        : statusOfFailure(catalog.error.code, catalog.error.message)
+    }
+    /** 模型目录或凭据一变就重查，让补上钥匙之后的装配自己解锁。 */
+    const subscribeModels = (listener: () => void): (() => void) => {
+      const disposers = [
+        ctx.remote.$on('llm/models-updated', listener),
+        ctx.remote.$on('llm/adapters-updated', listener),
+        ctx.remote.$on('credentials/record-updated', listener),
+      ]
+      return () => { for (const dispose of disposers) dispose() }
+    }
+    /** 会话快照里的失败：准入被拒，或这一轮没跑起来。事件流里没有这些东西。 */
+    const readSessionNotice = (sessionId: SessionId): ShellSessionNotice | null => {
+      const binding = ctx.sessions.binding(sessionId)
+      return binding === undefined ? null : noticeFromSnapshot(binding.session.getSnapshot())
+    }
     const readMessages = (sessionId: SessionId): readonly ShellMessage[] => {
       const binding = ctx.sessions.binding(sessionId)
       return binding === undefined ? [] : messagesFromEntries(binding.eventSource.getSnapshot().entries)
@@ -141,7 +169,10 @@ export function apply(ctx: ClientContext, config: Config = {}): void {
           name: 'main',
           key: 'lcoder-home',
           locale: NS,
-          inject: () => ({ files, openRepository, sendPrompt, signContract, readMessages, subscribeSession }),
+          inject: () => ({
+            files, openRepository, sendPrompt, signContract, readMessages, subscribeSession,
+            checkModels, subscribeModels, readSessionNotice,
+          }),
         },
         Shell,
       )

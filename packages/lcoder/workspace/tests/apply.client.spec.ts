@@ -25,8 +25,9 @@ interface Recorded {
 async function boot(
   config: { shell?: boolean; openTimeoutMs?: number } = { shell: false },
   workspaces: { create: (input: { path: string }) => unknown } = { create: vi.fn() },
-  sessions: { create: (input: { workspaceId: unknown }) => unknown } = { create: vi.fn() },
+  sessions: { create: (input: { workspaceId: unknown }) => unknown; binding?: (id: string) => unknown } = { create: vi.fn() },
   commands: { execute: ReturnType<typeof vi.fn> } = { execute: vi.fn() },
+  session: { modelCatalog: ReturnType<typeof vi.fn> } = { modelCatalog: vi.fn() },
 ) {
   const ctx = new Context()
   const tabs = new SidebarRightTabRegistry(ctx)
@@ -55,15 +56,17 @@ async function boot(
   ctx.provide('slots', slots as never)
   ctx.provide('locale', locale as never)
   // 正文注册时会把 workspaceFiles 窄化成投影面；这里只看注册形状，远程面给空壳即可。
-  ctx.provide('remote', { workspaceFiles: {}, commands } as never)
+  const $on = vi.fn((_event: string, _listener: () => void): () => void => vi.fn())
+  ctx.provide('remote', { workspaceFiles: {}, commands, session, $on } as never)
   ctx.provide('remote.workspaceFiles', {} as never)
   ctx.provide('remote.commands', commands as never)
+  ctx.provide('remote.session', session as never)
   ctx.provide('workspaces', workspaces as never)
   ctx.provide('sessions', sessions as never)
   ctx.provide('layout', { selectPanel, toggleSidebar } as never)
   const fiber = ctx.plugin({ inject: [...inject], apply }, config)
   await fiber.await()
-  return { ctx, tabs, registered, dictionaries, fiber, slots, locale, selectPanel, toggleSidebar, injections, commands }
+  return { ctx, tabs, registered, dictionaries, fiber, slots, locale, selectPanel, toggleSidebar, injections, commands, session, $on }
 }
 
 describe('@lcoder/workspace apply', () => {
@@ -172,6 +175,57 @@ describe('@lcoder/workspace apply', () => {
     try {
       const face = h.injections[0] as { signContract: (id: string, taskId: string) => Promise<{ ok: boolean; text: string }> }
       expect(await face.signContract('session-1', 'T-01')).toEqual({ ok: false, text: 'session-not-found: 会话没在' })
+    } finally { await h.fiber.dispose() }
+  })
+
+  it('空模型目录读成 empty，并把 provider 的失败细节带出来', async () => {
+    const modelCatalog = vi.fn().mockResolvedValue({
+      ok: true,
+      value: {
+        routableProviders: [], groups: [], default: null,
+        failures: [{ id: 'deepseek', name: 'DeepSeek', message: 'no api key' }],
+      },
+    })
+    const h = await boot({ shell: true }, { create: vi.fn() }, { create: vi.fn() }, { execute: vi.fn() }, { modelCatalog })
+    try {
+      const face = h.injections[0] as { checkModels: () => Promise<{ state: string; detail?: string }> }
+      expect(await face.checkModels()).toEqual({ state: 'empty', detail: 'DeepSeek: no api key' })
+    } finally { await h.fiber.dispose() }
+  })
+
+  it('目录查询本身失败 → unknown，不冒充「没有凭据」', async () => {
+    const modelCatalog = vi.fn().mockResolvedValue({ ok: false, error: { code: 'gateway/internal', message: 'boom' } })
+    const h = await boot({ shell: true }, { create: vi.fn() }, { create: vi.fn() }, { execute: vi.fn() }, { modelCatalog })
+    try {
+      const face = h.injections[0] as { checkModels: () => Promise<{ state: string; detail?: string }> }
+      expect(await face.checkModels()).toEqual({ state: 'unknown', detail: 'gateway/internal: boom' })
+    } finally { await h.fiber.dispose() }
+  })
+
+  it('模型与凭据的变化面被交出来，卸载时一并收回', async () => {
+    const modelCatalog = vi.fn().mockResolvedValue({ ok: true, value: { routableProviders: ['deepseek'], groups: [], default: null } })
+    const h = await boot({ shell: true }, { create: vi.fn() }, { create: vi.fn() }, { execute: vi.fn() }, { modelCatalog })
+    try {
+      const face = h.injections[0] as { subscribeModels: (listener: () => void) => () => void }
+      const disposeOne = vi.fn()
+      h.$on.mockReturnValue(disposeOne)
+      face.subscribeModels(() => {})()
+      expect(h.$on.mock.calls.map(call => call[0])).toEqual([
+        'llm/models-updated', 'llm/adapters-updated', 'credentials/record-updated',
+      ])
+      expect(disposeOne).toHaveBeenCalledTimes(3)
+    } finally { await h.fiber.dispose() }
+  })
+
+  it('会话快照里的失败读得出来——事件流里没有这些', async () => {
+    const sessions = {
+      create: vi.fn(),
+      binding: vi.fn(() => ({ session: { getSnapshot: () => ({ promptError: null, lastAgentError: 'no credentials' }) } })),
+    }
+    const h = await boot({ shell: true }, { create: vi.fn() }, sessions, { execute: vi.fn() })
+    try {
+      const face = h.injections[0] as { readSessionNotice: (id: string) => { key: string; detail: string } | null }
+      expect(face.readSessionNotice('s-1')).toEqual({ key: 'shell.turnFailed', detail: 'no credentials' })
     } finally { await h.fiber.dispose() }
   })
 

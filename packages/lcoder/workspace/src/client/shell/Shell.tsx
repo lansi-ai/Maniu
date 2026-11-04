@@ -17,6 +17,7 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { loadLocalSecrets, loadProjectInfo, loadWorkspaceProjection } from '../projection.ts'
 import type { ContractRow, ProjectionFilesRemote, TaskRow } from '../projection.ts'
 import { describeOpenFailure } from '../open-failure.ts'
+import type { ModelStatus, ShellSessionNotice } from '../model-status.ts'
 import { buildOnboardingPrompt, buildShellPrompt, SHELL_STATES } from './shell-data.ts'
 import type { ShellMessage, ShellProjectInfo, ShellSignResult, ShellTask, ShellTaskState } from './shell-data.ts'
 import css from './Shell.module.css'
@@ -34,6 +35,12 @@ export type ShellProps =
     readonly sendPrompt?: (sessionId: SessionId, text: string) => Promise<void>
     /** 派 `/contract_sign <编号>` 让人签署契约；签名由宿主写盘。 */
     readonly signContract?: (sessionId: SessionId, taskId: string) => Promise<ShellSignResult>
+    /** 查宿主侧还有没有能跑的模型；没有对话就不会有回音。 */
+    readonly checkModels?: () => Promise<ModelStatus>
+    /** 模型目录或凭据一变就重查；返回解除订阅。 */
+    readonly subscribeModels?: (listener: () => void) => () => void
+    /** 读会话快照里的失败：准入被拒，或这一轮没跑起来。 */
+    readonly readSessionNotice?: (sessionId: SessionId) => ShellSessionNotice | null
     /** 读真实会话的消息窗口。 */
     readonly readMessages?: (sessionId: SessionId) => readonly ShellMessage[]
     /** 订阅会话事件窗口变化。 */
@@ -104,7 +111,8 @@ function resolveSecrets(info: ShellProjectInfo, secrets: Readonly<Record<string,
  * @returns 顶栏 + 任务板 + 项目信息抽屉 + 浮层。
  */
 export function Shell({
-  t, files, openRepository, sendPrompt, signContract, readMessages, subscribeSession, useSessions, useWorkspaces,
+  t, files, openRepository, sendPrompt, signContract, readMessages, subscribeSession,
+  checkModels, subscribeModels, readSessionNotice, useSessions, useWorkspaces,
 }: ShellProps): ReactNode {
   const workspaces = useWorkspaces(state => state.items)
   const sessionRows = useSessions(state => state.byId)
@@ -134,6 +142,9 @@ export function Shell({
   const [opening, setOpening] = useState(false)
   const [repoError, setRepoError] = useState<string | null>(null)
   const [messages, setMessages] = useState<readonly ShellMessage[]>([])
+  const [notice, setNotice] = useState<ShellSessionNotice | null>(null)
+  /** null 表示还没查过；`empty` 才是「没有能跑的模型」，`unknown` 是查询本身失败。 */
+  const [modelStatus, setModelStatus] = useState<ModelStatus | null>(null)
   const [chatError, setChatError] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
 
@@ -148,6 +159,11 @@ export function Shell({
   const hasWorkspace = workspace !== undefined
   const hasSession = sessionId !== undefined
   const chatRunning = sessionId === undefined ? false : sessionRows[sessionId]?.running ?? false
+  /**
+   * 没有能跑的模型时不发送。缺凭据的提示不是被拒：消息会先进队，回合才失败，
+   * 事件流里连 `user/message` 都没有，用户只看得到「发了，什么都没发生」。
+   */
+  const modelBlocked = modelStatus !== null && modelStatus.state === 'empty'
 
   useEffect(() => {
     if (files === undefined || workspace === undefined || sessionId === undefined) {
@@ -185,15 +201,37 @@ export function Shell({
     return () => { controller.abort() }
   }, [files, activeWorkspaceId, sessionId, reload])
 
+  /**
+   * 进项目就查一次模型可用性，并在目录或凭据变化时重查。缺凭据时提示不是被拒——
+   * 消息会先进队，回合才失败，所以必须提前把「没有能跑的模型」说出来。
+   */
+  useEffect(() => {
+    if (checkModels === undefined) return
+    let alive = true
+    const refresh = (): void => {
+      void checkModels().then((status) => { if (alive) setModelStatus(status) })
+    }
+    refresh()
+    const unsubscribe = subscribeModels?.(refresh) ?? (() => {})
+    return () => {
+      alive = false
+      unsubscribe()
+    }
+  }, [checkModels, subscribeModels])
+
   useEffect(() => {
     if (chat === null || sessionId === undefined || readMessages === undefined || subscribeSession === undefined) {
       setMessages([])
+      setNotice(null)
       return
     }
-    const refresh = (): void => { setMessages(readMessages(sessionId)) }
+    const refresh = (): void => {
+      setMessages(readMessages(sessionId))
+      setNotice(readSessionNotice?.(sessionId) ?? null)
+    }
     refresh()
     return subscribeSession(sessionId, refresh)
-  }, [chat, sessionId, readMessages, subscribeSession])
+  }, [chat, sessionId, readMessages, subscribeSession, readSessionNotice])
 
   const openTask = (task: ShellTask): void => {
     setDetail(task)
@@ -240,6 +278,10 @@ export function Shell({
     setChat(task)
     setDetail(null)
     setChatError(null)
+    if (modelBlocked) {
+      setChatError(t('shell.noModels'))
+      return
+    }
     if (sessionId === undefined || sendPrompt === undefined) {
       setChatError(t('shell.noSession'))
       return
@@ -261,6 +303,10 @@ export function Shell({
     setPrompt(text)
     setCopied(false)
     setChat({ id: '', title: t('shell.onboardingChat'), state: 'drafting', grade: '-', rules: [], evidence: [], surface: '' })
+    if (modelBlocked) {
+      setChatError(t('shell.noModels'))
+      return
+    }
     if (sessionId === undefined || sendPrompt === undefined) {
       setChatError(t('shell.noSession'))
       return
@@ -270,7 +316,7 @@ export function Shell({
 
   const sendDraft = async (): Promise<void> => {
     const text = draft.trim()
-    if (text === '' || sessionId === undefined || sendPrompt === undefined) return
+    if (text === '' || modelBlocked || sessionId === undefined || sendPrompt === undefined) return
     setDraft('')
     setChatError(null)
     try {
@@ -363,13 +409,30 @@ export function Shell({
                 ? <p className={css.empty}>{t('shell.noSession')}</p>
                 : (
                   <>
+                    {modelStatus === null || modelStatus.state === 'ready' ? null : (
+                      <div className={css.problems}>
+                        <p className={css.problemsTitle}>
+                          {t(modelStatus.state === 'empty' ? 'shell.noModels' : 'shell.unknownModels')}
+                        </p>
+                        {modelStatus.detail === '' ? null : <p className={css.problem}>{modelStatus.detail}</p>}
+                        {modelStatus.state === 'empty' ? <p className={css.secretRef}>{t('shell.howToConfigure')}</p> : null}
+                      </div>
+                    )}
                     <div className={css.board}>
                       {SHELL_STATES.map(state => renderColumn(state))}
                     </div>
                     {tasks.length === 0 ? (
                       <div className={css.onboardingBar}>
                         <p className={css.onboardingText}>{t('shell.onboardingEmpty')} {t('shell.onboardingHint')}</p>
-                        <button type="button" className={css.primaryBtn} onClick={startOnboarding}>{t('shell.onboardingCta')}</button>
+                        <button
+                          type="button"
+                          className={css.primaryBtn}
+                          disabled={modelBlocked}
+                          title={modelBlocked ? t('shell.noModels') : undefined}
+                          onClick={startOnboarding}
+                        >
+                          {t('shell.onboardingCta')}
+                        </button>
                       </div>
                     ) : null}
                     {problems.length > 0 ? (
@@ -596,7 +659,15 @@ export function Shell({
               <button type="button" className={css.secondaryBtn} onClick={copyPrompt}>{copied ? t('shell.copied') : t('shell.copyPrompt')}</button>
               <div className={css.spacer} />
               <button type="button" className={css.secondaryBtn} onClick={() => { setDetail(null) }}>{t('shell.cancel')}</button>
-              <button type="button" className={css.primaryBtn} onClick={() => { startConversation(detail) }}>{t('shell.startChat')}</button>
+              <button
+                type="button"
+                className={css.primaryBtn}
+                disabled={modelBlocked}
+                title={modelBlocked ? t('shell.noModels') : undefined}
+                onClick={() => { startConversation(detail) }}
+              >
+                {t('shell.startChat')}
+              </button>
             </div>
           </div>
         </div>
@@ -646,6 +717,15 @@ export function Shell({
                     </div>
                   ))}
                 {chatError === null ? null : <p className={css.problem}>{chatError}</p>}
+                {notice === null ? null : <p className={css.problem}>{`${t(notice.key)} ${notice.detail}`}</p>}
+                {modelStatus === null || modelStatus.state === 'ready' ? null : (
+                  <p className={css.problem}>
+                    {modelStatus.detail === ''
+                      ? t(modelStatus.state === 'empty' ? 'shell.noModels' : 'shell.unknownModels')
+                      : `${t(modelStatus.state === 'empty' ? 'shell.noModels' : 'shell.unknownModels')}（${modelStatus.detail}）`}
+                  </p>
+                )}
+                {modelBlocked ? <p className={css.secretRef}>{t('shell.howToConfigure')}</p> : null}
               </div>
               <div className={css.chatInput}>
                 <input
@@ -656,7 +736,7 @@ export function Shell({
                 <button
                   type="button"
                   className={css.primaryBtn}
-                  disabled={draft.trim() === '' || sessionId === undefined || sendPrompt === undefined}
+                  disabled={draft.trim() === '' || modelBlocked || sessionId === undefined || sendPrompt === undefined}
                   onClick={() => { void sendDraft() }}
                 >
                   {t('shell.send')}
