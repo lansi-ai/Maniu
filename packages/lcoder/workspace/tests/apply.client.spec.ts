@@ -22,16 +22,22 @@ interface Recorded {
   component: unknown
 }
 
-async function boot(config: { shell?: boolean } = { shell: false }) {
+async function boot(
+  config: { shell?: boolean; openTimeoutMs?: number } = { shell: false },
+  workspaces: { create: (input: { path: string }) => unknown } = { create: vi.fn() },
+  sessions: { create: (input: { workspaceId: unknown }) => unknown } = { create: vi.fn() },
+) {
   const ctx = new Context()
   const tabs = new SidebarRightTabRegistry(ctx)
   const selectPanel = vi.fn()
   const toggleSidebar = vi.fn()
   const registered: Recorded[] = []
+  const injections: Record<string, unknown>[] = []
   const slots = {
     inject: vi.fn((_name: string, register: () => () => void) => register()),
-    register: vi.fn((options: Omit<Recorded, 'component'>, component: unknown) => {
+    register: vi.fn((options: Omit<Recorded, 'component'> & { inject?: () => Record<string, unknown> }, component: unknown) => {
       const entry: Recorded = { ...options, component }
+      if (typeof options.inject === 'function') injections.push(options.inject())
       registered.push(entry)
       return () => { registered.splice(registered.indexOf(entry), 1) }
     }),
@@ -50,12 +56,12 @@ async function boot(config: { shell?: boolean } = { shell: false }) {
   // 正文注册时会把 workspaceFiles 窄化成投影面；这里只看注册形状，远程面给空壳即可。
   ctx.provide('remote', { workspaceFiles: {} } as never)
   ctx.provide('remote.workspaceFiles', {} as never)
-  ctx.provide('workspaces', { create: vi.fn() } as never)
-  ctx.provide('sessions', { create: vi.fn() } as never)
+  ctx.provide('workspaces', workspaces as never)
+  ctx.provide('sessions', sessions as never)
   ctx.provide('layout', { selectPanel, toggleSidebar } as never)
   const fiber = ctx.plugin({ inject: [...inject], apply }, config)
   await fiber.await()
-  return { ctx, tabs, registered, dictionaries, fiber, slots, locale, selectPanel, toggleSidebar }
+  return { ctx, tabs, registered, dictionaries, fiber, slots, locale, selectPanel, toggleSidebar, injections }
 }
 
 describe('@lcoder/workspace apply', () => {
@@ -89,6 +95,37 @@ describe('@lcoder/workspace apply', () => {
       expect(h.selectPanel).toHaveBeenCalledWith('lcoder-home')
       expect(h.toggleSidebar).toHaveBeenCalled()
       expect(h.tabs.get(WORKSPACE_KIND)).toBeUndefined()
+    } finally { await h.fiber.dispose() }
+  })
+
+  it('打开仓库在等待上限后报超时，而不是无限转圈', async () => {
+    const h = await boot({ shell: true, openTimeoutMs: 20 }, { create: () => new Promise(() => {}) })
+    try {
+      const openRepository = h.injections[0]?.openRepository as (path: string) => Promise<unknown>
+      await expect(openRepository('E:/Projects/LCoder-target-demo')).rejects.toThrow(/workspace\/create/)
+    } finally { await h.fiber.dispose() }
+  })
+
+  it('打开仓库把远程拒绝原样交出，不伪装成超时', async () => {
+    const h = await boot(
+      { shell: true, openTimeoutMs: 5000 },
+      { create: () => Promise.reject(new Error('路径不存在')) },
+    )
+    try {
+      const openRepository = h.injections[0]?.openRepository as (path: string) => Promise<unknown>
+      await expect(openRepository('E:/nope')).rejects.toThrow('路径不存在')
+    } finally { await h.fiber.dispose() }
+  })
+
+  it('会话创建那一步同样受等待上限约束', async () => {
+    const h = await boot(
+      { shell: true, openTimeoutMs: 20 },
+      { create: async () => ({ workspaceId: 'w-1' }) },
+      { create: () => new Promise(() => {}) },
+    )
+    try {
+      const openRepository = h.injections[0]?.openRepository as (path: string) => Promise<unknown>
+      await expect(openRepository('E:/Projects/x')).rejects.toThrow(/session\/create/)
     } finally { await h.fiber.dispose() }
   })
 

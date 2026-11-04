@@ -25,6 +25,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { WORKSPACE_ID, workspaceDefinition } from './definition.ts'
+import { withOpenDeadline } from './open-failure.ts'
 import { en, zh } from './locales.ts'
 import { loadWorkspaceProjection, PAGE_LINES } from './projection.ts'
 import { messagesFromEntries } from './shell/shell-data.ts'
@@ -35,6 +36,7 @@ import type { ProjectionFilesRemote } from './projection.ts'
 import type { WorkspaceInject } from './WorkspaceBody.tsx'
 
 export { WORKSPACE_ID, WORKSPACE_KIND } from './definition.ts'
+export { WorkspaceOpenTimeoutError, describeOpenFailure, isOpenTimeout } from './open-failure.ts'
 export type { LcoderWorkspaceKey } from './locales.ts'
 export type { ShellProps } from './shell/Shell.tsx'
 export type { WorkspaceBodyProps, WorkspaceInject } from './WorkspaceBody.tsx'
@@ -46,7 +48,15 @@ export type {
 export interface Config {
   /** 默认 true；显式 false 时回退为原来的右栏工作台页签。 */
   shell?: boolean
+  /**
+   * 「打开仓库」每一步等待的上限（毫秒），默认 15000。
+   * 到点只让外壳脱身并报「超时」，底层调用仍在挂——上游队列没有取消语义。
+   */
+  openTimeoutMs?: number
 }
+
+/** 没有配置时的等待上限（毫秒）。 */
+const DEFAULT_OPEN_TIMEOUT_MS = 15_000
 
 /** 本包的文案命名空间。 */
 const NS = 'lcoderWorkspace'
@@ -93,9 +103,12 @@ export function apply(ctx: ClientContext, config: Config = {}): void {
   // 只有显式 shell: false 才回退旧页签。
   if (config.shell !== false) {
     const files = projectionFiles(ctx)
+    const openTimeoutMs = config.openTimeoutMs ?? DEFAULT_OPEN_TIMEOUT_MS
     const openRepository = async (path: string): Promise<{ workspaceId: string; sessionId: SessionId }> => {
-      const workspace = await ctx.workspaces.create({ path })
-      const sessionId = await ctx.sessions.create({ workspaceId: workspace.workspaceId })
+      const workspace = await withOpenDeadline('workspace/create', ctx.workspaces.create({ path }), openTimeoutMs)
+      const sessionId = await withOpenDeadline(
+        'session/create', ctx.sessions.create({ workspaceId: workspace.workspaceId }), openTimeoutMs,
+      )
       return { workspaceId: String(workspace.workspaceId), sessionId }
     }
     const sendPrompt = async (sessionId: SessionId, text: string): Promise<void> => {

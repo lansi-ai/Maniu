@@ -16,6 +16,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { loadLocalSecrets, loadProjectInfo, loadWorkspaceProjection } from '../projection.ts'
 import type { ProjectionFilesRemote, TaskRow } from '../projection.ts'
+import { describeOpenFailure } from '../open-failure.ts'
 import { buildOnboardingPrompt, buildShellPrompt, SHELL_STATES } from './shell-data.ts'
 import type { ShellMessage, ShellProjectInfo, ShellTask, ShellTaskState } from './shell-data.ts'
 import css from './Shell.module.css'
@@ -256,7 +257,8 @@ export function Shell({
       setSessionOverride(opened.sessionId)
       setProjectPicker(false)
     } catch (error: unknown) {
-      setRepoError(String(error))
+      const failure = describeOpenFailure(error)
+      setRepoError(`${t(failure.key)}（${failure.detail}）`)
     } finally {
       setOpening(false)
     }

@@ -42,6 +42,7 @@ Choose it when the kernel already runs and the user should work from LCoder's pr
 | Field | Default | Meaning |
 |---|---|---|
 | `shell` | `true` | Render the LCoder shell in the `lcoder-home` main panel; `false` keeps the right-sidebar tab |
+| `openTimeoutMs` | `15000` | Per-step deadline for Open repository; a deadline hit reports a timeout, a refusal reports the reason |
 
 The package mounts as a plugin row through the patch layer; it has no `dsh plugin add` installation path.
 
@@ -53,7 +54,7 @@ The package mounts as a plugin row through the patch layer; it has no `dsh plugi
 <details>
 <summary>Implementation internals — click to expand</summary>
 
-The package registers the shell main panel and, with `shell: false`, the older tab. The shell reads the workspace and session lists through the framework hooks, uses `workspaceFiles` for `.spec/tasks`, `.spec/spec/rules.yaml`, `.spec/project.yaml`, and `.spec/local.yaml`, and sends prompts through the session controller. The project picker's Open repository calls `workspaces.create` and `sessions.create`, then selects the new workspace.
+The package registers the shell main panel and, with `shell: false`, the older tab. The shell reads the workspace and session lists through the framework hooks, uses `workspaceFiles` for `.spec/tasks`, `.spec/spec/rules.yaml`, `.spec/project.yaml`, and `.spec/local.yaml`, and sends prompts through the session controller. The project picker's Open repository calls `workspaces.create` and `sessions.create`, then selects the new workspace. Each step waits at most `openTimeoutMs`: a deadline raises `WorkspaceOpenTimeoutError` naming the stalled step, and the shell shows the timeout text with that step; a refusal keeps the returned reason. The two cases use separate dictionary keys so a hung call is never labeled "failed".
 
 The floating conversation subscribes to the session event window and renders user/assistant text; the input sends another prompt to the same session. With no task on disk, the board's onboarding action fills and sends the analysis prompt instead of a per-task startup prompt. The package itself registers no model tool, prompt section, or schema.
 
@@ -101,6 +102,7 @@ None; the package does not change request prefixes.
 
 <a id="known-limitations-and-deferred-work"></a>
 
+- A timed-out Open repository releases only the shell: the underlying `workspaces.create` stays pending because the upstream Workspace command queue has no cancellation.
 - The floating conversation renders final user/assistant text from the session event window, not the full DSH conversation UI (tool cards, live token streaming).
 - The task board reads the first session in the selected workspace; a task-specific session per task is deferred.
 - The shell reloads when the selected workspace or session changes; incremental refresh through `workspaceFiles.changes` is deferred.
