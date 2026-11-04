@@ -4,7 +4,7 @@
  * 形态对齐上游最小插件（如 `@deepseek-ai/dsh-persona`）：
  * 具名导出 `name` / `inject` / `apply`，Cordis 的 loader 按包名加载后取这三样。
  *
- * 本插件只做一件事：**把六个工具注册进注册表**。
+ * 本插件只做一件事：**把十个工具注册进注册表**。
  * 工具面的收放（restrict 掩码）需要 Agent 作用域，由 surface 在会话侧接管，
  * 不在这里做——否则会变成全局限制，把每个 Agent 都罩住（DSH 会直接抛错）。
  */
@@ -13,8 +13,8 @@ import { join, resolve } from 'node:path'
 import { createEditTools, spawnRunner } from './tools/edit-tools.js'
 import { createSpecTools } from './tools/spec-tools.js'
 import { createTaskTools } from './tools/task-tools.js'
-import { SURFACE, checkSurface } from './kernel/surface.js'
-import { resolveRoot, sessionSpecRoot } from './kernel/spec-root.js'
+import { allowedTools, checkSurface } from './kernel/surface.js'
+import { hasSpecRoot, resolveRoot, sessionSpecRoot } from './kernel/spec-root.js'
 import type { RootInput, SpecRootContext } from './kernel/spec-root.js'
 import { listTasks } from './kernel/task-store.js'
 import type { TaskState } from './schema/spec.js'
@@ -36,7 +36,8 @@ export interface LcoderConfig {
   selfCheck?: boolean
   /**
    * 装载时按哪个任务的状态决定工具面。
-   * 不给则取 `.spec/tasks/` 下第一个任务；一个任务都没有就全量放开。
+   * 不给则取 `.spec/tasks/` 下第一个任务；一个任务都没有就退回空看板最小面
+   * （`file_read`、`spec_query`、`task_read`、`task_draft`）。
    */
   taskId?: string
 }
@@ -83,10 +84,15 @@ export function apply(ctx: PluginContext, config: LcoderConfig = {}): void {
         reportedRoots.add(root)
         console.error(`[lcoder] 规格根：${root}`)
       }
+      // 没有规格根 = 这个仓库还没立项，走空看板最小面。
+      if (!hasSpecRoot(root)) return null
       const tasks = listTasks(root)
       const task = taskId ? tasks.find(t => t.id === taskId) : tasks[0]
       return task?.state ?? null
-    } catch {
+    } catch (error) {
+      // 坏 YAML 或读盘失败都退回空看板最小面：立项工具仍然可用，
+      // 具体坏在哪由工具调用给出人话错误，不在这里静默禁用一切。
+      console.error(`[lcoder] 读任务状态失败，按空看板工具面处理：${String(error)}`)
       return null
     }
   }
@@ -95,11 +101,9 @@ export function apply(ctx: PluginContext, config: LcoderConfig = {}): void {
     const mount = () =>
       ctx.tools.register(tool, {
         when: (context) => {
-          const state = currentState(context)
-          // 没有任务就没有契约可用；此时保守放开，让检查器去拦，
-          // 而不是静默禁用一切——禁用会让"为什么什么都干不了"无从排查。
-          if (state === null) return true
-          return SURFACE[state].includes(tool.name)
+          // 取不到任务状态（没有 `.spec`，或 `tasks/` 是空的）时按空看板最小面收：
+          // 立项需要的读与建任务能力留着，改代码与跑命令的能力不放。
+          return allowedTools(currentState(context)).includes(tool.name)
         },
       })
     if (ctx.effect) ctx.effect(mount, `lcoder.tool(${tool.name})`)

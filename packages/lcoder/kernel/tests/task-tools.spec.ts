@@ -37,10 +37,20 @@ function setState(repo: string, state: string) {
   writeFileSync(path, text, 'utf8')
 }
 
+/** 只有产品文档、还没有 `.spec` 的仓库：立项流程的起点。 */
+function makeUnscopedRepo(): string {
+  const repo = mkdtempSync(join(tmpdir(), 'lcoder-unscoped-'))
+  dirs.push(repo)
+  mkdirSync(join(repo, 'docs'), { recursive: true })
+  writeFileSync(join(repo, 'docs', 'prd.md'), '# 产品文档\n佣金下限要可配置\n', 'utf8')
+  return repo
+}
+
 describe('任务工具', () => {
-  it('只提供 task_read 与 task_close', () => {
+  it('提供 task_read、task_draft 与 task_close', () => {
     expect(createTaskTools(makeRepo().spec).map(t => t.name)).toEqual([
       'task_read',
+      'task_draft',
       'task_close',
     ])
   })
@@ -179,5 +189,106 @@ describe('任务工具', () => {
     expect(r.ok).toBe(false)
     const details = (r.violations as { detail: string }[]).map(v => v.detail).join(' ')
     expect(details).toContain('agent')
+  })
+})
+
+describe('task_draft 立项', () => {
+  it('没有 .spec 的仓库也能建第一个任务，状态与时间戳由代码写定', async () => {
+    const repo = makeUnscopedRepo()
+    const spec = join(repo, '.spec')
+
+    const r = await call(spec, 'task_draft', { title: '佣金下限可配置', grade: 'b' })
+    expect(r).toMatchObject({ task_id: 'T-01', state: 'drafting', grade: 'B', created: true })
+
+    const onDisk = readFileSync(join(spec, 'tasks', 'T-01.yaml'), 'utf8')
+    expect(onDisk).toContain('state: drafting')
+    expect(onDisk).toContain('opened_at:')
+    expect(onDisk).toContain('closed_at: null')
+  })
+
+  it('同标题重复立项 → 返回既有任务，不覆盖已有文件', async () => {
+    const repo = makeUnscopedRepo()
+    const spec = join(repo, '.spec')
+    await call(spec, 'task_draft', { title: '  佣金下限 可配置 ', grade: 'A' })
+
+    const path = join(spec, 'tasks', 'T-01.yaml')
+    const before = readFileSync(path, 'utf8')
+    const again = await call(spec, 'task_draft', { title: '佣金下限可配置', grade: 'C' })
+
+    expect(again).toMatchObject({ task_id: 'T-01', state: 'drafting', grade: 'A', created: false })
+    expect(readFileSync(path, 'utf8')).toBe(before)
+  })
+
+  it('编号取现有 T- 序号的最大值之后，其它前缀不挤号', async () => {
+    const { spec } = makeRepo()
+    const r = await call(spec, 'task_draft', { title: '结算记录支持导出', grade: 'B' })
+    expect(r.task_id).toBe('T-02')
+  })
+
+  it('显式编号已被占用 → 报出被谁占用', async () => {
+    const { spec } = makeRepo()
+    await expect(call(spec, 'task_draft', { task_id: 'T-01', title: '另起一桩', grade: 'C' })).rejects.toThrow(
+      /T-01 已被「/,
+    )
+  })
+
+  it('非法编号、空标题、越界分级一律拒绝', async () => {
+    const { spec } = makeRepo()
+    await expect(call(spec, 'task_draft', { task_id: 't1', title: 'x', grade: 'A' })).rejects.toThrow(/非法的任务编号/)
+    await expect(call(spec, 'task_draft', { title: '   ', grade: 'A' })).rejects.toThrow(/非空的 title/)
+    await expect(call(spec, 'task_draft', { title: 'x', grade: 'D' })).rejects.toThrow(/grade 只能是 A、B、C/)
+  })
+
+  it('rules 只能是规格里真实存在的编号；其余字段按声明落盘', async () => {
+    const { spec } = makeRepo()
+    await expect(
+      call(spec, 'task_draft', { title: '结算下限调整', grade: 'B', rules: ['R-99'] }),
+    ).rejects.toThrow(/不存在的编号：R-99/)
+
+    const ok = await call(spec, 'task_draft', {
+      title: '自营订单佣金为 0',
+      grade: 'B',
+      rules: ['R-02'],
+      allowed_paths: ['src/'],
+      irreversible: ['settlement_formula'],
+      evidence_required: ['build'],
+    })
+    expect(ok).toMatchObject({ rules: ['R-02'], created: true })
+
+    const loaded = await call(spec, 'task_read', { task_id: ok.task_id })
+    expect(loaded).toMatchObject({
+      grade: 'B',
+      rules: ['R-02'],
+      evidence_required: ['build'],
+      scope: { irreversible: ['settlement_formula'], allowed_paths: ['src/'] },
+    })
+  })
+
+  it('还没有规格库时 rules 只能留空', async () => {
+    const repo = makeUnscopedRepo()
+    await expect(
+      call(join(repo, '.spec'), 'task_draft', { title: 'x', grade: 'B', rules: ['R-01'] }),
+    ).rejects.toThrow(/rules 只能留空/)
+  })
+
+  it('有规格库但还没有条目时，报出可用编号为空', async () => {
+    const repo = makeUnscopedRepo()
+    const spec = join(repo, '.spec')
+    mkdirSync(join(spec, 'tasks'), { recursive: true })
+    writeFileSync(join(spec, 'tasks', 'T-01.yaml'), [
+      'id: T-01', 'title: 已有任务', 'grade: C', 'state: drafting', 'rules: []',
+      'scope:', '  irreversible: []', '  allowed_paths: []', 'evidence_required: []',
+      'opened_at: 2026-11-02T15:00:00+08:00', 'closed_at: null', '',
+    ].join('\n'), 'utf8')
+
+    await expect(
+      call(spec, 'task_draft', { title: '引用不存在的条目', grade: 'B', rules: ['R-01'] }),
+    ).rejects.toThrow(/可用编号：（规格库还没有条目）/)
+  })
+
+  it('没有 .spec 时 task_read 给空表；指定编号才报错', async () => {
+    const spec = join(makeUnscopedRepo(), '.spec')
+    await expect(call(spec, 'task_read', {})).resolves.toMatchObject({ tasks: [] })
+    await expect(call(spec, 'task_read', { task_id: 'T-01' })).rejects.toThrow(/还没有 \.spec 规格库/)
   })
 })

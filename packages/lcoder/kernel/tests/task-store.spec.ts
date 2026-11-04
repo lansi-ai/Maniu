@@ -6,9 +6,12 @@ import { afterAll, describe, expect, it } from 'vitest'
 
 import {
   IllegalTransitionError,
+  assertTaskId,
   canTransition,
+  findByTitle,
   listTasks,
   loadTask,
+  nextTaskId,
   openTask,
   saveTask,
   transition,
@@ -107,5 +110,34 @@ describe('任务状态机', () => {
     const back = loadTask(root, 'T-014')
     expect(back).toEqual(t)
     expect(listTasks(root).map(x => x.id)).toEqual(['T-014'])
+  })
+})
+
+describe('立项时的编号与标题判定', () => {
+  function taskAt(id: string, title = id) {
+    return openTask({ id, title, grade: 'C', opened_at: AT })
+  }
+
+  it('编号从现有 T- 序号的最大值之后继续，两位起排', () => {
+    expect(nextTaskId([])).toBe('T-01')
+    expect(nextTaskId([taskAt('T-01'), taskAt('T-07'), taskAt('T-02')])).toBe('T-08')
+    expect(nextTaskId([taskAt('T-99')])).toBe('T-100')
+  })
+
+  it('其它前缀的编号不参与 T- 计数', () => {
+    expect(nextTaskId([taskAt('DEMO-01'), taskAt('W-09')])).toBe('T-01')
+    expect(nextTaskId([taskAt('DEMO-01'), taskAt('T-03')])).toBe('T-04')
+  })
+
+  it('标题查重忽略全部空白与大小写差异', () => {
+    const tasks = [taskAt('T-01', '  佣金下限 可配置 ')]
+    expect(findByTitle(tasks, '佣金下限可配置')?.id).toBe('T-01')
+    expect(findByTitle(tasks, '佣金下限  可配置')?.id).toBe('T-01')
+    expect(findByTitle(tasks, '另一个诉求')).toBeUndefined()
+  })
+
+  it('编号形态与既有校验一致：不合法就抛', () => {
+    expect(assertTaskId('T-014')).toBe('T-014')
+    expect(() => assertTaskId('t-14')).toThrow(/非法的任务编号/)
   })
 })

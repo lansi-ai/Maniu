@@ -20,7 +20,7 @@ import { stringify as stringifyYaml } from 'yaml'
 
 import { Contract } from '../schema/spec.js'
 import { loadSpec, saveRules } from '../kernel/spec-store.js'
-import { resolveRoot } from '../kernel/spec-root.js'
+import { hasSpecRoot, resolveRoot } from '../kernel/spec-root.js'
 import type { RootInput } from '../kernel/spec-root.js'
 
 const renderJson = (_args: unknown, value: unknown): { type: 'text'; text: string }[] => [
@@ -60,6 +60,15 @@ export function createSpecTools(rootInput: RootInput): ToolDefinition[] {
       // oxlint-disable-next-line typescript/require-await -- execute 的契约要求返回 Promise（ToolDefinition.execute），这里是同步实现。
       async execute(args, exec) {
         const root = resolveRoot(rootInput, exec)
+        // 没有 `.spec` 是起点而不是故障：读盘会抛 ENOENT，这里给出空规格库加下一步。
+        if (!hasSpecRoot(root)) {
+          return {
+            count: 0,
+            rules: [],
+            ...(args.include_states ? { states: [] } : {}),
+            note: '这个仓库还没有 .spec 规格库；按产品文档用 task_draft 立项，规格条目走规格流程登记。',
+          }
+        }
         const snap = loadSpec(root)
         const kw = args.keyword?.toLowerCase()
 

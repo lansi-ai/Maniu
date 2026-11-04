@@ -11,7 +11,7 @@
  *   2. **同状态重复 apply 直接返回。** 换掩码会让前缀缓存从首个变化的 schema
  *      token 起失效，没有状态变化的空切换纯属花钱。
  *   3. **掩码表先写在代码里。** MVP-0 不引配置层——配置错了没人拦得住，
- *      而这张表目前只有五条，改它的频率远低于改代码。
+ *      而这张表只有五条状态掩码加一张空看板掩码，改它的频率远低于改代码。
  */
 import type { TaskState } from '../schema/spec.js'
 
@@ -26,12 +26,13 @@ import type { TaskState } from '../schema/spec.js'
  * 签署是人机命令（`ctx.commands`，不经过模型回合），见 docs/cookbook/adding-a-tool.md。
  */
 export const SURFACE: Readonly<Record<TaskState, readonly string[]>> = {
-  drafting: ['file_read', 'spec_query', 'spec_bind', 'task_read', 'contract_draft'],
+  drafting: ['file_read', 'spec_query', 'spec_bind', 'task_read', 'task_draft', 'contract_draft'],
   contracted: [
     'file_read',
     'spec_query',
     'spec_bind',
     'task_read',
+    'task_draft',
     'contract_draft',
     'file_edit',
     'cmd_run',
@@ -42,6 +43,7 @@ export const SURFACE: Readonly<Record<TaskState, readonly string[]>> = {
     'spec_query',
     'spec_bind',
     'task_read',
+    'task_draft',
     'contract_draft',
     'file_edit',
     'cmd_run',
@@ -52,6 +54,7 @@ export const SURFACE: Readonly<Record<TaskState, readonly string[]>> = {
     'spec_query',
     'spec_bind',
     'task_read',
+    'task_draft',
     'contract_draft',
     'file_edit',
     'cmd_run',
@@ -62,13 +65,32 @@ export const SURFACE: Readonly<Record<TaskState, readonly string[]>> = {
   closed: ['file_read', 'spec_query', 'task_read'],
 }
 
-export function allowedTools(state: TaskState): readonly string[] {
-  return SURFACE[state]
+/**
+ * 空看板掩码：会话工作区里取不到任务状态时（`.spec` 不存在或 `tasks/` 为空）
+ * 模型可见的工具。
+ *
+ * 这一档回答的是「一个只有产品文档的仓库该怎么立项」：读代码、读规格、读已有
+ * 任务，再把调研结论落成一个新的起草态任务。`file_edit`、`cmd_run` 不在这里，
+ * `spec_bind` 与 `contract_draft` 也不在——任务还没立，绑落点和起草契约都太早。
+ *
+ * 掩码只覆盖 `@lcoder/kernel` 自己注册的工具；上游 bundle 全局注册的
+ * `read`/`edit`/`write`/`glob`/`grep`/`bash`/`pwsh` 由 `when` 管不到，
+ * 收口它们需要 Agent 作用域的 `restrict`（见 `SurfaceSwitcher`）。
+ */
+export const UNSCOPEED_SURFACE: readonly string[] = ['file_read', 'spec_query', 'task_read', 'task_draft']
+
+/**
+ * 某个状态（或空看板）允许的工具名。
+ * @param state - 当前任务状态；没有任务时传 null。
+ * @returns 模型可见的工具名清单。
+ */
+export function allowedTools(state: TaskState | null): readonly string[] {
+  return state === null ? UNSCOPEED_SURFACE : SURFACE[state]
 }
 
-/** 所有状态下出现过的工具名，去重。 */
+/** 所有掩码里出现过的工具名，去重。 */
 export function allToolNames(): string[] {
-  return [...new Set(Object.values(SURFACE).flat())].sort()
+  return [...new Set([...Object.values(SURFACE).flat(), ...UNSCOPEED_SURFACE])].sort()
 }
 
 // ── 边界：DSH 的 restrict 形状 ─────────────────────────────

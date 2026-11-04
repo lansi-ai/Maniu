@@ -16,7 +16,7 @@ English | [中文](PROJECT-RULES.zh.md)
 ## 1. Hard red lines (project-specific · never violate)
 
 - 🚫 Do not modify any upstream file. When a modification is genuinely required, first add the file to [contact-surface.txt](../lcoder/contact-surface.txt) and record what and why in [UPSTREAM-BASELINE.md](../lcoder/UPSTREAM-BASELINE.md) §3.
-- 🚫 The task and specification YAML under `.spec` is the single source of truth for **LCoder product data**; the UI only reads it, and state-machine decisions never live in the UI. It is not this repository's development task ledger.
+- 🚫 The task and specification YAML under `.spec` is the single source of truth for **LCoder product data**; the UI only reads it, and state-machine decisions never live in the UI. It is not this repository's development task ledger. The kernel is the only writer: a model may file a `drafting` task through `task_draft`, and may not advance task state, sign a contract, or edit specification entries.
 - 🚫 The target platform is Windows desktop; handle paths Windows-first (drive letters, backslashes, case-insensitive).
 - 🚫 `contract_sign` is never registered as a model tool; only a human may sign a contract, and `by: agent` is invalid.
 - 🚫 Prefer adding over modifying; upstream changes touch only the assembly layer (patch layer, aggregate tsconfig), never component internals.
@@ -119,6 +119,7 @@ The grade matches the `grade` field in the development ledger `docs/tasks.yaml`.
 - `@lcoder/*` must be linked into `~/.dsh/profiles/web` with `link:`; repeat after changing machines or rebuilding `~/.dsh`.
 - On Windows, killing `dev:web` does not kill child processes; clean the process tree and confirm the port is free before starting another instance.
 - Do not pipe `dev:web`; redirect output to a file and read it, or the log stays buffered until the process exits.
+- One desktop line per worktree: the main window keeps the default Electron inspector ports (9229/9222/9230), and a feature worktree sets `DSH_DESKTOP_MAIN_INSPECT_PORT`, `DSH_DESKTOP_RENDERER_DEBUG_PORT`, and `DSH_DESKTOP_HOST_INSPECT_PORT` to a reserved triple recorded in that task's ledger note. `apps/desktop/scripts/dev.ts` points `DSH_HOME` and Electron `userData` into `apps/desktop/.desktop-build/development/`, so a worktree never writes the main window's `~/.dsh`; re-link `@lcoder/*` to the worktree's own package directories.
 - Plugin paths are batch combo URLs, not `plugins/<name>/client.js`; a single request returns 404.
 - Documentation gate: `pnpm run test:docs`; package READMEs need the `kind` / `description` frontmatter and the `Summary` / `Table of Contents` / `Dev Note` skeleton.
 - Board: edit `docs/tasks.yaml` first, then run `python scripts/build-tasks-html.py`; the artifact is `docs/tasks-html/index.html`. `.spec` does not participate in board generation.

@@ -3,14 +3,14 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/lcoder/kernel/README.md
 /:
-  en: 2b104d9ab443f384
-  zh: 5a7828c8987d5d3c
+  en: 8f7b29737105df73
+  zh: ff39a20ddf53b7b1
 /lcoder-kernel:
   en: a95393a6e4ffca62
   zh: e7af040009df6a9e
 /lcoder-kernel/summary:
-  en: 4bcaad7a43e1e8c0
-  zh: c3594dd1e5be8828
+  en: 1c59453af4d90011
+  zh: fc9e7c7184a39804
 /lcoder-kernel/table-of-contents:
   en: d152484eb41ac6b4
   zh: ce40cab8e7534137
@@ -18,14 +18,14 @@
   en: 8e0d0538c78d6782
   zh: 1ce81fb6e7e1eb74
 /lcoder-kernel/use-this-package/when-to-choose-it:
-  en: c70f952948e64268
-  zh: 09b0189f6e7f07d4
+  en: 0116022a4a852132
+  zh: afab15ff1a52da7e
 /lcoder-kernel/use-this-package/minimal-configuration:
-  en: 6753b676e906dcc1
-  zh: 8642d0a63c0b0af6
+  en: 45811e8f557a8a5d
+  zh: d6234b09456b9a62
 /lcoder-kernel/understand-the-implementation:
-  en: 7ce3c4d2122cdd00
-  zh: e203e8b5aee7f9ea
+  en: 0e395719fd6d3603
+  zh: 0a2a6e6c5c18eda0
 /lcoder-kernel/further-exploration:
   en: b44de98f05ca06ec
   zh: 78166b63b55c8174
@@ -36,8 +36,8 @@
   en: a16d0961a3504ff2
   zh: cb31599adb4c7f0c
 /lcoder-kernel/model-experience/registered-tools/what-the-model-sees:
-  en: d8a49432e6de4611
-  zh: e4a6dd3a2e722847
+  en: d7c4f820e0bd48fc
+  zh: 8a3a115dbeeaf4be
 /lcoder-kernel/model-experience/registered-tools/token-effect:
   en: 96e3087ddc03dd14
   zh: cc71ba26943a9e71
@@ -45,8 +45,8 @@
   en: e06c1a0395b1be0b
   zh: 621e61273782dce7
 /lcoder-kernel/known-limitations-and-deferred-work:
-  en: e82e4bb3fa8f2da4
-  zh: 2114570800da6650
+  en: 4fa87df57b9cf930
+  zh: b737e631579abfb5
 /lcoder-kernel/known-limitations-and-deferred-work/dev-note:
   en: ab7b3c608d26bd33
   zh: f9df7398d9b6244d

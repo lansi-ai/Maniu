@@ -1,10 +1,13 @@
 /**
- * 任务侧工具：读任务、申请收口。
+ * 任务侧工具：读任务、立项、申请收口。
  *
  * `task_close` 是"凭什么算做完"的落点：它把 P1/P3/P4 三条检查器串起来，
  * **全部通过才允许转移状态**。不通过就把违规清单原样交出来，一条也不吞。
  *
  * 状态图本身也会拦：`implementing` 不能直接到 `closed`，必须先过 `verifying`。
+ *
+ * `task_draft` 是模型唯一的立项入口：它只新建 `drafting` 任务，状态、时间戳
+ * 由代码写定——模型说不出「已经签过」，也说不出「什么时候开的」。
  */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, resolve } from 'node:path'
@@ -16,9 +19,9 @@ import { parse as parseYaml } from 'yaml'
 import { checkP1, checkP3, checkP4 } from '../checkers/index.js'
 import type { Violation } from '../checkers/index.js'
 import { loadSpec, textCodeIndexFromDir } from '../kernel/spec-store.js'
-import { resolveRoot } from '../kernel/spec-root.js'
+import { hasSpecRoot, resolveRoot } from '../kernel/spec-root.js'
 import type { RootInput } from '../kernel/spec-root.js'
-import { listTasks, loadTask, saveTask, transition } from '../kernel/task-store.js'
+import { assertTaskId, findByTitle, listTasks, loadTask, nextTaskId, openTask, saveTask, taskPath, transition } from '../kernel/task-store.js'
 import { Contract } from '../schema/spec.js'
 
 const renderJson = (_args: unknown, value: unknown): { type: 'text'; text: string }[] => [
@@ -58,6 +61,11 @@ export function createTaskTools(specRootInput: RootInput): ToolDefinition[] {
       // oxlint-disable-next-line typescript/require-await -- execute 的契约要求返回 Promise（ToolDefinition.execute），这里是同步实现。
       async execute(args, exec) {
         const specRoot = resolveRoot(specRootInput, exec)
+        // 没有 `.spec` 是起点，不是故障：读盘会抛 ENOENT，这里先挡掉。
+        if (!hasSpecRoot(specRoot)) {
+          if (args.task_id) throw new Error(`这个仓库还没有 .spec 规格库，读不到任务 ${args.task_id}；先用 task_draft 立项`)
+          return { tasks: [], note: '这个仓库还没有 .spec 规格库；用 task_draft 把调研结论落成起草态任务。' }
+        }
         if (args.task_id) {
           const t = loadTask(specRoot, args.task_id)
           return {
@@ -77,6 +85,89 @@ export function createTaskTools(specRootInput: RootInput): ToolDefinition[] {
             state: t.state,
             grade: t.grade,
           })),
+        }
+      },
+    }),
+
+    defineTool({
+      name: 'task_draft',
+      description:
+        '新建一个起草态（drafting）任务，把调研结论落成 .spec/tasks/<编号>.yaml。状态由本工具写死为 drafting，时间戳取执行时刻：本工具不能改任务状态、不能签契约、不能改代码。同标题已存在任务时返回那个任务，不重复建。',
+      parameters: {
+        title: { type: 'string', required: true, description: '任务标题，一句话说清要办成什么' },
+        grade: { type: 'string', required: true, description: '分级：A（契约/架构/规则变更）、B（常规功能）、C（小修）' },
+        rules: { type: 'array', items: { type: 'string' }, description: '触及的规格条目编号，必须已存在于 spec/rules.yaml' },
+        allowed_paths: { type: 'array', items: { type: 'string' }, description: '允许改动的仓库内路径前缀' },
+        irreversible: { type: 'array', items: { type: 'string' }, description: '不可逆对象名；填了就必须有人签署的契约才能收口（P3）' },
+        evidence_required: { type: 'array', items: { type: 'string' }, description: '收口必备的证据项，对应 env.yaml 里登记的命令 id' },
+        task_id: { type: 'string', description: '指定编号，形如 T-014；省略则取现有 T- 编号之后的下一个空号' },
+      },
+      output: { schema: { type: 'json' }, render: renderJson },
+      // oxlint-disable-next-line typescript/require-await -- execute 的契约要求返回 Promise（ToolDefinition.execute），这里是同步实现。
+      async execute(args, exec) {
+        const specRoot = resolveRoot(specRootInput, exec)
+        const title = args.title.trim()
+        if (title === '') throw new Error('task_draft 需要非空的 title：一句话说清这个任务要办成什么')
+
+        const grade = args.grade.trim().toUpperCase()
+        if (grade !== 'A' && grade !== 'B' && grade !== 'C') {
+          throw new Error(`task_draft 的 grade 只能是 A、B、C，收到：${args.grade}`)
+        }
+
+        const existing = hasSpecRoot(specRoot) ? listTasks(specRoot) : []
+
+        const duplicate = findByTitle(existing, title)
+        if (duplicate !== undefined) {
+          return {
+            task_id: duplicate.id,
+            path: taskPath(specRoot, duplicate.id),
+            state: duplicate.state,
+            grade: duplicate.grade,
+            rules: duplicate.rules,
+            created: false,
+            note: `已有一个同标题任务 ${duplicate.id}（${duplicate.state}），没有重复新建。要继续就基于它起草契约。`,
+          }
+        }
+
+        const id = args.task_id === undefined ? nextTaskId(existing) : assertTaskId(args.task_id)
+        const occupied = existing.find(task => task.id === id)
+        if (occupied !== undefined) {
+          throw new Error(`任务编号 ${id} 已被「${occupied.title}」占用；省略 task_id 可自动取下一个空号`)
+        }
+
+        const requestedRules = args.rules ?? []
+        if (requestedRules.length > 0) {
+          if (!hasSpecRoot(specRoot)) {
+            throw new Error('这个仓库还没有 .spec 规格库，rules 只能留空；先把规格条目登记进 spec/rules.yaml')
+          }
+          const known = new Set(loadSpec(specRoot).rules.map(rule => rule.id))
+          const unknown = requestedRules.filter(ruleId => !known.has(ruleId))
+          if (unknown.length > 0) {
+            throw new Error(
+              `rules 里有规格库不存在的编号：${unknown.join(', ')}。可用编号：${[...known].join(', ') || '（规格库还没有条目）'}`,
+            )
+          }
+        }
+
+        const task = openTask({
+          id,
+          title,
+          grade,
+          rules: requestedRules,
+          scope: { irreversible: args.irreversible ?? [], allowed_paths: args.allowed_paths ?? [] },
+          evidence_required: args.evidence_required ?? [],
+          opened_at: new Date().toISOString(),
+        })
+        const path = saveTask(specRoot, task)
+
+        return {
+          task_id: task.id,
+          path,
+          state: task.state,
+          grade: task.grade,
+          rules: task.rules,
+          created: true,
+          note: '任务已建，状态 drafting。契约用 contract_draft 起草；签署只能由人完成，本工具不提供签署。',
         }
       },
     }),

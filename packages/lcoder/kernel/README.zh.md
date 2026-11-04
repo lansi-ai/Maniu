@@ -1,5 +1,5 @@
 ---
-description: "LCoder 的宿主插件：九个规格、任务与编辑工具的可见性随任务状态收放，规格根按会话工作区解析。"
+description: "LCoder 的宿主插件：十个规格、任务与编辑工具的可见性随任务状态收放；仓库没有可读任务时退回四工具立项面，规格根按会话工作区解析。"
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`@lcoder/kernel` 向 DeepSeek Harness 宿主注册 LCoder 的九个规格与任务工具。工具面随当前任务状态收放：`drafting` 只给读取与契约工具，`contracted` 增加编辑、命令执行与证据，`closed` 只读。规格根跟随会话工作区，因此桌面端宿主读目标仓库的 `.spec`，而不是它的 profile 目录。宿主提供 `tools` 服务后，通过 LCoder patch 层挂载本包。`contract_sign` 刻意不存在。
+`@lcoder/kernel` 向 DeepSeek Harness 宿主注册 LCoder 的十个规格与任务工具。工具面随当前任务状态收放：`drafting` 给读取、契约与立项工具，`contracted` 增加编辑、命令执行与证据，`closed` 只读。取不到任务状态的仓库不再拿到全量能力，而是拿到立项面 `file_read`、`spec_query`、`task_read`、`task_draft`。规格根跟随会话工作区，因此桌面端宿主读目标仓库的 `.spec`，而不是它的 profile 目录。宿主提供 `tools` 服务后，通过 LCoder patch 层挂载本包。`contract_sign` 刻意不存在。
 
 ## 目录
 
@@ -29,7 +29,7 @@ kind: "package-reference"
 
 ### 何时选择它
 
-当 DeepSeek Harness 组合已经提供 `tools` 服务，且 agent 应在 LCoder 五态任务流下工作时选择它。不要把它当通用文件编辑工具包：工具面按任务状态 fail-closed，契约未签时 `file_edit` 与 `cmd_run` 不可见。
+当 DeepSeek Harness 组合已经提供 `tools` 服务，且 agent 应在 LCoder 五态任务流下工作时选择它。不要把它当通用文件编辑工具包：工具面按任务状态 fail-closed，契约未签时 `file_edit` 与 `cmd_run` 不可见。还没有 `.spec` 的仓库按“未立项”处理：模型能读、能立任务，收口仍需有人签署的契约。
 
 ### 最小配置
 
@@ -45,7 +45,7 @@ kind: "package-reference"
 |---|---|---|
 | `root` | `process.cwd()/.spec` | 会话没有 cwd 时的备案规格根 |
 | `selfCheck` | `true` | 加载时打印工具面自检 |
-| `taskId` | 第一个任务 | 用哪个任务的状态选择工具面 |
+| `taskId` | 第一个任务 | 用哪个任务的状态选择工具面；读不到任务时按立项面收 |
 
 本插件通过 patch 层作为插件行挂载，没有 `dsh plugin add` 安装路径。一次工具调用从 `session.header.cwd/.spec` 解析规格根；没有会话 cwd 时用 `root`，没有 `root` 时用 `process.cwd()/.spec`。
 
@@ -59,7 +59,7 @@ kind: "package-reference"
 
 插件具名导出 `name`、`inject` 与 `apply`，与上游函数插件形态一致。它注入 `tools`，为每个定义注册一个 `when` 条件，每个 model step 求值一次。条件每次都从磁盘读取任务状态，因此签契约或推进任务会立刻改变可见工具。
 
-每个工具工厂接受固定根或解析函数。解析函数只读窄会话事实 `agent.session.header.cwd`；插件把同一个解析函数交给九个工具，因此同一会话在规格与任务操作上看到同一个规格根。文件工具收到仓库根（规格根的上一级），而 `cmd_run`、`env.yaml` 与证据仍留在规格根下。
+每个工具工厂接受固定根或解析函数。解析函数只读窄会话事实 `agent.session.header.cwd`；插件把同一个解析函数交给十个工具，因此同一会话在规格与任务操作上看到同一个规格根。文件工具收到仓库根（规格根的上一级），而 `cmd_run`、`env.yaml` 与证据仍留在规格根下。
 
 | 文件 | 职责 |
 |---|---|
@@ -67,7 +67,7 @@ kind: "package-reference"
 | `src/kernel/spec-root.ts` | 会话优先的规格根解析 |
 | `src/kernel/spec-store.ts` | 规则与状态机的读写 |
 | `src/kernel/task-store.ts` | 任务对象、迁移与落盘 |
-| `src/tools/spec-tools.ts`、`src/tools/task-tools.ts`、`src/tools/edit-tools.ts` | 九个模型工具 |
+| `src/tools/spec-tools.ts`、`src/tools/task-tools.ts`、`src/tools/edit-tools.ts` | 十个模型工具 |
 | `src/checkers/index.ts` | P1、P3、P4 收口检查器 |
 
 </details>
@@ -91,7 +91,7 @@ kind: "package-reference"
 
 #### 模型看到什么
 
-九个工具的名称、描述与 `parameters` JSON Schema，按当前任务状态经 `when` 过滤。`contract_sign` 永不出现在其中。
+十个工具的名称、描述与 `parameters` JSON Schema，按当前任务状态经 `when` 过滤；读不到任务状态时给立项面。`contract_sign` 永不出现在其中。
 
 #### Token 影响
 
@@ -107,6 +107,7 @@ kind: "package-reference"
 
 - `contract_sign` 按设计不存在；契约由人在模型回合之外签署。
 - `task_transition` 没有工具入口；推进任务需要编辑其 YAML。
+- `when` 只管本包注册的工具。bundle 全局注册的工具（`read`、`write`、`edit`、`glob`、`grep`、`bash`、`pwsh`）对该 profile 的每个 Agent 都可见，所以未立项仓库并不会因此失去改代码能力；要收住它们需要 Agent 作用域的 `restrict`。
 - P1 使用文本索引，注释或字符串里的同名标识符会造成误报。
 
 <a id="dev-note"></a>

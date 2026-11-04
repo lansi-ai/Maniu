@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { SURFACE, SurfaceSwitcher, allToolNames, checkSurface } from '../src/kernel/surface.js'
+import { SURFACE, UNSCOPEED_SURFACE, SurfaceSwitcher, allowedTools, allToolNames, checkSurface } from '../src/kernel/surface.js'
 import type { TaskState } from '../src/schema/spec.js'
 
 const STATES: TaskState[] = ['drafting', 'contracted', 'implementing', 'verifying', 'closed']
@@ -108,5 +108,37 @@ describe('掩码自检', () => {
 
   it('每个状态至少提供一个工具（空掩码会被 DSH 拒绝）', () => {
     for (const s of STATES) expect(SURFACE[s].length).toBeGreaterThan(0)
+    expect(UNSCOPEED_SURFACE.length).toBeGreaterThan(0)
+  })
+
+  it('自检把空看板面的工具也算作已声明，不报 orphan', () => {
+    expect(checkSurface(allToolNames())).toEqual({ missing: [], orphan: [] })
+  })
+})
+
+describe('空看板工具面', () => {
+  it('只放开立项需要的读取与建任务能力', () => {
+    expect(UNSCOPEED_SURFACE).toEqual(['file_read', 'spec_query', 'task_read', 'task_draft'])
+    expect(UNSCOPEED_SURFACE).not.toContain('file_edit')
+    expect(UNSCOPEED_SURFACE).not.toContain('cmd_run')
+    expect(UNSCOPEED_SURFACE).not.toContain('spec_bind')
+    expect(UNSCOPEED_SURFACE).not.toContain('contract_draft')
+    expect(UNSCOPEED_SURFACE).not.toContain('task_close')
+  })
+
+  it('allowedTools 无任务时给空看板面，有任务时按状态表', () => {
+    expect(allowedTools(null)).toEqual(UNSCOPEED_SURFACE)
+    expect(allowedTools('drafting')).toEqual(SURFACE.drafting)
+  })
+
+  it('空看板面是起草面的子集：立完项能力只增不减', () => {
+    for (const tool of UNSCOPEED_SURFACE) expect(SURFACE.drafting).toContain(tool)
+  })
+
+  it('task_draft 在起草到验证的每个状态都可见，终态 closed 不放', () => {
+    for (const s of ['drafting', 'contracted', 'implementing', 'verifying'] as TaskState[]) {
+      expect(SURFACE[s]).toContain('task_draft')
+    }
+    expect(SURFACE.closed).not.toContain('task_draft')
   })
 })

@@ -6,6 +6,7 @@
  * `header.cwd` 是不可变的工作区事实，UI 投影也按它解析相对路径，
  * 工具跟随同一来源才不会与 UI 各读一套 `.spec`。
  */
+import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 
 /** 解析规格根所需的最小会话事实：`agent.session.header.cwd`。 */
@@ -41,4 +42,13 @@ export function resolveRoot(input: RootInput, context?: SpecRootContext): string
 export function sessionSpecRoot(context: SpecRootContext | undefined, fallback: string): string {
   const cwd = context?.agent?.session.header.cwd
   return typeof cwd === 'string' && cwd !== '' ? join(cwd, '.spec') : fallback
+}
+
+/**
+ * 规格根是否已经存在于磁盘上。
+ * @param root - 解析出的规格库根目录。
+ * @returns false 表示这个仓库还没立项——没有 `.spec` 是起点，不是故障。
+ */
+export function hasSpecRoot(root: string): boolean {
+  return existsSync(root)
 }

@@ -135,3 +135,43 @@ export function buildShellPrompt(project: ShellPromptProject, task: ShellTask): 
 5. 门禁：typecheck / lint / vitest / test:docs；
 6. 收口置 done、重跑看板，bug 写 PITFALLS，不自动 push。`
 }
+
+/** 立项咒语需要的交付文档路径；空串表示 `.spec/project.yaml` 没声明。 */
+export interface ShellOnboardingDocs {
+  readonly product: string
+  readonly architecture: string
+  readonly tests: string
+}
+
+/**
+ * 生成零任务仓库的立项分析咒语：把产品文档路径交给模型，让 agent 先调研再逐个建
+ * drafting 任务。提示词走会话的 `user/message`，所以模型可见内容可从日志复原。
+ * @param project - 当前项目。
+ * @param docs - `.spec/project.yaml` 声明的交付文档；缺失时要求先问用户。
+ * @returns 可直接发送的提示词。
+ */
+export function buildOnboardingPrompt(project: ShellPromptProject, docs: ShellOnboardingDocs): string {
+  const declared = [
+    { label: '产品文档', path: docs.product },
+    { label: '架构文档', path: docs.architecture },
+    { label: '测试用例', path: docs.tests },
+  ].filter(entry => entry.path !== '')
+
+  const sources = declared.length === 0
+    ? '- 文档来源：`.spec/project.yaml` 没有声明交付文档；先向用户确认产品文档在哪，不要猜路径。'
+    : declared.map(entry => `- ${entry.label}：${entry.path}`).join('\n')
+
+  return `@task-flow 立项分析：${project.name}（${project.path}）
+
+第 0 步 现状：
+- 规格根：${project.path}/.spec
+- 项目：${project.name}（${project.path}，${project.branch}）
+- 任务：一个都读不到，这个仓库还没立项。
+${sources}
+
+请按任务驱动入口执行：
+1. 调研：先 task_read 确认空看板，再 file_read 逐个读上面的文档，必要时读仓库里的代码；
+2. 分类分级：给出任务清单，逐条写清边界、验收口径与 A/B/C 分级的理由；拿不准先问我；
+3. 立项：每个任务调一次 task_draft，状态固定 drafting；rules 只填 spec_query 查得到的编号，没有规格条目就留空；
+4. 到此为止：不要改业务代码，不要给自己签契约——契约由 contract_draft 起草、由人签署。`
+}
