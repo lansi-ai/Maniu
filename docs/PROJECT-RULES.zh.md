@@ -113,13 +113,14 @@
 
 ## 6. 环境注意
 
+- **隔离是产品约束，不是偏好。** LCoder 的开发与验证既不得依赖本机是否安装了桌面版或 `dsh`，也不得改变本机已装的那些应用。每次运行都把 `DSH_HOME` 指向仓库内目录（仓根 `.dsh-home/`，已进 `.gitignore`；worktree 用各自仓内 home），桌面 `userData` 留在 `apps/desktop/.desktop-build/development/electron-user-data`——`apps/desktop/scripts/dev.ts` 本来就默认到这里。禁止：写 `~/.dsh`、写 `AppData`、动注册表、安装或卸载应用、杀不是本次会话拉起的进程。
 - Node 要求 `>=24.9.0`；本机用 `pnpm env use --global 24`，不要改系统 Node。
 - 首次安装 `pnpm install`；首次启动前跑 `pnpm run build:artifacts`。
-- 启动：`pnpm dsh web --patch lcoder/cordis.patch.yml --no-open --port 3080`。
-- `@lcoder/*` 要在 `~/.dsh/profiles/web` 用 `link:` 接入；换机或重建 `~/.dsh` 后重做。
+- 启动：`DSH_HOME='<仓内绝对路径>\.dsh-home' pnpm dsh web --patch lcoder/cordis.patch.yml --no-open --port 3080`（Git Bash 里路径要写成 Windows 形式，否则 profile 静默起不来）。
+- `@lcoder/*` 用 `link:` 接进仓内 profile（`<DSH_HOME>/profiles/web/package.json`），不接进 `~/.dsh`；重建 home 目录后重做。
 - Windows 上 kill `dev:web` 不会带走子进程；换实例前按进程树清理，再确认端口空闲。
 - 不要给 `dev:web` 接管道；输出重定向到文件再读，否则日志会被缓冲到进程结束。
-- 一条桌面线一个 worktree：主窗用默认 Electron inspector 端口（9229/9222/9230），feature worktree 用 `DSH_DESKTOP_MAIN_INSPECT_PORT`、`DSH_DESKTOP_RENDERER_DEBUG_PORT`、`DSH_DESKTOP_HOST_INSPECT_PORT` 设一组预留端口，端口号记在该任务的台账备注里。`apps/desktop/scripts/dev.ts` 把 `DSH_HOME` 与 Electron `userData` 指进 `apps/desktop/.desktop-build/development/`，worktree 不写主窗的 `~/.dsh`；`@lcoder/*` 的 link 要指向 worktree 自己的包目录。
+- 一条桌面线一个 worktree：主窗用默认 Electron inspector 端口（9229/9222/9230），feature worktree 用 `DSH_DESKTOP_MAIN_INSPECT_PORT`、`DSH_DESKTOP_RENDERER_DEBUG_PORT`、`DSH_DESKTOP_HOST_INSPECT_PORT` 设一组预留端口，端口号记在该任务的台账备注里。`apps/desktop/scripts/dev.ts` 把 `DSH_HOME` 与 Electron `userData` 指进 `apps/desktop/.desktop-build/development/`，worktree 不写主窗的 `~/.dsh`；这些默认值别改——把 `DSH_HOME` 设成 `~/.dsh` 就等于让一次验证去写本机安装态。`@lcoder/*` 的 link 要指向 worktree 自己的包目录。
 - 插件路径是批量 combo URL，不是 `plugins/<name>/client.js`；单独请求会 404。
 - 文档门禁：`pnpm run test:docs`；包 README 必须有 `kind` / `description` frontmatter 与 `Summary` / `Table of Contents` / `Dev Note` 骨架。
 - 看板：先改 `docs/tasks.yaml`，再跑 `python scripts/build-tasks-html.py`；产物是 `docs/tasks-html/index.html`。`.spec` 不参与看板生成。

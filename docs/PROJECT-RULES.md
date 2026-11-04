@@ -113,13 +113,14 @@ The grade matches the `grade` field in the development ledger `docs/tasks.yaml`.
 
 ## 6. Environment notes
 
+- **Isolation is a product constraint, not a preference.** LCoder development and verification must not depend on whether this machine has the packaged desktop app or a `dsh` install, and must not change those installs either. Every run points `DSH_HOME` at a directory inside the repository (`.dsh-home/` at the repo root, ignored; a worktree uses its own in-repo home), and desktop `userData` stays on `apps/desktop/.desktop-build/development/electron-user-data`, which `apps/desktop/scripts/dev.ts` already defaults to. Forbidden: writing `~/.dsh`, writing `AppData`, touching the registry, installing or uninstalling an application, and killing a process this session did not start.
 - Node must be `>=24.9.0`; on this machine use `pnpm env use --global 24` and do not change the system Node.
 - First install: `pnpm install`; before the first launch run `pnpm run build:artifacts`.
-- Launch: `pnpm dsh web --patch lcoder/cordis.patch.yml --no-open --port 3080`.
-- `@lcoder/*` must be linked into `~/.dsh/profiles/web` with `link:`; repeat after changing machines or rebuilding `~/.dsh`.
+- Launch: `DSH_HOME='<repo>\.dsh-home' pnpm dsh web --patch lcoder/cordis.patch.yml --no-open --port 3080` (Git Bash needs the Windows form of the path, or the profile silently fails to resolve).
+- `@lcoder/*` must be linked with `link:` into the in-repo profile (`<DSH_HOME>/profiles/web/package.json`); it is never linked into `~/.dsh`. Repeat after rebuilding the home directory.
 - On Windows, killing `dev:web` does not kill child processes; clean the process tree and confirm the port is free before starting another instance.
 - Do not pipe `dev:web`; redirect output to a file and read it, or the log stays buffered until the process exits.
-- One desktop line per worktree: the main window keeps the default Electron inspector ports (9229/9222/9230), and a feature worktree sets `DSH_DESKTOP_MAIN_INSPECT_PORT`, `DSH_DESKTOP_RENDERER_DEBUG_PORT`, and `DSH_DESKTOP_HOST_INSPECT_PORT` to a reserved triple recorded in that task's ledger note. `apps/desktop/scripts/dev.ts` points `DSH_HOME` and Electron `userData` into `apps/desktop/.desktop-build/development/`, so a worktree never writes the main window's `~/.dsh`; re-link `@lcoder/*` to the worktree's own package directories.
+- One desktop line per worktree: the main window keeps the default Electron inspector ports (9229/9222/9230), and a feature worktree sets `DSH_DESKTOP_MAIN_INSPECT_PORT`, `DSH_DESKTOP_RENDERER_DEBUG_PORT`, and `DSH_DESKTOP_HOST_INSPECT_PORT` to a reserved triple recorded in that task's ledger note. `apps/desktop/scripts/dev.ts` points `DSH_HOME` and Electron `userData` into `apps/desktop/.desktop-build/development/`, so a worktree never writes the main window's `~/.dsh`; leave those defaults alone — setting `DSH_HOME` to `~/.dsh` is what turns a verification run into a write against the machine's install. `@lcoder/*` links point at the worktree's own package directories.
 - Plugin paths are batch combo URLs, not `plugins/<name>/client.js`; a single request returns 404.
 - Documentation gate: `pnpm run test:docs`; package READMEs need the `kind` / `description` frontmatter and the `Summary` / `Table of Contents` / `Dev Note` skeleton.
 - Board: edit `docs/tasks.yaml` first, then run `python scripts/build-tasks-html.py`; the artifact is `docs/tasks-html/index.html`. `.spec` does not participate in board generation.
