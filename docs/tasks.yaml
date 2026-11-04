@@ -170,6 +170,18 @@ tracks:
       inferred: false
       note: "A 级（装配层新增角色 preset 与委派预算）；分支 lcoder/t25-multi-role，worktree .worktrees/t25-multi-role，桌面 inspector 端口登记表 main 9359 / renderer 9352 / host 9360。现状已核：subagent 服务名 subagents（packages/subagent/subagent/src/index.ts:131-168），Config 里 maxActiveSubagents 默认 8、maxDepth 默认 1 且 volatile（同文件 186-198），远端只发布 prompt 与 interruptByParent（449-452、518-524），深度记账在 src/depth.ts:11-51 取会话头 delegationDepth 与运行时值的最大者；委派工具启动子 agent 后立即返回其 id，可并行多路（packages/subagent/tool-subagent/src/index.ts:208-219）；角色由 PresetDefinition 声明 id/name/description/order/plugins（packages/preset/agent-preset-registry/src/definition.ts:5-11），桌面 profile 现有 preset-lcoder（default standard、selectedDefault lcoder、plugins 为 persona 话术加 @lcoder/kernel，见 apps/desktop/.desktop-build/development/home/profiles/desktop/cordis.patch.yml 的 18-45 行）；客户端选角色走 remote.agentPresets 的 list/read/select，select 仅允许首个回合之前，之后抛 agent-preset/locked（registry/src/index.ts:364-383）；ctx.sessions.create 可指名 agentPreset（packages/api/session-controller/src/client/contract/sessions.ts:88-93），工作区与会话是 1 比 N，外壳目前只用第一条。范围：一仓多会话各绑一条任务、按角色定义 2 到 3 个 preset、角色之间用委派互相调用，并按角色收放工具面。角色清单、谁能调谁、深度预算先与用户确认并 Sign-off。不改上游包内部实现，改动只落在装配层与 packages/lcoder。验收只认桌面端手点。"
 
+    - id: T-27
+      title: 新 worktree 的 pnpm 补丁未应用，把上游代码判成类型错误
+      status: done
+      face: 用户端
+      type: 流程
+      owner: lance
+      created: '2026-11-04'
+      date: '2026-11-04'
+      dep: [T-19]
+      inferred: false
+      note: "C 级（环境事实登记，不改代码）。症状是新建 worktree 里 pnpm run typecheck 报 packages/experimental/subagent-oar/src/run.ts:253 的 TS2554，build:artifacts 的 host compiler 退出 1，其后四步与 web 全跳，桌面产物链断，起实例时 apps/desktop 解析不到 @deepseek-ai/dsh-app-boot/lib/index.js。根因不在上游代码也不在版本，pnpm-workspace.yaml:110 的 patchedDependencies 给 @botiverse/oar@0.67.0 的补丁在新 tree 里被静默跳过，.pnpm 目录名带着同一 patch 哈希但内容是未打补丁原件，补丁正是把 InstallationProbe 从无参扩成带 options 的那一处。本机规避已验证：pnpm install --force 后四处 tree 的 installation.d.ts 都带 options，该 worktree typecheck 为 5 passed（148.53 秒）。复发条件是凡新建 worktree 或重装依赖都可能再来；判据一行：grep -o 'InstallationProbe = .*' node_modules/.pnpm/@botiverse+oar@0.67.0_patch_*/node_modules/@botiverse/oar/dist/contracts/installation.d.ts 看有没有 options?，别只看 TS2554 就判上游。根治路线未排期，方向是给 worktree 初始化加一条依赖自检，代价是首次安装更慢。取证与处置已落 lcoder/PITFALLS.md 的 W-09。"
+
 
   - id: workspace
     name: 工作台 UI

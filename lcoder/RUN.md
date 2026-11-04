@@ -158,6 +158,8 @@ pnpm --filter @lcoder/workspace bundle   # 只重打外壳产物；start:desktop
 
 并行窗口用独立 worktree 时，web 用 worktree 自己的仓内 home（`DSH_HOME='<worktree>\.dsh-home'`），桌面用 worktree 自带的 `apps/desktop/.desktop-build/development/home`；两者都不碰主窗口共用的目录。smoke 的端口换 3081，桌面按上一节的三件套换一组预留 inspector。首次先 `pnpm install`、`pnpm run build:artifacts`（新 worktree 只 `pnpm install` 会因缺 `lib/` 产物而起不来），再按第 2 节把 worktree 的两个包 `link:` 进 worktree 自己的 profile。
 
+装完先核一条再判门禁，`grep -o 'InstallationProbe = .*' node_modules/.pnpm/@botiverse+oar@0.67.0_patch_*/node_modules/@botiverse/oar/dist/contracts/installation.d.ts` 要带 `options?`——`pnpm-workspace.yaml` 给这个依赖打了补丁，新 tree 的 `pnpm install` 可能静默不应用，症状是 `packages/experimental/subagent-oar/src/run.ts:253` 报 TS2554、host compiler 退出 1、桌面产物链全断。`pnpm install --force` 即解；别把它记成上游类型错误（`lcoder/PITFALLS.md` W-09）。
+
 ## 踩过的坑
 
 - **kill 掉 dev:web 不会带走子进程**（Windows）。`TaskStop` / Ctrl+C 只杀到 shell，
