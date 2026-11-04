@@ -261,8 +261,14 @@ describe('@lcoder/workspace apply', () => {
     } finally { await h.fiber.dispose() }
   })
 
-  it('角色名册读得到就交清单，远程拒绝就交空表而不是编造角色', async () => {
-    const roster = { presets: [{ id: 'lcoder', isDefault: true }, { id: 'lcoder-review', name: '评审', isDefault: false }] }
+  it('角色名册只交 LCoder 角色，远程拒绝就交空表而不是编造角色', async () => {
+    const roster = {
+      presets: [
+        { id: 'standard', isDefault: false },
+        { id: 'lcoder', isDefault: true },
+        { id: 'lcoder-review', name: '评审', isDefault: false },
+      ],
+    }
     const list = vi.fn()
       .mockResolvedValueOnce({ ok: true, value: roster })
       .mockResolvedValueOnce({ ok: false, error: { code: 'unavailable', message: 'no roster' } })
@@ -272,6 +278,7 @@ describe('@lcoder/workspace apply', () => {
     )
     try {
       const face = h.injections[0] as { listRoles: () => Promise<Array<{ id: string; name?: string }>> }
+      // `standard` 没有本包的十个工具，读不到 .spec，外壳不把它当角色给。
       expect(await face.listRoles()).toEqual([{ id: 'lcoder' }, { id: 'lcoder-review', name: '评审' }])
       expect(await face.listRoles()).toEqual([])
     } finally { await h.fiber.dispose() }

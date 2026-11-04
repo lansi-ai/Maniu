@@ -64,6 +64,9 @@ const DEFAULT_OPEN_TIMEOUT_MS = 15_000
 /** 本包的文案命名空间。 */
 const NS = 'lcoderWorkspace'
 
+/** LCoder 角色的 id 前缀；装配层的角色 preset 都按它命名。 */
+const LCODER_ROLE_PREFIX = 'lcoder'
+
 /** 插件名，与包名一致，loader 据此在诊断里说话。 */
 export const name = '@lcoder/workspace'
 
@@ -153,13 +156,19 @@ export function apply(ctx: ClientContext, config: Config = {}): void {
       )
     }
     /**
-     * 装配层声明的角色名册（Agent preset）。读不到就返回空表：外壳照默认角色开
-     * 会话，不编造角色。
+     * 装配层声明的角色名册（Agent preset）。
+     *
+     * 只交 LCoder 角色的清单：`standard` 这类上游角色没有本包的十个工具，读不到
+     * `.spec`，在外壳里选它只会开出一条干不了活的会话。角色 id 的前缀约定由装配层
+     * （`lcoder/desktop-profile.patch.yml`）声明，读失败或筛完为空就返回空表，
+     * 新会话照宿主 `selectedDefault` 开，外壳不编造角色。
      */
     const listRoles = async (): Promise<readonly ShellRole[]> => {
       const roster = await ctx.remote.agentPresets.list()
       if (!roster.ok) return []
-      return roster.value.presets.map(row => (row.name === undefined ? { id: row.id } : { id: row.id, name: row.name }))
+      return roster.value.presets
+        .filter(row => row.id.startsWith(LCODER_ROLE_PREFIX))
+        .map(row => (row.name === undefined ? { id: row.id } : { id: row.id, name: row.name }))
     }
     /**
      * 宿主侧还有没有能跑的模型。目录查询本身失败时报 unknown 而不是 empty：

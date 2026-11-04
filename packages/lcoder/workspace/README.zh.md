@@ -55,7 +55,8 @@ kind: "package-reference"
 <summary>实现内幕——点击展开</summary>
 
 本包注册外壳主面板；`shell: false` 时注册旧的页签。外壳通过框架 hooks 读工作区与会话列表，通过 `workspaceFiles` 读 `.spec/tasks`、`.spec/spec/rules.yaml`、`.spec/project.yaml` 与 `.spec/local.yaml`，并通过会话控制器发送提示。项目选择器的「打开仓库」调用 `workspaces.create` 与 `sessions.create`，然后选中新工作区。每一步最多等 `openTimeoutMs`：到点抛 `WorkspaceOpenTimeoutError` 并带上卡住的步骤名，被拒绝则保留对方返回的原因；两种情况用不同词典键，挂住的调用不会被写成「打开失败」。
-从任务卡打开对话时，外壳复用该任务已经认领的那条会话（`.spec/tasks/<ID>.yaml` 的 `session` 字段）。没有还在的会话时，外壳在同一个仓库里再开一条，并在创建这一步指名角色——preset 在首回合之后就锁死——再通过人机命令 `/task_bind` 把任务认给这条会话，落盘由 kernel 做。角色来自 `agentPresets.list`；名册读失败或是空的，就按宿主默认角色开。顶栏的会话条列出本工作区的会话，按认领它的任务标名，点一下就切过去。
+
+从任务卡打开对话时，外壳复用该任务已经认领的那条会话（`.spec/tasks/<ID>.yaml` 的 `session` 字段）。没有还在的会话时，外壳在同一个仓库里再开一条，并在创建这一步指名角色——preset 在首回合之后就锁死——再通过人机命令 `/task_bind` 把任务认给这条会话，落盘由 kernel 做。角色来自 `agentPresets.list`，且只给 id 以 `lcoder` 开头的 preset——上游角色不挂本包的十个工具，根本读不到 `.spec`；名册读失败或是空的，就按宿主默认角色开。顶栏的会话条列出本工作区的会话，按认领它的任务标名，点一下就切过去。
 
 悬浮对话订阅会话事件窗口并渲染用户/助手文本；输入框向同一会话继续发送提示。磁盘上没有任务时，看板的立项动作填入并发送分析咒语，而不是逐任务的启动咒语。本包自身不注册模型工具、提示词段落或 schema。
 
