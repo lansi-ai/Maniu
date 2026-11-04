@@ -158,6 +158,9 @@ describe('文件投影', () => {
       evidence: ['test'],
     })
     expect(taskTextToRow('T-015.yaml', 'grade: A')).toBeUndefined()
+    // 认领会话号原样透给外壳：卡片靠它决定是切到已有会话，还是新开一条再绑。
+    expect(taskTextToRow('T-014.yaml', `${TASK_YAML}\nsession: session-8676\n`)?.session).toBe('session-8676')
+    expect(taskTextToRow('T-014.yaml', `${TASK_YAML}\nsession: ''\n`)?.session).toBeUndefined()
     expect(taskTextToRow('T-016.yaml', '- 只是\n- 一个数组')).toBeUndefined()
     // id 缺失时退回文件名，不丢整行。
     expect(taskTextToRow('T-017.yaml', 'title: 只有标题')?.id).toBe('T-017')

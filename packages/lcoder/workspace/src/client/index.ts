@@ -31,7 +31,7 @@ import type { ModelStatus, ShellSessionNotice } from './model-status.ts'
 import { en, zh } from './locales.ts'
 import { loadWorkspaceProjection, PAGE_LINES } from './projection.ts'
 import { messagesFromEntries } from './shell/shell-data.ts'
-import type { ShellMessage, ShellSignResult } from './shell/shell-data.ts'
+import type { ShellMessage, ShellRole, ShellSignResult } from './shell/shell-data.ts'
 import { Shell } from './shell/Shell.tsx'
 import { WorkspaceBody } from './WorkspaceBody.tsx'
 import type { ProjectionFilesRemote } from './projection.ts'
@@ -67,10 +67,10 @@ const NS = 'lcoderWorkspace'
 /** 插件名，与包名一致，loader 据此在诊断里说话。 */
 export const name = '@lcoder/workspace'
 
-/** 浏览器侧必需的服务：槽位运行时、词典、页签注册表、远程文件面、命令面、会话面、布局与工作区。 */
+/** 浏览器侧必需的服务：槽位运行时、词典、页签注册表、远程文件面、命令面、角色名册、会话面、布局与工作区。 */
 export const inject = [
   'slots', 'locale', 'sidebarRightTabs', 'remote', 'remote.workspaceFiles', 'remote.commands', 'remote.session',
-  'layout', 'workspaces', 'sessions',
+  'remote.agentPresets', 'layout', 'workspaces', 'sessions',
 ]
 
 /**
@@ -122,14 +122,44 @@ export function apply(ctx: ClientContext, config: Config = {}): void {
       if (!result.ok) throw new Error(result.error.message)
     }
     /**
-     * 把人机命令 `/contract_sign <编号>` 交给宿主编排：签名由 kernel 写进 `.spec`，
-     * 浏览器不碰规格库文件。回执里那句人话由宿主给出，外壳原样显示、不改写。
+     * 把人机命令交给宿主编排：签名与任务认领都由 kernel 写进 `.spec`，浏览器不碰规格库
+     * 文件。回执里那句人话由宿主给出，外壳原样显示、不改写。
      */
-    const signContract = async (sessionId: SessionId, taskId: string): Promise<ShellSignResult> => {
-      const result = await ctx.remote.commands.execute(sessionId, `/contract_sign ${taskId}`, [])
+    const runHumanCommand = async (sessionId: SessionId, line: string): Promise<ShellSignResult> => {
+      const result = await ctx.remote.commands.execute(sessionId, line, [])
       if (!result.ok) return { ok: false, text: `${result.error.code}: ${result.error.message}` }
       if (result.value === undefined) return { ok: false, text: t('shell.commandUnavailable') }
       return { ok: result.value.result.kind === 'success', text: result.value.result.text ?? '' }
+    }
+    const signContract = (sessionId: SessionId, taskId: string): Promise<ShellSignResult> =>
+      runHumanCommand(sessionId, `/contract_sign ${taskId}`)
+    /**
+     * 把任务认给这条会话。认领关系决定该会话按哪个任务的状态装工具面，所以它只能由人
+     * 在会话里发起——与签署同一档，模型侧没有这条路。
+     */
+    const bindTask = (sessionId: SessionId, taskId: string): Promise<ShellSignResult> =>
+      runHumanCommand(sessionId, `/task_bind ${taskId}`)
+    /**
+     * 在同一个仓库里新开会话，并按需指名角色。角色必须在首个回合之前定（之后命令面
+     * 抛 `agent-preset/locked`），所以只能在创建这一步给。
+     * 工作区按路径复用，所以这一步只增加会话，不会重复登记同一个仓库。
+     */
+    const createSession = async (path: string, agentPreset?: string): Promise<SessionId> => {
+      const workspace = await withOpenDeadline('workspace/create', ctx.workspaces.create({ path }), openTimeoutMs)
+      return await withOpenDeadline(
+        'session/create',
+        ctx.sessions.create({ workspaceId: workspace.workspaceId, ...(agentPreset === undefined ? {} : { agentPreset }) }),
+        openTimeoutMs,
+      )
+    }
+    /**
+     * 装配层声明的角色名册（Agent preset）。读不到就返回空表：外壳照默认角色开
+     * 会话，不编造角色。
+     */
+    const listRoles = async (): Promise<readonly ShellRole[]> => {
+      const roster = await ctx.remote.agentPresets.list()
+      if (!roster.ok) return []
+      return roster.value.presets.map(row => (row.name === undefined ? { id: row.id } : { id: row.id, name: row.name }))
     }
     /**
      * 宿主侧还有没有能跑的模型。目录查询本身失败时报 unknown 而不是 empty：
@@ -170,8 +200,8 @@ export function apply(ctx: ClientContext, config: Config = {}): void {
           key: 'lcoder-home',
           locale: NS,
           inject: () => ({
-            files, openRepository, sendPrompt, signContract, readMessages, subscribeSession,
-            checkModels, subscribeModels, readSessionNotice,
+            files, openRepository, sendPrompt, signContract, bindTask, createSession, listRoles,
+            readMessages, subscribeSession, checkModels, subscribeModels, readSessionNotice,
           }),
         },
         Shell,

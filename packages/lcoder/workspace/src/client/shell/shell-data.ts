@@ -19,6 +19,14 @@ export interface ShellTask {
   readonly rules: readonly string[]
   readonly evidence: readonly string[]
   readonly surface: string
+  /** 认领这条任务的会话号；缺省表示还没有会话在跑它。 */
+  readonly session?: string
+}
+
+/** 装配层声明的一个角色（Agent preset）；外壳的新会话按它指名。 */
+export interface ShellRole {
+  readonly id: string
+  readonly name?: string
 }
 
 /** 项目类型决定是否展示环境信息。 */

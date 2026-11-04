@@ -123,6 +123,17 @@
 .title h2 { margin: 0; font-size: 17px; }
 .sub { font-size: 11.5px; color: var(--lc-muted); display: flex; gap: 8px; align-items: center; min-width: 0; }
 .subCode { font: 11px/1.4 ui-monospace, SFMono-Regular, Consolas, monospace; color: var(--lc-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sessionBar { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.sessionChip { border: 1px solid var(--lc-line); background: var(--lc-surface-2); color: var(--lc-muted); border-radius: 999px; padding: 4px 10px; font-size: 12px; white-space: nowrap; }
+.sessionChip:hover { border-color: var(--lc-brand-2); color: var(--lc-ink); }
+.sessionChipActive { background: var(--lc-brand-soft); border-color: var(--lc-brand); color: var(--lc-brand); font-weight: 600; }
+.sessionAdd { border: 1px dashed var(--lc-line); background: transparent; color: var(--lc-muted); border-radius: 999px; width: 26px; height: 26px; line-height: 1; }
+.sessionAdd:hover { border-color: var(--lc-brand-2); color: var(--lc-ink); }
+.sessionAdd:disabled { opacity: .5; cursor: default; }
+.roleRow { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.roleChip { border: 1px solid var(--lc-line); background: var(--lc-surface-2); color: var(--lc-muted); border-radius: 8px; padding: 5px 11px; }
+.roleChip:hover { border-color: var(--lc-brand-2); color: var(--lc-ink); }
+.roleChipActive { background: var(--lc-brand-soft); border-color: var(--lc-brand); color: var(--lc-brand); font-weight: 600; }
 .spacer { flex: 1; }
 .iconBtn {
   width: 32px; height: 32px; border: 1px solid var(--lc-line); background: var(--lc-surface);
