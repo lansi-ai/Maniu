@@ -229,6 +229,101 @@ describe('@lcoder/workspace apply', () => {
     } finally { await h.fiber.dispose() }
   })
 
+  it('开任务会话：路径幂等解析回工作区，按 workspaceId 建会话，再把任务号钉进标题', async () => {
+    const rename = vi.fn().mockResolvedValue({ ok: true, value: { title: 'DEMO-03', seq: 1 } })
+    const createSession = vi.fn().mockResolvedValue('session-9')
+    const createWorkspace = vi.fn().mockResolvedValue({ workspaceId: 'w-1' })
+    const h = await boot(
+      { shell: true, openTimeoutMs: 5000 },
+      { create: createWorkspace },
+      { create: createSession, binding: vi.fn(() => ({ session: { rename } })) },
+      { execute: vi.fn() },
+    )
+    try {
+      const face = h.injections[0] as { createTaskSession: (path: string, title: string) => Promise<string> }
+      expect(await face.createTaskSession('E:\\Projects\\demo', 'DEMO-03')).toBe('session-9')
+      expect(createWorkspace).toHaveBeenCalledWith({ path: 'E:\\Projects\\demo' })
+      // 只给 cwd 时宿主不会把会话挂进工作区（attachSession 只在 workspaceId 分支上），卡片会认不到。
+      expect(createSession).toHaveBeenCalledWith({ workspaceId: 'w-1' })
+      expect(rename).toHaveBeenCalledWith('DEMO-03')
+    } finally { await h.fiber.dispose() }
+  })
+
+  it('命名被宿主拒了就说出来，不留下认不出归属的会话', async () => {
+    const h = await boot(
+      { shell: true, openTimeoutMs: 5000 },
+      { create: vi.fn().mockResolvedValue({ workspaceId: 'w-1' }) },
+      {
+        create: vi.fn().mockResolvedValue('session-9'),
+        binding: vi.fn(() => ({ session: { rename: vi.fn().mockResolvedValue({ ok: false, error: { code: 'title-invalid', message: '空的' } }) } })),
+      },
+      { execute: vi.fn() },
+    )
+    try {
+      const face = h.injections[0] as { createTaskSession: (path: string, title: string) => Promise<string> }
+      await expect(face.createTaskSession('E:\\Projects\\demo', 'DEMO-03')).rejects.toThrow(/title-invalid/)
+    } finally { await h.fiber.dispose() }
+  })
+
+  it('会话还没就绪 → 报就绪问题，不静默返回没命名的会话', async () => {
+    const h = await boot(
+      { shell: true, openTimeoutMs: 5000 },
+      { create: vi.fn().mockResolvedValue({ workspaceId: 'w-1' }) },
+      { create: vi.fn().mockResolvedValue('session-9'), binding: vi.fn(() => undefined) },
+      { execute: vi.fn() },
+    )
+    try {
+      const face = h.injections[0] as { createTaskSession: (path: string, title: string) => Promise<string> }
+      await expect(face.createTaskSession('E:\\Projects\\demo', 'DEMO-03')).rejects.toThrow(/就绪/)
+    } finally { await h.fiber.dispose() }
+  })
+
+  it('卡片的两个状态位：物化过的会话读得到，没物化的返回 null', async () => {
+    const bound = {
+      session: {
+        getSnapshot: () => ({
+          awaitingFirstTurn: true,
+          promptError: { op: 'send', error: { code: 'gateway/internal', message: 'boom' } },
+          lastAgentError: null,
+        }),
+      },
+    }
+    const h = await boot(
+      { shell: true },
+      { create: vi.fn() },
+      { create: vi.fn(), binding: vi.fn((id: string) => (id === 's-1' ? bound : undefined)) },
+      { execute: vi.fn() },
+    )
+    try {
+      const face = h.injections[0] as {
+        readSessionFlags: (id: string) => { awaitingFirstTurn: boolean; failed: boolean } | null
+      }
+      expect(face.readSessionFlags('s-1')).toEqual({ awaitingFirstTurn: true, failed: true })
+      expect(face.readSessionFlags('s-2')).toBeNull()
+    } finally { await h.fiber.dispose() }
+  })
+
+  it('订阅同时挂事件窗口与会话快照，收回时两个都解', async () => {
+    const disposeEvents = vi.fn()
+    const disposeState = vi.fn()
+    const binding = {
+      eventSource: { subscribe: () => disposeEvents, getSnapshot: () => ({ entries: [] }) },
+      session: { subscribe: () => disposeState },
+    }
+    const h = await boot(
+      { shell: true },
+      { create: vi.fn() },
+      { create: vi.fn(), binding: vi.fn(() => binding) },
+      { execute: vi.fn() },
+    )
+    try {
+      const face = h.injections[0] as { subscribeSession: (id: string, listener: () => void) => () => void }
+      face.subscribeSession('s-1', () => {})()
+      expect(disposeEvents).toHaveBeenCalledTimes(1)
+      expect(disposeState).toHaveBeenCalledTimes(1)
+    } finally { await h.fiber.dispose() }
+  })
+
   it('卸载后三处注册都不留痕，所以重载是安全的', async () => {
     const h = await boot({ shell: false })
     await h.fiber.dispose()

@@ -8,7 +8,7 @@
  * 外壳占用 `main` 的 `lcoder-home` 键；DSH 原生侧栏在桌面 profile 里禁用，
  * 启动时折叠空轨道，主面板占满窗口。
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
@@ -18,6 +18,9 @@ import { loadLocalSecrets, loadProjectInfo, loadWorkspaceProjection } from '../p
 import type { ContractRow, ProjectionFilesRemote, TaskRow } from '../projection.ts'
 import { describeOpenFailure } from '../open-failure.ts'
 import type { ModelStatus, ShellSessionNotice } from '../model-status.ts'
+import type { LcoderWorkspaceKey } from '../locales.ts'
+import { taskCardStatus, taskSessionOf } from '../task-session.ts'
+import type { TaskCardStatus, TaskSessionRow } from '../task-session.ts'
 import { buildOnboardingPrompt, buildShellPrompt, SHELL_STATES } from './shell-data.ts'
 import type { ShellMessage, ShellProjectInfo, ShellSignResult, ShellTask, ShellTaskState } from './shell-data.ts'
 import css from './Shell.module.css'
@@ -33,6 +36,16 @@ export type ShellProps =
     readonly openRepository?: (path: string) => Promise<{ workspaceId: string; sessionId: SessionId }>
     /** 向真实会话发送一条文本提示。 */
     readonly sendPrompt?: (sessionId: SessionId, text: string) => Promise<void>
+    /**
+     * 为一个任务开一条专属会话，并把任务号写进会话标题；卡片按标题精确认领会话。
+     * 第一参数是工作区路径，由装配层幂等解析回同一个工作区后按 workspaceId 建会话。
+     */
+    readonly createTaskSession?: (workspacePath: string, title: string) => Promise<SessionId>
+    /**
+     * 读会话快照里卡片要的两个状态位。
+     * 只有本客户端物化过的会话读得到，读不到返回 null——卡片因此不拿「不知道」画成「失败」。
+     */
+    readonly readSessionFlags?: (sessionId: SessionId) => { readonly awaitingFirstTurn: boolean; readonly failed: boolean } | null
     /** 派 `/contract_sign <编号>` 让人签署契约；签名由宿主写盘。 */
     readonly signContract?: (sessionId: SessionId, taskId: string) => Promise<ShellSignResult>
     /** 查宿主侧还有没有能跑的模型；没有对话就不会有回音。 */
@@ -74,6 +87,21 @@ const SURFACE: Record<ShellTaskState, string> = {
   closed: '只读',
 }
 
+/**
+ * 卡片状态到词典键与配色的映射。
+ *
+ * 「在跑」沿用浮层那颗药丸的文案，不再另立一份说法。未开始与空闲都是中性色：
+ * 前者还没建会话，后者建过且跑过——区别在颜色上说不出什么，就把颜色留给需要人动作的态。
+ */
+const TASK_STATUS: Record<TaskCardStatus, { readonly labelKey: LcoderWorkspaceKey; readonly className?: string | undefined }> = {
+  unstarted: { labelKey: 'shell.taskUnstarted' },
+  idle: { labelKey: 'shell.taskIdle' },
+  running: { labelKey: 'shell.running', className: css.tagOk },
+  awaitingInteraction: { labelKey: 'shell.taskAwaiting', className: css.tagWarn },
+  awaitingFirstTurn: { labelKey: 'shell.taskFirstTurn', className: css.tagWarn },
+  failed: { labelKey: 'shell.taskFailed', className: css.tagDanger },
+}
+
 const KNOWN_STATES: ReadonlySet<string> = new Set(SHELL_STATES.map(state => state.id))
 
 function shellState(value: string): ShellTaskState {
@@ -112,10 +140,13 @@ function resolveSecrets(info: ShellProjectInfo, secrets: Readonly<Record<string,
  */
 export function Shell({
   t, files, openRepository, sendPrompt, signContract, readMessages, subscribeSession,
-  checkModels, subscribeModels, readSessionNotice, useSessions, useWorkspaces,
+  checkModels, subscribeModels, readSessionNotice, createTaskSession, readSessionFlags,
+  useSessions, useSessionStatus, useWorkspaces,
 }: ShellProps): ReactNode {
   const workspaces = useWorkspaces(state => state.items)
   const sessionRows = useSessions(state => state.byId)
+  /** 宿主推流的每会话状态；覆盖每个列出的会话，不需要 bind 也不需要开历史。 */
+  const sessionStatus = useSessionStatus(state => state)
 
   const [workspaceId, setWorkspaceId] = useState<string | null>(null)
   const [dark, setDark] = useState(false)
@@ -147,6 +178,13 @@ export function Shell({
   const [modelStatus, setModelStatus] = useState<ModelStatus | null>(null)
   const [chatError, setChatError] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
+  /**
+   * 当前这条对话属于哪个任务会话：由「开始对话」新建并命名，或按任务号从已有会话里认出来。
+   * 关掉浮层不清它——卡片上的「等首个回合」和失败要留在它所属的那张卡上。
+   */
+  const [taskSessionId, setTaskSessionId] = useState<SessionId | null>(null)
+  /** 只有本客户端物化过的会话才读得到这两位；null 表示读不到，卡片就不画这两个态。 */
+  const [taskFlags, setTaskFlags] = useState<{ readonly awaitingFirstTurn: boolean; readonly failed: boolean } | null>(null)
 
   const workspace = workspaces.find(item => String(item.workspaceId) === workspaceId) ?? workspaces[0]
   const activeWorkspaceId = workspace === undefined ? null : String(workspace.workspaceId)
@@ -158,7 +196,21 @@ export function Shell({
   const specRoot = projectPath === '' ? '' : `${projectPath}/.spec`
   const hasWorkspace = workspace !== undefined
   const hasSession = sessionId !== undefined
-  const chatRunning = sessionId === undefined ? false : sessionRows[sessionId]?.running ?? false
+  /** 对话实际落在的那条会话：按任务号归属的会话优先，没有再落回工作区的第一条。 */
+  const activeSessionId = taskSessionId ?? sessionId
+  const activeRunning = activeSessionId === undefined
+    ? false
+    : sessionStatus.get(activeSessionId)?.running ?? sessionRows[activeSessionId]?.running ?? false
+  /** 本工作区已知的会话行，折成任务归属需要的形状。 */
+  const workspaceSessions = useMemo<readonly TaskSessionRow[]>(() => {
+    if (workspace === undefined) return []
+    return workspace.sessionIds.flatMap((id): readonly TaskSessionRow[] => {
+      const row = sessionRows[id]
+      return row === undefined
+        ? []
+        : [{ sessionId: id, title: row.title, running: row.running, blank: row.blank, updatedAt: row.updatedAt }]
+    })
+  }, [workspace, sessionRows])
   /**
    * 没有能跑的模型时不发送。缺凭据的提示不是被拒：消息会先进队，回合才失败，
    * 事件流里连 `user/message` 都没有，用户只看得到「发了，什么都没发生」。
@@ -220,18 +272,49 @@ export function Shell({
   }, [checkModels, subscribeModels])
 
   useEffect(() => {
-    if (chat === null || sessionId === undefined || readMessages === undefined || subscribeSession === undefined) {
+    if (chat === null || activeSessionId === undefined || readMessages === undefined || subscribeSession === undefined) {
       setMessages([])
       setNotice(null)
       return
     }
     const refresh = (): void => {
-      setMessages(readMessages(sessionId))
-      setNotice(readSessionNotice?.(sessionId) ?? null)
+      setMessages(readMessages(activeSessionId))
+      setNotice(readSessionNotice?.(activeSessionId) ?? null)
     }
     refresh()
-    return subscribeSession(sessionId, refresh)
-  }, [chat, sessionId, readMessages, subscribeSession, readSessionNotice])
+    return subscribeSession(activeSessionId, refresh)
+  }, [chat, activeSessionId, readMessages, subscribeSession, readSessionNotice])
+
+  /**
+   * 卡片上「等首个回合」与失败两位的来源。
+   *
+   * 它们只在会话快照里，而快照只有本客户端物化过的会话才有——所以这一路只跟着
+   * 当前这条任务会话，读不到就明说读不到。会话没换过时订阅一直保持，
+   * 关掉浮层也不清：卡片要把这张任务的状态留在它那张卡上。
+   */
+  useEffect(() => {
+    if (taskSessionId === null || readSessionFlags === undefined || subscribeSession === undefined) {
+      setTaskFlags(null)
+      return
+    }
+    const refresh = (): void => { setTaskFlags(readSessionFlags(taskSessionId)) }
+    refresh()
+    return subscribeSession(taskSessionId, refresh)
+  }, [taskSessionId, readSessionFlags, subscribeSession])
+
+  /** 一张卡片的状态：先按标题认归属会话，再叠宿主推流与物化后才读得到的两位。 */
+  const statusOfTask = (task: ShellTask): TaskCardStatus => {
+    const session = taskSessionOf(task.id, workspaceSessions)
+    const pushed = session === null ? undefined : sessionStatus.get(session.sessionId)
+    const flags = session !== null && session.sessionId === taskSessionId ? taskFlags : null
+    return taskCardStatus({
+      session,
+      hostRunning: pushed?.running,
+      awaitingInteraction: pushed?.pendingInteraction !== undefined,
+      awaitingFirstTurn: flags?.awaitingFirstTurn,
+      failed: flags?.failed,
+    })
+  }
 
   const openTask = (task: ShellTask): void => {
     setDetail(task)
@@ -274,7 +357,15 @@ export function Shell({
     )
   }
 
-  const startConversation = (task: ShellTask): void => {
+  /**
+   * 为一个任务开对话：一个任务一条会话。
+   *
+   * 先按任务号认领这个工作区里已有的会话，没有才新建并命名——命名走 `session.rename`
+   * 落一条用户来源的 `session/title` 事件，上游把它钉死，自动标题不再覆盖，
+   * 所以这条归属活过重开应用。「开始对话」因此不是把提示词塞进工作区的第一条会话，
+   * 那样三张卡只会共用同一个状态。
+   */
+  const startConversation = async (task: ShellTask): Promise<void> => {
     setChat(task)
     setDetail(null)
     setChatError(null)
@@ -282,11 +373,22 @@ export function Shell({
       setChatError(t('shell.noModels'))
       return
     }
-    if (sessionId === undefined || sendPrompt === undefined) {
+    if (sendPrompt === undefined || createTaskSession === undefined || workspace === undefined) {
       setChatError(t('shell.noSession'))
       return
     }
-    void sendPrompt(sessionId, prompt).catch((error: unknown) => { setChatError(String(error)) })
+    let target = taskSessionOf(task.id, workspaceSessions)?.sessionId
+    if (target === undefined) {
+      try {
+        target = await createTaskSession(workspace.path, task.id)
+      } catch (error: unknown) {
+        // 命名或建会话没成；卡片继续显示未开始，不假装这条任务已经在跑。
+        setChatError(String(error))
+        return
+      }
+    }
+    setTaskSessionId(target)
+    void sendPrompt(target, prompt).catch((error: unknown) => { setChatError(String(error)) })
   }
 
   /**
@@ -300,6 +402,8 @@ export function Shell({
     )
     setDetail(null)
     setChatError(null)
+    // 立项对话不属于任何任务，不能沿用上一条任务会话，否则消息会落进别的卡里。
+    setTaskSessionId(null)
     setPrompt(text)
     setCopied(false)
     setChat({ id: '', title: t('shell.onboardingChat'), state: 'drafting', grade: '-', rules: [], evidence: [], surface: '' })
@@ -316,11 +420,11 @@ export function Shell({
 
   const sendDraft = async (): Promise<void> => {
     const text = draft.trim()
-    if (text === '' || modelBlocked || sessionId === undefined || sendPrompt === undefined) return
+    if (text === '' || modelBlocked || activeSessionId === undefined || sendPrompt === undefined) return
     setDraft('')
     setChatError(null)
     try {
-      await sendPrompt(sessionId, text)
+      await sendPrompt(activeSessionId, text)
     } catch (error: unknown) {
       setChatError(String(error))
     }
@@ -336,6 +440,7 @@ export function Shell({
       const opened = await openRepository(path)
       setWorkspaceId(opened.workspaceId)
       setSessionOverride(opened.sessionId)
+      setTaskSessionId(null)
       setProjectPicker(false)
     } catch (error: unknown) {
       const failure = describeOpenFailure(error)
@@ -358,18 +463,20 @@ export function Shell({
         </div>
         {columnTasks.length === 0
           ? <div className={css.empty}>{t('shell.empty')}</div>
-          : columnTasks.map(task => (
-            <button type="button" key={task.id} className={css.taskCard} onClick={() => { openTask(task) }}>
-              <div className={css.taskId}><span>{task.id}</span><span>{task.grade}</span></div>
-              <div className={css.taskTitle}>{task.title}</div>
-              {compact ? null : (
+          : columnTasks.map((task) => {
+            const status = statusOfTask(task)
+            return (
+              <button type="button" key={task.id} className={css.taskCard} onClick={() => { openTask(task) }}>
+                <div className={css.taskId}><span>{task.id}</span><span>{task.grade}</span></div>
+                <div className={css.taskTitle}>{task.title}</div>
                 <div className={css.tags}>
-                  {task.rules.map(rule => <span key={rule} className={css.tag}>{rule}</span>)}
-                  <span className={`${css.tag} ${task.state === 'closed' ? css.tagOk : ''}`}>{task.surface}</span>
+                  <span className={`${css.tag} ${TASK_STATUS[status].className ?? ''}`}>{t(TASK_STATUS[status].labelKey)}</span>
+                  {compact ? null : task.rules.map(rule => <span key={rule} className={css.tag}>{rule}</span>)}
+                  {compact ? null : <span className={`${css.tag} ${task.state === 'closed' ? css.tagOk : ''}`}>{task.surface}</span>}
                 </div>
-              )}
-            </button>
-          ))}
+              </button>
+            )
+          })}
       </div>
     )
   }
@@ -546,7 +653,7 @@ export function Shell({
                           type="button"
                           key={id}
                           className={`${css.projectOption} ${id === activeWorkspaceId ? css.projectOptionActive : ''}`}
-                          onClick={() => { setWorkspaceId(id); setSessionOverride(null); setProjectPicker(false) }}
+                          onClick={() => { setWorkspaceId(id); setSessionOverride(null); setTaskSessionId(null); setProjectPicker(false) }}
                         >
                           <span className={css.psLogo}>{(item.title || 'L').slice(0, 1).toUpperCase()}</span>
                           <span className={css.poText}>
@@ -664,7 +771,7 @@ export function Shell({
                 className={css.primaryBtn}
                 disabled={modelBlocked}
                 title={modelBlocked ? t('shell.noModels') : undefined}
-                onClick={() => { startConversation(detail) }}
+                onClick={() => { void startConversation(detail) }}
               >
                 {t('shell.startChat')}
               </button>
@@ -696,7 +803,7 @@ export function Shell({
                   <h4>{chat.id === '' ? chat.title : `${chat.id} · ${chat.title}`}</h4>
                   <p>LCoder · {t(STATE_LABEL[chat.state])} · {t('shell.chatHint')}</p>
                 </div>
-                <span className={css.pill}>{chatRunning ? t('shell.running') : t('shell.chatReady')}</span>
+                <span className={css.pill}>{activeRunning ? t('shell.running') : t('shell.chatReady')}</span>
                 <button type="button" className={css.iconBtn} title={t('shell.expand')} onClick={() => { setChat(null) }}>⤢</button>
               </div>
               <div className={css.chatBody}>
@@ -704,7 +811,7 @@ export function Shell({
                   ? (
                     <div className={`${css.msg} ${css.msgSys}`}>
                       <span className={css.who}>LCoder</span>
-                      {chatRunning ? t('shell.chatWaiting') : t('shell.chatEmpty')}
+                      {activeRunning ? t('shell.chatWaiting') : t('shell.chatEmpty')}
                     </div>
                   )
                   : messages.map((message, index) => (
@@ -736,7 +843,7 @@ export function Shell({
                 <button
                   type="button"
                   className={css.primaryBtn}
-                  disabled={draft.trim() === '' || modelBlocked || sessionId === undefined || sendPrompt === undefined}
+                  disabled={draft.trim() === '' || modelBlocked || activeSessionId === undefined || sendPrompt === undefined}
                   onClick={() => { void sendDraft() }}
                 >
                   {t('shell.send')}

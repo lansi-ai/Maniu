@@ -155,13 +155,58 @@ export function apply(ctx: ClientContext, config: Config = {}): void {
       const binding = ctx.sessions.binding(sessionId)
       return binding === undefined ? null : noticeFromSnapshot(binding.session.getSnapshot())
     }
+    /**
+     * 为一个任务开一条专属会话，并把任务号写进会话标题。
+     *
+     * 命名走 `session.rename`：它往会话日志追加一条 `source: {kind:'user'}` 的
+     * `session/title` 事件，上游语义把用户起的名字钉死，自动标题不再覆盖——所以
+     * 任务号活过重开应用。归属只靠标题，`.spec` 一个字节都不写，kernel 仍是规格库
+     * 唯一的写盘者。
+     *
+     * 会话必须按 `workspaceId` 建：宿主只在给了 workspaceId 的那条分支上把新会话挂进
+     * 工作区（`commands.ts` 的 `attachSession`），只给 cwd 时会话建在目录里却不进名册，
+     * 卡片就永远认不到它。路径按 `workspaces.create` 的幂等语义解析回同一个工作区。
+     * @param workspacePath - 项目目录；幂等解析成已登记的工作区。
+     * @param title - 任务号，卡片按它精确认领会话。
+     * @returns 新建会话的身份。
+     */
+    const createTaskSession = async (workspacePath: string, title: string): Promise<SessionId> => {
+      const workspace = await withOpenDeadline(
+        'workspace/create', ctx.workspaces.create({ path: workspacePath }), openTimeoutMs,
+      )
+      const created = await withOpenDeadline(
+        'session/create', ctx.sessions.create({ workspaceId: workspace.workspaceId }), openTimeoutMs,
+      )
+      const binding = ctx.sessions.binding(created)
+      if (binding === undefined) throw new Error('会话还没就绪，无法命名')
+      const renamed = await withOpenDeadline('session/rename', binding.session.rename(title), openTimeoutMs)
+      if (!renamed.ok) throw new Error(`会话命名没有成功（${renamed.error.code}）`)
+      return created
+    }
+    /**
+     * 卡片要的两个状态位。
+     *
+     * 只有本客户端物化过的会话才有快照，读不到就返回 null——卡片因此不会把「不知道」
+     * 画成「空闲」或「失败」。失败位沿用浮层那条判据，两处说的是同一件事，只是一个给
+     * 状态、一个给细节。
+     */
+    const readSessionFlags = (sessionId: SessionId): { awaitingFirstTurn: boolean; failed: boolean } | null => {
+      const binding = ctx.sessions.binding(sessionId)
+      if (binding === undefined) return null
+      const snapshot = binding.session.getSnapshot()
+      return { awaitingFirstTurn: snapshot.awaitingFirstTurn, failed: noticeFromSnapshot(snapshot) !== null }
+    }
     const readMessages = (sessionId: SessionId): readonly ShellMessage[] => {
       const binding = ctx.sessions.binding(sessionId)
       return binding === undefined ? [] : messagesFromEntries(binding.eventSource.getSnapshot().entries)
     }
     const subscribeSession = (sessionId: SessionId, listener: () => void): (() => void) => {
       const binding = ctx.sessions.binding(sessionId)
-      return binding === undefined ? () => {} : binding.eventSource.subscribe(listener)
+      if (binding === undefined) return () => {}
+      // 事件窗口给消息，会话快照给「等首个回合」与失败；卡片和浮层靠同一个通知一起刷新。
+      const disposeEvents = binding.eventSource.subscribe(listener)
+      const disposeState = binding.session.subscribe(listener)
+      return () => { disposeEvents(); disposeState() }
     }
     ctx.effect(() => ctx.slots.inject('main', () => {
       const dispose = ctx.slots.register(
@@ -171,7 +216,7 @@ export function apply(ctx: ClientContext, config: Config = {}): void {
           locale: NS,
           inject: () => ({
             files, openRepository, sendPrompt, signContract, readMessages, subscribeSession,
-            checkModels, subscribeModels, readSessionNotice,
+            checkModels, subscribeModels, readSessionNotice, createTaskSession, readSessionFlags,
           }),
         },
         Shell,
