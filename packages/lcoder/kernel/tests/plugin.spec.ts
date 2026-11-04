@@ -115,8 +115,8 @@ function makeHarness(options: { withEffect?: boolean } = {}): Harness {
   return harness
 }
 
-function sessionAt(cwd: string): SpecRootContext {
-  return { agent: { session: { header: { cwd } } } }
+function sessionAt(cwd: string, sessionId?: string): SpecRootContext {
+  return { agent: { session: { header: sessionId === undefined ? { cwd } : { cwd, id: sessionId } } } }
 }
 
 /** 装载并跑完 effect，返回真正挂上去的注册表。 */
@@ -161,6 +161,12 @@ function addTask(repo: string, id: string, state: string): void {
     ].join('\n'),
     'utf8',
   )
+}
+
+/** 给任务写上认领会话号，模拟 `/task_bind` 落盘后的形状。 */
+function setSession(repo: string, id: string, sessionId: string): void {
+  const path = join(repo, '.spec', 'tasks', `${id}.yaml`)
+  writeFileSync(path, `${readFileSync(path, 'utf8')}session: ${sessionId}\n`, 'utf8')
 }
 
 describe('插件装配', () => {
@@ -222,6 +228,35 @@ describe('插件装配', () => {
     const harness = makeHarness()
 
     expect(() => { apply(harness.ctx, { root: spec, role: 'pm' }) }).toThrow('未知角色')
+  })
+
+  it('两条会话各按自己认领的任务装面，互不顶掉', () => {
+    const { repo, spec } = makeRepo()
+    addTask(repo, 'T-02', 'verifying')
+    setSession(repo, 'T-02', 'session-B')
+    const harness = makeHarness()
+    const registrations = mounted(harness, { root: spec, selfCheck: false })
+
+    // 认领了 verifying 任务的会话拿到收口与编辑。
+    expect(visible(registrations, sessionAt(repo, 'session-B'))).toContain('task_close')
+    expect(visible(registrations, sessionAt(repo, 'session-B'))).toContain('file_edit')
+    // 另一条会话仍按看板第一条（drafting），拿不到编辑。
+    const other = visible(registrations, sessionAt(repo, 'session-A'))
+    expect(other).not.toContain('file_edit')
+    expect(other).toContain('task_draft')
+    // 无会话号（headless、启动自检）也按看板第一条。
+    expect(visible(registrations, sessionAt(repo))).toEqual(other)
+  })
+
+  it('认领会话号失效时回落配置任务，不按认领处理', () => {
+    const { repo, spec } = makeRepo()
+    addTask(repo, 'T-02', 'verifying')
+    setSession(repo, 'T-02', 'session-B')
+    const harness = makeHarness()
+    const registrations = mounted(harness, { root: spec, taskId: 'T-02', selfCheck: false })
+
+    // 这条会话没有认领关系，但装配层指定了 T-02。
+    expect(visible(registrations, sessionAt(repo, 'session-gone'))).toContain('task_close')
   })
 
   it('effect 交出的句柄能解除注册', () => {

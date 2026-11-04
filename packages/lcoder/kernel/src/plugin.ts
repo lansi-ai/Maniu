@@ -17,7 +17,7 @@ import { createTaskTools } from './tools/task-tools.js'
 import { allowedTools, checkSurface, parseRole } from './kernel/surface.js'
 import { hasSpecRoot, resolveRoot, sessionSpecRoot } from './kernel/spec-root.js'
 import type { RootInput, SpecRootContext } from './kernel/spec-root.js'
-import { listTasks } from './kernel/task-store.js'
+import { listTasks, pickTaskForSession } from './kernel/task-store.js'
 import type { TaskState } from './schema/spec.js'
 
 export const name = 'lcoder'
@@ -39,6 +39,7 @@ export interface LcoderConfig {
    * 装载时按哪个任务的状态决定工具面。
    * 不给则取 `.spec/tasks/` 下第一个任务；一个任务都没有就退回空看板最小面
    * （`file_read`、`spec_query`、`task_read`、`task_draft`）。
+   * 会话经 `/task_bind` 认领了某条任务时，该会话以认领的那条为准，本字段不参与。
    */
   taskId?: string
   /**
@@ -109,7 +110,7 @@ export function apply(ctx: PluginContext, config: LcoderConfig = {}): void {
       // 没有规格根 = 这个仓库还没立项，走空看板最小面。
       if (!hasSpecRoot(root)) return null
       const tasks = listTasks(root)
-      const task = taskId ? tasks.find(t => t.id === taskId) : tasks[0]
+      const task = pickTaskForSession(tasks, context?.agent?.session.header.id, taskId)
       return task?.state ?? null
     } catch (error) {
       // 坏 YAML 或读盘失败都退回空看板最小面：立项工具仍然可用，
