@@ -42,6 +42,7 @@ kind: "package-reference"
 | 字段 | 默认值 | 含义 |
 |---|---|---|
 | `shell` | `true` | 在 `lcoder-home` 主面板渲染 LCoder 外壳；`false` 保留右栏页签 |
+| `openTimeoutMs` | `15000` | 「打开仓库」每一步的等待上限；到点报「超时」并给出卡住的步骤，被拒绝则报出对方给的原因 |
 
 本包通过 patch 层作为插件行挂载，没有 `dsh plugin add` 安装路径。
 
@@ -53,7 +54,7 @@ kind: "package-reference"
 <details>
 <summary>实现内幕——点击展开</summary>
 
-本包注册外壳主面板；`shell: false` 时注册旧的页签。外壳通过框架 hooks 读工作区与会话列表，通过 `workspaceFiles` 读 `.spec/tasks`、`.spec/spec/rules.yaml`、`.spec/project.yaml` 与 `.spec/local.yaml`，并通过会话控制器发送提示。项目选择器的「打开仓库」调用 `workspaces.create` 与 `sessions.create`，然后选中新工作区。
+本包注册外壳主面板；`shell: false` 时注册旧的页签。外壳通过框架 hooks 读工作区与会话列表，通过 `workspaceFiles` 读 `.spec/tasks`、`.spec/spec/rules.yaml`、`.spec/project.yaml` 与 `.spec/local.yaml`，并通过会话控制器发送提示。项目选择器的「打开仓库」调用 `workspaces.create` 与 `sessions.create`，然后选中新工作区。每一步最多等 `openTimeoutMs`：到点抛 `WorkspaceOpenTimeoutError` 并带上卡住的步骤名，被拒绝则保留对方返回的原因；两种情况用不同词典键，挂住的调用不会被写成「打开失败」。
 
 悬浮对话订阅会话事件窗口并渲染用户/助手文本；输入框向同一会话继续发送提示。磁盘上没有任务时，看板的立项动作填入并发送分析咒语，而不是逐任务的启动咒语。本包自身不注册模型工具、提示词段落或 schema。
 
@@ -102,6 +103,7 @@ kind: "package-reference"
 
 <a id="known-limitations-and-deferred-work"></a>
 
+- 「打开仓库」超时只解放外壳：底层 `workspaces.create` 仍在挂，因为上游 Workspace 命令队列没有取消语义。
 - 悬浮对话只从会话事件窗口渲染最终用户/助手文本，不是完整 DSH 会话 UI（工具卡片、逐 token 流式）。
 - 任务板读取所选工作区的第一个会话；每个任务单独建会话尚未实现。
 - 外壳在所选工作区或会话变化时重载；通过 `workspaceFiles.changes` 的增量刷新尚未实现。
