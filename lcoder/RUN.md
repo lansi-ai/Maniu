@@ -64,10 +64,13 @@ pnpm --filter @lcoder/kernel bundle
 按顺序看四件事：
 
 1. **服务活着**：日志里有 `dsh web: http://127.0.0.1:3080/?token=…`
-2. **kernel 挂上了**：日志里有 `[lcoder] 已注册 10 个工具与 /contract_sign 命令；无会话 cwd 时规格根 …`
-   —— 这一行是 kernel 的 selfCheck 打的，说明宿主侧工具真注册了
-3. **规格根对着目标仓库**：会话里第一次求值工具面时日志出现 `[lcoder] 规格根：<仓库>/.spec`
-   —— 有会话时它必须是目标仓库，而不是 profile 目录
+2. **kernel 挂上了**：selfCheck 那行 `[lcoder] 已注册 12 个工具与 /contract_sign、/task_bind 命令；角色 …`
+   打到**宿主 stderr**，桌面实例里采不到它——宿主子进程的 stdout 不并入 `dev:desktop` 日志，
+   而且 kernel 是 Agent 作用域**懒装载**，`apply()` 要到起回合才发生，无钥匙实例里这行出现 0 次。
+   桌面端改判两条：会话头 `agentPreset` 是 `lcoder*`（不要钥匙，实测可采），以及真点一次
+   「签署契约」看宿主是否落盘。要数注册计数就另起一份 web 判别器跑同码。
+3. **规格根对着目标仓库**：`[lcoder] 规格根：<仓库>/.spec` 同样走宿主 stderr，桌面里采不到；
+   判它看落盘位置——`task_draft` 或 `/task_bind` 写完去目标仓库找 `.spec/tasks/`，落在 profile 目录就是错的。
 4. **没有激活失败**：不应该出现 `N entries did not activate`
 5. **工作台进了浏览器清单**：带会话取首页，插件组合 URL 里要有
    `@lcoder/workspace/client.js`
@@ -147,9 +150,10 @@ pnpm run start:desktop        # 同上但跳过重建
 pnpm --filter @lcoder/workspace bundle   # 只重打外壳产物；start:desktop 不会替你做
 ```
 
-启动日志里按顺序确认三件事：`desktop development: DSH_HOME=<仓内路径>` 与
+启动日志里按顺序确认两件事：`desktop development: DSH_HOME=<仓内路径>` 与
 `inspectors main=9229, renderer=9222, host=9230`、`dsh web: http://127.0.0.1:<port>/?token=…`
-的 ready 行、`[lcoder] 已注册 10 个工具与 /contract_sign 命令`。三条都齐才算宿主活着。
+的 ready 行。第三件事不在日志里——kernel 的注册行走宿主 stderr 且不并日志，改判会话头
+`agentPreset` 是不是 `lcoder*`（见「怎么确认真的起来了」第 2 条）。两条齐才算宿主活着。
 一条桌面线一个 worktree：feature worktree 用 `DSH_DESKTOP_MAIN_INSPECT_PORT` /
 `DSH_DESKTOP_RENDERER_DEBUG_PORT` / `DSH_DESKTOP_HOST_INSPECT_PORT` 换一组预留端口，
 端口号写进该任务的台账备注；主窗保留默认 9229/9222/9230。
@@ -157,6 +161,12 @@ pnpm --filter @lcoder/workspace bundle   # 只重打外壳产物；start:desktop
 ## 并联工作树
 
 并行窗口用独立 worktree 时，web 用 worktree 自己的仓内 home（`DSH_HOME='<worktree>\.dsh-home'`），桌面用 worktree 自带的 `apps/desktop/.desktop-build/development/home`；两者都不碰主窗口共用的目录。smoke 的端口换 3081，桌面按上一节的三件套换一组预留 inspector。首次先 `pnpm install`、`pnpm run build:artifacts`（新 worktree 只 `pnpm install` 会因缺 `lib/` 产物而起不来），再按第 2 节把 worktree 的两个包 `link:` 进 worktree 自己的 profile。
+
+装完先核一条再判门禁，`grep -o 'InstallationProbe = .*' node_modules/.pnpm/@botiverse+oar@0.67.0_patch_*/node_modules/@botiverse/oar/dist/contracts/installation.d.ts` 要带 `options?`——`pnpm-workspace.yaml` 给这个依赖打了补丁，新 tree 的 `pnpm install` 可能静默不应用，症状是 `packages/experimental/subagent-oar/src/run.ts:253` 报 TS2554、host compiler 退出 1、桌面产物链全断。`pnpm install --force` 即解；别把它记成上游类型错误（`lcoder/PITFALLS.md` W-09）。
+
+装配源进仓后，worktree 的桌面 profile 不再手抄。`lcoder/desktop-profile.patch.yml` 是四个角色 preset 与 LCoder 段的唯一可审阅源，拷进本 worktree 的 `…/home/profiles/desktop/cordis.patch.yml` 后核三件：`documentsDirectory` 指向一个真实存在的目录、两条 `link:` 指向**本 worktree** 的两个包、四个 preset 的 `role` 各就各位（`dev` / `intake` / `architect` / `review`；kernel 只挂在 preset 内，没有全局行）。
+
+还有一条本机偏离：worktree 首启动时 `@electron/get` 下载 Electron 会对本机 GitHub 超时，先对拷主仓 `apps/desktop/.desktop-build/downloads` 缓存并设 `ELECTRON_SKIP_BINARY_DOWNLOAD=1`，否则 `start:desktop` 以 `aborted due to timeout` 退出。web 冒烟用的 `.dsh-home/profiles/web` 同样要装两条 `link:`，少一条就报 `2 entries did not activate`。
 
 ## 踩过的坑
 

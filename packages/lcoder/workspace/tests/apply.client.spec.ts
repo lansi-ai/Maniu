@@ -28,6 +28,7 @@ async function boot(
   sessions: { create: (input: { workspaceId: unknown }) => unknown; binding?: (id: string) => unknown } = { create: vi.fn() },
   commands: { execute: ReturnType<typeof vi.fn> } = { execute: vi.fn() },
   session: { modelCatalog: ReturnType<typeof vi.fn> } = { modelCatalog: vi.fn() },
+  agentPresets: { list: ReturnType<typeof vi.fn> } = { list: vi.fn() },
 ) {
   const ctx = new Context()
   const tabs = new SidebarRightTabRegistry(ctx)
@@ -57,16 +58,20 @@ async function boot(
   ctx.provide('locale', locale as never)
   // 正文注册时会把 workspaceFiles 窄化成投影面；这里只看注册形状，远程面给空壳即可。
   const $on = vi.fn((_event: string, _listener: () => void): () => void => vi.fn())
-  ctx.provide('remote', { workspaceFiles: {}, commands, session, $on } as never)
+  ctx.provide('remote', { workspaceFiles: {}, commands, session, agentPresets, $on } as never)
   ctx.provide('remote.workspaceFiles', {} as never)
   ctx.provide('remote.commands', commands as never)
   ctx.provide('remote.session', session as never)
+  ctx.provide('remote.agentPresets', agentPresets as never)
   ctx.provide('workspaces', workspaces as never)
   ctx.provide('sessions', sessions as never)
   ctx.provide('layout', { selectPanel, toggleSidebar } as never)
   const fiber = ctx.plugin({ inject: [...inject], apply }, config)
   await fiber.await()
-  return { ctx, tabs, registered, dictionaries, fiber, slots, locale, selectPanel, toggleSidebar, injections, commands, session, $on }
+  return {
+    ctx, tabs, registered, dictionaries, fiber, slots, locale, selectPanel, toggleSidebar,
+    injections, commands, session, agentPresets, $on,
+  }
 }
 
 describe('@lcoder/workspace apply', () => {
@@ -229,49 +234,53 @@ describe('@lcoder/workspace apply', () => {
     } finally { await h.fiber.dispose() }
   })
 
-  it('卡片的两个状态位：物化过的会话读得到，没物化的返回 null', async () => {
-    const bound = {
-      session: {
-        getSnapshot: () => ({
-          awaitingFirstTurn: true,
-          promptError: { op: 'send', error: { code: 'gateway/internal', message: 'boom' } },
-          lastAgentError: null,
-        }),
-      },
-    }
-    const h = await boot(
-      { shell: true },
-      { create: vi.fn() },
-      { create: vi.fn(), binding: vi.fn((id: string) => (id === 's-1' ? bound : undefined)) },
-      { execute: vi.fn() },
-    )
+  it('认领把 /task_bind 交给人机命令，宿主那句人话原样带回', async () => {
+    const execute = vi.fn().mockResolvedValue({
+      ok: true,
+      value: { commandId: 'c3', result: { kind: 'success', text: '会话 s-1 已认上 T-01' } },
+    })
+    const h = await boot({ shell: true }, { create: vi.fn() }, { create: vi.fn() }, { execute })
     try {
-      const face = h.injections[0] as {
-        readSessionFlags: (id: string) => { awaitingFirstTurn: boolean; failed: boolean } | null
-      }
-      expect(face.readSessionFlags('s-1')).toEqual({ awaitingFirstTurn: true, failed: true })
-      expect(face.readSessionFlags('s-2')).toBeNull()
+      const face = h.injections[0] as { bindTask: (id: string, taskId: string) => Promise<{ ok: boolean; text: string }> }
+      const r = await face.bindTask('s-1', 'T-01')
+      expect(execute.mock.calls[0]?.[1]).toBe('/task_bind T-01')
+      expect(r).toEqual({ ok: true, text: '会话 s-1 已认上 T-01' })
     } finally { await h.fiber.dispose() }
   })
 
-  it('订阅同时挂事件窗口与会话快照，收回时两个都解', async () => {
-    const disposeEvents = vi.fn()
-    const disposeState = vi.fn()
-    const binding = {
-      eventSource: { subscribe: () => disposeEvents, getSnapshot: () => ({ entries: [] }) },
-      session: { subscribe: () => disposeState },
+  it('新会话复用同一仓库的工作区，并把角色指名给创建这一步', async () => {
+    const workspaces = { create: vi.fn().mockResolvedValue({ workspaceId: 'w-1' }) }
+    const sessions = { create: vi.fn().mockResolvedValue('s-9') }
+    const h = await boot({ shell: true }, workspaces, sessions)
+    try {
+      const face = h.injections[0] as { createSession: (path: string, preset?: string) => Promise<string> }
+      expect(await face.createSession('E:/repo/target', 'lcoder-review')).toBe('s-9')
+      expect(sessions.create).toHaveBeenCalledWith({ workspaceId: 'w-1', agentPreset: 'lcoder-review' })
+      await face.createSession('E:/repo/target')
+      expect(sessions.create.mock.calls[1]?.[0]).toEqual({ workspaceId: 'w-1' })
+    } finally { await h.fiber.dispose() }
+  })
+
+  it('角色名册只交 LCoder 角色，远程拒绝就交空表而不是编造角色', async () => {
+    const roster = {
+      presets: [
+        { id: 'standard', isDefault: false },
+        { id: 'lcoder', isDefault: true },
+        { id: 'lcoder-review', name: '评审', isDefault: false },
+      ],
     }
+    const list = vi.fn()
+      .mockResolvedValueOnce({ ok: true, value: roster })
+      .mockResolvedValueOnce({ ok: false, error: { code: 'unavailable', message: 'no roster' } })
     const h = await boot(
-      { shell: true },
-      { create: vi.fn() },
-      { create: vi.fn(), binding: vi.fn(() => binding) },
-      { execute: vi.fn() },
+      { shell: true }, { create: vi.fn() }, { create: vi.fn() }, { execute: vi.fn() },
+      { modelCatalog: vi.fn() }, { list },
     )
     try {
-      const face = h.injections[0] as { subscribeSession: (id: string, listener: () => void) => () => void }
-      face.subscribeSession('s-1', () => {})()
-      expect(disposeEvents).toHaveBeenCalledTimes(1)
-      expect(disposeState).toHaveBeenCalledTimes(1)
+      const face = h.injections[0] as { listRoles: () => Promise<Array<{ id: string; name?: string }>> }
+      // `standard` 没有本包的十个工具，读不到 .spec，外壳不把它当角色给。
+      expect(await face.listRoles()).toEqual([{ id: 'lcoder' }, { id: 'lcoder-review', name: '评审' }])
+      expect(await face.listRoles()).toEqual([])
     } finally { await h.fiber.dispose() }
   })
 

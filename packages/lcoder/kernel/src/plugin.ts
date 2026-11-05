@@ -4,20 +4,22 @@
  * 形态对齐上游最小插件（如 `@deepseek-ai/dsh-persona`）：
  * 具名导出 `name` / `inject` / `apply`，Cordis 的 loader 按包名加载后取这三样。
  *
- * 本插件做两件事：**把十个工具注册进注册表**，**把签署契约注册成人机命令**。
+ * 本插件做两件事：**把十二个工具注册进注册表**，**把签署契约与任务认领注册成人机命令**。
  * 工具面的收放（restrict 掩码）需要 Agent 作用域，由 surface 在会话侧接管，
  * 不在这里做——否则会变成全局限制，把每个 Agent 都罩住（DSH 会直接抛错）。
  */
 import { join, resolve } from 'node:path'
 
 import { createContractSignCommand } from './commands/contract-sign.js'
+import { createTaskBindCommand } from './commands/task-bind.js'
 import { createEditTools, spawnRunner } from './tools/edit-tools.js'
+import { createProjectTools } from './tools/project-tools.js'
 import { createSpecTools } from './tools/spec-tools.js'
 import { createTaskTools } from './tools/task-tools.js'
-import { allowedTools, checkSurface } from './kernel/surface.js'
+import { allowedTools, checkSurface, parseRole } from './kernel/surface.js'
 import { hasSpecRoot, resolveRoot, sessionSpecRoot } from './kernel/spec-root.js'
 import type { RootInput, SpecRootContext } from './kernel/spec-root.js'
-import { listTasks } from './kernel/task-store.js'
+import { listTasks, pickTaskForSession } from './kernel/task-store.js'
 import type { TaskState } from './schema/spec.js'
 
 export const name = 'lcoder'
@@ -37,10 +39,18 @@ export interface LcoderConfig {
   selfCheck?: boolean
   /**
    * 装载时按哪个任务的状态决定工具面。
-   * 不给则取 `.spec/tasks/` 下第一个任务；一个任务都没有就退回空看板最小面
-   * （`file_read`、`spec_query`、`task_read`、`task_draft`）。
+   * 不给则取 `.spec/tasks/` 下第一个任务；一个任务都没有就退回立项面
+   * （`file_read`、`project_draft`、`spec_query`、`spec_draft`、`task_read`、`task_draft`）。
+   * 会话经 `/task_bind` 认领了某条任务时，该会话以认领的那条为准，本字段不参与。
    */
   taskId?: string
+  /**
+   * 本插件实例所属角色，取值 `intake` / `architect` / `dev` / `review`。
+   * 角色是工具面的天花板：与任务状态允许的清单求交，只减不加。
+   * 不给则不设天花板，保持只有状态一维的行为。每个角色 preset 各挂一行本插件，
+   * 所以这一项由装配层的 preset 写死，不由会话运行时决定。
+   */
+  role?: string
 }
 
 interface ToolRegistry {
@@ -74,6 +84,8 @@ interface CommandRegistry {
 }
 
 export function apply(ctx: PluginContext, config: LcoderConfig = {}): void {
+  // 角色在装载时就校验：配错名字要立刻响，不能静默按「无角色」装配出一个能力更大的会话。
+  const role = parseRole(config.role)
   // 备案根：没有会话 cwd 时（headless、启动自检）落在进程工作目录的 `.spec` 下，
   // 而不是工作目录本身——规格库是一个隐藏目录，`tasks/` 与 `spec/` 都在它里面。
   const fallbackRoot = config.root ?? join(process.cwd(), '.spec')
@@ -82,6 +94,7 @@ export function apply(ctx: PluginContext, config: LcoderConfig = {}): void {
   // 规格根保存 env/evidence；文件工具必须读仓库根（规格根的上一级）。
   const repoRootInput: RootInput = context => resolve(rootInput(context), '..')
   const tools = [
+    ...createProjectTools(rootInput),
     ...createSpecTools(rootInput),
     ...createTaskTools(rootInput),
     ...createEditTools(rootInput, { run: spawnRunner, repoRoot: repoRootInput }),
@@ -100,7 +113,7 @@ export function apply(ctx: PluginContext, config: LcoderConfig = {}): void {
       // 没有规格根 = 这个仓库还没立项，走空看板最小面。
       if (!hasSpecRoot(root)) return null
       const tasks = listTasks(root)
-      const task = taskId ? tasks.find(t => t.id === taskId) : tasks[0]
+      const task = pickTaskForSession(tasks, context?.agent?.session.header.id, taskId)
       return task?.state ?? null
     } catch (error) {
       // 坏 YAML 或读盘失败都退回空看板最小面：立项工具仍然可用，
@@ -116,18 +129,25 @@ export function apply(ctx: PluginContext, config: LcoderConfig = {}): void {
         when: (context) => {
           // 取不到任务状态（没有 `.spec`，或 `tasks/` 是空的）时按空看板最小面收：
           // 立项需要的读与建任务能力留着，改代码与跑命令的能力不放。
-          return allowedTools(currentState(context)).includes(tool.name)
+          // 角色再收一层：这个 preset 拿不到的工具，任何状态都不会放出来。
+          return allowedTools(currentState(context), role).includes(tool.name)
         },
       })
     if (ctx.effect) ctx.effect(mount, `lcoder.tool(${tool.name})`)
     else mount()
   }
 
-  // 签署命令按同一个规格根解析：工具与命令读写同一份 `.spec`，否则签完收口读不到。
+  // 两条人机命令按同一个规格根解析：工具与命令读写同一份 `.spec`，否则签完收口读不到。
   const signCommand = createContractSignCommand(rootInput)
   const mountCommand = () => ctx.commands.register(signCommand)
   if (ctx.effect) ctx.effect(mountCommand, `lcoder.command(${signCommand.name})`)
   else mountCommand()
+
+  // 认领关系同样只由人写：模型能调就等于自己挑工具面。
+  const bindCommand = createTaskBindCommand(rootInput)
+  const mountBind = () => ctx.commands.register(bindCommand)
+  if (ctx.effect) ctx.effect(mountBind, `lcoder.command(${bindCommand.name})`)
+  else mountBind()
 
   if (config.selfCheck ?? true) {
     const check = checkSurface(tools.map(t => t.name))
@@ -137,7 +157,7 @@ export function apply(ctx: PluginContext, config: LcoderConfig = {}): void {
     if (check.orphan.length > 0) {
       console.error(`[lcoder] 已注册但任何状态都看不到的工具：${check.orphan.join(', ')}`)
     }
-    console.error(`[lcoder] 已注册 ${tools.length} 个工具与 /${signCommand.name} 命令；无会话 cwd 时规格根 ${fallbackRoot}，有会话时取 session.header.cwd/.spec`)
+    console.error(`[lcoder] 已注册 ${tools.length} 个工具与 /${signCommand.name}、/${bindCommand.name} 命令；角色 ${role ?? '未设（只按状态收放）'}，无会话 cwd 时规格根 ${fallbackRoot}，有会话时取 session.header.cwd/.spec`)
   }
 
 }

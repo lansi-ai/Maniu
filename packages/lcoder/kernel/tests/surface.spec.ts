@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { SURFACE, UNSCOPEED_SURFACE, SurfaceSwitcher, allowedTools, allToolNames, checkSurface } from '../src/kernel/surface.js'
+import { ROLE_TOOLS, ROLES, SURFACE, UNSCOPEED_SURFACE, SurfaceSwitcher, allowedTools, allToolNames, checkSurface, parseRole } from '../src/kernel/surface.js'
 import type { TaskState } from '../src/schema/spec.js'
 
 const STATES: TaskState[] = ['drafting', 'contracted', 'implementing', 'verifying', 'closed']
@@ -117,8 +117,8 @@ describe('掩码自检', () => {
 })
 
 describe('空看板工具面', () => {
-  it('只放开立项需要的读取与建任务能力', () => {
-    expect(UNSCOPEED_SURFACE).toEqual(['file_read', 'spec_query', 'task_read', 'task_draft'])
+  it('只放开立项需要的读取、建任务与立项落盘能力', () => {
+    expect(UNSCOPEED_SURFACE).toEqual(['file_read', 'project_draft', 'spec_query', 'spec_draft', 'task_read', 'task_draft'])
     expect(UNSCOPEED_SURFACE).not.toContain('file_edit')
     expect(UNSCOPEED_SURFACE).not.toContain('cmd_run')
     expect(UNSCOPEED_SURFACE).not.toContain('spec_bind')
@@ -140,5 +140,64 @@ describe('空看板工具面', () => {
       expect(SURFACE[s]).toContain('task_draft')
     }
     expect(SURFACE.closed).not.toContain('task_draft')
+  })
+
+  it('project_draft 与 spec_draft 跟着 task_draft 一起放开，终态 closed 不放', () => {
+    for (const s of ['drafting', 'contracted', 'implementing', 'verifying'] as TaskState[]) {
+      expect(SURFACE[s]).toContain('project_draft')
+      expect(SURFACE[s]).toContain('spec_draft')
+    }
+    expect(SURFACE.closed).not.toContain('project_draft')
+    expect(SURFACE.closed).not.toContain('spec_draft')
+  })
+})
+
+describe('角色天花板', () => {
+  it('实施角色等于全集：新增工具不会静默对实施隐身', () => {
+    expect([...ROLE_TOOLS.dev].sort()).toEqual(allToolNames())
+  })
+
+  it('立项、架构、评审三个角色都动不了代码与命令', () => {
+    for (const role of ['intake', 'architect', 'review'] as const) {
+      expect(ROLE_TOOLS[role]).not.toContain('file_edit')
+      expect(ROLE_TOOLS[role]).not.toContain('cmd_run')
+    }
+  })
+
+  it('只有架构能起草契约与绑落点，只有评审能收口与挂证据', () => {
+    expect(ROLE_TOOLS.architect).toContain('contract_draft')
+    expect(ROLE_TOOLS.architect).toContain('spec_bind')
+    expect(ROLE_TOOLS.intake).not.toContain('contract_draft')
+    expect(ROLE_TOOLS.intake).not.toContain('spec_bind')
+    expect(ROLE_TOOLS.review).toContain('task_close')
+    expect(ROLE_TOOLS.review).toContain('evidence_attach')
+    expect(ROLE_TOOLS.architect).not.toContain('task_close')
+  })
+
+  it('求交只减不加：任何角色在任何状态都不越出状态表', () => {
+    for (const role of ROLES) {
+      for (const state of STATES) {
+        for (const tool of allowedTools(state, role)) expect(SURFACE[state]).toContain(tool)
+      }
+      for (const tool of allowedTools(null, role)) expect(UNSCOPEED_SURFACE).toContain(tool)
+    }
+  })
+
+  it('签了约的评审拿不到编辑，验证态的评审能收口', () => {
+    expect(allowedTools('contracted', 'review')).not.toContain('file_edit')
+    expect(allowedTools('verifying', 'review')).toEqual(['file_read', 'spec_query', 'task_read', 'evidence_attach', 'task_close'])
+  })
+
+  it('不配角色时保持只有状态一维的旧行为', () => {
+    expect(allowedTools('drafting')).toEqual(SURFACE.drafting)
+    expect(allowedTools('drafting', null)).toEqual(SURFACE.drafting)
+  })
+
+  it('parseRole 认四个角色，未设给 null，配错当场响', () => {
+    expect(parseRole(undefined)).toBeNull()
+    for (const role of ROLES) expect(parseRole(role)).toBe(role)
+    expect(() => parseRole('pm')).toThrow(TypeError)
+    expect(() => parseRole('pm')).toThrow('未知角色')
+    expect(() => parseRole(7)).toThrow('未知角色')
   })
 })

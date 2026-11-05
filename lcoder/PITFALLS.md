@@ -57,3 +57,17 @@
 - **原因**：根因是这台机器上宿主「向操作系统要文档目录」那一步挂住——`packages/api/workspace-controller/src/default-directory.ts` 的 win32 分支用 `runNativeCommand` 起 `powershell.exe` 取 `MyDocuments`，同一条命令在 Git Bash 里 0.17 秒返回，在宿主链路里却不 settle。把它放大成整条链不可用的是两点机制，按 T-16 的收口都不算上游缺陷：一是失败不发声也不释放——`enqueueOperation` 的 tail 只在 promise settle 时释放，一条永不 settle 的操作会占死注册表队列，把后面的 `create` 一起拖住，且 `packages/api/workspace-controller/src/commands.ts` 里 `timeout`、`AbortSignal`、`deadline` 三个关键字命中数为 0，队头挂住后该命名空间不会自愈，这属设计特征；二是「`documentsLookupTimeoutMs` 的 10 秒上限没兜住这次等待」未经证实、已降级，实际只观察到 60 秒仍无应答，异步栈两次抓取都是 0 条。不是「上游产品不可用」：同一份上游代码配上正确目录后全链路跑通。
 - **处理**：在该 home 的 profile patch 里给 `workspace-controller` 配 `documentsDirectory` 指向一个真实存在的目录，跳过问 OS 那一步。单变量实测（同一份代码、同一个仓内 home、只改这一行）：不配时两个 workspace 调用都无应答、`storages/workspace.json` 停在 227 字节且 `workspaceIds` 为空；配上后 22 个请求全部应答、文件涨到 758 字节、登记出 `default-workspace` 并真的建出目录。
 - **预防**：桌面与 web 都按这条配；`lcoder/RUN.md` 的桌面章节有现成写法。判断新环境是否中招，只看两个数——`initializeDefault` 是否应答、`workspace.json` 的 `workspaceIds` 与 mtime 是否变化，别看 UI 有没有转圈。换机器的处置口径：再遇到首启动「打开仓库」挂死，先给仓内桌面 profile 配 `documentsDirectory`，仍然挂再考虑抓栈；不要把这类现象默认归给上游。
+
+## W-09 新 worktree 的 pnpm 补丁未应用，把上游代码判成类型错误
+
+- **现象**：`.worktrees/t23-empty-intake`（与 baseline 同一提交）跑 `pnpm run typecheck` 报 `packages/experimental/subagent-oar/src/run.ts(253,54): error TS2554: Expected 0 arguments, but got 1`；`build:artifacts` 的 host compiler 退出 1，其后 host bundle、desktop bundle、client compiler、client bundle、web 五步全部跳过，桌面产物链断在这里；起实例时 `apps/desktop` 报解析不到 `@deepseek-ai/dsh-app-boot/lib/index.js`。同一份代码在 baseline 里 `pnpm run typecheck` 五关全绿。
+- **原因**：不是上游代码，也不是版本漂移。`pnpm-workspace.yaml:110` 的 `patchedDependencies` 给 `@botiverse/oar@0.67.0` 打了补丁，补丁把 `InstallationProbe` 从 `() => ...` 扩成 `(options?: { env }) => ...`，而 run.ts:253 传的就是这个 options。新 worktree 的首次 `pnpm install` 静默没应用补丁：`.pnpm` 目录名带着同一个 `patch_41e5621b…` 哈希，目录里的 `dist/contracts/installation.d.ts` 却是未打补丁的原件。两边 pnpm 同为 11.28.5，`patches/@botiverse__oar@0.67.0.patch` 的 git 哈希相同。
+- **处理**：在该 worktree 里 `pnpm install --force`。重跑后四处 tree 的 `installation.d.ts` 都带 `options?:`，本 worktree `pnpm run typecheck` 为 5 passed、0 failed（148.53 秒）。没有改任何源码，也没有在 baseline 落修复。
+- **预防**：新 worktree 装完先核这一条再判门禁——`grep -o "InstallationProbe = .*" node_modules/.pnpm/@botiverse+oar@0.67.0_patch_*/node_modules/@botiverse/oar/dist/contracts/installation.d.ts`，带 `options?` 才算补丁落地。只看到 TS2554 就写「上游类型错误」，会把环境事实记成代码事实并让三条并行线一起等一个不存在的缺陷。同类症状（干净 tree 红、baseline 绿，差异落在 `node_modules/.pnpm/*_patch_*`）一律先 `pnpm install --force` 再判定。
+
+## W-10 kernel 是 Agent 作用域懒装载，注册行在桌面日志里采不到
+
+- **现象**：三条并行线各自起桌面实例后，`dev:desktop` 的日志里 `[lcoder] 已注册 …` 与 `[lcoder] 规格根 …` 出现 **0 次**，而同一实例确实建出了会话、宿主 RPC 有应答，真点「签署契约」也落了盘。按 `lcoder/RUN.md` 原来的「日志三件事」，这会被读成 kernel 没挂上。
+- **原因**：两件事叠加。一是 kernel 挂在 Agent preset 作用域内，`apply()` 属**懒装载**——只有起回合时那棵 profile 树才被装载，没有 `DEEPSEEK_API_KEY` 的实例永远不触发它；二是宿主子进程的 stdout 与 stderr 不并入 `dev:desktop` 日志（与 W-07 同源）。两条都不等于装配失败。
+- **处理**：判 kernel 死活改看**会话头 `agentPreset`**（`home/sessions/<仓库目录名>/session-*/` 的头一行，不需要钥匙，已实测可采），判落盘改看目标仓库里 `.spec/tasks/` 是否出现；要数注册计数就另起一份同码 web 判别器读那一行。`lcoder/RUN.md` 的桌面判据已按此改写。
+- **预防**：新 worktree 只把 kernel 挂在角色 preset 内，不要再保留全局 `lcoder-kernel` 行——历史上「同一行出现两次」正是全局行与 preset 行各装载一遍，现在按构造消除。任何「日志里没有 `[lcoder]`」的判断，先确认那个实例起过回合再下结论。

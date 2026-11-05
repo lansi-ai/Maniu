@@ -25,11 +25,8 @@ export interface TaskRow {
   readonly rules: readonly string[]
   /** 收口要求的证据类型；外壳与启动咒语直接使用。 */
   readonly evidence: readonly string[]
-  /**
-   * 这个任务的对话落在哪条会话上——`.spec/tasks/<ID>.yaml` 的 `session` 字段，任务与会话
-   * 归属的唯一权威。字段还没写进规格库时是 undefined，外壳按「未绑定」处理，不猜。
-   */
-  readonly session?: string | undefined
+  /** 认领这条任务的会话号；`/task_bind` 写过才有，缺省表示无人认领。 */
+  readonly session?: string
 }
 
 /** 中栏一条规格条目。 */
@@ -121,6 +118,7 @@ export function taskTextToRow(fileName: string, text: string): TaskRow | undefin
   if (fields === undefined) return undefined
   const title = asText(fields.title)
   if (title === undefined) return undefined
+  const session = asText(fields.session)
   return {
     id: asText(fields.id) ?? fileName.replace(/\.yaml$/, ''),
     title,
@@ -128,7 +126,7 @@ export function taskTextToRow(fileName: string, text: string): TaskRow | undefin
     grade: asText(fields.grade) ?? '-',
     rules: stringArray(fields.rules),
     evidence: stringArray(fields.evidence_required),
-    session: asText(fields.session),
+    ...(session === undefined ? {} : { session }),
   }
 }
 

@@ -18,11 +18,8 @@ import { loadLocalSecrets, loadProjectInfo, loadWorkspaceProjection } from '../p
 import type { ContractRow, ProjectionFilesRemote, TaskRow } from '../projection.ts'
 import { describeOpenFailure } from '../open-failure.ts'
 import type { ModelStatus, ShellSessionNotice } from '../model-status.ts'
-import type { LcoderWorkspaceKey } from '../locales.ts'
-import { claimTaskSession, taskCardStatus } from '../task-session.ts'
-import type { TaskCardStatus, TaskSessionRow } from '../task-session.ts'
-import { buildOnboardingPrompt, buildShellPrompt, SHELL_STATES } from './shell-data.ts'
-import type { ShellMessage, ShellProjectInfo, ShellSignResult, ShellTask, ShellTaskState } from './shell-data.ts'
+import { buildIntakePrompt, buildOnboardingPrompt, buildShellPrompt, SHELL_STATES } from './shell-data.ts'
+import type { ShellMessage, ShellProjectInfo, ShellRole, ShellSignResult, ShellTask, ShellTaskState } from './shell-data.ts'
 import css from './Shell.module.css'
 
 /** `main` 键控面板的组合 props：运行时标准 seat + 本包词典 + 文件投影面。 */
@@ -43,6 +40,12 @@ export type ShellProps =
     readonly readSessionFlags?: (sessionId: SessionId) => { readonly awaitingFirstTurn: boolean; readonly failed: boolean } | null
     /** 派 `/contract_sign <编号>` 让人签署契约；签名由宿主写盘。 */
     readonly signContract?: (sessionId: SessionId, taskId: string) => Promise<ShellSignResult>
+    /** 派 `/task_bind <编号>` 把任务认给这条会话；认领关系由宿主写盘。 */
+    readonly bindTask?: (sessionId: SessionId, taskId: string) => Promise<ShellSignResult>
+    /** 在同一仓库里新开会话，可按角色（Agent preset）指名；角色只在首回合前可选。 */
+    readonly createSession?: (path: string, agentPreset?: string) => Promise<SessionId>
+    /** 装配层声明的角色名册；读不到时外壳只走宿主默认角色。 */
+    readonly listRoles?: () => Promise<readonly ShellRole[]>
     /** 查宿主侧还有没有能跑的模型；没有对话就不会有回音。 */
     readonly checkModels?: () => Promise<ModelStatus>
     /** 模型目录或凭据一变就重查；返回解除订阅。 */
@@ -114,6 +117,7 @@ function toShellTask(row: TaskRow): ShellTask {
     evidence: row.evidence,
     session: row.session,
     surface: SURFACE[state],
+    ...(row.session === undefined ? {} : { session: row.session }),
   }
 }
 
@@ -135,9 +139,8 @@ function resolveSecrets(info: ShellProjectInfo, secrets: Readonly<Record<string,
  * @returns 顶栏 + 任务板 + 项目信息抽屉 + 浮层。
  */
 export function Shell({
-  t, files, openRepository, sendPrompt, signContract, readMessages, subscribeSession,
-  checkModels, subscribeModels, readSessionNotice, readSessionFlags,
-  useSessions, useSessionStatus, useWorkspaces,
+  t, files, openRepository, sendPrompt, signContract, bindTask, createSession, listRoles,
+  readMessages, subscribeSession, checkModels, subscribeModels, readSessionNotice, useSessions, useWorkspaces,
 }: ShellProps): ReactNode {
   const workspaces = useWorkspaces(state => state.items)
   const sessionRows = useSessions(state => state.byId)
@@ -147,6 +150,8 @@ export function Shell({
   const [workspaceId, setWorkspaceId] = useState<string | null>(null)
   const [dark, setDark] = useState(false)
   const [projectPicker, setProjectPicker] = useState(false)
+  /** 新会话的角色选择浮层。 */
+  const [rolePicker, setRolePicker] = useState(false)
   const [detail, setDetail] = useState<ShellTask | null>(null)
   const [prompt, setPrompt] = useState('')
   const [chat, setChat] = useState<ShellTask | null>(null)
@@ -174,8 +179,12 @@ export function Shell({
   const [modelStatus, setModelStatus] = useState<ModelStatus | null>(null)
   const [chatError, setChatError] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
-  /** 只有本客户端物化过的会话才读得到这两位；null 表示读不到，卡片就不画这两个态。 */
-  const [taskFlags, setTaskFlags] = useState<{ readonly awaitingFirstTurn: boolean; readonly failed: boolean } | null>(null)
+  /** 装配层声明的角色名册；读不到就是空表，新会话走宿主默认角色。 */
+  const [roles, setRoles] = useState<readonly ShellRole[]>([])
+  /** 下一次新开会话要用的角色；null 表示交给宿主默认。 */
+  const [roleChoice, setRoleChoice] = useState<string | null>(null)
+  /** 建会话与认领进行中：禁用入口，避免连点开出两条会话。 */
+  const [claiming, setClaiming] = useState(false)
 
   const workspace = workspaces.find(item => String(item.workspaceId) === workspaceId) ?? workspaces[0]
   const activeWorkspaceId = workspace === undefined ? null : String(workspace.workspaceId)
@@ -187,24 +196,17 @@ export function Shell({
   const specRoot = projectPath === '' ? '' : `${projectPath}/.spec`
   const hasWorkspace = workspace !== undefined
   const hasSession = sessionId !== undefined
-  /** 本工作区已知的会话行，折成任务归属需要的形状。 */
-  const workspaceSessions = useMemo<readonly TaskSessionRow[]>(() => {
-    if (workspace === undefined) return []
-    return workspace.sessionIds.flatMap((id): readonly TaskSessionRow[] => {
-      const row = sessionRows[id]
-      return row === undefined ? [] : [{ sessionId: id, running: row.running, blank: row.blank }]
-    })
-  }, [workspace, sessionRows])
+  /** 本工作区登记在册的会话，按上游顺序；顶栏的会话条就按这条列表排。 */
+  const workspaceSessions = workspace?.sessionIds ?? []
   /**
-   * 浮层落在哪条会话：该任务已认领的那条；立项对话或还没认领时退回工作区当前会话。
-   * 这里只做选择——建会话与认领归 T-25 的顶栏会话条，本线自己建就会留下第二套手势。
+   * 这条任务当前由哪条还在的会话负责。绑定失效（换机器、删会话）按未绑定处理：
+   * 认领关系只是入口，任务状态本身没变，重新点一次就把新的会话号写回去。
    */
-  const chatSessionId = chat === null || chat.session === undefined
-    ? sessionId
-    : claimTaskSession(chat.session, workspaceSessions)?.sessionId ?? sessionId
-  const chatRunning = chatSessionId === undefined
-    ? false
-    : sessionStatus.get(chatSessionId)?.running ?? sessionRows[chatSessionId]?.running ?? false
+  const liveSessionOf = (task: ShellTask): SessionId | undefined => {
+    if (task.session === undefined) return undefined
+    return workspaceSessions.find(id => String(id) === task.session)
+  }
+  const chatRunning = sessionId === undefined ? false : sessionRows[sessionId]?.running ?? false
   /**
    * 没有能跑的模型时不发送。缺凭据的提示不是被拒：消息会先进队，回合才失败，
    * 事件流里连 `user/message` 都没有，用户只看得到「发了，什么都没发生」。
@@ -246,6 +248,21 @@ export function Shell({
     })
     return () => { controller.abort() }
   }, [files, activeWorkspaceId, sessionId, reload])
+
+  /**
+   * 角色名册来自装配层的 Agent preset 声明，外壳活一次读一次就够：
+   * preset 定义不会在一次会话里变，读不到就当没有，新会话走宿主默认角色。
+   */
+  useEffect(() => {
+    if (listRoles === undefined || !hasWorkspace) return
+    let alive = true
+    void listRoles().then((rows) => {
+      if (!alive) return
+      setRoles(rows)
+      setRoleChoice(current => (current !== null && rows.some(row => row.id === current)) ? current : null)
+    })
+    return () => { alive = false }
+  }, [listRoles, hasWorkspace])
 
   /**
    * 进项目就查一次模型可用性，并在目录或凭据变化时重查。缺凭据时提示不是被拒——
@@ -353,30 +370,78 @@ export function Shell({
   }
 
   /**
-   * 「打开对话」只做一件事：把浮层切到该任务已认领的会话上。
+   * 打开这条任务的对话。已经绑着一条还在的会话就切过去接着说；没绑就在同一个仓库里
+   * 新开一条会话、按选定角色把它认给这条任务，再发启动咒语。
    *
-   * 本线不建会话、不认领——那套手势与 `/task_bind` 命令在 T-25 的顶栏会话条里，这里自己
-   * 做一份就会留下第二套。还没认领时把这句话显示出来，并留在任务详情里，不假装打开了。
+   * 启动咒语在这里就地生成，不读 `prompt` 状态：那份状态要等渲染后的 effect 才跟上任务，
+   * 直接发出去的是上一任务的文本。
    */
   const startConversation = (task: ShellTask): void => {
-    setChatError(null)
-    if (claimTaskSession(task.session, workspaceSessions) === null) {
-      setChatError(t('shell.taskHasNoSession'))
+    const bound = liveSessionOf(task)
+    if (bound !== undefined) {
+      setSessionOverride(bound)
+      setChat(task)
+      setDetail(null)
+      setChatError(null)
       return
     }
+    const text = buildShellPrompt({ name: projectName, path: projectPath, branch: projectBranch }, task)
+    setPrompt(text)
     setChat(task)
     setDetail(null)
+    setChatError(null)
+    if (modelBlocked) {
+      setChatError(t('shell.noModels'))
+      return
+    }
+    if (createSession === undefined || bindTask === undefined || sendPrompt === undefined || projectPath === '') {
+      setChatError(t('shell.noSession'))
+      return
+    }
+    setClaiming(true)
+    void (async () => {
+      const created = await createSession(projectPath, roleChoice ?? undefined)
+      const claimed = await bindTask(created, task.id)
+      if (!claimed.ok) throw new Error(claimed.text)
+      setSessionOverride(created)
+      // 认领写进了文件，投影要重读：卡片上「谁在跑这条任务」显示的是文件的事实。
+      setReload(value => value + 1)
+      await sendPrompt(created, text)
+    })().catch((error: unknown) => {
+      setChatError(String(error))
+    }).finally(() => {
+      setClaiming(false)
+    })
   }
 
   /**
-   * 零任务仓库的立项入口：把 `.spec/project.yaml` 声明的交付文档交给模型，
-   * 让它先调研再逐个建 drafting 任务。外壳只读文件、不判断状态机。
+   * 开一条不绑任务的会话：只为了看一眼这个角色的工具面，或接着上一轮自由讨论。
+   * 认领关系仍由任务卡那一步写，这里不碰 `.spec`。
+   */
+  const newPlainSession = (): void => {
+    if (createSession === undefined || projectPath === '') return
+    setClaiming(true)
+    void (async () => {
+      const created = await createSession(projectPath, roleChoice ?? undefined)
+      setSessionOverride(created)
+      setRolePicker(false)
+      setChat(null)
+      setReload(value => value + 1)
+    })().catch((error: unknown) => {
+      setChatError(String(error))
+    }).finally(() => {
+      setClaiming(false)
+    })
+  }
+
+  /**
+   * 零任务仓库的立项入口：读不到 `.spec/project.yaml` 时发 7 问引导咒语，先问项目
+   * 身份与文档位置再落盘；已登记项目信息时发立项分析咒语，把交付文档交给模型。
+   * 外壳只读文件、不判断状态机。
    */
   const startOnboarding = (): void => {
-    const text = buildOnboardingPrompt(
-      { name: projectName, path: projectPath, branch: projectBranch },
-      info?.docs ?? { product: '', architecture: '', tests: '' },
-    )
+    const project = { name: projectName, path: projectPath, branch: projectBranch }
+    const text = info === null ? buildIntakePrompt(project) : buildOnboardingPrompt(project, info.docs)
     setDetail(null)
     setChatError(null)
     setPrompt(text)
@@ -455,6 +520,32 @@ export function Shell({
     )
   }
 
+  /**
+   * 角色候选（装配层声明的 Agent preset）。名册读不到就不给这一行：新会话照宿主默认
+   * 角色开，外壳不编造角色。
+   */
+  const roleChoices = roles.length === 0 ? null : (
+    <div className={css.field}>
+      <label>
+        {t('shell.role')}
+        {' '}
+        <span className={css.labelHint}>{t('shell.roleHint')}</span>
+      </label>
+      <div className={css.roleRow}>
+        {roles.map(row => (
+          <button
+            type="button"
+            key={row.id}
+            className={`${css.roleChip} ${roleChoice === row.id ? css.roleChipActive : ''}`}
+            onClick={() => { setRoleChoice(row.id) }}
+          >
+            {row.name ?? row.id}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+
   return (
     <div className={css.shell} data-theme={dark ? 'dark' : 'light'}>
       <header className={css.topbar}>
@@ -470,6 +561,33 @@ export function Shell({
           </span>
           <span className={css.psChevron}>⌄</span>
         </button>
+        {!hasWorkspace ? null : (
+          <div className={css.sessionBar}>
+            {workspaceSessions.map((id, index) => {
+              const bound = tasks.find(task => task.session !== undefined && task.session === String(id))
+              return (
+                <button
+                  type="button"
+                  key={String(id)}
+                  className={`${css.sessionChip} ${String(sessionId) === String(id) ? css.sessionChipActive : ''}`}
+                  title={String(id)}
+                  onClick={() => { setSessionOverride(id) }}
+                >
+                  {bound?.id ?? `${t('shell.sessions')} ${String(index + 1)}`}
+                </button>
+              )
+            })}
+            <button
+              type="button"
+              className={css.sessionAdd}
+              title={t('shell.newSession')}
+              disabled={createSession === undefined || claiming}
+              onClick={() => { setRolePicker(true) }}
+            >
+              ＋
+            </button>
+          </div>
+        )}
         <div className={css.spacer} />
         <button type="button" className={css.secondaryBtn} onClick={() => { setDrawer(true) }}>ⓘ {t('shell.projectInfo')}</button>
         <button type="button" className={css.iconBtn} title={t('shell.theme')} onClick={() => { setDark(value => !value) }}>◐</button>
@@ -504,7 +622,9 @@ export function Shell({
                     </div>
                     {tasks.length === 0 ? (
                       <div className={css.onboardingBar}>
-                        <p className={css.onboardingText}>{t('shell.onboardingEmpty')} {t('shell.onboardingHint')}</p>
+                        <p className={css.onboardingText}>
+                          {t('shell.onboardingEmpty')} {t(info === null ? 'shell.onboardingIntakeHint' : 'shell.onboardingHint')}
+                        </p>
                         <button
                           type="button"
                           className={css.primaryBtn}
@@ -666,6 +786,35 @@ export function Shell({
         </div>
       ) : null}
 
+      {rolePicker ? (
+        <div className={css.modalBackdrop} onClick={(event) => { if (event.target === event.currentTarget) setRolePicker(false) }}>
+          <div className={`${css.modal} ${css.modalSmall}`}>
+            <div className={css.modalHead}>
+              <div className={css.grow}>
+                <h3>{t('shell.newSession')}</h3>
+                <p>{t('shell.newSessionHint')}</p>
+              </div>
+              <button type="button" className={css.iconBtn} onClick={() => { setRolePicker(false) }}>✕</button>
+            </div>
+            <div className={css.modalBody}>
+              {roleChoices === null ? <p className={css.empty}>{t('shell.noRoles')}</p> : roleChoices}
+            </div>
+            <div className={css.modalFoot}>
+              <button type="button" className={css.secondaryBtn} onClick={() => { setRolePicker(false) }}>{t('shell.cancel')}</button>
+              <div className={css.spacer} />
+              <button
+                type="button"
+                className={css.primaryBtn}
+                disabled={createSession === undefined || claiming || projectPath === ''}
+                onClick={() => { newPlainSession() }}
+              >
+                {claiming ? t('shell.claiming') : t('shell.newSessionGo')}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {detail !== null ? (
         <div className={css.modalBackdrop} onClick={(event) => { if (event.target === event.currentTarget) setDetail(null) }}>
           <div className={css.modal}>
@@ -731,6 +880,7 @@ export function Shell({
                   </>
                 )}
               </div>
+              {liveSessionOf(detail) !== undefined ? null : roleChoices}
               <div className={css.field}>
                 <label>{t('shell.startPrompt')} <span className={css.labelHint}>{t('shell.promptHint')}</span></label>
                 <textarea className={css.promptBox} value={prompt} onChange={(event) => { setPrompt(event.target.value) }} />
@@ -745,9 +895,13 @@ export function Shell({
               <button
                 type="button"
                 className={css.primaryBtn}
+                disabled={modelBlocked || claiming}
+                title={modelBlocked ? t('shell.noModels') : undefined}
                 onClick={() => { startConversation(detail) }}
               >
-                {t('shell.startChat')}
+                {claiming
+                  ? t('shell.claiming')
+                  : liveSessionOf(detail) !== undefined ? t('shell.resumeChat') : t('shell.startChat')}
               </button>
             </div>
           </div>

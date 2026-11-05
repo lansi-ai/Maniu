@@ -13,6 +13,7 @@ import {
   loadTask,
   nextTaskId,
   openTask,
+  pickTaskForSession,
   saveTask,
   transition,
 } from '../src/kernel/task-store.js'
@@ -139,5 +140,31 @@ describe('立项时的编号与标题判定', () => {
   it('编号形态与既有校验一致：不合法就抛', () => {
     expect(assertTaskId('T-014')).toBe('T-014')
     expect(() => assertTaskId('t-14')).toThrow(/非法的任务编号/)
+  })
+})
+
+describe('按会话取任务', () => {
+  const t1 = openTask({ id: 'T-01', title: 'T-01', grade: 'C', opened_at: AT })
+  const t2 = { ...openTask({ id: 'T-02', title: 'T-02', grade: 'C', opened_at: AT }), session: 'session-B' }
+  const tasks = [t1, t2]
+
+  it('认领该会话的任务优先，两条会话各看各的', () => {
+    expect(pickTaskForSession(tasks, 'session-B')?.id).toBe('T-02')
+    expect(pickTaskForSession(tasks, 'session-A')?.id).toBe('T-01')
+  })
+
+  it('没有会话时按配置任务，没配置就取第一条', () => {
+    expect(pickTaskForSession(tasks, undefined, 'T-02')?.id).toBe('T-02')
+    expect(pickTaskForSession(tasks, undefined)?.id).toBe('T-01')
+  })
+
+  it('认领失效（换机器或删会话）按未认领回落，不抛', () => {
+    expect(pickTaskForSession(tasks, 'session-gone')?.id).toBe('T-01')
+    expect(pickTaskForSession(tasks, 'session-gone', 'T-02')?.id).toBe('T-02')
+  })
+
+  it('配置的任务读不到就返回 undefined，由调用方按空看板面处理', () => {
+    expect(pickTaskForSession([t1], 'session-x', 'T-09')).toBeUndefined()
+    expect(pickTaskForSession([], 'session-B')).toBeUndefined()
   })
 })

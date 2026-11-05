@@ -168,3 +168,28 @@ export function listTasks(root: string): Task[] {
     .map(f => Task.parse(parseYaml(readFileSync(join(root, f), 'utf8'))))
     .sort((a, b) => a.id.localeCompare(b.id))
 }
+
+/**
+ * 这条会话该按哪个任务的状态装工具面。
+ *
+ * 顺序是「会话认领 → 装配层配置 → 看板第一条」：认领关系由人机命令 `/task_bind` 写下，
+ * 一仓多会话时每条会话只看自己那条任务的状态，并行的两条不会互相顶掉。
+ * 会话号在认领的任务里找不到（换机器、删会话、手写台账）时按未认领处理，回落到后两档，
+ * 与未启用认领关系时的行为一致，不报故障也不改任务状态。
+ * @param tasks - 按 id 排序的看板任务，通常来自 `listTasks`。
+ * @param sessionId - 当前会话号；无会话（headless、启动自检）时传 undefined。
+ * @param configuredId - 装配层 `Config.taskId`，没有配置时传 undefined。
+ * @returns 决定工具面的任务；一条都对不上时返回 undefined，由调用方按空看板面处理。
+ */
+export function pickTaskForSession(
+  tasks: readonly Task[],
+  sessionId: string | undefined,
+  configuredId?: string,
+): Task | undefined {
+  if (sessionId !== undefined) {
+    const claimed = tasks.find(task => task.session === sessionId)
+    if (claimed !== undefined) return claimed
+  }
+  if (configuredId !== undefined) return tasks.find(task => task.id === configuredId)
+  return tasks[0]
+}

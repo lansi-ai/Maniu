@@ -30,7 +30,9 @@ const TOOL_NAMES = [
   'evidence_attach',
   'file_edit',
   'file_read',
+  'project_draft',
   'spec_bind',
+  'spec_draft',
   'spec_query',
   'task_close',
   'task_draft',
@@ -115,8 +117,8 @@ function makeHarness(options: { withEffect?: boolean } = {}): Harness {
   return harness
 }
 
-function sessionAt(cwd: string): SpecRootContext {
-  return { agent: { session: { header: { cwd } } } }
+function sessionAt(cwd: string, sessionId?: string): SpecRootContext {
+  return { agent: { session: { header: sessionId === undefined ? { cwd } : { cwd, id: sessionId } } } }
 }
 
 /** 装载并跑完 effect，返回真正挂上去的注册表。 */
@@ -163,6 +165,12 @@ function addTask(repo: string, id: string, state: string): void {
   )
 }
 
+/** 给任务写上认领会话号，模拟 `/task_bind` 落盘后的形状。 */
+function setSession(repo: string, id: string, sessionId: string): void {
+  const path = join(repo, '.spec', 'tasks', `${id}.yaml`)
+  writeFileSync(path, `${readFileSync(path, 'utf8')}session: ${sessionId}\n`, 'utf8')
+}
+
 describe('插件装配', () => {
   it('注册十个工具，其中包含 task_draft', () => {
     const { spec } = makeRepo()
@@ -170,11 +178,11 @@ describe('插件装配', () => {
     apply(harness.ctx, { root: spec, selfCheck: false })
 
     expect(harness.effectLabels.sort()).toEqual(
-      [...TOOL_NAMES.map(name => `lcoder.tool(${name})`), 'lcoder.command(contract_sign)'].sort(),
+      [...TOOL_NAMES.map(name => `lcoder.tool(${name})`), 'lcoder.command(contract_sign)', 'lcoder.command(task_bind)'].sort(),
     )
     harness.runEffects()
     expect(harness.registrations.map(r => r.name).sort()).toEqual(TOOL_NAMES)
-    expect(harness.commands.map(c => c.name)).toEqual(['contract_sign'])
+    expect(harness.commands.map(c => c.name)).toEqual(['contract_sign', 'task_bind'])
   })
 
   it('签署不是工具：contract_sign 只进命令面', () => {
@@ -185,6 +193,72 @@ describe('插件装配', () => {
 
     expect(harness.registrations.map(r => r.name)).not.toContain('contract_sign')
     expect(harness.commands.map(c => c.name)).toContain('contract_sign')
+  })
+
+  it('角色装配：评审在已签契约状态下仍动不了代码', () => {
+    const { repo, spec } = makeRepo()
+    setState(repo, 'contracted')
+    const harness = makeHarness()
+    const registrations = mounted(harness, { root: spec, role: 'review', selfCheck: false })
+
+    const shown = visible(registrations, sessionAt(repo))
+    expect(shown).not.toContain('file_edit')
+    expect(shown).not.toContain('cmd_run')
+    expect(shown).toContain('file_read')
+    expect(shown).toContain('task_read')
+  })
+
+  it('角色与状态同时收：起草态的评审只剩三个读工具', () => {
+    const { repo, spec } = makeRepo()
+    const harness = makeHarness()
+    const registrations = mounted(harness, { root: spec, role: 'review', selfCheck: false })
+
+    expect(visible(registrations, sessionAt(repo))).toEqual(['file_read', 'spec_query', 'task_read'])
+  })
+
+  it('不配角色时状态表原样生效，保持单维旧行为', () => {
+    const { repo, spec } = makeRepo()
+    setState(repo, 'contracted')
+    const harness = makeHarness()
+    const registrations = mounted(harness, { root: spec, selfCheck: false })
+
+    expect(visible(registrations, sessionAt(repo))).toEqual(sorted(SURFACE.contracted))
+  })
+
+  it('配错角色名在装载时就响，不静默按无角色装配', () => {
+    const { spec } = makeRepo()
+    const harness = makeHarness()
+
+    expect(() => { apply(harness.ctx, { root: spec, role: 'pm' }) }).toThrow('未知角色')
+  })
+
+  it('两条会话各按自己认领的任务装面，互不顶掉', () => {
+    const { repo, spec } = makeRepo()
+    addTask(repo, 'T-02', 'verifying')
+    setSession(repo, 'T-02', 'session-B')
+    const harness = makeHarness()
+    const registrations = mounted(harness, { root: spec, selfCheck: false })
+
+    // 认领了 verifying 任务的会话拿到收口与编辑。
+    expect(visible(registrations, sessionAt(repo, 'session-B'))).toContain('task_close')
+    expect(visible(registrations, sessionAt(repo, 'session-B'))).toContain('file_edit')
+    // 另一条会话仍按看板第一条（drafting），拿不到编辑。
+    const other = visible(registrations, sessionAt(repo, 'session-A'))
+    expect(other).not.toContain('file_edit')
+    expect(other).toContain('task_draft')
+    // 无会话号（headless、启动自检）也按看板第一条。
+    expect(visible(registrations, sessionAt(repo))).toEqual(other)
+  })
+
+  it('认领会话号失效时回落配置任务，不按认领处理', () => {
+    const { repo, spec } = makeRepo()
+    addTask(repo, 'T-02', 'verifying')
+    setSession(repo, 'T-02', 'session-B')
+    const harness = makeHarness()
+    const registrations = mounted(harness, { root: spec, taskId: 'T-02', selfCheck: false })
+
+    // 这条会话没有认领关系，但装配层指定了 T-02。
+    expect(visible(registrations, sessionAt(repo, 'session-gone'))).toContain('task_close')
   })
 
   it('effect 交出的句柄能解除注册', () => {
@@ -206,7 +280,7 @@ describe('插件装配', () => {
     expect(harness.registrations.map(r => r.name)).toHaveLength(TOOL_NAMES.length)
   })
 
-  it('仓库还没有 .spec 时只放开四个立项工具', () => {
+  it('仓库还没有 .spec 时只放开六个立项工具', () => {
     const { repo, spec } = makeUnscopedRepo()
     const registrations = mounted(makeHarness(), { root: spec, selfCheck: false })
 
@@ -254,7 +328,7 @@ describe('插件装配', () => {
     harness.runEffects()
 
     const text = logged.mock.calls.map(call => String(call[0])).join('\n')
-    expect(text).toContain('已注册 10 个工具')
+    expect(text).toContain('已注册 12 个工具')
     expect(text).not.toContain('掩码声明了但未注册')
     expect(text).not.toContain('任何状态都看不到')
   })
