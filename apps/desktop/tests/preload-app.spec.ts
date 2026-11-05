@@ -188,6 +188,16 @@ it.each(['darwin', 'linux'] as const)('keeps native chrome and no window bridge 
   expect(document.documentElement.hasAttribute('data-lcoder-custom-chrome')).toBe(false)
 })
 
+it('exposes the application project directory picker', async () => {
+  vi.stubGlobal('location', new URL('dsh-app://app/'))
+  await import('../src/preload-app.ts')
+  const picker = electron.contextBridge.exposeInMainWorld.mock.calls
+    .find(([name]) => name === '__DSH_DIRECTORY_PICKER__')?.[1] as { pickProjectDirectory(defaultPath?: string): Promise<string | null> }
+  electron.ipcRenderer.invoke.mockResolvedValueOnce('/repo')
+  expect(await picker.pickProjectDirectory('E:/repo')).toBe('/repo')
+  expect(electron.ipcRenderer.invoke).toHaveBeenCalledWith(DESKTOP_IPC.projectDirectoryPick, 'E:/repo')
+})
+
 it('moves welcome-entry focus to the document without changing keyboard tab order', async () => {
   const dom = new JSDOM('<body><button>Sidebar</button><input></body>')
   try {

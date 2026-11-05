@@ -944,6 +944,24 @@ describe('desktop main startup', () => {
     expect(state(event)).toEqual({ maximized: false, fullscreen: false })
   })
 
+  it('opens the project directory picker with openDirectory only', async () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
+    await import('../src/main.ts')
+    await harness.preparing.promise
+    const window = harness.windows[0]!
+    const event = { sender: window.webContents, senderFrame: window.webContents.mainFrame }
+    const handler = harness.handlers.get(DESKTOP_IPC.projectDirectoryPick)!
+    harness.dialog.showOpenDialog.mockResolvedValueOnce({ canceled: false, filePaths: ['E:/Projects/LCoder-target-demo'] })
+    await expect(handler(event, 'E:/Projects/LCoder-target-demo')).resolves.toBe('E:/Projects/LCoder-target-demo')
+    expect(harness.dialog.showOpenDialog).toHaveBeenLastCalledWith(window, {
+      properties: ['openDirectory'], defaultPath: 'E:/Projects/LCoder-target-demo',
+    })
+    harness.dialog.showOpenDialog.mockResolvedValueOnce({ canceled: true, filePaths: [] })
+    await expect(handler(event)).resolves.toBeNull()
+    expect(harness.dialog.showOpenDialog).toHaveBeenLastCalledWith(window, { properties: ['openDirectory'] })
+    await expect(handler({ ...event, sender: {} })).rejects.toThrow('Rejected Platform command')
+  })
+
   it('serves packaged shell documents instead of rejecting the shell origin', async () => {
     const { serveWebDocument } = await import('../src/web-document.ts')
     vi.mocked(serveWebDocument).mockResolvedValue(new Response('shell document'))

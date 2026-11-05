@@ -28,6 +28,7 @@ import type { ModelSettingsFace } from './model-settings.ts'
 import { desktopWindowBridge } from './window-chrome.ts'
 import type { DesktopWindowCommand, DesktopWindowState } from './window-chrome.ts'
 import { runningCardClass } from './task-card-visual.ts'
+import { projectDirectoryPicker } from './project-directory.ts'
 import type { ShellMessage, ShellProjectInfo, ShellRole, ShellSignResult, ShellTask, ShellTaskState } from './shell-data.ts'
 import css from './Shell.module.css'
 
@@ -200,6 +201,8 @@ export function Shell({
   const [sessionOverride, setSessionOverride] = useState<SessionId | null>(null)
   const [repoPath, setRepoPath] = useState('')
   const [opening, setOpening] = useState(false)
+  const [browsing, setBrowsing] = useState(false)
+  const projectDirectory = useMemo(() => projectDirectoryPicker(), [])
   const [repoError, setRepoError] = useState<string | null>(null)
   const [messages, setMessages] = useState<readonly ShellMessage[]>([])
   const [notice, setNotice] = useState<ShellSessionNotice | null>(null)
@@ -606,6 +609,24 @@ export function Shell({
     }
   }
 
+  /**
+   * 浏览…：调桌面原生目录选择并填入输入框。
+   * 桥缺失时按钮不出现；对话框失败只回退到手输，不把错误升级成阻断。
+   */
+  const browseRepo = async (): Promise<void> => {
+    if (projectDirectory === undefined) return
+    setBrowsing(true)
+    setRepoError(null)
+    try {
+      const picked = await projectDirectory.pickProjectDirectory(repoPath.trim() || projectPath)
+      if (picked !== null && picked !== '') setRepoPath(picked)
+    } catch (error: unknown) {
+      console.error('LCoder project directory picker failed', error)
+    } finally {
+      setBrowsing(false)
+    }
+  }
+
   const renderColumn = (state: (typeof SHELL_STATES)[number]): ReactNode => {
     const columnTasks = tasks.filter(task => task.state === state.id)
     return (
@@ -934,6 +955,16 @@ export function Shell({
                   placeholder={t('shell.repoPathHint')}
                   onChange={(event) => { setRepoPath(event.target.value) }}
                 />
+                {projectDirectory === undefined ? null : (
+                  <button
+                    type="button"
+                    className={css.secondaryBtn}
+                    disabled={opening || browsing}
+                    onClick={() => { void browseRepo() }}
+                  >
+                    {t('shell.browse')}
+                  </button>
+                )}
                 <button
                   type="button"
                   className={css.primaryBtn}
