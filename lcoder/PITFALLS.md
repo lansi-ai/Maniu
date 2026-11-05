@@ -71,3 +71,10 @@
 - **原因**：两件事叠加。一是 kernel 挂在 Agent preset 作用域内，`apply()` 属**懒装载**——只有起回合时那棵 profile 树才被装载，没有 `DEEPSEEK_API_KEY` 的实例永远不触发它；二是宿主子进程的 stdout 与 stderr 不并入 `dev:desktop` 日志（与 W-07 同源）。两条都不等于装配失败。
 - **处理**：判 kernel 死活改看**会话头 `agentPreset`**（`home/sessions/<仓库目录名>/session-*/` 的头一行，不需要钥匙，已实测可采），判落盘改看目标仓库里 `.spec/tasks/` 是否出现；要数注册计数就另起一份同码 web 判别器读那一行。`lcoder/RUN.md` 的桌面判据已按此改写。
 - **预防**：新 worktree 只把 kernel 挂在角色 preset 内，不要再保留全局 `lcoder-kernel` 行——历史上「同一行出现两次」正是全局行与 preset 行各装载一遍，现在按构造消除。任何「日志里没有 `[lcoder]`」的判断，先确认那个实例起过回合再下结论。
+
+## W-11 会话日志是多帧 zstd，整文件一次解只拿到首帧
+
+- **现象**：按 W-10 的口径解 `home/sessions/<仓库目录名>/session-*/session.v4.jsonl.zstd` 取证时，`zlib.zstdDecompressSync(fs.readFileSync(p))` 对一个 73,472 字节的文件只吐出 215 个字符、1 行（会话头），于是七条会话全部读成「只有一行＝没起过回合」，差点把用户 2026-11-05 在主窗口亲手走完的 7 问立项（`E:/Projects/LCoder-multi-demo/docs/.spec` 三件产物的落盘时刻就在这些会话之间）判成没有实测，并把 T-10、T-23 的验收重新挂回未验。
+- **原因**：持久化按 flush 追加**互相独立的 zstd 帧**，不是单帧流。`zstdDecompressSync` 解到第一个帧结束就返回，剩下的帧静默丢弃，既不报错也不留痕迹。同一文件里帧魔数 `28 B5 2F FD` 出现 89 次，逐帧解完是 175 行事件。
+- **处理**：取证按帧切分再拼——找出所有偏移（魔数按小端写成 `28 B5 2F FD`），`buf.subarray(pos[i], pos[i+1] ?? buf.length)` 逐段 `zstdDecompressSync`，拼起来 `split('\n')`。要权威解码就用 `packages/session/session-persistence-jsonl` 的读盘路径，别用手搓单帧。
+- **预防**：凡以会话日志为证据，先做一次量级核对——文件字节数与解压字符数差两个数量级即多帧，不得直接下「没有回合」的结论。判「有没有起过回合」还要交叉两条独立来源：目标仓库 `.spec` 的落盘时间戳，以及工作区名册里该会话的 `blank` 位。
