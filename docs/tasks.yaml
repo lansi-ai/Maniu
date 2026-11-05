@@ -467,6 +467,17 @@ tracks:
       dep: [T-40]
       inferred: false
       note: "C 级（文案归位，不改内容与排版）。做 T-40 时顺手跑了一遍 scripts/verify-client-ui-i18n.ts，红十条，全落在 packages/lcoder/workspace 的渲染层：品牌字面量 LCoder 与首字母 L、会话副标题、演示角标、主题行的 Light / Dark、两个字体预设的 A · 与 B · 前缀、以及服务商 base URL 的示例 placeholder。来源是 T-33、T-35、T-36 三条视觉与品牌线的改动，之所以一直没被拦下：test:docs 的 21 关不含这条校验，它挂在 sharedHygieneGates 里，只有 pnpm run hygiene 才跑。处置是十处全部改走词典，新增 shell.brand、shell.brandInitial、shell.themeHint、shell.fontSampleA、shell.fontSampleB、shell.baseUrlPlaceholder 六个键，中英各一份。门禁：verify-client-ui-i18n 转绿并报 1272 个 Client UI 源文件文案全部归词典所有；tsc -b tsconfig.client.json 退出 0；vitest packages/lcoder 30 文件 309 用例；oxlint 0 错 0 警。遗留一条要用户定：这条校验要不要进快档门禁，否则下一批视觉改动还会再红一次。"
+    - id: T-42
+      title: 产品经理角色与方案落盘——proposal_draft 出方案，批准仍是人机命令
+      status: doing
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-05'
+      date: '2026-11-05'
+      dep: [T-25]
+      inferred: false
+      note: "A 级（新增产品数据产物、新增角色、改规则单源）。用户 2026-11-05 要一个像「我跟你在对话」的产品经理角色：谈功能怎么实现、应该实现成什么样、出方案、再拆进任务。三个岔路口由用户拍板——独立 preset（不扩 intake）、新增 .spec/proposals/ 与 proposal_draft（不把方案压成规格条目）、Task 加可选 proposal 字段（不用 rules 间接凑）。为什么 intake 不够：它是从零立项的一次性 7 问，且没有写方案的落点；今天 kernel 能写的只有 project.yaml、rules.yaml、tasks/、contracts/ 四样，方案要么停在聊天记录里重启即丢，要么被塞成一条规则条目。为什么批准不是工具：出方案与拍板是两件事，模型能调就等于自己批准，与 contract_draft 和 contract_sign 的分工同构，所以 /proposal_approve 不进任何角色与状态的工具面，规则单源两条红线同步写了这条。落点八处。schema 新增 Proposal（id、title、problem、options 三条目 name/summary/cost、recommendation、decision 三态、decided_at、opened_at）与 SpecLayout 的 proposals/*.yaml，Task 加可选 proposal；新 kernel/proposal-store.ts 管编号、读写与列表；新 tools/proposal-tools.ts 是 proposal_draft——工具参数面装不下嵌套对象，所以候选方案用 option_names、option_summaries、option_costs 三条平行数组按位置对齐，长度不一致或某条为空当场抛；同标题不重建，已拍板的方案不再被模型改写；新 commands/proposal-approve.ts 只把 draft 写成 approved 并记时刻，重复批准与已驳回都拒；task_draft 新增 proposal 入参并在写盘前查编号存在（填了就必须查得到，读侧不猜）；surface.ts 加 RoleId 与天花板 pm 一行（file_read、file_list、spec_query、spec_draft、task_read、task_draft、proposal_draft），proposal_draft 进 drafting 到 verifying 四档与空看板面，终态 closed 不放（保住「终态只读」那条被测试钉住的不变量），plugin.ts 把四条人机命令收成一个循环、注册数由十变十四；装配源新增第五个 preset lcoder-pm（order 19，persona 写清一次问一个问题、给 2 到 3 条各带代价的方案、明确推荐、落盘后等用户拍板、批准才拆任务并把 proposal 填上）。外壳侧：投影加 PROPOSALS_DIR 与 ProposalRow 与 proposalTextToRow（读不懂的文件进 problems，不编造一份方案），TaskRow 与 ShellTask 带 proposal，任务卡多一枚方案号标签，详情里出「所属方案」段（问题、候选、推荐、决定态与时刻），draft 态给「批准这个方案」按钮走新注入的 approveProposal，回指的文件读不到就地说明；文案全部进词典（中英各 11 个键）。运行副本一条手改登记：主检出的 apps/desktop/.desktop-build/development/home/profiles/desktop/cordis.patch.yml 之前是旧形状——只有一个 lcoder preset、还留着全局 lcoder-kernel 行，另有一段 settings-account 的 config 碎片被挂在 ui-brand-official 条目下，这就是主窗口看不到四个角色的原因；已按装配源重生成（五个 preset、role 各就各位、无全局行），保留 ui-chat 与 ui-settings 两行本地段，原文件备份在同目录 cordis.patch.yml.bak-20261105-profilesync。门禁：typecheck 5 关绿，vitest packages/lcoder 32 文件 323 用例（新增 proposal-tools 与 proposal-approve 两个 spec，surface 与 plugin 的计数、角色数、closed 只读、UNSCOPEED 清单同步更新），oxlint 75 文件 0 错 0 警，verify-client-ui-i18n 1272 个源文件合格，双语 pairing 已 --write 重录，两个包 bundle 重打且产物里能查到 proposal_draft 与 /proposal_approve。未验：桌面端手点一整轮——新建 LCoder 产品 会话谈需求、看它落 proposals/P-01.yaml、点「批准这个方案」、再让它拆任务并回指 P-01；角色名册这次会第一次在主窗口出现五条。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
