@@ -916,6 +916,8 @@ describe('desktop main startup', () => {
       expect(window.options).not.toHaveProperty('vibrancy')
     }
     expect(harness.hosts).toHaveLength(0)
+    expect(harness.handlers.has(DESKTOP_IPC.windowCommand)).toBe(platform === 'win32')
+    expect(harness.handlers.has(DESKTOP_IPC.windowState)).toBe(platform === 'win32')
   })
 
   it('drives the Windows primary window through the self-drawn chrome bridge', async () => {
@@ -935,7 +937,9 @@ describe('desktop main startup', () => {
     command(event, 'toggle-maximize')
     expect(window.unmaximize).toHaveBeenCalledTimes(1)
     command(event, 'close')
+    expect(harness.backgroundNotice.close).toHaveBeenCalled()
     expect(window.hide).toHaveBeenCalled()
+    expect(window.destroyed).toBe(false)
     expect(() => command(event, 'explode')).toThrow('invalid command')
     expect(state(event)).toEqual({ maximized: false, fullscreen: false })
   })
