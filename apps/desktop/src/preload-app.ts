@@ -123,19 +123,19 @@ if (location.protocol === `${SCHEME}:` && location.hostname === 'app') {
 }
 
 markDocumentPlatform()
-if (process.platform === 'win32') {
-  // The LCoder shell fills the frame; AppFrame drops its collapsed caption rail.
-  const markCustomChrome = (): void => { document.documentElement.dataset.lcoderCustomChrome = '' }
-  const root = document.documentElement as HTMLElement | null
-  if (root === null) window.addEventListener('DOMContentLoaded', markCustomChrome)
-  else markCustomChrome()
-}
 syncWindowFullscreen()
 syncNativeTheme()
 // Main-process IPC also verifies the owning window and top frame.
 contextBridge.exposeInMainWorld('dshDesktop', location.protocol === `${SCHEME}:` && location.hostname === 'app' && process.isMainFrame ? createProductApi() : { protocolVersion: 1 })
 
 if (location.protocol === `${SCHEME}:` && location.hostname === 'app') {
+  if (process.platform === 'win32') {
+    // The LCoder shell fills the frame; AppFrame drops its collapsed caption rail.
+    const markCustomChrome = (): void => { document.documentElement.dataset.lcoderCustomChrome = '' }
+    const root = document.documentElement as HTMLElement | null
+    if (root === null) window.addEventListener('DOMContentLoaded', markCustomChrome)
+    else markCustomChrome()
+  }
   contextBridge.exposeInMainWorld('__DSH_LOCALE__', {
     read: () => ipcRenderer.invoke(DESKTOP_IPC.localeBootstrap),
     onChange: (locale: string) => { ipcRenderer.send(DESKTOP_IPC.localeChanged, locale) },

@@ -16,3 +16,10 @@ apps/desktop/src/preload-app.ts
 apps/desktop/tests/main-startup.spec.ts
 apps/desktop/tests/preload-app.spec.ts
 packages/client/ui-layout/src/client/AppFrame.tsx
+apps/desktop/tests/quit-confirmation.spec.ts
+apps/desktop/tests/tray.spec.ts
+apps/desktop/tests/expected\about-panel.json
+apps/desktop/tests/expected\application-menu-en-US.json
+apps/desktop/tests/expected\application-menu-zh-CN.json
+apps/desktop/tests/expected\command-management-win32-en-US.json
+apps/desktop/tests/expected\command-management-win32-zh-CN.json

@@ -61,7 +61,7 @@
   --lc-run-period: 2.4s;
   --lc-hover: rgba(0, 0, 0, 0.05);
   --lc-backdrop: rgba(0, 0, 0, 0.32);
-  --lc-backdrop-strong: rgba(0, 0, 0, 0.45);
+  --lc-floating-scrim: rgba(9, 14, 24, 0.3);
   --lc-shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
   --lc-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04), 0 6px 18px rgba(0, 0, 0, 0.05);
   --lc-shadow-pop: 0 18px 50px rgba(0, 0, 0, 0.18);
@@ -137,7 +137,7 @@
   --lc-run-ring-soft: rgba(10, 132, 255, 0.27);
   --lc-hover: rgba(255, 255, 255, 0.07);
   --lc-backdrop: rgba(0, 0, 0, 0.55);
-  --lc-backdrop-strong: rgba(0, 0, 0, 0.7);
+  --lc-floating-scrim: rgba(0, 0, 0, 0.48);
   --lc-shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
   --lc-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.35), 0 8px 22px rgba(0, 0, 0, 0.35);
   --lc-shadow-pop: 0 22px 60px rgba(0, 0, 0, 0.55);
@@ -385,7 +385,7 @@
 
 .modalBackdrop {
   position: absolute; inset: 0; background: var(--lc-backdrop);
-  backdrop-filter: blur(6px); display: grid; place-items: center; z-index: 50; padding: var(--lc-space-6);
+  display: grid; place-items: center; z-index: 50; padding: var(--lc-space-6);
 }
 .modal {
   width: min(820px, 100%); max-height: calc(100% - 48px); overflow: auto;
@@ -433,36 +433,20 @@
 .poCount { font-size: var(--lc-text-xs); color: var(--lc-muted); }
 .poCheck { color: var(--lc-brand); font-weight: 700; }
 
-.floating { position: absolute; inset: 0; z-index: 40; display: grid; place-items: center; padding: 22px; }
-.floating[data-max="true"] { padding: 0; }
-.floatingBackdrop { position: absolute; inset: 0; background: var(--lc-backdrop-strong); backdrop-filter: blur(4px); }
-.floatingInner { position: relative; width: 100%; height: 100%; }
-.boardWindow {
-  position: absolute; inset: 0;
-  background: var(--lc-surface); border: 1px solid var(--lc-line); border-radius: var(--lc-radius-xl);
-  box-shadow: var(--lc-shadow-float); overflow: hidden; display: flex; flex-direction: column;
-}
-.miniHead { flex: 0 0 auto; display: flex; align-items: center; gap: var(--lc-space-3); padding: 14px 18px; border-bottom: 1px solid var(--lc-line); }
-.miniHead h4 { margin: 0; font: 600 var(--lc-text-lg) / var(--lc-leading-tight) var(--lc-font-display); }
-.miniHead p { margin: 0; font-size: var(--lc-text-xs); color: var(--lc-muted); }
-.miniBoard {
-  flex: 1; min-height: 0; padding: 14px;
-  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px;
-  align-items: stretch; overflow: hidden;
-}
-.miniBoard .column { min-height: 0; padding: 10px; display: flex; flex-direction: column; overflow: auto; }
-.miniBoard .taskCard { padding: 10px; }
-.miniBoard .taskTitle { font-size: 12.5px; }
-.miniBoard .tags { display: none; }
+/* 浮层只压暗、不缩放也不模糊底层看板；普通档是居中卡片，最大化才铺满内容区。 */
+.floating { position: absolute; inset: 0; z-index: 40; }
+.floatingBackdrop { position: absolute; inset: 0; background: var(--lc-floating-scrim); }
+.floatingInner { position: relative; width: 100%; height: 100%; pointer-events: none; }
 
 /* 普通档：居中、尺寸来自配置变量且留出窗外边距；最大化档：占满应用。 */
 .chatWindow {
   position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
-  width: min(var(--lc-chat-w, 760px), calc(100% - 48px));
+  width: min(var(--lc-chat-w, 720px), calc(100% - 48px));
   height: min(var(--lc-chat-h, 640px), calc(100% - 48px));
   background: var(--lc-surface); border: 1px solid var(--lc-line); border-radius: var(--lc-radius-xl);
   box-shadow: var(--lc-shadow-float); overflow: hidden;
   display: flex; flex-direction: column;
+  pointer-events: auto;
 }
 .chatWindow[data-max="true"] {
   left: 0; top: 0; transform: none; width: 100%; height: 100%;
@@ -503,7 +487,7 @@
 .pendingLayer {
   position: absolute; inset: 56px 0 0 0; z-index: 20;
   display: grid; place-items: center; padding: 20px;
-  background: var(--lc-backdrop); backdrop-filter: blur(2px);
+  background: var(--lc-backdrop);
 }
 .pendingCard {
   width: min(560px, 100%); max-height: 100%; overflow: auto;

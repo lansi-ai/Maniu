@@ -15,8 +15,14 @@ vi.mock('../src/preload-platform.ts', () => ({ markDocumentPlatform: vi.fn(), sy
 vi.mock('../src/preload-theme.ts', () => ({ syncNativeTheme: vi.fn() }))
 vi.mock('../src/preload-mandatory-overlay.ts', () => ({ installMandatoryUpdateOverlay: vi.fn() }))
 
-beforeEach(() => { vi.stubGlobal('process', { ...process, isMainFrame: true }) })
-afterEach(() => { document.body.replaceChildren(); vi.unstubAllGlobals(); vi.restoreAllMocks(); vi.clearAllMocks(); vi.resetModules() })
+beforeEach(() => {
+  document.documentElement.removeAttribute('data-lcoder-custom-chrome')
+  vi.stubGlobal('process', { ...process, isMainFrame: true })
+})
+afterEach(() => {
+  document.documentElement.removeAttribute('data-lcoder-custom-chrome')
+  document.body.replaceChildren(); vi.unstubAllGlobals(); vi.restoreAllMocks(); vi.clearAllMocks(); vi.resetModules()
+})
 
 it('reads only native login API-key presence through the onboarding bridge', async () => {
   vi.stubGlobal('location', new URL('dsh-app://app/'))
@@ -145,6 +151,7 @@ it('exposes the self-drawn window chrome only to the Windows application documen
   await import('../src/preload-app.ts')
   const api = electron.contextBridge.exposeInMainWorld.mock.calls.find(([name]) => name === 'dshDesktop')?.[1] as DshDesktopProductApi
   expect(api.window).toBeDefined()
+  expect(document.documentElement.hasAttribute('data-lcoder-custom-chrome')).toBe(true)
   await api.window!.command('minimize')
   await api.window!.state()
   expect(electron.ipcRenderer.invoke.mock.calls).toEqual([
@@ -168,8 +175,18 @@ it.each(['dsh-app://app/', 'dsh-app://shell/plugin-manager.html', 'https://examp
     await import('../src/preload-app.ts')
     const api = electron.contextBridge.exposeInMainWorld.mock.calls.find(([name]) => name === 'dshDesktop')?.[1] as DshDesktopProductApi
     expect(api.window === undefined).toBe(url !== 'dsh-app://app/')
+    expect(document.documentElement.hasAttribute('data-lcoder-custom-chrome')).toBe(url === 'dsh-app://app/')
   },
 )
+
+it.each(['darwin', 'linux'] as const)('keeps native chrome and no window bridge on %s', async (platform) => {
+  vi.stubGlobal('process', { ...process, isMainFrame: true, platform })
+  vi.stubGlobal('location', new URL('dsh-app://app/'))
+  await import('../src/preload-app.ts')
+  const api = electron.contextBridge.exposeInMainWorld.mock.calls.find(([name]) => name === 'dshDesktop')?.[1] as DshDesktopProductApi
+  expect(api.window).toBeUndefined()
+  expect(document.documentElement.hasAttribute('data-lcoder-custom-chrome')).toBe(false)
+})
 
 it('moves welcome-entry focus to the document without changing keyboard tab order', async () => {
   const dom = new JSDOM('<body><button>Sidebar</button><input></body>')
