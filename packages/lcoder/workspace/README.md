@@ -56,6 +56,8 @@ The package mounts as a plugin row through the patch layer; it has no `dsh plugi
 
 The package registers the shell main panel and, with `shell: false`, the older tab. The shell reads the workspace and session lists through the framework hooks, uses `workspaceFiles` for `.spec/tasks`, `.spec/spec/rules.yaml`, `.spec/project.yaml`, and `.spec/local.yaml`, and sends prompts through the session controller. The project picker's Open repository calls `workspaces.create` and `sessions.create`, then selects the new workspace. Each step waits at most `openTimeoutMs`: a deadline raises `WorkspaceOpenTimeoutError` naming the stalled step, and the shell shows the timeout text with that step; a refusal keeps the returned reason. The two cases use separate dictionary keys so a hung call is never labeled "failed".
 
+Starting a conversation from a task card reuses the session that task already claims through `.spec/tasks/<ID>.yaml`'s `session` field. When none is live, the shell opens another session in the same repository, names the chosen role while creating it — the preset locks after the first turn — and claims the task for that session through the `/task_bind` human command, which the kernel writes. Roles come from `agentPresets.list`, limited to preset ids starting with `lcoder` — an upstream preset mounts none of this package's tools, so it could not read `.spec` at all; a refused or empty roster leaves the Host default role in play. The header's session bar lists this workspace's sessions, labels each with the task claiming it, and switches the active one.
+
 The floating conversation subscribes to the session event window and renders user/assistant text; the input sends another prompt to the same session. With no task on disk, the board's onboarding action fills and sends the analysis prompt instead of a per-task startup prompt. The package itself registers no model tool, prompt section, or schema.
 
 | File | Responsibility |
@@ -103,6 +105,7 @@ None; the package does not change request prefixes.
 <a id="known-limitations-and-deferred-work"></a>
 
 - A timed-out Open repository releases only the shell: the underlying `workspaces.create` stays pending because the upstream Workspace command queue has no cancellation.
+- The session bar labels a session by the task claiming it, not by its role: the framework's session rows carry no `agentPreset`, and the shell does not infer one from the transcript.
 - The floating conversation renders final user/assistant text from the session event window, not the full DSH conversation UI (tool cards, live token streaming).
 - The task board reads the first session in the selected workspace; a task-specific session per task is deferred.
 - The shell reloads when the selected workspace or session changes; incremental refresh through `workspaceFiles.changes` is deferred.

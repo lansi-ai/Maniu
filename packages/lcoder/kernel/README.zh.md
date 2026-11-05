@@ -45,9 +45,10 @@ kind: "package-reference"
 |---|---|---|
 | `root` | `process.cwd()/.spec` | 会话没有 cwd 时的备案规格根 |
 | `selfCheck` | `true` | 加载时打印工具面自检 |
-| `taskId` | 第一个任务 | 用哪个任务的状态选择工具面；读不到任务时按立项面收 |
+| `taskId` | 第一个任务 | 没有会话认领时，用哪个任务的状态选择工具面；某条会话被任务的 `session` 字段认领时，该会话改按那条任务取状态，并行的两条会话各读各的。读不到任何任务时按立项面收 |
+| `role` | 未设 | 角色天花板，取值 `intake`、`architect`、`dev`、`review`；工具面取状态掩码与该角色工具表的交集，角色只会减去能力，配错角色名在装载时即失败 |
 
-本插件通过 patch 层作为插件行挂载，没有 `dsh plugin add` 安装路径。一次工具调用从 `session.header.cwd/.spec` 解析规格根；没有会话 cwd 时用 `root`，没有 `root` 时用 `process.cwd()/.spec`。
+本插件通过 patch 层作为插件行挂载，没有 `dsh plugin add` 安装路径。一次工具调用从 `session.header.cwd/.spec` 解析规格根；没有会话 cwd 时用 `root`，没有 `root` 时用 `process.cwd()/.spec`。除工具外它注册两条人机命令：`contract_sign` 由人签署任务的契约，`task_bind` 把任务认给当前会话。两者都由宿主写 `.spec`，都留在命令面而不是工具面——注册成工具就等于模型能给自己签字，也能自己挑工具面。
 
 -----
 
@@ -91,7 +92,7 @@ kind: "package-reference"
 
 #### 模型看到什么
 
-十个工具的名称、描述与 `parameters` JSON Schema，按当前任务状态经 `when` 过滤；读不到任务状态时给立项面。`contract_sign` 永不出现在其中。
+十个工具的名称、描述与 `parameters` JSON Schema，先按当前任务状态经 `when` 过滤，再按配置的角色天花板收窄；读不到任务状态时给立项面。`contract_sign` 与 `task_bind` 永不出现在其中。
 
 #### Token 影响
 
@@ -99,7 +100,7 @@ kind: "package-reference"
 
 #### KV Cache 影响
 
-可见工具集只在任务状态迁移时变化。同状态重复应用是空操作，迁移会让请求前缀从第一个变化的工具 schema token 起失效。
+可见工具集只在任务状态迁移时变化。同状态重复应用是空操作，迁移会让请求前缀从第一个变化的工具 schema token 起失效。角色天花板在本插件装载时就定下，一次会话里不会移动。
 
 ## 已知限制与后续工作
 

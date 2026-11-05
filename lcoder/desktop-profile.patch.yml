@@ -1,0 +1,158 @@
+# LCoder 桌面 profile 的装配源（可提交、可审阅）。
+#
+# 运行副本在 `apps/desktop/.desktop-build/development/home/profiles/desktop/cordis.patch.yml`，
+# 那份目录被 .gitignore 忽略；改这里之后按 `lcoder/RUN.md` 第「桌面端」一节拷过去，
+# 并把 `documentsDirectory` 改成**本检出自己的**路径。四个角色 preset 只在本文件里有源，
+# 运行副本是它的拷贝。
+#
+# 三条必核项（缺一条桌面端就起不来或读错仓）：
+#   1. `documentsDirectory` 在，且目录真实存在——本机向操作系统问文档目录会挂住，
+#      不配就把「打开仓库」拖成永久无应答（PITFALLS W-08）。
+#   2. profile 的 `package.json` 里两条 `link:` 指向**本 tree** 的
+#      `packages/lcoder/kernel` 与 `packages/lcoder/workspace`；worktree 里跑就指 worktree，
+#      别指回主仓。
+#   3. kernel 只挂在角色 preset 里，不再有全局 `lcoder-kernel` 行：全局行与 preset 内的
+#      同名注册会把本包装两遍，角色也就没有唯一工具面。
+#
+# 段式与已验证过的主仓检出一致：先按 id 覆盖上游配置，再 insert 本包 additions。
+
+# T-15 规避（必须保留）：把文档目录配死，跳过那一步 OS 查询。路径要指向本检出。
+- id: workspace-controller
+  name: "@deepseek-ai/dsh-api-workspace-controller"
+  config:
+    documentsDirectory: 'E:\Projects\LCoder\apps\desktop\.desktop-build\development\docs'
+
+# 角色名册：`selectedDefault` 是新会话的默认角色（实施）。
+- id: agent-preset-registry
+  name: "@deepseek-ai/dsh-agent-preset-registry"
+  config:
+    default: standard
+    selectedDefault: lcoder
+
+# ── 实施（沿用 id `lcoder`，让已存在会话的 agentPreset 继续有效）────────
+# 工具面 = SURFACE[任务状态] ∩ 角色表；四个 preset 各挂一份 @lcoder/kernel，
+# 各带自己的 role，所以每个角色的会话拿到的工具面由它的 preset 唯一决定。
+- insert:
+    - id: preset-lcoder
+      name: "@deepseek-ai/dsh-agent-preset"
+      config:
+        id: lcoder
+        name: LCoder 实施
+        description: 按任务状态放开编辑与命令的开发角色（实验）
+        order: 20
+        plugins:
+          - id: persona
+            name: "@deepseek-ai/dsh-persona"
+            config:
+              prefix: >-
+                You are LCoder 实施. 你的工具面由当前任务状态决定：起草（drafting）阶段只有
+                file_read / spec_query / spec_bind / task_read / task_draft / contract_draft；
+                契约签署后才出现 file_edit / cmd_run / evidence_attach，验证阶段才有 task_close。
+                仓库还没有任务时你拿到的是立项面（file_read / spec_query / task_read / task_draft）。
+                你可以把复核派给评审子 agent（subagent 工具的 agent_preset 取 lcoder-review）。
+                没有对应工具时如实说明做不到，绝不假称已完成。
+          - id: lcoder
+            name: '@lcoder/kernel'
+            config:
+              selfCheck: true
+              role: dev
+          # 子代按角色名派：spawn provider 支持 agentPreset 与 depthLimit；
+          # 深度沿用宿主默认 1，所以子代自己不能再往下派。
+          - id: subagent-review
+            name: '@deepseek-ai/dsh-tool-subagent'
+            config:
+              provider: spawn
+              toolName: subagent
+              agentPreset: lcoder-review
+              allowedAgentPresets:
+                - lcoder-review
+
+# ── 立项/产品 ─────────────────────────────────────────────────
+- insert:
+    - id: preset-lcoder-intake
+      name: "@deepseek-ai/dsh-agent-preset"
+      config:
+        id: lcoder-intake
+        name: LCoder 立项
+        description: 读产品文档、调研、立起草态任务的角色（实验）
+        order: 21
+        plugins:
+          - id: persona
+            name: "@deepseek-ai/dsh-persona"
+            config:
+              prefix: >-
+                You are LCoder 立项. 你的天花板只有 file_read / spec_query / task_read / task_draft：
+                读交付文档与已有规格、把调研结论逐个立成起草态任务。你不改代码、不跑命令、
+                不签契约，也不给任务绑落点——那是架构角色的事。缺工具就如实说，绝不假称已完成。
+          - id: lcoder
+            name: '@lcoder/kernel'
+            config:
+              selfCheck: true
+              role: intake
+
+# ── 架构/契约 ─────────────────────────────────────────────────
+- insert:
+    - id: preset-lcoder-architect
+      name: "@deepseek-ai/dsh-agent-preset"
+      config:
+        id: lcoder-architect
+        name: LCoder 架构
+        description: 给规格条目绑落点、起草契约的角色（实验）
+        order: 22
+        plugins:
+          - id: persona
+            name: "@deepseek-ai/dsh-persona"
+            config:
+              prefix: >-
+                You are LCoder 架构. 你的天花板是 file_read / spec_query / spec_bind / task_read /
+                task_draft / contract_draft：把调研结论落成规格条目、绑代码落点、起草契约正文。
+                契约由人签署，你没有签署能力；你也不改代码、不跑命令。
+                需要复核起草好的契约时可以派评审子 agent（lcoder-review）。缺工具就如实说。
+          - id: lcoder
+            name: '@lcoder/kernel'
+            config:
+              selfCheck: true
+              role: architect
+          - id: subagent-review
+            name: '@deepseek-ai/dsh-tool-subagent'
+            config:
+              provider: spawn
+              toolName: subagent
+              agentPreset: lcoder-review
+              allowedAgentPresets:
+                - lcoder-review
+
+# ── 评审 ─────────────────────────────────────────────────────
+- insert:
+    - id: preset-lcoder-review
+      name: "@deepseek-ai/dsh-agent-preset"
+      config:
+        id: lcoder-review
+        name: LCoder 评审
+        description: 只读复核、挂证据、按状态收口的角色（实验）
+        order: 23
+        plugins:
+          - id: persona
+            name: "@deepseek-ai/dsh-persona"
+            config:
+              prefix: >-
+                You are LCoder 评审. 你的天花板是 file_read / spec_query / task_read /
+                evidence_attach / task_close：读代码与规格、复核实现、把验收证据挂上任务，
+                验证阶段才收口。你没有编辑与命令能力，改代码是实施角色的事。
+                结论按编号说清哪条规格没覆盖、证据指哪个用例；缺工具就如实说。
+          - id: lcoder
+            name: '@lcoder/kernel'
+            config:
+              selfCheck: true
+              role: review
+
+# ── 外壳 ─────────────────────────────────────────────────────
+# 外壳自带左栏，所以禁用 DSH 原生 ui-sidebar；浏览器侧占用 main 的 lcoder-home。
+- id: ui-sidebar
+  disabled: true
+
+- insert:
+    - id: ui-lcoder-workspace
+      name: '@lcoder/workspace'
+      config:
+        shell: true

@@ -9,12 +9,14 @@
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 
-/** 解析规格根所需的最小会话事实：`agent.session.header.cwd`。 */
+/** 解析规格根与认领关系所需的会话事实：`agent.session.header` 的 `cwd` 与 `id`。 */
 export interface SpecRootContext {
   readonly agent?: {
     readonly session: {
       readonly header: {
         readonly cwd?: string
+        /** 会话号：任务认领（`Task.session`）按它反查。 */
+        readonly id?: string
       }
     }
   }

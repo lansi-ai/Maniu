@@ -120,6 +120,14 @@ export const Task = z.object({
     .default({ irreversible: [], allowed_paths: [] }),
   /** 收口必备的证据项（对应 env.commands 的 id）。缺一不得收口（P4）。 */
   evidence_required: z.array(z.string().min(1)).default([]),
+  /**
+   * 认领这条任务的会话号（宿主 home 里的运行时标识）。
+   *
+   * 只有人机命令 `/task_bind` 写它，模型不写：这条关系决定该会话按哪个任务的状态装工具面，
+   * 让 agent 自己认领等于自己挑工具面。缺省表示这条任务还没被任何会话认领。
+   * 会话号换机器或删会话后失效，失效按未认领处理，不报故障。
+   */
+  session: z.string().min(1).optional(),
   opened_at: IsoDateTime,
   closed_at: IsoDateTime.nullable().default(null),
 })

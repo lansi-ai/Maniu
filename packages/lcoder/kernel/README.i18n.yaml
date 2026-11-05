@@ -21,8 +21,8 @@
   en: 0116022a4a852132
   zh: afab15ff1a52da7e
 /lcoder-kernel/use-this-package/minimal-configuration:
-  en: 45811e8f557a8a5d
-  zh: d6234b09456b9a62
+  en: 548881bd1f877d83
+  zh: 6af0393eeb8cafaa
 /lcoder-kernel/understand-the-implementation:
   en: 0e395719fd6d3603
   zh: 0a2a6e6c5c18eda0
@@ -36,14 +36,14 @@
   en: a16d0961a3504ff2
   zh: cb31599adb4c7f0c
 /lcoder-kernel/model-experience/registered-tools/what-the-model-sees:
-  en: d7c4f820e0bd48fc
-  zh: 8a3a115dbeeaf4be
+  en: 28e2bf1d1c74aa2a
+  zh: 264dbc2191387a3c
 /lcoder-kernel/model-experience/registered-tools/token-effect:
   en: 96e3087ddc03dd14
   zh: cc71ba26943a9e71
 /lcoder-kernel/model-experience/registered-tools/kv-cache-effect:
-  en: e06c1a0395b1be0b
-  zh: 621e61273782dce7
+  en: 17e398ac57bc55d6
+  zh: 5e33660058244801
 /lcoder-kernel/known-limitations-and-deferred-work:
   en: 4fa87df57b9cf930
   zh: b737e631579abfb5

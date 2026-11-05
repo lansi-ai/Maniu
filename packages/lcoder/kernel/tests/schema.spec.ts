@@ -62,6 +62,19 @@ describe('.spec schema', () => {
     expect(Task.safeParse({ ...base, grade: 'D' }).success).toBe(false)
   })
 
+  it('认领会话号可选，空串被拒：认领关系只有人机命令写得出形状', () => {
+    const base = {
+      id: 'T-014',
+      title: '佣金支持 0',
+      grade: 'B' as const,
+      state: 'drafting' as const,
+      opened_at: '2026-11-02T09:10:00+08:00',
+    }
+    expect(Task.parse(base).session).toBeUndefined()
+    expect(Task.parse({ ...base, session: 'session-8676' }).session).toBe('session-8676')
+    expect(Task.safeParse({ ...base, session: '' }).success).toBe(false)
+  })
+
   it('任务的时间必须是可解析的 ISO 时间', () => {
     const base = { id: 'T-014', title: 'x', grade: 'C' as const, state: 'drafting' as const }
     expect(Task.safeParse({ ...base, opened_at: '2026-11-02' }).success).toBe(true)

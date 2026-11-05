@@ -45,9 +45,10 @@ Choose it when a DeepSeek Harness composition already provides the `tools` servi
 |---|---|---|
 | `root` | `process.cwd()/.spec` | Fallback specification root when the session has no cwd |
 | `selfCheck` | `true` | Print the tool-surface self-check at load |
-| `taskId` | first task | Task whose state selects the tool surface; with no task readable, the onboarding surface applies |
+| `taskId` | first task | Task whose state selects the tool surface when no session claims one; a session claimed through a task's `session` field follows that task instead, so parallel sessions each read their own state. With no task readable, the onboarding surface applies |
+| `role` | unset | Role ceiling: `intake`, `architect`, `dev`, or `review`. The surface intersects the state mask with that role's tools, so a role only removes capability; an unknown value fails at load |
 
-The plugin mounts as a row through the patch layer; it has no `dsh plugin add` installation path. A tool call resolves the specification root from `session.header.cwd/.spec`; without a session cwd it uses `root`, and without `root` it uses `process.cwd()/.spec`.
+The plugin mounts as a row through the patch layer; it has no `dsh plugin add` installation path. A tool call resolves the specification root from `session.header.cwd/.spec`; without a session cwd it uses `root`, and without `root` it uses `process.cwd()/.spec`. Alongside the tools it registers two human commands: `contract_sign` signs a task's contract as a human, and `task_bind` claims a task for the current session. Both write `.spec` from the host and stay off the tool surface — a callable tool would let the model sign its own contract or pick its own tool surface.
 
 -----
 
@@ -90,7 +91,7 @@ Every tool factory accepts either a fixed root or a resolver. The resolver reads
 
 #### What the model sees
 
-The ten tool names, descriptions, and `parameters` JSON Schemas, filtered by the current task state through `when`; a repository without a readable task state sees the onboarding surface. `contract_sign` is never present.
+The ten tool names, descriptions, and `parameters` JSON Schemas, filtered by the current task state through `when` and then narrowed by the configured role ceiling; a repository without a readable task state sees the onboarding surface. `contract_sign` and `task_bind` are never present.
 
 #### Token effect
 
@@ -98,7 +99,7 @@ Every visible tool description and parameter schema occupies request tokens on e
 
 #### KV Cache effect
 
-The visible tool set changes only on a task-state transition. Re-applying the same state is a no-op, and a transition invalidates the request prefix from the first changed tool schema token.
+The visible tool set changes only on a task-state transition. Re-applying the same state is a no-op, and a transition invalidates the request prefix from the first changed tool schema token. The role ceiling is fixed when the plugin mounts, so it never moves mid-session.
 
 ## Known Limitations and Deferred Work
 
