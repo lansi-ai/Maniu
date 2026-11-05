@@ -255,6 +255,14 @@ function platformLoginUrl(authorizeUrl: string): string {
   return url.href
 }
 
+/**
+ * The application tile: `icon.png` beside a packaged executable, the Windows source under
+ * `resources/` in a development run. Windows window button, about panel and installer share it.
+ */
+function applicationIconPath(): string {
+  return app.isPackaged ? join(process.resourcesPath, 'icon.png') : join(app.getAppPath(), 'resources', 'icon-windows.png')
+}
+
 function createWindow(preload: string, show = false, primary = false): BrowserWindow {
   const window = new BrowserWindow({
     width: 1280,
@@ -262,6 +270,8 @@ function createWindow(preload: string, show = false, primary = false): BrowserWi
     minWidth: 520,
     minHeight: 600,
     show,
+    // lcoder: without an explicit icon Windows shows Electron's default tile in the taskbar.
+    icon: nativeImage.createFromPath(applicationIconPath()),
     ...(process.platform === 'win32' && primary ? {
       // LCoder draws the titlebar in its shell: no native caption or menu bar.
       // thickFrame stays enabled so edge resizing and Win+Arrow snapping remain.
@@ -1040,15 +1050,13 @@ async function main(): Promise<void> {
     updates.dispose()
   })
 
-  const applicationIconPath = development ? join(app.getAppPath(), 'resources', 'icon-windows.png')
-    : join(process.resourcesPath, 'icon.png')
   app.setAboutPanelOptions({
     applicationName: 'LCoder',
     applicationVersion: app.getVersion(),
     // The release has no separate build number; omit Electron's bundle version.
     version: '',
     copyright: '',
-    iconPath: applicationIconPath,
+    iconPath: applicationIconPath(),
   })
   // A custom application menu replaces Electron's default menu, so macOS needs
   // its standard menus and application hide commands declared explicitly.
