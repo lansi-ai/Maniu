@@ -5,8 +5,12 @@
  * 因为它是模型可见输入，措辞变化会直接改变 agent 的调研路径。
  */
 import { describe, expect, it } from 'vitest'
+import { createAssistantMessage, createDeveloperMessage, createUserMessage } from '@deepseek-ai/dsh-llm'
+import type { ContentBlock } from '@deepseek-ai/dsh-llm'
+import { SessionSeq } from '@deepseek-ai/dsh-session/types'
+import type { SessionEventLikeEntry } from '@deepseek-ai/dsh-api-session-controller/client'
 
-import { buildIntakePrompt, buildOnboardingPrompt } from '../src/client/shell/shell-data.ts'
+import { buildIntakePrompt, buildOnboardingPrompt, messagesFromEntries } from '../src/client/shell/shell-data.ts'
 import type { ShellOnboardingDocs } from '../src/client/shell/shell-data.ts'
 
 const PROJECT = { name: 'Demo 商城', path: 'E:/Projects/demo', branch: 'main' }
@@ -74,5 +78,105 @@ describe('空文件夹的项目引导咒语', () => {
     expect(text).toContain('不起草契约')
     expect(text).toContain('绝不给自己签字')
     expect(text).toContain('不要留半截文件')
+  })
+})
+
+/** 一条 user/message 事件；source.kind 决定它是人说的话还是注入上下文。 */
+function userEntry(seq: number, text: string, kind: 'user' | 'system-prompt' = 'user'): SessionEventLikeEntry {
+  return {
+    type: 'event',
+    event: {
+      type: 'user/message',
+      seq: SessionSeq(seq),
+      time: 1,
+      surfaceOp: 'append',
+      data: createUserMessage({
+        content: [{ type: 'text', text }],
+        source: kind === 'user' ? { kind: 'user' as const } : { kind: 'system-prompt' as const },
+      }),
+    },
+  }
+}
+
+/** 一条 developer/message 事件：工具面增删的注入行。 */
+function developerEntry(seq: number, text: string): SessionEventLikeEntry {
+  return {
+    type: 'event',
+    event: {
+      type: 'developer/message',
+      seq: SessionSeq(seq),
+      time: 1,
+      surfaceOp: 'append',
+      data: {
+        turn: 1,
+        step: 1,
+        message: createDeveloperMessage({ content: [{ type: 'text', text }], source: { kind: 'system-prompt' } }),
+      },
+    },
+  }
+}
+
+/** 一条 assistant/message 事件；内容块按 text / reasoning 交给浮层拆分。 */
+function assistantEntry(seq: number, content: readonly ContentBlock[]): SessionEventLikeEntry {
+  return {
+    type: 'event',
+    event: {
+      type: 'assistant/message',
+      seq: SessionSeq(seq),
+      time: 1,
+      surfaceOp: 'append',
+      data: {
+        turn: 1,
+        step: 1,
+        message: createAssistantMessage({ content, source: { provider: 'test', model: 'test' } }),
+        stream: [],
+      },
+    },
+  }
+}
+
+describe('会话消息投影', () => {
+  it('只把 source.kind 为 user 的 user/message 画成用户消息', () => {
+    const messages = messagesFromEntries([
+      userEntry(0, '真实发言'),
+      userEntry(1, 'Current runtime context…', 'system-prompt'),
+    ])
+
+    expect(messages).toEqual([
+      { role: 'user', text: '真实发言' },
+      { role: 'context', text: 'Current runtime context…', label: 'system-prompt' },
+    ])
+  })
+
+  it('developer/message 归入可折叠的上下文，不画成用户消息', () => {
+    const messages = messagesFromEntries([developerEntry(0, 'tool changes')])
+
+    expect(messages).toEqual([{ role: 'context', text: 'tool changes', label: 'developer' }])
+  })
+
+  it('助手消息按 text 与 reasoning 拆块，相邻同类合并、其他块忽略', () => {
+    const messages = messagesFromEntries([assistantEntry(0, [
+      { type: 'reasoning', text: '先想' },
+      { type: 'reasoning', text: '再写' },
+      { type: 'text', text: '## 结论' },
+      { type: 'tool-removal', toolName: 'demo' },
+      { type: 'text', text: '正文' },
+    ])])
+
+    expect(messages).toEqual([{
+      role: 'assistant',
+      blocks: [
+        { kind: 'reasoning', text: '先想再写' },
+        { kind: 'text', text: '## 结论正文' },
+      ],
+    }])
+  })
+
+  it('纯空白与空内容不产生消息行', () => {
+    expect(messagesFromEntries([
+      userEntry(0, '   '),
+      developerEntry(1, ''),
+      assistantEntry(2, []),
+    ])).toEqual([])
   })
 })

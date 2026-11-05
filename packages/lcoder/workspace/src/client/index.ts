@@ -42,7 +42,7 @@ import { en, zh } from './locales.ts'
 import { loadWorkspaceProjection, PAGE_LINES } from './projection.ts'
 import { messagesFromEntries } from './shell/shell-data.ts'
 import type { ShellMessage, ShellRole, ShellSignResult } from './shell/shell-data.ts'
-import { Shell } from './shell/Shell.tsx'
+import { DEFAULT_CHAT_SIZE, Shell } from './shell/Shell.tsx'
 import { createModelSettingsFace } from './shell/model-settings.ts'
 import type { ModelSettingsFace, ModelSettingsRemote } from './shell/model-settings.ts'
 import { WorkspaceBody } from './WorkspaceBody.tsx'
@@ -68,10 +68,29 @@ export interface Config {
    * 到点只让外壳脱身并报「超时」，底层调用仍在挂——上游队列没有取消语义。
    */
   openTimeoutMs?: number
+  /**
+   * 普通档对话窗尺寸（像素，正整数）。最大化档始终占满应用，不读这里。
+   * 只在 client 条目收到该配置时生效。
+   */
+  chatWindow?: { readonly width?: number; readonly height?: number }
 }
 
 /** 没有配置时的等待上限（毫秒）。 */
 const DEFAULT_OPEN_TIMEOUT_MS = 15_000
+
+/**
+ * 解析普通档对话窗尺寸；缺省用内置值，给了非法值就启动即失败。
+ * @param config - 插件配置。
+ * @returns 可直接交给外壳的像素尺寸。
+ */
+function chatSizeOf(config: Config): { readonly width: number; readonly height: number } {
+  const width = config.chatWindow?.width ?? DEFAULT_CHAT_SIZE.width
+  const height = config.chatWindow?.height ?? DEFAULT_CHAT_SIZE.height
+  if (!Number.isFinite(width) || width <= 0 || !Number.isFinite(height) || height <= 0) {
+    throw new Error('@lcoder/workspace: chatWindow width/height must be positive numbers')
+  }
+  return { width, height }
+}
 
 /** 本包的文案命名空间。 */
 const NS = 'lcoderWorkspace'
@@ -158,6 +177,7 @@ export function apply(ctx: ClientContext, config: Config = {}): void {
   // 只有显式 shell: false 才回退旧页签。
   if (config.shell !== false) {
     const files = projectionFiles(ctx)
+    const chatSize = chatSizeOf(config)
     const openTimeoutMs = config.openTimeoutMs ?? DEFAULT_OPEN_TIMEOUT_MS
     const openRepository = async (path: string): Promise<{ workspaceId: string; sessionId: SessionId }> => {
       const workspace = await withOpenDeadline('workspace/create', ctx.workspaces.create({ path }), openTimeoutMs)
@@ -301,6 +321,7 @@ export function apply(ctx: ClientContext, config: Config = {}): void {
           inject: () => ({
             files, openRepository, sendPrompt, signContract, bindTask, advanceContract, createSession, listRoles,
             readMessages, subscribeSession, holdSession, checkModels, subscribeModels, readSessionNotice, readSessionFlags, modelSettings,
+            chatSize,
           }),
         },
         Shell,
