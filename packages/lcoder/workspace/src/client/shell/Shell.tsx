@@ -15,7 +15,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { loadLocalSecrets, loadProjectInfo, loadWorkspaceProjection } from '../projection.ts'
-import type { ContractRow, ProjectionFilesRemote, TaskRow } from '../projection.ts'
+import type { ContractRow, ProjectionFilesRemote, ProposalRow, TaskRow } from '../projection.ts'
 import { describeOpenFailure } from '../open-failure.ts'
 import type { ModelStatus, ShellSessionNotice } from '../model-status.ts'
 import type { LcoderWorkspaceKey } from '../locales.ts'
@@ -54,6 +54,8 @@ export type ShellProps =
     readonly signContract?: (sessionId: SessionId, taskId: string) => Promise<ShellSignResult>
     /** 人确认契约已签后，把任务从起草推到已签约；只推这一条边。 */
     readonly advanceContract?: (sessionId: SessionId, taskId: string) => Promise<ShellSignResult>
+    /** 派 `/proposal_approve <编号>` 让人采纳方案；出方案是模型的工具，批准不是。 */
+    readonly approveProposal?: (sessionId: SessionId, proposalId: string) => Promise<ShellSignResult>
     /** 派 `/task_bind <编号>` 把任务认给这条会话；认领关系由宿主写盘。 */
     readonly bindTask?: (sessionId: SessionId, taskId: string) => Promise<ShellSignResult>
     /** 在同一仓库里新开会话，可按角色（Agent preset）指名；角色只在首回合前可选。 */
@@ -125,6 +127,14 @@ const TASK_STATUS: Record<TaskCardStatus, { readonly labelKey: LcoderWorkspaceKe
 
 const KNOWN_STATES: ReadonlySet<string> = new Set(SHELL_STATES.map(state => state.id))
 
+/** 方案决定态的文案键；`unknown` 表示文件里写着认识不了的值。 */
+const PROPOSAL_DECISION: Record<ProposalRow['decision'], LcoderWorkspaceKey> = {
+  draft: 'shell.proposalDraft',
+  approved: 'shell.proposalApproved',
+  rejected: 'shell.proposalRejected',
+  unknown: 'shell.proposalDecisionUnknown',
+}
+
 const SESSION_FILTER_CHOICES: readonly SessionFilter[] = ['any', 'claimed', 'active']
 
 const SESSION_FILTER_LABELS: Record<SessionFilter, LcoderWorkspaceKey> = {
@@ -148,6 +158,7 @@ function toShellTask(row: TaskRow): ShellTask {
     evidence: row.evidence,
     surface: SURFACE[state],
     ...(row.session === undefined ? {} : { session: row.session }),
+    ...(row.proposal === undefined ? {} : { proposal: row.proposal }),
   }
 }
 
@@ -169,7 +180,7 @@ function resolveSecrets(info: ShellProjectInfo, secrets: Readonly<Record<string,
  * @returns 顶栏 + 任务板 + 项目信息抽屉 + 浮层。
  */
 export function Shell({
-  t, files, openRepository, sendPrompt, signContract, advanceContract, bindTask, createSession, listRoles,
+  t, files, openRepository, sendPrompt, signContract, advanceContract, approveProposal, bindTask, createSession, listRoles,
   readMessages, subscribeSession, holdSession, checkModels, subscribeModels, readSessionNotice, readSessionFlags, modelSettings,
   useSessions, useSessionStatus, useWorkspaces, chatSize,
 }: ShellProps): ReactNode {
@@ -209,6 +220,10 @@ export function Shell({
   /** 推进到已签约：与签署分开两步，各自可重试、失败也分得清。 */
   const [advancing, setAdvancing] = useState(false)
   const [advanceResult, setAdvanceResult] = useState<ShellSignResult | null>(null)
+  const [proposals, setProposals] = useState<readonly ProposalRow[]>([])
+  /** 采纳方案：出方案是模型的工具，这一步只由人点。 */
+  const [approving, setApproving] = useState(false)
+  const [approveResult, setApproveResult] = useState<ShellSignResult | null>(null)
   const [rulesCount, setRulesCount] = useState(0)
   const [info, setInfo] = useState<ShellProjectInfo | null>(null)
   const [problems, setProblems] = useState<readonly string[]>([])
@@ -290,6 +305,7 @@ export function Shell({
     if (files === undefined || workspace === undefined || sessionId === undefined) {
       setTasks([])
       setContracts([])
+      setProposals([])
       setRulesCount(0)
       setInfo(null)
       setProblems([])
@@ -306,6 +322,7 @@ export function Shell({
       if (controller.signal.aborted) return
       setTasks(projection.tasks.map(toShellTask))
       setContracts(projection.contracts)
+      setProposals(projection.proposals)
       setRulesCount(projection.rules.length)
       setProblems([...projection.problems, ...projectInfo.problems])
       setInfo(projectInfo.info === null ? null : resolveSecrets(projectInfo.info, secrets))
@@ -314,6 +331,7 @@ export function Shell({
       if (controller.signal.aborted) return
       setTasks([])
       setContracts([])
+      setProposals([])
       setRulesCount(0)
       setInfo(null)
       setProblems([String(error)])
@@ -465,6 +483,11 @@ export function Shell({
     ? undefined
     : contracts.find(row => row.id === detail.id)
 
+  /** 选中任务出自哪个方案；任务没回指就是 undefined，回指了但文件读不到时给 unknownProposal。 */
+  const detailProposal = detail?.proposal === undefined
+    ? undefined
+    : proposals.find(row => row.id === detail.proposal)
+
   /**
    * 签署选中任务的契约。浏览器不写盘：这一句派给人机命令，签名由 kernel 写进
    * `.spec/contracts/`，回来再重读投影——界面显示的是文件的事实，不是点击的记忆。
@@ -497,6 +520,22 @@ export function Shell({
       setAdvanceResult({ ok: false, text: String(error) })
     } finally {
       setAdvancing(false)
+    }
+  }
+
+  /** 采纳选中任务的方案：正文一个字都不动，只把决定态与结论时刻写下。 */
+  const approveSelected = async (): Promise<void> => {
+    if (detail?.proposal === undefined || sessionId === undefined || approveProposal === undefined) return
+    setApproving(true)
+    setApproveResult(null)
+    try {
+      setApproveResult(await approveProposal(sessionId, detail.proposal))
+      setReload(value => value + 1)
+    } catch (error: unknown) {
+      // 远程调用本身失败；命令的失败回执照旧走 approveResult。
+      setApproveResult({ ok: false, text: String(error) })
+    } finally {
+      setApproving(false)
     }
   }
 
@@ -674,6 +713,7 @@ export function Shell({
                 <div className={css.taskTitle}>{task.title}</div>
                 <div className={css.tags}>
                   <span className={`${css.tag} ${TASK_STATUS[status].className ?? ''}`}>{t(TASK_STATUS[status].labelKey)}</span>
+                  {task.proposal === undefined ? null : <span className={css.tag}>{task.proposal}</span>}
                   {task.rules.map(rule => <span key={rule} className={css.tag}>{rule}</span>)}
                   <span className={`${css.tag} ${task.state === 'closed' ? css.tagOk : ''}`}>{task.surface}</span>
                   {!contracts.some(row => row.id === task.id && row.signedBy === 'human')
@@ -1181,6 +1221,39 @@ export function Shell({
                   </>
                 )}
               </div>
+              {detail.proposal === undefined ? null : (
+                <div className={css.field}>
+                  <label>{t('shell.proposal')} <span className={css.labelHint}>{detail.proposal}</span></label>
+                  {detailProposal === undefined ? (
+                    <p className={css.problem}>{t('shell.proposalMissing')}</p>
+                  ) : (
+                    <>
+                      <div className={css.meta}>
+                        <div className={css.metaK}>{t('shell.proposalProblem')}</div>
+                        <div className={css.metaV}>{detailProposal.problem}</div>
+                        <div className={css.metaK}>{t('shell.proposalOptions')}</div>
+                        <div className={css.metaV}>
+                          {detailProposal.options.map(option => `${option.name}：${option.summary}（${option.cost}）`).join('；')}
+                        </div>
+                        <div className={css.metaK}>{t('shell.proposalRecommendation')}</div>
+                        <div className={css.metaV}>{detailProposal.recommendation}</div>
+                      </div>
+                      <p className={css.secretRef}>
+                        {t(PROPOSAL_DECISION[detailProposal.decision])}
+                        {detailProposal.decidedAt === null ? '' : ` ${detailProposal.decidedAt}`}
+                      </p>
+                      {detailProposal.decision === 'draft' && approveProposal !== undefined && hasSession ? (
+                        <button type="button" className={css.primaryBtn} disabled={approving} onClick={() => { void approveSelected() }}>
+                          {approving ? t('shell.approving') : t('shell.approveProposal')}
+                        </button>
+                      ) : null}
+                      {approveResult === null ? null : (
+                        <p className={approveResult.ok ? css.secretRef : css.problem}>{approveResult.text}</p>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
               {liveSessionOf(detail) !== undefined ? null : roleChoices}
               <div className={css.field}>
                 <label>{t('shell.startPrompt')} <span className={css.labelHint}>{t('shell.promptHint')}</span></label>

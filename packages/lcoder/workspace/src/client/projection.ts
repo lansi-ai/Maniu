@@ -27,6 +27,8 @@ export interface TaskRow {
   readonly evidence: readonly string[]
   /** 认领这条任务的会话号；`/task_bind` 写过才有，缺省表示无人认领。 */
   readonly session?: string
+  /** 这条任务出自哪个方案（`P-01`）；缺省表示不是拆出来的。 */
+  readonly proposal?: string
 }
 
 /** 中栏一条规格条目。 */
@@ -55,11 +57,33 @@ export interface ContractRow {
   readonly signedAt: string | null
 }
 
-/** 一次投影的结果：能画的行，加上读不到/读不懂的部分各自的说明。 */
+/**
+ * 一份方案的展示数据。
+ *
+ * `decision` 是文件里写着的事实：`draft` 等人拍板，`approved` 与 `rejected` 由人机命令或人编辑写下。
+ * 外壳不承诺推断「方案被批准后拆了哪些任务」——那要反查 `TaskRow.proposal`，由渲染侧做。
+ */
+export interface ProposalRow {
+  readonly id: string
+  readonly title: string
+  readonly problem: string
+  readonly options: readonly ProposalOptionRow[]
+  readonly recommendation: string
+  readonly decision: 'draft' | 'approved' | 'rejected' | 'unknown'
+  readonly decidedAt: string | null
+}
+
+/** 方案里的一条候选。 */
+export interface ProposalOptionRow {
+  readonly name: string
+  readonly summary: string
+  readonly cost: string
+}
 export interface WorkspaceProjection {
   readonly tasks: readonly TaskRow[]
   readonly rules: readonly RuleRow[]
   readonly contracts: readonly ContractRow[]
+  readonly proposals: readonly ProposalRow[]
   readonly problems: readonly string[]
 }
 
@@ -80,6 +104,7 @@ export interface ProjectionFilesRemote {
 export const SPEC_DIR = '.spec'
 export const TASKS_DIR = `${SPEC_DIR}/tasks`
 export const CONTRACTS_DIR = `${SPEC_DIR}/contracts`
+export const PROPOSALS_DIR = `${SPEC_DIR}/proposals`
 export const RULES_FILE = `${SPEC_DIR}/spec/rules.yaml`
 export const PROJECT_FILE = `${SPEC_DIR}/project.yaml`
 export const LOCAL_FILE = `${SPEC_DIR}/local.yaml`
@@ -119,6 +144,7 @@ export function taskTextToRow(fileName: string, text: string): TaskRow | undefin
   const title = asText(fields.title)
   if (title === undefined) return undefined
   const session = asText(fields.session)
+  const proposal = asText(fields.proposal)
   return {
     id: asText(fields.id) ?? fileName.replace(/\.yaml$/, ''),
     title,
@@ -127,6 +153,7 @@ export function taskTextToRow(fileName: string, text: string): TaskRow | undefin
     rules: stringArray(fields.rules),
     evidence: stringArray(fields.evidence_required),
     ...(session === undefined ? {} : { session }),
+    ...(proposal === undefined ? {} : { proposal }),
   }
 }
 
@@ -189,6 +216,44 @@ export function contractTextToRow(fileName: string, text: string): ContractRow |
 }
 
 /**
+ * 一份方案 YAML 的文本 → 展示行。缺 title、problem 或 recommendation 任一项就读不懂这份方案，
+ * 返回 undefined 由调用方记进 problems；决定态不认识时给 `unknown`，不假装它是草稿。
+ */
+export function proposalTextToRow(fileName: string, text: string): ProposalRow | undefined {
+  let fields: Record<string, unknown> | undefined
+  try {
+    fields = recordOf(parseYaml(text))
+  } catch {
+    return undefined
+  }
+  if (fields === undefined) return undefined
+  const title = asText(fields.title)
+  const problem = asText(fields.problem)
+  const recommendation = asText(fields.recommendation)
+  if (title === undefined || problem === undefined || recommendation === undefined) return undefined
+
+  const options = (Array.isArray(fields.options) ? fields.options : []).map((entry) => {
+    const record = recordOf(entry)
+    return {
+      name: asText(record?.name) ?? '',
+      summary: asText(record?.summary) ?? '',
+      cost: asText(record?.cost) ?? '',
+    }
+  }).filter(option => option.name !== '')
+
+  const decision = asText(fields.decision)
+  return {
+    id: asText(fields.id) ?? fileName.replace(/\.yaml$/, ''),
+    title,
+    problem,
+    options,
+    recommendation,
+    decision: decision === 'draft' || decision === 'approved' || decision === 'rejected' ? decision : 'unknown',
+    decidedAt: asText(fields.decided_at) ?? null,
+  }
+}
+
+/**
  * 读取一个会话的文件投影。三路读取互不阻塞；任何一路失败只记说明，
  * 不让整份投影落空——三栏宁可缺一角，不要全白。
  */
@@ -197,16 +262,18 @@ export async function loadWorkspaceProjection(
   sessionId: SessionId,
   signal: AbortSignal,
 ): Promise<WorkspaceProjection> {
-  const [tasks, rules, contracts] = await Promise.all([
+  const [tasks, rules, contracts, proposals] = await Promise.all([
     loadTasks(files, sessionId, signal),
     loadRules(files, sessionId, signal),
     loadContracts(files, sessionId, signal),
+    loadProposals(files, sessionId, signal),
   ])
   return {
     tasks: tasks.rows,
     rules: rules.rows,
     contracts: contracts.rows,
-    problems: [...tasks.problems, ...rules.problems, ...contracts.problems],
+    proposals: proposals.rows,
+    problems: [...tasks.problems, ...rules.problems, ...contracts.problems, ...proposals.problems],
   }
 }
 
@@ -294,6 +361,47 @@ async function loadContracts(
     const row = contractTextToRow(name, page.value.text)
     if (row === undefined) {
       problems.push(`${CONTRACTS_DIR}/${name}: 不是能读的契约文件`)
+      return
+    }
+    rows.push(row)
+  }))
+
+  rows.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+  return { rows, problems }
+}
+
+/**
+ * 读 `.spec/proposals/` 下的方案。目录不存在是常态（还没出过方案），不算故障。
+ */
+async function loadProposals(
+  files: ProjectionFilesRemote,
+  sessionId: SessionId,
+  signal: AbortSignal,
+): Promise<{ rows: ProposalRow[]; problems: string[] }> {
+  const rows: ProposalRow[] = []
+  const problems: string[] = []
+
+  const listed = await files.list(sessionId, PROPOSALS_DIR, signal)
+  if (!listed.ok) {
+    if (!isMissing(listed.error, PROPOSALS_DIR)) {
+      problems.push(`${PROPOSALS_DIR}/: ${messageOf(listed.error)}`)
+    }
+    return { rows, problems }
+  }
+
+  const names = listed.value.entries
+    .filter(entry => entry.type === 'file' && entry.name.endsWith('.yaml'))
+    .map(entry => entry.name)
+
+  await Promise.all(names.map(async (name) => {
+    const page = await files.readPage(sessionId, `${PROPOSALS_DIR}/${name}`, signal)
+    if (!page.ok) {
+      problems.push(`${PROPOSALS_DIR}/${name}: ${messageOf(page.error)}`)
+      return
+    }
+    const row = proposalTextToRow(name, page.value.text)
+    if (row === undefined) {
+      problems.push(`${PROPOSALS_DIR}/${name}: 不是能读的方案文件`)
       return
     }
     rows.push(row)
