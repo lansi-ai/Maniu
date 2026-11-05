@@ -828,6 +828,18 @@ async function main(): Promise<void> {
       || !event.senderFrame.url.startsWith('dsh-app://app/')) throw new Error('Rejected Platform command')
     return owner
   }
+  ipcMain.handle(DESKTOP_IPC.projectDirectoryPick, async (event, defaultPath: unknown) => {
+    assertDesktopSender(event, ['app'])
+    const window = assertMainApplication(event)
+    if (window.isMinimized()) window.restore()
+    window.show()
+    window.focus()
+    const { canceled, filePaths } = await dialog.showOpenDialog(window, {
+      properties: ['openDirectory'],
+      ...(typeof defaultPath === 'string' && defaultPath !== '' ? { defaultPath } : {}),
+    })
+    return canceled ? null : filePaths[0] ?? null
+  })
   installFileActions(assertMainApplication, () => hostUrl)
   ipcMain.on(PLATFORM_IPC.bootstrap, (event) => {
     try { event.returnValue = platformView.bootstrap(event) }
