@@ -1,0 +1,11 @@
+Inter Variable
+==============
+
+File: InterVariable.woff2 (variable weights 100–900, normal style)
+Version: 4.66 (font metadata)
+Source: https://github.com/rsms/inter (docs/font-files/InterVariable.woff2)
+Retrieved: 2026-11-05
+License: SIL Open Font License 1.1; see Inter-OFL.txt in this directory.
+
+The font is self-hosted by the LCoder workspace client bundle. It is not fetched
+from a network at runtime.
