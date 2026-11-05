@@ -55,13 +55,81 @@ function call(
 }
 
 describe('签约态工具集', () => {
-  it('提供四个工具（读取 + 写入 + 命令 + 证据）', () => {
+  it('提供五个工具（列目录 + 读取 + 写入 + 命令 + 证据）', () => {
     expect(createEditTools(makeRoot()).map(t => t.name)).toEqual([
       'file_read',
+      'file_list',
       'file_edit',
       'cmd_run',
       'evidence_attach',
     ])
+  })
+
+  it('file_list 默认列仓库根一层，目录在前按名称排序', async () => {
+    const root = makeRoot()
+    mkdirSync(join(root, 'docs'))
+    writeFileSync(join(root, 'docs', 'prd.md'), '# prd', 'utf8')
+    mkdirSync(join(root, 'src'))
+
+    const r = await call('file_list', root, {})
+
+    expect(r.path).toBe('.')
+    expect(r.entries).toEqual([
+      { path: 'docs', name: 'docs', type: 'directory' },
+      { path: 'src', name: 'src', type: 'directory' },
+      { path: 'env.yaml', name: 'env.yaml', type: 'file' },
+    ])
+    expect(r.truncated).toBe(false)
+  })
+
+  it('file_list 的 depth 展开子目录，路径相对仓库根', async () => {
+    const root = makeRoot()
+    mkdirSync(join(root, 'docs', 'deep'), { recursive: true })
+    writeFileSync(join(root, 'docs', 'prd.md'), '# prd', 'utf8')
+    writeFileSync(join(root, 'docs', 'deep', 'api.md'), '# api', 'utf8')
+
+    const r = await call('file_list', root, { path: 'docs', depth: 2 })
+
+    expect(r.entries).toEqual([
+      { path: 'docs/deep', name: 'deep', type: 'directory' },
+      { path: 'docs/prd.md', name: 'prd.md', type: 'file' },
+      { path: 'docs/deep/api.md', name: 'api.md', type: 'file' },
+    ])
+  })
+
+  it('file_list 对不存在的路径给可行动错误，不抛裸 ENOENT', async () => {
+    const err = await call('file_list', makeRoot(), { path: 'missing' }).then(
+      () => null,
+      (e: unknown) => e,
+    )
+
+    expect(String((err as Error | null)?.message)).toContain('路径不存在：missing')
+    expect(String((err as Error | null)?.message)).toContain('file_list')
+  })
+
+  it('file_list 拒绝文件路径与越界路径', async () => {
+    const root = makeRoot()
+    await expect(call('file_list', root, { path: 'env.yaml' })).rejects.toThrow(/只接受目录/)
+    await expect(call('file_list', root, { path: '../' })).rejects.toThrow(/越出仓库范围/)
+    await expect(call('file_list', root, { path: 'C:/Windows' })).rejects.toThrow(/绝对路径/)
+  })
+
+  it('file_list 的 depth 只接受 1 到 3', async () => {
+    const root = makeRoot()
+    await expect(call('file_list', root, { depth: 0 })).rejects.toThrow(/1 到 3/)
+    await expect(call('file_list', root, { depth: 4 })).rejects.toThrow(/1 到 3/)
+  })
+
+  it('file_list 超过上限截断并标记', async () => {
+    const root = makeRoot()
+    for (let index = 0; index < 501; index++) {
+      writeFileSync(join(root, `f${String(index).padStart(3, '0')}.txt`), '', 'utf8')
+    }
+
+    const r = await call('file_list', root, {}) as { entries: unknown[]; truncated: boolean }
+
+    expect(r.entries).toHaveLength(500)
+    expect(r.truncated).toBe(true)
   })
 
   it('file_edit 写入文件，自动建父目录', async () => {

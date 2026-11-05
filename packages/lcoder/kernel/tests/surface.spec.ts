@@ -35,7 +35,7 @@ describe('工具面', () => {
   })
 
   it('终态只读', () => {
-    expect(SURFACE.closed).toEqual(['file_read', 'spec_query', 'task_read'])
+    expect(SURFACE.closed).toEqual(['file_read', 'file_list', 'spec_query', 'task_read'])
     expect(SURFACE.closed).not.toContain('file_edit')
     expect(SURFACE.closed).not.toContain('task_close')
   })
@@ -118,7 +118,7 @@ describe('掩码自检', () => {
 
 describe('空看板工具面', () => {
   it('只放开立项需要的读取、建任务与立项落盘能力', () => {
-    expect(UNSCOPEED_SURFACE).toEqual(['file_read', 'project_draft', 'spec_query', 'spec_draft', 'task_read', 'task_draft'])
+    expect(UNSCOPEED_SURFACE).toEqual(['file_read', 'file_list', 'project_draft', 'spec_query', 'spec_draft', 'task_read', 'task_draft'])
     expect(UNSCOPEED_SURFACE).not.toContain('file_edit')
     expect(UNSCOPEED_SURFACE).not.toContain('cmd_run')
     expect(UNSCOPEED_SURFACE).not.toContain('spec_bind')
@@ -183,9 +183,13 @@ describe('角色天花板', () => {
     }
   })
 
+  it('四个角色都能列目录：立项不需要额外工具就能看清仓库结构', () => {
+    for (const role of ROLES) expect(ROLE_TOOLS[role]).toContain('file_list')
+  })
+
   it('签了约的评审拿不到编辑，验证态的评审能收口', () => {
     expect(allowedTools('contracted', 'review')).not.toContain('file_edit')
-    expect(allowedTools('verifying', 'review')).toEqual(['file_read', 'spec_query', 'task_read', 'evidence_attach', 'task_close'])
+    expect(allowedTools('verifying', 'review')).toEqual(['file_read', 'file_list', 'spec_query', 'task_read', 'evidence_attach', 'task_close'])
   })
 
   it('不配角色时保持只有状态一维的旧行为', () => {

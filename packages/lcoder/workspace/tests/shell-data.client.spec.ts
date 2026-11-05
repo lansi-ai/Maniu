@@ -68,7 +68,7 @@ describe('空文件夹的项目引导咒语', () => {
   })
 
   it('列的是立项面的工具，不承诺改代码与签字', () => {
-    expect(text).toContain('file_read、project_draft、spec_query、spec_draft、task_read、task_draft')
+    expect(text).toContain('file_read、file_list、project_draft、spec_query、spec_draft、task_read、task_draft')
     expect(text).not.toContain('file_edit')
     expect(text).not.toContain('cmd_run')
     expect(text).toContain('不起草契约')

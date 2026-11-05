@@ -26,9 +26,10 @@ import type { TaskState } from '../schema/spec.js'
  * 签署是人机命令（`ctx.commands`，不经过模型回合），见 docs/cookbook/adding-a-tool.md。
  */
 export const SURFACE: Readonly<Record<TaskState, readonly string[]>> = {
-  drafting: ['file_read', 'project_draft', 'spec_query', 'spec_draft', 'spec_bind', 'task_read', 'task_draft', 'contract_draft'],
+  drafting: ['file_read', 'file_list', 'project_draft', 'spec_query', 'spec_draft', 'spec_bind', 'task_read', 'task_draft', 'contract_draft'],
   contracted: [
     'file_read',
+    'file_list',
     'project_draft',
     'spec_query',
     'spec_draft',
@@ -42,6 +43,7 @@ export const SURFACE: Readonly<Record<TaskState, readonly string[]>> = {
   ],
   implementing: [
     'file_read',
+    'file_list',
     'project_draft',
     'spec_query',
     'spec_draft',
@@ -55,6 +57,7 @@ export const SURFACE: Readonly<Record<TaskState, readonly string[]>> = {
   ],
   verifying: [
     'file_read',
+    'file_list',
     'project_draft',
     'spec_query',
     'spec_draft',
@@ -68,7 +71,7 @@ export const SURFACE: Readonly<Record<TaskState, readonly string[]>> = {
     'task_close',
   ],
   // 终态只读：能复核，不能动手。
-  closed: ['file_read', 'spec_query', 'task_read'],
+  closed: ['file_read', 'file_list', 'spec_query', 'task_read'],
 }
 
 /**
@@ -84,12 +87,14 @@ export const SURFACE: Readonly<Record<TaskState, readonly string[]>> = {
  * `project_draft` 与 `spec_draft` 是这条引导链的落盘口：没有它们，引导问到的
  * 答案只能停在对话里，重启即丢，而 UI 侧没有写盘通道（`.spec` 只有 kernel 能写）。
  *
- * 掩码只覆盖 `@lcoder/kernel` 自己注册的工具；上游 bundle 全局注册的
- * `read`/`edit`/`write`/`glob`/`grep`/`bash`/`pwsh` 由 `when` 管不到，
- * 收口它们需要 Agent 作用域的 `restrict`（见 `SurfaceSwitcher`）。
+ * 掩码只覆盖 `@lcoder/kernel` 自己注册的工具。桌面 profile 的 web-app bundle 在
+ * 宿主机面禁用了 `tool-fs` / `tool-fs-search` / `tool-bash` / `tool-pwsh`，改由每个
+ * preset 自己挂；LCoder 的 preset 只挂本包，所以角色面必须自带列目录能力
+ * （`file_list`），不能指望上游的 `glob`（T-32）。
  */
 export const UNSCOPEED_SURFACE: readonly string[] = [
   'file_read',
+  'file_list',
   'project_draft',
   'spec_query',
   'spec_draft',
@@ -114,13 +119,14 @@ export const ROLES: readonly RoleId[] = ['intake', 'architect', 'dev', 'review']
  * `surface.spec.ts` 用一条断言钉住这个等式。
  */
 export const ROLE_TOOLS: Readonly<Record<RoleId, readonly string[]>> = {
-  /** 立项/产品：读产品文档、读规格、读任务，把调研结论落成项目信息与起草态条目和任务。 */
-  intake: ['file_read', 'project_draft', 'spec_query', 'spec_draft', 'task_read', 'task_draft'],
+  /** 立项/产品：读产品文档、列目录、读规格、读任务，把调研结论落成项目信息与起草态条目和任务。 */
+  intake: ['file_read', 'file_list', 'project_draft', 'spec_query', 'spec_draft', 'task_read', 'task_draft'],
   /** 架构/契约：加上给规格条目绑落点和起草契约，仍然动不了代码。 */
-  architect: ['file_read', 'spec_query', 'spec_bind', 'task_read', 'task_draft', 'contract_draft'],
+  architect: ['file_read', 'file_list', 'spec_query', 'spec_bind', 'task_read', 'task_draft', 'contract_draft'],
   /** 实施：不设天花板，状态说了算。 */
   dev: [
     'file_read',
+    'file_list',
     'project_draft',
     'spec_query',
     'spec_draft',
@@ -134,7 +140,7 @@ export const ROLE_TOOLS: Readonly<Record<RoleId, readonly string[]>> = {
     'task_close',
   ],
   /** 评审：只读复核，外加挂证据与收口；永远不给改代码与跑命令。 */
-  review: ['file_read', 'spec_query', 'task_read', 'evidence_attach', 'task_close'],
+  review: ['file_read', 'file_list', 'spec_query', 'task_read', 'evidence_attach', 'task_close'],
 }
 
 /**

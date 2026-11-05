@@ -29,6 +29,7 @@ const TOOL_NAMES = [
   'contract_draft',
   'evidence_attach',
   'file_edit',
+  'file_list',
   'file_read',
   'project_draft',
   'spec_bind',
@@ -208,12 +209,12 @@ describe('插件装配', () => {
     expect(shown).toContain('task_read')
   })
 
-  it('角色与状态同时收：起草态的评审只剩三个读工具', () => {
+  it('角色与状态同时收：起草态的评审只剩四个读工具', () => {
     const { repo, spec } = makeRepo()
     const harness = makeHarness()
     const registrations = mounted(harness, { root: spec, role: 'review', selfCheck: false })
 
-    expect(visible(registrations, sessionAt(repo))).toEqual(['file_read', 'spec_query', 'task_read'])
+    expect(visible(registrations, sessionAt(repo))).toEqual(['file_list', 'file_read', 'spec_query', 'task_read'])
   })
 
   it('不配角色时状态表原样生效，保持单维旧行为', () => {
@@ -280,7 +281,7 @@ describe('插件装配', () => {
     expect(harness.registrations.map(r => r.name)).toHaveLength(TOOL_NAMES.length)
   })
 
-  it('仓库还没有 .spec 时只放开六个立项工具', () => {
+  it('仓库还没有 .spec 时只放开七个立项工具', () => {
     const { repo, spec } = makeUnscopedRepo()
     const registrations = mounted(makeHarness(), { root: spec, selfCheck: false })
 
@@ -320,7 +321,7 @@ describe('插件装配', () => {
     expect(logged.mock.calls.map(call => String(call[0])).join('\n')).toContain('读任务状态失败')
   })
 
-  it('启动自检报出注册的十个工具，且没有掩码缺口', () => {
+  it('启动自检报出注册的十三个工具，且没有掩码缺口', () => {
     const { spec } = makeRepo()
     const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
     const harness = makeHarness()
@@ -328,7 +329,7 @@ describe('插件装配', () => {
     harness.runEffects()
 
     const text = logged.mock.calls.map(call => String(call[0])).join('\n')
-    expect(text).toContain('已注册 12 个工具')
+    expect(text).toContain('已注册 13 个工具')
     expect(text).not.toContain('掩码声明了但未注册')
     expect(text).not.toContain('任何状态都看不到')
   })

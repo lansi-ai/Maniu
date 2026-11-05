@@ -4,7 +4,7 @@
  * 形态对齐上游最小插件（如 `@deepseek-ai/dsh-persona`）：
  * 具名导出 `name` / `inject` / `apply`，Cordis 的 loader 按包名加载后取这三样。
  *
- * 本插件做两件事：**把十二个工具注册进注册表**，**把签署契约与任务认领注册成人机命令**。
+ * 本插件做两件事：**把十三个工具注册进注册表**，**把签署契约与任务认领注册成人机命令**。
  * 工具面的收放（restrict 掩码）需要 Agent 作用域，由 surface 在会话侧接管，
  * 不在这里做——否则会变成全局限制，把每个 Agent 都罩住（DSH 会直接抛错）。
  */
@@ -41,7 +41,7 @@ export interface LcoderConfig {
   /**
    * 装载时按哪个任务的状态决定工具面。
    * 不给则取 `.spec/tasks/` 下第一个任务；一个任务都没有就退回立项面
-   * （`file_read`、`project_draft`、`spec_query`、`spec_draft`、`task_read`、`task_draft`）。
+   * （`file_read`、`file_list`、`project_draft`、`spec_query`、`spec_draft`、`task_read`、`task_draft`）。
    * 会话经 `/task_bind` 认领了某条任务时，该会话以认领的那条为准，本字段不参与。
    */
   taskId?: string
