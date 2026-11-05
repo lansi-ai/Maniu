@@ -26,7 +26,7 @@ import type { TaskState } from '../schema/spec.js'
  * 签署是人机命令（`ctx.commands`，不经过模型回合），见 docs/cookbook/adding-a-tool.md。
  */
 export const SURFACE: Readonly<Record<TaskState, readonly string[]>> = {
-  drafting: ['file_read', 'file_list', 'project_draft', 'spec_query', 'spec_draft', 'spec_bind', 'task_read', 'task_draft', 'contract_draft', 'proposal_draft'],
+  drafting: ['file_read', 'file_list', 'project_draft', 'spec_query', 'spec_draft', 'spec_bind', 'task_read', 'task_draft', 'contract_draft', 'proposal_draft', 'git_status', 'git_diff'],
   contracted: [
     'file_read',
     'file_list',
@@ -37,6 +37,9 @@ export const SURFACE: Readonly<Record<TaskState, readonly string[]>> = {
     'task_read',
     'task_draft',
     'proposal_draft',
+    'git_status',
+    'git_diff',
+    'git_commit',
     'contract_draft',
     'file_edit',
     'cmd_run',
@@ -52,6 +55,9 @@ export const SURFACE: Readonly<Record<TaskState, readonly string[]>> = {
     'task_read',
     'task_draft',
     'proposal_draft',
+    'git_status',
+    'git_diff',
+    'git_commit',
     'contract_draft',
     'file_edit',
     'cmd_run',
@@ -67,6 +73,9 @@ export const SURFACE: Readonly<Record<TaskState, readonly string[]>> = {
     'task_read',
     'task_draft',
     'proposal_draft',
+    'git_status',
+    'git_diff',
+    'git_commit',
     'contract_draft',
     'file_edit',
     'cmd_run',
@@ -74,7 +83,7 @@ export const SURFACE: Readonly<Record<TaskState, readonly string[]>> = {
     'task_close',
   ],
   // 终态只读：能复核，不能动手。
-  closed: ['file_read', 'file_list', 'spec_query', 'task_read'],
+  closed: ['file_read', 'file_list', 'spec_query', 'task_read', 'git_status', 'git_diff'],
 }
 
 /**
@@ -104,15 +113,17 @@ export const UNSCOPEED_SURFACE: readonly string[] = [
   'task_read',
   'task_draft',
   'proposal_draft',
+  'git_status',
+  'git_diff',
 ]
 
 // ── 角色天花板 ─────────────────────────────────────────────
 
 /** 一个会话所属的角色；一个角色就是一个 Agent preset，装配层用 `role` 配置本插件。 */
-export type RoleId = 'intake' | 'architect' | 'pm' | 'dev' | 'review'
+export type RoleId = 'intake' | 'architect' | 'pm' | 'dev' | 'git' | 'review'
 
 /** 全部角色，`Config.role` 的取值域。 */
-export const ROLES: readonly RoleId[] = ['intake', 'architect', 'pm', 'dev', 'review']
+export const ROLES: readonly RoleId[] = ['intake', 'architect', 'pm', 'dev', 'git', 'review']
 
 /**
  * 每个角色最多能拿到哪些工具。
@@ -140,12 +151,17 @@ export const ROLE_TOOLS: Readonly<Record<RoleId, readonly string[]>> = {
     'task_read',
     'task_draft',
     'proposal_draft',
+    'git_status',
+    'git_diff',
+    'git_commit',
     'contract_draft',
     'file_edit',
     'cmd_run',
     'evidence_attach',
     'task_close',
   ],
+  /** Git：看状态与差异，把指定路径提交到本地仓库；没有编辑能力，也没有 push。 */
+  git: ['file_read', 'file_list', 'spec_query', 'task_read', 'git_status', 'git_diff', 'git_commit'],
   /** 评审：只读复核，外加挂证据与收口；永远不给改代码与跑命令。 */
   review: ['file_read', 'file_list', 'spec_query', 'task_read', 'evidence_attach', 'task_close'],
 }

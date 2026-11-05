@@ -35,7 +35,7 @@ describe('工具面', () => {
   })
 
   it('终态只读', () => {
-    expect(SURFACE.closed).toEqual(['file_read', 'file_list', 'spec_query', 'task_read'])
+    expect(SURFACE.closed).toEqual(['file_read', 'file_list', 'spec_query', 'task_read', 'git_status', 'git_diff'])
     expect(SURFACE.closed).not.toContain('file_edit')
     expect(SURFACE.closed).not.toContain('task_close')
   })
@@ -118,7 +118,7 @@ describe('掩码自检', () => {
 
 describe('空看板工具面', () => {
   it('只放开立项需要的读取、建任务与立项落盘能力，外加出方案', () => {
-    expect(UNSCOPEED_SURFACE).toEqual(['file_read', 'file_list', 'project_draft', 'spec_query', 'spec_draft', 'task_read', 'task_draft', 'proposal_draft'])
+    expect(UNSCOPEED_SURFACE).toEqual(['file_read', 'file_list', 'project_draft', 'spec_query', 'spec_draft', 'task_read', 'task_draft', 'proposal_draft', 'git_status', 'git_diff'])
     expect(UNSCOPEED_SURFACE).not.toContain('file_edit')
     expect(UNSCOPEED_SURFACE).not.toContain('cmd_run')
     expect(UNSCOPEED_SURFACE).not.toContain('spec_bind')
@@ -194,7 +194,16 @@ describe('角色天花板', () => {
     }
   })
 
-  it('五个角色都能列目录：立项不需要额外工具就能看清仓库结构', () => {
+  it('Git 角色只能提交，不能改文件、不能跑任意命令，终态也提不了', () => {
+    expect(ROLE_TOOLS.git).toContain('git_commit')
+    expect(ROLE_TOOLS.git).not.toContain('file_edit')
+    expect(ROLE_TOOLS.git).not.toContain('cmd_run')
+    expect(allowedTools('closed', 'git')).not.toContain('git_commit')
+    expect(allowedTools('closed', 'git')).toContain('git_status')
+    expect(allowedTools('implementing', 'git')).toEqual(['file_read', 'file_list', 'spec_query', 'task_read', 'git_status', 'git_diff', 'git_commit'])
+  })
+
+  it('六个角色都能列目录：立项不需要额外工具就能看清仓库结构', () => {
     for (const role of ROLES) expect(ROLE_TOOLS[role]).toContain('file_list')
   })
 
@@ -208,7 +217,7 @@ describe('角色天花板', () => {
     expect(allowedTools('drafting', null)).toEqual(SURFACE.drafting)
   })
 
-  it('parseRole 认五个角色，未设给 null，配错当场响', () => {
+  it('parseRole 认六个角色，未设给 null，配错当场响', () => {
     expect(parseRole(undefined)).toBeNull()
     for (const role of ROLES) expect(parseRole(role)).toBe(role)
     expect(() => parseRole('qa')).toThrow(TypeError)

@@ -15,6 +15,7 @@ import { createProposalApproveCommand } from './commands/proposal-approve.js'
 import { createTaskBindCommand } from './commands/task-bind.js'
 import { createTaskContractCommand } from './commands/task-contract.js'
 import { createEditTools, spawnRunner } from './tools/edit-tools.js'
+import { createGitTools } from './tools/git-tools.js'
 import { createProjectTools } from './tools/project-tools.js'
 import { createProposalTools } from './tools/proposal-tools.js'
 import { createSpecTools } from './tools/spec-tools.js'
@@ -101,6 +102,7 @@ export function apply(ctx: PluginContext, config: LcoderConfig = {}): void {
     ...createSpecTools(rootInput),
     ...createTaskTools(rootInput),
     ...createProposalTools(rootInput),
+    ...createGitTools(repoRootInput),
     ...createEditTools(rootInput, { run: spawnRunner, repoRoot: repoRootInput }),
   ]
 

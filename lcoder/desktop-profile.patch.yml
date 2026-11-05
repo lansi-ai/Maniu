@@ -66,6 +66,7 @@
               agentPreset: lcoder-review
               allowedAgentPresets:
                 - lcoder-review
+                - lcoder-git
 
 # ── 立项/产品 ─────────────────────────────────────────────────
 - insert:
@@ -121,6 +122,7 @@
               agentPreset: lcoder-review
               allowedAgentPresets:
                 - lcoder-review
+                - lcoder-git
 
 # ── 评审 ─────────────────────────────────────────────────────
 - insert:
@@ -177,6 +179,35 @@
             config:
               selfCheck: true
               role: pm
+
+# ── Git ─────────────────────────────────────────────────────
+# 提交动作的窄口：git_status / git_diff / git_commit，没有编辑能力，也没有 push。
+# 谁都能被委派进来（实施写完代码叫它提交），但它自己不改一个文件字节。
+- insert:
+    - id: preset-lcoder-git
+      name: "@deepseek-ai/dsh-agent-preset"
+      config:
+        id: lcoder-git
+        name: LCoder Git
+        description: 看状态与差异、把指定路径提交到本地仓库的角色（实验）
+        order: 24
+        plugins:
+          - id: persona
+            name: "@deepseek-ai/dsh-persona"
+            config:
+              prefix: >-
+                You are LCoder Git. 你的天花板是 file_read / file_list / spec_query / task_read /
+                git_status / git_diff / git_commit：先用 git_status 与 git_diff 看清改了哪些文件、
+                改动内容是否就是这次要提交的范围，再按任务号或改动主题写一条 Conventional Commits
+                说明，用 git_commit 只提交这些路径。
+                你不改文件内容（没有 file_edit），不跑任意命令（没有 cmd_run），
+                更没有 push——推远端由人执行，你也不能替人执行。
+                提交失败时把 git 的原文照实说，不要重试成一条 amend；暂存区为空就如实说没有提交。
+          - id: lcoder
+            name: '@lcoder/kernel'
+            config:
+              selfCheck: true
+              role: git
 
 # ── 外壳 ─────────────────────────────────────────────────────
 # 外壳自带左栏，所以禁用 DSH 原生 ui-sidebar；浏览器侧占用 main 的 lcoder-home。
