@@ -151,6 +151,11 @@
 - id: ui-sidebar
   disabled: true
 
+# 首屏的账户登录整块去掉：本产品用 API key 接模型，不需要登录、配额与引导遮罩。
+# 这一行同时挡掉 shell.overlay 上的 desktop-onboarding 与设置里的登录卡。
+- id: ui-settings-account
+  disabled: true
+
 - insert:
     - id: ui-lcoder-workspace
       name: '@lcoder/workspace'

@@ -376,6 +376,28 @@ tracks:
       dep: [T-31]
       inferred: false
       note: "A 级（换渲染面与交互通道）。用户 2026-11-05 真窗口反馈三条：一是浮层没有格式化输出、思考过程没隐藏、需要人选择的场景（审批与提问）没有弹窗；二是浮层不能放大，要两档，普通放大居中不占全屏、最大化占满应用；三是会话弹出时任务面板不占满窗口（截图里看板只顶在上半部，右侧与下方大片空白）。另有一条同源缺陷：截图里出现的英文 Current runtime context 是注入上下文被当成用户消息画出来了——messagesFromEntries 只按事件类型取文本，没有按 source.kind 过滤。根因：浮层是我们自画的（cursor 只取 user/message 与 assistant/message 的纯文本），没有用上游的会话渲染与审批面。方向首选复用而不是重写：先核上游 packages/client/ui-conversation 与 ui-trajectory 怎么渲染 markdown、思考折叠与审批卡，以及 user-approval 与 user-questions 两个通道在客户端怎么挂；能在浮层里嵌上游渲染最好，嵌不了再评估自实现 markdown 加折叠与审批条的成本。布局三件同时做：任务板撑满可用高度、浮层普通放大居中不遮全屏、最大化占满应用，尺寸与位置进配置不写死。验收只认桌面真窗口手点。"
+    - id: T-34
+      title: 去掉首屏账户登录——装配层禁用 ui-settings-account
+      status: doing
+      face: 用户端
+      type: 变更
+      owner: lance
+      created: '2026-11-05'
+      date: '2026-11-05'
+      dep: [T-13]
+      inferred: false
+      note: "B 级。用户 2026-11-05 要求去掉首屏的上游登录（本产品用 API key 接模型，登录、配额与引导遮罩暂时用不到）。取证：首屏是 packages/client/ui-settings-account 注册的 shell.overlay/desktop-onboarding 遮罩，同插件还给设置里的 settings.models.sign-in 与 shell.quota-notice 供座。处置：装配层禁用该插件，不动上游代码——提交版 lcoder/desktop-profile.patch.yml 增加 disabled 行，运行副本 apps/desktop/.desktop-build/development/home/profiles/desktop/cordis.patch.yml 在既有行上加 disabled: true（不再新增重复 id）。影响面：账户登录与配额提示消失；模型配置、目录、工作台均不依赖它。待重启后目视确认首屏不再出现且工作台正常。"
+    - id: T-35
+      title: 界面现代化——苹果风配色与排版、字体与字号、卡片尺寸
+      status: todo
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-05'
+      date: '2026-11-05'
+      dep: [T-33]
+      inferred: false
+      note: "B 级（视觉改造，不动契约）。用户 2026-11-05 的原话要求：整体更现代、偏苹果系统设计风格；字体用微软雅黑或更苹果化的字体；字号大一些；卡片大一些，现在的看起来太累。范围：先做一层视觉 token（字体栈与字级、间距、圆角、阴影、状态色、深浅两套），再核到外壳的看板与浮层上；字体栈按系统可用性给回退（-apple-system 与本机无来源，退 Segoe UI 与 Microsoft YaHei），字号与卡片尺寸的改动要把点击区与截断一起核。排在 T-33 之后：两者都改 Shell.module.css 与词典，并行会撞同一批文件；合完 T-33 再开。验收只认桌面真窗口，深浅两套都要看，原生滚动条与控制件也要跟随。"
 
 milestones:
 - name: MVP-0 工作台本地跑通

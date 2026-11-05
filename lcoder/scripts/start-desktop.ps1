@@ -1,4 +1,4 @@
-﻿# 启动 LCoder 桌面端（开发态）。
+﻿﻿# 启动 LCoder 桌面端（开发态）。
 #
 # 为什么有它：dev:desktop 的构建门禁与 vite 输出都是彩色的、且默认重定向到文件后终端一片死寂，
 # 中文在 cmd 下还会乱码。这个脚本做三件事——按路径精确停掉本仓的旧实例、把启动放到独立进程、
@@ -9,10 +9,12 @@
 #   lcoder\scripts\start-desktop.cmd -KeepRunning   # 不停旧实例（多开会被单实例锁挡住）
 #   lcoder\scripts\start-desktop.cmd -ListOnly      # 只列出会停掉哪些进程，不做任何改动
 #   lcoder\scripts\start-desktop.cmd -KeepFollowing # 就绪后继续跟随日志
+#   lcoder\scripts\start-desktop.cmd -NoBuild       # 跳过构建门禁（改过源码别用）
 param(
   [switch]$KeepRunning,
   [switch]$KeepFollowing,
   [switch]$ListOnly,
+  [switch]$NoBuild,
   [int]$ReadyTimeoutSec = 300
 )
 
@@ -59,8 +61,10 @@ $env:FORCE_COLOR = '0'
 Write-Host ("启动 {0}" -f $root) -ForegroundColor Cyan
 Write-Host ("日志 {0}" -f $log) -ForegroundColor DarkGray
 $started = Get-Date
+# -NoBuild 走 start:desktop（跳过 26 秒左右的构建门禁）；改过源码不要用它，会跑旧产物。
+$scriptName = if ($NoBuild) { 'start:desktop' } else { 'dev:desktop' }
 Start-Process -FilePath 'cmd.exe' `
-  -ArgumentList '/d', '/c', "pnpm run dev:desktop > `"$log`" 2>&1" `
+  -ArgumentList '/d', '/c', "pnpm run $scriptName > `"$log`" 2>&1" `
   -WorkingDirectory $root -WindowStyle Hidden | Out-Null
 
 $esc = [string][char]27
