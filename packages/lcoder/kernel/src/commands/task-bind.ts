@@ -94,6 +94,7 @@ function bindTask(rootInput: RootInput, invocation: BindInvocation): BindCommand
 
   const notes = [
     `会话 ${sessionId} 已认上 ${taskId}，该会话的工具面按 ${taskId} 的 ${target.state} 装配`,
+    target.session === undefined ? '' : `它原先由会话 ${target.session} 认领，现已改到本会话`,
     released.length === 0 ? '' : `同时释放它先前认领的 ${released.map(task => task.id).join('、')}`,
     `写入 ${taskPath(root, taskId)}；任务状态不由本命令改动，仍在 .spec/tasks/${taskId}.yaml 里由人推进`,
   ]

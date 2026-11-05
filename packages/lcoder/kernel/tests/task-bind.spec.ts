@@ -89,6 +89,16 @@ describe('task_bind 认领关系', () => {
     expect(listTasks(root).map(task => task.session)).toEqual(['session-8676', 'session-9324'])
   })
 
+  it('抢别人认领的任务时覆盖并说明被谁抢了', () => {
+    const root = makeSpec()
+    bind(root, 'session-8676', 'T-01')
+
+    const taken = bind(root, 'session-9324', 'T-01')
+
+    expect(fieldsOf(root, 'T-01').session).toBe('session-9324')
+    expect(taken.kind === 'success' && taken.text).toContain('原先由会话 session-8676 认领')
+  })
+
   it('没有会话上下文就不认领：这条关系记的就是会话号', () => {
     const root = makeSpec()
 
