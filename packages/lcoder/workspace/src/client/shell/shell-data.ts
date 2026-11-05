@@ -72,11 +72,16 @@ export const SHELL_STATES: readonly { readonly id: ShellTaskState; readonly labe
   { id: 'closed', labelKey: 'shell.closed' },
 ]
 
-/** 悬浮对话里的一条真实消息。 */
-export interface ShellMessage {
-  readonly role: 'user' | 'assistant'
-  readonly text: string
-}
+/** 悬浮对话里的一条真实消息：用户、助手（按内容块）或注入上下文。 */
+export type ShellMessage =
+  | { readonly role: 'user'; readonly text: string }
+  | { readonly role: 'assistant'; readonly blocks: readonly ShellAssistantBlock[] }
+  | { readonly role: 'context'; readonly text: string; readonly label: string }
+
+/** 助手消息按展示方式拆开的块；工具调用、图片与规划栏不进入悬浮对话。 */
+export type ShellAssistantBlock =
+  | { readonly kind: 'text'; readonly text: string }
+  | { readonly kind: 'reasoning'; readonly text: string }
 
 /**
  * 一次签署命令的回执。
@@ -89,7 +94,13 @@ export interface ShellSignResult {
 }
 
 /**
- * 从会话事件窗口提取可展示的用户/助手文本。工具结果与图片块忽略。
+ * 从会话事件窗口提取可展示的消息。
+ *
+ * 用户消息只认 `source.kind === 'user'`；其余 `user/message` 与
+ * `developer/message` 是注入上下文（runtime context、agent 指令、技能正文等），
+ * 归到可折叠的 context 行，不能画成用户发言。助手消息按 text / reasoning
+ * 拆块，思考过程由浮层折叠显示。
+ *
  * @param entries - 会话事件窗口。
  * @returns 按日志顺序排列的消息。
  */
@@ -97,15 +108,46 @@ export function messagesFromEntries(entries: readonly SessionEventLikeEntry[]): 
   const out: ShellMessage[] = []
   for (const entry of entries) {
     if (entry.type !== 'event') continue
-    if (entry.event.type === 'user/message') {
-      const text = textOf(entry.event.data)
-      if (text !== '') out.push({ role: 'user', text })
-    } else if (entry.event.type === 'assistant/message') {
-      const text = textOf(entry.event.data.message)
-      if (text !== '') out.push({ role: 'assistant', text })
+    const event = entry.event
+    if (event.type === 'user/message') {
+      const text = textOf(event.data.content)
+      if (text.trim() === '') continue
+      const kind = sourceKind(event.data.source)
+      if (kind === 'user') out.push({ role: 'user', text })
+      else out.push({ role: 'context', text, label: kind ?? 'context' })
+    } else if (event.type === 'developer/message') {
+      const text = textOf(event.data.message.content)
+      if (text.trim() !== '') out.push({ role: 'context', text, label: 'developer' })
+    } else if (event.type === 'assistant/message') {
+      const blocks = assistantBlocksOf(event.data.message.content)
+      if (blocks.length > 0) out.push({ role: 'assistant', blocks })
     }
   }
   return out
+}
+
+/** 助手内容块只保留正文与思考；相邻同类块合并成一段。 */
+function assistantBlocksOf(content: unknown): ShellAssistantBlock[] {
+  if (!Array.isArray(content)) return []
+  const blocks: ShellAssistantBlock[] = []
+  for (const value of content) {
+    if (value === null || typeof value !== 'object') continue
+    const record = value as Record<string, unknown>
+    const kind = record.type === 'reasoning' ? 'reasoning' : record.type === 'text' ? 'text' : null
+    const text = record.text
+    if (kind === null || typeof text !== 'string' || text.trim() === '') continue
+    const last = blocks[blocks.length - 1]
+    if (last !== undefined && last.kind === kind) blocks[blocks.length - 1] = { kind, text: last.text + text }
+    else blocks.push({ kind, text })
+  }
+  return blocks
+}
+
+/** 消息来源的 `kind`；来源不是对象或没有非空字符串时为 null（来源是合并可扩展的）。 */
+function sourceKind(value: unknown): string | null {
+  if (value === null || typeof value !== 'object') return null
+  const kind = (value as Record<string, unknown>).kind
+  return typeof kind === 'string' && kind !== '' ? kind : null
 }
 
 /** 消息/内容块里的文本；其他形状一律忽略。 */

@@ -247,46 +247,106 @@
 .poCheck { color: var(--lc-brand); font-weight: 700; }
 
 .floating { position: absolute; inset: 0; z-index: 40; display: grid; place-items: center; padding: 18px; }
+.floating[data-max="true"] { padding: 0; }
 .floatingBackdrop { position: absolute; inset: 0; background: rgba(9, 14, 24, .55); backdrop-filter: blur(2px); }
 .floatingInner { position: relative; width: 100%; height: 100%; }
 .boardWindow {
-  position: absolute; inset: 0 210px 110px 0;
+  position: absolute; inset: 0;
   background: var(--lc-surface); border: 1px solid var(--lc-line); border-radius: 18px;
   box-shadow: var(--lc-shadow); overflow: hidden; display: flex; flex-direction: column;
 }
-.miniHead { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--lc-line); }
+.miniHead { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--lc-line); }
 .miniHead h4 { margin: 0; font-size: 14px; }
 .miniHead p { margin: 0; font-size: 11px; color: var(--lc-muted); }
-.miniBoard { padding: 12px; display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; overflow: auto; }
-.miniBoard .column { min-height: 80px; padding: 8px; }
+.miniBoard {
+  flex: 1; min-height: 0; padding: 12px;
+  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px;
+  align-items: stretch; overflow: hidden;
+}
+.miniBoard .column { min-height: 0; padding: 8px; display: flex; flex-direction: column; overflow: auto; }
 .miniBoard .taskCard { padding: 8px; }
 .miniBoard .taskTitle { font-size: 11.5px; }
 .miniBoard .tags { display: none; }
 
+/* 普通档：居中、尺寸来自配置变量且留出窗外边距；最大化档：占满应用。 */
 .chatWindow {
-  position: absolute; right: 0; bottom: 0; width: 460px; height: 520px;
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: min(var(--lc-chat-w, 760px), calc(100% - 48px));
+  height: min(var(--lc-chat-h, 640px), calc(100% - 48px));
   background: var(--lc-surface); border: 1px solid var(--lc-line); border-radius: 18px;
   box-shadow: 0 26px 70px rgba(9, 14, 24, .4); overflow: hidden;
   display: flex; flex-direction: column;
 }
-.chatHead { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--lc-line); background: var(--lc-surface-2); }
+.chatWindow[data-max="true"] {
+  left: 0; top: 0; transform: none; width: 100%; height: 100%;
+  border: 0; border-radius: 0; box-shadow: none;
+}
+.chatHead { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--lc-line); background: var(--lc-surface-2); }
 .chatHead h4 { margin: 0; font-size: 13.5px; }
 .chatHead p { margin: 0; font-size: 11px; color: var(--lc-muted); }
-.chatBody { flex: 1; overflow: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
-.msg { max-width: 88%; border-radius: 12px; padding: 9px 11px; font-size: 12px; line-height: 1.55; }
+.chatBody { flex: 1; min-height: 0; overflow: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.msg { max-width: 88%; border-radius: 12px; padding: 9px 11px; font-size: 12px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
 .msgSys { align-self: flex-start; background: var(--lc-surface-2); border: 1px solid var(--lc-line); }
 .msgUser { align-self: flex-end; background: var(--lc-brand); color: #fff; }
+.msgAssistant { max-width: 100%; align-self: stretch; padding: 2px 2px 10px; white-space: normal; }
 .who { display: block; font-size: 10px; opacity: .7; margin-bottom: 3px; }
-.chatInput { display: flex; gap: 8px; padding: 10px 12px 12px; border-top: 1px solid var(--lc-line); }
+.markdownBody { margin: 2px 0 6px; }
+.chatInput { flex: 0 0 auto; display: flex; gap: 8px; padding: 10px 12px 12px; border-top: 1px solid var(--lc-line); }
 .chatInput input {
   flex: 1; min-width: 0; border: 1px solid var(--lc-line); border-radius: 10px;
   padding: 9px 10px; background: var(--lc-surface-2); color: var(--lc-ink);
 }
-.caption {
-  position: absolute; left: 50%; bottom: -2px; transform: translateX(-50%);
-  font-size: 11px; color: rgba(255,255,255,.85); background: rgba(9,14,24,.6);
-  border: 1px solid rgba(255,255,255,.14); border-radius: 999px; padding: 6px 12px;
-  white-space: nowrap;
+
+/* 思考与注入上下文：折叠行 + 摘要。 */
+.reasoningFold, .contextFold {
+  margin: 4px 0 8px; padding: 2px 8px;
+  border: 1px solid var(--lc-line); border-radius: 10px; background: var(--lc-surface-2);
+}
+.foldSummary { color: var(--lc-muted); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.foldSep { display: inline-block; width: 3px; height: 3px; margin: 0 6px; border-radius: 50%; background: var(--lc-faint); }
+.foldLabel { color: var(--lc-muted); font-size: 11px; }
+.reasoningBody { padding: 4px 0 8px; color: var(--lc-muted); }
+.contextBody {
+  margin: 4px 0 8px; max-height: 240px; overflow: auto;
+  white-space: pre-wrap; word-break: break-word; color: var(--lc-muted);
+  font: 11.5px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+/* 审批与提问弹窗：盖住对话正文，保留标题栏（关闭对话仍可用）。 */
+.pendingLayer {
+  position: absolute; inset: 53px 0 0 0; z-index: 20;
+  display: grid; place-items: center; padding: 18px;
+  background: rgba(9, 14, 24, .45); backdrop-filter: blur(1px);
+}
+.pendingCard {
+  width: min(520px, 100%); max-height: 100%; overflow: auto;
+  display: flex; flex-direction: column; gap: 10px; padding: 16px;
+  background: var(--lc-surface); border: 1px solid var(--lc-line); border-radius: 14px;
+  box-shadow: 0 18px 50px rgba(9, 14, 24, .35);
+}
+.pendingQuestionCard { width: min(620px, 100%); }
+.pendingHead { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.pendingHead h4 { margin: 0; font-size: 14px; }
+.pendingReason { margin: 0; font-size: 12.5px; color: var(--lc-muted); white-space: pre-wrap; }
+.pendingActions { display: flex; justify-content: flex-end; gap: 8px; }
+.questionList { display: flex; flex-direction: column; gap: 12px; overflow: auto; }
+.question { display: flex; flex-direction: column; gap: 7px; border-top: 1px solid var(--lc-line); padding-top: 10px; }
+.question:first-child { border-top: 0; padding-top: 0; }
+.questionHeader { font-size: 11px; font-weight: 700; color: var(--lc-muted); letter-spacing: .04em; }
+.questionText { margin: 0; font-size: 13px; font-weight: 600; }
+.questionDetail { max-height: 220px; overflow: auto; border: 1px solid var(--lc-line); border-radius: 8px; padding: 8px; background: var(--lc-surface-2); }
+.options { display: grid; gap: 6px; }
+.option {
+  display: flex; flex-direction: column; gap: 2px; text-align: left;
+  border: 1px solid var(--lc-line); border-radius: 9px; padding: 8px 10px;
+  background: var(--lc-surface-2); color: var(--lc-ink);
+}
+.option:hover { border-color: var(--lc-brand-2); }
+.optionOn { border-color: var(--lc-brand); background: var(--lc-brand-soft); }
+.option small { color: var(--lc-muted); font-size: 11px; }
+.questionCustom {
+  border: 1px solid var(--lc-line); border-radius: 9px; padding: 8px 10px;
+  background: var(--lc-surface-2); color: var(--lc-ink);
 }
 
 .settingsGrid { display: grid; gap: 10px; }
@@ -349,8 +409,7 @@
   .sidebar { width: 210px; flex-basis: 210px; }
   .board { grid-template-columns: repeat(3, minmax(170px, 1fr)); }
   .metaGrid { grid-template-columns: repeat(2, 1fr); }
-  .boardWindow { inset: 0 130px 120px 0; }
-  .chatWindow { width: 380px; height: 460px; }
+  .chatWindow { width: calc(100% - 24px); height: calc(100% - 24px); }
 }
 
 /* 设置弹窗里的模型服务区：分组行表 + 行内编辑卡。 */

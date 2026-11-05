@@ -365,6 +365,40 @@ tracks:
       dep: [T-23]
       inferred: false
       note: "B 级；用户 2026-11-05 在空仓走完 7 问立项后反馈「立项的会话没有列目录的工具」，同时确认 .spec 能生成。先做判定再定方案，不要直接加工具。两种可能：一是上游 bundle 全局注册的 glob 与 grep 本来就对该 profile 的每个 Agent 可见（见 T-11 的取证），那就是可见但模型没用或用了失败；二是 intake 角色的天花板与 SURFACE 求交之后，本包工具里确实没有列目录这一项，而全局工具又被装配层挡住。判据要能分清楚：在真窗口起一条 intake 会话，让它列当前仓库根目录，看会话日志里有没有 tool/result、失败信息是什么；再把该会话可见的工具名与全局注册清单对一遍。方案分两支：若全局 glob 可见，只补提示词与引导文案；若不可见，就在 kernel 新增 file_list（名字、类型、上限、排序写清，进 SURFACE 与 intake/architect/dev 三张角色表，review 只读也可给），并补单测与桌面验证。验收只认桌面端手点。判定（2026-11-05）取第二支：不是模型没用，是桌面 profile 里根本没有列目录工具。读用户那次真实会话日志（主仓桌面 home 下的 --E-Projects-LCoder-multi-demo-docs--），请求头里模型可见工具只有 file_read、project_draft、spec_draft、spec_query、task_draft、task_read、working_directory、load_workspace_dependencies，没有 glob/read/grep/bash；模型自述没有 ls 工具，随后连续用 file_read 猜了十几个路径全 ENOENT，最后如实改问用户。根因是 dsh-web-app 在宿主机面把 tool-fs、tool-fs-search、tool-bash、tool-pwsh、tool-jobs 全部 disabled，改成各 preset 自己挂，而 LCoder 四个 preset 只挂 kernel。顺带更正 T-11 的取证：全局工具对每个 Agent 可见只对未禁用它们的组合成立，桌面 web profile 不成立。实现：kernel 新增只读 file_list（path 默认仓库根、depth 1 到 3、目录在前按名称排序、上限 500 条并标记截断、路径不存在给可行动错误），出参是带 path 与 name、type 的条目列表，逐层广度优先、浅层先给全，进 SURFACE 全部状态、UNSCOPEED_SURFACE 与 intake/architect/dev/review 四张角色表，同步 surface.spec 的 dev 等于全集断言；四个角色 persona 与立项咒语都点名 file_list。证据：typecheck 5 项全绿，vitest packages/lcoder 24 文件 282 测试全绿，oxlint 0 error，test:docs 21 全绿（首跑 doc refs 被测试夹具里的 docs/prd.md 字样判成文档引用，已把夹具目录改成 guides 与 .txt 后转绿）；surface.spec 的 dev 等于 allToolNames 断言未改而随新增工具自然覆盖，测试仍绿；worktree 桌面实例（端口 9379/9372/9380，仓内 home，profile 采用 lcoder/desktop-profile.patch.yml 的角色版并保留 documentsDirectory）里新建 lcoder-intake 会话，请求头工具清单含 file_list，模型调用 file_list 拿到 docs/architecture.md 与 docs/prd.md，走完 7 问后落出 .spec/project.yaml、.spec/spec/rules.yaml 的 R-01 与 .spec/tasks/T-01.yaml。实跑靶仓是 E:/Projects/LCoder-t32-demo，三件产物都在它下面且 project.yaml 的 repo.url 指向它；E:/Projects/LCoder-t32-demo-2 是另建的空白手点靶仓，只有 docs、没有 .spec，两个仓用途分开。2026-11-05 收口：用户确认以本线桌面实例的实跑证据验收，不再另行手点。"
+    - id: T-33
+      title: 会话浮层复用上游渲染——格式化输出、折叠思考、审批与提问弹窗、两档放大
+      status: doing
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-05'
+      date: '2026-11-05'
+      dep: [T-31]
+      inferred: false
+      note: "A 级（换渲染面与交互通道）。用户 2026-11-05 真窗口反馈三条：一是浮层没有格式化输出、思考过程没隐藏、需要人选择的场景（审批与提问）没有弹窗；二是浮层不能放大，要两档，普通放大居中不占全屏、最大化占满应用；三是会话弹出时任务面板不占满窗口（截图里看板只顶在上半部，右侧与下方大片空白）。另有一条同源缺陷：截图里出现的英文 Current runtime context 是注入上下文被当成用户消息画出来了——messagesFromEntries 只按事件类型取文本，没有按 source.kind 过滤。根因：浮层是我们自画的（cursor 只取 user/message 与 assistant/message 的纯文本），没有用上游的会话渲染与审批面。方向首选复用而不是重写：先核上游 packages/client/ui-conversation 与 ui-trajectory 怎么渲染 markdown、思考折叠与审批卡，以及 user-approval 与 user-questions 两个通道在客户端怎么挂；能在浮层里嵌上游渲染最好，嵌不了再评估自实现 markdown 加折叠与审批条的成本。布局三件同时做：任务板撑满可用高度、浮层普通放大居中不遮全屏、最大化占满应用，尺寸与位置进配置不写死。验收只认桌面真窗口手点。2026-11-05 调研结论（判据→结论）：上游会话根只由 main 键控槽的 conversation 项经 main.conversation 渲染，该槽已被上游声明（重复声明抛错），renderSlot 只能渲染本 entry 声明的子槽，ConversationRoot 与 ConversationPanel 未从包入口导出，因此浮层内嵌不进整段上游会话；MarkdownText 与 DisclosureRow 从 ui-primitives 公开可用；审批与提问走 remote 事件把 PendingApproval 与 PendingQuestion 发布到 uiSession，pendingInteraction 可读且 answer 可用、卡片组件未导出；注入上下文按 source.kind 非 user 归类。用户拍板走浮层加上游原语自造审批与提问卡，注入上下文折叠成一行。实现与证据 2026-11-05：消息投影按 source.kind 分流（只有 user 画成用户气泡，其余 user/message 与 developer/message 折成上下文行），助手按 text/reasoning 拆块；正文用 MarkdownText，思考用 DisclosureRow 折叠；审批与提问读 sessionStatus.pendingInteraction，浮层内弹卡并调用上游 answer；普通档尺寸进 chatWindow 配置（默认 760x640），最大化占满应用；任务板窗口撑满浮层。门禁 typecheck 5 项全过、vitest packages/lcoder 26 文件 286 例、oxlint 0 错 0 警、test:docs 21 项全过、build:artifacts 8 项全过。真窗口手点（CDP 驱动）：markdown 标题/列表/行内代码、思考折叠展开、上下文折叠、普通档居中、最大化与恢复均过；审批与提问弹窗目前只有组件测试（answer 回传），live 弹窗未手点——仓内 home 没有模型钥匙，待配置后补验。"
+    - id: T-34
+      title: 去掉首屏账户登录——装配层禁用 ui-settings-account
+      status: doing
+      face: 用户端
+      type: 变更
+      owner: lance
+      created: '2026-11-05'
+      date: '2026-11-05'
+      dep: [T-13]
+      inferred: false
+      note: "B 级。用户 2026-11-05 要求去掉首屏的上游登录（本产品用 API key 接模型，登录、配额与引导遮罩暂时用不到）。取证：首屏是 packages/client/ui-settings-account 注册的 shell.overlay/desktop-onboarding 遮罩，同插件还给设置里的 settings.models.sign-in 与 shell.quota-notice 供座。处置：装配层禁用该插件，不动上游代码——提交版 lcoder/desktop-profile.patch.yml 增加 disabled 行，运行副本 apps/desktop/.desktop-build/development/home/profiles/desktop/cordis.patch.yml 在既有行上加 disabled: true（不再新增重复 id）。影响面：账户登录与配额提示消失；模型配置、目录、工作台均不依赖它。待重启后目视确认首屏不再出现且工作台正常。"
+    - id: T-35
+      title: 界面现代化——苹果风配色与排版、字体与字号、卡片尺寸
+      status: todo
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-05'
+      date: '2026-11-05'
+      dep: [T-33]
+      inferred: false
+      note: "B 级（视觉改造，不动契约）。用户 2026-11-05 的原话要求：整体更现代、偏苹果系统设计风格；字体用微软雅黑或更苹果化的字体；字号大一些；卡片大一些，现在的看起来太累。范围：先做一层视觉 token（字体栈与字级、间距、圆角、阴影、状态色、深浅两套），再核到外壳的看板与浮层上；字体栈按系统可用性给回退（-apple-system 与本机无来源，退 Segoe UI 与 Microsoft YaHei），字号与卡片尺寸的改动要把点击区与截断一起核。排在 T-33 之后：两者都改 Shell.module.css 与词典，并行会撞同一批文件；合完 T-33 再开。验收只认桌面真窗口，深浅两套都要看，原生滚动条与控制件也要跟随。"
+
 
 milestones:
 - name: MVP-0 工作台本地跑通

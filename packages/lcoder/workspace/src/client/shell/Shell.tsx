@@ -9,7 +9,7 @@
  * 启动时折叠空轨道，主面板占满窗口。
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
@@ -22,6 +22,7 @@ import type { LcoderWorkspaceKey } from '../locales.ts'
 import { claimTaskSession, taskCardStatus } from '../task-session.ts'
 import type { TaskCardStatus, TaskSessionRow } from '../task-session.ts'
 import { buildIntakePrompt, buildOnboardingPrompt, buildShellPrompt, SHELL_STATES } from './shell-data.ts'
+import { ChatTranscript, PendingInteractionCard } from './ChatPanel.tsx'
 import { ModelSettings } from './ModelSettings.tsx'
 import type { ModelSettingsFace } from './model-settings.ts'
 import type { ShellMessage, ShellProjectInfo, ShellRole, ShellSignResult, ShellTask, ShellTaskState } from './shell-data.ts'
@@ -67,7 +68,12 @@ export type ShellProps =
     readonly subscribeSession?: (sessionId: SessionId, listener: () => void) => () => void
     /** 浮层期间持有会话引用；没人 retain 的会话读不到消息。返回释放函数。 */
     readonly holdSession?: (sessionId: SessionId) => () => void
+    /** 普通档对话窗尺寸（像素）；最大化档始终占满应用。配置缺省时用内置默认值。 */
+    readonly chatSize?: { readonly width: number; readonly height: number }
   }
+
+/** 配置没给尺寸时的普通档默认值；最大化档不读配置。 */
+export const DEFAULT_CHAT_SIZE = { width: 760, height: 640 } as const
 
 /** 状态到词典键的映射，避免把状态字符串当展示文案。 */
 const STATE_LABEL = {
@@ -151,7 +157,7 @@ function resolveSecrets(info: ShellProjectInfo, secrets: Readonly<Record<string,
 export function Shell({
   t, files, openRepository, sendPrompt, signContract, advanceContract, bindTask, createSession, listRoles,
   readMessages, subscribeSession, holdSession, checkModels, subscribeModels, readSessionNotice, readSessionFlags, modelSettings,
-  useSessions, useSessionStatus, useWorkspaces,
+  useSessions, useSessionStatus, useWorkspaces, chatSize,
 }: ShellProps): ReactNode {
   const workspaces = useWorkspaces(state => state.items)
   const sessionRows = useSessions(state => state.byId)
@@ -166,6 +172,8 @@ export function Shell({
   const [detail, setDetail] = useState<ShellTask | null>(null)
   const [prompt, setPrompt] = useState('')
   const [chat, setChat] = useState<ShellTask | null>(null)
+  /** 普通档与最大化两档；关闭对话时回到普通档。 */
+  const [chatMax, setChatMax] = useState(false)
   const [settings, setSettings] = useState(false)
   const [drawer, setDrawer] = useState(false)
   const [revealed, setRevealed] = useState<Record<string, boolean>>({})
@@ -240,6 +248,14 @@ export function Shell({
   const chatRunning = chatSessionId === undefined
     ? false
     : sessionStatus.get(chatSessionId)?.running ?? sessionRows[chatSessionId]?.running ?? false
+  /** 这条会话当前等人处理的那一条审批或提问；上游插件发布，外壳只负责画与转交答案。 */
+  const chatPending = chatSessionId === undefined ? undefined : sessionStatus.get(chatSessionId)?.pendingInteraction
+  const resolvedChatSize = chatSize ?? DEFAULT_CHAT_SIZE
+  /** 普通档尺寸走配置；最大化档由 CSS 的 data-max 接管。 */
+  const chatStyle = {
+    '--lc-chat-w': `${String(resolvedChatSize.width)}px`,
+    '--lc-chat-h': `${String(resolvedChatSize.height)}px`,
+  } as CSSProperties
   /**
    * 没有能跑的模型时不发送。缺凭据的提示不是被拒：消息会先进队，回合才失败，
    * 事件流里连 `user/message` 都没有，用户只看得到「发了，什么都没发生」。
@@ -981,9 +997,9 @@ export function Shell({
       ) : null}
 
       {chat !== null ? (
-        <div className={css.floating}>
-          <div className={css.floatingBackdrop} onClick={() => { setChat(null) }} />
-          <div className={css.floatingInner}>
+        <div className={css.floating} data-max={chatMax ? 'true' : undefined}>
+          <div className={css.floatingBackdrop} onClick={() => { setChatMax(false); setChat(null) }} />
+          <div className={css.floatingInner} style={chatStyle}>
             <div className={css.boardWindow}>
               <div className={css.miniHead}>
                 <div className={css.grow}>
@@ -997,32 +1013,32 @@ export function Shell({
               </div>
             </div>
 
-            <div className={css.chatWindow}>
+            <div className={css.chatWindow} data-max={chatMax ? 'true' : undefined}>
               <div className={css.chatHead}>
                 <div className={css.grow}>
                   <h4>{chat.id === '' ? chat.title : `${chat.id} · ${chat.title}`}</h4>
                   <p>LCoder · {t(STATE_LABEL[chat.state])} · {t('shell.chatHint')}</p>
                 </div>
                 <span className={css.pill}>{chatRunning ? t('shell.running') : t('shell.chatReady')}</span>
-                <button type="button" className={css.iconBtn} title={t('shell.expand')} onClick={() => { setChat(null) }}>⤢</button>
+                <button
+                  type="button"
+                  className={css.iconBtn}
+                  title={chatMax ? t('shell.restore') : t('shell.maximize')}
+                  onClick={() => { setChatMax(value => !value) }}
+                >
+                  {chatMax ? '⤡' : '⛶'}
+                </button>
+                <button
+                  type="button"
+                  className={css.iconBtn}
+                  title={t('shell.closeChat')}
+                  onClick={() => { setChatMax(false); setChat(null) }}
+                >
+                  ✕
+                </button>
               </div>
               <div className={css.chatBody}>
-                {messages.length === 0
-                  ? (
-                    <div className={`${css.msg} ${css.msgSys}`}>
-                      <span className={css.who}>LCoder</span>
-                      {chatRunning ? t('shell.chatWaiting') : t('shell.chatEmpty')}
-                    </div>
-                  )
-                  : messages.map((message, index) => (
-                    <div
-                      key={`${message.role}-${String(index)}`}
-                      className={`${css.msg} ${message.role === 'user' ? css.msgUser : css.msgSys}`}
-                    >
-                      <span className={css.who}>{message.role === 'user' ? '你' : 'LCoder'}</span>
-                      {message.text}
-                    </div>
-                  ))}
+                <ChatTranscript messages={messages} running={chatRunning} t={t} />
                 {chatError === null ? null : <p className={css.problem}>{chatError}</p>}
                 {notice === null ? null : <p className={css.problem}>{`${t(notice.key)} ${notice.detail}`}</p>}
                 {modelStatus === null || modelStatus.state === 'ready' ? null : (
@@ -1034,6 +1050,7 @@ export function Shell({
                 )}
                 {modelBlocked ? <p className={css.secretRef}>{t('shell.howToConfigure')}</p> : null}
               </div>
+              {chatPending === undefined ? null : <PendingInteractionCard pending={chatPending} t={t} />}
               <div className={css.chatInput}>
                 <input
                   value={draft}
@@ -1050,7 +1067,6 @@ export function Shell({
                 </button>
               </div>
             </div>
-            <div className={css.caption}>{t('shell.chatHint')}</div>
           </div>
         </div>
       ) : null}

@@ -13,6 +13,7 @@
     { "path": "../../api/workspace-files/tsconfig.client.json" },
     { "path": "../../client/locale/tsconfig.client.json" },
     { "path": "../../client/ui-layout" },
+    { "path": "../../client/ui-primitives" },
     { "path": "../../client/ui-renderer" },
     { "path": "../../client/ui-sidebar-right" },
     { "path": "../../client/ui-session" },
