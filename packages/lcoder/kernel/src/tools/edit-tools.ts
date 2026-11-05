@@ -1,16 +1,19 @@
 /**
- * 签约态工具集：改文件、跑登记过的命令、回填证据。
+ * 文件与签约态工具集：读文件、列目录、改文件、跑登记过的命令、回填证据。
  *
- * 三个工具各带一道硬约束，不是提示词，是代码：
+ * 三个写入工具各带一道硬约束，不是提示词，是代码：
  *   1. `file_edit` 只能写仓库内部路径。`../` 与绝对路径直接拒绝。
  *   2. `cmd_run` **只接受环境档案里登记过的命令 id**，且只有 `exec: ai-auto`
  *      的才允许模型调用。其余一律拒绝并说明该谁跑。
  *   3. `evidence_attach` 只写入 `.spec/evidence/<task>/`，文件名做白名单清洗。
  *
+ * `file_read` 与 `file_list` 只读；没有 `file_list` 时模型只能猜路径，
+ * 空仓库立项会连续吃 ENOENT（T-32）。
+ *
  * 执行器可从外部注入：测试不需要真的 spawn 进程，生产才用 child_process。
  */
 import { spawn } from 'node:child_process'
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 
 import { defineTool } from '@deepseek-ai/dsh-tools'
@@ -82,6 +85,31 @@ export function safeEvidenceName(kind: string): string {
   return cleaned
 }
 
+/** `file_list` 一次返回的条目上限；超过就截断并标记，不静默分页。 */
+export const LIST_MAX_ENTRIES = 500
+
+/** `file_list` 允许向下展开的最大层数（1 表示只看目录本身的一层）。 */
+export const LIST_MAX_DEPTH = 3
+
+/**
+ * 把相对目录解析到仓库内部；空串与 `.` 表示仓库根。
+ * @param root - 仓库根绝对路径。
+ * @param relPath - 模型给出的仓库内相对目录。
+ * @returns 目录的绝对路径。
+ * @throws 绝对路径或越出仓库范围——与 `file_edit` 同口径，不靠清洗。
+ */
+export function resolveInsideDir(root: string, relPath: string): string {
+  if (isAbsolute(relPath)) {
+    throw new Error(`file_list 只接受仓库内相对路径，收到绝对路径：${relPath}`)
+  }
+  const abs = resolve(root, relPath === '' ? '.' : relPath)
+  const rel = relative(root, abs)
+  if (rel.startsWith('..') || isAbsolute(rel)) {
+    throw new Error(`路径越出仓库范围：${relPath}`)
+  }
+  return abs
+}
+
 function loadEnv(root: string): Env {
   return Env.parse(parseYaml(readFileSync(join(root, 'env.yaml'), 'utf8')))
 }
@@ -127,6 +155,75 @@ export function createEditTools(rootInput: RootInput, deps: EditToolDeps = {}): 
           content: lines.slice(start, end).join('\n'),
           truncated: end < lines.length,
         }
+      },
+    }),
+
+    defineTool({
+      name: 'file_list',
+      description:
+        `列出仓库内某个目录下的文件与子目录。默认只列一层，depth 可取 1 到 ${LIST_MAX_DEPTH}；目录在前、同类型按名称排序，最多返回 ${LIST_MAX_ENTRIES} 条，超出标记截断。只读，不改变任何文件。`,
+      parameters: {
+        path: { type: 'string', description: '仓库内相对目录，默认仓库根（.）' },
+        depth: { type: 'integer', description: `向下展开的层数，1 到 ${LIST_MAX_DEPTH}，默认 1` },
+      },
+      output: { schema: { type: 'json' }, render: renderJson },
+      // oxlint-disable-next-line typescript/require-await -- execute 的契约要求返回 Promise（ToolDefinition.execute），这里是同步实现。
+      async execute(args, exec) {
+        const root = resolveRoot(fileRootInput, exec)
+        const relPath = args.path ?? '.'
+        const depth = args.depth ?? 1
+        if (!Number.isInteger(depth) || depth < 1 || depth > LIST_MAX_DEPTH) {
+          throw new Error(`depth 只支持 1 到 ${LIST_MAX_DEPTH}，收到 ${String(args.depth)}`)
+        }
+        const abs = resolveInsideDir(root, relPath)
+
+        let isDirectory: boolean
+        try {
+          isDirectory = statSync(abs).isDirectory()
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+            throw new Error(
+              `路径不存在：${relPath}（解析为 ${abs}）。先不带 path 调一次 file_list 看仓库根，再逐层进入。`,
+            )
+          }
+          throw error
+        }
+        if (!isDirectory) {
+          throw new Error(`file_list 只接受目录，${relPath} 是文件；读取内容用 file_read。`)
+        }
+
+        const entries: Array<{ path: string; name: string; type: 'file' | 'directory' }> = []
+        let truncated = false
+        // 条目路径一律相对仓库根，模型可以直接拿去喂 file_read；`.` 时前缀为空。
+        const basePrefix = relative(root, abs).split(sep).join('/')
+        // 逐层广度优先：浅层条目总是先给全，截断只发生在更深处，输出顺序也就确定。
+        const queue: Array<{ abs: string; prefix: string; level: number }> = [{ abs, prefix: basePrefix, level: 1 }]
+        for (
+          let current = queue.shift();
+          current !== undefined && !truncated;
+          current = queue.shift()
+        ) {
+          const children = readdirSync(current.abs, { withFileTypes: true })
+          children.sort((left, right) => {
+            const byType = Number(right.isDirectory()) - Number(left.isDirectory())
+            if (byType !== 0) return byType
+            return left.name < right.name ? -1 : left.name > right.name ? 1 : 0
+          })
+          for (const child of children) {
+            if (entries.length >= LIST_MAX_ENTRIES) {
+              truncated = true
+              break
+            }
+            const childPath = current.prefix === '' ? child.name : `${current.prefix}/${child.name}`
+            const childIsDirectory = child.isDirectory()
+            entries.push({ path: childPath, name: child.name, type: childIsDirectory ? 'directory' : 'file' })
+            if (childIsDirectory && current.level < depth) {
+              queue.push({ abs: join(current.abs, child.name), prefix: childPath, level: current.level + 1 })
+            }
+          }
+        }
+
+        return { path: relPath, entries, truncated }
       },
     }),
 

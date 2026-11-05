@@ -175,7 +175,7 @@ export function buildIntakePrompt(project: ShellPromptProject): string {
 - 规格根：${project.path}/.spec 还不存在。
 - 项目：${project.name}（${project.path}，${project.branch}）
 - 任务：一个都读不到，.spec/project.yaml 也没登记——这个仓库还没立项。
-- 你现在拿到的是立项面：file_read、project_draft、spec_query、spec_draft、task_read、task_draft。改代码与跑命令的能力不在这条面上。
+- 你现在拿到的是立项面：file_read、file_list、project_draft、spec_query、spec_draft、task_read、task_draft。先 file_list 看清仓库结构，再 file_read 读文档；改代码与跑命令的能力不在这条面上。
 
 请按 7 问引导，一次只问一问，拿到回答再问下一问，总数不超过 7 问：
 1. 这个项目要办成的业务目标是什么？一句话说清。
