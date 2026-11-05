@@ -3,11 +3,10 @@ import type { FileSaveResult } from '@deepseek-ai/dsh-client-ui-file-actions/typ
 
 import type { DesktopShortcutInput, ShortcutConfigSnapshot, ShortcutSaveResult } from '@deepseek-ai/dsh-client-shortcuts/protocol'
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
-import { DESKTOP_IPC, SCHEME, type DshDesktopProductApi, type DesktopUpdatePresentation } from './ipc.ts'
+import { DESKTOP_IPC, SCHEME, type DesktopUpdatePresentation, type DesktopWindowCommand, type DesktopWindowState, type DshDesktopProductApi } from './ipc.ts'
 import { PLATFORM_IPC } from './platform-ipc.ts'
 import { markDocumentPlatform, syncWindowFullscreen } from './preload-platform.ts'
 import { syncNativeTheme } from './preload-theme.ts'
-import { syncWindowsAppearance } from './preload-windows.ts'
 import { installMandatoryUpdateOverlay } from './preload-mandatory-overlay.ts'
 import { createDesktopBrowserBridge } from './preload-browser.ts'
 import type { FileDragHandle } from '@deepseek-ai/dsh-util-file-drag'
@@ -64,6 +63,17 @@ function createProductApi(): DshDesktopProductApi {
         return () => { ipcRenderer.off(DESKTOP_IPC.shortcutsChanged, handle) }
       },
     },
+    ...(process.platform === 'win32' ? {
+      window: {
+        command: (command: DesktopWindowCommand) => ipcRenderer.invoke(DESKTOP_IPC.windowCommand, command) as Promise<void>,
+        state: () => ipcRenderer.invoke(DESKTOP_IPC.windowState) as Promise<DesktopWindowState>,
+        subscribe(listener: (state: DesktopWindowState) => void): () => void {
+          const handle = (_event: Electron.IpcRendererEvent, state: DesktopWindowState): void => { listener(state) }
+          ipcRenderer.on(DESKTOP_IPC.windowStateChanged, handle)
+          return () => { ipcRenderer.off(DESKTOP_IPC.windowStateChanged, handle) }
+        },
+      },
+    } : {}),
     updates: {
       status: () => ipcRenderer.invoke(DESKTOP_IPC.updatesStatus) as Promise<DesktopUpdatePresentation>,
       open: () => ipcRenderer.invoke(DESKTOP_IPC.updatesOpen) as Promise<void>,
@@ -89,7 +99,8 @@ if (location.protocol === `${SCHEME}:` && location.hostname === 'app') {
     if (previous === null) body.removeAttribute('tabindex')
     else body.setAttribute('tabindex', previous)
   })
-  syncWindowsAppearance()
+  // LCoder draws its own titlebar: the Windows caption menubar and 40 px
+  // reservation installed by syncWindowsAppearance stay unmounted.
   if (process.platform === 'win32') installMandatoryUpdateOverlay()
   contextBridge.exposeInMainWorld('__DSH_DIRECTORY_PICKER__', {
     pick: () => ipcRenderer.invoke(DESKTOP_IPC.directoryPick) as Promise<string | null>,
@@ -112,6 +123,13 @@ if (location.protocol === `${SCHEME}:` && location.hostname === 'app') {
 }
 
 markDocumentPlatform()
+if (process.platform === 'win32') {
+  // The LCoder shell fills the frame; AppFrame drops its collapsed caption rail.
+  const markCustomChrome = (): void => { document.documentElement.dataset.lcoderCustomChrome = '' }
+  const root = document.documentElement as HTMLElement | null
+  if (root === null) window.addEventListener('DOMContentLoaded', markCustomChrome)
+  else markCustomChrome()
+}
 syncWindowFullscreen()
 syncNativeTheme()
 // Main-process IPC also verifies the owning window and top frame.

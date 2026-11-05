@@ -1,7 +1,6 @@
 import { parsePluginOperationRecord } from '@deepseek-ai/dsh-plugin-manager/diagnostic'
 import type { DesktopHostProcess } from '../src/host-process.ts'
 import type { AccountView } from '@deepseek-ai/dsh-deepseek-account/types'
-import { WINDOWS_TITLEBAR_HEIGHT } from '../src/windows-layout.ts'
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import type { IpcMainInvokeEvent } from 'electron'
 import { join } from 'node:path'
@@ -117,6 +116,11 @@ const harness = await vi.hoisted(async () => {
     readonly setFullScreen = vi.fn((flag: boolean) => { this.fullscreen = flag; this.emit(flag ? 'enter-full-screen' : 'leave-full-screen') })
     minimized = false
     isMinimized() { return this.minimized }
+    maximized = false
+    isMaximized() { return this.maximized }
+    readonly minimize = vi.fn(() => { this.minimized = true; this.emit('minimize') })
+    readonly maximize = vi.fn(() => { this.maximized = true; this.emit('maximize') })
+    readonly unmaximize = vi.fn(() => { this.maximized = false; this.emit('unmaximize') })
     visible = true
     isVisible() { return this.visible }
     isFocused() { return true }
@@ -890,7 +894,7 @@ describe('desktop main startup', () => {
     }
   })
 
-  it.each(['darwin', 'win32', 'linux'] as const)('limits native titlebar styling to macOS on %s', async (platform) => {
+  it.each(['darwin', 'win32', 'linux'] as const)('uses a frameless custom-chrome window on Windows (%s)', async (platform) => {
     vi.spyOn(process, 'platform', 'get').mockReturnValue(platform)
     await import('../src/main.ts')
     await harness.preparing.promise
@@ -899,7 +903,9 @@ describe('desktop main startup', () => {
     if (platform === 'darwin') {
       expect(window.options).toMatchObject({ titleBarStyle: 'hiddenInset', vibrancy: 'sidebar', backgroundColor: '#00000000' })
     } else if (platform === 'win32') {
-      expect(window.options).toMatchObject({ titleBarStyle: 'hidden', titleBarOverlay: { height: WINDOWS_TITLEBAR_HEIGHT } })
+      expect(window.options).toMatchObject({ frame: false, thickFrame: true, autoHideMenuBar: true })
+      expect(window.options).not.toHaveProperty('titleBarStyle')
+      expect(window.options).not.toHaveProperty('titleBarOverlay')
       expect(window.options).not.toHaveProperty('vibrancy')
       expect(harness.menu.mock.calls[0]![0]).toEqual([
         { role: 'toggleDevTools', visible: false },
@@ -910,6 +916,28 @@ describe('desktop main startup', () => {
       expect(window.options).not.toHaveProperty('vibrancy')
     }
     expect(harness.hosts).toHaveLength(0)
+  })
+
+  it('drives the Windows primary window through the self-drawn chrome bridge', async () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
+    await import('../src/main.ts')
+    await harness.preparing.promise
+    const window = harness.windows[0]!
+    const event = { sender: window.webContents, senderFrame: window.webContents.mainFrame }
+    const command = harness.handlers.get(DESKTOP_IPC.windowCommand)!
+    const state = harness.handlers.get(DESKTOP_IPC.windowState)!
+    expect(() => command({ ...event, sender: {} }, 'minimize')).toThrow('rejected sender')
+    command(event, 'minimize')
+    expect(window.minimize).toHaveBeenCalledTimes(1)
+    command(event, 'toggle-maximize')
+    expect(window.maximize).toHaveBeenCalledTimes(1)
+    expect(window.webContents.send).toHaveBeenCalledWith(DESKTOP_IPC.windowStateChanged, { maximized: true, fullscreen: false })
+    command(event, 'toggle-maximize')
+    expect(window.unmaximize).toHaveBeenCalledTimes(1)
+    command(event, 'close')
+    expect(window.hide).toHaveBeenCalled()
+    expect(() => command(event, 'explode')).toThrow('invalid command')
+    expect(state(event)).toEqual({ maximized: false, fullscreen: false })
   })
 
   it('serves packaged shell documents instead of rejecting the shell origin', async () => {

@@ -56,6 +56,9 @@
   --lc-status-warn-soft: rgba(255, 159, 10, 0.14);
   --lc-status-danger-soft: rgba(215, 0, 21, 0.1);
   --lc-status-ok-soft: rgba(36, 138, 61, 0.12);
+  --lc-run-accent: rgba(0, 113, 227, 0.32);
+  --lc-run-ring-soft: rgba(0, 113, 227, 0.25);
+  --lc-run-period: 2.4s;
   --lc-hover: rgba(0, 0, 0, 0.05);
   --lc-backdrop: rgba(0, 0, 0, 0.32);
   --lc-backdrop-strong: rgba(0, 0, 0, 0.45);
@@ -130,6 +133,8 @@
   --lc-status-warn-soft: rgba(255, 179, 64, 0.18);
   --lc-status-danger-soft: rgba(255, 69, 58, 0.16);
   --lc-status-ok-soft: rgba(48, 209, 88, 0.18);
+  --lc-run-accent: rgba(10, 132, 255, 0.34);
+  --lc-run-ring-soft: rgba(10, 132, 255, 0.27);
   --lc-hover: rgba(255, 255, 255, 0.07);
   --lc-backdrop: rgba(0, 0, 0, 0.55);
   --lc-backdrop-strong: rgba(0, 0, 0, 0.7);
@@ -238,7 +243,7 @@
 .sub { font-size: var(--lc-text-sm); color: var(--lc-muted); display: flex; gap: var(--lc-space-2); align-items: center; min-width: 0; }
 .subCode { font: var(--lc-text-xs) / 1.4 var(--lc-font-mono); color: var(--lc-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sessionBar { display: flex; align-items: center; gap: 6px; min-width: 0; }
-.sessionChip { border: 1px solid var(--lc-line); background: var(--lc-surface-2); color: var(--lc-muted); border-radius: var(--lc-radius-pill); padding: 6px 12px; font-size: var(--lc-text-sm); white-space: nowrap; }
+.sessionChip { border: 1px solid var(--lc-line); background: var(--lc-surface-2); color: var(--lc-muted); border-radius: var(--lc-radius-pill); padding: 6px 12px; font-size: var(--lc-text-sm); white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
 .sessionChip:hover { border-color: var(--lc-brand-2); color: var(--lc-ink); }
 .sessionChipActive { background: var(--lc-brand-soft); border-color: var(--lc-brand); color: var(--lc-brand-ink); font-weight: 600; }
 .sessionAdd { border: 1px dashed var(--lc-line-strong); background: transparent; color: var(--lc-muted); border-radius: var(--lc-radius-pill); width: 30px; height: 30px; line-height: 1; font-size: var(--lc-text-md); }
@@ -312,11 +317,50 @@
 .stateClosed { background: #34c759; }
 
 .taskCard {
+  position: relative;
   width: 100%; min-width: 0; text-align: left; border: 1px solid var(--lc-line); background: var(--lc-surface);
   border-radius: var(--lc-radius-md); padding: 13px 14px; display: grid; gap: var(--lc-space-2); margin-bottom: 10px;
   box-shadow: var(--lc-shadow-xs); transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
 }
 .taskCard:hover { border-color: var(--lc-brand-2); transform: translateY(-1px); box-shadow: var(--lc-shadow-card); }
+
+/* 在跑卡片：低透明度 accent 跑马灯描边。伪元素绝对定位，不改 border 宽度、不参与布局。 */
+.taskCardRunning::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 2px;
+  background:
+    conic-gradient(
+      from var(--lc-run-angle),
+      transparent 0deg,
+      transparent 230deg,
+      var(--lc-run-accent) 300deg,
+      transparent 360deg
+    ),
+    linear-gradient(var(--lc-run-ring-soft), var(--lc-run-ring-soft));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+  animation: lc-run-sweep var(--lc-run-period) linear infinite;
+}
+@property --lc-run-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+@keyframes lc-run-sweep {
+  to { --lc-run-angle: 360deg; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .taskCardRunning::before {
+    animation: none;
+    background: var(--lc-run-accent);
+  }
+}
 .taskId { font-size: var(--lc-text-xs); color: var(--lc-faint); display: flex; align-items: center; justify-content: space-between; }
 .taskTitle { font-size: 14.5px; font-weight: 600; line-height: 1.45; overflow-wrap: anywhere; }
 .tags { display: flex; flex-wrap: wrap; gap: 5px; }
@@ -354,7 +398,8 @@
 .modalHead h3 { margin: 0 0 4px; font: 600 var(--lc-text-xl) / var(--lc-leading-tight) var(--lc-font-display); letter-spacing: -0.01em; }
 .modalHead p { margin: 0; color: var(--lc-muted); font-size: var(--lc-text-sm); }
 .modalBody { padding: var(--lc-space-5) var(--lc-space-6); display: grid; gap: var(--lc-space-4); }
-.modalFoot { display: flex; align-items: center; gap: var(--lc-space-2); padding: 16px var(--lc-space-6) var(--lc-space-5); border-top: 1px solid var(--lc-line); }
+.modalFoot { position: sticky; bottom: 0; z-index: 2; display: flex; align-items: center; gap: var(--lc-space-2); padding: 16px var(--lc-space-6) var(--lc-space-5); border-top: 1px solid var(--lc-line); background: var(--lc-surface); border-radius: 0 0 var(--lc-radius-xl) var(--lc-radius-xl); }
+.headAction { padding: 7px 12px; min-height: 34px; font-size: var(--lc-text-sm); white-space: nowrap; }
 .metaGrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
 .meta { background: var(--lc-surface-2); border: 1px solid var(--lc-line); border-radius: var(--lc-radius-md); padding: 10px 12px; }
 .metaK { font-size: var(--lc-text-xs); color: var(--lc-faint); }

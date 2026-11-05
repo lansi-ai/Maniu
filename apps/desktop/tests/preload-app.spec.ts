@@ -3,7 +3,6 @@ import type { DesktopFileDrag, FileDragHandle, FileDragRequestId } from '@deepse
 import { JSDOM } from 'jsdom'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { installMandatoryUpdateOverlay } from '../src/preload-mandatory-overlay.ts'
-import { syncWindowsAppearance } from '../src/preload-windows.ts'
 import { DESKTOP_IPC, type DshDesktopProductApi } from '../src/ipc.ts'
 
 const electron = vi.hoisted(() => ({
@@ -14,7 +13,6 @@ const electron = vi.hoisted(() => ({
 vi.mock('electron', () => electron)
 vi.mock('../src/preload-platform.ts', () => ({ markDocumentPlatform: vi.fn(), syncWindowFullscreen: vi.fn() }))
 vi.mock('../src/preload-theme.ts', () => ({ syncNativeTheme: vi.fn() }))
-vi.mock('../src/preload-windows.ts', () => ({ syncWindowsAppearance: vi.fn() }))
 vi.mock('../src/preload-mandatory-overlay.ts', () => ({ installMandatoryUpdateOverlay: vi.fn() }))
 
 beforeEach(() => { vi.stubGlobal('process', { ...process, isMainFrame: true }) })
@@ -141,11 +139,35 @@ it('reports host paths of picked files only to the local application document', 
   }
 })
 
+it('exposes the self-drawn window chrome only to the Windows application document', async () => {
+  vi.stubGlobal('process', { ...process, isMainFrame: true, platform: 'win32' })
+  vi.stubGlobal('location', new URL('dsh-app://app/'))
+  await import('../src/preload-app.ts')
+  const api = electron.contextBridge.exposeInMainWorld.mock.calls.find(([name]) => name === 'dshDesktop')?.[1] as DshDesktopProductApi
+  expect(api.window).toBeDefined()
+  await api.window!.command('minimize')
+  await api.window!.state()
+  expect(electron.ipcRenderer.invoke.mock.calls).toEqual([
+    [DESKTOP_IPC.windowCommand, 'minimize'],
+    [DESKTOP_IPC.windowState],
+  ])
+  const listener = vi.fn()
+  const unsubscribe = api.window!.subscribe(listener)
+  const handle = electron.ipcRenderer.on.mock.calls
+    .find(([channel]) => channel === DESKTOP_IPC.windowStateChanged)![1] as (event: unknown, state: unknown) => void
+  handle({}, { maximized: true, fullscreen: false })
+  expect(listener).toHaveBeenCalledWith({ maximized: true, fullscreen: false })
+  unsubscribe()
+  expect(electron.ipcRenderer.off).toHaveBeenCalledWith(DESKTOP_IPC.windowStateChanged, handle)
+})
+
 it.each(['dsh-app://app/', 'dsh-app://shell/plugin-manager.html', 'https://example.com/'])(
-  'installs Windows appearance only for the application document (%s)', async (url) => {
+  'keeps the window chrome bridge on the Windows application document only (%s)', async (url) => {
+    vi.stubGlobal('process', { ...process, isMainFrame: true, platform: 'win32' })
     vi.stubGlobal('location', new URL(url))
     await import('../src/preload-app.ts')
-    expect(syncWindowsAppearance).toHaveBeenCalledTimes(url === 'dsh-app://app/' ? 1 : 0)
+    const api = electron.contextBridge.exposeInMainWorld.mock.calls.find(([name]) => name === 'dshDesktop')?.[1] as DshDesktopProductApi
+    expect(api.window === undefined).toBe(url !== 'dsh-app://app/')
   },
 )
 

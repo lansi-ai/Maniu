@@ -9,7 +9,7 @@
  * 启动时折叠空轨道，主面板占满窗口。
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { CSSProperties, ReactNode } from 'react'
+import type { CSSProperties, MouseEvent, ReactNode } from 'react'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
@@ -25,6 +25,9 @@ import { buildIntakePrompt, buildOnboardingPrompt, buildShellPrompt, SHELL_STATE
 import { ChatTranscript, PendingInteractionCard } from './ChatPanel.tsx'
 import { ModelSettings } from './ModelSettings.tsx'
 import type { ModelSettingsFace } from './model-settings.ts'
+import { desktopWindowBridge } from './window-chrome.ts'
+import type { DesktopWindowCommand, DesktopWindowState } from './window-chrome.ts'
+import { runningCardClass } from './task-card-visual.ts'
 import type { ShellMessage, ShellProjectInfo, ShellRole, ShellSignResult, ShellTask, ShellTaskState } from './shell-data.ts'
 import css from './Shell.module.css'
 
@@ -166,6 +169,9 @@ export function Shell({
 
   const [workspaceId, setWorkspaceId] = useState<string | null>(null)
   const [dark, setDark] = useState(false)
+  /** Windows 桌面自绘标题栏；Web 与 macOS 没有这个桥，不画窗口按钮。 */
+  const windowBridge = useMemo(() => desktopWindowBridge(), [])
+  const [windowMaximized, setWindowMaximized] = useState(false)
   const [projectPicker, setProjectPicker] = useState(false)
   /** 新会话的角色选择浮层。 */
   const [rolePicker, setRolePicker] = useState(false)
@@ -332,6 +338,21 @@ export function Shell({
     }
   }, [checkModels, subscribeModels])
 
+  /** 自绘窗口栏跟随最大化与全屏切换；重载后先读一次当前状态。 */
+  useEffect(() => {
+    if (windowBridge === undefined) return
+    let alive = true
+    const apply = (state: DesktopWindowState): void => { if (alive) setWindowMaximized(state.maximized) }
+    windowBridge.state().then(apply, (error: unknown) => {
+      console.error('LCoder window state unavailable', error)
+    })
+    const unsubscribe = windowBridge.subscribe(apply)
+    return () => {
+      alive = false
+      unsubscribe()
+    }
+  }, [windowBridge])
+
   useEffect(() => {
     if (chat === null || chatSessionId === undefined || readMessages === undefined || subscribeSession === undefined) {
       setMessages([])
@@ -389,6 +410,26 @@ export function Shell({
     setSignResult(null)
     // 上一个任务的「没会话」提示不属于这个任务。
     setChatError(null)
+  }
+
+  /**
+   * 顶栏会话条：切到该会话并直接打开浮层。
+   * 绑定任务显示任务标题，未绑定用会话占位；建会话与认领仍归顶栏入口。
+   */
+  const openSession = (id: SessionId, index: number): void => {
+    const bound = tasks.find(task => task.session !== undefined && task.session === String(id))
+    setSessionOverride(id)
+    setDetail(null)
+    setChatError(null)
+    setChat(bound ?? {
+      id: '',
+      title: `${t('shell.sessions')} ${String(index + 1)}`,
+      state: 'drafting',
+      grade: '-',
+      rules: [],
+      evidence: [],
+      surface: '',
+    })
   }
 
   /** 选中任务的那份契约；没有就是还没起草。 */
@@ -486,6 +527,10 @@ export function Shell({
     })
   }
 
+  /** 详情弹窗头/底的会话动作文案；与 startConversation 的两种去向一致。 */
+  const conversationLabel = (task: ShellTask): string =>
+    claiming ? t('shell.claiming') : liveSessionOf(task) !== undefined ? t('shell.resumeChat') : t('shell.startChat')
+
   /**
    * 开一条不绑任务的会话：只为了看一眼这个角色的工具面，或接着上一轮自由讨论。
    * 认领关系仍由任务卡那一步写，这里不碰 `.spec`。
@@ -577,7 +622,7 @@ export function Shell({
           : columnTasks.map((task) => {
             const status = statusOfTask(task)
             return (
-              <button type="button" key={task.id} className={css.taskCard} onClick={() => { openTask(task) }}>
+              <button type="button" key={task.id} className={`${css.taskCard} ${runningCardClass(status) ?? ''}`} onClick={() => { openTask(task) }}>
                 <div className={css.taskId}><span>{task.id}</span><span>{task.grade}</span></div>
                 <div className={css.taskTitle}>{task.title}</div>
                 <div className={css.tags}>
@@ -621,9 +666,23 @@ export function Shell({
     </div>
   )
 
+  /** 窗口按钮只在 Windows 桌面壳里出现；失败留在控制台，不改窗口状态。 */
+  const runWindowCommand = (command: DesktopWindowCommand): void => {
+    if (windowBridge === undefined) return
+    void windowBridge.command(command).catch((error: unknown) => {
+      console.error('LCoder window command failed', error)
+    })
+  }
+
+  /** 顶栏空白处双击沿用系统标题栏手势；按钮与输入区不参与。 */
+  const onTopbarDoubleClick = (event: MouseEvent<HTMLElement>): void => {
+    if (event.target instanceof Element && event.target.closest('button, input, textarea, select, a, summary, [role="button"]') !== null) return
+    runWindowCommand('toggle-maximize')
+  }
+
   return (
-    <div className={css.shell} data-theme={dark ? 'dark' : 'light'}>
-      <header className={css.topbar}>
+    <div className={css.shell} data-theme={dark ? 'dark' : 'light'} data-chrome={windowBridge === undefined ? undefined : 'custom'}>
+      <header className={css.topbar} onDoubleClick={windowBridge === undefined ? undefined : onTopbarDoubleClick}>
         <div className={css.topBrand}>
           <div className={css.topLogo}>L</div>
           <span className={css.topTitle}>LCoder</span>
@@ -640,15 +699,16 @@ export function Shell({
           <div className={css.sessionBar}>
             {workspaceSessions.map((id, index) => {
               const bound = tasks.find(task => task.session !== undefined && task.session === String(id))
+              const placeholder = `${t('shell.sessions')} ${String(index + 1)}`
               return (
                 <button
                   type="button"
                   key={String(id)}
                   className={`${css.sessionChip} ${String(sessionId) === String(id) ? css.sessionChipActive : ''}`}
-                  title={String(id)}
-                  onClick={() => { setSessionOverride(id) }}
+                  title={bound === undefined ? String(id) : `${bound.id} · ${bound.title}`}
+                  onClick={() => { openSession(id, index) }}
                 >
-                  {bound?.id ?? `${t('shell.sessions')} ${String(index + 1)}`}
+                  {bound?.title ?? placeholder}
                 </button>
               )
             })}
@@ -667,6 +727,37 @@ export function Shell({
         <button type="button" className={css.secondaryBtn} onClick={() => { setDrawer(true) }}>ⓘ {t('shell.projectInfo')}</button>
         <button type="button" className={css.iconBtn} title={t('shell.theme')} onClick={() => { setDark(value => !value) }}>◐</button>
         <button type="button" className={css.iconBtn} title={t('shell.settings')} onClick={() => { setSettings(true) }}>⚙</button>
+        {windowBridge === undefined ? null : (
+          <div className={css.windowControls}>
+            <button
+              type="button"
+              className={css.windowBtn}
+              title={t('shell.minimizeWindow')}
+              aria-label={t('shell.minimizeWindow')}
+              onClick={() => { runWindowCommand('minimize') }}
+            >
+              –
+            </button>
+            <button
+              type="button"
+              className={css.windowBtn}
+              title={t(windowMaximized ? 'shell.restore' : 'shell.maximize')}
+              aria-label={t(windowMaximized ? 'shell.restore' : 'shell.maximize')}
+              onClick={() => { runWindowCommand('toggle-maximize') }}
+            >
+              {windowMaximized ? '❐' : '□'}
+            </button>
+            <button
+              type="button"
+              className={`${css.windowBtn} ${css.windowClose}`}
+              title={t('shell.closeWindow')}
+              aria-label={t('shell.closeWindow')}
+              onClick={() => { runWindowCommand('close') }}
+            >
+              ✕
+            </button>
+          </div>
+        )}
       </header>
 
       <main className={css.main}>
@@ -899,6 +990,15 @@ export function Shell({
                 <p>{projectName} / {projectPath} · {t('shell.specRoot')} {specRoot || '—'}</p>
               </div>
               <span className={css.pill}>{t(STATE_LABEL[detail.state])}</span>
+              <button
+                type="button"
+                className={`${css.secondaryBtn} ${css.headAction}`}
+                disabled={modelBlocked || claiming}
+                title={modelBlocked ? t('shell.noModels') : undefined}
+                onClick={() => { startConversation(detail) }}
+              >
+                {conversationLabel(detail)}
+              </button>
               <button type="button" className={css.iconBtn} onClick={() => { setDetail(null) }}>✕</button>
             </div>
             <div className={css.modalBody}>
@@ -987,9 +1087,7 @@ export function Shell({
                 title={modelBlocked ? t('shell.noModels') : undefined}
                 onClick={() => { startConversation(detail) }}
               >
-                {claiming
-                  ? t('shell.claiming')
-                  : liveSessionOf(detail) !== undefined ? t('shell.resumeChat') : t('shell.startChat')}
+                {conversationLabel(detail)}
               </button>
             </div>
           </div>
