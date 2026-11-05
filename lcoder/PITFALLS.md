@@ -78,3 +78,10 @@
 - **原因**：持久化按 flush 追加**互相独立的 zstd 帧**，不是单帧流。`zstdDecompressSync` 解到第一个帧结束就返回，剩下的帧静默丢弃，既不报错也不留痕迹。同一文件里帧魔数 `28 B5 2F FD` 出现 89 次，逐帧解完是 175 行事件。
 - **处理**：取证按帧切分再拼——找出所有偏移（魔数按小端写成 `28 B5 2F FD`），`buf.subarray(pos[i], pos[i+1] ?? buf.length)` 逐段 `zstdDecompressSync`，拼起来 `split('\n')`。要权威解码就用 `packages/session/session-persistence-jsonl` 的读盘路径，别用手搓单帧。
 - **预防**：凡以会话日志为证据，先做一次量级核对——文件字节数与解压字符数差两个数量级即多帧，不得直接下「没有回合」的结论。判「有没有起过回合」还要交叉两条独立来源：目标仓库 `.spec` 的落盘时间戳，以及工作区名册里该会话的 `blank` 位。
+
+## W-12 Windows 上 git worktree remove 报 Filename too long，注册表删了目录还在
+
+- **现象**：`git worktree remove .worktrees/<线名>`（含 `--force`）对并行线的 worktree 报 `error: failed to delete '...': Filename too long`，退出码非零；`git worktree list` 里这一条已经消失（元数据注销成功），但目录还在磁盘上占着 GB 级 `node_modules`。`cmd /c rd /s /q \\?\E:\...` 换一种写法又报「文件名、目录名或卷标语法不正确」——Git Bash 会把 `\\?\` 前缀吃掉。
+- **原因**：pnpm 的 `.pnpm/<pkg>@<ver>/node_modules/<pkg>/...` 嵌套深度超过 `MAX_PATH`（260）。Cordis 仓的 worktree 里再叠一层 `apps/desktop/.desktop-build` 就必然越界。`git worktree remove` 的注销与删除是两步，注销不受长路径限制、删除受；本机不改全局 `core.longpaths`（属机器状态，不在授权范围）。
+- **处理**：`node lcoder/scripts/rm-longpath.mjs E:/Projects/LCoder/.worktrees/<线名>`——脚本自己拼 `\\?\` 前缀并 `fs.rmSync(..., { recursive: true, maxRetries: 5 })`，绕开 MAX_PATH 也绕开 shell 的引号处理。已实测删掉 t25 与 t30 两个 worktree 的残留目录。注销失败的（还在 `git worktree list` 里）先 `git worktree prune` 再删目录。
+- **预防**：清理并行线按三步走，别指望一条命令到底——一 `git worktree list` 与 `git rev-list --count lcoder/main..<分支>` 双核（脏的、还有未合提交的、有活进程的都不动）；二 `git worktree remove`（预期它会失败，只看元数据是否注销）；三 `rm-longpath.mjs` 删目录，最后 `git branch -d`（合完的分支用安全的 `-d`，不用 `-D`）。起过桌面实例的 worktree 要先确认窗口已关：进程还活着就保留，不杀别人的进程。

@@ -423,6 +423,17 @@ tracks:
       dep: [T-23]
       inferred: false
       note: "C 级（提示词模板与复制这一条，不动状态机、工具面与写盘）。用户 2026-11-05 问「提示词有 @task-flow，思考一下是否需要」。取证取自主仓桌面 home 下那条真人立项会话（--E-Projects-LCoder-multi-demo-docs-- 的 session-4edd300e），首条 user/message 就是「@task-flow 项目引导：docs（E:\\Projects\\LCoder-multi-demo\\docs）」——前缀来自本包三段咒语模板的第一行。而 @ 技能引用只在 Qoder 一类外部工具里被解析，LCoder 会话没有名为 task-flow 的技能，模型收到的是一个它无法解析的裸 token，既不触发任何能力也省不掉正文里已有的流程指令。取舍是发送与复制分家。发进本会话的是编辑器里那份正文，不带前缀；点「复制提示词」交给仓外开工时才在文本前补上 @task-flow ，这样同一段咒语在两边都用得对，也不必为它编一个假的技能入口。落点三处。shell-data.ts 的 buildShellPrompt、buildIntakePrompt、buildOnboardingPrompt 去掉前缀，新增导出 TASK_FLOW_MENTION_PREFIX 并在 JSDoc 写明只有仓外这条路用它；Shell.tsx 的 copyPrompt 拼这个前缀，发送路径不变；shell-data.client.spec.ts 钉两条，三段咒语都不含该标记，补前缀后的任务咒语首行是 @task-flow T-01：订单导出。"
+    - id: T-38
+      title: 并行线收尾的删除通道——Windows 长路径让 worktree 目录删不掉
+      status: done
+      face: 用户端
+      type: 流程
+      owner: lance
+      created: '2026-11-05'
+      date: '2026-11-05'
+      dep: [T-27]
+      inferred: false
+      note: "C 级（运维脚本与坑档，不碰产品代码）。用户 2026-11-05 批准清理并行线残留。做法三步：先双核再动——git worktree list 逐条与 git rev-list --count lcoder/main..分支 一起看，脏的、还有未合提交的、有活桌面实例的都不动；再注销；最后删目录。结果：删掉 8 条已合完的分支（m01-spec-root、t10、t17、t23、t24、t24-card-status-premain、t25、t30），全用安全的 -d，未合的会被 git 拒绝而不是被强删；t10、t25、t30 的 worktree 目录已删净。踩到的坑记在 lcoder/PITFALLS.md 的 W-12：git worktree remove（含 --force）在本机对每条线都报 Filename too long，元数据注销成功但目录留在盘上，原因是 pnpm 的 .pnpm 嵌套叠上 .desktop-build 越过 MAX_PATH；cmd 的 rd /s /q 加 \\\\?\\ 前缀又被 Git Bash 吃掉引号报语法错。通道是新脚本 lcoder/scripts/rm-longpath.mjs，自己拼 \\\\?\\ 前缀走 fs.rmSync 递归与重试，实测删掉 t25 与 t30。没有改全局 core.longpaths，那是机器状态不在授权范围。删除前把各线留下的 4 个门禁日志与探针 home（1.7MB）挪进 lcoder/logs/kept-from-worktrees/。保留未动：t32、t33、t35 三条线各自的 worktree 与分支，它们还各挂着一套活着的桌面实例（不是本会话拉起的，不杀）；upstream-probe 已注销但因一条仍在运行的 git worktree remove 占着目录，重试要等它跑完。主 home 的 workspace.json 也核过，只有用户自己开过的工作区记录，没有指向 worktree 的脏记录，不碰。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
