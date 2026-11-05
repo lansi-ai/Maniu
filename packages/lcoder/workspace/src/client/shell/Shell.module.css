@@ -1,7 +1,7 @@
 /* LCoder 专属外壳：主面板内的整壳布局与浮层。
    颜色、字级、间距与圆角先落成 token，再核到各区块；深浅两套只换 token 值。
-   Windows 没有 SF Pro；Latin 用自托管的 Inter 变量字体，中文优先 PingFang SC，
-   Windows 回落 Microsoft YaHei UI。字距按 SF 的观感略收紧。 */
+   字体有两套 token 预设：A 系统（Segoe UI + 微软雅黑 UI），B 现代（自托管 Inter + Noto Sans SC）。
+   B 为当前默认；字距按 SF 的观感略收紧。 */
 
 @font-face {
   font-family: "Inter";
@@ -11,15 +11,21 @@
   font-display: swap;
 }
 
-/* 壳外的宿主文档也走同一套栈，避免弹层/正文在 body 上回落到旧字体。 */
+/* 预设由设置里的两档开关写到 html 上；body 与壳共用同一份栈。 */
+:global(html[data-lcoder-font="system"]) {
+  --lc-preset-font: "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+}
+:global(html[data-lcoder-font="modern"]) {
+  --lc-preset-font: Inter, "Noto Sans SC", "PingFang SC", "Microsoft YaHei UI", sans-serif;
+}
 :global(body) {
-  font-family: Inter, -apple-system, "Segoe UI Variable Display", "Segoe UI", "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+  font-family: var(--lc-preset-font, Inter, "Noto Sans SC", "Microsoft YaHei UI", sans-serif);
   letter-spacing: -0.01em;
 }
 
 .shell {
-  --lc-font-ui: Inter, -apple-system, "Segoe UI Variable Display", "Segoe UI", "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
-  --lc-font-display: Inter, -apple-system, "Segoe UI Variable Display", "Segoe UI", "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+  --lc-font-ui: var(--lc-preset-font, Inter, "Noto Sans SC", "Microsoft YaHei UI", sans-serif);
+  --lc-font-display: var(--lc-preset-font, Inter, "Noto Sans SC", "Microsoft YaHei UI", sans-serif);
   --lc-font-mono: var(--dsh-font-family-code, "SF Mono", "Cascadia Code", "JetBrains Mono", "Fira Code", Consolas), "Liberation Mono", "Microsoft YaHei", monospace;
   --lc-tracking: -0.01em;
   --lc-tracking-tight: -0.02em;
@@ -572,6 +578,10 @@
 .switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .25); transition: left .18s ease; }
 .switchOn { background: var(--lc-brand); }
 .switchOn::after { left: 21px; background: #fff; }
+.fontPresets { display: flex; gap: 3px; padding: 3px; background: var(--lc-surface-3); border-radius: var(--lc-radius-sm); }
+.fontOption { border: 0; background: transparent; color: var(--lc-muted); border-radius: 6px; padding: 7px 11px; font-size: var(--lc-text-sm); white-space: nowrap; }
+.fontOption:hover { color: var(--lc-ink); }
+.fontOptionOn { background: var(--lc-surface); color: var(--lc-ink); font-weight: 600; box-shadow: var(--lc-shadow-xs); }
 .demoBadge {
   position: absolute; right: 16px; bottom: 14px; z-index: 30;
   font-size: var(--lc-text-xs); color: var(--lc-muted); background: var(--lc-surface);
