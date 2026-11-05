@@ -399,7 +399,17 @@ tracks:
       dep: [T-33]
       inferred: false
       note: "B 级（视觉改造，不动契约）。用户 2026-11-05 的原话要求：整体更现代、偏苹果系统设计风格；字体用微软雅黑或更苹果化的字体；字号大一些；卡片大一些，现在的看起来太累。范围：先做一层视觉 token（字体栈与字级、间距、圆角、阴影、状态色、深浅两套），再核到外壳的看板与浮层上；字体栈按系统可用性给回退（-apple-system 与本机无来源，退 Segoe UI 与 Microsoft YaHei），字号与卡片尺寸的改动要把点击区与截断一起核。排在 T-33 之后：两者都改 Shell.module.css 与词典，并行会撞同一批文件；合完 T-33 再开。验收只认桌面真窗口，深浅两套都要看，原生滚动条与控制件也要跟随。"
-
+    - id: T-36
+      title: 品牌侧去 DeepSeek Harness——加载与欢迎页、系统菜单改名
+      status: doing
+      face: 用户端
+      type: 变更
+      owner: lance
+      created: '2026-11-05'
+      date: '2026-11-05'
+      dep: [T-13]
+      inferred: false
+      note: "B 级。用户 2026-11-05 要求产品品牌侧去掉 DeepSeek Harness 的展示，点名 loading 画面。取证：桌面端用户可见的品牌串集中在 apps/desktop/src/locale.ts 的 8 种语言里，welcomeTitle、welcomeBrand、welcomeTaglineBrand 就是加载与欢迎页的标题与副标，另有关于菜单、隐藏/退出/打开应用、退出确认、启动失败、更新标题；客户端品牌标由 ui-brand-official 往侧栏槽位画鲸标与字标。处置两层：一是按接触面规矩登记 apps/desktop/src/locale.ts 并替换 DeepSeek Harness 为 LCoder，共 88 处；中英的 welcomeKeyDescription 改成中性说法（配置模型后即可开始使用），其余 6 处 DeepSeek 是 provider 名称，保持不动。二是在装配层禁用 ui-brand-official，鲸标与字标不进壳。验收待重启后目视：加载与欢迎页、关于菜单、退出确认都显示 LCoder，无鲸标。"
 
 milestones:
 - name: MVP-0 工作台本地跑通

@@ -156,6 +156,10 @@
 - id: ui-settings-account
   disabled: true
 
+# 品牌侧去 DeepSeek：官方鲸标与名称字标不再出现在壳里（壳自画顶栏）。
+- id: ui-brand-official
+  disabled: true
+
 - insert:
     - id: ui-lcoder-workspace
       name: '@lcoder/workspace'

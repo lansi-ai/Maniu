@@ -9,3 +9,4 @@ pnpm-lock.yaml
 tsconfig.client.json
 tsconfig.host.json
 AGENTS.md
+apps/desktop/src/locale.ts
