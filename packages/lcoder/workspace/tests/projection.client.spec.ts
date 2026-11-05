@@ -156,6 +156,7 @@ describe('文件投影', () => {
       grade: 'B',
       rules: ['R-LOGIN-01'],
       evidence: ['test'],
+      session: undefined,
     })
     expect(taskTextToRow('T-015.yaml', 'grade: A')).toBeUndefined()
     // 认领会话号原样透给外壳：卡片靠它决定是切到已有会话，还是新开一条再绑。
@@ -164,6 +165,9 @@ describe('文件投影', () => {
     expect(taskTextToRow('T-016.yaml', '- 只是\n- 一个数组')).toBeUndefined()
     // id 缺失时退回文件名，不丢整行。
     expect(taskTextToRow('T-017.yaml', 'title: 只有标题')?.id).toBe('T-017')
+    // 任务与会话的归属权威在文件里：写了才认领，没写就是未绑定。
+    expect(taskTextToRow('T-014.yaml', `${TASK_YAML}\nsession: session-9`)?.session).toBe('session-9')
+    expect(taskTextToRow('T-014.yaml', TASK_YAML)?.session).toBeUndefined()
   })
 
   it('rulesTextToRows 跳过缺 id / text 的条目，不替规格库补事实', () => {

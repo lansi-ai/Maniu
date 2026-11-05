@@ -13,6 +13,8 @@
   --lc-brand-2: #14b8a6;
   --lc-brand-soft: #e6f6f3;
   --lc-warn: #b45309;
+  --lc-status-warn: #b45309;
+  --lc-status-danger: #b91c1c;
   --lc-shadow: 0 18px 50px rgba(23, 32, 51, .14);
   position: relative;
   display: flex;
@@ -38,6 +40,8 @@
   --lc-brand: #2dd4bf;
   --lc-brand-2: #14b8a6;
   --lc-brand-soft: #0f2f2b;
+  --lc-status-warn: #fbbf24;
+  --lc-status-danger: #f87171;
   --lc-shadow: 0 18px 60px rgba(0, 0, 0, .45);
 }
 
@@ -176,6 +180,8 @@
 .tags { display: flex; flex-wrap: wrap; gap: 4px; }
 .tag { font-size: 10.5px; color: var(--lc-muted); background: var(--lc-surface-3); border-radius: 5px; padding: 1px 5px; }
 .tagOk { color: var(--lc-brand); background: var(--lc-brand-soft); }
+.tagWarn { color: var(--lc-status-warn); background: var(--lc-surface-3); }
+.tagDanger { color: var(--lc-status-danger); background: var(--lc-surface-3); }
 .empty { color: var(--lc-faint); font-size: 11.5px; padding: 10px 2px; }
 .problems {
   margin-top: 12px; border: 1px solid var(--lc-line); border-radius: 10px;

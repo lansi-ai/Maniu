@@ -194,13 +194,30 @@ export function apply(ctx: ClientContext, config: Config = {}): void {
       const binding = ctx.sessions.binding(sessionId)
       return binding === undefined ? null : noticeFromSnapshot(binding.session.getSnapshot())
     }
+    /**
+     * 卡片要的两个状态位。
+     *
+     * 只有本客户端物化过的会话才有快照，读不到就返回 null——卡片因此不会把「不知道」
+     * 画成「空闲」或「失败」。失败位沿用浮层那条判据，两处说的是同一件事，只是一个给
+     * 状态、一个给细节。
+     */
+    const readSessionFlags = (sessionId: SessionId): { awaitingFirstTurn: boolean; failed: boolean } | null => {
+      const binding = ctx.sessions.binding(sessionId)
+      if (binding === undefined) return null
+      const snapshot = binding.session.getSnapshot()
+      return { awaitingFirstTurn: snapshot.awaitingFirstTurn, failed: noticeFromSnapshot(snapshot) !== null }
+    }
     const readMessages = (sessionId: SessionId): readonly ShellMessage[] => {
       const binding = ctx.sessions.binding(sessionId)
       return binding === undefined ? [] : messagesFromEntries(binding.eventSource.getSnapshot().entries)
     }
     const subscribeSession = (sessionId: SessionId, listener: () => void): (() => void) => {
       const binding = ctx.sessions.binding(sessionId)
-      return binding === undefined ? () => {} : binding.eventSource.subscribe(listener)
+      if (binding === undefined) return () => {}
+      // 事件窗口给消息，会话快照给「等首个回合」与失败；卡片和浮层靠同一个通知一起刷新。
+      const disposeEvents = binding.eventSource.subscribe(listener)
+      const disposeState = binding.session.subscribe(listener)
+      return () => { disposeEvents(); disposeState() }
     }
     ctx.effect(() => ctx.slots.inject('main', () => {
       const dispose = ctx.slots.register(
@@ -210,7 +227,7 @@ export function apply(ctx: ClientContext, config: Config = {}): void {
           locale: NS,
           inject: () => ({
             files, openRepository, sendPrompt, signContract, bindTask, createSession, listRoles,
-            readMessages, subscribeSession, checkModels, subscribeModels, readSessionNotice,
+            readMessages, subscribeSession, checkModels, subscribeModels, readSessionNotice, readSessionFlags,
           }),
         },
         Shell,
