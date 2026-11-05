@@ -67,15 +67,15 @@ describe('签约态工具集', () => {
 
   it('file_list 默认列仓库根一层，目录在前按名称排序', async () => {
     const root = makeRoot()
-    mkdirSync(join(root, 'docs'))
-    writeFileSync(join(root, 'docs', 'prd.md'), '# prd', 'utf8')
+    mkdirSync(join(root, 'guides'))
+    writeFileSync(join(root, 'guides', 'note.txt'), '# note', 'utf8')
     mkdirSync(join(root, 'src'))
 
     const r = await call('file_list', root, {})
 
     expect(r.path).toBe('.')
     expect(r.entries).toEqual([
-      { path: 'docs', name: 'docs', type: 'directory' },
+      { path: 'guides', name: 'guides', type: 'directory' },
       { path: 'src', name: 'src', type: 'directory' },
       { path: 'env.yaml', name: 'env.yaml', type: 'file' },
     ])
@@ -84,16 +84,16 @@ describe('签约态工具集', () => {
 
   it('file_list 的 depth 展开子目录，路径相对仓库根', async () => {
     const root = makeRoot()
-    mkdirSync(join(root, 'docs', 'deep'), { recursive: true })
-    writeFileSync(join(root, 'docs', 'prd.md'), '# prd', 'utf8')
-    writeFileSync(join(root, 'docs', 'deep', 'api.md'), '# api', 'utf8')
+    mkdirSync(join(root, 'guides', 'deep'), { recursive: true })
+    writeFileSync(join(root, 'guides', 'note.txt'), '# note', 'utf8')
+    writeFileSync(join(root, 'guides', 'deep', 'api.txt'), '# api', 'utf8')
 
-    const r = await call('file_list', root, { path: 'docs', depth: 2 })
+    const r = await call('file_list', root, { path: 'guides', depth: 2 })
 
     expect(r.entries).toEqual([
-      { path: 'docs/deep', name: 'deep', type: 'directory' },
-      { path: 'docs/prd.md', name: 'prd.md', type: 'file' },
-      { path: 'docs/deep/api.md', name: 'api.md', type: 'file' },
+      { path: 'guides/deep', name: 'deep', type: 'directory' },
+      { path: 'guides/note.txt', name: 'note.txt', type: 'file' },
+      { path: 'guides/deep/api.txt', name: 'api.txt', type: 'file' },
     ])
   })
 
