@@ -11,10 +11,12 @@
 import { join, resolve } from 'node:path'
 
 import { createContractSignCommand } from './commands/contract-sign.js'
+import { createProposalApproveCommand } from './commands/proposal-approve.js'
 import { createTaskBindCommand } from './commands/task-bind.js'
 import { createTaskContractCommand } from './commands/task-contract.js'
 import { createEditTools, spawnRunner } from './tools/edit-tools.js'
 import { createProjectTools } from './tools/project-tools.js'
+import { createProposalTools } from './tools/proposal-tools.js'
 import { createSpecTools } from './tools/spec-tools.js'
 import { createTaskTools } from './tools/task-tools.js'
 import { allowedTools, checkSurface, parseRole } from './kernel/surface.js'
@@ -98,6 +100,7 @@ export function apply(ctx: PluginContext, config: LcoderConfig = {}): void {
     ...createProjectTools(rootInput),
     ...createSpecTools(rootInput),
     ...createTaskTools(rootInput),
+    ...createProposalTools(rootInput),
     ...createEditTools(rootInput, { run: spawnRunner, repoRoot: repoRootInput }),
   ]
 
@@ -138,23 +141,20 @@ export function apply(ctx: PluginContext, config: LcoderConfig = {}): void {
     else mount()
   }
 
-  // 三条人机命令按同一个规格根解析：工具与命令读写同一份 `.spec`，否则签完收口读不到。
-  const signCommand = createContractSignCommand(rootInput)
-  const mountCommand = () => ctx.commands.register(signCommand)
-  if (ctx.effect) ctx.effect(mountCommand, `lcoder.command(${signCommand.name})`)
-  else mountCommand()
-
-  // 认领关系同样只由人写：模型能调就等于自己挑工具面。
-  const bindCommand = createTaskBindCommand(rootInput)
-  const mountBind = () => ctx.commands.register(bindCommand)
-  if (ctx.effect) ctx.effect(mountBind, `lcoder.command(${bindCommand.name})`)
-  else mountBind()
-
+  // 人机命令按同一个规格根解析：工具与命令读写同一份 `.spec`，否则签完收口读不到。
+  // 认领关系与方案批准都由人写：模型能调就等于自己挑工具面、自己拍板。
   // 签完到开工之间那一步也由人点：签名与状态分开写，失败分得清。
-  const contractCommand = createTaskContractCommand(rootInput)
-  const mountContract = () => ctx.commands.register(contractCommand)
-  if (ctx.effect) ctx.effect(mountContract, `lcoder.command(${contractCommand.name})`)
-  else mountContract()
+  const commands = [
+    createContractSignCommand(rootInput),
+    createTaskBindCommand(rootInput),
+    createTaskContractCommand(rootInput),
+    createProposalApproveCommand(rootInput),
+  ]
+  for (const command of commands) {
+    const mount = () => ctx.commands.register(command)
+    if (ctx.effect) ctx.effect(mount, `lcoder.command(${command.name})`)
+    else mount()
+  }
 
   if (config.selfCheck ?? true) {
     const check = checkSurface(tools.map(t => t.name))
@@ -164,7 +164,7 @@ export function apply(ctx: PluginContext, config: LcoderConfig = {}): void {
     if (check.orphan.length > 0) {
       console.error(`[lcoder] 已注册但任何状态都看不到的工具：${check.orphan.join(', ')}`)
     }
-    console.error(`[lcoder] 已注册 ${tools.length} 个工具与 /${signCommand.name}、/${bindCommand.name}、/${contractCommand.name} 命令；角色 ${role ?? '未设（只按状态收放）'}，无会话 cwd 时规格根 ${fallbackRoot}，有会话时取 session.header.cwd/.spec`)
+    console.error(`[lcoder] 已注册 ${tools.length} 个工具与 ${commands.map(command => `/${command.name}`).join('、')} 命令；角色 ${role ?? '未设（只按状态收放）'}，无会话 cwd 时规格根 ${fallbackRoot}，有会话时取 session.header.cwd/.spec`)
   }
 
 }

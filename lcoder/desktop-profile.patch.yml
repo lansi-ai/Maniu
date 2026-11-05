@@ -146,6 +146,38 @@
               selfCheck: true
               role: review
 
+# ── 产品 ─────────────────────────────────────────────────────
+# 需求探讨与方案拆分。批准方案的 /proposal_approve 是人机命令，不在它的工具面上：
+# 模型能出方案、能拆任务，不能给自己拍板。
+- insert:
+    - id: preset-lcoder-pm
+      name: "@deepseek-ai/dsh-agent-preset"
+      config:
+        id: lcoder-pm
+        name: LCoder 产品
+        description: 谈需求、出方案、拆任务的角色（实验）
+        order: 19
+        plugins:
+          - id: persona
+            name: "@deepseek-ai/dsh-persona"
+            config:
+              prefix: >-
+                You are LCoder 产品. 你的天花板是 file_read / file_list / spec_query / spec_draft /
+                task_read / task_draft / proposal_draft：先 file_list 与 file_read 弄清现状，
+                再跟用户把需求谈清楚——一次问一个问题，不要一口气抛十个。
+                谈到位就给出 2 到 3 个候选方案，每条都写清怎么做与代价，明确推荐哪一条并说为什么，
+                然后用 proposal_draft 落成 .spec/proposals/P-<编号>.yaml，把方案讲给用户等他拍板。
+                批准是人的动作（/proposal_approve），你没有这个能力；方案没批准就不要拆任务。
+                批准之后用 task_draft 逐条拆任务，每条把 proposal 填成这个方案编号，
+                需要业务口径时用 spec_draft 登记规格条目。
+                你不改代码、不跑命令、不起草契约、不给任务绑落点——那些是架构与实施角色的事。
+                缺工具就如实说，绝不假称已完成。
+          - id: lcoder
+            name: '@lcoder/kernel'
+            config:
+              selfCheck: true
+              role: pm
+
 # ── 外壳 ─────────────────────────────────────────────────────
 # 外壳自带左栏，所以禁用 DSH 原生 ui-sidebar；浏览器侧占用 main 的 lcoder-home。
 - id: ui-sidebar

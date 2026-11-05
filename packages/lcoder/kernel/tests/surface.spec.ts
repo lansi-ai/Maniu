@@ -117,8 +117,8 @@ describe('掩码自检', () => {
 })
 
 describe('空看板工具面', () => {
-  it('只放开立项需要的读取、建任务与立项落盘能力', () => {
-    expect(UNSCOPEED_SURFACE).toEqual(['file_read', 'file_list', 'project_draft', 'spec_query', 'spec_draft', 'task_read', 'task_draft'])
+  it('只放开立项需要的读取、建任务与立项落盘能力，外加出方案', () => {
+    expect(UNSCOPEED_SURFACE).toEqual(['file_read', 'file_list', 'project_draft', 'spec_query', 'spec_draft', 'task_read', 'task_draft', 'proposal_draft'])
     expect(UNSCOPEED_SURFACE).not.toContain('file_edit')
     expect(UNSCOPEED_SURFACE).not.toContain('cmd_run')
     expect(UNSCOPEED_SURFACE).not.toContain('spec_bind')
@@ -157,11 +157,22 @@ describe('角色天花板', () => {
     expect([...ROLE_TOOLS.dev].sort()).toEqual(allToolNames())
   })
 
-  it('立项、架构、评审三个角色都动不了代码与命令', () => {
-    for (const role of ['intake', 'architect', 'review'] as const) {
+  it('立项、架构、产品、评审四个角色都动不了代码与命令', () => {
+    for (const role of ['intake', 'architect', 'pm', 'review'] as const) {
       expect(ROLE_TOOLS[role]).not.toContain('file_edit')
       expect(ROLE_TOOLS[role]).not.toContain('cmd_run')
     }
+  })
+
+  it('只有产品角色能出方案；方案批准是人机命令，不在任何角色的工具面里', () => {
+    expect(ROLE_TOOLS.pm).toContain('proposal_draft')
+    for (const role of ['intake', 'architect', 'review'] as const) {
+      expect(ROLE_TOOLS[role]).not.toContain('proposal_draft')
+    }
+    // 终态只读：连产品也不能在 closed 上继续出方案。
+    expect(allowedTools('closed', 'pm')).not.toContain('proposal_draft')
+    expect(allowedTools('drafting', 'pm')).toContain('proposal_draft')
+    for (const state of STATES) expect(SURFACE[state]).not.toContain('proposal_approve')
   })
 
   it('只有架构能起草契约与绑落点，只有评审能收口与挂证据', () => {
@@ -183,7 +194,7 @@ describe('角色天花板', () => {
     }
   })
 
-  it('四个角色都能列目录：立项不需要额外工具就能看清仓库结构', () => {
+  it('五个角色都能列目录：立项不需要额外工具就能看清仓库结构', () => {
     for (const role of ROLES) expect(ROLE_TOOLS[role]).toContain('file_list')
   })
 
@@ -197,11 +208,11 @@ describe('角色天花板', () => {
     expect(allowedTools('drafting', null)).toEqual(SURFACE.drafting)
   })
 
-  it('parseRole 认四个角色，未设给 null，配错当场响', () => {
+  it('parseRole 认五个角色，未设给 null，配错当场响', () => {
     expect(parseRole(undefined)).toBeNull()
     for (const role of ROLES) expect(parseRole(role)).toBe(role)
-    expect(() => parseRole('pm')).toThrow(TypeError)
-    expect(() => parseRole('pm')).toThrow('未知角色')
+    expect(() => parseRole('qa')).toThrow(TypeError)
+    expect(() => parseRole('qa')).toThrow('未知角色')
     expect(() => parseRole(7)).toThrow('未知角色')
   })
 })

@@ -26,7 +26,7 @@ import type { TaskState } from '../schema/spec.js'
  * 签署是人机命令（`ctx.commands`，不经过模型回合），见 docs/cookbook/adding-a-tool.md。
  */
 export const SURFACE: Readonly<Record<TaskState, readonly string[]>> = {
-  drafting: ['file_read', 'file_list', 'project_draft', 'spec_query', 'spec_draft', 'spec_bind', 'task_read', 'task_draft', 'contract_draft'],
+  drafting: ['file_read', 'file_list', 'project_draft', 'spec_query', 'spec_draft', 'spec_bind', 'task_read', 'task_draft', 'contract_draft', 'proposal_draft'],
   contracted: [
     'file_read',
     'file_list',
@@ -36,6 +36,7 @@ export const SURFACE: Readonly<Record<TaskState, readonly string[]>> = {
     'spec_bind',
     'task_read',
     'task_draft',
+    'proposal_draft',
     'contract_draft',
     'file_edit',
     'cmd_run',
@@ -50,6 +51,7 @@ export const SURFACE: Readonly<Record<TaskState, readonly string[]>> = {
     'spec_bind',
     'task_read',
     'task_draft',
+    'proposal_draft',
     'contract_draft',
     'file_edit',
     'cmd_run',
@@ -64,6 +66,7 @@ export const SURFACE: Readonly<Record<TaskState, readonly string[]>> = {
     'spec_bind',
     'task_read',
     'task_draft',
+    'proposal_draft',
     'contract_draft',
     'file_edit',
     'cmd_run',
@@ -100,15 +103,16 @@ export const UNSCOPEED_SURFACE: readonly string[] = [
   'spec_draft',
   'task_read',
   'task_draft',
+  'proposal_draft',
 ]
 
 // ── 角色天花板 ─────────────────────────────────────────────
 
 /** 一个会话所属的角色；一个角色就是一个 Agent preset，装配层用 `role` 配置本插件。 */
-export type RoleId = 'intake' | 'architect' | 'dev' | 'review'
+export type RoleId = 'intake' | 'architect' | 'pm' | 'dev' | 'review'
 
 /** 全部角色，`Config.role` 的取值域。 */
-export const ROLES: readonly RoleId[] = ['intake', 'architect', 'dev', 'review']
+export const ROLES: readonly RoleId[] = ['intake', 'architect', 'pm', 'dev', 'review']
 
 /**
  * 每个角色最多能拿到哪些工具。
@@ -123,6 +127,8 @@ export const ROLE_TOOLS: Readonly<Record<RoleId, readonly string[]>> = {
   intake: ['file_read', 'file_list', 'project_draft', 'spec_query', 'spec_draft', 'task_read', 'task_draft'],
   /** 架构/契约：加上给规格条目绑落点和起草契约，仍然动不了代码。 */
   architect: ['file_read', 'file_list', 'spec_query', 'spec_bind', 'task_read', 'task_draft', 'contract_draft'],
+  /** 产品：谈需求、出方案、拆任务；不给落点绑定、不给契约、不给改代码。 */
+  pm: ['file_read', 'file_list', 'spec_query', 'spec_draft', 'task_read', 'task_draft', 'proposal_draft'],
   /** 实施：不设天花板，状态说了算。 */
   dev: [
     'file_read',
@@ -133,6 +139,7 @@ export const ROLE_TOOLS: Readonly<Record<RoleId, readonly string[]>> = {
     'spec_bind',
     'task_read',
     'task_draft',
+    'proposal_draft',
     'contract_draft',
     'file_edit',
     'cmd_run',

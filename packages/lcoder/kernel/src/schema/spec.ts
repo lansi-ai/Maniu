@@ -111,6 +111,13 @@ export const Task = z.object({
   state: TaskState,
   /** 本任务触及的规格条目。 */
   rules: z.array(Id).default([]),
+  /**
+   * 这条任务出自哪个方案（`.spec/proposals/P-01.yaml`）。
+   *
+   * 缺省表示不是拆出来的（人直接立的、或立项引导落的）。编号必须存在，
+   * 由 `task_draft` 在写盘前查；读侧遇到失效编号按「未知方案」显示，不报故障。
+   */
+  proposal: Id.optional(),
   scope: z
     .object({
       /** 不可逆对象（接口 / 数据结构 / 权限 / 金额），触及即需人签署（P3）。 */
@@ -153,7 +160,42 @@ export const Contract = z.object({
 })
 export type Contract = z.infer<typeof Contract>
 
-// ── 5. 环境档案 ─────────────────────────────────────────────
+// ── 5. 方案 ─────────────────────────────────────────────────
+
+/**
+ * 方案的决定态。
+ *
+ * `draft` 由模型起草；`approved` 与 `rejected` 是人的结论，只有人机命令 `/proposal_approve`
+ * 写它——模型能出方案，不能给自己拍板，与 `contract_sign` 同一档口径。
+ */
+export const ProposalDecision = z.enum(['draft', 'approved', 'rejected'])
+export type ProposalDecision = z.infer<typeof ProposalDecision>
+
+/** 一个候选方案：叫什么、怎么做、代价是什么。三样都必填，只写「建议做」的方案没有比较价值。 */
+export const ProposalOption = z.object({
+  name: z.string().min(1),
+  summary: z.string().min(1),
+  cost: z.string().min(1),
+})
+export type ProposalOption = z.infer<typeof ProposalOption>
+
+/** `.spec/proposals/P-01.yaml`：一次需求探讨的落盘物，拆出去的任务用 `Task.proposal` 回指它。 */
+export const Proposal = z.object({
+  id: Id,
+  title: z.string().min(1),
+  /** 要办成的事与现状缺口，一句话说清；方案的评判基准。 */
+  problem: z.string().min(1),
+  options: z.array(ProposalOption).min(1),
+  /** 推荐哪一个，以及为什么。 */
+  recommendation: z.string().min(1),
+  decision: ProposalDecision.default('draft'),
+  /** 人的结论时刻；`draft` 为 null。 */
+  decided_at: IsoDateTime.nullable().default(null),
+  opened_at: IsoDateTime,
+})
+export type Proposal = z.infer<typeof Proposal>
+
+// ── 6. 环境档案 ─────────────────────────────────────────────
 
 /** 三级执行权。默认给最保守的一档：需要确认。 */
 export const ExecPolicy = z.enum(['human', 'ai-confirm', 'ai-auto'])
@@ -236,6 +278,7 @@ export const SpecLayout = [
   { glob: 'spec/rules.yaml', schema: RulesFile, many: false },
   { glob: 'spec/states/*.yaml', schema: StateMachine, many: true },
   { glob: 'tasks/*.yaml', schema: Task, many: true },
+  { glob: 'proposals/*.yaml', schema: Proposal, many: true },
   { glob: 'contracts/*.contract.yaml', schema: Contract, many: true },
   { glob: 'env.yaml', schema: Env, many: false },
   { glob: 'project.yaml', schema: ProjectInfo, many: false },

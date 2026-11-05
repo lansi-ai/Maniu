@@ -16,9 +16,9 @@ English | [中文](PROJECT-RULES.zh.md)
 ## 1. Hard red lines (project-specific · never violate)
 
 - 🚫 Do not modify any upstream file. When a modification is genuinely required, first add the file to [contact-surface.txt](../lcoder/contact-surface.txt) and record what and why in [UPSTREAM-BASELINE.md](../lcoder/UPSTREAM-BASELINE.md) §3.
-- 🚫 The task and specification YAML under `.spec` is the single source of truth for **LCoder product data**; the UI only reads it, and state-machine decisions never live in the UI. It is not this repository's development task ledger. The kernel is the only writer: a model may file a `drafting` task through `task_draft`, may create a `draft` specification entry through `spec_draft`, and may write `.spec/project.yaml` through `project_draft`; it may not advance task state, sign a contract, or edit a specification entry that already exists.
+- 🚫 The task and specification YAML under `.spec` is the single source of truth for **LCoder product data**; the UI only reads it, and state-machine decisions never live in the UI. It is not this repository's development task ledger. The kernel is the only writer: a model may file a `drafting` task through `task_draft`, may create a `draft` specification entry through `spec_draft`, may write `.spec/project.yaml` through `project_draft`, and may record a `draft` proposal through `proposal_draft`; it may not advance task state, sign a contract, approve a proposal, or edit a specification entry that already exists.
 - 🚫 The target platform is Windows desktop; handle paths Windows-first (drive letters, backslashes, case-insensitive).
-- 🚫 `contract_sign`, `task_bind` and `task_contract` are never registered as model tools: they sign a contract, claim a task for a session, and advance a signed task from `drafting` to `contracted`. Only a human may invoke them and `by: agent` is invalid. They live on the human-command surface, and P3 invalidates a signature whose hash no longer covers the contract body.
+- 🚫 `contract_sign`, `task_bind`, `task_contract` and `proposal_approve` are never registered as model tools: they sign a contract, claim a task for a session, advance a signed task from `drafting` to `contracted`, and accept a proposal. Only a human may invoke them and `by: agent` is invalid. They live on the human-command surface, and P3 invalidates a signature whose hash no longer covers the contract body.
 - 🚫 Prefer adding over modifying; upstream changes touch only the assembly layer (patch layer, aggregate tsconfig), never component internals.
 - 🚫 Every new contact point requires human review; `upstream-diff.sh` reports conflicts but cannot judge how deep a change goes.
 - ✅ Every specification entry needs a source and a code binding; an entry without a source may not be `confirmed`.
@@ -31,6 +31,7 @@ English | [中文](PROJECT-RULES.zh.md)
 | State-machine definitions | `.spec/spec/states/*.yaml` |
 | Product task data (LCoder runtime) | `.spec/tasks/T-xx.yaml` |
 | Product task contracts | `.spec/contracts/<ID>.contract.yaml` |
+| Product proposals (options, recommendation, decision) | `.spec/proposals/P-<nn>.yaml`; tasks point back with `proposal:` |
 | Product task evidence | `.spec/evidence/<ID>/<name>.log` |
 | Acceptance commands and environment | `.spec/env.yaml`; sensitive values go in `.spec/local.yaml`, which is not committed |
 | Host plugin (agent tools) | `packages/lcoder/kernel/src/` |
@@ -103,6 +104,7 @@ The grade matches the `grade` field in the development ledger `docs/tasks.yaml`.
 | `.spec/spec/rules.yaml` | Product specification entries (LCoder runtime) |
 | `.spec/tasks/` | Product task data (LCoder runtime, not the development ledger) |
 | `.spec/contracts/` | Task contracts |
+| `.spec/proposals/` | Product proposals awaiting a human decision |
 | `.spec/evidence/` | Completion evidence |
 | `.spec/env.yaml` | Acceptance commands and environment |
 | [UPSTREAM-BASELINE.md](../lcoder/UPSTREAM-BASELINE.md) | Upstream baseline, contact surface, upgrade drill |

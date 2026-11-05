@@ -84,6 +84,8 @@ export interface OpenTaskInput {
   rules?: string[]
   scope?: Task['scope']
   evidence_required?: string[]
+  /** 出自哪个方案（`P-01`）；省略表示不是拆出来的。 */
+  proposal?: string
   opened_at: string
 }
 

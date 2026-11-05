@@ -32,6 +32,7 @@ const TOOL_NAMES = [
   'file_list',
   'file_read',
   'project_draft',
+  'proposal_draft',
   'spec_bind',
   'spec_draft',
   'spec_query',
@@ -173,17 +174,23 @@ function setSession(repo: string, id: string, sessionId: string): void {
 }
 
 describe('插件装配', () => {
-  it('注册十个工具，其中包含 task_draft', () => {
+  it('注册十四个工具，其中包含 task_draft 与 proposal_draft', () => {
     const { spec } = makeRepo()
     const harness = makeHarness()
     apply(harness.ctx, { root: spec, selfCheck: false })
 
     expect(harness.effectLabels.sort()).toEqual(
-      [...TOOL_NAMES.map(name => `lcoder.tool(${name})`), 'lcoder.command(contract_sign)', 'lcoder.command(task_bind)', 'lcoder.command(task_contract)'].sort(),
+      [
+        ...TOOL_NAMES.map(name => `lcoder.tool(${name})`),
+        'lcoder.command(contract_sign)',
+        'lcoder.command(task_bind)',
+        'lcoder.command(task_contract)',
+        'lcoder.command(proposal_approve)',
+      ].sort(),
     )
     harness.runEffects()
     expect(harness.registrations.map(r => r.name).sort()).toEqual(TOOL_NAMES)
-    expect(harness.commands.map(c => c.name)).toEqual(['contract_sign', 'task_bind', 'task_contract'])
+    expect(harness.commands.map(c => c.name)).toEqual(['contract_sign', 'task_bind', 'task_contract', 'proposal_approve'])
   })
 
   it('签署不是工具：contract_sign 只进命令面', () => {
@@ -230,7 +237,7 @@ describe('插件装配', () => {
     const { spec } = makeRepo()
     const harness = makeHarness()
 
-    expect(() => { apply(harness.ctx, { root: spec, role: 'pm' }) }).toThrow('未知角色')
+    expect(() => { apply(harness.ctx, { root: spec, role: 'qa' }) }).toThrow('未知角色')
   })
 
   it('两条会话各按自己认领的任务装面，互不顶掉', () => {
@@ -321,7 +328,7 @@ describe('插件装配', () => {
     expect(logged.mock.calls.map(call => String(call[0])).join('\n')).toContain('读任务状态失败')
   })
 
-  it('启动自检报出注册的十三个工具，且没有掩码缺口', () => {
+  it('启动自检报出注册的十四个工具，且没有掩码缺口', () => {
     const { spec } = makeRepo()
     const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
     const harness = makeHarness()
@@ -329,7 +336,7 @@ describe('插件装配', () => {
     harness.runEffects()
 
     const text = logged.mock.calls.map(call => String(call[0])).join('\n')
-    expect(text).toContain('已注册 13 个工具')
+    expect(text).toContain('已注册 14 个工具')
     expect(text).not.toContain('掩码声明了但未注册')
     expect(text).not.toContain('任何状态都看不到')
   })

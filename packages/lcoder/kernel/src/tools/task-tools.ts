@@ -18,6 +18,7 @@ import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import { checkP1, checkP3, checkP4 } from '../checkers/index.js'
 import type { Violation } from '../checkers/index.js'
 import { loadContractFact } from '../kernel/contract.js'
+import { assertProposalId, listProposals } from '../kernel/proposal-store.js'
 import { loadSpec, textCodeIndexFromDir } from '../kernel/spec-store.js'
 import { hasSpecRoot, resolveRoot } from '../kernel/spec-root.js'
 import type { RootInput } from '../kernel/spec-root.js'
@@ -39,6 +40,26 @@ function loadEvidence(specRoot: string, taskId: string): Record<string, number> 
     out[name.replace(/\.log$/, '')] = statSync(full).size
   }
   return out
+}
+
+/**
+ * 校验 task_draft 给出的方案编号。
+ *
+ * 填了就必须在规格里查得到——拆出来的任务回指一个不存在的方案，看板上就是一条断链，
+ * 与其在读侧显示「未知方案」，不如在写盘前响一次。
+ * @param specRoot - 规格根。
+ * @param raw - 模型给的 proposal，可能缺省或空白。
+ * @returns 校验过的编号；缺省时 undefined。
+ */
+function taskDraftProposal(specRoot: string, raw: string | undefined): string | undefined {
+  const text = raw?.trim()
+  if (text === undefined || text === '') return undefined
+  assertProposalId(text)
+  const known = listProposals(specRoot).map(proposal => proposal.id)
+  if (!known.includes(text)) {
+    throw new Error(`proposal 里的方案不存在：${text}；${known.length === 0 ? '这个规格里还没有方案，可省略该字段，或先用 proposal_draft 出方案' : `已有方案 ${known.join(', ')}`}`)
+  }
+  return text
 }
 
 export function createTaskTools(specRootInput: RootInput): ToolDefinition[] {
@@ -92,6 +113,7 @@ export function createTaskTools(specRootInput: RootInput): ToolDefinition[] {
         allowed_paths: { type: 'array', items: { type: 'string' }, description: '允许改动的仓库内路径前缀' },
         irreversible: { type: 'array', items: { type: 'string' }, description: '不可逆对象名；填了就必须有人签署的契约才能收口（P3）' },
         evidence_required: { type: 'array', items: { type: 'string' }, description: '收口必备的证据项，对应 env.yaml 里登记的命令 id' },
+        proposal: { type: 'string', description: '这条任务出自哪个方案（如 P-01），必须已存在于 proposals/；省略表示不是拆出来的' },
         task_id: { type: 'string', description: '指定编号，形如 T-014；省略则取现有 T- 编号之后的下一个空号' },
       },
       output: { schema: { type: 'json' }, render: renderJson },
@@ -141,6 +163,8 @@ export function createTaskTools(specRootInput: RootInput): ToolDefinition[] {
           }
         }
 
+        const proposalId = taskDraftProposal(specRoot, args.proposal)
+
         const task = openTask({
           id,
           title,
@@ -148,6 +172,7 @@ export function createTaskTools(specRootInput: RootInput): ToolDefinition[] {
           rules: requestedRules,
           scope: { irreversible: args.irreversible ?? [], allowed_paths: args.allowed_paths ?? [] },
           evidence_required: args.evidence_required ?? [],
+          ...(proposalId === undefined ? {} : { proposal: proposalId }),
           opened_at: new Date().toISOString(),
         })
         const path = saveTask(specRoot, task)
