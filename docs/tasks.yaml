@@ -289,7 +289,7 @@ tracks:
 
     - id: T-21
       title: 外壳契约栏——任务详情显示契约正文并给出签署按钮
-      status: doing
+      status: done
       face: 用户端
       type: 开发
       owner: lance
@@ -297,10 +297,10 @@ tracks:
       date: '2026-11-04'
       dep: [T-20]
       inferred: false
-      note: "B 级；依赖 T-20 的 contract_sign。现状缺口：projection.ts 只读 .spec/tasks 与 .spec/spec/rules.yaml，contracts 目录完全不进屏——人看不到契约正文就无从签字，签署只能退回手改 YAML。范围：契约文件读成展示行（编号、改什么、不改什么、怎么算过、什么算失败、签署人、签署时间），任务详情弹窗展示选中任务的那份契约，未签署时给签署按钮，点击走 ctx.remote.commands.execute 派 /contract_sign 加任务编号，客户端 inject 增 remote.commands，落签后重读投影刷新状态。文案进词典中英双份，遵循 locale-owned。一条边界要在界面说清：哈希只在宿主复算，浏览器不算 SHA-256（node:crypto 不进渲染端），所以外壳只报有没有签、谁签的、签于何时，不承诺识别签署之后的正文改动，那一条由 task_close 的 P3 判。验收只认桌面端手点。2026-11-04 已落地：projection.ts 新增 CONTRACTS_DIR、ContractRow、contractTextToRow 与 loadContracts，投影结果多出 contracts 一路，目录缺失算空集、坏文件只记说明；client/index.ts 的 inject 增 remote.commands，注入 signContract 回调把 /contract_sign 交给人机命令面并原样带回宿主那句人话；Shell.tsx 的任务详情弹窗加契约四段、签署状态行与签署按钮，签完把 reload 加一重读投影；词典加十三键中英各一份。门禁同 T-20 一起跑，桌面端到端未取，本条保持 doing。"
+      note: "B 级；依赖 T-20 的 contract_sign。现状缺口：projection.ts 只读 .spec/tasks 与 .spec/spec/rules.yaml，contracts 目录完全不进屏——人看不到契约正文就无从签字，签署只能退回手改 YAML。范围：契约文件读成展示行（编号、改什么、不改什么、怎么算过、什么算失败、签署人、签署时间），任务详情弹窗展示选中任务的那份契约，未签署时给签署按钮，点击走 ctx.remote.commands.execute 派 /contract_sign 加任务编号，客户端 inject 增 remote.commands，落签后重读投影刷新状态。文案进词典中英双份，遵循 locale-owned。一条边界要在界面说清：哈希只在宿主复算，浏览器不算 SHA-256（node:crypto 不进渲染端），所以外壳只报有没有签、谁签的、签于何时，不承诺识别签署之后的正文改动，那一条由 task_close 的 P3 判。验收只认桌面端手点。2026-11-04 已落地：projection.ts 新增 CONTRACTS_DIR、ContractRow、contractTextToRow 与 loadContracts，投影结果多出 contracts 一路，目录缺失算空集、坏文件只记说明；client/index.ts 的 inject 增 remote.commands，注入 signContract 回调把 /contract_sign 交给人机命令面并原样带回宿主那句人话；Shell.tsx 的任务详情弹窗加契约四段、签署状态行与签署按钮，签完把 reload 加一重读投影；词典加十三键中英各一份。门禁同 T-20 一起跑，桌面端到端未取，本条保持 doing。2026-11-05 收口：用户在真窗口手点「签署契约」，落盘 sig 为 human 且哈希与正文复算逐字符相等，按钮消失并显示人签于；看板卡片不变属设计（签署不改任务状态）。"
     - id: T-22
       title: 没有可用模型时外壳静默——提示去哪儿配，并挂住发送
-      status: doing
+      status: done
       face: 用户端
       type: 缺陷
       owner: lance
@@ -308,7 +308,7 @@ tracks:
       date: '2026-11-04'
       dep: [T-08]
       inferred: false
-      note: "B 级；2026-11-04 用户在桌面端点「开始对话」后没有任何回音，靶仓会话日志解出来只有 session header 一行、零条 user/message。已核实现状：准入阶段被拒时外壳会显示（sendPrompt 把 ok:false 抛成 chatError），但缺模型凭据时提示其实被接受——packages/api/session-controller/src/commands.ts 的 prompt 只做内容与附件校验就 agent.followup() 入队，user/message 要等回合认领输入才落日志；真失败发生在 agent 侧，经 agent/error 转发成 api-session/error，落到客户端会话快照的 lastAgentError（packages/api/session-controller/src/client/sessions/session.ts:944 起），而同文件的 promptError 记准入失败。外壳只读 eventSource 的事件条目，从不读这两个字段，所以现象是「发了，什么都没发生」。上游已有可用信号：session/modelCatalog 返回 routableProviders、groups 与 failures，另有 session/model-unavailable 与 session/provider-models-unavailable 两个码。范围（用户 2026-11-04 拍定两条）：一、只提示去哪儿配，不碰凭据面——外壳进项目即查 modelCatalog，routableProviders 为空且每组 models 也为空时在看板顶部与对话浮层就地提示「宿主侧没有可用模型」，写清 DEEPSEEK_API_KEY 或仓内 home 的 .env、改完要重启；工作台不录入密钥、不接 credentials 面。二、没有可用模型就禁用发送，原因挂在按钮上；凭据后补由 llm/models-updated、llm/adapters-updated 与 credentials/record-updated 触发重查来解锁。三、把快照的 promptError 与 lastAgentError 显示到浮层，不再静默。落点三处：新增 client/model-status.ts 放纯判定（目录有无可用模型、错误条目归一成词典键加细节），client/index.ts 的 inject 增 remote.session 并注入三个回调，Shell.tsx 接一条 modelReady 状态与两处提示面；文案进词典中英双份。验收只认桌面端手点。2026-11-04 已落地：判定与提示分三处——新增 client/model-status.ts 放纯判定（catalogHasModel、statusFromCatalog、statusOfFailure、noticeFromSnapshot），client/index.ts 注入 checkModels、subscribeModels、readSessionNotice 三个回调且 inject 增 remote.session，Shell.tsx 接一条 modelStatus 状态加看板横幅与浮层提示，empty 时禁用「开始对话」「立项分析」与浮层发送并把原因挂在按钮 title 上；op 为 stop 的 promptError 不显示，本壳没有停止动作。unknown 只说不清、不禁用，避免把查询故障说成配置缺失。门禁 typecheck(5)、vitest(19 files / 183 tests)、oxlint 对 packages/lcoder 0 error、test:docs(21)，双语 pairing 已重录，workspace 已重新 bundle。补上凭据后由 llm/models-updated、llm/adapters-updated 与 credentials/record-updated 触发重查解锁。桌面端到端未取（本机仍无模型凭据），本条保持 doing。"
+      note: "B 级；2026-11-04 用户在桌面端点「开始对话」后没有任何回音，靶仓会话日志解出来只有 session header 一行、零条 user/message。已核实现状：准入阶段被拒时外壳会显示（sendPrompt 把 ok:false 抛成 chatError），但缺模型凭据时提示其实被接受——packages/api/session-controller/src/commands.ts 的 prompt 只做内容与附件校验就 agent.followup() 入队，user/message 要等回合认领输入才落日志；真失败发生在 agent 侧，经 agent/error 转发成 api-session/error，落到客户端会话快照的 lastAgentError（packages/api/session-controller/src/client/sessions/session.ts:944 起），而同文件的 promptError 记准入失败。外壳只读 eventSource 的事件条目，从不读这两个字段，所以现象是「发了，什么都没发生」。上游已有可用信号：session/modelCatalog 返回 routableProviders、groups 与 failures，另有 session/model-unavailable 与 session/provider-models-unavailable 两个码。范围（用户 2026-11-04 拍定两条）：一、只提示去哪儿配，不碰凭据面——外壳进项目即查 modelCatalog，routableProviders 为空且每组 models 也为空时在看板顶部与对话浮层就地提示「宿主侧没有可用模型」，写清 DEEPSEEK_API_KEY 或仓内 home 的 .env、改完要重启；工作台不录入密钥、不接 credentials 面。二、没有可用模型就禁用发送，原因挂在按钮上；凭据后补由 llm/models-updated、llm/adapters-updated 与 credentials/record-updated 触发重查来解锁。三、把快照的 promptError 与 lastAgentError 显示到浮层，不再静默。落点三处：新增 client/model-status.ts 放纯判定（目录有无可用模型、错误条目归一成词典键加细节），client/index.ts 的 inject 增 remote.session 并注入三个回调，Shell.tsx 接一条 modelReady 状态与两处提示面；文案进词典中英双份。验收只认桌面端手点。2026-11-04 已落地：判定与提示分三处——新增 client/model-status.ts 放纯判定（catalogHasModel、statusFromCatalog、statusOfFailure、noticeFromSnapshot），client/index.ts 注入 checkModels、subscribeModels、readSessionNotice 三个回调且 inject 增 remote.session，Shell.tsx 接一条 modelStatus 状态加看板横幅与浮层提示，empty 时禁用「开始对话」「立项分析」与浮层发送并把原因挂在按钮 title 上；op 为 stop 的 promptError 不显示，本壳没有停止动作。unknown 只说不清、不禁用，避免把查询故障说成配置缺失。门禁 typecheck(5)、vitest(19 files / 183 tests)、oxlint 对 packages/lcoder 0 error、test:docs(21)，双语 pairing 已重录，workspace 已重新 bundle。补上凭据后由 llm/models-updated、llm/adapters-updated 与 credentials/record-updated 触发重查解锁。桌面端到端未取（本机仍无模型凭据），本条保持 doing。2026-11-05 收口：无钥匙时横幅与三处禁用实测成立；随后在设置页存入 key，对话可拉起、横幅消失，解锁链走通。"
 
     - id: T-24
       title: 任务卡片显示对话状态——谁在跑这条任务、跑到哪、有没有失败
@@ -334,7 +334,7 @@ tracks:
       note: "C 级（≤3 文件、无契约变更）。T-23 在桌面实测中发现：仓库还没有 `.spec` 时，任务详情弹窗与项目信息抽屉里的「规格根」仍显示拼出来的真实路径 `<仓库>/.spec`，看上去像已经存在一个规格库，属误导。范围：没有 `.spec` 时该处显示「还没有规格库」并给出立项入口，不显示路径；文案进词典中英双份，遵循 locale-owned。发现来源是 T-23 的改动前后对照记录，它自己判定未纳入该条范围，故单独立项以免烂在 note 里。验收只认桌面端手点。"
     - id: T-30
       title: 设置页里的模型配置——多家 provider 的 key 与 base URL
-      status: doing
+      status: done
       face: 用户端
       type: 开发
       owner: lance
@@ -342,10 +342,10 @@ tracks:
       date: '2026-11-05'
       dep: [T-22]
       inferred: false
-      note: "A 级（碰凭据面加新 UI 面）。用户 2026-11-05 拍定范围：在现有设置弹窗里加「模型」配置，支持多家 provider 的 key 与 base URL，不做登录、不做插件管理，功能对齐上游。现状已核四处：上游实现是 packages/client/ui-settings-models 的 settings.section（id 为 models），四步分别调 remote.llm.listProviders 与 listConfigurableProviders、remote.settings.describe 与 mutate、remote.credentials.describe 与 set 与 unset、remote.llm.discoverModels，默认模型走 session 的方法；凭据是 env 风格的引用名（如 DEEPSEEK_API_KEY），credentials.set 只写值，读的一半 CredentialInfo 没有值槽，provider 的 base URL 等写在 settings 命名空间并由 apiKeyEnv 指向引用；客户端装配 packages/api/remotes 已挂 llm 与 settings（含 credentials 命名空间），壳里注入 remote.llm、remote.settings、remote.credentials 就能直接调，不需要自建 Remote；安全上有两层，settings 走 redact，凭据值不过线。范围与红线：key 只经 credentials.set 落盘，不写日志、不进会话事件、不进模型请求，不落 .env 文件；不接登录与插件管理；provider 列表与四项操作对齐上游；保存后靠 llm/models-updated 与 credentials/record-updated 让壳自己解锁，不要求重启；不做多账号与云端同步。验收只认桌面端手点。复核与实测（2026-11-05，桌面真窗口）：四项操作均通——存 key 后 .credentials.yaml 出现引用；baseURL 经 settings.mutate 落进 profile 的 cordis.patch.yml；discoverModels 返回 16 个 Claude 模型；删除 provider 同时清掉引用与 profile。解锁缺陷：存 key 发 credentials/reference-updated，壳只订阅 record-updated，故当前保存后横幅不消失。拍板三条：① 自定义 provider 加简化版，字段为名称（只收小写连字符）、协议（上游枚举）、至少一条模型 id、base URL、key，写 llm-pi-ai 的 providers 下同名节点，key 走 credentials.set 并按 deriveKeyRef 取引用，不做模型目录增删与上下文/输出上限；② 默认模型可设，调 session.selectModel，明示同时作用于当前会话与全局默认，无会话置灰，成功后刷新 catalog 与行标记；③ 发现模型保留，只读展示、不回写，旁注仅探测不会改配置，失败原样显示且不与配置结果混同。收口证据（2026-11-05，桌面真窗口）：用临时 key 保存后横幅消失、DeepSeek 行转已配置并出现 2 个模型与默认标记；删除密钥后横幅恢复；宿主回合确实带上了该 key（供应商返回 invalid），真实 key 的能发消息一步待用户自备 key 复跑。门禁：typecheck 5 门全过；vitest 24 文件 273 用例；oxlint 0 错；test:docs 21 门全过；verify-package-dependencies 96 包。缺陷已修：壳补订阅 credentials/reference-updated 与 settings/document-updated，单测钉住 reference-updated 触发重查。2026-11-05 合并时撤回 done：真实 key 的「能发消息」一步仍待用户，其余链路已用临时 key 在真窗口验通。"
+      note: "A 级（碰凭据面加新 UI 面）。用户 2026-11-05 拍定范围：在现有设置弹窗里加「模型」配置，支持多家 provider 的 key 与 base URL，不做登录、不做插件管理，功能对齐上游。现状已核四处：上游实现是 packages/client/ui-settings-models 的 settings.section（id 为 models），四步分别调 remote.llm.listProviders 与 listConfigurableProviders、remote.settings.describe 与 mutate、remote.credentials.describe 与 set 与 unset、remote.llm.discoverModels，默认模型走 session 的方法；凭据是 env 风格的引用名（如 DEEPSEEK_API_KEY），credentials.set 只写值，读的一半 CredentialInfo 没有值槽，provider 的 base URL 等写在 settings 命名空间并由 apiKeyEnv 指向引用；客户端装配 packages/api/remotes 已挂 llm 与 settings（含 credentials 命名空间），壳里注入 remote.llm、remote.settings、remote.credentials 就能直接调，不需要自建 Remote；安全上有两层，settings 走 redact，凭据值不过线。范围与红线：key 只经 credentials.set 落盘，不写日志、不进会话事件、不进模型请求，不落 .env 文件；不接登录与插件管理；provider 列表与四项操作对齐上游；保存后靠 llm/models-updated 与 credentials/record-updated 让壳自己解锁，不要求重启；不做多账号与云端同步。验收只认桌面端手点。复核与实测（2026-11-05，桌面真窗口）：四项操作均通——存 key 后 .credentials.yaml 出现引用；baseURL 经 settings.mutate 落进 profile 的 cordis.patch.yml；discoverModels 返回 16 个 Claude 模型；删除 provider 同时清掉引用与 profile。解锁缺陷：存 key 发 credentials/reference-updated，壳只订阅 record-updated，故当前保存后横幅不消失。拍板三条：① 自定义 provider 加简化版，字段为名称（只收小写连字符）、协议（上游枚举）、至少一条模型 id、base URL、key，写 llm-pi-ai 的 providers 下同名节点，key 走 credentials.set 并按 deriveKeyRef 取引用，不做模型目录增删与上下文/输出上限；② 默认模型可设，调 session.selectModel，明示同时作用于当前会话与全局默认，无会话置灰，成功后刷新 catalog 与行标记；③ 发现模型保留，只读展示、不回写，旁注仅探测不会改配置，失败原样显示且不与配置结果混同。收口证据（2026-11-05，桌面真窗口）：用临时 key 保存后横幅消失、DeepSeek 行转已配置并出现 2 个模型与默认标记；删除密钥后横幅恢复；宿主回合确实带上了该 key（供应商返回 invalid），真实 key 的能发消息一步待用户自备 key 复跑。门禁：typecheck 5 门全过；vitest 24 文件 273 用例；oxlint 0 错；test:docs 21 门全过；verify-package-dependencies 96 包。缺陷已修：壳补订阅 credentials/reference-updated 与 settings/document-updated，单测钉住 reference-updated 触发重查。2026-11-05 合并时撤回 done：真实 key 的「能发消息」一步仍待用户，其余链路已用临时 key 在真窗口验通。2026-11-05 收口：用户在设置页保存 key 后 .credentials.yaml 出现 DEEPSEEK_API_KEY 引用，对话可拉起，写入路径与热解锁均实测成立。"
     - id: T-31
       title: 刚建的会话发消息报「会话尚未就绪」——create 只给身份，binding 要先 retain
-      status: doing
+      status: done
       face: 用户端
       type: 缺陷
       owner: lance
@@ -353,7 +353,7 @@ tracks:
       date: '2026-11-05'
       dep: [T-25]
       inferred: false
-      note: "B 级缺陷（一处调用约定加浮层引用生命周期）。现象：用户配好钥匙后点某任务的「开始对话」，浮层显示「会话尚未就绪，请先打开仓库或新建会话」，消息发不出去也看不到回复。根因两处：一是 create() 只返回 SessionId，契约文档明写 retain 之后才借 binding，而 sendPrompt 直接调 ctx.sessions.binding(id)，刚建的会话还没进本地目录就是 undefined；二是浮层的读消息与订阅同样借 binding，没有引用就全是空。修法：sendPrompt 改 ctx.sessions.using，先 await reference.ready 再 prompt；浮层打开期间用 holdSession 持有一份引用、关闭时释放，读消息与订阅才借得到。两条各补一条单测。门禁 typecheck 5、vitest packages/lcoder 24 files 与 275 tests、oxlint 零告警零错，外壳产物已重打。桌面复验待重启：点任务、开始对话，应能看到回合开始并收到回复。"
+      note: "B 级缺陷（一处调用约定加浮层引用生命周期）。现象：用户配好钥匙后点某任务的「开始对话」，浮层显示「会话尚未就绪，请先打开仓库或新建会话」，消息发不出去也看不到回复。根因两处：一是 create() 只返回 SessionId，契约文档明写 retain 之后才借 binding，而 sendPrompt 直接调 ctx.sessions.binding(id)，刚建的会话还没进本地目录就是 undefined；二是浮层的读消息与订阅同样借 binding，没有引用就全是空。修法：sendPrompt 改 ctx.sessions.using，先 await reference.ready 再 prompt；浮层打开期间用 holdSession 持有一份引用、关闭时释放，读消息与订阅才借得到。两条各补一条单测。门禁 typecheck 5、vitest packages/lcoder 24 files 与 275 tests、oxlint 零告警零错，外壳产物已重打。桌面复验待重启：点任务、开始对话，应能看到回合开始并收到回复。2026-11-05 收口：修复后在真窗口点开始对话，对话能拉起（用户确认）；两条单测钉住 retain 与释放。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
