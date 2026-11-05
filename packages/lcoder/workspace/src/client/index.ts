@@ -24,7 +24,15 @@ import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
+import type {} from '@deepseek-ai/dsh-api-session-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
+
+declare module '@deepseek-ai/dsh-api-session-controller/client' {
+  interface SessionReferenceSourceMap {
+    /** 工作台发消息与看消息时持有会话引用；释放即结束本地订阅。 */
+    lcoderShell: unknown
+  }
+}
 import type { SettingsNamespaceView } from '@deepseek-ai/dsh-api-remotes/client'
 import { WORKSPACE_ID, workspaceDefinition } from './definition.ts'
 import { withOpenDeadline } from './open-failure.ts'
@@ -159,10 +167,27 @@ export function apply(ctx: ClientContext, config: Config = {}): void {
       return { workspaceId: String(workspace.workspaceId), sessionId }
     }
     const sendPrompt = async (sessionId: SessionId, text: string): Promise<void> => {
-      const binding = ctx.sessions.binding(sessionId)
-      if (binding === undefined) throw new Error('会话尚未就绪，请先打开仓库或新建会话')
-      const result = await binding.session.prompt([{ type: 'text', text }], 'queue')
+      // `create()` 只交回身份：刚建的会话还不在本地目录里，直接 binding 会拿到 undefined。
+      // 先 retain 并等首次 open 落定，再发；释放随 using 的结算。
+      const result = await ctx.sessions.using(sessionId, { source: 'lcoderShell' }, async (reference) => {
+        await reference.ready
+        return reference.binding.session.prompt([{ type: 'text', text }], 'queue')
+      })
       if (!result.ok) throw new Error(result.error.message)
+    }
+    /**
+     * 浮层打开期间持有会话引用：订阅与读消息都借 binding，没人 retain 的会话读不到。
+     * @param sessionId - 要持有的会话。
+     * @returns 释放函数；重复调用安全。
+     */
+    const holdSession = (sessionId: SessionId): (() => void) => {
+      const reference = ctx.sessions.retain(sessionId, { source: 'lcoderShell' })
+      let released = false
+      return () => {
+        if (released) return
+        released = true
+        reference.release()
+      }
     }
     /**
      * 把人机命令交给宿主编排：签名与任务认领都由 kernel 写进 `.spec`，浏览器不碰规格库
@@ -275,7 +300,7 @@ export function apply(ctx: ClientContext, config: Config = {}): void {
           locale: NS,
           inject: () => ({
             files, openRepository, sendPrompt, signContract, bindTask, advanceContract, createSession, listRoles,
-            readMessages, subscribeSession, checkModels, subscribeModels, readSessionNotice, readSessionFlags, modelSettings,
+            readMessages, subscribeSession, holdSession, checkModels, subscribeModels, readSessionNotice, readSessionFlags, modelSettings,
           }),
         },
         Shell,

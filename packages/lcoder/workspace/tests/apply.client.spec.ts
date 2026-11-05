@@ -25,7 +25,12 @@ interface Recorded {
 async function boot(
   config: { shell?: boolean; openTimeoutMs?: number } = { shell: false },
   workspaces: { create: (input: { path: string }) => unknown } = { create: vi.fn() },
-  sessions: { create: (input: { workspaceId: unknown }) => unknown; binding?: (id: string) => unknown } = { create: vi.fn() },
+  sessions: {
+    create: (input: { workspaceId: unknown }) => unknown
+    binding?: (id: string) => unknown
+    using?: (id: string, options: unknown, operation: (reference: unknown) => unknown) => unknown
+    retain?: (id: string, options: unknown) => unknown
+  } = { create: vi.fn() },
   commands: { execute: ReturnType<typeof vi.fn> } = { execute: vi.fn() },
   session: { modelCatalog: ReturnType<typeof vi.fn> } = { modelCatalog: vi.fn() },
   agentPresets: { list: ReturnType<typeof vi.fn> } = { list: vi.fn() },
@@ -166,6 +171,33 @@ describe('@lcoder/workspace apply', () => {
       const r = await face.signContract('session-1', 'T-01')
       expect(execute.mock.calls[0]?.[1]).toBe('/contract_sign T-01')
       expect(r).toEqual({ ok: true, text: 'T-01 的契约已由人签署于 10:00' })
+    } finally { await h.fiber.dispose() }
+  })
+
+  it('发消息先持有会话引用并等首次打开落定', async () => {
+    const prompt = vi.fn().mockResolvedValue({ ok: true })
+    const using = vi.fn(async (_id: string, _options: unknown, operation: (reference: unknown) => unknown) =>
+      operation({ ready: Promise.resolve(), binding: { session: { prompt } } }))
+    const h = await boot({ shell: true }, { create: vi.fn() }, { create: vi.fn(), using })
+    try {
+      const face = h.injections[0] as { sendPrompt: (id: string, text: string) => Promise<void> }
+      await face.sendPrompt('s-1', '你好')
+      expect(using).toHaveBeenCalledWith('s-1', { source: 'lcoderShell' }, expect.any(Function))
+      expect(prompt).toHaveBeenCalledWith([{ type: 'text', text: '你好' }], 'queue')
+    } finally { await h.fiber.dispose() }
+  })
+
+  it('浮层打开时持有会话引用，关闭时只释放一次', async () => {
+    const release = vi.fn()
+    const retain = vi.fn(() => ({ release }))
+    const h = await boot({ shell: true }, { create: vi.fn() }, { create: vi.fn(), retain })
+    try {
+      const face = h.injections[0] as { holdSession: (id: string) => () => void }
+      const dispose = face.holdSession('s-1')
+      expect(retain).toHaveBeenCalledWith('s-1', { source: 'lcoderShell' })
+      dispose()
+      dispose()
+      expect(release).toHaveBeenCalledTimes(1)
     } finally { await h.fiber.dispose() }
   })
 

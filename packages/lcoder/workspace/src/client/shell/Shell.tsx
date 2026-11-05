@@ -65,6 +65,8 @@ export type ShellProps =
     readonly readMessages?: (sessionId: SessionId) => readonly ShellMessage[]
     /** 订阅会话事件窗口变化。 */
     readonly subscribeSession?: (sessionId: SessionId, listener: () => void) => () => void
+    /** 浮层期间持有会话引用；没人 retain 的会话读不到消息。返回释放函数。 */
+    readonly holdSession?: (sessionId: SessionId) => () => void
   }
 
 /** 状态到词典键的映射，避免把状态字符串当展示文案。 */
@@ -148,7 +150,7 @@ function resolveSecrets(info: ShellProjectInfo, secrets: Readonly<Record<string,
  */
 export function Shell({
   t, files, openRepository, sendPrompt, signContract, advanceContract, bindTask, createSession, listRoles,
-  readMessages, subscribeSession, checkModels, subscribeModels, readSessionNotice, readSessionFlags, modelSettings,
+  readMessages, subscribeSession, holdSession, checkModels, subscribeModels, readSessionNotice, readSessionFlags, modelSettings,
   useSessions, useSessionStatus, useWorkspaces,
 }: ShellProps): ReactNode {
   const workspaces = useWorkspaces(state => state.items)
@@ -320,13 +322,19 @@ export function Shell({
       setNotice(null)
       return
     }
+    // 先持有再订阅：刚建的会话没有本地引用时，读消息与事件都拿不到东西。
+    const release = holdSession?.(chatSessionId)
     const refresh = (): void => {
       setMessages(readMessages(chatSessionId))
       setNotice(readSessionNotice?.(chatSessionId) ?? null)
     }
     refresh()
-    return subscribeSession(chatSessionId, refresh)
-  }, [chat, chatSessionId, readMessages, subscribeSession, readSessionNotice])
+    const unsubscribe = subscribeSession(chatSessionId, refresh)
+    return () => {
+      unsubscribe()
+      release?.()
+    }
+  }, [chat, chatSessionId, readMessages, subscribeSession, readSessionNotice, holdSession])
 
   /**
    * 卡片上「等首个回合」与失败两位的来源。
