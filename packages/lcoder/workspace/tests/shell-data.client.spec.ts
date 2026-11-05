@@ -5,8 +5,9 @@
  * 因为它是模型可见输入，措辞变化会直接改变 agent 的调研路径。
  */
 import { describe, expect, it } from 'vitest'
-import { createAssistantMessage, createDeveloperMessage, createUserMessage } from '@deepseek-ai/dsh-llm'
+import { createAssistantMessage, createDeveloperMessage, createMessage, createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
+import { ToolCallId } from '@deepseek-ai/dsh-llm/brand'
 import { SessionSeq } from '@deepseek-ai/dsh-session/types'
 import type { SessionEventLikeEntry } from '@deepseek-ai/dsh-api-session-controller/client'
 
@@ -116,8 +117,13 @@ function developerEntry(seq: number, text: string): SessionEventLikeEntry {
   }
 }
 
-/** 一条 assistant/message 事件；内容块按 text / reasoning 交给浮层拆分。 */
-function assistantEntry(seq: number, content: readonly ContentBlock[]): SessionEventLikeEntry {
+/** 一条 assistant/message 事件；内容块按 text / reasoning / tool-call 交给浮层拆分。 */
+function assistantEntry(
+  seq: number,
+  content: readonly ContentBlock[],
+  turn = 1,
+  step = 1,
+): SessionEventLikeEntry {
   return {
     type: 'event',
     event: {
@@ -126,11 +132,49 @@ function assistantEntry(seq: number, content: readonly ContentBlock[]): SessionE
       time: 1,
       surfaceOp: 'append',
       data: {
-        turn: 1,
-        step: 1,
+        turn,
+        step,
         message: createAssistantMessage({ content, source: { provider: 'test', model: 'test' } }),
         stream: [],
       },
+    },
+  }
+}
+
+/** 一条 tool/result 事件：按 call id 回填工具条目的成败。 */
+function toolResultEntry(seq: number, callId: string, ok: boolean, turn = 1, step = 1): SessionEventLikeEntry {
+  const id = ToolCallId(callId)
+  return {
+    type: 'event',
+    event: {
+      type: 'tool/result',
+      seq: SessionSeq(seq),
+      time: 1,
+      surfaceOp: 'append',
+      data: {
+        turn,
+        step,
+        message: createMessage({
+          role: 'tool',
+          content: [{ type: 'text', text: ok ? 'ok' : 'boom' }],
+          source: { kind: 'tool', callId: id },
+          toolCallId: id,
+          ...(ok ? {} : { isError: true }),
+        }),
+      },
+    },
+  }
+}
+
+/** 一条 turn/end 事件：回合收口时把过程组与答复一起落到消息列表。 */
+function turnEndEntry(seq: number, turn = 1): SessionEventLikeEntry {
+  return {
+    type: 'event',
+    event: {
+      type: 'turn/end',
+      seq: SessionSeq(seq),
+      time: 1,
+      data: { turn, reason: { kind: 'completed' } },
     },
   }
 }
@@ -154,22 +198,62 @@ describe('会话消息投影', () => {
     expect(messages).toEqual([{ role: 'context', text: 'tool changes', label: 'developer' }])
   })
 
-  it('助手消息按 text 与 reasoning 拆块，相邻同类合并、其他块忽略', () => {
-    const messages = messagesFromEntries([assistantEntry(0, [
-      { type: 'reasoning', text: '先想' },
-      { type: 'reasoning', text: '再写' },
-      { type: 'text', text: '## 结论' },
-      { type: 'tool-removal', toolName: 'demo' },
-      { type: 'text', text: '正文' },
-    ])])
+  it('同一回合的思考与工具收进一个过程组，正文另起答复', () => {
+    const messages = messagesFromEntries([
+      assistantEntry(0, [
+        { type: 'reasoning', text: '先读任务' },
+        { type: 'tool-call', id: ToolCallId('c1'), name: 'task_read', arguments: '{"task_id":"T-02"}' },
+        { type: 'tool-call', id: ToolCallId('c2'), name: 'working_directory', arguments: '{}' },
+        { type: 'tool-call', id: ToolCallId('c3'), name: 'spec_query', arguments: '{}' },
+      ], 1, 1),
+      assistantEntry(3, [
+        { type: 'reasoning', text: '再读规格' },
+        { type: 'text', text: '## 结论' },
+        { type: 'tool-removal', toolName: 'demo' },
+        { type: 'text', text: '正文' },
+      ], 1, 2),
+      toolResultEntry(4, 'c1', true),
+      toolResultEntry(5, 'c2', false),
+      turnEndEntry(6, 1),
+    ])
 
-    expect(messages).toEqual([{
-      role: 'assistant',
-      blocks: [
-        { kind: 'reasoning', text: '先想再写' },
-        { kind: 'text', text: '## 结论正文' },
+    expect(messages).toEqual([
+      {
+        role: 'process',
+        items: [
+          { kind: 'reasoning', text: '先读任务' },
+          { kind: 'tool', callId: 'c1', name: 'task_read', args: '{"task_id":"T-02"}', ok: true },
+          { kind: 'tool', callId: 'c2', name: 'working_directory', args: '{}', ok: false },
+          { kind: 'tool', callId: 'c3', name: 'spec_query', args: '{}', ok: undefined },
+          { kind: 'reasoning', text: '再读规格' },
+        ],
+      },
+      { role: 'assistant', text: '## 结论\n\n正文' },
+    ])
+  })
+
+  it('两个回合各成一组，用户消息把前后回合分开', () => {
+    const messages = messagesFromEntries([
+      userEntry(0, '开始'),
+      assistantEntry(1, [
+        { type: 'reasoning', text: '先想' },
+        { type: 'tool-call', id: ToolCallId('c1'), name: 'cmd_run', arguments: '{"command":"ls"}' },
+      ], 1, 1),
+      toolResultEntry(2, 'c1', true),
+      turnEndEntry(3, 1),
+      userEntry(4, '继续'),
+      assistantEntry(5, [{ type: 'text', text: '答复' }], 2, 1),
+      turnEndEntry(6, 2),
+    ])
+
+    expect(messages.map(message => message.role)).toEqual(['user', 'process', 'user', 'assistant'])
+    expect(messages[1]).toEqual({
+      role: 'process',
+      items: [
+        { kind: 'reasoning', text: '先想' },
+        { kind: 'tool', callId: 'c1', name: 'cmd_run', args: '{"command":"ls"}', ok: true },
       ],
-    }])
+    })
   })
 
   it('纯空白与空内容不产生消息行', () => {

@@ -72,16 +72,24 @@ export const SHELL_STATES: readonly { readonly id: ShellTaskState; readonly labe
   { id: 'closed', labelKey: 'shell.closed' },
 ]
 
-/** 悬浮对话里的一条真实消息：用户、助手（按内容块）或注入上下文。 */
+/** 悬浮对话里的一条消息：用户、答复、注入上下文，或一段收敛后的过程。 */
 export type ShellMessage =
   | { readonly role: 'user'; readonly text: string }
-  | { readonly role: 'assistant'; readonly blocks: readonly ShellAssistantBlock[] }
+  | { readonly role: 'assistant'; readonly text: string }
   | { readonly role: 'context'; readonly text: string; readonly label: string }
+  | { readonly role: 'process'; readonly items: readonly ShellProcessItem[] }
 
-/** 助手消息按展示方式拆开的块；工具调用、图片与规划栏不进入悬浮对话。 */
-export type ShellAssistantBlock =
-  | { readonly kind: 'text'; readonly text: string }
+/** 一段过程里的一个条目：思考，或一次工具调用。 */
+export type ShellProcessItem =
   | { readonly kind: 'reasoning'; readonly text: string }
+  | {
+    readonly kind: 'tool'
+    readonly callId: string
+    readonly name: string
+    readonly args: string
+    /** `true` 成功、`false` 失败、`undefined` 结果尚未出现在事件窗口里。 */
+    readonly ok: boolean | undefined
+  }
 
 /**
  * 一次签署命令的回执。
@@ -98,49 +106,96 @@ export interface ShellSignResult {
  *
  * 用户消息只认 `source.kind === 'user'`；其余 `user/message` 与
  * `developer/message` 是注入上下文（runtime context、agent 指令、技能正文等），
- * 归到可折叠的 context 行，不能画成用户发言。助手消息按 text / reasoning
- * 拆块，思考过程由浮层折叠显示。
+ * 归到可折叠的 context 行，不能画成用户发言。
+ *
+ * 同一回合里的思考与工具调用收敛成一个 process 段，正文另起一条 assistant
+ * 消息，所以组头之后才是答复。工具成败从 `tool/result` 预读一次，再回填到
+ * 对应的工具条目。
  *
  * @param entries - 会话事件窗口。
  * @returns 按日志顺序排列的消息。
  */
 export function messagesFromEntries(entries: readonly SessionEventLikeEntry[]): ShellMessage[] {
+  const results = toolResultsOf(entries)
   const out: ShellMessage[] = []
+  let turn: { readonly number: number; readonly items: ShellProcessItem[]; readonly answers: string[] } | null = null
+
+  const flushTurn = (): void => {
+    if (turn === null) return
+    if (turn.items.length > 0) out.push({ role: 'process', items: turn.items })
+    const text = turn.answers.join('\n\n').trim()
+    if (text !== '') out.push({ role: 'assistant', text })
+    turn = null
+  }
+
   for (const entry of entries) {
     if (entry.type !== 'event') continue
     const event = entry.event
     if (event.type === 'user/message') {
+      flushTurn()
       const text = textOf(event.data.content)
       if (text.trim() === '') continue
       const kind = sourceKind(event.data.source)
       if (kind === 'user') out.push({ role: 'user', text })
       else out.push({ role: 'context', text, label: kind ?? 'context' })
     } else if (event.type === 'developer/message') {
+      flushTurn()
       const text = textOf(event.data.message.content)
       if (text.trim() !== '') out.push({ role: 'context', text, label: 'developer' })
     } else if (event.type === 'assistant/message') {
-      const blocks = assistantBlocksOf(event.data.message.content)
-      if (blocks.length > 0) out.push({ role: 'assistant', blocks })
+      const data = event.data
+      if (turn !== null && turn.number !== data.turn) flushTurn()
+      turn ??= { number: data.turn, items: [], answers: [] }
+      collectBlocks(data.message.content, results, turn.items, turn.answers)
+    } else if (event.type === 'turn/end') {
+      flushTurn()
     }
   }
+  flushTurn()
   return out
 }
 
-/** 助手内容块只保留正文与思考；相邻同类块合并成一段。 */
-function assistantBlocksOf(content: unknown): ShellAssistantBlock[] {
-  if (!Array.isArray(content)) return []
-  const blocks: ShellAssistantBlock[] = []
+/** 窗口里每个工具调用的成败；同一 call id 以最后一条结果为准。 */
+function toolResultsOf(entries: readonly SessionEventLikeEntry[]): Map<string, boolean> {
+  const results = new Map<string, boolean>()
+  for (const entry of entries) {
+    if (entry.type !== 'event' || entry.event.type !== 'tool/result') continue
+    const message = entry.event.data.message
+    results.set(String(message.toolCallId), message.isError !== true)
+  }
+  return results
+}
+
+/** 一条助手消息的内容块：正文进答复，思考与工具调用进过程段。 */
+function collectBlocks(
+  content: unknown,
+  results: ReadonlyMap<string, boolean>,
+  items: ShellProcessItem[],
+  answers: string[],
+): void {
+  if (!Array.isArray(content)) return
   for (const value of content) {
     if (value === null || typeof value !== 'object') continue
     const record = value as Record<string, unknown>
-    const kind = record.type === 'reasoning' ? 'reasoning' : record.type === 'text' ? 'text' : null
-    const text = record.text
-    if (kind === null || typeof text !== 'string' || text.trim() === '') continue
-    const last = blocks[blocks.length - 1]
-    if (last !== undefined && last.kind === kind) blocks[blocks.length - 1] = { kind, text: last.text + text }
-    else blocks.push({ kind, text })
+    if (record.type === 'reasoning' && typeof record.text === 'string' && record.text.trim() !== '') {
+      items.push({ kind: 'reasoning', text: record.text })
+      continue
+    }
+    if (record.type === 'text' && typeof record.text === 'string' && record.text.trim() !== '') {
+      answers.push(record.text)
+      continue
+    }
+    if (record.type === 'tool-call' && typeof record.id === 'string' && typeof record.name === 'string') {
+      const callId = record.id
+      items.push({
+        kind: 'tool',
+        callId,
+        name: record.name,
+        args: typeof record.arguments === 'string' ? record.arguments : '',
+        ok: results.get(callId),
+      })
+    }
   }
-  return blocks
 }
 
 /** 消息来源的 `kind`；来源不是对象或没有非空字符串时为 null（来源是合并可扩展的）。 */

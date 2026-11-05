@@ -8,11 +8,11 @@
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
-  DisclosureRow, IconContextInjectionOutlineRegular, IconThinkOutlineRegular, MarkdownText,
+  DisclosureRow, IconBrowseOutlineRegular, IconContextInjectionOutlineRegular, MarkdownText,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { SessionPendingInteractionBase } from '@deepseek-ai/dsh-client-ui-session/client'
-import type { ShellMessage } from './shell-data.ts'
+import type { ShellMessage, ShellProcessItem } from './shell-data.ts'
 import { answerBatch, approvalOf, emptyDrafts, questionOf, selectOption } from './pending.ts'
 import type {
   QuestionDraft, QuestionDrafts, ShellApprovalPending, ShellQuestionPending,
@@ -30,13 +30,7 @@ function useMarkdownLabels(t: Translate): { code: { copyLabel: string; copiedLab
   }), [t])
 }
 
-/** 折叠摘要用的一行；空行跳过，过长省略。 */
-function firstLine(text: string): string {
-  const line = text.split('\n').map(part => part.trim()).find(part => part !== '') ?? ''
-  return line.length > 120 ? `${line.slice(0, 120)}…` : line
-}
-
-/** 对话正文：用户气泡、助手 Markdown 与思考折叠、注入上下文折叠行。 */
+/** 对话正文：用户气泡、过程组头、答复 Markdown 与注入上下文折叠行。 */
 export function ChatTranscript({
   messages, running, t,
 }: {
@@ -67,16 +61,15 @@ export function ChatTranscript({
         if (message.role === 'context') {
           return <ContextRow key={`context-${String(index)}`} text={message.text} label={message.label} t={t} />
         }
+        if (message.role === 'process') {
+          return <ProcessGroup key={`process-${String(index)}`} items={message.items} t={t} />
+        }
         return (
           <div key={`assistant-${String(index)}`} className={`${css.msg} ${css.msgAssistant}`}>
             <span className={css.who}>LCoder</span>
-            {message.blocks.map((block, blockIndex) => block.kind === 'reasoning'
-              ? <ReasoningFold key={`reasoning-${String(blockIndex)}`} text={block.text} t={t} />
-              : (
-                <div key={`text-${String(blockIndex)}`} className={css.markdownBody}>
-                  <MarkdownText text={block.text} labels={labels} />
-                </div>
-              ))}
+            <div className={css.markdownBody}>
+              <MarkdownText text={message.text} labels={labels} />
+            </div>
           </div>
         )
       })}
@@ -84,30 +77,94 @@ export function ChatTranscript({
   )
 }
 
-/** 思考过程默认折叠，只显示首行摘要；展开后按 Markdown 阅读。 */
-function ReasoningFold({ text, t }: { readonly text: string; readonly t: Translate }): ReactNode {
+/** 工具条目的展示名；未知工具直接用工具名。 */
+function toolLabel(item: ShellProcessItem & { readonly kind: 'tool' }, t: Translate): string {
+  if (item.name === 'cmd_run') return t('shell.processToolTerminal')
+  if (item.name.startsWith('task_')) return t('shell.processToolTask')
+  if (item.name.startsWith('spec_')) return t('shell.processToolSpec')
+  if (item.name === 'file_read') return t('shell.processToolRead')
+  if (item.name === 'file_edit') return t('shell.processToolEdit')
+  return item.name
+}
+
+/** 工具条目的状态；未知结果不冒充成功。 */
+function toolStatus(item: ShellProcessItem & { readonly kind: 'tool' }, t: Translate): string {
+  if (item.ok === false) return t('shell.processStatusFailed')
+  if (item.ok === undefined) return t('shell.processStatusCalled')
+  if (item.name === 'cmd_run') return t('shell.processStatusRan')
+  if (item.name.startsWith('task_')) return t('shell.processStatusSent')
+  if (item.name === 'file_read') return t('shell.processStatusRead')
+  if (item.name === 'file_edit') return t('shell.processStatusWritten')
+  return t('shell.processStatusDone')
+}
+
+/** 参数预览：空对象不占行，过长截断。 */
+function argsPreview(args: string): string {
+  const text = args.trim()
+  if (text === '' || text === '{}') return ''
+  return text.length > 90 ? `${text.slice(0, 90)}…` : text
+}
+
+/**
+ * 一个回合内的思考与工具调用收敛成一行组头；展开后逐条列出细节。
+ * 上游 trajectory 的组头/时间线不在包入口导出，这里按最小列表呈现。
+ */
+function ProcessGroup({ items, t }: { readonly items: readonly ShellProcessItem[]; readonly t: Translate }): ReactNode {
   const [open, setOpen] = useState(false)
-  const labels = useMarkdownLabels(t)
-  const summary = useMemo(() => firstLine(text).replaceAll('**', ''), [text])
+  const tools = items.reduce((count, item) => count + (item.kind === 'tool' ? 1 : 0), 0)
+  const thoughts = items.length - tools
+  const title = tools > 0
+    ? t('shell.processTools', { count: tools })
+    : t('shell.processThinking', { count: thoughts })
+  const summary = tools > 0 && thoughts > 0
+    ? t('shell.processThinking', { count: thoughts })
+    : undefined
   return (
-    <div className={css.reasoningFold}>
+    <div className={css.processGroup}>
       <DisclosureRow
-        icon={<IconThinkOutlineRegular size={14} />}
-        title={t('shell.thinking')}
+        icon={<IconBrowseOutlineRegular size={14} />}
+        title={title}
         open={open}
         expandable
         expandOnRowClick
         onToggle={() => { setOpen(value => !value) }}
-        collapsedContent={summary === '' ? undefined : (
+        collapsedContent={summary === undefined ? undefined : (
           <>
             <span className={css.foldSep} aria-hidden />
             <span className={css.foldSummary}>{summary}</span>
           </>
         )}
       >
-        <div className={css.reasoningBody}>
-          <MarkdownText text={text} labels={labels} variant="compact" />
-        </div>
+        <ol className={css.processList}>
+          {items.map((item, index) => {
+            if (item.kind === 'reasoning') {
+              return (
+                <li key={`reasoning-${String(index)}`} className={css.processRow}>
+                  <span className={css.processLabel}>{t('shell.processThought')}</span>
+                  <p className={css.processReasoning}>{item.text}</p>
+                </li>
+              )
+            }
+            const label = toolLabel(item, t)
+            const args = argsPreview(item.args)
+            return (
+              <li key={`tool-${String(index)}`} className={css.processRow}>
+                <div className={css.processLine}>
+                  <span className={css.processLabel}>{label}</span>
+                  <span className={css.processStatus} data-failed={item.ok === false ? 'true' : undefined}>
+                    {toolStatus(item, t)}
+                  </span>
+                </div>
+                {label === item.name && args === '' ? null : (
+                  <div className={css.processDetail}>
+                    {label === item.name ? null : <code>{item.name}</code>}
+                    {args === '' ? null : <code>{args}</code>}
+                  </div>
+                )}
+              </li>
+            )
+          })}
+        </ol>
       </DisclosureRow>
     </div>
   )

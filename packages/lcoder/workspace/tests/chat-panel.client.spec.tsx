@@ -81,20 +81,31 @@ describe('正文与折叠', () => {
     expect(screen.getByText(/Current runtime context/)).toBeTruthy()
   })
 
-  it('思考块默认折叠，只露首行摘要，展开后看到完整正文', () => {
-    const messages: readonly ShellMessage[] = [{
-      role: 'assistant',
-      blocks: [
-        { kind: 'reasoning', text: '先想清楚\n再写下来' },
-        { kind: 'text', text: '## 结论' },
-      ],
-    }]
+  it('一个回合的思考与工具收成一行组头，展开后才看到明细，答复单独渲染', () => {
+    const messages: readonly ShellMessage[] = [
+      {
+        role: 'process',
+        items: [
+          { kind: 'reasoning', text: '先想清楚再动手' },
+          { kind: 'tool', callId: 'c1', name: 'cmd_run', args: '{"command":"npm test"}', ok: true },
+          { kind: 'tool', callId: 'c2', name: 'task_read', args: '{"task_id":"T-02"}', ok: false },
+        ],
+      },
+      { role: 'assistant', text: '## 答复' },
+    ]
 
     render(<ChatTranscript messages={messages} running={false} t={t} />)
 
-    expect(screen.queryByText(/再写下来/)).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: /思考过程/ }))
-    expect(screen.getByText(/再写下来/)).toBeTruthy()
+    expect(screen.getByText('执行工具 2 次')).toBeTruthy()
+    expect(screen.getByText('思考 1 段')).toBeTruthy()
+    expect(screen.queryByText('已思考')).toBeNull()
+    expect(screen.getByText('答复')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: /执行工具 2 次/ }))
+    expect(screen.getByText('已思考')).toBeTruthy()
+    expect(screen.getByText('终端命令')).toBeTruthy()
+    expect(screen.getByText('已运行')).toBeTruthy()
+    expect(screen.getByText('任务消息')).toBeTruthy()
+    expect(screen.getByText('失败')).toBeTruthy()
   })
 })
 
