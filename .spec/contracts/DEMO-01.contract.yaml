@@ -1,0 +1,47 @@
+id: DEMO-01
+change:
+  - "packages/lcoder/kernel/fixtures/demo/src/price.ts：calculateCommission
+    增加可选第三参数 selfOperated: boolean = false；selfOperated=true 时返回 raw（可为 0），false
+    时保持 Math.max(raw, 1)，DR-01 行为不变"
+  - spec_bind 把 DR-02 绑定到
+    packages/lcoder/kernel/fixtures/demo/src/price.ts#calculateCommission（仅写
+    found_at，不动正文与 status）
+not_change:
+  - 不改 .spec/spec/rules.yaml 里 DR-01 的 text 与 status（formula 仍为
+    max(round(实付×费率,2), 1.00)，已 confirmed 的条目不动）
+  - 不改 DR-02 的 text / source / status（保持 draft），不加 acceptance，不把 DR-02 置
+    confirmed
+  - 不改 .spec/tasks/DEMO-01.yaml（状态流转由人工在契约签署后推进，模型不自转状态）
+  - 不改 price.ts 之外的 fixture 文件，不改 fixtures/demo/README.md
+  - 不改 kernel 的 src/（工具实现、检查器、spec-root 解析），不动上游文件与 contact-surface
+  - 不改 .spec/env.yaml 的命令、exec 分类与 push_mode
+  - 不把 demo 示例任务登记进 docs/tasks.yaml（按 PROJECT-RULES §3
+    它是产品数据，非开发台账）——除非你在确认时明确改这条规则
+acceptance:
+  - 自营可 0：calculateCommission(0.5, 0.02, true) === 0；calculateCommission(100,
+    0.05, true) === 5
+  - DR-01 不回归：calculateCommission(0.5, 0.02) === 1；calculateCommission(100,
+    0.05) === 5；不传第三参数时行为与改动前逐位一致
+  - 符号名不变：calculateCommission 仍在 price.ts 导出，P1 对 DR-01 的落点校验仍通过
+  - spec_query DR-02 的 found_at 出现 price.ts#calculateCommission，status 仍为
+    draft、text 与 source 未改
+  - 证据落 .spec/evidence/DEMO-01/：cmd_run build 输出 demo build ok、cmd_run test 输出
+    demo test ok，均来自 .spec/env.yaml 的 ai-auto 命令
+  - 开发侧门禁全绿：pnpm typecheck / pnpm lint / pnpm exec vitest run packages/lcoder /
+    pnpm run test:docs
+affected_tests:
+  - pnpm exec vitest run packages/lcoder
+  - pnpm typecheck
+  - pnpm lint
+  - pnpm run test:docs
+  - demo build（.spec/env.yaml，ai-auto）
+  - demo test（.spec/env.yaml，ai-auto，precheck=build）
+fail_if:
+  - 非自营订单出现佣金 < 1.00，或为此改动 DR-01 条目正文/状态
+  - 用「全局去掉 1.00 下限」的方式实现 0：那等于改动已确认的 DR-01 公式，属 scope.irreversible 的
+    settlement_formula 变更，本契约不覆盖
+  - 删除或重命名 calculateCommission，导致 P1 对 DR-01 的落点校验失败
+  - 在契约未经人工签署前修改 price.ts（drafting 阶段 file_edit 不应出现）
+  - build/test 未跑或未落 .spec/evidence/DEMO-01/ 就宣称完成
+  - 改动 allowed_paths（packages/lcoder/kernel/fixtures/demo/src/）之外的文件
+sig: null

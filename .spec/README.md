@@ -5,6 +5,7 @@
 - **开发台账**：`docs/tasks.yaml`（dev-flow，人维护）。
 - **示例规则**：`DR-01`（已确认，有代码落点）、`DR-02`（草稿，尚无落点）。
 - **示例任务**：`DEMO-01`（`drafting`）。
+- **示例契约**：`contracts/DEMO-01.contract.yaml`（由 `contract_draft` 起草，`sig` 为空，等人在任务详情里签署）。
 - **示例状态机**：`spec/states/order.yaml`。
 - **示例命令**：`env.yaml`。
 - **示例项目信息**：`project.yaml`（仓库、文档、web 环境；密码只存引用，不落明文）。
