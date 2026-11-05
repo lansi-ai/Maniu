@@ -15,3 +15,6 @@ apps/desktop/src/preload-app.ts
 apps/desktop/tests/main-startup.spec.ts
 apps/desktop/tests/preload-app.spec.ts
 packages/client/ui-layout/src/client/AppFrame.tsx
+packages/client/modules/src/assets.ts
+packages/client/modules/tests/assets.client.spec.ts
+scripts/gen-third-party-notices.ts
