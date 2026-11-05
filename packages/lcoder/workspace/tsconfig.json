@@ -16,6 +16,7 @@
     { "path": "../../client/ui-renderer" },
     { "path": "../../client/ui-sidebar-right" },
     { "path": "../../client/ui-session" },
+    { "path": "../../client/ui-settings/tsconfig.client.json" },
     { "path": "../../client/ui-slots" },
     { "path": "../../client/ui-workspace" }
   ]
