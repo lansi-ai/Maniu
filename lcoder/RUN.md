@@ -64,9 +64,8 @@ pnpm --filter @lcoder/kernel bundle
 按顺序看四件事：
 
 1. **服务活着**：日志里有 `dsh web: http://127.0.0.1:3080/?token=…`
-2. **kernel 挂上了**：日志里有 `[lcoder] 已注册 10 个工具与 /contract_sign、/task_bind 命令；角色 …；无会话 cwd 时规格根 …`
-   —— 这一行是 kernel 的 selfCheck 打的，说明宿主侧工具真注册了；`lcoder/cordis.patch.yml` 那行不配
-   `role`，所以打的是「角色 未设（只按状态收放）」
+2. **kernel 挂上了**：日志里有 `[lcoder] 已注册 10 个工具与 /contract_sign 命令；无会话 cwd 时规格根 …`
+   —— 这一行是 kernel 的 selfCheck 打的，说明宿主侧工具真注册了
 3. **规格根对着目标仓库**：会话里第一次求值工具面时日志出现 `[lcoder] 规格根：<仓库>/.spec`
    —— 有会话时它必须是目标仓库，而不是 profile 目录
 4. **没有激活失败**：不应该出现 `N entries did not activate`
@@ -118,43 +117,9 @@ pnpm run dev:desktop > lcoder/desktop.log 2>&1
 
 `dev.ts` 用 `...process.env` 起子进程，环境变量会传到宿主；改完必须重启实例。
 
-LCoder 的挂载源在 `lcoder/desktop-profile.patch.yml`（可提交、可审阅），运行副本在仓内 home 的
-profile 目录（`apps/desktop/.desktop-build/development/home/profiles/desktop/cordis.patch.yml`，被忽略）：
-
-```sh
-cp lcoder/desktop-profile.patch.yml \
-  apps/desktop/.desktop-build/development/home/profiles/desktop/cordis.patch.yml
-```
-
-拷完必须改那一份副本里的 `documentsDirectory`，让它指向**本检出**的
-`apps/desktop/.desktop-build/development/docs`（目录要真实存在）。四个角色 preset 只在源文件里有定义，
-副本是它的拷贝——改装配改源文件，不要只改副本。
-
-### 新检出（含 worktree）起桌面前的三条必核
-
-| 核什么 | 怎么核 | 缺了会怎样 |
-|---|---|---|
-| `documentsDirectory` 在，且目录真实存在 | `grep documentsDirectory <profile>/cordis.patch.yml` 并 `ls` 那个目录 | 「打开仓库」永久无应答，宿主零报错（PITFALLS W-08） |
-| profile 的 `package.json` 两条 `link:` 指向**本 tree** | `node -e "console.log(require('fs').readFileSync('<profile>/package.json','utf8'))"` | 跑的是别的检出的包，改动看不见 |
-| Electron 与桌面 runtime 的产物缓存到位 | 见下「首启动会下载产物」 | `start:desktop` 以 `The operation was aborted due to timeout` 退出 |
-
-### 首启动会下载产物：本机到 GitHub 超时怎么办
-
-桌面 `dev.ts` 会经 `preparePrimaryRuntime` 走 `@electron/get` 下载 runtime 产物，缓存目录是**每个检出自己的**
-`apps/desktop/.desktop-build/downloads`。本机到 GitHub 不通时会卡到超时（实测下载停在 37 MB 不动，
-最终 `aborted due to timeout`，宿主日志零其它错误）。已经在主仓跑过一次的话，直接对拷缓存，装配转离线：
-
-```sh
-export ELECTRON_SKIP_BINARY_DOWNLOAD=1      # staged project 里 electron 的 postinstall 会重复下载
-cp -u E:/Projects/LCoder/apps/desktop/.desktop-build/downloads/* \
-   <本检出>/apps/desktop/.desktop-build/downloads/
-```
-
-两条都要：前者跳过 `project/node_modules/electron` 的重复下载，后者喂给 `@electron/get` 自己的缓存。
-判据是 `start:desktop` 的日志走到 `desktop development: DSH_HOME=…` 与 `inspectors …`，而不是停在
-`Downloading Electron binary…`。根治路线是让缓存目录跨检出共享或给 `@electron/get` 配国内镜像，属装配层
-之外的选择，本线不动上游。
-
+LCoder 的挂载写进那份仓内 home 的 profile（`apps/desktop/.desktop-build/development/home/profiles/desktop/`）：
+`cordis.patch.yml` 放 LCoder 段，`package.json` 里用 `link:` 指向**当前检出**的
+`packages/lcoder/kernel` 与 `packages/lcoder/workspace`（worktree 里就跑 worktree 的包，别指回主仓）。
 
 ### 本机必读：桌面 profile 要配 `documentsDirectory`
 
@@ -182,12 +147,9 @@ pnpm run start:desktop        # 同上但跳过重建
 pnpm --filter @lcoder/workspace bundle   # 只重打外壳产物；start:desktop 不会替你做
 ```
 
-启动日志里按顺序确认两行配置加一条 ready：`desktop development: DSH_HOME=<仓内路径>`、
-`inspectors main=9229, renderer=9222, host=9230`、`dsh web: http://127.0.0.1:<port>/?token=…`。
-宿主（`dsh web` 那个子进程）的 `console` 不落在这份日志里——实测：kernel 只挂在角色 preset 内时，
-桌面点「签署契约」能写盘成功，而 `[lcoder] 已注册 …` 在日志里一行都没有。所以桌面端「kernel 挂上了」
-的判据不是日志行数，而是窗口里两件事实：看板读出 `.spec` 的任务，未签署的契约点「签署契约」得到宿主
-那句人话回执。要数注册行数就用 web 判别器（上面「web 冒烟」一节），那里的 stdout 直接继承可见。
+启动日志里按顺序确认三件事：`desktop development: DSH_HOME=<仓内路径>` 与
+`inspectors main=9229, renderer=9222, host=9230`、`dsh web: http://127.0.0.1:<port>/?token=…`
+的 ready 行、`[lcoder] 已注册 10 个工具与 /contract_sign 命令`。三条都齐才算宿主活着。
 一条桌面线一个 worktree：feature worktree 用 `DSH_DESKTOP_MAIN_INSPECT_PORT` /
 `DSH_DESKTOP_RENDERER_DEBUG_PORT` / `DSH_DESKTOP_HOST_INSPECT_PORT` 换一组预留端口，
 端口号写进该任务的台账备注；主窗保留默认 9229/9222/9230。
@@ -196,7 +158,7 @@ pnpm --filter @lcoder/workspace bundle   # 只重打外壳产物；start:desktop
 
 并行窗口用独立 worktree 时，web 用 worktree 自己的仓内 home（`DSH_HOME='<worktree>\.dsh-home'`），桌面用 worktree 自带的 `apps/desktop/.desktop-build/development/home`；两者都不碰主窗口共用的目录。smoke 的端口换 3081，桌面按上一节的三件套换一组预留 inspector。首次先 `pnpm install`、`pnpm run build:artifacts`（新 worktree 只 `pnpm install` 会因缺 `lib/` 产物而起不来），再按第 2 节把 worktree 的两个包 `link:` 进 worktree 自己的 profile。
 
-web 冒烟用的 profile 在 `<worktree>\.dsh-home\profiles\web`，它也要装同样的两条 `link:`（`cd` 进那个目录，`pnpm add "link:<worktree>/packages/lcoder/kernel" "link:<worktree>/packages/lcoder/workspace"`）。没装的现象是启动即报 `dsh: warning: 2 entries did not activate`，两行都写 `failed to import: Cannot find package '@lcoder/kernel'`，端口照常 listen、`[lcoder]` 一行都不出——容易被误判成 kernel 没挂上。
+装完先核一条再判门禁，`grep -o 'InstallationProbe = .*' node_modules/.pnpm/@botiverse+oar@0.67.0_patch_*/node_modules/@botiverse/oar/dist/contracts/installation.d.ts` 要带 `options?`——`pnpm-workspace.yaml` 给这个依赖打了补丁，新 tree 的 `pnpm install` 可能静默不应用，症状是 `packages/experimental/subagent-oar/src/run.ts:253` 报 TS2554、host compiler 退出 1、桌面产物链全断。`pnpm install --force` 即解；别把它记成上游类型错误（`lcoder/PITFALLS.md` W-09）。
 
 ## 踩过的坑
 
