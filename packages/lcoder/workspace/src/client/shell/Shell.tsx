@@ -187,19 +187,24 @@ export function Shell({
   const specRoot = projectPath === '' ? '' : `${projectPath}/.spec`
   const hasWorkspace = workspace !== undefined
   const hasSession = sessionId !== undefined
-  const chatRunning = sessionId === undefined
-    ? false
-    : sessionStatus.get(sessionId)?.running ?? sessionRows[sessionId]?.running ?? false
   /** 本工作区已知的会话行，折成任务归属需要的形状。 */
   const workspaceSessions = useMemo<readonly TaskSessionRow[]>(() => {
     if (workspace === undefined) return []
     return workspace.sessionIds.flatMap((id): readonly TaskSessionRow[] => {
       const row = sessionRows[id]
-      return row === undefined
-        ? []
-        : [{ sessionId: id, title: row.title, running: row.running, blank: row.blank, updatedAt: row.updatedAt }]
+      return row === undefined ? [] : [{ sessionId: id, running: row.running, blank: row.blank }]
     })
   }, [workspace, sessionRows])
+  /**
+   * 浮层落在哪条会话：该任务已认领的那条；立项对话或还没认领时退回工作区当前会话。
+   * 这里只做选择——建会话与认领归 T-25 的顶栏会话条，本线自己建就会留下第二套手势。
+   */
+  const chatSessionId = chat === null || chat.session === undefined
+    ? sessionId
+    : claimTaskSession(chat.session, workspaceSessions)?.sessionId ?? sessionId
+  const chatRunning = chatSessionId === undefined
+    ? false
+    : sessionStatus.get(chatSessionId)?.running ?? sessionRows[chatSessionId]?.running ?? false
   /**
    * 没有能跑的模型时不发送。缺凭据的提示不是被拒：消息会先进队，回合才失败，
    * 事件流里连 `user/message` 都没有，用户只看得到「发了，什么都没发生」。
@@ -261,40 +266,40 @@ export function Shell({
   }, [checkModels, subscribeModels])
 
   useEffect(() => {
-    if (chat === null || sessionId === undefined || readMessages === undefined || subscribeSession === undefined) {
+    if (chat === null || chatSessionId === undefined || readMessages === undefined || subscribeSession === undefined) {
       setMessages([])
       setNotice(null)
       return
     }
     const refresh = (): void => {
-      setMessages(readMessages(sessionId))
-      setNotice(readSessionNotice?.(sessionId) ?? null)
+      setMessages(readMessages(chatSessionId))
+      setNotice(readSessionNotice?.(chatSessionId) ?? null)
     }
     refresh()
-    return subscribeSession(sessionId, refresh)
-  }, [chat, sessionId, readMessages, subscribeSession, readSessionNotice])
+    return subscribeSession(chatSessionId, refresh)
+  }, [chat, chatSessionId, readMessages, subscribeSession, readSessionNotice])
 
   /**
    * 卡片上「等首个回合」与失败两位的来源。
    *
-   * 它们只在会话快照里，而快照只有本客户端物化过的会话才有——所以这一路只跟着当前会话
-   * 读，读不到就明说读不到，卡片退回只显示宿主推流得到的那几个态。
+   * 它们只在会话快照里，而快照只有本客户端物化过的会话才有——所以这一路只跟着浮层所在的
+   * 那条会话读，读不到就明说读不到，卡片退回只显示宿主推流得到的那几个态。
    */
   useEffect(() => {
-    if (sessionId === undefined || readSessionFlags === undefined || subscribeSession === undefined) {
+    if (chatSessionId === undefined || readSessionFlags === undefined || subscribeSession === undefined) {
       setTaskFlags(null)
       return
     }
-    const refresh = (): void => { setTaskFlags(readSessionFlags(sessionId)) }
+    const refresh = (): void => { setTaskFlags(readSessionFlags(chatSessionId)) }
     refresh()
-    return subscribeSession(sessionId, refresh)
-  }, [sessionId, readSessionFlags, subscribeSession])
+    return subscribeSession(chatSessionId, refresh)
+  }, [chatSessionId, readSessionFlags, subscribeSession])
 
   /** 一张卡片的状态：先按规格库的 session 字段认归属会话，再叠宿主推流与快照两位。 */
   const statusOfTask = (task: ShellTask): TaskCardStatus => {
     const session = claimTaskSession(task.session, workspaceSessions)
     const pushed = session === null ? undefined : sessionStatus.get(session.sessionId)
-    const flags = session !== null && session.sessionId === sessionId ? taskFlags : null
+    const flags = session !== null && session.sessionId === chatSessionId ? taskFlags : null
     return taskCardStatus({
       session,
       hostRunning: pushed?.running,
@@ -309,6 +314,8 @@ export function Shell({
     setPrompt(buildShellPrompt({ name: projectName, path: projectPath, branch: projectBranch }, task))
     setCopied(false)
     setSignResult(null)
+    // 上一个任务的「没会话」提示不属于这个任务。
+    setChatError(null)
   }
 
   /** 选中任务的那份契约；没有就是还没起草。 */
@@ -346,22 +353,19 @@ export function Shell({
   }
 
   /**
-   * 开一条对话。本线只画状态：建会话与 `/task_bind` 认领归 T-25，这里仍发到工作区当前会话，
-   * 卡片按规格库里的 `session` 字段认领，没绑过就如实显示未开始。
+   * 「打开对话」只做一件事：把浮层切到该任务已认领的会话上。
+   *
+   * 本线不建会话、不认领——那套手势与 `/task_bind` 命令在 T-25 的顶栏会话条里，这里自己
+   * 做一份就会留下第二套。还没认领时把这句话显示出来，并留在任务详情里，不假装打开了。
    */
   const startConversation = (task: ShellTask): void => {
+    setChatError(null)
+    if (claimTaskSession(task.session, workspaceSessions) === null) {
+      setChatError(t('shell.taskHasNoSession'))
+      return
+    }
     setChat(task)
     setDetail(null)
-    setChatError(null)
-    if (modelBlocked) {
-      setChatError(t('shell.noModels'))
-      return
-    }
-    if (sessionId === undefined || sendPrompt === undefined) {
-      setChatError(t('shell.noSession'))
-      return
-    }
-    void sendPrompt(sessionId, prompt).catch((error: unknown) => { setChatError(String(error)) })
   }
 
   /**
@@ -391,11 +395,11 @@ export function Shell({
 
   const sendDraft = async (): Promise<void> => {
     const text = draft.trim()
-    if (text === '' || modelBlocked || sessionId === undefined || sendPrompt === undefined) return
+    if (text === '' || modelBlocked || chatSessionId === undefined || sendPrompt === undefined) return
     setDraft('')
     setChatError(null)
     try {
-      await sendPrompt(sessionId, text)
+      await sendPrompt(chatSessionId, text)
     } catch (error: unknown) {
       setChatError(String(error))
     }
@@ -731,6 +735,8 @@ export function Shell({
                 <label>{t('shell.startPrompt')} <span className={css.labelHint}>{t('shell.promptHint')}</span></label>
                 <textarea className={css.promptBox} value={prompt} onChange={(event) => { setPrompt(event.target.value) }} />
               </div>
+              {/* 「打开对话」没打开浮层时，原因就地显示在这里——浮层本身还没被切出来。 */}
+              {chatError === null ? null : <p className={css.problem}>{chatError}</p>}
             </div>
             <div className={css.modalFoot}>
               <button type="button" className={css.secondaryBtn} onClick={copyPrompt}>{copied ? t('shell.copied') : t('shell.copyPrompt')}</button>
@@ -739,8 +745,6 @@ export function Shell({
               <button
                 type="button"
                 className={css.primaryBtn}
-                disabled={modelBlocked}
-                title={modelBlocked ? t('shell.noModels') : undefined}
                 onClick={() => { startConversation(detail) }}
               >
                 {t('shell.startChat')}
@@ -813,7 +817,7 @@ export function Shell({
                 <button
                   type="button"
                   className={css.primaryBtn}
-                  disabled={draft.trim() === '' || modelBlocked || sessionId === undefined || sendPrompt === undefined}
+                  disabled={draft.trim() === '' || modelBlocked || chatSessionId === undefined || sendPrompt === undefined}
                   onClick={() => { void sendDraft() }}
                 >
                   {t('shell.send')}

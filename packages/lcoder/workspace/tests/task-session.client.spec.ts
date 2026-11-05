@@ -16,10 +16,8 @@ const id = (value: string): SessionId => value as SessionId
 function row(overrides: Omit<Partial<TaskSessionRow>, 'sessionId'> & { sessionId: string }): TaskSessionRow {
   return {
     sessionId: id(overrides.sessionId),
-    title: overrides.title,
     running: overrides.running ?? false,
     blank: overrides.blank ?? false,
-    updatedAt: overrides.updatedAt ?? 0,
   }
 }
 
@@ -29,8 +27,8 @@ describe('任务到会话的归属', () => {
     expect(claimTaskSession('s-1', sessions)?.sessionId).toBe(id('s-1'))
   })
 
-  it('字段没写就是未绑定，不挑一条看起来最像的', () => {
-    expect(claimTaskSession(undefined, [row({ sessionId: 's-1', title: 'DEMO-03' })])).toBeNull()
+  it('字段没写就是未绑定，不挑一条看起来最像的会话', () => {
+    expect(claimTaskSession(undefined, [row({ sessionId: 's-1' })])).toBeNull()
   })
 
   it('字段是空串时同样算未绑定', () => {
@@ -43,11 +41,6 @@ describe('任务到会话的归属', () => {
 
   it('标识按精确相等比，前缀相同不算同一条会话', () => {
     expect(claimTaskSession('session-1', [row({ sessionId: 'session-10' })])).toBeNull()
-  })
-
-  it('会话标题不参与归属：它只是显示', () => {
-    const sessions = [row({ sessionId: 's-1', title: 'DEMO-03' }), row({ sessionId: 's-2' })]
-    expect(claimTaskSession('s-2', sessions)?.sessionId).toBe(id('s-2'))
   })
 })
 

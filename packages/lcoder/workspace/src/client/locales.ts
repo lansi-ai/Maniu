@@ -146,6 +146,7 @@ export const zh = {
   'shell.taskFirstTurn': '等首个回合',
   'shell.taskFailed': '失败',
   'shell.taskIdle': '空闲',
+  'shell.taskHasNoSession': '该任务还没有会话，用顶栏会话条新建并认领。',
 } satisfies Record<string, string>
 
 /** 工作台词典的键集。 */
@@ -284,4 +285,5 @@ export const en = {
   'shell.taskFirstTurn': 'Awaiting first turn',
   'shell.taskFailed': 'Failed',
   'shell.taskIdle': 'Idle',
+  'shell.taskHasNoSession': 'This task has no session yet; create one in the top session bar and claim it.',
 } satisfies Record<LcoderWorkspaceKey, string>

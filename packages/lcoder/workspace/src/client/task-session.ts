@@ -2,8 +2,8 @@
  * 任务卡片上的对话状态：任务↔会话的归属判据，以及把已取回的信号折成一张卡片能画的状态。
  *
  * 归属判据是 `.spec/tasks/<ID>.yaml` 的 `session` 字段——规格库里的这个值是唯一权威，
- * 卡片只投影它。会话标题降回纯显示，不再当外键：可被人改写的字段承载归属，等于让显示面
- * 决定规格事实，违反 `.spec` 单源。字段还没写进规格库时按「未绑定」处理，不猜。
+ * 卡片只投影它，字段没写就是未绑定。写入方（建会话并认领）不在本包：外壳不碰规格库，
+ * kernel 仍是唯一的写盘者。
  *
  * 状态只由**已经取回的数据**折出来，这里不读盘、不调远程、不订阅：
  * 在跑与等人回答来自 `useSessionStatus` 全局 seat（宿主推流，覆盖每个列出的会话，
@@ -15,13 +15,9 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
 /** 一条会话在这条判据里用到的字段；不引上游类型面，避免把整个会话 seam 拖进外壳。 */
 export interface TaskSessionRow {
   readonly sessionId: SessionId
-  /** 宿主投影出的显示标题；只用于显示，不参与归属判定。 */
-  readonly title?: string | undefined
   readonly running: boolean
   /** 还没有 `turn/start` 的会话。 */
   readonly blank: boolean
-  /** 宿主给出的最近活动时间（毫秒）。 */
-  readonly updatedAt: number
 }
 
 /** 卡片能画的状态。顺序即优先级，`taskCardStatus` 一次折出一个。 */
@@ -49,7 +45,7 @@ export interface TaskCardSignals {
 /**
  * 按规格库里的 `session` 字段认领这条任务的会话。
  *
- * 只认标识精确相等的那条：`T-1` 绑不到 `T-10` 的会话，标题像任务号也不算。
+ * 只认标识精确相等的那条：`T-1` 绑不到 `T-10` 的会话。
  * 字段没写、或写着的会话不在本工作区名册里时返回 null——卡片因此说「未开始」，
  * 而不是拿别的会话的状态冒充这条任务的状态。
  * @param boundSessionId - `.spec/tasks/<ID>.yaml` 的 `session` 字段值；未绑定为 undefined。
