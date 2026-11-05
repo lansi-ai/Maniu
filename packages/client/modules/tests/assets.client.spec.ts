@@ -19,6 +19,8 @@ describe('packageAssetMediaType', () => {
     ['nested/photo.webp', 'image/webp'],
     ['photo.jpg', 'image/jpeg'],
     ['photo.jpeg', 'image/jpeg'],
+    ['InterVariable.woff2', 'font/woff2'],
+    ['legacy.woff', 'font/woff'],
     ['PHOTO.PNG', 'image/png'],
     ['Icon.SvG', 'image/svg+xml'],
     ['archive.txt.png', 'image/png'],
