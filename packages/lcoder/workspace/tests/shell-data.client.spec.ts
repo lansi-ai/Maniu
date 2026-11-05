@@ -11,17 +11,42 @@ import { ToolCallId } from '@deepseek-ai/dsh-llm/brand'
 import { SessionSeq } from '@deepseek-ai/dsh-session/types'
 import type { SessionEventLikeEntry } from '@deepseek-ai/dsh-api-session-controller/client'
 
-import { buildIntakePrompt, buildOnboardingPrompt, messagesFromEntries } from '../src/client/shell/shell-data.ts'
-import type { ShellOnboardingDocs } from '../src/client/shell/shell-data.ts'
+import { buildIntakePrompt, buildOnboardingPrompt, buildShellPrompt, messagesFromEntries, TASK_FLOW_MENTION_PREFIX } from '../src/client/shell/shell-data.ts'
+import type { ShellOnboardingDocs, ShellTask } from '../src/client/shell/shell-data.ts'
 
 const PROJECT = { name: 'Demo 商城', path: 'E:/Projects/demo', branch: 'main' }
+
+const TASK: ShellTask = {
+  id: 'T-01',
+  title: '订单导出',
+  state: 'drafting',
+  grade: 'B',
+  rules: ['R-01'],
+  evidence: ['typecheck'],
+  surface: 'file_read、task_read',
+}
+
+describe('咒语的仓内发送与仓外复制', () => {
+  it('三段咒语正文都不带技能引用——本会话的模型没有名为 task-flow 的技能可解析', () => {
+    expect(buildShellPrompt(PROJECT, TASK)).not.toContain('@task-flow')
+    expect(buildIntakePrompt(PROJECT)).not.toContain('@task-flow')
+    expect(buildOnboardingPrompt(PROJECT, { product: '', architecture: '', tests: '' })).not.toContain('@task-flow')
+  })
+
+  it('任务咒语首行是任务编号与标题，补上前缀后才是仓外开工的写法', () => {
+    const sent = buildShellPrompt(PROJECT, TASK)
+    expect(sent.split('\n')[0]).toBe('T-01：订单导出')
+    expect(`${TASK_FLOW_MENTION_PREFIX}${sent}`.startsWith('T-01')).toBe(false)
+    expect(`${TASK_FLOW_MENTION_PREFIX}${sent}`.startsWith('@task-flow T-01：订单导出')).toBe(true)
+  })
+})
 
 describe('立项咒语', () => {
   it('声明了交付文档时逐条给出路径，并要求先读再立项', () => {
     const docs: ShellOnboardingDocs = { product: 'docs/prd-and-design.md', architecture: 'docs/architecture.md', tests: '' }
     const text = buildOnboardingPrompt(PROJECT, docs)
 
-    expect(text).toContain('@task-flow 立项分析：Demo 商城（E:/Projects/demo）')
+    expect(text).toContain('立项分析：Demo 商城（E:/Projects/demo）')
     expect(text).toContain('- 规格根：E:/Projects/demo/.spec')
     expect(text).toContain('- 项目：Demo 商城（E:/Projects/demo，main）')
     expect(text).toContain('- 产品文档：docs/prd-and-design.md')
@@ -54,7 +79,7 @@ describe('空文件夹的项目引导咒语', () => {
   const text = buildIntakePrompt(PROJECT)
 
   it('从项目身份问起，一次一问且硬上限 7 问', () => {
-    expect(text).toContain('@task-flow 项目引导：Demo 商城（E:/Projects/demo）')
+    expect(text).toContain('项目引导：Demo 商城（E:/Projects/demo）')
     expect(text).toContain('E:/Projects/demo/.spec 还不存在')
     expect(text).toContain('一次只问一问，拿到回答再问下一问，总数不超过 7 问')
     for (let n = 1; n <= 7; n++) expect(text).toContain(`${n}. `)

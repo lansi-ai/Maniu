@@ -21,7 +21,7 @@ import type { ModelStatus, ShellSessionNotice } from '../model-status.ts'
 import type { LcoderWorkspaceKey } from '../locales.ts'
 import { claimTaskSession, taskCardStatus } from '../task-session.ts'
 import type { TaskCardStatus, TaskSessionRow } from '../task-session.ts'
-import { buildIntakePrompt, buildOnboardingPrompt, buildShellPrompt, SHELL_STATES } from './shell-data.ts'
+import { buildIntakePrompt, buildOnboardingPrompt, buildShellPrompt, SHELL_STATES, TASK_FLOW_MENTION_PREFIX } from './shell-data.ts'
 import { ChatTranscript, PendingInteractionCard } from './ChatPanel.tsx'
 import { ModelSettings } from './ModelSettings.tsx'
 import type { ModelSettingsFace } from './model-settings.ts'
@@ -484,8 +484,9 @@ export function Shell({
     }
   }
 
+  /** 复制到仓外开工才补技能引用；发进本会话的提示词保持编辑器里那份。 */
   const copyPrompt = (): void => {
-    void navigator.clipboard.writeText(prompt).then(
+    void navigator.clipboard.writeText(`${TASK_FLOW_MENTION_PREFIX}${prompt}`).then(
       () => {
         setCopied(true)
         setTimeout(() => { setCopied(false) }, 1200)

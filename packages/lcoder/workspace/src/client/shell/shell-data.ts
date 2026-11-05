@@ -224,13 +224,21 @@ export interface ShellPromptProject {
 }
 
 /**
+ * 把咒语交给外部工具（Qoder 一类）时补的技能引用前缀。
+ *
+ * 三段咒语正文自成一个完整的流程指令，本会话里的模型没有名为 `task-flow` 的技能可解析，
+ * 所以只有「复制到仓外开工」这条路需要它。发送路径不带，模型看到的就是编辑器里的那段。
+ */
+export const TASK_FLOW_MENTION_PREFIX = '@task-flow '
+
+/**
  * 生成 dev-flow 启动咒语。任务/项目字段来自当前选择，模板与 task-flow 的入口一致。
  * @param project - 当前项目。
  * @param task - 当前任务。
  * @returns 可直接粘贴到会话的提示词。
  */
 export function buildShellPrompt(project: ShellPromptProject, task: ShellTask): string {
-  return `@task-flow ${task.id}：${task.title}
+  return `${task.id}：${task.title}
 
 第 0 步环境隔离：
 - 规格根：${project.path}/.spec
@@ -266,7 +274,7 @@ export interface ShellOnboardingDocs {
  * @returns 可直接发送的提示词。
  */
 export function buildIntakePrompt(project: ShellPromptProject): string {
-  return `@task-flow 项目引导：${project.name}（${project.path}）
+  return `项目引导：${project.name}（${project.path}）
 
 第 0 步 现状：
 - 规格根：${project.path}/.spec 还不存在。
@@ -310,7 +318,7 @@ export function buildOnboardingPrompt(project: ShellPromptProject, docs: ShellOn
     ? '- 文档来源：`.spec/project.yaml` 没有声明交付文档；先向用户确认产品文档在哪，不要猜路径。'
     : declared.map(entry => `- ${entry.label}：${entry.path}`).join('\n')
 
-  return `@task-flow 立项分析：${project.name}（${project.path}）
+  return `立项分析：${project.name}（${project.path}）
 
 第 0 步 现状：
 - 规格根：${project.path}/.spec
