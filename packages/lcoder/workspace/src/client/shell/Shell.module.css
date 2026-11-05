@@ -1,12 +1,28 @@
 /* LCoder 专属外壳：主面板内的整壳布局与浮层。
    颜色、字级、间距与圆角先落成 token，再核到各区块；深浅两套只换 token 值。
-   字体栈按本机可用性回退：-apple-system 在没有 SF 字体时会落到 Segoe UI，
-   中文再退到微软雅黑；用户在上游字体设置里写过的字体仍排在最前。 */
+   Windows 没有 SF Pro；Latin 用自托管的 Inter 变量字体，中文优先 PingFang SC，
+   Windows 回落 Microsoft YaHei UI。字距按 SF 的观感略收紧。 */
+
+@font-face {
+  font-family: "Inter";
+  src: url("../assets/InterVariable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* 壳外的宿主文档也走同一套栈，避免弹层/正文在 body 上回落到旧字体。 */
+:global(body) {
+  font-family: Inter, -apple-system, "Segoe UI Variable Display", "Segoe UI", "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+  letter-spacing: -0.01em;
+}
 
 .shell {
-  --lc-font-ui: var(--dsh-font-family-text, "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI"), "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", "Helvetica Neue", Arial, sans-serif;
-  --lc-font-display: var(--dsh-font-family-text, "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI Variable Display", "Segoe UI"), "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", "Helvetica Neue", Arial, sans-serif;
+  --lc-font-ui: Inter, -apple-system, "Segoe UI Variable Display", "Segoe UI", "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+  --lc-font-display: Inter, -apple-system, "Segoe UI Variable Display", "Segoe UI", "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
   --lc-font-mono: var(--dsh-font-family-code, "SF Mono", "Cascadia Code", "JetBrains Mono", "Fira Code", Consolas), "Liberation Mono", "Microsoft YaHei", monospace;
+  --lc-tracking: -0.01em;
+  --lc-tracking-tight: -0.02em;
 
   /* 字号整体提一级：正文默认 15px，仍跟随上游的正文字号设置。 */
   --lc-text-xs: 12px;
@@ -105,6 +121,7 @@
   background: var(--lc-bg);
   color: var(--lc-ink);
   font: var(--lc-text-base) / var(--lc-leading) var(--lc-font-ui);
+  letter-spacing: var(--lc-tracking);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
@@ -177,7 +194,7 @@
   display: grid; place-items: center; color: #fff; font-weight: 800; font-size: var(--lc-text-lg);
   box-shadow: 0 8px 20px rgba(0, 113, 227, 0.3);
 }
-.brandTitle { margin: 0; font: 600 var(--lc-text-lg) / var(--lc-leading-tight) var(--lc-font-display); letter-spacing: -0.01em; }
+.brandTitle { margin: 0; font: 600 var(--lc-text-lg) / var(--lc-leading-tight) var(--lc-font-display); letter-spacing: var(--lc-tracking-tight); }
 .brandSub { margin: 0; font-size: var(--lc-text-xs); color: var(--lc-muted); }
 
 .projectSwitch {
@@ -230,7 +247,7 @@
   display: grid; place-items: center; color: #fff; font-weight: 800; font-size: var(--lc-text-md);
   box-shadow: 0 6px 16px rgba(0, 113, 227, 0.28);
 }
-.topTitle { font: 700 var(--lc-text-lg) / var(--lc-leading-tight) var(--lc-font-display); letter-spacing: -0.01em; }
+.topTitle { font: 700 var(--lc-text-lg) / var(--lc-leading-tight) var(--lc-font-display); letter-spacing: var(--lc-tracking-tight); }
 .topProject {
   display: flex; align-items: center; gap: var(--lc-space-2); min-width: 0; max-width: 380px;
   border: 1px solid var(--lc-line); background: var(--lc-surface-2);
@@ -239,7 +256,7 @@
 .topProject:hover { border-color: var(--lc-brand-2); }
 .topProject .psLogo { width: 24px; height: 24px; border-radius: 7px; }
 .title { display: grid; gap: 2px; min-width: 0; }
-.title h2 { margin: 0; font-size: var(--lc-text-xl); }
+.title h2 { margin: 0; font-size: var(--lc-text-xl); letter-spacing: var(--lc-tracking-tight); }
 .sub { font-size: var(--lc-text-sm); color: var(--lc-muted); display: flex; gap: var(--lc-space-2); align-items: center; min-width: 0; }
 .subCode { font: var(--lc-text-xs) / 1.4 var(--lc-font-mono); color: var(--lc-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sessionBar { display: flex; align-items: center; gap: 6px; min-width: 0; }
@@ -321,6 +338,7 @@
   width: 100%; min-width: 0; text-align: left; border: 1px solid var(--lc-line); background: var(--lc-surface);
   border-radius: var(--lc-radius-md); padding: 13px 14px; display: grid; gap: var(--lc-space-2); margin-bottom: 10px;
   box-shadow: var(--lc-shadow-xs); transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+  letter-spacing: var(--lc-tracking);
 }
 .taskCard:hover { border-color: var(--lc-brand-2); transform: translateY(-1px); box-shadow: var(--lc-shadow-card); }
 
@@ -395,7 +413,7 @@
 .modalSmall { width: min(600px, 100%); }
 .modalHead { display: flex; align-items: flex-start; gap: var(--lc-space-3); padding: 22px var(--lc-space-6) 16px; border-bottom: 1px solid var(--lc-line); }
 .grow { flex: 1; min-width: 0; }
-.modalHead h3 { margin: 0 0 4px; font: 600 var(--lc-text-xl) / var(--lc-leading-tight) var(--lc-font-display); letter-spacing: -0.01em; }
+.modalHead h3 { margin: 0 0 4px; font: 600 var(--lc-text-xl) / var(--lc-leading-tight) var(--lc-font-display); letter-spacing: var(--lc-tracking-tight); }
 .modalHead p { margin: 0; color: var(--lc-muted); font-size: var(--lc-text-sm); }
 .modalBody { padding: var(--lc-space-5) var(--lc-space-6); display: grid; gap: var(--lc-space-4); }
 .modalFoot { position: sticky; bottom: 0; z-index: 2; display: flex; align-items: center; gap: var(--lc-space-2); padding: 16px var(--lc-space-6) var(--lc-space-5); border-top: 1px solid var(--lc-line); background: var(--lc-surface); border-radius: 0 0 var(--lc-radius-xl) var(--lc-radius-xl); }
@@ -453,7 +471,7 @@
   border: 0; border-radius: 0; box-shadow: none;
 }
 .chatHead { flex: 0 0 auto; display: flex; align-items: center; gap: var(--lc-space-3); padding: 14px 16px; border-bottom: 1px solid var(--lc-line); background: var(--lc-surface-2); }
-.chatHead h4 { margin: 0; font: 600 15px / var(--lc-leading-tight) var(--lc-font-display); }
+.chatHead h4 { margin: 0; font: 600 15px / var(--lc-leading-tight) var(--lc-font-display); letter-spacing: var(--lc-tracking-tight); }
 .chatHead p { margin: 0; font-size: var(--lc-text-xs); color: var(--lc-muted); }
 .chatBody { flex: 1; min-height: 0; overflow: auto; padding: 18px; display: flex; flex-direction: column; gap: var(--lc-space-3); }
 .msg { max-width: 88%; border-radius: 14px; padding: 11px 14px; font-size: 13.5px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -522,7 +540,7 @@
 }
 .pendingQuestionCard { width: min(660px, 100%); }
 .pendingHead { display: flex; align-items: center; justify-content: space-between; gap: var(--lc-space-3); }
-.pendingHead h4 { margin: 0; font: 600 16px / var(--lc-leading-tight) var(--lc-font-display); }
+.pendingHead h4 { margin: 0; font: 600 16px / var(--lc-leading-tight) var(--lc-font-display); letter-spacing: var(--lc-tracking-tight); }
 .pendingReason { margin: 0; font-size: 13.5px; color: var(--lc-muted); white-space: pre-wrap; }
 .pendingActions { display: flex; justify-content: flex-end; gap: var(--lc-space-2); }
 .questionList { display: flex; flex-direction: column; gap: 14px; overflow: auto; }
@@ -572,7 +590,7 @@
   display: flex; flex-direction: column;
 }
 .drawerHead { display: flex; align-items: flex-start; gap: var(--lc-space-3); padding: 20px; border-bottom: 1px solid var(--lc-line); }
-.drawerHead h3 { margin: 0 0 4px; font: 600 18px / var(--lc-leading-tight) var(--lc-font-display); }
+.drawerHead h3 { margin: 0 0 4px; font: 600 18px / var(--lc-leading-tight) var(--lc-font-display); letter-spacing: var(--lc-tracking-tight); }
 .drawerHead p { margin: 0; font-size: var(--lc-text-sm); color: var(--lc-muted); }
 .drawerBody { flex: 1; overflow: auto; padding: 20px; display: grid; gap: var(--lc-space-5); align-content: start; }
 .drawerSection h4 { margin: 0 0 var(--lc-space-2); font-size: var(--lc-text-xs); letter-spacing: .08em; text-transform: uppercase; color: var(--lc-faint); }
@@ -613,7 +631,7 @@
 .settingsModal { width: min(920px, 100%); }
 .modelSection { display: grid; gap: var(--lc-space-3); padding: 16px; border: 1px solid var(--lc-line); border-radius: var(--lc-radius-lg); background: var(--lc-surface-2); }
 .modelSectionHead { display: flex; align-items: flex-start; gap: var(--lc-space-3); }
-.modelSectionHead h4 { margin: 0 0 3px; font: 600 16px / var(--lc-leading-tight) var(--lc-font-display); }
+.modelSectionHead h4 { margin: 0 0 3px; font: 600 16px / var(--lc-leading-tight) var(--lc-font-display); letter-spacing: var(--lc-tracking-tight); }
 .modelSectionHead p { margin: 0; font-size: 12.5px; color: var(--lc-muted); }
 .modelGroup { display: grid; gap: var(--lc-space-2); }
 .modelGroupTitle { font-size: var(--lc-text-sm); font-weight: 600; color: var(--lc-muted); margin-top: 4px; }

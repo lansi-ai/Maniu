@@ -69,6 +69,9 @@ upstream = deepseek-ai/deepseek-harness
 | `packages/client/ui-layout/src/client/AppFrame.tsx` | 读取 `data-lcoder-custom-chrome`，把侧栏折叠宽度从 56px 收成 0 | 自绘标题栏后不再有 caption rail；不收起会留一条空轨道，外壳无法占满窗口 |
 | `apps/desktop/tests/main-startup.spec.ts` | 窗口创建断言从 `titleBarOverlay` 改为 `frame: false`，补窗口命令/状态用例 | 行为变更必须由测试钉住 |
 | `packages/client/ui-layout/src/client/AppFrame.tsx` | 自绘标题栏生效时（`data-lcoder-custom-chrome`）把左侧栏 rail 宽度归零、不再进 drawer 判定 | 壳自己画窗口按钮与顶部条后，上游那套 Windows caption 与图标 rail 的占位会让主面板缩进去；这是装配层无法覆盖的布局分支 |
+| `packages/client/modules/src/assets.ts` | 资源 MIME 表增加 `.woff2` / `.woff` | 客户端资源路由原先只服务图片；LCoder 自托管的 Inter 字体必须由同一路由发出并带字体 MIME，插件/装配层改不了这张路由表 |
+| `packages/client/modules/tests/assets.client.spec.ts` | 覆盖 `.woff2` / `.woff` 的 MIME 判定 | 新增字体资源类型必须有门禁钉住，防止路由回退 |
+| `scripts/gen-third-party-notices.ts` | 生成物新增「Bundled font assets」段，登记 Inter 4.66、SIL OFL 1.1、来源与许可文件 | 生成器只扫 npm workspace 依赖，非 npm 的自托管字体不会被自动列出；装配层无法改仓库级声明生成器，字体又随包分发，必须在声明中体现 |
 | `apps/desktop/tests/preload-app.spec.ts` | 删除 Windows appearance 挂载断言 | 该挂载已停用 |
 规矩：改动写在文件里的 `lcoder:` 前缀注释下，方便 grep 定位，也方便升级时用 `git diff upstream/master...HEAD -- <文件>` 一眼看清。
 

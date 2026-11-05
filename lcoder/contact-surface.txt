@@ -23,3 +23,6 @@ apps/desktop/tests/expected/application-menu-en-US.json
 apps/desktop/tests/expected/application-menu-zh-CN.json
 apps/desktop/tests/expected/command-management-win32-en-US.json
 apps/desktop/tests/expected/command-management-win32-zh-CN.json
+packages/client/modules/src/assets.ts
+packages/client/modules/tests/assets.client.spec.ts
+scripts/gen-third-party-notices.ts
