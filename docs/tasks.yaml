@@ -184,7 +184,7 @@ tracks:
 
     - id: T-29
       title: 签署后由人推进一步到已签约——人机命令 task_contract 与详情按钮
-      status: doing
+      status: done
       face: 用户端
       type: 开发
       owner: lance
@@ -192,7 +192,7 @@ tracks:
       date: '2026-11-05'
       dep: [T-21]
       inferred: false
-      note: "B 级；用户在真窗口签完契约后问「为什么签署不改任务状态」，随后拍板加一个「推进到已签约」按钮（在任务详情里、签完才出现），而不是让签署顺带推。落点三处：kernel 新增人机命令 task_contract，只做 drafting 到 contracted 这一条边，四道闸为任务存在且处于起草态、契约存在、签署人是 human、签名哈希等于当前正文复算值，任一不过只回一句话且任务文件一个字节不动；不做通用 advance，避免把状态机判断从图的合法边扩成一张命令表。client/index.ts 注入 advanceContract 派 /task_contract，Shell 在已签且仍在起草态的详情里出按钮，成功后重读投影让卡片换列。门禁 typecheck(5)、vitest packages/lcoder(23 files / 254 tests)、oxlint packages/lcoder 0 error、test:docs(21)，两个包已重打 bundle；规则单源与 PRD 同步写明这条边由人经命令推进、更往后的流转仍手写 YAML。未验项是桌面那一下，验收只认桌面端手点。"
+      note: "B 级；用户在真窗口签完契约后问「为什么签署不改任务状态」，随后拍板加一个「推进到已签约」按钮（在任务详情里、签完才出现），而不是让签署顺带推。落点三处：kernel 新增人机命令 task_contract，只做 drafting 到 contracted 这一条边，四道闸为任务存在且处于起草态、契约存在、签署人是 human、签名哈希等于当前正文复算值，任一不过只回一句话且任务文件一个字节不动；不做通用 advance，避免把状态机判断从图的合法边扩成一张命令表。client/index.ts 注入 advanceContract 派 /task_contract，Shell 在已签且仍在起草态的详情里出按钮，成功后重读投影让卡片换列。门禁 typecheck(5)、vitest packages/lcoder(23 files / 254 tests)、oxlint packages/lcoder 0 error、test:docs(21)，两个包已重打 bundle；规则单源与 PRD 同步写明这条边由人经命令推进、更往后的流转仍手写 YAML。未验项是桌面那一下，验收只认桌面端手点。2026-11-05 收口：真窗口点「推进到已签约」，面板回执写明已进入已签约且给出时间；任务从起草换到已签约列。"
 
 
   - id: workspace
@@ -354,6 +354,17 @@ tracks:
       dep: [T-25]
       inferred: false
       note: "B 级缺陷（一处调用约定加浮层引用生命周期）。现象：用户配好钥匙后点某任务的「开始对话」，浮层显示「会话尚未就绪，请先打开仓库或新建会话」，消息发不出去也看不到回复。根因两处：一是 create() 只返回 SessionId，契约文档明写 retain 之后才借 binding，而 sendPrompt 直接调 ctx.sessions.binding(id)，刚建的会话还没进本地目录就是 undefined；二是浮层的读消息与订阅同样借 binding，没有引用就全是空。修法：sendPrompt 改 ctx.sessions.using，先 await reference.ready 再 prompt；浮层打开期间用 holdSession 持有一份引用、关闭时释放，读消息与订阅才借得到。两条各补一条单测。门禁 typecheck 5、vitest packages/lcoder 24 files 与 275 tests、oxlint 零告警零错，外壳产物已重打。桌面复验待重启：点任务、开始对话，应能看到回合开始并收到回复。2026-11-05 收口：修复后在真窗口点开始对话，对话能拉起（用户确认）；两条单测钉住 retain 与释放。"
+    - id: T-32
+      title: 立项引导会话缺列目录能力——先分清是没工具还是没给到
+      status: todo
+      face: 用户端
+      type: 缺陷
+      owner: lance
+      created: '2026-11-05'
+      date: '2026-11-05'
+      dep: [T-23]
+      inferred: false
+      note: "B 级；用户 2026-11-05 在空仓走完 7 问立项后反馈「立项的会话没有列目录的工具」，同时确认 .spec 能生成。先做判定再定方案，不要直接加工具。两种可能：一是上游 bundle 全局注册的 glob 与 grep 本来就对该 profile 的每个 Agent 可见（见 T-11 的取证），那就是可见但模型没用或用了失败；二是 intake 角色的天花板与 SURFACE 求交之后，本包工具里确实没有列目录这一项，而全局工具又被装配层挡住。判据要能分清楚：在真窗口起一条 intake 会话，让它列当前仓库根目录，看会话日志里有没有 tool/result、失败信息是什么；再把该会话可见的工具名与全局注册清单对一遍。方案分两支：若全局 glob 可见，只补提示词与引导文案；若不可见，就在 kernel 新增 file_list（名字、类型、上限、排序写清，进 SURFACE 与 intake/architect/dev 三张角色表，review 只读也可给），并补单测与桌面验证。验收只认桌面端手点。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
