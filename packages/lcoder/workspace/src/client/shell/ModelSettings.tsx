@@ -598,7 +598,7 @@ function AddProviderForm({ face, snapshot, t, onChanged }: AddProps): ReactNode 
           type="text"
           spellCheck={false}
           value={baseURL}
-          placeholder="https://gateway.example.com/v1"
+          placeholder={t('shell.baseUrlPlaceholder')}
           aria-label={t('shell.modelBaseURL')}
           disabled={busy}
           onChange={(event) => { setBaseURL(event.target.value) }}

@@ -21,6 +21,8 @@ import type { ModelStatus, ShellSessionNotice } from '../model-status.ts'
 import type { LcoderWorkspaceKey } from '../locales.ts'
 import { claimTaskSession, taskCardStatus } from '../task-session.ts'
 import type { TaskCardStatus, TaskSessionRow } from '../task-session.ts'
+import { EMPTY_TASK_FILTER, filterTasks, isFilterActive, TASK_GRADE_CHOICES } from '../task-filter.ts'
+import type { SessionFilter, TaskFilter } from '../task-filter.ts'
 import { buildIntakePrompt, buildOnboardingPrompt, buildShellPrompt, SHELL_STATES, TASK_FLOW_MENTION_PREFIX } from './shell-data.ts'
 import { ChatTranscript, PendingInteractionCard } from './ChatPanel.tsx'
 import { ModelSettings } from './ModelSettings.tsx'
@@ -123,6 +125,14 @@ const TASK_STATUS: Record<TaskCardStatus, { readonly labelKey: LcoderWorkspaceKe
 
 const KNOWN_STATES: ReadonlySet<string> = new Set(SHELL_STATES.map(state => state.id))
 
+const SESSION_FILTER_CHOICES: readonly SessionFilter[] = ['any', 'claimed', 'active']
+
+const SESSION_FILTER_LABELS: Record<SessionFilter, LcoderWorkspaceKey> = {
+  any: 'shell.sessionAny',
+  claimed: 'shell.sessionClaimed',
+  active: 'shell.sessionActive',
+}
+
 function shellState(value: string): ShellTaskState {
   return KNOWN_STATES.has(value) ? value as ShellTaskState : 'drafting'
 }
@@ -187,6 +197,9 @@ export function Shell({
   const [drawer, setDrawer] = useState(false)
   const [revealed, setRevealed] = useState<Record<string, boolean>>({})
   const [copied, setCopied] = useState(false)
+  /** 看板筛选：低频控件，默认收起，只在判据生效时让入口带上标记。 */
+  const [filterOpen, setFilterOpen] = useState(false)
+  const [filter, setFilter] = useState<TaskFilter>(EMPTY_TASK_FILTER)
   const [tasks, setTasks] = useState<readonly ShellTask[]>([])
   const [contracts, setContracts] = useState<readonly ContractRow[]>([])
   /** 签完一次就把投影重读一遍：`contracts` 里的签名状态是文件的事实，不是界面的记忆。 */
@@ -415,6 +428,9 @@ export function Shell({
     })
   }
 
+  /** 判据下的可见任务；筛选入口上的计数就是它。 */
+  const visibleTasks = filterTasks(tasks, filter, statusOfTask)
+
   const openTask = (task: ShellTask): void => {
     setDetail(task)
     setPrompt(buildShellPrompt({ name: projectName, path: projectPath, branch: projectBranch }, task))
@@ -638,7 +654,7 @@ export function Shell({
   }
 
   const renderColumn = (state: (typeof SHELL_STATES)[number]): ReactNode => {
-    const columnTasks = tasks.filter(task => task.state === state.id)
+    const columnTasks = filterTasks(tasks.filter(task => task.state === state.id), filter, statusOfTask)
     return (
       <div key={state.id} className={css.column}>
         <div className={css.columnHead}>
@@ -715,8 +731,8 @@ export function Shell({
     <div className={css.shell} data-theme={dark ? 'dark' : 'light'} data-chrome={windowBridge === undefined ? undefined : 'custom'}>
       <header className={css.topbar} onDoubleClick={windowBridge === undefined ? undefined : onTopbarDoubleClick}>
         <div className={css.topBrand}>
-          <div className={css.topLogo}>L</div>
-          <span className={css.topTitle}>LCoder</span>
+          <div className={css.topLogo}>{t('shell.brandInitial')}</div>
+          <span className={css.topTitle}>{t('shell.brand')}</span>
         </div>
         <button type="button" className={css.topProject} title={t('shell.switchProject')} onClick={() => { setProjectPicker(true) }}>
           <span className={css.psLogo}>{(projectName || 'L').slice(0, 1).toUpperCase()}</span>
@@ -796,7 +812,60 @@ export function Shell({
           <div className={css.boardHead}>
             <h3>{t('shell.board')}</h3>
             <span className={css.boardHint}>{t('shell.boardHint')}</span>
+            {tasks.length === 0 ? null : (
+              <button
+                type="button"
+                className={`${css.filterToggle} ${isFilterActive(filter) ? css.filterToggleOn : ''}`}
+                onClick={() => { setFilterOpen(open => !open) }}
+              >
+                {t('shell.filter')}
+                {isFilterActive(filter) ? <span className={css.filterCount}>{String(visibleTasks.length)}</span> : null}
+              </button>
+            )}
           </div>
+          {filterOpen && tasks.length > 0 ? (
+            <div className={css.filterPanel}>
+              <span className={css.filterLabel}>{t('shell.filterGrade')}</span>
+              {TASK_GRADE_CHOICES.map(grade => (
+                <button
+                  type="button"
+                  key={grade}
+                  className={`${css.filterChip} ${filter.grades.includes(grade) ? css.filterChipActive : ''}`}
+                  onClick={() => {
+                    setFilter(current => ({
+                      ...current,
+                      grades: current.grades.includes(grade)
+                        ? current.grades.filter(item => item !== grade)
+                        : [...current.grades, grade],
+                    }))
+                  }}
+                >
+                  {grade}
+                </button>
+              ))}
+              <span className={css.filterLabel}>{t('shell.filterSession')}</span>
+              {SESSION_FILTER_CHOICES.map(choice => (
+                <button
+                  type="button"
+                  key={choice}
+                  className={`${css.filterChip} ${filter.session === choice ? css.filterChipActive : ''}`}
+                  onClick={() => { setFilter(current => ({ ...current, session: choice })) }}
+                >
+                  {t(SESSION_FILTER_LABELS[choice])}
+                </button>
+              ))}
+              <input
+                className={css.filterSearch}
+                type="search"
+                value={filter.text}
+                placeholder={t('shell.filterSearch')}
+                onChange={(event): void => { setFilter(current => ({ ...current, text: event.target.value })) }}
+              />
+              {isFilterActive(filter)
+                ? <button type="button" className={css.filterClear} onClick={() => { setFilter(EMPTY_TASK_FILTER) }}>{t('shell.filterClear')}</button>
+                : null}
+            </div>
+          ) : null}
           {!hasWorkspace
             ? <p className={css.empty}>{t('shell.noWorkspace')}</p>
             : loading
@@ -817,6 +886,9 @@ export function Shell({
                     <div className={css.board}>
                       {SHELL_STATES.map(state => renderColumn(state))}
                     </div>
+                    {isFilterActive(filter) && visibleTasks.length === 0
+                      ? <p className={css.filterEmpty}>{t('shell.filterEmpty')}</p>
+                      : null}
                     {tasks.length === 0 ? (
                       <div className={css.onboardingBar}>
                         <p className={css.onboardingText}>
@@ -1143,7 +1215,7 @@ export function Shell({
               <div className={css.chatHead}>
                 <div className={css.grow}>
                   <h4>{chat.id === '' ? chat.title : `${chat.id} · ${chat.title}`}</h4>
-                  <p>LCoder · {t(STATE_LABEL[chat.state])} · {t('shell.chatHint')}</p>
+                  <p>{t('shell.brand')} · {t(STATE_LABEL[chat.state])} · {t('shell.chatHint')}</p>
                 </div>
                 <span className={css.pill}>{chatRunning ? t('shell.running') : t('shell.chatReady')}</span>
                 <button
@@ -1218,7 +1290,7 @@ export function Shell({
               <div className={css.settingsGrid}>
                 <div className={css.settingRow}><div className={css.settingLabel}><span className={css.settingLabelB}>{t('shell.specRoot')}</span><span className={css.settingLabelSpan}>{specRoot || '—'}</span></div><span className={css.pill}>{t('shell.sessionBound')}</span></div>
                 <div className={css.settingRow}><div className={css.settingLabel}><span className={css.settingLabelB}>{t('shell.floating')}</span><span className={css.settingLabelSpan}>{t('shell.floatingHint')}</span></div><button type="button" className={`${css.switch} ${css.switchOn}`} /></div>
-                <div className={css.settingRow}><div className={css.settingLabel}><span className={css.settingLabelB}>{t('shell.theme')}</span><span className={css.settingLabelSpan}>Light / Dark</span></div><button type="button" className={`${css.switch} ${dark ? css.switchOn : ''}`} onClick={() => { setDark(value => !value) }} /></div>
+                <div className={css.settingRow}><div className={css.settingLabel}><span className={css.settingLabelB}>{t('shell.theme')}</span><span className={css.settingLabelSpan}>{t('shell.themeHint')}</span></div><button type="button" className={`${css.switch} ${dark ? css.switchOn : ''}`} onClick={() => { setDark(value => !value) }} /></div>
                 <div className={css.settingRow}>
                   <div className={css.settingLabel}>
                     <span className={css.settingLabelB}>{t('shell.font')}</span>
@@ -1231,7 +1303,7 @@ export function Shell({
                       aria-pressed={fontPreset === 'system'}
                       onClick={() => { setFontPreset('system') }}
                     >
-                      A · {t('shell.fontSystem')}
+                      {t('shell.fontSampleA')} {t('shell.fontSystem')}
                     </button>
                     <button
                       type="button"
@@ -1239,7 +1311,7 @@ export function Shell({
                       aria-pressed={fontPreset === 'modern'}
                       onClick={() => { setFontPreset('modern') }}
                     >
-                      B · {t('shell.fontModern')}
+                      {t('shell.fontSampleB')} {t('shell.fontModern')}
                     </button>
                   </div>
                 </div>
@@ -1251,7 +1323,7 @@ export function Shell({
         </div>
       ) : null}
 
-      <div className={css.demoBadge}>LCoder · {t('shell.realData')}</div>
+      <div className={css.demoBadge}>{t('shell.brand')} · {t('shell.realData')}</div>
     </div>
   )
 }

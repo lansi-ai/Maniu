@@ -445,6 +445,28 @@ tracks:
       dep: [T-36]
       inferred: false
       note: "B 级；用户 2026-11-05 要求桌面图标、dock 与托盘不再用默认的，并让本线直接出图。做法是先出三套真候选再让用户挑：三套都走仓内同一条管线（SVG 源经 sharp 逐尺寸栅格，托盘按 render-tray-icon.ts 的 16/20/24/32/40/48/64 七档出图），对照页给的是真实像素而不是效果图，深浅两种任务栏底各一排。用户选定 C 靛蓝底 L 加圆点，范围为桌面三处与 macOS dock；web 侧 favicon 与 PWA tile 本轮不动，但要说清它们的源就是 apps/desktop/resources/icon.svg，将来重跑 apps/web 的 render:app-icons 会一并换掉。落点五处。一、resources 的三个 SVG（icon.svg、icon-windows.svg、icon-macos.svg）与三张 PNG、tray-windows.ico 全换，靛蓝渐变板 rx 192、白色 L 用 Q 圆角肘（笔宽 136，圆头圆角）、右上圆点。二、icon.svg 守住 1104 画布与图块 translate(40 32) 的常量，因为 web 侧栅格脚本按这两个数裁投影；三、icon-windows.svg 守住 1024 画布套 1104 空间的结构并保留 id 为 tray-glyph 的组，托盘管线靠往这个组注入 1.2 倍放大来做小尺寸可读，去掉它就报 SVG requires a tray-glyph group。四、render-tray-icon.ts 只改措辞（whale 改 LCoder mark），管线与七档不变。五、补一处必要缺陷修复：createWindow 从来没给 icon，Windows 任务栏与 Alt-Tab 显示的是 Electron 默认图，现在取新增的 applicationIconPath()，关于面板与安装向导同源走这一个函数。证据：typecheck 5 关绿；apps/desktop 的 main-startup、tray-icon、installer-packaging 三个 spec 共 162 用例全绿；托盘七档实测在浅底与深底都能读出 L 与圆点，16px 那格圆点仍在。未验：重启后任务栏、Alt-Tab、托盘与安装向导关于页的目视。接触面登记八个上游文件（三个 SVG、三张 PNG、ICO、render-tray-icon.ts），并在 UPSTREAM-BASELINE 第 3 节写明装配层与插件改不了 Electron 打包图标。"
+    - id: T-40
+      title: 任务看板的筛选与搜索——分级、会话档与关键字，判据收在纯函数里
+      status: doing
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-05'
+      date: '2026-11-05'
+      dep: [T-24]
+      inferred: false
+      note: "B 级；用户在三个档位里只取「看板筛选与搜索」，用 rules 的 module 派生分轨视图、以及给 Task 加 track 字段都明确不做，所以本轮不动 schema、不动工具面、不动规则单源。轨为什么先不做：.spec 的 Task 只有 grade、state、rules、scope、evidence_required、session 六个维度，规格条目倒是有 module，但一条任务绑多条跨模块规则时归属歧义（多对多重复显示还是取首个），要先定口径再改契约。落点三处。一、新增纯函数模块 packages/lcoder/workspace/src/client/task-filter.ts，判据是分级多选、会话档 any 或 claimed 或 active（active 取在跑、等人回答、等首个回合三态）、关键字大小写不敏感命中任务号与标题与分级与规则号；判据不生效时 filterTasks 原样返回同一个数组，不复制。二、看板头加一个按需出现的筛选入口与面板，默认收起，判据生效时入口带上命中数；五列各自按判据过滤，全都不命中时给一行提示。三、面板文案全部走词典，中英各加十个键。证据：vitest packages/lcoder 30 文件 309 用例（含 task-filter 四条新测）、tsc -b tsconfig.client.json 退出 0、oxlint packages/lcoder 70 文件 0 错 0 警、workspace 两半 bundle 重打。未验：重启后目视筛选面板、命中计数与空态行。"
+    - id: T-41
+      title: 渲染层的十条硬编码文案回词典——verify-client-ui-i18n 在本仓一直是红的
+      status: done
+      face: 用户端
+      type: 缺陷
+      owner: lance
+      created: '2026-11-05'
+      date: '2026-11-05'
+      dep: [T-40]
+      inferred: false
+      note: "C 级（文案归位，不改内容与排版）。做 T-40 时顺手跑了一遍 scripts/verify-client-ui-i18n.ts，红十条，全落在 packages/lcoder/workspace 的渲染层：品牌字面量 LCoder 与首字母 L、会话副标题、演示角标、主题行的 Light / Dark、两个字体预设的 A · 与 B · 前缀、以及服务商 base URL 的示例 placeholder。来源是 T-33、T-35、T-36 三条视觉与品牌线的改动，之所以一直没被拦下：test:docs 的 21 关不含这条校验，它挂在 sharedHygieneGates 里，只有 pnpm run hygiene 才跑。处置是十处全部改走词典，新增 shell.brand、shell.brandInitial、shell.themeHint、shell.fontSampleA、shell.fontSampleB、shell.baseUrlPlaceholder 六个键，中英各一份。门禁：verify-client-ui-i18n 转绿并报 1272 个 Client UI 源文件文案全部归词典所有；tsc -b tsconfig.client.json 退出 0；vitest packages/lcoder 30 文件 309 用例；oxlint 0 错 0 警。遗留一条要用户定：这条校验要不要进快档门禁，否则下一批视觉改动还会再红一次。"
 
 milestones:
 - name: MVP-0 工作台本地跑通

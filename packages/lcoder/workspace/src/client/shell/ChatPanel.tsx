@@ -42,7 +42,7 @@ export function ChatTranscript({
   if (messages.length === 0) {
     return (
       <div className={`${css.msg} ${css.msgSys}`}>
-        <span className={css.who}>LCoder</span>
+        <span className={css.who}>{t('shell.brand')}</span>
         {running ? t('shell.chatWaiting') : t('shell.chatEmpty')}
       </div>
     )
@@ -66,7 +66,7 @@ export function ChatTranscript({
         }
         return (
           <div key={`assistant-${String(index)}`} className={`${css.msg} ${css.msgAssistant}`}>
-            <span className={css.who}>LCoder</span>
+            <span className={css.who}>{t('shell.brand')}</span>
             <div className={css.markdownBody}>
               <MarkdownText text={message.text} labels={labels} />
             </div>
