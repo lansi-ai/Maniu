@@ -12,6 +12,7 @@ import { join, resolve } from 'node:path'
 
 import { createContractSignCommand } from './commands/contract-sign.js'
 import { createTaskBindCommand } from './commands/task-bind.js'
+import { createTaskContractCommand } from './commands/task-contract.js'
 import { createEditTools, spawnRunner } from './tools/edit-tools.js'
 import { createProjectTools } from './tools/project-tools.js'
 import { createSpecTools } from './tools/spec-tools.js'
@@ -137,7 +138,7 @@ export function apply(ctx: PluginContext, config: LcoderConfig = {}): void {
     else mount()
   }
 
-  // 两条人机命令按同一个规格根解析：工具与命令读写同一份 `.spec`，否则签完收口读不到。
+  // 三条人机命令按同一个规格根解析：工具与命令读写同一份 `.spec`，否则签完收口读不到。
   const signCommand = createContractSignCommand(rootInput)
   const mountCommand = () => ctx.commands.register(signCommand)
   if (ctx.effect) ctx.effect(mountCommand, `lcoder.command(${signCommand.name})`)
@@ -149,6 +150,12 @@ export function apply(ctx: PluginContext, config: LcoderConfig = {}): void {
   if (ctx.effect) ctx.effect(mountBind, `lcoder.command(${bindCommand.name})`)
   else mountBind()
 
+  // 签完到开工之间那一步也由人点：签名与状态分开写，失败分得清。
+  const contractCommand = createTaskContractCommand(rootInput)
+  const mountContract = () => ctx.commands.register(contractCommand)
+  if (ctx.effect) ctx.effect(mountContract, `lcoder.command(${contractCommand.name})`)
+  else mountContract()
+
   if (config.selfCheck ?? true) {
     const check = checkSurface(tools.map(t => t.name))
     if (check.missing.length > 0) {
@@ -157,7 +164,7 @@ export function apply(ctx: PluginContext, config: LcoderConfig = {}): void {
     if (check.orphan.length > 0) {
       console.error(`[lcoder] 已注册但任何状态都看不到的工具：${check.orphan.join(', ')}`)
     }
-    console.error(`[lcoder] 已注册 ${tools.length} 个工具与 /${signCommand.name}、/${bindCommand.name} 命令；角色 ${role ?? '未设（只按状态收放）'}，无会话 cwd 时规格根 ${fallbackRoot}，有会话时取 session.header.cwd/.spec`)
+    console.error(`[lcoder] 已注册 ${tools.length} 个工具与 /${signCommand.name}、/${bindCommand.name}、/${contractCommand.name} 命令；角色 ${role ?? '未设（只按状态收放）'}，无会话 cwd 时规格根 ${fallbackRoot}，有会话时取 session.header.cwd/.spec`)
   }
 
 }

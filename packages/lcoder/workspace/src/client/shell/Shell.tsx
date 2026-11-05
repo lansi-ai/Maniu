@@ -43,6 +43,8 @@ export type ShellProps =
     readonly readSessionFlags?: (sessionId: SessionId) => { readonly awaitingFirstTurn: boolean; readonly failed: boolean } | null
     /** 派 `/contract_sign <编号>` 让人签署契约；签名由宿主写盘。 */
     readonly signContract?: (sessionId: SessionId, taskId: string) => Promise<ShellSignResult>
+    /** 人确认契约已签后，把任务从起草推到已签约；只推这一条边。 */
+    readonly advanceContract?: (sessionId: SessionId, taskId: string) => Promise<ShellSignResult>
     /** 派 `/task_bind <编号>` 把任务认给这条会话；认领关系由宿主写盘。 */
     readonly bindTask?: (sessionId: SessionId, taskId: string) => Promise<ShellSignResult>
     /** 在同一仓库里新开会话，可按角色（Agent preset）指名；角色只在首回合前可选。 */
@@ -141,7 +143,7 @@ function resolveSecrets(info: ShellProjectInfo, secrets: Readonly<Record<string,
  * @returns 顶栏 + 任务板 + 项目信息抽屉 + 浮层。
  */
 export function Shell({
-  t, files, openRepository, sendPrompt, signContract, bindTask, createSession, listRoles,
+  t, files, openRepository, sendPrompt, signContract, advanceContract, bindTask, createSession, listRoles,
   readMessages, subscribeSession, checkModels, subscribeModels, readSessionNotice, readSessionFlags,
   useSessions, useSessionStatus, useWorkspaces,
 }: ShellProps): ReactNode {
@@ -168,6 +170,9 @@ export function Shell({
   const [reload, setReload] = useState(0)
   const [signing, setSigning] = useState(false)
   const [signResult, setSignResult] = useState<ShellSignResult | null>(null)
+  /** 推进到已签约：与签署分开两步，各自可重试、失败也分得清。 */
+  const [advancing, setAdvancing] = useState(false)
+  const [advanceResult, setAdvanceResult] = useState<ShellSignResult | null>(null)
   const [rulesCount, setRulesCount] = useState(0)
   const [info, setInfo] = useState<ShellProjectInfo | null>(null)
   const [problems, setProblems] = useState<readonly string[]>([])
@@ -376,6 +381,22 @@ export function Shell({
       setSignResult({ ok: false, text: String(error) })
     } finally {
       setSigning(false)
+    }
+  }
+
+  /** 把选中任务推到「已签约」。签名与状态分写，这一步失败不会动签名。 */
+  const advanceSelected = async (): Promise<void> => {
+    if (detail === null || sessionId === undefined || advanceContract === undefined) return
+    setAdvancing(true)
+    setAdvanceResult(null)
+    try {
+      setAdvanceResult(await advanceContract(sessionId, detail.id))
+      setReload(value => value + 1)
+    } catch (error: unknown) {
+      // 远程调用本身失败；命令的失败回执照旧走 advanceResult。
+      setAdvanceResult({ ok: false, text: String(error) })
+    } finally {
+      setAdvancing(false)
     }
   }
 
@@ -887,6 +908,19 @@ export function Shell({
                           ? t('shell.signedByAgent')
                           : t('shell.unsigned')}
                     </p>
+                    {detailContract.signedBy !== 'human' || detail.state !== 'drafting' ? null : (
+                      <button
+                        type="button"
+                        className={css.primaryBtn}
+                        disabled={advancing || advanceContract === undefined || !hasSession}
+                        onClick={() => { void advanceSelected() }}
+                      >
+                        {advancing ? t('shell.advancing') : t('shell.advanceContracted')}
+                      </button>
+                    )}
+                    {advanceResult === null ? null : (
+                      <p className={advanceResult.ok ? css.secretRef : css.problem}>{advanceResult.text}</p>
+                    )}
                     {detailContract.signedBy === 'human' ? null : (
                       <button
                         type="button"

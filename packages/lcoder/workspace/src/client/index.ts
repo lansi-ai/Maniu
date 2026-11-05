@@ -142,6 +142,9 @@ export function apply(ctx: ClientContext, config: Config = {}): void {
      */
     const bindTask = (sessionId: SessionId, taskId: string): Promise<ShellSignResult> =>
       runHumanCommand(sessionId, `/task_bind ${taskId}`)
+    /** 人确认契约已签，把任务从起草推到已签约；只推这一条边，更往后的仍人手写 YAML。 */
+    const advanceContract = (sessionId: SessionId, taskId: string): Promise<ShellSignResult> =>
+      runHumanCommand(sessionId, `/task_contract ${taskId}`)
     /**
      * 在同一个仓库里新开会话，并按需指名角色。角色必须在首个回合之前定（之后命令面
      * 抛 `agent-preset/locked`），所以只能在创建这一步给。
@@ -226,7 +229,7 @@ export function apply(ctx: ClientContext, config: Config = {}): void {
           key: 'lcoder-home',
           locale: NS,
           inject: () => ({
-            files, openRepository, sendPrompt, signContract, bindTask, createSession, listRoles,
+            files, openRepository, sendPrompt, signContract, bindTask, advanceContract, createSession, listRoles,
             readMessages, subscribeSession, checkModels, subscribeModels, readSessionNotice, readSessionFlags,
           }),
         },

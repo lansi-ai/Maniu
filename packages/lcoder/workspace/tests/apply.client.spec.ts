@@ -153,6 +153,19 @@ describe('@lcoder/workspace apply', () => {
     } finally { await h.fiber.dispose() }
   })
 
+  it('推进到已签约同样走人机命令，回执原样带回', async () => {
+    const execute = vi.fn().mockResolvedValue({
+      ok: true,
+      value: { commandId: 'c9', result: { kind: 'success', text: 'T-01 已进入「已签约」' } },
+    })
+    const h = await boot({ shell: true }, { create: vi.fn() }, { create: vi.fn() }, { execute })
+    try {
+      const face = h.injections[0] as { advanceContract: (id: string, taskId: string) => Promise<{ ok: boolean; text: string }> }
+      expect(await face.advanceContract('s-1', 'T-01')).toEqual({ ok: true, text: 'T-01 已进入「已签约」' })
+      expect(execute.mock.calls[0]?.[1]).toBe('/task_contract T-01')
+    } finally { await h.fiber.dispose() }
+  })
+
   it('这个装配没有命令面 → 报无法签署，不假装签好了', async () => {
     const execute = vi.fn().mockResolvedValue({ ok: true, value: undefined })
     const h = await boot({ shell: true }, { create: vi.fn() }, { create: vi.fn() }, { execute })
