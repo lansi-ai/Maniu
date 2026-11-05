@@ -1,10 +1,9 @@
 /**
  * 任务卡片上的对话状态：任务↔会话的归属判据，以及把已取回的信号折成一张卡片能画的状态。
  *
- * 归属判据是**会话标题等于任务号**。标题由 `session.rename` 写进会话日志，
- * 带 `source: {kind:'user'}`，上游语义把它钉死——自动标题不再覆盖（见
- * `packages/session/session-title`），所以这条链接是持久的，重新打开应用还在。
- * 选它而不选 Task schema：不碰产品数据、不新增写盘者，kernel 仍是 `.spec` 的唯一写者。
+ * 归属判据是 `.spec/tasks/<ID>.yaml` 的 `session` 字段——规格库里的这个值是唯一权威，
+ * 卡片只投影它。会话标题降回纯显示，不再当外键：可被人改写的字段承载归属，等于让显示面
+ * 决定规格事实，违反 `.spec` 单源。字段还没写进规格库时按「未绑定」处理，不猜。
  *
  * 状态只由**已经取回的数据**折出来，这里不读盘、不调远程、不订阅：
  * 在跑与等人回答来自 `useSessionStatus` 全局 seat（宿主推流，覆盖每个列出的会话，
@@ -16,12 +15,12 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
 /** 一条会话在这条判据里用到的字段；不引上游类型面，避免把整个会话 seam 拖进外壳。 */
 export interface TaskSessionRow {
   readonly sessionId: SessionId
-  /** 宿主持久化的会话标题；任务归属只认这一项，等于任务号才算这条任务。宿主还没投影出标题时为 undefined。 */
+  /** 宿主投影出的显示标题；只用于显示，不参与归属判定。 */
   readonly title?: string | undefined
   readonly running: boolean
-  /** 还没有 `turn/start` 的会话；改名不改变它。 */
+  /** 还没有 `turn/start` 的会话。 */
   readonly blank: boolean
-  /** 宿主给出的最近活动时间（毫秒）；同一任务多条会话时取最新的一条。 */
+  /** 宿主给出的最近活动时间（毫秒）。 */
   readonly updatedAt: number
 }
 
@@ -48,21 +47,21 @@ export interface TaskCardSignals {
 }
 
 /**
- * 找出属于某个任务的会话：标题恰好等于任务号的那些里最近活动的一条。
+ * 按规格库里的 `session` 字段认领这条任务的会话。
  *
- * 只认精确相等，不做前缀匹配——`T-1` 与 `T-10` 会互相误认，而人给会话起的
- * 「DEMO-03 修好了」这类标题本来就不该被当成外键。
- * @param taskId - 任务编号，如 `DEMO-03`。
+ * 只认标识精确相等的那条：`T-1` 绑不到 `T-10` 的会话，标题像任务号也不算。
+ * 字段没写、或写着的会话不在本工作区名册里时返回 null——卡片因此说「未开始」，
+ * 而不是拿别的会话的状态冒充这条任务的状态。
+ * @param boundSessionId - `.spec/tasks/<ID>.yaml` 的 `session` 字段值；未绑定为 undefined。
  * @param sessions - 本工作区里已知的会话行。
  * @returns 归属的会话行，没有则 null。
  */
-export function taskSessionOf(taskId: string, sessions: readonly TaskSessionRow[]): TaskSessionRow | null {
-  let latest: TaskSessionRow | null = null
-  for (const row of sessions) {
-    if (row.title !== taskId) continue
-    if (latest === null || row.updatedAt > latest.updatedAt) latest = row
-  }
-  return latest
+export function claimTaskSession(
+  boundSessionId: string | undefined,
+  sessions: readonly TaskSessionRow[],
+): TaskSessionRow | null {
+  if (boundSessionId === undefined || boundSessionId === '') return null
+  return sessions.find(row => row.sessionId === boundSessionId) ?? null
 }
 
 /**

@@ -19,10 +19,10 @@ import type { ContractRow, ProjectionFilesRemote, TaskRow } from '../projection.
 import { describeOpenFailure } from '../open-failure.ts'
 import type { ModelStatus, ShellSessionNotice } from '../model-status.ts'
 import type { LcoderWorkspaceKey } from '../locales.ts'
-import { taskCardStatus, taskSessionOf } from '../task-session.ts'
+import { claimTaskSession, taskCardStatus } from '../task-session.ts'
 import type { TaskCardStatus, TaskSessionRow } from '../task-session.ts'
 import { buildOnboardingPrompt, buildShellPrompt, SHELL_STATES } from './shell-data.ts'
-import type { ShellMessage, ShellProjectInfo, ShellSignResult, ShellTask, ShellTaskState } from './shell-data.ts'
+import type { ShellCommandResult, ShellMessage, ShellProjectInfo, ShellTask, ShellTaskState } from './shell-data.ts'
 import css from './Shell.module.css'
 
 /** `main` 键控面板的组合 props：运行时标准 seat + 本包词典 + 文件投影面。 */
@@ -37,17 +37,22 @@ export type ShellProps =
     /** 向真实会话发送一条文本提示。 */
     readonly sendPrompt?: (sessionId: SessionId, text: string) => Promise<void>
     /**
-     * 为一个任务开一条专属会话，并把任务号写进会话标题；卡片按标题精确认领会话。
-     * 第一参数是工作区路径，由装配层幂等解析回同一个工作区后按 workspaceId 建会话。
+     * 为一个任务开一条专属会话。第一参数是工作区路径，由装配层幂等解析回同一个工作区后
+     * 按 workspaceId 建会话；建完再派 bindTaskToSession，归属才落进规格库。
      */
-    readonly createTaskSession?: (workspacePath: string, title: string) => Promise<SessionId>
+    readonly createTaskSession?: (workspacePath: string) => Promise<SessionId>
+    /**
+     * 派 `/task_bind <编号>` 把这条会话绑给任务；`session` 字段由 kernel 写进 `.spec`，
+     * 浏览器不碰规格库文件。
+     */
+    readonly bindTaskToSession?: (sessionId: SessionId, taskId: string) => Promise<ShellCommandResult>
     /**
      * 读会话快照里卡片要的两个状态位。
      * 只有本客户端物化过的会话读得到，读不到返回 null——卡片因此不拿「不知道」画成「失败」。
      */
     readonly readSessionFlags?: (sessionId: SessionId) => { readonly awaitingFirstTurn: boolean; readonly failed: boolean } | null
     /** 派 `/contract_sign <编号>` 让人签署契约；签名由宿主写盘。 */
-    readonly signContract?: (sessionId: SessionId, taskId: string) => Promise<ShellSignResult>
+    readonly signContract?: (sessionId: SessionId, taskId: string) => Promise<ShellCommandResult>
     /** 查宿主侧还有没有能跑的模型；没有对话就不会有回音。 */
     readonly checkModels?: () => Promise<ModelStatus>
     /** 模型目录或凭据一变就重查；返回解除订阅。 */
@@ -117,6 +122,7 @@ function toShellTask(row: TaskRow): ShellTask {
     grade: row.grade,
     rules: row.rules,
     evidence: row.evidence,
+    session: row.session,
     surface: SURFACE[state],
   }
 }
@@ -140,7 +146,7 @@ function resolveSecrets(info: ShellProjectInfo, secrets: Readonly<Record<string,
  */
 export function Shell({
   t, files, openRepository, sendPrompt, signContract, readMessages, subscribeSession,
-  checkModels, subscribeModels, readSessionNotice, createTaskSession, readSessionFlags,
+  checkModels, subscribeModels, readSessionNotice, createTaskSession, bindTaskToSession, readSessionFlags,
   useSessions, useSessionStatus, useWorkspaces,
 }: ShellProps): ReactNode {
   const workspaces = useWorkspaces(state => state.items)
@@ -163,7 +169,7 @@ export function Shell({
   /** 签完一次就把投影重读一遍：`contracts` 里的签名状态是文件的事实，不是界面的记忆。 */
   const [reload, setReload] = useState(0)
   const [signing, setSigning] = useState(false)
-  const [signResult, setSignResult] = useState<ShellSignResult | null>(null)
+  const [signResult, setSignResult] = useState<ShellCommandResult | null>(null)
   const [rulesCount, setRulesCount] = useState(0)
   const [info, setInfo] = useState<ShellProjectInfo | null>(null)
   const [problems, setProblems] = useState<readonly string[]>([])
@@ -304,7 +310,7 @@ export function Shell({
 
   /** 一张卡片的状态：先按标题认归属会话，再叠宿主推流与物化后才读得到的两位。 */
   const statusOfTask = (task: ShellTask): TaskCardStatus => {
-    const session = taskSessionOf(task.id, workspaceSessions)
+    const session = claimTaskSession(task.session, workspaceSessions)
     const pushed = session === null ? undefined : sessionStatus.get(session.sessionId)
     const flags = session !== null && session.sessionId === taskSessionId ? taskFlags : null
     return taskCardStatus({
@@ -360,10 +366,10 @@ export function Shell({
   /**
    * 为一个任务开对话：一个任务一条会话。
    *
-   * 先按任务号认领这个工作区里已有的会话，没有才新建并命名——命名走 `session.rename`
-   * 落一条用户来源的 `session/title` 事件，上游把它钉死，自动标题不再覆盖，
-   * 所以这条归属活过重开应用。「开始对话」因此不是把提示词塞进工作区的第一条会话，
-   * 那样三张卡只会共用同一个状态。
+   * 归属的权威是 `.spec/tasks/<ID>.yaml` 的 `session` 字段，所以这里先读投影里已绑定的
+   * 会话；没绑过才新建一条，并派 `/task_bind` 让 kernel 把会话写进那个字段——浏览器不碰
+   * 规格库。命令不在本装配时把那句人话原样显示出来：对话照发，但卡片下一轮仍读作未开始，
+   * 用户看得懂状态为什么接不上，而不是以为已经绑上了。
    */
   const startConversation = async (task: ShellTask): Promise<void> => {
     setChat(task)
@@ -373,19 +379,27 @@ export function Shell({
       setChatError(t('shell.noModels'))
       return
     }
-    if (sendPrompt === undefined || createTaskSession === undefined || workspace === undefined) {
+    if (sendPrompt === undefined || createTaskSession === undefined || bindTaskToSession === undefined
+      || workspace === undefined) {
       setChatError(t('shell.noSession'))
       return
     }
-    let target = taskSessionOf(task.id, workspaceSessions)?.sessionId
-    if (target === undefined) {
+    const claimed = claimTaskSession(task.session, workspaceSessions)
+    let target: SessionId
+    if (claimed !== null) {
+      target = claimed.sessionId
+    } else {
       try {
-        target = await createTaskSession(workspace.path, task.id)
+        target = await createTaskSession(workspace.path)
       } catch (error: unknown) {
-        // 命名或建会话没成；卡片继续显示未开始，不假装这条任务已经在跑。
+        // 会话没建成；卡片继续显示未开始，不假装这条任务已经在跑。
         setChatError(String(error))
         return
       }
+      const bound = await bindTaskToSession(target, task.id)
+      if (!bound.ok) setChatError(bound.text)
+      // 绑定改的是文件：重读投影，卡片才认得出这条新会话归这个任务。
+      setReload(value => value + 1)
     }
     setTaskSessionId(target)
     void sendPrompt(target, prompt).catch((error: unknown) => { setChatError(String(error)) })

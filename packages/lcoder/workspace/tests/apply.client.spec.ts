@@ -229,52 +229,58 @@ describe('@lcoder/workspace apply', () => {
     } finally { await h.fiber.dispose() }
   })
 
-  it('开任务会话：路径幂等解析回工作区，按 workspaceId 建会话，再把任务号钉进标题', async () => {
-    const rename = vi.fn().mockResolvedValue({ ok: true, value: { title: 'DEMO-03', seq: 1 } })
-    const createSession = vi.fn().mockResolvedValue('session-9')
+  it('开任务会话：路径幂等解析回工作区，会话按 workspaceId 建', async () => {
     const createWorkspace = vi.fn().mockResolvedValue({ workspaceId: 'w-1' })
+    const createSession = vi.fn().mockResolvedValue('session-9')
     const h = await boot(
       { shell: true, openTimeoutMs: 5000 },
       { create: createWorkspace },
-      { create: createSession, binding: vi.fn(() => ({ session: { rename } })) },
+      { create: createSession },
       { execute: vi.fn() },
     )
     try {
-      const face = h.injections[0] as { createTaskSession: (path: string, title: string) => Promise<string> }
-      expect(await face.createTaskSession('E:\\Projects\\demo', 'DEMO-03')).toBe('session-9')
+      const face = h.injections[0] as { createTaskSession: (path: string) => Promise<string> }
+      expect(await face.createTaskSession('E:\\Projects\\demo')).toBe('session-9')
       expect(createWorkspace).toHaveBeenCalledWith({ path: 'E:\\Projects\\demo' })
       // 只给 cwd 时宿主不会把会话挂进工作区（attachSession 只在 workspaceId 分支上），卡片会认不到。
       expect(createSession).toHaveBeenCalledWith({ workspaceId: 'w-1' })
-      expect(rename).toHaveBeenCalledWith('DEMO-03')
     } finally { await h.fiber.dispose() }
   })
 
-  it('命名被宿主拒了就说出来，不留下认不出归属的会话', async () => {
-    const h = await boot(
-      { shell: true, openTimeoutMs: 5000 },
-      { create: vi.fn().mockResolvedValue({ workspaceId: 'w-1' }) },
-      {
-        create: vi.fn().mockResolvedValue('session-9'),
-        binding: vi.fn(() => ({ session: { rename: vi.fn().mockResolvedValue({ ok: false, error: { code: 'title-invalid', message: '空的' } }) } })),
-      },
-      { execute: vi.fn() },
-    )
+  it('绑定派 /task_bind 给宿主，归属由 kernel 写进 .spec，回执那句人话原样带回', async () => {
+    const execute = vi.fn().mockResolvedValue({
+      ok: true,
+      value: { commandId: 'c1', result: { kind: 'success', text: 'DEMO-03 已绑到 session-9' } },
+    })
+    const h = await boot({ shell: true }, { create: vi.fn() }, { create: vi.fn() }, { execute })
     try {
-      const face = h.injections[0] as { createTaskSession: (path: string, title: string) => Promise<string> }
-      await expect(face.createTaskSession('E:\\Projects\\demo', 'DEMO-03')).rejects.toThrow(/title-invalid/)
+      const face = h.injections[0] as {
+        bindTaskToSession: (id: string, taskId: string) => Promise<{ ok: boolean; text: string }>
+      }
+      expect(await face.bindTaskToSession('session-9', 'DEMO-03')).toEqual({ ok: true, text: 'DEMO-03 已绑到 session-9' })
+      expect(execute.mock.calls[0]?.[1]).toBe('/task_bind DEMO-03')
     } finally { await h.fiber.dispose() }
   })
 
-  it('会话还没就绪 → 报就绪问题，不静默返回没命名的会话', async () => {
-    const h = await boot(
-      { shell: true, openTimeoutMs: 5000 },
-      { create: vi.fn().mockResolvedValue({ workspaceId: 'w-1' }) },
-      { create: vi.fn().mockResolvedValue('session-9'), binding: vi.fn(() => undefined) },
-      { execute: vi.fn() },
-    )
+  it('这个装配没有 /task_bind → 说不接得上，不静默当成已绑定', async () => {
+    const execute = vi.fn().mockResolvedValue({ ok: true, value: undefined })
+    const h = await boot({ shell: true }, { create: vi.fn() }, { create: vi.fn() }, { execute })
     try {
-      const face = h.injections[0] as { createTaskSession: (path: string, title: string) => Promise<string> }
-      await expect(face.createTaskSession('E:\\Projects\\demo', 'DEMO-03')).rejects.toThrow(/就绪/)
+      const face = h.injections[0] as {
+        bindTaskToSession: (id: string, taskId: string) => Promise<{ ok: boolean; text: string }>
+      }
+      expect(await face.bindTaskToSession('session-9', 'DEMO-03')).toEqual({ ok: false, text: 'shell.taskBindUnavailable' })
+    } finally { await h.fiber.dispose() }
+  })
+
+  it('绑定被宿主拒绝 → 交出 code 与 message，不吞原因', async () => {
+    const execute = vi.fn().mockResolvedValue({ ok: false, error: { code: 'task/not-found', message: '没有 T-99' } })
+    const h = await boot({ shell: true }, { create: vi.fn() }, { create: vi.fn() }, { execute })
+    try {
+      const face = h.injections[0] as {
+        bindTaskToSession: (id: string, taskId: string) => Promise<{ ok: boolean; text: string }>
+      }
+      expect(await face.bindTaskToSession('session-9', 'T-99')).toEqual({ ok: false, text: 'task/not-found: 没有 T-99' })
     } finally { await h.fiber.dispose() }
   })
 

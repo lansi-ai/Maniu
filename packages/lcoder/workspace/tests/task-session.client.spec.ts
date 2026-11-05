@@ -1,13 +1,14 @@
 /**
- * 任务↔会话归属与卡片状态的纯判定。
+ * 任务↔会话的归属与卡片状态的纯判定。
  *
- * 这两条判据决定了卡片会不会说谎：会话只按标题精确等于任务号来认，
- * 而「在跑」「等人回答」只有宿主推流说了才算——快照读不到时不能拿空闲冒充失败。
+ * 归属的权威是 `.spec/tasks/<ID>.yaml` 的 `session` 字段，不是会话标题：可被人改写的
+ * 显示字段承载归属就违反 `.spec` 单源。状态侧要钉住的是「读不到不冒充」——快照没物化
+ * 时不能把不知道画成空闲或失败。
  */
 import { describe, expect, it } from 'vitest'
 
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import { taskCardStatus, taskSessionOf } from '../src/client/task-session.ts'
+import { claimTaskSession, taskCardStatus } from '../src/client/task-session.ts'
 import type { TaskSessionRow } from '../src/client/task-session.ts'
 
 const id = (value: string): SessionId => value as SessionId
@@ -23,34 +24,30 @@ function row(overrides: Omit<Partial<TaskSessionRow>, 'sessionId'> & { sessionId
 }
 
 describe('任务到会话的归属', () => {
-  it('标题精确等于任务号才算这条任务的会话', () => {
-    const sessions = [row({ sessionId: 's-1', title: 'DEMO-03' }), row({ sessionId: 's-2', title: 'DEMO-04' })]
-    expect(taskSessionOf('DEMO-03', sessions)?.sessionId).toBe(id('s-1'))
+  it('字段等于会话标识才认领这条会话', () => {
+    const sessions = [row({ sessionId: 's-1' }), row({ sessionId: 's-2' })]
+    expect(claimTaskSession('s-1', sessions)?.sessionId).toBe(id('s-1'))
   })
 
-  it('没有标题相等的会话时返回 null，不拿最新活动的那条兜底', () => {
-    const sessions = [row({ sessionId: 's-1', title: '别的会话', updatedAt: 90 })]
-    expect(taskSessionOf('DEMO-03', sessions)).toBeNull()
+  it('字段没写就是未绑定，不挑一条看起来最像的', () => {
+    expect(claimTaskSession(undefined, [row({ sessionId: 's-1', title: 'DEMO-03' })])).toBeNull()
   })
 
-  it('前缀相同不等于同一任务，避免 T-1 认领 T-10 的会话', () => {
-    expect(taskSessionOf('T-1', [row({ sessionId: 's-1', title: 'T-10' })])).toBeNull()
+  it('字段是空串时同样算未绑定', () => {
+    expect(claimTaskSession('', [row({ sessionId: 's-1' })])).toBeNull()
   })
 
-  it('人起的会话名不当外键', () => {
-    expect(taskSessionOf('DEMO-03', [row({ sessionId: 's-1', title: 'DEMO-03 修好了' })])).toBeNull()
+  it('字段指向不在本工作区名册里的会话时不冒充认领成功', () => {
+    expect(claimTaskSession('session-elsewhere', [row({ sessionId: 's-1' })])).toBeNull()
   })
 
-  it('同一任务多条会话时取最近活动的一条', () => {
-    const sessions = [
-      row({ sessionId: 's-old', title: 'DEMO-03', updatedAt: 100 }),
-      row({ sessionId: 's-new', title: 'DEMO-03', updatedAt: 200 }),
-    ]
-    expect(taskSessionOf('DEMO-03', sessions)?.sessionId).toBe(id('s-new'))
+  it('标识按精确相等比，前缀相同不算同一条会话', () => {
+    expect(claimTaskSession('session-1', [row({ sessionId: 'session-10' })])).toBeNull()
   })
 
-  it('没有标题的会话行不参与归属（宿主还没投影出标题）', () => {
-    expect(taskSessionOf('DEMO-03', [row({ sessionId: 's-1', updatedAt: 500 })])).toBeNull()
+  it('会话标题不参与归属：它只是显示', () => {
+    const sessions = [row({ sessionId: 's-1', title: 'DEMO-03' }), row({ sessionId: 's-2' })]
+    expect(claimTaskSession('s-2', sessions)?.sessionId).toBe(id('s-2'))
   })
 })
 
@@ -86,8 +83,8 @@ describe('卡片状态', () => {
       .toBe('awaitingFirstTurn')
   })
 
-  it('改名不算内容：还没有 turn/start 的会话是未开始', () => {
-    expect(taskCardStatus({ session: row({ sessionId: 's-1', blank: true, title: 'DEMO-03' }) })).toBe('unstarted')
+  it('会话建了但还没起过回合（blank）是未开始，不画空闲', () => {
+    expect(taskCardStatus({ session: row({ sessionId: 's-1', blank: true }) })).toBe('unstarted')
   })
 
   it('快照也读不到、也没有 running 的会话只说空闲，不猜失败', () => {

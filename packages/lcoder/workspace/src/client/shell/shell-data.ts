@@ -19,6 +19,8 @@ export interface ShellTask {
   readonly rules: readonly string[]
   readonly evidence: readonly string[]
   readonly surface: string
+  /** `.spec/tasks/<ID>.yaml` 的 `session` 字段：这条任务的对话归哪条会话；未绑定为 undefined。 */
+  readonly session?: string | undefined
 }
 
 /** 项目类型决定是否展示环境信息。 */
@@ -71,11 +73,11 @@ export interface ShellMessage {
 }
 
 /**
- * 一次签署命令的回执。
+ * 一次人机命令的回执（签署契约，或把任务绑到会话）。
  * `text` 是宿主给出的那句人话（写了哪个文件、签名覆盖哪一版正文），
  * 外壳原样显示，不改写也不本地化——那句话属于宿主。
  */
-export interface ShellSignResult {
+export interface ShellCommandResult {
   readonly ok: boolean
   readonly text: string
 }
