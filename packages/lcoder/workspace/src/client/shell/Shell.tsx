@@ -532,6 +532,9 @@ export function Shell({
                   <span className={`${css.tag} ${TASK_STATUS[status].className ?? ''}`}>{t(TASK_STATUS[status].labelKey)}</span>
                   {compact ? null : task.rules.map(rule => <span key={rule} className={css.tag}>{rule}</span>)}
                   {compact ? null : <span className={`${css.tag} ${task.state === 'closed' ? css.tagOk : ''}`}>{task.surface}</span>}
+                  {compact || !contracts.some(row => row.id === task.id && row.signedBy === 'human')
+                    ? null
+                    : <span className={`${css.tag} ${css.tagOk}`}>{t('shell.contractSigned')}</span>}
                 </div>
               </button>
             )
