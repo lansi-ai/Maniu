@@ -1,6 +1,5 @@
 import { installFileActions } from './file-actions.ts'
 import type { ProductEventMap, ProductEvent } from '@deepseek-ai/dsh-client-product-analytics/types'
-import { WINDOWS_TITLEBAR_HEIGHT } from './windows-layout.ts'
 /** Electron shell: desktop project ownership, custom protocol, windows, and lifecycle. */
 
 import { access, readFile, writeFile } from 'node:fs/promises'
@@ -264,9 +263,11 @@ function createWindow(preload: string, show = false, primary = false): BrowserWi
     minHeight: 600,
     show,
     ...(process.platform === 'win32' && primary ? {
-      titleBarStyle: 'hidden' as const,
-      titleBarOverlay: { height: WINDOWS_TITLEBAR_HEIGHT, color: chromeFallbackFill(),
-        symbolColor: nativeTheme.shouldUseDarkColors ? '#f9fafb' : '#0f1115' },
+      // LCoder draws the titlebar in its shell: no native caption or menu bar.
+      // thickFrame stays enabled so edge resizing and Win+Arrow snapping remain.
+      frame: false as const,
+      thickFrame: true,
+      autoHideMenuBar: true,
     } : {}),
     // hiddenInset places traffic lights inside the sidebar; sidebar vibrancy
     // needs a transparent window background to show through the page.
@@ -1115,6 +1116,27 @@ async function main(): Promise<void> {
   })
 
   if (process.platform === 'win32') {
+    const primaryWindow = (event: IpcMainInvokeEvent): BrowserWindow => {
+      assertDesktopSender(event, ['app'])
+      if (mainWindow === undefined || event.sender !== mainWindow.webContents
+        || event.senderFrame !== mainWindow.webContents.mainFrame) throw new Error('desktop window: rejected sender')
+      return mainWindow
+    }
+    ipcMain.handle(DESKTOP_IPC.windowCommand, (event, command: unknown) => {
+      const window = primaryWindow(event)
+      if (command === 'minimize') { window.minimize(); return }
+      if (command === 'toggle-maximize') {
+        if (window.isMaximized()) window.unmaximize()
+        else window.maximize()
+        return
+      }
+      if (command === 'close') { window.close(); return }
+      throw new Error('desktop window: invalid command')
+    })
+    ipcMain.handle(DESKTOP_IPC.windowState, (event) => {
+      const window = primaryWindow(event)
+      return { maximized: window.isMaximized(), fullscreen: window.isFullScreen() }
+    })
     ipcMain.handle(DESKTOP_IPC.windowsMenu, (event, name: unknown, x: unknown, y: unknown) => {
       assertDesktopSender(event, ['app'])
       if (mainWindow === undefined || event.sender !== mainWindow.webContents
@@ -1171,6 +1193,22 @@ async function main(): Promise<void> {
   const createMainWindow = (): BrowserWindow => {
     const window = createWindow(appPreload, false, true)
     mainWindow = window
+    if (process.platform === 'win32') {
+      // The self-drawn titlebar mirrors maximize/fullscreen transitions; a reload re-reads them.
+      const sendWindowState = (): void => {
+        if (window.isDestroyed()) return
+        window.webContents.send(DESKTOP_IPC.windowStateChanged, {
+          maximized: window.isMaximized(),
+          fullscreen: window.isFullScreen(),
+        })
+      }
+      window.on('maximize', sendWindowState)
+      window.on('unmaximize', sendWindowState)
+      window.on('restore', sendWindowState)
+      window.on('enter-full-screen', sendWindowState)
+      window.on('leave-full-screen', sendWindowState)
+      window.webContents.on('did-finish-load', sendWindowState)
+    }
     browserGuests.bind(window, (guest, name) => shortcuts.attachGuest(window, guest, name))
     shortcuts.attach(window)
     window.on('focus', automaticCheck)

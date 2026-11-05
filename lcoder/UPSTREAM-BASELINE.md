@@ -62,7 +62,13 @@ upstream = deepseek-ai/deepseek-harness
 | `tsconfig.host.json` | 一行：`references` 里加 `./packages/lcoder/kernel` | 同理，host 聚合编译靠 references 把包划进工程边界。kernel 的测试被 `packages/*/*/tests/**/*.ts` 收进了 host 聚合，但 kernel 的 src 不在任何工程里，编译直接报 TS6307 |
 | `AGENTS.md` | 顶部新增「LCoder 二次开发入口」两行：规则、看板、产品文档指针 | 上游根入口是任何 AI 工具的第一落点；没有这段，工具不会自动读到 LCoder 的治理文件 |
 | `apps/desktop/src/locale.ts` | 用户可见品牌串：welcomeTitle / welcomeBrand / welcomeTaglineBrand（加载与欢迎页）、关于菜单、隐藏/退出/打开应用、退出确认、启动失败、更新标题，`DeepSeek Harness` 全部改为 `LCoder`；中英的 welcomeKeyDescription 改成中性说法 | 这是产品品牌面：桌面端欢迎页与系统菜单直接显示上游产品名。该文件是桌面壳文案的单源，没有配置覆盖入口；欢迎页在主进程里先于插件树渲染，装配层换不掉 |
-
+| `apps/desktop/src/main.ts` | Windows 主窗改 `frame: false`，去掉原生 caption 与 `titleBarOverlay`；新增窗口最小化/最大化/关闭与状态查询 IPC，并在 maximize/unmaximize/fullscreen 时推状态 | LCoder 要求自绘标题栏；原生 caption 无法从页面隐藏。frameless 保留 `thickFrame`，拖边缩放与 Win+方向键不变 |
+| `apps/desktop/src/ipc.ts` | 增加 windowCommand / windowState / windowStateChanged 三个私有通道与 DesktopWindowBridge 类型 | 自绘窗口按钮与最大化态需要主进程配合 |
+| `apps/desktop/src/preload-app.ts` | Windows 下暴露 `dshDesktop.window`、标记 `data-lcoder-custom-chrome`，并停用 `syncWindowsAppearance` 的挂载 | 外壳需要窗口按钮的 invoke/订阅面；HTML menubar 与 40px 标题栏占位由它安装，自绘后不再需要；自定义壳标记让主面板占满窗口 |
+| `packages/client/ui-layout/src/client/AppFrame.tsx` | 读取 `data-lcoder-custom-chrome`，把侧栏折叠宽度从 56px 收成 0 | 自绘标题栏后不再有 caption rail；不收起会留一条空轨道，外壳无法占满窗口 |
+| `apps/desktop/tests/main-startup.spec.ts` | 窗口创建断言从 `titleBarOverlay` 改为 `frame: false`，补窗口命令/状态用例 | 行为变更必须由测试钉住 |
+| `packages/client/ui-layout/src/client/AppFrame.tsx` | 自绘标题栏生效时（`data-lcoder-custom-chrome`）把左侧栏 rail 宽度归零、不再进 drawer 判定 | 壳自己画窗口按钮与顶部条后，上游那套 Windows caption 与图标 rail 的占位会让主面板缩进去；这是装配层无法覆盖的布局分支 |
+| `apps/desktop/tests/preload-app.spec.ts` | 删除 Windows appearance 挂载断言 | 该挂载已停用 |
 规矩：改动写在文件里的 `lcoder:` 前缀注释下，方便 grep 定位，也方便升级时用 `git diff upstream/master...HEAD -- <文件>` 一眼看清。
 
 ---

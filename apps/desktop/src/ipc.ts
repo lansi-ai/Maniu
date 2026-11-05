@@ -37,9 +37,31 @@ export const DESKTOP_IPC = {
   updatesPresentation: 'dsh-desktop:updates-presentation',
   nativeThemeSet: 'dsh-desktop:native-theme-set',
   windowFullscreen: 'dsh-desktop:window-fullscreen',
+  windowCommand: 'dsh-desktop:window-command',
+  windowState: 'dsh-desktop:window-state',
+  windowStateChanged: 'dsh-desktop:window-state-changed',
   windowsAppearance: 'dsh-desktop:windows-appearance',
   windowsMenu: 'dsh-desktop:windows-menu',
 } as const
+
+/** Window chrome commands accepted by the main process. */
+export type DesktopWindowCommand = 'minimize' | 'toggle-maximize' | 'close'
+
+/** Live window chrome state consumed by the self-drawn titlebar. */
+export interface DesktopWindowState {
+  readonly maximized: boolean
+  readonly fullscreen: boolean
+}
+
+/** Window chrome operations exposed only by Windows desktop documents. */
+export interface DesktopWindowBridge {
+  /** Minimize, toggle maximize, or request close (the main process applies its close policy). */
+  command(command: DesktopWindowCommand): Promise<void>
+  /** Current maximize and fullscreen state. */
+  state(): Promise<DesktopWindowState>
+  /** Subscribe to maximize and fullscreen transitions; returns the unsubscribe function. */
+  subscribe(listener: (state: DesktopWindowState) => void): () => void
+}
 
 /** Desktop release update state rendered by desktop-owned UI. */
 export type DesktopUpdatePreparationFailureKind = 'stop-failed' | 'tasks-changed' | 'tasks-unavailable' | 'fullscreen-timeout'
@@ -85,6 +107,8 @@ export interface DshDesktopProductApi {
   readonly fileDrag: DesktopFileDrag
   readonly keyboard: DesktopKeyboardApi
   readonly shortcuts: DesktopShortcutsApi
+  /** Self-drawn window chrome; absent on macOS and in Web documents that keep native chrome. */
+  readonly window?: DesktopWindowBridge
   /**
    * Local machine description for the feedback questionnaire.
    * @returns `name=value` fields separated by `; `, with no hostname, user name, or serial number.

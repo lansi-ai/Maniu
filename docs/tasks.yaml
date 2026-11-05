@@ -390,7 +390,7 @@ tracks:
       note: "B 级。用户 2026-11-05 要求去掉首屏的上游登录（本产品用 API key 接模型，登录、配额与引导遮罩暂时用不到）。取证：首屏是 packages/client/ui-settings-account 注册的 shell.overlay/desktop-onboarding 遮罩，同插件还给设置里的 settings.models.sign-in 与 shell.quota-notice 供座。处置：装配层禁用该插件，不动上游代码——提交版 lcoder/desktop-profile.patch.yml 增加 disabled 行，运行副本 apps/desktop/.desktop-build/development/home/profiles/desktop/cordis.patch.yml 在既有行上加 disabled: true（不再新增重复 id）。影响面：账户登录与配额提示消失；模型配置、目录、工作台均不依赖它。待重启后目视确认首屏不再出现且工作台正常。"
     - id: T-35
       title: 界面现代化——苹果风配色与排版、字体与字号、卡片尺寸
-      status: todo
+      status: doing
       face: 用户端
       type: 开发
       owner: lance
@@ -398,7 +398,9 @@ tracks:
       date: '2026-11-05'
       dep: [T-33]
       inferred: false
-      note: "B 级（视觉改造，不动契约）。用户 2026-11-05 的原话要求：整体更现代、偏苹果系统设计风格；字体用微软雅黑或更苹果化的字体；字号大一些；卡片大一些，现在的看起来太累。范围：先做一层视觉 token（字体栈与字级、间距、圆角、阴影、状态色、深浅两套），再核到外壳的看板与浮层上；字体栈按系统可用性给回退（-apple-system 与本机无来源，退 Segoe UI 与 Microsoft YaHei），字号与卡片尺寸的改动要把点击区与截断一起核。排在 T-33 之后：两者都改 Shell.module.css 与词典，并行会撞同一批文件；合完 T-33 再开。验收只认桌面真窗口，深浅两套都要看，原生滚动条与控制件也要跟随。"
+      note: "A 级（视觉改造 + Windows 窗口壳自绘；追加后触及上游 desktop 窗口层）。用户 2026-11-05 的原话要求：整体更现代、偏苹果系统设计风格；字体用微软雅黑或更苹果化的字体；字号大一些；卡片大一些，现在的看起来太累。范围：先做一层视觉 token（字体栈与字级、间距、圆角、阴影、状态色、深浅两套），再核到外壳的看板与浮层上；字体栈按系统可用性给回退（-apple-system 与本机无来源，退 Segoe UI 与 Microsoft YaHei），字号与卡片尺寸的改动要把点击区与截断一起核。排在 T-33 之后：两者都改 Shell.module.css 与词典，并行会撞同一批文件；合完 T-33 再开。验收只认桌面真窗口，深浅两套都要看，原生滚动条与控制件也要跟随。落地 2026-11-05：视觉 token 全部收进 Shell.module.css（字体栈回退 Segoe UI Variable 与微软雅黑、正文 15px、间距/圆角/阴影/状态色、深浅两套），上游原语的 --dsw-alias-* 与原生滚动条变量在壳内重绑，color-scheme 随主题切换；顶栏、看板五列与卡片、任务详情、浮层对话、设置与模型配置页共用同一套 token，未改行为与词典。门禁 2026-11-05：pnpm run typecheck（5 项全绿）、pnpm exec vitest run packages/lcoder（26 文件 297 测试全绿）、pnpm exec oxlint packages/lcoder（0 警告 0 错误）；桌面真窗口深浅两套看板与浮层截图已出，等待用户点头后收口。启动脚本 start-desktop.ps1 在本 worktree 带双重 BOM、PowerShell 解析失败，本次按底层 pnpm run start:desktop 启动，未改该脚本。追加 2026-11-05：用户要求去掉系统 titlebar、自绘窗口栏并去掉「应用 / 编辑」菜单。实现：Windows 主窗改 frame:false（保留 thickFrame，仍可拖边缩放与 Win+方向键），桌面 preload 新增 window.command/state/subscribe 三件套，外壳顶栏改为可拖拽标题栏并加最小化/最大化/关闭；不再挂载 Windows HTML menubar 与 40px 标题栏占位，原生快捷键与右键菜单保留。代价：失去最大化按钮的 Snap Layouts 悬停面板。上游接触面 main.ts、ipc.ts、preload-app.ts 与两份测试已登记到 contact-surface 与 UPSTREAM-BASELINE 第 3 节。自绘实现 2026-11-05：Windows 主窗 frame:false（thickFrame 保留拖边缩放与 Win+方向键）、preload 暴露 window.command/state/subscribe、外壳顶栏作可拖拽标题栏并加最小化/最大化/关闭（浮层与遮罩从顶栏下方开始，窗口按钮始终可点）、移除 HTML menubar 与 40px 标题栏占位、AppFrame 读 data-lcoder-custom-chrome 收掉空侧栏。真窗口实测：全宽 1280、无「应用 / 编辑」、最大化/还原/双击标题栏均通过，深浅两套截图已出。门禁 typecheck 5 项、vitest packages/lcoder 27 文件 299 例、apps/desktop 定向 3 文件 179 例、oxlint 0 警告 0 错误、test:docs 21 项全绿。代价：失去最大化按钮的 Snap Layouts 悬停面板。追加 2026-11-05：running 卡片加 2.4s 低透明度 accent 跑马灯描边（绝对定位伪元素 + conic-gradient mask，边框宽度不变，浅色 32% / 深色 34%），prefers-reduced-motion 退静态描边；单测钉住六态只有 running 带类，T-24 的态本身未改。"
+
+
     - id: T-36
       title: 品牌侧去 DeepSeek Harness——加载与欢迎页、系统菜单改名
       status: doing
