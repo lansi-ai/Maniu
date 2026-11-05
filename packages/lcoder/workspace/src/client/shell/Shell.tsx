@@ -170,6 +170,8 @@ export function Shell({
 
   const [workspaceId, setWorkspaceId] = useState<string | null>(null)
   const [dark, setDark] = useState(false)
+  /** 字体预设：A 系统、B 现代；默认 B，用户看完两档再定。 */
+  const [fontPreset, setFontPreset] = useState<'system' | 'modern'>('modern')
   /** Windows 桌面自绘标题栏；Web 与 macOS 没有这个桥，不画窗口按钮。 */
   const windowBridge = useMemo(() => desktopWindowBridge(), [])
   const [windowMaximized, setWindowMaximized] = useState(false)
@@ -355,6 +357,13 @@ export function Shell({
       unsubscribe()
     }
   }, [windowBridge])
+
+  /** 字体预设写到 html，body 与壳共用同一份 --lc-preset-font。 */
+  useEffect(() => {
+    const root = document.documentElement
+    root.dataset.lcoderFont = fontPreset
+    return () => { delete root.dataset.lcoderFont }
+  }, [fontPreset])
 
   useEffect(() => {
     if (chat === null || chatSessionId === undefined || readMessages === undefined || subscribeSession === undefined) {
@@ -1209,6 +1218,30 @@ export function Shell({
                 <div className={css.settingRow}><div className={css.settingLabel}><span className={css.settingLabelB}>{t('shell.specRoot')}</span><span className={css.settingLabelSpan}>{specRoot || '—'}</span></div><span className={css.pill}>{t('shell.sessionBound')}</span></div>
                 <div className={css.settingRow}><div className={css.settingLabel}><span className={css.settingLabelB}>{t('shell.floating')}</span><span className={css.settingLabelSpan}>{t('shell.floatingHint')}</span></div><button type="button" className={`${css.switch} ${css.switchOn}`} /></div>
                 <div className={css.settingRow}><div className={css.settingLabel}><span className={css.settingLabelB}>{t('shell.theme')}</span><span className={css.settingLabelSpan}>Light / Dark</span></div><button type="button" className={`${css.switch} ${dark ? css.switchOn : ''}`} onClick={() => { setDark(value => !value) }} /></div>
+                <div className={css.settingRow}>
+                  <div className={css.settingLabel}>
+                    <span className={css.settingLabelB}>{t('shell.font')}</span>
+                    <span className={css.settingLabelSpan}>{t('shell.fontHint')}</span>
+                  </div>
+                  <div className={css.fontPresets} role="group" aria-label={t('shell.font')}>
+                    <button
+                      type="button"
+                      className={`${css.fontOption} ${fontPreset === 'system' ? css.fontOptionOn : ''}`}
+                      aria-pressed={fontPreset === 'system'}
+                      onClick={() => { setFontPreset('system') }}
+                    >
+                      A · {t('shell.fontSystem')}
+                    </button>
+                    <button
+                      type="button"
+                      className={`${css.fontOption} ${fontPreset === 'modern' ? css.fontOptionOn : ''}`}
+                      aria-pressed={fontPreset === 'modern'}
+                      onClick={() => { setFontPreset('modern') }}
+                    >
+                      B · {t('shell.fontModern')}
+                    </button>
+                  </div>
+                </div>
                 <div className={css.settingRow}><div className={css.settingLabel}><span className={css.settingLabelB}>{t('shell.plugins')}</span><span className={css.settingLabelSpan}>{t('shell.onlySettings')}</span></div><span className={css.pill}>{t('shell.hidden')}</span></div>
               </div>
             </div>
