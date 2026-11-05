@@ -309,7 +309,17 @@ tracks:
       dep: [T-22]
       inferred: false
       note: "B 级（若需要 Task schema 加会话关联则升 A 并先与用户确认）；分支 lcoder/t24-card-status，worktree .worktrees/t24-card-status，桌面 inspector 端口登记表 main 9349 / renderer 9342 / host 9350。现状已核：客户端 SessionSnapshot 暴露 sessionId、pendingSubmissions、running、subagent、removed、openState、openError、hasMore、loadingOlder、promptError、blank、lastAgentError、promptAttempted、awaitingFirstTurn（packages/api/session-controller/src/client/contract/snapshot.ts:69-91，buildSnapshot 见 sessions/session.ts:925-951）；外壳现在只用 useSessions(state => state.byId) 行上的 cwd 与 running 两项（workspace/src/client/shell/Shell.tsx:118、154-155、161），细粒度字段要走 ctx.sessions.binding(id).session.getSnapshot()；卡片渲染段 renderColumn 在 Shell.tsx:348-375，只画编号、分级、标题、规则标签与工具面文案，没有任何对话状态；任务与会话目前是唯一对应（工作区取 sessionIds[0]，Shell.tsx:151-153），Task schema 里没有会话关联字段——这条是本任务真正要先定的口径。范围：定出任务到会话的映射判据并显示到卡片上（在跑、等待首个回合、空闲、失败、已完结），失败取 promptError 与 lastAgentError。验收只认桌面端手点。"
-
+    - id: T-28
+      title: 空目录下规格根角标仍显示真实路径，看起来像已立项
+      status: todo
+      face: 用户端
+      type: 缺陷
+      owner: lance
+      created: '2026-11-05'
+      date: '2026-11-05'
+      dep: [T-23]
+      inferred: false
+      note: "C 级（≤3 文件、无契约变更）。T-23 在桌面实测中发现：仓库还没有 `.spec` 时，任务详情弹窗与项目信息抽屉里的「规格根」仍显示拼出来的真实路径 `<仓库>/.spec`，看上去像已经存在一个规格库，属误导。范围：没有 `.spec` 时该处显示「还没有规格库」并给出立项入口，不显示路径；文案进词典中英双份，遵循 locale-owned。发现来源是 T-23 的改动前后对照记录，它自己判定未纳入该条范围，故单独立项以免烂在 note 里。验收只认桌面端手点。"
 
 milestones:
 - name: MVP-0 工作台本地跑通

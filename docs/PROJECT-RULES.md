@@ -16,9 +16,9 @@ English | [中文](PROJECT-RULES.zh.md)
 ## 1. Hard red lines (project-specific · never violate)
 
 - 🚫 Do not modify any upstream file. When a modification is genuinely required, first add the file to [contact-surface.txt](../lcoder/contact-surface.txt) and record what and why in [UPSTREAM-BASELINE.md](../lcoder/UPSTREAM-BASELINE.md) §3.
-- 🚫 The task and specification YAML under `.spec` is the single source of truth for **LCoder product data**; the UI only reads it, and state-machine decisions never live in the UI. It is not this repository's development task ledger. The kernel is the only writer: a model may file a `drafting` task through `task_draft`, and may not advance task state, sign a contract, or edit specification entries.
+- 🚫 The task and specification YAML under `.spec` is the single source of truth for **LCoder product data**; the UI only reads it, and state-machine decisions never live in the UI. It is not this repository's development task ledger. The kernel is the only writer: a model may file a `drafting` task through `task_draft`, may create a `draft` specification entry through `spec_draft`, and may write `.spec/project.yaml` through `project_draft`; it may not advance task state, sign a contract, or edit a specification entry that already exists.
 - 🚫 The target platform is Windows desktop; handle paths Windows-first (drive letters, backslashes, case-insensitive).
-- 🚫 `contract_sign` is never registered as a model tool; only a human may sign a contract, and `by: agent` is invalid. It is registered on the human-command surface instead, and P3 invalidates a signature whose hash no longer covers the contract body.
+- 🚫 `contract_sign` and `task_bind` are never registered as model tools: the first signs a contract, the second writes which session claims a task. Only a human may invoke them and `by: agent` is invalid. They live on the human-command surface, and P3 invalidates a signature whose hash no longer covers the contract body.
 - 🚫 Prefer adding over modifying; upstream changes touch only the assembly layer (patch layer, aggregate tsconfig), never component internals.
 - 🚫 Every new contact point requires human review; `upstream-diff.sh` reports conflicts but cannot judge how deep a change goes.
 - ✅ Every specification entry needs a source and a code binding; an entry without a source may not be `confirmed`.
@@ -36,6 +36,7 @@ English | [中文](PROJECT-RULES.zh.md)
 | Host plugin (agent tools) | `packages/lcoder/kernel/src/` |
 | Browser-side plugin (workbench UI) | `packages/lcoder/workspace/src/client/` |
 | Second-development assembly, baseline, and scripts | `lcoder/` |
+| Role presets (committed assembly source) | `lcoder/desktop-profile.patch.yml`; the running copy lives in the gitignored desktop home |
 | Repository governance documents | `docs/PROJECT-RULES.md`, `docs/active-context.md`, `docs/prd-and-design.md` |
 | Development ledger (dev-flow) | `docs/tasks.yaml` (human-maintained, the single source of development progress) |
 | Offline task board | `docs/tasks-html/index.html` (generated from `docs/tasks.yaml`, never edited by hand) |

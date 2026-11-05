@@ -16,9 +16,9 @@
 ## 1. 硬约束红线（项目专属 · 永不违反）
 
 - 🚫 不改任何上游文件；确需修改必须先进 [contact-surface.txt](../lcoder/contact-surface.txt)，并在 [UPSTREAM-BASELINE.md](../lcoder/UPSTREAM-BASELINE.md) §3 写明「改什么 / 为什么」。
-- 🚫 `.spec` 下的任务与规格 YAML 是 **LCoder 产品数据**的唯一事实源；UI 只读不写，状态机判断不进 UI。它不是本仓库的开发任务台账。kernel 是唯一写入口：模型可以经 `task_draft` 新建 `drafting` 任务，但不能推进状态、不能签契约、不能改规格条目。
+- 🚫 `.spec` 下的任务与规格 YAML 是 **LCoder 产品数据**的唯一事实源；UI 只读不写，状态机判断不进 UI。它不是本仓库的开发任务台账。kernel 是唯一写入口：模型可以经 `task_draft` 新建 `drafting` 任务、经 `spec_draft` 新建 `draft` 规格条目、经 `project_draft` 写 `.spec/project.yaml`，但不能推进状态、不能签契约、不能改**已存在**的规格条目。
 - 🚫 目标平台是 Windows 桌面端；路径处理按 Windows 优先（盘符、反斜杠、大小写不敏感）。
-- 🚫 `contract_sign` 永不注册为模型工具；契约只能由人签署，`by: agent` 视为无效。它注册在人机命令面上，且签名哈希不再覆盖当前正文时 P3 判签名作废。
+- 🚫 `contract_sign` 与 `task_bind` 永不注册为模型工具：前者签契约，后者写「哪条会话认领哪条任务」。只有人能触发它们，`by: agent` 视为无效。它们注册在人机命令面上，且签名哈希不再覆盖当前正文时 P3 判签名作废。
 - 🚫 能新增就不修改；改上游只改装配层（patch 层、聚合 tsconfig），不碰组件内部实现。
 - 🚫 新增接触点必须人工评审；`upstream-diff.sh` 只报冲突，不判断改动深度。
 - ✅ 规格条目必须有出处与代码落点；没有出处的条目不得置为 `confirmed`。
@@ -36,6 +36,7 @@
 | 宿主插件（agent 工具） | `packages/lcoder/kernel/src/` |
 | 浏览器侧插件（工作台 UI） | `packages/lcoder/workspace/src/client/` |
 | 二开装配、基线与脚本 | `lcoder/` |
+| 角色 preset（可提交的装配源） | `lcoder/desktop-profile.patch.yml`；运行副本在被忽略的桌面 home 里 |
 | 仓库治理文档 | `docs/PROJECT-RULES.md`、`docs/active-context.md`、`docs/prd-and-design.md` |
 | 开发台账（dev-flow） | `docs/tasks.yaml`（人维护，开发进度唯一源） |
 | 离线任务看板 | `docs/tasks-html/index.html`（由 `docs/tasks.yaml` 生成，勿手改） |
