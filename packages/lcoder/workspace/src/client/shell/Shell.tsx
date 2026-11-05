@@ -16,6 +16,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { loadLocalSecrets, loadProjectInfo, loadWorkspaceProjection } from '../projection.ts'
 import type { ContractRow, ProjectionFilesRemote, ProposalRow, TaskRow } from '../projection.ts'
+import type { ExpertPrompt, ExpertRow } from '../experts.ts'
 import { describeOpenFailure } from '../open-failure.ts'
 import type { ModelStatus, ShellSessionNotice } from '../model-status.ts'
 import type { LcoderWorkspaceKey } from '../locales.ts'
@@ -62,6 +63,9 @@ export type ShellProps =
     readonly createSession?: (path: string, agentPreset?: string) => Promise<SessionId>
     /** 装配层声明的角色名册；读不到时外壳只走宿主默认角色。 */
     readonly listRoles?: () => Promise<readonly ShellRole[]>
+    /** 专家名册（宿主真实注册的全部 preset）与单个专家的提示词、声明原文。 */
+    readonly listExperts?: () => Promise<readonly ExpertRow[]>
+    readonly readExpert?: (id: string) => Promise<ExpertPrompt | null>
     /** 查宿主侧还有没有能跑的模型；没有对话就不会有回音。 */
     readonly checkModels?: () => Promise<ModelStatus>
     /** 模型目录或凭据一变就重查；返回解除订阅。 */
@@ -181,6 +185,7 @@ function resolveSecrets(info: ShellProjectInfo, secrets: Readonly<Record<string,
  */
 export function Shell({
   t, files, openRepository, sendPrompt, signContract, advanceContract, approveProposal, bindTask, createSession, listRoles,
+  listExperts, readExpert,
   readMessages, subscribeSession, holdSession, checkModels, subscribeModels, readSessionNotice, readSessionFlags, modelSettings,
   useSessions, useSessionStatus, useWorkspaces, chatSize,
 }: ShellProps): ReactNode {
@@ -211,6 +216,11 @@ export function Shell({
   /** 看板筛选：低频控件，默认收起，只在判据生效时让入口带上标记。 */
   const [filterOpen, setFilterOpen] = useState(false)
   const [filter, setFilter] = useState<TaskFilter>(EMPTY_TASK_FILTER)
+  /** 设置里的专家面板：名册与提示词都在展开时才读，不跟启动抢一次远程调用。 */
+  const [expertsOpen, setExpertsOpen] = useState(false)
+  const [experts, setExperts] = useState<readonly ExpertRow[]>([])
+  const [expertPrompts, setExpertPrompts] = useState<Record<string, ExpertPrompt | null>>({})
+  const [shownExpert, setShownExpert] = useState<string | null>(null)
   const [tasks, setTasks] = useState<readonly ShellTask[]>([])
   const [contracts, setContracts] = useState<readonly ContractRow[]>([])
   /** 签完一次就把投影重读一遍：`contracts` 里的签名状态是文件的事实，不是界面的记忆。 */
@@ -537,6 +547,30 @@ export function Shell({
     } finally {
       setApproving(false)
     }
+  }
+
+  /** 展开专家面板时才读名册：设置页是低频入口，不该在启动路径上多一次远程调用。 */
+  const toggleExperts = (): void => {
+    const next = !expertsOpen
+    setExpertsOpen(next)
+    if (next && experts.length === 0 && listExperts !== undefined) {
+      void listExperts().then(setExperts).catch(() => { setExperts([]) })
+    }
+  }
+
+  /** 展开某位专家：提示词与声明原文来自 `agentPresets.read`，读一次就缓存。 */
+  const toggleExpert = (id: string): void => {
+    if (shownExpert === id) {
+      setShownExpert(null)
+      return
+    }
+    setShownExpert(id)
+    if (expertPrompts[id] !== undefined || readExpert === undefined) return
+    void readExpert(id).then((prompt) => {
+      setExpertPrompts(current => ({ ...current, [id]: prompt }))
+    }).catch(() => {
+      setExpertPrompts(current => ({ ...current, [id]: null }))
+    })
   }
 
   /** 复制到仓外开工才补技能引用；发进本会话的提示词保持编辑器里那份。 */
@@ -1388,6 +1422,49 @@ export function Shell({
                     </button>
                   </div>
                 </div>
+                <div className={css.settingRow}>
+                  <div className={css.settingLabel}>
+                    <span className={css.settingLabelB}>{t('shell.experts')}</span>
+                    <span className={css.settingLabelSpan}>{t('shell.expertsHint')}</span>
+                  </div>
+                  <button type="button" className={css.filterChip} onClick={toggleExperts}>
+                    {expertsOpen ? t('shell.expertsCollapse') : t('shell.expertsOpen')}
+                  </button>
+                </div>
+                {expertsOpen ? (
+                  <div className={css.expertList}>
+                    {experts.length === 0
+                      ? <p className={css.secretRef}>{t('shell.expertsEmpty')}</p>
+                      : experts.map((expert) => {
+                        const prompt = expertPrompts[expert.id]
+                        return (
+                          <div key={expert.id} className={css.expertItem}>
+                            <button type="button" className={css.expertHead} onClick={() => { toggleExpert(expert.id) }}>
+                              <span className={css.expertName}>{expert.name}</span>
+                              <span className={css.expertId}>{expert.id}</span>
+                              {expert.broken === undefined ? null
+                                : <span className={`${css.tag} ${css.tagDanger}`}>{t('shell.expertBroken')}</span>}
+                            </button>
+                            {expert.description === undefined ? null : <p className={css.expertDesc}>{expert.description}</p>}
+                            {expert.broken === undefined ? null : <p className={css.problem}>{expert.broken}</p>}
+                            {shownExpert !== expert.id ? null : prompt === undefined
+                              ? <p className={css.secretRef}>{t('shell.expertLoading')}</p>
+                              : prompt === null
+                                ? <p className={css.problem}>{t('shell.expertReadFailed')}</p>
+                                : (
+                                  <>
+                                    <p className={css.expertPrompt}>{prompt.prompt ?? t('shell.expertNoPersona')}</p>
+                                    <details className={css.expertDoc}>
+                                      <summary>{t('shell.expertDocument')}</summary>
+                                      <pre className={css.expertDocBody}>{prompt.document}</pre>
+                                    </details>
+                                  </>
+                                )}
+                          </div>
+                        )
+                      })}
+                  </div>
+                ) : null}
                 <div className={css.settingRow}><div className={css.settingLabel}><span className={css.settingLabelB}>{t('shell.plugins')}</span><span className={css.settingLabelSpan}>{t('shell.onlySettings')}</span></div><span className={css.pill}>{t('shell.hidden')}</span></div>
               </div>
             </div>

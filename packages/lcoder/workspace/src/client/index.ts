@@ -40,6 +40,8 @@ import { noticeFromSnapshot, statusFromCatalog, statusOfFailure } from './model-
 import type { ModelStatus, ShellSessionNotice } from './model-status.ts'
 import { en, zh } from './locales.ts'
 import { loadWorkspaceProjection, PAGE_LINES } from './projection.ts'
+import { expertsFromRoster, personaPromptOf } from './experts.ts'
+import type { ExpertPrompt, ExpertRow } from './experts.ts'
 import { messagesFromEntries } from './shell/shell-data.ts'
 import type { ShellMessage, ShellRole, ShellSignResult } from './shell/shell-data.ts'
 import { DEFAULT_CHAT_SIZE, Shell } from './shell/Shell.tsx'
@@ -262,6 +264,20 @@ export function apply(ctx: ClientContext, config: Config = {}): void {
         .map(row => (row.name === undefined ? { id: row.id } : { id: row.id, name: row.name }))
     }
     /**
+     * 专家名册：宿主真实注册的全部 preset，按装配声明的 order 排。
+     * 这里不筛 `lcoder` 前缀——用户问的是内置了多少个专家，筛掉上游那几个会让数字说谎。
+     */
+    const listExperts = async (): Promise<readonly ExpertRow[]> => {
+      const roster = await ctx.remote.agentPresets.list()
+      return roster.ok ? expertsFromRoster(roster.value.presets) : []
+    }
+    /** 一位专家的提示词与声明原文；读不到返回 null，由面板就地说明是查询失败还是没声明 persona。 */
+    const readExpert = async (id: string): Promise<ExpertPrompt | null> => {
+      const result = await ctx.remote.agentPresets.read(id)
+      if (!result.ok) return null
+      return { id, document: result.value.content, prompt: personaPromptOf(result.value.content) }
+    }
+    /**
      * 宿主侧还有没有能跑的模型。目录查询本身失败时报 unknown 而不是 empty：
      * 查询故障不能当成「没有凭据」，否则我们会把一次网络问题说成配置缺失。
      */
@@ -323,6 +339,7 @@ export function apply(ctx: ClientContext, config: Config = {}): void {
           locale: NS,
           inject: () => ({
             files, openRepository, sendPrompt, signContract, bindTask, advanceContract, approveProposal, createSession, listRoles,
+            listExperts, readExpert,
             readMessages, subscribeSession, holdSession, checkModels, subscribeModels, readSessionNotice, readSessionFlags, modelSettings,
             chatSize,
           }),

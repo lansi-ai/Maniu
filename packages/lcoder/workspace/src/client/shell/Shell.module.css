@@ -341,6 +341,16 @@
 .filterClear { border: 0; background: none; color: var(--lc-brand); font: 500 var(--lc-text-xs) / 1 var(--lc-font-ui); cursor: pointer; padding: 5px 6px; }
 .filterClear:hover { text-decoration: underline; }
 .filterEmpty { grid-column: 1 / -1; text-align: center; font-size: var(--lc-text-xs); color: var(--lc-faint); padding: var(--lc-space-4) 0; }
+.expertList { display: flex; flex-direction: column; gap: 10px; margin: 2px 0 14px; }
+.expertItem { border: 1px solid var(--lc-line); border-radius: var(--lc-radius-md); background: var(--lc-surface); padding: 10px 12px; }
+.expertHead { display: flex; align-items: center; gap: 8px; border: 0; background: none; padding: 0; cursor: pointer; text-align: left; font: inherit; color: var(--lc-ink); }
+.expertName { font-size: var(--lc-text-sm); font-weight: 600; }
+.expertId { font: 400 var(--lc-text-xs) / 1 var(--lc-font-mono); color: var(--lc-faint); }
+.expertDesc { margin: 6px 0 0; font-size: var(--lc-text-xs); color: var(--lc-muted); line-height: var(--lc-leading); }
+.expertPrompt { margin: 8px 0 0; padding: 8px 10px; border-left: 2px solid var(--lc-brand); background: var(--lc-surface-2); border-radius: 0 var(--lc-radius-sm) var(--lc-radius-sm) 0; font: 400 var(--lc-text-xs) / var(--lc-leading) var(--lc-font-mono); white-space: pre-wrap; color: var(--lc-ink); }
+.expertDoc { margin-top: 8px; }
+.expertDoc > summary { cursor: pointer; font-size: var(--lc-text-xs); color: var(--lc-brand); }
+.expertDocBody { margin: 8px 0 0; padding: 8px 10px; border: 1px solid var(--lc-line); border-radius: var(--lc-radius-sm); background: var(--lc-surface-2); font: 400 var(--lc-text-xs) / var(--lc-leading) var(--lc-font-mono); white-space: pre; overflow-x: auto; color: var(--lc-muted); }
 .board { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; align-items: start; }
 .column { background: var(--lc-surface-2); border: 1px solid var(--lc-line); border-radius: var(--lc-radius-lg); padding: var(--lc-space-3); min-height: 160px; min-width: 0; }
 .columnHead { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--lc-space-3); padding: 0 4px; }
