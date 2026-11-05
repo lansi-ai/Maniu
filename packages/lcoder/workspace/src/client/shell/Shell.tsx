@@ -8,7 +8,7 @@
  * 外壳占用 `main` 的 `lcoder-home` 键；DSH 原生侧栏在桌面 profile 里禁用，
  * 启动时折叠空轨道，主面板占满窗口。
  */
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
@@ -22,6 +22,8 @@ import type { LcoderWorkspaceKey } from '../locales.ts'
 import { claimTaskSession, taskCardStatus } from '../task-session.ts'
 import type { TaskCardStatus, TaskSessionRow } from '../task-session.ts'
 import { buildIntakePrompt, buildOnboardingPrompt, buildShellPrompt, SHELL_STATES } from './shell-data.ts'
+import { ModelSettings } from './ModelSettings.tsx'
+import type { ModelSettingsFace } from './model-settings.ts'
 import type { ShellMessage, ShellProjectInfo, ShellRole, ShellSignResult, ShellTask, ShellTaskState } from './shell-data.ts'
 import css from './Shell.module.css'
 
@@ -55,6 +57,8 @@ export type ShellProps =
     readonly checkModels?: () => Promise<ModelStatus>
     /** 模型目录或凭据一变就重查；返回解除订阅。 */
     readonly subscribeModels?: (listener: () => void) => () => void
+    /** 设置页的模型服务数据面；缺省时设置弹窗不显示模型服务区。 */
+    readonly modelSettings?: ModelSettingsFace
     /** 读会话快照里的失败：准入被拒，或这一轮没跑起来。 */
     readonly readSessionNotice?: (sessionId: SessionId) => ShellSessionNotice | null
     /** 读真实会话的消息窗口。 */
@@ -144,7 +148,7 @@ function resolveSecrets(info: ShellProjectInfo, secrets: Readonly<Record<string,
  */
 export function Shell({
   t, files, openRepository, sendPrompt, signContract, advanceContract, bindTask, createSession, listRoles,
-  readMessages, subscribeSession, checkModels, subscribeModels, readSessionNotice, readSessionFlags,
+  readMessages, subscribeSession, checkModels, subscribeModels, readSessionNotice, readSessionFlags, modelSettings,
   useSessions, useSessionStatus, useWorkspaces,
 }: ShellProps): ReactNode {
   const workspaces = useWorkspaces(state => state.items)
@@ -185,6 +189,8 @@ export function Shell({
   const [notice, setNotice] = useState<ShellSessionNotice | null>(null)
   /** null 表示还没查过；`empty` 才是「没有能跑的模型」，`unknown` 是查询本身失败。 */
   const [modelStatus, setModelStatus] = useState<ModelStatus | null>(null)
+  /** 设置页存完 key 后立刻重查一次；订阅的那路是兜底。 */
+  const modelRefresh = useRef<() => void>(() => {})
   const [chatError, setChatError] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
   /** 装配层声明的角色名册；读不到就是空表，新会话走宿主默认角色。 */
@@ -300,6 +306,7 @@ export function Shell({
       void checkModels().then((status) => { if (alive) setModelStatus(status) })
     }
     refresh()
+    modelRefresh.current = refresh
     const unsubscribe = subscribeModels?.(refresh) ?? (() => {})
     return () => {
       alive = false
@@ -1042,15 +1049,24 @@ export function Shell({
 
       {settings ? (
         <div className={css.modalBackdrop} onClick={(event) => { if (event.target === event.currentTarget) setSettings(false) }}>
-          <div className={`${css.modal} ${css.modalSmall}`}>
+          <div className={`${css.modal} ${css.settingsModal}`}>
             <div className={css.modalHead}>
               <div className={css.grow}><h3>{t('shell.settings')}</h3><p>{t('shell.settingsHint')}</p></div>
               <button type="button" className={css.iconBtn} onClick={() => { setSettings(false) }}>✕</button>
             </div>
             <div className={css.modalBody}>
+              {modelSettings === undefined
+                ? null
+                : (
+                  <ModelSettings
+                    face={modelSettings}
+                    sessionId={sessionId}
+                    t={t}
+                    onChanged={() => { modelRefresh.current() }}
+                  />
+                )}
               <div className={css.settingsGrid}>
                 <div className={css.settingRow}><div className={css.settingLabel}><span className={css.settingLabelB}>{t('shell.specRoot')}</span><span className={css.settingLabelSpan}>{specRoot || '—'}</span></div><span className={css.pill}>{t('shell.sessionBound')}</span></div>
-                <div className={css.settingRow}><div className={css.settingLabel}><span className={css.settingLabelB}>{t('shell.model')}</span><span className={css.settingLabelSpan}>DeepSeek-V4.1-Flash High</span></div><span className={css.pill}>{t('shell.default')}</span></div>
                 <div className={css.settingRow}><div className={css.settingLabel}><span className={css.settingLabelB}>{t('shell.floating')}</span><span className={css.settingLabelSpan}>{t('shell.floatingHint')}</span></div><button type="button" className={`${css.switch} ${css.switchOn}`} /></div>
                 <div className={css.settingRow}><div className={css.settingLabel}><span className={css.settingLabelB}>{t('shell.theme')}</span><span className={css.settingLabelSpan}>Light / Dark</span></div><button type="button" className={`${css.switch} ${dark ? css.switchOn : ''}`} onClick={() => { setDark(value => !value) }} /></div>
                 <div className={css.settingRow}><div className={css.settingLabel}><span className={css.settingLabelB}>{t('shell.plugins')}</span><span className={css.settingLabelSpan}>{t('shell.onlySettings')}</span></div><span className={css.pill}>{t('shell.hidden')}</span></div>

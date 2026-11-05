@@ -22,8 +22,10 @@ import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
+import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type { SettingsNamespaceView } from '@deepseek-ai/dsh-api-remotes/client'
 import { WORKSPACE_ID, workspaceDefinition } from './definition.ts'
 import { withOpenDeadline } from './open-failure.ts'
 import { noticeFromSnapshot, statusFromCatalog, statusOfFailure } from './model-status.ts'
@@ -33,6 +35,8 @@ import { loadWorkspaceProjection, PAGE_LINES } from './projection.ts'
 import { messagesFromEntries } from './shell/shell-data.ts'
 import type { ShellMessage, ShellRole, ShellSignResult } from './shell/shell-data.ts'
 import { Shell } from './shell/Shell.tsx'
+import { createModelSettingsFace } from './shell/model-settings.ts'
+import type { ModelSettingsFace, ModelSettingsRemote } from './shell/model-settings.ts'
 import { WorkspaceBody } from './WorkspaceBody.tsx'
 import type { ProjectionFilesRemote } from './projection.ts'
 import type { WorkspaceInject } from './WorkspaceBody.tsx'
@@ -73,7 +77,7 @@ export const name = '@lcoder/workspace'
 /** 浏览器侧必需的服务：槽位运行时、词典、页签注册表、远程文件面、命令面、角色名册、会话面、布局与工作区。 */
 export const inject = [
   'slots', 'locale', 'sidebarRightTabs', 'remote', 'remote.workspaceFiles', 'remote.commands', 'remote.session',
-  'remote.agentPresets', 'layout', 'workspaces', 'sessions',
+  'remote.llm', 'remote.settings', 'remote.credentials', 'remote.agentPresets', 'layout', 'workspaces', 'sessions',
 ]
 
 /**
@@ -95,6 +99,42 @@ function workspaceInject(ctx: ClientContext): (sessionId: SessionId) => Workspac
     const files = projectionFiles(ctx)
     return { projection: (id: SessionId, signal: AbortSignal) => loadWorkspaceProjection(files, id, signal) }
   }
+}
+
+/**
+ * 读一个命名空间声明的协议枚举；设置 schema 服务缺席时为空。
+ * @param ctx - 客户端根 context。
+ * @param view - 该命名空间的设置视图。
+ * @returns 协议标识，按 schema 顺序。
+ */
+function protocolChoices(ctx: ClientContext, view: SettingsNamespaceView): readonly string[] {
+  const service = ctx.get('settingsSchema')
+  if (service === undefined) return []
+  const node = service.nodeAtPath(service.rehydrate(view.schema), ['providers', '\u0000probe', 'api'])
+  const list = node as { type?: string; list?: readonly { value?: unknown }[] } | undefined
+  if (list?.type !== 'union' || list.list === undefined) return []
+  return list.list.map(entry => entry.value).filter((value): value is string => typeof value === 'string')
+}
+
+/**
+ * 把 ctx.remote 收成设置页的窄面；页面因此不拿 ctx。
+ * @param ctx - 客户端根 context。
+ * @returns 设置页的读取与写入面。
+ */
+function modelSettingsFace(ctx: ClientContext): ModelSettingsFace {
+  const remote: ModelSettingsRemote = {
+    listProviders: () => ctx.remote.llm.listProviders(),
+    listConfigurableProviders: () => ctx.remote.llm.listConfigurableProviders(),
+    describeSettings: () => ctx.remote.settings.describe(),
+    describeCredentials: refs => ctx.remote.credentials.describe([...refs]),
+    setCredential: (ref, value) => ctx.remote.credentials.set(ref, value),
+    unsetCredential: ref => ctx.remote.credentials.unset(ref),
+    mutateSettings: (ns, ops, revision) => ctx.remote.settings.mutate(ns, ops, revision),
+    discoverModels: (ns, request) => ctx.remote.llm.discoverModels(ns, request),
+    modelCatalog: () => ctx.remote.session.modelCatalog(),
+    selectModel: request => ctx.remote.session.selectModel(request),
+  }
+  return createModelSettingsFace(remote, { protocols: view => protocolChoices(ctx, view) })
 }
 
 /**
@@ -188,10 +228,15 @@ export function apply(ctx: ClientContext, config: Config = {}): void {
       const disposers = [
         ctx.remote.$on('llm/models-updated', listener),
         ctx.remote.$on('llm/adapters-updated', listener),
+        // 存密钥发的是 reference-updated；record-updated 只照顾账户记录。
+        ctx.remote.$on('credentials/reference-updated', listener),
         ctx.remote.$on('credentials/record-updated', listener),
+        // base URL 与手加路线都走 settings 文档；改完同样要重查。
+        ctx.remote.$on('settings/document-updated', listener),
       ]
       return () => { for (const dispose of disposers) dispose() }
     }
+    const modelSettings = modelSettingsFace(ctx)
     /** 会话快照里的失败：准入被拒，或这一轮没跑起来。事件流里没有这些东西。 */
     const readSessionNotice = (sessionId: SessionId): ShellSessionNotice | null => {
       const binding = ctx.sessions.binding(sessionId)
@@ -230,7 +275,7 @@ export function apply(ctx: ClientContext, config: Config = {}): void {
           locale: NS,
           inject: () => ({
             files, openRepository, sendPrompt, signContract, bindTask, advanceContract, createSession, listRoles,
-            readMessages, subscribeSession, checkModels, subscribeModels, readSessionNotice, readSessionFlags,
+            readMessages, subscribeSession, checkModels, subscribeModels, readSessionNotice, readSessionFlags, modelSettings,
           }),
         },
         Shell,

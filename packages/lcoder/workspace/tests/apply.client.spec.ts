@@ -57,20 +57,36 @@ async function boot(
   ctx.provide('slots', slots as never)
   ctx.provide('locale', locale as never)
   // 正文注册时会把 workspaceFiles 窄化成投影面；这里只看注册形状，远程面给空壳即可。
-  const $on = vi.fn((_event: string, _listener: () => void): () => void => vi.fn())
-  ctx.provide('remote', { workspaceFiles: {}, commands, session, agentPresets, $on } as never)
+  const listeners = new Map<string, Set<() => void>>()
+  const $on = vi.fn((event: string, listener: () => void): (() => void) => {
+    const set = listeners.get(event) ?? new Set<() => void>()
+    set.add(listener)
+    listeners.set(event, set)
+    return () => { set.delete(listener) }
+  })
+  const llm = { listProviders: vi.fn(), listConfigurableProviders: vi.fn(), discoverModels: vi.fn() }
+  const settings = { describe: vi.fn(), mutate: vi.fn() }
+  const credentials = { describe: vi.fn(), set: vi.fn(), unset: vi.fn() }
+  ctx.provide('remote', { workspaceFiles: {}, commands, session, agentPresets, llm, settings, credentials, $on } as never)
   ctx.provide('remote.workspaceFiles', {} as never)
   ctx.provide('remote.commands', commands as never)
   ctx.provide('remote.session', session as never)
   ctx.provide('remote.agentPresets', agentPresets as never)
+  ctx.provide('remote.llm', llm as never)
+  ctx.provide('remote.settings', settings as never)
+  ctx.provide('remote.credentials', credentials as never)
   ctx.provide('workspaces', workspaces as never)
   ctx.provide('sessions', sessions as never)
   ctx.provide('layout', { selectPanel, toggleSidebar } as never)
+  /** 触发某个远程事件的本地监听。 */
+  const emit = (event: string): void => {
+    for (const listener of listeners.get(event) ?? []) listener()
+  }
   const fiber = ctx.plugin({ inject: [...inject], apply }, config)
   await fiber.await()
   return {
     ctx, tabs, registered, dictionaries, fiber, slots, locale, selectPanel, toggleSidebar,
-    injections, commands, session, agentPresets, $on,
+    injections, commands, session, agentPresets, $on, emit,
   }
 }
 
@@ -229,9 +245,24 @@ describe('@lcoder/workspace apply', () => {
       h.$on.mockReturnValue(disposeOne)
       face.subscribeModels(() => {})()
       expect(h.$on.mock.calls.map(call => call[0])).toEqual([
-        'llm/models-updated', 'llm/adapters-updated', 'credentials/record-updated',
+        'llm/models-updated', 'llm/adapters-updated', 'credentials/reference-updated',
+        'credentials/record-updated', 'settings/document-updated',
       ])
-      expect(disposeOne).toHaveBeenCalledTimes(3)
+      expect(disposeOne).toHaveBeenCalledTimes(5)
+    } finally { await h.fiber.dispose() }
+  })
+
+  it('存密钥发出的 reference-updated 也会触发重查', async () => {
+    const modelCatalog = vi.fn().mockResolvedValue({ ok: true, value: { routableProviders: [], groups: [], default: null } })
+    const h = await boot({ shell: true }, { create: vi.fn() }, { create: vi.fn() }, { execute: vi.fn() }, { modelCatalog })
+    try {
+      const face = h.injections[0] as { subscribeModels: (listener: () => void) => () => void }
+      const listener = vi.fn()
+      face.subscribeModels(listener)
+      h.emit('credentials/reference-updated')
+      expect(listener).toHaveBeenCalledTimes(1)
+      h.emit('settings/document-updated')
+      expect(listener).toHaveBeenCalledTimes(2)
     } finally { await h.fiber.dispose() }
   })
 

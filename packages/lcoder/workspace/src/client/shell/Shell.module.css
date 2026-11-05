@@ -352,3 +352,42 @@
   .boardWindow { inset: 0 130px 120px 0; }
   .chatWindow { width: 380px; height: 460px; }
 }
+
+/* 设置弹窗里的模型服务区：分组行表 + 行内编辑卡。 */
+.settingsModal { width: min(880px, 100%); }
+.modelSection { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--lc-line); border-radius: 12px; background: var(--lc-surface-2); }
+.modelSectionHead { display: flex; align-items: flex-start; gap: 10px; }
+.modelSectionHead h4 { margin: 0 0 2px; font-size: 14px; }
+.modelSectionHead p { margin: 0; font-size: 11.5px; color: var(--lc-muted); }
+.modelGroup { display: grid; gap: 6px; }
+.modelGroupTitle { font-size: 11px; font-weight: 600; color: var(--lc-muted); margin-top: 4px; }
+.modelRow { border: 1px solid var(--lc-line); border-radius: 10px; background: var(--lc-surface); overflow: hidden; }
+.modelRowMain { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 11px; border: 0; background: transparent; color: var(--lc-ink); text-align: left; }
+.modelRowMain:hover { background: var(--lc-surface-2); }
+.modelRowName { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.modelName { font-size: 12.5px; font-weight: 600; }
+.modelId { font: 10.5px/1.4 ui-monospace, SFMono-Regular, Consolas, monospace; color: var(--lc-faint); }
+.modelRowMeta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.modelChevron { width: 12px; text-align: center; color: var(--lc-muted); font-size: 11px; }
+.modelEditor { display: grid; gap: 10px; padding: 10px 12px 12px; border-top: 1px solid var(--lc-line); }
+.modelEditorHead { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.modelErrorInline { font-size: 11px; color: var(--lc-status-danger); }
+.modelField { display: grid; gap: 5px; }
+.modelLabel { font-size: 11.5px; color: var(--lc-muted); }
+.modelInline { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.modelInput { min-width: 0; flex: 1; border: 1px solid var(--lc-line); border-radius: 9px; padding: 7px 9px; background: var(--lc-surface); color: var(--lc-ink); font-size: 12px; }
+.modelInput:disabled { opacity: .55; }
+.modelTextarea { min-height: 64px; resize: vertical; border: 1px solid var(--lc-line); border-radius: 9px; padding: 7px 9px; background: var(--lc-surface); color: var(--lc-ink); font: 11.5px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.modelHint { margin: 0; font-size: 10.5px; color: var(--lc-faint); }
+.modelNotice { margin: 0; font-size: 11px; color: var(--lc-muted); background: var(--lc-surface-3); border-radius: 8px; padding: 6px 8px; }
+.modelError { margin: 0; font-size: 11px; color: var(--lc-status-danger); }
+.modelDetails { border: 1px solid var(--lc-line); border-radius: 10px; padding: 6px 10px; background: var(--lc-surface-2); }
+.modelSummary { cursor: pointer; font-size: 11.5px; color: var(--lc-muted); }
+.modelDetailsBody { display: grid; gap: 9px; padding-top: 8px; }
+.modelModelList { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; max-height: 190px; overflow: auto; }
+.modelModelRow { display: flex; align-items: center; gap: 8px; font-size: 11.5px; padding: 4px 6px; border-radius: 7px; background: var(--lc-surface); }
+.modelDiscovered { display: grid; gap: 4px; }
+.modelAddForm { display: grid; gap: 9px; padding: 12px; border: 1px dashed var(--lc-line); border-radius: 10px; background: var(--lc-surface); }
+.dangerBtn { border: 1px solid var(--lc-line); background: var(--lc-surface); color: var(--lc-status-danger); border-radius: 9px; padding: 8px 13px; }
+.dangerBtn:hover { background: var(--lc-surface-3); }
+.dangerBtn:disabled { opacity: .5; cursor: not-allowed; }
