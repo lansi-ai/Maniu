@@ -18,12 +18,11 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
-import { parse as parseYaml } from 'yaml'
 
-import { Env } from '../schema/spec.js'
 import type { Command } from '../schema/spec.js'
+import { loadEnv } from '../kernel/env-store.js'
 import { resolveRoot } from '../kernel/spec-root.js'
-import type { RootInput } from '../kernel/spec-root.js'
+import type { RootInput, SpecRootContext } from '../kernel/spec-root.js'
 import { assertTaskId } from '../kernel/task-store.js'
 
 const renderJson = (_args: unknown, value: unknown): { type: 'text'; text: string }[] => [
@@ -110,10 +109,6 @@ export function resolveInsideDir(root: string, relPath: string): string {
   return abs
 }
 
-function loadEnv(root: string): Env {
-  return Env.parse(parseYaml(readFileSync(join(root, 'env.yaml'), 'utf8')))
-}
-
 export interface EditToolDeps {
   run?: CommandRunner
   /**
@@ -121,6 +116,34 @@ export interface EditToolDeps {
    * `evidence/`；文件工具必须读仓库根，默认仍是规格根以兼容独立使用。
    */
   repoRoot?: RootInput
+  /**
+   * 这条会话所属任务的 `scope.allowed_paths`。返回 null 或空数组表示没有声明范围，
+   * 此时 `file_edit` 不额外拦；返回非空列表就是硬闸，不在前缀下的写入一律拒绝。
+   */
+  scope?: (context: SpecRootContext | undefined) => readonly string[] | null
+}
+
+/** 路径分隔符归一：Windows 上 `relative` 的结果带反斜杠，前缀比较按正斜杠做。 */
+function posixPath(value: string): string {
+  return value.split(sep).join('/')
+}
+
+/**
+ * 按任务声明的范围拦写入。
+ * @param paths - 任务的 `allowed_paths`；null 与空数组都不设限。
+ * @param relPath - 相对仓库根的目标路径。
+ */
+function assertInScope(paths: readonly string[] | null, relPath: string): void {
+  if (paths === null || paths.length === 0) return
+  const target = posixPath(relPath)
+  const prefixes = paths.map(path => posixPath(path))
+  const inside = prefixes.some(prefix =>
+    target === prefix || target.startsWith(prefix.endsWith('/') ? prefix : `${prefix}/`))
+  if (!inside) {
+    throw new Error(
+      `这条任务的范围只允许改：${prefixes.join('、')}。要改 ${target} 得先改任务的 scope.allowed_paths，或换一条任务——这是代码里的闸，不是提示词。`,
+    )
+  }
 }
 
 export function createEditTools(rootInput: RootInput, deps: EditToolDeps = {}): ToolDefinition[] {
@@ -240,6 +263,7 @@ export function createEditTools(rootInput: RootInput, deps: EditToolDeps = {}): 
       async execute(args, exec) {
         const root = resolveRoot(fileRootInput, exec)
         const abs = resolveInsideRoot(root, args.path)
+        assertInScope(deps.scope?.(exec) ?? null, relative(root, abs))
         mkdirSync(dirname(abs), { recursive: true })
         writeFileSync(abs, args.content, 'utf8')
         return { path: args.path, bytes: Buffer.byteLength(args.content, 'utf8'), written: true }

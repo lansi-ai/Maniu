@@ -11,6 +11,7 @@
 import { join, resolve } from 'node:path'
 
 import { createContractSignCommand } from './commands/contract-sign.js'
+import { createDeployCommand } from './commands/deploy.js'
 import { createProposalApproveCommand } from './commands/proposal-approve.js'
 import { createTaskBindCommand } from './commands/task-bind.js'
 import { createTaskContractCommand } from './commands/task-contract.js'
@@ -24,7 +25,7 @@ import { allowedTools, checkSurface, parseRole } from './kernel/surface.js'
 import { hasSpecRoot, resolveRoot, sessionSpecRoot } from './kernel/spec-root.js'
 import type { RootInput, SpecRootContext } from './kernel/spec-root.js'
 import { listTasks, pickTaskForSession } from './kernel/task-store.js'
-import type { TaskState } from './schema/spec.js'
+import type { Task, TaskState } from './schema/spec.js'
 
 export const name = 'lcoder'
 
@@ -97,19 +98,13 @@ export function apply(ctx: PluginContext, config: LcoderConfig = {}): void {
   const rootInput: RootInput = context => sessionSpecRoot(context, fallbackRoot)
   // 规格根保存 env/evidence；文件工具必须读仓库根（规格根的上一级）。
   const repoRootInput: RootInput = context => resolve(rootInput(context), '..')
-  const tools = [
-    ...createProjectTools(rootInput),
-    ...createSpecTools(rootInput),
-    ...createTaskTools(rootInput),
-    ...createProposalTools(rootInput),
-    ...createGitTools(repoRootInput),
-    ...createEditTools(rootInput, { run: spawnRunner, repoRoot: repoRootInput }),
-  ]
-
   const taskId = config.taskId
   const reportedRoots = new Set<string>()
-  /** 每次求值时都重读磁盘：契约签了、任务转移了，工具面立刻跟着变。 */
-  const currentState = (context?: SpecRootContext): TaskState | null => {
+  /**
+   * 每次求值都重读磁盘：契约签了、任务转移了，工具面与写入范围立刻跟着变。
+   * 返回 null 表示这条会话没有可依据的任务（没有 `.spec`，或 `tasks/` 是空的）。
+   */
+  const currentTask = (context?: SpecRootContext): Task | null => {
     try {
       const root = resolveRoot(rootInput, context)
       if (!reportedRoots.has(root)) {
@@ -119,8 +114,7 @@ export function apply(ctx: PluginContext, config: LcoderConfig = {}): void {
       // 没有规格根 = 这个仓库还没立项，走空看板最小面。
       if (!hasSpecRoot(root)) return null
       const tasks = listTasks(root)
-      const task = pickTaskForSession(tasks, context?.agent?.session.header.id, taskId)
-      return task?.state ?? null
+      return pickTaskForSession(tasks, context?.agent?.session.header.id, taskId) ?? null
     } catch (error) {
       // 坏 YAML 或读盘失败都退回空看板最小面：立项工具仍然可用，
       // 具体坏在哪由工具调用给出人话错误，不在这里静默禁用一切。
@@ -128,6 +122,23 @@ export function apply(ctx: PluginContext, config: LcoderConfig = {}): void {
       return null
     }
   }
+
+  /** 契约签了、任务转移了，工具面立刻跟着变。 */
+  const currentState = (context?: SpecRootContext): TaskState | null => currentTask(context)?.state ?? null
+  /** 这条会话所属任务声明的写入范围；没有任务或没声明就返回 null，由 `file_edit` 按不设限处理。 */
+  const allowedPaths = (context?: SpecRootContext): readonly string[] | null => {
+    const task = currentTask(context)
+    return task === null ? null : task.scope.allowed_paths
+  }
+
+  const tools = [
+    ...createProjectTools(rootInput),
+    ...createSpecTools(rootInput),
+    ...createTaskTools(rootInput),
+    ...createProposalTools(rootInput),
+    ...createGitTools(repoRootInput),
+    ...createEditTools(rootInput, { run: spawnRunner, repoRoot: repoRootInput, scope: allowedPaths }),
+  ]
 
   for (const tool of tools) {
     const mount = () =>
@@ -151,6 +162,7 @@ export function apply(ctx: PluginContext, config: LcoderConfig = {}): void {
     createTaskBindCommand(rootInput),
     createTaskContractCommand(rootInput),
     createProposalApproveCommand(rootInput),
+    createDeployCommand(rootInput),
   ]
   for (const command of commands) {
     const mount = () => ctx.commands.register(command)

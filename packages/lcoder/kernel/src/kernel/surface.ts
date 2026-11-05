@@ -120,10 +120,10 @@ export const UNSCOPEED_SURFACE: readonly string[] = [
 // ── 角色天花板 ─────────────────────────────────────────────
 
 /** 一个会话所属的角色；一个角色就是一个 Agent preset，装配层用 `role` 配置本插件。 */
-export type RoleId = 'intake' | 'architect' | 'pm' | 'dev' | 'git' | 'review'
+export type RoleId = 'intake' | 'architect' | 'pm' | 'dev' | 'git' | 'ops' | 'review'
 
 /** 全部角色，`Config.role` 的取值域。 */
-export const ROLES: readonly RoleId[] = ['intake', 'architect', 'pm', 'dev', 'git', 'review']
+export const ROLES: readonly RoleId[] = ['intake', 'architect', 'pm', 'dev', 'git', 'ops', 'review']
 
 /**
  * 每个角色最多能拿到哪些工具。
@@ -162,6 +162,8 @@ export const ROLE_TOOLS: Readonly<Record<RoleId, readonly string[]>> = {
   ],
   /** Git：看状态与差异，把指定路径提交到本地仓库；没有编辑能力，也没有 push。 */
   git: ['file_read', 'file_list', 'spec_query', 'task_read', 'git_status', 'git_diff', 'git_commit'],
+  /** 运维：写与维护部署脚本、跑登记过的命令、挂证据；收口与提交不归它。 */
+  ops: ['file_read', 'file_list', 'spec_query', 'spec_bind', 'task_read', 'task_draft', 'contract_draft', 'file_edit', 'cmd_run', 'evidence_attach'],
   /** 评审：只读复核，外加挂证据与收口；永远不给改代码与跑命令。 */
   review: ['file_read', 'file_list', 'spec_query', 'task_read', 'evidence_attach', 'task_close'],
 }

@@ -209,6 +209,37 @@
               selfCheck: true
               role: git
 
+# ── 运维 ─────────────────────────────────────────────────────
+# 定位是指导落地与写维护部署脚本，不是替人上线：真正执行部署的 /deploy 是人机命令，
+# 只跑 env.yaml 里登记为 human 的命令，且由人触发。
+- insert:
+    - id: preset-lcoder-ops
+      name: "@deepseek-ai/dsh-agent-preset"
+      config:
+        id: lcoder-ops
+        name: LCoder 运维
+        description: 写与维护部署脚本、指导服务器落地、跑登记过的命令（实验）
+        order: 25
+        plugins:
+          - id: persona
+            name: "@deepseek-ai/dsh-persona"
+            config:
+              prefix: >-
+                You are LCoder 运维. 你的天花板是 file_read / file_list / spec_query / spec_bind /
+                task_read / task_draft / contract_draft / file_edit / cmd_run / evidence_attach：
+                先 file_list 与 file_read 摸清现有部署方式与环境档案（.spec/env.yaml 的 commands、
+                project.yaml 的 environments），再把部署步骤写成仓库里的脚本并维护它，
+                需要人裁决的口径用 spec_bind 绑落点、用 contract_draft 起草契约。
+                你能跑的命令只有 env.yaml 里登记过的那些；上线那一步不由你执行——/deploy 是人机命令，
+                由人触发，你只负责把脚本、步骤与回滚方法写清楚。
+                写文件前先看这条任务的 scope.allowed_paths：那是代码里的硬闸，越出范围的写入会被直接拒绝。
+                你不收口（没有 task_close），提交归 Git 角色；缺工具就如实说，绝不假称已部署。
+          - id: lcoder
+            name: '@lcoder/kernel'
+            config:
+              selfCheck: true
+              role: ops
+
 # ── 外壳 ─────────────────────────────────────────────────────
 # 外壳自带左栏，所以禁用 DSH 原生 ui-sidebar；浏览器侧占用 main 的 lcoder-home。
 - id: ui-sidebar

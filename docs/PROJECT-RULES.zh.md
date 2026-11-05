@@ -20,6 +20,8 @@
 - 🚫 目标平台是 Windows 桌面端；路径处理按 Windows 优先（盘符、反斜杠、大小写不敏感）。
 - 🚫 `contract_sign`、`task_bind`、`task_contract` 与 `proposal_approve` 永不注册为模型工具：分别签契约、写「哪条会话认领哪条任务」、把已签的起草任务推进到已签约、采纳一个方案。只有人能触发它们，`by: agent` 视为无效。它们注册在人机命令面上，且签名哈希不再覆盖当前正文时 P3 判签名作废。
 - 🚫 Git 只走到本地提交。`git_commit` 只暂存它被给到的路径，不带 `--amend`、不带 `--no-verify`；**没有 push 工具，`cmd_run` 的登记面上也不该登记 `git push`**——推远端、`git reset --hard`、任何强推都仍是人的动作。
+- 🚫 部署只由人触发。`/deploy` 只跑 `.spec/env.yaml` 里 `exec: human` 的那一条命令，并把输出落成任务证据；`deploy` 永不注册为模型工具，登记为 `ai-auto` 或 `ai-confirm` 的命令仍走 `cmd_run` 与审批那条路。
+- 🚫 `Task.scope.allowed_paths` 是 `file_edit` 的硬闸：任务声明了范围，越出范围的写入一律被拒；空数组与读不到任务时不设限。运维与实施都受这条约束，不靠提示词。
 - 🚫 能新增就不修改；改上游只改装配层（patch 层、聚合 tsconfig），不碰组件内部实现。
 - 🚫 新增接触点必须人工评审；`upstream-diff.sh` 只报冲突，不判断改动深度。
 - ✅ 规格条目必须有出处与代码落点；没有出处的条目不得置为 `confirmed`。

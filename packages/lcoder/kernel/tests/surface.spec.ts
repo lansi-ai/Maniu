@@ -203,7 +203,17 @@ describe('角色天花板', () => {
     expect(allowedTools('implementing', 'git')).toEqual(['file_read', 'file_list', 'spec_query', 'task_read', 'git_status', 'git_diff', 'git_commit'])
   })
 
-  it('六个角色都能列目录：立项不需要额外工具就能看清仓库结构', () => {
+  it('运维能写脚本与跑登记过的命令，但不能收口、不能提交；deploy 永远不在工具面', () => {
+    expect(ROLE_TOOLS.ops).toContain('file_edit')
+    expect(ROLE_TOOLS.ops).toContain('cmd_run')
+    expect(ROLE_TOOLS.ops).not.toContain('task_close')
+    expect(ROLE_TOOLS.ops).not.toContain('git_commit')
+    for (const state of [...STATES, null] as const) {
+      expect(allowedTools(state, 'ops')).not.toContain('deploy')
+    }
+  })
+
+  it('七个角色都能列目录：立项不需要额外工具就能看清仓库结构', () => {
     for (const role of ROLES) expect(ROLE_TOOLS[role]).toContain('file_list')
   })
 
@@ -217,7 +227,7 @@ describe('角色天花板', () => {
     expect(allowedTools('drafting', null)).toEqual(SURFACE.drafting)
   })
 
-  it('parseRole 认六个角色，未设给 null，配错当场响', () => {
+  it('parseRole 认七个角色，未设给 null，配错当场响', () => {
     expect(parseRole(undefined)).toBeNull()
     for (const role of ROLES) expect(parseRole(role)).toBe(role)
     expect(() => parseRole('qa')).toThrow(TypeError)

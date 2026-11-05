@@ -42,10 +42,12 @@ function call(
   args: Record<string, unknown>,
   run?: Runner,
   repoRoot?: string,
+  scope?: () => readonly string[] | null,
 ) {
   const tools = createEditTools(root, {
     ...(run === undefined ? {} : { run }),
     ...(repoRoot === undefined ? {} : { repoRoot }),
+    ...(scope === undefined ? {} : { scope }),
   })
   const tool = tools.find(t => t.name === toolName)
   if (!tool) throw new Error(`没有这个工具：${toolName}`)
@@ -165,6 +167,30 @@ describe('签约态工具集', () => {
       call('file_edit', root, { path: 'C:/Windows/evil.ts', content: 'x' }),
     ).rejects.toThrow(/绝对路径/)
     expect(existsSync(join(root, '..', 'escape.ts'))).toBe(false)
+  })
+
+  it('任务声明了 allowed_paths 就是硬闸：范围外拒绝，范围内放行', async () => {
+    const root = makeRoot()
+    const scope = () => ['src/', 'deploy']
+
+    const inside = await call('file_edit', root, { path: 'src/order.ts', content: 'export {};' }, undefined, undefined, scope)
+    expect(inside).toMatchObject({ written: true })
+    // 前缀不带斜杠也认，且反斜杠路径按同一口径比。
+    const deploy = await call('file_edit', root, { path: 'deploy\\run.cmd', content: 'echo x' }, undefined, undefined, scope)
+    expect(deploy).toMatchObject({ written: true })
+
+    await expect(call('file_edit', root, { path: 'notes/a.md', content: 'x' }, undefined, undefined, scope))
+      .rejects.toThrow(/这条任务的范围只允许改：src\/、deploy。要改 notes\/a\.md/)
+    expect(existsSync(join(root, 'notes', 'a.md'))).toBe(false)
+  })
+
+  it('没声明范围就不设限：null 与空数组都放行（现状语义）', async () => {
+    const root = makeRoot()
+
+    await expect(call('file_edit', root, { path: 'anywhere.ts', content: 'x' }, undefined, undefined, () => null))
+      .resolves.toMatchObject({ written: true })
+    await expect(call('file_edit', root, { path: 'anywhere2.ts', content: 'x' }, undefined, undefined, () => []))
+      .resolves.toMatchObject({ written: true })
   })
 
   it('file_read 把 CRLF 归一化成 LF，行号在 Windows 上也稳定', async () => {
