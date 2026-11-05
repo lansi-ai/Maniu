@@ -365,6 +365,17 @@ tracks:
       dep: [T-23]
       inferred: false
       note: "B 级；用户 2026-11-05 在空仓走完 7 问立项后反馈「立项的会话没有列目录的工具」，同时确认 .spec 能生成。先做判定再定方案，不要直接加工具。两种可能：一是上游 bundle 全局注册的 glob 与 grep 本来就对该 profile 的每个 Agent 可见（见 T-11 的取证），那就是可见但模型没用或用了失败；二是 intake 角色的天花板与 SURFACE 求交之后，本包工具里确实没有列目录这一项，而全局工具又被装配层挡住。判据要能分清楚：在真窗口起一条 intake 会话，让它列当前仓库根目录，看会话日志里有没有 tool/result、失败信息是什么；再把该会话可见的工具名与全局注册清单对一遍。方案分两支：若全局 glob 可见，只补提示词与引导文案；若不可见，就在 kernel 新增 file_list（名字、类型、上限、排序写清，进 SURFACE 与 intake/architect/dev 三张角色表，review 只读也可给），并补单测与桌面验证。验收只认桌面端手点。"
+    - id: T-33
+      title: 会话浮层复用上游渲染——格式化输出、折叠思考、审批与提问弹窗、两档放大
+      status: todo
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-05'
+      date: '2026-11-05'
+      dep: [T-31]
+      inferred: false
+      note: "A 级（换渲染面与交互通道）。用户 2026-11-05 真窗口反馈三条：一是浮层没有格式化输出、思考过程没隐藏、需要人选择的场景（审批与提问）没有弹窗；二是浮层不能放大，要两档，普通放大居中不占全屏、最大化占满应用；三是会话弹出时任务面板不占满窗口（截图里看板只顶在上半部，右侧与下方大片空白）。另有一条同源缺陷：截图里出现的英文 Current runtime context 是注入上下文被当成用户消息画出来了——messagesFromEntries 只按事件类型取文本，没有按 source.kind 过滤。根因：浮层是我们自画的（cursor 只取 user/message 与 assistant/message 的纯文本），没有用上游的会话渲染与审批面。方向首选复用而不是重写：先核上游 packages/client/ui-conversation 与 ui-trajectory 怎么渲染 markdown、思考折叠与审批卡，以及 user-approval 与 user-questions 两个通道在客户端怎么挂；能在浮层里嵌上游渲染最好，嵌不了再评估自实现 markdown 加折叠与审批条的成本。布局三件同时做：任务板撑满可用高度、浮层普通放大居中不遮全屏、最大化占满应用，尺寸与位置进配置不写死。验收只认桌面真窗口手点。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
