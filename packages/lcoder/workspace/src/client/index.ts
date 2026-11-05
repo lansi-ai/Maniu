@@ -227,7 +227,7 @@ export function apply(ctx: ClientContext, config: Config = {}): void {
           locale: NS,
           inject: () => ({
             files, openRepository, sendPrompt, signContract, bindTask, createSession, listRoles,
-            readMessages, subscribeSession, checkModels, subscribeModels, readSessionNotice,
+            readMessages, subscribeSession, checkModels, subscribeModels, readSessionNotice, readSessionFlags,
           }),
         },
         Shell,

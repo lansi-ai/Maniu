@@ -8,16 +8,19 @@
  * 外壳占用 `main` 的 `lcoder-home` 键；DSH 原生侧栏在桌面 profile 里禁用，
  * 启动时折叠空轨道，主面板占满窗口。
  */
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type { LcoderWorkspaceKey } from '../locales.ts'
 import { loadLocalSecrets, loadProjectInfo, loadWorkspaceProjection } from '../projection.ts'
 import type { ContractRow, ProjectionFilesRemote, TaskRow } from '../projection.ts'
 import { describeOpenFailure } from '../open-failure.ts'
 import type { ModelStatus, ShellSessionNotice } from '../model-status.ts'
+import { taskCardStatus } from '../task-session.ts'
+import type { TaskCardStatus } from '../task-session.ts'
 import { buildIntakePrompt, buildOnboardingPrompt, buildShellPrompt, SHELL_STATES } from './shell-data.ts'
 import type { ShellMessage, ShellProjectInfo, ShellRole, ShellSignResult, ShellTask, ShellTaskState } from './shell-data.ts'
 import css from './Shell.module.css'
@@ -115,8 +118,8 @@ function toShellTask(row: TaskRow): ShellTask {
     grade: row.grade,
     rules: row.rules,
     evidence: row.evidence,
-    session: row.session,
     surface: SURFACE[state],
+    ...(row.session === undefined ? {} : { session: row.session }),
     ...(row.session === undefined ? {} : { session: row.session }),
   }
 }
@@ -140,7 +143,8 @@ function resolveSecrets(info: ShellProjectInfo, secrets: Readonly<Record<string,
  */
 export function Shell({
   t, files, openRepository, sendPrompt, signContract, bindTask, createSession, listRoles,
-  readMessages, subscribeSession, checkModels, subscribeModels, readSessionNotice, useSessions, useWorkspaces,
+  readMessages, subscribeSession, checkModels, subscribeModels, readSessionNotice, readSessionFlags,
+  useSessions, useSessionStatus, useWorkspaces,
 }: ShellProps): ReactNode {
   const workspaces = useWorkspaces(state => state.items)
   const sessionRows = useSessions(state => state.byId)
@@ -179,6 +183,8 @@ export function Shell({
   const [modelStatus, setModelStatus] = useState<ModelStatus | null>(null)
   const [chatError, setChatError] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
+  /** 只有本客户端物化过的会话才读得到这两位；null 表示读不到，卡片就不画这两个态。 */
+  const [taskFlags, setTaskFlags] = useState<{ readonly awaitingFirstTurn: boolean; readonly failed: boolean } | null>(null)
   /** 装配层声明的角色名册；读不到就是空表，新会话走宿主默认角色。 */
   const [roles, setRoles] = useState<readonly ShellRole[]>([])
   /** 下一次新开会话要用的角色；null 表示交给宿主默认。 */
@@ -283,43 +289,51 @@ export function Shell({
   }, [checkModels, subscribeModels])
 
   useEffect(() => {
-    if (chat === null || chatSessionId === undefined || readMessages === undefined || subscribeSession === undefined) {
+    if (chat === null || sessionId === undefined || readMessages === undefined || subscribeSession === undefined) {
       setMessages([])
       setNotice(null)
       return
     }
     const refresh = (): void => {
-      setMessages(readMessages(chatSessionId))
-      setNotice(readSessionNotice?.(chatSessionId) ?? null)
+      setMessages(readMessages(sessionId))
+      setNotice(readSessionNotice?.(sessionId) ?? null)
     }
     refresh()
-    return subscribeSession(chatSessionId, refresh)
-  }, [chat, chatSessionId, readMessages, subscribeSession, readSessionNotice])
+    return subscribeSession(sessionId, refresh)
+  }, [chat, sessionId, readMessages, subscribeSession, readSessionNotice])
 
   /**
    * 卡片上「等首个回合」与失败两位的来源。
    *
-   * 它们只在会话快照里，而快照只有本客户端物化过的会话才有——所以这一路只跟着浮层所在的
-   * 那条会话读，读不到就明说读不到，卡片退回只显示宿主推流得到的那几个态。
+   * 它们只在会话快照里，而快照只有本客户端物化过的会话才有——所以这一路只跟着当前会话读，
+   * 读不到就明说读不到，卡片退回只显示宿主推流得到的那几个态。
    */
   useEffect(() => {
-    if (chatSessionId === undefined || readSessionFlags === undefined || subscribeSession === undefined) {
+    if (sessionId === undefined || readSessionFlags === undefined || subscribeSession === undefined) {
       setTaskFlags(null)
       return
     }
-    const refresh = (): void => { setTaskFlags(readSessionFlags(chatSessionId)) }
+    const refresh = (): void => { setTaskFlags(readSessionFlags(sessionId)) }
     refresh()
-    return subscribeSession(chatSessionId, refresh)
-  }, [chatSessionId, readSessionFlags, subscribeSession])
+    return subscribeSession(sessionId, refresh)
+  }, [sessionId, readSessionFlags, subscribeSession])
 
-  /** 一张卡片的状态：先按规格库的 session 字段认归属会话，再叠宿主推流与快照两位。 */
+  /**
+   * 一张卡片的状态。
+   *
+   * 归属用主干的 `liveSessionOf`（按 `.spec` 的 `session` 字段反查在册会话），本线不再
+   * 自带第二套认领。取数零 retain：会话行加 `useSessionStatus` 全局 seat；两个快照位
+   * 只跟着当前会话读，读不到就不画。
+   */
   const statusOfTask = (task: ShellTask): TaskCardStatus => {
-    const session = claimTaskSession(task.session, workspaceSessions)
-    const pushed = session === null ? undefined : sessionStatus.get(session.sessionId)
-    const flags = session !== null && session.sessionId === chatSessionId ? taskFlags : null
+    const claimed = liveSessionOf(task)
+    const row = claimed === undefined ? undefined : sessionRows[claimed]
+    const pushed = claimed === undefined ? undefined : sessionStatus.get(claimed)
+    const flags = claimed !== undefined && claimed === sessionId ? taskFlags : null
     return taskCardStatus({
-      session,
-      hostRunning: pushed?.running,
+      claimed: row !== undefined,
+      running: pushed?.running ?? row?.running ?? false,
+      blank: row?.blank ?? true,
       awaitingInteraction: pushed?.pendingInteraction !== undefined,
       awaitingFirstTurn: flags?.awaitingFirstTurn,
       failed: flags?.failed,
@@ -460,11 +474,11 @@ export function Shell({
 
   const sendDraft = async (): Promise<void> => {
     const text = draft.trim()
-    if (text === '' || modelBlocked || chatSessionId === undefined || sendPrompt === undefined) return
+    if (text === '' || modelBlocked || sessionId === undefined || sendPrompt === undefined) return
     setDraft('')
     setChatError(null)
     try {
-      await sendPrompt(chatSessionId, text)
+      await sendPrompt(sessionId, text)
     } catch (error: unknown) {
       setChatError(String(error))
     }
@@ -971,7 +985,7 @@ export function Shell({
                 <button
                   type="button"
                   className={css.primaryBtn}
-                  disabled={draft.trim() === '' || modelBlocked || chatSessionId === undefined || sendPrompt === undefined}
+                  disabled={draft.trim() === '' || modelBlocked || sessionId === undefined || sendPrompt === undefined}
                   onClick={() => { void sendDraft() }}
                 >
                   {t('shell.send')}
