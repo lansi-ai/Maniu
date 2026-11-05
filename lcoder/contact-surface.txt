@@ -26,3 +26,11 @@ apps/desktop/tests/expected/command-management-win32-zh-CN.json
 packages/client/modules/src/assets.ts
 packages/client/modules/tests/assets.client.spec.ts
 scripts/gen-third-party-notices.ts
+apps/desktop/resources/icon.svg
+apps/desktop/resources/icon-windows.svg
+apps/desktop/resources/icon-macos.svg
+apps/desktop/resources/icon.png
+apps/desktop/resources/icon-windows.png
+apps/desktop/resources/icon-macos.png
+apps/desktop/resources/tray-windows.ico
+apps/desktop/scripts/render-tray-icon.ts

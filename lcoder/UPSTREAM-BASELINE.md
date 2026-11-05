@@ -63,7 +63,7 @@ upstream = deepseek-ai/deepseek-harness
 | `AGENTS.md` | 顶部新增「LCoder 二次开发入口」两行：规则、看板、产品文档指针 | 上游根入口是任何 AI 工具的第一落点；没有这段，工具不会自动读到 LCoder 的治理文件 |
 | `apps/desktop/src/locale.ts` | 用户可见品牌串：welcomeTitle / welcomeBrand / welcomeTaglineBrand（加载与欢迎页）、关于菜单、隐藏/退出/打开应用、退出确认、启动失败、更新标题，`DeepSeek Harness` 全部改为 `LCoder`；中英的 welcomeKeyDescription 改成中性说法 | 这是产品品牌面：桌面端欢迎页与系统菜单直接显示上游产品名。该文件是桌面壳文案的单源，没有配置覆盖入口；欢迎页在主进程里先于插件树渲染，装配层换不掉 |
 | `apps/desktop/tests/main-startup.spec.ts`、`quit-confirmation.spec.ts`、`tray.spec.ts` 与 `tests/expected/*.json` | 菜单、关于、退出确认、托盘文案与命令清单的期望从 DeepSeek Harness 改为 LCoder | 文案单源改名后，行为期望与夹具必须跟着改，否则测试与产品不一致 |
-| `apps/desktop/src/main.ts` | Windows 主窗改 `frame: false`，去掉原生 caption 与 `titleBarOverlay`；新增窗口最小化/最大化/关闭与状态查询 IPC，并在 maximize/unmaximize/fullscreen 时推状态；新增项目目录选择 IPC（`properties: ['openDirectory']`） | LCoder 要求自绘标题栏与项目目录选择。装配层（cordis patch / 插件配置）只能挂插件，改不了 `BrowserWindow` 选项；页面 CSS 也隐藏不了原生 caption。frameless 保留 `thickFrame`，拖边缩放与 Win+方向键不变 |
+| `apps/desktop/src/main.ts` | Windows 主窗改 `frame: false`，去掉原生 caption 与 `titleBarOverlay`；新增窗口最小化/最大化/关闭与状态查询 IPC，并在 maximize/unmaximize/fullscreen 时推状态；新增项目目录选择 IPC（`properties: ['openDirectory']`）；窗口创建补 `icon`（取新的 `applicationIconPath()`，关于面板与安装向导同源） | LCoder 要求自绘标题栏与项目目录选择。装配层（cordis patch / 插件配置）只能挂插件，改不了 `BrowserWindow` 选项；页面 CSS 也隐藏不了原生 caption。frameless 保留 `thickFrame`，拖边缩放与 Win+方向键不变。不显式给窗口 icon，Windows 任务栏与 Alt-Tab 就显示 Electron 默认图标 |
 | `apps/desktop/src/ipc.ts` | 增加 windowCommand / windowState / windowStateChanged / projectDirectoryPick 四个私有通道与 DesktopWindowBridge 类型 | 窗口按钮、最大化态与目录选择需要 `ipcMain` 与 `BrowserWindow`；装配层拿不到这两样，必须由 Desktop 主进程提供通道 |
 | `apps/desktop/src/preload-app.ts` | Windows app 文档下暴露 `dshDesktop.window`、标记 `data-lcoder-custom-chrome`，并停用 `syncWindowsAppearance` 的挂载；目录桥增加 `pickProjectDirectory` | 该能力在隔离的 preload 上下文；profile/插件层无法向渲染进程注入 `contextBridge`，也卸不掉上游注入的 HTML menubar 与 40px 标题栏占位 |
 | `packages/client/ui-layout/src/client/AppFrame.tsx` | 读取 `data-lcoder-custom-chrome`，把侧栏折叠宽度从 56px 收成 0 | 自绘标题栏后不再有 caption rail；不收起会留一条空轨道，外壳无法占满窗口 |
@@ -73,6 +73,8 @@ upstream = deepseek-ai/deepseek-harness
 | `packages/client/modules/tests/assets.client.spec.ts` | 覆盖 `.woff2` / `.woff` 的 MIME 判定 | 新增字体资源类型必须有门禁钉住，防止路由回退 |
 | `scripts/gen-third-party-notices.ts` | 生成物新增「Bundled font assets」段，登记 Inter 4.66、SIL OFL 1.1、来源与许可文件 | 生成器只扫 npm workspace 依赖，非 npm 的自托管字体不会被自动列出；装配层无法改仓库级声明生成器，字体又随包分发，必须在声明中体现 |
 | `apps/desktop/tests/preload-app.spec.ts` | 删除 Windows appearance 挂载断言 | 该挂载已停用 |
+| `apps/desktop/resources/icon.svg`、`icon-windows.svg`、`icon-macos.svg` 与对应 `icon.png`、`icon-windows.png`、`icon-macos.png`、`tray-windows.ico` | 上游鲸标整组换成 LCoder 标记（靛蓝渐变板 + 白色 L + 右上圆点）。`icon.svg` 保持 1104 画布、图块仍在 `translate(40 32)` 的 1024 位（web 侧 `apps/web/scripts/render-app-icons.ts` 按这套常量裁影）；`icon-windows.svg` 保持 1024 画布包 1104 空间并保留 `id="tray-glyph"` 组（托盘管线靠它注入放大） | 这是操作系统层面的产品品牌面：EXE 与任务栏图标、安装向导关于页、Windows 托盘 ICO、macOS dock 全部来自这几个文件。装配层与插件改不了 Electron 打包图标，也没有配置项能覆盖 |
+| `apps/desktop/scripts/render-tray-icon.ts` | 只改措辞：文件头与一行注释里的 whale 改为 LCoder mark；管线、`TRAY_ICON_SIZES`、`tray-glyph` 注入与 1.2 倍放大全部不变 | 美术换掉后原措辞会误导下一次改图标的人去找鲸标 |
 规矩：改动写在文件里的 `lcoder:` 前缀注释下，方便 grep 定位，也方便升级时用 `git diff upstream/master...HEAD -- <文件>` 一眼看清。
 
 ---
