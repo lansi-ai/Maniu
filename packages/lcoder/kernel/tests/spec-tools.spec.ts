@@ -46,9 +46,9 @@ function call(toolName: string, root: string, args: Record<string, unknown>) {
 }
 
 describe('起草态工具集', () => {
-  it('只提供三个工具，且不含 contract_sign（模型不能给自己签字）', () => {
+  it('只提供四个工具，且不含 contract_sign（模型不能给自己签字）', () => {
     const names = createSpecTools(makeRoot()).map(t => t.name)
-    expect(names).toEqual(['spec_query', 'spec_bind', 'contract_draft'])
+    expect(names).toEqual(['spec_query', 'spec_draft', 'spec_bind', 'contract_draft'])
     expect(names).not.toContain('contract_sign')
   })
 
@@ -142,5 +142,80 @@ describe('还没有 .spec 的仓库', () => {
 
     const withStates = await call('spec_query', root, { include_states: true })
     expect(withStates).toMatchObject({ count: 0, rules: [], states: [] })
+  })
+
+  it('spec_draft 能在连 .spec 都没有的文件夹里立第一条规格', async () => {
+    const parent = mkdtempSync(join(tmpdir(), 'lcoder-nospec-rule-'))
+    dirs.push(parent)
+    const root = join(parent, '.spec')
+
+    const r = await call('spec_draft', root, {
+      module: 'order',
+      kind: 'rule',
+      text: '下单需登录',
+      source_doc: 'prd.md#4.2',
+    })
+
+    expect(r).toMatchObject({ rule_id: 'R-01', status: 'draft', created: true })
+    expect(readFileSync(join(root, 'spec', 'rules.yaml'), 'utf8')).toContain('status: draft')
+  })
+})
+
+describe('spec_draft 登记新条目', () => {
+  const ANSWER = { module: 'settlement', kind: 'rule', text: '退款只允许发起一次', source_doc: 'prd.md#7.1' }
+
+  it('省略编号时取现有 R- 号之后，状态固定 draft、落点留空', async () => {
+    const root = makeRoot()
+
+    const r = await call('spec_draft', root, ANSWER)
+
+    expect(r).toMatchObject({ rule_id: 'R-03', status: 'draft', created: true })
+    const onDisk = readFileSync(join(root, 'spec', 'rules.yaml'), 'utf8')
+    expect(onDisk).toContain('退款只允许发起一次')
+    expect(onDisk).toContain('doc: prd.md#7.1')
+  })
+
+  it('正文相同（空白与大小写不算差异）→ 返回既有条目，不重复登记', async () => {
+    const root = makeRoot()
+
+    const r = await call('spec_draft', root, { ...ANSWER, text: '下单  需登录' })
+
+    expect(r).toMatchObject({ rule_id: 'R-01', status: 'confirmed', created: false })
+  })
+
+  it('显式编号已被占用 → 抛，且不改动已登记条目', async () => {
+    const root = makeRoot()
+    const path = join(root, 'spec', 'rules.yaml')
+    const before = readFileSync(path, 'utf8')
+
+    await expect(call('spec_draft', root, { ...ANSWER, rule_id: 'R-01' })).rejects.toThrow(/已被占用/)
+
+    expect(readFileSync(path, 'utf8')).toBe(before)
+  })
+
+  it('编号形状不合 R-03 这种约定 → 抛并说明', async () => {
+    const root = makeRoot()
+
+    await expect(call('spec_draft', root, { ...ANSWER, rule_id: 'rule one' })).rejects.toThrow(/R-03/)
+  })
+
+  it('缺出处、类型不在枚举内、正文空 → 都当场抛，不写文件', async () => {
+    const root = makeRoot()
+    const path = join(root, 'spec', 'rules.yaml')
+    const before = readFileSync(path, 'utf8')
+
+    await expect(call('spec_draft', root, { ...ANSWER, source_doc: ' ' })).rejects.toThrow(/source_doc/)
+    await expect(call('spec_draft', root, { ...ANSWER, kind: 'vibe' })).rejects.toThrow(/rule、formula/)
+    await expect(call('spec_draft', root, { ...ANSWER, text: '  ' })).rejects.toThrow(/text/)
+
+    expect(readFileSync(path, 'utf8')).toBe(before)
+  })
+
+  it('给了引句就一起落盘，供人复核出处', async () => {
+    const root = makeRoot()
+
+    await call('spec_draft', root, { ...ANSWER, source_quote: '同一订单只允许一次退款' })
+
+    expect(readFileSync(join(root, 'spec', 'rules.yaml'), 'utf8')).toContain('同一订单只允许一次退款')
   })
 })

@@ -18,7 +18,7 @@ import { loadLocalSecrets, loadProjectInfo, loadWorkspaceProjection } from '../p
 import type { ContractRow, ProjectionFilesRemote, TaskRow } from '../projection.ts'
 import { describeOpenFailure } from '../open-failure.ts'
 import type { ModelStatus, ShellSessionNotice } from '../model-status.ts'
-import { buildOnboardingPrompt, buildShellPrompt, SHELL_STATES } from './shell-data.ts'
+import { buildIntakePrompt, buildOnboardingPrompt, buildShellPrompt, SHELL_STATES } from './shell-data.ts'
 import type { ShellMessage, ShellProjectInfo, ShellSignResult, ShellTask, ShellTaskState } from './shell-data.ts'
 import css from './Shell.module.css'
 
@@ -290,14 +290,13 @@ export function Shell({
   }
 
   /**
-   * 零任务仓库的立项入口：把 `.spec/project.yaml` 声明的交付文档交给模型，
-   * 让它先调研再逐个建 drafting 任务。外壳只读文件、不判断状态机。
+   * 零任务仓库的立项入口：读不到 `.spec/project.yaml` 时发 7 问引导咒语，先问项目
+   * 身份与文档位置再落盘；已登记项目信息时发立项分析咒语，把交付文档交给模型。
+   * 外壳只读文件、不判断状态机。
    */
   const startOnboarding = (): void => {
-    const text = buildOnboardingPrompt(
-      { name: projectName, path: projectPath, branch: projectBranch },
-      info?.docs ?? { product: '', architecture: '', tests: '' },
-    )
+    const project = { name: projectName, path: projectPath, branch: projectBranch }
+    const text = info === null ? buildIntakePrompt(project) : buildOnboardingPrompt(project, info.docs)
     setDetail(null)
     setChatError(null)
     setPrompt(text)
@@ -423,7 +422,9 @@ export function Shell({
                     </div>
                     {tasks.length === 0 ? (
                       <div className={css.onboardingBar}>
-                        <p className={css.onboardingText}>{t('shell.onboardingEmpty')} {t('shell.onboardingHint')}</p>
+                        <p className={css.onboardingText}>
+                          {t('shell.onboardingEmpty')} {t(info === null ? 'shell.onboardingIntakeHint' : 'shell.onboardingHint')}
+                        </p>
                         <button
                           type="button"
                           className={css.primaryBtn}

@@ -49,6 +49,33 @@ export function saveRules(root: string, rules: RuleEntry[]): string {
   return path
 }
 
+/**
+ * 下一个可用条目编号：取现有 `R-<数字>` 里的最大号往后一位。
+ * 其它前缀（如 `DR-01`）不参与取最大——登记新条目统一给 `R-`，
+ * 前缀本身要跟着既有约定走时由调用方显式指定。
+ * @param rules - 规格里已有的条目。
+ * @returns 形如 `R-03` 的编号。
+ */
+export function nextRuleId(rules: readonly RuleEntry[]): string {
+  let max = 0
+  for (const rule of rules) {
+    const digits = /^R-(\d+)$/.exec(rule.id)?.[1]
+    if (digits !== undefined) max = Math.max(max, Number.parseInt(digits, 10))
+  }
+  return `R-${String(max + 1).padStart(2, '0')}`
+}
+
+/**
+ * 正文查重键：空白与大小写不算差异，口径与 `task-store` 的标题查重一致。
+ * @param rules - 规格里已有的条目。
+ * @param text - 准备新增的正文。
+ * @returns 命中同正文的既有条目；没有则 undefined。
+ */
+export function findByText(rules: readonly RuleEntry[], text: string): RuleEntry | undefined {
+  const key = text.toLowerCase().replace(/\s+/g, '')
+  return rules.find(rule => rule.text.toLowerCase().replace(/\s+/g, '') === key)
+}
+
 // ── 代码事实 ────────────────────────────────────────────────
 
 /**

@@ -117,8 +117,8 @@ describe('掩码自检', () => {
 })
 
 describe('空看板工具面', () => {
-  it('只放开立项需要的读取与建任务能力', () => {
-    expect(UNSCOPEED_SURFACE).toEqual(['file_read', 'spec_query', 'task_read', 'task_draft'])
+  it('只放开立项需要的读取、建任务与立项落盘能力', () => {
+    expect(UNSCOPEED_SURFACE).toEqual(['file_read', 'project_draft', 'spec_query', 'spec_draft', 'task_read', 'task_draft'])
     expect(UNSCOPEED_SURFACE).not.toContain('file_edit')
     expect(UNSCOPEED_SURFACE).not.toContain('cmd_run')
     expect(UNSCOPEED_SURFACE).not.toContain('spec_bind')
@@ -140,5 +140,14 @@ describe('空看板工具面', () => {
       expect(SURFACE[s]).toContain('task_draft')
     }
     expect(SURFACE.closed).not.toContain('task_draft')
+  })
+
+  it('project_draft 与 spec_draft 跟着 task_draft 一起放开，终态 closed 不放', () => {
+    for (const s of ['drafting', 'contracted', 'implementing', 'verifying'] as TaskState[]) {
+      expect(SURFACE[s]).toContain('project_draft')
+      expect(SURFACE[s]).toContain('spec_draft')
+    }
+    expect(SURFACE.closed).not.toContain('project_draft')
+    expect(SURFACE.closed).not.toContain('spec_draft')
   })
 })

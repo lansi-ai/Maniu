@@ -13,11 +13,15 @@
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 
-import { Contract } from '../schema/spec.js'
+import { Contract, RuleKind } from '../schema/spec.js'
+import type { RuleEntry, RuleKind as RuleKindName } from '../schema/spec.js'
 import { contractHash, saveContract } from '../kernel/contract.js'
-import { loadSpec, saveRules } from '../kernel/spec-store.js'
+import { findByText, loadSpec, nextRuleId, saveRules } from '../kernel/spec-store.js'
 import { hasSpecRoot, resolveRoot } from '../kernel/spec-root.js'
 import type { RootInput } from '../kernel/spec-root.js'
+
+/** `RuleKind` 的合法取值，取自 schema 本身，避免与枚举漂移。 */
+const RuleKindValues: readonly RuleKindName[] = RuleKind.options
 
 const renderJson = (_args: unknown, value: unknown): { type: 'text'; text: string }[] => [
   { type: 'text', text: JSON.stringify(value, null, 2) },
@@ -45,7 +49,7 @@ export function createSpecTools(rootInput: RootInput): ToolDefinition[] {
             count: 0,
             rules: [],
             ...(args.include_states ? { states: [] } : {}),
-            note: '这个仓库还没有 .spec 规格库；按产品文档用 task_draft 立项，规格条目走规格流程登记。',
+            note: '这个仓库还没有 .spec 规格库；先按产品文档用 project_draft 登记项目信息，规格条目用 spec_draft 逐条落，任务用 task_draft 立。',
           }
         }
         const snap = loadSpec(root)
@@ -74,6 +78,79 @@ export function createSpecTools(rootInput: RootInput): ToolDefinition[] {
           ...(args.include_states
             ? { states: snap.states.map(m => ({ id: m.id, statuses: m.statuses })) }
             : {}),
+        }
+      },
+    }),
+
+    defineTool({
+      name: 'spec_draft',
+      description:
+        '登记一条新的规格条目：状态固定 draft，落点与验收留空。正文要写成能判定的约束，出处必须是真实存在的文档。只新增，不修改——编号或正文撞上已登记的条目一律拒绝。',
+      parameters: {
+        module: { type: 'string', required: true, description: '所属模块名' },
+        kind: { type: 'string', required: true, description: `条目类型：${RuleKindValues.join('、')}` },
+        text: { type: 'string', required: true, description: '规格正文，一条写一个能判定的约束' },
+        source_doc: { type: 'string', required: true, description: '出处文档的仓库内相对路径' },
+        source_quote: { type: 'string', description: '出处原文引句，供人复核' },
+        rule_id: { type: 'string', description: '指定编号，形如 R-03；省略则取现有 R- 编号之后的下一个空号' },
+      },
+      output: { schema: { type: 'json' }, render: renderJson },
+      // oxlint-disable-next-line typescript/require-await -- execute 的契约要求返回 Promise（ToolDefinition.execute），这里是同步实现。
+      async execute(args, exec) {
+        const root = resolveRoot(rootInput, exec)
+        const module = args.module.trim()
+        if (module === '') throw new Error('spec_draft 需要非空的 module：条目要能归到某个模块')
+        const kind = RuleKind.safeParse(args.kind.trim())
+        if (!kind.success) {
+          throw new Error(`spec_draft 的 kind 只能是 ${RuleKindValues.join('、')}，收到：${args.kind}`)
+        }
+        const text = args.text.trim()
+        if (text === '') throw new Error('spec_draft 需要非空的 text：一条规格要能被判定')
+        const sourceDoc = args.source_doc.trim()
+        if (sourceDoc === '') throw new Error('spec_draft 需要非空的 source_doc：没有出处的条目不能登记')
+
+        const rules = hasSpecRoot(root) ? loadSpec(root).rules : []
+
+        const duplicate = findByText(rules, text)
+        if (duplicate !== undefined) {
+          return {
+            rule_id: duplicate.id,
+            status: duplicate.status,
+            created: false,
+            note: `已有一条同正文规格 ${duplicate.id}（${duplicate.status}），没有重复登记。要给它补落点就用 spec_bind。`,
+          }
+        }
+
+        const id = args.rule_id === undefined ? nextRuleId(rules) : args.rule_id.trim()
+        if (!/^[A-Z]+-\d{2,}$/.test(id)) {
+          throw new Error(`rule_id 要形如 R-03（大写字母加两位以上数字），收到：${args.rule_id}`)
+        }
+        if (rules.some(rule => rule.id === id)) {
+          throw new Error(`规格编号 ${id} 已被占用；spec_draft 不修改已登记的条目，省略 rule_id 可自动取下一个空号`)
+        }
+
+        const quote = args.source_quote?.trim()
+        const entry: RuleEntry = {
+          id,
+          module,
+          kind: kind.data,
+          text,
+          source: quote === undefined || quote === '' ? { doc: sourceDoc } : { doc: sourceDoc, quote },
+          status: 'draft',
+          found_at: [],
+          acceptance: [],
+          blocks: [],
+        }
+        const path = saveRules(root, [...rules, entry])
+
+        return {
+          rule_id: entry.id,
+          path,
+          status: entry.status,
+          module: entry.module,
+          kind: entry.kind,
+          created: true,
+          note: '规格条目已登记为 draft，等待人复核并确认。confirmed 要由人置，落点由 spec_bind 补。',
         }
       },
     }),
