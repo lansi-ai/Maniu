@@ -102,6 +102,8 @@ kernel 按下面的顺序确定 `.spec` 目录：
 ```sh
 cd E:/Projects/LCoder
 pnpm run dev:desktop > lcoder/desktop.log 2>&1     # 不要接管道；也不要设 DSH_HOME
+
+更省事的是 `lcoder\scripts\start-desktop.cmd`：它先按路径停掉**本检出**的旧实例（不会碰 worktree 或其他 electron 应用）、把启动放到独立进程、按 UTF-8 实时打印每个构建阶段并去掉 ANSI 颜色码，就绪后直接给出带 token 的地址。`-ListOnly` 只列会停哪些进程、`-KeepRunning` 不停旧实例、`-KeepFollowing` 就绪后继续跟随。看不到进度时先用它，不要手拼 `Get-Content`——`.ps1` 必须带 UTF-8 BOM，否则 Windows PowerShell 5.1 会按 GBK 读中文并把脚本解析坏。
 ```
 
 不设 `DSH_HOME` 是关键：`apps/desktop/scripts/dev.ts:66` 会把它默认到
