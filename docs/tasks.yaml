@@ -489,6 +489,28 @@ tracks:
       dep: [T-42]
       inferred: false
       note: "A 级（新增工具与角色，并给规则单源加一条红线）。用户 2026-11-05 要一个 Git 专家，且「所有用到它的角色都能调用它」，例如实施写完代码自动叫它提交。三个岔路口当场拍板：走专用 git_commit 工具而不是 cmd_run 登记、部署另做 /deploy 人机命令（T-44）、Task.scope.allowed_paths 变成 file_edit 硬闸（T-45）。为什么不复用 cmd_run：那条路的能力边界由 env.yaml 里登记的命令字符串决定，`git -c core.pager=cat log` 一类写法就把参数面退化成 shell 拼接；git-tools 把 git 与 argv 分开交给执行器、不走 shell，模型拼不出额外子命令，也不必先给一堆 git 子命令登记档案。三条硬约束写在代码里不写在提示词里：一、工具面里不存在 push，提交就是终点；二、路径复用 file_edit 的越界判定（绝对路径与 ../ 直接拒），且校验发生在任何一次 git 调用之前，空 message 同样一次都不跑；三、不带 --amend、不带 --no-verify，钩子与签名者语义归仓库自己。落点五处。新 tools/git-tools.ts 三个工具（git_status 出 porcelain 条目与干净判定、git_diff 按 staged 决定 --cached 并截 4000 字符、git_commit 按 add、查暂存、commit、读 HEAD 四步走，暂存为空就如实回报没有提交）；surface.ts 的 RoleId 与 ROLES 加 git、ROLE_TOOLS 加一行（file_read、file_list、spec_query、task_read、git_status、git_diff、git_commit），git_status 与 git_diff 进五档与空看板面，git_commit 只进 contracted、implementing、verifying，closed 不给提交以保住「终态只读」这条被测试钉住的不变量；plugin.ts 注册数由十四变十七；装配源加第六个 preset lcoder-git（order 24，persona 写清先看再提、只提这些路径、失败照实说、不 amend），并把 实施 与 架构 的 allowedAgentPresets 从只有 lcoder-review 扩成 review 加 git（maxDepth 仍 1，孙代照旧被拒）；规则单源加一条红线中英各一行（git 只到本地提交，push、reset --hard、强推都是人的动作）。主 home 的运行副本已按装配源重拷，preset 数核到六个。门禁：typecheck 5 关绿；vitest packages/lcoder 18 文件 208 用例，其中 git-tools 新 spec 9 例，含「所有 argv 调用拼不出 push、amend、no-verify」与「越界路径与空说明一次 git 都不跑」两条；全链 build 数字见回报。未验两条：一、桌面端手点——新建 LCoder Git 会话（名册第六条）、让它 status 与 diff 后提交；二、真 spawn 路径没跑过，单测用的是注入的假执行器，而现有几个 demo 靶仓按红线都没有 .git，要实测得用你自己的仓库或专门新建一个带 .git 的靶仓，我不擅自建。"
+    - id: T-44
+      title: 运维角色与 /deploy 人机命令——写脚本归模型，上线那一下归人
+      status: doing
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-05'
+      date: '2026-11-05'
+      dep: [T-43]
+      inferred: false
+      note: "A 级（新增人机命令与角色，并给规则单源加一条红线）。用户对服务器与运维的定位是「指导用户部署落地和服务器管理方面的工作，比如写部署脚本并维护」，并当场拍板真正执行部署那一步走新增的 /deploy 人机命令。落点四处。新 commands/deploy.ts：参数是 env.yaml 里登记的命令 id，可选第二条是任务编号（缺省时取本会话认领的任务），只接受 exec 为 human 的那条——ai-auto 与 ai-confirm 已有 cmd_run 与审批那条路，再开一条等于同一条命令两个执行口，失败时说不清是谁放的行；执行前把 Command.cwd 从相对仓库根定到本检出绝对路径，否则执行器按进程 cwd 解析会跑错目录；非零退出如实报失败并带输出尾部，且不留证据；成功则把 cmd、退出码、时刻与输出尾落成 .spec/evidence/<任务>/deploy.log。新 kernel/env-store.ts 把 loadEnv 从 edit-tools 里提出来并加 findCommand（未登记时把可用命令与权限档一并报出），edit-tools 改用同一份读法，删掉它自己那份私有实现与随之无用的 yaml 解析导入。surface.ts 加 RoleId 与 ROLES 的 ops 与一行天花板（file_read、file_list、spec_query、spec_bind、task_read、task_draft、contract_draft、file_edit、cmd_run、evidence_attach；不给 task_close 也不给 git_commit，收口归评审、提交归 Git），状态表不动——运维用的全是已有工具。装配源加第七个 preset lcoder-ops（order 25，persona 写明先摸 env.yaml 与 project.yaml 的 environments、把步骤写成脚本并维护、上线不由它执行、写文件前先看这条任务的 allowed_paths、缺工具就如实说、绝不假称已部署）。规则单源加一条红线中英各一行（部署只由人触发，deploy 永不注册为模型工具）。主 home 的运行副本已重拷，preset 数核到七个。门禁：typecheck 5 关绿；vitest packages/lcoder 34 文件 342 用例，deploy 新 spec 6 例覆盖 human 才跑、权限档不对一次都不跑、未登记与空参数的用法、非法任务号先拒再谈执行、非零退出报失败且不落证据、没有可依据任务时仍执行但说明没落证据；oxlint 80 文件 0 错 0 警。未验：桌面端手点——新建 LCoder 运维 会话让它写一条部署脚本，再由人敲 /deploy 看回执与证据；deploy 走的是注入的假执行器，真 spawn 路径没跑过。"
+    - id: T-45
+      title: Task.scope.allowed_paths 变成 file_edit 的硬闸——范围声明从台账走进代码
+      status: doing
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-05'
+      date: '2026-11-05'
+      dep: [T-44]
+      inferred: false
+      note: "A 级（收紧现有角色的写入口，属行为变更）。用户拍板「给 file_edit 加硬闸」。先盘存量再动：填了 allowed_paths 的任务有六条——主仓 DEMO-01 与 onboard-demo DEMO-01 是 drafting（这一档本来就没有 file_edit，闸碰不到），onboard-demo DEMO-02 是 contracted 且范围是 src/、DEMO-03 是 implementing 且范围是 src/，target-demo T-01 是 contracted 但 allowed_paths 为空，t32-demo 与 multi-demo 的 T-01 也是空数组。也就是说这条闸一上，真正被改变行为的是 onboard-demo 的 DEMO-02 与 DEMO-03：那两条任务下，模型只能往 src/ 里写，写到别处会被当场拒绝——这正是这条闸要演示的效果，但用户要知道，所以写在这里。实现三处。kernel/plugin.ts 把原来只回状态的 currentState 拆成 currentTask（返回这条会话依据哪条任务装面，读不到返回 null）与两个派生量：currentState 与 allowedPaths，工具面与写入范围因此来自同一次读盘、同一个任务判定，不会各读各的然后漂移；tools/edit-tools.ts 的 EditToolDeps 加 scope 回调，file_edit 在算出绝对路径之后、建目录与写文件之前判范围，前缀比较把分隔符归一到正斜杠（Windows 上 relative 带反斜杠），报错文案给出允许前缀、目标路径与「先改 scope 或换任务」这条路；语义按现状不动：空数组与读不到任务都不设限，坏 YAML 仍按空看板处理并照旧打日志。测试两条新用例：范围内放行（含不带斜杠的前缀写法与反斜杠路径）、范围外拒绝且不落盘，null 与空数组不设限。规则单源加一条红线中英各一行。门禁：typecheck 5 关绿；vitest packages/lcoder 全绿；未验：桌面端手点——在 onboard-demo 选 DEMO-02 起会话，让它改一个 src/ 外的文件，看它是否如实报出范围拒绝。风险一条：这条闸对已存在会话的即时效果是「上一轮还能写、这一轮被拒」，因为范围来自任务文件而不是会话记忆，这是设计意图（状态与范围都跟着盘上的事实走），但用户第一次遇到时可能像回归。"
 
 milestones:
 - name: MVP-0 工作台本地跑通

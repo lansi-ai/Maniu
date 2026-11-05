@@ -166,7 +166,7 @@ pnpm --filter @lcoder/workspace bundle   # 只重打外壳产物；start:desktop
 
 装完先核一条再判门禁，`grep -o 'InstallationProbe = .*' node_modules/.pnpm/@botiverse+oar@0.67.0_patch_*/node_modules/@botiverse/oar/dist/contracts/installation.d.ts` 要带 `options?`——`pnpm-workspace.yaml` 给这个依赖打了补丁，新 tree 的 `pnpm install` 可能静默不应用，症状是 `packages/experimental/subagent-oar/src/run.ts:253` 报 TS2554、host compiler 退出 1、桌面产物链全断。`pnpm install --force` 即解；别把它记成上游类型错误（`lcoder/PITFALLS.md` W-09）。
 
-装配源进仓后，worktree 的桌面 profile 不再手抄。`lcoder/desktop-profile.patch.yml` 是六个角色 preset 与 LCoder 段的唯一可审阅源，拷进本 worktree 的 `…/home/profiles/desktop/cordis.patch.yml` 后核三件：`documentsDirectory` 指向一个真实存在的目录、两条 `link:` 指向**本 worktree** 的两个包、六个 preset 的 `role` 各就各位（`dev` / `intake` / `architect` / `pm` / `git` / `review`；kernel 只挂在 preset 内，没有全局行）。改过装配源后要重新拷一次运行副本，否则角色名册里看不到新角色。
+装配源进仓后，worktree 的桌面 profile 不再手抄。`lcoder/desktop-profile.patch.yml` 是七个角色 preset 与 LCoder 段的唯一可审阅源，拷进本 worktree 的 `…/home/profiles/desktop/cordis.patch.yml` 后核三件：`documentsDirectory` 指向一个真实存在的目录、两条 `link:` 指向**本 worktree** 的两个包、七个 preset 的 `role` 各就各位（`dev` / `intake` / `architect` / `pm` / `git` / `ops` / `review`；kernel 只挂在 preset 内，没有全局行）。改过装配源后要重新拷一次运行副本，否则角色名册里看不到新角色。
 
 还有一条本机偏离：worktree 首启动时 `@electron/get` 下载 Electron 会对本机 GitHub 超时，先对拷主仓 `apps/desktop/.desktop-build/downloads` 缓存并设 `ELECTRON_SKIP_BINARY_DOWNLOAD=1`，否则 `start:desktop` 以 `aborted due to timeout` 退出。web 冒烟用的 `.dsh-home/profiles/web` 同样要装两条 `link:`，少一条就报 `2 entries did not activate`。
 
