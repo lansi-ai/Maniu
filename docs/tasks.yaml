@@ -511,6 +511,17 @@ tracks:
       dep: [T-44]
       inferred: false
       note: "A 级（收紧现有角色的写入口，属行为变更）。用户拍板「给 file_edit 加硬闸」。先盘存量再动：填了 allowed_paths 的任务有六条——主仓 DEMO-01 与 onboard-demo DEMO-01 是 drafting（这一档本来就没有 file_edit，闸碰不到），onboard-demo DEMO-02 是 contracted 且范围是 src/、DEMO-03 是 implementing 且范围是 src/，target-demo T-01 是 contracted 但 allowed_paths 为空，t32-demo 与 multi-demo 的 T-01 也是空数组。也就是说这条闸一上，真正被改变行为的是 onboard-demo 的 DEMO-02 与 DEMO-03：那两条任务下，模型只能往 src/ 里写，写到别处会被当场拒绝——这正是这条闸要演示的效果，但用户要知道，所以写在这里。实现三处。kernel/plugin.ts 把原来只回状态的 currentState 拆成 currentTask（返回这条会话依据哪条任务装面，读不到返回 null）与两个派生量：currentState 与 allowedPaths，工具面与写入范围因此来自同一次读盘、同一个任务判定，不会各读各的然后漂移；tools/edit-tools.ts 的 EditToolDeps 加 scope 回调，file_edit 在算出绝对路径之后、建目录与写文件之前判范围，前缀比较把分隔符归一到正斜杠（Windows 上 relative 带反斜杠），报错文案给出允许前缀、目标路径与「先改 scope 或换任务」这条路；语义按现状不动：空数组与读不到任务都不设限，坏 YAML 仍按空看板处理并照旧打日志。测试两条新用例：范围内放行（含不带斜杠的前缀写法与反斜杠路径）、范围外拒绝且不落盘，null 与空数组不设限。规则单源加一条红线中英各一行。门禁：typecheck 5 关绿；vitest packages/lcoder 全绿；未验：桌面端手点——在 onboard-demo 选 DEMO-02 起会话，让它改一个 src/ 外的文件，看它是否如实报出范围拒绝。风险一条：这条闸对已存在会话的即时效果是「上一轮还能写、这一轮被拒」，因为范围来自任务文件而不是会话记忆，这是设计意图（状态与范围都跟着盘上的事实走），但用户第一次遇到时可能像回归。"
+    - id: T-46
+      title: 设置页的专家面板——名册数量与每位专家的提示词详情
+      status: doing
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-05'
+      date: '2026-11-05'
+      dep: [T-42]
+      inferred: false
+      note: "B 级（新增面板与注入面，不动 schema、工具面与状态机）。用户 2026-11-05 要求在设置页加专家设置，能看现在系统内置了多少个专家、以及专家的提示词详情。先核数据源，结论是宿主已有的两个远程面就够，不用改上游：agentPresets.list 给名册（id、name、description、order、broken），agentPresets.read 给那份 preset 的子插件清单 YAML，而提示词不是独立字段，它就是清单里 persona 那一行的 config.prefix。记一条形状事实免得下次再找：AgentPreset 这个远程行类型只有 id/name/description/order/broken，不含 plugins，所以提示词只能逐个 preset 走 read 拿声明，不能在 list 里一次取全。三条设计决定。一、面板不筛 lcoder 前缀——用户问的是内置了多少个专家，答案必须是宿主真实注册的全部（上游 standard 等也在内），LCoder 那七位靠装配的 order 排在前面并显示各自 id，筛掉会让数字说谎。二、低频按需：名册在展开时才读、读一次缓存，提示词按专家展开时才 read，声明原文再折叠一层，设置页不该在启动路径上多两次远程调用。三、失败形状分开说：查询失败、这份声明没有 persona 行、这棵 preset 装载失败（broken 带原因）三种文案各不相同，不拿「没有」冒充「读不到」，与 T-22 那条三态口径一致。落点四处。新 client/experts.ts 两个纯函数（expertsFromRoster 按 order 排、无 order 的按 id 排后面、名称缺省回落 id；personaPromptOf 认行按 id 为 persona 或模块名以 /dsh-persona 结尾两种写法，YAML 读不懂、非列表、prefix 为空或非字符串一律返回 null 而不抛，好让面板继续显示声明原文）；index.ts 注入 listExperts 与 readExpert；设置弹窗加一行专家与展开面板，CSS 全部复用既有 --lc-* token；文案 10 个键中英各一份。一条要说清的偏离：上游自己也有 preset 的查看面（packages/client/ui-agent-preset 用同一个 read 做「查看声明」），本面板不替代它，只是把专家数量与提示词正文放进 LCoder 的设置里。门禁：typecheck 5 关绿；vitest packages/lcoder 35 文件 346 用例，experts 新 spec 4 例覆盖排序与缺省回落、折叠标量拼成一段、两种认行写法、三种失败形状；oxlint 82 文件 0 错 0 警；test:docs 21 关绿；verify-client-ui-i18n 1273 个源文件合格；workspace bundle 重打且产物里查得到新键。未验：桌面端手点——设置里展开专家面板看数量与排序，点开 LCoder 产品 核对提示词是否与装配源逐字一致。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
