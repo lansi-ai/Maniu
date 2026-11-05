@@ -278,9 +278,55 @@ describe('@lcoder/workspace apply', () => {
     )
     try {
       const face = h.injections[0] as { listRoles: () => Promise<Array<{ id: string; name?: string }>> }
-      // `standard` 没有本包的十个工具，读不到 .spec，外壳不把它当角色给。
+      // `standard` 不挂本包工具，读不到 .spec，外壳不把它当角色给。
       expect(await face.listRoles()).toEqual([{ id: 'lcoder' }, { id: 'lcoder-review', name: '评审' }])
       expect(await face.listRoles()).toEqual([])
+    } finally { await h.fiber.dispose() }
+  })
+
+  it('卡片的两个状态位：物化过的会话读得到，没物化的返回 null', async () => {
+    const bound = {
+      session: {
+        getSnapshot: () => ({
+          awaitingFirstTurn: true,
+          promptError: { op: 'send', error: { code: 'gateway/internal', message: 'boom' } },
+          lastAgentError: null,
+        }),
+      },
+    }
+    const h = await boot(
+      { shell: true },
+      { create: vi.fn() },
+      { create: vi.fn(), binding: vi.fn((id: string) => (id === 's-1' ? bound : undefined)) },
+      { execute: vi.fn() },
+    )
+    try {
+      const face = h.injections[0] as {
+        readSessionFlags: (id: string) => { awaitingFirstTurn: boolean; failed: boolean } | null
+      }
+      expect(face.readSessionFlags('s-1')).toEqual({ awaitingFirstTurn: true, failed: true })
+      expect(face.readSessionFlags('s-2')).toBeNull()
+    } finally { await h.fiber.dispose() }
+  })
+
+  it('订阅同时挂事件窗口与会话快照，收回时两个都解', async () => {
+    const disposeEvents = vi.fn()
+    const disposeState = vi.fn()
+    const binding = {
+      eventSource: { subscribe: () => disposeEvents, getSnapshot: () => ({ entries: [] }) },
+      session: { subscribe: () => disposeState },
+    }
+    const h = await boot(
+      { shell: true },
+      { create: vi.fn() },
+      { create: vi.fn(), binding: vi.fn(() => binding) },
+      { execute: vi.fn() },
+    )
+    try {
+      const face = h.injections[0] as { subscribeSession: (id: string, listener: () => void) => () => void }
+      face.subscribeSession('s-1', () => {})()
+      expect(disposeEvents).toHaveBeenCalledTimes(1)
+      expect(disposeState).toHaveBeenCalledTimes(1)
     } finally { await h.fiber.dispose() }
   })
 
