@@ -332,6 +332,17 @@ tracks:
       dep: [T-23]
       inferred: false
       note: "C 级（≤3 文件、无契约变更）。T-23 在桌面实测中发现：仓库还没有 `.spec` 时，任务详情弹窗与项目信息抽屉里的「规格根」仍显示拼出来的真实路径 `<仓库>/.spec`，看上去像已经存在一个规格库，属误导。范围：没有 `.spec` 时该处显示「还没有规格库」并给出立项入口，不显示路径；文案进词典中英双份，遵循 locale-owned。发现来源是 T-23 的改动前后对照记录，它自己判定未纳入该条范围，故单独立项以免烂在 note 里。验收只认桌面端手点。"
+    - id: T-30
+      title: 设置页里的模型配置——多家 provider 的 key 与 base URL
+      status: todo
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-05'
+      date: '2026-11-05'
+      dep: [T-22]
+      inferred: false
+      note: "A 级（碰凭据面加新 UI 面）。用户 2026-11-05 拍定范围：在现有设置弹窗里加「模型」配置，支持多家 provider 的 key 与 base URL，不做登录、不做插件管理，功能对齐上游。现状已核四处：上游实现是 packages/client/ui-settings-models 的 settings.section（id 为 models），四步分别调 remote.llm.listProviders 与 listConfigurableProviders、remote.settings.describe 与 mutate、remote.credentials.describe 与 set 与 unset、remote.llm.discoverModels，默认模型走 session 的方法；凭据是 env 风格的引用名（如 DEEPSEEK_API_KEY），credentials.set 只写值，读的一半 CredentialInfo 没有值槽，provider 的 base URL 等写在 settings 命名空间并由 apiKeyEnv 指向引用；客户端装配 packages/api/remotes 已挂 llm 与 settings（含 credentials 命名空间），壳里注入 remote.llm、remote.settings、remote.credentials 就能直接调，不需要自建 Remote；安全上有两层，settings 走 redact，凭据值不过线。范围与红线：key 只经 credentials.set 落盘，不写日志、不进会话事件、不进模型请求，不落 .env 文件；不接登录与插件管理；provider 列表与四项操作对齐上游；保存后靠 llm/models-updated 与 credentials/record-updated 让壳自己解锁，不要求重启；不做多账号与云端同步。验收只认桌面端手点。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
