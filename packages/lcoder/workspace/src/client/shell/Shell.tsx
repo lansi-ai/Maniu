@@ -22,7 +22,7 @@ import type { LcoderWorkspaceKey } from '../locales.ts'
 import { claimTaskSession, taskCardStatus } from '../task-session.ts'
 import type { TaskCardStatus, TaskSessionRow } from '../task-session.ts'
 import { buildOnboardingPrompt, buildShellPrompt, SHELL_STATES } from './shell-data.ts'
-import type { ShellCommandResult, ShellMessage, ShellProjectInfo, ShellTask, ShellTaskState } from './shell-data.ts'
+import type { ShellMessage, ShellProjectInfo, ShellSignResult, ShellTask, ShellTaskState } from './shell-data.ts'
 import css from './Shell.module.css'
 
 /** `main` 键控面板的组合 props：运行时标准 seat + 本包词典 + 文件投影面。 */
@@ -37,22 +37,12 @@ export type ShellProps =
     /** 向真实会话发送一条文本提示。 */
     readonly sendPrompt?: (sessionId: SessionId, text: string) => Promise<void>
     /**
-     * 为一个任务开一条专属会话。第一参数是工作区路径，由装配层幂等解析回同一个工作区后
-     * 按 workspaceId 建会话；建完再派 bindTaskToSession，归属才落进规格库。
-     */
-    readonly createTaskSession?: (workspacePath: string) => Promise<SessionId>
-    /**
-     * 派 `/task_bind <编号>` 把这条会话绑给任务；`session` 字段由 kernel 写进 `.spec`，
-     * 浏览器不碰规格库文件。
-     */
-    readonly bindTaskToSession?: (sessionId: SessionId, taskId: string) => Promise<ShellCommandResult>
-    /**
      * 读会话快照里卡片要的两个状态位。
      * 只有本客户端物化过的会话读得到，读不到返回 null——卡片因此不拿「不知道」画成「失败」。
      */
     readonly readSessionFlags?: (sessionId: SessionId) => { readonly awaitingFirstTurn: boolean; readonly failed: boolean } | null
     /** 派 `/contract_sign <编号>` 让人签署契约；签名由宿主写盘。 */
-    readonly signContract?: (sessionId: SessionId, taskId: string) => Promise<ShellCommandResult>
+    readonly signContract?: (sessionId: SessionId, taskId: string) => Promise<ShellSignResult>
     /** 查宿主侧还有没有能跑的模型；没有对话就不会有回音。 */
     readonly checkModels?: () => Promise<ModelStatus>
     /** 模型目录或凭据一变就重查；返回解除订阅。 */
@@ -146,7 +136,7 @@ function resolveSecrets(info: ShellProjectInfo, secrets: Readonly<Record<string,
  */
 export function Shell({
   t, files, openRepository, sendPrompt, signContract, readMessages, subscribeSession,
-  checkModels, subscribeModels, readSessionNotice, createTaskSession, bindTaskToSession, readSessionFlags,
+  checkModels, subscribeModels, readSessionNotice, readSessionFlags,
   useSessions, useSessionStatus, useWorkspaces,
 }: ShellProps): ReactNode {
   const workspaces = useWorkspaces(state => state.items)
@@ -169,7 +159,7 @@ export function Shell({
   /** 签完一次就把投影重读一遍：`contracts` 里的签名状态是文件的事实，不是界面的记忆。 */
   const [reload, setReload] = useState(0)
   const [signing, setSigning] = useState(false)
-  const [signResult, setSignResult] = useState<ShellCommandResult | null>(null)
+  const [signResult, setSignResult] = useState<ShellSignResult | null>(null)
   const [rulesCount, setRulesCount] = useState(0)
   const [info, setInfo] = useState<ShellProjectInfo | null>(null)
   const [problems, setProblems] = useState<readonly string[]>([])
@@ -184,11 +174,6 @@ export function Shell({
   const [modelStatus, setModelStatus] = useState<ModelStatus | null>(null)
   const [chatError, setChatError] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
-  /**
-   * 当前这条对话属于哪个任务会话：由「开始对话」新建并命名，或按任务号从已有会话里认出来。
-   * 关掉浮层不清它——卡片上的「等首个回合」和失败要留在它所属的那张卡上。
-   */
-  const [taskSessionId, setTaskSessionId] = useState<SessionId | null>(null)
   /** 只有本客户端物化过的会话才读得到这两位；null 表示读不到，卡片就不画这两个态。 */
   const [taskFlags, setTaskFlags] = useState<{ readonly awaitingFirstTurn: boolean; readonly failed: boolean } | null>(null)
 
@@ -202,11 +187,9 @@ export function Shell({
   const specRoot = projectPath === '' ? '' : `${projectPath}/.spec`
   const hasWorkspace = workspace !== undefined
   const hasSession = sessionId !== undefined
-  /** 对话实际落在的那条会话：按任务号归属的会话优先，没有再落回工作区的第一条。 */
-  const activeSessionId = taskSessionId ?? sessionId
-  const activeRunning = activeSessionId === undefined
+  const chatRunning = sessionId === undefined
     ? false
-    : sessionStatus.get(activeSessionId)?.running ?? sessionRows[activeSessionId]?.running ?? false
+    : sessionStatus.get(sessionId)?.running ?? sessionRows[sessionId]?.running ?? false
   /** 本工作区已知的会话行，折成任务归属需要的形状。 */
   const workspaceSessions = useMemo<readonly TaskSessionRow[]>(() => {
     if (workspace === undefined) return []
@@ -278,41 +261,40 @@ export function Shell({
   }, [checkModels, subscribeModels])
 
   useEffect(() => {
-    if (chat === null || activeSessionId === undefined || readMessages === undefined || subscribeSession === undefined) {
+    if (chat === null || sessionId === undefined || readMessages === undefined || subscribeSession === undefined) {
       setMessages([])
       setNotice(null)
       return
     }
     const refresh = (): void => {
-      setMessages(readMessages(activeSessionId))
-      setNotice(readSessionNotice?.(activeSessionId) ?? null)
+      setMessages(readMessages(sessionId))
+      setNotice(readSessionNotice?.(sessionId) ?? null)
     }
     refresh()
-    return subscribeSession(activeSessionId, refresh)
-  }, [chat, activeSessionId, readMessages, subscribeSession, readSessionNotice])
+    return subscribeSession(sessionId, refresh)
+  }, [chat, sessionId, readMessages, subscribeSession, readSessionNotice])
 
   /**
    * 卡片上「等首个回合」与失败两位的来源。
    *
-   * 它们只在会话快照里，而快照只有本客户端物化过的会话才有——所以这一路只跟着
-   * 当前这条任务会话，读不到就明说读不到。会话没换过时订阅一直保持，
-   * 关掉浮层也不清：卡片要把这张任务的状态留在它那张卡上。
+   * 它们只在会话快照里，而快照只有本客户端物化过的会话才有——所以这一路只跟着当前会话
+   * 读，读不到就明说读不到，卡片退回只显示宿主推流得到的那几个态。
    */
   useEffect(() => {
-    if (taskSessionId === null || readSessionFlags === undefined || subscribeSession === undefined) {
+    if (sessionId === undefined || readSessionFlags === undefined || subscribeSession === undefined) {
       setTaskFlags(null)
       return
     }
-    const refresh = (): void => { setTaskFlags(readSessionFlags(taskSessionId)) }
+    const refresh = (): void => { setTaskFlags(readSessionFlags(sessionId)) }
     refresh()
-    return subscribeSession(taskSessionId, refresh)
-  }, [taskSessionId, readSessionFlags, subscribeSession])
+    return subscribeSession(sessionId, refresh)
+  }, [sessionId, readSessionFlags, subscribeSession])
 
-  /** 一张卡片的状态：先按标题认归属会话，再叠宿主推流与物化后才读得到的两位。 */
+  /** 一张卡片的状态：先按规格库的 session 字段认归属会话，再叠宿主推流与快照两位。 */
   const statusOfTask = (task: ShellTask): TaskCardStatus => {
     const session = claimTaskSession(task.session, workspaceSessions)
     const pushed = session === null ? undefined : sessionStatus.get(session.sessionId)
-    const flags = session !== null && session.sessionId === taskSessionId ? taskFlags : null
+    const flags = session !== null && session.sessionId === sessionId ? taskFlags : null
     return taskCardStatus({
       session,
       hostRunning: pushed?.running,
@@ -364,14 +346,10 @@ export function Shell({
   }
 
   /**
-   * 为一个任务开对话：一个任务一条会话。
-   *
-   * 归属的权威是 `.spec/tasks/<ID>.yaml` 的 `session` 字段，所以这里先读投影里已绑定的
-   * 会话；没绑过才新建一条，并派 `/task_bind` 让 kernel 把会话写进那个字段——浏览器不碰
-   * 规格库。命令不在本装配时把那句人话原样显示出来：对话照发，但卡片下一轮仍读作未开始，
-   * 用户看得懂状态为什么接不上，而不是以为已经绑上了。
+   * 开一条对话。本线只画状态：建会话与 `/task_bind` 认领归 T-25，这里仍发到工作区当前会话，
+   * 卡片按规格库里的 `session` 字段认领，没绑过就如实显示未开始。
    */
-  const startConversation = async (task: ShellTask): Promise<void> => {
+  const startConversation = (task: ShellTask): void => {
     setChat(task)
     setDetail(null)
     setChatError(null)
@@ -379,30 +357,11 @@ export function Shell({
       setChatError(t('shell.noModels'))
       return
     }
-    if (sendPrompt === undefined || createTaskSession === undefined || bindTaskToSession === undefined
-      || workspace === undefined) {
+    if (sessionId === undefined || sendPrompt === undefined) {
       setChatError(t('shell.noSession'))
       return
     }
-    const claimed = claimTaskSession(task.session, workspaceSessions)
-    let target: SessionId
-    if (claimed !== null) {
-      target = claimed.sessionId
-    } else {
-      try {
-        target = await createTaskSession(workspace.path)
-      } catch (error: unknown) {
-        // 会话没建成；卡片继续显示未开始，不假装这条任务已经在跑。
-        setChatError(String(error))
-        return
-      }
-      const bound = await bindTaskToSession(target, task.id)
-      if (!bound.ok) setChatError(bound.text)
-      // 绑定改的是文件：重读投影，卡片才认得出这条新会话归这个任务。
-      setReload(value => value + 1)
-    }
-    setTaskSessionId(target)
-    void sendPrompt(target, prompt).catch((error: unknown) => { setChatError(String(error)) })
+    void sendPrompt(sessionId, prompt).catch((error: unknown) => { setChatError(String(error)) })
   }
 
   /**
@@ -416,8 +375,6 @@ export function Shell({
     )
     setDetail(null)
     setChatError(null)
-    // 立项对话不属于任何任务，不能沿用上一条任务会话，否则消息会落进别的卡里。
-    setTaskSessionId(null)
     setPrompt(text)
     setCopied(false)
     setChat({ id: '', title: t('shell.onboardingChat'), state: 'drafting', grade: '-', rules: [], evidence: [], surface: '' })
@@ -434,11 +391,11 @@ export function Shell({
 
   const sendDraft = async (): Promise<void> => {
     const text = draft.trim()
-    if (text === '' || modelBlocked || activeSessionId === undefined || sendPrompt === undefined) return
+    if (text === '' || modelBlocked || sessionId === undefined || sendPrompt === undefined) return
     setDraft('')
     setChatError(null)
     try {
-      await sendPrompt(activeSessionId, text)
+      await sendPrompt(sessionId, text)
     } catch (error: unknown) {
       setChatError(String(error))
     }
@@ -454,7 +411,6 @@ export function Shell({
       const opened = await openRepository(path)
       setWorkspaceId(opened.workspaceId)
       setSessionOverride(opened.sessionId)
-      setTaskSessionId(null)
       setProjectPicker(false)
     } catch (error: unknown) {
       const failure = describeOpenFailure(error)
@@ -667,7 +623,7 @@ export function Shell({
                           type="button"
                           key={id}
                           className={`${css.projectOption} ${id === activeWorkspaceId ? css.projectOptionActive : ''}`}
-                          onClick={() => { setWorkspaceId(id); setSessionOverride(null); setTaskSessionId(null); setProjectPicker(false) }}
+                          onClick={() => { setWorkspaceId(id); setSessionOverride(null); setProjectPicker(false) }}
                         >
                           <span className={css.psLogo}>{(item.title || 'L').slice(0, 1).toUpperCase()}</span>
                           <span className={css.poText}>
@@ -785,7 +741,7 @@ export function Shell({
                 className={css.primaryBtn}
                 disabled={modelBlocked}
                 title={modelBlocked ? t('shell.noModels') : undefined}
-                onClick={() => { void startConversation(detail) }}
+                onClick={() => { startConversation(detail) }}
               >
                 {t('shell.startChat')}
               </button>
@@ -817,7 +773,7 @@ export function Shell({
                   <h4>{chat.id === '' ? chat.title : `${chat.id} · ${chat.title}`}</h4>
                   <p>LCoder · {t(STATE_LABEL[chat.state])} · {t('shell.chatHint')}</p>
                 </div>
-                <span className={css.pill}>{activeRunning ? t('shell.running') : t('shell.chatReady')}</span>
+                <span className={css.pill}>{chatRunning ? t('shell.running') : t('shell.chatReady')}</span>
                 <button type="button" className={css.iconBtn} title={t('shell.expand')} onClick={() => { setChat(null) }}>⤢</button>
               </div>
               <div className={css.chatBody}>
@@ -825,7 +781,7 @@ export function Shell({
                   ? (
                     <div className={`${css.msg} ${css.msgSys}`}>
                       <span className={css.who}>LCoder</span>
-                      {activeRunning ? t('shell.chatWaiting') : t('shell.chatEmpty')}
+                      {chatRunning ? t('shell.chatWaiting') : t('shell.chatEmpty')}
                     </div>
                   )
                   : messages.map((message, index) => (
@@ -857,7 +813,7 @@ export function Shell({
                 <button
                   type="button"
                   className={css.primaryBtn}
-                  disabled={draft.trim() === '' || modelBlocked || activeSessionId === undefined || sendPrompt === undefined}
+                  disabled={draft.trim() === '' || modelBlocked || sessionId === undefined || sendPrompt === undefined}
                   onClick={() => { void sendDraft() }}
                 >
                   {t('shell.send')}

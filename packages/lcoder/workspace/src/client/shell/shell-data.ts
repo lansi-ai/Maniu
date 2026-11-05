@@ -73,11 +73,11 @@ export interface ShellMessage {
 }
 
 /**
- * 一次人机命令的回执（签署契约，或把任务绑到会话）。
+ * 一次签署命令的回执。
  * `text` 是宿主给出的那句人话（写了哪个文件、签名覆盖哪一版正文），
  * 外壳原样显示，不改写也不本地化——那句话属于宿主。
  */
-export interface ShellCommandResult {
+export interface ShellSignResult {
   readonly ok: boolean
   readonly text: string
 }

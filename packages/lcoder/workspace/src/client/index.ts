@@ -31,7 +31,7 @@ import type { ModelStatus, ShellSessionNotice } from './model-status.ts'
 import { en, zh } from './locales.ts'
 import { loadWorkspaceProjection, PAGE_LINES } from './projection.ts'
 import { messagesFromEntries } from './shell/shell-data.ts'
-import type { ShellCommandResult, ShellMessage } from './shell/shell-data.ts'
+import type { ShellMessage, ShellSignResult } from './shell/shell-data.ts'
 import { Shell } from './shell/Shell.tsx'
 import { WorkspaceBody } from './WorkspaceBody.tsx'
 import type { ProjectionFilesRemote } from './projection.ts'
@@ -125,7 +125,7 @@ export function apply(ctx: ClientContext, config: Config = {}): void {
      * 把人机命令 `/contract_sign <编号>` 交给宿主编排：签名由 kernel 写进 `.spec`，
      * 浏览器不碰规格库文件。回执里那句人话由宿主给出，外壳原样显示、不改写。
      */
-    const signContract = async (sessionId: SessionId, taskId: string): Promise<ShellCommandResult> => {
+    const signContract = async (sessionId: SessionId, taskId: string): Promise<ShellSignResult> => {
       const result = await ctx.remote.commands.execute(sessionId, `/contract_sign ${taskId}`, [])
       if (!result.ok) return { ok: false, text: `${result.error.code}: ${result.error.message}` }
       if (result.value === undefined) return { ok: false, text: t('shell.commandUnavailable') }
@@ -154,39 +154,6 @@ export function apply(ctx: ClientContext, config: Config = {}): void {
     const readSessionNotice = (sessionId: SessionId): ShellSessionNotice | null => {
       const binding = ctx.sessions.binding(sessionId)
       return binding === undefined ? null : noticeFromSnapshot(binding.session.getSnapshot())
-    }
-    /**
-     * 为一个任务开一条专属会话。
-     *
-     * 归属不写进会话标题——`.spec/tasks/<ID>.yaml` 的 `session` 字段才是唯一权威，
-     * 建完会话由 {@link bindTaskToSession} 派 `/task_bind` 让 kernel 落盘。
-     *
-     * 会话必须按 `workspaceId` 建：宿主只在给了 workspaceId 的那条分支上把新会话挂进
-     * 工作区（`commands.ts` 的 `attachSession`），只给 cwd 时会话建在目录里却不进名册，
-     * 卡片就永远认不到它。路径按 `workspaces.create` 的幂等语义解析回同一个工作区。
-     * @param workspacePath - 项目目录；幂等解析成已登记的工作区。
-     * @returns 新建会话的身份。
-     */
-    const createTaskSession = async (workspacePath: string): Promise<SessionId> => {
-      const workspace = await withOpenDeadline(
-        'workspace/create', ctx.workspaces.create({ path: workspacePath }), openTimeoutMs,
-      )
-      return await withOpenDeadline(
-        'session/create', ctx.sessions.create({ workspaceId: workspace.workspaceId }), openTimeoutMs,
-      )
-    }
-    /**
-     * 把人机命令 `/task_bind <编号>` 交给宿主编排：`session` 字段由 kernel 写进
-     * `.spec/tasks/<编号>.yaml`，浏览器不碰规格库文件——kernel 仍是唯一的写盘者。
-     *
-     * 命令还没进这个装配时如实报「没有这条命令」，不静默：静默会让用户以为已经绑上了，
-     * 而卡片下一轮仍旧显示未开始。回执那句人话由宿主给出，外壳原样显示。
-     */
-    const bindTaskToSession = async (sessionId: SessionId, taskId: string): Promise<ShellCommandResult> => {
-      const result = await ctx.remote.commands.execute(sessionId, `/task_bind ${taskId}`, [])
-      if (!result.ok) return { ok: false, text: `${result.error.code}: ${result.error.message}` }
-      if (result.value === undefined) return { ok: false, text: t('shell.taskBindUnavailable') }
-      return { ok: result.value.result.kind === 'success', text: result.value.result.text ?? '' }
     }
     /**
      * 卡片要的两个状态位。
@@ -221,7 +188,7 @@ export function apply(ctx: ClientContext, config: Config = {}): void {
           locale: NS,
           inject: () => ({
             files, openRepository, sendPrompt, signContract, readMessages, subscribeSession,
-            checkModels, subscribeModels, readSessionNotice, createTaskSession, bindTaskToSession, readSessionFlags,
+            checkModels, subscribeModels, readSessionNotice, readSessionFlags,
           }),
         },
         Shell,
