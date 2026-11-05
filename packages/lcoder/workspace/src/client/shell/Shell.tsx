@@ -76,7 +76,7 @@ export type ShellProps =
   }
 
 /** 配置没给尺寸时的普通档默认值；最大化档不读配置。 */
-export const DEFAULT_CHAT_SIZE = { width: 760, height: 640 } as const
+export const DEFAULT_CHAT_SIZE = { width: 720, height: 640 } as const
 
 /** 状态到词典键的映射，避免把状态字符串当展示文案。 */
 const STATE_LABEL = {
@@ -606,7 +606,7 @@ export function Shell({
     }
   }
 
-  const renderColumn = (state: (typeof SHELL_STATES)[number], compact = false): ReactNode => {
+  const renderColumn = (state: (typeof SHELL_STATES)[number]): ReactNode => {
     const columnTasks = tasks.filter(task => task.state === state.id)
     return (
       <div key={state.id} className={css.column}>
@@ -627,9 +627,9 @@ export function Shell({
                 <div className={css.taskTitle}>{task.title}</div>
                 <div className={css.tags}>
                   <span className={`${css.tag} ${TASK_STATUS[status].className ?? ''}`}>{t(TASK_STATUS[status].labelKey)}</span>
-                  {compact ? null : task.rules.map(rule => <span key={rule} className={css.tag}>{rule}</span>)}
-                  {compact ? null : <span className={`${css.tag} ${task.state === 'closed' ? css.tagOk : ''}`}>{task.surface}</span>}
-                  {compact || !contracts.some(row => row.id === task.id && row.signedBy === 'human')
+                  {task.rules.map(rule => <span key={rule} className={css.tag}>{rule}</span>)}
+                  <span className={`${css.tag} ${task.state === 'closed' ? css.tagOk : ''}`}>{task.surface}</span>
+                  {!contracts.some(row => row.id === task.id && row.signedBy === 'human')
                     ? null
                     : <span className={`${css.tag} ${css.tagOk}`}>{t('shell.contractSigned')}</span>}
                 </div>
@@ -1098,19 +1098,6 @@ export function Shell({
         <div className={css.floating} data-max={chatMax ? 'true' : undefined}>
           <div className={css.floatingBackdrop} onClick={() => { setChatMax(false); setChat(null) }} />
           <div className={css.floatingInner} style={chatStyle}>
-            <div className={css.boardWindow}>
-              <div className={css.miniHead}>
-                <div className={css.grow}>
-                  <h4>{projectName} · {t('shell.board')}</h4>
-                  <p>{t('shell.chatHint')} · {t('shell.specRoot')} {specRoot || '—'}</p>
-                </div>
-                <span className={`${css.pill} ${css.pillBrand}`}>{t('shell.tasks')}</span>
-              </div>
-              <div className={css.miniBoard}>
-                {SHELL_STATES.map(state => renderColumn(state, true))}
-              </div>
-            </div>
-
             <div className={css.chatWindow} data-max={chatMax ? 'true' : undefined}>
               <div className={css.chatHead}>
                 <div className={css.grow}>
