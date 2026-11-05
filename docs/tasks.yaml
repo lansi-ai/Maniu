@@ -182,6 +182,18 @@ tracks:
       inferred: false
       note: "C 级（环境事实登记，不改代码）。症状是新建 worktree 里 pnpm run typecheck 报 packages/experimental/subagent-oar/src/run.ts:253 的 TS2554，build:artifacts 的 host compiler 退出 1，其后四步与 web 全跳，桌面产物链断，起实例时 apps/desktop 解析不到 @deepseek-ai/dsh-app-boot/lib/index.js。根因不在上游代码也不在版本，pnpm-workspace.yaml:110 的 patchedDependencies 给 @botiverse/oar@0.67.0 的补丁在新 tree 里被静默跳过，.pnpm 目录名带着同一 patch 哈希但内容是未打补丁原件，补丁正是把 InstallationProbe 从无参扩成带 options 的那一处。本机规避已验证：pnpm install --force 后四处 tree 的 installation.d.ts 都带 options，该 worktree typecheck 为 5 passed（148.53 秒）。复发条件是凡新建 worktree 或重装依赖都可能再来；判据一行：grep -o 'InstallationProbe = .*' node_modules/.pnpm/@botiverse+oar@0.67.0_patch_*/node_modules/@botiverse/oar/dist/contracts/installation.d.ts 看有没有 options?，别只看 TS2554 就判上游。根治路线未排期，方向是给 worktree 初始化加一条依赖自检，代价是首次安装更慢。取证与处置已落 lcoder/PITFALLS.md 的 W-09。"
 
+    - id: T-29
+      title: 签署后由人推进一步到已签约——人机命令 task_contract 与详情按钮
+      status: doing
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-05'
+      date: '2026-11-05'
+      dep: [T-21]
+      inferred: false
+      note: "B 级；用户在真窗口签完契约后问「为什么签署不改任务状态」，随后拍板加一个「推进到已签约」按钮（在任务详情里、签完才出现），而不是让签署顺带推。落点三处：kernel 新增人机命令 task_contract，只做 drafting 到 contracted 这一条边，四道闸为任务存在且处于起草态、契约存在、签署人是 human、签名哈希等于当前正文复算值，任一不过只回一句话且任务文件一个字节不动；不做通用 advance，避免把状态机判断从图的合法边扩成一张命令表。client/index.ts 注入 advanceContract 派 /task_contract，Shell 在已签且仍在起草态的详情里出按钮，成功后重读投影让卡片换列。门禁 typecheck(5)、vitest packages/lcoder(23 files / 254 tests)、oxlint packages/lcoder 0 error、test:docs(21)，两个包已重打 bundle；规则单源与 PRD 同步写明这条边由人经命令推进、更往后的流转仍手写 YAML。未验项是桌面那一下，验收只认桌面端手点。"
+
 
   - id: workspace
     name: 工作台 UI

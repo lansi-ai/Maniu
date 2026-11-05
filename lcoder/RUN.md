@@ -64,7 +64,7 @@ pnpm --filter @lcoder/kernel bundle
 按顺序看四件事：
 
 1. **服务活着**：日志里有 `dsh web: http://127.0.0.1:3080/?token=…`
-2. **kernel 挂上了**：selfCheck 那行 `[lcoder] 已注册 12 个工具与 /contract_sign、/task_bind 命令；角色 …`
+2. **kernel 挂上了**：selfCheck 那行 `[lcoder] 已注册 12 个工具与 /contract_sign、/task_bind、/task_contract 命令；角色 …`
    打到**宿主 stderr**，桌面实例里采不到它——宿主子进程的 stdout 不并入 `dev:desktop` 日志，
    而且 kernel 是 Agent 作用域**懒装载**，`apply()` 要到起回合才发生，无钥匙实例里这行出现 0 次。
    桌面端改判两条：会话头 `agentPreset` 是 `lcoder*`（不要钥匙，实测可采），以及真点一次

@@ -90,7 +90,7 @@ kernel 的规格根跟随会话工作区：一次工具调用取 `session.header
 
 ## 11. 风险与技术债
 
-- 签署已接通：人机命令 `/contract_sign` 由宿主写签名，工作台的任务详情展示契约正文并给出签署动作。浏览器不写 `.spec`；签名哈希不再覆盖正文时 P3 判签名作废。任务状态流转仍是手写 YAML。
+- 签署已接通：人机命令 `/contract_sign` 由宿主写签名，工作台的任务详情展示契约正文并给出签署动作。浏览器不写 `.spec`；签名哈希不再覆盖正文时 P3 判签名作废。签名验过后，人经 `/task_contract` 把起草态推到已签约；更往后的流转仍是手写 YAML。
 - 没有可用模型时发消息曾经静默失败：准入把消息收进入队就返回接受，回合在宿主侧才失败，事件流里不会出现 `user/message`。`client/model-status.ts` 把 `session/modelCatalog` 折成 ready、empty、unknown 三态；empty 时拦住发送并说清凭据该放哪，会话快照的 `promptError` 与 `lastAgentError` 在浮层就地显示。仓内隔离 home 不带 provider 凭据，全新检出要先有 `DEEPSEEK_API_KEY` 才能跑对话。
 - `implementing → verifying` 没有工具入口，状态推进需要人工改任务文件。
 - 立项面只收住本包的编辑与命令工具；bundle 注册的工具对该 profile 的每个 Agent 仍可用，所以未立项仓库不会因为 LCoder 就失去改代码能力。用 Agent 作用域 `restrict` 收住它们记为 T-11。
