@@ -6,7 +6,7 @@
 
 ## 0. 项目快照（开工必知）
 
-- **产品**：LCoder —— 面向 Windows 桌面端的规格驱动开发工作台，把 `.spec` 规格库、任务状态机与 agent 工具面收放做成 DeepSeek Harness 的插件层。
+- **产品**：LCoder —— 面向 Windows 与 macOS 桌面端的规格驱动开发工作台，把 `.spec` 规格库、任务状态机与 agent 工具面收放做成 DeepSeek Harness 的插件层。
 - **技术栈**：TypeScript（ESM）· Node ≥24.9 · pnpm workspaces · Cordis · React 18
 - **基线版本**：DeepSeek Harness `0.2.2-alpha.2`（2026-10-30）
 - **当前主线**：MVP-0 —— 工作台在本地跑通，收口 T-02
@@ -17,7 +17,7 @@
 
 - 🚫 不改任何上游文件；确需修改必须先进 [contact-surface.txt](../lcoder/contact-surface.txt)，并在 [UPSTREAM-BASELINE.md](../lcoder/UPSTREAM-BASELINE.md) §3 写明「改什么 / 为什么」。
 - 🚫 `.spec` 下的任务与规格 YAML 是 **LCoder 产品数据**的唯一事实源；UI 只读不写，状态机判断不进 UI。它不是本仓库的开发任务台账。kernel 是唯一写入口：模型可以经 `task_draft` 新建 `drafting` 任务、经 `spec_draft` 新建 `draft` 规格条目、经 `project_draft` 写 `.spec/project.yaml`、经 `proposal_draft` 写 `draft` 方案，但不能推进状态、不能签契约、不能批准方案、不能改**已存在**的规格条目。
-- 🚫 目标平台是 Windows 桌面端；路径处理按 Windows 优先（盘符、反斜杠、大小写不敏感）。
+- 🚫 目标平台是 Windows 与 macOS 桌面端；路径处理按平台来——Windows 用盘符、反斜杠与大小写不敏感比较，macOS 用 POSIX 分隔符，默认大小写不敏感卷在比较前先经原生 realpath 归一。
 - 🚫 `contract_sign`、`task_bind`、`task_contract` 与 `proposal_approve` 永不注册为模型工具：分别签契约、写「哪条会话认领哪条任务」、把已签的起草任务推进到已签约、采纳一个方案。只有人能触发它们。**签署可以在三道补偿闸同时成立时交给 AI，这是用户 2026-11-06 的决定**：`.spec/automation.yaml` 里 `sign` 为 `auto`、任务的 `scope.irreversible` 为空、且这条契约有非空的评审复核证据（`review*.log`）。三闸缺一不可；AI 自签写 `by: agent`、具体 `actor` preset，以及授权策略的路径、哈希与判定时刻。任务只要触及不可逆项就永远由人签——P3 拒绝任何三闸不成立的 agent 签名，并在签名哈希不再覆盖当前正文时判其作废。
 - 🚫 `.spec/automation.yaml` 永不承载外部不可逆动作。push、部署、改注册表与外部环境变更永远由人做；schema 遇到这些键直接判非法，而不是读进来忽略。
 - 🚫 Git 只走到本地提交。`git_commit` 只暂存它被给到的路径，不带 `--amend`、不带 `--no-verify`；**没有 push 工具，`cmd_run` 的登记面上也不该登记 `git push`**——推远端、`git reset --hard`、任何强推都仍是人的动作。
@@ -105,6 +105,7 @@
 |---|---|
 | [active-context.zh.md](active-context.zh.md) | 当前看板（开工第一读） |
 | [prd-and-design.zh.md](prd-and-design.zh.md) | 产品与方案口径 |
+| [desktop-release.zh.md](desktop-release.zh.md) | 桌面发布身份、更新源、签名缺口与 macOS 适配 |
 | `docs/tasks.yaml` | 开发台账（dev-flow，唯一源） |
 | `docs/tasks-html/index.html` | 离线任务看板（由开发台账生成，勿手改） |
 | `.spec/spec/rules.yaml` | 产品规格条目（LCoder 运行时） |
@@ -134,4 +135,5 @@
 - 插件路径是批量 combo URL，不是 `plugins/<name>/client.js`；单独请求会 404。
 - 文档门禁：`pnpm run test:docs`；包 README 必须有 `kind` / `description` frontmatter 与 `Summary` / `Table of Contents` / `Dev Note` 骨架。
 - 看板：先改 `docs/tasks.yaml`，再跑 `python scripts/build-tasks-html.py`；产物是 `docs/tasks-html/index.html`。`.spec` 不参与看板生成。
+- macOS 开发使用同一套仓库内 home 与仓库内 Electron 用户数据。未签名 macOS 构建是内部测试产物；其 Gatekeeper 与自动更新限制见 [desktop-release.zh.md](desktop-release.zh.md)。
 - 上游文档要求每段一个物理行（`verify-md-wrap`）；新增 `docs/` 文档按此写。

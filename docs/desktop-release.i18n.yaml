@@ -1,0 +1,103 @@
+# Bilingual-pair consistency record for desktop-release.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/desktop-release.md
+/lcoder-desktop-release:
+  en: 33a8be8e907735ad
+  zh: 3e6c38128c800b53
+/lcoder-desktop-release/0-purpose-and-authority:
+  en: 8cd9221d2b65f27b
+  zh: 0c9f07deac054f3a
+/lcoder-desktop-release/1-product-identity:
+  en: 4895b215370c1d6f
+  zh: 1af5cf3cdfe063c2
+/lcoder-desktop-release/1-product-identity/1-1-application-identity:
+  en: 03be1cd37cbac063
+  zh: 59c0d759f282ae16
+/lcoder-desktop-release/1-product-identity/1-2-version-scheme:
+  en: 3786cff1ae151bdf
+  zh: 7290c275972bfe16
+/lcoder-desktop-release/1-product-identity/1-3-user-data-logs-and-migration:
+  en: b99523b54f0e8bc7
+  zh: 204e27a9cf79ef95
+/lcoder-desktop-release/1-product-identity/1-4-deep-links-and-single-instance:
+  en: 3f750573f6f779b9
+  zh: 9b49da8fb7338dea
+/lcoder-desktop-release/2-update-source:
+  en: 7486ebfb74a5e80e
+  zh: c5167cbda75a9116
+/lcoder-desktop-release/2-update-source/2-1-cos-and-cdn-destinations:
+  en: 7599b57a6ae33352
+  zh: b98b3a5eec3df3f5
+/lcoder-desktop-release/2-update-source/2-2-object-layout:
+  en: 8c796e12ac9acbb7
+  zh: b149b5e46d1b6f8f
+/lcoder-desktop-release/2-update-source/2-3-channels:
+  en: a9b64c7a05b284c5
+  zh: 30c0a7baea363508
+/lcoder-desktop-release/2-update-source/2-4-packaged-app-update-yml:
+  en: 1e0d70b690412b63
+  zh: f999e0def39e8b60
+/lcoder-desktop-release/2-update-source/2-5-environment-variables:
+  en: 16ad9da074aceb6d
+  zh: 0399f9d539b6a089
+/lcoder-desktop-release/2-update-source/2-6-cache-upload-and-rollback:
+  en: e4b0194e70d349c8
+  zh: 60660fd3481bfd28
+/lcoder-desktop-release/3-update-experience:
+  en: 3e33cd4a9532cc8a
+  zh: 5422b24617490834
+/lcoder-desktop-release/3-update-experience/3-1-automatic-and-manual-checks:
+  en: 724e54cecff04078
+  zh: f7f234f3d84d315b
+/lcoder-desktop-release/3-update-experience/3-2-states:
+  en: bc420eb1fc73d986
+  zh: 73da4564622d39f0
+/lcoder-desktop-release/3-update-experience/3-3-rules:
+  en: 026376bd4680d488
+  zh: 834b26739743d36f
+/lcoder-desktop-release/4-signing-gap:
+  en: 5d7906db8dc87c69
+  zh: 8e83ea79cc274215
+/lcoder-desktop-release/4-signing-gap/4-1-windows-unsigned:
+  en: f80dae3efc07eb4b
+  zh: 04f993abcd5f6023
+/lcoder-desktop-release/4-signing-gap/4-2-macos-unsigned:
+  en: 2d992dc0fb182697
+  zh: 045a9de94afc0922
+/lcoder-desktop-release/4-signing-gap/4-3-exit-condition-t-82:
+  en: 01e0bbca0813fbb1
+  zh: a50c002aa91c1a38
+/lcoder-desktop-release/5-release-process:
+  en: 63355d33fa4a5d25
+  zh: 22077c3c0dcef5db
+/lcoder-desktop-release/5-release-process/5-1-pre-release-gates:
+  en: 654e698f4e826338
+  zh: 2cc5534739ef9a77
+/lcoder-desktop-release/5-release-process/5-2-release-steps:
+  en: a6786698e756e461
+  zh: 4bb3892e567fb21b
+/lcoder-desktop-release/5-release-process/5-3-rollback:
+  en: 56af3199d74cdee1
+  zh: 1f800fc63a0cf386
+/lcoder-desktop-release/6-macos-adaptation-matrix:
+  en: b42bcf06af950907
+  zh: ea41d2c466ddcb3f
+/lcoder-desktop-release/7-contact-surface:
+  en: 51e1e54b1642a067
+  zh: c24d92878318644b
+/lcoder-desktop-release/7-contact-surface/7-1-minimal-surface-rules:
+  en: fa8dd03d438f88b7
+  zh: aca3574502ad9abb
+/lcoder-desktop-release/7-contact-surface/7-2-upstream-files:
+  en: 3326825ed1bf5298
+  zh: d99524ad19d2c73d
+/lcoder-desktop-release/7-contact-surface/7-3-new-lcoder-files:
+  en: a495490d5465a2b0
+  zh: 7f418d650dd687db
+/lcoder-desktop-release/8-task-breakdown:
+  en: 6b77635221f6cd95
+  zh: 58f1a5e306ed4dc8
+/lcoder-desktop-release/9-unverified-boundaries:
+  en: 2235c730707d17b5
+  zh: e7eb13908c2cbdcf

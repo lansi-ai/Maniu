@@ -14,7 +14,7 @@ Agent 编码的常见失败不是不会写代码，而是不知道「凭什么�
 
 ## 2. 产品定位
 
-一句话定位：LCoder 是面向 Windows 桌面端的规格驱动开发工作台，把 `.spec` 规格库、任务状态机与 agent 工具面收放做成 DeepSeek Harness 的插件层。目标用户是使用 agent 做真实仓库开发的个人与小团队，需要可审计、可复现的改动依据。价值主张是模型只能在该看到的工具面里工作，每次收口都留下契约、证据与规格落点。
+一句话定位：LCoder 是面向 Windows 与 macOS 桌面端的规格驱动开发工作台，把 `.spec` 规格库、任务状态机与 agent 工具面收放做成 DeepSeek Harness 的插件层。目标用户是使用 agent 做真实仓库开发的个人与小团队，需要可审计、可复现的改动依据。价值主张是模型只能在该看到的工具面里工作，每次收口都留下契约、证据与规格落点。
 
 ## 3. 与上游的关系
 
@@ -108,7 +108,8 @@ kernel 的规格根跟随会话工作区：一次工具调用取 `session.header
 - 上游升级需要同时核对三个 tsconfig/lock 接触面与根 `AGENTS.md` 入口，冲突必须人工评审。
 - Windows 上 `dev:web` 的子进程不随 shell 退出，换实例前要按进程树清理。
 - 仓库根 `.spec` 是订单佣金示例（`DR-01`/`DR-02`、`DEMO-01`），不是开发任务清单；开发进度以 `docs/tasks.yaml` 为准。
+- Windows 与 macOS 安装包在 T-82 之前都未签名，只是内部测试产物。未签名 macOS 自动更新未验证；身份、更新源、签名限制与 macOS 适配矩阵见 [desktop-release.zh.md](desktop-release.zh.md)。
 
 ## 12. 运行入口
 
-启动、挂载、验证四步与踩坑记录见 [RUN.md](../lcoder/RUN.md)。开发进度与下一步见 [active-context.zh.md](active-context.zh.md)；开发看板见 [docs/tasks-html/index.html](tasks-html/index.html)。
+启动、挂载、验证四步与踩坑记录见 [RUN.md](../lcoder/RUN.md)。开发进度与下一步见 [active-context.zh.md](active-context.zh.md)；开发看板见 [docs/tasks-html/index.html](tasks-html/index.html)。桌面发布身份、更新源、签名缺口与 macOS 适配矩阵见 [desktop-release.zh.md](desktop-release.zh.md)。

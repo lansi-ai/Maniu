@@ -35,3 +35,18 @@ apps/desktop/resources/icon-macos.png
 apps/desktop/resources/tray-windows.ico
 apps/desktop/scripts/render-tray-icon.ts
 apps/desktop/scripts/dev.ts
+
+# ── T-78 至 T-82 计划接触面（设计已登记，尚未落地；每项落地前先人工复核）──
+apps/desktop/scripts/electron-builder-config.mjs
+apps/desktop/scripts/desktop-package-environment.mjs
+apps/desktop/scripts/desktop-auto-update-environment.mjs
+apps/desktop/scripts/desktop-build-version.mjs
+apps/desktop/scripts/package-target.ts
+apps/desktop/scripts/package-macos.ts
+apps/desktop/scripts/desktop-upload-plan.ts
+apps/desktop/scripts/desktop-publish-config.ts
+apps/desktop/scripts/desktop-release-tag.ts
+apps/desktop/src/single-instance.ts
+apps/desktop/src/update-presentation.ts
+apps/desktop/.env.windows.example
+apps/desktop/.env.macos.example

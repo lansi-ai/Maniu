@@ -6,7 +6,7 @@ English | [中文](PROJECT-RULES.zh.md)
 
 ## 0. Project snapshot (read before starting)
 
-- **Product**: LCoder, a specification-driven development workbench for Windows desktop, packaging the `.spec` specification library, task state machine, and agent tool-surface control as a DeepSeek Harness plugin layer.
+- **Product**: LCoder, a specification-driven development workbench for Windows and macOS desktop, packaging the `.spec` specification library, task state machine, and agent tool-surface control as a DeepSeek Harness plugin layer.
 - **Stack**: TypeScript (ESM) · Node ≥24.9 · pnpm workspaces · Cordis · React 18
 - **Baseline**: DeepSeek Harness `0.2.2-alpha.2`, released 2026-10-30
 - **Current main line**: MVP-0, getting the workbench running locally and closing T-02
@@ -17,7 +17,7 @@ English | [中文](PROJECT-RULES.zh.md)
 
 - 🚫 Do not modify any upstream file. When a modification is genuinely required, first add the file to [contact-surface.txt](../lcoder/contact-surface.txt) and record what and why in [UPSTREAM-BASELINE.md](../lcoder/UPSTREAM-BASELINE.md) §3.
 - 🚫 The task and specification YAML under `.spec` is the single source of truth for **LCoder product data**; the UI only reads it, and state-machine decisions never live in the UI. It is not this repository's development task ledger. The kernel is the only writer: a model may file a `drafting` task through `task_draft`, may create a `draft` specification entry through `spec_draft`, may write `.spec/project.yaml` through `project_draft`, and may record a `draft` proposal through `proposal_draft`; it may not advance task state, sign a contract, approve a proposal, or edit a specification entry that already exists.
-- 🚫 The target platform is Windows desktop; handle paths Windows-first (drive letters, backslashes, case-insensitive).
+- 🚫 The target platforms are Windows and macOS desktop; handle paths per platform — Windows drive letters, backslashes, and case-insensitive comparison, macOS POSIX separators and default case-insensitive volumes canonicalized through the native real path before comparison.
 - 🚫 `contract_sign`, `task_bind`, `task_contract` and `proposal_approve` are never registered as model tools: they sign a contract, claim a task for a session, advance a signed task from `drafting` to `contracted`, and accept a proposal. Only a human may invoke them. **Signing may also be delegated to AI under three compensating gates, decided by the user on 2026-11-06**: `sign: auto` in `.spec/automation.yaml`, an empty `Task.scope.irreversible`, and non-empty review evidence for that contract (`review*.log`). All three must hold; an agent signature records `by: agent`, its `actor` preset, and the authorizing policy path, hash, and time. A task with any irreversible item is always signed by a human — P3 rejects every agent signature whose gates do not hold, and invalidates a signature whose hash no longer covers the contract body.
 - 🚫 `.spec/automation.yaml` never carries external irreversible actions. `push`, deployment, registry edits, and external-environment changes are always human; the schema rejects such keys instead of ignoring them.
 - 🚫 Git goes as far as a local commit. `git_commit` stages only the paths it is given and never amends or skips hooks; **there is no push tool and no `git push` in `cmd_run`'s registered surface** — publishing stays a human action, as does `git reset --hard` and any force operation.
@@ -105,6 +105,7 @@ The grade matches the `grade` field in the development ledger `docs/tasks.yaml`.
 |---|---|
 | [active-context.md](active-context.md) | Current board (read first when starting) |
 | [prd-and-design.md](prd-and-design.md) | Product and design decisions |
+| [desktop-release.md](desktop-release.md) | Desktop release identity, update source, signing gap, and macOS adaptation |
 | `docs/tasks.yaml` | Development ledger (dev-flow, single source) |
 | `docs/tasks-html/index.html` | Offline task board (generated from the development ledger, never edited by hand) |
 | `.spec/spec/rules.yaml` | Product specification entries (LCoder runtime) |
@@ -134,4 +135,5 @@ The grade matches the `grade` field in the development ledger `docs/tasks.yaml`.
 - Plugin paths are batch combo URLs, not `plugins/<name>/client.js`; a single request returns 404.
 - Documentation gate: `pnpm run test:docs`; package READMEs need the `kind` / `description` frontmatter and the `Summary` / `Table of Contents` / `Dev Note` skeleton.
 - Board: edit `docs/tasks.yaml` first, then run `python scripts/build-tasks-html.py`; the artifact is `docs/tasks-html/index.html`. `.spec` does not participate in board generation.
+- macOS development uses the same in-repo home and repository-local Electron user data. Unsigned macOS builds are internal test artifacts; their Gatekeeper and automatic-update limits live in [desktop-release.md](desktop-release.md).
 - The upstream documentation standard requires one physical line per paragraph (`verify-md-wrap`); write new `docs/` documents the same way.

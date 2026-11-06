@@ -78,6 +78,28 @@ upstream = deepseek-ai/deepseek-harness
 | `apps/desktop/scripts/render-tray-icon.ts` | 只改措辞：文件头与一行注释里的 whale 改为 LCoder mark；管线、`TRAY_ICON_SIZES`、`tray-glyph` 注入与 1.2 倍放大全部不变 | 美术换掉后原措辞会误导下一次改图标的人去找鲸标 |
 规矩：改动写在文件里的 `lcoder:` 前缀注释下，方便 grep 定位，也方便升级时用 `git diff upstream/master...HEAD -- <文件>` 一眼看清。
 
+### 计划接触面（T-78 至 T-82，尚未落地）
+
+以下文件已在 `contact-surface.txt` 登记，但改动要等对应任务落地。T-78 还会扩展上表已登记的 `apps/desktop/src/main.ts`、`ipc.ts`、`preload-app.ts`、`locale.ts`、`tests/main-startup.spec.ts` 与 `tests/expected/*.json`，不重复列行。
+
+| 文件 | 改什么 | 为什么必须改 |
+|---|---|---|
+| `apps/desktop/scripts/electron-builder-config.mjs` | 产品名、协议、产物前缀、打包后产品名、麦克风说明、未签名更新开关 | 应用包身份与协议注册只在这里，插件与 profile 都改不了 |
+| `apps/desktop/scripts/desktop-package-environment.mjs` | 把 `LCODER_*` 映射到内部变量；本机 macOS 默认应用标识改为 `ai.lansi.lcoder` | 目标 dotenv 加载器是本地打包与上传的唯一入口 |
+| `apps/desktop/scripts/desktop-auto-update-environment.mjs` | `lcoder-desk` 前缀、LCoder 固定下载文件名 | 更新目标与固定下载名由它解析 |
+| `apps/desktop/scripts/desktop-build-version.mjs` | 接受不继承上游产品版本的独立 LCoder 发布版本 | 现有校验强制构建版本继承 `0.2.2-alpha.2` |
+| `apps/desktop/scripts/package-target.ts` | `lcoder-` 产物名与 macOS 应用路径 | 它命名 DMG 并驱动目标构建 |
+| `apps/desktop/scripts/package-macos.ts` | `LCoder.app` 包名与产物基名 | 它按名字复制与提升已签名应用 |
+| `apps/desktop/scripts/desktop-upload-plan.ts` | `lcoder-` 产物基名与固定下载 key | 上传校验会把文件名与已打包发布对齐 |
+| `apps/desktop/scripts/desktop-publish-config.ts` | 生产源校验从上游下载源改为 LCoder 源 | 当前守卫写死上游生产源 |
+| `apps/desktop/scripts/desktop-release-tag.ts` | `lcoder-v` 发布标签前缀 | 生产上传会给打包提交打标签 |
+| `apps/desktop/src/single-instance.ts` | 第二实例回调带上参数 | 协议 URL 通过第二实例参数到达 |
+| `apps/desktop/src/update-presentation.ts` | 呈现已安装版本与通道 | 设置页要显示版本与通道 |
+| `apps/desktop/.env.windows.example` | `LCODER_*` 变量名与 LCoder 应用标识 | 操作者从示例起步 |
+| `apps/desktop/.env.macos.example` | 同上，加未签名说明 | 操作者从示例起步 |
+
+T-81 的真实上传、CDN 刷新与 T-82 的签名公证都只改发布配置与打包脚本；上游 CI 工作流首期不动，macOS 打包在用户机器上完成。
+
 ---
 
 ## 4. 升级演练（每次上游有新版本时执行）

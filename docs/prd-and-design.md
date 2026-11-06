@@ -14,7 +14,7 @@ A common failure in agent coding is not an inability to write code, but not know
 
 ## 2. Product positioning
 
-One-sentence positioning: LCoder is a specification-driven development workbench for Windows desktop, packaging the `.spec` specification library, task state machine, and agent tool-surface control as a DeepSeek Harness plugin layer. The target users are individuals and small teams using agents for real-repository development who need auditable, reproducible change evidence. The value proposition is that the model can work only within the tool surface it is meant to see, and every closure leaves a contract, evidence, and specification bindings.
+One-sentence positioning: LCoder is a specification-driven development workbench for Windows and macOS desktop, packaging the `.spec` specification library, task state machine, and agent tool-surface control as a DeepSeek Harness plugin layer. The target users are individuals and small teams using agents for real-repository development who need auditable, reproducible change evidence. The value proposition is that the model can work only within the tool surface it is meant to see, and every closure leaves a contract, evidence, and specification bindings.
 
 ## 3. Relationship with upstream
 
@@ -108,7 +108,8 @@ Explicitly out of scope: the workbench advancing task state (state stays hand-wr
 - Upstream upgrades must check the three tsconfig/lock contact surfaces and the root `AGENTS.md` entry; conflicts require human review.
 - On Windows, `dev:web` child processes outlive the shell; clean the process tree before switching instances.
 - The repository-root `.spec` is the order-commission example (`DR-01`/`DR-02`, `DEMO-01`), not a development task list; development progress is judged by `docs/tasks.yaml`.
+- Windows and macOS installers are unsigned until T-82 and are internal test artifacts only. Unsigned macOS automatic updates are unverified; identity, update source, signing limits, and the macOS adaptation matrix live in [desktop-release.md](desktop-release.md).
 
 ## 12. Running entry points
 
-Startup, mounting, the four verification steps, and pitfall records live in [RUN.md](../lcoder/RUN.md). Development progress and next steps live in [active-context.md](active-context.md); the development board is at [docs/tasks-html/index.html](tasks-html/index.html).
+Startup, mounting, the four verification steps, and pitfall records live in [RUN.md](../lcoder/RUN.md). Development progress and next steps live in [active-context.md](active-context.md); the development board is at [docs/tasks-html/index.html](tasks-html/index.html). Desktop release identity, update source, signing gap, and the macOS adaptation matrix live in [desktop-release.md](desktop-release.md).

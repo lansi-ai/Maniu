@@ -866,7 +866,7 @@ tracks:
       date: '2026-11-06'
       dep: [T-77]
       inferred: false
-      note: "A 级。实施 T-77 的身份与更新源：productName、appId、lcoder 协议、图标与安装器身份；LCoder 更新 feed 的 generic provider 与 env；腾讯云 COS 路径；接触面逐文件登记。Windows 先跑通，macOS 由 T-80 验证；未签名内测限制如实记录。"
+      note: "A 级。实施 T-77 的身份与更新源。范围：electron-builder 的产品名 LCoder、应用标识 ai.lansi.lcoder、lcoder 协议、lcoder- 产物前缀、打包后产品名、macOS 麦克风说明；LCODER_* 环境别名（APP_ID、UPDATE_ENV、UPDATE_CHANNEL、RELEASE_VERSION、DOWNLOAD_ORIGIN/BUCKET/SECRET_ID/SECRET_KEY/RELEASE_ID/EO_ZONE_ID、PRODUCT_NAME、PROTOCOL_SCHEME）；独立发布版本，不复用上游 0.2.2-alpha.2 的扩展校验，源码清单仍保留上游版本；COS/CDN 路径 lcoder-desk/feeds|bin/<target>、固定下载 lcoder-desk/latest/、测试 release-id 前缀；lcoder://open 与第二实例参数路由；未签名包的更新开关默认关闭。接触面逐文件复核 contact-surface 与 UPSTREAM-BASELINE §3。验收：Windows 未签名包（LCODER_RELEASE_VERSION=0.1.0，nightly 通道）产出 lcoder-0.1.0-win-x64.exe；安装后 EXE、开始菜单、卸载项、关于面板均为 LCoder；lcoder://open 冷启动与热启动都只留一个窗口；userData 落在 %APPDATA%/LCoder；设置页能读到版本；主启动与菜单夹具更新。未验：真实 COS 上传、签名身份、macOS 打包、自动更新。"
     - id: T-79
       title: LCoder 更新界面——启动自动检查与设置页手动检查
       status: todo
@@ -875,9 +875,9 @@ tracks:
       owner: lance
       created: '2026-11-06'
       date: '2026-11-06'
-      dep: [T-77]
+      dep: [T-78]
       inferred: false
-      note: "B 级。复用上游 DesktopUpdateCoordinator 桥，在 LCoder 壳里做版本号、检查、下载进度、待重启、错误与离线提示；启动延迟自动检查加设置页手动检查；不静默安装。"
+      note: "B 级。实施 T-77 的更新体验。范围：LCoder 设置页新增「版本与更新」区，显示已安装版本、上游基线、打包提交、通道与上次检查结果；首窗可见且工作区就绪后延迟 20 秒加 0 到 10 秒抖动再自动检查，周期 6 小时、失败退避到 1 小时；设置页与菜单手动检查；复用 DesktopUpdateCoordinator 与 updates.status/open/subscribe，不新增安装授权通道；更新呈现增加 currentVersion 与 channel；覆盖 idle、checking、available、downloading、verifying、ready、error、unsupported 八态；未签名包显示自动更新不可用并给手动下载说明；不静默安装。验收：桌面真窗口深浅两套截图覆盖八态；日志证明启动延迟检查；手动检查可用；下载与重启都要确认；离线显示离线而非包损坏；中英文案齐全；相关测试与 i18n 门禁全绿。未验：真实 feed 的完整下载与安装（等 T-81）、macOS 窗口、未签名自动更新。"
     - id: T-80
       title: macOS 适配与 unsigned 打包——arm64 与 x64
       status: todo
@@ -886,9 +886,9 @@ tracks:
       owner: lance
       created: '2026-11-06'
       date: '2026-11-06'
-      dep: [T-77]
+      dep: [T-78]
       inferred: false
-      note: "A 级。在用户的 Mac 上构建 unsigned DMG/ZIP，arm64 与 x64 各一；原生窗口 chrome、菜单、托盘、快捷键、协议与 Dock；profile 的 documentsDirectory 平台化；路径与 /bin/sh 适配；输出 macOS 验收清单与运行手册。unsigned 受 Gatekeeper 限制，不作为正式分发。"
+      note: "A 级。实施 T-77 的 macOS 适配与未签名打包。范围：保留 hiddenInset 红绿灯并在 LCoder 顶栏留位、隐藏 Windows 窗口按钮组；macOS 应用菜单、Dock 与无托盘、Cmd 快捷键、原生目录 sheet；路径 realpath 归一与分隔符；cmd_run 超时杀进程组；git 工具去掉 Windows 假设；字体平台中立栈；profile 的 documentsDirectory 改为 LCODER_DOCUMENTS_DIR 并提供 start-desktop.sh 与 prepare-profile.mjs；lcoder 协议与单实例；数据与日志目录。用 package:mac:arm64:unsigned 与 package:mac:x64:unsigned 打出 DMG/ZIP，记录各架构覆盖。验收在用户的 Mac 真机：两个架构都能启动、打开仓库、跑一次对话与一条登记命令；红绿灯不挡品牌；Cmd+C/V/A/Z/W/Q 可用；关闭窗口应用仍运行；数据落 ~/Library/Application Support/LCoder；quarantine 首次启动步骤写入文档。未验：Intel 真机（若只有 Apple Silicon）、未签名自动更新、公证与公开分发、麦克风与录屏权限。"
     - id: T-81
       title: COS 与 CDN 发布回滚流水线
       status: todo
@@ -899,7 +899,7 @@ tracks:
       date: '2026-11-06'
       dep: [T-78]
       inferred: false
-      note: "A 级。把上游 upload 脚本适配到 LCoder 桶、路径、域名与 feeds latest/nightly；含 blockmap、缓存与 CDN 刷新、回滚、dry-run 与单测；真实上传等凭据就绪后验收。"
+      note: "A 级。把上游 upload 脚本适配到 LCoder 桶、路径、域名与 feeds。范围：LCODER_* 环境别名与 test/production 凭据分离；lcoder-desk/feeds|bin/<target> 与 lcoder-desk/latest/ 固定下载；win-x64、mac-arm64、mac-x64；先传二进制与 blockmap 再传 YAML；固定下载替换与 EdgeOne 刷新；回滚重发上一版 YAML 与重指固定下载；测试 release ID；dry-run、本地单测与上传记录；真实值只用占位。验收：本地校验与 dry-run 全过；测试桶真实上传、公开读回 feed/hash/blockmap、固定下载与一次回滚演练通过；生产刷新有任务号记录。未验：真实 DNS/TLS/CDN 缓存与权限、生产桶、CI 发布路径（首期不走上游工作流）。"
     - id: T-82
       title: Windows 与 macOS 正式签名与公证
       status: todo
@@ -910,7 +910,7 @@ tracks:
       date: '2026-11-06'
       dep: [T-80, T-81]
       inferred: false
-      note: "A 级，证书阻塞。Windows 代码签名证书与 Apple Developer ID 均未就绪；首期只做 unsigned 内测，签名与公证在本任务补，未完成前不得对外承诺可分发或自动更新可靠。"
+      note: "A 级，证书阻塞。范围：Windows 代码签名证书与 Authenticode；Apple Developer ID Application、强化运行时、公证与 stapling；签名后启用默认更新源并去掉未签名提示；从上一签名版本升级。验收：codesign --verify --deep --strict、spctl -a -vv、xcrun stapler validate 全过；带 quarantine 的干净 macOS 首次启动成功；Windows SmartScreen 不再报未知发布者；两端从 N-1 升级到 N；更新元数据 publisherName 可验证。未验直到证书就绪：证书申请周期、SmartScreen 声誉、公证时长、公开分发。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
