@@ -939,6 +939,11 @@ export function Shell({
   const attentionPlans = flow === null
     ? []
     : flow.tasks.filter(plan => plan.decision.action === 'sign' || plan.decision.action === 'external')
+  /** 流水里的自签与外部动作也单独成组，不混进普通开工流水。 */
+  const attentionHistory = flowHistory.filter(entry =>
+    (entry.action === 'sign' && entry.mode === 'auto') || entry.action === 'external')
+  const normalHistory = flowHistory.filter(entry =>
+    !((entry.action === 'sign' && entry.mode === 'auto') || entry.action === 'external'))
 
   /**
    * 签署选中任务的契约。浏览器不写盘：这一句派给人机命令，签名由 kernel 写进
@@ -2134,7 +2139,7 @@ export function Shell({
 
               <section className={css.flowSection}>
                 <h4>{t('shell.flowAttention')}</h4>
-                {attentionPlans.length === 0
+                {attentionPlans.length === 0 && attentionHistory.length === 0
                   ? <p className={css.empty}>{t('shell.flowAttentionEmpty')}</p>
                   : (
                     <div className={css.flowAttentionList}>
@@ -2145,6 +2150,20 @@ export function Shell({
                             {plan.decision.action === 'external' ? t('shell.flowExternal') : t('shell.flowAutoSign')}
                           </span>
                           <span>{plan.decision.reason}</span>
+                        </div>
+                      ))}
+                      {attentionHistory.length === 0 ? null : (
+                        <span className={css.scheduleLabel}>{t('shell.flowAttentionLog')}</span>
+                      )}
+                      {attentionHistory.map((entry, index) => (
+                        <div key={`attention-${entry.taskId}-${String(index)}`} className={css.flowHistoryRow}>
+                          <span className={css.flowHistoryTime}>{entry.at ?? '—'}</span>
+                          <code>{entry.taskId}</code>
+                          <span className={`${css.tag} ${entry.action === 'external' ? css.tagDanger : css.tagWarn}`}>
+                            {entry.action === 'external' ? t('shell.flowExternal') : t('shell.flowAutoSign')}
+                          </span>
+                          {entry.result === undefined ? null : <span className={css.secretRef}>{entry.result}</span>}
+                          {entry.reason === undefined ? null : <span className={css.flowTaskReason}>{entry.reason}</span>}
                         </div>
                       ))}
                     </div>
@@ -2214,9 +2233,9 @@ export function Shell({
 
               <section className={css.flowSection}>
                 <h4>{t('shell.flowHistory')}</h4>
-                {flowHistory.length === 0 ? <p className={css.empty}>{t('shell.flowHistoryEmpty')}</p> : (
+                {normalHistory.length === 0 ? <p className={css.empty}>{t('shell.flowHistoryEmpty')}</p> : (
                   <div className={css.flowHistory}>
-                    {flowHistory.map((entry, index) => (
+                    {normalHistory.map((entry, index) => (
                       <div key={`${entry.taskId}-${entry.source}-${String(index)}`} className={css.flowHistoryRow}>
                         <span className={css.flowHistoryTime}>{entry.at ?? '—'}</span>
                         <span className={css.tag}>
