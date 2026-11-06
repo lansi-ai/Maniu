@@ -533,6 +533,51 @@ tracks:
       dep: [T-24]
       inferred: false
       note: "B 级（显示层加一处描边与一个圆点，另开一条渲染端到主进程的单向通道；动的是四个已登记的上游文件）。用户 2026-11-05 明确要提示，无论是等用户做选择题还是等用户操作电脑。先核现状：卡片有「等你回答」这个态但没有动效——跑马灯描边原先只给 running；顶栏会话条只分当前与非当前；真正的操作卡 PendingInteractionCard 只在打开那条会话的浮层里出现；窗口关了没有任何东西叫人，桌面端只有强制更新那条路用 flashFrame 与系统通知。落点三处。一、task-card-visual.ts 把描边扩到 awaitingInteraction，新增 .taskCardAwaiting 复用同一套 conic 跑马灯几何、只换色相为警示色，深浅两套各一个 --lc-wait-accent，透明度与在跑同档（比在跑更该被看见但不更吵），prefers-reduced-motion 下退化成静态描边。二、顶栏会话条给在等的会话加一枚脉冲圆点，aria-hidden，文案复用既有的 shell.taskAwaiting，不新增词典键。三、渲染端把「本工作区有几条会话在等人」报给主进程：ipc.ts 加 windowAttention 通道、preload-app.ts 在窗口桥上暴露 attention(awaiting)、main.ts 的处理器沿用窗口命令那一条的 sender 校验，并按自己的焦点状态决定 flashFrame——窗口有焦点就不打扰，失焦且计数大于零才闪，非数字与负数按零处理；外壳在计数变化时上报、卸载时归零。策略放主进程的理由要说清：只有渲染端知道等待数，只有主进程知道窗口有没有焦点，把焦点判断搬到渲染端就要多一条订阅与一次状态镜像，违反客户端的三条数据通道规矩。计数只读宿主推流的全局 seat，不物化会话也不开历史——等待恰恰发生在你不看那条会话的时候。两件没做的：托盘 tooltip 与系统通知本轮不加计数，前者要新增八种语言的文案、后者会被 Windows 专注助手吞掉，任务栏闪烁不需要文案且够用；tool-ask-user 的定时变体仍不挂进桌面 profile，所以等待只有审批与提问两类，不会超时自行放行。门禁：typecheck 5 关绿；vitest packages/lcoder 35 文件 346 用例，task-card-visual 的断言改成「两种需要人的态都有描边且类名互不相同」；apps/desktop 的 main-startup 154 用例，新增一条覆盖有焦点不闪、失焦且有等待才闪、归零与非数字回落、sender 不对就抛；oxlint 82 文件 0 错 0 警；verify-client-ui-i18n 1273 个源文件合格；workspace bundle 重打且产物里查得到新类名。未验：桌面端手点两条——让 agent 跑一条 exec 为 ai-confirm 的命令后把窗口最小化或切走，看任务栏是否闪；以及看板上看等待中的卡片有没有警示色跑马灯、会话条有没有圆点。"
+    - id: T-50
+      title: 任务依赖与关联标记——depends_on 进 schema，写盘前查存在与环
+      status: doing
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-06'
+      date: '2026-11-06'
+      dep: [T-25]
+      inferred: false
+      note: "A 级（产品数据契约变更）。用户 2026-11-06 拍板的调度口径：建任务时就该有机制标记关联，生成提示词时再判一次，用户点开始时再判一次；前置未完成不是拒绝开始，而是可以加入等待。本轮只做第一层——让依赖与关联可见、可校验，不碰状态机与工具面。落点四处。一、schema 的 Task 加 depends_on（稳定编号数组，默认空）与 related 可选块（proposal 已有字段继续用，module 先由 rules 反查得到，不新增冗余字段）。二、task_draft 新增 depends_on 入参，写盘前逐个校验任务存在、拒绝自依赖、做环检测（沿 depends_on 走一遍，命中就报出环上的编号）。三、task_read 与投影把依赖读出来，任务详情显示「等 T-01、T-02」，卡片上给一枚「等依赖」标记。四、规则单源补一行：依赖只能由人在起草时声明或经 task_draft 写入，状态推进仍归人与命令，模型不能靠依赖绕开契约。不做：不改五态状态机、不改 SURFACE、不做调度判定（那是 T-51 与 T-53）。门禁：typecheck 5、vitest packages/lcoder、oxlint、test:docs 21、bundle 重打。"
+    - id: T-51
+      title: 三层判定与执行——等依赖按住、无依赖入队、无匹配才新开
+      status: todo
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-06'
+      date: '2026-11-06'
+      dep: [T-50]
+      inferred: false
+      note: "B 级；依赖 T-50 的字段与 T-53 的判定结果。用户拍板的三层判定落点。一、建任务时标记：task_draft 写 depends_on 与建议会话（关联性优先 proposal，其次 rules 的 module）。二、生成提示词时再判：buildShellPrompt 把「依赖 T-01」「建议接着会话 X 做」写进正文，让模型也看到这层关系。三、用户点开始时终判：本任务已认领且会话还在 → 复用；有未完成依赖 → 外壳按住不发（卡片显示等 T-xx，前置 closed 后自动进入下一步）；无未完成依赖且有匹配会话 → 立即写入该会话的队列（用户选的立即入队），并记录入了哪条会话；都没有 → 新开。两道硬闸永远压过判定：目标会话正在等审批时不许塞（等它答完再入队）；角色不匹配（agentPreset 锁定）不许复用。已知取舍：依赖型任务不能入队，否则 DSH 的会话队列会在前置没完成时就跑它，依赖形同虚设——这条必须在实现里写清，不允许为了省事把两类等待合并。"
+    - id: T-52
+      title: 排队与依赖的可见性——卡片状态、顶栏队列计数与详情明细
+      status: todo
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-06'
+      date: '2026-11-06'
+      dep: [T-51]
+      inferred: false
+      note: "B 级；显示层。用户要求「用户需要在某些比较显眼的位置来查看加入了哪个会话」。落点三处：任务卡新增两态（等依赖显示等 T-xx、已入队显示入队会话与第 N 位，沿用 task-session 的六态扩两档并配单测）；顶栏会话条给有队列的会话加一枚计数徽标（与等待圆点同一处，样式复用）；任务详情显示依赖列表、入队会话与队列位置。文案进中英词典，不新增常驻控件。"
+    - id: T-53
+      title: 调度判定与思考过程——信号打分、候选比较、决策落盘并在界面可见
+      status: todo
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-06'
+      date: '2026-11-06'
+      dep: [T-50]
+      inferred: false
+      note: "B 级；T-51 的判定内核。用户 2026-11-06 明确要「用户需要知道调度角色的思考过程」。分三层。一、信号层（硬编码、可测）：任务侧 proposal、rules 反查的 module、allowed_paths 的路径集、depends_on；会话侧 running、pendingInteraction、队列长度、已认领任务与历史、角色；再派生「落点重叠」（两条任务的 allowed_paths 或 module 有交集）。二、决策层：规则打分产出候选，候选只有一个时直接定、不调模型；候选两个及以上才让模型在受限枚举 reuse、enqueue、new、wait 里取舍，并给一句理由与置信度。三、兜底：依赖未完成不许跑、等审批的会话不许塞、角色不匹配不许复用，模型判什么都越不过。决策要落盘（任务文件或会话事件），否则审计不了。思考过程必须可见：卡片或详情的调度段显示候选列表、每条的信号摘要与打分、最终选择与理由、被否掉的候选与原因，折叠呈现、不常驻。验收：单测钉住打分与三道硬闸；桌面演练三种场景——同方案两任务应复用或入队、跨方案应新开、有依赖应先按住再在完成后进入下一步。"
+
     - id: T-49
       title: 立项分析按钮幂等——首次发咒语，此后只开浮层
       status: done
