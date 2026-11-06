@@ -724,6 +724,17 @@ tracks:
       dep: [T-34]
       inferred: false
       note: "C 级。用户 2026-11-06 贴出首屏截图（欢迎使用 LCoder / 登录 / 添加 API Key）问为什么还会弹。核实：T-34 只禁掉了壳内的 ui-settings-account，桌面端另有一个独立的 welcome 窗口（apps/desktop/src/welcome*），它的判据是 needsWelcome 等于未登录且没有 API Key，所以只要这个 home 里没钥匙就会弹。处置：main.ts 加 WELCOME_ENABLED，默认 false，设 DSH_DESKTOP_WELCOME=1 才恢复上游首屏；四处显示入口（登出回弹、会话过期、初始窗口、退出取消后恢复）全部加闸。缺模型的状态由外壳的三态提示承担（T-22），不再靠首屏引导配钥匙。桌面主进程产物已重出，lib/main.js 里能查到五处 WELCOME_ENABLED。门禁：host tsc 退出 0；apps/desktop 的 main-startup 154 用例全过。未验：重启真窗口确认首屏不再出现、直接落在工作台。"
+    - id: T-68
+      title: 上游同步体检脚本——拉取、差异摘要与接触面碰撞
+      status: done
+      face: 工程
+      type: 流程
+      owner: lance
+      created: '2026-11-06'
+      date: '2026-11-06'
+      dep: [T-19]
+      inferred: false
+      note: "C 级。用户问「上游更新了我们怎么办」，除了已有的升级演练（UPSTREAM-BASELINE 第 4 节），补一个一键体检脚本：lcoder/scripts/upstream-sync-check.ps1 加一个纯 ASCII 的 cmd 包装。它做五件事：git fetch upstream；算 merge-base 与领先落后提交数；列出新提交（最多 20 条）；把上游改动文件与 contact-surface.txt 求交，标出会撞的接触面；再从里面标出高危文件（main.ts、ipc.ts、preload-app.ts、locale.ts、dev.ts、AppFrame.tsx、assets.ts、AGENTS.md、两个 tsconfig、pnpm-lock），并提示高危碰撞必须桌面冒烟、不能只看编译过。退出码交给定时任务：0 无新提交，1 有新提交，2 拉取或引用失败。参数 -NoFetch 用本地已有引用离线跑，-Quiet 只在有动静时输出。落地时踩了两个自己造的坑，都记在这里：一是函数名写成 Git，PowerShell 优先解析成函数而不是 git.exe，调用 git 于是自我递归报调用深度溢出，已改名 Invoke-Git；二是 [int]((...)[0]) 取的是字符串首字符，[int] 对字符 0 得到 ASCII 四十八，于是把零个新提交读成四十八个，改成先取首行再转数字。门禁：脚本实测两轮——离线跑报无新提交、退出 0；真拉取跑出上游九百二十六个新提交、三千二百三十四个改动文件、撞十个接触面（其中八个高危，含 main.ts、ipc.ts、preload-app.ts、locale.ts、AGENTS.md、两个 tsconfig 与 pnpm-lock），说明上游刚发了 0.2.2-rc.1 一档的版本。未验：定时任务本身没配，只是脚本可用。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
