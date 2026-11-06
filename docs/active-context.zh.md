@@ -15,8 +15,8 @@
 - **离线看板**：`docs/tasks-html/index.html`（双击打开，含概览、状态看板、层级树、矩阵与筛选）。
 - **重跑命令**：`python scripts/build-tasks-html.py`。
 
-- **当前焦点**：T-66（会话模型 chip 与服务商面板）与 T-67（图片与文件附件）都已实现并过完门禁；桌面证据已记录，剩下的一步是窗口里的人工点击。
-- **已完成**：T-01 文件投影；T-02 宿主挂载；T-04 规格根与文档门禁；T-05 LCoder 外壳；T-06 真实 `.spec`/`project.yaml`/工作区会话数据；T-07 项目信息抽屉与 `.spec/project.yaml` schema；T-08 真实悬浮对话；T-09 README、测试与旧预设收口；T-56/T-57/T-58 流程引擎、自动化策略与 AI 自签三闸；T-59/T-60/T-61 流程界面、单例会话与压缩可见性；T-66/T-67 会话模型切换与图片文件附件。T-03 已被外壳取代并关闭。
+- **当前焦点**：T-73（任务详情三处裁剪）与 T-74（立项结果页与重新开始）已在各自分支实现并过完门禁；台账与看板已收口。剩下的是桌面窗口里的人工点击，以及是否合入与推送的决定。
+- **已完成**：T-01 文件投影；T-02 宿主挂载；T-04 规格根与文档门禁；T-05 LCoder 外壳；T-06 真实 `.spec`/`project.yaml`/工作区会话数据；T-07 项目信息抽屉与 `.spec/project.yaml` schema；T-08 真实悬浮对话；T-09 README、测试与旧预设收口；T-56/T-57/T-58 流程引擎、自动化策略与 AI 自签三闸；T-59/T-60/T-61 流程界面、单例会话与压缩可见性；T-66/T-67 会话模型切换与图片文件附件；T-73 任务详情三处裁剪与 T-74 立项结果页与重新开始。T-03 已被外壳取代并关闭。
 - **下一步**：见 §04。
 
 ## 03. 关键决策与架构遗留 (Key Decisions & Context)
@@ -48,9 +48,9 @@
 
 ## 04. 下一步即时行动 (Next Immediate Actions)
 
-- **当前正在处理**：T-66/T-67 收口。悬浮对话头部有紧凑模型 chip，点开按服务商分组并通过 `session.selectModel` 写入会话选择；输入区把图片作为 base64 `image` part，其余文件经 `fileUploads` 回执作为 `file` part，图片按投影的 `imageLimits` 校验，发送被拒时保留草稿与附件。门禁 typecheck 5、vitest 50 文件 / 516 用例、oxlint 0、test:docs 21、i18n 1280 文件、workspace bundle。桌面证据在 `E:/Projects/LCoder-chat-demo`（端口 main 9419 / renderer 9412 / host 9420）：一次发送被不支持图片的模型拒绝且两个附件都保留，切到 `deepseek-v4.1-flash` 后重发成功；会话日志记录了 `model/selection` 与一条包含一个 image 和一个 file part 的 `user/message`。
-- **即将执行**：在桌面窗口里由人点一次 `E:/Projects/LCoder-chat-demo`，确认不靠 CDP 也走同一路径。
-- **待定决策**：纯文本模型是否要在发送前把图片入口置灰——模型目录不暴露输入模态，宿主拒绝是目前唯一的能力判据。
+- **当前正在处理**：T-73/T-74 收口。T-73 从任务详情去掉角色行与调度思考块，契约提示只在有契约时出现；T-74 新增独立立项结果页（最新方案、已起草任务、项目信息）与重新开始，重开前列出已有产物再按同一档位新建会话发送。门禁 typecheck client、vitest 52 文件 / 546 用例、oxlint 0、test:docs 21、i18n 1282 文件、workspace bundle。证据在分支 `lcoder/t73-task-detail` 与 `lcoder/t74-intake-result`，截图在各工作树的证据目录，点击均为合成点击。
+- **即将执行**：在桌面窗口里由人各点一次，确认不靠 CDP 也走同一路径；随后决定两个分支与 `lcoder/main` 上提交的合入与推送。
+- **待定决策**：是否把立项档位判定持久化，让应用重启后不先打开立项会话也能从结果页重新开始。
 - **开发证据**：门禁命令输出记录在 `docs/tasks.yaml` 的任务 note 或提交说明；`.spec/evidence` 只服务产品任务。
 - **看板重跑**：开发状态变化后先改 `docs/tasks.yaml`，再执行 `python scripts/build-tasks-html.py`。
 - **文档门禁**：已随 T-02 与 T-04 收口；改文档时包 README 与中英配对必须保持全绿。

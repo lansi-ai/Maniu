@@ -15,8 +15,8 @@ English | [中文](active-context.zh.md)
 - **Offline board**: `docs/tasks-html/index.html` (double-click to open; contains overview, status board, hierarchy tree, matrix, and filters).
 - **Regeneration command**: `python scripts/build-tasks-html.py`.
 
-- **Current focus**: T-66 (session model chip and provider panel) and T-67 (image and file attachments) are implemented and gated green; the desktop evidence is recorded, and the remaining acceptance step is a human click in the window.
-- **Completed**: T-01 file projection; T-02 host mount; T-04 specification root and documentation gates; T-05 LCoder shell; T-06 real `.spec`/`project.yaml`/workspace-session data; T-07 project info drawer and the `.spec/project.yaml` schema; T-08 real floating conversation; T-09 README, tests, and old preset cleanup; T-56/T-57/T-58 flow engine, automation policy, and AI self-sign gates; T-59/T-60/T-61 flow UI, singleton sessions, and compaction visibility; T-66/T-67 session model switching and image/file attachments. T-03 is superseded by the shell and closed.
+- **Current focus**: T-73 (task-detail trimming) and T-74 (intake result page and restart) are implemented on their branches and gated green; the board and ledger are closed. Remaining: a human click in the desktop windows and the merge/push decision.
+- **Completed**: T-01 file projection; T-02 host mount; T-04 specification root and documentation gates; T-05 LCoder shell; T-06 real `.spec`/`project.yaml`/workspace-session data; T-07 project info drawer and the `.spec/project.yaml` schema; T-08 real floating conversation; T-09 README, tests, and old preset cleanup; T-56/T-57/T-58 flow engine, automation policy, and AI self-sign gates; T-59/T-60/T-61 flow UI, singleton sessions, and compaction visibility; T-66/T-67 session model switching and image/file attachments; T-73 task-detail trimming and T-74 intake result page and restart. T-03 is superseded by the shell and closed.
 - **Next step**: see §04.
 
 ## 03. Key decisions and architectural context (Key Decisions & Context)
@@ -48,9 +48,9 @@ English | [中文](active-context.zh.md)
 
 ## 04. Next immediate actions (Next Immediate Actions)
 
-- **Currently working on**: T-66/T-67 closure. The floating conversation header carries a compact model chip that opens provider groups and writes the session selection through `session.selectModel`; the composer adds images as base64 `image` parts and other files through `fileUploads` receipts, validates images against the projected `imageLimits`, and keeps the draft and attachments when a send is refused. Gates: typecheck 5, vitest 50 files / 516 tests, oxlint 0, test:docs 21, i18n 1280 files, workspace bundle. Desktop evidence is on `E:/Projects/LCoder-chat-demo` with ports main 9419 / renderer 9412 / host 9420: a send was refused by a model without image input and kept both attachments, then succeeded after the chip switched to `deepseek-v4.1-flash`; the session log records `model/selection` and a `user/message` with one image and one file part.
-- **About to execute**: a human click in the desktop window on `E:/Projects/LCoder-chat-demo` to confirm the same paths without CDP.
-- **Open decisions**: whether a text-only model should grey the image entry before sending — the model catalog exposes no input modalities, so the Host refusal is the only capability check.
+- **Currently working on**: T-73/T-74 closure. T-73 removes the role row and the schedule-reasoning block from task detail and limits the signing hint to existing contracts; T-74 adds a standalone intake result page (latest proposal, drafted tasks, project info) and a restart action that lists existing artifacts before creating a new session with the same intake tier. Gates: typecheck client, vitest 52 files / 546 tests, oxlint 0, test:docs 21, i18n 1282 files, workspace bundle. Evidence: branches `lcoder/t73-task-detail` and `lcoder/t74-intake-result`, screenshots under each worktree's evidence directory, synthesized clicks only.
+- **About to execute**: a human click in the desktop windows to confirm both paths without CDP, then the merge/push decision for the two branches and the commits on `lcoder/main`.
+- **Open decisions**: whether to persist intake-tier detection so the result page restart works after an app restart without first opening the intake chat.
 - **Development evidence**: gate output is recorded in the task note in `docs/tasks.yaml` or the commit message; `.spec/evidence` serves product tasks only.
 - **Board regeneration**: after a development status change, edit `docs/tasks.yaml` first, then run `python scripts/build-tasks-html.py`.
 - **Documentation gates**: green after T-02 and T-04; package READMEs and bilingual pairs must stay green whenever documents change.
