@@ -15,7 +15,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { loadLocalSecrets, loadProjectInfo, loadWorkspaceProjection } from '../projection.ts'
-import type { ContractRow, ProjectionFilesRemote, ProposalRow, RuleRow, TaskRow } from '../projection.ts'
+import type { ContractRow, ProjectionFilesRemote, ProposalRow, RuleRow, SchedulingGroupRow, TaskRow } from '../projection.ts'
 import { decideScheduling } from '../scheduling.ts'
 import type { SchedulingDecision, SchedulingSession, SchedulingTask } from '../scheduling.ts'
 import type { ExpertPrompt, ExpertRow } from '../experts.ts'
@@ -136,11 +136,20 @@ const TASK_STATUS: Record<TaskCardStatus, { readonly labelKey: LcoderWorkspaceKe
   queued: { labelKey: 'shell.taskQueued', className: css.tagQueued },
 }
 
-/** 一次调度在界面上的留档：判定本身、时刻，以及入队会话与位置。 */
+/** 合并投影里的联调组与本次判定刚记下的组，交给卡片与详情共用。 */
+interface JointView {
+  readonly id?: string
+  readonly sessionId: string
+  readonly members: readonly string[]
+  readonly createdAt?: string
+}
+
+/** 一次调度在界面上的留档：判定本身、时刻、入队位置与联调组成员。 */
 interface ShellSchedule {
   readonly decision: SchedulingDecision
   readonly at: string
   readonly queue?: TaskQueueMark
+  readonly joint?: { readonly sessionId: string; readonly members: readonly string[] }
 }
 
 /** 词典里的 `{name}` 占位符；只替换一遍，值里再出现花括号不再展开。 */
@@ -246,6 +255,7 @@ export function Shell({
   const [shownExpert, setShownExpert] = useState<string | null>(null)
   const [tasks, setTasks] = useState<readonly ShellTask[]>([])
   const [rules, setRules] = useState<readonly RuleRow[]>([])
+  const [groups, setGroups] = useState<readonly SchedulingGroupRow[]>([])
   const [contracts, setContracts] = useState<readonly ContractRow[]>([])
   /** 签完一次就把投影重读一遍：`contracts` 里的签名状态是文件的事实，不是界面的记忆。 */
   const [reload, setReload] = useState(0)
@@ -358,6 +368,12 @@ export function Shell({
         dependsOn: task.dependsOn ?? [],
       }))
 
+  /** 一条会话联调组里的任务行；任务文件被删掉时跳过，不编造成员。 */
+  const groupTaskRows = (sessionId: string): readonly ShellTask[] => {
+    const ids = new Set(groups.filter(group => group.sessionId === sessionId).flatMap(group => group.members))
+    return tasks.filter(task => ids.has(task.id))
+  }
+
   const schedulingTaskOf = (task: ShellTask): SchedulingTask => ({
     id: task.id,
     state: task.state,
@@ -382,6 +398,11 @@ export function Shell({
         pending: queueDepth(String(id)),
         workspacePath: row?.cwd ?? workspace?.path ?? '',
         claims: claimsOf(id),
+        groupTasks: groupTaskRows(String(id)).map(task => ({
+          id: task.id,
+          state: task.state,
+          dependsOn: task.dependsOn ?? [],
+        })),
       }
     })
 
@@ -407,6 +428,24 @@ export function Shell({
       (result, id) => result.replaceAll(String(id), schedulingLabel(String(id))),
       text,
     )
+
+  /**
+   * 本任务所在的联调组：优先读投影里的组文件（刷新后仍在），
+   * 投影还没跟上时退回本次判定刚记下的组。
+   */
+  const jointOf = (task: ShellTask): JointView | undefined => {
+    const group = groups.find(row => row.members.includes(task.id))
+    if (group !== undefined) {
+      return { id: group.id, sessionId: group.sessionId, members: group.members, createdAt: group.createdAt }
+    }
+    const entry = schedule[task.id]
+    if (entry?.joint === undefined) return undefined
+    return {
+      sessionId: entry.joint.sessionId,
+      members: [task.id, ...entry.joint.members],
+      createdAt: entry.at,
+    }
+  }
 
   /**
    * 这条任务还在排队的证据。队列清空（或会话闲下来）后就不再画「已入队」；
@@ -448,6 +487,7 @@ export function Shell({
     if (files === undefined || workspace === undefined || sessionId === undefined) {
       setTasks([])
       setRules([])
+      setGroups([])
       setContracts([])
       setProposals([])
       setRulesCount(0)
@@ -466,6 +506,7 @@ export function Shell({
       if (controller.signal.aborted) return
       setTasks(projection.tasks.map(toShellTask))
       setRules(projection.rules)
+      setGroups(projection.groups)
       setContracts(projection.contracts)
       setProposals(projection.proposals)
       setRulesCount(projection.rules.length)
@@ -476,6 +517,7 @@ export function Shell({
       if (controller.signal.aborted) return
       setTasks([])
       setRules([])
+      setGroups([])
       setContracts([])
       setProposals([])
       setRulesCount(0)
@@ -586,6 +628,8 @@ export function Shell({
     const blockedBy = task.state === 'closed'
       ? []
       : (task.dependsOn ?? []).filter(id => knownStates[id] !== 'closed')
+    const joint = jointOf(task)
+    const queue = queueMarkOf(task)
     return taskCardStatus({
       session,
       hostRunning: pushed?.running,
@@ -593,7 +637,7 @@ export function Shell({
       awaitingFirstTurn: flags?.awaitingFirstTurn,
       failed: flags?.failed,
       blockedBy,
-      queued: queueMarkOf(task),
+      queued: queue ?? (joint === undefined ? undefined : { sessionId: joint.sessionId, position: 0 }),
     })
   }
 
@@ -677,6 +721,8 @@ export function Shell({
 
   /** 选中任务最近一次调度留档；点过「开始对话」才有。 */
   const detailSchedule = detail === null ? undefined : schedule[detail.id]
+  /** 选中任务所在的联调组；投影里有就是持久的，刷新后仍在。 */
+  const detailJoint = detail === null ? undefined : jointOf(detail)
 
   /**
    * 签署选中任务的契约。浏览器不写盘：这一句派给人机命令，签名由 kernel 写进
@@ -764,11 +810,18 @@ export function Shell({
     )
   }
 
+  /** 入队判定带的联调组；其它判定没有组。 */
+  const jointOfDecision = (decision: SchedulingDecision): ShellSchedule['joint'] =>
+    decision.joint === undefined || decision.chosen === undefined
+      ? undefined
+      : { sessionId: decision.chosen, members: decision.joint.members }
+
   /** 把一次判定记进本窗口的留档；入队位置随后才补，所以分开写。 */
   const rememberSchedule = (task: ShellTask, decision: SchedulingDecision, at: string, queue?: TaskQueueMark): void => {
+    const joint = jointOfDecision(decision)
     setSchedule(current => ({
       ...current,
-      [task.id]: { decision, at, ...(queue === undefined ? {} : { queue }) },
+      [task.id]: { decision, at, ...(queue === undefined ? {} : { queue }), ...(joint === undefined ? {} : { joint }) },
     }))
   }
 
@@ -785,11 +838,13 @@ export function Shell({
       setScheduleErrors(current => ({ ...current, [task.id]: t('shell.noSession') }))
       return
     }
+    const joint = jointOfDecision(decision)
     const payload = JSON.stringify({
       at,
       verdict: decision.verdict,
       ...(decision.chosen === undefined ? {} : { chosen: decision.chosen }),
       ...(queue === undefined ? {} : { queuePosition: queue.position }),
+      ...(joint === undefined ? {} : { joint }),
       candidates: decision.candidates,
       reasons: decision.reasons,
       blockedBy: decision.blockedBy,
@@ -800,6 +855,8 @@ export function Shell({
         const rest = Object.fromEntries(Object.entries(current).filter(([key]) => key !== task.id))
         return result.ok ? rest : { ...rest, [task.id]: result.text }
       })
+      // 组文件刚落盘，重读投影让卡片与后续判定都看到这个成员。
+      if (result.ok && joint !== undefined) setReload(value => value + 1)
     }, (error: unknown) => {
       setScheduleErrors(current => ({ ...current, [task.id]: String(error) }))
     })
@@ -849,9 +906,11 @@ export function Shell({
       const boundElsewhere = tasks.some(candidate =>
         candidate.session === decision.chosen && candidate.id !== task.id && candidate.state !== 'closed')
       const shouldBind = !alreadyBound && (decision.verdict !== 'enqueue' || !boundElsewhere)
-      // 已经排在这条会话里就只切过去，重复点击不再塞第二条。
+      // 已在这条会话的联调组里，或已经排过队：只切过去，重复点击不再塞第二条。
+      const grouped = jointOf(task)
       const existing = queueMarkOf(task)
-      if (existing !== undefined && existing.sessionId === decision.chosen) {
+      if ((grouped !== undefined && grouped.sessionId === decision.chosen)
+        || (existing !== undefined && existing.sessionId === decision.chosen)) {
         setSessionOverride(target)
         setChat(task)
         setDetail(null)
@@ -1044,26 +1103,25 @@ export function Shell({
           : columnTasks.map((task) => {
             const status = statusOfTask(task)
             const queueMark = status === 'queued' ? queueMarkOf(task) : undefined
+            const joint = status === 'queued' ? jointOf(task) : undefined
+            const peers = joint === undefined ? [] : joint.members.filter(id => id !== task.id)
+            const statusLabel = status === 'queued' && joint !== undefined && peers.length > 0
+              ? fill(t('shell.taskGrouped'), { session: sessionLabel(joint.sessionId), members: peers.join('、') })
+              : t(TASK_STATUS[status].labelKey)
             const waitingOn = (task.dependsOn ?? []).filter(id => knownStates[id] !== 'closed')
             return (
               <button type="button" key={task.id} className={`${css.taskCard} ${runningCardClass(status) ?? ''}`} onClick={() => { openTask(task) }}>
                 <div className={css.taskId}><span>{task.id}</span><span>{task.grade}</span></div>
                 <div className={css.taskTitle}>{task.title}</div>
                 <div className={css.tags}>
-                  <span className={`${css.tag} ${TASK_STATUS[status].className ?? ''}`}>{t(TASK_STATUS[status].labelKey)}</span>
+                  <span className={`${css.tag} ${TASK_STATUS[status].className ?? ''}`}>{statusLabel}</span>
                   {task.proposal === undefined ? null : <span className={css.tag}>{task.proposal}</span>}
                   {waitingOn.length === 0
                     ? null
                     : <span className={`${css.tag} ${css.tagWarn}`}>{t('shell.dependsOn')} {waitingOn.join('、')}</span>}
                   {queueMark === undefined
                     ? null
-                    : (
-                      <span className={`${css.tag} ${css.tagQueued}`}>
-                        {sessionLabel(queueMark.sessionId)}
-                        {' · '}
-                        {fill(t('shell.queuePosition'), { n: queueMark.position })}
-                      </span>
-                    )}
+                    : <span className={`${css.tag} ${css.tagQueued}`}>{fill(t('shell.queuePosition'), { n: queueMark.position })}</span>}
                   {task.rules.map(rule => <span key={rule} className={css.tag}>{rule}</span>)}
                   <span className={`${css.tag} ${task.state === 'closed' ? css.tagOk : ''}`}>{task.surface}</span>
                   {!contracts.some(row => row.id === task.id && row.signedBy === 'human')
@@ -1535,6 +1593,21 @@ export function Shell({
                       </div>
                     </div>
                   )}
+                {detailJoint === undefined
+                  ? null
+                  : (
+                    <div className={css.meta}>
+                      <div className={css.metaK}>{t('shell.jointGroup')}</div>
+                      <div className={css.metaV}>
+                        {t('shell.jointMembers')}：{detailJoint.members.join('、')}
+                        {' · '}
+                        {t('shell.jointAcceptance')}
+                        {detailJoint.createdAt === undefined
+                          ? ''
+                          : ` · ${fill(t('shell.jointCreatedAt'), { at: detailJoint.createdAt })}`}
+                      </div>
+                    </div>
+                  )}
                 <div className={css.meta}><div className={css.metaK}>{t('shell.evidence')}</div><div className={css.metaV}>{detail.evidence.join(', ') || '—'}</div></div>
                 <div className={css.meta}><div className={css.metaK}>{t('shell.surface')}</div><div className={css.metaV}>{detail.surface}</div></div>
               </div>
@@ -1545,6 +1618,13 @@ export function Shell({
                   <>
                     <ol className={css.scheduleReasons}>
                       {detailSchedule.decision.reasons.map(reason => <li key={reason}>{humanizeSessions(reason)}</li>)}
+                      {detailSchedule.decision.joint === undefined
+                        ? null
+                        : (
+                          <li key="joint">
+                            {fill(t('shell.scheduleJoint'), { members: detailSchedule.decision.joint.members.join('、') })}
+                          </li>
+                        )}
                     </ol>
                     <span className={css.scheduleLabel}>{t('shell.scheduleCandidates')}</span>
                     {detailSchedule.decision.candidates.length === 0

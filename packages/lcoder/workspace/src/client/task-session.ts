@@ -76,24 +76,23 @@ export function claimTaskSession(
 /**
  * 把信号折成卡片状态。
  *
- * 优先级按「用户下一步该做什么」排：等人回答压过一切；已排进队列的提示压过
- * 会话在跑，因为跑的是它前面的那条，卡片说的是本任务；等前置收口再压过
- * 等首个回合与失败。会话都没建时是未开始，建了还没起过回合也是未开始。
+ * 优先级按「用户下一步该做什么」排：绑着会话时先看会话自己的状态——等人回答、
+ * 在跑、等前置收口、等首个回合、失败；没绑会话才看联调组与等依赖。
+ * 会话都没建时是未开始，建了还没起过回合也是未开始。
  * @param signals - 已取回的信号。
  * @returns 卡片要画的那一个状态。
  */
 export function taskCardStatus(signals: TaskCardSignals): TaskCardStatus {
   const { session } = signals
-  if (session !== null && signals.awaitingInteraction === true) return 'awaitingInteraction'
-  // 入队不写认领，所以排在「没有会话」之前：卡片说的是它排进了哪条会话的队列。
-  if (signals.queued !== null && signals.queued !== undefined) return 'queued'
-  if (session === null) {
-    return (signals.blockedBy?.length ?? 0) > 0 ? 'waiting' : 'unstarted'
+  if (session !== null) {
+    if (signals.awaitingInteraction === true) return 'awaitingInteraction'
+    if (signals.hostRunning ?? session.running) return 'running'
+    if ((signals.blockedBy?.length ?? 0) > 0) return 'waiting'
+    if (signals.awaitingFirstTurn === true) return 'awaitingFirstTurn'
+    if (signals.failed === true) return 'failed'
+    return session.blank ? 'unstarted' : 'idle'
   }
-  if (signals.hostRunning ?? session.running) return 'running'
-  if ((signals.blockedBy?.length ?? 0) > 0) return 'waiting'
-  if (signals.awaitingFirstTurn === true) return 'awaitingFirstTurn'
-  if (signals.failed === true) return 'failed'
-  if (session.blank) return 'unstarted'
-  return 'idle'
+  // 联调组不写认领，所以排在「没有会话」之前：卡片说的是它并进了哪条会话的组。
+  if (signals.queued !== null && signals.queued !== undefined) return 'queued'
+  return (signals.blockedBy?.length ?? 0) > 0 ? 'waiting' : 'unstarted'
 }

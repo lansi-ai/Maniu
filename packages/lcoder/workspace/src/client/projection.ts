@@ -85,11 +85,26 @@ export interface ProposalOptionRow {
   readonly summary: string
   readonly cost: string
 }
+
+/**
+ * 一个联调组：入队成立时写下，成员一起写、一起跑证据、一起验收。
+ *
+ * 它是调度留给验收侧的承诺，不是任务字段；只在 `.spec/evidence/scheduling/` 里。
+ */
+export interface SchedulingGroupRow {
+  readonly id: string
+  /** 组内任务共同排队的会话。 */
+  readonly sessionId: string
+  readonly members: readonly string[]
+  readonly createdAt: string
+}
+
 export interface WorkspaceProjection {
   readonly tasks: readonly TaskRow[]
   readonly rules: readonly RuleRow[]
   readonly contracts: readonly ContractRow[]
   readonly proposals: readonly ProposalRow[]
+  readonly groups: readonly SchedulingGroupRow[]
   readonly problems: readonly string[]
 }
 
@@ -114,6 +129,7 @@ export const PROPOSALS_DIR = `${SPEC_DIR}/proposals`
 export const RULES_FILE = `${SPEC_DIR}/spec/rules.yaml`
 export const PROJECT_FILE = `${SPEC_DIR}/project.yaml`
 export const LOCAL_FILE = `${SPEC_DIR}/local.yaml`
+export const SCHEDULING_DIR = `${SPEC_DIR}/evidence/scheduling`
 
 /** 单页行数上限：任务与规则 YAML 都是几十行的量级，500 足够且低于宿主默认页。 */
 export const PAGE_LINES = 500
@@ -226,6 +242,33 @@ export function contractTextToRow(fileName: string, text: string): ContractRow |
 }
 
 /**
+ * 一个联调组 YAML 的文本 → 展示行。缺会话、成员或建立时刻就读不懂，返回 undefined
+ * 由调用方记进 problems；展示面不替证据目录补事实。
+ * @param fileName - 文件名，缺 id 时用它兜底。
+ * @param text - 文件正文。
+ * @returns 可展示的联调组，读不懂为 undefined。
+ */
+export function groupTextToRow(fileName: string, text: string): SchedulingGroupRow | undefined {
+  let fields: Record<string, unknown> | undefined
+  try {
+    fields = recordOf(parseYaml(text))
+  } catch {
+    return undefined
+  }
+  if (fields === undefined) return undefined
+  const sessionId = asText(fields.session)
+  const createdAt = asText(fields.created_at)
+  const members = stringArray(fields.members)
+  if (sessionId === undefined || createdAt === undefined || members.length === 0) return undefined
+  return {
+    id: asText(fields.id) ?? fileName.replace(/\.yaml$/, ''),
+    sessionId,
+    members,
+    createdAt,
+  }
+}
+
+/**
  * 一份方案 YAML 的文本 → 展示行。缺 title、problem 或 recommendation 任一项就读不懂这份方案，
  * 返回 undefined 由调用方记进 problems；决定态不认识时给 `unknown`，不假装它是草稿。
  */
@@ -272,19 +315,62 @@ export async function loadWorkspaceProjection(
   sessionId: SessionId,
   signal: AbortSignal,
 ): Promise<WorkspaceProjection> {
-  const [tasks, rules, contracts, proposals] = await Promise.all([
+  const [tasks, rules, contracts, proposals, groups] = await Promise.all([
     loadTasks(files, sessionId, signal),
     loadRules(files, sessionId, signal),
     loadContracts(files, sessionId, signal),
     loadProposals(files, sessionId, signal),
+    loadGroups(files, sessionId, signal),
   ])
   return {
     tasks: tasks.rows,
     rules: rules.rows,
     contracts: contracts.rows,
     proposals: proposals.rows,
-    problems: [...tasks.problems, ...rules.problems, ...contracts.problems, ...proposals.problems],
+    groups: groups.rows,
+    problems: [...tasks.problems, ...rules.problems, ...contracts.problems, ...proposals.problems, ...groups.problems],
   }
+}
+
+/**
+ * 读 `.spec/evidence/scheduling/` 下的联调组。目录不存在是常态（还没入过队），不算故障。
+ */
+async function loadGroups(
+  files: ProjectionFilesRemote,
+  sessionId: SessionId,
+  signal: AbortSignal,
+): Promise<{ rows: SchedulingGroupRow[]; problems: string[] }> {
+  const rows: SchedulingGroupRow[] = []
+  const problems: string[] = []
+
+  const listed = await files.list(sessionId, SCHEDULING_DIR, signal)
+  if (!listed.ok) {
+    if (!isMissing(listed.error, SCHEDULING_DIR)) {
+      problems.push(`${SCHEDULING_DIR}/: ${messageOf(listed.error)}`)
+    }
+    return { rows, problems }
+  }
+
+  const names = listed.value.entries
+    .filter(entry => entry.type === 'file' && entry.name.endsWith('.yaml'))
+    .map(entry => entry.name)
+
+  await Promise.all(names.map(async (name) => {
+    const page = await files.readPage(sessionId, `${SCHEDULING_DIR}/${name}`, signal)
+    if (!page.ok) {
+      problems.push(`${SCHEDULING_DIR}/${name}: ${messageOf(page.error)}`)
+      return
+    }
+    const row = groupTextToRow(name, page.value.text)
+    if (row === undefined) {
+      problems.push(`${SCHEDULING_DIR}/${name}: 不是能读的联调组文件`)
+      return
+    }
+    rows.push(row)
+  }))
+
+  rows.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+  return { rows, problems }
 }
 
 async function loadTasks(

@@ -94,12 +94,12 @@ describe('卡片状态', () => {
       .toBe('running')
   })
 
-  it('已入队压过会话在跑：跑的是前面那条，卡片说的是这条任务', () => {
+  it('绑着会话时以会话状态为准：联调组标记不盖过在跑', () => {
     expect(taskCardStatus({
       session: row({ sessionId: 's-1' }),
       hostRunning: true,
       queued: { sessionId: 's-1', position: 2 },
-    })).toBe('queued')
+    })).toBe('running')
   })
 
   it('入队不写认领：没有 session 字段时也画已入队', () => {
