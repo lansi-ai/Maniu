@@ -647,21 +647,6 @@ export function Shell({
     return `${t('shell.sessions')} ${String(index + 1)}`
   }
 
-  /** 调度段里用稳定称呼：会话序号 + 当前认领的任务标题，避免只看到一串会话号。 */
-  const schedulingLabel = (id: string): string => {
-    const index = workspaceSessions.findIndex(candidate => String(candidate) === id)
-    const base = `${t('shell.sessions')} ${String(index + 1)}`
-    const bound = tasks.find(task => task.session === id)
-    return bound === undefined ? base : `${base} · ${bound.title}`
-  }
-
-  /** 把内核理由里的会话号换成界面上的短称呼；显示用，落盘仍是原始 id。 */
-  const humanizeSessions = (text: string): string =>
-    workspaceSessions.reduce(
-      (result, id) => result.replaceAll(String(id), schedulingLabel(String(id))),
-      text,
-    )
-
   /**
    * 本任务所在的联调组：优先读投影里的组文件（刷新后仍在），
    * 投影还没跟上时退回本次判定刚记下的组。
@@ -1283,8 +1268,9 @@ export function Shell({
     }
     setClaiming(true)
     try {
-      const created = await createSession(projectPath, roleChoice ?? undefined)
-      if (roleChoice !== null) setSessionRoles(current => ({ ...current, [String(created)]: roleChoice }))
+      // 任务对话总是按宿主默认角色开会话：角色选择只服务顶栏「＋」弹窗，
+      // 这里读 roleChoice 会把上一次弹窗里的选择带进任务。
+      const created = await createSession(projectPath)
       const claimed = await bindTask(created, task.id)
       if (!claimed.ok) throw new Error(claimed.text)
       setSessionOverride(created)
@@ -2552,53 +2538,14 @@ export function Shell({
                 <div className={css.meta}><div className={css.metaK}>{t('shell.evidence')}</div><div className={css.metaV}>{detail.evidence.join(', ') || '—'}</div></div>
                 <div className={css.meta}><div className={css.metaK}>{t('shell.surface')}</div><div className={css.metaV}>{detail.surface}</div></div>
               </div>
-              <details className={css.schedule}>
-                <summary>{t('shell.schedule')}</summary>
-                <p className={css.scheduleHint}>{t('shell.scheduleHint')}</p>
-                {detailSchedule === undefined ? <p className={css.empty}>{t('shell.scheduleEmpty')}</p> : (
-                  <>
-                    <ol className={css.scheduleReasons}>
-                      {detailSchedule.decision.reasons.map(reason => <li key={reason}>{humanizeSessions(reason)}</li>)}
-                      {detailSchedule.decision.joint === undefined
-                        ? null
-                        : (
-                          <li key="joint">
-                            {fill(t('shell.scheduleJoint'), { members: detailSchedule.decision.joint.members.join('、') })}
-                          </li>
-                        )}
-                    </ol>
-                    <span className={css.scheduleLabel}>{t('shell.scheduleCandidates')}</span>
-                    {detailSchedule.decision.candidates.length === 0
-                      ? <p className={css.empty}>{t('shell.scheduleNone')}</p>
-                      : (
-                        <div className={css.scheduleList}>
-                          {detailSchedule.decision.candidates.map(candidate => (
-                            <div key={candidate.sessionId} className={css.scheduleCandidate} data-rejected={candidate.rejected === undefined ? undefined : 'true'}>
-                              <div className={css.scheduleHead}>
-                                <span className={css.scheduleSession}>{schedulingLabel(candidate.sessionId)}</span>
-                                <span className={css.scheduleScore}>{fill(t('shell.scheduleScore'), { score: candidate.score })}</span>
-                                {candidate.rejected === undefined
-                                  ? null
-                                  : <span className={`${css.tag} ${css.tagDanger}`}>{t('shell.scheduleRejected')}</span>}
-                              </div>
-                              {candidate.signals.length === 0
-                                ? null
-                                : <div className={css.scheduleSignals}>{t('shell.scheduleSignals')}：{candidate.signals.join('；')}</div>}
-                              {candidate.rejected === undefined
-                                ? null
-                                : <div className={css.scheduleRejectedText}>{candidate.rejected}</div>}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                  </>
-                )}
-                {detailSchedule === undefined || scheduleErrors[detail.id] === undefined
-                  ? null
-                  : <p className={css.problem}>{fill(t('shell.scheduleLogFailed'), { detail: scheduleErrors[detail.id] ?? '' })}</p>}
-              </details>
+              {detailSchedule === undefined || scheduleErrors[detail.id] === undefined
+                ? null
+                : <p className={css.problem}>{fill(t('shell.scheduleLogFailed'), { detail: scheduleErrors[detail.id] ?? '' })}</p>}
               <div className={css.field}>
-                <label>{t('shell.contract')} <span className={css.labelHint}>{t('shell.contractHint')}</span></label>
+                <label>
+                  {t('shell.contract')}
+                  {detailContract === undefined ? null : <span className={css.labelHint}> {t('shell.contractHint')}</span>}
+                </label>
                 {detailContract === undefined ? (
                   <p className={css.empty}>{t('shell.contractMissing')}</p>
                 ) : (
@@ -2690,7 +2637,6 @@ export function Shell({
                   )}
                 </div>
               )}
-              {liveSessionOf(detail) !== undefined ? null : roleChoices}
               <div className={css.field}>
                 <label>{t('shell.startPrompt')} <span className={css.labelHint}>{t('shell.promptHint')}</span></label>
                 <textarea className={css.promptBox} value={prompt} onChange={(event) => { setPrompt(event.target.value) }} />
