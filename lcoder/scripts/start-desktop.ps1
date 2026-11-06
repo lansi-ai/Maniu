@@ -5,18 +5,20 @@
 # 实时把日志按 UTF-8 打印出来（去掉 ANSI 颜色码），就绪后直接给出带 token 的地址。
 #
 # 用法：
-#   lcoder\scripts\start-desktop.cmd                # 停旧实例 → 启动 → 实时跟随到就绪
+#   lcoder\scripts\start-desktop.cmd                # 停旧实例 → 构建 → 启动 → 跟随到就绪（默认不跑运行时冒烟）
 #   lcoder\scripts\start-desktop.cmd -KeepRunning   # 不停旧实例（多开会被单实例锁挡住）
 #   lcoder\scripts\start-desktop.cmd -ListOnly      # 只列出会停掉哪些进程，不做任何改动
 #   lcoder\scripts\start-desktop.cmd -KeepFollowing # 就绪后继续跟随日志
+#   lcoder\scripts\start-desktop.cmd -Smoke         # 连运行时冒烟一起跑（发布验收口径，慢百秒级）
 #   lcoder\scripts\start-desktop.cmd -NoBuild       # 跳过构建门禁（改过源码别用）
-#   lcoder\scripts\start-desktop.cmd -Fast          # -NoBuild 且跳过运行时冒烟（产物没变时的最快启动）
+#   lcoder\scripts\start-desktop.cmd -Fast          # -NoBuild 加跳过冒烟（产物没变时的最快启动）
 param(
   [switch]$KeepRunning,
   [switch]$KeepFollowing,
   [switch]$ListOnly,
   [switch]$NoBuild,
   [switch]$Fast,
+  [switch]$Smoke,
   [int]$ReadyTimeoutSec = 300
 )
 
@@ -70,8 +72,9 @@ Write-Host ("日志 {0}" -f $log) -ForegroundColor DarkGray
 $started = Get-Date
 # -NoBuild 走 start:desktop（跳过 26 秒左右的构建门禁）；改过源码不要用它，会跑旧产物。
 $scriptName = if ($NoBuild -or $Fast) { 'start:desktop' } else { 'dev:desktop' }
-# -Fast：产物没变就不跑运行时冒烟（python 三条检查加 Office 往返，百秒级）。
-if ($Fast) { $env:DSH_DESKTOP_SKIP_RUNTIME_SMOKE = '1' }
+# 运行时冒烟（python 三条检查加 Office 往返）是发布验收口径，百秒级；开发启动默认跳过，
+# 需要复核时加 -Smoke。
+if (-not $Smoke) { $env:DSH_DESKTOP_SKIP_RUNTIME_SMOKE = '1' }
 Start-Process -FilePath 'cmd.exe' `
   -ArgumentList '/d', '/c', "pnpm run $scriptName > `"$log`" 2>&1" `
   -WorkingDirectory $root -WindowStyle Hidden | Out-Null
