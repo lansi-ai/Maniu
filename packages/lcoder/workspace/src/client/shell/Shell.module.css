@@ -914,3 +914,61 @@
 .flowHistoryRow { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; font-size: var(--lc-text-xs); color: var(--lc-muted); border-bottom: 1px dashed var(--lc-line); padding-bottom: 4px; }
 .flowHistoryTime { font-family: var(--lc-font-mono); color: var(--lc-faint); white-space: nowrap; }
 .chatContext { margin: 2px 0 0; font-size: var(--lc-text-xs); color: var(--lc-faint); }
+
+/* 立项结果页：独立整页，沿用看板的卡片与 token；深浅主题都只读变量。 */
+.intakePage {
+  flex: 1; min-height: 0; overflow: auto;
+  padding: var(--lc-space-6) var(--lc-space-7) 40px;
+  display: grid; gap: var(--lc-space-5); align-content: start;
+}
+.intakeHead { display: flex; align-items: center; gap: var(--lc-space-3); }
+.intakeHead h2 {
+  margin: 0; font: 600 var(--lc-text-xl) / var(--lc-leading-tight) var(--lc-font-display);
+  letter-spacing: var(--lc-tracking-tight);
+}
+.intakeHeadHint { margin: 2px 0 0; font-size: var(--lc-text-sm); color: var(--lc-muted); }
+.intakeSection {
+  background: var(--lc-surface); border: 1px solid var(--lc-line);
+  border-radius: var(--lc-radius-lg); padding: var(--lc-space-5);
+  display: grid; gap: var(--lc-space-3);
+}
+.intakeSection h3 {
+  margin: 0; font-size: var(--lc-text-xs); letter-spacing: .08em;
+  text-transform: uppercase; color: var(--lc-faint);
+}
+.intakeSection h3.intakeTitle {
+  font: 600 var(--lc-text-lg) / var(--lc-leading-tight) var(--lc-font-display);
+  letter-spacing: var(--lc-tracking-tight); text-transform: none; color: var(--lc-ink);
+}
+.intakeProposalBar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--lc-space-2); }
+.intakeMuted { font-size: var(--lc-text-sm); color: var(--lc-muted); line-height: var(--lc-leading); }
+.intakeField { display: grid; gap: 4px; }
+.intakeFieldK { font-size: var(--lc-text-xs); color: var(--lc-faint); }
+.intakeFieldV { font-size: var(--lc-text-md); color: var(--lc-ink); line-height: var(--lc-leading); white-space: pre-wrap; }
+.intakeOptions { display: grid; gap: 8px; }
+.intakeOption {
+  border: 1px solid var(--lc-line); border-radius: var(--lc-radius-md);
+  background: var(--lc-surface-2); padding: 10px 12px; display: grid; gap: 4px;
+}
+.intakeOptionHead { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; }
+.intakeOptionName { font-size: var(--lc-text-sm); font-weight: 600; color: var(--lc-ink); }
+.intakeOptionCost { font-size: var(--lc-text-xs); color: var(--lc-muted); }
+.intakeList { display: grid; gap: 8px; }
+.intakeTask {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--lc-space-2);
+  border: 1px solid var(--lc-line); border-radius: var(--lc-radius-md);
+  background: var(--lc-surface-2); padding: 8px 12px;
+}
+.intakeTaskId { font: 600 var(--lc-text-xs) / 1 var(--lc-font-mono); color: var(--lc-muted); }
+.intakeTaskTitle { flex: 1; min-width: 0; font-size: var(--lc-text-sm); color: var(--lc-ink); overflow-wrap: anywhere; }
+
+/* 看板页头右侧的动作组：立项结果常驻，筛选按任务数出现。 */
+.boardActions { display: flex; align-items: center; gap: var(--lc-space-2); margin-left: auto; }
+.boardActions .filterToggle { margin-left: 0; }
+.pillBtn {
+  border: 1px solid var(--lc-line); background: var(--lc-surface); color: var(--lc-muted);
+  border-radius: var(--lc-radius-pill); padding: 5px 12px; white-space: nowrap;
+  font: 500 var(--lc-text-xs) / 1 var(--lc-font-ui); cursor: pointer;
+}
+.pillBtn:hover { background: var(--lc-hover); color: var(--lc-ink); }
+.pillBtn:disabled { opacity: .5; cursor: not-allowed; }

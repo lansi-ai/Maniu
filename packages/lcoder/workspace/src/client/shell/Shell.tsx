@@ -44,6 +44,8 @@ import type { TaskCardStatus, TaskQueueMark, TaskSessionRow } from '../task-sess
 import { EMPTY_TASK_FILTER, filterTasks, isFilterActive, TASK_GRADE_CHOICES } from '../task-filter.ts'
 import type { SessionFilter, TaskFilter } from '../task-filter.ts'
 import { onboardingAction } from '../onboarding.ts'
+import { intakeArtifactsOf, intakeTierOfMessages, PROPOSAL_DECISION, runIntakeRestart } from './intake.ts'
+import { IntakeResultPage, IntakeRestartDialog } from './IntakeResultPage.tsx'
 import { buildIntakePrompt, buildOnboardingPrompt, buildShellPrompt, SHELL_STATES, TASK_FLOW_MENTION_PREFIX } from './shell-data.ts'
 import { ChatTranscript, PendingInteractionCard } from './ChatPanel.tsx'
 import { ChatAttachButton, ChatAttachmentList, ChatModelChip } from './ChatExtras.tsx'
@@ -268,14 +270,6 @@ function percentOf(used: number, budget: number | undefined): number | null {
 
 const KNOWN_STATES: ReadonlySet<string> = new Set(SHELL_STATES.map(state => state.id))
 
-/** 方案决定态的文案键；`unknown` 表示文件里写着认识不了的值。 */
-const PROPOSAL_DECISION: Record<ProposalRow['decision'], LcoderWorkspaceKey> = {
-  draft: 'shell.proposalDraft',
-  approved: 'shell.proposalApproved',
-  rejected: 'shell.proposalRejected',
-  unknown: 'shell.proposalDecisionUnknown',
-}
-
 const SESSION_FILTER_CHOICES: readonly SessionFilter[] = ['any', 'claimed', 'active']
 
 const SESSION_FILTER_LABELS: Record<SessionFilter, LcoderWorkspaceKey> = {
@@ -353,6 +347,11 @@ export function Shell({
   /** 普通档与最大化两档；关闭对话时回到普通档。 */
   const [chatMax, setChatMax] = useState(false)
   const [settings, setSettings] = useState(false)
+  /** 立项结果页：独立整页，打开时看板让位，不复用弹窗。 */
+  const [resultPage, setResultPage] = useState(false)
+  /** 重开确认框与它在途状态；浮层头与结果页共用同一套。 */
+  const [restartOpen, setRestartOpen] = useState(false)
+  const [restarting, setRestarting] = useState(false)
   const [drawer, setDrawer] = useState(false)
   const [revealed, setRevealed] = useState<Record<string, boolean>>({})
   const [copied, setCopied] = useState(false)
@@ -702,6 +701,18 @@ export function Shell({
   const chatRunning = chatSessionId === undefined
     ? false
     : sessionStatus.get(chatSessionId)?.running ?? sessionRows[chatSessionId]?.running ?? false
+  /** 浮层这条会话是不是立项会话、是哪一档；消息窗口读不到就不猜。 */
+  const chatIntakeTier = chat === null ? null : intakeTierOfMessages(messages)
+  /** 结果页与确认框读当前会话的档位；换会话或消息窗口变化时重算。 */
+  const currentIntakeTier = useMemo(
+    () => (sessionId === undefined || readMessages === undefined ? null : intakeTierOfMessages(readMessages(sessionId))),
+    [sessionId, readMessages, messages, reload],
+  )
+  /** 重开确认框列的已有产物；零也照实显示。 */
+  const restartArtifacts = useMemo(
+    () => intakeArtifactsOf({ info, rules: rulesCount, tasks, proposals: proposals.length }),
+    [info, rulesCount, tasks, proposals],
+  )
   /** 这条会话当前等人处理的那一条审批或提问；上游插件发布，外壳只负责画与转交答案。 */
   const chatPending = chatSessionId === undefined ? undefined : sessionStatus.get(chatSessionId)?.pendingInteraction
   const resolvedChatSize = chatSize ?? DEFAULT_CHAT_SIZE
@@ -1576,6 +1587,58 @@ export function Shell({
     })
   }
 
+  /** 重开前的确认：计数是当前投影的事实，零也照实列出来。 */
+  const requestIntakeRestart = (): void => {
+    if (restarting || onboardingSending.current) return
+    setRestartOpen(true)
+  }
+
+  /**
+   * 确认后按原档位新建会话并重发咒语。
+   *
+   * 旧会话与已落盘内容一概不动；建会话失败只报原文，发送失败则新会话已经存在，
+   * 照实切过去并把错误留在浮层里。
+   */
+  const confirmIntakeRestart = (): void => {
+    const tier = currentIntakeTier
+    setRestartOpen(false)
+    if (tier === null) {
+      setChatError(t('shell.restartIntakeUnknown'))
+      return
+    }
+    if (projectPath === '' || createSession === undefined || sendPrompt === undefined) {
+      setChatError(t('shell.noSession'))
+      return
+    }
+    if (onboardingSending.current) return
+    onboardingSending.current = true
+    setRestarting(true)
+    setChatError(null)
+    void runIntakeRestart({
+      tier,
+      project: { name: projectName, path: projectPath, branch: projectBranch },
+      docs: info?.docs ?? { product: '', architecture: '', tests: '' },
+      path: projectPath,
+      createSession: path => createSession(path),
+      sendPrompt,
+    }).then((outcome) => {
+      if (outcome.kind === 'create-failed') {
+        setChatError(outcome.error)
+        return
+      }
+      setSessionOverride(outcome.sessionId)
+      setReload(value => value + 1)
+      setResultPage(false)
+      setChat(pseudoChat(t('shell.onboardingChat')))
+      if (outcome.kind === 'send-failed') setChatError(outcome.error)
+    }, (error: unknown) => {
+      setChatError(String(error))
+    }).finally(() => {
+      onboardingSending.current = false
+      setRestarting(false)
+    })
+  }
+
   /** 图片被拒绝时就地说清是哪条上限；不把三种原因混成一句。 */
   const imageRejectionText = (rejection: ChatImageRejection): string => {
     switch (rejection.kind) {
@@ -1948,7 +2011,21 @@ export function Shell({
       </header>
 
       <main className={css.main}>
-        <div className={css.boardWrap}>
+        {resultPage ? (
+          <IntakeResultPage
+            t={t}
+            proposals={proposals}
+            tasks={tasks}
+            info={info}
+            problems={problems}
+            modelBlocked={modelBlocked}
+            canRestart={currentIntakeTier !== null}
+            onBack={() => { setResultPage(false) }}
+            onRestart={requestIntakeRestart}
+            onStartOnboarding={(kind) => { setResultPage(false); startOnboarding(kind) }}
+          />
+        ) : null}
+        {resultPage ? null : <div className={css.boardWrap}>
           <div className={css.boardHead}>
             <h3>{t('shell.board')}</h3>
             <span className={css.boardHint}>{t('shell.boardHint')}</span>
@@ -1965,16 +2042,23 @@ export function Shell({
                   : <span className={css.flowBarBlocked}>{flow.decision.blockers.map(blocker => t(FLOW_BLOCKER_LABEL[blocker.kind])).join(' / ')}</span>}
               </button>
             )}
-            {tasks.length === 0 ? null : (
-              <button
-                type="button"
-                className={`${css.filterToggle} ${isFilterActive(filter) ? css.filterToggleOn : ''}`}
-                onClick={() => { setFilterOpen(open => !open) }}
-              >
-                {t('shell.filter')}
-                {isFilterActive(filter) ? <span className={css.filterCount}>{String(visibleTasks.length)}</span> : null}
-              </button>
-            )}
+            <div className={css.boardActions}>
+              {!hasWorkspace || !hasSession ? null : (
+                <button type="button" className={css.pillBtn} onClick={() => { setResultPage(true) }}>
+                  {t('shell.intakeResult')}
+                </button>
+              )}
+              {tasks.length === 0 ? null : (
+                <button
+                  type="button"
+                  className={`${css.filterToggle} ${isFilterActive(filter) ? css.filterToggleOn : ''}`}
+                  onClick={() => { setFilterOpen(open => !open) }}
+                >
+                  {t('shell.filter')}
+                  {isFilterActive(filter) ? <span className={css.filterCount}>{String(visibleTasks.length)}</span> : null}
+                </button>
+              )}
+            </div>
           </div>
           {filterOpen && tasks.length > 0 ? (
             <div className={css.filterPanel}>
@@ -2072,7 +2156,7 @@ export function Shell({
                     ) : null}
                   </>
                 )}
-        </div>
+        </div>}
       </main>
 
       {drawer ? (
@@ -2175,7 +2259,7 @@ export function Shell({
                           type="button"
                           key={id}
                           className={`${css.projectOption} ${id === activeWorkspaceId ? css.projectOptionActive : ''}`}
-                          onClick={() => { setWorkspaceId(id); setSessionOverride(null); setProjectPicker(false) }}
+                          onClick={() => { setWorkspaceId(id); setSessionOverride(null); setProjectPicker(false); setResultPage(false) }}
                         >
                           <span className={css.psLogo}>{(item.title || 'L').slice(0, 1).toUpperCase()}</span>
                           <span className={css.poText}>
@@ -2739,6 +2823,17 @@ export function Shell({
                   selection={chatModelSelection}
                   onChanged={() => { modelRefresh.current() }}
                 />
+                {chatIntakeTier === null ? null : (
+                  <button
+                    type="button"
+                    className={css.pillBtn}
+                    disabled={chatRunning || sending || restarting}
+                    title={chatRunning ? t('shell.restartIntakeRunning') : undefined}
+                    onClick={requestIntakeRestart}
+                  >
+                    {t('shell.restartIntake')}
+                  </button>
+                )}
                 <span className={css.pill}>{chatRunning ? t('shell.running') : t('shell.chatReady')}</span>
                 <button
                   type="button"
@@ -2825,6 +2920,16 @@ export function Shell({
             </div>
           </div>
         </div>
+      ) : null}
+
+      {restartOpen ? (
+        <IntakeRestartDialog
+          t={t}
+          artifacts={restartArtifacts}
+          busy={restarting}
+          onCancel={() => { if (!restarting) setRestartOpen(false) }}
+          onConfirm={confirmIntakeRestart}
+        />
       ) : null}
 
       {settings ? (
