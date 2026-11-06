@@ -74,7 +74,9 @@ Start-Process -FilePath 'cmd.exe' `
 
 $esc = [string][char]27
 $ansi = [regex]($esc + '\[[0-9;?]*[a-zA-Z]')
+# 超时按「多久没有新输出」算，不按总时长：准备运行时会静默几分钟，那不算卡死。
 $deadline = $started.AddSeconds($ReadyTimeoutSec)
+$lastOutput = Get-Date
 $printed = 0
 $stop = $false
 Write-Host '---- 实时输出（Ctrl+C 只停止跟随，不影响已启动的实例） ----' -ForegroundColor DarkGray
@@ -82,6 +84,10 @@ Write-Host '---- 实时输出（Ctrl+C 只停止跟随，不影响已启动的�
 while (-not $stop) {
   if (Test-Path $log) {
     $lines = @(Get-Content -LiteralPath $log -Encoding utf8 -ErrorAction SilentlyContinue)
+    if ($lines.Count -gt $printed) {
+      $deadline = (Get-Date).AddSeconds($ReadyTimeoutSec)
+      $lastOutput = Get-Date
+    }
     for ($i = $printed; $i -lt $lines.Count; $i++) {
       $line = $ansi.Replace($lines[$i], '')
       $elapsed = [int]((Get-Date) - $started).TotalSeconds
@@ -96,8 +102,14 @@ while (-not $stop) {
     }
     $printed = $lines.Count
   }
+  if (-not $stop -and ((Get-Date) - $lastOutput).TotalSeconds -ge 20) {
+    $quiet = [int]((Get-Date) - $lastOutput).TotalSeconds
+    $elapsed = [int]((Get-Date) - $started).TotalSeconds
+    Write-Host ("[{0,3}s] …还在准备（日志已 {1} 秒没有新行，进程仍存活），继续等" -f $elapsed, $quiet) -ForegroundColor DarkGray
+    $lastOutput = Get-Date
+  }
   if (-not $stop -and (Get-Date) -gt $deadline) {
-    Write-Host ("超过 {0} 秒仍未就绪，请把上面最后 20 行发出来。" -f $ReadyTimeoutSec) -ForegroundColor Red
+    Write-Host ("连续 {0} 秒没有新输出、仍未就绪，请把上面最后 20 行发出来。" -f $ReadyTimeoutSec) -ForegroundColor Red
     $stop = $true
   }
   if (-not $stop) { Start-Sleep -Milliseconds 300 }
