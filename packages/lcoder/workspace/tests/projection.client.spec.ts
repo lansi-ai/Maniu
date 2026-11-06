@@ -158,6 +158,7 @@ describe('文件投影', () => {
       evidence: ['test'],
       session: undefined,
       dependsOn: [],
+      paths: [],
     })
     // 依赖是任务文件里的事实：写了就原样读回，空着就是没有依赖。
     expect(taskTextToRow('T-014.yaml', `${TASK_YAML}
@@ -174,12 +175,19 @@ depends_on:
     // 任务与会话的归属权威在文件里：写了才认领，没写就是未绑定。
     expect(taskTextToRow('T-014.yaml', `${TASK_YAML}\nsession: session-9`)?.session).toBe('session-9')
     expect(taskTextToRow('T-014.yaml', TASK_YAML)?.session).toBeUndefined()
+    // 允许路径是调度「落点重叠」的输入；没写就是空集，不猜。
+    expect(taskTextToRow('T-014.yaml', `${TASK_YAML}
+scope:
+  allowed_paths:
+    - src/login
+    - src/session
+`)?.paths).toEqual(['src/login', 'src/session'])
   })
 
   it('rulesTextToRows 跳过缺 id / text 的条目，不替规格库补事实', () => {
     const rows = rulesTextToRows(RULES_YAML)
     expect(rows).toHaveLength(1)
-    expect(rows[0]).toMatchObject({ id: 'R-LOGIN-01', status: 'confirmed' })
+    expect(rows[0]).toMatchObject({ id: 'R-LOGIN-01', module: '登录', status: 'confirmed' })
     expect(rulesTextToRows('not: a rules file')).toEqual([])
   })
 

@@ -546,7 +546,7 @@ tracks:
       note: "A 级（产品数据契约变更）。用户 2026-11-06 拍板的调度口径：建任务时就该有机制标记关联，生成提示词时再判一次，用户点开始时再判一次；前置未完成不是拒绝开始，而是可以加入等待。本轮只做第一层——让依赖与关联可见、可校验，不碰状态机与工具面。落点四处。一、schema 的 Task 加 depends_on（稳定编号数组，默认空）与 related 可选块（proposal 已有字段继续用，module 先由 rules 反查得到，不新增冗余字段）。二、task_draft 新增 depends_on 入参，写盘前逐个校验任务存在、拒绝自依赖、做环检测（沿 depends_on 走一遍，命中就报出环上的编号）。三、task_read 与投影把依赖读出来，任务详情显示「等 T-01、T-02」，卡片上给一枚「等依赖」标记。四、规则单源补一行：依赖只能由人在起草时声明或经 task_draft 写入，状态推进仍归人与命令，模型不能靠依赖绕开契约。不做：不改五态状态机、不改 SURFACE、不做调度判定（那是 T-51 与 T-53）。门禁：typecheck 5、vitest packages/lcoder、oxlint、test:docs 21、bundle 重打。2026-11-06 落地与证据：schema 的 Task 加 depends_on（编号数组，默认空），OpenTaskInput 同步；task-store 加 unknownDependencies 与 dependencyCycle（自依赖按一条边的自环返回，走不回来返回 undefined），task_draft 新增 depends_on 入参并在写盘前查存在、禁自依赖、禁环，返回体带上 depends_on；投影与 ShellTask 带 dependsOn（默认空），卡片给「等 T-01、T-02」警示标签，任务详情的元信息栏多一格依赖。测试：task-tools 三条（写入并读回、不存在被拒、自依赖被拒）、task-store 两条（间接环与自环的路径形状、未知编号不影响环判定）、projection 一条（depends_on 读回）。门禁：typecheck 5 关绿；vitest packages/lcoder 36 文件 360 用例；oxlint 84 文件 0 错 0 警；verify-client-ui-i18n 1274 文件合格；test:docs 21 关绿；workspace bundle 重打。未验：桌面手点——建一条带 depends_on 的任务看卡片与详情的显示。依赖真正「按住」要等 T-51，本轮只让人与模型看得见、写错会被拦。"
     - id: T-51
       title: 三层判定与执行——等依赖按住、无依赖入队、无匹配才新开
-      status: todo
+      status: done
       face: 用户端
       type: 开发
       owner: lance
@@ -554,10 +554,10 @@ tracks:
       date: '2026-11-06'
       dep: [T-50]
       inferred: false
-      note: "B 级；依赖 T-50 的字段与 T-53 的判定结果。用户拍板的三层判定落点。一、建任务时标记：task_draft 写 depends_on 与建议会话（关联性优先 proposal，其次 rules 的 module）。二、生成提示词时再判：buildShellPrompt 把「依赖 T-01」「建议接着会话 X 做」写进正文，让模型也看到这层关系。三、用户点开始时终判：本任务已认领且会话还在 → 复用；有未完成依赖 → 外壳按住不发（卡片显示等 T-xx，前置 closed 后自动进入下一步）；无未完成依赖且有匹配会话 → 立即写入该会话的队列（用户选的立即入队），并记录入了哪条会话；都没有 → 新开。两道硬闸永远压过判定：目标会话正在等审批时不许塞（等它答完再入队）；角色不匹配（agentPreset 锁定）不许复用。已知取舍：依赖型任务不能入队，否则 DSH 的会话队列会在前置没完成时就跑它，依赖形同虚设——这条必须在实现里写清，不允许为了省事把两类等待合并。"
+      note: "B 级；依赖 T-50 的字段与 T-53 的判定结果。2026-11-06 收口。Shell 的「开始对话」改为先算 decideScheduling 再执行，四支各有去向。wait 不建会话也不发送，详情就地显示「前置未完成 T-01；先按住」；前置收口后重读投影即重新判定。reuse 只切到已认领的会话，不发新提示词；内核把「本任务已认领」作为 +4 命中信号，所以任务在跑时再点也只切回，不会重复入队。enqueue 用 queue 模式立即写入目标会话队列，并记下会话与第几位；不写 task.session，因为一条会话只认领一条任务，跑着时改绑会把当前任务释放、工具面切走。new 在同仓库新开会话、按选中角色认领后发送。启动咒语补上前置状态与建议会话两行。输入侧投影补了两处：TaskRow 带 scope.allowed_paths，RuleRow 带 module，Shell 由任务 rules 反查模块、由已认领任务生成会话侧 claims。测试新增本任务已认领仍在跑判 reuse、等审批不再否决已认领会话、同组入队两道准入等。桌面实测在仓内 home 与专用演示仓 E:/Projects/LCoder-sched-demo2。T-01 新开并认领后日志 verdict 为 new 且任务文件写入 session；在跑时再点 T-01 得到 reuse 与得分 10，卡片保持运行中且无入队标；T-04 在 T-01 运行时点开始得到 enqueue 与 queuePosition 1，卡片显示「已入队 订单导出 · 第 1 位」，顶栏会话条出现计数 1，T-01 的 session 行未被改动；重复点 T-04 只开浮层，证据文件仍只有一行。未验一条，所有点击是 CDP 派发的 DOM 或鼠标事件，不是人手物理点击。"
     - id: T-52
       title: 排队与依赖的可见性——卡片状态、顶栏队列计数与详情明细
-      status: todo
+      status: done
       face: 用户端
       type: 开发
       owner: lance
@@ -565,10 +565,10 @@ tracks:
       date: '2026-11-06'
       dep: [T-51]
       inferred: false
-      note: "B 级；显示层。用户要求「用户需要在某些比较显眼的位置来查看加入了哪个会话」。落点三处：任务卡新增两态（等依赖显示等 T-xx、已入队显示入队会话与第 N 位，沿用 task-session 的六态扩两档并配单测）；顶栏会话条给有队列的会话加一枚计数徽标（与等待圆点同一处，样式复用）；任务详情显示依赖列表、入队会话与队列位置。文案进中英词典，不新增常驻控件。"
+      note: "B 级；显示层。2026-11-06 收口。卡片状态从六态扩到八态，新增 waiting 与 queued。waiting 在没会话或会话不在跑时压过未开始，卡片另有一枚「等 T-01」的未收口依赖标签，已收口的依赖不再占一行。queued 压过会话在跑，因为跑的是它前面那条，卡片说的是本任务；已入队标签写成「<会话> · 第 N 位」。顶栏会话条按 agent-loop 的 inbox 投影 next-turn 长度给有队列的会话加计数徽标，与等待圆点同一处。任务详情元信息新增「入队会话」一格，调度段另带队列位置。筛选中「正在动」纳入 queued，「已认领」排除 waiting。文案进中英两本词典。取证截图在 worktree 的 lcoder/logs 下，目录被 git 忽略，只作本线证据。"
     - id: T-53
       title: 调度判定与思考过程——信号打分、候选比较、决策落盘并在界面可见
-      status: doing
+      status: done
       face: 用户端
       type: 开发
       owner: lance
@@ -576,7 +576,7 @@ tracks:
       date: '2026-11-06'
       dep: [T-50]
       inferred: false
-      note: "B 级；T-51 的判定内核。用户 2026-11-06 明确要「用户需要知道调度角色的思考过程」。分三层。一、信号层（硬编码、可测）：任务侧 proposal、rules 反查的 module、allowed_paths 的路径集、depends_on；会话侧 running、pendingInteraction、队列长度、已认领任务与历史、角色；再派生「落点重叠」（两条任务的 allowed_paths 或 module 有交集）。二、决策层：规则打分产出候选，候选只有一个时直接定、不调模型；候选两个及以上才让模型在受限枚举 reuse、enqueue、new、wait 里取舍，并给一句理由与置信度。三、兜底：依赖未完成不许跑、等审批的会话不许塞、角色不匹配不许复用，模型判什么都越不过。决策要落盘（任务文件或会话事件），否则审计不了。思考过程必须可见：卡片或详情的调度段显示候选列表、每条的信号摘要与打分、最终选择与理由、被否掉的候选与原因，折叠呈现、不常驻。验收：单测钉住打分与三道硬闸；桌面演练三种场景——同方案两任务应复用或入队、跨方案应新开、有依赖应先按住再在完成后进入下一步。2026-11-06 第一段落地：新 client/scheduling.ts 是纯函数内核——输入任务信号（依赖、方案、规格模块、允许路径、角色）与会话信号（忙闲、等审批、队列长度、认领历史），先走三道硬闸（依赖未完成按住、等审批的会话不许塞、角色不匹配不许复用），再按同方案加三、同模块加二、落点重叠加一打分；每个候选都留下命中的信号或否决原因，整体理由按发生顺序逐条给出，两条以上并列时标 needsChoice 留给上层取舍。测试八条覆盖：依赖按住且不比较会话、同方案复用、在跑则排队、等审批被否、角色不匹配被否、无信号新开、同分并列、路径前缀重叠。门禁：typecheck 5 关绿；vitest packages/lcoder 37 文件 368 用例；oxlint 86 文件 0 错 0 警。尚未接线：Shell 的「开始对话」还没调用它，界面上的「思考过程」也还没渲染，这两块分别并入 T-51 与 T-52，所以本条保持 doing。"
+      note: "B 级；T-51 的判定内核。第一段已落地纯函数与八条单测，覆盖依赖按住、同方案复用、在跑排队、等审批被否、角色不匹配被否、无信号新开、同分并列与路径前缀重叠；本轮再补 worktree 与「本任务已认领」两条判定并把结果接到界面。2026-11-06 收口。决策落盘走新的人机命令 task_schedule，把一次判定作为一行 JSON 追加到 .spec/evidence/<任务>/schedule.jsonl，带时刻、执行会话、verdict、chosen、queuePosition、候选与理由；命令本身也进会话日志。命令校验任务存在、verdict 取值、JSON 形状与 8 KiB 上限，不改 Task schema。思考过程在任务详情里折叠展示，展开后是整体理由、每个候选的会话短称呼、得分、命中信号与被否原因；理由里的会话号在显示时换成「会话 N · 任务标题」，落盘保持原始 id。桌面实测 T-02 等待时证据文件出现 wait 行；T-01 新开时出现 new 行并带一条被否候选，其信号是同一 worktree、原因是与本任务没有关联信号；T-04 入队时出现 enqueue 行并带 queuePosition 1。单测覆盖命令的五条路径。"
 
     - id: T-49
       title: 立项分析按钮幂等——首次发咒语，此后只开浮层
@@ -601,6 +601,17 @@ tracks:
       dep: [T-49]
       inferred: false
       note: "B 级（一处空态栏、两个按钮与词典，复用既有两条咒语生成器与同一条会话判定）。用户 2026-11-06 在同一处空态栏追加需求，四条全部落地。一、空看板下方那条说明文字删掉，栏里只留按钮。二、原「立项分析」改名「全新项目」，发 buildIntakePrompt 的 7 问引导咒语。三、它左边新增「已有资料」，发 buildOnboardingPrompt，读 info.docs 或空文档对象，让 agent 先 file_list 与 file_read 看仓库与文档再立项，没声明文档时要求先问。四、两个按钮共用同一条会话与同一条幂等判定，第一次点任一按钮发对应咒语，之后点任一个都只开浮层。词典删掉失效的 onboardingEmpty 与 onboardingHint 与 onboardingIntakeHint 与 onboardingCta，新增 onboardingNewProject 与 onboardingExistingDocs，中英两本同步；README 中英两本同步改并重录 pairing。门禁：typecheck 5 passed 与 0 failed（61.05 秒，含缓存）；vitest packages/lcoder 36 文件 355 用例；oxlint 84 文件 0 错 0 警；verify-client-ui-i18n 1274 个源文件合格；test:docs 21 passed；workspace bundle 重建。桌面实测在本 worktree 自己的 home（端口 main 9369、renderer 9362、host 9370）。空仓 E:/Projects/LCoder-empty-demo 先点「全新项目」，会话日志 userPrompts 由 0 变 1 且提示词是「项目引导」的 7 问；再点「已有资料」，计数仍 1；刷新页面后依次点两个按钮，计数仍 1 且每次都只重开浮层。另一个空仓 E:/Projects/LCoder-t49-demo-2 首点「已有资料」，userPrompts 由 0 变 1，提示词是「立项分析」那一套并写明 .spec/project.yaml 没声明交付文档、要先问文档在哪。判据仍只读会话事实，不用组件状态与 localStorage。未验两条。一、验收输入是 CDP 派发的真实鼠标事件，不是人手物理点击；浮层开着时点另一个按钮用的是 DOM click，只算链路探测。二、两个靶仓的模型答复与落盘未验，两个回合都只起了 title 请求与工具调用，仓里没有 .spec 落盘，是否属钥匙或网络问题未查。"
+    - id: T-55
+      title: worktree 作为调度硬闸——跨工作副本不许复用或入队
+      status: done
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-06'
+      date: '2026-11-06'
+      dep: [T-53]
+      inferred: false
+      note: "2026-11-06 收口。scheduling.ts 新增 sameWorkspace，按 Windows 语义归一化盘符大小写与斜杠方向，空路径按不同处理。判定在依赖硬闸之后、打分之前先比 worktree，不同即否决并写「worktree 不同」；相同时写一条「同一 worktree」命中信号，但不加分，避免同仓库里毫无关联的会话仅凭路径被复用。测试五条覆盖同路径命中、不同路径被否、空路径、大小写与斜杠归一化、以及 worktree 不同时不进入打分。桌面证据里两条被否候选都带着「同一 worktree」信号，说明闸门与信号都进了思考过程。"
 
 milestones:
 - name: MVP-0 工作台本地跑通

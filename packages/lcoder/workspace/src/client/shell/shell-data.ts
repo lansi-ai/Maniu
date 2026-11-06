@@ -25,6 +25,8 @@ export interface ShellTask {
   readonly proposal?: string
   /** 前置任务编号；缺省表示没有依赖。 */
   readonly dependsOn?: readonly string[]
+  /** 任务声明的允许路径；调度按它判落点重叠。 */
+  readonly paths: readonly string[]
 }
 
 /** 装配层声明的一个角色（Agent preset）；外壳的新会话按它指名。 */
@@ -235,13 +237,27 @@ export interface ShellPromptProject {
  */
 export const TASK_FLOW_MENTION_PREFIX = '@task-flow '
 
+/** 调度结果里要写进咒语的那几句：前置是否已收口，以及建议接着哪条会话。 */
+export interface ShellPromptSchedule {
+  readonly blockedBy: boolean
+  readonly sessionId?: string
+  readonly signals: readonly string[]
+}
+
 /**
  * 生成 dev-flow 启动咒语。任务/项目字段来自当前选择，模板与 task-flow 的入口一致。
  * @param project - 当前项目。
  * @param task - 当前任务。
+ * @param schedule - 本次调度结论；缺省时咒语不提调度。
  * @returns 可直接粘贴到会话的提示词。
  */
-export function buildShellPrompt(project: ShellPromptProject, task: ShellTask): string {
+export function buildShellPrompt(project: ShellPromptProject, task: ShellTask, schedule?: ShellPromptSchedule): string {
+  const dependencies = task.dependsOn === undefined || task.dependsOn.length === 0
+    ? ''
+    : `\n- 前置：${task.dependsOn.join('、')}${schedule?.blockedBy === true ? '（未收口，先按住）' : '（已收口）'}`
+  const routing = schedule?.sessionId === undefined
+    ? ''
+    : `\n- 调度：接着会话 ${schedule.sessionId}${schedule.signals.length === 0 ? '' : `（${schedule.signals.join('；')}）`}`
   return `${task.id}：${task.title}
 
 第 0 步环境隔离：
@@ -252,7 +268,7 @@ export function buildShellPrompt(project: ShellPromptProject, task: ShellTask): 
 - 任务：${task.id}，状态 ${task.state}，分级 ${task.grade}
 - 规则：${task.rules.join(', ') || '（未声明）'}
 - 证据要求：${task.evidence.join(', ') || '（未声明）'}
-- 工具面：${task.surface}
+- 工具面：${task.surface}${dependencies}${routing}
 
 请按任务驱动入口执行：
 1. 调研：读相关代码与契约，确认现状与缺口；

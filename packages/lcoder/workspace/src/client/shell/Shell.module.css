@@ -274,6 +274,7 @@
 .sessionChip:hover { border-color: var(--lc-brand-2); color: var(--lc-ink); }
 .sessionChipActive { background: var(--lc-brand-soft); border-color: var(--lc-brand); color: var(--lc-brand-ink); font-weight: 600; }
 .sessionWaitDot { display: inline-block; width: 7px; height: 7px; margin-right: 7px; border-radius: 50%; background: var(--lc-status-warn); vertical-align: middle; animation: lc-wait-pulse 1.8s ease-in-out infinite; }
+.sessionQueue { display: inline-block; margin-left: 7px; min-width: 16px; padding: 1px 5px; border-radius: var(--lc-radius-pill); background: var(--lc-brand-soft); color: var(--lc-brand-ink); font-size: var(--lc-text-xs); line-height: 1.4; text-align: center; }
 @keyframes lc-wait-pulse { 50% { opacity: 0.35; } }
 @media (prefers-reduced-motion: reduce) { .sessionWaitDot { animation: none; } }
 .sessionAdd { border: 1px dashed var(--lc-line-strong); background: transparent; color: var(--lc-muted); border-radius: var(--lc-radius-pill); width: 30px; height: 30px; line-height: 1; font-size: var(--lc-text-md); }
@@ -453,6 +454,21 @@
 .tagOk { color: var(--lc-status-ok); background: var(--lc-status-ok-soft); }
 .tagWarn { color: var(--lc-status-warn); background: var(--lc-status-warn-soft); }
 .tagDanger { color: var(--lc-status-danger); background: var(--lc-status-danger-soft); }
+.tagQueued { color: var(--lc-brand-ink); background: var(--lc-brand-soft); }
+
+.schedule { margin: 0 0 var(--lc-space-4); border: 1px solid var(--lc-line); border-radius: var(--lc-radius-md); padding: 10px 14px; background: var(--lc-surface-2); }
+.schedule summary { cursor: pointer; font: 600 var(--lc-text-sm) / var(--lc-leading-tight) var(--lc-font-ui); color: var(--lc-ink); }
+.scheduleHint { margin: 6px 0 10px; font-size: var(--lc-text-xs); color: var(--lc-faint); }
+.scheduleLabel { display: block; margin: 4px 0 6px; font-size: var(--lc-text-xs); color: var(--lc-faint); text-transform: uppercase; letter-spacing: 0.04em; }
+.scheduleReasons { margin: 4px 0 10px; padding-left: 20px; font-size: var(--lc-text-sm); color: var(--lc-muted); line-height: 1.65; }
+.scheduleList { display: flex; flex-direction: column; gap: 6px; }
+.scheduleCandidate { border: 1px solid var(--lc-line); border-radius: var(--lc-radius-sm); padding: 8px 10px; background: var(--lc-surface); }
+.scheduleCandidate[data-rejected='true'] { opacity: 0.72; }
+.scheduleHead { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.scheduleSession { font-size: var(--lc-text-sm); font-weight: 600; color: var(--lc-ink); overflow-wrap: anywhere; }
+.scheduleScore { font-size: var(--lc-text-xs); color: var(--lc-brand-ink); background: var(--lc-brand-soft); border-radius: 6px; padding: 2px 7px; }
+.scheduleSignals { margin-top: 4px; font-size: var(--lc-text-xs); color: var(--lc-muted); }
+.scheduleRejectedText { margin-top: 4px; font-size: var(--lc-text-xs); color: var(--lc-status-danger); }
 .empty { color: var(--lc-faint); font-size: var(--lc-text-sm); padding: 12px 4px; }
 .problems {
   margin-top: var(--lc-space-4); border: 1px solid var(--lc-line); border-radius: var(--lc-radius-md);

@@ -38,13 +38,14 @@ describe('看板筛选判据', () => {
     expect(filterTasks(TASKS, withText, statusOf).map(task => task.id)).toEqual(['T-01'])
   })
 
-  it('已认领排除未开始，正在动只留在跑、等人与等首个回合', () => {
+  it('已认领排除未开始与等依赖，正在动只留在跑、等人、等首个回合与已入队', () => {
     expect(matchesTask(TASKS[2]!, 'unstarted', { ...EMPTY_TASK_FILTER, session: 'claimed' })).toBe(false)
+    expect(matchesTask(TASKS[2]!, 'waiting', { ...EMPTY_TASK_FILTER, session: 'claimed' })).toBe(false)
     expect(matchesTask(TASKS[1]!, 'idle', { ...EMPTY_TASK_FILTER, session: 'claimed' })).toBe(true)
-    for (const status of ['running', 'awaitingInteraction', 'awaitingFirstTurn'] as const) {
+    for (const status of ['running', 'awaitingInteraction', 'awaitingFirstTurn', 'queued'] as const) {
       expect(matchesTask(TASKS[0]!, status, { ...EMPTY_TASK_FILTER, session: 'active' })).toBe(true)
     }
-    for (const status of ['idle', 'failed', 'unstarted'] as const) {
+    for (const status of ['idle', 'failed', 'unstarted', 'waiting'] as const) {
       expect(matchesTask(TASKS[0]!, status, { ...EMPTY_TASK_FILTER, session: 'active' })).toBe(false)
     }
   })

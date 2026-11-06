@@ -83,4 +83,36 @@ describe('卡片状态', () => {
   it('快照也读不到、也没有 running 的会话只说空闲，不猜失败', () => {
     expect(taskCardStatus({ session: row({ sessionId: 's-1', blank: false }) })).toBe('idle')
   })
+
+  it('前置没收口就是等依赖，没建会话也先说等哪几条', () => {
+    expect(taskCardStatus({ session: null, blockedBy: ['T-01'] })).toBe('waiting')
+    expect(taskCardStatus({ session: row({ sessionId: 's-1' }), blockedBy: ['T-01', 'T-02'] })).toBe('waiting')
+  })
+
+  it('会话在跑时仍画在跑：任务已在执行，不是被前置按住', () => {
+    expect(taskCardStatus({ session: row({ sessionId: 's-1' }), hostRunning: true, blockedBy: ['T-01'] }))
+      .toBe('running')
+  })
+
+  it('已入队压过会话在跑：跑的是前面那条，卡片说的是这条任务', () => {
+    expect(taskCardStatus({
+      session: row({ sessionId: 's-1' }),
+      hostRunning: true,
+      queued: { sessionId: 's-1', position: 2 },
+    })).toBe('queued')
+  })
+
+  it('入队不写认领：没有 session 字段时也画已入队', () => {
+    expect(taskCardStatus({ session: null, queued: { sessionId: 's-1', position: 1 } })).toBe('queued')
+    expect(taskCardStatus({ session: null, queued: { sessionId: 's-1', position: 1 }, blockedBy: ['T-00'] }))
+      .toBe('queued')
+  })
+
+  it('等人回答仍压过已入队', () => {
+    expect(taskCardStatus({
+      session: row({ sessionId: 's-1' }),
+      awaitingInteraction: true,
+      queued: { sessionId: 's-1', position: 1 },
+    })).toBe('awaitingInteraction')
+  })
 })

@@ -77,8 +77,8 @@ describe('WorkspaceBody', () => {
 
   it('绑了投影面：任务与规格条目画成行，状态原样展示', async () => {
     const { container } = render(<WorkspaceBody {...propsOf(zh, '/work/app', () => Promise.resolve(projectionOf({
-      tasks: [{ id: 'T-014', title: '登录接口限流', state: 'contracted', grade: 'B', rules: [], evidence: [], dependsOn: [] }],
-      rules: [{ id: 'R-LOGIN-01', kind: 'rule', status: 'confirmed', text: '连输 5 次锁定 10 分钟' }],
+      tasks: [{ id: 'T-014', title: '登录接口限流', state: 'contracted', grade: 'B', rules: [], evidence: [], dependsOn: [], paths: [] }],
+      rules: [{ id: 'R-LOGIN-01', module: '登录', kind: 'rule', status: 'confirmed', text: '连输 5 次锁定 10 分钟' }],
     })))} />)
 
     await waitFor(() => { expect(container.querySelector('[data-lcoder-tasks]')).not.toBeNull() })
@@ -101,7 +101,7 @@ describe('WorkspaceBody', () => {
 
   it('越出五态的状态值不套状态色，只中性展示', async () => {
     const { container } = render(<WorkspaceBody {...propsOf(zh, '/work/app', () => Promise.resolve(projectionOf({
-      tasks: [{ id: 'T-001', title: '奇怪状态', state: 'on-fire', grade: 'A', rules: [], evidence: [], dependsOn: [] }],
+      tasks: [{ id: 'T-001', title: '奇怪状态', state: 'on-fire', grade: 'A', rules: [], evidence: [], dependsOn: [], paths: [] }],
     })))} />)
 
     await waitFor(() => { expect(container.querySelector('[data-lcoder-task="T-001"]')).not.toBeNull() })

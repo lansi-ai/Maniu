@@ -15,6 +15,7 @@ import { createDeployCommand } from './commands/deploy.js'
 import { createProposalApproveCommand } from './commands/proposal-approve.js'
 import { createTaskBindCommand } from './commands/task-bind.js'
 import { createTaskContractCommand } from './commands/task-contract.js'
+import { createTaskScheduleCommand } from './commands/task-schedule.js'
 import { createEditTools, spawnRunner } from './tools/edit-tools.js'
 import { createGitTools } from './tools/git-tools.js'
 import { createProjectTools } from './tools/project-tools.js'
@@ -161,6 +162,7 @@ export function apply(ctx: PluginContext, config: LcoderConfig = {}): void {
     createContractSignCommand(rootInput),
     createTaskBindCommand(rootInput),
     createTaskContractCommand(rootInput),
+    createTaskScheduleCommand(rootInput),
     createProposalApproveCommand(rootInput),
     createDeployCommand(rootInput),
   ]
