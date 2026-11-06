@@ -1385,6 +1385,12 @@ export function Shell({
                   value={draft}
                   placeholder={t('shell.placeholder')}
                   onChange={(event) => { setDraft(event.target.value) }}
+                  onKeyDown={(event) => {
+                    // 中文输入法用 Enter 选词：合成期间的 Enter 属于输入法，不能当成发送。
+                    if (event.key !== 'Enter' || event.nativeEvent.isComposing) return
+                    event.preventDefault()
+                    void sendDraft()
+                  }}
                 />
                 <button
                   type="button"
