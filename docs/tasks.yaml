@@ -779,6 +779,39 @@ tracks:
       dep: [T-33]
       inferred: false
       note: "B 级。用户 2026-11-06 报三条：输出不自动滚到底、滚动条常驻、输出不是一个字一个字出来而是一次性出现。第一条与第三条根因都在折叠函数：messagesFromEntries 只认 durable 的 assistant/message，客户端瞬态的 assistant/live-chunk（entry.type 是 transient，data.chunk 是 text-delta 或 reasoning-delta）被 entry.type 不等于 event 的分支直接跳过，所以只在最终消息到达时出字；滚动容器 .chatBody 也没有任何跟随逻辑，滚动条用浏览器默认样式。修法三处。一、折叠函数处理瞬态帧：正文增量累积成一条答复、思考增量并进过程段，durable 消息到达后立刻以 durable 为准并清空流式缓冲，避免重复叠加；回合结束前也能看到字在长。二、对话滚动容器加 ref 与效果，只在用户本来就贴着底部（80px 以内）时跟随，向上翻历史时不抢滚动位置。三、滚动条改为常驻 8px 宽度但拇指透明，悬停才显出来——宽度不变可以避免悬停时布局跳动。测试补三条：只有流式帧时拼成一条答复、durable 到达后不重复叠加、思考增量进过程段。门禁：vitest packages/lcoder 50 文件 519 用例、tsc -b tsconfig.client.json 退出 0、oxlint 0 错、i18n 1280 文件、workspace bundle 重打且产物里能查到流式与滚动代码。未验：真窗口一整轮流式输出与自动跟随需要钥匙，本轮只验证了折叠单测与产物；滚动条与跟随需用户手点确认。"
+    - id: T-71
+      title: 提问与审批遮罩对齐标题区实际高度——去掉写死的 56px 偏移
+      status: done
+      face: 用户端
+      type: 缺陷
+      owner: lance
+      created: '2026-11-06'
+      date: '2026-11-06'
+      dep: [T-66]
+      inferred: false
+      note: "B 级。用户 2026-11-06 贴截图说「这块遮罩好像有问题」，截图里提问弹窗的遮罩把对话窗口标题区切出一条灰带，压住标题、提示与会话上下文行。核实根因不在弹窗卡片，而在遮罩的几何。.pendingLayer 写的是 inset 56px 0 0 0，当年按固定 56px 标题高度切一刀，为的是盖住正文、保留标题栏可点；T-66 给标题区加了模型 chip、会话上下文行与提示后，标题区实际高度变成 76 到 105px，于是从 56px 到标题底边之间留下 20 到 49px 的半遮灰带，660px 卡片两侧还露出两条遮罩边。修法两步，不再依赖像素偏移。一、.pendingLayer 改成 inset 0 整窗铺满。二、.chatHead 加 position relative 与 z-index 30，高于遮罩的 z-index 20，标题区本身是不透明底色，层叠上去后自然把上半部分盖回去，标题无论几行都能对齐；CSS 注释写清为什么不能写固定偏移。证据：在运行中的工作树上用 CDP 注入新旧两版遮罩抓帧对比，旧版从窗口顶加 56px 处开始压暗标题（105px 标题被压掉 49px），新版标题整块保持亮度直到标题底边，遮罩正好从底边开始；注入的探针层已移除、标题内联样式已复位并复查。未验：真窗口手点——当前运行的是旧工作树产物，需按层重建 workspace 再刷新才看得到；也没有在截图那种单行提示的窗口下复看。"
+    - id: T-72
+      title: 立项咒语不进对话正文——外壳自己发的内容不再画成用户气泡
+      status: done
+      face: 用户端
+      type: 缺陷
+      owner: lance
+      created: '2026-11-06'
+      date: '2026-11-06'
+      dep: [T-71]
+      inferred: false
+      note: "B 级。用户 2026-11-06 贴出「立项分析」浮层截图，整块蓝色气泡是外壳自动发出的七问立项咒语，明确说不希望用户看到。现状核实：startOnboarding 调 sendPrompt 把咒语当普通用户消息发出，落到 user/message 的 source.kind 是 user，折叠函数 messagesFromEntries 因此画成用户发言；咒语正文在 shell-data.ts 的 buildIntakePrompt 与 buildOnboardingPrompt。修法：把两档咒语的首行前缀提成导出常量并在构造函数里复用，折叠时给命中的用户消息加 hidden 标记，正文组件按标记过滤、只剩隐藏消息时仍显示空态；会话事件、readMessages 的条数与立项入口的幂等判定都不变，提示词正文与画给模型的字一个不改，也没有新增会话格式字段。范围只有两档立项咒语，任务开工咒语仍按用户可见处理。门禁：shell-data 22 例与 chat-panel 7 例全过（新增三条，分别覆盖两档咒语带标记、前缀不完全相同不误判、隐藏消息不渲染且只有它时为空态）、vitest packages/lcoder 50 文件 521 例全过、tsc -b tsconfig.client.json 退出 0、oxlint 3 文件 0 错、workspace bundle 重打 159ms 且产物里能查到两个前缀与 hidden 过滤。桌面实测：主检出按 -Fast 重启（端口 9222 与 9229 与 9230），打开截图里那条「会话 1」——正文从上下文注入行直接开始，整块咒语不再出现，body 里搜不到「全新项目立项」与「已有资料立项」；同一条会话里用户自己回的「确认需求」仍画成唯一的用户气泡，说明只藏内置咒语、不误伤真实发言。未验：并行线 .worktrees/t66-chat 的旧产物没有这条修法，要等合并或重建；滚动位置与长会话首屏布局未逐项复看。"
+    - id: T-73
+      title: 任务详情页三处裁剪——去掉角色选择与调度思考过程，契约提示只在有契约时出现
+      status: done
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-06'
+      date: '2026-11-06'
+      dep: [T-25]
+      inferred: false
+      note: "B 级（用户端三处裁剪）。用户 2026-11-06 的任务详情截图三条要求已由实现线落地，主监督窗口核过证据。改动在 worktree .worktrees/t73-task-detail 的分支 lcoder/t73-task-detail 上本地提交，未 push。一、角色行从详情删除，角色选择只留在「＋ 新会话」弹窗；任务对话创建会话改为 createSession(projectPath)，不再把共享的 roleChoice 带进任务。二、契约提示只在有契约时显示，起草且无契约时只剩缺失文案，签署按钮仍只在契约存在且未签时出现。三、调度思考过程整块移出详情，队列位置 meta 保留，调度日志写失败的失败行挪到 meta 之后常显；随块失效的 12 条 .schedule 样式与 9 个 zh/en 词典键成对删除。新增 shell-detail.client.spec.tsx 四条用例（真 Shell 加内存投影），变异验证回填任一处会红。门禁由实现线跑、监督窗口复核：vitest packages/lcoder 51 文件 523 例全过（监督窗口独立重跑同数）、tsc -b tsconfig.client.json 退出 0、oxlint 改动 3 文件 0 错、workspace bundle 成功且产物里「调度思考过程」0 次、「未经人签署不生效」1 次、「调度日志没写成」2 次、test:docs 21 项全过、verify-client-ui-i18n 1280 文件通过。桌面证据：本 worktree 实例端口 9432 保持运行，E:/Projects/LCoder-empty-demo 的 T-01（drafting、无契约）详情无角色行、无调度块（details 为 0）、无签署提示与签署按钮；E:/Projects/LCoder-target-demo 的 T-01（已人签）有契约提示和已签时间、无签署按钮；「＋」弹窗仍有角色。两份靶仓 .spec 未被写。监督窗口用 CDP 独立复看上述三态，结果一致；但点击均为合成点击，按本仓口径只算链路探测。未验：真人手点；入队位置与调度日志失败行只有单测，桌面窗口没造出对应状态；没有真点签署（会写靶仓）。环境偏离已按 PITFALLS 处理：pnpm install --force 修 W-09、electron 与运行时载荷从主检出只读对拷（W-14、W-06）、profile 补两条指向本 worktree 的 link 并重拷装配源、首次启动缺 lib 产物（W-07 同类）先 build:artifacts 再以 -NoBuild 启动。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
