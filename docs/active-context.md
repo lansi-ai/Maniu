@@ -15,7 +15,7 @@ English | [中文](active-context.zh.md)
 - **Offline board**: `docs/tasks-html/index.html` (double-click to open; contains overview, status board, hierarchy tree, matrix, and filters).
 - **Regeneration command**: `python scripts/build-tasks-html.py`.
 
-- **Current focus**: T-73 (task-detail trimming) and T-74 (intake result page and restart) are implemented on their branches and gated green; the board and ledger are closed. Remaining: a human click in the desktop windows and the merge/push decision.
+- **Current focus**: the cloud program. T-75 (design) and T-76 (desktop login and anonymous gate) are closed; the cloud repo has account (A2), gateway (A3), admin API (A5), admin UI (A5b) and deployment scaffold (A6) green on branches, with the end-to-end harness (A7) in progress. Remaining: merge/push decisions and real-Postgres/opencode acceptance (A2b, A3b, A5c).
 - **Completed**: T-01 file projection; T-02 host mount; T-04 specification root and documentation gates; T-05 LCoder shell; T-06 real `.spec`/`project.yaml`/workspace-session data; T-07 project info drawer and the `.spec/project.yaml` schema; T-08 real floating conversation; T-09 README, tests, and old preset cleanup; T-56/T-57/T-58 flow engine, automation policy, and AI self-sign gates; T-59/T-60/T-61 flow UI, singleton sessions, and compaction visibility; T-66/T-67 session model switching and image/file attachments; T-73 task-detail trimming and T-74 intake result page and restart. T-03 is superseded by the shell and closed.
 - **Next step**: see §04.
 
@@ -48,9 +48,9 @@ English | [中文](active-context.zh.md)
 
 ## 04. Next immediate actions (Next Immediate Actions)
 
-- **Currently working on**: T-73/T-74 closure. T-73 removes the role row and the schedule-reasoning block from task detail and limits the signing hint to existing contracts; T-74 adds a standalone intake result page (latest proposal, drafted tasks, project info) and a restart action that lists existing artifacts before creating a new session with the same intake tier. Gates: typecheck client, vitest 52 files / 546 tests, oxlint 0, test:docs 21, i18n 1282 files, workspace bundle. Evidence: branches `lcoder/t73-task-detail` and `lcoder/t74-intake-result`, screenshots under each worktree's evidence directory, synthesized clicks only.
-- **About to execute**: a human click in the desktop windows to confirm both paths without CDP, then the merge/push decision for the two branches and the commits on `lcoder/main`.
-- **Open decisions**: whether to persist intake-tier detection so the result page restart works after an app restart without first opening the intake chat.
+- **Currently working on**: the cloud program. Design and desktop login/gate are closed; A2 account, A3 gateway, A5 admin API, A5b admin UI and A6 deployment scaffold are code-complete on branches with build, tests and contracts green, and the A7 end-to-end harness is in progress. Real-Postgres and opencode acceptance (A2b, A3b, A5c) stays open.
+- **About to execute**: the merge/push decision for the cloud and desktop branches, then a real-environment acceptance pass once a database and an opencode key are available.
+- **Open decisions**: the production SMS provider, the exact opencode rates behind the 20-dollar grant, the deployment domain and host, and whether to add an application-level anonymous kill switch and a `/health` endpoint.
 - **Development evidence**: gate output is recorded in the task note in `docs/tasks.yaml` or the commit message; `.spec/evidence` serves product tasks only.
 - **Board regeneration**: after a development status change, edit `docs/tasks.yaml` first, then run `python scripts/build-tasks-html.py`.
 - **Documentation gates**: green after T-02 and T-04; package READMEs and bilingual pairs must stay green whenever documents change.
