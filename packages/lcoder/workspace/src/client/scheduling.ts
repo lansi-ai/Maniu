@@ -50,6 +50,15 @@ export interface SchedulingSession {
     /** 这条已认领任务的前置；入队前要和本任务比一遍，串行关系不能并成同组。 */
     readonly dependsOn: readonly string[]
   }[]
+  /**
+   * 已并入这条会话联调组的任务；它们没写 `Task.session`，但同组验收时同样算数。
+   * 判入队准入与「已经入组」时都要看这一层。
+   */
+  readonly groupTasks: readonly {
+    readonly id: string
+    readonly state: string
+    readonly dependsOn: readonly string[]
+  }[]
 }
 
 /** 判定结果；`wait` 表示被依赖按住，`new` 表示没有可复用的会话。 */
@@ -77,6 +86,11 @@ export interface SchedulingDecision {
   readonly blockedBy: readonly string[]
   /** 两个以上候选并列最高分：保留给上层决定是否让模型再取舍一次。 */
   readonly needsChoice: boolean
+  /**
+   * 入队成立后的联调组成员（不含本任务）：这些任务要一起写、一起跑证据、一起验收。
+   * 只描述选择，不写盘；落 `.spec/evidence/scheduling/` 由人机命令负责。
+   */
+  readonly joint?: { readonly members: readonly string[] }
 }
 
 /** 依赖任务是否算完成：只有 closed 才算。 */
@@ -151,24 +165,29 @@ export function decideScheduling(
       }
     }
     signals.push('同一 worktree')
-    // 本任务已经认在这条会话上：点开始时只需要切回去，不重新入队、也不再过下面两道闸。
+    // 本任务已经认在这条会话上，或已经并进它的联调组：点开始时只需要切回去，
+    // 不重新入队、也不再过下面两道闸。
     const ownsTask = session.claims.some(claim => claim.id === task.id)
+    const inGroup = session.groupTasks.some(member => member.id === task.id)
     if (ownsTask) {
       signals.push('本任务已认领')
       // 本任务自己就在这条会话上，直接压过任何同方案候选；不再拿它自己给自己算关联。
       score += 10
+    } else if (inGroup) {
+      signals.push('已在本会话联调组')
+      score += 9
     }
     const comparable = session.claims.filter(claim => claim.id !== task.id)
     // 第二层硬闸：角色不匹配不能复用（agentPreset 在首回合后锁定）。
     if (task.role !== undefined && session.role !== undefined && session.role !== task.role) {
       return { sessionId: session.sessionId, score: 0, signals, rejected: `角色不匹配（${session.role}）` }
     }
-    if (session.awaitingInteraction && !ownsTask) {
+    if (session.awaitingInteraction && !ownsTask && !inGroup) {
       return { sessionId: session.sessionId, score: 0, signals, rejected: '正在等人回答，塞进去会把上下文搅在一起' }
     }
     // 入队是「两条任务可以一起写完、一起验收」的承诺；只想排个坑的不在这里。
-    if (!ownsTask && (session.running || session.pending > 0)) {
-      const closed = session.claims.find(claim => claim.state === 'closed')
+    if (!ownsTask && !inGroup && (session.running || session.pending > 0)) {
+      const closed = [...session.claims, ...session.groupTasks].find(member => member.state === 'closed')
       if (closed !== undefined) {
         return {
           sessionId: session.sessionId,
@@ -177,9 +196,9 @@ export function decideScheduling(
           rejected: `目标会话里 ${closed.id} 已收口，不再并新任务`,
         }
       }
-      const serial = session.claims.find(claim =>
-        (claim.state !== 'closed' && claim.dependsOn.includes(task.id))
-        || (claim.state !== 'closed' && task.dependsOn.includes(claim.id)))
+      const serial = [...session.claims, ...session.groupTasks].find(member =>
+        (member.state !== 'closed' && member.dependsOn.includes(task.id))
+        || (member.state !== 'closed' && task.dependsOn.includes(member.id)))
       if (serial !== undefined) {
         return {
           sessionId: session.sessionId,
@@ -224,9 +243,15 @@ export function decideScheduling(
   }
   const session = sessions.find(entry => entry.sessionId === picked.sessionId)
   const ownsTask = session?.claims.some(claim => claim.id === task.id) ?? false
-  // 本任务已在这条会话里跑：点开始时只切回去，不再塞一条重复的提示词。
-  const busy = !ownsTask && (session?.running === true || (session?.pending ?? 0) > 0)
-  reasons.push(`${ownsTask ? '切回本任务已认领的会话' : '选中'} ${picked.sessionId}（得分 ${String(picked.score)}）：${picked.signals.join('；')}`)
+  const inGroup = session?.groupTasks.some(member => member.id === task.id) ?? false
+  // 本任务已在这条会话里跑或已在它的联调组里：点开始时只切回去，不再塞重复的提示词。
+  const busy = !ownsTask && !inGroup && (session?.running === true || (session?.pending ?? 0) > 0)
+  const lead = ownsTask ? '切回本任务已认领的会话' : inGroup ? '切回本任务所在的联调组' : '选中'
+  reasons.push(`${lead} ${picked.sessionId}（得分 ${String(picked.score)}）：${picked.signals.join('；')}`)
+  const members = [...new Set([
+    ...(session?.claims.map(claim => claim.id) ?? []),
+    ...(session?.groupTasks.map(member => member.id) ?? []),
+  ])].filter(id => id !== task.id)
   return {
     verdict: busy ? 'enqueue' : 'reuse',
     chosen: picked.sessionId,
@@ -234,5 +259,6 @@ export function decideScheduling(
     reasons,
     blockedBy: [],
     needsChoice: top.length > 1,
+    ...(busy && members.length > 0 ? { joint: { members } } : {}),
   }
 }

@@ -27,6 +27,7 @@ function session(overrides: Partial<SchedulingSession> = {}): SchedulingSession 
     pending: 0,
     workspacePath: REPO,
     claims: [{ id: 'T-01', state: 'implementing', proposal: 'P-01', modules: ['order'], paths: ['src/order'], dependsOn: [] }],
+    groupTasks: [],
     ...overrides,
   }
 }
@@ -162,5 +163,40 @@ describe('调度判定', () => {
 
     expect(decision.verdict).toBe('new')
     expect(decision.candidates[0]?.rejected).toContain('未完成依赖')
+  })
+
+  it('联调组里的任务也参与依赖与收口准入', () => {
+    const grouped = { id: 'T-09', state: 'implementing', dependsOn: ['T-02'] }
+    const serial = decideScheduling(TASK, [session({ groupTasks: [grouped], running: true })], { 'T-09': 'implementing' })
+
+    expect(serial.verdict).toBe('new')
+    expect(serial.candidates[0]?.rejected).toContain('未完成依赖')
+
+    const closedInGroup = decideScheduling(
+      TASK,
+      [session({ groupTasks: [{ id: 'T-08', state: 'closed', dependsOn: [] }], running: true })],
+      { 'T-08': 'closed' },
+    )
+    expect(closedInGroup.verdict).toBe('new')
+    expect(closedInGroup.candidates[0]?.rejected).toContain('已收口')
+  })
+
+  it('三道准入都满足时判入队，并给出联调组成员', () => {
+    const decision = decideScheduling(TASK, [session({ running: true })], { 'T-01': 'implementing' })
+
+    expect(decision.verdict).toBe('enqueue')
+    expect(decision.joint?.members).toEqual(['T-01'])
+  })
+
+  it('已经并进联调组但没写 session 时判复用，不重复入队', () => {
+    const decision = decideScheduling(
+      TASK,
+      [session({ running: true, claims: [], groupTasks: [{ id: TASK.id, state: 'drafting', dependsOn: [] }] })],
+      { [TASK.id]: 'drafting' },
+    )
+
+    expect(decision.verdict).toBe('reuse')
+    expect(decision.candidates[0]?.signals).toContain('已在本会话联调组')
+    expect(decision.joint).toBeUndefined()
   })
 })

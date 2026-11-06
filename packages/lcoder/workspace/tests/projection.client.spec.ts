@@ -10,8 +10,8 @@ import type { WorkspaceDirectoryListing, WorkspaceFileText } from '@deepseek-ai/
 import type { RemoteFailure, RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 import {
-  loadLocalSecrets, loadProjectInfo, loadWorkspaceProjection, CONTRACTS_DIR, LOCAL_FILE, PROJECT_FILE,
-  contractTextToRow, rulesTextToRows, RULES_FILE, SPEC_DIR, TASKS_DIR, taskTextToRow,
+  loadLocalSecrets, loadProjectInfo, loadWorkspaceProjection, CONTRACTS_DIR, LOCAL_FILE, PROJECT_FILE, SCHEDULING_DIR,
+  contractTextToRow, groupTextToRow, rulesTextToRows, RULES_FILE, SPEC_DIR, TASKS_DIR, taskTextToRow,
 } from '../src/client/projection.ts'
 import type { ProjectionFilesRemote } from '../src/client/projection.ts'
 
@@ -237,6 +237,34 @@ scope:
 
     expect(projection.rules).toEqual([])
     expect(projection.problems).toEqual([])
+  })
+
+  it('联调组从 evidence/scheduling 读回，缺会话或成员的文件不冒充', async () => {
+    const groupYaml = [
+      'id: group-1',
+      'session: session-a',
+      'members:',
+      '  - T-01',
+      '  - T-02',
+      'created_at: 2026-11-06T04:00:00.000Z',
+    ].join('\n')
+    const files = fakeFiles(
+      { [TASKS_DIR]: [], [SCHEDULING_DIR]: ['group-1.yaml', 'group-broken.yaml'] },
+      { [`${SCHEDULING_DIR}/group-1.yaml`]: groupYaml, [`${SCHEDULING_DIR}/group-broken.yaml`]: 'session: only' },
+    )
+    const projection = await loadWorkspaceProjection(files, SESSION, new AbortController().signal)
+
+    expect(projection.groups).toEqual([{
+      id: 'group-1',
+      sessionId: 'session-a',
+      members: ['T-01', 'T-02'],
+      createdAt: '2026-11-06T04:00:00.000Z',
+    }])
+    expect(projection.problems).toHaveLength(1)
+    expect(projection.problems[0]).toContain('group-broken.yaml')
+    expect(groupTextToRow('group-2.yaml', 'session: s\nmembers: [T-01]\ncreated_at: 2026-11-06T04:00:00.000Z')?.id)
+      .toBe('group-2')
+    expect(groupTextToRow('group-3.yaml', 'session: s\nmembers: []\ncreated_at: x')).toBeUndefined()
   })
 
   it('目录真的读不了（权限等）时记说明，而不是静默当空', async () => {

@@ -3,11 +3,12 @@
  *
  * 这里不启动 Loader——命令面的装配证据按既有做法走桌面端启动，本测钉住处理器自己的判定。
  */
-import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { afterAll, describe, expect, it } from 'vitest'
+import { parse as parseYaml } from 'yaml'
 
 import { createTaskScheduleCommand } from '../src/commands/task-schedule.js'
 import type { ScheduleCommandResult } from '../src/commands/task-schedule.js'
@@ -82,6 +83,50 @@ describe('task_schedule 记录调度判定', () => {
     expect(run(root, 'T-01 {oops').kind).toBe('error')
     expect(run(root, 'T-01').kind).toBe('error')
     expect(run(root, 'T-01 []').kind).toBe('error')
+  })
+
+  it('enqueue 带联调组时写出组文件，同一会话再入队只并成员', () => {
+    const root = makeSpec(['T-01', 'T-02'])
+
+    const first = run(root, `T-01 ${JSON.stringify({
+      verdict: 'enqueue',
+      chosen: 'session-b',
+      queuePosition: 1,
+      joint: { sessionId: 'session-b', members: ['T-01', 'T-02'] },
+    })}`)
+    expect(first.kind).toBe('success')
+    const groupPath = join(root, 'evidence', 'scheduling', 'group-1.yaml')
+    expect(parseYaml(readFileSync(groupPath, 'utf8'))).toMatchObject({
+      id: 'group-1',
+      session: 'session-b',
+      members: ['T-01', 'T-02'],
+      created_at: AT,
+      updated_at: AT,
+    })
+
+    run(root, `T-01 ${JSON.stringify({
+      verdict: 'enqueue',
+      chosen: 'session-b',
+      joint: { sessionId: 'session-b', members: ['T-01', 'T-02'] },
+    })}`)
+    expect(readdirSync(join(root, 'evidence', 'scheduling')).filter(name => name.endsWith('.yaml')))
+      .toEqual(['group-1.yaml'])
+    expect(parseYaml(readFileSync(groupPath, 'utf8')) as Record<string, unknown>)
+      .toMatchObject({ members: ['T-01', 'T-02'] })
+  })
+
+  it('联调组只允许 enqueue，成员必须存在', () => {
+    const root = makeSpec(['T-01', 'T-02'])
+
+    expect(run(root, `T-01 ${JSON.stringify({
+      verdict: 'reuse', joint: { sessionId: 's', members: ['T-01'] },
+    })}`).kind).toBe('error')
+    expect(run(root, `T-01 ${JSON.stringify({
+      verdict: 'enqueue', joint: { sessionId: 's', members: ['T-09'] },
+    })}`).kind).toBe('error')
+    expect(run(root, `T-01 ${JSON.stringify({
+      verdict: 'enqueue', joint: { sessionId: 's', members: [] },
+    })}`).kind).toBe('error')
   })
 
   it('没有 .spec 时如实报缺，不建证据目录', () => {
