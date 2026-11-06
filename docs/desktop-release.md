@@ -184,6 +184,7 @@ The LCoder names are the release configuration contract. One alias step in the p
 - An unsigned NSIS installer and executable carry no Authenticode signature. Windows SmartScreen shows an unknown-publisher warning, and some managed machines block the download or the launch by policy.
 - The installer is per-user and does not require elevation, so an unsigned build can still install and run after the user accepts the warning.
 - Update packages are checked against the SHA-512 values in the feed, not against a code signature. The mechanism may install an unsigned update, but this repository has not accepted that path and does not promise it.
+- An internal experiment may set `LCODER_UNSIGNED_UPDATER=1` to embed the feed in an unsigned package. The flag is off by default, is not a supported distribution path, and leaves both platforms' update results unverified.
 - An unsigned Windows build is an internal test artifact. It is not a public distribution artifact and must not be presented as one.
 
 ### 4.2 macOS unsigned
