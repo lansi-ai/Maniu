@@ -229,6 +229,12 @@ export function apply(ctx: ClientContext, config: Config = {}): void {
      */
     const bindTask = (sessionId: SessionId, taskId: string): Promise<ShellSignResult> =>
       runHumanCommand(sessionId, `/task_bind ${taskId}`)
+    /**
+     * 调度判定由浏览器算出，落盘仍归 kernel：这条命令把判定追加到任务证据目录，
+     * 命令本身也进会话日志，事后能对上「哪条会话、什么时候、为什么这么排」。
+     */
+    const logSchedule = (sessionId: SessionId, taskId: string, json: string): Promise<ShellSignResult> =>
+      runHumanCommand(sessionId, `/task_schedule ${taskId} ${json}`)
     /** 人确认契约已签，把任务从起草推到已签约；只推这一条边，更往后的仍人手写 YAML。 */
     const advanceContract = (sessionId: SessionId, taskId: string): Promise<ShellSignResult> =>
       runHumanCommand(sessionId, `/task_contract ${taskId}`)
@@ -338,8 +344,8 @@ export function apply(ctx: ClientContext, config: Config = {}): void {
           key: 'lcoder-home',
           locale: NS,
           inject: () => ({
-            files, openRepository, sendPrompt, signContract, bindTask, advanceContract, approveProposal, createSession, listRoles,
-            listExperts, readExpert,
+            files, openRepository, sendPrompt, signContract, bindTask, logSchedule, advanceContract, approveProposal,
+            createSession, listRoles, listExperts, readExpert,
             readMessages, subscribeSession, holdSession, checkModels, subscribeModels, readSessionNotice, readSessionFlags, modelSettings,
             chatSize,
           }),

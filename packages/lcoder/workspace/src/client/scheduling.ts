@@ -3,8 +3,8 @@
  *
  * 三层分工在这一个文件里体现得很清楚：
  *   1. 信号层是纯数据——任务的依赖与关联（方案、规格模块、允许路径）、会话的忙闲与认领历史；
- *   2. 判定层先走硬闸（依赖未完成、会话在等审批、角色不匹配），再按信号打分排候选；
- *      候选只有一个时直接定，两个以上并列才把决定权交出去（`needsChoice`）；
+ *   2. 判定层先走硬闸（依赖未完成、worktree 不同、会话在等审批、角色不匹配），
+ *      再按信号打分排候选；候选只有一个时直接定，两个以上并列才把决定权交出去（`needsChoice`）；
  *   3. 输出必须带理由：每个候选都留下命中的信号与被否原因，调用方据此给人看「为什么选它」。
  *
  * 这一层不读写盘、不调远程、不订阅，所以每条规则都能被单测钉死；
@@ -23,6 +23,8 @@ export interface SchedulingTask {
   readonly modules: readonly string[]
   /** 任务声明的允许路径；用作「落点重叠」的信号。 */
   readonly paths: readonly string[]
+  /** 这条任务所在的仓库目录；与会话工作区不同时不许复用或入队。 */
+  readonly repoPath: string
   /** 这条任务要求的角色；缺省表示不限。 */
   readonly role?: string
 }
@@ -36,6 +38,8 @@ export interface SchedulingSession {
   readonly awaitingInteraction: boolean
   /** 该会话队列里已有的条数。 */
   readonly pending: number
+  /** 这条会话所属的仓库目录；与任务不同时不能复用，也不能入队。 */
+  readonly workspacePath: string
   /** 这条会话当前与历史认领过的任务，供关联性比较。 */
   readonly claims: readonly {
     readonly id: string
@@ -43,6 +47,8 @@ export interface SchedulingSession {
     readonly proposal?: string
     readonly modules: readonly string[]
     readonly paths: readonly string[]
+    /** 这条已认领任务的前置；入队前要和本任务比一遍，串行关系不能并成同组。 */
+    readonly dependsOn: readonly string[]
   }[]
 }
 
@@ -92,6 +98,25 @@ function pathsOverlap(left: readonly string[], right: readonly string[]): boolea
 }
 
 /**
+ * 两个工作区路径是否指向同一处。
+ *
+ * Windows 盘符路径大小写不敏感，反斜杠与正斜杠混写也常见；任一侧为空表示
+ * 读不到路径，按「不同」处理——宁可不复用，也不把任务排进别的 worktree。
+ * @param left - 一侧的工作区路径。
+ * @param right - 另一侧的工作区路径。
+ * @returns 指向同一处为 true。
+ */
+export function sameWorkspace(left: string, right: string): boolean {
+  const norm = (value: string): string => {
+    const slashed = value.split('\\').join('/').replace(/\/+$/u, '')
+    return /^[A-Za-z]:\//u.test(slashed) ? slashed.toLowerCase() : slashed
+  }
+  const l = norm(left)
+  const r = norm(right)
+  return l !== '' && r !== '' && l === r
+}
+
+/**
  * 算一份调度决策。
  * @param task - 要安排的任务。
  * @param sessions - 本工作区的会话名册。
@@ -116,30 +141,71 @@ export function decideScheduling(
   const candidates: SchedulingCandidate[] = sessions.map((session) => {
     const signals: string[] = []
     let score = 0
+    // 第一层硬闸之后、打分之前：会话在别的 worktree 时，认领历史再像也不是同一条工作线。
+    if (!sameWorkspace(session.workspacePath, task.repoPath)) {
+      return {
+        sessionId: session.sessionId,
+        score: 0,
+        signals,
+        rejected: `worktree 不同（${session.workspacePath === '' ? '未知' : session.workspacePath}）`,
+      }
+    }
+    signals.push('同一 worktree')
+    // 本任务已经认在这条会话上：点开始时只需要切回去，不重新入队、也不再过下面两道闸。
+    const ownsTask = session.claims.some(claim => claim.id === task.id)
+    if (ownsTask) {
+      signals.push('本任务已认领')
+      // 本任务自己就在这条会话上，直接压过任何同方案候选；不再拿它自己给自己算关联。
+      score += 10
+    }
+    const comparable = session.claims.filter(claim => claim.id !== task.id)
     // 第二层硬闸：角色不匹配不能复用（agentPreset 在首回合后锁定）。
     if (task.role !== undefined && session.role !== undefined && session.role !== task.role) {
       return { sessionId: session.sessionId, score: 0, signals, rejected: `角色不匹配（${session.role}）` }
     }
-    if (session.awaitingInteraction) {
+    if (session.awaitingInteraction && !ownsTask) {
       return { sessionId: session.sessionId, score: 0, signals, rejected: '正在等人回答，塞进去会把上下文搅在一起' }
     }
-    const claimedProps = session.claims.flatMap(claim => (claim.proposal === undefined ? [] : [claim.proposal]))
+    // 入队是「两条任务可以一起写完、一起验收」的承诺；只想排个坑的不在这里。
+    if (!ownsTask && (session.running || session.pending > 0)) {
+      const closed = session.claims.find(claim => claim.state === 'closed')
+      if (closed !== undefined) {
+        return {
+          sessionId: session.sessionId,
+          score: 0,
+          signals,
+          rejected: `目标会话里 ${closed.id} 已收口，不再并新任务`,
+        }
+      }
+      const serial = session.claims.find(claim =>
+        (claim.state !== 'closed' && claim.dependsOn.includes(task.id))
+        || (claim.state !== 'closed' && task.dependsOn.includes(claim.id)))
+      if (serial !== undefined) {
+        return {
+          sessionId: session.sessionId,
+          score: 0,
+          signals,
+          rejected: `与 ${serial.id} 之间还有未完成依赖，不能并入同一组`,
+        }
+      }
+    }
+    const claimedProps = comparable.flatMap(claim => (claim.proposal === undefined ? [] : [claim.proposal]))
     if (task.proposal !== undefined && claimedProps.includes(task.proposal)) {
       score += 3
       signals.push(`同一方案 ${task.proposal}`)
     }
-    const claimedModules = new Set(session.claims.flatMap(claim => claim.modules))
+    const claimedModules = new Set(comparable.flatMap(claim => claim.modules))
     const sharedModules = task.modules.filter(module => claimedModules.has(module))
     if (sharedModules.length > 0) {
       score += 2
       signals.push(`同一规格模块 ${sharedModules.join('、')}`)
     }
-    if (pathsOverlap(task.paths, session.claims.flatMap(claim => claim.paths))) {
+    if (pathsOverlap(task.paths, comparable.flatMap(claim => claim.paths))) {
       score += 1
       signals.push('改动落点重叠')
     }
     if (score === 0) return { sessionId: session.sessionId, score, signals, rejected: '与本任务没有关联信号' }
-    if (session.running) signals.push('它正在工作，只能排队')
+    if (session.running) signals.push(ownsTask ? '它正在跑这条任务' : '它正在工作，只能排队')
     else if (session.pending > 0) signals.push(`它队列里还有 ${String(session.pending)} 条`)
     return { sessionId: session.sessionId, score, signals }
   })
@@ -157,8 +223,10 @@ export function decideScheduling(
     return { verdict: 'new', candidates, reasons, blockedBy: [], needsChoice: false }
   }
   const session = sessions.find(entry => entry.sessionId === picked.sessionId)
-  const busy = session?.running === true || (session?.pending ?? 0) > 0
-  reasons.push(`选中 ${picked.sessionId}（得分 ${String(picked.score)}）：${picked.signals.join('；')}`)
+  const ownsTask = session?.claims.some(claim => claim.id === task.id) ?? false
+  // 本任务已在这条会话里跑：点开始时只切回去，不再塞一条重复的提示词。
+  const busy = !ownsTask && (session?.running === true || (session?.pending ?? 0) > 0)
+  reasons.push(`${ownsTask ? '切回本任务已认领的会话' : '选中'} ${picked.sessionId}（得分 ${String(picked.score)}）：${picked.signals.join('；')}`)
   return {
     verdict: busy ? 'enqueue' : 'reuse',
     chosen: picked.sessionId,

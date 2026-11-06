@@ -15,13 +15,15 @@ import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { loadLocalSecrets, loadProjectInfo, loadWorkspaceProjection } from '../projection.ts'
-import type { ContractRow, ProjectionFilesRemote, ProposalRow, TaskRow } from '../projection.ts'
+import type { ContractRow, ProjectionFilesRemote, ProposalRow, RuleRow, TaskRow } from '../projection.ts'
+import { decideScheduling } from '../scheduling.ts'
+import type { SchedulingDecision, SchedulingSession, SchedulingTask } from '../scheduling.ts'
 import type { ExpertPrompt, ExpertRow } from '../experts.ts'
 import { describeOpenFailure } from '../open-failure.ts'
 import type { ModelStatus, ShellSessionNotice } from '../model-status.ts'
 import type { LcoderWorkspaceKey } from '../locales.ts'
 import { claimTaskSession, taskCardStatus } from '../task-session.ts'
-import type { TaskCardStatus, TaskSessionRow } from '../task-session.ts'
+import type { TaskCardStatus, TaskQueueMark, TaskSessionRow } from '../task-session.ts'
 import { EMPTY_TASK_FILTER, filterTasks, isFilterActive, TASK_GRADE_CHOICES } from '../task-filter.ts'
 import type { SessionFilter, TaskFilter } from '../task-filter.ts'
 import { onboardingAction } from '../onboarding.ts'
@@ -60,6 +62,8 @@ export type ShellProps =
     readonly approveProposal?: (sessionId: SessionId, proposalId: string) => Promise<ShellSignResult>
     /** 派 `/task_bind <编号>` 把任务认给这条会话；认领关系由宿主写盘。 */
     readonly bindTask?: (sessionId: SessionId, taskId: string) => Promise<ShellSignResult>
+    /** 派 `/task_schedule <编号> <JSON>` 把这次判定追加到任务证据目录，供事后审计。 */
+    readonly logSchedule?: (sessionId: SessionId, taskId: string, json: string) => Promise<ShellSignResult>
     /** 在同一仓库里新开会话，可按角色（Agent preset）指名；角色只在首回合前可选。 */
     readonly createSession?: (path: string, agentPreset?: string) => Promise<SessionId>
     /** 装配层声明的角色名册；读不到时外壳只走宿主默认角色。 */
@@ -128,6 +132,20 @@ const TASK_STATUS: Record<TaskCardStatus, { readonly labelKey: LcoderWorkspaceKe
   awaitingInteraction: { labelKey: 'shell.taskAwaiting', className: css.tagWarn },
   awaitingFirstTurn: { labelKey: 'shell.taskFirstTurn', className: css.tagWarn },
   failed: { labelKey: 'shell.taskFailed', className: css.tagDanger },
+  waiting: { labelKey: 'shell.taskWaiting', className: css.tagWarn },
+  queued: { labelKey: 'shell.taskQueued', className: css.tagQueued },
+}
+
+/** 一次调度在界面上的留档：判定本身、时刻，以及入队会话与位置。 */
+interface ShellSchedule {
+  readonly decision: SchedulingDecision
+  readonly at: string
+  readonly queue?: TaskQueueMark
+}
+
+/** 词典里的 `{name}` 占位符；只替换一遍，值里再出现花括号不再展开。 */
+function fill(text: string, values: Readonly<Record<string, string | number>>): string {
+  return Object.entries(values).reduce((result, [key, value]) => result.replace(`{${key}}`, String(value)), text)
 }
 
 const KNOWN_STATES: ReadonlySet<string> = new Set(SHELL_STATES.map(state => state.id))
@@ -165,6 +183,7 @@ function toShellTask(row: TaskRow): ShellTask {
     ...(row.session === undefined ? {} : { session: row.session }),
     ...(row.proposal === undefined ? {} : { proposal: row.proposal }),
     ...(row.dependsOn.length === 0 ? {} : { dependsOn: row.dependsOn }),
+    paths: row.paths,
   }
 }
 
@@ -186,13 +205,15 @@ function resolveSecrets(info: ShellProjectInfo, secrets: Readonly<Record<string,
  * @returns 顶栏 + 任务板 + 项目信息抽屉 + 浮层。
  */
 export function Shell({
-  t, files, openRepository, sendPrompt, signContract, advanceContract, approveProposal, bindTask, createSession, listRoles,
+  t, files, openRepository, sendPrompt, signContract, advanceContract, approveProposal, bindTask, logSchedule, createSession, listRoles,
   listExperts, readExpert,
   readMessages, subscribeSession, holdSession, checkModels, subscribeModels, readSessionNotice, readSessionFlags, modelSettings,
   useSessions, useSessionStatus, useWorkspaces, chatSize,
 }: ShellProps): ReactNode {
   const workspaces = useWorkspaces(state => state.items)
   const sessionRows = useSessions(state => state.byId)
+  /** 每条会话的投影值；队列长度来自 agent-loop 的 `inbox` 折叠，打开过的会话才有。 */
+  const sessionProjections = useSessions(state => state.projectionsBySession)
   /** 宿主推流的每会话状态；覆盖每个列出的会话，不需要 bind 也不需要开历史。 */
   const sessionStatus = useSessionStatus(state => state)
 
@@ -224,6 +245,7 @@ export function Shell({
   const [expertPrompts, setExpertPrompts] = useState<Record<string, ExpertPrompt | null>>({})
   const [shownExpert, setShownExpert] = useState<string | null>(null)
   const [tasks, setTasks] = useState<readonly ShellTask[]>([])
+  const [rules, setRules] = useState<readonly RuleRow[]>([])
   const [contracts, setContracts] = useState<readonly ContractRow[]>([])
   /** 签完一次就把投影重读一遍：`contracts` 里的签名状态是文件的事实，不是界面的记忆。 */
   const [reload, setReload] = useState(0)
@@ -264,6 +286,12 @@ export function Shell({
   const [claiming, setClaiming] = useState(false)
   /** 只有本客户端物化过的会话才读得到这两位；null 表示读不到，卡片就不画这两个态。 */
   const [taskFlags, setTaskFlags] = useState<{ readonly awaitingFirstTurn: boolean; readonly failed: boolean } | null>(null)
+  /** 本窗口建会话时选的角色；会话行读不到 agentPreset，硬闸只在两侧都知道时生效。 */
+  const [sessionRoles, setSessionRoles] = useState<Readonly<Record<string, string>>>({})
+  /** 每条任务最近一次调度判定；只在本次窗口内留档，落盘由 `/task_schedule` 负责。 */
+  const [schedule, setSchedule] = useState<Readonly<Record<string, ShellSchedule>>>({})
+  /** 调度日志没写成的原因；按任务号记，界面上就地说明。 */
+  const [scheduleErrors, setScheduleErrors] = useState<Readonly<Record<string, string>>>({})
 
   const workspace = workspaces.find(item => String(item.workspaceId) === workspaceId) ?? workspaces[0]
   const activeWorkspaceId = workspace === undefined ? null : String(workspace.workspaceId)
@@ -291,6 +319,107 @@ export function Shell({
    */
   const liveSessionOf = (task: ShellTask): SessionId | undefined =>
     claimTaskSession(task.session, taskSessionRows)?.sessionId
+
+  /** 任务编号到状态的映射：调度据此判断前置是否收口。 */
+  const knownStates = useMemo<Readonly<Record<string, string>>>(
+    () => Object.fromEntries(tasks.map(task => [task.id, task.state])),
+    [tasks],
+  )
+
+  /**
+   * 一条会话的队列长度。只有打开过的会话才有 `inbox` 投影；读不到按 0 算，
+   * 界面因此不会把「不知道」画成「有队列」。
+   */
+  const queueDepth = (id: string): number => {
+    const inbox = sessionProjections[id as SessionId]?.values.inbox
+    return inbox === undefined ? 0 : inbox['next-turn'].length
+  }
+
+  /** 任务触及的规格模块：由 rules 的 module 反查，空串不算模块。 */
+  const modulesOf = (task: ShellTask): readonly string[] => {
+    const found = new Set<string>()
+    for (const id of task.rules) {
+      const module = rules.find(rule => rule.id === id)?.module
+      if (module !== undefined && module !== '') found.add(module)
+    }
+    return [...found]
+  }
+
+  /** 一条会话认领过的任务，供调度比较方案、模块与落点。 */
+  const claimsOf = (id: SessionId): SchedulingSession['claims'] =>
+    tasks
+      .filter(task => task.session === String(id))
+      .map(task => ({
+        id: task.id,
+        state: task.state,
+        ...(task.proposal === undefined ? {} : { proposal: task.proposal }),
+        modules: modulesOf(task),
+        paths: task.paths,
+        dependsOn: task.dependsOn ?? [],
+      }))
+
+  const schedulingTaskOf = (task: ShellTask): SchedulingTask => ({
+    id: task.id,
+    state: task.state,
+    dependsOn: task.dependsOn ?? [],
+    ...(task.proposal === undefined ? {} : { proposal: task.proposal }),
+    modules: modulesOf(task),
+    paths: task.paths,
+    repoPath: projectPath,
+  })
+
+  /** 本工作区的会话名册；角色只在本次窗口建会话时知道，其余留空让硬闸失效。 */
+  const schedulingSessions = (): readonly SchedulingSession[] =>
+    workspaceSessions.map((id) => {
+      const row = sessionRows[id]
+      const pushed = sessionStatus.get(id)
+      const role = sessionRoles[String(id)]
+      return {
+        sessionId: String(id),
+        ...(role === undefined ? {} : { role }),
+        running: pushed?.running ?? row?.running ?? false,
+        awaitingInteraction: pushed?.pendingInteraction !== undefined,
+        pending: queueDepth(String(id)),
+        workspacePath: row?.cwd ?? workspace?.path ?? '',
+        claims: claimsOf(id),
+      }
+    })
+
+  /** 顶栏与详情里给会话一个短称呼：有认领任务用任务标题，否则按次序列号。 */
+  const sessionLabel = (id: string): string => {
+    const bound = tasks.find(task => task.session === id)
+    if (bound !== undefined) return bound.title
+    const index = workspaceSessions.findIndex(candidate => String(candidate) === id)
+    return `${t('shell.sessions')} ${String(index + 1)}`
+  }
+
+  /** 调度段里用稳定称呼：会话序号 + 当前认领的任务标题，避免只看到一串会话号。 */
+  const schedulingLabel = (id: string): string => {
+    const index = workspaceSessions.findIndex(candidate => String(candidate) === id)
+    const base = `${t('shell.sessions')} ${String(index + 1)}`
+    const bound = tasks.find(task => task.session === id)
+    return bound === undefined ? base : `${base} · ${bound.title}`
+  }
+
+  /** 把内核理由里的会话号换成界面上的短称呼；显示用，落盘仍是原始 id。 */
+  const humanizeSessions = (text: string): string =>
+    workspaceSessions.reduce(
+      (result, id) => result.replaceAll(String(id), schedulingLabel(String(id))),
+      text,
+    )
+
+  /**
+   * 这条任务还在排队的证据。队列清空（或会话闲下来）后就不再画「已入队」；
+   * 判定那一刻的「第 N 位」留在详情里供回看。
+   */
+  const queueMarkOf = (task: ShellTask): TaskQueueMark | undefined => {
+    const entry = schedule[task.id]
+    if (entry?.queue === undefined) return undefined
+    const running = sessionStatus.get(entry.queue.sessionId as SessionId)?.running
+      ?? sessionRows[entry.queue.sessionId as SessionId]?.running
+      ?? false
+    return running || queueDepth(entry.queue.sessionId) >= entry.queue.position ? entry.queue : undefined
+  }
   /**
    * 浮层落在哪条会话：该任务已认领的那条；立项对话或还没认领时退回工作区当前会话。
    * 这里只做选择——建会话与认领归顶栏会话条，本壳自己建就会留下第二套手势。
@@ -318,6 +447,7 @@ export function Shell({
   useEffect(() => {
     if (files === undefined || workspace === undefined || sessionId === undefined) {
       setTasks([])
+      setRules([])
       setContracts([])
       setProposals([])
       setRulesCount(0)
@@ -335,6 +465,7 @@ export function Shell({
     ]).then(([projection, projectInfo, secrets]) => {
       if (controller.signal.aborted) return
       setTasks(projection.tasks.map(toShellTask))
+      setRules(projection.rules)
       setContracts(projection.contracts)
       setProposals(projection.proposals)
       setRulesCount(projection.rules.length)
@@ -344,6 +475,7 @@ export function Shell({
     }).catch((error: unknown) => {
       if (controller.signal.aborted) return
       setTasks([])
+      setRules([])
       setContracts([])
       setProposals([])
       setRulesCount(0)
@@ -451,12 +583,17 @@ export function Shell({
     const session = claimTaskSession(task.session, taskSessionRows)
     const pushed = session === null ? undefined : sessionStatus.get(session.sessionId)
     const flags = session !== null && session.sessionId === chatSessionId ? taskFlags : null
+    const blockedBy = task.state === 'closed'
+      ? []
+      : (task.dependsOn ?? []).filter(id => knownStates[id] !== 'closed')
     return taskCardStatus({
       session,
       hostRunning: pushed?.running,
       awaitingInteraction: pushed?.pendingInteraction !== undefined,
       awaitingFirstTurn: flags?.awaitingFirstTurn,
       failed: flags?.failed,
+      blockedBy,
+      queued: queueMarkOf(task),
     })
   }
 
@@ -485,9 +622,22 @@ export function Shell({
   }, [awaitingCount, windowBridge])
 
 
+  /** 任务咒语；带上最近一次调度结论，让模型也看到前置与建议会话。 */
+  const promptOf = (task: ShellTask, decision?: SchedulingDecision): string => {
+    const entry = decision ?? schedule[task.id]?.decision
+    const info = entry === undefined
+      ? undefined
+      : {
+        blockedBy: entry.blockedBy.length > 0,
+        ...(entry.chosen === undefined ? {} : { sessionId: entry.chosen }),
+        signals: entry.candidates.find(candidate => candidate.sessionId === entry.chosen)?.signals ?? [],
+      }
+    return buildShellPrompt({ name: projectName, path: projectPath, branch: projectBranch }, task, info)
+  }
+
   const openTask = (task: ShellTask): void => {
     setDetail(task)
-    setPrompt(buildShellPrompt({ name: projectName, path: projectPath, branch: projectBranch }, task))
+    setPrompt(promptOf(task))
     setCopied(false)
     setSignResult(null)
     // 上一个任务的「没会话」提示不属于这个任务。
@@ -511,6 +661,7 @@ export function Shell({
       rules: [],
       evidence: [],
       surface: '',
+      paths: [],
     })
   }
 
@@ -523,6 +674,9 @@ export function Shell({
   const detailProposal = detail?.proposal === undefined
     ? undefined
     : proposals.find(row => row.id === detail.proposal)
+
+  /** 选中任务最近一次调度留档；点过「开始对话」才有。 */
+  const detailSchedule = detail === null ? undefined : schedule[detail.id]
 
   /**
    * 签署选中任务的契约。浏览器不写盘：这一句派给人机命令，签名由 kernel 写进
@@ -610,31 +764,132 @@ export function Shell({
     )
   }
 
+  /** 把一次判定记进本窗口的留档；入队位置随后才补，所以分开写。 */
+  const rememberSchedule = (task: ShellTask, decision: SchedulingDecision, at: string, queue?: TaskQueueMark): void => {
+    setSchedule(current => ({
+      ...current,
+      [task.id]: { decision, at, ...(queue === undefined ? {} : { queue }) },
+    }))
+  }
+
+  /** 把判定追加到 `.spec/evidence/<任务>/schedule.jsonl`；写不进去只在这里说明，不挡执行。 */
+  const logScheduleDecision = (
+    via: SessionId | undefined,
+    task: ShellTask,
+    decision: SchedulingDecision,
+    at: string,
+    queue?: TaskQueueMark,
+  ): void => {
+    if (logSchedule === undefined) return
+    if (via === undefined) {
+      setScheduleErrors(current => ({ ...current, [task.id]: t('shell.noSession') }))
+      return
+    }
+    const payload = JSON.stringify({
+      at,
+      verdict: decision.verdict,
+      ...(decision.chosen === undefined ? {} : { chosen: decision.chosen }),
+      ...(queue === undefined ? {} : { queuePosition: queue.position }),
+      candidates: decision.candidates,
+      reasons: decision.reasons,
+      blockedBy: decision.blockedBy,
+      needsChoice: decision.needsChoice,
+    })
+    void logSchedule(via, task.id, payload).then((result) => {
+      setScheduleErrors((current) => {
+        const rest = Object.fromEntries(Object.entries(current).filter(([key]) => key !== task.id))
+        return result.ok ? rest : { ...rest, [task.id]: result.text }
+      })
+    }, (error: unknown) => {
+      setScheduleErrors(current => ({ ...current, [task.id]: String(error) }))
+    })
+  }
+
   /**
-   * 打开这条任务的对话。已经绑着一条还在的会话就切过去接着说；没绑就在同一个仓库里
-   * 新开一条会话、按选定角色把它认给这条任务，再发启动咒语。
+   * 打开这条任务的对话：先按依赖、worktree 与关联信号判定一次，再决定去向。
+   *
+   * - `wait`：前置没收口，按住不发；卡片与详情显示等哪几条，收口后再点一次重新判定。
+   * - `reuse`：本任务已认领且空闲就只切过去；未认领但匹配时空闲会话要认领并发送。
+   * - `enqueue`：把咒语写进匹配会话的队列，并记下会话与第几位。
+   * - `new`：同仓库新开会话，按选中角色认领后发送。
    *
    * 启动咒语在这里就地生成，不读 `prompt` 状态：那份状态要等渲染后的 effect 才跟上任务，
    * 直接发出去的是上一任务的文本。
    */
   const startConversation = (task: ShellTask): void => {
-    const bound = liveSessionOf(task)
-    if (bound !== undefined) {
-      setSessionOverride(bound)
-      setChat(task)
-      setDetail(null)
-      setChatError(null)
+    const decision = decideScheduling(schedulingTaskOf(task), schedulingSessions(), knownStates)
+    const at = new Date().toISOString()
+    const text = promptOf(task, decision)
+    setPrompt(text)
+    setDetail(task)
+    setChatError(null)
+    setScheduleErrors(current => Object.fromEntries(Object.entries(current).filter(([key]) => key !== task.id)))
+
+    if (decision.verdict === 'wait') {
+      rememberSchedule(task, decision, at)
+      logScheduleDecision(sessionId, task, decision, at)
+      setChatError(fill(t('shell.scheduleWaitNotice'), { tasks: decision.blockedBy.join('、') }))
       return
     }
-    const text = buildShellPrompt({ name: projectName, path: projectPath, branch: projectBranch }, task)
-    setPrompt(text)
-    setChat(task)
-    setDetail(null)
-    setChatError(null)
+
     if (modelBlocked) {
+      rememberSchedule(task, decision, at)
+      logScheduleDecision(sessionId, task, decision, at)
+      setChat(task)
+      setDetail(null)
       setChatError(t('shell.noModels'))
       return
     }
+
+    if (decision.chosen !== undefined) {
+      const target = decision.chosen as SessionId
+      const alreadyBound = liveSessionOf(task) === target
+      // 一条会话只能认领一条任务。空闲会话复用时改绑是有意交接；会话还在跑时
+      // 改绑会把正在跑的那条释放、工具面也会被切走，所以入队只记会话与位置。
+      const boundElsewhere = tasks.some(candidate =>
+        candidate.session === decision.chosen && candidate.id !== task.id && candidate.state !== 'closed')
+      const shouldBind = !alreadyBound && (decision.verdict !== 'enqueue' || !boundElsewhere)
+      // 已经排在这条会话里就只切过去，重复点击不再塞第二条。
+      const existing = queueMarkOf(task)
+      if (existing !== undefined && existing.sessionId === decision.chosen) {
+        setSessionOverride(target)
+        setChat(task)
+        setDetail(null)
+        return
+      }
+      const queue = decision.verdict === 'enqueue'
+        ? { sessionId: decision.chosen, position: queueDepth(decision.chosen) + 1 }
+        : undefined
+      rememberSchedule(task, decision, at, queue)
+      logScheduleDecision(sessionId ?? target, task, decision, at, queue)
+      setSessionOverride(target)
+      setChat(task)
+      setDetail(null)
+      if (decision.verdict === 'reuse' && alreadyBound) return
+      if (bindTask === undefined || sendPrompt === undefined) {
+        setChatError(t('shell.noSession'))
+        return
+      }
+      setClaiming(true)
+      void (async () => {
+        if (shouldBind) {
+          const claimed = await bindTask(target, task.id)
+          if (!claimed.ok) throw new Error(claimed.text)
+          // 认领写进了文件，投影要重读：卡片上「谁在跑这条任务」显示的是文件的事实。
+          setReload(value => value + 1)
+        }
+        await sendPrompt(target, text)
+      })().catch((error: unknown) => {
+        setChatError(String(error))
+      }).finally(() => {
+        setClaiming(false)
+      })
+      return
+    }
+
+    rememberSchedule(task, decision, at)
+    setChat(task)
+    setDetail(null)
     if (createSession === undefined || bindTask === undefined || sendPrompt === undefined || projectPath === '') {
       setChatError(t('shell.noSession'))
       return
@@ -642,11 +897,12 @@ export function Shell({
     setClaiming(true)
     void (async () => {
       const created = await createSession(projectPath, roleChoice ?? undefined)
+      if (roleChoice !== null) setSessionRoles(current => ({ ...current, [String(created)]: roleChoice }))
       const claimed = await bindTask(created, task.id)
       if (!claimed.ok) throw new Error(claimed.text)
       setSessionOverride(created)
-      // 认领写进了文件，投影要重读：卡片上「谁在跑这条任务」显示的是文件的事实。
       setReload(value => value + 1)
+      logScheduleDecision(created, task, decision, at)
       await sendPrompt(created, text)
     })().catch((error: unknown) => {
       setChatError(String(error))
@@ -699,7 +955,7 @@ export function Shell({
     setChatError(null)
     setPrompt(text)
     setCopied(false)
-    setChat({ id: '', title: t('shell.onboardingChat'), state: 'drafting', grade: '-', rules: [], evidence: [], surface: '' })
+    setChat({ id: '', title: t('shell.onboardingChat'), state: 'drafting', grade: '-', rules: [], evidence: [], surface: '', paths: [] })
     const action = onboardingAction({
       hasSession: sessionId !== undefined && sendPrompt !== undefined,
       hasModel: !modelBlocked,
@@ -787,6 +1043,8 @@ export function Shell({
           ? <div className={css.empty}>{t('shell.empty')}</div>
           : columnTasks.map((task) => {
             const status = statusOfTask(task)
+            const queueMark = status === 'queued' ? queueMarkOf(task) : undefined
+            const waitingOn = (task.dependsOn ?? []).filter(id => knownStates[id] !== 'closed')
             return (
               <button type="button" key={task.id} className={`${css.taskCard} ${runningCardClass(status) ?? ''}`} onClick={() => { openTask(task) }}>
                 <div className={css.taskId}><span>{task.id}</span><span>{task.grade}</span></div>
@@ -794,9 +1052,18 @@ export function Shell({
                 <div className={css.tags}>
                   <span className={`${css.tag} ${TASK_STATUS[status].className ?? ''}`}>{t(TASK_STATUS[status].labelKey)}</span>
                   {task.proposal === undefined ? null : <span className={css.tag}>{task.proposal}</span>}
-                  {task.dependsOn === undefined
+                  {waitingOn.length === 0
                     ? null
-                    : <span className={`${css.tag} ${css.tagWarn}`}>{t('shell.dependsOn')} {task.dependsOn.join('、')}</span>}
+                    : <span className={`${css.tag} ${css.tagWarn}`}>{t('shell.dependsOn')} {waitingOn.join('、')}</span>}
+                  {queueMark === undefined
+                    ? null
+                    : (
+                      <span className={`${css.tag} ${css.tagQueued}`}>
+                        {sessionLabel(queueMark.sessionId)}
+                        {' · '}
+                        {fill(t('shell.queuePosition'), { n: queueMark.position })}
+                      </span>
+                    )}
                   {task.rules.map(rule => <span key={rule} className={css.tag}>{rule}</span>)}
                   <span className={`${css.tag} ${task.state === 'closed' ? css.tagOk : ''}`}>{task.surface}</span>
                   {!contracts.some(row => row.id === task.id && row.signedBy === 'human')
@@ -871,6 +1138,7 @@ export function Shell({
               const bound = tasks.find(task => task.session !== undefined && task.session === String(id))
               const placeholder = `${t('shell.sessions')} ${String(index + 1)}`
               const awaiting = sessionStatus.get(id)?.pendingInteraction !== undefined
+              const queued = queueDepth(String(id))
               return (
                 <button
                   type="button"
@@ -881,6 +1149,9 @@ export function Shell({
                 >
                   {awaiting ? <span className={css.sessionWaitDot} aria-hidden="true" /> : null}
                   {bound?.title ?? placeholder}
+                  {queued === 0
+                    ? null
+                    : <span className={css.sessionQueue} title={fill(t('shell.sessionQueue'), { count: queued })}>{String(queued)}</span>}
                 </button>
               )
             })}
@@ -1252,9 +1523,59 @@ export function Shell({
                 {detail.dependsOn === undefined
                   ? null
                   : <div className={css.meta}><div className={css.metaK}>{t('shell.dependsOn')}</div><div className={css.metaV}>{detail.dependsOn.join('、')}</div></div>}
+                {detailSchedule?.queue === undefined
+                  ? null
+                  : (
+                    <div className={css.meta}>
+                      <div className={css.metaK}>{t('shell.queuedIn')}</div>
+                      <div className={css.metaV}>
+                        {sessionLabel(detailSchedule.queue.sessionId)}
+                        {' · '}
+                        {fill(t('shell.queuePosition'), { n: detailSchedule.queue.position })}
+                      </div>
+                    </div>
+                  )}
                 <div className={css.meta}><div className={css.metaK}>{t('shell.evidence')}</div><div className={css.metaV}>{detail.evidence.join(', ') || '—'}</div></div>
                 <div className={css.meta}><div className={css.metaK}>{t('shell.surface')}</div><div className={css.metaV}>{detail.surface}</div></div>
               </div>
+              <details className={css.schedule}>
+                <summary>{t('shell.schedule')}</summary>
+                <p className={css.scheduleHint}>{t('shell.scheduleHint')}</p>
+                {detailSchedule === undefined ? <p className={css.empty}>{t('shell.scheduleEmpty')}</p> : (
+                  <>
+                    <ol className={css.scheduleReasons}>
+                      {detailSchedule.decision.reasons.map(reason => <li key={reason}>{humanizeSessions(reason)}</li>)}
+                    </ol>
+                    <span className={css.scheduleLabel}>{t('shell.scheduleCandidates')}</span>
+                    {detailSchedule.decision.candidates.length === 0
+                      ? <p className={css.empty}>{t('shell.scheduleNone')}</p>
+                      : (
+                        <div className={css.scheduleList}>
+                          {detailSchedule.decision.candidates.map(candidate => (
+                            <div key={candidate.sessionId} className={css.scheduleCandidate} data-rejected={candidate.rejected === undefined ? undefined : 'true'}>
+                              <div className={css.scheduleHead}>
+                                <span className={css.scheduleSession}>{schedulingLabel(candidate.sessionId)}</span>
+                                <span className={css.scheduleScore}>{fill(t('shell.scheduleScore'), { score: candidate.score })}</span>
+                                {candidate.rejected === undefined
+                                  ? null
+                                  : <span className={`${css.tag} ${css.tagDanger}`}>{t('shell.scheduleRejected')}</span>}
+                              </div>
+                              {candidate.signals.length === 0
+                                ? null
+                                : <div className={css.scheduleSignals}>{t('shell.scheduleSignals')}：{candidate.signals.join('；')}</div>}
+                              {candidate.rejected === undefined
+                                ? null
+                                : <div className={css.scheduleRejectedText}>{candidate.rejected}</div>}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                  </>
+                )}
+                {detailSchedule === undefined || scheduleErrors[detail.id] === undefined
+                  ? null
+                  : <p className={css.problem}>{fill(t('shell.scheduleLogFailed'), { detail: scheduleErrors[detail.id] ?? '' })}</p>}
+              </details>
               <div className={css.field}>
                 <label>{t('shell.contract')} <span className={css.labelHint}>{t('shell.contractHint')}</span></label>
                 {detailContract === undefined ? (

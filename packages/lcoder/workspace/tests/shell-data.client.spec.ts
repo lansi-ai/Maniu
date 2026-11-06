@@ -24,6 +24,7 @@ const TASK: ShellTask = {
   rules: ['R-01'],
   evidence: ['typecheck'],
   surface: 'file_read、task_read',
+  paths: [],
 }
 
 describe('咒语的仓内发送与仓外复制', () => {
@@ -38,6 +39,18 @@ describe('咒语的仓内发送与仓外复制', () => {
     expect(sent.split('\n')[0]).toBe('T-01：订单导出')
     expect(`${TASK_FLOW_MENTION_PREFIX}${sent}`.startsWith('T-01')).toBe(false)
     expect(`${TASK_FLOW_MENTION_PREFIX}${sent}`.startsWith('@task-flow T-01：订单导出')).toBe(true)
+  })
+
+  it('调度结论写进咒语：前置按住与建议会话都让模型看得见', () => {
+    const routed = buildShellPrompt(
+      PROJECT,
+      { ...TASK, dependsOn: ['T-00'] },
+      { blockedBy: true, sessionId: 'session-a', signals: ['同一方案 P-01'] },
+    )
+
+    expect(routed).toContain('- 前置：T-00（未收口，先按住）')
+    expect(routed).toContain('- 调度：接着会话 session-a（同一方案 P-01）')
+    expect(buildShellPrompt(PROJECT, TASK)).not.toContain('- 调度：')
   })
 })
 

@@ -31,11 +31,15 @@ export interface TaskRow {
   readonly proposal?: string
   /** 前置任务编号；空数组表示没有依赖。 */
   readonly dependsOn: readonly string[]
+  /** 任务声明的允许路径（`scope.allowed_paths`）；调度按它判落点重叠。 */
+  readonly paths: readonly string[]
 }
 
 /** 中栏一条规格条目。 */
 export interface RuleRow {
   readonly id: string
+  /** 规格条目所属模块；任务侧的模块信号由它反查。 */
+  readonly module: string
   readonly kind: string
   readonly status: string
   readonly text: string
@@ -147,6 +151,7 @@ export function taskTextToRow(fileName: string, text: string): TaskRow | undefin
   if (title === undefined) return undefined
   const session = asText(fields.session)
   const proposal = asText(fields.proposal)
+  const scope = recordOf(fields.scope)
   return {
     id: asText(fields.id) ?? fileName.replace(/\.yaml$/, ''),
     title,
@@ -157,6 +162,7 @@ export function taskTextToRow(fileName: string, text: string): TaskRow | undefin
     ...(session === undefined ? {} : { session }),
     ...(proposal === undefined ? {} : { proposal }),
     dependsOn: stringArray(fields.depends_on),
+    paths: stringArray(scope?.allowed_paths),
   }
 }
 
@@ -183,6 +189,7 @@ export function rulesTextToRows(text: string): RuleRow[] {
     if (id === undefined || text === undefined) return []
     return [{
       id,
+      module: asText(fields.module) ?? '',
       kind: asText(fields.kind) ?? 'rule',
       status: asText(fields.status) ?? 'draft',
       text,

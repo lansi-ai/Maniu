@@ -24,10 +24,19 @@ export interface TaskSessionRow {
 export type TaskCardStatus =
   | 'unstarted'
   | 'awaitingInteraction'
+  | 'queued'
   | 'running'
+  | 'waiting'
   | 'awaitingFirstTurn'
   | 'failed'
   | 'idle'
+
+/** 一条任务排进了哪条会话、排在第几位。 */
+export interface TaskQueueMark {
+  readonly sessionId: string
+  /** 入队那一刻前面已有的条数加一。 */
+  readonly position: number
+}
 
 /** 折状态需要的信号；除 `session` 外都可能是「没取到」，缺省即不参与判定。 */
 export interface TaskCardSignals {
@@ -40,6 +49,10 @@ export interface TaskCardSignals {
   readonly awaitingFirstTurn?: boolean | undefined
   /** 准入被拒或这一轮没跑起来；只有物化过的会话读得到。 */
   readonly failed?: boolean | undefined
+  /** 还没收口的前置任务；非空即按住，不进入执行。 */
+  readonly blockedBy?: readonly string[] | undefined
+  /** 这条任务已写入的队列位置；只有外壳记得到，没有就是未入队。 */
+  readonly queued?: TaskQueueMark | null | undefined
 }
 
 /**
@@ -63,17 +76,22 @@ export function claimTaskSession(
 /**
  * 把信号折成卡片状态。
  *
- * 优先级按「用户下一步该做什么」排：等人回答压过在跑（回合本来就停在审批上），
- * 在跑压过等首个回合，两者都没有才谈失败。会话都没建时是未开始，
- * 建了还没起过回合也是未开始。
+ * 优先级按「用户下一步该做什么」排：等人回答压过一切；已排进队列的提示压过
+ * 会话在跑，因为跑的是它前面的那条，卡片说的是本任务；等前置收口再压过
+ * 等首个回合与失败。会话都没建时是未开始，建了还没起过回合也是未开始。
  * @param signals - 已取回的信号。
  * @returns 卡片要画的那一个状态。
  */
 export function taskCardStatus(signals: TaskCardSignals): TaskCardStatus {
   const { session } = signals
-  if (session === null) return 'unstarted'
-  if (signals.awaitingInteraction === true) return 'awaitingInteraction'
+  if (session !== null && signals.awaitingInteraction === true) return 'awaitingInteraction'
+  // 入队不写认领，所以排在「没有会话」之前：卡片说的是它排进了哪条会话的队列。
+  if (signals.queued !== null && signals.queued !== undefined) return 'queued'
+  if (session === null) {
+    return (signals.blockedBy?.length ?? 0) > 0 ? 'waiting' : 'unstarted'
+  }
   if (signals.hostRunning ?? session.running) return 'running'
+  if ((signals.blockedBy?.length ?? 0) > 0) return 'waiting'
   if (signals.awaitingFirstTurn === true) return 'awaitingFirstTurn'
   if (signals.failed === true) return 'failed'
   if (session.blank) return 'unstarted'

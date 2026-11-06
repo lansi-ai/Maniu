@@ -48,8 +48,10 @@ export function isFilterActive(filter: TaskFilter): boolean {
  */
 function matchesSession(status: TaskCardStatus, session: SessionFilter): boolean {
   if (session === 'any') return true
-  if (session === 'claimed') return status !== 'unstarted'
+  // 等依赖还没绑会话；它属于「全部」，不属于「已认领」。
+  if (session === 'claimed') return status !== 'unstarted' && status !== 'waiting'
   return status === 'running' || status === 'awaitingInteraction' || status === 'awaitingFirstTurn'
+    || status === 'queued'
 }
 
 /**
