@@ -590,6 +590,18 @@ tracks:
       inferred: false
       note: "B 级（一个组件入口、一个纯判定与新 spec，不改契约与文件格式）。用户 2026-11-06 报点「立项分析」每次都重发默认提示词，期望只有第一次发。根因是 Shell.tsx 的 startOnboarding 无条件 sendPrompt，而按钮在任务为零期间一直在，每点一次就多一个模型回合。落点三处。新增 client/onboarding.ts 的 onboardingAction 纯函数，输入取会话事实——会话行 blank 是否已落、事件窗口里用户消息条数、首条提示是否正等首个回合，另加本窗口在发的 ref——输出 send、open、block（缺会话或缺模型）；Shell.tsx 只调用它，先开浮层再按判定决定发不发；新增 tests/onboarding.client.spec.ts 九例。判据不读浮层开关、不写 localStorage，所以关掉浮层、刷新页面、整窗重启后再点都只开浮层。取舍一条，判据按当前会话而不是整个工作区，因为按钮只向当前工作区的这条会话发送，换一条新会话等于换一场对话。README 中英两本同步改并重录 pairing，PITFALLS 补 W-14（新 worktree 的 electron 没有二进制）。门禁：typecheck 5 passed 与 0 failed（138.71 秒）；vitest packages/lcoder 36 文件 355 用例；oxlint 84 文件 0 错 0 警；test:docs 21 passed；workspace bundle 重建（client.js 509.22 kB）；build:artifacts 8 passed。桌面实测在本 worktree 自己的 home（端口 main 9369、renderer 9362、host 9370，靶仓 E:/Projects/LCoder-t49-demo 空目录）。空库首点立项分析，会话日志 userPrompts 由 0 变 1 并开浮层；浮层开着时再调同一条处理函数，计数仍 1；关掉浮层再点，计数仍 1 且浮层重开；Page.reload 后再点，计数仍 1；整窗重启（start 免构建）后再点，计数仍 1。取证按 PITFALLS W-11 逐帧解 zstd，日志里的 user/message 有一条是 runtime-context，只数 source.kind 为 user 的那条。未验两条。一、验收输入是 CDP 派发的真实鼠标事件（Input.dispatchMouseEvent），不是人手物理点击；浮层开着那一下用的是 DOM click，只算链路探测。二、模型回合的答复与落盘没验，该回合只读到 file_list 工具结果，靶仓仍为空，是否属钥匙或网络问题未查。"
 
+    - id: T-54
+      title: 空态栏两档入口——全新项目与已有资料，共用一条会话的幂等发送
+      status: done
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-06'
+      date: '2026-11-06'
+      dep: [T-49]
+      inferred: false
+      note: "B 级（一处空态栏、两个按钮与词典，复用既有两条咒语生成器与同一条会话判定）。用户 2026-11-06 在同一处空态栏追加需求，四条全部落地。一、空看板下方那条说明文字删掉，栏里只留按钮。二、原「立项分析」改名「全新项目」，发 buildIntakePrompt 的 7 问引导咒语。三、它左边新增「已有资料」，发 buildOnboardingPrompt，读 info.docs 或空文档对象，让 agent 先 file_list 与 file_read 看仓库与文档再立项，没声明文档时要求先问。四、两个按钮共用同一条会话与同一条幂等判定，第一次点任一按钮发对应咒语，之后点任一个都只开浮层。词典删掉失效的 onboardingEmpty 与 onboardingHint 与 onboardingIntakeHint 与 onboardingCta，新增 onboardingNewProject 与 onboardingExistingDocs，中英两本同步；README 中英两本同步改并重录 pairing。门禁：typecheck 5 passed 与 0 failed（61.05 秒，含缓存）；vitest packages/lcoder 36 文件 355 用例；oxlint 84 文件 0 错 0 警；verify-client-ui-i18n 1274 个源文件合格；test:docs 21 passed；workspace bundle 重建。桌面实测在本 worktree 自己的 home（端口 main 9369、renderer 9362、host 9370）。空仓 E:/Projects/LCoder-empty-demo 先点「全新项目」，会话日志 userPrompts 由 0 变 1 且提示词是「项目引导」的 7 问；再点「已有资料」，计数仍 1；刷新页面后依次点两个按钮，计数仍 1 且每次都只重开浮层。另一个空仓 E:/Projects/LCoder-t49-demo-2 首点「已有资料」，userPrompts 由 0 变 1，提示词是「立项分析」那一套并写明 .spec/project.yaml 没声明交付文档、要先问文档在哪。判据仍只读会话事实，不用组件状态与 localStorage。未验两条。一、验收输入是 CDP 派发的真实鼠标事件，不是人手物理点击；浮层开着时点另一个按钮用的是 DOM click，只算链路探测。二、两个靶仓的模型答复与落盘未验，两个回合都只起了 title 请求与工具调用，仓里没有 .spec 落盘，是否属钥匙或网络问题未查。"
+
 milestones:
 - name: MVP-0 工作台本地跑通
   track: lcoder

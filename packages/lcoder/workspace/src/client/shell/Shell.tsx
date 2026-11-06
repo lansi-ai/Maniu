@@ -680,17 +680,21 @@ export function Shell({
   }
 
   /**
-   * 零任务仓库的立项入口：读不到 `.spec/project.yaml` 时发 7 问引导咒语，先问项目
-   * 身份与文档位置再落盘；已登记项目信息时发立项分析咒语，把交付文档交给模型。
+   * 零任务仓库的立项入口，两档咒语走同一个会话：
+   * - `new` 是「全新项目」，发 7 问引导咒语，先问项目身份与文档位置再落盘；
+   * - `docs` 是「已有资料」，发立项分析咒语，让 agent 先 file_list / file_read 看仓库
+   *   与已声明文档再立任务；没声明文档时咒语会要求它先问。
    * 外壳只读文件、不判断状态机。
    *
-   * 咒语只发一次：这条会话受理过提示词（会话行的 `blank` 已落、窗口里已有消息，或
-   * 提示正等首个回合）就只开浮层。判据跟着会话事实走，所以关掉浮层、刷新页面、
-   * 重开窗口之后再点都不会再发一遍。
+   * 两档共用一条判定：这条会话受理过提示词（会话行的 `blank` 已落、窗口里已有消息，
+   * 或提示正等首个回合）就只开浮层。判据跟着会话事实走，所以关掉浮层、刷新页面、
+   * 重开窗口之后再点任一按钮都不会再发一遍。
    */
-  const startOnboarding = (): void => {
+  const startOnboarding = (kind: 'new' | 'docs'): void => {
     const project = { name: projectName, path: projectPath, branch: projectBranch }
-    const text = info === null ? buildIntakePrompt(project) : buildOnboardingPrompt(project, info.docs)
+    const text = kind === 'new'
+      ? buildIntakePrompt(project)
+      : buildOnboardingPrompt(project, info?.docs ?? { product: '', architecture: '', tests: '' })
     setDetail(null)
     setChatError(null)
     setPrompt(text)
@@ -1012,17 +1016,23 @@ export function Shell({
                       : null}
                     {tasks.length === 0 ? (
                       <div className={css.onboardingBar}>
-                        <p className={css.onboardingText}>
-                          {t('shell.onboardingEmpty')} {t(info === null ? 'shell.onboardingIntakeHint' : 'shell.onboardingHint')}
-                        </p>
+                        <button
+                          type="button"
+                          className={css.secondaryBtn}
+                          disabled={modelBlocked}
+                          title={modelBlocked ? t('shell.noModels') : undefined}
+                          onClick={() => { startOnboarding('docs') }}
+                        >
+                          {t('shell.onboardingExistingDocs')}
+                        </button>
                         <button
                           type="button"
                           className={css.primaryBtn}
                           disabled={modelBlocked}
                           title={modelBlocked ? t('shell.noModels') : undefined}
-                          onClick={startOnboarding}
+                          onClick={() => { startOnboarding('new') }}
                         >
-                          {t('shell.onboardingCta')}
+                          {t('shell.onboardingNewProject')}
                         </button>
                       </div>
                     ) : null}

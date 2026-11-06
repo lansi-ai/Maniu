@@ -464,9 +464,8 @@
 .onboardingBar {
   margin-top: var(--lc-space-4); border: 1px dashed var(--lc-line-strong); border-radius: var(--lc-radius-md);
   padding: 14px 16px; background: var(--lc-surface-2);
-  display: flex; align-items: center; justify-content: space-between; gap: var(--lc-space-4);
+  display: flex; align-items: center; justify-content: flex-end; gap: var(--lc-space-3);
 }
-.onboardingText { margin: 0; font-size: var(--lc-text-sm); color: var(--lc-muted); }
 
 .modalBackdrop {
   position: absolute; inset: 0; background: var(--lc-backdrop);
