@@ -85,3 +85,10 @@
 - **原因**：pnpm 的 `.pnpm/<pkg>@<ver>/node_modules/<pkg>/...` 嵌套深度超过 `MAX_PATH`（260）。Cordis 仓的 worktree 里再叠一层 `apps/desktop/.desktop-build` 就必然越界。`git worktree remove` 的注销与删除是两步，注销不受长路径限制、删除受；本机不改全局 `core.longpaths`（属机器状态，不在授权范围）。
 - **处理**：`node lcoder/scripts/rm-longpath.mjs E:/Projects/LCoder/.worktrees/<线名>`——脚本自己拼 `\\?\` 前缀并 `fs.rmSync(..., { recursive: true, maxRetries: 5 })`，绕开 MAX_PATH 也绕开 shell 的引号处理。已实测删掉 t25 与 t30 两个 worktree 的残留目录。注销失败的（还在 `git worktree list` 里）先 `git worktree prune` 再删目录。
 - **预防**：清理并行线按三步走，别指望一条命令到底——一 `git worktree list` 与 `git rev-list --count lcoder/main..<分支>` 双核（脏的、还有未合提交的、有活进程的都不动）；二 `git worktree remove`（预期它会失败，只看元数据是否注销）；三 `rm-longpath.mjs` 删目录，最后 `git branch -d`（合完的分支用安全的 `-d`，不用 `-D`）。起过桌面实例的 worktree 要先确认窗口已关：进程还活着就保留，不杀别人的进程。
+
+## W-13 启动器 ps1 上有两个 BOM，PowerShell 把注释当命令、把 300 塞给 switch 参数
+
+- **现象**：跑 `lcoder\scripts\start-desktop.cmd` 先在 console 里冒一串乱码的 `'...' is not recognized`，接着在 ps1 第 1 行报 `?# 无法识别为 cmdlet`，紧接着第 14 行报「无法将 System.Int32 的 300 值转换为 System.Management.Automation.SwitchParameter 类型」。窗口里什么都没启动。
+- **原因**：`start-desktop.ps1` 开头有**两个** UTF-8 BOM（字节 `ef bb bf ef bb bf`）。PowerShell 5.1 只剥掉第一个，剩下的 U+FEFF 粘在首行 `#` 前面，于是那条注释被当成命令 `?#` 执行；而 `param(...)` 必须是最靠前的语句，首行一坏它就不再被当成参数块，整块被当函数调用执行，`[int]$ReadyTimeoutSec = 300` 里的 `300` 作为位置参数去绑 `[switch]$KeepRunning`——那条类型转换错误就是这么来的。另一个叠加因素是 `.cmd` 包原本是 LF + 中文 `rem`，`chcp 65001` 下 cmd.exe 会把中文行读成乱码行去执行。
+- **处理**：ps1 只留一个 BOM（读字节、循环剥到只剩一个再写回）；`.cmd` 包改成**纯 ASCII + CRLF**，中文文档只留在 ps1 头部，并加 `exit /b %ERRORLEVEL%` 透传退出码。实测 `start-desktop.cmd -ListOnly` 输出「没有正在运行的 LCoder 桌面实例。」、退出码 0。
+- **预防**：写带 BOM 的文件前先读字节判断，写盘工具可能给已有 BOM 的文件**再加一个**。一行判据：`head -c 6 file | od -An -tx1`，出现两次 `ef bb bf` 就是双 BOM。cmd 包装层一律不写中文、不用 LF。见到「注释行被当命令」或「300 绑不进 switch」这类怪错，先查 BOM 再查语法。
