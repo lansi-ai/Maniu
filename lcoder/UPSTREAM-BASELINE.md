@@ -82,6 +82,12 @@ upstream = deepseek-ai/deepseek-harness
 
 ## 4. 升级演练（每次上游有新版本时执行）
 
+先跑体检，拿到「多少新提交、撞哪些接触面、哪几个是高危」再动手（退出码 0 表示没有新提交，1 表示有）：
+
+```powershell
+lcoder/scripts/upstream-sync-check.cmd
+```
+
 ```sh
 git fetch upstream
 git checkout -b sync/upstream-<新版本> lcoder/main
