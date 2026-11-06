@@ -45,6 +45,7 @@ import { EMPTY_TASK_FILTER, filterTasks, isFilterActive, TASK_GRADE_CHOICES } fr
 import type { SessionFilter, TaskFilter } from '../task-filter.ts'
 import { onboardingAction } from '../onboarding.ts'
 import { intakeArtifactsOf, intakeTierOfMessages, PROPOSAL_DECISION, runIntakeRestart } from './intake.ts'
+import type { IntakeTier } from './intake.ts'
 import { IntakeResultPage, IntakeRestartDialog } from './IntakeResultPage.tsx'
 import { buildIntakePrompt, buildOnboardingPrompt, buildShellPrompt, SHELL_STATES, TASK_FLOW_MENTION_PREFIX } from './shell-data.ts'
 import { ChatTranscript, PendingInteractionCard } from './ChatPanel.tsx'
@@ -352,6 +353,11 @@ export function Shell({
   /** 重开确认框与它在途状态；浮层头与结果页共用同一套。 */
   const [restartOpen, setRestartOpen] = useState(false)
   const [restarting, setRestarting] = useState(false)
+  /**
+   * 开过浮层的立项会话档位。关闭浮层后消息窗口不再被持有，读不到消息；
+   * 这里只记住已经读到过的事实，换会话或换项目都不复用。
+   */
+  const [intakeTierHint, setIntakeTierHint] = useState<{ readonly sessionId: string; readonly tier: IntakeTier } | null>(null)
   const [drawer, setDrawer] = useState(false)
   const [revealed, setRevealed] = useState<Record<string, boolean>>({})
   const [copied, setCopied] = useState(false)
@@ -703,11 +709,21 @@ export function Shell({
     : sessionStatus.get(chatSessionId)?.running ?? sessionRows[chatSessionId]?.running ?? false
   /** 浮层这条会话是不是立项会话、是哪一档；消息窗口读不到就不猜。 */
   const chatIntakeTier = chat === null ? null : intakeTierOfMessages(messages)
-  /** 结果页与确认框读当前会话的档位；换会话或消息窗口变化时重算。 */
-  const currentIntakeTier = useMemo(
-    () => (sessionId === undefined || readMessages === undefined ? null : intakeTierOfMessages(readMessages(sessionId))),
-    [sessionId, readMessages, messages, reload],
-  )
+  /** 读到过就记住：关闭浮层后结果页仍能按同一档重开。 */
+  useEffect(() => {
+    if (chatSessionId === undefined || chatIntakeTier === null) return
+    setIntakeTierHint({ sessionId: String(chatSessionId), tier: chatIntakeTier })
+  }, [chatSessionId, chatIntakeTier])
+  /** 结果页与确认框读当前会话的档位；消息窗口读不到时用开过浮层的那次事实。 */
+  const currentIntakeTier = useMemo(() => {
+    const fromWindow = sessionId === undefined || readMessages === undefined
+      ? null
+      : intakeTierOfMessages(readMessages(sessionId))
+    if (fromWindow !== null) return fromWindow
+    return sessionId !== undefined && intakeTierHint?.sessionId === String(sessionId)
+      ? intakeTierHint.tier
+      : null
+  }, [sessionId, readMessages, messages, reload, intakeTierHint])
   /** 重开确认框列的已有产物；零也照实显示。 */
   const restartArtifacts = useMemo(
     () => intakeArtifactsOf({ info, rules: rulesCount, tasks, proposals: proposals.length }),
