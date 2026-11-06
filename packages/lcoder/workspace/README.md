@@ -58,13 +58,14 @@ The package registers the shell main panel and, with `shell: false`, the older t
 
 Starting a conversation from a task card reuses the session that task already claims through `.spec/tasks/<ID>.yaml`'s `session` field. When none is live, the shell opens another session in the same repository, names the chosen role while creating it — the preset locks after the first turn — and claims the task for that session through the `/task_bind` human command, which the kernel writes. Roles come from `agentPresets.list`, limited to preset ids starting with `lcoder` — an upstream preset mounts none of this package's tools, so it could not read `.spec` at all; a refused or empty roster leaves the Host default role in play. The header's session bar lists this workspace's sessions, labels each with the task claiming it, and switches the active one.
 
-The floating conversation subscribes to the session event window and renders user/assistant text; the input sends another prompt to the same session. With no task on disk, the board's onboarding action fills and sends the analysis prompt instead of a per-task startup prompt. The package itself registers no model tool, prompt section, or schema.
+The floating conversation subscribes to the session event window and renders user/assistant text; the input sends another prompt to the same session. With no task on disk, the board's onboarding action fills in the intake or analysis prompt and sends it once; every later click only reopens the floating conversation. The decision reads the session's own record — a started turn, existing messages, or a prompt awaiting its first turn — so a reload or a reopened window does not send it again. The package itself registers no model tool, prompt section, or schema.
 
 | File | Responsibility |
 |---|---|
 | `src/client/index.ts` | Shell registration, file/prompt callbacks, and the `shell: false` tab |
 | `src/client/shell/Shell.tsx` | Project switch, task board, project-info drawer, task detail, and floating conversation |
 | `src/client/shell/shell-data.ts` | Shell types, the per-task startup prompt, the onboarding prompt, and session message extraction |
+| `src/client/onboarding.ts` | Send/open/block decision for the onboarding action, from session facts |
 | `src/client/shell/Shell.module.css` | Shell layout and overlay styles |
 | `src/client/projection.ts` | `.spec` tasks/rules, `project.yaml`, and `local.yaml` reads |
 | `src/client/definition.ts` | Tab kind, id, priority, and guide entry for the fallback mode |
