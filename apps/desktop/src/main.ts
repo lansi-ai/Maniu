@@ -1157,6 +1157,15 @@ async function main(): Promise<void> {
       const window = primaryWindow(event)
       return { maximized: window.isMaximized(), fullscreen: window.isFullScreen() }
     })
+    // lcoder: 等人类回答或等审批是会被忘掉的状态——窗口不在前台时闪任务栏。
+    // 计数由渲染端报（只有会话侧知道有几个在等），闪不闪的策略由这里定。
+    ipcMain.handle(DESKTOP_IPC.windowAttention, (event, awaiting: unknown) => {
+      const window = primaryWindow(event)
+      const count = typeof awaiting === 'number' && Number.isFinite(awaiting) && awaiting > 0
+        ? Math.floor(awaiting)
+        : 0
+      window.flashFrame(count > 0 && !window.isFocused())
+    })
     ipcMain.handle(DESKTOP_IPC.windowsMenu, (event, name: unknown, x: unknown, y: unknown) => {
       assertDesktopSender(event, ['app'])
       if (mainWindow === undefined || event.sender !== mainWindow.webContents

@@ -41,6 +41,7 @@ export const DESKTOP_IPC = {
   windowCommand: 'dsh-desktop:window-command',
   windowState: 'dsh-desktop:window-state',
   windowStateChanged: 'dsh-desktop:window-state-changed',
+  windowAttention: 'dsh-desktop:window-attention',
   windowsAppearance: 'dsh-desktop:windows-appearance',
   windowsMenu: 'dsh-desktop:windows-menu',
 } as const
@@ -62,6 +63,12 @@ export interface DesktopWindowBridge {
   state(): Promise<DesktopWindowState>
   /** Subscribe to maximize and fullscreen transitions; returns the unsubscribe function. */
   subscribe(listener: (state: DesktopWindowState) => void): () => void
+  /**
+   * Report how many sessions are waiting on a human (an approval or a question).
+   * The main process owns the attention policy: taskbar flash while the window is
+   * unfocused. Zero clears it.
+   */
+  attention(awaiting: number): Promise<void>
 }
 
 /** Desktop release update state rendered by desktop-owned UI. */

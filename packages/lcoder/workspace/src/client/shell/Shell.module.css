@@ -79,6 +79,7 @@
   --lc-status-danger-soft: rgba(215, 0, 21, 0.1);
   --lc-status-ok-soft: rgba(36, 138, 61, 0.12);
   --lc-run-accent: rgba(0, 113, 227, 0.32);
+  --lc-wait-accent: rgba(178, 80, 0, 0.28);
   --lc-run-ring-soft: rgba(0, 113, 227, 0.25);
   --lc-run-period: 2.4s;
   --lc-hover: rgba(0, 0, 0, 0.05);
@@ -157,6 +158,7 @@
   --lc-status-danger-soft: rgba(255, 69, 58, 0.16);
   --lc-status-ok-soft: rgba(48, 209, 88, 0.18);
   --lc-run-accent: rgba(10, 132, 255, 0.34);
+  --lc-wait-accent: rgba(255, 179, 64, 0.30);
   --lc-run-ring-soft: rgba(10, 132, 255, 0.27);
   --lc-hover: rgba(255, 255, 255, 0.07);
   --lc-backdrop: rgba(0, 0, 0, 0.55);
@@ -269,6 +271,9 @@
 .sessionChip { border: 1px solid var(--lc-line); background: var(--lc-surface-2); color: var(--lc-muted); border-radius: var(--lc-radius-pill); padding: 6px 12px; font-size: var(--lc-text-sm); white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
 .sessionChip:hover { border-color: var(--lc-brand-2); color: var(--lc-ink); }
 .sessionChipActive { background: var(--lc-brand-soft); border-color: var(--lc-brand); color: var(--lc-brand-ink); font-weight: 600; }
+.sessionWaitDot { display: inline-block; width: 7px; height: 7px; margin-right: 7px; border-radius: 50%; background: var(--lc-status-warn); vertical-align: middle; animation: lc-wait-pulse 1.8s ease-in-out infinite; }
+@keyframes lc-wait-pulse { 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) { .sessionWaitDot { animation: none; } }
 .sessionAdd { border: 1px dashed var(--lc-line-strong); background: transparent; color: var(--lc-muted); border-radius: var(--lc-radius-pill); width: 30px; height: 30px; line-height: 1; font-size: var(--lc-text-md); }
 .sessionAdd:hover { border-color: var(--lc-brand-2); color: var(--lc-ink); }
 .sessionAdd:disabled { opacity: .5; cursor: default; }
@@ -394,6 +399,36 @@
   mask-composite: exclude;
   pointer-events: none;
   animation: lc-run-sweep var(--lc-run-period) linear infinite;
+}
+/* 等人回答或等审批的卡片：同一套跑马灯几何，换成警示色。它比「在跑」更该被看见，
+   但不该更吵，所以透明度与在跑同档、只换色相。 */
+.taskCardAwaiting::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 2px;
+  background:
+    conic-gradient(
+      from var(--lc-run-angle),
+      transparent 0deg,
+      transparent 230deg,
+      var(--lc-wait-accent) 300deg,
+      transparent 360deg
+    ),
+    linear-gradient(var(--lc-status-warn-soft), var(--lc-status-warn-soft));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+  animation: lc-run-sweep var(--lc-run-period) linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .taskCardAwaiting::before {
+    animation: none;
+    background: var(--lc-wait-accent);
+  }
 }
 @property --lc-run-angle {
   syntax: "<angle>";

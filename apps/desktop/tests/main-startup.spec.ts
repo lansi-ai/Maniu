@@ -123,7 +123,9 @@ const harness = await vi.hoisted(async () => {
     readonly unmaximize = vi.fn(() => { this.maximized = false; this.emit('unmaximize') })
     visible = true
     isVisible() { return this.visible }
-    isFocused() { return true }
+    focused = true
+    isFocused() { return this.focused }
+    readonly flashFrame = vi.fn()
     async loadURL(url: string) {
       this.urls.push(url)
       this.webContents.mainFrame.url = url
@@ -942,6 +944,26 @@ describe('desktop main startup', () => {
     expect(window.destroyed).toBe(false)
     expect(() => command(event, 'explode')).toThrow('invalid command')
     expect(state(event)).toEqual({ maximized: false, fullscreen: false })
+  })
+
+  it('flashes the taskbar only while the window is unfocused and something waits on a human', async () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
+    await import('../src/main.ts')
+    await harness.preparing.promise
+    const window = harness.windows[0]!
+    const event = { sender: window.webContents, senderFrame: window.webContents.mainFrame }
+    const attention = harness.handlers.get(DESKTOP_IPC.windowAttention)!
+
+    attention(event, 2)
+    expect(window.flashFrame).toHaveBeenLastCalledWith(false)
+    window.focused = false
+    attention(event, 2)
+    expect(window.flashFrame).toHaveBeenLastCalledWith(true)
+    attention(event, 0)
+    expect(window.flashFrame).toHaveBeenLastCalledWith(false)
+    attention(event, '3')
+    expect(window.flashFrame).toHaveBeenLastCalledWith(false)
+    expect(() => attention({ ...event, sender: {} }, 1)).toThrow('rejected sender')
   })
 
   it('opens the project directory picker with openDirectory only', async () => {

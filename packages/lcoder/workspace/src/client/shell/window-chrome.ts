@@ -23,6 +23,12 @@ export interface DesktopWindowBridge {
   state(): Promise<DesktopWindowState>
   /** Subscribe to maximize and fullscreen transitions. */
   subscribe(listener: (state: DesktopWindowState) => void): () => void
+  /**
+   * 报给宿主「现在有几条会话在等人」。闪不闪任务栏由主进程定，
+   * 因为只有渲染端知道等待数，也只有主进程知道窗口有没有焦点。
+   * 旧版 preload 没有这一条，所以可选。
+   */
+  attention?(awaiting: number): Promise<void>
 }
 
 /**

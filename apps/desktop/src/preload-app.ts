@@ -67,6 +67,7 @@ function createProductApi(): DshDesktopProductApi {
       window: {
         command: (command: DesktopWindowCommand) => ipcRenderer.invoke(DESKTOP_IPC.windowCommand, command) as Promise<void>,
         state: () => ipcRenderer.invoke(DESKTOP_IPC.windowState) as Promise<DesktopWindowState>,
+        attention: (awaiting: number) => ipcRenderer.invoke(DESKTOP_IPC.windowAttention, awaiting) as Promise<void>,
         subscribe(listener: (state: DesktopWindowState) => void): () => void {
           const handle = (_event: Electron.IpcRendererEvent, state: DesktopWindowState): void => { listener(state) }
           ipcRenderer.on(DESKTOP_IPC.windowStateChanged, handle)

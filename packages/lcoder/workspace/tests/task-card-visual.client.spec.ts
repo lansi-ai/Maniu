@@ -11,10 +11,11 @@ const STATUSES: readonly TaskCardStatus[] = [
   'failed',
 ]
 
-it('applies the moving outline class to the running card only', () => {
+it('only the two statuses that need a human get an outline, and they get different ones', () => {
   for (const status of STATUSES) {
     const className = runningCardClass(status)
-    if (status === 'running') expect(className, status).toBeTruthy()
+    if (status === 'running' || status === 'awaitingInteraction') expect(className, status).toBeTruthy()
     else expect(className, status).toBeUndefined()
   }
+  expect(runningCardClass('running')).not.toBe(runningCardClass('awaitingInteraction'))
 })

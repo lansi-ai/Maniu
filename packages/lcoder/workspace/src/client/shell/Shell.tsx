@@ -459,6 +459,28 @@ export function Shell({
   /** 判据下的可见任务；筛选入口上的计数就是它。 */
   const visibleTasks = filterTasks(tasks, filter, statusOfTask)
 
+  /**
+   * 本工作区里有几条会话在等人（审批或提问）。
+   *
+   * 只看宿主推流的全局 seat，不物化会话、不开历史——等待这件事恰恰发生在你不看那条会话的时候。
+   */
+  const awaitingCount = useMemo(() => {
+    let count = 0
+    for (const id of Object.keys(sessionRows) as SessionId[]) {
+      if (sessionStatus.get(id)?.pendingInteraction !== undefined) count += 1
+    }
+    return count
+  }, [sessionRows, sessionStatus])
+
+  /** 等待计数一变就报给宿主；卸载时归零，免得留下一个不会停的闪烁。 */
+  useEffect(() => {
+    const bridge = windowBridge
+    if (bridge === undefined || bridge.attention === undefined) return
+    void bridge.attention(awaitingCount).catch(() => {})
+    return () => { void bridge.attention?.(0).catch(() => {}) }
+  }, [awaitingCount, windowBridge])
+
+
   const openTask = (task: ShellTask): void => {
     setDetail(task)
     setPrompt(buildShellPrompt({ name: projectName, path: projectPath, branch: projectBranch }, task))
@@ -821,6 +843,7 @@ export function Shell({
             {workspaceSessions.map((id, index) => {
               const bound = tasks.find(task => task.session !== undefined && task.session === String(id))
               const placeholder = `${t('shell.sessions')} ${String(index + 1)}`
+              const awaiting = sessionStatus.get(id)?.pendingInteraction !== undefined
               return (
                 <button
                   type="button"
@@ -829,6 +852,7 @@ export function Shell({
                   title={bound === undefined ? String(id) : `${bound.id} · ${bound.title}`}
                   onClick={() => { openSession(id, index) }}
                 >
+                  {awaiting ? <span className={css.sessionWaitDot} aria-hidden="true" /> : null}
                   {bound?.title ?? placeholder}
                 </button>
               )
