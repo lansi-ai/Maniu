@@ -702,6 +702,17 @@ tracks:
       dep: [T-62]
       inferred: false
       note: "B 级；用户 2026-11-06 要求「给用户选择的时候需要弹出选择框，而不是让用户自己输入」。核过事实：提问工具 ask_user_question 由 tool-ask-user 注册，它只挂在 sdk-app bundle、桌面 profile 没挂；而上游的 ui-user-questions 界面与外壳自己的 QuestionCard 都在（T-33 已能用 answerBatch 回答带选项的提问），所以缺的只是这个工具本身。落点三处。一、装配源给七个 preset 各插一行 ask-user（@deepseek-ai/dsh-tool-ask-user，默认 legacy 模式，阻塞到人选完；不启用 120 秒自动继续的 timed 变体）。二、两档立项咒语加提问口径：每个问题都用 ask_user_question 弹出 2 到 4 个具体选项并保留「其他（我自己说）」；需要取舍（技术栈、范围、优先级）也走选择框；用户选不知道或其他时把方案做成选项。三、已有资料档里确认文档位置时，用 file_list 实际列出的候选做选项，不让人手打路径。主 home 的运行副本已按装配源重拷（七 preset 各一行）。这里记一条形状事实：kernel 的工具面掩码是逐工具 when，不是全局白名单，所以上游工具不在掩码里也不受影响——这也是历史上 working_directory 可见的原因（T-11 的已知缺口）。门禁：typecheck 5 关绿；vitest packages/lcoder 38 文件 395 用例；oxlint 0 错 0 警；verify-client-ui-i18n 1275 文件合格；test:docs 21 关绿；workspace bundle 重打。未验：桌面真窗口里触发一次选择框——需要重启实例让 preset 重新装载，legacy 模式是阻塞的，选项与「其他」的渲染要实测。"
+    - id: T-64
+      title: 应用图标换成牛头标，托盘用裁头版保证小尺寸可读
+      status: done
+      face: 用户端
+      type: 变更
+      owner: lance
+      created: '2026-11-06'
+      date: '2026-11-06'
+      dep: [T-39]
+      inferred: false
+      note: "C 级（美术替换，不改行为）。用户 2026-11-06 给了牛头标（黑牛头、白衬衫、红领带、浅底）要求替代现有图标。落点：三张 PNG（icon.png 1104 画布图块在 40 32、icon-windows.png 1024、icon-macos.png 缩放 0.8046875 居中）都用 sharp 加 192 圆角蒙版；三个 SVG 改成内嵌 512 位图的外壳（icon.svg 保持 1104 画布与 translate(40 32) 常量，icon-windows.svg 保留 id 为 tray-glyph 的组，托盘管线才能继续注入 1.2 倍放大）；托盘单独用牛头裁切版加浅底，因为整图在 16px 下只会是一个黑块。源图与裁头版留在 lcoder/assets/brand 下备查。上游三张 SVG 与托盘 ICO 都在既有接触面清单里，登记不变。门禁：tray-icon 与 installer-packaging 两个 spec 九例全绿；ICO 由 render:tray-icon 管线重出，含 16 到 64 七档。未验：Windows 图标缓存——换图后任务栏与 Alt-Tab 可能仍显示旧图，需重启实例或注销后刷新。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
