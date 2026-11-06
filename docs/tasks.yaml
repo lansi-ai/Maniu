@@ -836,7 +836,7 @@ tracks:
       note: "A 级（新架构 + 外部服务 + 账号与额度契约）。用户 2026-11-06 提出云端用户管理与免费模型网关：注册、登录（手机号验证码与账号密码）、免登录仅可用立项分析、免费 token 端点后台路由到 opencode 免费模型、每用户约 20 美元 DeepSeek Flash。已拍板六件事：云端独立仓 lansi-ai/LCoder-cloud（本地 E:\\Projects\\LCoder-cloud，先本地建仓，不建远端不 push）；后端 .NET + Postgres；手机号为唯一账号，验证码登录加手机号密码登录；匿名按设备每天 1 次立项分析；首期四块全做（账号后端、免费网关与额度、客户端登录与门禁、运营后台）；后台前端 React 加 TDesign；opencode 已有账号与 key，部署时用环境变量注入，不在对话里填值。现状核实三条：本仓没有服务端；模型服务设置已支持自定义 OpenAI 兼容路由（协议、模型、BaseURL、Key），网关接入不需要改上游；opencode 已是内置 provider id。第一期只出设计包，不写业务代码：ADR、OpenAPI、Postgres DDL、威胁模型、额度模型、匿名策略、客户端接入契约与路线图，设计经用户签后才开实现。落点新仓 docs 与 db，设计线不改本仓源码与台账，本仓只读参考。门禁：YAML 可解析、OpenAPI 尽量用校验器、DDL 尽量在真实 Postgres 验证，未验项如实写。2026-11-06 收口。设计线在 E:\\Projects\\LCoder-cloud 本地仓完成并四次提交（契约分片与合并脚本、设计补齐、桌面兼容字段与 SSE、决策落定），未建远端未 push。监督窗口独立复验：构建幂等、validate-contracts.py 304/304（25 端点、26 操作、51 schema、12 表、错误码与匿名额度字段齐全）、生成物强制 LF；dotnet 10.0.401 与 Postgres 16.14 已装。用户签核并拍板三项：短信首期测试通道、正式单价按 opencode 实际账单、首期只代理 deepseek-flash；首期不做支付。未验：DDL 未在真实库执行（本机 Postgres 需密码，Docker 守护进程未起，临时集群缺 dict_snowball 起不来）；真实短信、opencode 上游限流与条款、部署环境。下一步 A2 账号后端，数据库路径待定。"
     - id: T-76
       title: 桌面登录与匿名门禁——接通云端账号、令牌刷新与立项后阻断
-      status: todo
+      status: doing
       face: 用户端
       type: 开发
       owner: lance
