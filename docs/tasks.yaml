@@ -845,6 +845,72 @@ tracks:
       dep: [T-75]
       inferred: false
       note: "A 级（新增账号接入与全局门禁，不改上游）。云端设计已签核在独立仓 LCoder-cloud，接入契约见该仓 docs/client-integration.md 与 docs/api/openapi.yaml。桌面端要新增 lcoder-cloud provider 路由与登录/令牌模块：访问令牌 15 分钟 JWT 作为 provider 凭据，刷新令牌 30 天轮换存本机凭据存储，单飞刷新并原子落盘；匿名用户可用立项分析，立项之后的新会话、任务对话、契约签署、方案批准、流程批量开工与模型服务配置一律弹登录。本轮先用本地 mock 云端（lcoder/scripts 下 dev-only 脚本，不打包）跑通界面、门禁、令牌刷新与错误码映射，真实联调等 A3。实现线放 worktree .worktrees/t76-login-gate，分支 lcoder/t76-login-gate，桌面端口 9479 主进程、9472 渲染、9480 宿主，mock 服务端口 5091；不改主检出与其它工作树，不改台账与看板，不 push。验收看桌面真窗口：匿名立项可用；点新会话弹登录；验证码与密码两种登录；登录后沿用上下文；刷新令牌轮换与 401 重试；额度耗尽、封禁、离线三种提示；深浅主题各一次；合成点击如实标注。门禁 typecheck client、vitest packages/lcoder、oxlint、workspace bundle、test:docs、i18n。2026-11-06 收口。实现线在 worktree .worktrees/t76-login-gate 分支 lcoder/t76-login-gate 上三次提交（宿主云端面、登录界面与匿名门禁、装配与 dev mock），未 push。交付 @lcoder/kernel/cloud（HTTP 客户端、JWT 解码、单飞刷新与原子轮换、401 单次重试、匿名领取、设备指纹、Typert Remote）、workspace 登录与账号弹窗及错误码映射、门禁（立项后的新会话、任务对话、签署、批准、批量开工、模型服务、常驻会话）、lcoder-cloud 与 lcoder-cloud-guest 两条 provider 路由、dev-only mock-cloud 5091。监督窗口独立复跑：tsc 0、vitest packages/lcoder 53 文件 547 例全过、oxlint 25 文件 0 错 0 警、workspace bundle 成功、test:docs 21、i18n 1287 文件；主检出与云端仓干净；pnpm-lock 变更为接触面清单内文件。桌面证据：PID 9832 主进程、15448 宿主、50996 mock，端口 9472、9479、9480、5091，十张截图覆盖匿名立项、＋弹登录、验证码与密码登录、登录后沿用上下文、401 刷新重试、额度耗尽、封禁、离线与深色。未验：真实云端与真实短信、真实 BaseURL、30 天刷新生命周期与多账号隔离；签署、批准、批量开工与模型服务门禁只有代码与单测，未在真窗口逐个点击；匿名次数耗尽 UI 未单独截图。合成点击按本仓口径只算链路探测。"
+    - id: T-77
+      title: 桌面品牌身份、自动更新与 macOS 支持——设计包与契约
+      status: doing
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-06'
+      date: '2026-11-06'
+      dep: [T-76]
+      inferred: false
+      note: "A 级。用户 2026-11-06 提出增加 LCoder 版本更新与 macOS 端。现状核实：上游桌面端已有 electron-updater、nightly 与 latest 通道、macOS arm64 与 x64 打包/公证/上传脚本与 macOS CI；但产品身份写死 DeepSeek Harness，更新源固定 download.deepseek.com，COS 路径与上传环境变量也属于上游口径。已拍板：更新源用腾讯云 COS 加 CDN；两端签名证书都没有，首期 unsigned 内测，正式签名后置；macOS 首期 arm64 加 x64；品牌改为 LCoder 身份（productName、appId、协议、图标）；启动自动检查加设置页手动检查；用户有 Mac 机器；更新链路与 macOS 两条并行。设计要产出：身份与 contact-surface 清单、更新源与 COS/CDN 路径、版本通道、app-update.yml 与 env 命名、LCoder shell 更新入口与状态机、macOS 适配矩阵（原生窗口、菜单、托盘、快捷键、路径、/bin/sh、profile documentsDirectory、协议与 Dock）、unsigned 内测限制、发布与回滚、PROJECT-RULES 与 prd-and-design 双源改为 Windows 加 macOS，以及 T-78 到 T-82 的验收。"
+    - id: T-78
+      title: LCoder 身份与更新源接入——品牌、appId、协议与 COS feed
+      status: todo
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-06'
+      date: '2026-11-06'
+      dep: [T-77]
+      inferred: false
+      note: "A 级。实施 T-77 的身份与更新源：productName、appId、lcoder 协议、图标与安装器身份；LCoder 更新 feed 的 generic provider 与 env；腾讯云 COS 路径；接触面逐文件登记。Windows 先跑通，macOS 由 T-80 验证；未签名内测限制如实记录。"
+    - id: T-79
+      title: LCoder 更新界面——启动自动检查与设置页手动检查
+      status: todo
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-06'
+      date: '2026-11-06'
+      dep: [T-77]
+      inferred: false
+      note: "B 级。复用上游 DesktopUpdateCoordinator 桥，在 LCoder 壳里做版本号、检查、下载进度、待重启、错误与离线提示；启动延迟自动检查加设置页手动检查；不静默安装。"
+    - id: T-80
+      title: macOS 适配与 unsigned 打包——arm64 与 x64
+      status: todo
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-06'
+      date: '2026-11-06'
+      dep: [T-77]
+      inferred: false
+      note: "A 级。在用户的 Mac 上构建 unsigned DMG/ZIP，arm64 与 x64 各一；原生窗口 chrome、菜单、托盘、快捷键、协议与 Dock；profile 的 documentsDirectory 平台化；路径与 /bin/sh 适配；输出 macOS 验收清单与运行手册。unsigned 受 Gatekeeper 限制，不作为正式分发。"
+    - id: T-81
+      title: COS 与 CDN 发布回滚流水线
+      status: todo
+      face: 工程
+      type: 流程
+      owner: lance
+      created: '2026-11-06'
+      date: '2026-11-06'
+      dep: [T-78]
+      inferred: false
+      note: "A 级。把上游 upload 脚本适配到 LCoder 桶、路径、域名与 feeds latest/nightly；含 blockmap、缓存与 CDN 刷新、回滚、dry-run 与单测；真实上传等凭据就绪后验收。"
+    - id: T-82
+      title: Windows 与 macOS 正式签名与公证
+      status: todo
+      face: 工程
+      type: 流程
+      owner: lance
+      created: '2026-11-06'
+      date: '2026-11-06'
+      dep: [T-80, T-81]
+      inferred: false
+      note: "A 级，证书阻塞。Windows 代码签名证书与 Apple Developer ID 均未就绪；首期只做 unsigned 内测，签名与公证在本任务补，未完成前不得对外承诺可分发或自动更新可靠。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
