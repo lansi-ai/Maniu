@@ -146,17 +146,41 @@ export function messagesFromEntries(entries: readonly SessionEventLikeEntry[]): 
   const results = toolResultsOf(entries)
   const out: ShellMessage[] = []
   let turn: { readonly number: number; readonly items: ShellProcessItem[]; readonly answers: string[] } | null = null
+  /** 流式增量：durable 的 assistant/message 到达前，正文与思考先在这里累积。 */
+  let streaming: { turn: number; text: string; reasoning: string } | null = null
 
   const flushTurn = (): void => {
     if (turn === null) return
+    const sameTurn = streaming !== null && streaming.turn === turn.number ? streaming : null
+    if (sameTurn !== null && sameTurn.reasoning.trim() !== ''
+      && !turn.items.some(item => item.kind === 'reasoning')) {
+      turn.items.unshift({ kind: 'reasoning', text: sameTurn.reasoning })
+    }
     if (turn.items.length > 0) out.push({ role: 'process', items: turn.items })
-    const text = turn.answers.join('\n\n').trim()
+    const durable = turn.answers.join('\n\n').trim()
+    // durable 正文优先；还没收到时先用流式累积，回合结束前也能看到字在长。
+    const text = durable !== '' ? durable : (sameTurn === null ? '' : sameTurn.text.trim())
     if (text !== '') out.push({ role: 'assistant', text })
     turn = null
+    streaming = null
   }
 
   for (const entry of entries) {
-    if (entry.type !== 'event') continue
+    // 流式帧是客户端瞬态行，不在 durable 序列里；跳过它就等于等最终消息一次性出现。
+    if (entry.type === 'transient') {
+      const chunk = entry.event.data.chunk
+      if (chunk.type === 'text-delta' || chunk.type === 'reasoning-delta') {
+        const stream = entry.event.data
+        if (streaming === null || streaming.turn !== stream.turn) {
+          flushTurn()
+          streaming = { turn: stream.turn, text: '', reasoning: '' }
+          turn = { number: stream.turn, items: [], answers: [] }
+        }
+        if (chunk.type === 'text-delta') streaming.text += chunk.text
+        else streaming.reasoning += chunk.text
+      }
+      continue
+    }
     const event = entry.event
     if (event.type === 'user/message') {
       flushTurn()
@@ -173,6 +197,8 @@ export function messagesFromEntries(entries: readonly SessionEventLikeEntry[]): 
       const data = event.data
       if (turn !== null && turn.number !== data.turn) flushTurn()
       turn ??= { number: data.turn, items: [], answers: [] }
+      // 最终消息到了就以它为准，之后同回合的流式增量不再叠加。
+      streaming = null
       collectBlocks(data.message.content, results, turn.items, turn.answers)
     } else if (event.type === 'turn/end') {
       flushTurn()

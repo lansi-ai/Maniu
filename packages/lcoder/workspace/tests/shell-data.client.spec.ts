@@ -7,7 +7,7 @@
 import { describe, expect, it } from 'vitest'
 import { createAssistantMessage, createDeveloperMessage, createMessage, createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
-import { ToolCallId } from '@deepseek-ai/dsh-llm/brand'
+import { LlmAttemptId, ToolCallId } from '@deepseek-ai/dsh-llm/brand'
 import { SessionSeq } from '@deepseek-ai/dsh-session/types'
 import type { SessionEventLikeEntry } from '@deepseek-ai/dsh-api-session-controller/client'
 import { CompactionId } from '@deepseek-ai/dsh-compaction'
@@ -354,5 +354,46 @@ describe('会话消息投影', () => {
       developerEntry(1, ''),
       assistantEntry(2, []),
     ])).toEqual([])
+  })
+})
+
+/** 一条客户端瞬态流式帧：不在 durable 序列里，跳过它就会等最终消息一次性出现。 */
+function liveChunk(seq: number, text: string, kind: 'text-delta' | 'reasoning-delta' = 'text-delta'): SessionEventLikeEntry {
+  return {
+    type: 'transient',
+    event: {
+      type: 'assistant/live-chunk',
+      seq,
+      time: 1,
+      data: {
+        attemptId: LlmAttemptId('attempt-1'),
+        turn: 1,
+        step: 1,
+        chunk: { type: kind, index: 0, text },
+      },
+    },
+  }
+}
+
+describe('流式增量', () => {
+  it('最终消息到达前就把增量拼成一条答复', () => {
+    const messages = messagesFromEntries([liveChunk(1, '你'), liveChunk(2, '好')])
+    expect(messages).toEqual([{ role: 'assistant', text: '你好' }])
+  })
+
+  it('最终消息到达后以 durable 为准，不再重复叠加', () => {
+    const messages = messagesFromEntries([
+      liveChunk(1, '半句'),
+      assistantEntry(10, [{ type: 'text', text: '整段答复' }]),
+      turnEndEntry(11),
+    ])
+    const assistant = messages.filter(message => message.role === 'assistant')
+    expect(assistant).toEqual([{ role: 'assistant', text: '整段答复' }])
+  })
+
+  it('思考增量进过程段，正文另起一条', () => {
+    const messages = messagesFromEntries([liveChunk(1, '想一下', 'reasoning-delta'), liveChunk(2, '答案')])
+    expect(messages[0]).toMatchObject({ role: 'process', items: [{ kind: 'reasoning', text: '想一下' }] })
+    expect(messages[1]).toEqual({ role: 'assistant', text: '答案' })
   })
 })

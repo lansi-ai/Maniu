@@ -768,6 +768,17 @@ tracks:
       dep: [T-68]
       inferred: false
       note: "C 级。用户问「每次构建都要连上游吗」，答案是要（整仓聚合，冷启 108 秒、热启约 30 秒），但日常只需重建改动层。脚本 lcoder/scripts/rebuild.ps1 加纯 ASCII 的 cmd 包装，参数支持 auto（默认，按 mtime 自动判断 kernel、workspace、desktop 三层与装配副本哪一层过期）、显式层名、all（全量 pnpm run build，含 build:check）与 -DryRun。每层的命令与生效方式写在表里：kernel 走 pnpm --filter @lcoder/kernel run bundle（约 1 秒，要重启）、workspace 走 @lcoder/workspace bundle（不到 1 秒，刷新即生效）、desktop 走 @deepseek-ai/dsh-desktop build（要重启）、profile 重拷运行副本并自动带上本机本地段、数 preset。实测：auto 在无变化时报三层都最新；touch kernel 源文件后 auto 命中 kernel 并用 1 秒重建；workspace 1 秒；profile 重拷后 preset 数为九；-DryRun 只报告不动手。落地踩坑一条：循环变量写成 $layer 会与带 ValidateSet 的参数 $Layer 撞名（PowerShell 变量名大小写不敏感），赋值 Hashtable 直接报 ValidateSetFailure，改名 $target。产物是否过期只看 mtime，不看内容哈希——只改时间不改内容会误判成过期，这是刻意的取舍：宁可多重建一秒，也不想为哈希多扫一遍树。"
+    - id: T-70
+      title: 对话输出改为流式、贴底自动跟随、滚动条平时隐形
+      status: done
+      face: 用户端
+      type: 缺陷
+      owner: lance
+      created: '2026-11-06'
+      date: '2026-11-06'
+      dep: [T-33]
+      inferred: false
+      note: "B 级。用户 2026-11-06 报三条：输出不自动滚到底、滚动条常驻、输出不是一个字一个字出来而是一次性出现。第一条与第三条根因都在折叠函数：messagesFromEntries 只认 durable 的 assistant/message，客户端瞬态的 assistant/live-chunk（entry.type 是 transient，data.chunk 是 text-delta 或 reasoning-delta）被 entry.type 不等于 event 的分支直接跳过，所以只在最终消息到达时出字；滚动容器 .chatBody 也没有任何跟随逻辑，滚动条用浏览器默认样式。修法三处。一、折叠函数处理瞬态帧：正文增量累积成一条答复、思考增量并进过程段，durable 消息到达后立刻以 durable 为准并清空流式缓冲，避免重复叠加；回合结束前也能看到字在长。二、对话滚动容器加 ref 与效果，只在用户本来就贴着底部（80px 以内）时跟随，向上翻历史时不抢滚动位置。三、滚动条改为常驻 8px 宽度但拇指透明，悬停才显出来——宽度不变可以避免悬停时布局跳动。测试补三条：只有流式帧时拼成一条答复、durable 到达后不重复叠加、思考增量进过程段。门禁：vitest packages/lcoder 50 文件 519 用例、tsc -b tsconfig.client.json 退出 0、oxlint 0 错、i18n 1280 文件、workspace bundle 重打且产物里能查到流式与滚动代码。未验：真窗口一整轮流式输出与自动跟随需要钥匙，本轮只验证了折叠单测与产物；滚动条与跟随需用户手点确认。"
 
 milestones:
 - name: MVP-0 工作台本地跑通

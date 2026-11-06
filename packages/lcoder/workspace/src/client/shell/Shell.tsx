@@ -390,6 +390,8 @@ export function Shell({
   const projectDirectory = useMemo(() => projectDirectoryPicker(), [])
   const [repoError, setRepoError] = useState<string | null>(null)
   const [messages, setMessages] = useState<readonly ShellMessage[]>([])
+  /** 对话滚动容器：输出在长，跟随到底部要用它。 */
+  const chatBodyRef = useRef<HTMLDivElement | null>(null)
   const [notice, setNotice] = useState<ShellSessionNotice | null>(null)
   /** null 表示还没查过；`empty` 才是「没有能跑的模型」，`unknown` 是查询本身失败。 */
   const [modelStatus, setModelStatus] = useState<ModelStatus | null>(null)
@@ -873,6 +875,17 @@ export function Shell({
       release?.()
     }
   }, [chat, chatSessionId, readMessages, subscribeSession, readSessionNotice, holdSession, readContextPressure])
+
+  /**
+   * 输出跟随：只在你本来就贴着底部时自动滚，向上翻历史时不要抢。
+   * 阈值 80px 留一点余量——严格等于 0 时，一像素的布局误差就会让跟随失效。
+   */
+  useEffect(() => {
+    const node = chatBodyRef.current
+    if (node === null) return
+    const nearBottom = node.scrollHeight - node.scrollTop - node.clientHeight < 80
+    if (nearBottom) node.scrollTop = node.scrollHeight
+  }, [messages, chatRunning, chat])
 
   /** 本会话还没记选择时，chip 用目录默认值并注明；目录读不到就退回占位。 */
   useEffect(() => {
@@ -2744,7 +2757,7 @@ export function Shell({
                   ✕
                 </button>
               </div>
-              <div className={css.chatBody}>
+              <div className={css.chatBody} ref={chatBodyRef}>
                 <ChatTranscript messages={messages} running={chatRunning} t={t} />
                 {chatError === null ? null : <p className={css.problem}>{chatError}</p>}
                 {notice === null ? null : <p className={css.problem}>{`${t(notice.key)} ${notice.detail}`}</p>}

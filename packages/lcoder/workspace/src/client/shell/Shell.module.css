@@ -555,6 +555,12 @@
 .chatHead h4 { margin: 0; font: 600 15px / var(--lc-leading-tight) var(--lc-font-display); letter-spacing: var(--lc-tracking-tight); }
 .chatHead p { margin: 0; font-size: var(--lc-text-xs); color: var(--lc-muted); }
 .chatBody { flex: 1; min-height: 0; overflow: auto; padding: 18px; display: flex; flex-direction: column; gap: var(--lc-space-3); }
+/* 滚动条平时隐形，悬停才浮出来：常驻可见的滚动条会在对话里一直抢注意力。 */
+.chatBody::-webkit-scrollbar { width: 8px; height: 8px; }
+.chatBody::-webkit-scrollbar-track { background: transparent; }
+.chatBody::-webkit-scrollbar-thumb { background: transparent; border-radius: var(--lc-radius-pill); }
+.chatBody:hover::-webkit-scrollbar-thumb { background: var(--lc-line-strong); }
+.chatBody:hover::-webkit-scrollbar-thumb:hover { background: var(--lc-muted); }
 .msg { max-width: 88%; border-radius: 14px; padding: 11px 14px; font-size: 13.5px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
 .msgSys { align-self: flex-start; background: var(--lc-surface-2); border: 1px solid var(--lc-line); }
 .msgUser { align-self: flex-end; background: var(--lc-brand); color: #fff; }
