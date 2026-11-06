@@ -533,6 +533,17 @@ tracks:
       dep: [T-24]
       inferred: false
       note: "B 级（显示层加一处描边与一个圆点，另开一条渲染端到主进程的单向通道；动的是四个已登记的上游文件）。用户 2026-11-05 明确要提示，无论是等用户做选择题还是等用户操作电脑。先核现状：卡片有「等你回答」这个态但没有动效——跑马灯描边原先只给 running；顶栏会话条只分当前与非当前；真正的操作卡 PendingInteractionCard 只在打开那条会话的浮层里出现；窗口关了没有任何东西叫人，桌面端只有强制更新那条路用 flashFrame 与系统通知。落点三处。一、task-card-visual.ts 把描边扩到 awaitingInteraction，新增 .taskCardAwaiting 复用同一套 conic 跑马灯几何、只换色相为警示色，深浅两套各一个 --lc-wait-accent，透明度与在跑同档（比在跑更该被看见但不更吵），prefers-reduced-motion 下退化成静态描边。二、顶栏会话条给在等的会话加一枚脉冲圆点，aria-hidden，文案复用既有的 shell.taskAwaiting，不新增词典键。三、渲染端把「本工作区有几条会话在等人」报给主进程：ipc.ts 加 windowAttention 通道、preload-app.ts 在窗口桥上暴露 attention(awaiting)、main.ts 的处理器沿用窗口命令那一条的 sender 校验，并按自己的焦点状态决定 flashFrame——窗口有焦点就不打扰，失焦且计数大于零才闪，非数字与负数按零处理；外壳在计数变化时上报、卸载时归零。策略放主进程的理由要说清：只有渲染端知道等待数，只有主进程知道窗口有没有焦点，把焦点判断搬到渲染端就要多一条订阅与一次状态镜像，违反客户端的三条数据通道规矩。计数只读宿主推流的全局 seat，不物化会话也不开历史——等待恰恰发生在你不看那条会话的时候。两件没做的：托盘 tooltip 与系统通知本轮不加计数，前者要新增八种语言的文案、后者会被 Windows 专注助手吞掉，任务栏闪烁不需要文案且够用；tool-ask-user 的定时变体仍不挂进桌面 profile，所以等待只有审批与提问两类，不会超时自行放行。门禁：typecheck 5 关绿；vitest packages/lcoder 35 文件 346 用例，task-card-visual 的断言改成「两种需要人的态都有描边且类名互不相同」；apps/desktop 的 main-startup 154 用例，新增一条覆盖有焦点不闪、失焦且有等待才闪、归零与非数字回落、sender 不对就抛；oxlint 82 文件 0 错 0 警；verify-client-ui-i18n 1273 个源文件合格；workspace bundle 重打且产物里查得到新类名。未验：桌面端手点两条——让 agent 跑一条 exec 为 ai-confirm 的命令后把窗口最小化或切走，看任务栏是否闪；以及看板上看等待中的卡片有没有警示色跑马灯、会话条有没有圆点。"
+    - id: T-49
+      title: 立项分析按钮幂等——首次发咒语，此后只开浮层
+      status: done
+      face: 用户端
+      type: 缺陷
+      owner: lance
+      created: '2026-11-06'
+      date: '2026-11-06'
+      dep: [T-23]
+      inferred: false
+      note: "B 级（一个组件入口、一个纯判定与新 spec，不改契约与文件格式）。用户 2026-11-06 报点「立项分析」每次都重发默认提示词，期望只有第一次发。根因是 Shell.tsx 的 startOnboarding 无条件 sendPrompt，而按钮在任务为零期间一直在，每点一次就多一个模型回合。落点三处。新增 client/onboarding.ts 的 onboardingAction 纯函数，输入取会话事实——会话行 blank 是否已落、事件窗口里用户消息条数、首条提示是否正等首个回合，另加本窗口在发的 ref——输出 send、open、block（缺会话或缺模型）；Shell.tsx 只调用它，先开浮层再按判定决定发不发；新增 tests/onboarding.client.spec.ts 九例。判据不读浮层开关、不写 localStorage，所以关掉浮层、刷新页面、整窗重启后再点都只开浮层。取舍一条，判据按当前会话而不是整个工作区，因为按钮只向当前工作区的这条会话发送，换一条新会话等于换一场对话。README 中英两本同步改并重录 pairing，PITFALLS 补 W-14（新 worktree 的 electron 没有二进制）。门禁：typecheck 5 passed 与 0 failed（138.71 秒）；vitest packages/lcoder 36 文件 355 用例；oxlint 84 文件 0 错 0 警；test:docs 21 passed；workspace bundle 重建（client.js 509.22 kB）；build:artifacts 8 passed。桌面实测在本 worktree 自己的 home（端口 main 9369、renderer 9362、host 9370，靶仓 E:/Projects/LCoder-t49-demo 空目录）。空库首点立项分析，会话日志 userPrompts 由 0 变 1 并开浮层；浮层开着时再调同一条处理函数，计数仍 1；关掉浮层再点，计数仍 1 且浮层重开；Page.reload 后再点，计数仍 1；整窗重启（start 免构建）后再点，计数仍 1。取证按 PITFALLS W-11 逐帧解 zstd，日志里的 user/message 有一条是 runtime-context，只数 source.kind 为 user 的那条。未验两条。一、验收输入是 CDP 派发的真实鼠标事件（Input.dispatchMouseEvent），不是人手物理点击；浮层开着那一下用的是 DOM click，只算链路探测。二、模型回合的答复与落盘没验，该回合只读到 file_list 工具结果，靶仓仍为空，是否属钥匙或网络问题未查。"
 
 milestones:
 - name: MVP-0 工作台本地跑通

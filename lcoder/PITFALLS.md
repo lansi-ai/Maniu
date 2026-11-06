@@ -92,3 +92,10 @@
 - **原因**：`start-desktop.ps1` 开头有**两个** UTF-8 BOM（字节 `ef bb bf ef bb bf`）。PowerShell 5.1 只剥掉第一个，剩下的 U+FEFF 粘在首行 `#` 前面，于是那条注释被当成命令 `?#` 执行；而 `param(...)` 必须是最靠前的语句，首行一坏它就不再被当成参数块，整块被当函数调用执行，`[int]$ReadyTimeoutSec = 300` 里的 `300` 作为位置参数去绑 `[switch]$KeepRunning`——那条类型转换错误就是这么来的。另一个叠加因素是 `.cmd` 包原本是 LF + 中文 `rem`，`chcp 65001` 下 cmd.exe 会把中文行读成乱码行去执行。
 - **处理**：ps1 只留一个 BOM（读字节、循环剥到只剩一个再写回）；`.cmd` 包改成**纯 ASCII + CRLF**，中文文档只留在 ps1 头部，并加 `exit /b %ERRORLEVEL%` 透传退出码。实测 `start-desktop.cmd -ListOnly` 输出「没有正在运行的 LCoder 桌面实例。」、退出码 0。
 - **预防**：写带 BOM 的文件前先读字节判断，写盘工具可能给已有 BOM 的文件**再加一个**。一行判据：`head -c 6 file | od -An -tx1`，出现两次 `ef bb bf` 就是双 BOM。cmd 包装层一律不写中文、不用 LF。见到「注释行被当命令」或「300 绑不进 switch」这类怪错，先查 BOM 再查语法。
+
+## W-14 新 worktree 的 electron 包没有二进制，桌面实例要么失败要么联网重下
+
+- **现象**：新 worktree 跑完 `pnpm install`（含 `--force`）后，`node_modules/.pnpm/electron@44.7.0_*/node_modules/electron/` 里只有 `package.json`、`index.js` 这类源码文件，没有 `dist/` 与 `path.txt`。
+- **原因**：pnpm 未批准 electron 的 install 脚本（与 W-06 第四层同一件事），`pnpm install` 不会替它跑 postinstall。`index.js` 的 `getElectronPath()` 读不到 `path.txt` 时会调 `install.js`，即联网重下；下载失败就抛 `Electron failed to install correctly`。桌面入口 `dev.ts` 用 `createRequire(import.meta.url)('electron')` 取可执行文件，所以这一步缺失会表现成「桌面实例起不来」，与 LCoder 源码无关。
+- **处理**：从已有检出对拷同版本的 `dist/` 与 `path.txt` 到本 worktree 的 electron 目录（T-49 线按 44.7.0 这么做过，`dist/electron.exe` 与 `path.txt` 两件齐了才继续），或在本 tree 批准 electron 构建脚本后重装。不要把这件事记成上游缺陷，也不要手改 `path.txt` 内容以外的任何东西。
+- **预防**：新 worktree 起桌面实例前三件一起核——`node_modules/.pnpm/electron@*/node_modules/electron/path.txt` 存在、`dist/electron.exe` 存在、`pnpm install` 后的 `InstallationProbe` 带 `options?`（W-09）。缺电子二进制时直接对拷，比等联网下载快得多；对拷后核对版本号与本 tree 的 lockfile 一致。

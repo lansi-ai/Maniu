@@ -58,13 +58,14 @@ kind: "package-reference"
 
 从任务卡打开对话时，外壳复用该任务已经认领的那条会话（`.spec/tasks/<ID>.yaml` 的 `session` 字段）。没有还在的会话时，外壳在同一个仓库里再开一条，并在创建这一步指名角色——preset 在首回合之后就锁死——再通过人机命令 `/task_bind` 把任务认给这条会话，落盘由 kernel 做。角色来自 `agentPresets.list`，且只给 id 以 `lcoder` 开头的 preset——上游角色不挂本包的十个工具，根本读不到 `.spec`；名册读失败或是空的，就按宿主默认角色开。顶栏的会话条列出本工作区的会话，按认领它的任务标名，点一下就切过去。
 
-悬浮对话订阅会话事件窗口并渲染用户/助手文本；输入框向同一会话继续发送提示。磁盘上没有任务时，看板的立项动作填入并发送分析咒语，而不是逐任务的启动咒语。本包自身不注册模型工具、提示词段落或 schema。
+悬浮对话订阅会话事件窗口并渲染用户/助手文本；输入框向同一会话继续发送提示。磁盘上没有任务时，看板的立项动作填入立项或分析咒语，只发送一次；之后再点只重开悬浮对话。判据读会话自身的记录——已起过回合、已有消息，或首条提示正等首个回合——所以刷新页面或重开窗口也不会重发。本包自身不注册模型工具、提示词段落或 schema。
 
 | 文件 | 职责 |
 |---|---|
 | `src/client/index.ts` | 外壳注册、文件/提示回调，以及 `shell: false` 页签 |
 | `src/client/shell/Shell.tsx` | 项目切换、任务板、项目信息抽屉、任务详情与悬浮对话 |
 | `src/client/shell/shell-data.ts` | 外壳类型、逐任务启动咒语、立项咒语与会话消息提取 |
+| `src/client/onboarding.ts` | 立项动作的发/只开/拦下判定，判据取会话事实 |
 | `src/client/shell/Shell.module.css` | 外壳布局与浮层样式 |
 | `src/client/projection.ts` | `.spec` 任务/规则、`project.yaml` 与 `local.yaml` 读取 |
 | `src/client/definition.ts` | 回退模式的页签 kind、id、优先级与引导入口 |

@@ -24,6 +24,7 @@ import { claimTaskSession, taskCardStatus } from '../task-session.ts'
 import type { TaskCardStatus, TaskSessionRow } from '../task-session.ts'
 import { EMPTY_TASK_FILTER, filterTasks, isFilterActive, TASK_GRADE_CHOICES } from '../task-filter.ts'
 import type { SessionFilter, TaskFilter } from '../task-filter.ts'
+import { onboardingAction } from '../onboarding.ts'
 import { buildIntakePrompt, buildOnboardingPrompt, buildShellPrompt, SHELL_STATES, TASK_FLOW_MENTION_PREFIX } from './shell-data.ts'
 import { ChatTranscript, PendingInteractionCard } from './ChatPanel.tsx'
 import { ModelSettings } from './ModelSettings.tsx'
@@ -250,6 +251,8 @@ export function Shell({
   const [modelStatus, setModelStatus] = useState<ModelStatus | null>(null)
   /** 设置页存完 key 后立刻重查一次；订阅的那路是兜底。 */
   const modelRefresh = useRef<() => void>(() => {})
+  /** 立项咒语正在发：只挡连点的第二下，跨刷新的去重读会话事实。 */
+  const onboardingSending = useRef(false)
   const [chatError, setChatError] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
   /** 装配层声明的角色名册；读不到就是空表，新会话走宿主默认角色。 */
@@ -679,6 +682,10 @@ export function Shell({
    * 零任务仓库的立项入口：读不到 `.spec/project.yaml` 时发 7 问引导咒语，先问项目
    * 身份与文档位置再落盘；已登记项目信息时发立项分析咒语，把交付文档交给模型。
    * 外壳只读文件、不判断状态机。
+   *
+   * 咒语只发一次：这条会话受理过提示词（会话行的 `blank` 已落、窗口里已有消息，或
+   * 提示正等首个回合）就只开浮层。判据跟着会话事实走，所以关掉浮层、刷新页面、
+   * 重开窗口之后再点都不会再发一遍。
    */
   const startOnboarding = (): void => {
     const project = { name: projectName, path: projectPath, branch: projectBranch }
@@ -688,15 +695,27 @@ export function Shell({
     setPrompt(text)
     setCopied(false)
     setChat({ id: '', title: t('shell.onboardingChat'), state: 'drafting', grade: '-', rules: [], evidence: [], surface: '' })
-    if (modelBlocked) {
-      setChatError(t('shell.noModels'))
+    const action = onboardingAction({
+      hasSession: sessionId !== undefined && sendPrompt !== undefined,
+      hasModel: !modelBlocked,
+      sending: onboardingSending.current,
+      blank: session?.blank,
+      userMessages: sessionId === undefined
+        ? 0
+        : readMessages?.(sessionId).filter(message => message.role === 'user').length ?? 0,
+      awaitingFirstTurn: sessionId === undefined ? undefined : readSessionFlags?.(sessionId)?.awaitingFirstTurn,
+    })
+    if (action.kind === 'block') {
+      setChatError(t(action.reason === 'no-session' ? 'shell.noSession' : 'shell.noModels'))
       return
     }
-    if (sessionId === undefined || sendPrompt === undefined) {
-      setChatError(t('shell.noSession'))
-      return
-    }
-    void sendPrompt(sessionId, text).catch((error: unknown) => { setChatError(String(error)) })
+    if (action.kind === 'open' || sessionId === undefined || sendPrompt === undefined) return
+    onboardingSending.current = true
+    void sendPrompt(sessionId, text).catch((error: unknown) => {
+      setChatError(String(error))
+    }).finally(() => {
+      onboardingSending.current = false
+    })
   }
 
   const sendDraft = async (): Promise<void> => {
