@@ -69,7 +69,11 @@ async function boot(
     listeners.set(event, set)
     return () => { set.delete(listener) }
   })
-  const llm = { listProviders: vi.fn(), listConfigurableProviders: vi.fn(), discoverModels: vi.fn() }
+  const llm = {
+    listProviders: vi.fn().mockResolvedValue({ ok: true, value: [] }),
+    listConfigurableProviders: vi.fn(),
+    discoverModels: vi.fn(),
+  }
   const settings = { describe: vi.fn(), mutate: vi.fn() }
   const credentials = { describe: vi.fn(), set: vi.fn(), unset: vi.fn() }
   const fileUploads = { upload: vi.fn() }

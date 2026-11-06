@@ -83,7 +83,8 @@ export function ModelSettings({ face, sessionId, t, onChanged }: ModelSettingsPr
 
   useEffect(() => { void reload() }, [face])
 
-  const rows = snapshot?.rows ?? []
+  // 云端两条路由由登录与匿名授权托管，地址与凭据都不交给用户改。
+  const rows = (snapshot?.rows ?? []).filter(row => !row.provider.startsWith('lcoder-cloud'))
   const filtered = query.trim().length === 0
     ? rows
     : rows.filter(row => row.group === 'official'
