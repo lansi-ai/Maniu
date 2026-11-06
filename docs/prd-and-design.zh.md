@@ -39,13 +39,13 @@ LCoder 是 DeepSeek Harness 的二开，不 fork 业务实现，也不直接 imp
 
 | 状态 | 进入条件 | 模型可见能力 | 出口 |
 |---|---|---|---|
-| `drafting` | 任务建立，契约未签 | 读代码、查规格、绑定落点、起草契约与后续任务 | 人签契约后进入 `contracted` |
-| `contracted` | 契约由人签署 | 增加编辑、跑命令、附证据 | 进入 `implementing` |
+| `drafting` | 任务建立，契约未签 | 读代码、查规格、绑定落点、起草契约与后续任务 | 签署有效（人签，或三闸成立的 AI 自签）后进入 `contracted` |
+| `contracted` | 契约签署有效 | 增加编辑、跑命令、附证据 | 进入 `implementing` |
 | `implementing` | 按契约实施 | 同上 | 只能进 `verifying`，或退回归 `contracted` 重签 |
 | `verifying` | 证据齐备 | 增加 `task_close` | 通过 P1/P3/P4 后 `closed`；不过退回 `implementing` |
 | `closed` | 终态 | 只读 | 无 |
 
-状态机只管图的合法性；「能否进 `contracted`」还取决于契约是否签署，由 P3 判定，不塞进状态机。收口由 `task_close` 串起三道检查器：P1 条目有落点、P3 不可逆项有人签且签名仍覆盖当前正文、P4 条目有证据；任一不过则状态不变。
+状态机只管图的合法性；「能否进 `contracted`」还取决于契约是否签署，由 P3 判定，不塞进状态机。收口由 `task_close` 串起三道检查器：P1 条目有落点、P3 要求签名仍覆盖当前正文且签署方式合法（人签，或三补偿闸成立的 AI 自签）、P4 条目有证据；任一不过则状态不变。AI 自签是用户 2026-11-06 的决定：要求自动化策略里 `sign` 为 `auto`、`scope.irreversible` 为空、且该契约有非空的评审复核证据；任务只要触及不可逆项就永远由人签。
 
 磁盘上没有任务的仓库不是第六个状态：在第一个 `task_draft` 落盘之前，kernel 按 §6 的立项面收。
 
@@ -60,6 +60,10 @@ kernel 向宿主注册十二个工具：`file_read`、`project_draft`、`spec_qu
 kernel 的规格根跟随会话工作区：一次工具调用取 `session.header.cwd/.spec`。没有会话 cwd（headless 启动、启动自检）时退回配置的 `root`，再退回 `process.cwd()/.spec`。桌面端宿主以 profile 目录而不是目标仓库作为进程 cwd，因此只有会话工作区能让工具与 UI 投影读同一个 `.spec`。
 
 任务还可以记录「这条事由哪条会话在办」：`.spec/tasks/<ID>.yaml` 的 `session` 字段。它由人在为该任务打开对话时经 `/task_bind` 写入，模型不写；会话号取自宿主自己的调用上下文，所以前端无法去认领不属于它的会话。这个值是本机 home 里的运行时标识，换机器或会话被删之后内核退回「配置的任务号，再退回看板第一条」，任务的状态本身不会因为认领失效而被改动。释放认领是把这个键整个删掉，不留空值——空值会让整张看板读不懂。
+
+`.spec/automation.yaml` 承载每个项目一份的自动化策略：按动作的开关（`draft`、`contract`、`sign`、`implement`、`verify`、`close`、`commit`）、停止条件（token 预算、时长、连续失败次数、并发上限）与可选的任务范围。缺文件即全手动，与没有自动化时的行为一致。外部不可逆动作——push、部署、改注册表与环境变更——不能出现在这份文件里；schema 遇到这些键直接判非法，而不是读进来忽略。kernel 每次求值都重读，改完下一次判定即生效。
+
+流程引擎决定「下一步做什么」而不是分配工作：它是任务事实、策略与已用量的纯函数，返回 `draft`、`contract`、`sign`、`implement`、`verify`、`close`、`commit`、`external` 或 `stop` 之一，并带理由与挡住原因（等人签、等依赖、等预算、等外部动作）。它不读写盘；`flow-store` 从 `.spec` 装配事实，驱动已有的人机命令与内部 API 的执行器属于流程控制入口。自签就是其中一种动作：`selfSignContract` 只在三闸同时成立时写 `by: agent`，并把 `actor` preset 与授权策略的路径、哈希、判定时刻一起记进契约。
 
 ## 8. MVP 范围（MVP-0）
 
@@ -81,16 +85,18 @@ kernel 的规格根跟随会话工作区：一次工具调用取 `session.header
 | D1 | 数据面走文件投影，不用 typert Remote | 读的是唯一事实源，UI 不承担状态机逻辑 |
 | D2 | 挂载走独立 patch 层 | 不改上游清单，升级冲突面最小 |
 | D3 | 工具面 fail-closed | 漏配导致能力缺失，而不是权限扩大 |
-| D4 | 签署不进模型工具 | 模型不能给自己签字，S1 才成立 |
+| D4 | 签署不进模型可调用的工具 | 模型能随时调用签署，S1 就失效；签署留在人机命令面或流程执行器上 |
 | D5 | 产品数据与开发台账分离 | `.spec/tasks` 是产品数据；`docs/tasks.yaml` 是开发台账；看板只从开发台账生成 |
 | D6 | 单轨治理 | 一个责任线、一个下一步，`active-context.md` 用单文件 |
 | D7 | 工具面是状态 × 角色，不是角色单独说话 | 状态是进度、角色是天花板，配错的角色只会削能力，不会给权限 |
 | D8 | 任务归属认领写进 `.spec`，不从标题推断 | `.spec` 是产品事实唯一来源；会话标题人可以改，不能当外键 |
 | D9 | 并行靠一个工作区多条会话 | 一任务一会话、深度 1，孙代被拒，成本可控而角色仍能委派到评审 |
+| D10 | AI 只在三补偿闸同时成立时自签 | 用户 2026-11-06 的决定；打开「只能人签」前提后，靠策略 `sign: auto`、`scope.irreversible` 为空、评审复核证据三闸让 P3 仍然成立 |
 
 ## 11. 风险与技术债
 
-- 签署已接通：人机命令 `/contract_sign` 由宿主写签名，工作台的任务详情展示契约正文并给出签署动作。浏览器不写 `.spec`；签名哈希不再覆盖正文时 P3 判签名作废。签名验过后，人经 `/task_contract` 把起草态推到已签约；更往后的流转仍是手写 YAML。
+- 签署已接通：人机命令 `/contract_sign` 由宿主写签名，工作台的任务详情展示契约正文并给出签署动作。浏览器不写 `.spec`；签名哈希不再覆盖正文时 P3 判签名作废。人签或三闸成立的 AI 自签都算有效；契约记下 `actor` preset 与策略路径、哈希、判定时刻，投影把 AI 自签单独带出。签名验过后，人经 `/task_contract` 把起草态推到已签约；更往后的流转仍是手写 YAML。
+- 流程引擎、策略读取与 AI 自签已实现，并有单测与真实文件覆盖。运行中的 profile 还没有执行器：`selfSignContract` 在测试之外没有调用方，「开工」入口、动作流水与面板属于 T-59。没有 `.spec/automation.yaml` 的仓库仍按全手动运行。
 - 没有可用模型时发消息曾经静默失败：准入把消息收进入队就返回接受，回合在宿主侧才失败，事件流里不会出现 `user/message`。`client/model-status.ts` 把 `session/modelCatalog` 折成 ready、empty、unknown 三态；empty 时拦住发送并说清凭据该放哪，会话快照的 `promptError` 与 `lastAgentError` 在浮层就地显示。仓内隔离 home 不带 provider 凭据，全新检出要先有 `DEEPSEEK_API_KEY` 才能跑对话。
 - `implementing → verifying` 没有工具入口，状态推进需要人工改任务文件。
 - 立项面只收住本包的编辑与命令工具；bundle 注册的工具对该 profile 的每个 Agent 仍可用，所以未立项仓库不会因为 LCoder 就失去改代码能力。用 Agent 作用域 `restrict` 收住它们记为 T-11。

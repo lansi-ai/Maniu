@@ -2,7 +2,7 @@
 # 旧版 .spec 任务原文归档在 lcoder/archive/spec-dev-2026-11-03/。
 project: LCoder
 iteration: MVP-0 工作台本地跑通
-updated: '2026-11-04'
+updated: '2026-11-06'
 generator: scripts/build-tasks-html.py
 tracks:
 - id: lcoder
@@ -614,7 +614,7 @@ tracks:
       note: "2026-11-06 收口。scheduling.ts 新增 sameWorkspace，按 Windows 语义归一化盘符大小写与斜杠方向，空路径按不同处理。判定在依赖硬闸之后、打分之前先比 worktree，不同即否决并写「worktree 不同」；相同时写一条「同一 worktree」命中信号，但不加分，避免同仓库里毫无关联的会话仅凭路径被复用。测试五条覆盖同路径命中、不同路径被否、空路径、大小写与斜杠归一化、以及 worktree 不同时不进入打分。桌面证据里两条被否候选都带着「同一 worktree」信号，说明闸门与信号都进了思考过程。"
     - id: T-56
       title: 流程引擎——按任务集合、状态、门禁与策略产出下一动作与理由
-      status: todo
+      status: done
       face: 用户端
       type: 开发
       owner: lance
@@ -622,10 +622,10 @@ tracks:
       date: '2026-11-06'
       dep: [T-50, T-53]
       inferred: false
-      note: "B 级；智能流程控制的内核，与 T-53 的分配判分成两层——分配决定「交给谁」，本任务决定「下一步做什么」。做法：纯函数输入（任务集合与其状态、依赖、门禁结果、自动化策略、停止条件已用量）输出（下一动作枚举 draft、contract、sign、implement、verify、close、commit、stop，加理由与被什么挡住），不读写盘、不调远程；执行器另接，动作仍走已有的人机命令或 kernel 内部 API，不给模型任意工具。验收：单测钉住每条边的合法性与四种挡住原因（等人签、等依赖、等预算、等外部动作）。"
+      note: "2026-11-06 收口。B 级。新增 kernel/flow.ts 纯函数 decideFlow，输入任务事实（状态、依赖、契约与签名、证据、提交、外部动作）、策略与已用量，输出动作、理由与挡住原因；动作集 draft、contract、sign、implement、verify、close、commit、external、stop。停止条件先于任务检查（token、时长、连续失败、并发），策略范围只决定驱动谁、不改变依赖事实；被依赖按住的任务跳过，仍挑得出另一条可做的。kernel/flow-store.ts 从 .spec 装配事实（任务、契约、证据与 automation.yaml），真实文件写后读回已验。执行器未接线，selfSignContract 与状态推进尚无运行中的调用方，留给 T-59。证据 typecheck 5、vitest 43 文件 449 条（flow 21 条、flow-store 5 条）、oxlint 0、test:docs 21、两包 bundle。"
     - id: T-57
       title: 自动化策略——按动作细粒度开关加停止条件，缺省全手动
-      status: todo
+      status: done
       face: 用户端
       type: 开发
       owner: lance
@@ -633,10 +633,10 @@ tracks:
       date: '2026-11-06'
       dep: [T-56]
       inferred: false
-      note: "A 级（新增产品数据文件）。用户 2026-11-06 拍板自由度按动作细粒度开关。落点：新增 .spec/automation.yaml（每项目一份），字段按动作——起草、契约起草、签署、实施、验证、收口、本地提交——各取 auto 或 manual；另有停止条件（token 预算、时长、连续失败次数、并发上限）。外部不可逆动作（push、部署、改注册表与外部环境）永不进配置，写死为人工，配置文件里出现这些键直接判非法。缺文件时默认全手动，与今天行为一致。schema 进 SpecLayout，投影读出来供面板展示；改配置要能热生效（下次求值即读）。"
+      note: "2026-11-06 收口。A 级，新增产品数据文件 .spec/automation.yaml。schema 进 SpecLayout，actions 七个开关（draft、contract、sign、implement、verify、close、commit，缺省 manual），limits（token_budget、max_minutes、max_consecutive_failures、max_parallel），tasks（空表示全部）。三层都 strict，push、deploy 这类键直接判非法。kernel/automation.ts 缺文件返回全手动默认值，有文件时返回内容哈希与 mtime，每次求值重读。workspace 投影新增 AUTOMATION_FILE、automationTextToRow 与 loadAutomationPolicy，缺文件给 null 由界面按全手动渲染；契约行带出 signedActor 供标注。证据 automation 10 条与 projection 4 条计入 vitest 449。"
     - id: T-58
       title: AI 自签与补偿闸——策略允许时可自签，不可逆项永远要人签
-      status: todo
+      status: done
       face: 用户端
       type: 开发
       owner: lance
@@ -644,7 +644,7 @@ tracks:
       date: '2026-11-06'
       dep: [T-57]
       inferred: false
-      note: "A 级，红线变更，用户 2026-11-06 明确拍板「AI 可自签」。这是把 PROJECT-RULES 第 1 节「签署只能是人的决定、by: agent 无效」这条前提打开，必须同时补齐三项补偿闸，否则等于废掉 P3。一、条件：automation.yaml 的签署开关为 auto、任务的 scope.irreversible 为空、且这条契约有评审角色的复核证据（review preset 的 evidence），三者同时成立才允许自签。二、记录：sig 写 by 是 agent、actor 写具体 preset、并把当次授权依据（策略文件路径与版本）记进契约或证据，卡片与详情**显式标注 AI 自签**，不允许混成人签。三、不可逆项：scope.irreversible 非空的契约永远是人的签名，AI 自签无效、P3 判违规。P3 判据相应改写为四选一（人签；或 AI 自签且三项条件成立），规则单源同步改这条红线并写清是用户决定与补偿闸。测试要覆盖：不可逆项拒绝自签、缺复核证据拒绝、策略为 manual 拒绝、三项满足时自签通过且被标注。"
+      note: "2026-11-06 收口。A 级，红线变更，用户 2026-11-06 决定 AI 可自签。三闸在 kernel/sign-gate.ts 的 evaluateSelfSignGate，策略 sign 为 auto、scope.irreversible 为空、且有非空 review*.log 复核证据，缺一不签。contract-sign.ts 新增 selfSignContract，三闸成立才写 by 为 agent，sig 记 actor preset 与 authorization（automation.yaml、内容哈希、文件时间），不注册为命令或工具，只留给流程执行器。P3 改为人签，或 AI 自签且三闸成立；不可逆项非空时第三闸永不成立，agent 签名一律判违规；task_contract 按同一套闸复核后才推进。PROJECT-RULES 与 prd-and-design 中英四份同步改，pairing 已重录。未验，桌面窗口里的自签按钮与标注属于 T-59。证据 contract-self-sign 8 条、sign-gate 6 条，全套 vitest 449。"
     - id: T-59
       title: 开工入口与流程面板——一句话开工、下一步与挡住原因、动作流水
       status: todo

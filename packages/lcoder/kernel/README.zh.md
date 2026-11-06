@@ -48,7 +48,7 @@ kind: "package-reference"
 | `taskId` | 第一个任务 | 没有会话认领时，用哪个任务的状态选择工具面；某条会话被任务的 `session` 字段认领时，该会话改按那条任务取状态，并行的两条会话各读各的。读不到任何任务时按立项面收 |
 | `role` | 未设 | 角色天花板，取值 `intake`、`architect`、`dev`、`review`；工具面取状态掩码与该角色工具表的交集，角色只会减去能力，配错角色名在装载时即失败 |
 
-本插件通过 patch 层作为插件行挂载，没有 `dsh plugin add` 安装路径。一次工具调用从 `session.header.cwd/.spec` 解析规格根；没有会话 cwd 时用 `root`，没有 `root` 时用 `process.cwd()/.spec`。除工具外它注册若干人机命令：`contract_sign` 由人签署任务的契约，`task_bind` 把任务认给当前会话，`task_contract` 推进到已签约，`proposal_approve` 采纳方案，`deploy` 执行部署，`task_schedule` 把一次调度判定追加到 `.spec/evidence/<任务>/schedule.jsonl`，入队判定还会在 `.spec/evidence/scheduling/` 下写联调组记录。它们都由宿主写 `.spec`，都留在命令面而不是工具面——注册成工具就等于模型能给自己签字、能自己挑工具面，也能自己写审计记录。
+本插件通过 patch 层作为插件行挂载，没有 `dsh plugin add` 安装路径。一次工具调用从 `session.header.cwd/.spec` 解析规格根；没有会话 cwd 时用 `root`，没有 `root` 时用 `process.cwd()/.spec`。除工具外它注册若干人机命令：`contract_sign` 由人签署任务的契约，`task_bind` 把任务认给当前会话，`task_contract` 推进到已签约，`proposal_approve` 采纳方案，`deploy` 执行部署，`task_schedule` 把一次调度判定追加到 `.spec/evidence/<任务>/schedule.jsonl`，入队判定还会在 `.spec/evidence/scheduling/` 下写联调组记录。它们都由宿主写 `.spec`，都留在命令面而不是工具面——注册成工具就等于模型能给自己签字、能自己挑工具面，也能自己写审计记录。AI 自签是 kernel 函数而不是命令或工具：`selfSignContract` 只在 `.spec/automation.yaml` 的 `sign` 为 `auto`、任务没有 `scope.irreversible`、契约有非空 `review*.log` 证据时写 `by: agent`，并记下 `actor` preset 与策略路径、哈希、文件修改时刻。P3 用同一套三闸复核，收口时任何一道不成立的 agent 签名都无效。
 
 -----
 
@@ -70,6 +70,9 @@ kind: "package-reference"
 | `src/kernel/task-store.ts` | 任务对象、迁移与落盘 |
 | `src/tools/spec-tools.ts`、`src/tools/task-tools.ts`、`src/tools/edit-tools.ts` | 十个模型工具 |
 | `src/checkers/index.ts` | P1、P3、P4 收口检查器 |
+| `src/kernel/automation.ts` | `.spec/automation.yaml` 的读取、默认值与策略哈希 |
+| `src/kernel/flow.ts`、`src/kernel/flow-store.ts` | 纯函数下一步判定与 `.spec` 事实装配 |
+| `src/kernel/sign-gate.ts` | AI 自签的三道补偿闸 |
 
 </details>
 
@@ -106,7 +109,8 @@ kind: "package-reference"
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- `contract_sign` 按设计不存在；契约由人在模型回合之外签署。
+- `contract_sign` 按设计不存在；签署在模型回合之外。AI 自签只以三闸下的 `selfSignContract` 形式存在，目前还没有执行器调用它。
+- `.spec/automation.yaml` 在 kernel 每次判定时读取，没有写入口，由人直接编辑。策略不能承载 push、部署这类外部不可逆动作。
 - `task_transition` 没有工具入口；推进任务需要编辑其 YAML。
 - `when` 只管本包注册的工具。bundle 全局注册的工具（`read`、`write`、`edit`、`glob`、`grep`、`bash`、`pwsh`）对该 profile 的每个 Agent 都可见，所以未立项仓库并不会因此失去改代码能力；要收住它们需要 Agent 作用域的 `restrict`。
 - P1 使用文本索引，注释或字符串里的同名标识符会造成误报。

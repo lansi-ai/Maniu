@@ -10,8 +10,9 @@ import type { WorkspaceDirectoryListing, WorkspaceFileText } from '@deepseek-ai/
 import type { RemoteFailure, RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 import {
-  loadLocalSecrets, loadProjectInfo, loadWorkspaceProjection, CONTRACTS_DIR, LOCAL_FILE, PROJECT_FILE, SCHEDULING_DIR,
-  contractTextToRow, groupTextToRow, rulesTextToRows, RULES_FILE, SPEC_DIR, TASKS_DIR, taskTextToRow,
+  loadLocalSecrets, loadProjectInfo, loadWorkspaceProjection, AUTOMATION_FILE, CONTRACTS_DIR, LOCAL_FILE, PROJECT_FILE,
+  SCHEDULING_DIR, automationTextToRow, contractTextToRow, groupTextToRow, loadAutomationPolicy, rulesTextToRows,
+  RULES_FILE, SPEC_DIR, TASKS_DIR, taskTextToRow,
 } from '../src/client/projection.ts'
 import type { ProjectionFilesRemote } from '../src/client/projection.ts'
 
@@ -309,10 +310,16 @@ describe('契约', () => {
     })
   })
 
-  it('未签署与 agent 自签分开：后者不算签过', () => {
+  it('未签署与 AI 自签分开，自签带出 actor', () => {
     const unsigned = CONTRACT_YAML.replace(/sig:[\s\S]*$/, 'sig: null')
     expect(contractTextToRow('T-014.contract.yaml', unsigned)?.signedBy).toBeNull()
     expect(contractTextToRow('T-014.contract.yaml', CONTRACT_YAML.replace('by: human', 'by: agent'))?.signedBy).toBe('agent')
+
+    const aiSigned = CONTRACT_YAML.replace('by: human', 'by: agent').replace(
+      'hash: sha256:abcdef0123456789',
+      'hash: sha256:abcdef0123456789\n  actor: lcoder-flow',
+    )
+    expect(contractTextToRow('T-014.contract.yaml', aiSigned)?.signedActor).toBe('lcoder-flow')
   })
 
   it('读不懂的契约给 undefined：缺正文或缺验收都算', () => {
@@ -341,5 +348,63 @@ describe('契约', () => {
     )
     expect(projection.contracts).toEqual([])
     expect(projection.problems).toEqual([])
+  })
+})
+
+describe('自动化策略', () => {
+  const POLICY_YAML = [
+    'actions:',
+    '  sign: auto',
+    '  implement: auto',
+    'limits:',
+    '  token_budget: 200000',
+    '  max_consecutive_failures: 0',
+    'tasks:',
+    '  - T-014',
+  ].join('\n')
+
+  it('读出按动作开关、停止条件与任务范围；缺省动作按手动', () => {
+    expect(automationTextToRow(POLICY_YAML)).toEqual({
+      actions: {
+        draft: 'manual',
+        contract: 'manual',
+        sign: 'auto',
+        implement: 'auto',
+        verify: 'manual',
+        close: 'manual',
+        commit: 'manual',
+      },
+      limits: {
+        tokenBudget: 200000,
+        maxMinutes: null,
+        maxConsecutiveFailures: 0,
+        maxParallel: null,
+      },
+      tasks: ['T-014'],
+    })
+  })
+
+  it('读不懂的策略给 undefined', () => {
+    expect(automationTextToRow('{{{')).toBeUndefined()
+    expect(automationTextToRow('- 不是对象')).toBeUndefined()
+  })
+
+  it('缺文件 → policy 为 null（按全手动渲染），不算故障', async () => {
+    const loaded = await loadAutomationPolicy(fakeFiles({}, {}), SESSION, new AbortController().signal)
+    expect(loaded).toEqual({ policy: null, problems: [] })
+  })
+
+  it('读到文件 → 返回展示行；读不懂只记说明', async () => {
+    const loaded = await loadAutomationPolicy(
+      fakeFiles({}, { [AUTOMATION_FILE]: POLICY_YAML }), SESSION, new AbortController().signal,
+    )
+    expect(loaded.policy?.actions.sign).toBe('auto')
+    expect(loaded.problems).toEqual([])
+
+    const broken = await loadAutomationPolicy(
+      fakeFiles({}, { [AUTOMATION_FILE]: '- 不是对象' }), SESSION, new AbortController().signal,
+    )
+    expect(broken.policy).toBeNull()
+    expect(broken.problems.join(' ')).toContain(AUTOMATION_FILE)
   })
 })

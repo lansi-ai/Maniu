@@ -48,7 +48,7 @@ Choose it when a DeepSeek Harness composition already provides the `tools` servi
 | `taskId` | first task | Task whose state selects the tool surface when no session claims one; a session claimed through a task's `session` field follows that task instead, so parallel sessions each read their own state. With no task readable, the onboarding surface applies |
 | `role` | unset | Role ceiling: `intake`, `architect`, `dev`, or `review`. The surface intersects the state mask with that role's tools, so a role only removes capability; an unknown value fails at load |
 
-The plugin mounts as a row through the patch layer; it has no `dsh plugin add` installation path. A tool call resolves the specification root from `session.header.cwd/.spec`; without a session cwd it uses `root`, and without `root` it uses `process.cwd()/.spec`. Alongside the tools it registers human commands that write `.spec` from the host and stay off the tool surface: `contract_sign`, `task_bind`, `task_contract`, `proposal_approve`, `deploy`, and `task_schedule`, which appends one scheduling decision to `.spec/evidence/<task>/schedule.jsonl` and, for an enqueue, writes the joint-group record under `.spec/evidence/scheduling/`. A callable tool would let the model sign its own contract, pick its own tool surface, or write its own audit trail.
+The plugin mounts as a row through the patch layer; it has no `dsh plugin add` installation path. A tool call resolves the specification root from `session.header.cwd/.spec`; without a session cwd it uses `root`, and without `root` it uses `process.cwd()/.spec`. Alongside the tools it registers human commands that write `.spec` from the host and stay off the tool surface: `contract_sign`, `task_bind`, `task_contract`, `proposal_approve`, `deploy`, and `task_schedule`, which appends one scheduling decision to `.spec/evidence/<task>/schedule.jsonl` and, for an enqueue, writes the joint-group record under `.spec/evidence/scheduling/`. A callable tool would let the model sign its own contract, pick its own tool surface, or write its own audit trail. AI self-signing is a kernel function rather than a command or tool: `selfSignContract` writes `by: agent` only when `.spec/automation.yaml` sets `sign: auto`, the task has no `scope.irreversible`, and the contract has non-empty `review*.log` evidence, and it records the `actor` preset plus the policy path, hash, and modification time. P3 applies the same three gates, so an agent signature that fails one is invalid at closure.
 
 -----
 
@@ -70,6 +70,9 @@ Every tool factory accepts either a fixed root or a resolver. The resolver reads
 | `src/kernel/task-store.ts` | Task objects, transitions, and persistence |
 | `src/tools/spec-tools.ts`, `src/tools/task-tools.ts`, `src/tools/edit-tools.ts` | The ten model tools |
 | `src/checkers/index.ts` | The P1, P3, and P4 closure checkers |
+| `src/kernel/automation.ts` | `.spec/automation.yaml` loading, defaults, and policy hashing |
+| `src/kernel/flow.ts`, `src/kernel/flow-store.ts` | Pure next-action decision and the `.spec` fact assembly |
+| `src/kernel/sign-gate.ts` | The three compensating gates for AI self-signing |
 
 </details>
 
@@ -105,7 +108,8 @@ The visible tool set changes only on a task-state transition. Re-applying the sa
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- `contract_sign` is absent by design; a human signs contracts outside the model turn.
+- `contract_sign` is absent by design; signing runs outside the model turn. AI self-signing exists only as the `selfSignContract` seam under the three gates, and no executor calls it yet.
+- `.spec/automation.yaml` is read whenever the kernel evaluates a decision; it has no writer, so a human edits it directly. The policy cannot carry external irreversible actions such as push or deployment.
 - `task_transition` has no tool entry; advancing a task requires editing its YAML.
 - `when` gates only the tools this package registers. Tools registered globally by a shipped bundle (`read`, `write`, `edit`, `glob`, `grep`, `bash`, `pwsh`) stay visible to every Agent in the profile, so an un-onboarded repository does not lose code-editing capability from this package alone; covering them takes an Agent-scope `restrict`.
 - P1 uses a text index, so a symbol name in a comment or string can produce a false positive.

@@ -5,7 +5,7 @@ import { contractHash } from '../src/kernel/contract.js'
 import type { ContractFact } from '../src/kernel/contract.js'
 import { textCodeIndex } from '../src/kernel/spec-store.js'
 import type { SpecSnapshot } from '../src/kernel/spec-store.js'
-import { Contract, RuleEntry, Task } from '../src/schema/spec.js'
+import { AutomationPolicy, Contract, RuleEntry, Task } from '../src/schema/spec.js'
 
 const AT = '2026-11-02T15:00:00+08:00'
 
@@ -51,9 +51,26 @@ function contract(over: Record<string, unknown> = {}): Contract {
 const BODY_HASH = contractHash(contract())
 
 /** 一份契约事实：正文固定，签名可控——签名里的哈希与正文复算值不符就是「签完又改」。 */
-function fact(sig: { by: 'human' | 'agent'; at: string; hash: string } | null): ContractFact {
+function fact(sig: Record<string, unknown> | null): ContractFact {
   const body = contract({ sig })
   return { contract: body, bodyHash: contractHash(body) }
+}
+
+/** 结构合法的 AI 自签：actor 与授权依据齐全，是否放行由 P3 的三补偿闸判。 */
+function agentSig(hash: string): Record<string, unknown> {
+  return {
+    by: 'agent',
+    at: AT,
+    hash,
+    actor: 'lcoder-flow',
+    authorization: { policy: 'automation.yaml', hash: 'sha256:策略', at: AT },
+  }
+}
+
+/** 三补偿闸本可成立（策略 auto + 评审证据）时的策略事实。 */
+const GATES_OPEN = {
+  policy: AutomationPolicy.parse({ actions: { sign: 'auto' } }),
+  evidence: { review: 10 },
 }
 
 describe('P1 条目有落点', () => {
@@ -103,13 +120,24 @@ describe('P3 不可逆项需人签署', () => {
     expect(r.violations[0]?.detail).toContain('未签署')
   })
 
-  it('agent 自己签的字不算数', () => {
+  it('agent 自签但任务触及不可逆项 → 三闸不成立，判违规', () => {
     const r = checkP3(
       task({ scope: { irreversible: ['settlement_formula'] } }),
-      fact({ by: 'agent', at: AT, hash: BODY_HASH }),
+      fact(agentSig(BODY_HASH)),
+      GATES_OPEN,
     )
     expect(r.ok).toBe(false)
-    expect(r.violations[0]?.detail).toContain('agent')
+    expect(r.violations[0]?.detail).toContain('agent 自签')
+    expect(r.violations[0]?.detail).toContain('不可逆项')
+  })
+
+  it('agent 自签且没给策略事实 → 按手动与无复核证据判违规', () => {
+    const r = checkP3(
+      task({ scope: { irreversible: ['settlement_formula'] } }),
+      fact(agentSig(BODY_HASH)),
+    )
+    expect(r.ok).toBe(false)
+    expect(r.violations[0]?.detail).toContain('策略')
   })
 
   it('人签署且签名覆盖当前正文 → 通过', () => {

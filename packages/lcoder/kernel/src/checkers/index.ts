@@ -6,13 +6,15 @@
  *   2. **纯函数。** 不读盘、不调模型、不看时间。同样的输入永远给同样的结论。
  *   3. **每条违规都要说下一步。** 只说"不通过"等于把问题退回到人身上。
  *
- * P1 判「有没有落点」，P3 判「不可逆项有没有人签、签的是不是当前正文」，P4 判「有没有证据」。
+ * P1 判「有没有落点」，P3 判「不可逆项有没有合法签署、签的是不是当前正文」，P4 判「有没有证据」。
  * 三条合起来回答一个问句：**这个任务凭什么算做完了。**
  */
 import type { CodeIndex, SpecSnapshot } from '../kernel/spec-store.js'
 import { findBindingIssues } from '../kernel/spec-store.js'
 import type { ContractFact } from '../kernel/contract.js'
-import type { Task } from '../schema/spec.js'
+import { hasReviewEvidence } from '../kernel/evidence-store.js'
+import { describeSelfSignFailure, evaluateSelfSignGate } from '../kernel/sign-gate.js'
+import type { AutomationPolicy, Task } from '../schema/spec.js'
 
 export type CheckerId = 'P1' | 'P3' | 'P4'
 
@@ -73,18 +75,26 @@ export function checkP1(snapshot: SpecSnapshot, index: CodeIndex): CheckResult {
 
 // ── P3 不可逆项需人签署 ─────────────────────────────────────
 
+/** P3 判 AI 自签需要的策略事实；不给按「策略为手动、无复核证据」处理。 */
+export interface P3Context {
+  readonly policy: AutomationPolicy
+  /** 任务的证据清单（`loadEvidence` 的结果）；评审复核证据由它识别。 */
+  readonly evidence: Readonly<Record<string, number>>
+}
+
 /**
  * 触及不可逆对象（对外接口 / 数据结构 / 权限 / 金额计算）时，
- * 契约必须存在、已签署，签署人必须是 human，且签名必须覆盖**当前**正文。
+ * 契约必须存在、已签署，签名必须覆盖**当前**正文，且签署方式合法：
+ * 人签；或 AI 自签且三补偿闸（策略 auto、无可逆项、有评审复核证据）同时成立。
  *
- * `by: 'agent'` 也要拦——那是"模型给自己签字"，比没签更危险，
- * 因为它看起来像签过了。
+ * 不可逆项非空时第三闸永远不成立，所以「不可逆项永远人签」不是一句提示，而是这条判据的结果。
+ * 手写一个 `by: agent` 也拦——没有策略与复核依据的自签名看起来像签过了，比没签更危险。
  *
  * 哈希比对拦的是另一种情形：字签过了，正文随后被改。`sig.hash` 是签署那一刻
  * 正文的复算值，与传进来的 `bodyHash` 不一致，签名作废、必须重签。所以这里要的
  * 不是"文件里写着签过"，而是"按现在的文件重算出来签过"。
  */
-export function checkP3(task: Task, fact: ContractFact | null): CheckResult {
+export function checkP3(task: Task, fact: ContractFact | null, context?: P3Context): CheckResult {
   const irreversible = task.scope.irreversible
   if (irreversible.length === 0) return summarize([])
 
@@ -109,14 +119,27 @@ export function checkP3(task: Task, fact: ContractFact | null): CheckResult {
       detail: `契约存在但未签署，任务却要动不可逆项（${items}）`,
       hint: '请在界面上用 /contract_sign 签署契约；模型不能自行签署',
     })
-  } else if (contract.sig.by !== 'human') {
-    violations.push({
-      checker: 'P3',
-      subject: task.id,
-      detail: `不可逆项（${items}）的契约由 agent 签署，不具备效力`,
-      hint: '必须由人重新签署——模型给自己签的字不算数',
+    return summarize(violations)
+  }
+
+  if (contract.sig.by === 'agent') {
+    const gate = evaluateSelfSignGate({
+      signAuto: context?.policy.actions.sign === 'auto',
+      irreversible,
+      reviewEvidence: context !== undefined && hasReviewEvidence(context.evidence),
     })
-  } else if (contract.sig.hash !== fact.bodyHash) {
+    if (!gate.allowed) {
+      violations.push({
+        checker: 'P3',
+        subject: task.id,
+        detail: `不可逆项（${items}）的契约由 agent 自签，三补偿闸未同时成立：${describeSelfSignFailure(gate)}`,
+        hint: '不可逆项永远由人签署；AI 自签只在不触及不可逆项、策略签署为 auto 且有评审复核证据时成立',
+      })
+      return summarize(violations)
+    }
+  }
+
+  if (contract.sig.hash !== fact.bodyHash) {
     violations.push({
       checker: 'P3',
       subject: task.id,

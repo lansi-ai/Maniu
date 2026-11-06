@@ -197,7 +197,21 @@ describe('任务工具', () => {
     mkdirSync(dirname(join(spec, 'contracts', 'T-01.contract.yaml')), { recursive: true })
     writeFileSync(
       join(spec, 'contracts', 'T-01.contract.yaml'),
-      ['id: T-01', 'change: [x]', 'acceptance: [y]', 'sig:', '  by: agent', '  at: 2026-11-02T15:00:00+08:00', '  hash: sha256:x', ''].join('\n'),
+      [
+        'id: T-01',
+        'change: [x]',
+        'acceptance: [y]',
+        'sig:',
+        '  by: agent',
+        '  at: 2026-11-02T15:00:00+08:00',
+        '  hash: sha256:x',
+        '  actor: lcoder-flow',
+        '  authorization:',
+        '    policy: automation.yaml',
+        '    hash: sha256:策略',
+        '    at: 2026-11-02T14:00:00+08:00',
+        '',
+      ].join('\n'),
       'utf8',
     )
 

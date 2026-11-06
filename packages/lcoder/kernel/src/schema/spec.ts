@@ -149,11 +149,41 @@ export type Task = z.infer<typeof Task>
 
 // ── 4. 契约 ─────────────────────────────────────────────────
 
-export const Signature = z.object({
-  by: z.enum(['human', 'agent']),
-  at: IsoDateTime,
+/** AI 自签的授权依据：哪份策略、哪个版本、什么时候判定。 */
+export const SignatureAuthorization = z.object({
+  /** 策略文件的规格根相对路径（`automation.yaml`）。 */
+  policy: z.string().min(1),
+  /** 判定时策略文件的内容哈希；缺省策略没有哈希，不得自签，故这里必填。 */
   hash: z.string().min(1),
+  at: IsoDateTime,
 })
+export type SignatureAuthorization = z.infer<typeof SignatureAuthorization>
+
+/**
+ * 契约签名。
+ *
+ * `by: agent` 只在三补偿闸同时成立时有效（策略签署为 auto、任务无可逆项、契约有评审复核证据），
+ * 所以它必须带上 `actor`（具体 preset）与 `authorization`（策略授权依据）；
+ * 缺一样就不是一次可审计的自签，schema 直接判非法。
+ */
+export const Signature = z
+  .object({
+    by: z.enum(['human', 'agent']),
+    at: IsoDateTime,
+    hash: z.string().min(1),
+    /** 自签者的具体 preset；人签时缺省。 */
+    actor: z.string().min(1).optional(),
+    authorization: SignatureAuthorization.optional(),
+  })
+  .superRefine((sig, ctx) => {
+    if (sig.by !== 'agent') return
+    if (sig.actor === undefined) {
+      ctx.addIssue({ code: 'custom', path: ['actor'], message: 'AI 自签必须写明 actor（具体 preset）' })
+    }
+    if (sig.authorization === undefined) {
+      ctx.addIssue({ code: 'custom', path: ['authorization'], message: 'AI 自签必须写明授权依据（策略路径、哈希与判定时刻）' })
+    }
+  })
 
 export const Contract = z.object({
   id: Id,
@@ -167,7 +197,78 @@ export const Contract = z.object({
 })
 export type Contract = z.infer<typeof Contract>
 
-// ── 5. 方案 ─────────────────────────────────────────────────
+// ── 5. 自动化策略 ───────────────────────────────────────────
+
+/** 一个动作是自动执行还是等人触发。 */
+export const AutomationMode = z.enum(['auto', 'manual'])
+export type AutomationMode = z.infer<typeof AutomationMode>
+
+/** 策略能开关的动作。外部不可逆动作（push、部署、环境变更）不在其中，永不进配置。 */
+export const AutomationActionName = z.enum([
+  'draft',
+  'contract',
+  'sign',
+  'implement',
+  'verify',
+  'close',
+  'commit',
+])
+export type AutomationActionName = z.infer<typeof AutomationActionName>
+
+const MANUAL_ACTIONS: Readonly<Record<AutomationActionName, AutomationMode>> = {
+  draft: 'manual',
+  contract: 'manual',
+  sign: 'manual',
+  implement: 'manual',
+  verify: 'manual',
+  close: 'manual',
+  commit: 'manual',
+}
+
+/**
+ * 按动作的开关。`strict` 不是排版偏好：`push`、`deploy` 这类键落到这里必须判非法，
+ * 否则配置文件本身就成了绕过「外部动作只由人做」的入口。
+ */
+const AutomationActions = z
+  .object({
+    draft: AutomationMode.default('manual'),
+    contract: AutomationMode.default('manual'),
+    sign: AutomationMode.default('manual'),
+    implement: AutomationMode.default('manual'),
+    verify: AutomationMode.default('manual'),
+    close: AutomationMode.default('manual'),
+    commit: AutomationMode.default('manual'),
+  })
+  .strict()
+
+/** 停止条件。缺一项表示这一项不设限。 */
+export const AutomationLimits = z
+  .object({
+    token_budget: z.number().int().positive().optional(),
+    max_minutes: z.number().int().positive().optional(),
+    max_consecutive_failures: z.number().int().min(0).optional(),
+    max_parallel: z.number().int().positive().optional(),
+  })
+  .strict()
+export type AutomationLimits = z.infer<typeof AutomationLimits>
+
+/**
+ * `.spec/automation.yaml`：每项目一份，按动作声明哪些能自动、何时停、管哪些任务。
+ *
+ * 缺失即全手动；这条默认值由加载器给，不靠 schema 的空对象兜底，
+ * 因为「没有文件」与「文件里什么都没写」在审计上不是一回事。
+ */
+export const AutomationPolicy = z
+  .object({
+    actions: AutomationActions.default(MANUAL_ACTIONS),
+    limits: AutomationLimits.default({}),
+    /** 只对列出的任务生效；空数组表示全部任务。 */
+    tasks: z.array(Id).default([]),
+  })
+  .strict()
+export type AutomationPolicy = z.infer<typeof AutomationPolicy>
+
+// ── 6. 方案 ─────────────────────────────────────────────────
 
 /**
  * 方案的决定态。
@@ -202,7 +303,7 @@ export const Proposal = z.object({
 })
 export type Proposal = z.infer<typeof Proposal>
 
-// ── 6. 环境档案 ─────────────────────────────────────────────
+// ── 7. 环境档案 ─────────────────────────────────────────────
 
 /** 三级执行权。默认给最保守的一档：需要确认。 */
 export const ExecPolicy = z.enum(['human', 'ai-confirm', 'ai-auto'])
@@ -287,6 +388,7 @@ export const SpecLayout = [
   { glob: 'tasks/*.yaml', schema: Task, many: true },
   { glob: 'proposals/*.yaml', schema: Proposal, many: true },
   { glob: 'contracts/*.contract.yaml', schema: Contract, many: true },
+  { glob: 'automation.yaml', schema: AutomationPolicy, many: false },
   { glob: 'env.yaml', schema: Env, many: false },
   { glob: 'project.yaml', schema: ProjectInfo, many: false },
 ] as const

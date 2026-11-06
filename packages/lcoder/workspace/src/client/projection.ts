@@ -58,9 +58,40 @@ export interface ContractRow {
   readonly notChange: readonly string[]
   readonly acceptance: readonly string[]
   readonly failIf: readonly string[]
-  /** 签署人；没有签名时是 null，`agent` 表示这是模型自己签的、不算数。 */
+  /** 签署人；没有签名时是 null，`agent` 表示这是 AI 自签，界面必须单独标注。 */
   readonly signedBy: 'human' | 'agent' | null
   readonly signedAt: string | null
+  /** AI 自签的 preset；人签或缺省时为 undefined。 */
+  readonly signedActor?: string
+}
+
+/** 策略能开关的动作；与 kernel schema 的 `AutomationActionName` 同序同名。 */
+export const AUTOMATION_ACTIONS = ['draft', 'contract', 'sign', 'implement', 'verify', 'close', 'commit'] as const
+/** 一个动作名；从 `AUTOMATION_ACTIONS` 推导，避免两处手抄。 */
+export type AutomationActionRow = (typeof AUTOMATION_ACTIONS)[number]
+
+/** 一个动作是自动还是等人触发。 */
+export type AutomationModeRow = 'auto' | 'manual'
+
+/** 停止条件；null 表示这一项不设限。 */
+export interface AutomationLimitsRow {
+  readonly tokenBudget: number | null
+  readonly maxMinutes: number | null
+  readonly maxConsecutiveFailures: number | null
+  readonly maxParallel: number | null
+}
+
+/**
+ * `.spec/automation.yaml` 的展示数据。
+ *
+ * 文件缺失时调用方拿到 `null`，按全手动渲染——「没写」不等于「允许自动」。
+ * 外部不可逆动作（push、部署、环境变更）不在这张表里，也不该出现在任何策略里。
+ */
+export interface AutomationPolicyRow {
+  readonly actions: Readonly<Record<AutomationActionRow, AutomationModeRow>>
+  readonly limits: AutomationLimitsRow
+  /** 只对列出的任务生效；空数组表示全部任务。 */
+  readonly tasks: readonly string[]
 }
 
 /**
@@ -129,6 +160,7 @@ export const PROPOSALS_DIR = `${SPEC_DIR}/proposals`
 export const RULES_FILE = `${SPEC_DIR}/spec/rules.yaml`
 export const PROJECT_FILE = `${SPEC_DIR}/project.yaml`
 export const LOCAL_FILE = `${SPEC_DIR}/local.yaml`
+export const AUTOMATION_FILE = `${SPEC_DIR}/automation.yaml`
 export const SCHEDULING_DIR = `${SPEC_DIR}/evidence/scheduling`
 
 /** 单页行数上限：任务与规则 YAML 都是几十行的量级，500 足够且低于宿主默认页。 */
@@ -230,15 +262,67 @@ export function contractTextToRow(fileName: string, text: string): ContractRow |
   if (change.length === 0 || acceptance.length === 0) return undefined
   const sig = recordOf(fields.sig)
   const by = sig?.by
+  const actor = asText(sig?.actor)
+  const signedBy = by === 'human' || by === 'agent' ? by : null
   return {
     id: asText(fields.id) ?? fileName.replace(/\.contract\.yaml$/, ''),
     change,
     notChange: stringArray(fields.not_change),
     acceptance,
     failIf: stringArray(fields.fail_if),
-    signedBy: by === 'human' || by === 'agent' ? by : null,
+    signedBy,
     signedAt: sig === undefined ? null : (asText(sig.at) ?? null),
+    ...(signedBy === 'agent' && actor !== undefined ? { signedActor: actor } : {}),
   }
+}
+
+/**
+ * 自动化策略 YAML 的文本 → 展示行。读不懂（不是对象）返回 undefined；
+ * 单个字段不认识时按缺省收敛：动作按手动、停止条件按不设限，展示面不替策略补授权。
+ * @param text - 文件正文。
+ * @returns 可展示的策略，读不懂为 undefined。
+ */
+export function automationTextToRow(text: string): AutomationPolicyRow | undefined {
+  let doc: Record<string, unknown> | undefined
+  try {
+    doc = recordOf(parseYaml(text))
+  } catch {
+    return undefined
+  }
+  if (doc === undefined) return undefined
+
+  const actions = recordOf(doc.actions)
+  const limits = recordOf(doc.limits)
+  const mode = (name: AutomationActionRow): AutomationModeRow =>
+    actions?.[name] === 'auto' ? 'auto' : 'manual'
+  return {
+    actions: {
+      draft: mode('draft'),
+      contract: mode('contract'),
+      sign: mode('sign'),
+      implement: mode('implement'),
+      verify: mode('verify'),
+      close: mode('close'),
+      commit: mode('commit'),
+    },
+    limits: {
+      tokenBudget: positiveInt(limits?.token_budget),
+      maxMinutes: positiveInt(limits?.max_minutes),
+      maxConsecutiveFailures: nonNegativeInt(limits?.max_consecutive_failures),
+      maxParallel: positiveInt(limits?.max_parallel),
+    },
+    tasks: stringArray(doc.tasks),
+  }
+}
+
+/** 正整数或 null；其余一律当未设置。 */
+function positiveInt(value: unknown): number | null {
+  return typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : null
+}
+
+/** 非负整数或 null；连续失败次数允许 0（第一次失败就停）。 */
+function nonNegativeInt(value: unknown): number | null {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : null
 }
 
 /**
@@ -505,6 +589,37 @@ async function loadProposals(
 
   rows.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
   return { rows, problems }
+}
+
+/** `.spec/automation.yaml` 的读取结果；文件缺失不算错误。 */
+export interface AutomationPolicyLoad {
+  /** 文件缺失时为 null，调用方按全手动渲染。 */
+  readonly policy: AutomationPolicyRow | null
+  readonly problems: readonly string[]
+}
+
+/**
+ * 读 `.spec/automation.yaml`。文件不存在是常态（没开自动化），不算故障。
+ * @param files - 窄化文件面。
+ * @param sessionId - 提供相对路径基准的会话。
+ * @param signal - 取消信号。
+ * @returns 策略展示行与逐文件问题；缺文件时 `policy` 为 null。
+ */
+export async function loadAutomationPolicy(
+  files: ProjectionFilesRemote,
+  sessionId: SessionId,
+  signal: AbortSignal,
+): Promise<AutomationPolicyLoad> {
+  const page = await files.readPage(sessionId, AUTOMATION_FILE, signal)
+  if (!page.ok) {
+    return isMissing(page.error, AUTOMATION_FILE)
+      ? { policy: null, problems: [] }
+      : { policy: null, problems: [`${AUTOMATION_FILE}: ${messageOf(page.error)}`] }
+  }
+  const policy = automationTextToRow(page.value.text)
+  return policy === undefined
+    ? { policy: null, problems: [`${AUTOMATION_FILE}: 不是能读的自动化策略`] }
+    : { policy, problems: [] }
 }
 
 /** `.spec/project.yaml` 的读取结果；文件缺失不算错误。 */

@@ -9,15 +9,16 @@
  * `task_draft` 是模型唯一的立项入口：它只新建 `drafting` 任务，状态、时间戳
  * 由代码写定——模型说不出「已经签过」，也说不出「什么时候开的」。
  */
-import { existsSync, readdirSync, statSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { resolve } from 'node:path'
 
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 
 import { checkP1, checkP3, checkP4 } from '../checkers/index.js'
 import type { Violation } from '../checkers/index.js'
+import { loadAutomationPolicy } from '../kernel/automation.js'
 import { loadContractFact } from '../kernel/contract.js'
+import { loadEvidence } from '../kernel/evidence-store.js'
 import { assertProposalId, listProposals } from '../kernel/proposal-store.js'
 import { loadSpec, textCodeIndexFromDir } from '../kernel/spec-store.js'
 import { hasSpecRoot, resolveRoot } from '../kernel/spec-root.js'
@@ -27,20 +28,6 @@ import { assertTaskId, dependencyCycle, findByTitle, listTasks, loadTask, nextTa
 const renderJson = (_args: unknown, value: unknown): { type: 'text'; text: string }[] => [
   { type: 'text', text: JSON.stringify(value, null, 2) },
 ]
-
-/** 读证据目录：文件名（去掉 .log）→ 字节数。空文件会被 P4 判出来。 */
-function loadEvidence(specRoot: string, taskId: string): Record<string, number> {
-  const dir = join(specRoot, 'evidence', taskId)
-  if (!existsSync(dir)) return {}
-
-  const out: Record<string, number> = {}
-  for (const name of readdirSync(dir)) {
-    const full = join(dir, name)
-    if (!statSync(full).isFile()) continue
-    out[name.replace(/\.log$/, '')] = statSync(full).size
-  }
-  return out
-}
 
 /**
  * 校验 task_draft 给出的方案编号。
@@ -205,7 +192,7 @@ export function createTaskTools(specRootInput: RootInput): ToolDefinition[] {
     defineTool({
       name: 'task_close',
       description:
-        '申请收口。依次跑 P1（条目有落点）、P3（不可逆项需人签署，且签名覆盖当前正文）、P4（条目有证据），全部通过才把任务转为 closed。任一不过则返回违规清单，状态不变。',
+        '申请收口。依次跑 P1（条目有落点）、P3（不可逆项需合法签署，且签名覆盖当前正文）、P4（条目有证据），全部通过才把任务转为 closed。任一不过则返回违规清单，状态不变。',
       parameters: {
         task_id: { type: 'string', required: true, description: '任务编号' },
       },
@@ -217,10 +204,14 @@ export function createTaskTools(specRootInput: RootInput): ToolDefinition[] {
         const repoRoot = resolve(specRoot, '..')
         const task = loadTask(specRoot, args.task_id)
 
+        const evidence = loadEvidence(specRoot, task.id)
         const violations: Violation[] = [
           ...checkP1(loadSpec(specRoot), textCodeIndexFromDir(repoRoot)).violations,
-          ...checkP3(task, loadContractFact(specRoot, task.id)).violations,
-          ...checkP4(task, loadEvidence(specRoot, task.id)).violations,
+          ...checkP3(task, loadContractFact(specRoot, task.id), {
+            policy: loadAutomationPolicy(specRoot).policy,
+            evidence,
+          }).violations,
+          ...checkP4(task, evidence).violations,
         ]
 
         if (violations.length > 0) {

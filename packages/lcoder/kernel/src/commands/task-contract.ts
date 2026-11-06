@@ -1,5 +1,8 @@
 /**
- * 人机命令 `task_contract`：人确认契约已签，把任务从 `drafting` 推到 `contracted`。
+ * 人机命令 `task_contract`：确认契约签署有效，把任务从 `drafting` 推到 `contracted`。
+ *
+ * 签名可以是人签，也可以是三补偿闸成立时的 AI 自签；本命令按同一套闸复核，
+ * 不复核「谁点的这条命令」——人点它、模型没有它，这一层边界仍在命令面上。
  *
  * 为什么单独一条命令、不让签署顺带推：签名与状态是两件事——签了不等于开工，中间隔着
  * 人的决定。两条命令各写一件事，失败也分得清：签名写坏了状态没动，状态推不动签名还在。
@@ -11,7 +14,11 @@
  */
 import { hasSpecRoot, resolveRoot } from '../kernel/spec-root.js'
 import type { RootInput, SpecRootContext } from '../kernel/spec-root.js'
+import { loadAutomationPolicy } from '../kernel/automation.js'
 import { loadContractFact } from '../kernel/contract.js'
+import { hasReviewEvidence, loadEvidence } from '../kernel/evidence-store.js'
+import { describeSelfSignFailure, evaluateSelfSignGate } from '../kernel/sign-gate.js'
+import type { SelfSignGateResult } from '../kernel/sign-gate.js'
 import { assertTaskId, loadTask, saveTask, taskPath, transition } from '../kernel/task-store.js'
 
 /** 一次人机命令调用里 kernel 用到的部分：会话事实加命令名后的原文。 */
@@ -44,7 +51,7 @@ export function createTaskContractCommand(
 ): ContractAdvanceDefinition {
   return {
     name: 'task_contract',
-    description: '确认契约已由人签署，把任务从起草推到已签约',
+    description: '确认契约签署有效（人签或三闸成立的 AI 自签），把任务从起草推到已签约',
     input: { hint: '<任务编号>' },
     handler: invocation => advance(rootInput, invocation, now),
   }
@@ -88,8 +95,23 @@ function advance(rootInput: RootInput, invocation: ContractAdvanceInvocation, no
   if (fact.contract.sig === null) {
     return { kind: 'error', text: `${taskId} 的契约还没签；先在任务详情里点「签署契约」` }
   }
-  if (fact.contract.sig.by !== 'human') {
-    return { kind: 'error', text: `${taskId} 的契约是 agent 签的，不算数；要人重新签` }
+  if (fact.contract.sig.by === 'agent') {
+    let gate: SelfSignGateResult
+    try {
+      gate = evaluateSelfSignGate({
+        signAuto: loadAutomationPolicy(root).policy.actions.sign === 'auto',
+        irreversible: task.scope.irreversible,
+        reviewEvidence: hasReviewEvidence(loadEvidence(root, taskId)),
+      })
+    } catch (error: unknown) {
+      return { kind: 'error', text: `自动化策略读不懂，无法复核 AI 自签：${errorMessage(error)}` }
+    }
+    if (!gate.allowed) {
+      return {
+        kind: 'error',
+        text: `${taskId} 的契约是 AI 自签，但三补偿闸未同时成立：${describeSelfSignFailure(gate)}；要人重新签`,
+      }
+    }
   }
   if (fact.contract.sig.hash !== fact.bodyHash) {
     return { kind: 'error', text: `${taskId} 的契约在签署后正文被改过，签名作废；要人重签` }
@@ -99,9 +121,12 @@ function advance(rootInput: RootInput, invocation: ContractAdvanceInvocation, no
   const { task: advanced } = transition(task, 'contracted', at)
   saveTask(root, advanced)
 
+  const signedHow = fact.contract.sig.by === 'agent'
+    ? `AI 自签（${fact.contract.sig.actor ?? '未记 actor'}）`
+    : '人签'
   return {
     kind: 'success',
-    text: `${taskId} 已进入「已签约」（${at}）。契约签名覆盖当前正文，实施需要的工具面从下一次求值起放开。`,
+    text: `${taskId} 已进入「已签约」（${at}）。契约签名（${signedHow}）覆盖当前正文，实施需要的工具面从下一次求值起放开。`,
   }
 }
 

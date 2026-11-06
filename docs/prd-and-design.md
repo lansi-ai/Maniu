@@ -39,13 +39,13 @@ The following five states are the task flow inside the LCoder product; developme
 
 | State | Entry condition | Model-visible capability | Exit |
 |---|---|---|---|
-| `drafting` | Task created, contract unsigned | Read code, query specifications, bind locations, draft the contract and further tasks | A human signs the contract, then `contracted` |
-| `contracted` | Contract signed by a human | Adds editing, command execution, evidence attachment | Enter `implementing` |
+| `drafting` | Task created, contract unsigned | Read code, query specifications, bind locations, draft the contract and further tasks | A valid signature (human, or AI under the three gates), then `contracted` |
+| `contracted` | Contract signed validly | Adds editing, command execution, evidence attachment | Enter `implementing` |
 | `implementing` | Implementing against the contract | Same as above | Only `verifying`, or back to `contracted` to re-sign |
 | `verifying` | Evidence complete | Adds `task_close` | `closed` after P1/P3/P4; otherwise back to `implementing` |
 | `closed` | Terminal | Read-only | None |
 
-The state machine only judges graph legality; whether a task may enter `contracted` also depends on a signed contract, decided by P3 and kept out of the state machine. Closure is `task_close` chaining three checkers: P1 gives every entry a binding, P3 requires a human signature that still covers the current contract body, and P4 requires evidence for every entry; if any fails, the state does not change.
+The state machine only judges graph legality; whether a task may enter `contracted` also depends on a signed contract, decided by P3 and kept out of the state machine. Closure is `task_close` chaining three checkers: P1 gives every entry a binding, P3 requires a signature that still covers the current contract body and is either human-written or an AI self-signature whose three compensating gates hold, and P4 requires evidence for every entry; if any fails, the state does not change. AI self-signing is a user decision from 2026-11-06: it requires `sign: auto` in the automation policy, an empty `scope.irreversible`, and non-empty review evidence for that contract, and a task with any irreversible item is always signed by a human.
 
 A repository with no task on disk is not a sixth state. Until the first `task_draft` lands there, the kernel applies the onboarding surface described in §6.
 
@@ -60,6 +60,10 @@ The workbench reads YAML under `.spec` directly and projects files through the u
 The kernel's specification root follows the session workspace: a tool call uses `session.header.cwd/.spec`. Without a session cwd (headless launches, startup self-check) it falls back to the configured `root`, then to `process.cwd()/.spec`. The desktop host runs with the profile directory as its process cwd, not the target repository, so the session workspace is the only source that keeps the tools and the UI projection on the same `.spec`.
 
 A task can additionally record which session works on it: `session` in `.spec/tasks/<ID>.yaml`. A human writes it through the `/task_bind` command when opening a conversation for that task, and the model never writes it — the session id comes from the host's own invocation, so a browser cannot claim a session that is not its own. The value is a runtime identifier inside this machine's home: after a machine change or a deleted session the kernel falls back to the configured task id and then to the first task on the board, and the task's own state never changes because of a stale claim. Releasing a claim deletes the key rather than leaving it empty, because an empty value makes the whole board unreadable.
+
+`.spec/automation.yaml` carries one automation policy per project: a switch per action (`draft`, `contract`, `sign`, `implement`, `verify`, `close`, `commit`), stop conditions (token budget, minutes, consecutive failures, parallel limit), and an optional task list. A missing file means every action is manual, matching the behavior without automation. External irreversible actions — push, deployment, registry and environment changes — cannot appear in the file; the schema rejects such keys rather than ignoring them. The kernel re-reads the file on every evaluation, so an edit applies to the next decision.
+
+The flow engine decides the next action instead of handing out work: a pure function over task facts, the policy, and consumed budget, returning one of `draft`, `contract`, `sign`, `implement`, `verify`, `close`, `commit`, `external`, or `stop`, with a reason and the blockers (signature, dependency, budget, external). It neither reads nor writes; `flow-store` assembles the facts from `.spec`, and the executor that drives the existing human commands and internal APIs belongs to the flow-control entry. Self-signing is one such action: `selfSignContract` writes `by: agent` only when all three gates hold, and records the `actor` preset together with the authorizing policy path, hash, and time.
 
 ## 8. MVP scope (MVP-0)
 
@@ -81,16 +85,18 @@ Explicitly out of scope: the workbench advancing task state (state stays hand-wr
 | D1 | The data plane uses file projection, not a typert Remote | Reads the single source of truth; the UI does not own state-machine logic |
 | D2 | Mounting uses an independent patch layer | No upstream manifest changes; the smallest upgrade conflict surface |
 | D3 | The tool surface is fail-closed | A missed configuration removes capability instead of expanding authority |
-| D4 | Signing is not a model tool | The model cannot sign for itself, which is what makes S1 hold |
+| D4 | Signing is not a model-invoked tool | A model that can call signing at will makes S1 false; signing stays on the human-command surface or the flow executor |
 | D5 | Product data and the development ledger are separate | `.spec/tasks` is product data; `docs/tasks.yaml` is the development ledger; the board is generated only from the ledger |
 | D6 | Single-track governance | One responsibility line and one next step; `active-context.md` is a single file |
 | D7 | Tool surface is state × role, never role alone | State is progress and role is a ceiling, so a misconfigured role removes capability instead of granting it |
 | D8 | Task ownership is claimed in `.spec`, not inferred from titles | `.spec` is the only product fact source; a session title is human-editable and cannot be a foreign key |
 | D9 | Parallel work is one workspace with N sessions | One session per task at depth 1; grandchildren are refused, so cost stays bounded while roles can delegate to review |
+| D10 | AI may self-sign only under three compensating gates | User decision 2026-11-06; the gates keep P3 meaningful after opening the human-only premise: policy `sign: auto`, empty `scope.irreversible`, and review evidence |
 
 ## 11. Risks and technical debt
 
-- Signing is wired: the human command `/contract_sign` lets the Host write the signature, and the workbench shows each task's contract body with a sign action. The browser never writes `.spec`; P3 invalidates a signature whose hash no longer covers the body. A human advances `drafting → contracted` through `/task_contract` once the signature checks out; later transitions are still hand-written YAML.
+- Signing is wired: the human command `/contract_sign` lets the Host write the signature, and the workbench shows each task's contract body with a sign action. The browser never writes `.spec`; P3 invalidates a signature whose hash no longer covers the body. A signature is valid when human-written, or when an AI self-signature passes all three gates; the contract records the `actor` preset and the policy path, hash, and time, and the projection exposes agent signatures separately. A human advances `drafting → contracted` through `/task_contract` once the signature checks out; later transitions are still hand-written YAML.
+- The flow engine, the policy loader, and AI self-signing are implemented with unit and real-file coverage. No executor runs them in a profile yet: `selfSignContract` has no caller outside tests, and the 开工 entry, the action log, and the panel belong to T-59. Repositories without `.spec/automation.yaml` keep the all-manual behavior.
 - A prompt with no usable model used to fail silently: admission accepts the message, the turn then fails on the Host, and the event stream never carries a `user/message`. `client/model-status.ts` folds `session/modelCatalog` into ready, empty, or unknown; an empty catalog blocks the send and names where the credential belongs, and the session snapshot's `promptError` and `lastAgentError` surface in the floating panel. The isolated in-repo home carries no provider credential, so a fresh checkout needs `DEEPSEEK_API_KEY` before any conversation can run.
 - `implementing → verifying` has no tool entry; advancing the state requires editing the task file by hand.
 - The onboarding surface removes this package's editing and command tools only. Bundle-registered tools stay available to every Agent in the profile, so an un-onboarded repository does not lose code-editing capability from LCoder alone; an Agent-scope `restrict` covering them is tracked as T-11.
