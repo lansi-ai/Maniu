@@ -86,6 +86,8 @@ export interface OpenTaskInput {
   evidence_required?: string[]
   /** 出自哪个方案（`P-01`）；省略表示不是拆出来的。 */
   proposal?: string
+  /** 前置任务编号；省略即没有依赖。 */
+  depends_on?: string[]
   opened_at: string
 }
 
@@ -128,6 +130,52 @@ export function nextTaskId(tasks: readonly Task[]): string {
     if (digits !== undefined) max = Math.max(max, Number.parseInt(digits, 10))
   }
   return `T-${String(max + 1).padStart(2, '0')}`
+}
+
+/**
+ * 依赖里写错的编号：任务不存在。
+ * @param tasks - 规格库里已有的任务。
+ * @param dependsOn - 将要写入的前置编号。
+ * @returns 不认识的那些编号；都认识时为空数组。
+ */
+export function unknownDependencies(tasks: readonly Task[], dependsOn: readonly string[]): string[] {
+  const known = new Set(tasks.map(task => task.id))
+  return dependsOn.filter(id => !known.has(id))
+}
+
+/**
+ * 把 `candidateId` 挂上 `dependsOn` 会不会成环。
+ *
+ * 允许引用还不存在的任务没有意义（读侧只能显示未知任务），所以存在性由调用方先查；
+ * 这里只回答图上的问题：沿着已有依赖能不能走回自己。
+ * @param tasks - 规格库里已有的任务。
+ * @param candidateId - 将要写入的任务编号。
+ * @param dependsOn - 它声明的前置。
+ * @returns 成环时给出环上的编号（从 candidate 出发、回到 candidate）；否则 undefined。
+ */
+export function dependencyCycle(
+  tasks: readonly Task[],
+  candidateId: string,
+  dependsOn: readonly string[],
+): string[] | undefined {
+  // 直接依赖自己是最短的环：一条边的自环，别报成 t → t 两次。
+  if (dependsOn.includes(candidateId)) return [candidateId]
+  const byId = new Map(tasks.map(task => [task.id, task]))
+  const walk = (from: string, path: string[]): string[] | undefined => {
+    if (from === candidateId) return [...path, candidateId]
+    const task = byId.get(from)
+    if (task === undefined) return undefined
+    for (const next of task.depends_on) {
+      const found = walk(next, [...path, from])
+      if (found !== undefined) return found
+    }
+    return undefined
+  }
+  for (const dependency of dependsOn) {
+    const found = walk(dependency, [candidateId])
+    if (found !== undefined) return found
+  }
+  return undefined
 }
 
 /**

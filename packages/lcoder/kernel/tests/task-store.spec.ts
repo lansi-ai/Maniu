@@ -8,6 +8,7 @@ import {
   IllegalTransitionError,
   assertTaskId,
   canTransition,
+  dependencyCycle,
   findByTitle,
   listTasks,
   loadTask,
@@ -16,7 +17,9 @@ import {
   pickTaskForSession,
   saveTask,
   transition,
+  unknownDependencies,
 } from '../src/kernel/task-store.js'
+import { Task } from '../src/schema/spec.js'
 import type { TaskState } from '../src/schema/spec.js'
 
 const dirs: string[] = []
@@ -166,5 +169,25 @@ describe('按会话取任务', () => {
   it('配置的任务读不到就返回 undefined，由调用方按空看板面处理', () => {
     expect(pickTaskForSession([t1], 'session-x', 'T-09')).toBeUndefined()
     expect(pickTaskForSession([], 'session-B')).toBeUndefined()
+  })
+})
+describe('依赖图', () => {
+  const task = (id: string, dependsOn: string[] = []) => Task.parse({
+    id, title: id, grade: 'B', state: 'drafting', depends_on: dependsOn, opened_at: '2026-11-06T10:00:00+08:00',
+  })
+
+  it('不成环时返回 undefined，能走回来时给出环上的编号', () => {
+    const tasks = [task('T-01'), task('T-02', ['T-01']), task('T-03', ['T-02'])]
+
+    expect(dependencyCycle(tasks, 'T-04', ['T-03'])).toBeUndefined()
+    expect(dependencyCycle(tasks, 'T-01', ['T-03'])).toEqual(['T-01', 'T-03', 'T-02', 'T-01'])
+    expect(dependencyCycle(tasks, 'T-02', ['T-02'])).toEqual(['T-02'])
+  })
+
+  it('引用不存在的任务由 unknownDependencies 报出来，环判定不受影响', () => {
+    const tasks = [task('T-01')]
+
+    expect(unknownDependencies(tasks, ['T-01', 'T-09'])).toEqual(['T-09'])
+    expect(dependencyCycle(tasks, 'T-02', ['T-09'])).toBeUndefined()
   })
 })

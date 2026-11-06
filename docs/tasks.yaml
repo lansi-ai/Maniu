@@ -535,7 +535,7 @@ tracks:
       note: "B 级（显示层加一处描边与一个圆点，另开一条渲染端到主进程的单向通道；动的是四个已登记的上游文件）。用户 2026-11-05 明确要提示，无论是等用户做选择题还是等用户操作电脑。先核现状：卡片有「等你回答」这个态但没有动效——跑马灯描边原先只给 running；顶栏会话条只分当前与非当前；真正的操作卡 PendingInteractionCard 只在打开那条会话的浮层里出现；窗口关了没有任何东西叫人，桌面端只有强制更新那条路用 flashFrame 与系统通知。落点三处。一、task-card-visual.ts 把描边扩到 awaitingInteraction，新增 .taskCardAwaiting 复用同一套 conic 跑马灯几何、只换色相为警示色，深浅两套各一个 --lc-wait-accent，透明度与在跑同档（比在跑更该被看见但不更吵），prefers-reduced-motion 下退化成静态描边。二、顶栏会话条给在等的会话加一枚脉冲圆点，aria-hidden，文案复用既有的 shell.taskAwaiting，不新增词典键。三、渲染端把「本工作区有几条会话在等人」报给主进程：ipc.ts 加 windowAttention 通道、preload-app.ts 在窗口桥上暴露 attention(awaiting)、main.ts 的处理器沿用窗口命令那一条的 sender 校验，并按自己的焦点状态决定 flashFrame——窗口有焦点就不打扰，失焦且计数大于零才闪，非数字与负数按零处理；外壳在计数变化时上报、卸载时归零。策略放主进程的理由要说清：只有渲染端知道等待数，只有主进程知道窗口有没有焦点，把焦点判断搬到渲染端就要多一条订阅与一次状态镜像，违反客户端的三条数据通道规矩。计数只读宿主推流的全局 seat，不物化会话也不开历史——等待恰恰发生在你不看那条会话的时候。两件没做的：托盘 tooltip 与系统通知本轮不加计数，前者要新增八种语言的文案、后者会被 Windows 专注助手吞掉，任务栏闪烁不需要文案且够用；tool-ask-user 的定时变体仍不挂进桌面 profile，所以等待只有审批与提问两类，不会超时自行放行。门禁：typecheck 5 关绿；vitest packages/lcoder 35 文件 346 用例，task-card-visual 的断言改成「两种需要人的态都有描边且类名互不相同」；apps/desktop 的 main-startup 154 用例，新增一条覆盖有焦点不闪、失焦且有等待才闪、归零与非数字回落、sender 不对就抛；oxlint 82 文件 0 错 0 警；verify-client-ui-i18n 1273 个源文件合格；workspace bundle 重打且产物里查得到新类名。未验：桌面端手点两条——让 agent 跑一条 exec 为 ai-confirm 的命令后把窗口最小化或切走，看任务栏是否闪；以及看板上看等待中的卡片有没有警示色跑马灯、会话条有没有圆点。"
     - id: T-50
       title: 任务依赖与关联标记——depends_on 进 schema，写盘前查存在与环
-      status: doing
+      status: done
       face: 用户端
       type: 开发
       owner: lance
@@ -543,7 +543,7 @@ tracks:
       date: '2026-11-06'
       dep: [T-25]
       inferred: false
-      note: "A 级（产品数据契约变更）。用户 2026-11-06 拍板的调度口径：建任务时就该有机制标记关联，生成提示词时再判一次，用户点开始时再判一次；前置未完成不是拒绝开始，而是可以加入等待。本轮只做第一层——让依赖与关联可见、可校验，不碰状态机与工具面。落点四处。一、schema 的 Task 加 depends_on（稳定编号数组，默认空）与 related 可选块（proposal 已有字段继续用，module 先由 rules 反查得到，不新增冗余字段）。二、task_draft 新增 depends_on 入参，写盘前逐个校验任务存在、拒绝自依赖、做环检测（沿 depends_on 走一遍，命中就报出环上的编号）。三、task_read 与投影把依赖读出来，任务详情显示「等 T-01、T-02」，卡片上给一枚「等依赖」标记。四、规则单源补一行：依赖只能由人在起草时声明或经 task_draft 写入，状态推进仍归人与命令，模型不能靠依赖绕开契约。不做：不改五态状态机、不改 SURFACE、不做调度判定（那是 T-51 与 T-53）。门禁：typecheck 5、vitest packages/lcoder、oxlint、test:docs 21、bundle 重打。"
+      note: "A 级（产品数据契约变更）。用户 2026-11-06 拍板的调度口径：建任务时就该有机制标记关联，生成提示词时再判一次，用户点开始时再判一次；前置未完成不是拒绝开始，而是可以加入等待。本轮只做第一层——让依赖与关联可见、可校验，不碰状态机与工具面。落点四处。一、schema 的 Task 加 depends_on（稳定编号数组，默认空）与 related 可选块（proposal 已有字段继续用，module 先由 rules 反查得到，不新增冗余字段）。二、task_draft 新增 depends_on 入参，写盘前逐个校验任务存在、拒绝自依赖、做环检测（沿 depends_on 走一遍，命中就报出环上的编号）。三、task_read 与投影把依赖读出来，任务详情显示「等 T-01、T-02」，卡片上给一枚「等依赖」标记。四、规则单源补一行：依赖只能由人在起草时声明或经 task_draft 写入，状态推进仍归人与命令，模型不能靠依赖绕开契约。不做：不改五态状态机、不改 SURFACE、不做调度判定（那是 T-51 与 T-53）。门禁：typecheck 5、vitest packages/lcoder、oxlint、test:docs 21、bundle 重打。2026-11-06 落地与证据：schema 的 Task 加 depends_on（编号数组，默认空），OpenTaskInput 同步；task-store 加 unknownDependencies 与 dependencyCycle（自依赖按一条边的自环返回，走不回来返回 undefined），task_draft 新增 depends_on 入参并在写盘前查存在、禁自依赖、禁环，返回体带上 depends_on；投影与 ShellTask 带 dependsOn（默认空），卡片给「等 T-01、T-02」警示标签，任务详情的元信息栏多一格依赖。测试：task-tools 三条（写入并读回、不存在被拒、自依赖被拒）、task-store 两条（间接环与自环的路径形状、未知编号不影响环判定）、projection 一条（depends_on 读回）。门禁：typecheck 5 关绿；vitest packages/lcoder 36 文件 360 用例；oxlint 84 文件 0 错 0 警；verify-client-ui-i18n 1274 文件合格；test:docs 21 关绿；workspace bundle 重打。未验：桌面手点——建一条带 depends_on 的任务看卡片与详情的显示。依赖真正「按住」要等 T-51，本轮只让人与模型看得见、写错会被拦。"
     - id: T-51
       title: 三层判定与执行——等依赖按住、无依赖入队、无匹配才新开
       status: todo

@@ -164,6 +164,7 @@ function toShellTask(row: TaskRow): ShellTask {
     surface: SURFACE[state],
     ...(row.session === undefined ? {} : { session: row.session }),
     ...(row.proposal === undefined ? {} : { proposal: row.proposal }),
+    ...(row.dependsOn.length === 0 ? {} : { dependsOn: row.dependsOn }),
   }
 }
 
@@ -789,6 +790,9 @@ export function Shell({
                 <div className={css.tags}>
                   <span className={`${css.tag} ${TASK_STATUS[status].className ?? ''}`}>{t(TASK_STATUS[status].labelKey)}</span>
                   {task.proposal === undefined ? null : <span className={css.tag}>{task.proposal}</span>}
+                  {task.dependsOn === undefined
+                    ? null
+                    : <span className={`${css.tag} ${css.tagWarn}`}>{t('shell.dependsOn')} {task.dependsOn.join('、')}</span>}
                   {task.rules.map(rule => <span key={rule} className={css.tag}>{rule}</span>)}
                   <span className={`${css.tag} ${task.state === 'closed' ? css.tagOk : ''}`}>{task.surface}</span>
                   {!contracts.some(row => row.id === task.id && row.signedBy === 'human')
@@ -1235,6 +1239,9 @@ export function Shell({
               <div className={css.metaGrid}>
                 <div className={css.meta}><div className={css.metaK}>{t('shell.grade')}</div><div className={css.metaV}>{detail.grade}</div></div>
                 <div className={css.meta}><div className={css.metaK}>{t('shell.rules')}</div><div className={css.metaV}>{detail.rules.join(', ') || '—'}</div></div>
+                {detail.dependsOn === undefined
+                  ? null
+                  : <div className={css.meta}><div className={css.metaK}>{t('shell.dependsOn')}</div><div className={css.metaV}>{detail.dependsOn.join('、')}</div></div>}
                 <div className={css.meta}><div className={css.metaK}>{t('shell.evidence')}</div><div className={css.metaV}>{detail.evidence.join(', ') || '—'}</div></div>
                 <div className={css.meta}><div className={css.metaK}>{t('shell.surface')}</div><div className={css.metaV}>{detail.surface}</div></div>
               </div>

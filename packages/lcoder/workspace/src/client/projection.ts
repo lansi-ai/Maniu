@@ -29,6 +29,8 @@ export interface TaskRow {
   readonly session?: string
   /** 这条任务出自哪个方案（`P-01`）；缺省表示不是拆出来的。 */
   readonly proposal?: string
+  /** 前置任务编号；空数组表示没有依赖。 */
+  readonly dependsOn: readonly string[]
 }
 
 /** 中栏一条规格条目。 */
@@ -154,6 +156,7 @@ export function taskTextToRow(fileName: string, text: string): TaskRow | undefin
     evidence: stringArray(fields.evidence_required),
     ...(session === undefined ? {} : { session }),
     ...(proposal === undefined ? {} : { proposal }),
+    dependsOn: stringArray(fields.depends_on),
   }
 }
 

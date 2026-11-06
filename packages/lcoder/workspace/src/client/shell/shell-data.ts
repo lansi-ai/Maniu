@@ -23,6 +23,8 @@ export interface ShellTask {
   readonly session?: string
   /** 这条任务出自哪个方案（`P-01`）；缺省表示不是拆出来的。 */
   readonly proposal?: string
+  /** 前置任务编号；缺省表示没有依赖。 */
+  readonly dependsOn?: readonly string[]
 }
 
 /** 装配层声明的一个角色（Agent preset）；外壳的新会话按它指名。 */

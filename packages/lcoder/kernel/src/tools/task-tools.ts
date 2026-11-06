@@ -22,7 +22,7 @@ import { assertProposalId, listProposals } from '../kernel/proposal-store.js'
 import { loadSpec, textCodeIndexFromDir } from '../kernel/spec-store.js'
 import { hasSpecRoot, resolveRoot } from '../kernel/spec-root.js'
 import type { RootInput } from '../kernel/spec-root.js'
-import { assertTaskId, findByTitle, listTasks, loadTask, nextTaskId, openTask, saveTask, taskPath, transition } from '../kernel/task-store.js'
+import { assertTaskId, dependencyCycle, findByTitle, listTasks, loadTask, nextTaskId, openTask, saveTask, taskPath, transition, unknownDependencies } from '../kernel/task-store.js'
 
 const renderJson = (_args: unknown, value: unknown): { type: 'text'; text: string }[] => [
   { type: 'text', text: JSON.stringify(value, null, 2) },
@@ -114,6 +114,7 @@ export function createTaskTools(specRootInput: RootInput): ToolDefinition[] {
         irreversible: { type: 'array', items: { type: 'string' }, description: '不可逆对象名；填了就必须有人签署的契约才能收口（P3）' },
         evidence_required: { type: 'array', items: { type: 'string' }, description: '收口必备的证据项，对应 env.yaml 里登记的命令 id' },
         proposal: { type: 'string', description: '这条任务出自哪个方案（如 P-01），必须已存在于 proposals/；省略表示不是拆出来的' },
+        depends_on: { type: 'array', items: { type: 'string' }, description: '前置任务编号；这些任务收口之前本条不会开始' },
         task_id: { type: 'string', description: '指定编号，形如 T-014；省略则取现有 T- 编号之后的下一个空号' },
       },
       output: { schema: { type: 'json' }, render: renderJson },
@@ -164,6 +165,16 @@ export function createTaskTools(specRootInput: RootInput): ToolDefinition[] {
         }
 
         const proposalId = taskDraftProposal(specRoot, args.proposal)
+        const dependsOn = args.depends_on ?? []
+        if (dependsOn.length > 0) {
+          if (dependsOn.includes(id)) throw new Error(`任务不能依赖自己：${id}`)
+          const unknown = unknownDependencies(existing, dependsOn)
+          if (unknown.length > 0) {
+            throw new Error(`depends_on 里有不存在的任务：${unknown.join(', ')}；先建好前置任务再挂依赖`)
+          }
+          const cycle = dependencyCycle(existing, id, dependsOn)
+          if (cycle !== undefined) throw new Error(`depends_on 会成环：${cycle.join(' 依赖 ')}`)
+        }
 
         const task = openTask({
           id,
@@ -173,6 +184,7 @@ export function createTaskTools(specRootInput: RootInput): ToolDefinition[] {
           scope: { irreversible: args.irreversible ?? [], allowed_paths: args.allowed_paths ?? [] },
           evidence_required: args.evidence_required ?? [],
           ...(proposalId === undefined ? {} : { proposal: proposalId }),
+          ...(dependsOn.length === 0 ? {} : { depends_on: dependsOn }),
           opened_at: new Date().toISOString(),
         })
         const path = saveTask(specRoot, task)
@@ -183,6 +195,7 @@ export function createTaskTools(specRootInput: RootInput): ToolDefinition[] {
           state: task.state,
           grade: task.grade,
           rules: task.rules,
+          depends_on: task.depends_on,
           created: true,
           note: '任务已建，状态 drafting。契约用 contract_draft 起草；签署只能由人完成，本工具不提供签署。',
         }

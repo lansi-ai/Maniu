@@ -157,7 +157,13 @@ describe('文件投影', () => {
       rules: ['R-LOGIN-01'],
       evidence: ['test'],
       session: undefined,
+      dependsOn: [],
     })
+    // 依赖是任务文件里的事实：写了就原样读回，空着就是没有依赖。
+    expect(taskTextToRow('T-014.yaml', `${TASK_YAML}
+depends_on:
+  - T-010
+`)?.dependsOn).toEqual(['T-010'])
     expect(taskTextToRow('T-015.yaml', 'grade: A')).toBeUndefined()
     // 认领会话号原样透给外壳：卡片靠它决定是切到已有会话，还是新开一条再绑。
     expect(taskTextToRow('T-014.yaml', `${TASK_YAML}\nsession: session-8676\n`)?.session).toBe('session-8676')

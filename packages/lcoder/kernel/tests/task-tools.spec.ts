@@ -308,3 +308,30 @@ describe('task_draft 立项', () => {
     await expect(call(spec, 'task_read', { task_id: 'T-01' })).rejects.toThrow(/还没有 \.spec 规格库/)
   })
 })
+describe('任务依赖', () => {
+  it('前置任务写进 depends_on，读回时原样在', async () => {
+    const { spec } = makeRepo()
+
+    const first = await call(spec, 'task_draft', { title: '先做登录', grade: 'B' })
+    const firstId = String(first.task_id)
+
+    const second = await call(spec, 'task_draft', { title: '再做权限', grade: 'B', depends_on: [firstId] })
+    expect(second.depends_on).toEqual([firstId])
+    expect(readFileSync(join(spec, 'tasks', `${String(second.task_id)}.yaml`), 'utf8')).toContain(`depends_on:
+  - ${firstId}`)
+  })
+
+  it('引用不存在的任务就拒，并说清先建前置', async () => {
+    const { spec } = makeRepo()
+
+    await expect(call(spec, 'task_draft', { title: '依赖空编号', grade: 'B', depends_on: ['T-99'] }))
+      .rejects.toThrow(/不存在的任务：T-99/)
+  })
+
+  it('拒绝自依赖', async () => {
+    const { spec } = makeRepo()
+
+    await expect(call(spec, 'task_draft', { title: '依赖自己', grade: 'B', task_id: 'T-77', depends_on: ['T-77'] }))
+      .rejects.toThrow(/不能依赖自己：T-77/)
+  })
+})
