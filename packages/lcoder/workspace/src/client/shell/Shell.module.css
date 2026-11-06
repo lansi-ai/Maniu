@@ -253,9 +253,8 @@
 .topBrand { display: flex; align-items: center; gap: var(--lc-space-2); }
 .topLogo {
   width: 34px; height: 34px; border-radius: 10px;
-  background: linear-gradient(135deg, var(--lc-brand), var(--lc-brand-2));
-  display: grid; place-items: center; color: #fff; font-weight: 800; font-size: var(--lc-text-md);
-  box-shadow: 0 6px 16px rgba(0, 113, 227, 0.28);
+  display: block; object-fit: cover; background: #fff;
+  box-shadow: 0 6px 16px rgba(17, 17, 19, 0.16);
 }
 .topTitle { font: 700 var(--lc-text-lg) / var(--lc-leading-tight) var(--lc-font-display); letter-spacing: var(--lc-tracking-tight); }
 .topProject {

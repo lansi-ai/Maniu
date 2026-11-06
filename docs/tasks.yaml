@@ -712,7 +712,7 @@ tracks:
       date: '2026-11-06'
       dep: [T-39]
       inferred: false
-      note: "C 级（美术替换，不改行为）。用户 2026-11-06 给了牛头标（黑牛头、白衬衫、红领带、浅底）要求替代现有图标。落点：三张 PNG（icon.png 1104 画布图块在 40 32、icon-windows.png 1024、icon-macos.png 缩放 0.8046875 居中）都用 sharp 加 192 圆角蒙版；三个 SVG 改成内嵌 512 位图的外壳（icon.svg 保持 1104 画布与 translate(40 32) 常量，icon-windows.svg 保留 id 为 tray-glyph 的组，托盘管线才能继续注入 1.2 倍放大）；托盘单独用牛头裁切版加浅底，因为整图在 16px 下只会是一个黑块。源图与裁头版留在 lcoder/assets/brand 下备查。上游三张 SVG 与托盘 ICO 都在既有接触面清单里，登记不变。门禁：tray-icon 与 installer-packaging 两个 spec 九例全绿；ICO 由 render:tray-icon 管线重出，含 16 到 64 七档。未验：Windows 图标缓存——换图后任务栏与 Alt-Tab 可能仍显示旧图，需重启实例或注销后刷新。"
+      note: "C 级（美术替换，不改行为）。用户 2026-11-06 给了牛头标（黑牛头、白衬衫、红领带、浅底）要求替代现有图标。落点：三张 PNG（icon.png 1104 画布图块在 40 32、icon-windows.png 1024、icon-macos.png 缩放 0.8046875 居中）都用 sharp 加 192 圆角蒙版；三个 SVG 改成内嵌 512 位图的外壳（icon.svg 保持 1104 画布与 translate(40 32) 常量，icon-windows.svg 保留 id 为 tray-glyph 的组，托盘管线才能继续注入 1.2 倍放大）；托盘单独用牛头裁切版加浅底，因为整图在 16px 下只会是一个黑块。源图与裁头版留在 lcoder/assets/brand 下备查。上游三张 SVG 与托盘 ICO 都在既有接触面清单里，登记不变。门禁：tray-icon 与 installer-packaging 两个 spec 九例全绿；ICO 由 render:tray-icon 管线重出，含 16 到 64 七档。未验：Windows 图标缓存——换图后任务栏与 Alt-Tab 可能仍显示旧图，需重启实例或注销后刷新。2026-11-06 补齐：用户又指出顶栏品牌标还是旧的蓝底 L——那是外壳里的 .topLogo，不是系统图标；已换成牛头（128px 裁头版、34px 圆角、去掉蓝渐变与字母），并删掉只为那个 L 存在的 shell.brandInitial 中英两个词典键。门禁复跑：vitest 49 文件 489 用例、oxlint 0、i18n 1278 文件，bundle 已把 bull-mark 打进 lib/assets。"
     - id: T-65
       title: 首屏登录整窗默认关掉——直接进工作台，缺模型由外壳提示
       status: done

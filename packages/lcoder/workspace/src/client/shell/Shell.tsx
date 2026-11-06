@@ -54,6 +54,7 @@ import { projectDirectoryPicker } from './project-directory.ts'
 import type {
   ShellContextPressure, ShellMessage, ShellProjectInfo, ShellRole, ShellSignResult, ShellTask, ShellTaskState,
 } from './shell-data.ts'
+import bullMark from '../assets/bull-mark.png'
 import css from './Shell.module.css'
 
 /** `main` 键控面板的组合 props：运行时标准 seat + 本包词典 + 文件投影面。 */
@@ -1623,7 +1624,7 @@ export function Shell({
     <div className={css.shell} data-theme={dark ? 'dark' : 'light'} data-chrome={windowBridge === undefined ? undefined : 'custom'}>
       <header className={css.topbar} onDoubleClick={windowBridge === undefined ? undefined : onTopbarDoubleClick}>
         <div className={css.topBrand}>
-          <div className={css.topLogo}>{t('shell.brandInitial')}</div>
+          <img className={css.topLogo} src={bullMark} alt="" />
           <span className={css.topTitle}>{t('shell.brand')}</span>
         </div>
         <button type="button" className={css.topProject} title={t('shell.switchProject')} onClick={() => { setProjectPicker(true) }}>
