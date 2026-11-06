@@ -14,8 +14,24 @@ import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import { loadLocalSecrets, loadProjectInfo, loadWorkspaceProjection } from '../projection.ts'
-import type { ContractRow, ProjectionFilesRemote, ProposalRow, RuleRow, SchedulingGroupRow, TaskRow } from '../projection.ts'
+// Type-only: pulls the `agentPreset` Session projection value into this program.
+import type {} from '@deepseek-ai/dsh-agent-preset-registry/types'
+import {
+  loadAgentsRegistry, loadLocalSecrets, loadProjectInfo, loadWorkspaceProjection,
+} from '../projection.ts'
+import type {
+  AgentsRow, ContractRow, ProjectionFilesRemote, ProposalRow, RuleRow, SchedulingGroupRow, TaskRow,
+} from '../projection.ts'
+import { parseFlowStatus } from '../flow-status.ts'
+import type {
+  FlowActionView, FlowBlockerKindView, FlowDecisionView, FlowStatusView,
+} from '../flow-status.ts'
+import { loadActionLog } from '../flow-history.ts'
+import type { ActionLogEntry } from '../flow-history.ts'
+import {
+  AGENT_ROLES, liveAgentSession, resolveAgentSession, titleNeedsFix,
+} from '../singleton.ts'
+import type { AgentRole, AgentSessionCandidate } from '../singleton.ts'
 import { decideScheduling } from '../scheduling.ts'
 import type { SchedulingDecision, SchedulingSession, SchedulingTask } from '../scheduling.ts'
 import type { ExpertPrompt, ExpertRow } from '../experts.ts'
@@ -35,7 +51,9 @@ import { desktopWindowBridge } from './window-chrome.ts'
 import type { DesktopWindowCommand, DesktopWindowState } from './window-chrome.ts'
 import { runningCardClass } from './task-card-visual.ts'
 import { projectDirectoryPicker } from './project-directory.ts'
-import type { ShellMessage, ShellProjectInfo, ShellRole, ShellSignResult, ShellTask, ShellTaskState } from './shell-data.ts'
+import type {
+  ShellContextPressure, ShellMessage, ShellProjectInfo, ShellRole, ShellSignResult, ShellTask, ShellTaskState,
+} from './shell-data.ts'
 import css from './Shell.module.css'
 
 /** `main` 键控面板的组合 props：运行时标准 seat + 本包词典 + 文件投影面。 */
@@ -64,6 +82,16 @@ export type ShellProps =
     readonly bindTask?: (sessionId: SessionId, taskId: string) => Promise<ShellSignResult>
     /** 派 `/task_schedule <编号> <JSON>` 把这次判定追加到任务证据目录，供事后审计。 */
     readonly logSchedule?: (sessionId: SessionId, taskId: string, json: string) => Promise<ShellSignResult>
+    /** 派 `/flow_status` 求流程判定；返回一行 JSON，由外壳解析展示。 */
+    readonly readFlowStatus?: (sessionId: SessionId, taskIds: readonly string[]) => Promise<ShellSignResult>
+    /** 派 `/flow_log <编号> <JSON>` 把一次开工结果追加到任务证据目录。 */
+    readonly logFlow?: (sessionId: SessionId, taskId: string, json: string) => Promise<ShellSignResult>
+    /** 派 `/agent_bind <角色> <会话号>` 把常驻会话号写回 `.spec/agents.yaml`。 */
+    readonly bindAgentSession?: (sessionId: SessionId, role: AgentRole, agentSession: SessionId) => Promise<ShellSignResult>
+    /** 把会话标题写成角色名；拒绝时返回失败回执，外壳照实显示。 */
+    readonly renameSession?: (sessionId: SessionId, title: string) => Promise<ShellSignResult>
+    /** 读当前会话的上下文占用与容量；读不到返回 null。 */
+    readonly readContextPressure?: (sessionId: SessionId) => ShellContextPressure | null
     /** 在同一仓库里新开会话，可按角色（Agent preset）指名；角色只在首回合前可选。 */
     readonly createSession?: (path: string, agentPreset?: string) => Promise<SessionId>
     /** 装配层声明的角色名册；读不到时外壳只走宿主默认角色。 */
@@ -152,9 +180,62 @@ interface ShellSchedule {
   readonly joint?: { readonly sessionId: string; readonly members: readonly string[] }
 }
 
+/** 开工批量里一条任务的结果；`held` 表示流程判定按住，不算失败。 */
+interface FlowRunResult {
+  readonly taskId: string
+  readonly ok: boolean
+  readonly held: boolean
+  readonly text: string
+}
+
+/** 流程动作到词典键。 */
+const FLOW_ACTION_LABEL: Record<FlowActionView, LcoderWorkspaceKey> = {
+  draft: 'shell.flowActionDraft',
+  contract: 'shell.flowActionContract',
+  sign: 'shell.flowActionSign',
+  implement: 'shell.flowActionImplement',
+  verify: 'shell.flowActionVerify',
+  close: 'shell.flowActionClose',
+  commit: 'shell.flowActionCommit',
+  external: 'shell.flowActionExternal',
+  stop: 'shell.flowActionStop',
+}
+
+/** 挡住原因到词典键。 */
+const FLOW_BLOCKER_LABEL: Record<FlowBlockerKindView, LcoderWorkspaceKey> = {
+  signature: 'shell.flowBlockerSignature',
+  dependency: 'shell.flowBlockerDependency',
+  budget: 'shell.flowBlockerBudget',
+  external: 'shell.flowBlockerExternal',
+}
+
+/** 动作模式到词典键。 */
+const FLOW_MODE_LABEL = {
+  auto: 'shell.flowModeAuto',
+  manual: 'shell.flowModeManual',
+  none: 'shell.flowModeNone',
+} as const
+
 /** 词典里的 `{name}` 占位符；只替换一遍，值里再出现花括号不再展开。 */
 function fill(text: string, values: Readonly<Record<string, string | number>>): string {
   return Object.entries(values).reduce((result, [key, value]) => result.replace(`{${key}}`, String(value)), text)
+}
+
+/** 上下文计数的短写法：1.2k / 3.4M；只在展示层用，不参与任何判定。 */
+function formatTokens(value: number): string {
+  if (value < 1_000) return String(Math.round(value))
+  if (value < 1_000_000) {
+    const scaled = (value / 1_000).toFixed(1)
+    return `${scaled.endsWith('.0') ? scaled.slice(0, -2) : scaled}k`
+  }
+  const scaled = (value / 1_000_000).toFixed(1)
+  return `${scaled.endsWith('.0') ? scaled.slice(0, -2) : scaled}M`
+}
+
+/** 占用百分比；容量未知或为 0 时返回 null。 */
+function percentOf(used: number, budget: number | undefined): number | null {
+  if (budget === undefined || budget <= 0) return null
+  return Math.min(999, Math.round((used / budget) * 100))
 }
 
 const KNOWN_STATES: ReadonlySet<string> = new Set(SHELL_STATES.map(state => state.id))
@@ -214,8 +295,9 @@ function resolveSecrets(info: ShellProjectInfo, secrets: Readonly<Record<string,
  * @returns 顶栏 + 任务板 + 项目信息抽屉 + 浮层。
  */
 export function Shell({
-  t, files, openRepository, sendPrompt, signContract, advanceContract, approveProposal, bindTask, logSchedule, createSession, listRoles,
-  listExperts, readExpert,
+  t, files, openRepository, sendPrompt, signContract, advanceContract, approveProposal, bindTask, logSchedule,
+  readFlowStatus, logFlow, bindAgentSession, renameSession, readContextPressure,
+  createSession, listRoles, listExperts, readExpert,
   readMessages, subscribeSession, holdSession, checkModels, subscribeModels, readSessionNotice, readSessionFlags, modelSettings,
   useSessions, useSessionStatus, useWorkspaces, chatSize,
 }: ShellProps): ReactNode {
@@ -302,6 +384,30 @@ export function Shell({
   const [schedule, setSchedule] = useState<Readonly<Record<string, ShellSchedule>>>({})
   /** 调度日志没写成的原因；按任务号记，界面上就地说明。 */
   const [scheduleErrors, setScheduleErrors] = useState<Readonly<Record<string, string>>>({})
+  /** `.spec/agents.yaml` 登记的两个常驻会话号；缺文件时为 null。 */
+  const [agents, setAgents] = useState<AgentsRow | null>(null)
+  /** 开工/流程面板；判定只在打开或重读时求值，不在每次渲染上跑命令。 */
+  const [flowOpen, setFlowOpen] = useState(false)
+  const [flow, setFlow] = useState<FlowStatusView | null>(null)
+  const [flowLoading, setFlowLoading] = useState(false)
+  const [flowError, setFlowError] = useState<string | null>(null)
+  /** 本次要开工的任务；默认所有可开始的任务，人可逐条取消。 */
+  const [flowSelection, setFlowSelection] = useState<ReadonlySet<string>>(new Set())
+  const [flowRunning, setFlowRunning] = useState(false)
+  /** 上一次批量开工的逐条结果；失败项可单独重试。 */
+  const [flowResults, setFlowResults] = useState<readonly FlowRunResult[]>([])
+  const [flowHistory, setFlowHistory] = useState<readonly ActionLogEntry[]>([])
+  const [flowHistoryProblems, setFlowHistoryProblems] = useState<readonly string[]>([])
+  /** 动作流水没写成的原因；按任务号记。 */
+  const [flowLogErrors, setFlowLogErrors] = useState<Readonly<Record<string, string>>>({})
+  /** 浮层会话的上下文占用与容量；随事件刷新。 */
+  const [chatPressure, setChatPressure] = useState<ShellContextPressure | null>(null)
+  /** 常驻会话的创建/切换只允许一个在途；连点第二下不会开出第二条。 */
+  const singletonBusy = useRef(false)
+  /** 人是否动过开工范围；动过之后刷新判定不再覆盖他的选择。 */
+  const flowSelectionTouched = useRef(false)
+  /** 动作流水的在途读取；新请求先取消旧请求，避免旧结果盖住新结果。 */
+  const historyAbort = useRef<AbortController | null>(null)
 
   const workspace = workspaces.find(item => String(item.workspaceId) === workspaceId) ?? workspaces[0]
   const activeWorkspaceId = workspace === undefined ? null : String(workspace.workspaceId)
@@ -329,6 +435,89 @@ export function Shell({
    */
   const liveSessionOf = (task: ShellTask): SessionId | undefined =>
     claimTaskSession(task.session, taskSessionRows)?.sessionId
+
+  /**
+   * 一条会话的 preset。列表摘要优先，其次打开会话的完整投影，最后是本窗口
+   * 建会话时记下的角色；三处都读不到就留空，单例解析按「读不到不否决」处理。
+   */
+  const agentPresetOf = (id: SessionId): string | undefined => {
+    const summary = sessionRows[id]?.projectionValues?.agentPreset
+    if (typeof summary === 'string' && summary !== '') return summary
+    const projected = sessionProjections[id]?.values.agentPreset
+    if (typeof projected === 'string' && projected !== '') return projected
+    return sessionRoles[String(id)]
+  }
+
+  /** 常驻会话解析用的工作区会话名册。 */
+  const agentCandidates = (): readonly AgentSessionCandidate[] =>
+    workspaceSessions.map((id) => {
+      const preset = agentPresetOf(id)
+      return {
+        sessionId: String(id),
+        ...(preset === undefined ? {} : { agentPreset: preset }),
+      }
+    })
+
+  /** 某个常驻角色当前落在哪条会话；只读，找不到返回 undefined。 */
+  const singletonIdOf = (role: AgentRole): string | undefined =>
+    liveAgentSession(role, agents?.[AGENT_ROLES[role].key], agentCandidates())
+
+  /**
+   * 重新求流程判定。命令在会话里执行，读的是同一份 `.spec`；传空数组表示全部任务，
+   * 开工范围只影响「点开始时挑哪些」，不影响引擎给出的下一步。
+   */
+  const refreshFlow = async (): Promise<void> => {
+    if (readFlowStatus === undefined || sessionId === undefined) {
+      setFlowError(t('shell.flowNoSession'))
+      return
+    }
+    setFlowLoading(true)
+    try {
+      const result = await readFlowStatus(sessionId, [])
+      if (!result.ok) {
+        setFlowError(result.text)
+        return
+      }
+      const parsed = parseFlowStatus(result.text)
+      if (parsed === null) {
+        setFlowError(t('shell.flowBadOutput'))
+        return
+      }
+      setFlow(parsed)
+      setFlowError(null)
+      setFlowSelection((current) => {
+        const startable = parsed.tasks.filter(entry => entry.startable).map(entry => entry.id)
+        if (!flowSelectionTouched.current) return new Set(startable)
+        const known = new Set(parsed.tasks.map(entry => entry.id))
+        return new Set([...current].filter(id => known.has(id)))
+      })
+    } catch (error: unknown) {
+      setFlowError(String(error))
+    } finally {
+      setFlowLoading(false)
+    }
+  }
+
+  /** 读最近动作流水；`flow.jsonl` 没有时只显示 `schedule.jsonl`。 */
+  const refreshHistory = async (): Promise<void> => {
+    if (files === undefined || sessionId === undefined) {
+      setFlowHistory([])
+      setFlowHistoryProblems([])
+      return
+    }
+    historyAbort.current?.abort()
+    const controller = new AbortController()
+    historyAbort.current = controller
+    try {
+      const loaded = await loadActionLog(files, sessionId, tasks.map(task => task.id), controller.signal)
+      if (controller.signal.aborted) return
+      setFlowHistory(loaded.entries)
+      setFlowHistoryProblems(loaded.problems)
+    } catch (error: unknown) {
+      if (controller.signal.aborted) return
+      setFlowHistoryProblems([String(error)])
+    }
+  }
 
   /** 任务编号到状态的映射：调度据此判断前置是否收口。 */
   const knownStates = useMemo<Readonly<Record<string, string>>>(
@@ -492,6 +681,9 @@ export function Shell({
       setProposals([])
       setRulesCount(0)
       setInfo(null)
+      setAgents(null)
+      setFlow(null)
+      setFlowError(null)
       setProblems([])
       setLoading(false)
       return
@@ -502,7 +694,8 @@ export function Shell({
       loadWorkspaceProjection(files, sessionId, controller.signal),
       loadProjectInfo(files, sessionId, controller.signal),
       loadLocalSecrets(files, sessionId, controller.signal),
-    ]).then(([projection, projectInfo, secrets]) => {
+      loadAgentsRegistry(files, sessionId, controller.signal),
+    ]).then(([projection, projectInfo, secrets, agentRegistry]) => {
       if (controller.signal.aborted) return
       setTasks(projection.tasks.map(toShellTask))
       setRules(projection.rules)
@@ -510,8 +703,9 @@ export function Shell({
       setContracts(projection.contracts)
       setProposals(projection.proposals)
       setRulesCount(projection.rules.length)
-      setProblems([...projection.problems, ...projectInfo.problems])
+      setProblems([...projection.problems, ...projectInfo.problems, ...agentRegistry.problems])
       setInfo(projectInfo.info === null ? null : resolveSecrets(projectInfo.info, secrets))
+      setAgents(agentRegistry.agents)
       setLoading(false)
     }).catch((error: unknown) => {
       if (controller.signal.aborted) return
@@ -522,11 +716,27 @@ export function Shell({
       setProposals([])
       setRulesCount(0)
       setInfo(null)
+      setAgents(null)
       setProblems([String(error)])
       setLoading(false)
     })
     return () => { controller.abort() }
   }, [files, activeWorkspaceId, sessionId, reload])
+
+  /**
+   * 进项目、换会话或重读投影后求一次流程判定。结果既供顶栏「开工」面板，
+   * 也供看板上方那条常驻状态；判定失败只就地说明，不挡任务板。
+   */
+  useEffect(() => {
+    if (!hasWorkspace || sessionId === undefined) return
+    void refreshFlow()
+  }, [activeWorkspaceId, sessionId, reload, readFlowStatus])
+
+  /** 面板打开或投影变化时重读动作流水；关着面板不读，省掉每次刷新的一串文件调用。 */
+  useEffect(() => {
+    if (!flowOpen) return
+    void refreshHistory()
+  }, [flowOpen, reload, files, sessionId, tasks.length])
 
   /**
    * 角色名册来自装配层的 Agent preset 声明，外壳活一次读一次就够：
@@ -588,6 +798,7 @@ export function Shell({
     if (chat === null || chatSessionId === undefined || readMessages === undefined || subscribeSession === undefined) {
       setMessages([])
       setNotice(null)
+      setChatPressure(null)
       return
     }
     // 先持有再订阅：刚建的会话没有本地引用时，读消息与事件都拿不到东西。
@@ -595,6 +806,7 @@ export function Shell({
     const refresh = (): void => {
       setMessages(readMessages(chatSessionId))
       setNotice(readSessionNotice?.(chatSessionId) ?? null)
+      setChatPressure(readContextPressure?.(chatSessionId) ?? null)
     }
     refresh()
     const unsubscribe = subscribeSession(chatSessionId, refresh)
@@ -602,7 +814,7 @@ export function Shell({
       unsubscribe()
       release?.()
     }
-  }, [chat, chatSessionId, readMessages, subscribeSession, readSessionNotice, holdSession])
+  }, [chat, chatSessionId, readMessages, subscribeSession, readSessionNotice, holdSession, readContextPressure])
 
   /**
    * 卡片上「等首个回合」与失败两位的来源。
@@ -723,6 +935,10 @@ export function Shell({
   const detailSchedule = detail === null ? undefined : schedule[detail.id]
   /** 选中任务所在的联调组；投影里有就是持久的，刷新后仍在。 */
   const detailJoint = detail === null ? undefined : jointOf(detail)
+  /** 签署与外部动作不混进普通开工：单独列出来让人先处理。 */
+  const attentionPlans = flow === null
+    ? []
+    : flow.tasks.filter(plan => plan.decision.action === 'sign' || plan.decision.action === 'external')
 
   /**
    * 签署选中任务的契约。浏览器不写盘：这一句派给人机命令，签名由 kernel 写进
@@ -873,7 +1089,7 @@ export function Shell({
    * 启动咒语在这里就地生成，不读 `prompt` 状态：那份状态要等渲染后的 effect 才跟上任务，
    * 直接发出去的是上一任务的文本。
    */
-  const startConversation = (task: ShellTask): void => {
+  const openTaskConversation = async (task: ShellTask): Promise<FlowRunResult> => {
     const decision = decideScheduling(schedulingTaskOf(task), schedulingSessions(), knownStates)
     const at = new Date().toISOString()
     const text = promptOf(task, decision)
@@ -885,8 +1101,9 @@ export function Shell({
     if (decision.verdict === 'wait') {
       rememberSchedule(task, decision, at)
       logScheduleDecision(sessionId, task, decision, at)
-      setChatError(fill(t('shell.scheduleWaitNotice'), { tasks: decision.blockedBy.join('、') }))
-      return
+      const notice = fill(t('shell.scheduleWaitNotice'), { tasks: decision.blockedBy.join('、') })
+      setChatError(notice)
+      return { taskId: task.id, ok: false, held: true, text: notice }
     }
 
     if (modelBlocked) {
@@ -895,7 +1112,7 @@ export function Shell({
       setChat(task)
       setDetail(null)
       setChatError(t('shell.noModels'))
-      return
+      return { taskId: task.id, ok: false, held: false, text: t('shell.noModels') }
     }
 
     if (decision.chosen !== undefined) {
@@ -914,7 +1131,16 @@ export function Shell({
         setSessionOverride(target)
         setChat(task)
         setDetail(null)
-        return
+        return { taskId: task.id, ok: true, held: false, text: t('shell.flowAlreadyRunning') }
+      }
+      // 本任务已认在这条会话上，而它正在跑或还有队列：重复点「开工」只切过去。
+      // 没有这一条，批量开工连点两次会给同一条任务再塞一遍提示词。
+      const targetRunning = sessionStatus.get(target)?.running ?? sessionRows[target]?.running ?? false
+      if (alreadyBound && (targetRunning || queueDepth(String(target)) > 0)) {
+        setSessionOverride(target)
+        setChat(task)
+        setDetail(null)
+        return { taskId: task.id, ok: true, held: false, text: t('shell.flowAlreadyRunning') }
       }
       const queue = decision.verdict === 'enqueue'
         ? { sessionId: decision.chosen, position: queueDepth(decision.chosen) + 1 }
@@ -924,13 +1150,15 @@ export function Shell({
       setSessionOverride(target)
       setChat(task)
       setDetail(null)
-      if (decision.verdict === 'reuse' && alreadyBound) return
+      if (decision.verdict === 'reuse' && alreadyBound) {
+        return { taskId: task.id, ok: true, held: false, text: t('shell.flowAlreadyRunning') }
+      }
       if (bindTask === undefined || sendPrompt === undefined) {
         setChatError(t('shell.noSession'))
-        return
+        return { taskId: task.id, ok: false, held: false, text: t('shell.noSession') }
       }
       setClaiming(true)
-      void (async () => {
+      try {
         if (shouldBind) {
           const claimed = await bindTask(target, task.id)
           if (!claimed.ok) throw new Error(claimed.text)
@@ -938,12 +1166,13 @@ export function Shell({
           setReload(value => value + 1)
         }
         await sendPrompt(target, text)
-      })().catch((error: unknown) => {
+        return { taskId: task.id, ok: true, held: false, text: fill(t('shell.flowStartedIn'), { session: sessionLabel(String(target)) }) }
+      } catch (error: unknown) {
         setChatError(String(error))
-      }).finally(() => {
+        return { taskId: task.id, ok: false, held: false, text: String(error) }
+      } finally {
         setClaiming(false)
-      })
-      return
+      }
     }
 
     rememberSchedule(task, decision, at)
@@ -951,10 +1180,10 @@ export function Shell({
     setDetail(null)
     if (createSession === undefined || bindTask === undefined || sendPrompt === undefined || projectPath === '') {
       setChatError(t('shell.noSession'))
-      return
+      return { taskId: task.id, ok: false, held: false, text: t('shell.noSession') }
     }
     setClaiming(true)
-    void (async () => {
+    try {
       const created = await createSession(projectPath, roleChoice ?? undefined)
       if (roleChoice !== null) setSessionRoles(current => ({ ...current, [String(created)]: roleChoice }))
       const claimed = await bindTask(created, task.id)
@@ -963,11 +1192,221 @@ export function Shell({
       setReload(value => value + 1)
       logScheduleDecision(created, task, decision, at)
       await sendPrompt(created, text)
-    })().catch((error: unknown) => {
+      return { taskId: task.id, ok: true, held: false, text: t('shell.flowStartedNew') }
+    } catch (error: unknown) {
       setChatError(String(error))
-    }).finally(() => {
+      return { taskId: task.id, ok: false, held: false, text: String(error) }
+    } finally {
       setClaiming(false)
+    }
+  }
+
+  /** 任务卡与详情上的入口沿用同一套判定；点击不等待结果，失败就地显示。 */
+  const startConversation = (task: ShellTask): void => {
+    void openTaskConversation(task)
+  }
+
+  /** 流程动作的展示名；不认识的字符串原样显示，不编造一个动作。 */
+  const flowActionText = (action: string): string =>
+    action in FLOW_ACTION_LABEL ? t(FLOW_ACTION_LABEL[action as FlowActionView]) : action
+
+  /** 一条判定为什么没开始：优先逐条列出挡住原因，没有挡住的就写判定理由。 */
+  const heldText = (decision: FlowDecisionView): string =>
+    decision.blockers.length === 0
+      ? decision.reason
+      : decision.blockers.map(blocker => `${t(FLOW_BLOCKER_LABEL[blocker.kind])}：${blocker.detail}`).join('；')
+
+  /** 上下文占用的人话；容量未知时只说已用，不拿猜测当分母。 */
+  const contextUsageText = (pressure: ShellContextPressure | null): string => {
+    if (pressure === null) return t('shell.contextUnknown')
+    const used = pressure.projectedTokens ?? pressure.pressureTokens
+    if (used === undefined) return t('shell.contextUnknown')
+    if (pressure.contextWindow === undefined) {
+      return fill(t('shell.contextUsed'), { used: formatTokens(used) })
+    }
+    return fill(t('shell.contextUsage'), {
+      used: formatTokens(used),
+      budget: formatTokens(pressure.contextWindow),
+      percent: percentOf(used, pressure.contextWindow) ?? 0,
+      left: formatTokens(Math.max(0, pressure.contextWindow - used)),
     })
+  }
+
+  /**
+   * 把一次开工结果追加到任务证据目录。写失败只就地说明，不回滚这次开工——
+   * 开工本身没有改任务状态，真正的后果只有「会话收到了哪条提示词」。
+   */
+  const writeFlowLog = (
+    taskId: string,
+    decision: FlowDecisionView,
+    result: 'success' | 'failed' | 'held' | 'skipped',
+    detail: string,
+  ): void => {
+    if (logFlow === undefined) return
+    if (sessionId === undefined) {
+      setFlowLogErrors(current => ({ ...current, [taskId]: t('shell.flowNoSession') }))
+      return
+    }
+    const payload = JSON.stringify({
+      action: decision.action,
+      mode: decision.mode,
+      reason: decision.reason,
+      result,
+      detail,
+      blockers: decision.blockers,
+    })
+    void logFlow(sessionId, taskId, payload).then((outcome) => {
+      setFlowLogErrors((current) => {
+        const rest = Object.fromEntries(Object.entries(current).filter(([key]) => key !== taskId))
+        return outcome.ok ? rest : { ...rest, [taskId]: outcome.text }
+      })
+    }, (error: unknown) => {
+      setFlowLogErrors(current => ({ ...current, [taskId]: String(error) }))
+    })
+  }
+
+  /**
+   * 批量开工：按流程计划的顺序逐条走现有的会话启动。
+   * 一条任务失败只记在这一条上，后面的照常继续；被挡住的记成「未开始」而不是失败。
+   */
+  const runFlow = async (ids: readonly string[]): Promise<void> => {
+    if (flow === null || flowRunning) return
+    const selected = new Set(ids)
+    const plans = flow.tasks.filter(plan => selected.has(plan.id))
+    if (plans.length === 0) {
+      setFlowError(t('shell.flowNoneSelected'))
+      return
+    }
+    setFlowRunning(true)
+    setFlowError(null)
+    setFlowResults([])
+    const collected: FlowRunResult[] = []
+
+    for (const plan of plans) {
+      const task = tasks.find(item => item.id === plan.id)
+      if (task === undefined) {
+        collected.push({ taskId: plan.id, ok: false, held: false, text: t('shell.flowTaskMissing') })
+        setFlowResults([...collected])
+        continue
+      }
+      if (!plan.startable) {
+        const text = heldText(plan.decision)
+        collected.push({ taskId: plan.id, ok: false, held: true, text })
+        writeFlowLog(plan.id, plan.decision, 'held', text)
+        setFlowResults([...collected])
+        continue
+      }
+      const outcome = await openTaskConversation(task)
+      collected.push(outcome)
+      writeFlowLog(plan.id, plan.decision, outcome.ok ? 'success' : 'failed', outcome.text)
+      setFlowResults([...collected])
+    }
+
+    setFlowRunning(false)
+    setReload(value => value + 1)
+    await refreshFlow()
+    await refreshHistory()
+  }
+
+  /** 开始选中的任务；`retryOnly` 只重跑上次失败（被按住的不算失败）。 */
+  const startFlow = (retryOnly = false): void => {
+    if (flow === null || flowRunning) return
+    const ids = retryOnly
+      ? flowResults.filter(result => !result.ok && !result.held).map(result => result.taskId)
+      : [...flowSelection]
+    void runFlow(ids)
+  }
+
+  /** 逐条勾选开工范围；人动过之后，刷新判定不再覆盖他的选择。 */
+  const toggleFlowTask = (id: string): void => {
+    flowSelectionTouched.current = true
+    setFlowSelection((current) => {
+      const next = new Set(current)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const selectStartable = (): void => {
+    flowSelectionTouched.current = true
+    setFlowSelection(new Set(flow?.tasks.filter(plan => plan.startable).map(plan => plan.id) ?? []))
+  }
+
+  const selectNone = (): void => {
+    flowSelectionTouched.current = true
+    setFlowSelection(new Set())
+  }
+
+  /** 常驻会话浮层用的空任务壳：标题就是角色名，不冒充某条任务。 */
+  const pseudoChat = (title: string): ShellTask => ({
+    id: '', title, state: 'drafting', grade: '-', rules: [], evidence: [], surface: '', paths: [],
+  })
+
+  /**
+   * 打开常驻角色会话：配置号还在就用它，否则找同 preset 的那条，最后才新建。
+   * 打开时校正标题并（需要时）把会话号写回 `.spec/agents.yaml`；重复点只聚焦。
+   */
+  const openSingleton = async (role: AgentRole): Promise<void> => {
+    if (singletonBusy.current) return
+    if (workspace === undefined || projectPath === '') {
+      setChatError(t('shell.singletonNoWorkspace'))
+      return
+    }
+    const title = t(AGENT_ROLES[role].titleKey)
+    const configured = agents?.[AGENT_ROLES[role].key]
+    const resolved = resolveAgentSession(role, configured, agentCandidates())
+
+    if (resolved.kind === 'use') {
+      const target = resolved.sessionId as SessionId
+      if (String(sessionId) === String(target) && chat !== null && chat.title === title) return
+      setSessionOverride(target)
+      setDetail(null)
+      setChat(pseudoChat(title))
+      setChatError(null)
+      if (renameSession !== undefined && titleNeedsFix(sessionRows[target]?.title, title)) {
+        void renameSession(target, title).then((outcome) => {
+          if (!outcome.ok) setChatError(fill(t('shell.singletonRenameFailed'), { detail: outcome.text }))
+          else setReload(value => value + 1)
+        }, (error: unknown) => { setChatError(String(error)) })
+      }
+      if (!resolved.configured && bindAgentSession !== undefined) {
+        void bindAgentSession(target, role, target).then((outcome) => {
+          if (outcome.ok) setReload(value => value + 1)
+          else setChatError(fill(t('shell.singletonBindFailed'), { detail: outcome.text }))
+        }, (error: unknown) => { setChatError(String(error)) })
+      }
+      return
+    }
+
+    singletonBusy.current = true
+    setClaiming(true)
+    setChatError(null)
+    try {
+      if (createSession === undefined) throw new Error(t('shell.noSession'))
+      const created = await createSession(projectPath, AGENT_ROLES[role].preset)
+      setSessionOverride(created)
+      setDetail(null)
+      setChat(pseudoChat(title))
+      setSessionRoles(current => ({ ...current, [String(created)]: AGENT_ROLES[role].preset }))
+      if (bindAgentSession !== undefined) {
+        const bound = await bindAgentSession(created, role, created)
+        if (!bound.ok) setChatError(fill(t('shell.singletonBindFailed'), { detail: bound.text }))
+      }
+      if (renameSession !== undefined) {
+        const renamed = await renameSession(created, title)
+        if (!renamed.ok) setChatError(fill(t('shell.singletonRenameFailed'), { detail: renamed.text }))
+      }
+      // 建会话期间列表可能重排；最后再落一次，保证第一次点开就停在角色浮层上。
+      setSessionOverride(created)
+      setChat(pseudoChat(title))
+      setReload(value => value + 1)
+    } catch (error: unknown) {
+      setChatError(String(error))
+    } finally {
+      singletonBusy.current = false
+      setClaiming(false)
+    }
   }
 
   /** 详情弹窗头/底的会话动作文案；与 startConversation 的两种去向一致。 */
@@ -1224,6 +1663,33 @@ export function Shell({
             </button>
           </div>
         )}
+        {!hasWorkspace ? null : (
+          <div className={css.agentBar}>
+            {(['scheduler', 'flow'] as const).map((role) => {
+              const id = singletonIdOf(role)
+              const running = id === undefined
+                ? false
+                : sessionStatus.get(id as SessionId)?.running ?? sessionRows[id as SessionId]?.running ?? false
+              return (
+                <button
+                  type="button"
+                  key={role}
+                  className={`${css.agentChip} ${id !== undefined && String(sessionId) === id ? css.agentChipActive : ''}`}
+                  title={t(role === 'scheduler' ? 'shell.openScheduler' : 'shell.openFlow')}
+                  onClick={() => { void openSingleton(role) }}
+                >
+                  {running ? <span className={css.sessionWaitDot} aria-hidden="true" /> : null}
+                  {t(AGENT_ROLES[role].titleKey)}
+                </button>
+              )
+            })}
+          </div>
+        )}
+        {!hasWorkspace ? null : (
+          <button type="button" className={css.workBtn} onClick={() => { setFlowOpen(true) }}>
+            {t('shell.startWork')}
+          </button>
+        )}
         <div className={css.spacer} />
         <button type="button" className={css.secondaryBtn} onClick={() => { setDrawer(true) }}>ⓘ {t('shell.projectInfo')}</button>
         <button type="button" className={css.iconBtn} title={t('shell.theme')} onClick={() => { setDark(value => !value) }}>◐</button>
@@ -1266,6 +1732,19 @@ export function Shell({
           <div className={css.boardHead}>
             <h3>{t('shell.board')}</h3>
             <span className={css.boardHint}>{t('shell.boardHint')}</span>
+            {flow === null ? null : (
+              <button type="button" className={css.flowBar} onClick={() => { setFlowOpen(true) }}>
+                <span className={css.flowBarLabel}>{t('shell.flowNext')}</span>
+                <span className={css.flowBarAction}>
+                  {flowActionText(flow.decision.action)}
+                  {flow.decision.taskId === null ? '' : ` ${flow.decision.taskId}`}
+                </span>
+                <span className={css.flowBarReason}>{flow.decision.reason}</span>
+                {flow.decision.blockers.length === 0
+                  ? null
+                  : <span className={css.flowBarBlocked}>{flow.decision.blockers.map(blocker => t(FLOW_BLOCKER_LABEL[blocker.kind])).join(' / ')}</span>}
+              </button>
+            )}
             {tasks.length === 0 ? null : (
               <button
                 type="button"
@@ -1554,6 +2033,234 @@ export function Shell({
         </div>
       ) : null}
 
+      {flowOpen ? (
+        <div className={css.modalBackdrop} onClick={(event) => { if (event.target === event.currentTarget) setFlowOpen(false) }}>
+          <div className={`${css.modal} ${css.flowModal}`}>
+            <div className={css.modalHead}>
+              <div className={css.grow}>
+                <h3>{t('shell.startWork')} · {t('shell.flowPanel')}</h3>
+                <p>{t('shell.flowHint')}</p>
+              </div>
+              <button
+                type="button"
+                className={css.secondaryBtn}
+                disabled={flowLoading || flowRunning}
+                onClick={() => { void refreshFlow() }}
+              >
+                {flowLoading ? t('shell.loading') : t('shell.flowRefresh')}
+              </button>
+              <button type="button" className={css.iconBtn} onClick={() => { setFlowOpen(false) }}>✕</button>
+            </div>
+            <div className={css.modalBody}>
+              {flowError === null ? null : <p className={css.problem}>{flowError}</p>}
+
+              <section className={css.flowSection}>
+                <h4>{t('shell.flowPolicy')}</h4>
+                <p className={css.secretRef}>
+                  {flow === null
+                    ? '—'
+                    : flow.policy.source === 'default'
+                      ? t('shell.flowPolicyDefault')
+                      : `${t('shell.flowPolicyFile')} · ${flow.policy.path}`}
+                </p>
+                {flow === null ? null : (
+                  <>
+                    <div className={css.flowChips}>
+                      {Object.entries(flow.policy.actions).map(([name, mode]) => (
+                        <span key={name} className={`${css.tag} ${mode === 'auto' ? css.tagWarn : ''}`}>
+                          {flowActionText(name)} · {t(FLOW_MODE_LABEL[mode])}
+                        </span>
+                      ))}
+                    </div>
+                    <div className={css.flowChips}>
+                      <span className={css.tag}>
+                        {t('shell.flowPolicyTasks')}：{flow.policy.tasks.length === 0 ? t('shell.flowPolicyAllTasks') : flow.policy.tasks.join('、')}
+                      </span>
+                      {flow.policy.source === 'file' && flow.policy.hash !== null ? (
+                        <span className={css.tag} title={flow.policy.hash}>{t('shell.flowPolicyHash')}：{flow.policy.hash.slice(0, 19)}…</span>
+                      ) : null}
+                      {flow.policy.at === null ? null : <span className={css.tag}>{t('shell.flowPolicyAt')}：{flow.policy.at}</span>}
+                    </div>
+                    <div className={css.flowChips}>
+                      {[
+                        { key: 'shell.flowLimitTokens', value: flow.policy.limits.tokenBudget },
+                        { key: 'shell.flowLimitMinutes', value: flow.policy.limits.maxMinutes },
+                        { key: 'shell.flowLimitFailures', value: flow.policy.limits.maxConsecutiveFailures },
+                        { key: 'shell.flowLimitParallel', value: flow.policy.limits.maxParallel },
+                      ].filter(entry => entry.value !== null).map(entry => (
+                        <span key={entry.key} className={css.tag}>{t(entry.key as LcoderWorkspaceKey)}：{String(entry.value)}</span>
+                      ))}
+                      {flow.policy.limits.tokenBudget === null
+                        && flow.policy.limits.maxMinutes === null
+                        && flow.policy.limits.maxConsecutiveFailures === null
+                        && flow.policy.limits.maxParallel === null
+                        ? <span className={css.tag}>{t('shell.flowLimitNone')}</span>
+                        : null}
+                    </div>
+                  </>
+                )}
+              </section>
+
+              <section className={css.flowSection}>
+                <h4>{t('shell.flowNext')}</h4>
+                {flow === null ? <p className={css.empty}>—</p> : (
+                  <>
+                    <div className={css.flowDecision}>
+                      <span className={css.flowAction}>{flowActionText(flow.decision.action)}</span>
+                      {flow.decision.taskId === null ? <span className={css.secretRef}>{t('shell.flowNoTask')}</span> : <code>{flow.decision.taskId}</code>}
+                      <span className={css.tag}>{t(FLOW_MODE_LABEL[flow.decision.mode])}</span>
+                      {flow.decision.action === 'sign' && flow.decision.mode === 'auto'
+                        ? <span className={`${css.tag} ${css.tagWarn}`}>{t('shell.flowAutoSign')}</span>
+                        : null}
+                      {flow.decision.action === 'external'
+                        ? <span className={`${css.tag} ${css.tagDanger}`}>{t('shell.flowExternal')}</span>
+                        : null}
+                    </div>
+                    <p className={css.flowReason}>{flow.decision.reason}</p>
+                    {flow.decision.blockers.length === 0 ? null : (
+                      <div className={css.flowBlockers}>
+                        <span className={css.scheduleLabel}>{t('shell.flowBlockers')}</span>
+                        {flow.decision.blockers.map(blocker => (
+                          <div key={`${blocker.kind}-${blocker.detail}`} className={css.flowBlocker}>
+                            <span className={`${css.tag} ${css.tagWarn}`}>{t(FLOW_BLOCKER_LABEL[blocker.kind])}</span>
+                            <span>{blocker.detail}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </section>
+
+              <section className={css.flowSection}>
+                <h4>{t('shell.flowAttention')}</h4>
+                {attentionPlans.length === 0
+                  ? <p className={css.empty}>{t('shell.flowAttentionEmpty')}</p>
+                  : (
+                    <div className={css.flowAttentionList}>
+                      {attentionPlans.map(plan => (
+                        <div key={plan.id} className={css.flowAttentionRow}>
+                          <code>{plan.id}</code>
+                          <span className={`${css.tag} ${css.tagWarn}`}>
+                            {plan.decision.action === 'external' ? t('shell.flowExternal') : t('shell.flowAutoSign')}
+                          </span>
+                          <span>{plan.decision.reason}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+              </section>
+
+              <section className={css.flowSection}>
+                <h4>{t('shell.flowTasks')}</h4>
+                {flow === null || flow.tasks.length === 0 ? <p className={css.empty}>{t('shell.flowNoTasks')}</p> : (
+                  <>
+                    <div className={css.flowToolbar}>
+                      <button type="button" className={css.filterChip} onClick={selectStartable}>{t('shell.flowSelectAll')}</button>
+                      <button type="button" className={css.filterChip} onClick={selectNone}>{t('shell.flowSelectNone')}</button>
+                      <span className={css.secretRef}>
+                        {flowSelection.size === 0 ? t('shell.flowNoneSelected') : fill(t('shell.flowSelected'), { count: flowSelection.size })}
+                      </span>
+                    </div>
+                    <div className={css.flowTaskList}>
+                      {flow.tasks.map(plan => (
+                        <label key={plan.id} className={`${css.flowTaskRow} ${plan.startable ? '' : css.flowTaskRowHeld}`}>
+                          <input
+                            type="checkbox"
+                            checked={flowSelection.has(plan.id)}
+                            disabled={flowRunning}
+                            onChange={() => { toggleFlowTask(plan.id) }}
+                          />
+                          <code className={css.flowTaskId}>{plan.id}</code>
+                          <span className={css.flowTaskAction}>{flowActionText(plan.decision.action)}</span>
+                          <span className={`${css.tag} ${plan.startable ? css.tagOk : css.tagWarn}`}>
+                            {plan.startable ? t('shell.flowTaskStartable') : t('shell.flowTaskHeld')}
+                          </span>
+                          <span className={css.flowTaskReason}>{plan.decision.reason}</span>
+                          {plan.decision.blockers.length === 0 ? null : (
+                            <span className={css.flowTaskReason}>{plan.decision.blockers.map(blocker => `${t(FLOW_BLOCKER_LABEL[blocker.kind])}：${blocker.detail}`).join('；')}</span>
+                          )}
+                        </label>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </section>
+
+              {flowResults.length === 0 ? null : (
+                <section className={css.flowSection}>
+                  <h4>{t('shell.flowResults')}</h4>
+                  <div className={css.flowAttentionList}>
+                    {flowResults.map(result => (
+                      <div key={result.taskId} className={css.flowAttentionRow}>
+                        <code>{result.taskId}</code>
+                        <span className={`${css.tag} ${result.held ? css.tagWarn : result.ok ? css.tagOk : css.tagDanger}`}>
+                          {result.held ? t('shell.flowResultHeld') : result.ok ? t('shell.flowResultOk') : t('shell.flowResultFailed')}
+                        </span>
+                        <span>{result.text}</span>
+                        {flowLogErrors[result.taskId] === undefined
+                          ? null
+                          : <span className={css.problem}>{fill(t('shell.flowLogFailed'), { detail: flowLogErrors[result.taskId] ?? '' })}</span>}
+                      </div>
+                    ))}
+                  </div>
+                  {flowResults.some(result => !result.ok && !result.held) ? (
+                    <button type="button" className={css.secondaryBtn} disabled={flowRunning} onClick={() => { startFlow(true) }}>
+                      {t('shell.flowRetry')}
+                    </button>
+                  ) : null}
+                </section>
+              )}
+
+              <section className={css.flowSection}>
+                <h4>{t('shell.flowHistory')}</h4>
+                {flowHistory.length === 0 ? <p className={css.empty}>{t('shell.flowHistoryEmpty')}</p> : (
+                  <div className={css.flowHistory}>
+                    {flowHistory.map((entry, index) => (
+                      <div key={`${entry.taskId}-${entry.source}-${String(index)}`} className={css.flowHistoryRow}>
+                        <span className={css.flowHistoryTime}>{entry.at ?? '—'}</span>
+                        <span className={css.tag}>
+                          {entry.source === 'flow' ? t('shell.flowHistorySourceFlow') : t('shell.flowHistorySourceSchedule')}
+                        </span>
+                        <code>{entry.taskId}</code>
+                        <span>{entry.action !== undefined ? flowActionText(entry.action) : entry.verdict ?? ''}</span>
+                        {entry.mode === 'auto' && entry.action === 'sign'
+                          ? <span className={`${css.tag} ${css.tagWarn}`}>{t('shell.flowAutoSign')}</span>
+                          : null}
+                        {entry.action === 'external'
+                          ? <span className={`${css.tag} ${css.tagDanger}`}>{t('shell.flowExternal')}</span>
+                          : null}
+                        {entry.result === undefined ? null : <span className={css.secretRef}>{entry.result}</span>}
+                        {entry.reason === undefined ? null : <span className={css.flowTaskReason}>{entry.reason}</span>}
+                        {entry.detail === undefined ? null : <span className={css.flowTaskReason}>{entry.detail}</span>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {flowHistoryProblems.length === 0 ? null : (
+                  <div className={css.problems}>
+                    {flowHistoryProblems.map(problem => <p key={problem} className={css.problem}>{problem}</p>)}
+                  </div>
+                )}
+              </section>
+            </div>
+            <div className={css.modalFoot}>
+              <span className={css.boardHint}>{t('shell.flowStateHint')}</span>
+              <div className={css.spacer} />
+              <button type="button" className={css.secondaryBtn} onClick={() => { setFlowOpen(false) }}>{t('shell.done')}</button>
+              <button
+                type="button"
+                className={css.primaryBtn}
+                disabled={flowRunning || flow === null || flowSelection.size === 0}
+                onClick={() => { startFlow() }}
+              >
+                {flowRunning ? t('shell.flowRunning') : t('shell.flowStart')}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {detail !== null ? (
         <div className={css.modalBackdrop} onClick={(event) => { if (event.target === event.currentTarget) setDetail(null) }}>
           <div className={css.modal}>
@@ -1784,6 +2491,7 @@ export function Shell({
                 <div className={css.grow}>
                   <h4>{chat.id === '' ? chat.title : `${chat.id} · ${chat.title}`}</h4>
                   <p>{t('shell.brand')} · {t(STATE_LABEL[chat.state])} · {t('shell.chatHint')}</p>
+                  <p className={css.chatContext}>{contextUsageText(chatPressure)}</p>
                 </div>
                 <span className={css.pill}>{chatRunning ? t('shell.running') : t('shell.chatReady')}</span>
                 <button

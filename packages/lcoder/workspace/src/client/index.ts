@@ -42,8 +42,9 @@ import { en, zh } from './locales.ts'
 import { loadWorkspaceProjection, PAGE_LINES } from './projection.ts'
 import { expertsFromRoster, personaPromptOf } from './experts.ts'
 import type { ExpertPrompt, ExpertRow } from './experts.ts'
+import type { AgentRole } from './singleton.ts'
 import { messagesFromEntries } from './shell/shell-data.ts'
-import type { ShellMessage, ShellRole, ShellSignResult } from './shell/shell-data.ts'
+import type { ShellContextPressure, ShellMessage, ShellRole, ShellSignResult } from './shell/shell-data.ts'
 import { DEFAULT_CHAT_SIZE, Shell } from './shell/Shell.tsx'
 import { createModelSettingsFace } from './shell/model-settings.ts'
 import type { ModelSettingsFace, ModelSettingsRemote } from './shell/model-settings.ts'
@@ -94,6 +95,11 @@ function chatSizeOf(config: Config): { readonly width: number; readonly height: 
   return { width, height }
 }
 
+/** 非负有限数字；投影里的计数缺省或形状不对时返回 undefined。 */
+function countOf(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined
+}
+
 /** 本包的文案命名空间。 */
 const NS = 'lcoderWorkspace'
 
@@ -117,8 +123,8 @@ function projectionFiles(ctx: ClientContext): ProjectionFilesRemote {
   return {
     list: (id: SessionId, path: string, signal: AbortSignal) =>
       ctx.remote.workspaceFiles.list(id, path, signal),
-    readPage: (id: SessionId, path: string, signal: AbortSignal) =>
-      ctx.remote.workspaceFiles.read(id, path, { offset: 1, limit: PAGE_LINES }, signal),
+    readPage: (id: SessionId, path: string, signal: AbortSignal, offset = 1) =>
+      ctx.remote.workspaceFiles.read(id, path, { offset, limit: PAGE_LINES }, signal),
   }
 }
 
@@ -235,6 +241,57 @@ export function apply(ctx: ClientContext, config: Config = {}): void {
      */
     const logSchedule = (sessionId: SessionId, taskId: string, json: string): Promise<ShellSignResult> =>
       runHumanCommand(sessionId, `/task_schedule ${taskId} ${json}`)
+    /**
+     * 流程判定由 kernel 求值，界面只画结果。传空数组表示全部任务；
+     * 模板里不拼未经验证的用户输入——任务编号来自 `.spec` 的投影。
+     */
+    const readFlowStatus = (sessionId: SessionId, taskIds: readonly string[]): Promise<ShellSignResult> => {
+      const args = taskIds.join(',')
+      return runHumanCommand(sessionId, args === '' ? '/flow_status' : `/flow_status ${args}`)
+    }
+    /** 开工的每一次结果都追加到任务证据目录；失败也记，重试时能对上同一条台账。 */
+    const logFlow = (sessionId: SessionId, taskId: string, json: string): Promise<ShellSignResult> =>
+      runHumanCommand(sessionId, `/flow_log ${taskId} ${json}`)
+    /** 常驻会话号写回 `.spec/agents.yaml`；写盘只走 kernel。 */
+    const bindAgentSession = (
+      sessionId: SessionId,
+      role: AgentRole,
+      agentSession: SessionId,
+    ): Promise<ShellSignResult> =>
+      runHumanCommand(sessionId, `/agent_bind ${role} ${String(agentSession)}`)
+    /**
+     * 把标题写成角色名。`rename` 是用户标题，会压住自动标题；每次打开都调一次，
+     * 上游若仍用自动标题覆盖，下一次打开又会校正回来。
+     */
+    const renameSession = async (sessionId: SessionId, title: string): Promise<ShellSignResult> => {
+      const result = await ctx.sessions.using(sessionId, { source: 'lcoderShell' }, async (reference) => {
+        await reference.ready
+        return reference.binding.session.rename(title)
+      })
+      return result.ok
+        ? { ok: true, text: result.value.title }
+        : { ok: false, text: `${result.error.code}: ${result.error.message}` }
+    }
+    /**
+     * 当前会话的上下文占用与容量；来自宿主 `contextPressure` 投影。
+     * 字段可能缺一半（还没发过请求、适配器没报容量），缺的部分不出现在返回值里。
+     */
+    const readContextPressure = (sessionId: SessionId): ShellContextPressure | null => {
+      const binding = ctx.sessions.binding(sessionId)
+      if (binding === undefined) return null
+      const value: unknown = binding.session.projections.faceOf('contextPressure').getSnapshot()
+      if (typeof value !== 'object' || value === null || Array.isArray(value)) return null
+      const record = value as Record<string, unknown>
+      const pressureTokens = countOf(record.pressureTokens)
+      const projectedTokens = countOf(record.projectedTokens)
+      const contextWindow = countOf(record.contextWindow)
+      if (pressureTokens === undefined && projectedTokens === undefined && contextWindow === undefined) return null
+      return {
+        ...(pressureTokens === undefined ? {} : { pressureTokens }),
+        ...(projectedTokens === undefined ? {} : { projectedTokens }),
+        ...(contextWindow === undefined ? {} : { contextWindow }),
+      }
+    }
     /** 人确认契约已签，把任务从起草推到已签约；只推这一条边，更往后的仍人手写 YAML。 */
     const advanceContract = (sessionId: SessionId, taskId: string): Promise<ShellSignResult> =>
       runHumanCommand(sessionId, `/task_contract ${taskId}`)
@@ -347,6 +404,7 @@ export function apply(ctx: ClientContext, config: Config = {}): void {
             files, openRepository, sendPrompt, signContract, bindTask, logSchedule, advanceContract, approveProposal,
             createSession, listRoles, listExperts, readExpert,
             readMessages, subscribeSession, holdSession, checkModels, subscribeModels, readSessionNotice, readSessionFlags, modelSettings,
+            readFlowStatus, logFlow, bindAgentSession, renameSession, readContextPressure,
             chatSize,
           }),
         },

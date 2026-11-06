@@ -7,6 +7,8 @@
   "include": ["src"],
   "references": [
     { "path": "../../../vendor/cordis" },
+    { "path": "../../preset/agent-preset-registry" },
+    { "path": "../../compaction/compaction" },
     { "path": "../../api/remotes/tsconfig.client.json" },
     { "path": "../../api/session-controller/tsconfig.client.json" },
     { "path": "../../api/workspace-controller/tsconfig.client.json" },

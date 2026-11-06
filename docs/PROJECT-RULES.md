@@ -36,6 +36,7 @@ English | [中文](PROJECT-RULES.zh.md)
 | Product task data (LCoder runtime) | `.spec/tasks/T-xx.yaml` |
 | Product task contracts | `.spec/contracts/<ID>.contract.yaml` |
 | Product automation policy (per-action switches, stop conditions, task scope) | `.spec/automation.yaml` |
+| Resident scheduler sessions (one scheduler and one flow-control session per repository) | `.spec/agents.yaml` (`schedulerSession`, `flowSession`) |
 | Product proposals (options, recommendation, decision) | `.spec/proposals/P-<nn>.yaml`; tasks point back with `proposal:` |
 | Product task evidence | `.spec/evidence/<ID>/<name>.log` |
 | Acceptance commands and environment | `.spec/env.yaml`; sensitive values go in `.spec/local.yaml`, which is not committed |

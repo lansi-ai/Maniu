@@ -303,6 +303,25 @@ export const Proposal = z.object({
 })
 export type Proposal = z.infer<typeof Proposal>
 
+// ── 6.5 常驻会话登记 ────────────────────────────────────────
+
+/**
+ * `.spec/agents.yaml`：每个仓库一份的常驻单例会话号。
+ *
+ * 与 `Task.session` 同一口径——宿主 home 里的运行时标识。会话被删、换机器或
+ * 编号对不上时按未绑定处理，由界面重新找一条同 preset 的会话或新建后写回。
+ * 这里只登记两个调度角色的会话，不承担角色名册或权限配置。
+ */
+export const AgentsRegistry = z
+  .object({
+    /** 「智能调度」角色唯一的会话。 */
+    schedulerSession: z.string().min(1).optional(),
+    /** 「流程控制」角色唯一的会话。 */
+    flowSession: z.string().min(1).optional(),
+  })
+  .strict()
+export type AgentsRegistry = z.infer<typeof AgentsRegistry>
+
 // ── 7. 环境档案 ─────────────────────────────────────────────
 
 /** 三级执行权。默认给最保守的一档：需要确认。 */
@@ -389,6 +408,7 @@ export const SpecLayout = [
   { glob: 'proposals/*.yaml', schema: Proposal, many: true },
   { glob: 'contracts/*.contract.yaml', schema: Contract, many: true },
   { glob: 'automation.yaml', schema: AutomationPolicy, many: false },
+  { glob: 'agents.yaml', schema: AgentsRegistry, many: false },
   { glob: 'env.yaml', schema: Env, many: false },
   { glob: 'project.yaml', schema: ProjectInfo, many: false },
 ] as const

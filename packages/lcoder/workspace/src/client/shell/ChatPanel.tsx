@@ -64,6 +64,16 @@ export function ChatTranscript({
         if (message.role === 'process') {
           return <ProcessGroup key={`process-${String(index)}`} items={message.items} t={t} />
         }
+        if (message.role === 'compaction') {
+          return (
+            <div key={`compaction-${String(index)}`} className={`${css.msg} ${css.msgSys}`}>
+              <span className={css.who}>{t('shell.compactionMarker')}</span>
+              {message.error === undefined
+                ? t('shell.compactionDetail', { items: message.items, tokens: message.tokens })
+                : t('shell.compactionFailed', { detail: message.error })}
+            </div>
+          )
+        }
         return (
           <div key={`assistant-${String(index)}`} className={`${css.msg} ${css.msgAssistant}`}>
             <span className={css.who}>{t('shell.brand')}</span>

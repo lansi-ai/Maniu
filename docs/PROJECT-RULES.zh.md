@@ -36,6 +36,7 @@
 | 产品任务数据（LCoder 运行时） | `.spec/tasks/T-xx.yaml` |
 | 产品任务契约 | `.spec/contracts/<ID>.contract.yaml` |
 | 产品自动化策略（按动作开关、停止条件、任务范围） | `.spec/automation.yaml` |
+| 常驻调度会话（每仓一条智能调度与一条流程控制） | `.spec/agents.yaml`（`schedulerSession`、`flowSession`） |
 | 产品方案（候选、推荐、决定态） | `.spec/proposals/P-<nn>.yaml`；任务用 `proposal:` 回指 |
 | 产品任务证据 | `.spec/evidence/<ID>/<name>.log` |
 | 验收命令与环境 | `.spec/env.yaml`；敏感值写 `.spec/local.yaml`，不提交 |

@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`@lcoder/workspace` is LCoder's shell. It shows the selected project, a five-state task board from the session workspace's `.spec`, a project-info drawer from `.spec/project.yaml`, and a floating conversation that sends the startup prompt through the real session. The project picker can open another repository, creating or reusing its workspace and a session. An empty board offers an onboarding prompt from the delivery documents declared there. Mount it through the LCoder patch layer when the kernel already runs; `shell: false` keeps the older right-sidebar tab. The shell is read-only over product data: state-machine decisions and writes stay in the kernel.
+`@lcoder/workspace` is LCoder's shell: the selected project, a five-state task board and project-info drawer from the session workspace's `.spec`, a floating conversation, an onboarding prompt on an empty board, and a Start work panel that asks the kernel for the next action and starts only selected startable tasks without advancing state. Two entries open the resident scheduling and flow-control sessions; the conversation shows context occupancy and compaction markers. Mount it through the LCoder patch layer; `shell: false` keeps the older right-sidebar tab. The shell is read-only over product data: decisions and writes stay in the kernel.
 
 ## Table of Contents
 
@@ -58,7 +58,11 @@ The package registers the shell main panel and, with `shell: false`, the older t
 
 Starting a conversation from a task card reuses the session that task already claims through `.spec/tasks/<ID>.yaml`'s `session` field. When none is live, the shell opens another session in the same repository, names the chosen role while creating it — the preset locks after the first turn — and claims the task for that session through the `/task_bind` human command, which the kernel writes. Roles come from `agentPresets.list`, limited to preset ids starting with `lcoder` — an upstream preset mounts none of this package's tools, so it could not read `.spec` at all; a refused or empty roster leaves the Host default role in play. The header's session bar lists this workspace's sessions, labels each with the task claiming it, and switches the active one.
 
-The floating conversation subscribes to the session event window and renders user/assistant text; the input sends another prompt to the same session. With no task on disk, the board offers two actions on one session: New project sends the seven-question intake prompt, and Existing material sends the analysis prompt that reads the repository and its declared documents first. Whichever is clicked first sends once; every later click on either only reopens the floating conversation. The decision reads the session's own record — a started turn, existing messages, or a prompt awaiting its first turn — so a reload or a reopened window does not send it again. The package itself registers no model tool, prompt section, or schema.
+The floating conversation subscribes to the session event window and renders user/assistant text; the input sends another prompt to the same session. With no task on disk, the board offers two actions on one session: New project sends the seven-question intake prompt, and Existing material sends the analysis prompt that reads the repository and its declared documents first. Whichever is clicked first sends once; every later click on either only reopens the floating conversation. The decision reads the session's own record — a started turn, existing messages, or a prompt awaiting its first turn — so a reload or a reopened window does not send it again.
+
+Start work and the flow panel draw the kernel's `/flow_status` result: the policy source and switches, the overall next action with its blockers, and a per-task plan. A task is startable only when the decision has no blocker and its action is one the shell can hand to a conversation (`contract`, `implement`, `verify`, `close`, `commit`); signing and external actions are listed separately for a person. A batch runs the selected tasks in the plan's order, keeps going when one fails, and writes each result through `/flow_log`; a task already running or queued in its session is only focused, so repeated clicks do not send the prompt twice. The action history merges `.spec/evidence/<task>/flow.jsonl` with `schedule.jsonl`, newest first.
+
+The scheduling and flow-control entries resolve their singleton session from `.spec/agents.yaml` (`schedulerSession`, `flowSession`); a missing session or a mismatched `agentPreset` falls back to the first workspace session running that preset, and only then to a new session whose id is written back through `/agent_bind`. Opening always corrects the title to the role name. Both presets mount `compaction-basic` explicitly, so a model switch changes the threshold through the adapter's `contextWindow`. The package itself registers no model tool, prompt section, or schema.
 
 | File | Responsibility |
 |---|---|
@@ -66,6 +70,9 @@ The floating conversation subscribes to the session event window and renders use
 | `src/client/shell/Shell.tsx` | Project switch, task board, project-info drawer, task detail, and floating conversation |
 | `src/client/shell/shell-data.ts` | Shell types, the per-task startup prompt, the onboarding prompt, and session message extraction |
 | `src/client/onboarding.ts` | Send/open/block decision for the onboarding action, from session facts |
+| `src/client/flow-status.ts` | Shape validation for the `/flow_status` JSON |
+| `src/client/flow-history.ts` | Merged `flow.jsonl` / `schedule.jsonl` action history |
+| `src/client/singleton.ts` | Resident-session resolution for the two scheduler roles |
 | `src/client/shell/Shell.module.css` | Shell layout and overlay styles |
 | `src/client/projection.ts` | `.spec` tasks/rules, `project.yaml`, and `local.yaml` reads |
 | `src/client/definition.ts` | Tab kind, id, priority, and guide entry for the fallback mode |
@@ -106,8 +113,9 @@ None; the package does not change request prefixes.
 <a id="known-limitations-and-deferred-work"></a>
 
 - A timed-out Open repository releases only the shell: the underlying `workspaces.create` stays pending because the upstream Workspace command queue has no cancellation.
-- The session bar labels a session by the task claiming it, not by its role: the framework's session rows carry no `agentPreset`, and the shell does not infer one from the transcript.
-- The floating conversation renders final user/assistant text from the session event window, not the full DSH conversation UI (tool cards, live token streaming).
+- The session bar labels a session by the task claiming it, not by its role; the single-entry resolution reads `agentPreset` from the session projection, but lists still show the claiming task's title.
+- The floating conversation renders final user/assistant text from the session event window, not the full DSH conversation UI (tool cards, live token streaming). Compaction markers and context occupancy are drawn, but the compacted summary itself remains an ordinary context row.
+- `flow_status` is evaluated once per projection reload and after a batch; the panel does not subscribe to `.spec` file changes.
 - The task board reads the first session in the selected workspace; a task-specific session per task is deferred.
 - The shell reloads when the selected workspace or session changes; incremental refresh through `workspaceFiles.changes` is deferred.
 - The project-info drawer resolves `passwordRef` from `.spec/local.yaml`; environment-variable resolution is deferred.

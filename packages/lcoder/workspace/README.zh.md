@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`@lcoder/workspace` 是 LCoder 的外壳。它展示当前项目、从会话工作区 `.spec` 读出的五态任务板、从 `.spec/project.yaml` 读出的项目信息抽屉，以及把 dev-flow 启动咒语发送到真实会话的悬浮对话。项目选择器可以打开另一个仓库，创建或复用它的工作区并建一个会话。看板为空时给出立项咒语，文档路径取自 `.spec/project.yaml` 声明的交付文档。kernel 已运行时通过 LCoder patch 层挂载；`shell: false` 保留旧的右栏工作台页签。外壳对产品数据只读：状态机判断与写入都归 kernel。
+`@lcoder/workspace` 是 LCoder 的外壳：当前项目、从会话工作区 `.spec` 读出的五态任务板与项目信息抽屉、悬浮对话、空看板的立项入口，以及向 kernel 求下一步、只启动选中的可开始任务且不推进状态的「开工」面板。顶栏两个入口打开智能调度与流程控制常驻会话；对话里显示上下文占用与压缩标记。kernel 已运行时通过 LCoder patch 层挂载；`shell: false` 保留旧的右栏工作台页签。外壳对产品数据只读：状态机判断与写入都归 kernel。
 
 ## 目录
 
@@ -58,7 +58,11 @@ kind: "package-reference"
 
 从任务卡打开对话时，外壳复用该任务已经认领的那条会话（`.spec/tasks/<ID>.yaml` 的 `session` 字段）。没有还在的会话时，外壳在同一个仓库里再开一条，并在创建这一步指名角色——preset 在首回合之后就锁死——再通过人机命令 `/task_bind` 把任务认给这条会话，落盘由 kernel 做。角色来自 `agentPresets.list`，且只给 id 以 `lcoder` 开头的 preset——上游角色不挂本包的十个工具，根本读不到 `.spec`；名册读失败或是空的，就按宿主默认角色开。顶栏的会话条列出本工作区的会话，按认领它的任务标名，点一下就切过去。
 
-悬浮对话订阅会话事件窗口并渲染用户/助手文本；输入框向同一会话继续发送提示。磁盘上没有任务时，看板给出两个共用同一条会话的入口：「全新项目」发 7 问引导咒语，「已有资料」发先读仓库与已声明文档的立项分析咒语。先点哪个都只发一次，之后再点任一个都只重开悬浮对话。判据读会话自身的记录——已起过回合、已有消息，或首条提示正等首个回合——所以刷新页面或重开窗口也不会重发。本包自身不注册模型工具、提示词段落或 schema。
+悬浮对话订阅会话事件窗口并渲染用户/助手文本；输入框向同一会话继续发送提示。磁盘上没有任务时，看板给出两个共用同一条会话的入口：「全新项目」发 7 问引导咒语，「已有资料」发先读仓库与已声明文档的立项分析咒语。先点哪个都只发一次，之后再点任一个都只重开悬浮对话。判据读会话自身的记录——已起过回合、已有消息，或首条提示正等首个回合——所以刷新页面或重开窗口也不会重发。
+
+「开工」与流程面板画的是 kernel `/flow_status` 的结果：策略来源与开关、整体下一步与挡住原因、逐任务计划。判定没有挡住原因、且动作是外壳能交给会话的那几种（`contract`、`implement`、`verify`、`close`、`commit`）才算可开始；签署与外部动作单独列出等人处理。批量开工按计划顺序逐条执行，单条失败不影响后面的；每条结果通过 `/flow_log` 落盘。已经在会话里跑着或排着队的任务只切过去，所以重复点不会把提示词再发一遍。动作流水合并 `.spec/evidence/<任务>/flow.jsonl` 与 `schedule.jsonl`，按时刻倒序。
+
+智能调度与流程控制入口按 `.spec/agents.yaml` 的 `schedulerSession` / `flowSession` 找单例会话；会话不在或 `agentPreset` 对不上时，先找同 preset 的工作区会话，最后才新建并通过 `/agent_bind` 写回会话号。每次打开都把标题校正成角色名。两个 preset 都显式挂了 `compaction-basic`，所以切模型后阈值仍随适配器的 `contextWindow` 走。本包自身不注册模型工具、提示词段落或 schema。
 
 | 文件 | 职责 |
 |---|---|
@@ -66,6 +70,9 @@ kind: "package-reference"
 | `src/client/shell/Shell.tsx` | 项目切换、任务板、项目信息抽屉、任务详情与悬浮对话 |
 | `src/client/shell/shell-data.ts` | 外壳类型、逐任务启动咒语、立项咒语与会话消息提取 |
 | `src/client/onboarding.ts` | 立项动作的发/只开/拦下判定，判据取会话事实 |
+| `src/client/flow-status.ts` | `/flow_status` JSON 的形状校验 |
+| `src/client/flow-history.ts` | `flow.jsonl` / `schedule.jsonl` 的合并动作流水 |
+| `src/client/singleton.ts` | 两个调度角色的常驻会话解析 |
 | `src/client/shell/Shell.module.css` | 外壳布局与浮层样式 |
 | `src/client/projection.ts` | `.spec` 任务/规则、`project.yaml` 与 `local.yaml` 读取 |
 | `src/client/definition.ts` | 回退模式的页签 kind、id、优先级与引导入口 |
@@ -107,8 +114,9 @@ kind: "package-reference"
 <a id="known-limitations-and-deferred-work"></a>
 
 - 「打开仓库」超时只解放外壳：底层 `workspaces.create` 仍在挂，因为上游 Workspace 命令队列没有取消语义。
-- 会话条按认领该会话的任务标名，不标角色：框架的会话行不带 `agentPreset`，外壳也不从记录里猜。
-- 悬浮对话只从会话事件窗口渲染最终用户/助手文本，不是完整 DSH 会话 UI（工具卡片、逐 token 流式）。
+- 会话条按认领该会话的任务标名，不标角色；单例入口从会话投影读 `agentPreset`，但列表仍显示认领任务的标题。
+- 悬浮对话只从会话事件窗口渲染最终用户/助手文本，不是完整 DSH 会话 UI（工具卡片、逐 token 流式）。压缩标记与上下文占用会画出来，压缩摘要本身仍是普通上下文行。
+- `flow_status` 只在投影重读与一批开工结束后求值；面板不订阅 `.spec` 文件变化。
 - 任务板读取所选工作区的第一个会话；每个任务单独建会话尚未实现。
 - 外壳在所选工作区或会话变化时重载；通过 `workspaceFiles.changes` 的增量刷新尚未实现。
 - 项目信息抽屉从 `.spec/local.yaml` 解析 `passwordRef`；环境变量解析尚未实现。

@@ -10,6 +10,7 @@ import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import { ToolCallId } from '@deepseek-ai/dsh-llm/brand'
 import { SessionSeq } from '@deepseek-ai/dsh-session/types'
 import type { SessionEventLikeEntry } from '@deepseek-ai/dsh-api-session-controller/client'
+import { CompactionId } from '@deepseek-ai/dsh-compaction'
 
 import { buildIntakePrompt, buildOnboardingPrompt, buildShellPrompt, messagesFromEntries, TASK_FLOW_MENTION_PREFIX } from '../src/client/shell/shell-data.ts'
 import type { ShellOnboardingDocs, ShellTask } from '../src/client/shell/shell-data.ts'
@@ -222,6 +223,28 @@ function toolResultEntry(seq: number, callId: string, ok: boolean, turn = 1, ste
   }
 }
 
+/** 一条 compaction/summary 事件：压缩完成后应在对话里留下一条可见标记。 */
+function compactionEntry(seq: number, tokens: number, items: number, id = 'c-1'): SessionEventLikeEntry {
+  return {
+    type: 'event',
+    event: {
+      type: 'compaction/summary',
+      seq: SessionSeq(seq),
+      time: 1,
+      data: {
+        compactionId: CompactionId(id),
+        summary: [{ type: 'text', text: '摘要' }],
+        shadowedRange: { start: SessionSeq(0), end: SessionSeq(seq - 1) },
+        shadowedSeqs: Array.from({ length: items }, (_, index) => SessionSeq(index)),
+        shadowedTokenCount: tokens,
+        provider: 'test',
+        model: 'test',
+        rawOutput: [],
+      },
+    },
+  }
+}
+
 /** 一条 turn/end 事件：回合收口时把过程组与答复一起落到消息列表。 */
 function turnEndEntry(seq: number, turn = 1): SessionEventLikeEntry {
   return {
@@ -310,6 +333,19 @@ describe('会话消息投影', () => {
         { kind: 'tool', callId: 'c1', name: 'cmd_run', args: '{"command":"ls"}', ok: true },
       ],
     })
+  })
+
+  it('压缩事件在对话里留下可见标记，不静默换掉上下文', () => {
+    const messages = messagesFromEntries([
+      userEntry(0, '继续'),
+      compactionEntry(1, 1234, 3),
+      turnEndEntry(2, 1),
+    ])
+
+    expect(messages).toEqual([
+      { role: 'user', text: '继续' },
+      { role: 'compaction', items: 3, tokens: 1234 },
+    ])
   })
 
   it('纯空白与空内容不产生消息行', () => {

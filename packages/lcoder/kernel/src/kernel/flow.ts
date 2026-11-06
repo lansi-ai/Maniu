@@ -87,6 +87,32 @@ export interface FlowDecision {
 const ZERO_USAGE: FlowUsage = { tokens: 0, minutes: 0, consecutiveFailures: 0, running: 0 }
 
 /**
+ * 开工能直接交给会话的动作。
+ *
+ * 签署与外部动作刻意不在其中：签署由人机命令或三闸成立的执行器完成，
+ * 外部动作永远等人做；把这两类混进「开工」会让一次批量点击跨过人的决定。
+ */
+export const STARTABLE_ACTIONS: readonly FlowAction[] = ['contract', 'implement', 'verify', 'close', 'commit']
+
+/**
+ * 这条判定能不能直接开一条会话去做。
+ * @param decision - 一次流程判定。
+ * @returns 无挡住原因且动作属于可交给会话的动作时为 true。
+ */
+export function isStartable(decision: FlowDecision): boolean {
+  return decision.blockers.length === 0 && STARTABLE_ACTIONS.includes(decision.action)
+}
+
+/**
+ * 停止条件触发时的统一判定；理由只有一条，挡住原因带上具体数字。
+ * @param blocker - 已触发的停止条件。
+ * @returns 全局 stop 判定。
+ */
+function stopDecision(blocker: FlowBlocker): FlowDecision {
+  return { action: 'stop', taskId: null, mode: 'none', reason: '停止条件已触发，流程不再自动推进', blockers: [blocker] }
+}
+
+/**
  * 求下一步动作。
  * @param input - 任务事实、策略与已用量。
  * @returns 下一动作与理由；被挡住时 `blockers` 非空。
@@ -94,9 +120,7 @@ const ZERO_USAGE: FlowUsage = { tokens: 0, minutes: 0, consecutiveFailures: 0, r
 export function decideFlow(input: FlowInput): FlowDecision {
   const usage: FlowUsage = { ...ZERO_USAGE, ...input.usage }
   const budget = budgetBlocker(input.policy, usage)
-  if (budget !== undefined) {
-    return { action: 'stop', taskId: null, mode: 'none', reason: '停止条件已触发，流程不再自动推进', blockers: [budget] }
-  }
+  if (budget !== undefined) return stopDecision(budget)
 
   const tasks = scopeTasks(input.tasks, input.policy)
   if (tasks.length === 0) {
@@ -301,4 +325,52 @@ function drafting(task: FlowTaskFacts, policy: AutomationPolicy): FlowDecision {
     reason: `${task.id} 的契约未签，需要人签署`,
     blockers: [{ kind: 'signature', detail: `等人签：${describeSelfSignFailure(gate)}` }],
   }
+}
+
+/**
+ * 只对一条任务求下一动作。
+ *
+ * 依赖是否满足仍看全量任务：范围只决定这次评估谁，不改变别的任务已经收口的事实。
+ * 停止条件先于任务检查，与 {@link decideFlow} 一致——预算用尽时任何一条任务都不该被启动。
+ * @param taskId - 要评估的任务编号。
+ * @param input - 全量任务事实、策略与已用量。
+ * @returns 该任务的判定；任务不存在时给出全局 stop。
+ */
+export function decideFlowTask(taskId: string, input: FlowInput): FlowDecision {
+  const usage: FlowUsage = { ...ZERO_USAGE, ...input.usage }
+  const budget = budgetBlocker(input.policy, usage)
+  if (budget !== undefined) return stopDecision(budget)
+
+  const task = input.tasks.find(candidate => candidate.id === taskId)
+  if (task === undefined) {
+    return { action: 'stop', taskId, mode: 'none', reason: `找不到任务 ${taskId}`, blockers: [] }
+  }
+
+  const byId = new Map(input.tasks.map(candidate => [candidate.id, candidate]))
+  const closed = new Set(input.tasks.filter(candidate => candidate.state === 'closed').map(candidate => candidate.id))
+  return decideTask(task, byId, closed, input.policy)
+}
+
+/** 一条任务的计划：判定本身与「能否直接交给会话」。 */
+export interface FlowTaskPlan {
+  readonly taskId: string
+  readonly decision: FlowDecision
+  readonly startable: boolean
+}
+
+/**
+ * 为一批任务各求一次下一步。
+ *
+ * 传空数组表示全部任务。顺序与 {@link decideFlow} 的遍历一致：按任务编号排序，
+ * 这样界面按计划顺序逐个开工时，看到的就是引擎自己的顺序。
+ * @param taskIds - 要评估的任务编号；空数组表示全部。
+ * @param input - 全量任务事实、策略与已用量。
+ * @returns 按编号排序的计划。
+ */
+export function planFlow(taskIds: readonly string[], input: FlowInput): readonly FlowTaskPlan[] {
+  const ids = taskIds.length === 0 ? input.tasks.map(task => task.id) : [...taskIds]
+  return [...new Set(ids)].sort().map((taskId) => {
+    const decision = decideFlowTask(taskId, input)
+    return { taskId, decision, startable: isStartable(decision) }
+  })
 }

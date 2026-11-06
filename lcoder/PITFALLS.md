@@ -99,3 +99,17 @@
 - **原因**：pnpm 未批准 electron 的 install 脚本（与 W-06 第四层同一件事），`pnpm install` 不会替它跑 postinstall。`index.js` 的 `getElectronPath()` 读不到 `path.txt` 时会调 `install.js`，即联网重下；下载失败就抛 `Electron failed to install correctly`。桌面入口 `dev.ts` 用 `createRequire(import.meta.url)('electron')` 取可执行文件，所以这一步缺失会表现成「桌面实例起不来」，与 LCoder 源码无关。
 - **处理**：从已有检出对拷同版本的 `dist/` 与 `path.txt` 到本 worktree 的 electron 目录（T-49 线按 44.7.0 这么做过，`dist/electron.exe` 与 `path.txt` 两件齐了才继续），或在本 tree 批准 electron 构建脚本后重装。不要把这件事记成上游缺陷，也不要手改 `path.txt` 内容以外的任何东西。
 - **预防**：新 worktree 起桌面实例前三件一起核——`node_modules/.pnpm/electron@*/node_modules/electron/path.txt` 存在、`dist/electron.exe` 存在、`pnpm install` 后的 `InstallationProbe` 带 `options?`（W-09）。缺电子二进制时直接对拷，比等联网下载快得多；对拷后核对版本号与本 tree 的 lockfile 一致。
+
+## W-15 preset 直接挂 compaction-basic 报 isolate realms
+
+- **现象**：桌面里打开仓库或新建会话失败，回执是 `session create failed: agent-preset/invalid: Preset services require isolate realms: compaction`；已存在的会话列表还在，但新建不出会话。
+- **原因**：web-app 在宿主面把 `compaction-basic` 禁用了，只有 preset 自己挂；而 `compaction` 是 isolate 服务，直接作为 preset 的普通插件子项会被拒绝。原 LCoder 七个 preset 都没有挂它，所以长会话根本没有压缩。
+- **处理**：按上游 `standard` preset 的写法放进隔离组——`id: compaction`、`name: cordis:group`、`group: true`、`isolate: { compaction: true }`，再在 `config` 下挂 `compaction-basic` 与阈值。九个 preset 都要挂。
+- **预防**：改完装配源先读 preset 声明原文，确认里面有 isolate 组；重拷运行副本后必须重启实例，旧进程不会热读这份 patch。
+
+## W-16 相对路径追加写进了主检出
+
+- **现象**：worktree 里改完 CSS 并重新 bundle，界面元素的 class 却出现字面量 `undefined`，面板没有样式。
+- **原因**：Bash 的工作目录会跨命令保留；一条 `cd .worktrees/...` 之后又回到主检出执行 `cat >> packages/...`，内容落进主检出的同名文件，worktree 的 CSS 根本没变。
+- **处理**：先 `git -C <主检出> restore --source=HEAD --worktree -- <文件>` 还原主检出，再用 worktree 的绝对路径重做并重新 bundle。
+- **预防**：写文件前先 `pwd`；跨检出操作一律用绝对路径；bundle 后 `grep` 新类名，界面里再核一次 `css.<新类>` 不是 undefined。

@@ -751,3 +751,59 @@
 .dangerBtn { border: 1px solid var(--lc-line); background: var(--lc-surface); color: var(--lc-status-danger); border-radius: var(--lc-radius-md); padding: 9px 16px; min-height: 38px; font-size: var(--lc-text-md); }
 .dangerBtn:hover { background: var(--lc-hover); }
 .dangerBtn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ── 开工与流程面板 ────────────────────────────────────────── */
+.agentBar { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.agentChip {
+  border: 1px solid var(--lc-line); background: var(--lc-surface-2); color: var(--lc-muted);
+  border-radius: var(--lc-radius-pill); padding: 6px 12px; font-size: var(--lc-text-sm);
+  white-space: nowrap;
+}
+.agentChip:hover { border-color: var(--lc-brand-2); color: var(--lc-ink); }
+.agentChipActive { background: var(--lc-brand-soft); border-color: var(--lc-brand); color: var(--lc-brand-ink); font-weight: 600; }
+.workBtn {
+  border: 1px solid var(--lc-brand); background: var(--lc-brand); color: #fff;
+  border-radius: var(--lc-radius-md); padding: 8px 16px; min-height: 36px;
+  font-size: var(--lc-text-md); font-weight: 600; white-space: nowrap;
+}
+.workBtn:hover { background: var(--lc-brand-ink); border-color: var(--lc-brand-ink); }
+
+.flowBar {
+  display: flex; align-items: center; gap: 8px; min-width: 0; max-width: 62%;
+  border: 1px solid var(--lc-line); background: var(--lc-surface-2); color: var(--lc-muted);
+  border-radius: var(--lc-radius-pill); padding: 5px 12px; font-size: var(--lc-text-sm);
+  text-align: left;
+}
+.flowBar:hover { border-color: var(--lc-brand-2); color: var(--lc-ink); }
+.flowBarLabel { color: var(--lc-faint); font-size: var(--lc-text-xs); white-space: nowrap; }
+.flowBarAction { color: var(--lc-ink); font-weight: 600; white-space: nowrap; }
+.flowBarReason { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.flowBarBlocked { color: var(--lc-status-warn); background: var(--lc-status-warn-soft); border-radius: var(--lc-radius-pill); padding: 1px 8px; white-space: nowrap; }
+
+.flowModal { width: min(980px, 100%); }
+.flowSection { display: grid; gap: 8px; }
+.flowSection h4 { margin: 0; font: 600 var(--lc-text-md) / var(--lc-leading-tight) var(--lc-font-ui); color: var(--lc-ink); }
+.flowChips { display: flex; flex-wrap: wrap; gap: 6px; }
+.flowDecision { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.flowAction { font: 600 var(--lc-text-md) / var(--lc-leading-tight) var(--lc-font-ui); color: var(--lc-brand-ink); }
+.flowReason { margin: 0; color: var(--lc-muted); font-size: var(--lc-text-sm); line-height: var(--lc-leading); }
+.flowBlockers { display: grid; gap: 6px; }
+.flowBlocker { display: flex; align-items: baseline; gap: 8px; font-size: var(--lc-text-sm); color: var(--lc-muted); }
+.flowAttentionList { display: grid; gap: 6px; }
+.flowAttentionRow { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; font-size: var(--lc-text-sm); color: var(--lc-muted); }
+.flowToolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.flowTaskList { display: grid; gap: 6px; }
+.flowTaskRow {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px;
+  border: 1px solid var(--lc-line); border-radius: var(--lc-radius-sm);
+  padding: 8px 10px; background: var(--lc-surface-2); font-size: var(--lc-text-sm);
+}
+.flowTaskRowHeld { opacity: .82; }
+.flowTaskRow input { align-self: center; }
+.flowTaskId { font-family: var(--lc-font-mono); font-size: var(--lc-text-xs); color: var(--lc-ink); }
+.flowTaskAction { font-weight: 600; color: var(--lc-ink); white-space: nowrap; }
+.flowTaskReason { color: var(--lc-muted); overflow-wrap: anywhere; }
+.flowHistory { display: grid; gap: 4px; max-height: 260px; overflow: auto; }
+.flowHistoryRow { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; font-size: var(--lc-text-xs); color: var(--lc-muted); border-bottom: 1px dashed var(--lc-line); padding-bottom: 4px; }
+.flowHistoryTime { font-family: var(--lc-font-mono); color: var(--lc-faint); white-space: nowrap; }
+.chatContext { margin: 2px 0 0; font-size: var(--lc-text-xs); color: var(--lc-faint); }

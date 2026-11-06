@@ -213,8 +213,26 @@ describe('角色天花板', () => {
     }
   })
 
-  it('七个角色都能列目录：立项不需要额外工具就能看清仓库结构', () => {
+  it('九个角色都能列目录：立项不需要额外工具就能看清仓库结构', () => {
     for (const role of ROLES) expect(ROLE_TOOLS[role]).toContain('file_list')
+  })
+
+  it('智能调度与流程控制只有四件只读工具，任何状态都拿不到编辑、命令、契约与收口', () => {
+    const readOnly = ['file_list', 'file_read', 'spec_query', 'task_read']
+    for (const role of ['scheduler', 'flow'] as const) {
+      expect([...ROLE_TOOLS[role]].sort()).toEqual(readOnly)
+      for (const state of [...STATES, null] as const) {
+        const tools = allowedTools(state, role)
+        expect(tools).not.toContain('file_edit')
+        expect(tools).not.toContain('cmd_run')
+        expect(tools).not.toContain('contract_draft')
+        expect(tools).not.toContain('contract_sign')
+        expect(tools).not.toContain('task_close')
+        expect(tools).not.toContain('evidence_attach')
+      }
+      // 空看板下也只给读：这两个角色不能在还没立项时写项目或任务。
+      expect([...allowedTools(null, role)].sort()).toEqual(readOnly)
+    }
   })
 
   it('签了约的评审拿不到编辑，验证态的评审能收口', () => {
@@ -227,7 +245,7 @@ describe('角色天花板', () => {
     expect(allowedTools('drafting', null)).toEqual(SURFACE.drafting)
   })
 
-  it('parseRole 认七个角色，未设给 null，配错当场响', () => {
+  it('parseRole 认九个角色，未设给 null，配错当场响', () => {
     expect(parseRole(undefined)).toBeNull()
     for (const role of ROLES) expect(parseRole(role)).toBe(role)
     expect(() => parseRole('qa')).toThrow(TypeError)

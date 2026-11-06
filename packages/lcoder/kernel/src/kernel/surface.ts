@@ -120,10 +120,10 @@ export const UNSCOPEED_SURFACE: readonly string[] = [
 // ── 角色天花板 ─────────────────────────────────────────────
 
 /** 一个会话所属的角色；一个角色就是一个 Agent preset，装配层用 `role` 配置本插件。 */
-export type RoleId = 'intake' | 'architect' | 'pm' | 'dev' | 'git' | 'ops' | 'review'
+export type RoleId = 'intake' | 'architect' | 'pm' | 'dev' | 'git' | 'ops' | 'review' | 'scheduler' | 'flow'
 
 /** 全部角色，`Config.role` 的取值域。 */
-export const ROLES: readonly RoleId[] = ['intake', 'architect', 'pm', 'dev', 'git', 'ops', 'review']
+export const ROLES: readonly RoleId[] = ['intake', 'architect', 'pm', 'dev', 'git', 'ops', 'review', 'scheduler', 'flow']
 
 /**
  * 每个角色最多能拿到哪些工具。
@@ -166,6 +166,16 @@ export const ROLE_TOOLS: Readonly<Record<RoleId, readonly string[]>> = {
   ops: ['file_read', 'file_list', 'spec_query', 'spec_bind', 'task_read', 'task_draft', 'contract_draft', 'file_edit', 'cmd_run', 'evidence_attach'],
   /** 评审：只读复核，外加挂证据与收口；永远不给改代码与跑命令。 */
   review: ['file_read', 'file_list', 'spec_query', 'task_read', 'evidence_attach', 'task_close'],
+  /**
+   * 智能调度：只看任务与规格，负责把任务分给合适的会话。
+   * 分配判定由 `scheduling.ts` 算出，这一角色没有写盘与执行能力，连任务消息也不发。
+   */
+  scheduler: ['file_read', 'file_list', 'spec_query', 'task_read'],
+  /**
+   * 流程控制：只看任务与规格，负责说明下一步、理由与挡住原因。
+   * 它不推进状态、不签契约、不收口；那些仍走人机命令或后续执行器。
+   */
+  flow: ['file_read', 'file_list', 'spec_query', 'task_read'],
 }
 
 /**

@@ -2,8 +2,8 @@
 #
 # 运行副本在 `apps/desktop/.desktop-build/development/home/profiles/desktop/cordis.patch.yml`，
 # 那份目录被 .gitignore 忽略；改这里之后按 `lcoder/RUN.md` 第「桌面端」一节拷过去，
-# 并把 `documentsDirectory` 改成**本检出自己的**路径。四个角色 preset 只在本文件里有源，
-# 运行副本是它的拷贝。
+# 并把 `documentsDirectory` 改成**本检出自己的**路径。九个角色 preset 只在本文件里有源，
+# 运行副本是它的拷贝；九个 preset 各挂 ask-user 与 compaction-basic。
 #
 # 三条必核项（缺一条桌面端就起不来或读错仓）：
 #   1. `documentsDirectory` 在，且目录真实存在——本机向操作系统问文档目录会挂住，
@@ -54,6 +54,20 @@
           # 提问走弹出选择框：工具阻塞到人选完为止，不让人打字。
           - id: ask-user
             name: '@deepseek-ai/dsh-tool-ask-user'
+          # 上下文压缩：web-app 在宿主面禁用了它，必须由 preset 自己挂。
+          # compaction 是 isolate 服务，按上游 preset 的写法放进隔离组；阈值按当前模型的
+          # contextWindow 计算，显式写死这两项，切模型后仍随容量走。
+          - id: compaction
+            name: cordis:group
+            group: true
+            isolate:
+              compaction: true
+            config:
+              - id: compaction-basic
+                name: '@deepseek-ai/dsh-compaction-basic'
+                config:
+                  thresholdRatio: 0.8
+                  retainRatio: 0.16
           - id: lcoder
             name: '@lcoder/kernel'
             config:
@@ -91,6 +105,20 @@
           # 提问走弹出选择框：工具阻塞到人选完为止，不让人打字。
           - id: ask-user
             name: '@deepseek-ai/dsh-tool-ask-user'
+          # 上下文压缩：web-app 在宿主面禁用了它，必须由 preset 自己挂。
+          # compaction 是 isolate 服务，按上游 preset 的写法放进隔离组；阈值按当前模型的
+          # contextWindow 计算，显式写死这两项，切模型后仍随容量走。
+          - id: compaction
+            name: cordis:group
+            group: true
+            isolate:
+              compaction: true
+            config:
+              - id: compaction-basic
+                name: '@deepseek-ai/dsh-compaction-basic'
+                config:
+                  thresholdRatio: 0.8
+                  retainRatio: 0.16
           - id: lcoder
             name: '@lcoder/kernel'
             config:
@@ -118,6 +146,20 @@
           # 提问走弹出选择框：工具阻塞到人选完为止，不让人打字。
           - id: ask-user
             name: '@deepseek-ai/dsh-tool-ask-user'
+          # 上下文压缩：web-app 在宿主面禁用了它，必须由 preset 自己挂。
+          # compaction 是 isolate 服务，按上游 preset 的写法放进隔离组；阈值按当前模型的
+          # contextWindow 计算，显式写死这两项，切模型后仍随容量走。
+          - id: compaction
+            name: cordis:group
+            group: true
+            isolate:
+              compaction: true
+            config:
+              - id: compaction-basic
+                name: '@deepseek-ai/dsh-compaction-basic'
+                config:
+                  thresholdRatio: 0.8
+                  retainRatio: 0.16
           - id: lcoder
             name: '@lcoder/kernel'
             config:
@@ -154,6 +196,20 @@
           # 提问走弹出选择框：工具阻塞到人选完为止，不让人打字。
           - id: ask-user
             name: '@deepseek-ai/dsh-tool-ask-user'
+          # 上下文压缩：web-app 在宿主面禁用了它，必须由 preset 自己挂。
+          # compaction 是 isolate 服务，按上游 preset 的写法放进隔离组；阈值按当前模型的
+          # contextWindow 计算，显式写死这两项，切模型后仍随容量走。
+          - id: compaction
+            name: cordis:group
+            group: true
+            isolate:
+              compaction: true
+            config:
+              - id: compaction-basic
+                name: '@deepseek-ai/dsh-compaction-basic'
+                config:
+                  thresholdRatio: 0.8
+                  retainRatio: 0.16
           - id: lcoder
             name: '@lcoder/kernel'
             config:
@@ -189,6 +245,20 @@
           # 提问走弹出选择框：工具阻塞到人选完为止，不让人打字。
           - id: ask-user
             name: '@deepseek-ai/dsh-tool-ask-user'
+          # 上下文压缩：web-app 在宿主面禁用了它，必须由 preset 自己挂。
+          # compaction 是 isolate 服务，按上游 preset 的写法放进隔离组；阈值按当前模型的
+          # contextWindow 计算，显式写死这两项，切模型后仍随容量走。
+          - id: compaction
+            name: cordis:group
+            group: true
+            isolate:
+              compaction: true
+            config:
+              - id: compaction-basic
+                name: '@deepseek-ai/dsh-compaction-basic'
+                config:
+                  thresholdRatio: 0.8
+                  retainRatio: 0.16
           - id: lcoder
             name: '@lcoder/kernel'
             config:
@@ -221,6 +291,20 @@
           # 提问走弹出选择框：工具阻塞到人选完为止，不让人打字。
           - id: ask-user
             name: '@deepseek-ai/dsh-tool-ask-user'
+          # 上下文压缩：web-app 在宿主面禁用了它，必须由 preset 自己挂。
+          # compaction 是 isolate 服务，按上游 preset 的写法放进隔离组；阈值按当前模型的
+          # contextWindow 计算，显式写死这两项，切模型后仍随容量走。
+          - id: compaction
+            name: cordis:group
+            group: true
+            isolate:
+              compaction: true
+            config:
+              - id: compaction-basic
+                name: '@deepseek-ai/dsh-compaction-basic'
+                config:
+                  thresholdRatio: 0.8
+                  retainRatio: 0.16
           - id: lcoder
             name: '@lcoder/kernel'
             config:
@@ -255,11 +339,105 @@
           # 提问走弹出选择框：工具阻塞到人选完为止，不让人打字。
           - id: ask-user
             name: '@deepseek-ai/dsh-tool-ask-user'
+          # 上下文压缩：web-app 在宿主面禁用了它，必须由 preset 自己挂。
+          # compaction 是 isolate 服务，按上游 preset 的写法放进隔离组；阈值按当前模型的
+          # contextWindow 计算，显式写死这两项，切模型后仍随容量走。
+          - id: compaction
+            name: cordis:group
+            group: true
+            isolate:
+              compaction: true
+            config:
+              - id: compaction-basic
+                name: '@deepseek-ai/dsh-compaction-basic'
+                config:
+                  thresholdRatio: 0.8
+                  retainRatio: 0.16
           - id: lcoder
             name: '@lcoder/kernel'
             config:
               selfCheck: true
               role: ops
+
+# ── 智能调度 ─────────────────────────────────────────────────
+# 常驻单例：每个仓库一条。它只解释「该交给谁」，真正的分配由工作台的调度判定执行。
+- insert:
+    - id: preset-lcoder-scheduler
+      name: "@deepseek-ai/dsh-agent-preset"
+      config:
+        id: lcoder-scheduler
+        name: 智能调度
+        description: 只看任务与规格，把任务分给合适的会话（实验）
+        order: 26
+        plugins:
+          - id: persona
+            name: "@deepseek-ai/dsh-persona"
+            config:
+              prefix: >-
+                You are LCoder 智能调度. 你的天花板只有 file_read / file_list / spec_query / task_read：
+                先 file_list 与 file_read 看清任务、依赖、规格与现有会话的认领关系，再说明每条任务该交给谁、
+                为什么、哪些候选被否掉。你不改代码、不跑命令、不签契约、不收口、不写任何文件；
+                真正的分配由工作台的调度判定执行，你只做解释与建议。缺工具就如实说。
+          # 提问走弹出选择框：工具阻塞到人选完为止，不让人打字。
+          - id: ask-user
+            name: '@deepseek-ai/dsh-tool-ask-user'
+          # 上下文压缩：compaction 是 isolate 服务，按上游 preset 的写法放进隔离组。
+          - id: compaction
+            name: cordis:group
+            group: true
+            isolate:
+              compaction: true
+            config:
+              - id: compaction-basic
+                name: '@deepseek-ai/dsh-compaction-basic'
+                config:
+                  thresholdRatio: 0.8
+                  retainRatio: 0.16
+          - id: lcoder
+            name: '@lcoder/kernel'
+            config:
+              selfCheck: true
+              role: scheduler
+
+# ── 流程控制 ─────────────────────────────────────────────────
+# 常驻单例：每个仓库一条。它只解释下一步与挡住原因，不推进状态。
+- insert:
+    - id: preset-lcoder-flow
+      name: "@deepseek-ai/dsh-agent-preset"
+      config:
+        id: lcoder-flow
+        name: 流程控制
+        description: 只看任务与规格，说明下一步、理由与挡住原因（实验）
+        order: 27
+        plugins:
+          - id: persona
+            name: "@deepseek-ai/dsh-persona"
+            config:
+              prefix: >-
+                You are LCoder 流程控制. 你的天花板只有 file_read / file_list / spec_query / task_read：
+                读 .spec 的任务、契约、证据与 automation.yaml，说明下一步动作、理由与被什么挡住
+                （等人签、等依赖、等预算、等外部动作）。你不推进状态、不签契约、不收口、不写任何文件；
+                开工与签署都由人点。缺工具就如实说，绝不假称已经开工。
+          # 提问走弹出选择框：工具阻塞到人选完为止，不让人打字。
+          - id: ask-user
+            name: '@deepseek-ai/dsh-tool-ask-user'
+          # 上下文压缩：compaction 是 isolate 服务，按上游 preset 的写法放进隔离组。
+          - id: compaction
+            name: cordis:group
+            group: true
+            isolate:
+              compaction: true
+            config:
+              - id: compaction-basic
+                name: '@deepseek-ai/dsh-compaction-basic'
+                config:
+                  thresholdRatio: 0.8
+                  retainRatio: 0.16
+          - id: lcoder
+            name: '@lcoder/kernel'
+            config:
+              selfCheck: true
+              role: flow
 
 # ── 外壳 ─────────────────────────────────────────────────────
 # 外壳自带左栏，所以禁用 DSH 原生 ui-sidebar；浏览器侧占用 main 的 lcoder-home。

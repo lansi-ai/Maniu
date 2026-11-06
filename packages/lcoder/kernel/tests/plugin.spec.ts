@@ -189,13 +189,19 @@ describe('插件装配', () => {
         'lcoder.command(task_bind)',
         'lcoder.command(task_contract)',
         'lcoder.command(task_schedule)',
+        'lcoder.command(flow_status)',
+        'lcoder.command(flow_log)',
+        'lcoder.command(agent_bind)',
         'lcoder.command(proposal_approve)',
         'lcoder.command(deploy)',
       ].sort(),
     )
     harness.runEffects()
     expect(harness.registrations.map(r => r.name).sort()).toEqual(TOOL_NAMES)
-    expect(harness.commands.map(c => c.name)).toEqual(['contract_sign', 'task_bind', 'task_contract', 'task_schedule', 'proposal_approve', 'deploy'])
+    expect(harness.commands.map(c => c.name)).toEqual([
+      'contract_sign', 'task_bind', 'task_contract', 'task_schedule',
+      'flow_status', 'flow_log', 'agent_bind', 'proposal_approve', 'deploy',
+    ])
   })
 
   it('签署不是工具：contract_sign 只进命令面', () => {

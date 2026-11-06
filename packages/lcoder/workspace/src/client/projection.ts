@@ -95,6 +95,17 @@ export interface AutomationPolicyRow {
 }
 
 /**
+ * `.spec/agents.yaml` 的展示数据：两条常驻调度会话的会话号。
+ *
+ * 文件缺失时调用方拿到 null；编号失效（换机器、删会话）按未绑定处理，
+ * 不把「读不到」当成「不存在这条会话」。
+ */
+export interface AgentsRow {
+  readonly schedulerSession?: string
+  readonly flowSession?: string
+}
+
+/**
  * 一份方案的展示数据。
  *
  * `decision` 是文件里写着的事实：`draft` 等人拍板，`approved` 与 `rejected` 由人机命令或人编辑写下。
@@ -142,7 +153,13 @@ export interface WorkspaceProjection {
 /** 本包需要的窄化文件面：整个包只见这两个调用，其余远程能力不进类型。 */
 export interface ProjectionFilesRemote {
   list(sessionId: SessionId, path: string, signal: AbortSignal): Promise<RemoteResult<WorkspaceDirectoryListing>>
-  readPage(sessionId: SessionId, path: string, signal: AbortSignal): Promise<RemoteResult<WorkspaceFileText>>
+  /** 从第 `offset` 行（1 起）读一页；省略按第一页读。 */
+  readPage(
+    sessionId: SessionId,
+    path: string,
+    signal: AbortSignal,
+    offset?: number,
+  ): Promise<RemoteResult<WorkspaceFileText>>
 }
 
 /**
@@ -161,6 +178,7 @@ export const RULES_FILE = `${SPEC_DIR}/spec/rules.yaml`
 export const PROJECT_FILE = `${SPEC_DIR}/project.yaml`
 export const LOCAL_FILE = `${SPEC_DIR}/local.yaml`
 export const AUTOMATION_FILE = `${SPEC_DIR}/automation.yaml`
+export const AGENTS_FILE = `${SPEC_DIR}/agents.yaml`
 export const SCHEDULING_DIR = `${SPEC_DIR}/evidence/scheduling`
 
 /** 单页行数上限：任务与规则 YAML 都是几十行的量级，500 足够且低于宿主默认页。 */
@@ -178,7 +196,7 @@ function recordOf(value: unknown): Record<string, unknown> | undefined {
 }
 
 /** 远程失败的人话：RemoteError 自带 message；没有就退到 code，再没有就认了。 */
-function messageOf(failure: { readonly code?: unknown; readonly message?: unknown }): string {
+export function messageOf(failure: { readonly code?: unknown; readonly message?: unknown }): string {
   if (typeof failure.message === 'string' && failure.message !== '') return failure.message
   return typeof failure.code === 'string' ? failure.code : '未知失败'
 }
@@ -622,6 +640,51 @@ export async function loadAutomationPolicy(
     : { policy, problems: [] }
 }
 
+/** `.spec/agents.yaml` 的读取结果；文件缺失不算错误。 */
+export interface AgentsLoad {
+  /** 文件缺失时为 null；读不懂时为 null 并带 problems。 */
+  readonly agents: AgentsRow | null
+  readonly problems: readonly string[]
+}
+
+/**
+ * 读 `.spec/agents.yaml`。文件不存在是常态（还没开过调度会话），不算故障。
+ * @param files - 窄化文件面。
+ * @param sessionId - 提供相对路径基准的会话。
+ * @param signal - 取消信号。
+ * @returns 两个常驻会话号与逐文件问题；缺文件时 `agents` 为 null。
+ */
+export async function loadAgentsRegistry(
+  files: ProjectionFilesRemote,
+  sessionId: SessionId,
+  signal: AbortSignal,
+): Promise<AgentsLoad> {
+  const page = await files.readPage(sessionId, AGENTS_FILE, signal)
+  if (!page.ok) {
+    return isMissing(page.error, AGENTS_FILE)
+      ? { agents: null, problems: [] }
+      : { agents: null, problems: [`${AGENTS_FILE}: ${messageOf(page.error)}`] }
+  }
+
+  let doc: Record<string, unknown> | undefined
+  try {
+    doc = recordOf(parseYaml(page.value.text))
+  } catch {
+    doc = undefined
+  }
+  if (doc === undefined) return { agents: null, problems: [`${AGENTS_FILE}: 不是能读的 YAML`] }
+
+  const schedulerSession = asText(doc.schedulerSession)
+  const flowSession = asText(doc.flowSession)
+  return {
+    agents: {
+      ...(schedulerSession === undefined ? {} : { schedulerSession }),
+      ...(flowSession === undefined ? {} : { flowSession }),
+    },
+    problems: [],
+  }
+}
+
 /** `.spec/project.yaml` 的读取结果；文件缺失不算错误。 */
 export interface ProjectInfoLoad {
   readonly info: ShellProjectInfo | null
@@ -741,7 +804,7 @@ export async function loadLocalSecrets(
  * 没写过规格的仓库是起点，不是错误。判定走 code 与 message 双保险——
  * 不同文件后端对缺失路径的报错形状不完全一致。
  */
-function isMissing(error: { readonly code?: unknown; readonly message?: unknown }, path: string): boolean {
+export function isMissing(error: { readonly code?: unknown; readonly message?: unknown }, path: string): boolean {
   const code = typeof error.code === 'string' ? error.code : ''
   if (code.includes('not-found') || code.includes('ENOENT')) return true
   const message = typeof error.message === 'string' ? error.message : ''

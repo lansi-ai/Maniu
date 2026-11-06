@@ -14,8 +14,8 @@ import { loadContractFact } from './contract.js'
 import { loadEvidence, hasReviewEvidence } from './evidence-store.js'
 import { loadAutomationPolicy } from './automation.js'
 import type { AutomationPolicyFact } from './automation.js'
-import { decideFlow } from './flow.js'
-import type { FlowDecision, FlowTaskFacts, FlowUsage } from './flow.js'
+import { decideFlow, planFlow } from './flow.js'
+import type { FlowDecision, FlowTaskFacts, FlowTaskPlan, FlowUsage } from './flow.js'
 
 /** 运行时才知道、`.spec` 里没有的事实。 */
 export interface FlowRuntimeFacts {
@@ -69,4 +69,33 @@ export function loadFlowSnapshot(root: string, runtime: FlowRuntimeFacts = {}): 
     tasks: facts,
     policy,
   }
+}
+
+/** 一次磁盘判定的计划视图：整体判定之外，再给每条任务一份计划。 */
+export interface FlowPlanSnapshot extends FlowSnapshot {
+  readonly plans: readonly FlowTaskPlan[]
+  /** 规格库里实际存在的任务编号，供界面区分「选中了但文件已删」。 */
+  readonly taskIds: readonly string[]
+}
+
+/**
+ * 读规格库并给出整体判定与逐任务计划。
+ * @param root - 规格根。
+ * @param taskIds - 要逐条评估的任务编号；空数组表示全部。
+ * @param runtime - 运行时事实（用量、提交状态、外部动作）。
+ * @returns 判定、任务事实、策略来源与逐任务计划。
+ * @throws 任务或契约文件读不懂，或自动化策略非法时抛出——读不懂就不猜。
+ */
+export function loadFlowPlan(
+  root: string,
+  taskIds: readonly string[] = [],
+  runtime: FlowRuntimeFacts = {},
+): FlowPlanSnapshot {
+  const snapshot = loadFlowSnapshot(root, runtime)
+  const plans = planFlow(taskIds, {
+    tasks: snapshot.tasks,
+    policy: snapshot.policy.policy,
+    ...(runtime.usage === undefined ? {} : { usage: runtime.usage }),
+  })
+  return { ...snapshot, plans, taskIds: snapshot.tasks.map(task => task.id) }
 }

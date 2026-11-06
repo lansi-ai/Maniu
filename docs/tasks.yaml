@@ -647,7 +647,7 @@ tracks:
       note: "2026-11-06 收口。A 级，红线变更，用户 2026-11-06 决定 AI 可自签。三闸在 kernel/sign-gate.ts 的 evaluateSelfSignGate，策略 sign 为 auto、scope.irreversible 为空、且有非空 review*.log 复核证据，缺一不签。contract-sign.ts 新增 selfSignContract，三闸成立才写 by 为 agent，sig 记 actor preset 与 authorization（automation.yaml、内容哈希、文件时间），不注册为命令或工具，只留给流程执行器。P3 改为人签，或 AI 自签且三闸成立；不可逆项非空时第三闸永不成立，agent 签名一律判违规；task_contract 按同一套闸复核后才推进。PROJECT-RULES 与 prd-and-design 中英四份同步改，pairing 已重录。未验，桌面窗口里的自签按钮与标注属于 T-59。证据 contract-self-sign 8 条、sign-gate 6 条，全套 vitest 449。"
     - id: T-59
       title: 开工入口与流程面板——一句话开工、下一步与挡住原因、动作流水
-      status: todo
+      status: done
       face: 用户端
       type: 开发
       owner: lance
@@ -655,11 +655,11 @@ tracks:
       date: '2026-11-06'
       dep: [T-56, T-57]
       inferred: false
-      note: "B 级；显示层与入口。顶栏加「开工」：弹出面板选择任务范围、显示当前策略摘要（哪些动作自动、哪些等人、停止条件），确认后由流程引擎接管。面板常驻可见最近一次流程判定：当前档位、下一步动作与理由、被什么挡住（等人签、等依赖、等预算、等外部动作）、最近动作流水；AI 自签与外部动作请求单独标出，不混在普通流水里。失败可回滚到上一状态并保留审计（动作流水落 .spec/evidence/<任务>/flow.jsonl）。文案进中英两本词典。"
+      note: "2026-11-06 收口。B 级。新增 kernel 的 decideFlowTask 与 planFlow（单任务判定仍看全量任务，预算先于任务，可开始动作限于 contract/implement/verify/close/commit），以及 flow_status 与 flow_log 两条人机命令；flow_status 返回策略、整体下一步与逐任务计划的单行 JSON，flow_log 把开工结果追加到 .spec/evidence/<任务>/flow.jsonl。外壳新增顶栏「开工」、看板上的常驻流程条与流程面板：策略来源与开关、停止条件、下一步与四类挡住原因、任务多选、批量结果、最近动作流水（合并 flow.jsonl 与 schedule.jsonl）、AI 自签与外部动作单列。批量按计划顺序逐条走现有调度与会话启动，单条失败继续，不推进任务状态，重复点只聚焦不重发。测试 flow 计划 4 条、flow_status 5 条、flow_log 4 条、flow_status 解析 4 条、flow-history 4 条。桌面实测 E:/Projects/LCoder-ui-demo，面板文案与批量结果可见，T-01 失败写入 flow.jsonl、T-02 按住写入 held，schedule.jsonl 同步追加。未验：真人手点与像素级布局（CDP 截图挂住，只核了 DOM 几何与计算样式）。"
 
     - id: T-60
       title: 两个常驻调度会话与页面入口——单例会话、一键打开、失效重建
-      status: todo
+      status: done
       face: 用户端
       type: 开发
       owner: lance
@@ -667,10 +667,10 @@ tracks:
       date: '2026-11-06'
       dep: [T-51, T-56]
       inferred: false
-      note: "B 级；用户 2026-11-06 要求「页面上能直观进入这两个角色的会话页面，他们只有一个会话」。两条单例会话：分配角色（lcoder-scheduler）与流程控制角色（lcoder-flow），每个仓库一份，不随任务新建。落点：新建 preset 两个；单例会话号的持久化用产品数据里的一行（与 Task.session 同一口径的运行时标识，落 .spec/agents.yaml 或 automation.yaml 的 agents 段，二者取一并在文档写清），失效（换机器、删会话、id 对不上）时按未绑定处理——在同工作区找 agentPreset 匹配的那条，找不到就新建并重写回文件；顶栏给两个入口（图标或「调度」「流程」两个 chip），点开直接把浮层切到那条会话并显示角色与工具面。不新开临时会话、不在任务卡上重复入口。标题与角色名一致（用户 2026-11-06 明确）：分配角色叫「智能调度」、流程控制角色叫「流程控制」，preset 的 name 与会话标题都用这两个词；创建后立即用 session.rename 写死标题，打开时若被上游自动标题覆盖就校正回角色名（rename 是用户标题，若实测仍被自动标题覆盖，就在每次打开时校正，不要与自动标题打架）。验收要点：点两次只聚焦不新建；删掉会话后再点能重建且写回；标题始终是这两个角色名；日志里能看到会话头的 agentPreset。"
+      note: "2026-11-06 收口。B 级。surface 增加 scheduler 与 flow 两个只读角色（file_read/file_list/spec_query/task_read），schema 增加 AgentsRegistry 与 .spec/agents.yaml，新增 /agent_bind 人机命令把 schedulerSession 或 flowSession 写回。装配源新增 lcoder-scheduler（智能调度）与 lcoder-flow（流程控制）两个 preset，都挂 ask-user、compaction 隔离组与 kernel 角色。外壳新增两个顶栏 chip 与单例解析：配置号有效就用，失效先找同 preset 的现存会话，最后才新建并写回；打开时把标题校正成角色名，重复点只聚焦。测试 surface 2 条、agent-bind 4 条、singleton 8 条。桌面实测会话头 agentPreset 分别为 lcoder-scheduler 与 lcoder-flow，标题事件为智能调度与流程控制；删掉 .spec/agents.yaml 后重开仍复用同一条并写回，没有新建第三条；重复点击后会话数不变。未验：上游自动标题覆盖后的校正路径没有等到触发，代码在每次打开时校正。"
     - id: T-61
       title: 调度会话的长上下文自动压缩与可见性——按模型上下文容量取阈值
-      status: todo
+      status: done
       face: 用户端
       type: 开发
       owner: lance
@@ -678,7 +678,7 @@ tracks:
       date: '2026-11-06'
       dep: [T-60]
       inferred: false
-      note: "B 级；用户 2026-11-06 要求单例会话上下文过长时自动压缩，判断依据是模型设置的上下文容量。已核实机制现成：compaction-basic 挂在 base bundle 里、桌面 profile 未禁用，它用适配器给出的 contextWindow 减掉保留的 completion tokens 得到消息预算，默认到 80% 触发、保留 16%，并支持按模型覆盖（ModelCompactPolicyConfig 的 thresholdRatio 与 headroom）；模型目录里 llm-deepseek 的 contextWindow 字段也已经有。所以本条主要不造机器，而是三件事：一、给两条单例会话确认走的是当前默认模型的 contextWindow（模型切换后阈值随之变化），必要时在装配源里显式写 thresholdRatio；二、把「已压缩」这件事在会话里显示出来（压缩事件与压缩后剩余预算），不让它静默发生；三、在会话头部或设置里显示当前占用与预算，用户能判断还要不要继续聊。验收：把一条单例会话聊到阈值，确认会话日志里有压缩事件、界面有提示、且压缩后还能继续正常对话。"
+      note: "2026-11-06 收口。B 级。核实到一个与任务前提不符的事实：web-app 在宿主面禁用了 compaction-basic，只有上游 preset 自己挂，LCoder 原七个 preset 都没挂，所以先补装配。九个 preset 现在都在 isolate 组的 compaction-basic 上显式写 thresholdRatio 0.8 与 retainRatio 0.16，阈值仍按当前请求模型的 contextWindow 计算，切模型随之变化。外壳新增 contextPressure 读取与压缩标记：会话头部显示已用/容量/百分比/剩余，compaction/summary 在对话里画成「上下文已压缩」并带条数与估算 token，失败也可见。测试 shell-data 压缩标记 1 条。桌面实测两个常驻 preset 的声明原文都含 compaction 隔离组、compaction-basic 与两个阈值。未验：没有模型钥匙，未实际聊到阈值触发压缩；压缩后的剩余预算只由投影与单测覆盖。"
 
     - id: T-62
       title: 立项咒语改写为两档模板——全新项目与已有资料共用一套纪律

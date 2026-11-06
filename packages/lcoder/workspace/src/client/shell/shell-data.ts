@@ -5,6 +5,8 @@
  * `.spec/project.yaml`；本文件只保留类型与纯模板，不再持有演示数据。
  */
 import type { SessionEventLikeEntry } from '@deepseek-ai/dsh-api-session-controller/client'
+// Type-only: pulls the `compaction/*` SessionEventMap members into this program.
+import type {} from '@deepseek-ai/dsh-compaction/types'
 import type { LcoderWorkspaceKey } from '../locales.ts'
 
 /** 五态任务状态。 */
@@ -78,12 +80,31 @@ export const SHELL_STATES: readonly { readonly id: ShellTaskState; readonly labe
   { id: 'closed', labelKey: 'shell.closed' },
 ]
 
-/** 悬浮对话里的一条消息：用户、答复、注入上下文，或一段收敛后的过程。 */
+/** 悬浮对话里的一条消息：用户、答复、注入上下文、一段收敛后的过程，或一次压缩标记。 */
 export type ShellMessage =
   | { readonly role: 'user'; readonly text: string }
   | { readonly role: 'assistant'; readonly text: string }
   | { readonly role: 'context'; readonly text: string; readonly label: string }
   | { readonly role: 'process'; readonly items: readonly ShellProcessItem[] }
+  | {
+    readonly role: 'compaction'
+    /** 被压缩的历史条数；失败事件为 0。 */
+    readonly items: number
+    /** 被压缩内容的估算 token；失败事件为 0。 */
+    readonly tokens: number
+    /** 压缩失败的原因；成功时不出现。 */
+    readonly error?: string
+  }
+
+/** 一次请求的上下文占用与容量；字段来自会话的 `contextPressure` 投影。 */
+export interface ShellContextPressure {
+  /** 最近一次请求的 prompt 侧用量（不含输出）。 */
+  readonly pressureTokens?: number
+  /** 下一次请求的估算占用；压缩后它会立刻下降。 */
+  readonly projectedTokens?: number
+  /** 当前路由模型的上下文容量；模型切换后随下一次请求更新。 */
+  readonly contextWindow?: number
+}
 
 /** 一段过程里的一个条目：思考，或一次工具调用。 */
 export type ShellProcessItem =
@@ -155,6 +176,16 @@ export function messagesFromEntries(entries: readonly SessionEventLikeEntry[]): 
       collectBlocks(data.message.content, results, turn.items, turn.answers)
     } else if (event.type === 'turn/end') {
       flushTurn()
+    } else if (event.type === 'compaction/summary') {
+      // 压缩不是用户发言，也不是助手答复；在流水里留一条看得见的标记，
+      // 免得上下文被静默换掉。
+      out.push({
+        role: 'compaction',
+        items: Array.isArray(event.data.shadowedSeqs) ? event.data.shadowedSeqs.length : 0,
+        tokens: event.data.shadowedTokenCount,
+      })
+    } else if (event.type === 'compaction/end' && event.data.error !== undefined) {
+      out.push({ role: 'compaction', items: 0, tokens: 0, error: event.data.error })
     }
   }
   flushTurn()

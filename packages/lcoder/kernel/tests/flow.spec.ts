@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from 'vitest'
 
-import { decideFlow } from '../src/kernel/flow.js'
+import { decideFlow, decideFlowTask, isStartable, planFlow } from '../src/kernel/flow.js'
 import type { FlowDecision, FlowTaskFacts, FlowUsage } from '../src/kernel/flow.js'
 import { AutomationPolicy } from '../src/schema/spec.js'
 import type { AutomationActionName, AutomationMode } from '../src/schema/spec.js'
@@ -185,5 +185,62 @@ describe('挡住原因与停止条件', () => {
   it('停止条件先于任务检查：预算用尽时不再挑任务', () => {
     const r = decide([task({ state: 'contracted' })], policy({ implement: 'auto' }, { token_budget: 5 }), { tokens: 9 })
     expect(r.action).toBe('stop')
+  })
+})
+
+describe('逐任务计划', () => {
+  it('单任务判定仍看全量任务：依赖已收口才能往下走', () => {
+    const input = {
+      tasks: [task({ dependsOn: ['T-00'] }), task({ ...CLOSED, id: 'T-00' })],
+      policy: policy(),
+    }
+    expect(decideFlowTask('T-01', input)).toMatchObject({ action: 'contract', taskId: 'T-01' })
+
+    const blocked = decideFlowTask('T-01', {
+      tasks: [task({ dependsOn: ['T-00'] }), task({ id: 'T-00', state: 'implementing' })],
+      policy: policy(),
+    })
+    expect(blocked.blockers[0]).toMatchObject({ kind: 'dependency' })
+  })
+
+  it('预算用尽时每条任务都停，不会给出一条可开工的计划', () => {
+    const input = {
+      tasks: [task(), task({ id: 'T-02', state: 'contracted', contractExists: true, signatureValid: true })],
+      policy: policy({}, { token_budget: 1 }),
+      usage: { tokens: 1 },
+    }
+    for (const entry of planFlow([], input)) {
+      expect(entry.decision.action).toBe('stop')
+      expect(entry.startable).toBe(false)
+    }
+  })
+
+  it('空编号表示全部，按任务编号排序；可开始的动作不含签署与外部动作', () => {
+    const input = {
+      tasks: [
+        task({ id: 'T-02', state: 'contracted', contractExists: true, signatureValid: true }),
+        task({ id: 'T-01', contractExists: true, signatureValid: false }),
+      ],
+      policy: policy(),
+    }
+    const plans = planFlow([], input)
+    expect(plans.map(entry => entry.taskId)).toEqual(['T-01', 'T-02'])
+    expect(plans[0]?.decision.action).toBe('sign')
+    expect(plans[0]?.startable).toBe(false)
+    expect(plans[1]?.decision.action).toBe('implement')
+    expect(plans[1]?.startable).toBe(true)
+  })
+
+  it('执行器能接的动作才算可开始；签署即使三闸成立也不由开工入口执行', () => {
+    const autoSign = {
+      tasks: [task({ contractExists: true, reviewEvidence: true })],
+      policy: policy({ sign: 'auto' }),
+    }
+    const [plan] = planFlow(['T-01'], autoSign)
+    expect(plan?.decision).toMatchObject({ action: 'sign', mode: 'auto' })
+    expect(plan?.startable).toBe(false)
+
+    expect(isStartable({ action: 'external', taskId: 'T-01', mode: 'none', reason: '', blockers: [] })).toBe(false)
+    expect(isStartable({ action: 'close', taskId: 'T-01', mode: 'manual', reason: '', blockers: [] })).toBe(true)
   })
 })

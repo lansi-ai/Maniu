@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`@lcoder/kernel` registers LCoder's ten specification and task tools with a DeepSeek Harness host. The tool surface follows the current task state: `drafting` exposes read, contract, and task-drafting tools, `contracted` adds editing, command execution, and evidence, and `closed` is read-only. A repository whose task state is unavailable gets the onboarding surface `file_read`, `spec_query`, `task_read`, `task_draft` instead of the full set. The specification root follows the session workspace, so the desktop host reads the target repository's `.spec` rather than its profile directory. Mount it through the LCoder patch layer after the host provides `tools`. `contract_sign` is deliberately absent.
+`@lcoder/kernel` registers LCoder's specification and task tools with a DeepSeek Harness host. The tool surface follows the current task state: `drafting` exposes read, contract, and task-drafting tools, `contracted` adds editing, command execution, and evidence, and `closed` is read-only. A repository whose task state is unavailable gets the onboarding surface `file_read`, `spec_query`, `task_read`, `task_draft` instead of the full set. The specification root follows the session workspace, so the desktop host reads the target repository's `.spec` rather than its profile directory. Mount it through the LCoder patch layer after the host provides `tools`. `contract_sign` is deliberately absent.
 
 ## Table of Contents
 
@@ -46,9 +46,9 @@ Choose it when a DeepSeek Harness composition already provides the `tools` servi
 | `root` | `process.cwd()/.spec` | Fallback specification root when the session has no cwd |
 | `selfCheck` | `true` | Print the tool-surface self-check at load |
 | `taskId` | first task | Task whose state selects the tool surface when no session claims one; a session claimed through a task's `session` field follows that task instead, so parallel sessions each read their own state. With no task readable, the onboarding surface applies |
-| `role` | unset | Role ceiling: `intake`, `architect`, `dev`, or `review`. The surface intersects the state mask with that role's tools, so a role only removes capability; an unknown value fails at load |
+| `role` | unset | Role ceiling: `intake`, `architect`, `pm`, `dev`, `git`, `ops`, `review`, `scheduler`, or `flow`. The surface intersects the state mask with that role's tools, so a role only removes capability; `scheduler` and `flow` get only `file_read`, `file_list`, `spec_query`, and `task_read`. An unknown value fails at load |
 
-The plugin mounts as a row through the patch layer; it has no `dsh plugin add` installation path. A tool call resolves the specification root from `session.header.cwd/.spec`; without a session cwd it uses `root`, and without `root` it uses `process.cwd()/.spec`. Alongside the tools it registers human commands that write `.spec` from the host and stay off the tool surface: `contract_sign`, `task_bind`, `task_contract`, `proposal_approve`, `deploy`, and `task_schedule`, which appends one scheduling decision to `.spec/evidence/<task>/schedule.jsonl` and, for an enqueue, writes the joint-group record under `.spec/evidence/scheduling/`. A callable tool would let the model sign its own contract, pick its own tool surface, or write its own audit trail. AI self-signing is a kernel function rather than a command or tool: `selfSignContract` writes `by: agent` only when `.spec/automation.yaml` sets `sign: auto`, the task has no `scope.irreversible`, and the contract has non-empty `review*.log` evidence, and it records the `actor` preset plus the policy path, hash, and modification time. P3 applies the same three gates, so an agent signature that fails one is invalid at closure.
+The plugin mounts as a row through the patch layer; it has no `dsh plugin add` installation path. A tool call resolves the specification root from `session.header.cwd/.spec`; without a session cwd it uses `root`, and without `root` it uses `process.cwd()/.spec`. Alongside the tools it registers human commands that write `.spec` from the host and stay off the tool surface: `contract_sign`, `task_bind`, `task_contract`, `proposal_approve`, `deploy`, `task_schedule`, `flow_status`, `flow_log`, and `agent_bind`. `task_schedule` appends one scheduling decision to `.spec/evidence/<task>/schedule.jsonl` and, for an enqueue, writes the joint-group record under `.spec/evidence/scheduling/`. `flow_status` is a read-only evaluation returning one JSON line with the policy, the next action, and a per-task plan; `flow_log` appends one start/flow result to `.spec/evidence/<task>/flow.jsonl`; `agent_bind` writes the scheduler or flow singleton session id to `.spec/agents.yaml`. The workspace shell calls all three; none is model-visible. A callable tool would let the model sign its own contract, pick its own tool surface, or write its own audit trail. AI self-signing is a kernel function rather than a command or tool: `selfSignContract` writes `by: agent` only when `.spec/automation.yaml` sets `sign: auto`, the task has no `scope.irreversible`, and the contract has non-empty `review*.log` evidence, and it records the `actor` preset plus the policy path, hash, and modification time. P3 applies the same three gates, so an agent signature that fails one is invalid at closure.
 
 -----
 
@@ -73,6 +73,8 @@ Every tool factory accepts either a fixed root or a resolver. The resolver reads
 | `src/kernel/automation.ts` | `.spec/automation.yaml` loading, defaults, and policy hashing |
 | `src/kernel/flow.ts`, `src/kernel/flow-store.ts` | Pure next-action decision and the `.spec` fact assembly |
 | `src/kernel/sign-gate.ts` | The three compensating gates for AI self-signing |
+| `src/commands/flow-status.ts`, `src/commands/flow-log.ts` | Flow evaluation JSON and the per-task action log |
+| `src/commands/agent-bind.ts` | The two resident scheduler session ids in `.spec/agents.yaml` |
 
 </details>
 
@@ -108,7 +110,8 @@ The visible tool set changes only on a task-state transition. Re-applying the sa
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- `contract_sign` is absent by design; signing runs outside the model turn. AI self-signing exists only as the `selfSignContract` seam under the three gates, and no executor calls it yet.
+- `contract_sign` is absent by design; signing runs outside the model turn. AI self-signing exists only as the `selfSignContract` seam under the three gates, and no executor calls it yet; the flow panel marks an allowed self-sign instead of performing it.
+- `flow_status` re-reads the whole `.spec` on each call and is not subscribed to file changes; the shell asks again when the projection reloads or a batch finishes.
 - `.spec/automation.yaml` is read whenever the kernel evaluates a decision; it has no writer, so a human edits it directly. The policy cannot carry external irreversible actions such as push or deployment.
 - `task_transition` has no tool entry; advancing a task requires editing its YAML.
 - `when` gates only the tools this package registers. Tools registered globally by a shipped bundle (`read`, `write`, `edit`, `glob`, `grep`, `bash`, `pwsh`) stay visible to every Agent in the profile, so an un-onboarded repository does not lose code-editing capability from this package alone; covering them takes an Agent-scope `restrict`.

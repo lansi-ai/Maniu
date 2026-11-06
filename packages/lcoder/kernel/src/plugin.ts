@@ -10,8 +10,11 @@
  */
 import { join, resolve } from 'node:path'
 
+import { createAgentBindCommand } from './commands/agent-bind.js'
 import { createContractSignCommand } from './commands/contract-sign.js'
 import { createDeployCommand } from './commands/deploy.js'
+import { createFlowLogCommand } from './commands/flow-log.js'
+import { createFlowStatusCommand } from './commands/flow-status.js'
 import { createProposalApproveCommand } from './commands/proposal-approve.js'
 import { createTaskBindCommand } from './commands/task-bind.js'
 import { createTaskContractCommand } from './commands/task-contract.js'
@@ -51,7 +54,8 @@ export interface LcoderConfig {
    */
   taskId?: string
   /**
-   * 本插件实例所属角色，取值 `intake` / `architect` / `dev` / `review`。
+   * 本插件实例所属角色，取值 `intake` / `architect` / `pm` / `dev` / `git` / `ops` / `review` /
+   * `scheduler` / `flow`。
    * 角色是工具面的天花板：与任务状态允许的清单求交，只减不加。
    * 不给则不设天花板，保持只有状态一维的行为。每个角色 preset 各挂一行本插件，
    * 所以这一项由装配层的 preset 写死，不由会话运行时决定。
@@ -163,6 +167,9 @@ export function apply(ctx: PluginContext, config: LcoderConfig = {}): void {
     createTaskBindCommand(rootInput),
     createTaskContractCommand(rootInput),
     createTaskScheduleCommand(rootInput),
+    createFlowStatusCommand(rootInput),
+    createFlowLogCommand(rootInput),
+    createAgentBindCommand(rootInput),
     createProposalApproveCommand(rootInput),
     createDeployCommand(rootInput),
   ]

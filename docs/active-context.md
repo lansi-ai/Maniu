@@ -15,8 +15,8 @@ English | [中文](active-context.zh.md)
 - **Offline board**: `docs/tasks-html/index.html` (double-click to open; contains overview, status board, hierarchy tree, matrix, and filters).
 - **Regeneration command**: `python scripts/build-tasks-html.py`.
 
-- **Current focus**: T-10 (zero-task onboarding) and T-20/T-21 (contract signing in the workbench) are implemented and gated green; all three wait on one piece of evidence — a human click in the desktop window on `E:/Projects/LCoder-target-demo`.
-- **Completed**: T-01 file projection; T-02 host mount; T-04 specification root and documentation gates; T-05 LCoder shell; T-06 real `.spec`/`project.yaml`/workspace-session data; T-07 project info drawer and the `.spec/project.yaml` schema; T-08 real floating conversation; T-09 README, tests, and old preset cleanup. T-03 is superseded by the shell and closed.
+- **Current focus**: T-59 (start-work entry and flow panel), T-60 (two resident singleton sessions), and T-61 (compaction visibility) are implemented and gated green; the desktop evidence is recorded, and the remaining acceptance step is a human click in the window.
+- **Completed**: T-01 file projection; T-02 host mount; T-04 specification root and documentation gates; T-05 LCoder shell; T-06 real `.spec`/`project.yaml`/workspace-session data; T-07 project info drawer and the `.spec/project.yaml` schema; T-08 real floating conversation; T-09 README, tests, and old preset cleanup; T-56/T-57/T-58 flow engine, automation policy, and AI self-sign gates; T-59/T-60/T-61 flow UI, singleton sessions, and compaction visibility. T-03 is superseded by the shell and closed.
 - **Next step**: see §04.
 
 ## 03. Key decisions and architectural context (Key Decisions & Context)
@@ -48,9 +48,9 @@ English | [中文](active-context.zh.md)
 
 ## 04. Next immediate actions (Next Immediate Actions)
 
-- **Currently working on**: T-20 and T-21 closure. Signing runs on the human-command surface (`packages/lcoder/kernel/src/commands/contract-sign.ts`), P3 invalidates a signature whose hash no longer covers the contract body, and the task panel shows that task's contract with a sign action. Gates: `pnpm typecheck` (5), `pnpm exec vitest run packages/lcoder` (18 files, 169 tests), oxlint on `packages/lcoder`, `pnpm run test:docs` (21), both packages re-bundled.
-- **About to execute**: in the desktop window, open `E:/Projects/LCoder-target-demo`, use the onboarding action to get a drafting task, have the model draft its contract, sign it from the task panel, and confirm `.spec/contracts/<id>.contract.yaml` carries `by: human` with a hash P3 accepts. The same click also closes T-10's remaining evidence.
-- **Open decision**: the untracked `.spec/contracts/DEMO-01.contract.yaml` drafted by the earlier real run still needs a keep-or-discard call.
+- **Currently working on**: T-59/T-60/T-61 closure. The kernel adds per-task flow planning plus the `/flow_status`, `/flow_log`, and `/agent_bind` human commands; the shell adds the Start work panel, the two singleton entries, and the context/compaction display; the desktop profile mounts `compaction-basic` in an isolate group in all nine presets. Gates: typecheck 5, vitest 49 files / 489 tests, oxlint 0, test:docs 21, both packages bundled, full build. Desktop evidence is on `E:/Projects/LCoder-ui-demo` with ports main 9409 / renderer 9402 / host 9410: the flow panel showed the policy and next action, a batch recorded one model-unavailable failure and one dependency hold in `flow.jsonl`, and deleting `.spec/agents.yaml` then reopening found the existing preset session and rewrote it without creating another.
+- **About to execute**: a human click in the desktop window on `E:/Projects/LCoder-ui-demo` to confirm the same paths without CDP, and a real model turn with a configured key if the actual compaction event is required.
+- **Open decisions**: the actual compaction threshold crossing is unverified without a model key; the panel layout was checked by DOM geometry and computed styles, not by a screenshot (the CDP capture call stalled).
 - **Development evidence**: gate output is recorded in the task note in `docs/tasks.yaml` or the commit message; `.spec/evidence` serves product tasks only.
 - **Board regeneration**: after a development status change, edit `docs/tasks.yaml` first, then run `python scripts/build-tasks-html.py`.
 - **Documentation gates**: green after T-02 and T-04; package READMEs and bilingual pairs must stay green whenever documents change.
