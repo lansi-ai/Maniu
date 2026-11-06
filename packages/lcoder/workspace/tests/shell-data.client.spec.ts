@@ -65,6 +65,7 @@ describe('已有资料档的立项咒语', () => {
     expect(text).not.toContain('测试用例：')
     expect(text).toContain('先列出「从仓库已确认的事实」')
     expect(text).toContain('只问文档回答不了的')
+    expect(text).toContain('用 ask_user_question 把 file_list 实际列出的候选做成选项')
   })
 
   it('没有声明交付文档时要求先自己找，再向用户确认，不编造路径', () => {
@@ -95,6 +96,8 @@ describe('全新项目档的立项咒语', () => {
     expect(text).toContain('用 file_list 看根目录与 .spec 是否存在')
     expect(text).toContain('缺的项标「尚未提供」')
     expect(text).toContain('一次只问一个问题，等到回答再问下一个')
+    expect(text).toContain('用 ask_user_question 弹出选择框')
+    expect(text).toContain('「其他（我自己说）」')
     expect(text).toContain('总数最多 7 问')
     for (let n = 1; n <= 7; n++) expect(text).toContain(`${n}. `)
     expect(text).not.toContain('8. ')
