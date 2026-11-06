@@ -82,7 +82,8 @@ export const SHELL_STATES: readonly { readonly id: ShellTaskState; readonly labe
 
 /** 悬浮对话里的一条消息：用户、答复、注入上下文、一段收敛后的过程，或一次压缩标记。 */
 export type ShellMessage =
-  | { readonly role: 'user'; readonly text: string }
+  /** `hidden` 是外壳自动发出的内置咒语；对话正文不画，会话事件与入口计数仍保留。 */
+  | { readonly role: 'user'; readonly text: string; readonly hidden?: true }
   | { readonly role: 'assistant'; readonly text: string }
   | { readonly role: 'context'; readonly text: string; readonly label: string }
   | { readonly role: 'process'; readonly items: readonly ShellProcessItem[] }
@@ -139,6 +140,9 @@ export interface ShellSignResult {
  * 消息，所以组头之后才是答复。工具成败从 `tool/result` 预读一次，再回填到
  * 对应的工具条目。
  *
+ * 外壳自动发出的两档立项咒语仍留在结果里，但带 `hidden` 标记，由正文组件跳过不画；
+ * 条目本身仍当用户消息计数，立项入口据此判断这条会话已经起过。
+ *
  * @param entries - 会话事件窗口。
  * @returns 按日志顺序排列的消息。
  */
@@ -187,8 +191,11 @@ export function messagesFromEntries(entries: readonly SessionEventLikeEntry[]): 
       const text = textOf(event.data.content)
       if (text.trim() === '') continue
       const kind = sourceKind(event.data.source)
-      if (kind === 'user') out.push({ role: 'user', text })
-      else out.push({ role: 'context', text, label: kind ?? 'context' })
+      if (kind === 'user') {
+        out.push(isBuiltinIntakePrompt(text) ? { role: 'user', text, hidden: true } : { role: 'user', text })
+      } else {
+        out.push({ role: 'context', text, label: kind ?? 'context' })
+      }
     } else if (event.type === 'developer/message') {
       flushTurn()
       const text = textOf(event.data.message.content)
@@ -390,13 +397,27 @@ const INTAKE_DISCIPLINE = `你的身份：AI 产品经理、需求分析师与�
 
 边界：不签契约、不推进任务状态、不改业务代码、不跑命令、不提交、不推送、不部署；这些都要人另行授权。`
 
+/** 两档立项咒语的首行前缀；对话正文据此认出外壳自动发出的内置提示词。 */
+export const INTAKE_PROMPT_HEAD = '全新项目立项：'
+export const ONBOARDING_PROMPT_HEAD = '已有资料立项：'
+
+/**
+ * 判断一条用户消息是不是外壳自动发出的立项咒语。
+ * 只认两档立项的首行前缀；提示词正文由下面的构造函数生成。
+ * @param text - 会话里的用户消息正文。
+ * @returns 是立项咒语时为 true。
+ */
+export function isBuiltinIntakePrompt(text: string): boolean {
+  return text.startsWith(INTAKE_PROMPT_HEAD) || text.startsWith(ONBOARDING_PROMPT_HEAD)
+}
+
 /**
  * 生成「全新项目」档的立项咒语：仓库还是空的，先看清结构再按 7 问访谈，最后落 .spec。
  * @param project - 当前项目。
  * @returns 可直接发送的提示词。
  */
 export function buildIntakePrompt(project: ShellPromptProject): string {
-  return `全新项目立项：${project.name}（${project.path}，${project.branch}）
+  return `${INTAKE_PROMPT_HEAD}${project.name}（${project.path}，${project.branch}）
 
 第 0 步 先看清仓库：
 - 用 file_list 看根目录与 .spec 是否存在，用 file_read 读实际存在的说明文档；不猜路径，不把不存在的文件说成已存在。
@@ -423,7 +444,7 @@ export function buildOnboardingPrompt(project: ShellPromptProject, docs: ShellOn
     ? '- 文档来源：.spec/project.yaml 没有声明交付文档；先用 file_list 看仓库里有没有文档，再向用户确认产品文档在哪，不要猜路径。'
     : declared.map(entry => `- ${entry.label}：${entry.path}`).join('\n')
 
-  return `已有资料立项：${project.name}（${project.path}，${project.branch}）
+  return `${ONBOARDING_PROMPT_HEAD}${project.name}（${project.path}，${project.branch}）
 
 第 0 步 先读资料，再来问：
 - 用 file_list 看清结构，用 file_read 逐个读下面的文档与关键代码入口；路径必须是实际读到的，不要猜。

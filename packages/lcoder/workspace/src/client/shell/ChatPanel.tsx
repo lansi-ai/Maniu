@@ -30,7 +30,7 @@ function useMarkdownLabels(t: Translate): { code: { copyLabel: string; copiedLab
   }), [t])
 }
 
-/** 对话正文：用户气泡、过程组头、答复 Markdown 与注入上下文折叠行。 */
+/** 对话正文：用户气泡、过程组头、答复 Markdown 与注入上下文折叠行；外壳自动发出的立项咒语不画。 */
 export function ChatTranscript({
   messages, running, t,
 }: {
@@ -39,7 +39,8 @@ export function ChatTranscript({
   readonly t: Translate
 }): ReactNode {
   const labels = useMarkdownLabels(t)
-  if (messages.length === 0) {
+  const visible = messages.filter(message => !(message.role === 'user' && message.hidden === true))
+  if (visible.length === 0) {
     return (
       <div className={`${css.msg} ${css.msgSys}`}>
         <span className={css.who}>{t('shell.brand')}</span>
@@ -49,7 +50,7 @@ export function ChatTranscript({
   }
   return (
     <>
-      {messages.map((message, index) => {
+      {visible.map((message, index) => {
         if (message.role === 'user') {
           return (
             <div key={`user-${String(index)}`} className={`${css.msg} ${css.msgUser}`}>

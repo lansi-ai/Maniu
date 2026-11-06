@@ -271,6 +271,23 @@ describe('会话消息投影', () => {
     ])
   })
 
+  it('两档立项咒语带 hidden 标记——正文不画，但入口仍按用户消息计数', () => {
+    const intake = buildIntakePrompt(PROJECT)
+    const onboarding = buildOnboardingPrompt(PROJECT, { product: '', architecture: '', tests: '' })
+    const messages = messagesFromEntries([userEntry(0, intake), userEntry(1, onboarding)])
+
+    expect(messages).toEqual([
+      { role: 'user', text: intake, hidden: true },
+      { role: 'user', text: onboarding, hidden: true },
+    ])
+  })
+
+  it('前缀不完全相同就按用户发言处理，不误判成内置咒语', () => {
+    const messages = messagesFromEntries([userEntry(0, '全新项目立项 这是我自己打的')])
+
+    expect(messages).toEqual([{ role: 'user', text: '全新项目立项 这是我自己打的' }])
+  })
+
   it('developer/message 归入可折叠的上下文，不画成用户消息', () => {
     const messages = messagesFromEntries([developerEntry(0, 'tool changes')])
 

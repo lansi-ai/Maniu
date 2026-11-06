@@ -107,6 +107,17 @@ describe('正文与折叠', () => {
     expect(screen.getByText('任务消息')).toBeTruthy()
     expect(screen.getByText('失败')).toBeTruthy()
   })
+
+  it('带 hidden 标记的立项咒语不画进正文，只有它时仍显示空态', () => {
+    const messages: readonly ShellMessage[] = [
+      { role: 'user', text: '全新项目立项：Demo（E:/demo，main）', hidden: true },
+    ]
+
+    render(<ChatTranscript messages={messages} running={false} t={t} />)
+
+    expect(screen.queryByText(/全新项目立项/)).toBeNull()
+    expect(screen.getByText(zh['shell.chatEmpty'])).toBeTruthy()
+  })
 })
 
 describe('提问卡的多题、多选与计划评审', () => {
