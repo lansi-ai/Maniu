@@ -43,11 +43,16 @@ if ($ListOnly) {
   return
 }
 
-if (-not $KeepRunning -and $targets.Count -gt 0) {
+if (-not $KeepRunning -and @($targets).Count -gt 0) {
+  # 枚举与终止之间，子进程可能已经被父进程的 /T 带走：此时 taskkill 报 not found 属预期。
+  # 脚本整体是 Stop 偏好，这里临时放行，免得一条预期内的失败把整次启动中断。
+  $previousPreference = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
   foreach ($p in $targets) {
     Write-Host ("停掉旧实例 PID {0}（{1}）" -f $p.ProcessId, $p.Name) -ForegroundColor DarkYellow
     & taskkill.exe /PID $p.ProcessId /T /F *> $null
   }
+  $ErrorActionPreference = $previousPreference
   Start-Sleep -Milliseconds 800
 }
 
