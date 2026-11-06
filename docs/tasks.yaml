@@ -713,6 +713,17 @@ tracks:
       dep: [T-39]
       inferred: false
       note: "C 级（美术替换，不改行为）。用户 2026-11-06 给了牛头标（黑牛头、白衬衫、红领带、浅底）要求替代现有图标。落点：三张 PNG（icon.png 1104 画布图块在 40 32、icon-windows.png 1024、icon-macos.png 缩放 0.8046875 居中）都用 sharp 加 192 圆角蒙版；三个 SVG 改成内嵌 512 位图的外壳（icon.svg 保持 1104 画布与 translate(40 32) 常量，icon-windows.svg 保留 id 为 tray-glyph 的组，托盘管线才能继续注入 1.2 倍放大）；托盘单独用牛头裁切版加浅底，因为整图在 16px 下只会是一个黑块。源图与裁头版留在 lcoder/assets/brand 下备查。上游三张 SVG 与托盘 ICO 都在既有接触面清单里，登记不变。门禁：tray-icon 与 installer-packaging 两个 spec 九例全绿；ICO 由 render:tray-icon 管线重出，含 16 到 64 七档。未验：Windows 图标缓存——换图后任务栏与 Alt-Tab 可能仍显示旧图，需重启实例或注销后刷新。"
+    - id: T-65
+      title: 首屏登录整窗默认关掉——直接进工作台，缺模型由外壳提示
+      status: done
+      face: 用户端
+      type: 缺陷
+      owner: lance
+      created: '2026-11-06'
+      date: '2026-11-06'
+      dep: [T-34]
+      inferred: false
+      note: "C 级。用户 2026-11-06 贴出首屏截图（欢迎使用 LCoder / 登录 / 添加 API Key）问为什么还会弹。核实：T-34 只禁掉了壳内的 ui-settings-account，桌面端另有一个独立的 welcome 窗口（apps/desktop/src/welcome*），它的判据是 needsWelcome 等于未登录且没有 API Key，所以只要这个 home 里没钥匙就会弹。处置：main.ts 加 WELCOME_ENABLED，默认 false，设 DSH_DESKTOP_WELCOME=1 才恢复上游首屏；四处显示入口（登出回弹、会话过期、初始窗口、退出取消后恢复）全部加闸。缺模型的状态由外壳的三态提示承担（T-22），不再靠首屏引导配钥匙。桌面主进程产物已重出，lib/main.js 里能查到五处 WELCOME_ENABLED。门禁：host tsc 退出 0；apps/desktop 的 main-startup 154 用例全过。未验：重启真窗口确认首屏不再出现、直接落在工作台。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
