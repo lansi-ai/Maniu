@@ -72,7 +72,10 @@ async function boot(
   const llm = { listProviders: vi.fn(), listConfigurableProviders: vi.fn(), discoverModels: vi.fn() }
   const settings = { describe: vi.fn(), mutate: vi.fn() }
   const credentials = { describe: vi.fn(), set: vi.fn(), unset: vi.fn() }
-  ctx.provide('remote', { workspaceFiles: {}, commands, session, agentPresets, llm, settings, credentials, $on } as never)
+  const fileUploads = { upload: vi.fn() }
+  ctx.provide('remote', {
+    workspaceFiles: {}, commands, session, agentPresets, llm, settings, credentials, fileUploads, $on,
+  } as never)
   ctx.provide('remote.workspaceFiles', {} as never)
   ctx.provide('remote.commands', commands as never)
   ctx.provide('remote.session', session as never)
@@ -80,6 +83,7 @@ async function boot(
   ctx.provide('remote.llm', llm as never)
   ctx.provide('remote.settings', settings as never)
   ctx.provide('remote.credentials', credentials as never)
+  ctx.provide('remote.fileUploads', fileUploads as never)
   ctx.provide('workspaces', workspaces as never)
   ctx.provide('sessions', sessions as never)
   ctx.provide('layout', { selectPanel, toggleSidebar } as never)

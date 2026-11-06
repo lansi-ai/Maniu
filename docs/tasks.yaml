@@ -724,6 +724,28 @@ tracks:
       dep: [T-34]
       inferred: false
       note: "C 级。用户 2026-11-06 贴出首屏截图（欢迎使用 LCoder / 登录 / 添加 API Key）问为什么还会弹。核实：T-34 只禁掉了壳内的 ui-settings-account，桌面端另有一个独立的 welcome 窗口（apps/desktop/src/welcome*），它的判据是 needsWelcome 等于未登录且没有 API Key，所以只要这个 home 里没钥匙就会弹。处置：main.ts 加 WELCOME_ENABLED，默认 false，设 DSH_DESKTOP_WELCOME=1 才恢复上游首屏；四处显示入口（登出回弹、会话过期、初始窗口、退出取消后恢复）全部加闸。缺模型的状态由外壳的三态提示承担（T-22），不再靠首屏引导配钥匙。桌面主进程产物已重出，lib/main.js 里能查到五处 WELCOME_ENABLED。门禁：host tsc 退出 0；apps/desktop 的 main-startup 154 用例全过。未验：重启真窗口确认首屏不再出现、直接落在工作台。"
+    - id: T-66
+      title: 会话浮层加模型选择——紧凑 chip 与分组面板，切换同时作用当前会话与全局默认
+      status: done
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-06'
+      date: '2026-11-06'
+      dep: []
+      inferred: false
+      note: "2026-11-06 收口。B 级，与 T-67 同一 worktree .worktrees/t66-chat（分支 lcoder/t66-chat），端口 main 9419 / renderer 9412 / host 9420。新增 shell/chat-composer.ts 纯函数层（当前模型解析、面板状态机、选中键、三态判定）与 shell/ChatExtras.tsx 的 chip 与面板；Shell 头部接入 chip，面板按 provider 分组列出模型，当前项带 aria-pressed 与勾选，底部署名「同时作用于当前会话与全局默认」。会话模型读 modelSelection 投影的 next，没记过时显示 session.modelCatalog 的默认值并标「默认」。单测 chat-composer 12 条覆盖选择来源、面板开关与选中、三态与不可用原因。门禁 typecheck 5、vitest 50 文件 516 条、oxlint 0、test:docs 21、i18n 1280 文件、workspace bundle。桌面实测在 E:/Projects/LCoder-chat-demo，session-3046265f 的日志出现 model/selection（opencode-go/deepseek-v4.1-flash）且随后 request/header 用同一模型；chip 与面板选中态一致。未验：真人手点（CDP 只作链路探测）；模型不支持图片时 catalog 不暴露 inputModalities，入口无法预置灰，改为宿主拒绝时就地说明并保留附件。"
+    - id: T-67
+      title: 会话浮层加图片与文件上传——缩略图与回执，失败如实报且不清草稿
+      status: done
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-06'
+      date: '2026-11-06'
+      dep: []
+      inferred: false
+      note: "2026-11-06 收口。B 级，与 T-66 同一 worktree 与端口。输入区加附件按钮、拖拽与隐藏 file input；图片读成 base64 的 image part 并在发送前显示缩略图，文件经 remote.fileUploads.upload 拿回执作为 file part；上限取会话投影 imageLimits（本机 50MB、20 张、200MB），读不到时用 10MB、4 张、20MB 的保守值并写在列表下。附件拼装顺序 text、image、file，无文本可发；上传中或失败的文件禁用发送，失败项显示宿主原话并可重试。发送失败保留草稿与附件；模型不支持图片时显示「当前模型不支持图片，附件没有发出；草稿与附件已保留」。新增单测覆盖超限、类型不支持、上传失败、拼装顺序与未就绪文件拒绝。实测发现并修复 client inject 缺 remote.fileUploads（W-17）。桌面证据：先以 deepseek-v4-pro 发送被拒且附件保留，切到 deepseek-v4.1-flash 后重发成功；session-3046265f 的 user/message content 为 image（bull-mark.png，128x128，9021B）与 file（notes.txt，34B）两个 part（17 帧逐帧解 zstd）。未验：真人手点与像素级布局。"
 
 milestones:
 - name: MVP-0 工作台本地跑通

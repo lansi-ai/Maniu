@@ -113,3 +113,10 @@
 - **原因**：Bash 的工作目录会跨命令保留；一条 `cd .worktrees/...` 之后又回到主检出执行 `cat >> packages/...`，内容落进主检出的同名文件，worktree 的 CSS 根本没变。
 - **处理**：先 `git -C <主检出> restore --source=HEAD --worktree -- <文件>` 还原主检出，再用 worktree 的绝对路径重做并重新 bundle。
 - **预防**：写文件前先 `pwd`；跨检出操作一律用绝对路径；bundle 后 `grep` 新类名，界面里再核一次 `css.<新类>` 不是 undefined。
+
+## W-17 客户端调 `ctx.remote.<ns>` 没写进 inject，运行时才报错
+
+- **现象**：浮层里选好图片与文件后，图片能加进列表，文件项却显示「上传失败（cannot get property "remote.fileUploads" without inject）」，发送按钮被这条失败附件禁用。
+- **原因**：客户端 Cordis 的 `ctx.remote` 命名空间按 inject 惰性解析；`@lcoder/workspace` 的 inject 列表当时只有 workspaceFiles、commands、session、llm、settings、credentials、agentPresets，没有 fileUploads。类型面能编译，是因为远程类型声明与 inject 列表是两套东西。
+- **处理**：把 `remote.fileUploads` 加进 `packages/lcoder/workspace/src/client/index.ts` 的 inject，重打 `pnpm --filter @lcoder/workspace run bundle`，刷新渲染进程后文件项变 ready、发送恢复。
+- **预防**：新增任何 `ctx.remote.<ns>` 调用前先把同名命名空间加进 inject；附件、上传、设置这类跨命名空间功能必须用真实文件在桌面里走一遍，单测里的远程替身不会触发注入解析。

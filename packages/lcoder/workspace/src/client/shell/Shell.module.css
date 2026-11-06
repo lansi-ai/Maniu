@@ -561,10 +561,107 @@
 .msgAssistant { max-width: 100%; align-self: stretch; padding: 2px 2px 10px; white-space: normal; }
 .who { display: block; font-size: 11.5px; opacity: .7; margin-bottom: 4px; }
 .markdownBody { margin: 2px 0 6px; font-size: 14.5px; line-height: 1.65; }
-.chatInput { flex: 0 0 auto; display: flex; gap: var(--lc-space-2); padding: 12px 16px 14px; border-top: 1px solid var(--lc-line); }
+.composer { position: relative; flex: 0 0 auto; border-top: 1px solid var(--lc-line); }
+.chatInput { display: flex; align-items: center; gap: var(--lc-space-2); padding: 10px 16px 14px; }
 .chatInput input {
   flex: 1; min-width: 0; border: 1px solid var(--lc-line); border-radius: var(--lc-radius-md);
   padding: 10px 12px; background: var(--lc-surface-2); color: var(--lc-ink); font-size: 14.5px;
+}
+
+/* 模型 chip 与面板：低频控件按需展开，面板贴着 chip 向下展开。 */
+.modelChipWrap { position: relative; flex: 0 1 auto; min-width: 0; }
+.modelChip {
+  display: flex; align-items: center; gap: 6px; max-width: 220px;
+  border: 1px solid var(--lc-line); background: var(--lc-surface); color: var(--lc-ink);
+  border-radius: var(--lc-radius-pill); padding: 4px 10px;
+  font-size: var(--lc-text-xs); cursor: pointer;
+}
+.modelChip:hover { border-color: var(--lc-brand-2); }
+.modelChipText { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.modelChipTag {
+  flex: 0 0 auto; padding: 0 4px; border-radius: 4px;
+  background: var(--lc-surface-3); color: var(--lc-muted); font-size: 10px;
+}
+.modelChipCaret { flex: 0 0 auto; color: var(--lc-faint); font-size: 10px; }
+.modelPanel {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 20;
+  width: 320px; max-height: 420px; display: flex; flex-direction: column;
+  background: var(--lc-surface); border: 1px solid var(--lc-line-strong);
+  border-radius: var(--lc-radius-lg); box-shadow: var(--lc-shadow-float); overflow: hidden;
+}
+.modelPanelHead {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 12px; border-bottom: 1px solid var(--lc-line);
+  font-size: var(--lc-text-xs); font-weight: 600;
+}
+.modelPanelClose { border: 0; background: transparent; color: var(--lc-faint); cursor: pointer; }
+.modelPanelBody { display: flex; flex-direction: column; gap: 10px; overflow: auto; padding: 8px 10px; }
+.modelPanelHint { margin: 0; color: var(--lc-muted); font-size: var(--lc-text-xs); }
+.modelPanelError { margin: 0; color: var(--lc-status-danger); font-size: var(--lc-text-xs); }
+.modelProvider { display: flex; flex-direction: column; gap: 4px; }
+.modelProviderHead { display: flex; align-items: baseline; gap: 6px; padding: 2px 4px; }
+.modelProviderName { color: var(--lc-ink); font-size: var(--lc-text-xs); font-weight: 600; }
+.modelProviderId {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--lc-faint); font-size: 10px;
+}
+.modelProviderReason { margin-left: auto; color: var(--lc-status-warn); font-size: 10px; }
+.modelList { display: flex; flex-direction: column; gap: 2px; }
+.modelOption {
+  display: flex; align-items: center; gap: 6px; padding: 6px 8px;
+  border: 0; border-radius: var(--lc-radius-sm); background: transparent;
+  color: var(--lc-ink); font-size: var(--lc-text-xs); text-align: left; cursor: pointer;
+}
+.modelOption:hover:not(:disabled) { background: var(--lc-hover); }
+.modelOption:disabled { color: var(--lc-faint); cursor: not-allowed; }
+.modelOptionOn { background: var(--lc-brand-soft); color: var(--lc-brand-ink); font-weight: 600; }
+.modelOptionName { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.modelOptionMark { flex: 0 0 auto; color: var(--lc-brand-ink); font-size: 11px; }
+.modelPanelFoot {
+  margin: 0; padding: 8px 12px 10px; border-top: 1px solid var(--lc-line);
+  color: var(--lc-muted); font-size: 11px;
+}
+
+/* 待发附件：图片给缩略图，文件给名称与状态；拖拽时整条输入区给提示。 */
+.attachButton { flex: 0 0 auto; font-size: 18px; }
+.attachList { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 16px 0; }
+.attachItem {
+  display: flex; align-items: center; gap: 8px; max-width: 280px;
+  padding: 6px 8px; border: 1px solid var(--lc-line);
+  border-radius: var(--lc-radius-md); background: var(--lc-surface-2);
+}
+.attachItem[data-status="failed"] { border-color: var(--lc-status-danger); }
+.attachThumb { flex: 0 0 auto; width: 40px; height: 40px; object-fit: cover; border-radius: 6px; }
+.attachFileMark {
+  flex: 0 0 auto; display: grid; place-items: center; width: 40px; height: 40px;
+  border-radius: 6px; background: var(--lc-surface-3); color: var(--lc-muted); font-size: 18px;
+}
+.attachMeta { display: grid; gap: 2px; min-width: 0; }
+.attachName {
+  max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--lc-ink); font-size: var(--lc-text-xs);
+}
+.attachSize { color: var(--lc-faint); font-size: 11px; }
+.attachError {
+  max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--lc-status-danger); font-size: 11px;
+}
+.attachRemove {
+  padding: 2px 4px; border: 0; border-radius: 6px; background: transparent;
+  color: var(--lc-faint); font-size: 12px; cursor: pointer;
+}
+.attachRemove:hover { background: var(--lc-hover); color: var(--lc-ink); }
+.attachRetry {
+  padding: 2px 4px; border: 0; background: transparent;
+  color: var(--lc-brand-ink); font-size: 11px; cursor: pointer;
+}
+.attachHint { flex-basis: 100%; margin: 0; color: var(--lc-faint); font-size: 11px; }
+.attachErrorLine { margin: 6px 16px 0; color: var(--lc-status-danger); font-size: 12px; }
+.attachDrop {
+  position: absolute; inset: 6px; z-index: 4; display: grid; place-items: center;
+  border: 1px dashed var(--lc-brand); border-radius: var(--lc-radius-md);
+  background: var(--lc-brand-soft); color: var(--lc-brand-ink); font-size: 13px;
+  pointer-events: none;
 }
 
 /* 过程组头与注入上下文：折叠行 + 摘要。 */

@@ -14,6 +14,7 @@ import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type { PromptContentPart } from '@deepseek-ai/dsh-api-session-controller/types'
 // Type-only: pulls the `agentPreset` Session projection value into this program.
 import type {} from '@deepseek-ai/dsh-agent-preset-registry/types'
 import {
@@ -45,6 +46,15 @@ import type { SessionFilter, TaskFilter } from '../task-filter.ts'
 import { onboardingAction } from '../onboarding.ts'
 import { buildIntakePrompt, buildOnboardingPrompt, buildShellPrompt, SHELL_STATES, TASK_FLOW_MENTION_PREFIX } from './shell-data.ts'
 import { ChatTranscript, PendingInteractionCard } from './ChatPanel.tsx'
+import { ChatAttachButton, ChatAttachmentList, ChatModelChip } from './ChatExtras.tsx'
+import {
+  attachmentsReady, buildPromptContent, checkImageCandidate, currentChatModel, formatBytes,
+  promptFailureOf, promptIsEmpty, resolveImageLimits, uploadedFile,
+} from './chat-composer.ts'
+import type {
+  ChatImageRejection, ChatModelChoice, ChatPendingAttachment, ChatPendingImage, ChatPendingFile,
+  ChatUploadResult,
+} from './chat-composer.ts'
 import { ModelSettings } from './ModelSettings.tsx'
 import type { ModelSettingsFace } from './model-settings.ts'
 import { desktopWindowBridge } from './window-chrome.ts'
@@ -66,8 +76,12 @@ export type ShellProps =
     readonly files?: ProjectionFilesRemote
     /** 把仓库路径注册成工作区并建一个会话；返回可用于读取 `.spec` 的会话。 */
     readonly openRepository?: (path: string) => Promise<{ workspaceId: string; sessionId: SessionId }>
-    /** 向真实会话发送一条文本提示。 */
-    readonly sendPrompt?: (sessionId: SessionId, text: string) => Promise<void>
+    /** 向真实会话发送文本或带附件的提示；失败抛出带 code 与 reason 的错误。 */
+    readonly sendPrompt?: (sessionId: SessionId, content: string | readonly PromptContentPart[]) => Promise<void>
+    /** 上传一支文件并拿回执；失败保留宿主原话。 */
+    readonly uploadAttachment?: (sessionId: SessionId, data: string, name: string) => Promise<ChatUploadResult>
+    /** 读宿主目录的默认模型；读不到时 chip 只显示占位。 */
+    readonly readDefaultModel?: () => Promise<ChatModelChoice | null>
     /**
      * 读会话快照里卡片要的两个状态位。
      * 只有本客户端物化过的会话读得到，读不到返回 null——卡片因此不拿「不知道」画成「失败」。
@@ -222,6 +236,19 @@ function fill(text: string, values: Readonly<Record<string, string | number>>): 
   return Object.entries(values).reduce((result, [key, value]) => result.replace(`{${key}}`, String(value)), text)
 }
 
+/** 读一支文件成规范 base64；data URL 前缀去掉，宿主只要字节本身。 */
+async function readFileBase64(file: File): Promise<string> {
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => { resolve(typeof reader.result === 'string' ? reader.result : '') }
+    reader.onerror = () => { reject(reader.error ?? new Error('file read failed')) }
+    reader.readAsDataURL(file)
+  })
+  const comma = dataUrl.indexOf(',')
+  if (comma < 0) throw new Error('file read returned no data')
+  return dataUrl.slice(comma + 1)
+}
+
 /** 上下文计数的短写法：1.2k / 3.4M；只在展示层用，不参与任何判定。 */
 function formatTokens(value: number): string {
   if (value < 1_000) return String(Math.round(value))
@@ -296,7 +323,8 @@ function resolveSecrets(info: ShellProjectInfo, secrets: Readonly<Record<string,
  * @returns 顶栏 + 任务板 + 项目信息抽屉 + 浮层。
  */
 export function Shell({
-  t, files, openRepository, sendPrompt, signContract, advanceContract, approveProposal, bindTask, logSchedule,
+  t, files, openRepository, sendPrompt, uploadAttachment, readDefaultModel, signContract, advanceContract,
+  approveProposal, bindTask, logSchedule,
   readFlowStatus, logFlow, bindAgentSession, renameSession, readContextPressure,
   createSession, listRoles, listExperts, readExpert,
   readMessages, subscribeSession, holdSession, checkModels, subscribeModels, readSessionNotice, readSessionFlags, modelSettings,
@@ -371,6 +399,19 @@ export function Shell({
   const onboardingSending = useRef(false)
   const [chatError, setChatError] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
+  /** 待发附件：图片带 base64，文件带上传回执；发送成功才清空。 */
+  const [attachments, setAttachments] = useState<readonly ChatPendingAttachment[]>([])
+  /** 附件就地错误：格式不支持、超限、读文件失败。 */
+  const [attachError, setAttachError] = useState<string | null>(null)
+  const [dragging, setDragging] = useState(false)
+  /** 发送在途：挡住连点的第二下，失败时草稿与附件原样保留。 */
+  const [sending, setSending] = useState(false)
+  const sendingRef = useRef(false)
+  /** 宿主目录默认模型；会话投影还没记选择时用它，并标明是默认。 */
+  const [defaultModel, setDefaultModel] = useState<ChatModelChoice | null>(null)
+  /** 附件稳定标识与重试要用的原始文件；只保留在本次窗口内存里。 */
+  const attachmentSeq = useRef(0)
+  const attachmentFiles = useRef(new Map<string, File>())
   /** 装配层声明的角色名册；读不到就是空表，新会话走宿主默认角色。 */
   const [roles, setRoles] = useState<readonly ShellRole[]>([])
   /** 下一次新开会话要用的角色；null 表示交给宿主默认。 */
@@ -672,6 +713,22 @@ export function Shell({
    * 事件流里连 `user/message` 都没有，用户只看得到「发了，什么都没发生」。
    */
   const modelBlocked = modelStatus !== null && modelStatus.state === 'empty'
+  /** 当前模型：会话记过就用会话的，没记过用目录默认并注明。 */
+  const chatModelSelection = currentChatModel(
+    chatSessionId === undefined ? undefined : sessionProjections[chatSessionId]?.values.modelSelection?.next,
+    defaultModel ?? undefined,
+  )
+  /** 图片上限以宿主广播为准；读不到时用保守值。 */
+  const chatImageLimits = resolveImageLimits(
+    chatSessionId === undefined ? undefined : sessionProjections[chatSessionId]?.values.imageLimits,
+  )
+  const chatAttachmentsReady = attachmentsReady(attachments)
+  /**
+   * 能不能发：有内容、附件都传完、模型可用、会话与发送面都在，且没有在途发送。
+   * 上传失败的文件也算没传完——不能悄悄跳过它。
+   */
+  const chatCanSend = !promptIsEmpty(draft, attachments) && chatAttachmentsReady && !modelBlocked
+    && chatSessionId !== undefined && sendPrompt !== undefined && !sending
 
   useEffect(() => {
     if (files === undefined || workspace === undefined || sessionId === undefined) {
@@ -816,6 +873,29 @@ export function Shell({
       release?.()
     }
   }, [chat, chatSessionId, readMessages, subscribeSession, readSessionNotice, holdSession, readContextPressure])
+
+  /** 本会话还没记选择时，chip 用目录默认值并注明；目录读不到就退回占位。 */
+  useEffect(() => {
+    if (chat === null || readDefaultModel === undefined) return
+    let alive = true
+    void readDefaultModel().then((model) => {
+      if (alive) setDefaultModel(model)
+    }).catch(() => {
+      if (alive) setDefaultModel(null)
+    })
+    return () => { alive = false }
+  }, [chat, readDefaultModel])
+
+  /** 换会话就丢掉上一条会话的附件：文件回执按会话绑定，不能跨会话复用。 */
+  const attachmentSession = useRef<SessionId | undefined>(undefined)
+  useEffect(() => {
+    if (attachmentSession.current !== undefined && attachmentSession.current !== chatSessionId) {
+      setAttachments([])
+      attachmentFiles.current.clear()
+      setAttachError(null)
+    }
+    attachmentSession.current = chatSessionId
+  }, [chatSessionId])
 
   /**
    * 卡片上「等首个回合」与失败两位的来源。
@@ -1483,15 +1563,136 @@ export function Shell({
     })
   }
 
-  const sendDraft = async (): Promise<void> => {
-    const text = draft.trim()
-    if (text === '' || modelBlocked || chatSessionId === undefined || sendPrompt === undefined) return
-    setDraft('')
-    setChatError(null)
+  /** 图片被拒绝时就地说清是哪条上限；不把三种原因混成一句。 */
+  const imageRejectionText = (rejection: ChatImageRejection): string => {
+    switch (rejection.kind) {
+      case 'unsupported-type': return t('shell.attachmentImageType')
+      case 'too-large': return fill(t('shell.attachmentImageLarge'), { limit: formatBytes(rejection.limit) })
+      case 'too-many': return fill(t('shell.attachmentImageCount'), { count: rejection.limit })
+      case 'total-too-large': return fill(t('shell.attachmentImageTotal'), { limit: formatBytes(rejection.limit) })
+    }
+  }
+
+  const nextAttachmentId = (): string => {
+    attachmentSeq.current += 1
+    return `attachment-${String(attachmentSeq.current)}`
+  }
+
+  /**
+   * 读入用户选的附件。图片校验类型与体积后读成 base64；其余文件先上传拿回执。
+   * 单条失败只影响这一条，其余继续加入。
+   */
+  const addFiles = async (selected: readonly File[]): Promise<void> => {
+    if (chatSessionId === undefined) {
+      setAttachError(t('shell.chatModelNoSession'))
+      return
+    }
+    setAttachError(null)
+    let current = attachments
+    for (const file of selected) {
+      if (file.type.startsWith('image/')) {
+        const rejection = checkImageCandidate(
+          file.type,
+          file.size,
+          current.filter((item): item is ChatPendingImage => item.kind === 'image'),
+          chatImageLimits,
+        )
+        if (rejection !== null) {
+          setAttachError(imageRejectionText(rejection))
+          continue
+        }
+        try {
+          const image: ChatPendingImage = {
+            id: nextAttachmentId(),
+            kind: 'image',
+            name: file.name,
+            bytes: file.size,
+            mediaType: file.type as ChatPendingImage['mediaType'],
+            data: await readFileBase64(file),
+          }
+          current = [...current, image]
+          setAttachments(current)
+        } catch (error: unknown) {
+          setAttachError(fill(t('shell.attachmentReadFailed'), { detail: String(error) }))
+        }
+        continue
+      }
+      const id = nextAttachmentId()
+      const pending: ChatPendingFile = { id, kind: 'file', name: file.name, bytes: file.size, status: 'uploading' }
+      current = [...current, pending]
+      setAttachments(current)
+      attachmentFiles.current.set(id, file)
+      if (uploadAttachment === undefined) {
+        const failed = uploadedFile(id, file.name, file.size, {
+          ok: false, code: 'unavailable', message: t('shell.chatModelNoSession'),
+        })
+        current = current.map(item => item.id === id ? failed : item)
+        setAttachments(current)
+        continue
+      }
+      try {
+        const result = await uploadAttachment(chatSessionId, await readFileBase64(file), file.name)
+        const done = uploadedFile(id, file.name, file.size, result)
+        current = current.map(item => item.id === id ? done : item)
+        setAttachments(current)
+        if (done.status === 'ready') attachmentFiles.current.delete(id)
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error)
+        const failed = uploadedFile(id, file.name, file.size, { ok: false, code: 'transport', message })
+        current = current.map(item => item.id === id ? failed : item)
+        setAttachments(current)
+      }
+    }
+  }
+
+  const removeAttachment = (id: string): void => {
+    attachmentFiles.current.delete(id)
+    setAttachments(current => current.filter(item => item.id !== id))
+  }
+
+  /** 重传失败的文件；原文件还在内存里，不用再选一次。 */
+  const retryFile = async (id: string): Promise<void> => {
+    const file = attachmentFiles.current.get(id)
+    if (file === undefined || chatSessionId === undefined || uploadAttachment === undefined) return
+    setAttachments(current => current.map(item => item.id === id && item.kind === 'file'
+      ? { id: item.id, kind: 'file', name: item.name, bytes: item.bytes, status: 'uploading' as const }
+      : item))
     try {
-      await sendPrompt(chatSessionId, text)
+      const result = await uploadAttachment(chatSessionId, await readFileBase64(file), file.name)
+      const done = uploadedFile(id, file.name, file.size, result)
+      setAttachments(current => current.map(item => item.id === id ? done : item))
+      if (done.status === 'ready') attachmentFiles.current.delete(id)
     } catch (error: unknown) {
-      setChatError(String(error))
+      const message = error instanceof Error ? error.message : String(error)
+      const failed = uploadedFile(id, file.name, file.size, { ok: false, code: 'transport', message })
+      setAttachments(current => current.map(item => item.id === id ? failed : item))
+    }
+  }
+
+  const sendDraft = async (): Promise<void> => {
+    if (sendingRef.current || chatSessionId === undefined || sendPrompt === undefined
+      || promptIsEmpty(draft, attachments) || !chatAttachmentsReady || modelBlocked) return
+    const text = draft.trim()
+    setChatError(null)
+    setAttachError(null)
+    sendingRef.current = true
+    setSending(true)
+    try {
+      await sendPrompt(chatSessionId, buildPromptContent(text, attachments))
+      setDraft('')
+      setAttachments([])
+      attachmentFiles.current.clear()
+    } catch (error: unknown) {
+      // 失败保留草稿与附件：宿主拒绝图片附件时尤其要让人能换模型后重发。
+      const failure = promptFailureOf(error)
+      const detail = `${failure.code}: ${failure.message}`
+      if (failure.reason === 'MODEL_DOES_NOT_SUPPORT_IMAGES') setChatError(t('shell.attachmentModelNoImage'))
+      else if (failure.reason !== '') setChatError(fill(t('shell.attachmentRejected'), { detail }))
+      else if (attachments.length > 0) setChatError(fill(t('shell.attachmentSendFailed'), { detail }))
+      else setChatError(`${t('shell.sendRefused')}（${detail}）`)
+    } finally {
+      sendingRef.current = false
+      setSending(false)
     }
   }
 
@@ -2506,13 +2707,25 @@ export function Shell({
         <div className={css.floating} data-max={chatMax ? 'true' : undefined}>
           <div className={css.floatingBackdrop} onClick={() => { setChatMax(false); setChat(null) }} />
           <div className={css.floatingInner} style={chatStyle}>
-            <div className={css.chatWindow} data-max={chatMax ? 'true' : undefined}>
+            <div
+              className={css.chatWindow}
+              data-max={chatMax ? 'true' : undefined}
+              onDragOver={(event) => { event.preventDefault() }}
+              onDrop={(event) => { event.preventDefault() }}
+            >
               <div className={css.chatHead}>
                 <div className={css.grow}>
                   <h4>{chat.id === '' ? chat.title : `${chat.id} · ${chat.title}`}</h4>
                   <p>{t('shell.brand')} · {t(STATE_LABEL[chat.state])} · {t('shell.chatHint')}</p>
                   <p className={css.chatContext}>{contextUsageText(chatPressure)}</p>
                 </div>
+                <ChatModelChip
+                  t={t}
+                  face={modelSettings}
+                  sessionId={chatSessionId}
+                  selection={chatModelSelection}
+                  onChanged={() => { modelRefresh.current() }}
+                />
                 <span className={css.pill}>{chatRunning ? t('shell.running') : t('shell.chatReady')}</span>
                 <button
                   type="button"
@@ -2545,26 +2758,56 @@ export function Shell({
                 {modelBlocked ? <p className={css.secretRef}>{t('shell.howToConfigure')}</p> : null}
               </div>
               {chatPending === undefined ? null : <PendingInteractionCard pending={chatPending} t={t} />}
-              <div className={css.chatInput}>
-                <input
-                  value={draft}
-                  placeholder={t('shell.placeholder')}
-                  onChange={(event) => { setDraft(event.target.value) }}
-                  onKeyDown={(event) => {
-                    // 中文输入法用 Enter 选词：合成期间的 Enter 属于输入法，不能当成发送。
-                    if (event.key !== 'Enter' || event.nativeEvent.isComposing) return
-                    event.preventDefault()
-                    void sendDraft()
-                  }}
+              <div
+                className={css.composer}
+                onDragOver={(event) => {
+                  event.preventDefault()
+                  setDragging(true)
+                }}
+                onDragLeave={(event) => {
+                  if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragging(false)
+                }}
+                onDrop={(event) => {
+                  event.preventDefault()
+                  setDragging(false)
+                  void addFiles([...event.dataTransfer.files])
+                }}
+              >
+                {dragging ? <div className={css.attachDrop}>{t('shell.attachmentDrop')}</div> : null}
+                <ChatAttachmentList
+                  t={t}
+                  attachments={attachments}
+                  limits={chatImageLimits}
+                  onRemove={removeAttachment}
+                  onRetry={(id) => { void retryFile(id) }}
                 />
-                <button
-                  type="button"
-                  className={css.primaryBtn}
-                  disabled={draft.trim() === '' || modelBlocked || chatSessionId === undefined || sendPrompt === undefined}
-                  onClick={() => { void sendDraft() }}
-                >
-                  {t('shell.send')}
-                </button>
+                {attachError === null ? null : <p className={css.attachErrorLine}>{attachError}</p>}
+                <div className={css.chatInput}>
+                  <ChatAttachButton
+                    t={t}
+                    disabled={chatSessionId === undefined}
+                    onFiles={(files) => { void addFiles(files) }}
+                  />
+                  <input
+                    value={draft}
+                    placeholder={t('shell.placeholder')}
+                    onChange={(event) => { setDraft(event.target.value) }}
+                    onKeyDown={(event) => {
+                      // 中文输入法用 Enter 选词：合成期间的 Enter 属于输入法，不能当成发送。
+                      if (event.key !== 'Enter' || event.nativeEvent.isComposing) return
+                      event.preventDefault()
+                      void sendDraft()
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className={css.primaryBtn}
+                    disabled={!chatCanSend}
+                    onClick={() => { void sendDraft() }}
+                  >
+                    {sending ? t('shell.sending') : t('shell.send')}
+                  </button>
+                </div>
               </div>
             </div>
           </div>

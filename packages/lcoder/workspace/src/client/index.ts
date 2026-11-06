@@ -34,6 +34,9 @@ declare module '@deepseek-ai/dsh-api-session-controller/client' {
   }
 }
 import type { SettingsNamespaceView } from '@deepseek-ai/dsh-api-remotes/client'
+import type { PromptContentPart } from '@deepseek-ai/dsh-api-session-controller/types'
+import { ChatPromptError } from './shell/chat-composer.ts'
+import type { ChatUploadResult } from './shell/chat-composer.ts'
 import { WORKSPACE_ID, workspaceDefinition } from './definition.ts'
 import { withOpenDeadline } from './open-failure.ts'
 import { noticeFromSnapshot, statusFromCatalog, statusOfFailure } from './model-status.ts'
@@ -95,6 +98,13 @@ function chatSizeOf(config: Config): { readonly width: number; readonly height: 
   return { width, height }
 }
 
+/** 远程失败 `details.reason`；宿主没给或不是字符串时返回空串。 */
+function reasonOf(details: unknown): string {
+  if (typeof details !== 'object' || details === null) return ''
+  const reason = (details as Record<string, unknown>)['reason']
+  return typeof reason === 'string' ? reason : ''
+}
+
 /** 非负有限数字；投影里的计数缺省或形状不对时返回 undefined。 */
 function countOf(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined
@@ -112,7 +122,7 @@ export const name = '@lcoder/workspace'
 /** 浏览器侧必需的服务：槽位运行时、词典、页签注册表、远程文件面、命令面、角色名册、会话面、布局与工作区。 */
 export const inject = [
   'slots', 'locale', 'sidebarRightTabs', 'remote', 'remote.workspaceFiles', 'remote.commands', 'remote.session',
-  'remote.llm', 'remote.settings', 'remote.credentials', 'remote.agentPresets', 'layout', 'workspaces', 'sessions',
+  'remote.llm', 'remote.settings', 'remote.credentials', 'remote.agentPresets', 'remote.fileUploads', 'layout', 'workspaces', 'sessions',
 ]
 
 /**
@@ -194,14 +204,34 @@ export function apply(ctx: ClientContext, config: Config = {}): void {
       )
       return { workspaceId: String(workspace.workspaceId), sessionId }
     }
-    const sendPrompt = async (sessionId: SessionId, text: string): Promise<void> => {
+    const sendPrompt = async (
+      sessionId: SessionId,
+      content: string | readonly PromptContentPart[],
+    ): Promise<void> => {
+      const parts: readonly PromptContentPart[] = typeof content === 'string'
+        ? [{ type: 'text', text: content }]
+        : content
       // `create()` 只交回身份：刚建的会话还不在本地目录里，直接 binding 会拿到 undefined。
       // 先 retain 并等首次 open 落定，再发；释放随 using 的结算。
       const result = await ctx.sessions.using(sessionId, { source: 'lcoderShell' }, async (reference) => {
         await reference.ready
-        return reference.binding.session.prompt([{ type: 'text', text }], 'queue')
+        return reference.binding.session.prompt([...parts], 'queue')
       })
-      if (!result.ok) throw new Error(result.error.message)
+      if (!result.ok) throw new ChatPromptError(result.error.code, result.error.message, reasonOf(result.error.details))
+    }
+    /**
+     * 上传一支文件并拿回执；base64 由浏览器侧读文件时生成。
+     * 失败保留宿主原话，界面据此显示而不谎报成功。
+     */
+    const uploadAttachment = async (
+      sessionId: SessionId,
+      data: string,
+      name: string,
+    ): Promise<ChatUploadResult> => {
+      const result = await ctx.remote.fileUploads.upload(sessionId, { data, name })
+      return result.ok
+        ? { ok: true, receiptId: result.value.receiptId }
+        : { ok: false, code: result.error.code, message: result.error.message }
     }
     /**
      * 浮层打开期间持有会话引用：订阅与读消息都借 binding，没人 retain 的会话读不到。
@@ -350,6 +380,11 @@ export function apply(ctx: ClientContext, config: Config = {}): void {
         ? statusFromCatalog(catalog.value)
         : statusOfFailure(catalog.error.code, catalog.error.message)
     }
+    /** 目录默认模型；查询失败返回 null，chip 宁可不显示也不编造。 */
+    const readDefaultModel = async (): Promise<{ provider: string; model: string } | null> => {
+      const catalog = await ctx.remote.session.modelCatalog()
+      return catalog.ok ? { provider: catalog.value.default.provider, model: catalog.value.default.model } : null
+    }
     /** 模型目录或凭据一变就重查，让补上钥匙之后的装配自己解锁。 */
     const subscribeModels = (listener: () => void): (() => void) => {
       const disposers = [
@@ -401,9 +436,10 @@ export function apply(ctx: ClientContext, config: Config = {}): void {
           key: 'lcoder-home',
           locale: NS,
           inject: () => ({
-            files, openRepository, sendPrompt, signContract, bindTask, logSchedule, advanceContract, approveProposal,
+            files, openRepository, sendPrompt, uploadAttachment, signContract, bindTask, logSchedule, advanceContract, approveProposal,
             createSession, listRoles, listExperts, readExpert,
-            readMessages, subscribeSession, holdSession, checkModels, subscribeModels, readSessionNotice, readSessionFlags, modelSettings,
+            readMessages, subscribeSession, holdSession, checkModels, subscribeModels,
+            readSessionNotice, readSessionFlags, modelSettings, readDefaultModel,
             readFlowStatus, logFlow, bindAgentSession, renameSession, readContextPressure,
             chatSize,
           }),

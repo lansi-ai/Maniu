@@ -15,8 +15,8 @@
 - **离线看板**：`docs/tasks-html/index.html`（双击打开，含概览、状态看板、层级树、矩阵与筛选）。
 - **重跑命令**：`python scripts/build-tasks-html.py`。
 
-- **当前焦点**：T-59（开工入口与流程面板）、T-60（两条常驻单例会话）与 T-61（压缩可见性）都已实现并过完门禁；桌面证据已记录，剩下的一步是窗口里的人工点击。
-- **已完成**：T-01 文件投影；T-02 宿主挂载；T-04 规格根与文档门禁；T-05 LCoder 外壳；T-06 真实 `.spec`/`project.yaml`/工作区会话数据；T-07 项目信息抽屉与 `.spec/project.yaml` schema；T-08 真实悬浮对话；T-09 README、测试与旧预设收口；T-56/T-57/T-58 流程引擎、自动化策略与 AI 自签三闸；T-59/T-60/T-61 流程界面、单例会话与压缩可见性。T-03 已被外壳取代并关闭。
+- **当前焦点**：T-66（会话模型 chip 与服务商面板）与 T-67（图片与文件附件）都已实现并过完门禁；桌面证据已记录，剩下的一步是窗口里的人工点击。
+- **已完成**：T-01 文件投影；T-02 宿主挂载；T-04 规格根与文档门禁；T-05 LCoder 外壳；T-06 真实 `.spec`/`project.yaml`/工作区会话数据；T-07 项目信息抽屉与 `.spec/project.yaml` schema；T-08 真实悬浮对话；T-09 README、测试与旧预设收口；T-56/T-57/T-58 流程引擎、自动化策略与 AI 自签三闸；T-59/T-60/T-61 流程界面、单例会话与压缩可见性；T-66/T-67 会话模型切换与图片文件附件。T-03 已被外壳取代并关闭。
 - **下一步**：见 §04。
 
 ## 03. 关键决策与架构遗留 (Key Decisions & Context)
@@ -48,9 +48,9 @@
 
 ## 04. 下一步即时行动 (Next Immediate Actions)
 
-- **当前正在处理**：T-59/T-60/T-61 收口。kernel 增加逐任务流程计划与 `/flow_status`、`/flow_log`、`/agent_bind` 三条人机命令；外壳增加开工面板、两个常驻入口与上下文/压缩显示；桌面 profile 的九个 preset 都在 isolate 组里挂 `compaction-basic`。门禁 typecheck 5、vitest 49 文件 / 489 用例、oxlint 0、test:docs 21、两包 bundle 与完整 build。桌面证据在 `E:/Projects/LCoder-ui-demo`（端口 main 9409 / renderer 9402 / host 9410）：流程面板读到策略与下一步，批量开工把一条无模型失败与一条依赖按住写进 `flow.jsonl`，删掉 `.spec/agents.yaml` 后重开能找到同 preset 的会话并写回且不新建。
-- **即将执行**：在桌面窗口里由人点一次 `E:/Projects/LCoder-ui-demo`，确认不靠 CDP 也走同一路径；若要实测压缩事件，需要一个已配置的模型钥匙起真实回合。
-- **待定决策**：没有模型钥匙时无法验证真正跨过压缩阈值；面板布局用 DOM 几何与计算样式核过，CDP 截图调用挂住，未做像素级截图。
+- **当前正在处理**：T-66/T-67 收口。悬浮对话头部有紧凑模型 chip，点开按服务商分组并通过 `session.selectModel` 写入会话选择；输入区把图片作为 base64 `image` part，其余文件经 `fileUploads` 回执作为 `file` part，图片按投影的 `imageLimits` 校验，发送被拒时保留草稿与附件。门禁 typecheck 5、vitest 50 文件 / 516 用例、oxlint 0、test:docs 21、i18n 1280 文件、workspace bundle。桌面证据在 `E:/Projects/LCoder-chat-demo`（端口 main 9419 / renderer 9412 / host 9420）：一次发送被不支持图片的模型拒绝且两个附件都保留，切到 `deepseek-v4.1-flash` 后重发成功；会话日志记录了 `model/selection` 与一条包含一个 image 和一个 file part 的 `user/message`。
+- **即将执行**：在桌面窗口里由人点一次 `E:/Projects/LCoder-chat-demo`，确认不靠 CDP 也走同一路径。
+- **待定决策**：纯文本模型是否要在发送前把图片入口置灰——模型目录不暴露输入模态，宿主拒绝是目前唯一的能力判据。
 - **开发证据**：门禁命令输出记录在 `docs/tasks.yaml` 的任务 note 或提交说明；`.spec/evidence` 只服务产品任务。
 - **看板重跑**：开发状态变化后先改 `docs/tasks.yaml`，再执行 `python scripts/build-tasks-html.py`。
 - **文档门禁**：已随 T-02 与 T-04 收口；改文档时包 README 与中英配对必须保持全绿。
