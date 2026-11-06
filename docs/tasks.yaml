@@ -913,7 +913,7 @@ tracks:
       note: "A 级，证书阻塞。范围：Windows 代码签名证书与 Authenticode；Apple Developer ID Application、强化运行时、公证与 stapling；签名后启用默认更新源并去掉未签名提示；从上一签名版本升级。验收：codesign --verify --deep --strict、spctl -a -vv、xcrun stapler validate 全过；带 quarantine 的干净 macOS 首次启动成功；Windows SmartScreen 不再报未知发布者；两端从 N-1 升级到 N；更新元数据 publisherName 可验证。未验直到证书就绪：证书申请周期、SmartScreen 声誉、公证时长、公开分发。"
     - id: T-83
       title: 个人中心——账号信息、积分余额与可用 token 预估
-      status: todo
+      status: doing
       face: 用户端
       type: 开发
       owner: lance
@@ -921,7 +921,7 @@ tracks:
       date: '2026-11-06'
       dep: [T-76, A10]
       inferred: false
-      note: "B 级，跨仓依赖云端 A10 的预估字段。用户拍板四条口径：独立个人中心页加弹窗摘要；固定假设区间，下限按输入全部未命中缓存价、上限按输入全部命中缓存价；换算只在云端算，桌面只渲染，不在桌面复制单价；匿名授权也显示预估。范围：新增个人中心页，显示账号资料（昵称、脱敏手机号、状态、注册与最近登录时间）、余额（发放、已用、可用美元）与「约可用 X 到 Y token」区间及其假设说明，附最近用量明细（走云端 /v1/me/usage 的分页）；顶栏账户弹窗只加一行 token 区间摘要；宿主 Remote 面增加预估与用量读取方法，DTO 按用户端裁剪不外泄令牌；未登录与云端缺价时显示不可用而不是零；深浅两套主题与中英文案齐全。验收：桌面真窗口手点登录态、匿名态、缺价态、离线态四类截图；用量明细分页与空态正确；token 区间数字与云端返回一致、桌面不出现任何单价常量；typecheck、vitest、lint、i18n 与文档门禁全绿。未验：真实云端联调（A10 未合入 main、未接真实 Postgres）、真实单价数值准确性、Intel 与 macOS 窗口。"
+      note: "B 级，跨仓依赖云端 A10 的预估字段。用户拍板四条口径：独立个人中心页加弹窗摘要；固定假设区间，下限按输入全部未命中缓存价、上限按输入全部命中缓存价；换算只在云端算，桌面只渲染，不在桌面复制单价；匿名授权也显示预估。范围：新增个人中心页，显示账号资料（昵称、脱敏手机号、状态、注册与最近登录时间）、余额（发放、已用、可用美元）与「约可用 X 到 Y token」区间及其假设说明，附最近用量明细（走云端 /v1/me/usage 的分页）；顶栏账户弹窗只加一行 token 区间摘要；宿主 Remote 面增加预估与用量读取方法，DTO 按用户端裁剪不外泄令牌；未登录与云端缺价时显示不可用而不是零；深浅两套主题与中英文案齐全。验收：桌面真窗口手点登录态、匿名态、缺价态、离线态四类截图；用量明细分页与空态正确；token 区间数字与云端返回一致、桌面不出现任何单价常量；typecheck、vitest、lint、i18n 与文档门禁全绿。未验：真实云端联调（A10 未合入 main、未接真实 Postgres）、真实单价数值准确性、Intel 与 macOS 窗口。2026-11-06 开工。云端 A10 已收口，返回字段形状为 available、unavailableReason（no_effective_price 与 zero_unit_price 与 zero_balance 与 estimate_overflow）、model、availableMicroUsd、lowerBoundTokens、upperBoundTokens、inputOutputRatio 固定 8 比 2、price 单价快照三元组且无生效价时为 null；MeResponse 与匿名会话响应的 required 均已含 tokenEstimate，20 美元的钉死算例为下限 64935064、上限 187969924。工作树 .worktrees\t83-personal-center，分支叠在未合入的 lcoder/t76-login-gate 之上；该仓检出体量很大，工作树创建转后台完成后再派实现线。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
