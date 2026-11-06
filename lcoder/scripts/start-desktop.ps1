@@ -10,11 +10,13 @@
 #   lcoder\scripts\start-desktop.cmd -ListOnly      # 只列出会停掉哪些进程，不做任何改动
 #   lcoder\scripts\start-desktop.cmd -KeepFollowing # 就绪后继续跟随日志
 #   lcoder\scripts\start-desktop.cmd -NoBuild       # 跳过构建门禁（改过源码别用）
+#   lcoder\scripts\start-desktop.cmd -Fast          # -NoBuild 且跳过运行时冒烟（产物没变时的最快启动）
 param(
   [switch]$KeepRunning,
   [switch]$KeepFollowing,
   [switch]$ListOnly,
   [switch]$NoBuild,
+  [switch]$Fast,
   [int]$ReadyTimeoutSec = 300
 )
 
@@ -67,7 +69,9 @@ Write-Host ("启动 {0}" -f $root) -ForegroundColor Cyan
 Write-Host ("日志 {0}" -f $log) -ForegroundColor DarkGray
 $started = Get-Date
 # -NoBuild 走 start:desktop（跳过 26 秒左右的构建门禁）；改过源码不要用它，会跑旧产物。
-$scriptName = if ($NoBuild) { 'start:desktop' } else { 'dev:desktop' }
+$scriptName = if ($NoBuild -or $Fast) { 'start:desktop' } else { 'dev:desktop' }
+# -Fast：产物没变就不跑运行时冒烟（python 三条检查加 Office 往返，百秒级）。
+if ($Fast) { $env:DSH_DESKTOP_SKIP_RUNTIME_SMOKE = '1' }
 Start-Process -FilePath 'cmd.exe' `
   -ArgumentList '/d', '/c', "pnpm run $scriptName > `"$log`" 2>&1" `
   -WorkingDirectory $root -WindowStyle Hidden | Out-Null

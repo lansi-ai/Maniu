@@ -34,3 +34,4 @@ apps/desktop/resources/icon-windows.png
 apps/desktop/resources/icon-macos.png
 apps/desktop/resources/tray-windows.ico
 apps/desktop/scripts/render-tray-icon.ts
+apps/desktop/scripts/dev.ts

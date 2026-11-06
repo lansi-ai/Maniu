@@ -73,6 +73,7 @@ upstream = deepseek-ai/deepseek-harness
 | `packages/client/modules/tests/assets.client.spec.ts` | 覆盖 `.woff2` / `.woff` 的 MIME 判定 | 新增字体资源类型必须有门禁钉住，防止路由回退 |
 | `scripts/gen-third-party-notices.ts` | 生成物新增「Bundled font assets」段，登记 Inter 4.66、SIL OFL 1.1、来源与许可文件 | 生成器只扫 npm workspace 依赖，非 npm 的自托管字体不会被自动列出；装配层无法改仓库级声明生成器，字体又随包分发，必须在声明中体现 |
 | `apps/desktop/tests/preload-app.spec.ts` | 删除 Windows appearance 挂载断言 | 该挂载已停用 |
+| `apps/desktop/scripts/dev.ts` | 一行：`preparePrimaryRuntime()` 改成按 `DSH_DESKTOP_SKIP_RUNTIME_SMOKE=1` 传 `deferSmoke` | 运行时冒烟（打包 python 三条检查加 Office 往返）是发布验收口径，每次开发启动跑一遍要 100 到 143 秒；产物没变时的日常开窗需要一条跳过它的通道，装配层与 profile 都够不到 dev 脚本 |
 | `apps/desktop/resources/icon.svg`、`icon-windows.svg`、`icon-macos.svg` 与对应 `icon.png`、`icon-windows.png`、`icon-macos.png`、`tray-windows.ico` | 上游鲸标整组换成 LCoder 标记（靛蓝渐变板 + 白色 L + 右上圆点）。`icon.svg` 保持 1104 画布、图块仍在 `translate(40 32)` 的 1024 位（web 侧 `apps/web/scripts/render-app-icons.ts` 按这套常量裁影）；`icon-windows.svg` 保持 1024 画布包 1104 空间并保留 `id="tray-glyph"` 组（托盘管线靠它注入放大） | 这是操作系统层面的产品品牌面：EXE 与任务栏图标、安装向导关于页、Windows 托盘 ICO、macOS dock 全部来自这几个文件。装配层与插件改不了 Electron 打包图标，也没有配置项能覆盖 |
 | `apps/desktop/scripts/render-tray-icon.ts` | 只改措辞：文件头与一行注释里的 whale 改为 LCoder mark；管线、`TRAY_ICON_SIZES`、`tray-glyph` 注入与 1.2 倍放大全部不变 | 美术换掉后原措辞会误导下一次改图标的人去找鲸标 |
 规矩：改动写在文件里的 `lcoder:` 前缀注释下，方便 grep 定位，也方便升级时用 `git diff upstream/master...HEAD -- <文件>` 一眼看清。

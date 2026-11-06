@@ -120,7 +120,9 @@ async function main(): Promise<void> {
     release,
     target: resolveDesktopBuildTarget(),
   })
-  await preparePrimaryRuntime()
+  // lcoder: 运行时冒烟（打包 python 三条检查加 Office 往返）是发布验收的口径，每次开发启动
+  // 跑一遍要百秒级；产物没变、只想开窗时可用 DSH_DESKTOP_SKIP_RUNTIME_SMOKE=1 跳过。
+  await preparePrimaryRuntime({ deferSmoke: process.env.DSH_DESKTOP_SKIP_RUNTIME_SMOKE === '1' })
   await launchElectron()
 }
 
