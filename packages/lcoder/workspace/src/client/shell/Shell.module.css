@@ -551,7 +551,11 @@
   left: 0; top: 0; transform: none; width: 100%; height: 100%;
   border: 0; border-radius: 0; box-shadow: none;
 }
-.chatHead { flex: 0 0 auto; display: flex; align-items: center; gap: var(--lc-space-3); padding: 14px 16px; border-bottom: 1px solid var(--lc-line); background: var(--lc-surface-2); }
+.chatHead {
+  flex: 0 0 auto; display: flex; align-items: center; gap: var(--lc-space-3);
+  padding: 14px 16px; border-bottom: 1px solid var(--lc-line); background: var(--lc-surface-2);
+  position: relative; z-index: 30;
+}
 .chatHead h4 { margin: 0; font: 600 15px / var(--lc-leading-tight) var(--lc-font-display); letter-spacing: var(--lc-tracking-tight); }
 .chatHead p { margin: 0; font-size: var(--lc-text-xs); color: var(--lc-muted); }
 .chatBody { flex: 1; min-height: 0; overflow: auto; padding: 18px; display: flex; flex-direction: column; gap: var(--lc-space-3); }
@@ -710,9 +714,10 @@
   overflow-wrap: anywhere;
 }
 
-/* 审批与提问弹窗：盖住对话正文，保留标题栏（关闭对话仍可用）。 */
+/* 审批与提问弹窗：盖住对话正文，保留标题栏（关闭对话仍可用）。
+   标题区高度随标题行数变化，遮罩必须整窗铺满、由标题区层叠盖回，不能在固定偏移处切一刀。 */
 .pendingLayer {
-  position: absolute; inset: 56px 0 0 0; z-index: 20;
+  position: absolute; inset: 0; z-index: 20;
   display: grid; place-items: center; padding: 20px;
   background: var(--lc-backdrop);
 }
