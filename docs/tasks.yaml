@@ -657,6 +657,29 @@ tracks:
       inferred: false
       note: "B 级；显示层与入口。顶栏加「开工」：弹出面板选择任务范围、显示当前策略摘要（哪些动作自动、哪些等人、停止条件），确认后由流程引擎接管。面板常驻可见最近一次流程判定：当前档位、下一步动作与理由、被什么挡住（等人签、等依赖、等预算、等外部动作）、最近动作流水；AI 自签与外部动作请求单独标出，不混在普通流水里。失败可回滚到上一状态并保留审计（动作流水落 .spec/evidence/<任务>/flow.jsonl）。文案进中英两本词典。"
 
+    - id: T-60
+      title: 两个常驻调度会话与页面入口——单例会话、一键打开、失效重建
+      status: todo
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-06'
+      date: '2026-11-06'
+      dep: [T-51, T-56]
+      inferred: false
+      note: "B 级；用户 2026-11-06 要求「页面上能直观进入这两个角色的会话页面，他们只有一个会话」。两条单例会话：分配角色（lcoder-scheduler）与流程控制角色（lcoder-flow），每个仓库一份，不随任务新建。落点：新建 preset 两个；单例会话号的持久化用产品数据里的一行（与 Task.session 同一口径的运行时标识，落 .spec/agents.yaml 或 automation.yaml 的 agents 段，二者取一并在文档写清），失效（换机器、删会话、id 对不上）时按未绑定处理——在同工作区找 agentPreset 匹配的那条，找不到就新建并重写回文件；顶栏给两个入口（图标或「调度」「流程」两个 chip），点开直接把浮层切到那条会话并显示角色与工具面。不新开临时会话、不在任务卡上重复入口。验收要点：点两次只聚焦不新建；删掉会话后再点能重建且写回；日志里能看到会话头的 agentPreset。"
+    - id: T-61
+      title: 调度会话的长上下文自动压缩与可见性——按模型上下文容量取阈值
+      status: todo
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-06'
+      date: '2026-11-06'
+      dep: [T-60]
+      inferred: false
+      note: "B 级；用户 2026-11-06 要求单例会话上下文过长时自动压缩，判断依据是模型设置的上下文容量。已核实机制现成：compaction-basic 挂在 base bundle 里、桌面 profile 未禁用，它用适配器给出的 contextWindow 减掉保留的 completion tokens 得到消息预算，默认到 80% 触发、保留 16%，并支持按模型覆盖（ModelCompactPolicyConfig 的 thresholdRatio 与 headroom）；模型目录里 llm-deepseek 的 contextWindow 字段也已经有。所以本条主要不造机器，而是三件事：一、给两条单例会话确认走的是当前默认模型的 contextWindow（模型切换后阈值随之变化），必要时在装配源里显式写 thresholdRatio；二、把「已压缩」这件事在会话里显示出来（压缩事件与压缩后剩余预算），不让它静默发生；三、在会话头部或设置里显示当前占用与预算，用户能判断还要不要继续聊。验收：把一条单例会话聊到阈值，确认会话日志里有压缩事件、界面有提示、且压缩后还能继续正常对话。"
+
 
 milestones:
 - name: MVP-0 工作台本地跑通
