@@ -812,6 +812,17 @@ tracks:
       dep: [T-25]
       inferred: false
       note: "B 级（用户端三处裁剪）。用户 2026-11-06 的任务详情截图三条要求已由实现线落地，主监督窗口核过证据。改动在 worktree .worktrees/t73-task-detail 的分支 lcoder/t73-task-detail 上本地提交，未 push。一、角色行从详情删除，角色选择只留在「＋ 新会话」弹窗；任务对话创建会话改为 createSession(projectPath)，不再把共享的 roleChoice 带进任务。二、契约提示只在有契约时显示，起草且无契约时只剩缺失文案，签署按钮仍只在契约存在且未签时出现。三、调度思考过程整块移出详情，队列位置 meta 保留，调度日志写失败的失败行挪到 meta 之后常显；随块失效的 12 条 .schedule 样式与 9 个 zh/en 词典键成对删除。新增 shell-detail.client.spec.tsx 四条用例（真 Shell 加内存投影），变异验证回填任一处会红。门禁由实现线跑、监督窗口复核：vitest packages/lcoder 51 文件 523 例全过（监督窗口独立重跑同数）、tsc -b tsconfig.client.json 退出 0、oxlint 改动 3 文件 0 错、workspace bundle 成功且产物里「调度思考过程」0 次、「未经人签署不生效」1 次、「调度日志没写成」2 次、test:docs 21 项全过、verify-client-ui-i18n 1280 文件通过。桌面证据：本 worktree 实例端口 9432 保持运行，E:/Projects/LCoder-empty-demo 的 T-01（drafting、无契约）详情无角色行、无调度块（details 为 0）、无签署提示与签署按钮；E:/Projects/LCoder-target-demo 的 T-01（已人签）有契约提示和已签时间、无签署按钮；「＋」弹窗仍有角色。两份靶仓 .spec 未被写。监督窗口用 CDP 独立复看上述三态，结果一致；但点击均为合成点击，按本仓口径只算链路探测。未验：真人手点；入队位置与调度日志失败行只有单测，桌面窗口没造出对应状态；没有真点签署（会写靶仓）。环境偏离已按 PITFALLS 处理：pnpm install --force 修 W-09、electron 与运行时载荷从主检出只读对拷（W-14、W-06）、profile 补两条指向本 worktree 的 link 并重拷装配源、首次启动缺 lib 产物（W-07 同类）先 build:artifacts 再以 -NoBuild 启动。"
+    - id: T-74
+      title: 立项分析结果页与重新开始——结果可回看，重开走新会话并先列已有产物
+      status: doing
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-06'
+      date: '2026-11-06'
+      dep: [T-72]
+      inferred: false
+      note: "B 级（用户端新增结果页与重开流程，不改数据面与状态机）。用户 2026-11-06 提出两条：立项分析结束后要有查看分析结果的地方；立项分析窗口要有重新开始，现在只能继续。现状核实三点。一、立项入口按钮只在任务数为零时渲染，分析落盘出任务后入口消失，只能从顶栏会话条点「会话 N」找回那条会话。二、立项结果的完整内容已经落在 .spec/proposals/P-xx.yaml（标题、问题、候选与成本、推荐、决定态），projection.ts 的 ProposalRow 已投影，项目信息、任务与规格也已有投影，做结果页不需要新增数据面。三、会话浮层头只有模型 chip、状态 pill、放大与关闭，正文下方只有输入框，确实没有重新开始；onboardingAction 一旦判定已立项就只返回 open。用户已拍板三件事：做独立立项结果页；重新开始新建一条会话重发同一档咒语、旧会话保留；重开前先弹确认并列出已有产物，不清空任何落盘内容。落点三处。一、看板工具栏常驻「立项结果」入口，独立页展示最新方案的需求概要（标题、问题、候选与成本、推荐、决定态）、已起草任务、项目信息摘要，以及无方案与读不到两态。二、浮层头在会话含内置立项咒语时出现「重新开始」，正在跑时禁用并说明原因；确认弹窗列出已有项目登记、规格、任务、方案数量，确认后按原咒语档位新建会话发送，不修改旧会话。三、复用 shell-data.ts 的 isBuiltinIntakePrompt 与两个前缀常量，不重复实现判定。实现线放 worktree .worktrees/t74-intake-result，分支 lcoder/t74-intake-result，桌面端口 9459 主进程、9452 渲染、9460 宿主；台账与看板由监督窗口维护，实现线不改 docs/tasks.yaml，不动主检出与其它工作树。验收看桌面真窗口：已立项仓库打开结果页；含立项会话的浮层出现重新开始；确认弹窗列出现有产物；确认后新会话出现且旧会话仍可回看；零方案时结果页空态；深浅主题各一次。门禁 typecheck client、vitest packages/lcoder、oxlint、workspace bundle、test:docs、i18n。未验：桌面真窗口全流程与像素布局。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
