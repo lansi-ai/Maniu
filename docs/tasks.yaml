@@ -522,6 +522,17 @@ tracks:
       dep: [T-42]
       inferred: false
       note: "B 级（新增面板与注入面，不动 schema、工具面与状态机）。用户 2026-11-05 要求在设置页加专家设置，能看现在系统内置了多少个专家、以及专家的提示词详情。先核数据源，结论是宿主已有的两个远程面就够，不用改上游：agentPresets.list 给名册（id、name、description、order、broken），agentPresets.read 给那份 preset 的子插件清单 YAML，而提示词不是独立字段，它就是清单里 persona 那一行的 config.prefix。记一条形状事实免得下次再找：AgentPreset 这个远程行类型只有 id/name/description/order/broken，不含 plugins，所以提示词只能逐个 preset 走 read 拿声明，不能在 list 里一次取全。三条设计决定。一、面板不筛 lcoder 前缀——用户问的是内置了多少个专家，答案必须是宿主真实注册的全部（上游 standard 等也在内），LCoder 那七位靠装配的 order 排在前面并显示各自 id，筛掉会让数字说谎。二、低频按需：名册在展开时才读、读一次缓存，提示词按专家展开时才 read，声明原文再折叠一层，设置页不该在启动路径上多两次远程调用。三、失败形状分开说：查询失败、这份声明没有 persona 行、这棵 preset 装载失败（broken 带原因）三种文案各不相同，不拿「没有」冒充「读不到」，与 T-22 那条三态口径一致。落点四处。新 client/experts.ts 两个纯函数（expertsFromRoster 按 order 排、无 order 的按 id 排后面、名称缺省回落 id；personaPromptOf 认行按 id 为 persona 或模块名以 /dsh-persona 结尾两种写法，YAML 读不懂、非列表、prefix 为空或非字符串一律返回 null 而不抛，好让面板继续显示声明原文）；index.ts 注入 listExperts 与 readExpert；设置弹窗加一行专家与展开面板，CSS 全部复用既有 --lc-* token；文案 10 个键中英各一份。一条要说清的偏离：上游自己也有 preset 的查看面（packages/client/ui-agent-preset 用同一个 read 做「查看声明」），本面板不替代它，只是把专家数量与提示词正文放进 LCoder 的设置里。门禁：typecheck 5 关绿；vitest packages/lcoder 35 文件 346 用例，experts 新 spec 4 例覆盖排序与缺省回落、折叠标量拼成一段、两种认行写法、三种失败形状；oxlint 82 文件 0 错 0 警；test:docs 21 关绿；verify-client-ui-i18n 1273 个源文件合格；workspace bundle 重打且产物里查得到新键。未验：桌面端手点——设置里展开专家面板看数量与排序，点开 LCoder 产品 核对提示词是否与装配源逐字一致。"
+    - id: T-47
+      title: 等待要叫人——卡片警示描边、会话条圆点与失焦时的任务栏闪烁
+      status: doing
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-05'
+      date: '2026-11-05'
+      dep: [T-24]
+      inferred: false
+      note: "B 级（显示层加一处描边与一个圆点，另开一条渲染端到主进程的单向通道；动的是四个已登记的上游文件）。用户 2026-11-05 明确要提示，无论是等用户做选择题还是等用户操作电脑。先核现状：卡片有「等你回答」这个态但没有动效——跑马灯描边原先只给 running；顶栏会话条只分当前与非当前；真正的操作卡 PendingInteractionCard 只在打开那条会话的浮层里出现；窗口关了没有任何东西叫人，桌面端只有强制更新那条路用 flashFrame 与系统通知。落点三处。一、task-card-visual.ts 把描边扩到 awaitingInteraction，新增 .taskCardAwaiting 复用同一套 conic 跑马灯几何、只换色相为警示色，深浅两套各一个 --lc-wait-accent，透明度与在跑同档（比在跑更该被看见但不更吵），prefers-reduced-motion 下退化成静态描边。二、顶栏会话条给在等的会话加一枚脉冲圆点，aria-hidden，文案复用既有的 shell.taskAwaiting，不新增词典键。三、渲染端把「本工作区有几条会话在等人」报给主进程：ipc.ts 加 windowAttention 通道、preload-app.ts 在窗口桥上暴露 attention(awaiting)、main.ts 的处理器沿用窗口命令那一条的 sender 校验，并按自己的焦点状态决定 flashFrame——窗口有焦点就不打扰，失焦且计数大于零才闪，非数字与负数按零处理；外壳在计数变化时上报、卸载时归零。策略放主进程的理由要说清：只有渲染端知道等待数，只有主进程知道窗口有没有焦点，把焦点判断搬到渲染端就要多一条订阅与一次状态镜像，违反客户端的三条数据通道规矩。计数只读宿主推流的全局 seat，不物化会话也不开历史——等待恰恰发生在你不看那条会话的时候。两件没做的：托盘 tooltip 与系统通知本轮不加计数，前者要新增八种语言的文案、后者会被 Windows 专注助手吞掉，任务栏闪烁不需要文案且够用；tool-ask-user 的定时变体仍不挂进桌面 profile，所以等待只有审批与提问两类，不会超时自行放行。门禁：typecheck 5 关绿；vitest packages/lcoder 35 文件 346 用例，task-card-visual 的断言改成「两种需要人的态都有描边且类名互不相同」；apps/desktop 的 main-startup 154 用例，新增一条覆盖有焦点不闪、失焦且有等待才闪、归零与非数字回落、sender 不对就抛；oxlint 82 文件 0 错 0 警；verify-client-ui-i18n 1273 个源文件合格；workspace bundle 重打且产物里查得到新类名。未验：桌面端手点两条——让 agent 跑一条 exec 为 ai-confirm 的命令后把窗口最小化或切走，看任务栏是否闪；以及看板上看等待中的卡片有没有警示色跑马灯、会话条有没有圆点。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
