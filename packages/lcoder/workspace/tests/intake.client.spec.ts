@@ -150,20 +150,25 @@ describe('重新开始', () => {
     expect(sendPrompt).not.toHaveBeenCalled()
   })
 
-  it('发送失败时新会话号仍交回来，错误原文保留', async () => {
+  it('发送失败时新会话号仍交回来，错误原文保留，且只碰新会话', async () => {
     const created = SessionId('s-new')
+    const createSession = vi.fn(async () => created)
+    const sendPrompt = vi.fn(async () => { throw new Error('host refused') })
     const outcome = await runIntakeRestart({
       tier: 'new',
       project: PROJECT,
       docs: DOCS,
       path: PROJECT.path,
-      createSession: async () => created,
-      sendPrompt: async () => { throw new Error('host refused') },
+      createSession,
+      sendPrompt,
     })
     expect(outcome.kind).toBe('send-failed')
     if (outcome.kind !== 'send-failed') return
     expect(outcome.sessionId).toBe(created)
     expect(outcome.error).toBe('Error: host refused')
     expect(outcome.prompt.startsWith(INTAKE_PROMPT_HEAD)).toBe(true)
+    expect(createSession).toHaveBeenCalledTimes(1)
+    expect(sendPrompt).toHaveBeenCalledTimes(1)
+    expect(sendPrompt).toHaveBeenCalledWith(created, outcome.prompt)
   })
 })
