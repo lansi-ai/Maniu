@@ -51,6 +51,9 @@
                 仓库还没有任务时你拿到的是立项面（file_read / file_list / spec_query / task_read / task_draft）。
                 你可以把复核派给评审子 agent（subagent 工具的 agent_preset 取 lcoder-review）。
                 没有对应工具时如实说明做不到，绝不假称已完成。
+          # 提问走弹出选择框：工具阻塞到人选完为止，不让人打字。
+          - id: ask-user
+            name: '@deepseek-ai/dsh-tool-ask-user'
           - id: lcoder
             name: '@lcoder/kernel'
             config:
@@ -85,6 +88,9 @@
                 You are LCoder 立项. 你的天花板只有 file_read / file_list / spec_query / task_read / task_draft：
                 先用 file_list 看清仓库结构，再读交付文档与已有规格、把调研结论逐个立成起草态任务。
                 你不改代码、不跑命令、不签契约，也不给任务绑落点——那是架构角色的事。缺工具就如实说，绝不假称已完成。
+          # 提问走弹出选择框：工具阻塞到人选完为止，不让人打字。
+          - id: ask-user
+            name: '@deepseek-ai/dsh-tool-ask-user'
           - id: lcoder
             name: '@lcoder/kernel'
             config:
@@ -109,6 +115,9 @@
                 task_draft / contract_draft：先 file_list 与 file_read 摸清落点，把调研结论落成规格条目、绑代码落点、起草契约正文。
                 契约由人签署，你没有签署能力；你也不改代码、不跑命令。
                 需要复核起草好的契约时可以派评审子 agent（lcoder-review）。缺工具就如实说。
+          # 提问走弹出选择框：工具阻塞到人选完为止，不让人打字。
+          - id: ask-user
+            name: '@deepseek-ai/dsh-tool-ask-user'
           - id: lcoder
             name: '@lcoder/kernel'
             config:
@@ -142,6 +151,9 @@
                 evidence_attach / task_close：读代码与规格、复核实现、把验收证据挂上任务，
                 验证阶段才收口。你没有编辑与命令能力，改代码是实施角色的事。
                 结论按编号说清哪条规格没覆盖、证据指哪个用例；缺工具就如实说。
+          # 提问走弹出选择框：工具阻塞到人选完为止，不让人打字。
+          - id: ask-user
+            name: '@deepseek-ai/dsh-tool-ask-user'
           - id: lcoder
             name: '@lcoder/kernel'
             config:
@@ -174,6 +186,9 @@
                 需要业务口径时用 spec_draft 登记规格条目。
                 你不改代码、不跑命令、不起草契约、不给任务绑落点——那些是架构与实施角色的事。
                 缺工具就如实说，绝不假称已完成。
+          # 提问走弹出选择框：工具阻塞到人选完为止，不让人打字。
+          - id: ask-user
+            name: '@deepseek-ai/dsh-tool-ask-user'
           - id: lcoder
             name: '@lcoder/kernel'
             config:
@@ -203,6 +218,9 @@
                 你不改文件内容（没有 file_edit），不跑任意命令（没有 cmd_run），
                 更没有 push——推远端由人执行，你也不能替人执行。
                 提交失败时把 git 的原文照实说，不要重试成一条 amend；暂存区为空就如实说没有提交。
+          # 提问走弹出选择框：工具阻塞到人选完为止，不让人打字。
+          - id: ask-user
+            name: '@deepseek-ai/dsh-tool-ask-user'
           - id: lcoder
             name: '@lcoder/kernel'
             config:
@@ -234,6 +252,9 @@
                 由人触发，你只负责把脚本、步骤与回滚方法写清楚。
                 写文件前先看这条任务的 scope.allowed_paths：那是代码里的硬闸，越出范围的写入会被直接拒绝。
                 你不收口（没有 task_close），提交归 Git 角色；缺工具就如实说，绝不假称已部署。
+          # 提问走弹出选择框：工具阻塞到人选完为止，不让人打字。
+          - id: ask-user
+            name: '@deepseek-ai/dsh-tool-ask-user'
           - id: lcoder
             name: '@lcoder/kernel'
             config:

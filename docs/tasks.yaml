@@ -680,6 +680,28 @@ tracks:
       inferred: false
       note: "B 级；用户 2026-11-06 要求单例会话上下文过长时自动压缩，判断依据是模型设置的上下文容量。已核实机制现成：compaction-basic 挂在 base bundle 里、桌面 profile 未禁用，它用适配器给出的 contextWindow 减掉保留的 completion tokens 得到消息预算，默认到 80% 触发、保留 16%，并支持按模型覆盖（ModelCompactPolicyConfig 的 thresholdRatio 与 headroom）；模型目录里 llm-deepseek 的 contextWindow 字段也已经有。所以本条主要不造机器，而是三件事：一、给两条单例会话确认走的是当前默认模型的 contextWindow（模型切换后阈值随之变化），必要时在装配源里显式写 thresholdRatio；二、把「已压缩」这件事在会话里显示出来（压缩事件与压缩后剩余预算），不让它静默发生；三、在会话头部或设置里显示当前占用与预算，用户能判断还要不要继续聊。验收：把一条单例会话聊到阈值，确认会话日志里有压缩事件、界面有提示、且压缩后还能继续正常对话。"
 
+    - id: T-62
+      title: 立项咒语改写为两档模板——全新项目与已有资料共用一套纪律
+      status: done
+      face: 用户端
+      type: 变更
+      owner: lance
+      created: '2026-11-06'
+      date: '2026-11-06'
+      dep: [T-57]
+      inferred: false
+      note: "B 级；用户 2026-11-06 提供了一份《LCoder 空项目直接启动提示词》并要求改写成两档模板。保留它做对的部分：一次只问一个问题、最多 7 问、四分类确认稿（已确认、AI 建议、待确认、暂不开发）、落盘顺序与每步回读、失败报四项、不假装落盘、收尾给交接摘要。改掉三处会撞上工具真实形状的地方。一、原文把「空项目没有文档」判成死路，实际 spec_draft 的出处可以是 .spec/project.yaml 的字段或用户原话（记来自第 N 问），已按实测口径改写。二、project_draft 的三个必填没给填法，补上「没有远端时填本仓库目录与 main 并注明是计划地址」。三、需求基线在 intake 面没有落盘工具（工具面不含 proposal_draft），所以写成「工具面里有就落成方案、没有就对话输出并明确标未写入仓库」，不再把基线丢在聊天里假装已落盘。两档共用同一份 INTAKE_DISCIPLINE，差异只在开头：全新项目先 file_list 看空仓库并标尚未提供；已有资料先读文档、先列「从仓库已确认的事实」，只问文档回答不了的。测试改写为 16 例，钉住七问上限与不越界、两档开头差异、三处修正、四分法与边界（不签不推不改不改跑不提交）。门禁：typecheck 5 关绿；vitest packages/lcoder 38 文件 395 用例；oxlint 0 错 0 警；verify-client-ui-i18n 1275 文件合格；workspace bundle 重打。未验：桌面真窗口里点两个按钮各走一遍，确认模型按新模板一次一问。"
+    - id: T-63
+      title: 提问改为弹出选择框——给选项而不是让人打字
+      status: done
+      face: 用户端
+      type: 变更
+      owner: lance
+      created: '2026-11-06'
+      date: '2026-11-06'
+      dep: [T-62]
+      inferred: false
+      note: "B 级；用户 2026-11-06 要求「给用户选择的时候需要弹出选择框，而不是让用户自己输入」。核过事实：提问工具 ask_user_question 由 tool-ask-user 注册，它只挂在 sdk-app bundle、桌面 profile 没挂；而上游的 ui-user-questions 界面与外壳自己的 QuestionCard 都在（T-33 已能用 answerBatch 回答带选项的提问），所以缺的只是这个工具本身。落点三处。一、装配源给七个 preset 各插一行 ask-user（@deepseek-ai/dsh-tool-ask-user，默认 legacy 模式，阻塞到人选完；不启用 120 秒自动继续的 timed 变体）。二、两档立项咒语加提问口径：每个问题都用 ask_user_question 弹出 2 到 4 个具体选项并保留「其他（我自己说）」；需要取舍（技术栈、范围、优先级）也走选择框；用户选不知道或其他时把方案做成选项。三、已有资料档里确认文档位置时，用 file_list 实际列出的候选做选项，不让人手打路径。主 home 的运行副本已按装配源重拷（七 preset 各一行）。这里记一条形状事实：kernel 的工具面掩码是逐工具 when，不是全局白名单，所以上游工具不在掩码里也不受影响——这也是历史上 working_directory 可见的原因（T-11 的已知缺口）。门禁：typecheck 5 关绿；vitest packages/lcoder 38 文件 395 用例；oxlint 0 错 0 警；verify-client-ui-i18n 1275 文件合格；test:docs 21 关绿；workspace bundle 重打。未验：桌面真窗口里触发一次选择框——需要重启实例让 preset 重新装载，legacy 模式是阻塞的，选项与「其他」的渲染要实测。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
