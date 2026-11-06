@@ -174,7 +174,9 @@
 }
 
 .shell * { box-sizing: border-box; }
-.shell button, .shell textarea, .shell input, .shell select { font: inherit; color: inherit; }
+/* 用 :where 把特异性压到 0：这只是一条兜底，好让 .primaryBtn 的白字、chip 的品牌色等
+   类规则真的能生效。写成 `.shell button` 时它比单类规则更具体，会把按钮自带的颜色压掉。 */
+.shell :where(button, textarea, input, select) { font: inherit; color: inherit; }
 .shell button { cursor: pointer; }
 .shell :where(input, textarea)::placeholder { color: var(--lc-faint); }
 .shell :where(select) option { background: var(--lc-surface); color: var(--lc-ink); }
