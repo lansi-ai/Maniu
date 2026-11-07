@@ -5,8 +5,9 @@
  * 不缓存令牌、不重试业务请求，方便单测直接断言线上字段。
  */
 import type {
-  CloudGuestClaimInput, CloudGuestLimits, CloudGuestView, CloudLoginPasswordInput, CloudLoginSmsInput,
-  CloudQuota, CloudRegisterInput, CloudSendSmsInput, CloudSmsValue, CloudUser,
+  CloudEstimateReason, CloudGuestClaimInput, CloudGuestLimits, CloudGuestView, CloudLoginPasswordInput,
+  CloudLoginSmsInput, CloudQuota, CloudRegisterInput, CloudSendSmsInput, CloudSmsValue, CloudTokenEstimate,
+  CloudTokenPrice, CloudUsageItem, CloudUsagePage, CloudUsageQuery, CloudUser,
 } from './types.ts'
 
 /** 云端错误体里的字段；未知形状按状态码兜底。 */
@@ -43,6 +44,7 @@ export interface CloudAuthSession {
 export interface CloudMeValue {
   readonly user: CloudUser
   readonly quota: CloudQuota
+  readonly estimate: CloudTokenEstimate | null
 }
 
 /** 匿名授权的签发结果；令牌只进凭据存储。 */
@@ -54,6 +56,7 @@ export interface CloudGuestSession {
   readonly limits: CloudGuestLimits
   readonly model: string
   readonly scope: string
+  readonly estimate: CloudTokenEstimate | null
 }
 
 /** 一次请求的选项。 */
@@ -102,6 +105,100 @@ function retryAfterOf(response: Response): number | undefined {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined
 }
 
+/** 云端认可的四个不可用原因；未知值按缺省处理。 */
+const ESTIMATE_REASONS: ReadonlySet<string> = new Set([
+  'no_effective_price', 'zero_unit_price', 'zero_balance', 'estimate_overflow',
+] satisfies CloudEstimateReason[])
+
+/** 读价格快照；三项单位价缺一就返回 null。 */
+function priceOf(value: unknown): CloudTokenPrice | null {
+  if (typeof value !== 'object' || value === null) return null
+  const price = value as Record<string, unknown>
+  const input = numberOf(price.inputMicroUsdPerMtok)
+  const cached = numberOf(price.cachedInputMicroUsdPerMtok)
+  const output = numberOf(price.outputMicroUsdPerMtok)
+  if (input === undefined || cached === undefined || output === undefined) return null
+  return { inputMicroUsdPerMtok: input, cachedInputMicroUsdPerMtok: cached, outputMicroUsdPerMtok: output }
+}
+
+/**
+ * 解析云端 token 预估；字段不全时返回 null，由界面显示「不可用」。
+ *
+ * 换算与原因判定都在云端，这里只做 JSON 取值，不做任何单价运算。
+ * @param value - `/v1/me` 或匿名授权的 `tokenEstimate` 字段。
+ * @returns 可直接展示的预估，或 null。
+ */
+export function parseTokenEstimate(value: unknown): CloudTokenEstimate | null {
+  if (typeof value !== 'object' || value === null) return null
+  const estimate = value as Record<string, unknown>
+  if (typeof estimate.available !== 'boolean' || typeof estimate.model !== 'string'
+    || typeof estimate.inputOutputRatio !== 'string') return null
+  const availableMicroUsd = numberOf(estimate.availableMicroUsd)
+  const lowerBoundTokens = numberOf(estimate.lowerBoundTokens)
+  const upperBoundTokens = numberOf(estimate.upperBoundTokens)
+  if (availableMicroUsd === undefined || lowerBoundTokens === undefined || upperBoundTokens === undefined) return null
+  const reason = typeof estimate.unavailableReason === 'string' && ESTIMATE_REASONS.has(estimate.unavailableReason)
+    ? estimate.unavailableReason as CloudEstimateReason
+    : null
+  return {
+    available: estimate.available,
+    unavailableReason: estimate.available ? null : reason,
+    model: estimate.model,
+    availableMicroUsd,
+    lowerBoundTokens,
+    upperBoundTokens,
+    inputOutputRatio: estimate.inputOutputRatio,
+    price: priceOf(estimate.price),
+  }
+}
+
+/** 用量流水的状态集合；未知值视为响应不完整。 */
+const USAGE_STATUSES: ReadonlySet<string> = new Set(['reserved', 'settled', 'released', 'failed'])
+
+/** 读一条用量流水；字段不全时返回 undefined。 */
+function usageItemOf(value: unknown): CloudUsageItem | undefined {
+  if (typeof value !== 'object' || value === null) return undefined
+  const item = value as Record<string, unknown>
+  const promptTokens = numberOf(item.promptTokens)
+  const cachedTokens = numberOf(item.cachedTokens)
+  const completionTokens = numberOf(item.completionTokens)
+  const costMicroUsd = numberOf(item.costMicroUsd)
+  if (typeof item.requestId !== 'string' || typeof item.model !== 'string'
+    || typeof item.createdAt !== 'string'
+    || (item.source !== 'user' && item.source !== 'guest')
+    || typeof item.status !== 'string' || !USAGE_STATUSES.has(item.status)
+    || promptTokens === undefined || cachedTokens === undefined
+    || completionTokens === undefined || costMicroUsd === undefined) return undefined
+  const absorbedMicroUsd = numberOf(item.absorbedMicroUsd)
+  return {
+    requestId: item.requestId,
+    source: item.source,
+    model: item.model,
+    promptTokens,
+    cachedTokens,
+    completionTokens,
+    costMicroUsd,
+    ...absorbedMicroUsd === undefined ? {} : { absorbedMicroUsd },
+    status: item.status as CloudUsageItem['status'],
+    createdAt: item.createdAt,
+  }
+}
+
+/** 把 `/v1/me/usage` 的响应折成页面需要的形状。 */
+function usagePageOf(value: unknown): CloudUsagePage {
+  if (typeof value !== 'object' || value === null || !Array.isArray((value as { items?: unknown }).items)) {
+    throw new CloudApiError({ code: 'internal_error', message: '云端用量流水不完整。' })
+  }
+  const page = value as { items?: unknown; nextCursor?: unknown }
+  const items: CloudUsageItem[] = []
+  for (const raw of page.items as unknown[]) {
+    const item = usageItemOf(raw)
+    if (item === undefined) throw new CloudApiError({ code: 'internal_error', message: '云端用量流水不完整。' })
+    items.push(item)
+  }
+  return { items, nextCursor: textOf(page.nextCursor) ?? null }
+}
+
 /** 把一次失败响应折成 {@link CloudApiError}。 */
 function failureOf(response: Response, body: unknown): CloudApiError {
   const parsed = (typeof body === 'object' && body !== null ? body : {}) as ErrorBody
@@ -127,6 +224,7 @@ export interface CloudAuthApi {
   refresh(refreshToken: string, timeoutMs: number): Promise<CloudAuthSession>
   logout(accessToken: string): Promise<void>
   me(accessToken: string): Promise<CloudMeValue>
+  usage(accessToken: string, query: CloudUsageQuery): Promise<CloudUsagePage>
   claimGuest(fingerprint: string, input: CloudGuestClaimInput): Promise<CloudGuestSession>
   guestStatus(guestToken: string): Promise<CloudGuestView>
 }
@@ -290,16 +388,37 @@ export class CloudApi implements CloudAuthApi {
   }
 
   /**
-   * 读当前用户与额度。
+   * 读当前用户、额度与 token 预估。
    * @param accessToken - 访问令牌。
-   * @returns 用户与额度。
+   * @returns 用户、额度与预估。
    */
   async me(accessToken: string): Promise<CloudMeValue> {
-    const response = await this.request<{ user?: CloudUser; quota?: CloudQuota }>('/me', { token: accessToken })
+    const response = await this.request<{ user?: CloudUser; quota?: CloudQuota; tokenEstimate?: unknown }>(
+      '/me',
+      { token: accessToken },
+    )
     if (response.user === undefined || response.quota === undefined) {
       throw new CloudApiError({ code: 'internal_error', message: '云端用户信息不完整。' })
     }
-    return { user: response.user, quota: response.quota }
+    return { user: response.user, quota: response.quota, estimate: parseTokenEstimate(response.tokenEstimate) }
+  }
+
+  /**
+   * 读一页用量流水。
+   * @param accessToken - 访问令牌。
+   * @param query - 分页与筛选参数。
+   * @returns 流水与下一页游标。
+   */
+  async usage(accessToken: string, query: CloudUsageQuery): Promise<CloudUsagePage> {
+    const params = new URLSearchParams()
+    if (query.limit !== undefined) params.set('limit', String(query.limit))
+    if (query.cursor !== undefined) params.set('cursor', query.cursor)
+    if (query.from !== undefined) params.set('from', query.from)
+    if (query.to !== undefined) params.set('to', query.to)
+    if (query.modelId !== undefined) params.set('modelId', query.modelId)
+    const encoded = params.toString()
+    const suffix = encoded.length === 0 ? '' : `?${encoded}`
+    return usagePageOf(await this.request<unknown>(`/me/usage${suffix}`, { token: accessToken }))
   }
 
   /**
@@ -309,7 +428,16 @@ export class CloudApi implements CloudAuthApi {
    * @returns 匿名授权与令牌。
    */
   async claimGuest(fingerprint: string, input: CloudGuestClaimInput): Promise<CloudGuestSession> {
-    return this.request<CloudGuestSession>('/guest/sessions', {
+    const response = await this.request<{
+      guestToken: string
+      tokenType: string
+      expiresAt: string
+      grantDate: string
+      limits: CloudGuestLimits
+      model: string
+      scope: string
+      tokenEstimate?: unknown
+    }>('/guest/sessions', {
       method: 'POST',
       body: {
         deviceFingerprint: fingerprint,
@@ -317,15 +445,28 @@ export class CloudApi implements CloudAuthApi {
         ...input.captchaToken === undefined ? {} : { captchaToken: input.captchaToken },
       },
     })
+    return {
+      guestToken: response.guestToken,
+      tokenType: response.tokenType,
+      expiresAt: response.expiresAt,
+      grantDate: response.grantDate,
+      limits: response.limits,
+      model: response.model,
+      scope: response.scope,
+      estimate: parseTokenEstimate(response.tokenEstimate),
+    }
   }
 
   /**
-   * 查询匿名授权剩余量。
+   * 查询匿名授权剩余量与预估。
    * @param guestToken - 匿名令牌。
    * @returns 服务端状态。
    */
   async guestStatus(guestToken: string): Promise<CloudGuestView> {
-    const response = await this.request<Partial<CloudGuestView>>('/guest/session', { token: guestToken })
+    const response = await this.request<Partial<CloudGuestView> & { tokenEstimate?: unknown }>(
+      '/guest/session',
+      { token: guestToken },
+    )
     const remainingRequests = numberOf(response.remainingRequests)
     const remainingCostMicroUsd = numberOf(response.remainingCostMicroUsd)
     if (response.grantDate === undefined || response.expiresAt === undefined
@@ -342,6 +483,7 @@ export class CloudApi implements CloudAuthApi {
       model: response.model,
       scope: response.scope,
       revoked: response.revoked === true,
+      estimate: parseTokenEstimate(response.tokenEstimate),
     }
   }
 }

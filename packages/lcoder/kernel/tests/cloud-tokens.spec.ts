@@ -175,15 +175,31 @@ describe('CloudTokenManager', () => {
     expect(h.store.values.has(CLOUD_REFRESH_REF)).toBe(false)
   })
 
-  it('刷新成功后缓存用户与额度，再读 me 不重复请求', async () => {
+  it('刷新成功后缓存用户与额度，再读 me 只补一次预估', async () => {
     const h = harness(Math.floor(NOW / 1000) - 1)
     h.store.values.set(CLOUD_REFRESH_REF, h.refresh)
     h.api.refresh.mockResolvedValue(session(jwt(Math.floor(NOW / 1000) + 900), 'refresh-2'))
-    const me: CloudMeValue = { user: session(h.access, h.refresh).user, quota: session(h.access, h.refresh).user.quota }
+    const cached = session(h.access, h.refresh).user
+    const me: CloudMeValue = {
+      user: cached,
+      quota: cached.quota,
+      estimate: {
+        available: true,
+        unavailableReason: null,
+        model: 'deepseek-flash',
+        availableMicroUsd: 20_000_000,
+        lowerBoundTokens: 64_935_064,
+        upperBoundTokens: 187_969_924,
+        inputOutputRatio: '8:2',
+        price: { inputMicroUsdPerMtok: 260_000, cachedInputMicroUsdPerMtok: 8_000, outputMicroUsdPerMtok: 500_000 },
+      },
+    }
     h.api.me.mockResolvedValue(me)
     const state = await h.manager.state()
     expect(state.signedIn).toBe(true)
     expect(state.quota?.availableMicroUsd).toBe(20_000_000)
-    expect(h.api.me).not.toHaveBeenCalled()
+    expect(h.api.me).toHaveBeenCalledTimes(1)
+    expect(state.estimate?.lowerBoundTokens).toBe(64_935_064)
+    expect(state.estimate?.upperBoundTokens).toBe(187_969_924)
   })
 })

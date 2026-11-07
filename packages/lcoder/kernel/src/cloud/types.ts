@@ -58,6 +58,68 @@ export interface CloudUser {
   readonly lastLoginAt?: string | null
 }
 
+/** 云端判定 token 预估不可用的原因；界面按这个分支。 */
+export type CloudEstimateReason =
+  | 'no_effective_price'
+  | 'zero_unit_price'
+  | 'zero_balance'
+  | 'estimate_overflow'
+
+/** 折算用的价格快照；单位是微美元/百万 token，只读展示。 */
+export interface CloudTokenPrice {
+  readonly inputMicroUsdPerMtok: number
+  readonly cachedInputMicroUsdPerMtok: number
+  readonly outputMicroUsdPerMtok: number
+}
+
+/**
+ * 云端按余额折算的 token 预估；桌面只渲染，不做任何单价换算。
+ *
+ * `available` 为 false 时 `lowerBoundTokens` / `upperBoundTokens` 为 0，
+ * 界面必须显示「不可用」，不能把 0 显示成预估结果。
+ */
+export interface CloudTokenEstimate {
+  readonly available: boolean
+  readonly unavailableReason: CloudEstimateReason | null
+  readonly model: string
+  readonly availableMicroUsd: number
+  readonly lowerBoundTokens: number
+  readonly upperBoundTokens: number
+  /** 云端固定输入输出占比，例如 `8:2`。 */
+  readonly inputOutputRatio: string
+  readonly price: CloudTokenPrice | null
+}
+
+/** 一条用量流水。 */
+export interface CloudUsageItem {
+  readonly requestId: string
+  readonly source: 'user' | 'guest'
+  readonly model: string
+  readonly promptTokens: number
+  readonly cachedTokens: number
+  readonly completionTokens: number
+  readonly costMicroUsd: number
+  readonly absorbedMicroUsd?: number
+  readonly status: 'reserved' | 'settled' | 'released' | 'failed'
+  readonly createdAt: string
+}
+
+/** 一页用量流水；`nextCursor` 为空表示到底了。 */
+export interface CloudUsagePage {
+  readonly items: readonly CloudUsageItem[]
+  readonly nextCursor: string | null
+}
+
+/** `/v1/me/usage` 的查询参数。 */
+export interface CloudUsageQuery {
+  /** 1–100；默认 20。 */
+  readonly limit?: number
+  readonly cursor?: string
+  readonly from?: string
+  readonly to?: string
+  readonly modelId?: string
+}
+
 /** 匿名授权的上限。 */
 export interface CloudGuestLimits {
   readonly maxRequests: number
@@ -75,6 +137,8 @@ export interface CloudGuestView {
   readonly model: string
   readonly scope: string
   readonly revoked: boolean
+  /** 匿名授权的 token 预估；服务端没给时为 null。 */
+  readonly estimate: CloudTokenEstimate | null
 }
 
 /** 顶栏与门禁需要的完整登录状态。 */
@@ -83,6 +147,8 @@ export interface CloudState {
   readonly needsLogin: boolean
   readonly user: CloudUser | null
   readonly quota: CloudQuota | null
+  /** 登录账号的 token 预估；未登录或服务端没给时为 null。 */
+  readonly estimate: CloudTokenEstimate | null
   readonly guest: CloudGuestView | null
   /** 本地还留着匿名令牌，但服务端已判过期。 */
   readonly guestExpired: boolean

@@ -13,7 +13,7 @@ import { cloudErrorInfo, type CloudTokenManager } from './tokens.ts'
 import type {
   CloudAuthValue, CloudErrorInfo, CloudGuestClaimInput, CloudGuestView, CloudLoginPasswordInput,
   CloudLoginSmsInput, CloudOkValue, CloudQuota, CloudRegisterInput, CloudResult, CloudSendSmsInput,
-  CloudSmsValue, CloudState, CloudUser,
+  CloudSmsValue, CloudState, CloudUsagePage, CloudUsageQuery, CloudUser,
 } from './types.ts'
 
 /** 控制器依赖；由插件入口装配。 */
@@ -128,6 +128,20 @@ export class CloudController extends TypertRemoteService {
   async me(): Promise<CloudResult<CloudAuthValue>> {
     try {
       return { ok: true, value: await this.deps.tokens.me() }
+    } catch (error: unknown) {
+      return failureOf(error)
+    }
+  }
+
+  /**
+   * 读一页用量流水；下一页游标原样交给界面。
+   * @param query - 分页与筛选参数。
+   * @returns 流水与下一页游标。
+   */
+  @Remote
+  async usage(query: CloudUsageQuery): Promise<CloudResult<CloudUsagePage>> {
+    try {
+      return { ok: true, value: await this.deps.tokens.usage(query) }
     } catch (error: unknown) {
       return failureOf(error)
     }
