@@ -14,7 +14,42 @@
 #   3. `root` 未设置时退回进程工作目录下的 `.spec`。
 # `@lcoder/workspace` 没有配置面。它的 `dsh.client.inject` 声明在
 # packages/lcoder/workspace/package.json 里，浏览器侧依赖顺序由它决定。
+
+# 云端两条路由：用户令牌与匿名令牌各走一个 apiKeyEnv，宿主刷新出哪一条，
+# 下一次请求就用哪一条。BaseURL 只指向云端；开发默认是本机 mock 5091。
+- id: llm-pi-ai
+  name: '@deepseek-ai/dsh-llm-pi-ai'
+  config:
+    providers:
+      lcoder-cloud:
+        displayName: LCoder Cloud
+        apiKeyEnv: LCODER_CLOUD_ACCESS_TOKEN
+        api: openai-completions
+        baseURL: !!js process.env.LCODER_CLOUD_BASE_URL || 'http://127.0.0.1:5091/v1'
+        models:
+          - id: deepseek-flash
+            name: DeepSeek Flash
+            contextWindow: 131072
+            maxTokens: 8192
+      lcoder-cloud-guest:
+        displayName: LCoder Cloud（匿名立项）
+        apiKeyEnv: LCODER_CLOUD_GUEST_TOKEN
+        api: openai-completions
+        baseURL: !!js process.env.LCODER_CLOUD_BASE_URL || 'http://127.0.0.1:5091/v1'
+        models:
+          - id: deepseek-flash
+            name: DeepSeek Flash
+            contextWindow: 131072
+            maxTokens: 8192
+
 - insert:
+    # 云端控制器必须全局在册：它在第一条会话出现之前就要给顶栏、门禁与模型请求
+    # 提供同一个令牌供应器；角色 preset 里的 kernel 是懒装载，赶不上这一步。
+    - id: lcoder-cloud
+      name: '@lcoder/kernel/cloud'
+      config:
+        baseUrl: !!js process.env.LCODER_CLOUD_BASE_URL || 'http://127.0.0.1:5091/v1'
+
     # 宿主侧：注册六个工具（规格/任务/编辑），工具面按当前任务状态收放。
     # `tools` 服务由 base 清单的 `- id: tools` 行提供，所以这一行能激活。
     - id: lcoder-kernel

@@ -7,7 +7,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  catalogHasModel, noticeFromSnapshot, statusFromCatalog, statusOfFailure,
+  catalogHasModel, cloudCodeFromError, noticeFromSnapshot, statusFromCatalog, statusOfFailure,
 } from '../src/client/model-status.ts'
 import type { ModelCatalogLike } from '../src/client/model-status.ts'
 
@@ -70,5 +70,30 @@ describe('会话快照的失败', () => {
 
   it('准入被拒但没有 code 时仍给出一条可读的说明', () => {
     expect(noticeFromSnapshot({ promptError: { op: 'send' } })?.detail).toContain('gateway/internal')
+  })
+
+  it('云端错误体里的 code 与 requestId 被抽出来，界面不再显示原文', () => {
+    const notice = noticeFromSnapshot({
+      promptError: null,
+      lastAgentError: '402: {"code":"quota_exhausted","message":"额度已用完","requestId":"req-1"}',
+    })
+    expect(notice).toEqual({
+      key: 'shell.turnFailed',
+      detail: '402: {"code":"quota_exhausted","message":"额度已用完","requestId":"req-1"}',
+      code: 'quota_exhausted',
+      requestId: 'req-1',
+    })
+  })
+
+  it('没有 JSON 错误体时按 HTTP 状态码兜底', () => {
+    expect(cloudCodeFromError('upstream returned 502')).toEqual({ code: 'upstream_unavailable' })
+    expect(cloudCodeFromError('no credentials')).toEqual({})
+  })
+
+  it('网络失败折成 offline，云端缺凭据折成 needs_login', () => {
+    expect(cloudCodeFromError('llm-pi-ai: fetch failed')).toEqual({ code: 'offline' })
+    expect(cloudCodeFromError('Connection error.')).toEqual({ code: 'offline' })
+    expect(cloudCodeFromError('llm-pi-ai: no credential for provider route "lcoder-cloud"; its profile resolves LCODER_CLOUD_ACCESS_TOKEN'))
+      .toEqual({ code: 'needs_login' })
   })
 })

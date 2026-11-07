@@ -18,6 +18,7 @@ import type { SessionStatusSnapshot } from '@deepseek-ai/dsh-client-ui-session/c
 import type { PanelInfo } from '@deepseek-ai/dsh-client-ui-layout/client'
 import { Shell } from '../src/client/shell/Shell.tsx'
 import type { ShellProps } from '../src/client/shell/Shell.tsx'
+import type { CloudFace } from '../src/client/cloud/face.ts'
 import { zh } from '../src/client/locales.ts'
 import {
   CONTRACTS_DIR, PROPOSALS_DIR, SCHEDULING_DIR, TASKS_DIR,
@@ -93,6 +94,30 @@ interface ShellScenario {
   readonly running?: ReadonlySet<string>
 }
 
+/** 已登录的云端替身：门禁放行，详情用例只关心渲染事实；门禁本身有 cloud-login 专测。 */
+function signedInCloud(): CloudFace {
+  return {
+    available: true,
+    state: async () => ({
+      ok: true,
+      value: {
+        signedIn: true, needsLogin: false,
+        user: { id: 'u1', displayName: null, phoneMasked: '+861****0000', status: 'active' },
+        quota: null, guest: null, guestExpired: false, lastError: null,
+      },
+    }),
+    sendSms: vi.fn(),
+    register: vi.fn(),
+    loginSms: vi.fn(),
+    loginPassword: vi.fn(),
+    refresh: vi.fn(),
+    me: vi.fn(),
+    logout: vi.fn(),
+    claimGuest: vi.fn(),
+    selectRoute: async () => ({ ok: true, value: { provider: 'lcoder-cloud', model: 'deepseek-flash' } }),
+  }
+}
+
 /** 组装外壳 props：真实词典、内存投影、可直接断言的窄接口替身。 */
 function renderShell(scenario: ShellScenario) {
   const rows = scenario.sessions ?? [sessionRow('s-1', REPO, false)]
@@ -125,6 +150,7 @@ function renderShell(scenario: ShellScenario) {
   const logSchedule = vi.fn(async () => ({ ok: false, text: 'evidence 目录不可写' }))
   const props: ShellProps = {
     t,
+    cloud: signedInCloud(),
     files: fakeFiles(scenario.spec),
     usePanelInfo: <S,>(selector: (state: PanelInfo) => S): S => selector({ activePanelId: null }),
     useWorkspaces: <S,>(selector: (state: WorkspaceSnapshot) => S): S => selector(workspaces),
