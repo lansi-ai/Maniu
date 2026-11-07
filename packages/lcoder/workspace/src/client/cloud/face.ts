@@ -8,6 +8,7 @@ import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import type {
   CloudAuthValue, CloudGuestClaimInput, CloudGuestView, CloudLoginPasswordInput, CloudLoginSmsInput,
   CloudOkValue, CloudRegisterInput, CloudResult, CloudSendSmsInput, CloudSmsValue, CloudState,
+  CloudUsagePage, CloudUsageQuery,
 } from '@lcoder/kernel/src/cloud/types.ts'
 import { CLOUD_GUEST_ROUTE, CLOUD_MODEL, CLOUD_USER_ROUTE } from './routes.ts'
 
@@ -22,6 +23,7 @@ export interface CloudRemoteNamespace {
   me(): Promise<RemoteResult<CloudResult<CloudAuthValue>>>
   logout(): Promise<RemoteResult<CloudResult<CloudOkValue>>>
   claimGuest(input: CloudGuestClaimInput): Promise<RemoteResult<CloudResult<CloudGuestView>>>
+  usage(query: CloudUsageQuery): Promise<RemoteResult<CloudResult<CloudUsagePage>>>
 }
 
 declare module '@deepseek-ai/dsh-typert-protocol' {
@@ -41,6 +43,7 @@ export interface CloudRemotePort {
   me(): Promise<CloudResult<CloudAuthValue>>
   logout(): Promise<CloudResult<CloudOkValue>>
   claimGuest(input: CloudGuestClaimInput): Promise<CloudResult<CloudGuestView>>
+  usage(query: CloudUsageQuery): Promise<CloudResult<CloudUsagePage>>
 }
 
 /** 切模型路由要走会话命令面，不属于云端 Remote。 */
@@ -104,6 +107,7 @@ export function createCloudFace(port: CloudRemotePort & CloudModelPort): CloudFa
     me: () => call(() => port.me()),
     logout: () => call(() => port.logout()),
     claimGuest: input => call(() => port.claimGuest(input)),
+    usage: query => call(() => port.usage(query)),
     async selectRoute(sessionId, mode) {
       const provider = mode === 'user' ? CLOUD_USER_ROUTE : CLOUD_GUEST_ROUTE
       let selected: Awaited<ReturnType<CloudModelPort['selectModel']>>
@@ -132,6 +136,7 @@ export function unavailableCloudFace(error: unknown): CloudFace {
     me: fail,
     logout: fail,
     claimGuest: fail,
+    usage: fail,
     selectRoute: fail,
   }
 }

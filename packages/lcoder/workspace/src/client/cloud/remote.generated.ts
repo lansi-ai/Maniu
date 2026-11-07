@@ -37,6 +37,20 @@ const _lcoder_kernel_lcoderCloud_claimGuest_result$schema = () => (_lcoder_kerne
   'model': z.string().readonly(),
   'scope': z.string().readonly(),
   'revoked': z.boolean().readonly(),
+  'estimate': z.union([z.literal(null), z.object({
+  'available': z.boolean().readonly(),
+  'unavailableReason': z.union([z.literal(null), z.literal("no_effective_price"), z.literal("zero_unit_price"), z.literal("zero_balance"), z.literal("estimate_overflow")]).readonly(),
+  'model': z.string().readonly(),
+  'availableMicroUsd': z.number().readonly(),
+  'lowerBoundTokens': z.number().readonly(),
+  'upperBoundTokens': z.number().readonly(),
+  'inputOutputRatio': z.string().readonly().describe('云端固定输入输出占比，例如 `8:2`。'),
+  'price': z.union([z.literal(null), z.object({
+  'inputMicroUsdPerMtok': z.number().readonly(),
+  'cachedInputMicroUsdPerMtok': z.number().readonly(),
+  'outputMicroUsdPerMtok': z.number().readonly(),
+})]).readonly(),
+})]).readonly().describe('匿名授权的 token 预估；服务端没给时为 null。'),
 }).readonly(),
 })]))
 let _lcoder_kernel_lcoderCloud_loginPassword_parameter_0$schema$value
@@ -287,6 +301,20 @@ const _lcoder_kernel_lcoderCloud_state_result$schema = () => (_lcoder_kernel_lco
   'currency': z.string().readonly(),
   'updatedAt': z.string().readonly().optional(),
 })]).readonly(),
+  'estimate': z.union([z.literal(null), z.object({
+  'available': z.boolean().readonly(),
+  'unavailableReason': z.union([z.literal(null), z.literal("no_effective_price"), z.literal("zero_unit_price"), z.literal("zero_balance"), z.literal("estimate_overflow")]).readonly(),
+  'model': z.string().readonly(),
+  'availableMicroUsd': z.number().readonly(),
+  'lowerBoundTokens': z.number().readonly(),
+  'upperBoundTokens': z.number().readonly(),
+  'inputOutputRatio': z.string().readonly().describe('云端固定输入输出占比，例如 `8:2`。'),
+  'price': z.union([z.literal(null), z.object({
+  'inputMicroUsdPerMtok': z.number().readonly(),
+  'cachedInputMicroUsdPerMtok': z.number().readonly(),
+  'outputMicroUsdPerMtok': z.number().readonly(),
+})]).readonly(),
+})]).readonly().describe('登录账号的 token 预估；未登录或服务端没给时为 null。'),
   'guest': z.union([z.literal(null), z.object({
   'grantDate': z.string().readonly(),
   'expiresAt': z.string().readonly(),
@@ -300,6 +328,20 @@ const _lcoder_kernel_lcoderCloud_state_result$schema = () => (_lcoder_kernel_lco
   'model': z.string().readonly(),
   'scope': z.string().readonly(),
   'revoked': z.boolean().readonly(),
+  'estimate': z.union([z.literal(null), z.object({
+  'available': z.boolean().readonly(),
+  'unavailableReason': z.union([z.literal(null), z.literal("no_effective_price"), z.literal("zero_unit_price"), z.literal("zero_balance"), z.literal("estimate_overflow")]).readonly(),
+  'model': z.string().readonly(),
+  'availableMicroUsd': z.number().readonly(),
+  'lowerBoundTokens': z.number().readonly(),
+  'upperBoundTokens': z.number().readonly(),
+  'inputOutputRatio': z.string().readonly().describe('云端固定输入输出占比，例如 `8:2`。'),
+  'price': z.union([z.literal(null), z.object({
+  'inputMicroUsdPerMtok': z.number().readonly(),
+  'cachedInputMicroUsdPerMtok': z.number().readonly(),
+  'outputMicroUsdPerMtok': z.number().readonly(),
+})]).readonly(),
+})]).readonly().describe('匿名授权的 token 预估；服务端没给时为 null。'),
 })]).readonly(),
   'guestExpired': z.boolean().readonly().describe('本地还留着匿名令牌，但服务端已判过期。'),
   'lastError': z.union([z.literal(null), z.object({
@@ -309,6 +351,42 @@ const _lcoder_kernel_lcoderCloud_state_result$schema = () => (_lcoder_kernel_lco
   'retryAfterSeconds': z.number().readonly().optional().describe('429/402 的 Retry-After 秒数。'),
   'status': z.number().readonly().optional().describe('HTTP 状态码；网络失败时缺省。'),
 })]).readonly().describe('最近一次后台刷新失败的原因；成功时清空。'),
+}).readonly(),
+})]))
+let _lcoder_kernel_lcoderCloud_usage_parameter_0$schema$value
+const _lcoder_kernel_lcoderCloud_usage_parameter_0$schema = () => (_lcoder_kernel_lcoderCloud_usage_parameter_0$schema$value ??= z.object({
+  'limit': z.number().readonly().optional().describe('1–100；默认 20。'),
+  'cursor': z.string().readonly().optional(),
+  'from': z.string().readonly().optional(),
+  'to': z.string().readonly().optional(),
+  'modelId': z.string().readonly().optional(),
+}))
+let _lcoder_kernel_lcoderCloud_usage_result$schema$value
+const _lcoder_kernel_lcoderCloud_usage_result$schema = () => (_lcoder_kernel_lcoderCloud_usage_result$schema$value ??= z.union([z.object({
+  'ok': z.literal(false).readonly(),
+  'error': z.object({
+  'code': z.string().readonly().describe('云端 `error.code`，或客户端侧补的 `offline` / `needs_login` / `guest_missing`。'),
+  'message': z.string().readonly().describe('面向人的一句话；不含令牌、手机号明文与上游原文。'),
+  'requestId': z.string().readonly().optional().describe('服务端请求号；只用于诊断展示。'),
+  'retryAfterSeconds': z.number().readonly().optional().describe('429/402 的 Retry-After 秒数。'),
+  'status': z.number().readonly().optional().describe('HTTP 状态码；网络失败时缺省。'),
+}).readonly(),
+}), z.object({
+  'ok': z.literal(true).readonly(),
+  'value': z.object({
+  'items': z.array(z.object({
+  'requestId': z.string().readonly(),
+  'source': z.union([z.literal("user"), z.literal("guest")]).readonly(),
+  'model': z.string().readonly(),
+  'promptTokens': z.number().readonly(),
+  'cachedTokens': z.number().readonly(),
+  'completionTokens': z.number().readonly(),
+  'costMicroUsd': z.number().readonly(),
+  'absorbedMicroUsd': z.number().readonly().optional(),
+  'status': z.union([z.literal("settled"), z.literal("failed"), z.literal("reserved"), z.literal("released")]).readonly(),
+  'createdAt': z.string().readonly(),
+})).readonly(),
+  'nextCursor': z.union([z.literal(null), z.string()]).readonly(),
 }).readonly(),
 })]))
 let _lcoder_kernel_lcoderCloud_claimGuest_parameter_0_strict$schema$value
@@ -338,6 +416,14 @@ const _lcoder_kernel_lcoderCloud_sendSms_parameter_0_strict$schema = () => (_lco
   'phone': z.string().readonly(),
   'purpose': z.union([z.literal("register"), z.literal("login")]).readonly(),
   'captchaToken': z.string().readonly().optional(),
+}))
+let _lcoder_kernel_lcoderCloud_usage_parameter_0_strict$schema$value
+const _lcoder_kernel_lcoderCloud_usage_parameter_0_strict$schema = () => (_lcoder_kernel_lcoderCloud_usage_parameter_0_strict$schema$value ??= z.strictObject({
+  'limit': z.number().readonly().optional().describe('1–100；默认 20。'),
+  'cursor': z.string().readonly().optional(),
+  'from': z.string().readonly().optional(),
+  'to': z.string().readonly().optional(),
+  'modelId': z.string().readonly().optional(),
 }))
 
 export const TYPERT_REMOTE = createTypertRemoteInfo({
@@ -371,9 +457,9 @@ export const TYPERT_REMOTE = createTypertRemoteInfo({
         typeSymbol: '@lcoder/kernel/cloud/types#CloudResult',
         create: _lcoder_kernel_lcoderCloud_claimGuest_result$schema,
         description: '服务端承认的授权状态。',
-        jsonSchema: {"oneOf":[{"type":"object","properties":{"ok":{"type":"boolean","const":false},"error":{"type":"object","properties":{"code":{"type":"string","description":"云端 `error.code`，或客户端侧补的 `offline` / `needs_login` / `guest_missing`。"},"message":{"type":"string","description":"面向人的一句话；不含令牌、手机号明文与上游原文。"},"requestId":{"type":"string","description":"服务端请求号；只用于诊断展示。"},"retryAfterSeconds":{"type":"number","description":"429/402 的 Retry-After 秒数。"},"status":{"type":"number","description":"HTTP 状态码；网络失败时缺省。"}},"required":["code","message"],"additionalProperties":true}},"required":["ok","error"],"additionalProperties":true},{"type":"object","properties":{"ok":{"type":"boolean","const":true},"value":{"type":"object","properties":{"grantDate":{"type":"string"},"expiresAt":{"type":"string"},"remainingRequests":{"type":"number"},"remainingCostMicroUsd":{"type":"number"},"limits":{"type":"object","properties":{"maxRequests":{"type":"number"},"maxCostMicroUsd":{"type":"number"},"dailyGrantLimit":{"type":"number"}},"required":["maxRequests","maxCostMicroUsd","dailyGrantLimit"],"additionalProperties":true},"model":{"type":"string"},"scope":{"type":"string"},"revoked":{"type":"boolean"}},"required":["grantDate","expiresAt","remainingRequests","remainingCostMicroUsd","limits","model","scope","revoked"],"additionalProperties":true}},"required":["ok","value"],"additionalProperties":true}]},
+        jsonSchema: {"oneOf":[{"type":"object","properties":{"ok":{"type":"boolean","const":false},"error":{"type":"object","properties":{"code":{"type":"string","description":"云端 `error.code`，或客户端侧补的 `offline` / `needs_login` / `guest_missing`。"},"message":{"type":"string","description":"面向人的一句话；不含令牌、手机号明文与上游原文。"},"requestId":{"type":"string","description":"服务端请求号；只用于诊断展示。"},"retryAfterSeconds":{"type":"number","description":"429/402 的 Retry-After 秒数。"},"status":{"type":"number","description":"HTTP 状态码；网络失败时缺省。"}},"required":["code","message"],"additionalProperties":true}},"required":["ok","error"],"additionalProperties":true},{"type":"object","properties":{"ok":{"type":"boolean","const":true},"value":{"type":"object","properties":{"grantDate":{"type":"string"},"expiresAt":{"type":"string"},"remainingRequests":{"type":"number"},"remainingCostMicroUsd":{"type":"number"},"limits":{"type":"object","properties":{"maxRequests":{"type":"number"},"maxCostMicroUsd":{"type":"number"},"dailyGrantLimit":{"type":"number"}},"required":["maxRequests","maxCostMicroUsd","dailyGrantLimit"],"additionalProperties":true},"model":{"type":"string"},"scope":{"type":"string"},"revoked":{"type":"boolean"},"estimate":{"oneOf":[{"type":"null","const":null},{"type":"object","properties":{"available":{"type":"boolean"},"unavailableReason":{"oneOf":[{"type":"null","const":null},{"type":"string","enum":["no_effective_price","zero_unit_price","zero_balance","estimate_overflow"]}]},"model":{"type":"string"},"availableMicroUsd":{"type":"number"},"lowerBoundTokens":{"type":"number"},"upperBoundTokens":{"type":"number"},"inputOutputRatio":{"type":"string","description":"云端固定输入输出占比，例如 `8:2`。"},"price":{"oneOf":[{"type":"null","const":null},{"type":"object","properties":{"inputMicroUsdPerMtok":{"type":"number"},"cachedInputMicroUsdPerMtok":{"type":"number"},"outputMicroUsdPerMtok":{"type":"number"}},"required":["inputMicroUsdPerMtok","cachedInputMicroUsdPerMtok","outputMicroUsdPerMtok"],"additionalProperties":true}]}},"required":["available","unavailableReason","model","availableMicroUsd","lowerBoundTokens","upperBoundTokens","inputOutputRatio","price"],"additionalProperties":true}],"description":"匿名授权的 token 预估；服务端没给时为 null。"}},"required":["grantDate","expiresAt","remainingRequests","remainingCostMicroUsd","limits","model","scope","revoked","estimate"],"additionalProperties":true}},"required":["ok","value"],"additionalProperties":true}]},
       },
-      sourceLocation: {"file":"packages/lcoder/kernel/src/cloud/controller.ts","line":155,"column":9},
+      sourceLocation: {"file":"packages/lcoder/kernel/src/cloud/controller.ts","line":170,"column":9},
     },
     'lcoderCloud/loginPassword': {
       service: 'lcoderCloud',
@@ -405,7 +491,7 @@ export const TYPERT_REMOTE = createTypertRemoteInfo({
         description: '登录资料。',
         jsonSchema: {"oneOf":[{"type":"object","properties":{"ok":{"type":"boolean","const":false},"error":{"type":"object","properties":{"code":{"type":"string","description":"云端 `error.code`，或客户端侧补的 `offline` / `needs_login` / `guest_missing`。"},"message":{"type":"string","description":"面向人的一句话；不含令牌、手机号明文与上游原文。"},"requestId":{"type":"string","description":"服务端请求号；只用于诊断展示。"},"retryAfterSeconds":{"type":"number","description":"429/402 的 Retry-After 秒数。"},"status":{"type":"number","description":"HTTP 状态码；网络失败时缺省。"}},"required":["code","message"],"additionalProperties":true}},"required":["ok","error"],"additionalProperties":true},{"type":"object","properties":{"ok":{"type":"boolean","const":true},"value":{"type":"object","properties":{"user":{"type":"object","properties":{"id":{"type":"string"},"displayName":{"oneOf":[{"type":"null","const":null},{"type":"string"}]},"phoneMasked":{"oneOf":[{"type":"null","const":null},{"type":"string"}]},"status":{"type":"string"},"createdAt":{"type":"string"},"lastLoginAt":{"oneOf":[{"type":"null","const":null},{"type":"string"}]}},"required":["id","displayName","phoneMasked","status"],"additionalProperties":true},"quota":{"type":"object","properties":{"grantedMicroUsd":{"type":"number"},"reservedMicroUsd":{"type":"number"},"spentMicroUsd":{"type":"number"},"availableMicroUsd":{"type":"number"},"currency":{"type":"string"},"updatedAt":{"type":"string"}},"required":["grantedMicroUsd","reservedMicroUsd","spentMicroUsd","availableMicroUsd","currency"],"additionalProperties":true},"expiresIn":{"type":"number"}},"required":["user","quota","expiresIn"],"additionalProperties":true}},"required":["ok","value"],"additionalProperties":true}]},
       },
-      sourceLocation: {"file":"packages/lcoder/kernel/src/cloud/controller.ts","line":105,"column":9},
+      sourceLocation: {"file":"packages/lcoder/kernel/src/cloud/controller.ts","line":106,"column":9},
     },
     'lcoderCloud/loginSms': {
       service: 'lcoderCloud',
@@ -437,7 +523,7 @@ export const TYPERT_REMOTE = createTypertRemoteInfo({
         description: '登录资料。',
         jsonSchema: {"oneOf":[{"type":"object","properties":{"ok":{"type":"boolean","const":false},"error":{"type":"object","properties":{"code":{"type":"string","description":"云端 `error.code`，或客户端侧补的 `offline` / `needs_login` / `guest_missing`。"},"message":{"type":"string","description":"面向人的一句话；不含令牌、手机号明文与上游原文。"},"requestId":{"type":"string","description":"服务端请求号；只用于诊断展示。"},"retryAfterSeconds":{"type":"number","description":"429/402 的 Retry-After 秒数。"},"status":{"type":"number","description":"HTTP 状态码；网络失败时缺省。"}},"required":["code","message"],"additionalProperties":true}},"required":["ok","error"],"additionalProperties":true},{"type":"object","properties":{"ok":{"type":"boolean","const":true},"value":{"type":"object","properties":{"user":{"type":"object","properties":{"id":{"type":"string"},"displayName":{"oneOf":[{"type":"null","const":null},{"type":"string"}]},"phoneMasked":{"oneOf":[{"type":"null","const":null},{"type":"string"}]},"status":{"type":"string"},"createdAt":{"type":"string"},"lastLoginAt":{"oneOf":[{"type":"null","const":null},{"type":"string"}]}},"required":["id","displayName","phoneMasked","status"],"additionalProperties":true},"quota":{"type":"object","properties":{"grantedMicroUsd":{"type":"number"},"reservedMicroUsd":{"type":"number"},"spentMicroUsd":{"type":"number"},"availableMicroUsd":{"type":"number"},"currency":{"type":"string"},"updatedAt":{"type":"string"}},"required":["grantedMicroUsd","reservedMicroUsd","spentMicroUsd","availableMicroUsd","currency"],"additionalProperties":true},"expiresIn":{"type":"number"}},"required":["user","quota","expiresIn"],"additionalProperties":true}},"required":["ok","value"],"additionalProperties":true}]},
       },
-      sourceLocation: {"file":"packages/lcoder/kernel/src/cloud/controller.ts","line":95,"column":9},
+      sourceLocation: {"file":"packages/lcoder/kernel/src/cloud/controller.ts","line":96,"column":9},
     },
     'lcoderCloud/logout': {
       service: 'lcoderCloud',
@@ -452,7 +538,7 @@ export const TYPERT_REMOTE = createTypertRemoteInfo({
         description: '成功标记。',
         jsonSchema: {"oneOf":[{"type":"object","properties":{"ok":{"type":"boolean","const":false},"error":{"type":"object","properties":{"code":{"type":"string","description":"云端 `error.code`，或客户端侧补的 `offline` / `needs_login` / `guest_missing`。"},"message":{"type":"string","description":"面向人的一句话；不含令牌、手机号明文与上游原文。"},"requestId":{"type":"string","description":"服务端请求号；只用于诊断展示。"},"retryAfterSeconds":{"type":"number","description":"429/402 的 Retry-After 秒数。"},"status":{"type":"number","description":"HTTP 状态码；网络失败时缺省。"}},"required":["code","message"],"additionalProperties":true}},"required":["ok","error"],"additionalProperties":true},{"type":"object","properties":{"ok":{"type":"boolean","const":true},"value":{"type":"object","properties":{"ok":{"type":"boolean"}},"required":["ok"],"additionalProperties":true}},"required":["ok","value"],"additionalProperties":true}]},
       },
-      sourceLocation: {"file":"packages/lcoder/kernel/src/cloud/controller.ts","line":140,"column":9},
+      sourceLocation: {"file":"packages/lcoder/kernel/src/cloud/controller.ts","line":155,"column":9},
     },
     'lcoderCloud/me': {
       service: 'lcoderCloud',
@@ -467,7 +553,7 @@ export const TYPERT_REMOTE = createTypertRemoteInfo({
         description: '登录资料。',
         jsonSchema: {"oneOf":[{"type":"object","properties":{"ok":{"type":"boolean","const":false},"error":{"type":"object","properties":{"code":{"type":"string","description":"云端 `error.code`，或客户端侧补的 `offline` / `needs_login` / `guest_missing`。"},"message":{"type":"string","description":"面向人的一句话；不含令牌、手机号明文与上游原文。"},"requestId":{"type":"string","description":"服务端请求号；只用于诊断展示。"},"retryAfterSeconds":{"type":"number","description":"429/402 的 Retry-After 秒数。"},"status":{"type":"number","description":"HTTP 状态码；网络失败时缺省。"}},"required":["code","message"],"additionalProperties":true}},"required":["ok","error"],"additionalProperties":true},{"type":"object","properties":{"ok":{"type":"boolean","const":true},"value":{"type":"object","properties":{"user":{"type":"object","properties":{"id":{"type":"string"},"displayName":{"oneOf":[{"type":"null","const":null},{"type":"string"}]},"phoneMasked":{"oneOf":[{"type":"null","const":null},{"type":"string"}]},"status":{"type":"string"},"createdAt":{"type":"string"},"lastLoginAt":{"oneOf":[{"type":"null","const":null},{"type":"string"}]}},"required":["id","displayName","phoneMasked","status"],"additionalProperties":true},"quota":{"type":"object","properties":{"grantedMicroUsd":{"type":"number"},"reservedMicroUsd":{"type":"number"},"spentMicroUsd":{"type":"number"},"availableMicroUsd":{"type":"number"},"currency":{"type":"string"},"updatedAt":{"type":"string"}},"required":["grantedMicroUsd","reservedMicroUsd","spentMicroUsd","availableMicroUsd","currency"],"additionalProperties":true},"expiresIn":{"type":"number"}},"required":["user","quota","expiresIn"],"additionalProperties":true}},"required":["ok","value"],"additionalProperties":true}]},
       },
-      sourceLocation: {"file":"packages/lcoder/kernel/src/cloud/controller.ts","line":127,"column":9},
+      sourceLocation: {"file":"packages/lcoder/kernel/src/cloud/controller.ts","line":128,"column":9},
     },
     'lcoderCloud/refresh': {
       service: 'lcoderCloud',
@@ -482,7 +568,7 @@ export const TYPERT_REMOTE = createTypertRemoteInfo({
         description: '刷新后的登录资料。',
         jsonSchema: {"oneOf":[{"type":"object","properties":{"ok":{"type":"boolean","const":false},"error":{"type":"object","properties":{"code":{"type":"string","description":"云端 `error.code`，或客户端侧补的 `offline` / `needs_login` / `guest_missing`。"},"message":{"type":"string","description":"面向人的一句话；不含令牌、手机号明文与上游原文。"},"requestId":{"type":"string","description":"服务端请求号；只用于诊断展示。"},"retryAfterSeconds":{"type":"number","description":"429/402 的 Retry-After 秒数。"},"status":{"type":"number","description":"HTTP 状态码；网络失败时缺省。"}},"required":["code","message"],"additionalProperties":true}},"required":["ok","error"],"additionalProperties":true},{"type":"object","properties":{"ok":{"type":"boolean","const":true},"value":{"type":"object","properties":{"user":{"type":"object","properties":{"id":{"type":"string"},"displayName":{"oneOf":[{"type":"null","const":null},{"type":"string"}]},"phoneMasked":{"oneOf":[{"type":"null","const":null},{"type":"string"}]},"status":{"type":"string"},"createdAt":{"type":"string"},"lastLoginAt":{"oneOf":[{"type":"null","const":null},{"type":"string"}]}},"required":["id","displayName","phoneMasked","status"],"additionalProperties":true},"quota":{"type":"object","properties":{"grantedMicroUsd":{"type":"number"},"reservedMicroUsd":{"type":"number"},"spentMicroUsd":{"type":"number"},"availableMicroUsd":{"type":"number"},"currency":{"type":"string"},"updatedAt":{"type":"string"}},"required":["grantedMicroUsd","reservedMicroUsd","spentMicroUsd","availableMicroUsd","currency"],"additionalProperties":true},"expiresIn":{"type":"number"}},"required":["user","quota","expiresIn"],"additionalProperties":true}},"required":["ok","value"],"additionalProperties":true}]},
       },
-      sourceLocation: {"file":"packages/lcoder/kernel/src/cloud/controller.ts","line":114,"column":9},
+      sourceLocation: {"file":"packages/lcoder/kernel/src/cloud/controller.ts","line":115,"column":9},
     },
     'lcoderCloud/register': {
       service: 'lcoderCloud',
@@ -514,7 +600,7 @@ export const TYPERT_REMOTE = createTypertRemoteInfo({
         description: '登录资料。',
         jsonSchema: {"oneOf":[{"type":"object","properties":{"ok":{"type":"boolean","const":false},"error":{"type":"object","properties":{"code":{"type":"string","description":"云端 `error.code`，或客户端侧补的 `offline` / `needs_login` / `guest_missing`。"},"message":{"type":"string","description":"面向人的一句话；不含令牌、手机号明文与上游原文。"},"requestId":{"type":"string","description":"服务端请求号；只用于诊断展示。"},"retryAfterSeconds":{"type":"number","description":"429/402 的 Retry-After 秒数。"},"status":{"type":"number","description":"HTTP 状态码；网络失败时缺省。"}},"required":["code","message"],"additionalProperties":true}},"required":["ok","error"],"additionalProperties":true},{"type":"object","properties":{"ok":{"type":"boolean","const":true},"value":{"type":"object","properties":{"user":{"type":"object","properties":{"id":{"type":"string"},"displayName":{"oneOf":[{"type":"null","const":null},{"type":"string"}]},"phoneMasked":{"oneOf":[{"type":"null","const":null},{"type":"string"}]},"status":{"type":"string"},"createdAt":{"type":"string"},"lastLoginAt":{"oneOf":[{"type":"null","const":null},{"type":"string"}]}},"required":["id","displayName","phoneMasked","status"],"additionalProperties":true},"quota":{"type":"object","properties":{"grantedMicroUsd":{"type":"number"},"reservedMicroUsd":{"type":"number"},"spentMicroUsd":{"type":"number"},"availableMicroUsd":{"type":"number"},"currency":{"type":"string"},"updatedAt":{"type":"string"}},"required":["grantedMicroUsd","reservedMicroUsd","spentMicroUsd","availableMicroUsd","currency"],"additionalProperties":true},"expiresIn":{"type":"number"}},"required":["user","quota","expiresIn"],"additionalProperties":true}},"required":["ok","value"],"additionalProperties":true}]},
       },
-      sourceLocation: {"file":"packages/lcoder/kernel/src/cloud/controller.ts","line":85,"column":9},
+      sourceLocation: {"file":"packages/lcoder/kernel/src/cloud/controller.ts","line":86,"column":9},
     },
     'lcoderCloud/sendSms': {
       service: 'lcoderCloud',
@@ -546,7 +632,7 @@ export const TYPERT_REMOTE = createTypertRemoteInfo({
         description: '重发倒计时与有效期。',
         jsonSchema: {"oneOf":[{"type":"object","properties":{"ok":{"type":"boolean","const":false},"error":{"type":"object","properties":{"code":{"type":"string","description":"云端 `error.code`，或客户端侧补的 `offline` / `needs_login` / `guest_missing`。"},"message":{"type":"string","description":"面向人的一句话；不含令牌、手机号明文与上游原文。"},"requestId":{"type":"string","description":"服务端请求号；只用于诊断展示。"},"retryAfterSeconds":{"type":"number","description":"429/402 的 Retry-After 秒数。"},"status":{"type":"number","description":"HTTP 状态码；网络失败时缺省。"}},"required":["code","message"],"additionalProperties":true}},"required":["ok","error"],"additionalProperties":true},{"type":"object","properties":{"ok":{"type":"boolean","const":true},"value":{"type":"object","properties":{"requestId":{"type":"string"},"resendAfterSeconds":{"type":"number"},"expiresInSeconds":{"type":"number"}},"required":["requestId","resendAfterSeconds","expiresInSeconds"],"additionalProperties":true}},"required":["ok","value"],"additionalProperties":true}]},
       },
-      sourceLocation: {"file":"packages/lcoder/kernel/src/cloud/controller.ts","line":71,"column":9},
+      sourceLocation: {"file":"packages/lcoder/kernel/src/cloud/controller.ts","line":72,"column":9},
     },
     'lcoderCloud/state': {
       service: 'lcoderCloud',
@@ -559,9 +645,41 @@ export const TYPERT_REMOTE = createTypertRemoteInfo({
         typeSymbol: '@lcoder/kernel/cloud/types#CloudResult',
         create: _lcoder_kernel_lcoderCloud_state_result$schema,
         description: '顶栏与门禁需要的状态。',
-        jsonSchema: {"oneOf":[{"type":"object","properties":{"ok":{"type":"boolean","const":false},"error":{"type":"object","properties":{"code":{"type":"string","description":"云端 `error.code`，或客户端侧补的 `offline` / `needs_login` / `guest_missing`。"},"message":{"type":"string","description":"面向人的一句话；不含令牌、手机号明文与上游原文。"},"requestId":{"type":"string","description":"服务端请求号；只用于诊断展示。"},"retryAfterSeconds":{"type":"number","description":"429/402 的 Retry-After 秒数。"},"status":{"type":"number","description":"HTTP 状态码；网络失败时缺省。"}},"required":["code","message"],"additionalProperties":true}},"required":["ok","error"],"additionalProperties":true},{"type":"object","properties":{"ok":{"type":"boolean","const":true},"value":{"type":"object","properties":{"signedIn":{"type":"boolean"},"needsLogin":{"type":"boolean"},"user":{"oneOf":[{"type":"null","const":null},{"type":"object","properties":{"id":{"type":"string"},"displayName":{"oneOf":[{"type":"null","const":null},{"type":"string"}]},"phoneMasked":{"oneOf":[{"type":"null","const":null},{"type":"string"}]},"status":{"type":"string"},"createdAt":{"type":"string"},"lastLoginAt":{"oneOf":[{"type":"null","const":null},{"type":"string"}]}},"required":["id","displayName","phoneMasked","status"],"additionalProperties":true}]},"quota":{"oneOf":[{"type":"null","const":null},{"type":"object","properties":{"grantedMicroUsd":{"type":"number"},"reservedMicroUsd":{"type":"number"},"spentMicroUsd":{"type":"number"},"availableMicroUsd":{"type":"number"},"currency":{"type":"string"},"updatedAt":{"type":"string"}},"required":["grantedMicroUsd","reservedMicroUsd","spentMicroUsd","availableMicroUsd","currency"],"additionalProperties":true}]},"guest":{"oneOf":[{"type":"null","const":null},{"type":"object","properties":{"grantDate":{"type":"string"},"expiresAt":{"type":"string"},"remainingRequests":{"type":"number"},"remainingCostMicroUsd":{"type":"number"},"limits":{"type":"object","properties":{"maxRequests":{"type":"number"},"maxCostMicroUsd":{"type":"number"},"dailyGrantLimit":{"type":"number"}},"required":["maxRequests","maxCostMicroUsd","dailyGrantLimit"],"additionalProperties":true},"model":{"type":"string"},"scope":{"type":"string"},"revoked":{"type":"boolean"}},"required":["grantDate","expiresAt","remainingRequests","remainingCostMicroUsd","limits","model","scope","revoked"],"additionalProperties":true}]},"guestExpired":{"type":"boolean","description":"本地还留着匿名令牌，但服务端已判过期。"},"lastError":{"oneOf":[{"type":"null","const":null},{"type":"object","properties":{"code":{"type":"string","description":"云端 `error.code`，或客户端侧补的 `offline` / `needs_login` / `guest_missing`。"},"message":{"type":"string","description":"面向人的一句话；不含令牌、手机号明文与上游原文。"},"requestId":{"type":"string","description":"服务端请求号；只用于诊断展示。"},"retryAfterSeconds":{"type":"number","description":"429/402 的 Retry-After 秒数。"},"status":{"type":"number","description":"HTTP 状态码；网络失败时缺省。"}},"required":["code","message"],"additionalProperties":true}],"description":"最近一次后台刷新失败的原因；成功时清空。"}},"required":["signedIn","needsLogin","user","quota","guest","guestExpired","lastError"],"additionalProperties":true}},"required":["ok","value"],"additionalProperties":true}]},
+        jsonSchema: {"oneOf":[{"type":"object","properties":{"ok":{"type":"boolean","const":false},"error":{"type":"object","properties":{"code":{"type":"string","description":"云端 `error.code`，或客户端侧补的 `offline` / `needs_login` / `guest_missing`。"},"message":{"type":"string","description":"面向人的一句话；不含令牌、手机号明文与上游原文。"},"requestId":{"type":"string","description":"服务端请求号；只用于诊断展示。"},"retryAfterSeconds":{"type":"number","description":"429/402 的 Retry-After 秒数。"},"status":{"type":"number","description":"HTTP 状态码；网络失败时缺省。"}},"required":["code","message"],"additionalProperties":true}},"required":["ok","error"],"additionalProperties":true},{"type":"object","properties":{"ok":{"type":"boolean","const":true},"value":{"type":"object","properties":{"signedIn":{"type":"boolean"},"needsLogin":{"type":"boolean"},"user":{"oneOf":[{"type":"null","const":null},{"type":"object","properties":{"id":{"type":"string"},"displayName":{"oneOf":[{"type":"null","const":null},{"type":"string"}]},"phoneMasked":{"oneOf":[{"type":"null","const":null},{"type":"string"}]},"status":{"type":"string"},"createdAt":{"type":"string"},"lastLoginAt":{"oneOf":[{"type":"null","const":null},{"type":"string"}]}},"required":["id","displayName","phoneMasked","status"],"additionalProperties":true}]},"quota":{"oneOf":[{"type":"null","const":null},{"type":"object","properties":{"grantedMicroUsd":{"type":"number"},"reservedMicroUsd":{"type":"number"},"spentMicroUsd":{"type":"number"},"availableMicroUsd":{"type":"number"},"currency":{"type":"string"},"updatedAt":{"type":"string"}},"required":["grantedMicroUsd","reservedMicroUsd","spentMicroUsd","availableMicroUsd","currency"],"additionalProperties":true}]},"estimate":{"oneOf":[{"type":"null","const":null},{"type":"object","properties":{"available":{"type":"boolean"},"unavailableReason":{"oneOf":[{"type":"null","const":null},{"type":"string","enum":["no_effective_price","zero_unit_price","zero_balance","estimate_overflow"]}]},"model":{"type":"string"},"availableMicroUsd":{"type":"number"},"lowerBoundTokens":{"type":"number"},"upperBoundTokens":{"type":"number"},"inputOutputRatio":{"type":"string","description":"云端固定输入输出占比，例如 `8:2`。"},"price":{"oneOf":[{"type":"null","const":null},{"type":"object","properties":{"inputMicroUsdPerMtok":{"type":"number"},"cachedInputMicroUsdPerMtok":{"type":"number"},"outputMicroUsdPerMtok":{"type":"number"}},"required":["inputMicroUsdPerMtok","cachedInputMicroUsdPerMtok","outputMicroUsdPerMtok"],"additionalProperties":true}]}},"required":["available","unavailableReason","model","availableMicroUsd","lowerBoundTokens","upperBoundTokens","inputOutputRatio","price"],"additionalProperties":true}],"description":"登录账号的 token 预估；未登录或服务端没给时为 null。"},"guest":{"oneOf":[{"type":"null","const":null},{"type":"object","properties":{"grantDate":{"type":"string"},"expiresAt":{"type":"string"},"remainingRequests":{"type":"number"},"remainingCostMicroUsd":{"type":"number"},"limits":{"type":"object","properties":{"maxRequests":{"type":"number"},"maxCostMicroUsd":{"type":"number"},"dailyGrantLimit":{"type":"number"}},"required":["maxRequests","maxCostMicroUsd","dailyGrantLimit"],"additionalProperties":true},"model":{"type":"string"},"scope":{"type":"string"},"revoked":{"type":"boolean"},"estimate":{"oneOf":[{"type":"null","const":null},{"type":"object","properties":{"available":{"type":"boolean"},"unavailableReason":{"oneOf":[{"type":"null","const":null},{"type":"string","enum":["no_effective_price","zero_unit_price","zero_balance","estimate_overflow"]}]},"model":{"type":"string"},"availableMicroUsd":{"type":"number"},"lowerBoundTokens":{"type":"number"},"upperBoundTokens":{"type":"number"},"inputOutputRatio":{"type":"string","description":"云端固定输入输出占比，例如 `8:2`。"},"price":{"oneOf":[{"type":"null","const":null},{"type":"object","properties":{"inputMicroUsdPerMtok":{"type":"number"},"cachedInputMicroUsdPerMtok":{"type":"number"},"outputMicroUsdPerMtok":{"type":"number"}},"required":["inputMicroUsdPerMtok","cachedInputMicroUsdPerMtok","outputMicroUsdPerMtok"],"additionalProperties":true}]}},"required":["available","unavailableReason","model","availableMicroUsd","lowerBoundTokens","upperBoundTokens","inputOutputRatio","price"],"additionalProperties":true}],"description":"匿名授权的 token 预估；服务端没给时为 null。"}},"required":["grantDate","expiresAt","remainingRequests","remainingCostMicroUsd","limits","model","scope","revoked","estimate"],"additionalProperties":true}]},"guestExpired":{"type":"boolean","description":"本地还留着匿名令牌，但服务端已判过期。"},"lastError":{"oneOf":[{"type":"null","const":null},{"type":"object","properties":{"code":{"type":"string","description":"云端 `error.code`，或客户端侧补的 `offline` / `needs_login` / `guest_missing`。"},"message":{"type":"string","description":"面向人的一句话；不含令牌、手机号明文与上游原文。"},"requestId":{"type":"string","description":"服务端请求号；只用于诊断展示。"},"retryAfterSeconds":{"type":"number","description":"429/402 的 Retry-After 秒数。"},"status":{"type":"number","description":"HTTP 状态码；网络失败时缺省。"}},"required":["code","message"],"additionalProperties":true}],"description":"最近一次后台刷新失败的原因；成功时清空。"}},"required":["signedIn","needsLogin","user","quota","estimate","guest","guestExpired","lastError"],"additionalProperties":true}},"required":["ok","value"],"additionalProperties":true}]},
       },
-      sourceLocation: {"file":"packages/lcoder/kernel/src/cloud/controller.ts","line":51,"column":9},
+      sourceLocation: {"file":"packages/lcoder/kernel/src/cloud/controller.ts","line":52,"column":9},
+    },
+    'lcoderCloud/usage': {
+      service: 'lcoderCloud',
+      description: '读一页用量流水；下一页游标原样交给界面。',
+      invocation: { kind: 'direct' },
+      parameters: [
+        {
+          name: 'query',
+          description: '分页与筛选参数。',
+          source: 'json',
+          codec: {
+            mode: 'strict',
+            typeSymbol: '@lcoder/kernel/cloud/types#CloudUsageQuery',
+            create: _lcoder_kernel_lcoderCloud_usage_parameter_0$schema,
+            jsonSchema: {"type":"object","properties":{"limit":{"type":"number","description":"1–100；默认 20。"},"cursor":{"type":"string"},"from":{"type":"string"},"to":{"type":"string"},"modelId":{"type":"string"}},"required":[],"additionalProperties":true},
+          },
+          strictCodec: {
+            mode: 'strict',
+            typeSymbol: '@lcoder/kernel/cloud/types#CloudUsageQuery',
+            create: _lcoder_kernel_lcoderCloud_usage_parameter_0_strict$schema,
+            jsonSchema: {"type":"object","properties":{"limit":{"type":"number","description":"1–100；默认 20。"},"cursor":{"type":"string"},"from":{"type":"string"},"to":{"type":"string"},"modelId":{"type":"string"}},"required":[],"additionalProperties":false},
+          },
+        },
+      ],
+      result: {
+        mode: 'strict',
+        typeSymbol: '@lcoder/kernel/cloud/types#CloudResult',
+        create: _lcoder_kernel_lcoderCloud_usage_result$schema,
+        description: '流水与下一页游标。',
+        jsonSchema: {"oneOf":[{"type":"object","properties":{"ok":{"type":"boolean","const":false},"error":{"type":"object","properties":{"code":{"type":"string","description":"云端 `error.code`，或客户端侧补的 `offline` / `needs_login` / `guest_missing`。"},"message":{"type":"string","description":"面向人的一句话；不含令牌、手机号明文与上游原文。"},"requestId":{"type":"string","description":"服务端请求号；只用于诊断展示。"},"retryAfterSeconds":{"type":"number","description":"429/402 的 Retry-After 秒数。"},"status":{"type":"number","description":"HTTP 状态码；网络失败时缺省。"}},"required":["code","message"],"additionalProperties":true}},"required":["ok","error"],"additionalProperties":true},{"type":"object","properties":{"ok":{"type":"boolean","const":true},"value":{"type":"object","properties":{"items":{"type":"array","items":{"type":"object","properties":{"requestId":{"type":"string"},"source":{"type":"string","enum":["user","guest"]},"model":{"type":"string"},"promptTokens":{"type":"number"},"cachedTokens":{"type":"number"},"completionTokens":{"type":"number"},"costMicroUsd":{"type":"number"},"absorbedMicroUsd":{"type":"number"},"status":{"type":"string","enum":["settled","failed","reserved","released"]},"createdAt":{"type":"string"}},"required":["requestId","source","model","promptTokens","cachedTokens","completionTokens","costMicroUsd","status","createdAt"],"additionalProperties":true}},"nextCursor":{"oneOf":[{"type":"null","const":null},{"type":"string"}]}},"required":["items","nextCursor"],"additionalProperties":true}},"required":["ok","value"],"additionalProperties":true}]},
+      },
+      sourceLocation: {"file":"packages/lcoder/kernel/src/cloud/controller.ts","line":142,"column":9},
     },
   },
 }, z)
