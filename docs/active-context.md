@@ -6,7 +6,7 @@ English | [中文](active-context.zh.md)
 
 - **Version stage**: MVP-0 — get the workbench running locally.
 - **Core business value**: the agent works inside the workbench against the `.spec` specification and task state machine, and every change has a contract, evidence, and reviewability.
-- **Key deliverables**: the kernel mounts and registers ten tools plus the `/contract_sign` human command; the right sidebar workbench has three columns; the file projection reads tasks, rules, and contracts.
+- **Key deliverables**: the kernel mounts and registers model tools from the role table in `packages/lcoder/kernel/src/kernel/surface.ts`, plus the human commands, including `/contract_sign`; the right sidebar workbench has three columns; the file projection reads tasks, rules, and contracts.
 
 ## 02. Task board (Task Board)
 
@@ -34,17 +34,15 @@ English | [中文](active-context.zh.md)
   - The floating conversation sends the startup prompt through the session controller and renders real user/assistant text from the session event window; the input continues the same session. Kernel `file_read`/`file_edit` use the repository root while `env.yaml` and evidence stay under `.spec`.
   - The desktop profile's LCoder preset now mounts `@lcoder/kernel`; the old WorkBuddy package link is cleanup in T-09.
 - **Risks and technical debt**:
-  - The contract-signing channel is not implemented; P3 requires writing YAML by hand.
-  - `task_transition` has no tool entry.
-  - The product example `DEMO-01` is in `drafting` with no contract; the example `env.yaml` is in place.
-  - The edit tools still resolve `file_read` / `file_edit` against the specification root; the real-repository acceptance step must confirm whether they should use the repository root.
-  - The desktop profile still links the old `WorkBuddy/LCoder` package alongside the current `@lcoder/*` packages; the old preset can be removed once the shell is the only LCoder surface.
-  - The floating conversation renders final user/assistant text, not the full DSH conversation UI (tool cards, live token streaming).
-  - `.spec/local.yaml` is absent in the demo repo, so the drawer's eye shows 未配置; the local resolution path is implemented but unexercised.
-  - The task board reads the first session in the selected workspace; a task-specific session per task is deferred.
-  - Desktop `Open repository` never returns: `ctx.workspaces.create` stays pending while the workspace list reads fine, so no workspace or session can be created in a fresh desktop home (T-12). This blocks T-10's desktop acceptance and M0.4.
-  - The kernel loads twice in the desktop profile, once under `preset-lcoder` and once under the `lcoder-kernel` insert; the boot log prints the ten-tool line twice.
-  - The real run drafted `.spec/contracts/DEMO-01.contract.yaml` (unsigned, untracked); keep or discard is a product decision.
+  - Signing is the human command `/contract_sign`: the Host recomputes the contract body hash and writes `sig`, and `/task_contract` re-checks the signature before a task enters `contracted`; an agent signature whose three compensating gates fail is rejected.
+  - Task state has no standalone transition tool: `/task_contract` advances a signed task from `drafting` to `contracted`, `task_close` closes it, and `task_transition` does not exist.
+  - `DEMO-01` is in `drafting`; `.spec/contracts/DEMO-01.contract.yaml` is tracked with `sig: null`, and the example `env.yaml` is in place.
+  - `file_read` and `file_edit` resolve against the repository root; the specification root keeps `env.yaml` and evidence.
+  - The desktop profile has nine role presets, each mounting `@lcoder/kernel` once with no global kernel entry, and contains no reference to `WorkBuddy/LCoder`.
+  - The floating conversation renders streaming text and reasoning with bottom-follow, Markdown, approval, and question cards; tool cards are not rendered.
+  - The demo repo has no `.spec/local.yaml`, so the drawer's eye shows 未配置; the local resolution path exists but has no sample file to read.
+  - Task cards claim their own session through the `session` field in `.spec/tasks/<ID>.yaml`; an unbound card reads 未开始 instead of borrowing another session's state.
+  - "Open repository" has a 15-second timeout with distinguishable timeout and rejection copy (T-17); the underlying documents-directory lookup hang is upstream and unfixed here (T-12, T-15, T-16).
 
 ## 04. Next immediate actions (Next Immediate Actions)
 

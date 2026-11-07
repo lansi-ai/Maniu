@@ -56,9 +56,10 @@ Crash reports, plugin operation records, the update journal, and the locale cach
 
 ### 1.4 Deep links and single instance
 
-- The only supported deep link is `lcoder://open`; it focuses the primary window or creates it when the application has no window.
-- Unknown `lcoder://` paths also focus the primary window and never execute an argument, open a URL, or start a task. Task-specific routing is reserved and not implemented.
-- Windows and Linux deliver a later launch through the second-instance argument list; macOS delivers it through `open-url`. Both paths converge on one handler, and an `open-url` event that arrives before startup finishes is buffered and replayed once the window exists.
+- The installer registers the `lcoder` scheme, but the application layer routes no `lcoder://` path. `apps/desktop/src/main.ts` registers `dsh` as the default protocol client, and its `open-url` handler matches only `dsh://open` and `dsh://open/`.
+- The only address the application parses is `dsh://open`: it focuses the primary window or creates one when no window exists. Any `lcoder://` address only launches or focuses the application and never parses a path; it does not execute an argument, open a URL, or start a task.
+- Application-side `lcoder://` routing and task-specific routing are not implemented; both remain future work.
+- Windows and Linux deliver a later launch through the `second-instance` event, and macOS delivers it through `open-url`. The `second-instance` listener in `apps/desktop/src/single-instance.ts` takes no arguments, so those launches only focus the owner; the `open-url` handler ignores every address except `dsh://open`.
 - The single-instance lock remains the first lifecycle step. A second process exits after forwarding its arguments, and only the owning process reads or writes application data.
 
 ## 2. Update source
@@ -245,7 +246,7 @@ The LCoder names are the release configuration contract. One alias step in the p
 | Profile documentsDirectory | Replace the hardcoded Windows path with an environment-provided directory that exists on both platforms; keep the Windows workaround intact | lcoder/desktop-profile.patch.yml, lcoder/scripts/start-desktop.sh, lcoder/scripts/prepare-profile.mjs, lcoder/RUN.md | Desktop startup answers workspace initialization on both systems; `storages/workspace.json` registers the default workspace |
 | Git tools | Use `git -C <root>` with repository-relative paths; do not assume CRLF or a Windows Git installation | packages/lcoder/kernel/src/tools/git-tools.ts | Status, diff, and commit work in a macOS checkout without path errors |
 | Fonts | Use a platform-neutral system stack before the Windows-only faces; keep Inter and Noto Sans SC for the modern preset | packages/lcoder/workspace/src/client/shell/Shell.module.css | Rendered font is PingFang SC or the system UI face on macOS; screenshots in both themes |
-| Protocol registration | Register `lcoder` in the macOS bundle and route `open-url` to the single-instance handler | apps/desktop/scripts/electron-builder-config.mjs, apps/desktop/src/main.ts | `open lcoder://open` focuses a running window and also works on a cold start |
+| Protocol registration | Register `lcoder` in the macOS bundle; keep `open-url` on `dsh://open` today and add `lcoder://` routing as follow-up work | apps/desktop/scripts/electron-builder-config.mjs, apps/desktop/src/main.ts | `open lcoder://open` launches or focuses the window on a running and a cold start; no path is parsed until routing lands |
 | Single instance | Forward the second launch's arguments, including a protocol URL, to the owning process | apps/desktop/src/single-instance.ts, apps/desktop/src/main.ts | A second launch creates no second window and focuses the owner |
 | Data and log directories | Verify the macOS application data and log paths derived from the product name; write nothing to `~/.dsh` | apps/desktop/src/main.ts, docs/desktop-release.md | Application data appears under `~/Library/Application Support/LCoder`; logs under `~/Library/Logs/LCoder` |
 | Update feed and installer formats | Use `*-mac.yml`, ZIP as the update payload, DMG for installation, and no blockmap inside the DMG | apps/desktop/scripts/package-macos.ts, desktop-auto-update-environment.mjs | Feed references the ZIP and its blockmap; a clean DMG install succeeds |
@@ -304,7 +305,7 @@ The LCoder names are the release configuration contract. One alias step in the p
 | Task | Scope | Depends on | Acceptance |
 |---|---|---|---|
 | T-77 | This design package: identity, update source, UX, signing gap, release process, macOS matrix, contact surface, task split | T-76 | Documents, rules, and ledger updated; documentation gates green |
-| T-78 | Identity and update source: product name, application identifier, protocol, artifact names, independent version, COS paths, environment aliases, unsigned updater opt-in | T-77 | Windows unsigned package shows LCoder identity, installs, routes `lcoder://open`, and reports the LCoder data path; real upload is not exercised |
+| T-78 | Identity and update source: product name, application identifier, protocol, artifact names, independent version, COS paths, environment aliases, unsigned updater opt-in | T-77 | Windows unsigned package shows LCoder identity, installs, and reports the LCoder data path; `lcoder://` launches or focuses the window without parsing a path, and real upload is not exercised |
 | T-79 | Update experience: settings section, version and channel display, delayed startup check, manual check, all states, unsigned unsupported state | T-78 | Desktop screenshots of every state in both themes; logs prove the delayed check; no silent install |
 | T-80 | macOS adaptation and unsigned packaging: chrome, menu, Dock, shortcuts, dialogs, paths, shell, git, fonts, protocol, data directories, arm64 and x64 DMG/ZIP | T-78 | Both architectures launch on the user's Mac; a repository opens; one conversation and one command run; limitations documented |
 | T-81 | COS and CDN pipeline: paths, aliases, upload, fixed downloads, blockmaps, cache policy, purge, rollback, dry-run, tests | T-78 | Local validation and dry-run pass; a real upload is accepted on the test bucket before any production claim |

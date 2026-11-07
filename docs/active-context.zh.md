@@ -6,7 +6,7 @@
 
 - **版本阶段**：MVP-0 —— 工作台在本地跑通。
 - **核心业务价值**：agent 在工作台里按 `.spec` 规格与任务状态机工作，改动有契约、有证据、可复核。
-- **关键交付物**：kernel 挂载并注册十个工具与 `/contract_sign` 人机命令；右栏工作台三栏；文件投影读出任务、规则与契约。
+- **关键交付物**：kernel 挂载后按 `packages/lcoder/kernel/src/kernel/surface.ts` 的角色表注册模型工具，并注册包含 `/contract_sign` 的人机命令；右栏工作台三栏；文件投影读出任务、规则与契约。
 
 ## 02. 任务看板 (Task Board)
 
@@ -34,17 +34,15 @@
   - 悬浮对话通过会话控制器发送启动咒语，并从会话事件窗口渲染真实用户/助手文本；输入框继续同一会话。kernel 的 `file_read`/`file_edit` 改用仓库根，`env.yaml` 与证据仍留在 `.spec`。
   - 桌面 profile 的 LCoder 预设已改为挂载 `@lcoder/kernel`；旧 WorkBuddy 包链接在 T-09 清理。
 - **风险与技术债记录**：
-  - 契约签署通道未实现，P3 只能人工写 YAML。
-  - `task_transition` 没有工具入口。
-  - 产品示例 `DEMO-01` 处于 `drafting`，尚无契约；示例 `env.yaml` 已就位。
-  - edit 工具的 `file_read` / `file_edit` 仍以规格根为边界；真实仓库验收时需确认是否应改用仓库根。
-  - 桌面 profile 仍同时链接旧的 `WorkBuddy/LCoder` 包与当前 `@lcoder/*` 包；外壳成为唯一 LCoder 界面后可移除旧预设。
-  - 悬浮对话只渲染最终用户/助手文本，不含完整 DSH 会话 UI（工具卡片、逐 token 流式）。
-  - 演示仓库没有 `.spec/local.yaml`，抽屉眼睛显示「未配置」；本机解析路径已实现但尚未实测。
-  - 任务板读取所选工作区的第一个会话；每个任务单独建会话尚未实现。
-  - 桌面端「打开仓库」不返回：`ctx.workspaces.create` 一直悬挂，而工作区列表读得动，全新 DSH_HOME 里建不出工作区与会话（T-12）；T-10 的桌面验收与 M0.4 都被它挡住。
-  - kernel 在桌面 profile 被装载两遍（`preset-lcoder` 段与 `lcoder-kernel` 两处 insert），启动日志里「已注册 10 个工具」出现两次。
-  - 真实运行起草了 `.spec/contracts/DEMO-01.contract.yaml`（未签署、未跟踪）；保留还是丢弃由产品决定。
+  - 签署走人机命令 `/contract_sign`：宿主复算契约正文哈希后写 `sig`，`/task_contract` 在任务进入 `contracted` 前再复核签名；三闸不全的 agent 签名会被拒。
+  - 任务状态没有独立迁移工具：`/task_contract` 把已签任务从 `drafting` 推到 `contracted`，`task_close` 负责收口，`task_transition` 不存在。
+  - `DEMO-01` 处于 `drafting`；`.spec/contracts/DEMO-01.contract.yaml` 已入库但 `sig: null`，示例 `env.yaml` 已就位。
+  - `file_read` 与 `file_edit` 以仓库根为边界；规格根只保留 `env.yaml` 与证据。
+  - 桌面 profile 是九个角色 preset，各挂一份 `@lcoder/kernel`，没有全局 kernel 行，也不再引用 `WorkBuddy/LCoder`。
+  - 悬浮对话渲染流式正文与思考、贴底跟随、Markdown、审批与提问卡片；工具卡片尚未渲染。
+  - 演示仓库没有 `.spec/local.yaml`，抽屉眼睛显示「未配置」；本机解析路径已实现，但没有样例文件可读。
+  - 任务卡片按 `.spec/tasks/<ID>.yaml` 的 `session` 字段认领自己的会话；未绑定的卡片显示「未开始」，不借用别的会话状态。
+  - 「打开仓库」有 15 秒超时与可区分的超时/拒绝文案（T-17）；底层文档目录查询挂死属上游，本仓不修（T-12、T-15、T-16）。
 
 ## 04. 下一步即时行动 (Next Immediate Actions)
 

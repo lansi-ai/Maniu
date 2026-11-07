@@ -56,9 +56,10 @@ LCoder 从全新的应用数据开始。它不迁移、不复制、不重命名�
 
 ### 1.4 深链接与单实例
 
-- 唯一支持的深链接是 `lcoder://open`；它聚焦主窗口，应用没有窗口时创建主窗口。
-- 未知的 `lcoder://` 路径同样只聚焦主窗口，绝不执行参数、打开网址或启动任务。任务级路由已预留但未实现。
-- Windows 与 Linux 通过第二实例的参数表交付后一次启动；macOS 通过 `open-url` 交付。两条路径汇入同一个处理器，启动完成前到达的 `open-url` 事件会缓存，窗口出现后再重放。
+- 安装包注册 `lcoder` 方案，但应用层不路由任何 `lcoder://` 路径。`apps/desktop/src/main.ts` 把 `dsh` 注册为默认协议客户端，其 `open-url` 处理只匹配 `dsh://open` 与 `dsh://open/`。
+- 应用唯一解析的地址是 `dsh://open`：它聚焦主窗口，没有窗口时创建主窗口。任何 `lcoder://` 地址只会拉起或聚焦应用，不解析路径，也不执行参数、打开网址或启动任务。
+- 应用侧的 `lcoder://` 路由与任务级路由都未实现，属于后续工作。
+- Windows 与 Linux 通过 `second-instance` 事件交付后一次启动，macOS 通过 `open-url` 交付。`apps/desktop/src/single-instance.ts` 的 `second-instance` 监听不接收参数，所以这类启动只聚焦持有者；`open-url` 处理除 `dsh://open` 外的一切地址都不作反应。
 - 单实例锁仍是生命周期第一步。第二个进程转发参数后退出，只有持有者进程读写应用数据。
 
 ## 2. 更新源
@@ -245,7 +246,7 @@ LCoder 变量名是发布配置契约。打包环境加载器里的一步别名�
 | profile 的 documentsDirectory | 把写死的 Windows 路径换成两平台都存在的环境提供目录；Windows 规避保持有效 | lcoder/desktop-profile.patch.yml、lcoder/scripts/start-desktop.sh、lcoder/scripts/prepare-profile.mjs、lcoder/RUN.md | 两平台桌面启动都能应答工作区初始化；`storages/workspace.json` 登记出默认工作区 |
 | Git 工具 | 用 `git -C <root>` 加仓库相对路径；不假设 CRLF，也不假设已装 Windows Git | packages/lcoder/kernel/src/tools/git-tools.ts | 状态、差异与提交在 macOS 检出上无路径错误 |
 | 字体 | 系统预设先用平台中立字体栈，再列仅 Windows 字体；现代预设保留 Inter 与 Noto Sans SC | packages/lcoder/workspace/src/client/shell/Shell.module.css | macOS 实际渲染为 PingFang SC 或系统 UI 字体；深浅两套截图 |
-| 协议注册 | 在 macOS 应用包注册 `lcoder`，并把 `open-url` 路由到单实例处理器 | apps/desktop/scripts/electron-builder-config.mjs、apps/desktop/src/main.ts | 运行中执行 `open lcoder://open` 能聚焦；冷启动也能打开 |
+| 协议注册 | 在 macOS 应用包注册 `lcoder`；`open-url` 目前只认 `dsh://open`，把 `lcoder://` 路由列为后续工作 | apps/desktop/scripts/electron-builder-config.mjs、apps/desktop/src/main.ts | 运行中或冷启动执行 `open lcoder://open` 都能拉起或聚焦窗口；路由落地前不解析路径 |
 | 单实例 | 把第二次启动的参数（含协议 URL）转给持有者进程 | apps/desktop/src/single-instance.ts、apps/desktop/src/main.ts | 第二次启动不产生第二个窗口，并聚焦持有者 |
 | 数据与日志目录 | 验证由产品名派生的 macOS 应用数据与日志路径；不写 `~/.dsh` | apps/desktop/src/main.ts、docs/desktop-release.zh.md | 应用数据出现在 `~/Library/Application Support/LCoder`；日志在 `~/Library/Logs/LCoder` |
 | 更新 feed 与安装包格式 | 使用 `*-mac.yml`，ZIP 作更新载荷、DMG 作安装包，DMG 内不放 blockmap | apps/desktop/scripts/package-macos.ts、desktop-auto-update-environment.mjs | feed 指向 ZIP 及其 blockmap；干净 DMG 安装成功 |
@@ -304,7 +305,7 @@ LCoder 变量名是发布配置契约。打包环境加载器里的一步别名�
 | 任务 | 范围 | 依赖 | 验收 |
 |---|---|---|---|
 | T-77 | 本设计包：身份、更新源、体验、签名缺口、发布流程、macOS 矩阵、接触面、任务拆分 | T-76 | 文档、规则与台账更新；文档门禁全绿 |
-| T-78 | 身份与更新源：产品名、应用标识、协议、产物名、独立版本、COS 路径、环境别名、未签名更新开关 | T-77 | Windows 未签名包显示 LCoder 身份、可安装、能路由 `lcoder://open`、数据路径为 LCoder；真实上传不演练 |
+| T-78 | 身份与更新源：产品名、应用标识、协议、产物名、独立版本、COS 路径、环境别名、未签名更新开关 | T-77 | Windows 未签名包显示 LCoder 身份、可安装、数据路径为 LCoder；`lcoder://` 只拉起或聚焦窗口、不解析路径；真实上传不演练 |
 | T-79 | 更新体验：设置区、版本与通道显示、延迟启动检查、手动检查、全部状态、未签名不可用状态 | T-78 | 深浅主题下每个状态的桌面截图；日志证明延迟检查；无静默安装 |
 | T-80 | macOS 适配与未签名打包：窗口、菜单、Dock、快捷键、对话框、路径、shell、git、字体、协议、数据目录、arm64 与 x64 的 DMG/ZIP | T-78 | 两个架构在用户的 Mac 上启动；打开仓库；跑一次对话与一条命令；限制有文档 |
 | T-81 | COS 与 CDN 流水线：路径、别名、上传、固定下载、blockmap、缓存策略、刷新、回滚、dry-run、测试 | T-78 | 本地校验与 dry-run 通过；测试桶真实上传成功后才能谈生产 |
