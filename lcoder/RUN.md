@@ -170,6 +170,27 @@ pnpm --filter @lcoder/workspace bundle   # 只重打外壳产物；start:desktop
 
 还有一条本机偏离：worktree 首启动时 `@electron/get` 下载 Electron 会对本机 GitHub 超时，先对拷主仓 `apps/desktop/.desktop-build/downloads` 缓存并设 `ELECTRON_SKIP_BINARY_DOWNLOAD=1`，否则 `start:desktop` 以 `aborted due to timeout` 退出。web 冒烟用的 `.dsh-home/profiles/web` 同样要装两条 `link:`，少一条就报 `2 entries did not activate`。
 
+## 云端 mock（dev-only）
+
+登录、匿名立项与云端模型路由需要一个本机云端。仓库里有一份不打包进产物的 mock：
+
+```sh
+node lcoder/scripts/mock-cloud.mjs          # 监听 127.0.0.1:5091
+```
+
+- 端点与 `LCoder-cloud/docs/api/openapi.yaml` 的桌面接入面一致：`/v1/auth/sms/send`、`register`、`login/sms`、`login/password`、`refresh`、`logout`、`/v1/me`、`/v1/guest/sessions`、`/v1/guest/session`、`/v1/models`、`/v1/chat/completions`（SSE）。
+- 短信验证码固定 `123456`；access token 默认 900 秒，refresh token 每次刷新轮换。
+- 错误开关：
+  ```sh
+  curl -X POST http://127.0.0.1:5091/_mock/control -H 'content-type: application/json' \
+    -d '{"mode":"quota_exhausted"}'        # banned / upstream_unavailable / upstream_timeout / guest_quota_exhausted / rate_limited / null
+  curl -X POST http://127.0.0.1:5091/_mock/control -H 'content-type: application/json' \
+    -d '{"expireAccess":true}'             # 下一次模型请求 401 token_expired，宿主刷新后重试
+  curl http://127.0.0.1:5091/_mock/state   # 登录/刷新/对话/匿名领取计数
+  curl -X POST http://127.0.0.1:5091/_mock/control -H 'content-type: application/json' -d '{"reset":true}'
+  ```
+- 桌面与 web 的 profile 把两条 provider 路由的 BaseURL 指到 `http://127.0.0.1:5091/v1`；换成真云端时用 `LCODER_CLOUD_BASE_URL` 覆盖，不要改源码。
+
 ## 踩过的坑
 
 - **kill 掉 dev:web 不会带走子进程**（Windows）。`TaskStop` / Ctrl+C 只杀到 shell，

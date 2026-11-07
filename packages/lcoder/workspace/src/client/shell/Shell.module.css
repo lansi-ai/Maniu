@@ -455,19 +455,6 @@
 .tagDanger { color: var(--lc-status-danger); background: var(--lc-status-danger-soft); }
 .tagQueued { color: var(--lc-brand-ink); background: var(--lc-brand-soft); }
 
-.schedule { margin: 0 0 var(--lc-space-4); border: 1px solid var(--lc-line); border-radius: var(--lc-radius-md); padding: 10px 14px; background: var(--lc-surface-2); }
-.schedule summary { cursor: pointer; font: 600 var(--lc-text-sm) / var(--lc-leading-tight) var(--lc-font-ui); color: var(--lc-ink); }
-.scheduleHint { margin: 6px 0 10px; font-size: var(--lc-text-xs); color: var(--lc-faint); }
-.scheduleLabel { display: block; margin: 4px 0 6px; font-size: var(--lc-text-xs); color: var(--lc-faint); text-transform: uppercase; letter-spacing: 0.04em; }
-.scheduleReasons { margin: 4px 0 10px; padding-left: 20px; font-size: var(--lc-text-sm); color: var(--lc-muted); line-height: 1.65; }
-.scheduleList { display: flex; flex-direction: column; gap: 6px; }
-.scheduleCandidate { border: 1px solid var(--lc-line); border-radius: var(--lc-radius-sm); padding: 8px 10px; background: var(--lc-surface); }
-.scheduleCandidate[data-rejected='true'] { opacity: 0.72; }
-.scheduleHead { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.scheduleSession { font-size: var(--lc-text-sm); font-weight: 600; color: var(--lc-ink); overflow-wrap: anywhere; }
-.scheduleScore { font-size: var(--lc-text-xs); color: var(--lc-brand-ink); background: var(--lc-brand-soft); border-radius: 6px; padding: 2px 7px; }
-.scheduleSignals { margin-top: 4px; font-size: var(--lc-text-xs); color: var(--lc-muted); }
-.scheduleRejectedText { margin-top: 4px; font-size: var(--lc-text-xs); color: var(--lc-status-danger); }
 .empty { color: var(--lc-faint); font-size: var(--lc-text-sm); padding: 12px 4px; }
 .problems {
   margin-top: var(--lc-space-4); border: 1px solid var(--lc-line); border-radius: var(--lc-radius-md);
@@ -914,3 +901,105 @@
 .flowHistoryRow { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; font-size: var(--lc-text-xs); color: var(--lc-muted); border-bottom: 1px dashed var(--lc-line); padding-bottom: 4px; }
 .flowHistoryTime { font-family: var(--lc-font-mono); color: var(--lc-faint); white-space: nowrap; }
 .chatContext { margin: 2px 0 0; font-size: var(--lc-text-xs); color: var(--lc-faint); }
+
+/* 立项结果页：独立整页，沿用看板的卡片与 token；深浅主题都只读变量。 */
+.intakePage {
+  flex: 1; min-height: 0; overflow: auto;
+  padding: var(--lc-space-6) var(--lc-space-7) 40px;
+  display: grid; gap: var(--lc-space-5); align-content: start;
+}
+.intakeHead { display: flex; align-items: center; gap: var(--lc-space-3); }
+.intakeHead h2 {
+  margin: 0; font: 600 var(--lc-text-xl) / var(--lc-leading-tight) var(--lc-font-display);
+  letter-spacing: var(--lc-tracking-tight);
+}
+.intakeHeadHint { margin: 2px 0 0; font-size: var(--lc-text-sm); color: var(--lc-muted); }
+.intakeSection {
+  background: var(--lc-surface); border: 1px solid var(--lc-line);
+  border-radius: var(--lc-radius-lg); padding: var(--lc-space-5);
+  display: grid; gap: var(--lc-space-3);
+}
+.intakeSection h3 {
+  margin: 0; font-size: var(--lc-text-xs); letter-spacing: .08em;
+  text-transform: uppercase; color: var(--lc-faint);
+}
+.intakeSection h3.intakeTitle {
+  font: 600 var(--lc-text-lg) / var(--lc-leading-tight) var(--lc-font-display);
+  letter-spacing: var(--lc-tracking-tight); text-transform: none; color: var(--lc-ink);
+}
+.intakeProposalBar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--lc-space-2); }
+.intakeMuted { font-size: var(--lc-text-sm); color: var(--lc-muted); line-height: var(--lc-leading); }
+.intakeField { display: grid; gap: 4px; }
+.intakeFieldK { font-size: var(--lc-text-xs); color: var(--lc-faint); }
+.intakeFieldV { font-size: var(--lc-text-md); color: var(--lc-ink); line-height: var(--lc-leading); white-space: pre-wrap; }
+.intakeOptions { display: grid; gap: 8px; }
+.intakeOption {
+  border: 1px solid var(--lc-line); border-radius: var(--lc-radius-md);
+  background: var(--lc-surface-2); padding: 10px 12px; display: grid; gap: 4px;
+}
+.intakeOptionHead { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; }
+.intakeOptionName { font-size: var(--lc-text-sm); font-weight: 600; color: var(--lc-ink); }
+.intakeOptionCost { font-size: var(--lc-text-xs); color: var(--lc-muted); }
+.intakeList { display: grid; gap: 8px; }
+.intakeTask {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--lc-space-2);
+  border: 1px solid var(--lc-line); border-radius: var(--lc-radius-md);
+  background: var(--lc-surface-2); padding: 8px 12px;
+}
+.intakeTaskId { font: 600 var(--lc-text-xs) / 1 var(--lc-font-mono); color: var(--lc-muted); }
+.intakeTaskTitle { flex: 1; min-width: 0; font-size: var(--lc-text-sm); color: var(--lc-ink); overflow-wrap: anywhere; }
+
+/* 看板页头右侧的动作组：立项结果常驻，筛选按任务数出现。 */
+.boardActions { display: flex; align-items: center; gap: var(--lc-space-2); margin-left: auto; }
+.boardActions .filterToggle { margin-left: 0; }
+.pillBtn {
+  border: 1px solid var(--lc-line); background: var(--lc-surface); color: var(--lc-muted);
+  border-radius: var(--lc-radius-pill); padding: 5px 12px; white-space: nowrap;
+  font: 500 var(--lc-text-xs) / 1 var(--lc-font-ui); cursor: pointer;
+}
+.pillBtn:hover { background: var(--lc-hover); color: var(--lc-ink); }
+.pillBtn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ── 云端账号与登录门禁 ───────────────────────────────────── */
+.cloudButton {
+  display: inline-flex; align-items: center; gap: 8px;
+  min-height: 40px; max-width: 232px; padding: 5px 12px 5px 6px;
+  border: 1px solid var(--lc-line); border-radius: var(--lc-radius-pill);
+  background: var(--lc-surface); color: var(--lc-ink); text-align: left;
+}
+.cloudButton:hover { background: var(--lc-hover); }
+.cloudButtonSignedIn { background: var(--lc-brand-soft); border-color: color-mix(in srgb, var(--lc-brand) 32%, transparent); }
+.cloudAvatar {
+  width: 28px; height: 28px; flex: 0 0 28px;
+  display: grid; place-items: center;
+  border-radius: 50%; color: #fff; font-size: var(--lc-text-sm); font-weight: 700;
+  background: linear-gradient(135deg, var(--lc-brand), var(--lc-brand-2));
+}
+.cloudButtonText { display: grid; min-width: 0; line-height: 1.15; }
+.cloudButtonName { font-size: var(--lc-text-sm); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cloudButtonMeta { font-size: 11.5px; color: var(--lc-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cloudModal { width: min(520px, 100%); }
+.cloudTabs { display: flex; gap: 4px; padding: 3px; border-radius: var(--lc-radius-pill); background: var(--lc-surface-3); }
+.cloudTab {
+  flex: 1; border: 0; background: transparent; color: var(--lc-muted);
+  border-radius: var(--lc-radius-pill); padding: 7px 10px; font-size: var(--lc-text-sm);
+}
+.cloudTabActive { background: var(--lc-surface); color: var(--lc-ink); font-weight: 600; box-shadow: var(--lc-shadow-xs); }
+.cloudForm { display: grid; gap: var(--lc-space-3); }
+.cloudCodeRow { display: flex; align-items: center; gap: var(--lc-space-2); }
+.cloudHint { margin: 0; font-size: var(--lc-text-xs); color: var(--lc-status-ok); }
+.cloudErrorBox {
+  display: grid; gap: 4px; padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--lc-status-danger) 28%, transparent);
+  border-radius: var(--lc-radius-md); background: var(--lc-status-danger-soft);
+  color: var(--lc-ink); font-size: var(--lc-text-xs);
+}
+.cloudErrorBox strong { font-size: var(--lc-text-sm); color: var(--lc-status-danger); }
+.cloudRequestId { color: var(--lc-faint); font-family: var(--lc-font-mono); word-break: break-all; }
+.cloudGuestLine { margin: 0; padding-top: var(--lc-space-2); border-top: 1px solid var(--lc-line); color: var(--lc-muted); font-size: var(--lc-text-xs); }
+.cloudAccountGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--lc-space-3); }
+.cloudMetric { display: grid; gap: 3px; padding: 12px 14px; border: 1px solid var(--lc-line); border-radius: var(--lc-radius-md); background: var(--lc-surface-2); }
+.cloudMetricLabel { font-size: var(--lc-text-xs); color: var(--lc-faint); }
+.cloudMetricValue { font-size: var(--lc-text-lg); font-weight: 700; letter-spacing: var(--lc-tracking-tight); }
+.cloudMetricHint { font-size: var(--lc-text-xs); color: var(--lc-muted); }
+.cloudActions { display: flex; align-items: center; gap: var(--lc-space-2); flex-wrap: wrap; }

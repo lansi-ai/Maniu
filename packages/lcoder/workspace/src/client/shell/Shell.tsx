@@ -44,6 +44,17 @@ import type { TaskCardStatus, TaskQueueMark, TaskSessionRow } from '../task-sess
 import { EMPTY_TASK_FILTER, filterTasks, isFilterActive, TASK_GRADE_CHOICES } from '../task-filter.ts'
 import type { SessionFilter, TaskFilter } from '../task-filter.ts'
 import { onboardingAction } from '../onboarding.ts'
+import { intakeArtifactsOf, intakeTierOfMessages, PROPOSAL_DECISION, runIntakeRestart } from './intake.ts'
+import type { IntakeTier } from './intake.ts'
+import { IntakeResultPage, IntakeRestartDialog } from './IntakeResultPage.tsx'
+import { CloudAccountButton, CloudDialog } from '../cloud/CloudAccount.tsx'
+import type { CloudDialogMode } from '../cloud/CloudAccount.tsx'
+import { gateEntry } from '../cloud/gate.ts'
+import { cloudErrorKey, cloudNextKey } from '../cloud/errors.ts'
+import type { CloudGateEntry } from '../cloud/gate.ts'
+import type { CloudFace } from '../cloud/face.ts'
+import { useCloudSession } from '../cloud/use-cloud.ts'
+import { CLOUD_GUEST_ROUTE } from '../cloud/routes.ts'
 import { buildIntakePrompt, buildOnboardingPrompt, buildShellPrompt, SHELL_STATES, TASK_FLOW_MENTION_PREFIX } from './shell-data.ts'
 import { ChatTranscript, PendingInteractionCard } from './ChatPanel.tsx'
 import { ChatAttachButton, ChatAttachmentList, ChatModelChip } from './ChatExtras.tsx'
@@ -130,6 +141,8 @@ export type ShellProps =
     readonly holdSession?: (sessionId: SessionId) => () => void
     /** 普通档对话窗尺寸（像素）；最大化档始终占满应用。配置缺省时用内置默认值。 */
     readonly chatSize?: { readonly width: number; readonly height: number }
+    /** 云端登录与匿名授权面；缺省时显示「云端未装配」。 */
+    readonly cloud?: CloudFace
   }
 
 /** 配置没给尺寸时的普通档默认值；最大化档不读配置。 */
@@ -143,6 +156,19 @@ const STATE_LABEL = {
   verifying: 'shell.verifying',
   closed: 'shell.closed',
 } as const
+
+/** 门禁入口到既有按钮文案的映射；登录提示里用同一句话。 */
+const CLOUD_ENTRY_LABEL: Record<CloudGateEntry, LcoderWorkspaceKey> = {
+  onboarding: 'shell.onboardingExistingDocs',
+  onboardingFollowup: 'shell.chatHint',
+  newSession: 'shell.newSession',
+  agentSession: 'shell.openScheduler',
+  taskConversation: 'shell.startChat',
+  contractSign: 'shell.sign',
+  proposalApprove: 'shell.approveProposal',
+  flowBatch: 'shell.startWork',
+  modelSettings: 'shell.modelServices',
+}
 
 /** 状态到色点的映射（CSS Modules 的类名在模块加载时确定）。 */
 const STATE_DOT: Record<ShellTaskState, string | undefined> = {
@@ -268,14 +294,6 @@ function percentOf(used: number, budget: number | undefined): number | null {
 
 const KNOWN_STATES: ReadonlySet<string> = new Set(SHELL_STATES.map(state => state.id))
 
-/** 方案决定态的文案键；`unknown` 表示文件里写着认识不了的值。 */
-const PROPOSAL_DECISION: Record<ProposalRow['decision'], LcoderWorkspaceKey> = {
-  draft: 'shell.proposalDraft',
-  approved: 'shell.proposalApproved',
-  rejected: 'shell.proposalRejected',
-  unknown: 'shell.proposalDecisionUnknown',
-}
-
 const SESSION_FILTER_CHOICES: readonly SessionFilter[] = ['any', 'claimed', 'active']
 
 const SESSION_FILTER_LABELS: Record<SessionFilter, LcoderWorkspaceKey> = {
@@ -328,7 +346,7 @@ export function Shell({
   readFlowStatus, logFlow, bindAgentSession, renameSession, readContextPressure,
   createSession, listRoles, listExperts, readExpert,
   readMessages, subscribeSession, holdSession, checkModels, subscribeModels, readSessionNotice, readSessionFlags, modelSettings,
-  useSessions, useSessionStatus, useWorkspaces, chatSize,
+  useSessions, useSessionStatus, useWorkspaces, chatSize, cloud,
 }: ShellProps): ReactNode {
   const workspaces = useWorkspaces(state => state.items)
   const sessionRows = useSessions(state => state.byId)
@@ -336,6 +354,9 @@ export function Shell({
   const sessionProjections = useSessions(state => state.projectionsBySession)
   /** 宿主推流的每会话状态；覆盖每个列出的会话，不需要 bind 也不需要开历史。 */
   const sessionStatus = useSessionStatus(state => state)
+  /** 云端登录状态；登录弹窗、顶栏与门禁共用这一份。 */
+  const cloudSession = useCloudSession(cloud)
+  const [cloudDialog, setCloudDialog] = useState<CloudDialogMode | null>(null)
 
   const [workspaceId, setWorkspaceId] = useState<string | null>(null)
   const [dark, setDark] = useState(false)
@@ -353,6 +374,16 @@ export function Shell({
   /** 普通档与最大化两档；关闭对话时回到普通档。 */
   const [chatMax, setChatMax] = useState(false)
   const [settings, setSettings] = useState(false)
+  /** 立项结果页：独立整页，打开时看板让位，不复用弹窗。 */
+  const [resultPage, setResultPage] = useState(false)
+  /** 重开确认框与它在途状态；浮层头与结果页共用同一套。 */
+  const [restartOpen, setRestartOpen] = useState(false)
+  const [restarting, setRestarting] = useState(false)
+  /**
+   * 开过浮层的立项会话档位。关闭浮层后消息窗口不再被持有，读不到消息；
+   * 这里只记住已经读到过的事实，换会话或换项目都不复用。
+   */
+  const [intakeTierHint, setIntakeTierHint] = useState<{ readonly sessionId: string; readonly tier: IntakeTier } | null>(null)
   const [drawer, setDrawer] = useState(false)
   const [revealed, setRevealed] = useState<Record<string, boolean>>({})
   const [copied, setCopied] = useState(false)
@@ -463,6 +494,53 @@ export function Shell({
   const specRoot = projectPath === '' ? '' : `${projectPath}/.spec`
   const hasWorkspace = workspace !== undefined
   const hasSession = sessionId !== undefined
+  const signedIn = cloudSession.state?.signedIn === true
+  const cloudUnavailable = cloud === undefined || !cloud.available
+    || cloudSession.error?.code === 'cloud_unavailable'
+  /** 当前会话绑的 provider；投影还没物化时读不到。 */
+  const sessionCloudProvider = (id: SessionId | undefined): string | undefined => {
+    if (id === undefined) return undefined
+    const summary = sessionRows[id]?.projectionValues?.modelSelection
+    const projected: unknown = summary ?? sessionProjections[id]?.values.modelSelection
+    if (typeof projected !== 'object' || projected === null) return undefined
+    const provider = (projected as { provider?: unknown }).provider
+    return typeof provider === 'string' ? provider : undefined
+  }
+  /** 匿名立项会话是唯一允许匿名继续追问的会话。 */
+  const onboardingSession = sessionCloudProvider(sessionId) === CLOUD_GUEST_ROUTE
+  const cloudFacts = {
+    signedIn,
+    loading: cloudSession.loading,
+    cloudUnavailable,
+    onboardingSession,
+  }
+  /** 聚焦登录手机号框；弹窗已经开着时只做这一件事。 */
+  const focusCloudPhone = (): void => {
+    setTimeout(() => { document.getElementById('lcoder-cloud-phone')?.focus() }, 0)
+  }
+  /** 弹登录；重复点击只聚焦，不发任何云端请求。 */
+  const openLogin = (entry: CloudGateEntry): void => {
+    if (cloudDialog !== null) { focusCloudPhone(); return }
+    setCloudDialog('login')
+    setChatError(fill(t('shell.cloudGateNotice'), { entry: t(CLOUD_ENTRY_LABEL[entry]) }))
+    focusCloudPhone()
+  }
+  /** 需要用户令牌的入口统一走这里。 */
+  const requireUser = (entry: CloudGateEntry): boolean => {
+    const decision = gateEntry(entry, cloudFacts)
+    if (decision.kind === 'allow') return true
+    if (decision.kind === 'login') { openLogin(entry); return false }
+    setChatError(decision.reason === 'loading' ? t('shell.cloudGateLoading') : t('shell.cloudGateUnavailable'))
+    return false
+  }
+  /** 把会话切到用户或匿名路由；失败就地提示，不偷偷换别的模型。 */
+  const routeSession = async (id: SessionId, mode: 'user' | 'guest'): Promise<boolean> => {
+    if (cloud === undefined) { setChatError(t('shell.cloudGateUnavailable')); return false }
+    const routed = await cloud.selectRoute(id, mode)
+    if (routed.ok) return true
+    setChatError(fill(t('shell.cloudSwitchFailed'), { detail: routed.error.code }))
+    return false
+  }
   /** 本工作区登记在册的会话，按上游顺序；顶栏的会话条就按这条列表排。 */
   const workspaceSessions = workspace?.sessionIds ?? []
   /** 同一批会话折成归属与状态需要的形状（带 running 与 blank）。 */
@@ -647,21 +725,6 @@ export function Shell({
     return `${t('shell.sessions')} ${String(index + 1)}`
   }
 
-  /** 调度段里用稳定称呼：会话序号 + 当前认领的任务标题，避免只看到一串会话号。 */
-  const schedulingLabel = (id: string): string => {
-    const index = workspaceSessions.findIndex(candidate => String(candidate) === id)
-    const base = `${t('shell.sessions')} ${String(index + 1)}`
-    const bound = tasks.find(task => task.session === id)
-    return bound === undefined ? base : `${base} · ${bound.title}`
-  }
-
-  /** 把内核理由里的会话号换成界面上的短称呼；显示用，落盘仍是原始 id。 */
-  const humanizeSessions = (text: string): string =>
-    workspaceSessions.reduce(
-      (result, id) => result.replaceAll(String(id), schedulingLabel(String(id))),
-      text,
-    )
-
   /**
    * 本任务所在的联调组：优先读投影里的组文件（刷新后仍在），
    * 投影还没跟上时退回本次判定刚记下的组。
@@ -702,6 +765,28 @@ export function Shell({
   const chatRunning = chatSessionId === undefined
     ? false
     : sessionStatus.get(chatSessionId)?.running ?? sessionRows[chatSessionId]?.running ?? false
+  /** 浮层这条会话是不是立项会话、是哪一档；消息窗口读不到就不猜。 */
+  const chatIntakeTier = chat === null ? null : intakeTierOfMessages(messages)
+  /** 读到过就记住：关闭浮层后结果页仍能按同一档重开。 */
+  useEffect(() => {
+    if (chatSessionId === undefined || chatIntakeTier === null) return
+    setIntakeTierHint({ sessionId: String(chatSessionId), tier: chatIntakeTier })
+  }, [chatSessionId, chatIntakeTier])
+  /** 结果页与确认框读当前会话的档位；消息窗口读不到时用开过浮层的那次事实。 */
+  const currentIntakeTier = useMemo(() => {
+    const fromWindow = sessionId === undefined || readMessages === undefined
+      ? null
+      : intakeTierOfMessages(readMessages(sessionId))
+    if (fromWindow !== null) return fromWindow
+    return sessionId !== undefined && intakeTierHint?.sessionId === String(sessionId)
+      ? intakeTierHint.tier
+      : null
+  }, [sessionId, readMessages, messages, reload, intakeTierHint])
+  /** 重开确认框列的已有产物；零也照实显示。 */
+  const restartArtifacts = useMemo(
+    () => intakeArtifactsOf({ info, rules: rulesCount, tasks, proposals: proposals.length }),
+    [info, rulesCount, tasks, proposals],
+  )
   /** 这条会话当前等人处理的那一条审批或提问；上游插件发布，外壳只负责画与转交答案。 */
   const chatPending = chatSessionId === undefined ? undefined : sessionStatus.get(chatSessionId)?.pendingInteraction
   const resolvedChatSize = chatSize ?? DEFAULT_CHAT_SIZE
@@ -1045,6 +1130,10 @@ export function Shell({
    */
   const signSelected = async (): Promise<void> => {
     if (detail === null || sessionId === undefined || signContract === undefined) return
+    if (!requireUser('contractSign')) {
+      setSignResult({ ok: false, text: fill(t('shell.cloudGateNotice'), { entry: t(CLOUD_ENTRY_LABEL.contractSign) }) })
+      return
+    }
     setSigning(true)
     setSignResult(null)
     try {
@@ -1061,6 +1150,10 @@ export function Shell({
   /** 把选中任务推到「已签约」。签名与状态分写，这一步失败不会动签名。 */
   const advanceSelected = async (): Promise<void> => {
     if (detail === null || sessionId === undefined || advanceContract === undefined) return
+    if (!requireUser('contractSign')) {
+      setAdvanceResult({ ok: false, text: fill(t('shell.cloudGateNotice'), { entry: t(CLOUD_ENTRY_LABEL.contractSign) }) })
+      return
+    }
     setAdvancing(true)
     setAdvanceResult(null)
     try {
@@ -1077,6 +1170,10 @@ export function Shell({
   /** 采纳选中任务的方案：正文一个字都不动，只把决定态与结论时刻写下。 */
   const approveSelected = async (): Promise<void> => {
     if (detail?.proposal === undefined || sessionId === undefined || approveProposal === undefined) return
+    if (!requireUser('proposalApprove')) {
+      setApproveResult({ ok: false, text: fill(t('shell.cloudGateNotice'), { entry: t(CLOUD_ENTRY_LABEL.proposalApprove) }) })
+      return
+    }
     setApproving(true)
     setApproveResult(null)
     try {
@@ -1189,6 +1286,9 @@ export function Shell({
    * 直接发出去的是上一任务的文本。
    */
   const openTaskConversation = async (task: ShellTask): Promise<FlowRunResult> => {
+    if (!requireUser('taskConversation')) {
+      return { taskId: task.id, ok: false, held: false, text: t('shell.cloudSessionGate') }
+    }
     const decision = decideScheduling(schedulingTaskOf(task), schedulingSessions(), knownStates)
     const at = new Date().toISOString()
     const text = promptOf(task, decision)
@@ -1258,6 +1358,12 @@ export function Shell({
       }
       setClaiming(true)
       try {
+        const targetProvider = sessionCloudProvider(target)
+        if (signedIn && (targetProvider === undefined || targetProvider === CLOUD_GUEST_ROUTE)) {
+          if (!await routeSession(target, 'user')) {
+            return { taskId: task.id, ok: false, held: false, text: t('shell.cloudSessionGate') }
+          }
+        }
         if (shouldBind) {
           const claimed = await bindTask(target, task.id)
           if (!claimed.ok) throw new Error(claimed.text)
@@ -1283,8 +1389,10 @@ export function Shell({
     }
     setClaiming(true)
     try {
-      const created = await createSession(projectPath, roleChoice ?? undefined)
-      if (roleChoice !== null) setSessionRoles(current => ({ ...current, [String(created)]: roleChoice }))
+      // 任务对话总是按宿主默认角色开会话：角色选择只服务顶栏「＋」弹窗，
+      // 这里读 roleChoice 会把上一次弹窗里的选择带进任务。
+      const created = await createSession(projectPath)
+      if (signedIn) await routeSession(created, 'user')
       const claimed = await bindTask(created, task.id)
       if (!claimed.ok) throw new Error(claimed.text)
       setSessionOverride(created)
@@ -1370,6 +1478,10 @@ export function Shell({
    */
   const runFlow = async (ids: readonly string[]): Promise<void> => {
     if (flow === null || flowRunning) return
+    if (!requireUser('flowBatch')) {
+      setFlowError(t('shell.cloudSessionGate'))
+      return
+    }
     const selected = new Set(ids)
     const plans = flow.tasks.filter(plan => selected.has(plan.id))
     if (plans.length === 0) {
@@ -1410,6 +1522,10 @@ export function Shell({
   /** 开始选中的任务；`retryOnly` 只重跑上次失败（被按住的不算失败）。 */
   const startFlow = (retryOnly = false): void => {
     if (flow === null || flowRunning) return
+    if (!requireUser('flowBatch')) {
+      setFlowError(t('shell.cloudSessionGate'))
+      return
+    }
     const ids = retryOnly
       ? flowResults.filter(result => !result.ok && !result.held).map(result => result.taskId)
       : [...flowSelection]
@@ -1448,6 +1564,7 @@ export function Shell({
    */
   const openSingleton = async (role: AgentRole): Promise<void> => {
     if (singletonBusy.current) return
+    if (!requireUser('agentSession')) return
     if (workspace === undefined || projectPath === '') {
       setChatError(t('shell.singletonNoWorkspace'))
       return
@@ -1484,6 +1601,7 @@ export function Shell({
     try {
       if (createSession === undefined) throw new Error(t('shell.noSession'))
       const created = await createSession(projectPath, AGENT_ROLES[role].preset)
+      if (signedIn) await routeSession(created, 'user')
       setSessionOverride(created)
       setDetail(null)
       setChat(pseudoChat(title))
@@ -1517,10 +1635,12 @@ export function Shell({
    * 认领关系仍由任务卡那一步写，这里不碰 `.spec`。
    */
   const newPlainSession = (): void => {
+    if (!requireUser('newSession')) return
     if (createSession === undefined || projectPath === '') return
     setClaiming(true)
     void (async () => {
       const created = await createSession(projectPath, roleChoice ?? undefined)
+      if (signedIn) await routeSession(created, 'user')
       setSessionOverride(created)
       setRolePicker(false)
       setChat(null)
@@ -1544,6 +1664,11 @@ export function Shell({
    * 重开窗口之后再点任一按钮都不会再发一遍。
    */
   const startOnboarding = (kind: 'new' | 'docs'): void => {
+    const gate = gateEntry('onboarding', cloudFacts)
+    if (gate.kind === 'blocked') {
+      setChatError(gate.reason === 'loading' ? t('shell.cloudGateLoading') : t('shell.cloudGateUnavailable'))
+      return
+    }
     const project = { name: projectName, path: projectPath, branch: projectBranch }
     const text = kind === 'new'
       ? buildIntakePrompt(project)
@@ -1569,10 +1694,84 @@ export function Shell({
     }
     if (action.kind === 'open' || sessionId === undefined || sendPrompt === undefined) return
     onboardingSending.current = true
-    void sendPrompt(sessionId, text).catch((error: unknown) => {
+    setChatError(t('shell.cloudGuestClaiming'))
+    void (async () => {
+      try {
+        if (signedIn) {
+          if (!await routeSession(sessionId, 'user')) return
+        } else {
+          if (cloud === undefined) { setChatError(t('shell.cloudGateUnavailable')); return }
+          const claimed = await cloud.claimGuest({})
+          if (!claimed.ok) {
+            setChatError(fill(t('shell.cloudClaimFailed'), { detail: claimed.error.code }))
+            if (claimed.error.code === 'guest_quota_exhausted'
+              || claimed.error.code === 'guest_expired'
+              || claimed.error.code === 'guest_ip_limited'
+              || claimed.error.code === 'device_already_granted') openLogin('onboarding')
+            return
+          }
+          if (!await routeSession(sessionId, 'guest')) return
+        }
+        setChatError(null)
+        await sendPrompt(sessionId, text)
+        void cloudSession.refresh()
+      } catch (error: unknown) {
+        setChatError(fill(t('shell.cloudClaimFailed'), { detail: String(error) }))
+      } finally {
+        onboardingSending.current = false
+      }
+    })()
+  }
+
+  /** 重开前的确认：计数是当前投影的事实，零也照实列出来。 */
+  const requestIntakeRestart = (): void => {
+    if (restarting || onboardingSending.current) return
+    setRestartOpen(true)
+  }
+
+  /**
+   * 确认后按原档位新建会话并重发咒语。
+   *
+   * 旧会话与已落盘内容一概不动；建会话失败只报原文，发送失败则新会话已经存在，
+   * 照实切过去并把错误留在浮层里。
+   */
+  const confirmIntakeRestart = (): void => {
+    const tier = currentIntakeTier
+    setRestartOpen(false)
+    if (tier === null) {
+      setChatError(t('shell.restartIntakeUnknown'))
+      return
+    }
+    if (projectPath === '' || createSession === undefined || sendPrompt === undefined) {
+      setChatError(t('shell.noSession'))
+      return
+    }
+    if (onboardingSending.current) return
+    onboardingSending.current = true
+    setRestarting(true)
+    setChatError(null)
+    void runIntakeRestart({
+      tier,
+      project: { name: projectName, path: projectPath, branch: projectBranch },
+      docs: info?.docs ?? { product: '', architecture: '', tests: '' },
+      path: projectPath,
+      createSession: path => createSession(path),
+      sendPrompt,
+    }).then((outcome) => {
+      if (outcome.kind === 'create-failed') {
+        setChatError(outcome.error)
+        return
+      }
+      setSessionOverride(outcome.sessionId)
+      setReload(value => value + 1)
+      setResultPage(false)
+      setChat(pseudoChat(t('shell.onboardingChat')))
+      if (outcome.kind === 'send-failed') setChatError(outcome.error)
+    }, (error: unknown) => {
       setChatError(String(error))
     }).finally(() => {
       onboardingSending.current = false
+      setRestarting(false)
     })
   }
 
@@ -1685,6 +1884,26 @@ export function Shell({
   const sendDraft = async (): Promise<void> => {
     if (sendingRef.current || chatSessionId === undefined || sendPrompt === undefined
       || promptIsEmpty(draft, attachments) || !chatAttachmentsReady || modelBlocked) return
+    const sendGate = gateEntry('onboardingFollowup', cloudFacts)
+    if (sendGate.kind === 'login') {
+      openLogin('onboardingFollowup')
+      setChatError(t('shell.cloudSessionGate'))
+      return
+    }
+    if (sendGate.kind === 'blocked') {
+      setChatError(sendGate.reason === 'loading' ? t('shell.cloudGateLoading') : t('shell.cloudGateUnavailable'))
+      return
+    }
+    if (!signedIn && cloudSession.state?.guestExpired === true) {
+      openLogin('onboardingFollowup')
+      setChatError(t('shell.cloudErrorGuestExpired'))
+      return
+    }
+    if (signedIn) {
+      const provider = sessionCloudProvider(chatSessionId)
+      if ((provider === undefined || provider === CLOUD_GUEST_ROUTE)
+        && !await routeSession(chatSessionId, 'user')) return
+    }
     const text = draft.trim()
     setChatError(null)
     setAttachError(null)
@@ -1695,6 +1914,7 @@ export function Shell({
       setDraft('')
       setAttachments([])
       attachmentFiles.current.clear()
+      void cloudSession.refresh()
     } catch (error: unknown) {
       // 失败保留草稿与附件：宿主拒绝图片附件时尤其要让人能换模型后重发。
       const failure = promptFailureOf(error)
@@ -1877,7 +2097,10 @@ export function Shell({
               className={css.sessionAdd}
               title={t('shell.newSession')}
               disabled={createSession === undefined || claiming}
-              onClick={() => { setRolePicker(true) }}
+              onClick={() => {
+                if (!requireUser('newSession')) return
+                setRolePicker(true)
+              }}
             >
               ＋
             </button>
@@ -1911,6 +2134,17 @@ export function Shell({
           </button>
         )}
         <div className={css.spacer} />
+        <CloudAccountButton
+          state={cloudSession.state}
+          loading={cloudSession.loading}
+          t={t}
+          onClick={() => {
+            if (cloudDialog === 'login') { focusCloudPhone(); return }
+            if (cloudDialog !== null) return
+            setCloudDialog(signedIn ? 'account' : 'login')
+            if (!signedIn) focusCloudPhone()
+          }}
+        />
         <button type="button" className={css.secondaryBtn} onClick={() => { setDrawer(true) }}>ⓘ {t('shell.projectInfo')}</button>
         <button type="button" className={css.iconBtn} title={t('shell.theme')} onClick={() => { setDark(value => !value) }}>◐</button>
         <button type="button" className={css.iconBtn} title={t('shell.settings')} onClick={() => { setSettings(true) }}>⚙</button>
@@ -1948,7 +2182,21 @@ export function Shell({
       </header>
 
       <main className={css.main}>
-        <div className={css.boardWrap}>
+        {resultPage ? (
+          <IntakeResultPage
+            t={t}
+            proposals={proposals}
+            tasks={tasks}
+            info={info}
+            problems={problems}
+            modelBlocked={modelBlocked}
+            canRestart={currentIntakeTier !== null}
+            onBack={() => { setResultPage(false) }}
+            onRestart={requestIntakeRestart}
+            onStartOnboarding={(kind) => { setResultPage(false); startOnboarding(kind) }}
+          />
+        ) : null}
+        {resultPage ? null : <div className={css.boardWrap}>
           <div className={css.boardHead}>
             <h3>{t('shell.board')}</h3>
             <span className={css.boardHint}>{t('shell.boardHint')}</span>
@@ -1965,16 +2213,23 @@ export function Shell({
                   : <span className={css.flowBarBlocked}>{flow.decision.blockers.map(blocker => t(FLOW_BLOCKER_LABEL[blocker.kind])).join(' / ')}</span>}
               </button>
             )}
-            {tasks.length === 0 ? null : (
-              <button
-                type="button"
-                className={`${css.filterToggle} ${isFilterActive(filter) ? css.filterToggleOn : ''}`}
-                onClick={() => { setFilterOpen(open => !open) }}
-              >
-                {t('shell.filter')}
-                {isFilterActive(filter) ? <span className={css.filterCount}>{String(visibleTasks.length)}</span> : null}
-              </button>
-            )}
+            <div className={css.boardActions}>
+              {!hasWorkspace || !hasSession ? null : (
+                <button type="button" className={css.pillBtn} onClick={() => { setResultPage(true) }}>
+                  {t('shell.intakeResult')}
+                </button>
+              )}
+              {tasks.length === 0 ? null : (
+                <button
+                  type="button"
+                  className={`${css.filterToggle} ${isFilterActive(filter) ? css.filterToggleOn : ''}`}
+                  onClick={() => { setFilterOpen(open => !open) }}
+                >
+                  {t('shell.filter')}
+                  {isFilterActive(filter) ? <span className={css.filterCount}>{String(visibleTasks.length)}</span> : null}
+                </button>
+              )}
+            </div>
           </div>
           {filterOpen && tasks.length > 0 ? (
             <div className={css.filterPanel}>
@@ -2072,7 +2327,7 @@ export function Shell({
                     ) : null}
                   </>
                 )}
-        </div>
+        </div>}
       </main>
 
       {drawer ? (
@@ -2175,7 +2430,7 @@ export function Shell({
                           type="button"
                           key={id}
                           className={`${css.projectOption} ${id === activeWorkspaceId ? css.projectOptionActive : ''}`}
-                          onClick={() => { setWorkspaceId(id); setSessionOverride(null); setProjectPicker(false) }}
+                          onClick={() => { setWorkspaceId(id); setSessionOverride(null); setProjectPicker(false); setResultPage(false) }}
                         >
                           <span className={css.psLogo}>{(item.title || 'L').slice(0, 1).toUpperCase()}</span>
                           <span className={css.poText}>
@@ -2552,53 +2807,14 @@ export function Shell({
                 <div className={css.meta}><div className={css.metaK}>{t('shell.evidence')}</div><div className={css.metaV}>{detail.evidence.join(', ') || '—'}</div></div>
                 <div className={css.meta}><div className={css.metaK}>{t('shell.surface')}</div><div className={css.metaV}>{detail.surface}</div></div>
               </div>
-              <details className={css.schedule}>
-                <summary>{t('shell.schedule')}</summary>
-                <p className={css.scheduleHint}>{t('shell.scheduleHint')}</p>
-                {detailSchedule === undefined ? <p className={css.empty}>{t('shell.scheduleEmpty')}</p> : (
-                  <>
-                    <ol className={css.scheduleReasons}>
-                      {detailSchedule.decision.reasons.map(reason => <li key={reason}>{humanizeSessions(reason)}</li>)}
-                      {detailSchedule.decision.joint === undefined
-                        ? null
-                        : (
-                          <li key="joint">
-                            {fill(t('shell.scheduleJoint'), { members: detailSchedule.decision.joint.members.join('、') })}
-                          </li>
-                        )}
-                    </ol>
-                    <span className={css.scheduleLabel}>{t('shell.scheduleCandidates')}</span>
-                    {detailSchedule.decision.candidates.length === 0
-                      ? <p className={css.empty}>{t('shell.scheduleNone')}</p>
-                      : (
-                        <div className={css.scheduleList}>
-                          {detailSchedule.decision.candidates.map(candidate => (
-                            <div key={candidate.sessionId} className={css.scheduleCandidate} data-rejected={candidate.rejected === undefined ? undefined : 'true'}>
-                              <div className={css.scheduleHead}>
-                                <span className={css.scheduleSession}>{schedulingLabel(candidate.sessionId)}</span>
-                                <span className={css.scheduleScore}>{fill(t('shell.scheduleScore'), { score: candidate.score })}</span>
-                                {candidate.rejected === undefined
-                                  ? null
-                                  : <span className={`${css.tag} ${css.tagDanger}`}>{t('shell.scheduleRejected')}</span>}
-                              </div>
-                              {candidate.signals.length === 0
-                                ? null
-                                : <div className={css.scheduleSignals}>{t('shell.scheduleSignals')}：{candidate.signals.join('；')}</div>}
-                              {candidate.rejected === undefined
-                                ? null
-                                : <div className={css.scheduleRejectedText}>{candidate.rejected}</div>}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                  </>
-                )}
-                {detailSchedule === undefined || scheduleErrors[detail.id] === undefined
-                  ? null
-                  : <p className={css.problem}>{fill(t('shell.scheduleLogFailed'), { detail: scheduleErrors[detail.id] ?? '' })}</p>}
-              </details>
+              {detailSchedule === undefined || scheduleErrors[detail.id] === undefined
+                ? null
+                : <p className={css.problem}>{fill(t('shell.scheduleLogFailed'), { detail: scheduleErrors[detail.id] ?? '' })}</p>}
               <div className={css.field}>
-                <label>{t('shell.contract')} <span className={css.labelHint}>{t('shell.contractHint')}</span></label>
+                <label>
+                  {t('shell.contract')}
+                  {detailContract === undefined ? null : <span className={css.labelHint}> {t('shell.contractHint')}</span>}
+                </label>
                 {detailContract === undefined ? (
                   <p className={css.empty}>{t('shell.contractMissing')}</p>
                 ) : (
@@ -2690,7 +2906,6 @@ export function Shell({
                   )}
                 </div>
               )}
-              {liveSessionOf(detail) !== undefined ? null : roleChoices}
               <div className={css.field}>
                 <label>{t('shell.startPrompt')} <span className={css.labelHint}>{t('shell.promptHint')}</span></label>
                 <textarea className={css.promptBox} value={prompt} onChange={(event) => { setPrompt(event.target.value) }} />
@@ -2739,6 +2954,17 @@ export function Shell({
                   selection={chatModelSelection}
                   onChanged={() => { modelRefresh.current() }}
                 />
+                {chatIntakeTier === null ? null : (
+                  <button
+                    type="button"
+                    className={css.pillBtn}
+                    disabled={chatRunning || sending || restarting}
+                    title={chatRunning ? t('shell.restartIntakeRunning') : undefined}
+                    onClick={requestIntakeRestart}
+                  >
+                    {t('shell.restartIntake')}
+                  </button>
+                )}
                 <span className={css.pill}>{chatRunning ? t('shell.running') : t('shell.chatReady')}</span>
                 <button
                   type="button"
@@ -2760,7 +2986,19 @@ export function Shell({
               <div className={css.chatBody} ref={chatBodyRef}>
                 <ChatTranscript messages={messages} running={chatRunning} t={t} />
                 {chatError === null ? null : <p className={css.problem}>{chatError}</p>}
-                {notice === null ? null : <p className={css.problem}>{`${t(notice.key)} ${notice.detail}`}</p>}
+                {notice === null ? null : notice.code === undefined
+                  ? <p className={css.problem}>{`${t(notice.key)} ${notice.detail}`}</p>
+                  : (
+                    <div className={css.problem}>
+                      <p className={css.problem}>{t(cloudErrorKey(notice.code))}</p>
+                      {notice.requestId === undefined
+                        ? null
+                        : <p className={css.secretRef}>{t('shell.cloudRequestId')}: {notice.requestId}</p>}
+                      {cloudNextKey(notice.code) === undefined
+                        ? null
+                        : <p className={css.secretRef}>{t(cloudNextKey(notice.code) as LcoderWorkspaceKey)}</p>}
+                    </div>
+                  )}
                 {modelStatus === null || modelStatus.state === 'ready' ? null : (
                   <p className={css.problem}>
                     {modelStatus.detail === ''
@@ -2827,6 +3065,16 @@ export function Shell({
         </div>
       ) : null}
 
+      {restartOpen ? (
+        <IntakeRestartDialog
+          t={t}
+          artifacts={restartArtifacts}
+          busy={restarting}
+          onCancel={() => { if (!restarting) setRestartOpen(false) }}
+          onConfirm={confirmIntakeRestart}
+        />
+      ) : null}
+
       {settings ? (
         <div className={css.modalBackdrop} onClick={(event) => { if (event.target === event.currentTarget) setSettings(false) }}>
           <div className={`${css.modal} ${css.settingsModal}`}>
@@ -2837,14 +3085,16 @@ export function Shell({
             <div className={css.modalBody}>
               {modelSettings === undefined
                 ? null
-                : (
-                  <ModelSettings
-                    face={modelSettings}
-                    sessionId={sessionId}
-                    t={t}
-                    onChanged={() => { modelRefresh.current() }}
-                  />
-                )}
+                : cloud !== undefined && !signedIn
+                  ? <p className={css.modelNotice}>{t('shell.cloudModelSettingsLocked')}</p>
+                  : (
+                    <ModelSettings
+                      face={modelSettings}
+                      sessionId={sessionId}
+                      t={t}
+                      onChanged={() => { modelRefresh.current() }}
+                    />
+                  )}
               <div className={css.settingsGrid}>
                 <div className={css.settingRow}><div className={css.settingLabel}><span className={css.settingLabelB}>{t('shell.specRoot')}</span><span className={css.settingLabelSpan}>{specRoot || '—'}</span></div><span className={css.pill}>{t('shell.sessionBound')}</span></div>
                 <div className={css.settingRow}><div className={css.settingLabel}><span className={css.settingLabelB}>{t('shell.floating')}</span><span className={css.settingLabelSpan}>{t('shell.floatingHint')}</span></div><button type="button" className={`${css.switch} ${css.switchOn}`} /></div>
@@ -2923,6 +3173,18 @@ export function Shell({
           </div>
         </div>
       ) : null}
+
+      {cloudDialog === null ? null : (
+        <CloudDialog
+          mode={cloudDialog}
+          face={cloud}
+          state={cloudSession.state}
+          sessionId={chatSessionId ?? sessionId}
+          t={t}
+          onClose={() => { setCloudDialog(null); setChatError(null) }}
+          onChanged={() => { void cloudSession.refresh() }}
+        />
+      )}
 
       <div className={css.demoBadge}>{t('shell.brand')} · {t('shell.realData')}</div>
     </div>

@@ -34,7 +34,13 @@ declare module '@deepseek-ai/dsh-api-session-controller/client' {
   }
 }
 import type { SettingsNamespaceView } from '@deepseek-ai/dsh-api-remotes/client'
+import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
+import type { CloudResult } from '@lcoder/kernel/src/cloud/types.ts'
 import type { PromptContentPart } from '@deepseek-ai/dsh-api-session-controller/types'
+import cloudRemote from './cloud/remote.generated.ts'
+import { createCloudFace, unavailableCloudFace } from './cloud/face.ts'
+import type { CloudFace, CloudModelPort, CloudRemoteNamespace, CloudRemotePort } from './cloud/face.ts'
+import { CLOUD_GUEST_ROUTE, CLOUD_USER_ROUTE } from './cloud/routes.ts'
 import { ChatPromptError } from './shell/chat-composer.ts'
 import type { ChatUploadResult } from './shell/chat-composer.ts'
 import { WORKSPACE_ID, workspaceDefinition } from './definition.ts'
@@ -182,14 +188,63 @@ function modelSettingsFace(ctx: ClientContext): ModelSettingsFace {
   return createModelSettingsFace(remote, { protocols: view => protocolChoices(ctx, view) })
 }
 
+/** 把 Remote 的 `RemoteResult` 与业务 `CloudResult` 折成界面要的一份结果。 */
+function unwrapCloud<T>(answer: RemoteResult<CloudResult<T>>): CloudResult<T> {
+  return answer.ok
+    ? answer.value
+    : { ok: false, error: { code: answer.error.code, message: answer.error.message } }
+}
+
+/**
+ * 把 `ctx.remote` 收成云端数据面。
+ * @param ctx - 客户端根 context。
+ * @returns 界面可调用的方法集合。
+ */
+function cloudPort(ctx: ClientContext): CloudRemotePort & CloudModelPort {
+  // 命名空间是 `$mount` 刚装上的，晚于本插件的 inject 求值；按可选服务读取，
+  // 不把它写进 inject，否则启动会等一个由 apply 自己创建的服务。
+  const cloud = ctx.get('remote.lcoderCloud') as CloudRemoteNamespace | undefined
+  if (cloud === undefined) throw new Error('cloud namespace is not mounted')
+  return {
+    state: async () => unwrapCloud(await cloud.state()),
+    sendSms: async input => unwrapCloud(await cloud.sendSms(input)),
+    register: async input => unwrapCloud(await cloud.register(input)),
+    loginSms: async input => unwrapCloud(await cloud.loginSms(input)),
+    loginPassword: async input => unwrapCloud(await cloud.loginPassword(input)),
+    refresh: async () => unwrapCloud(await cloud.refresh()),
+    me: async () => unwrapCloud(await cloud.me()),
+    logout: async () => unwrapCloud(await cloud.logout()),
+    claimGuest: async input => unwrapCloud(await cloud.claimGuest(input)),
+    selectModel: request => ctx.remote.session.selectModel(request),
+  }
+}
+
+/**
+ * 挂载云端 Remote 贡献；宿主没装配或测试替身缺 `$mount` 时交给占位面。
+ * @param ctx - 客户端根 context。
+ * @returns 云端数据面。
+ */
+async function mountCloud(ctx: ClientContext): Promise<CloudFace> {
+  if (typeof ctx.remote.$mount !== 'function') {
+    return unavailableCloudFace(new Error('cloud remote mount is unavailable'))
+  }
+  try {
+    await ctx.remote.$mount(cloudRemote)
+    return createCloudFace(cloudPort(ctx))
+  } catch (error: unknown) {
+    return unavailableCloudFace(error)
+  }
+}
+
 /**
  * 插件体：把类型、词典、正文挂上去。
  * @param ctx - 客户端根 context。
  * @param config - 插件配置；`shell: true` 时注册整壳主面板。
  */
-export function apply(ctx: ClientContext, config: Config = {}): void {
+export async function apply(ctx: ClientContext, config: Config = {}): Promise<void> {
   const t = ctx.locale.bind(NS)
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'lcoder-workspace: 词典')
+  const cloud = await mountCloud(ctx)
 
   // 客户端半的 loader 行不一定会收到宿主行 config；整壳是产品默认，
   // 只有显式 shell: false 才回退旧页签。
@@ -376,9 +431,15 @@ export function apply(ctx: ClientContext, config: Config = {}): void {
      */
     const checkModels = async (): Promise<ModelStatus> => {
       const catalog = await ctx.remote.session.modelCatalog()
-      return catalog.ok
-        ? statusFromCatalog(catalog.value)
-        : statusOfFailure(catalog.error.code, catalog.error.message)
+      if (!catalog.ok) return statusOfFailure(catalog.error.code, catalog.error.message)
+      const status = statusFromCatalog(catalog.value)
+      if (status.state !== 'empty') return status
+      // 云端路由在拿到用户令牌或匿名令牌之前不列模型，但它们已经注册；
+      // 这时不能说「没有可用模型」，否则立项入口会被自己挡住。
+      const providers = await ctx.remote.llm.listProviders()
+      const cloudReady = providers.ok
+        && providers.value.some(provider => provider.id === CLOUD_USER_ROUTE || provider.id === CLOUD_GUEST_ROUTE)
+      return cloudReady ? { state: 'ready' } : status
     }
     /** 目录默认模型；查询失败返回 null，chip 宁可不显示也不编造。 */
     const readDefaultModel = async (): Promise<{ provider: string; model: string } | null> => {
@@ -441,7 +502,7 @@ export function apply(ctx: ClientContext, config: Config = {}): void {
             readMessages, subscribeSession, holdSession, checkModels, subscribeModels,
             readSessionNotice, readSessionFlags, modelSettings, readDefaultModel,
             readFlowStatus, logFlow, bindAgentSession, renameSession, readContextPressure,
-            chatSize,
+            chatSize, cloud,
           }),
         },
         Shell,

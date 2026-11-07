@@ -66,6 +66,51 @@ export function statusOfFailure(code: string, message: string): ModelStatus {
 export interface ShellSessionNotice {
   readonly key: 'shell.sendRefused' | 'shell.turnFailed'
   readonly detail: string
+  /** 云端/网关错误码；有它时界面按码给文案与下一步，不再显示原文。 */
+  readonly code?: string
+  /** 服务端请求号；随失败一起显示。 */
+  readonly requestId?: string
+}
+
+/** 云端错误体在宿主失败串里的形状；只抽 code 与 requestId。 */
+const JSON_CODE = /"code"\s*:\s*"([a-z_]+)"/
+const JSON_REQUEST_ID = /"requestId"\s*:\s*"([^"]+)"/
+const HTTP_STATUS = /\b(401|402|403|429|500|502|504)\b/
+/** 网络失败在宿主失败串里的常见措辞；没有 HTTP 状态时按离线处理。 */
+const OFFLINE_TEXT = new RegExp([
+  '\\bECONNREFUSED\\b', '\\bENOTFOUND\\b', '\\bEAI_AGAIN\\b',
+  'fetch failed', 'connection (?:error|failed|refused)', 'network', 'socket', 'terminated', 'timed? out',
+].join('|'), 'i')
+
+/** 状态码到错误码的兜底映射；JSON code 优先。 */
+const CODE_BY_STATUS: Readonly<Record<string, string>> = {
+  401: 'unauthorized',
+  402: 'quota_exhausted',
+  403: 'banned',
+  429: 'rate_limited',
+  500: 'internal_error',
+  502: 'upstream_unavailable',
+  504: 'upstream_timeout',
+}
+
+/**
+ * 从宿主失败串里抽云端错误码与 requestId。
+ *
+ * 只在宿主已把请求标成失败时读这段诊断；界面仍按 code 分支，不显示原文。
+ * @param text - `lastAgentError` 或准入失败说明。
+ * @returns 可识别的 code 与 requestId。
+ */
+export function cloudCodeFromError(text: string): { code?: string; requestId?: string } {
+  const status = HTTP_STATUS.exec(text)?.[1]
+  const code = JSON_CODE.exec(text)?.[1]
+    ?? (status === undefined ? undefined : CODE_BY_STATUS[status])
+    ?? (OFFLINE_TEXT.test(text) ? 'offline' : undefined)
+    ?? (/lcoder-cloud|LCODER_CLOUD|MISSING_CREDENTIAL/.test(text) ? 'needs_login' : undefined)
+  const requestId = JSON_REQUEST_ID.exec(text)?.[1]
+  return {
+    ...code === undefined ? {} : { code },
+    ...requestId === undefined ? {} : { requestId },
+  }
 }
 
 /**
@@ -83,11 +128,24 @@ export function noticeFromSnapshot(snapshot: {
   const promptError = snapshot.promptError
   if (promptError !== null && promptError !== undefined && promptError.op === 'send') {
     const code = promptError.error?.code ?? 'gateway/internal'
-    return { key: 'shell.sendRefused', detail: `${code}: ${promptError.error?.message ?? ''}` }
+    const text = promptError.error?.message ?? ''
+    const extracted = cloudCodeFromError(`${code} ${text}`)
+    return {
+      key: 'shell.sendRefused',
+      detail: `${code}: ${text}`,
+      ...extracted.code === undefined ? {} : { code: extracted.code },
+      ...extracted.requestId === undefined ? {} : { requestId: extracted.requestId },
+    }
   }
   const agentError = snapshot.lastAgentError
   if (typeof agentError === 'string' && agentError !== '') {
-    return { key: 'shell.turnFailed', detail: agentError }
+    const extracted = cloudCodeFromError(agentError)
+    return {
+      key: 'shell.turnFailed',
+      detail: agentError,
+      ...extracted.code === undefined ? {} : { code: extracted.code },
+      ...extracted.requestId === undefined ? {} : { requestId: extracted.requestId },
+    }
   }
   return null
 }
