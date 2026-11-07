@@ -377,9 +377,9 @@ h2:hover .anchor, h3:hover .anchor, h4:hover .anchor { opacity: .7; }
     <li class="sub" data-ch="ch2"><a href="#s2-3">谁写 .spec</a></li>
     <li class="sub" data-ch="ch2"><a href="#s2-4">为何不自建 Remote</a></li>
     <li data-ch="ch3"><a href="#ch3"><span class="num">03</span><span>内核能力</span></a></li>
-    <li class="sub" data-ch="ch3"><a href="#s3-1">十二个模型工具</a></li>
+    <li class="sub" data-ch="ch3"><a href="#s3-1">十七个模型工具</a></li>
     <li class="sub" data-ch="ch3"><a href="#s3-2">状态白名单</a></li>
-    <li class="sub" data-ch="ch3"><a href="#s3-3">另有五个注册工具</a></li>
+    <li class="sub" data-ch="ch3"><a href="#s3-3">十七个工具从哪来</a></li>
     <li class="sub" data-ch="ch3"><a href="#s3-4">九条人机命令</a></li>
     <li data-ch="ch4"><a href="#ch4"><span class="num">04</span><span>状态机与契约闸门</span></a></li>
     <li class="sub" data-ch="ch4"><a href="#s4-1">五态图</a></li>
@@ -447,7 +447,7 @@ h2:hover .anchor, h3:hover .anchor, h4:hover .anchor { opacity: .7; }
   <p class="lede">LCoder 是 DeepSeek Harness（下称 DSH）的 Windows 桌面端二次开发：它不复制上游业务实现，而是在装配层叠加一个 <code>@lcoder/kernel</code> 宿主插件、一个 <code>@lcoder/workspace</code> 浏览器插件与一层 profile 补丁。前四章用大白话写给非技术读者，后面十二章再拆技术细节；每一条技术结论都带源码行号。</p>
   <div class="meta-grid">
     <div class="meta"><b>17</b><span>章</span></div>
-    <div class="meta"><b>12</b><span>模型工具</span></div>
+    <div class="meta"><b>17</b><span>模型工具</span></div>
     <div class="meta"><b>9</b><span>人机命令</span></div>
     <div class="meta"><b>9</b><span>角色 preset</span></div>
     <div class="meta"><b>0</b><span>外部资源引用</span></div>
@@ -691,14 +691,14 @@ h2:hover .anchor, h3:hover .anchor, h4:hover .anchor { opacity: .7; }
   <div class="callout warn blk"><p><b>一个必须说清的边界：</b>「不自建 Remote」只针对规格数据面。云端登录与额度是另一条面，确实用了 typert Remote（<code>lcoderCloud</code> 命名空间），浏览器侧通过 <code>ctx.remote.$mount</code> 挂载生成物。两者不矛盾：<code>.spec</code> 走文件投影，账号与额度走进程间 Remote。<code class="ref">packages/lcoder/kernel/src/cloud/controller.ts:38</code> <code class="ref">packages/lcoder/workspace/src/client/index.ts:228</code></p></div>
 </section>
 <section class="chapter" id="ch3" data-title="内核能力">
-  <div class="chapter-head"><span class="chapter-num">03</span><h2>内核能力：十二个模型工具与九条人机命令<a class="anchor" href="#ch3">#</a></h2></div>
+  <div class="chapter-head"><span class="chapter-num">03</span><h2>内核能力：十七个模型工具与九条人机命令<a class="anchor" href="#ch3">#</a></h2></div>
   <p class="plain blk"><b>白话</b>模型能用的工具是一张按阶段放开的清单；签字、推进、发布这类动作不在清单里，只能人来做。</p>
   <p class="blk">工具面是「状态 × 角色」的二维收放：状态决定进度能放开哪些能力，角色是天花板，两者求交；工具面用<b>白名单（allow list）</b>声明，未配置的工具默认不可见（fail-closed）——漏配的后果是「用不了」，不是「越权能用」。<code class="ref">packages/lcoder/kernel/src/kernel/surface.ts:1</code> <code class="ref">packages/lcoder/kernel/src/kernel/surface.ts:107</code> <code class="ref">packages/lcoder/kernel/src/kernel/surface.ts:202</code></p>
-  <p class="blk">产品口径的模型工具是十二个：<code>file_read</code>、<code>project_draft</code>、<code>spec_query</code>、<code>spec_draft</code>、<code>spec_bind</code>、<code>contract_draft</code>、<code>task_read</code>、<code>task_draft</code>、<code>file_edit</code>、<code>cmd_run</code>、<code>evidence_attach</code>、<code>task_close</code>。<code class="ref">docs/prd-and-design.md:55</code> 签名类能力不在任何工具表里，只存在于人机命令面。<code class="ref">packages/lcoder/kernel/src/kernel/surface.ts:18</code></p>
+  <p class="blk">内核实际注册的模型工具是十七个：<code>cmd_run</code>、<code>contract_draft</code>、<code>evidence_attach</code>、<code>file_edit</code>、<code>file_list</code>、<code>file_read</code>、<code>git_commit</code>、<code>git_diff</code>、<code>git_status</code>、<code>project_draft</code>、<code>proposal_draft</code>、<code>spec_bind</code>、<code>spec_draft</code>、<code>spec_query</code>、<code>task_close</code>、<code>task_draft</code>、<code>task_read</code>。<code class="ref">packages/lcoder/kernel/src/plugin.ts:139</code> 签名类能力不在任何工具表里，只存在于人机命令面。<code class="ref">packages/lcoder/kernel/src/kernel/surface.ts:18</code></p>
 
-  <div class="callout warn blk"><p><b>口径核对（必读）：</b>PRD 列的是上述十二个；当前注册表因后续任务又增加了五个（<code>file_list</code>、<code>proposal_draft</code>、<code>git_status</code>、<code>git_diff</code>、<code>git_commit</code>），代码实际注册 <b>17 个</b>。本章 3.1 逐个列出产品口径的十二个，3.3 单独列出多出的五个并标来源；不把多出的五个混进产品工具面，也不隐瞒它们已注册。<code class="ref">docs/prd-and-design.md:55</code> <code class="ref">packages/lcoder/kernel/src/plugin.ts:139</code> <code class="ref">packages/lcoder/kernel/src/kernel/surface.ts:28</code></p></div>
+  <div class="callout warn blk"><p><b>口径说明（必读）：</b>PRD 第 55 行写十二个，本仓早期验收段写十个，均为滞后口径；以代码为准，实际注册 <b>17 个</b>模型工具。这件事已由审计报告 T-86 记录。<code class="ref">docs/prd-and-design.md:55</code> <code class="ref">docs/prd-and-design.md:79</code> <code class="ref">docs/audit-2026-11-07-drift.md:25</code> <code class="ref">docs/audit-2026-11-07-drift.md:72</code> <code class="ref">packages/lcoder/kernel/src/plugin.ts:139</code></p></div>
 
-  <h3 id="s3-1" class="blk"><span class="h3n">3.1</span>十二个模型工具：输入、输出与失败边界<a class="anchor" href="#s3-1">#</a></h3>
+  <h3 id="s3-1" class="blk"><span class="h3n">3.1</span>十七个模型工具：输入、输出与失败边界<a class="anchor" href="#s3-1">#</a></h3>
   <div class="table-wrap blk"><table>
     <thead><tr><th>工具</th><th>输入 → 输出</th><th>失败边界</th><th>锚点</th></tr></thead>
     <tbody>
@@ -714,6 +714,11 @@ h2:hover .anchor, h3:hover .anchor, h4:hover .anchor { opacity: .7; }
       <tr id="tool-cmd_run"><td><code>cmd_run</code></td><td><code>env.yaml</code> 里的命令 id → 退出码与截尾 4000 字符的输出</td><td>未登记命令拒绝；只有 <code>exec: ai-auto</code> 允许模型执行，<code>human</code> / <code>ai-confirm</code> 一律拒绝并说明该谁跑</td><td><code class="ref">edit-tools.ts:273</code> <code class="ref">edit-tools.ts:293</code></td></tr>
       <tr id="tool-evidence_attach"><td><code>evidence_attach</code></td><td>任务编号、证据类型、正文 → 写入 <code>.spec/evidence/&lt;ID&gt;/&lt;kind&gt;.log</code></td><td>任务编号先校验再拼路径；类型名只允许小写字母、数字、下划线、短横线</td><td><code class="ref">edit-tools.ts:321</code> <code class="ref">edit-tools.ts:78</code></td></tr>
       <tr id="tool-task_close"><td><code>task_close</code></td><td>任务编号 → 依次跑 P1/P3/P4，全过才转 <code>closed</code> 并返回转移事件</td><td>任一检查不过就返回违规清单与 hint，状态不变；状态图仍拦非法边</td><td><code class="ref">task-tools.ts:201</code></td></tr>
+      <tr id="tool-file_list"><td><code>file_list</code></td><td>列仓库内目录，深度 1–3，目录在前按名排序</td><td>最多 500 条并标记截断；不存在给出「先看仓库根」；只接受目录</td><td><code class="ref">edit-tools.ts:194</code></td></tr>
+      <tr id="tool-proposal_draft"><td><code>proposal_draft</code></td><td>把需求结论落成 <code>.spec/proposals/P-*.yaml</code>：问题、2–3 条候选、推荐</td><td>三组数组等长非空；同标题只回读；已 approved/rejected 的方案不改写；决定态固定 draft</td><td><code class="ref">proposal-tools.ts:84</code></td></tr>
+      <tr id="tool-git_status"><td><code>git_status</code></td><td>看工作区状态（porcelain），可按路径前缀</td><td>先确认是工作树；路径必须落在仓库内</td><td><code class="ref">git-tools.ts:87</code></td></tr>
+      <tr id="tool-git_diff"><td><code>git_diff</code></td><td>看工作区或暂存差异，截尾 4000 字符</td><td>同上；非零退出码抛原文</td><td><code class="ref">git-tools.ts:113</code></td></tr>
+      <tr id="tool-git_commit"><td><code>git_commit</code></td><td>只提交给定路径，写 Conventional Commits 说明</td><td>说明非空；只 add 给定路径；暂存区为空不产生提交；不带 <code>--amend</code>、不带 <code>--no-verify</code>、<b>没有 push</b></td><td><code class="ref">git-tools.ts:138</code></td></tr>
     </tbody>
   </table></div>
   <p class="blk">这一组的硬约束写在代码里而不是提示词里：读取与编辑只能落在仓库内、命令只认登记过的 id 且只有 <code>ai-auto</code> 可执行、证据只写进 <code>.spec/evidence/&lt;task&gt;/</code>、任务状态与时间戳由 <code>task_draft</code> 写死。<code class="ref">packages/lcoder/kernel/src/tools/edit-tools.ts:1</code> <code class="ref">packages/lcoder/kernel/src/tools/task-tools.ts:9</code></p>
@@ -735,18 +740,8 @@ h2:hover .anchor, h3:hover .anchor, h4:hover .anchor { opacity: .7; }
   <p class="blk">第二维是角色天花板：九个角色（<code>intake / architect / pm / dev / git / ops / review / scheduler / flow</code>）各有一张上限表，与状态白名单求交后只减不加。<code>dev</code> 刻意不设天花板——它必须等于全部已注册工具，测试用一条断言钉住这个等式；<code>scheduler</code> 与 <code>flow</code> 只有四个只读工具。<code class="ref">packages/lcoder/kernel/src/kernel/surface.ts:123</code> <code class="ref">packages/lcoder/kernel/src/kernel/surface.ts:136</code> 角色名在装载时校验，配错当场抛错，不静默装出更大权限。<code class="ref">packages/lcoder/kernel/src/kernel/surface.ts:187</code> <code class="ref">packages/lcoder/kernel/src/plugin.ts:98</code></p>
   <p class="blk">启动自检把白名单与实际注册表做差集，报「声明了没注册」与「注册了但任何状态都看不到」两类问题，避免新工具静默隐身或掩码写错空转。<code class="ref">packages/lcoder/kernel/src/kernel/surface.ts:265</code> <code class="ref">packages/lcoder/kernel/src/plugin.ts:182</code></p>
 
-  <h3 id="s3-3" class="blk"><span class="h3n">3.3</span>当前注册表另有五个工具（不在产品口径内）<a class="anchor" href="#s3-3">#</a></h3>
-  <p class="blk">下列五个工具已注册并进入状态白名单，但不属于 PRD 的十二个工具面。它们分别来自目录能力、方案流程与 Git 窄口三组；列在这里是为了让「已注册」与「产品口径」两个数字都对得上。<code class="ref">packages/lcoder/kernel/src/plugin.ts:139</code></p>
-  <div class="table-wrap blk"><table>
-    <thead><tr><th>工具</th><th>用途</th><th>失败边界</th><th>锚点</th></tr></thead>
-    <tbody>
-      <tr id="tool-file_list"><td><code>file_list</code></td><td>列仓库内目录，深度 1–3，目录在前按名排序</td><td>最多 500 条并标记截断；不存在给出「先看仓库根」；只接受目录</td><td><code class="ref">edit-tools.ts:194</code></td></tr>
-      <tr id="tool-proposal_draft"><td><code>proposal_draft</code></td><td>把需求结论落成 <code>.spec/proposals/P-*.yaml</code>：问题、2–3 条候选、推荐</td><td>三组数组等长非空；同标题只回读；已 approved/rejected 的方案不改写；决定态固定 draft</td><td><code class="ref">proposal-tools.ts:84</code></td></tr>
-      <tr id="tool-git_status"><td><code>git_status</code></td><td>看工作区状态（porcelain），可按路径前缀</td><td>先确认是工作树；路径必须落在仓库内</td><td><code class="ref">git-tools.ts:87</code></td></tr>
-      <tr id="tool-git_diff"><td><code>git_diff</code></td><td>看工作区或暂存差异，截尾 4000 字符</td><td>同上；非零退出码抛原文</td><td><code class="ref">git-tools.ts:113</code></td></tr>
-      <tr id="tool-git_commit"><td><code>git_commit</code></td><td>只提交给定路径，写 Conventional Commits 说明</td><td>说明非空；只 add 给定路径；暂存区为空不产生提交；不带 <code>--amend</code>、不带 <code>--no-verify</code>、<b>没有 push</b></td><td><code class="ref">git-tools.ts:138</code></td></tr>
-    </tbody>
-  </table></div>
+  <h3 id="s3-3" class="blk"><span class="h3n">3.3</span>十七个工具从哪来<a class="anchor" href="#s3-3">#</a></h3>
+  <p class="blk">十七个工具由六个工厂注册：编辑与命令 5 个（<code>file_read</code>、<code>file_list</code>、<code>file_edit</code>、<code>cmd_run</code>、<code>evidence_attach</code>）、Git 3 个、项目 1 个、方案 1 个、规格 4 个、任务 3 个。<code class="ref">packages/lcoder/kernel/src/plugin.ts:139</code> 启动自检把注册表与白名单做差集；<code>dev</code> 角色表必须等于全部注册工具，测试用一条等式钉住，所以这十七个不是漏配。<code class="ref">packages/lcoder/kernel/src/kernel/surface.ts:265</code> <code class="ref">packages/lcoder/kernel/tests/surface.spec.ts:157</code></p>
   <p class="blk">为什么 Git 不并进 <code>cmd_run</code>：那条路的边界由 <code>env.yaml</code> 登记的命令决定，一条带参数拼接的写法就能把参数面变成字符串；Git 工具只把自己那几个 argv 交给执行器，<code>git</code> 与参数分开传、不走 shell。<code class="ref">packages/lcoder/kernel/src/tools/git-tools.ts:4</code> 推远端始终是人的动作：没有 push 工具，也没有 <code>git push</code> 在 <code>cmd_run</code> 的登记面上。<code class="ref">docs/PROJECT-RULES.md:23</code></p>
   <h3 id="s3-4" class="blk"><span class="h3n">3.4</span>九条人机命令：不进模型回合<a class="anchor" href="#s3-4">#</a></h3>
   <p class="blk">命令面与工具面是两套注册：命令由人在会话里发起，不产生模型消息，但 <code>command/run</code> 与 <code>command/done</code> 会进会话日志，于是「谁在什么时候做了什么」留得下证据。<code class="ref">packages/lcoder/kernel/src/plugin.ts:82</code> <code class="ref">packages/lcoder/kernel/src/commands/contract-sign.ts:9</code> 九条命令在 <code>apply</code> 里一次性注册。<code class="ref">packages/lcoder/kernel/src/plugin.ts:165</code></p>
@@ -1098,7 +1093,7 @@ h2:hover .anchor, h3:hover .anchor, h4:hover .anchor { opacity: .7; }
   <div class="table-wrap blk"><table>
     <thead><tr><th>主题</th><th>文档口径</th><th>代码事实</th></tr></thead>
     <tbody>
-      <tr><td>模型工具数量</td><td>PRD 十二个<code class="ref">docs/prd-and-design.md:55</code>；验收写十个<code class="ref">docs/prd-and-design.md:79</code></td><td>实际注册 17 个（多 <code>file_list</code>、<code>proposal_draft</code>、<code>git_status/diff/commit</code>）<code class="ref">packages/lcoder/kernel/src/plugin.ts:139</code></td></tr>
+      <tr><td>模型工具数量</td><td>PRD 第 55 行曾写十二个、验收段曾写十个，均为滞后口径<code class="ref">docs/prd-and-design.md:55</code><code class="ref">docs/prd-and-design.md:79</code></td><td>实际注册 17 个，名字与逐条边界见 3.1；审计报告 T-86 已记录<code class="ref">docs/audit-2026-11-07-drift.md:72</code></td></tr>
       <tr><td>P3 是否无条件要求签名</td><td>读起来像「收口一律要合法签名」<code class="ref">docs/prd-and-design.md:49</code></td><td>只在 <code>scope.irreversible</code> 非空时检查；空则直接通过<code class="ref">packages/lcoder/kernel/src/checkers/index.ts:97</code></td></tr>
       <tr><td>起草态能否直接收口</td><td>PRD 五态表写 drafting 的出口是 contracted<code class="ref">docs/prd-and-design.md:43</code></td><td>转移表允许 <code>drafting → closed</code>，但当前无调用者<code class="ref">packages/lcoder/kernel/src/kernel/task-store.ts:22</code></td></tr>
       <tr><td>插件头注释的工具数</td><td>注释写「十三个工具」<code class="ref">packages/lcoder/kernel/src/plugin.ts:7</code></td><td>同一文件实际注册 17 个<code class="ref">packages/lcoder/kernel/src/plugin.ts:139</code></td></tr>
