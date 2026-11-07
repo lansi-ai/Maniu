@@ -166,6 +166,7 @@ export class CloudGuestManager {
         model: session.model,
         scope: session.scope,
         revoked: false,
+        estimate: session.estimate,
       }
       this.view = view
       this.fetchedAt = this.now()

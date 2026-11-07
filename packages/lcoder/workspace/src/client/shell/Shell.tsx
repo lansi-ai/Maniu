@@ -49,6 +49,7 @@ import type { IntakeTier } from './intake.ts'
 import { IntakeResultPage, IntakeRestartDialog } from './IntakeResultPage.tsx'
 import { CloudAccountButton, CloudDialog } from '../cloud/CloudAccount.tsx'
 import type { CloudDialogMode } from '../cloud/CloudAccount.tsx'
+import { PersonalCenter } from '../cloud/PersonalCenter.tsx'
 import { gateEntry } from '../cloud/gate.ts'
 import { cloudErrorKey, cloudNextKey } from '../cloud/errors.ts'
 import type { CloudGateEntry } from '../cloud/gate.ts'
@@ -376,6 +377,8 @@ export function Shell({
   const [settings, setSettings] = useState(false)
   /** 立项结果页：独立整页，打开时看板让位，不复用弹窗。 */
   const [resultPage, setResultPage] = useState(false)
+  /** 个人中心：独立整页，与结果页同级；打开时看板让位。 */
+  const [personalPage, setPersonalPage] = useState(false)
   /** 重开确认框与它在途状态；浮层头与结果页共用同一套。 */
   const [restartOpen, setRestartOpen] = useState(false)
   const [restarting, setRestarting] = useState(false)
@@ -2182,7 +2185,16 @@ export function Shell({
       </header>
 
       <main className={css.main}>
-        {resultPage ? (
+        {personalPage ? (
+          <PersonalCenter
+            face={cloud}
+            state={cloudSession.state}
+            t={t}
+            onBack={() => { setPersonalPage(false) }}
+            onOpenLogin={() => { setPersonalPage(false); setCloudDialog('login'); focusCloudPhone() }}
+          />
+        ) : null}
+        {resultPage && !personalPage ? (
           <IntakeResultPage
             t={t}
             proposals={proposals}
@@ -2196,7 +2208,7 @@ export function Shell({
             onStartOnboarding={(kind) => { setResultPage(false); startOnboarding(kind) }}
           />
         ) : null}
-        {resultPage ? null : <div className={css.boardWrap}>
+        {resultPage || personalPage ? null : <div className={css.boardWrap}>
           <div className={css.boardHead}>
             <h3>{t('shell.board')}</h3>
             <span className={css.boardHint}>{t('shell.boardHint')}</span>
@@ -3183,6 +3195,12 @@ export function Shell({
           t={t}
           onClose={() => { setCloudDialog(null); setChatError(null) }}
           onChanged={() => { void cloudSession.refresh() }}
+          onOpenPersonalCenter={() => {
+            setCloudDialog(null)
+            setChatError(null)
+            setPersonalPage(true)
+            void cloudSession.refresh()
+          }}
         />
       )}
 

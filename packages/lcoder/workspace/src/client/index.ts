@@ -215,6 +215,7 @@ function cloudPort(ctx: ClientContext): CloudRemotePort & CloudModelPort {
     me: async () => unwrapCloud(await cloud.me()),
     logout: async () => unwrapCloud(await cloud.logout()),
     claimGuest: async input => unwrapCloud(await cloud.claimGuest(input)),
+    usage: async query => unwrapCloud(await cloud.usage(query)),
     selectModel: request => ctx.remote.session.selectModel(request),
   }
 }

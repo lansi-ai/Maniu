@@ -32,6 +32,44 @@ const MAX_REQUESTS = 20
 const MAX_COST_MICRO_USD = 150_000
 const USER_GRANT_MICRO_USD = 20_000_000
 
+/** 演示用单价（微美元/百万 token）；按云端同一口径折出 token 区间。 */
+const UNIT_PRICE = { inputMicroUsdPerMtok: 260_000, cachedInputMicroUsdPerMtok: 8_000, outputMicroUsdPerMtok: 500_000 }
+const INPUT_OUTPUT_RATIO = '8:2'
+const MODEL = 'deepseek-flash'
+
+/**
+ * 按云端口径折出 token 预估：下界用全部未命中缓存的输入价，上界用缓存输入价。
+ * @param availableMicroUsd - 可折算余额。
+ * @param options - `noPrice`/`zeroPrice` 用来演示不可用分支。
+ * @returns 与云端同形的预估对象。
+ */
+function tokenEstimate(availableMicroUsd, options = {}) {
+  const base = {
+    available: false,
+    unavailableReason: null,
+    model: MODEL,
+    availableMicroUsd,
+    lowerBoundTokens: 0,
+    upperBoundTokens: 0,
+    inputOutputRatio: INPUT_OUTPUT_RATIO,
+    price: null,
+  }
+  if (options.noPrice === true) return { ...base, unavailableReason: 'no_effective_price' }
+  if (options.zeroPrice === true) {
+    return { ...base, unavailableReason: 'zero_unit_price', price: { inputMicroUsdPerMtok: 0, cachedInputMicroUsdPerMtok: 0, outputMicroUsdPerMtok: 0 } }
+  }
+  if (availableMicroUsd <= 0) return { ...base, unavailableReason: 'zero_balance', price: UNIT_PRICE }
+  const unit = (input, output) => Math.floor((availableMicroUsd * 1_000_000) / (0.8 * input + 0.2 * output))
+  return {
+    ...base,
+    available: true,
+    lowerBoundTokens: unit(UNIT_PRICE.inputMicroUsdPerMtok, UNIT_PRICE.outputMicroUsdPerMtok),
+    upperBoundTokens: unit(UNIT_PRICE.cachedInputMicroUsdPerMtok, UNIT_PRICE.outputMicroUsdPerMtok),
+    price: UNIT_PRICE,
+  }
+}
+
+
 const users = new Map()
 const refreshTokens = new Map()
 const guestGrants = new Map()
@@ -40,6 +78,9 @@ const state = {
   mode: null,
   /** 用户令牌代数；`expireAccess` 加一后，旧代令牌立即失效，新代令牌照常可用。 */
   accessGeneration: 0,
+  /** 用量演示开关：`noPrice` 让预估报「没有生效价格」，`usageEmpty` 清空流水。 */
+  noPrice: false,
+  usageEmpty: false,
   stats: { login: 0, refresh: 0, chat: 0, guestClaim: 0, logout: 0 },
 }
 
@@ -118,6 +159,40 @@ function userProfile(user) {
     lastLoginAt: user.lastLoginAt ?? null,
     quota: quotaOf(user),
   }
+}
+
+/** 演示单价开关对应的预估选项。 */
+function estimateOptions() {
+  return state.noPrice ? { noPrice: true } : {}
+}
+
+/** 给一个账号生成固定 25 条演示流水；游标就是偏移量。 */
+function usageItemsOf(user) {
+  if (state.usageEmpty) return []
+  const base = Date.parse(user.createdAt)
+  return Array.from({ length: 25 }, (_, index) => ({
+    requestId: `mock_usage_${user.id.slice(0, 8)}_${String(index).padStart(3, '0')}`,
+    source: 'user',
+    model: MODEL,
+    promptTokens: 1_200 + index * 40,
+    cachedTokens: index % 3 === 0 ? 0 : 300,
+    completionTokens: 400 + index * 10,
+    costMicroUsd: 2_000,
+    status: index === 0 ? 'reserved' : 'settled',
+    createdAt: new Date(base + (25 - index) * 60_000).toISOString(),
+  }))
+}
+
+/** 按游标与 limit 切一页流水。 */
+function usagePageOf(user, searchParams) {
+  const items = usageItemsOf(user)
+  const rawLimit = Number(searchParams.get('limit') ?? 20)
+  const limit = Number.isFinite(rawLimit) ? Math.min(100, Math.max(1, Math.trunc(rawLimit))) : 20
+  const rawCursor = Number(searchParams.get('cursor') ?? 0)
+  const offset = Number.isFinite(rawCursor) ? Math.max(0, Math.trunc(rawCursor)) : 0
+  const page = items.slice(offset, offset + limit)
+  const next = offset + limit < items.length ? String(offset + limit) : null
+  return { items: page, nextCursor: next }
 }
 
 function issueSession(user) {
@@ -401,6 +476,8 @@ async function route(request, response) {
   if (path === '/_mock/state' && request.method === 'GET') {
     sendJson(response, 200, {
       mode: state.mode,
+      noPrice: state.noPrice,
+      usageEmpty: state.usageEmpty,
       stats: state.stats,
       users: [...users.values()].map(user => ({ id: user.id, phone: userProfile(user).phoneMasked, status: user.status })),
       guests: [...guestGrants.values()].map(grant => ({ id: grant.id, grantDate: grant.grantDate, usedRequests: grant.usedRequests })),
@@ -413,9 +490,14 @@ async function route(request, response) {
     if (body.reset === true) {
       users.clear(); refreshTokens.clear(); guestGrants.clear(); smsCodes.clear()
       state.mode = null; state.accessGeneration = 0
+      state.noPrice = false; state.usageEmpty = false
       state.stats = { login: 0, refresh: 0, chat: 0, guestClaim: 0, logout: 0 }
     }
     if ('mode' in body) state.mode = body.mode ?? null
+    if (body.noPrice === true) state.noPrice = true
+    if (body.noPrice === false) state.noPrice = false
+    if (body.usageEmpty === true) state.usageEmpty = true
+    if (body.usageEmpty === false) state.usageEmpty = false
     if (body.expireAccess === true) state.accessGeneration += 1
     if (typeof body.guestUsedRequests === 'number') {
       for (const grant of guestGrants.values()) grant.usedRequests = body.guestUsedRequests
@@ -437,11 +519,19 @@ async function route(request, response) {
     const payload = authOf(request)
     const user = payload === null ? null : userOf(payload)
     if (user === null) { sendError(response, 401, 'unauthorized', '需要用户令牌。', rid); return }
-    sendJson(response, 200, { user: userProfile(user), quota: quotaOf(user) }, rid)
+    const quota = quotaOf(user)
+    sendJson(response, 200, {
+      user: userProfile(user),
+      quota,
+      tokenEstimate: tokenEstimate(quota.availableMicroUsd, estimateOptions()),
+    }, rid)
     return
   }
   if (path === '/v1/me/usage' && request.method === 'GET') {
-    sendJson(response, 200, { items: [], nextCursor: null }, rid)
+    const payload = authOf(request)
+    const user = payload === null ? null : userOf(payload)
+    if (user === null) { sendError(response, 401, 'unauthorized', '需要用户令牌。', rid); return }
+    sendJson(response, 200, usagePageOf(user, url.searchParams), rid)
     return
   }
   if (path === '/v1/auth/sms/send' && request.method === 'POST') {
@@ -576,6 +666,7 @@ async function route(request, response) {
       limits: { maxRequests: MAX_REQUESTS, maxCostMicroUsd: MAX_COST_MICRO_USD, dailyGrantLimit: 1 },
       model: 'deepseek-flash',
       scope: 'onboarding',
+      tokenEstimate: tokenEstimate(Math.max(0, MAX_COST_MICRO_USD - grant.costUsed), estimateOptions()),
     }, rid)
     return
   }
@@ -587,7 +678,10 @@ async function route(request, response) {
       sendError(response, 401, 'token_expired', '匿名授权已结束。', rid)
       return
     }
-    sendJson(response, 200, guestView(grant), rid)
+    sendJson(response, 200, {
+      ...guestView(grant),
+      tokenEstimate: tokenEstimate(Math.max(0, MAX_COST_MICRO_USD - grant.costUsed), estimateOptions()),
+    }, rid)
     return
   }
   if (path === '/v1/chat/completions' && request.method === 'POST') {

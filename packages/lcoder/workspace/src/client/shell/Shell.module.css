@@ -1003,3 +1003,33 @@
 .cloudMetricValue { font-size: var(--lc-text-lg); font-weight: 700; letter-spacing: var(--lc-tracking-tight); }
 .cloudMetricHint { font-size: var(--lc-text-xs); color: var(--lc-muted); }
 .cloudActions { display: flex; align-items: center; gap: var(--lc-space-2); flex-wrap: wrap; }
+
+/* ── 个人中心整页 ──────────────────────────────────────────── */
+.pcPage { flex: 1; min-height: 0; overflow: auto; padding: var(--lc-space-7, 28px) var(--lc-space-6, 24px) 48px; display: grid; gap: var(--lc-space-5, 20px); align-content: start; max-width: 1080px; width: 100%; margin: 0 auto; }
+.pcHead { display: flex; align-items: center; gap: var(--lc-space-4, 16px); }
+.pcHeadText { display: grid; gap: 4px; min-width: 0; flex: 1; }
+.pcTitle { margin: 0; font-size: var(--lc-text-xl, 24px); letter-spacing: var(--lc-tracking-tight); }
+.pcSub { margin: 0; color: var(--lc-muted); font-size: var(--lc-text-sm); }
+.pcGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: var(--lc-space-4, 16px); }
+.pcCard { display: grid; gap: var(--lc-space-2, 8px); padding: 18px 20px; border: 1px solid var(--lc-line); border-radius: var(--lc-radius-lg, 16px); background: var(--lc-surface); box-shadow: var(--lc-shadow-xs); }
+.pcCardTitle { margin: 0 0 4px; font-size: var(--lc-text-md); font-weight: 600; }
+.pcRow { display: flex; justify-content: space-between; gap: var(--lc-space-3, 12px); font-size: var(--lc-text-sm); }
+.pcLabel { color: var(--lc-faint); }
+.pcValue { text-align: right; word-break: break-word; }
+.pcMuted { margin: 0; color: var(--lc-muted); font-size: var(--lc-text-xs); line-height: 1.6; }
+.pcNotice { margin: 0; padding: 10px 12px; border-radius: var(--lc-radius-md); background: var(--lc-status-danger-soft); color: var(--lc-ink); font-size: var(--lc-text-xs); }
+.pcEstimateRange { margin: 0; font-size: var(--lc-text-lg, 20px); font-weight: 700; letter-spacing: var(--lc-tracking-tight); }
+.pcUsageList { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.pcUsageItem { display: grid; grid-template-columns: 150px minmax(90px, 1fr) minmax(180px, 1.4fr) 84px 130px; gap: var(--lc-space-3, 12px); align-items: center; padding: 9px 0; border-top: 1px solid var(--lc-line); font-size: var(--lc-text-xs); }
+.pcUsageItem:first-child { border-top: 0; }
+.pcUsageTime { color: var(--lc-faint); white-space: nowrap; }
+.pcUsageModel { font-family: var(--lc-font-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pcUsageTokens { color: var(--lc-muted); }
+.pcUsageCost { text-align: right; font-variant-numeric: tabular-nums; }
+.pcUsageStatus { color: var(--lc-muted); text-align: right; }
+.pcActions { display: flex; justify-content: center; padding-top: var(--lc-space-2, 8px); }
+@media (max-width: 760px) {
+  .pcPage { padding: 16px 12px 32px; }
+  .pcUsageItem { grid-template-columns: 1fr 84px; }
+  .pcUsageTime, .pcUsageTokens, .pcUsageStatus { display: none; }
+}

@@ -26,6 +26,7 @@ function view(remaining = 20): CloudGuestView {
     model: 'deepseek-flash',
     scope: 'onboarding',
     revoked: false,
+    estimate: null,
   }
 }
 
@@ -54,6 +55,7 @@ describe('CloudGuestManager', () => {
       limits: { maxRequests: 20, maxCostMicroUsd: 150_000, dailyGrantLimit: 1 },
       model: 'deepseek-flash',
       scope: 'onboarding',
+      estimate: null,
     })
     const claimed = await h.manager.claim({})
     expect(claimed.remainingRequests).toBe(20)
@@ -74,6 +76,7 @@ describe('CloudGuestManager', () => {
           limits: { maxRequests: 20, maxCostMicroUsd: 150_000, dailyGrantLimit: 1 },
           model: 'deepseek-flash',
           scope: 'onboarding',
+          estimate: null,
         })
       }
     }))

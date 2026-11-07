@@ -72,7 +72,7 @@ function faceOf(overrides: Partial<CloudFace> = {}): CloudFace {
     state: vi.fn().mockResolvedValue({
       ok: true,
       value: {
-        signedIn: false, needsLogin: false, user: null, quota: null, guest: null, guestExpired: false, lastError: null,
+        signedIn: false, needsLogin: false, user: null, quota: null, estimate: null, guest: null, guestExpired: false, lastError: null,
       },
     }),
     sendSms: vi.fn().mockResolvedValue({ ok: true, value: { requestId: 'r1', resendAfterSeconds: 60, expiresInSeconds: 300 } }),
@@ -92,6 +92,7 @@ function faceOf(overrides: Partial<CloudFace> = {}): CloudFace {
     me: vi.fn(),
     logout: vi.fn(),
     claimGuest: vi.fn(),
+    usage: vi.fn(),
     selectRoute: vi.fn().mockResolvedValue({ ok: true, value: { provider: 'lcoder-cloud', model: 'deepseek-flash' } }),
     ...overrides,
   }

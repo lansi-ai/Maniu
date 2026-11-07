@@ -7,7 +7,10 @@
  */
 import { CloudApiError } from './api.ts'
 import type { CloudAuthApi, CloudAuthSession } from './api.ts'
-import type { CloudAuthValue, CloudErrorInfo, CloudQuota, CloudState, CloudUser } from './types.ts'
+import type {
+  CloudAuthValue, CloudErrorInfo, CloudQuota, CloudState, CloudTokenEstimate, CloudUsagePage, CloudUsageQuery,
+  CloudUser,
+} from './types.ts'
 import { CLOUD_ACCESS_REF, CLOUD_REFRESH_REF } from './types.ts'
 
 /** 凭据引用面的最小读写形状；由宿主用 `ctx.credentials` 适配。 */
@@ -72,6 +75,7 @@ export class CloudTokenManager {
   private refreshToken: string | undefined
   private user: CloudUser | undefined
   private quota: CloudQuota | undefined
+  private estimate: CloudTokenEstimate | undefined
   private lastError: CloudErrorInfo | null = null
   private meFetchedAt = 0
   private hydrateFlight: Promise<void> | undefined
@@ -90,7 +94,7 @@ export class CloudTokenManager {
    * @param options - 时间、退避与缓存。
    */
   constructor(
-    private readonly api: Pick<CloudAuthApi, 'refresh' | 'me' | 'logout'>,
+    private readonly api: Pick<CloudAuthApi, 'refresh' | 'me' | 'usage' | 'logout'>,
     private readonly store: CloudSecretStore,
     private readonly options: CloudTokenOptions = {},
   ) {
@@ -217,9 +221,20 @@ export class CloudTokenManager {
     const value = await this.authenticated(token => this.api.me(token))
     this.user = value.user
     this.quota = value.quota
+    this.estimate = value.estimate ?? undefined
     this.meFetchedAt = this.now()
     this.lastError = null
     return this.authValue()
+  }
+
+  /**
+   * 读一页用量流水。
+   * @param query - 分页与筛选参数。
+   * @returns 流水与下一页游标。
+   * @throws {CloudApiError} 未登录、令牌失效或云端不可用。
+   */
+  async usage(query: CloudUsageQuery = {}): Promise<CloudUsagePage> {
+    return this.authenticated(token => this.api.usage(token, query))
   }
 
   /**
@@ -266,6 +281,7 @@ export class CloudTokenManager {
       needsLogin,
       user: this.user ?? null,
       quota: this.quota ?? null,
+      estimate: this.estimate ?? null,
       guest: null,
       guestExpired: false,
       lastError: this.lastError,
@@ -340,7 +356,9 @@ export class CloudTokenManager {
     }
     this.user = session.user
     this.quota = session.user.quota
-    this.meFetchedAt = this.now()
+    // 登录响应不带预估；下一次读状态时补 `/v1/me`，别让缓存把预估挡在 15 秒外。
+    this.estimate = undefined
+    this.meFetchedAt = 0
     this.schedule()
   }
 
@@ -349,6 +367,7 @@ export class CloudTokenManager {
     this.refreshToken = undefined
     this.user = undefined
     this.quota = undefined
+    this.estimate = undefined
     this.meFetchedAt = 0
     if (this.timer !== undefined) clearTimeout(this.timer)
     this.timer = undefined

@@ -103,7 +103,7 @@ function signedInCloud(): CloudFace {
       value: {
         signedIn: true, needsLogin: false,
         user: { id: 'u1', displayName: null, phoneMasked: '+861****0000', status: 'active' },
-        quota: null, guest: null, guestExpired: false, lastError: null,
+        quota: null, estimate: null, guest: null, guestExpired: false, lastError: null,
       },
     }),
     sendSms: vi.fn(),
@@ -114,6 +114,7 @@ function signedInCloud(): CloudFace {
     me: vi.fn(),
     logout: vi.fn(),
     claimGuest: vi.fn(),
+    usage: vi.fn(),
     selectRoute: async () => ({ ok: true, value: { provider: 'lcoder-cloud', model: 'deepseek-flash' } }),
   }
 }

@@ -12,6 +12,7 @@ import type {
 } from '@lcoder/kernel/src/cloud/types.ts'
 import type { LcoderWorkspaceKey } from '../locales.ts'
 import { cloudErrorAction, cloudErrorKey } from './errors.ts'
+import { activeEstimate, estimateRange, fill, usd } from './estimate.ts'
 import type { CloudFace } from './face.ts'
 import css from '../shell/Shell.module.css'
 
@@ -35,20 +36,12 @@ export interface CloudDialogProps {
   readonly t: (key: LcoderWorkspaceKey) => string
   readonly onClose: () => void
   readonly onChanged: () => void | Promise<void>
+  /** 账户弹窗里进入个人中心；缺省时不显示入口。 */
+  readonly onOpenPersonalCenter?: () => void
 }
 
 /** 登录页签。 */
 type LoginTab = 'sms' | 'password' | 'register'
-
-/** 补词典占位符。 */
-function fill(text: string, values: Readonly<Record<string, string | number>>): string {
-  return Object.entries(values).reduce((result, [key, value]) => result.replace(`{${key}}`, String(value)), text)
-}
-
-/** 微美元折成两位美元。 */
-function usd(microUsd: number): string {
-  return `$${(microUsd / 1_000_000).toFixed(2)}`
-}
 
 /** 手机号格式。 */
 function validPhone(phone: string): boolean {
@@ -127,7 +120,7 @@ function GuestLine({ guest, expired, t }: {
  * @param props - 模式、云端面、当前状态与回调。
  * @returns 登录表单或账户摘要。
  */
-export function CloudDialog({ mode, face, state, sessionId, t, onClose, onChanged }: CloudDialogProps): ReactNode {
+export function CloudDialog({ mode, face, state, sessionId, t, onClose, onChanged, onOpenPersonalCenter }: CloudDialogProps): ReactNode {
   const [tab, setTab] = useState<LoginTab>('sms')
   const [phone, setPhone] = useState('')
   const [code, setCode] = useState('')
@@ -274,9 +267,24 @@ export function CloudDialog({ mode, face, state, sessionId, t, onClose, onChange
         </div>
       </div>
       <GuestLine guest={guest} expired={guestExpired} t={t} />
+      <p className={css.cloudGuestLine}>
+        {t('shell.cloudEstimateDialogLabel')}
+        {': '}
+        {estimateRange(activeEstimate(state), t)}
+      </p>
       {state?.lastError === null || state?.lastError === undefined ? null : <ErrorBox error={state.lastError} t={t} />}
       {error === null ? null : <ErrorBox error={error} t={t} />}
       <div className={css.cloudActions}>
+        {onOpenPersonalCenter === undefined ? null : (
+          <button
+            type="button"
+            className={css.secondaryBtn}
+            disabled={busy !== undefined}
+            onClick={() => { onOpenPersonalCenter() }}
+          >
+            {t('shell.cloudOpenPersonalCenter')}
+          </button>
+        )}
         <button type="button" className={css.secondaryBtn} disabled={busy !== undefined} onClick={() => { void refresh() }}>
           {busy === 'refresh' ? t('shell.cloudRefreshing') : t('shell.cloudRefresh')}
         </button>
