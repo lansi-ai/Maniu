@@ -104,6 +104,7 @@ async function fixture(
       : {
         DSH_DESKTOP_UPDATE_CHANNEL: channel,
         DSH_DESKTOP_AUTO_UPDATE_ENV: 'production',
+        DOWNLOAD_PROD_ORIGIN: 'https://download.deepseek.com',
         DOWNLOAD_PROD_COS_BUCKET: PRODUCTION_BUCKET,
       },
   }

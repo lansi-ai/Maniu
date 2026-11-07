@@ -1,6 +1,7 @@
-/** Resolve the Desktop auto-update channel and its Tencent COS destination. */
+/** Resolve the Desktop auto-update channel and its object-storage destination. */
 
 import { valid } from 'semver'
+import { resolveDesktopProductIdentity } from './desktop-product-identity.mjs'
 
 /** Environment variable that selects the Desktop update deployment. */
 export const DESKTOP_AUTO_UPDATE_ENV = 'DSH_DESKTOP_AUTO_UPDATE_ENV'
@@ -19,14 +20,12 @@ export function resolveDesktopUpdateChannel(env) {
 const UPDATE_ENVIRONMENTS = {
   test: {
     originEnvName: 'DOWNLOAD_TEST_ORIGIN',
-    fixedOrigin: undefined,
     bucketEnvName: 'DOWNLOAD_TEST_COS_BUCKET',
     secretIdEnvName: 'DOWNLOAD_TEST_COS_SECRET_ID',
     secretKeyEnvName: 'DOWNLOAD_TEST_COS_SECRET_KEY',
   },
   production: {
-    originEnvName: undefined,
-    fixedOrigin: 'https://download.deepseek.com',
+    originEnvName: 'DOWNLOAD_PROD_ORIGIN',
     bucketEnvName: 'DOWNLOAD_PROD_COS_BUCKET',
     secretIdEnvName: 'DOWNLOAD_PROD_COS_SECRET_ID',
     secretKeyEnvName: 'DOWNLOAD_PROD_COS_SECRET_KEY',
@@ -38,12 +37,14 @@ const UPDATE_TARGETS = new Set(['mac-arm64', 'mac-x64', 'win-x64'])
 /**
  * Name the fixed installer object shared by uploading and cache refresh.
  * @param {'mac-arm64' | 'mac-x64' | 'win-x64'} target Supported Desktop target.
+ * @param {NodeJS.ProcessEnv} env Packaging or upload environment that selects the download prefix.
  * @returns {string} Fixed download filename.
  */
-export function desktopLatestInstallerFilename(target) {
+export function desktopLatestInstallerFilename(target, env = process.env) {
   if (!UPDATE_TARGETS.has(target)) throw new Error(`desktop upload: unsupported target ${target}`)
   const windows = target === 'win-x64'
-  return `dsh-latest-${windows ? 'windows' : 'macos'}-${target === 'mac-arm64' ? 'arm64' : 'x64'}.${windows ? 'exe' : 'dmg'}`
+  return `${resolveDesktopProductIdentity(env).downloadPrefix}latest-${windows ? 'windows' : 'macos'}-${
+    target === 'mac-arm64' ? 'arm64' : 'x64'}.${windows ? 'exe' : 'dmg'}`
 }
 
 /**
@@ -149,20 +150,16 @@ function httpsOrigin(value, name) {
  * @param {NodeJS.Platform} platform - Target Node.js platform.
  * @param {string} arch - Target Node.js architecture.
  * @returns {{ environment: 'test' | 'production', channel: 'nightly' | 'latest', target: 'mac-arm64' | 'mac-x64' | 'win-x64', origin: string, publicUrl: string, keyPrefix: string, binaryKeyPrefix: string }} Resolved updater configuration.
- * @throws {Error} When the test deployment lacks a valid HTTPS origin or a 32-character lowercase hexadecimal release ID.
+ * @throws {Error} When the selected deployment lacks a valid HTTPS origin, or when the test deployment
+ * lacks a 32-character lowercase hexadecimal release ID.
  */
 export function resolveDesktopAutoUpdateConfig(env, platform, arch) {
   const channel = resolveDesktopUpdateChannel(env)
   const environment = resolveDesktopAutoUpdateEnvironment(env)
   const target = resolveDesktopAutoUpdateTarget(platform, arch)
   const deployment = UPDATE_ENVIRONMENTS[environment]
-  let origin = deployment.fixedOrigin
-  if (origin === undefined) {
-    const { originEnvName } = deployment
-    if (originEnvName === undefined) throw new Error('desktop auto-update: selected deployment has no origin')
-    origin = httpsOrigin(requiredEnvironmentValue(env, originEnvName), originEnvName)
-  }
-  let releasePrefix = 'dsh-desk'
+  const origin = httpsOrigin(requiredEnvironmentValue(env, deployment.originEnvName), deployment.originEnvName)
+  let releasePrefix = resolveDesktopProductIdentity(env).updatePrefix
   if (environment === 'test') {
     const releaseId = requiredEnvironmentValue(env, 'DOWNLOAD_TEST_RELEASE_ID')
     if (!/^[a-f0-9]{32}$/u.test(releaseId)) {

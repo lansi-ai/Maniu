@@ -3,6 +3,9 @@ import { readFile } from 'node:fs/promises'
 import { isAbsolute, join } from 'node:path'
 import { z } from 'zod'
 
+/** Origin a production release uses when its environment declares none. */
+const UPSTREAM_PRODUCTION_ORIGIN = 'https://download.deepseek.com'
+
 const singleLine = z.string().min(1).regex(/^[^\r\n\0]+$/u, 'expected a single-line value')
 const absolutePath = singleLine.refine(isAbsolute, 'expected an absolute path')
 const schema = z.strictObject({
@@ -20,13 +23,19 @@ export type DesktopPublishConfig = z.infer<typeof schema>
  * Read one named deployment without opening referenced credential files.
  * @param configRoot Absolute machine packaging configuration directory.
  * @param preset Selected deployment from the retained package.
+ * @param env Release environment; its production origin replaces the upstream download origin.
  * @returns Validated public configuration; production requires App configuration.
  */
-export async function readDesktopPublishConfig(configRoot: string, preset: 'test' | 'production'): Promise<DesktopPublishConfig> {
+export async function readDesktopPublishConfig(
+  configRoot: string,
+  preset: 'test' | 'production',
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<DesktopPublishConfig> {
   if (!isAbsolute(configRoot)) throw new Error('desktop publish: configuration root must be absolute')
   const config = schema.parse(JSON.parse(await readFile(join(configRoot, 'publishing', `${preset}.json`), 'utf8')))
-  if (preset === 'production' && (config.origin !== 'https://download.deepseek.com' || !config.githubApp)) {
-    throw new Error('desktop publish: production requires its fixed origin and GitHub App configuration')
+  const productionOrigin = env.LCODER_UPDATE_ORIGIN?.trim() || env.DOWNLOAD_PROD_ORIGIN?.trim() || UPSTREAM_PRODUCTION_ORIGIN
+  if (preset === 'production' && (config.origin !== productionOrigin || !config.githubApp)) {
+    throw new Error('desktop publish: production requires its configured download origin and GitHub App configuration')
   }
   return config
 }

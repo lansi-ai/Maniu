@@ -13,6 +13,7 @@
  */
 
 import { execFileSync } from 'node:child_process'
+import { resolveDesktopProductIdentity } from './desktop-product-identity.mjs'
 
 /** What tagging one uploaded release did, or why it did nothing. */
 export interface DesktopReleaseTagResult {
@@ -26,15 +27,16 @@ export interface DesktopReleaseTagResult {
 /**
  * Name the tag one published version carries.
  * @param version - Version the release published.
+ * @param env - Packaging environment that selects the product's tag prefix.
  * @returns The tag name, distinct from the `dsh-v*` tags the npm family publishes from.
  */
-export function desktopReleaseTag(version: string): string {
-  return `desktop-v${version}`
+export function desktopReleaseTag(version: string, env: NodeJS.ProcessEnv = process.env): string {
+  return `${resolveDesktopProductIdentity(env).releaseTagPrefix}${version}`
 }
 
 /**
  * Tag and push the commit a production release was packaged from.
- * @param options - Published version, packaged commit, repository, and remote.
+ * @param options - Published version, packaged commit, repository, remote, and packaging environment.
  * @returns What tagging did; a failure is reported rather than thrown.
  */
 export function tagDesktopRelease(options: {
@@ -42,9 +44,10 @@ export function tagDesktopRelease(options: {
   readonly commit: string
   readonly repositoryRoot: string
   readonly remote?: string
+  readonly env?: NodeJS.ProcessEnv
   readonly run?: (command: string, args: readonly string[]) => string
 }): DesktopReleaseTagResult {
-  const tag = desktopReleaseTag(options.version)
+  const tag = desktopReleaseTag(options.version, options.env)
   const remote = options.remote ?? 'origin'
   const run = options.run
     ?? ((command: string, args: readonly string[]) =>

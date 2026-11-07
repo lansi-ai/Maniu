@@ -10,9 +10,10 @@ export type DesktopAutoUpdateTarget = 'mac-arm64' | 'mac-x64' | 'win-x64'
 /**
  * Name the fixed installer object shared by uploading and cache refresh.
  * @param target Supported Desktop target.
+ * @param env Packaging or upload environment that selects the download prefix.
  * @returns Fixed download filename.
  */
-export function desktopLatestInstallerFilename(target: DesktopAutoUpdateTarget): string
+export function desktopLatestInstallerFilename(target: DesktopAutoUpdateTarget, env?: NodeJS.ProcessEnv): string
 
 /** Public updater URL and object prefixes for one release target. */
 export interface DesktopAutoUpdateConfig {

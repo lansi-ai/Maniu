@@ -21,6 +21,13 @@
  * against the base itself: builds extending a prerelease outrank it, while
  * `0.1.6-test.1` ranks below `0.1.6`, which is why the stable form belongs to a
  * test feed that never serves the production release.
+ *
+ * A product whose releases do not follow this repository's manifests declares its own
+ * `DSH_DESKTOP_RELEASE_VERSION`, which names a version series independently instead of
+ * extending the product version. The manifests keep the product version, so an upstream
+ * sync never conflicts on version lines, and the release version reaches the installed
+ * `app.getVersion()`, the artifact names, and the feed. One run accepts either input,
+ * never both.
  */
 
 import { parse } from 'semver'
@@ -28,8 +35,22 @@ import { parse } from 'semver'
 /** Environment variable that carries the build version through one packaging and upload run. */
 export const DESKTOP_BUILD_VERSION_ENV = 'DSH_DESKTOP_BUILD_VERSION'
 
+/** Environment variable that carries a release version independent of the product version. */
+export const DESKTOP_RELEASE_VERSION_ENV = 'DSH_DESKTOP_RELEASE_VERSION'
+
 /** Prerelease field that opens a test build's suffix on a stable product version. */
 const STABLE_TEST_FIELD = 'test'
+
+/**
+ * The trimmed value of one environment variable, or undefined when it is unset or blank.
+ * @param {NodeJS.ProcessEnv} env - Packaging or upload environment.
+ * @param {string} name - Environment variable to read.
+ * @returns {string | undefined} The declared version, or undefined.
+ */
+function declaredVersion(env, name) {
+  const value = env[name]?.trim()
+  return value === undefined || value === '' ? undefined : value
+}
 
 /**
  * Parse a version the updater would accept.
@@ -81,15 +102,52 @@ export function validateDesktopBuildVersion(buildVersion, productVersion) {
 }
 
 /**
+ * Validate a version that names its own release series.
+ * @param {string} releaseVersion - Version this release publishes.
+ * @returns {string} The version as semver normalizes it, which is what the artifacts will carry.
+ */
+export function validateDesktopReleaseVersion(releaseVersion) {
+  return parseVersion(releaseVersion, 'release version').version
+}
+
+/**
  * Resolve the version a build publishes.
  * @param {NodeJS.ProcessEnv} env - Packaging or upload environment.
  * @param {string} productVersion - Version the manifests declare.
- * @returns {string} The build version when one is present, otherwise the product version.
+ * @returns {string} The declared release or build version, otherwise the product version.
+ * @throws {Error} When the environment declares both a release version and a build version.
  */
 export function resolveDesktopBuildVersion(env, productVersion) {
-  const buildVersion = env[DESKTOP_BUILD_VERSION_ENV]?.trim()
-  if (buildVersion === undefined || buildVersion === '') return productVersion
+  const releaseVersion = declaredVersion(env, DESKTOP_RELEASE_VERSION_ENV)
+  const buildVersion = declaredVersion(env, DESKTOP_BUILD_VERSION_ENV)
+  if (releaseVersion !== undefined) {
+    if (buildVersion !== undefined) {
+      throw new Error(`desktop build version: ${DESKTOP_RELEASE_VERSION_ENV} and ${DESKTOP_BUILD_VERSION_ENV} are alternatives`)
+    }
+    return validateDesktopReleaseVersion(releaseVersion)
+  }
+  if (buildVersion === undefined) return productVersion
   return validateDesktopBuildVersion(buildVersion, productVersion)
+}
+
+/**
+ * Validate a version a completed package published against what the environment asked for.
+ * @param {NodeJS.ProcessEnv} env - Packaging or upload environment.
+ * @param {string} publishedVersion - Version the package record carries.
+ * @param {string} productVersion - Version the manifests declare.
+ * @returns {string} The published version as semver normalizes it.
+ * @throws {Error} When the published version is invalid, disagrees with a declared release version,
+ * or fails to extend the product version a build version belongs to.
+ */
+export function validateDesktopPublishedVersion(env, publishedVersion, productVersion) {
+  const releaseVersion = declaredVersion(env, DESKTOP_RELEASE_VERSION_ENV)
+  if (releaseVersion === undefined) return validateDesktopBuildVersion(publishedVersion, productVersion)
+  const published = validateDesktopReleaseVersion(publishedVersion)
+  const release = validateDesktopReleaseVersion(releaseVersion)
+  if (published !== release) {
+    throw new Error(`desktop build version: published ${publishedVersion} does not match release version ${release}`)
+  }
+  return published
 }
 
 /**
