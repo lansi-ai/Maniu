@@ -8,7 +8,7 @@ import { CloudApi, CloudApiError, parseTokenEstimate } from '../src/cloud/api.ts
 
 /** 记下请求并回一个 JSON 响应。 */
 function stubFetch(body: unknown, status = 200) {
-  return vi.fn(async (_url: string, _init?: RequestInit) => new Response(
+  return vi.fn<typeof fetch>(async (_input, _init) => new Response(
     JSON.stringify(body),
     { status, headers: { 'content-type': 'application/json' } },
   ))

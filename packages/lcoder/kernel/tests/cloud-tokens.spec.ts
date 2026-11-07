@@ -64,6 +64,7 @@ function harness(accessExp = Math.floor(NOW / 1000) + 900) {
   const api = {
     refresh: vi.fn(),
     me: vi.fn(),
+    usage: vi.fn(),
     logout: vi.fn(),
   }
   const manager = new CloudTokenManager(api, store, {
