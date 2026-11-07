@@ -62,7 +62,7 @@ upstream = deepseek-ai/deepseek-harness
 | `tsconfig.host.json` | 一行：`references` 里加 `./packages/lcoder/kernel` | 同理，host 聚合编译靠 references 把包划进工程边界。kernel 的测试被 `packages/*/*/tests/**/*.ts` 收进了 host 聚合，但 kernel 的 src 不在任何工程里，编译直接报 TS6307 |
 | `AGENTS.md` | 顶部新增「LCoder 二次开发入口」两行：规则、看板、产品文档指针 | 上游根入口是任何 AI 工具的第一落点；没有这段，工具不会自动读到 LCoder 的治理文件 |
 | `apps/desktop/src/locale.ts` | 用户可见品牌串：welcomeTitle / welcomeBrand / welcomeTaglineBrand（加载与欢迎页）、关于菜单、隐藏/退出/打开应用、退出确认、启动失败、更新标题，`DeepSeek Harness` 全部改为 `LCoder`；中英的 welcomeKeyDescription 改成中性说法 | 这是产品品牌面：桌面端欢迎页与系统菜单直接显示上游产品名。该文件是桌面壳文案的单源，没有配置覆盖入口；欢迎页在主进程里先于插件树渲染，装配层换不掉 |
-| `apps/desktop/tests/main-startup.spec.ts`、`quit-confirmation.spec.ts`、`tray.spec.ts` 与 `tests/expected/*.json` | 菜单、关于、退出确认、托盘文案与命令清单的期望从 DeepSeek Harness 改为 LCoder | 文案单源改名后，行为期望与夹具必须跟着改，否则测试与产品不一致 |
+| `apps/desktop/tests/main-startup.spec.ts`、`quit-confirmation.spec.ts`、`tray.spec.ts`、`command-management.spec.ts` 与 `tests/expected/*.json` | 菜单、关于、退出确认、托盘文案与命令清单的期望从 DeepSeek Harness 改为 LCoder；`command-management.spec.ts` 的示例安装路径同步为 `%LOCALAPPDATA%\Programs\LCoder` | 文案单源改名后，行为期望与夹具必须跟着改，否则测试与产品不一致 |
 | `apps/desktop/src/main.ts` | Windows 主窗改 `frame: false`，去掉原生 caption 与 `titleBarOverlay`；新增窗口最小化/最大化/关闭与状态查询 IPC，并在 maximize/unmaximize/fullscreen 时推状态；新增项目目录选择 IPC（`properties: ['openDirectory']`）；窗口创建补 `icon`（取 `applicationIconPath()`，关于面板与安装向导同源）；新增 `windowAttention` 处理器，按渲染端报来的等待数与自身焦点状态决定 `flashFrame`；首屏欢迎窗默认关闭（`WELCOME_ENABLED` 由 `DSH_DESKTOP_WELCOME=1` 开启），四处显示入口统一加闸；窗口创建补 `icon`（取新的 `applicationIconPath()`，关于面板与安装向导同源） | LCoder 要求自绘标题栏与项目目录选择。装配层（cordis patch / 插件配置）只能挂插件，改不了 `BrowserWindow` 选项；页面 CSS 也隐藏不了原生 caption。frameless 保留 `thickFrame`，拖边缩放与 Win+方向键不变。不显式给窗口 icon，Windows 任务栏与 Alt-Tab 就显示 Electron 默认图标 |
 | `apps/desktop/src/ipc.ts` | 增加 windowCommand / windowState / windowStateChanged / windowAttention / projectDirectoryPick 五个私有通道与 DesktopWindowBridge 类型 | 窗口按钮、最大化态与目录选择需要 `ipcMain` 与 `BrowserWindow`；装配层拿不到这两样，必须由 Desktop 主进程提供通道 |
 | `apps/desktop/src/preload-app.ts` | Windows app 文档下暴露 `dshDesktop.window`、标记 `data-lcoder-custom-chrome`，并停用 `syncWindowsAppearance` 的挂载；目录桥增加 `pickProjectDirectory`，窗口桥增加 `attention(awaiting)` | 该能力在隔离的 preload 上下文；profile/插件层无法向渲染进程注入 `contextBridge`，也卸不掉上游注入的 HTML menubar 与 40px 标题栏占位 |
@@ -89,7 +89,9 @@ upstream = deepseek-ai/deepseek-harness
 | `apps/desktop/scripts/electron-builder-config.mjs` | 已落地：产品名、协议、产物前缀、更新缓存目录、打包后的产品名、麦克风说明、未签名更新开关 | 应用包身份与协议注册只在这里，插件与 profile 都改不了 |
 | `apps/desktop/scripts/desktop-package-environment.mjs` | 已落地：把 `LCODER_*` 映射到内部变量并提供 LCoder 身份；本机默认应用标识改为 `ai.lansi.lcoder` | 目标 dotenv 加载器是本地打包与上传的唯一入口 |
 | `apps/desktop/scripts/desktop-auto-update-environment.mjs` | 已落地：生产源改由环境提供（写死的 `download.deepseek.com` 已移除）、`lcoder-desk` 前缀、LCoder 固定下载文件名 | 更新目标与固定下载名由它解析 |
+| `apps/desktop/scripts/desktop-auto-update-environment.d.mts` | 已落地：固定下载名声明增加可选 `env` 参数 | 类型面必须与实现同步，否则调用方拿不到新参数 |
 | `apps/desktop/scripts/desktop-build-version.mjs` | 已落地：接受不继承上游产品版本的独立 LCoder 发布版本 | 现有校验强制构建版本继承 `0.2.2-alpha.2` |
+| `apps/desktop/scripts/desktop-build-version.d.mts` | 已落地：发布版本常量、校验与完整版本校验的声明 | 类型面必须与实现同步 |
 | `apps/desktop/scripts/package-target.ts` | 已落地：`lcoder-` 产物名与 macOS 应用路径 | 它命名 DMG 并驱动目标构建 |
 | `apps/desktop/scripts/package-macos.ts` | 已落地：`LCoder.app` 包名与产物基名 | 它按名字复制与提升已签名应用 |
 | `apps/desktop/scripts/desktop-upload-plan.ts` | 已落地：`lcoder-` 产物基名与固定下载 key | 上传校验会把文件名与已打包发布对齐 |
@@ -98,6 +100,9 @@ upstream = deepseek-ai/deepseek-harness
 | `apps/desktop/scripts/desktop-release-tag.ts` | 已落地：`lcoder-v` 发布标签前缀 | 生产上传会给打包提交打标签 |
 | `apps/desktop/tests/desktop-auto-update-environment.spec.ts` | 已落地：生产部署改为必须提供公开源 | 行为变更必须由测试钉住 |
 | `apps/desktop/tests/desktop-package-environment.spec.ts` | 已落地：本机默认身份与 `LCODER_*` 契约 | 行为变更必须由测试钉住 |
+| `apps/desktop/tests/desktop-upload-plan.spec.ts` | 已落地：生产作业环境声明 `DOWNLOAD_PROD_ORIGIN` | 生产源改由环境提供后，上传计划不再有内建默认源 |
+| `apps/desktop/tests/upload-target.spec.ts` | 已落地：生产环境与 purge 桩声明 `DOWNLOAD_PROD_ORIGIN` | 同上，缓存刷新 URL 依赖环境提供的生产源 |
+| `apps/desktop/tests/desktop-edgeone.spec.ts` | 已落地：生产刷新环境声明 `DOWNLOAD_PROD_ORIGIN` | 同源缺口：生产源改由环境提供 |
 | `apps/desktop/src/single-instance.ts` | 第二实例回调带上参数 | 协议 URL 通过第二实例参数到达 |
 | `apps/desktop/src/update-presentation.ts` | 呈现已安装版本与通道 | 设置页要显示版本与通道 |
 | `apps/desktop/.env.windows.example` | 已落地：`LCODER_*` 变量名与 LCoder 应用标识 | 操作者从示例起步 |

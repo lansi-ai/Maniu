@@ -2,6 +2,7 @@
 import type { teo } from 'tencentcloud-sdk-nodejs-teo'
 import type { DesktopPackageTargetName } from './package-target.ts'
 import { desktopLatestInstallerFilename, requiredEnvironmentValue, resolveDesktopAutoUpdateEnvironment, resolveDesktopUploadConfig } from './desktop-auto-update-environment.mjs'
+import { resolveDesktopProductIdentity } from './desktop-product-identity.mjs'
 import { desktopTargetPlatform } from './desktop-build-paths.mjs'
 
 /** Validated production destination and credentials; never serialize this value. */
@@ -31,7 +32,7 @@ export function resolveDesktopPurgeConfig(
   const zoneId = requiredEnvironmentValue(env, 'DOWNLOAD_PROD_EO_ZONE_ID')
   if (!/^zone-[a-z0-9]+$/u.test(zoneId)) throw new DesktopPurgeError('desktop purge: DOWNLOAD_PROD_EO_ZONE_ID must name one EO zone')
   return {
-    zoneId, publicUrl: publicUrl ?? `${update.origin}/desktop/${desktopLatestInstallerFilename(target, env)}`,
+    zoneId, publicUrl: publicUrl ?? `${update.origin}/${resolveDesktopProductIdentity(env).fixedDownloadDirectory}/${desktopLatestInstallerFilename(target, env)}`,
     secretId: requiredEnvironmentValue(env, update.secretIdEnvName), secretKey: requiredEnvironmentValue(env, update.secretKeyEnvName),
   }
 }

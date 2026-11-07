@@ -20,6 +20,9 @@ export const DESKTOP_ARTIFACT_PREFIX_ENV = 'DSH_DESKTOP_ARTIFACT_PREFIX'
 /** Environment variable that supplies the fixed installer download filename prefix. */
 export const DESKTOP_DOWNLOAD_PREFIX_ENV = 'DSH_DESKTOP_DOWNLOAD_PREFIX'
 
+/** Environment variable that supplies the object directory of the fixed installer downloads. */
+export const DESKTOP_FIXED_DOWNLOAD_DIR_ENV = 'DSH_DESKTOP_FIXED_DOWNLOAD_DIR'
+
 /** Environment variable that supplies the download object prefix. */
 export const DESKTOP_UPDATE_PREFIX_ENV = 'DSH_DESKTOP_UPDATE_PREFIX'
 
@@ -41,6 +44,7 @@ const UPSTREAM_IDENTITY = {
   protocolScheme: 'dsh',
   artifactPrefix: 'deepseek-harness-',
   downloadPrefix: 'dsh-',
+  fixedDownloadDirectory: 'desktop',
   updatePrefix: 'dsh-desk',
   updaterCacheDirName: undefined,
   releaseTagPrefix: 'desktop-v',
@@ -53,6 +57,7 @@ export const LCODER_RELEASE_IDENTITY = {
   protocolScheme: 'lcoder',
   artifactPrefix: 'lcoder-',
   downloadPrefix: 'lcoder-',
+  fixedDownloadDirectory: 'lcoder-desk/latest',
   updatePrefix: 'lcoder-desk',
   updaterCacheDirName: 'lcoder-updater',
   releaseTagPrefix: 'lcoder-v',
@@ -64,6 +69,7 @@ const IDENTITY_SETTINGS = {
   protocolScheme: DESKTOP_PROTOCOL_SCHEME_ENV,
   artifactPrefix: DESKTOP_ARTIFACT_PREFIX_ENV,
   downloadPrefix: DESKTOP_DOWNLOAD_PREFIX_ENV,
+  fixedDownloadDirectory: DESKTOP_FIXED_DOWNLOAD_DIR_ENV,
   updatePrefix: DESKTOP_UPDATE_PREFIX_ENV,
   updaterCacheDirName: DESKTOP_UPDATER_CACHE_DIR_ENV,
   releaseTagPrefix: DESKTOP_RELEASE_TAG_PREFIX_ENV,
@@ -99,7 +105,7 @@ function validated(name, value, pattern, expectation) {
  * Resolve the identity one package carries from the internal variables a release environment
  * declares, falling back to the upstream values.
  * @param {NodeJS.ProcessEnv} env - Packaging environment.
- * @returns {{ productName: string, protocolScheme: string, artifactPrefix: string, downloadPrefix: string, updatePrefix: string, updaterCacheDirName: string | undefined, releaseTagPrefix: string }} Validated identity.
+ * @returns {{ productName: string, protocolScheme: string, artifactPrefix: string, downloadPrefix: string, fixedDownloadDirectory: string, updatePrefix: string, updaterCacheDirName: string | undefined, releaseTagPrefix: string }} Validated identity.
  * @throws {Error} When a declared value breaks the character rules for its field.
  */
 export function resolveDesktopProductIdentity(env = process.env) {
@@ -113,6 +119,8 @@ export function resolveDesktopProductIdentity(env = process.env) {
       /^[a-z0-9][a-z0-9._-]*-$/u, 'a lowercase filename prefix ending in a hyphen'),
     downloadPrefix: validated(DESKTOP_DOWNLOAD_PREFIX_ENV, declared.downloadPrefix ?? UPSTREAM_IDENTITY.downloadPrefix,
       /^[a-z0-9][a-z0-9._-]*-$/u, 'a lowercase filename prefix ending in a hyphen'),
+    fixedDownloadDirectory: validated(DESKTOP_FIXED_DOWNLOAD_DIR_ENV, declared.fixedDownloadDirectory ?? UPSTREAM_IDENTITY.fixedDownloadDirectory,
+      /^[a-z0-9][a-z0-9._-]*(?:\/[a-z0-9][a-z0-9._-]*)*$/u, 'a lowercase object directory'),
     updatePrefix: validated(DESKTOP_UPDATE_PREFIX_ENV, declared.updatePrefix ?? UPSTREAM_IDENTITY.updatePrefix,
       /^[a-z0-9][a-z0-9._-]*$/u, 'a lowercase object prefix'),
     updaterCacheDirName: validated(DESKTOP_UPDATER_CACHE_DIR_ENV, declared.updaterCacheDirName,
@@ -129,8 +137,8 @@ export function resolveDesktopProductIdentity(env = process.env) {
  * `LCODER_SPEC_ROOT`, pass through untouched.
  * @param {NodeJS.ProcessEnv} environment - dotenv settings merged with the parent build environment.
  * @returns {NodeJS.ProcessEnv} Environment carrying internal names only; the input is not modified.
- * @throws {Error} When the deployment is unknown or when one setting arrives under its public and its
- * internal name with different values.
+ * @throws {Error} When the deployment is unknown, when one setting arrives under its public and its
+ * internal name with different values, or when a resolved identity value breaks the rules for its field.
  */
 export function expandLcoderReleaseSettings(environment) {
   const env = { ...environment }
@@ -153,6 +161,7 @@ export function expandLcoderReleaseSettings(environment) {
     if (setting(env, name) === undefined) env[name] = LCODER_RELEASE_IDENTITY[field]
   }
   if (setting(env, 'DSH_DESKTOP_APP_ID') === undefined) env.DSH_DESKTOP_APP_ID = LCODER_RELEASE_IDENTITY.appId
+  resolveDesktopProductIdentity(env)
   return env
 }
 

@@ -280,7 +280,7 @@ export async function createDesktopUploadPlan(
   }
   artifacts.push(channelArtifact)
   const latestFilename = desktopLatestInstallerFilename(targetName, environment)
-  const latestKey = `desktop/${latestFilename}`
+  const latestKey = `${resolveDesktopProductIdentity(environment).fixedDownloadDirectory}/${latestFilename}`
   return {
     environment: update.environment,
     target: targetName,

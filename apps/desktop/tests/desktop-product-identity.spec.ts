@@ -30,6 +30,7 @@ function lcoderEnvironment(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv
     LCODER_DOWNLOAD_RELEASE_ID: RELEASE_ID,
     LCODER_RELEASE_VERSION: '0.1.0',
     DSH_DESKTOP_MANDATORY_UPDATE_TEST_ORIGIN: 'https://policy.example.com',
+    DSH_DESKTOP_MANDATORY_UPDATE_CONFIG: JSON.stringify({ allowedAuthOrigins: ['https://login.example.com'] }),
     DSH_DESKTOP_TARGET_PLATFORM: 'win32',
     DSH_DESKTOP_TARGET_ARCH: 'x64',
     DSH_DESKTOP_UNSIGNED: '1',
@@ -49,6 +50,7 @@ describe('LCoder product identity', () => {
       protocolScheme: 'dsh',
       artifactPrefix: 'deepseek-harness-',
       downloadPrefix: 'dsh-',
+      fixedDownloadDirectory: 'desktop',
       updatePrefix: 'dsh-desk',
       updaterCacheDirName: undefined,
       releaseTagPrefix: 'desktop-v',
@@ -63,6 +65,7 @@ describe('LCoder product identity', () => {
       DSH_DESKTOP_PROTOCOL_SCHEME: 'lcoder',
       DSH_DESKTOP_ARTIFACT_PREFIX: 'lcoder-',
       DSH_DESKTOP_DOWNLOAD_PREFIX: 'lcoder-',
+      DSH_DESKTOP_FIXED_DOWNLOAD_DIR: 'lcoder-desk/latest',
       DSH_DESKTOP_UPDATE_PREFIX: 'lcoder-desk',
       DSH_DESKTOP_UPDATER_CACHE_DIR: 'lcoder-updater',
       DSH_DESKTOP_RELEASE_TAG_PREFIX: 'lcoder-v',
@@ -134,9 +137,10 @@ describe('LCoder packaged configuration', () => {
     })
     expect(desktopUpdateChannel(config.extraMetadata)).toBe('nightly')
     const packager = new Packager({ projectDir: tmpdir() })
+    const metadata: unknown = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
     Object.defineProperties(packager, {
       config: { value: config },
-      metadata: { value: JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) },
+      metadata: { value: metadata },
     })
     const appInfo = new AppInfo(packager, undefined)
     expect(appInfo.productFilename).toBe('LCoder')
@@ -162,7 +166,7 @@ describe('LCoder packaged configuration', () => {
     expect((await builderConfig(lcoderEnvironment())).publish).toBeNull()
     expect((await builderConfig(lcoderEnvironment({ LCODER_UNSIGNED_UPDATER: '0' }))).publish).toBeNull()
     const opted = await builderConfig(lcoderEnvironment({ LCODER_UNSIGNED_UPDATER: '1' }))
-    expect(opted.extraMetadata.dshDesktopUpdateChannel).toBe('nightly')
+    expect(opted.extraMetadata).toMatchObject({ dshDesktopUpdateChannel: 'nightly' })
   })
 
   it('rejects an unsigned updater switch that is neither 0 nor 1', async () => {
@@ -172,7 +176,7 @@ describe('LCoder packaged configuration', () => {
   it('accepts a prerelease on nightly and rejects one on latest', async () => {
     const prerelease = '0.1.1-nightly.20261106.1'
     const nightly = await builderConfig(lcoderEnvironment({ LCODER_RELEASE_VERSION: prerelease }))
-    expect(nightly.extraMetadata.version).toBe(prerelease)
+    expect(nightly.extraMetadata).toMatchObject({ version: prerelease })
     await expect(builderConfig(lcoderEnvironment({
       LCODER_RELEASE_VERSION: prerelease, LCODER_UPDATE_CHANNEL: 'latest', LCODER_UNSIGNED_UPDATER: '1',
     }))).rejects.toThrow(/latest requires a stable version/u)
@@ -180,7 +184,7 @@ describe('LCoder packaged configuration', () => {
       LCODER_RELEASE_VERSION: '0.1.1', LCODER_UPDATE_CHANNEL: 'latest', LCODER_UNSIGNED_UPDATER: '1',
     }))
     expect(stable).toMatchObject({ publish: [{ channel: 'latest' }] })
-    expect(stable.extraMetadata.version).toBe('0.1.1')
+    expect(stable.extraMetadata).toMatchObject({ version: '0.1.1' })
   })
 })
 
@@ -216,6 +220,7 @@ describe('LCoder release version and names', () => {
     const environment = lcoderEnvironment()
     expect(desktopLatestInstallerFilename('win-x64', environment)).toBe('lcoder-latest-windows-x64.exe')
     expect(desktopLatestInstallerFilename('mac-arm64', environment)).toBe('lcoder-latest-macos-arm64.dmg')
+    expect(resolveDesktopProductIdentity(environment).fixedDownloadDirectory).toBe('lcoder-desk/latest')
     expect(desktopReleaseTag('0.1.0', environment)).toBe('lcoder-v0.1.0')
   })
 

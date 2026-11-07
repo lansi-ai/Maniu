@@ -12,6 +12,9 @@ export const DESKTOP_ARTIFACT_PREFIX_ENV: 'DSH_DESKTOP_ARTIFACT_PREFIX'
 /** Environment variable that supplies the fixed installer download filename prefix. */
 export const DESKTOP_DOWNLOAD_PREFIX_ENV: 'DSH_DESKTOP_DOWNLOAD_PREFIX'
 
+/** Environment variable that supplies the object directory of the fixed installer downloads. */
+export const DESKTOP_FIXED_DOWNLOAD_DIR_ENV: 'DSH_DESKTOP_FIXED_DOWNLOAD_DIR'
+
 /** Environment variable that supplies the download object prefix. */
 export const DESKTOP_UPDATE_PREFIX_ENV: 'DSH_DESKTOP_UPDATE_PREFIX'
 
@@ -33,6 +36,7 @@ export interface DesktopProductIdentity {
   readonly protocolScheme: string
   readonly artifactPrefix: string
   readonly downloadPrefix: string
+  readonly fixedDownloadDirectory: string
   readonly updatePrefix: string
   readonly updaterCacheDirName: string | undefined
   readonly releaseTagPrefix: string
@@ -55,7 +59,7 @@ export function resolveDesktopProductIdentity(env?: NodeJS.ProcessEnv): DesktopP
  * fill every identity field the environment leaves unset with the LCoder value.
  * @param environment - dotenv settings merged with the parent build environment.
  * @returns Environment carrying internal names only; the input is not modified.
- * @throws When the deployment is unknown or when one setting arrives under its public and its internal
- * name with different values.
+ * @throws When the deployment is unknown, when one setting arrives under its public and its internal
+ * name with different values, or when a resolved identity value breaks the rules for its field.
  */
 export function expandLcoderReleaseSettings(environment: NodeJS.ProcessEnv): NodeJS.ProcessEnv
