@@ -12,6 +12,17 @@ const POLICY = { DSH_DESKTOP_MANDATORY_UPDATE_TEST_ORIGIN: 'https://policy.examp
 const RELEASE = { ...POLICY, DSH_DESKTOP_APP_ID: 'com.example.desktop', DOWNLOAD_TEST_ORIGIN: 'https://updates.example.com',
   DOWNLOAD_TEST_RELEASE_ID: '0123456789abcdef0123456789abcdef' }
 const MAC_IDENTITY = { DSH_DESKTOP_MACOS_SIGNING_IDENTITY: 'Example Company (TEAMID1234)', DSH_DESKTOP_MACOS_TEAM_ID: 'TEAMID1234' }
+const LCODER_IDENTITY = {
+  DSH_DESKTOP_APP_ID: 'ai.lansi.lcoder',
+  DSH_DESKTOP_ARTIFACT_PREFIX: 'lcoder-',
+  DSH_DESKTOP_DOWNLOAD_PREFIX: 'lcoder-',
+  DSH_DESKTOP_FIXED_DOWNLOAD_DIR: 'lcoder-desk/latest',
+  DSH_DESKTOP_PRODUCT_NAME: 'LCoder',
+  DSH_DESKTOP_PROTOCOL_SCHEME: 'lcoder',
+  DSH_DESKTOP_RELEASE_TAG_PREFIX: 'lcoder-v',
+  DSH_DESKTOP_UPDATER_CACHE_DIR: 'lcoder-updater',
+  DSH_DESKTOP_UPDATE_PREFIX: 'lcoder-desk',
+}
 
 async function withDirectory(action: (directory: string) => Promise<void>): Promise<void> {
   const directory = await mkdtemp(join(tmpdir(), 'desktop-env-'))
@@ -99,7 +110,7 @@ describe('Desktop local packaging configuration', () => {
     await withDirectory(async (directory) => {
       await writeFile(join(directory, '.env.windows'), '')
       expect(loadDesktopPackageEnvironment('win32', { DSH_DESKTOP_PACKAGE_CACHE_DIR: directory }, directory))
-        .toEqual({ DSH_DESKTOP_PACKAGE_CACHE_DIR: directory })
+        .toEqual({ ...LCODER_IDENTITY, DSH_DESKTOP_PACKAGE_CACHE_DIR: directory })
     })
   })
   it('selects macOS local defaults while excluding inherited release settings and retaining build networking', () => {
@@ -113,8 +124,8 @@ describe('Desktop local packaging configuration', () => {
     }
     const local = localMacOSPackageEnvironment(parent)
     expect(local).toEqual({
-      PATH: parent.PATH, HTTPS_PROXY: parent.HTTPS_PROXY, DSH_DESKTOP_NPM_REGISTRY: parent.DSH_DESKTOP_NPM_REGISTRY,
-      DSH_DESKTOP_APP_ID: 'com.deepseek.harness', DSH_DESKTOP_UNSIGNED: '1',
+      ...LCODER_IDENTITY, PATH: parent.PATH, HTTPS_PROXY: parent.HTTPS_PROXY,
+      DSH_DESKTOP_NPM_REGISTRY: parent.DSH_DESKTOP_NPM_REGISTRY, DSH_DESKTOP_UNSIGNED: '1',
     })
     expect(() => { validateDesktopPackageEnvironment(local, MACOS, { unsigned: true }) }).not.toThrow()
     expect(parent.DSH_DESKTOP_UNSIGNED).toBe('0')
@@ -180,12 +191,12 @@ describe('Desktop local packaging configuration', () => {
         dsh_desktop_windows_key_container: 'case-insensitive-stale-container',
       }
       expect(loadDesktopPackageEnvironment('win32', parent, directory)).toEqual({
-        PATH: 'build-tools', DSH_DESKTOP_APP_ID: 'com.example.windows',
+        ...LCODER_IDENTITY, PATH: 'build-tools', DSH_DESKTOP_APP_ID: 'com.example.windows',
         DSH_DESKTOP_WINDOWS_TOKEN_PIN: ' #!$%&literal ',
         DSH_DESKTOP_WINDOWS_CER_FILE: join(directory, 'keys', 'public certificate.cer'),
       })
       expect(loadDesktopPackageEnvironment('darwin', parent, directory)).toEqual({
-        PATH: 'build-tools', DSH_DESKTOP_APP_ID: 'com.example.mac', APPLE_KEYCHAIN_PROFILE: 'release',
+        ...LCODER_IDENTITY, PATH: 'build-tools', DSH_DESKTOP_APP_ID: 'com.example.mac', APPLE_KEYCHAIN_PROFILE: 'release',
         CSC_LINK: join(directory, 'keys/signing.p12'), CSC_KEY_PASSWORD: ' # literal ',
       })
       expect(parent.DSH_DESKTOP_WINDOWS_TOKEN_PIN).toBe('stale-pin')
@@ -220,8 +231,8 @@ describe('Desktop local packaging configuration', () => {
       await writeFile(join(directory, '.env.windows'), `${lines}DSH_DESKTOP_MANDATORY_UPDATE_CONFIG='${windowsPolicy}'\n`)
       await writeFile(join(directory, '.env.macos'), `${lines}DSH_DESKTOP_MANDATORY_UPDATE_CONFIG='${macPolicy}'\n`)
       const parent = { DSH_DESKTOP_MANDATORY_UPDATE_CONFIG: 'stale-policy' }
-      expect(loadDesktopPackageEnvironment('win32', parent, directory)).toEqual({ ...origins, DSH_DESKTOP_MANDATORY_UPDATE_CONFIG: windowsPolicy })
-      expect(loadDesktopPackageEnvironment('darwin', parent, directory)).toEqual({ ...origins, DSH_DESKTOP_MANDATORY_UPDATE_CONFIG: macPolicy })
+      expect(loadDesktopPackageEnvironment('win32', parent, directory)).toEqual({ ...LCODER_IDENTITY, ...origins, DSH_DESKTOP_MANDATORY_UPDATE_CONFIG: windowsPolicy })
+      expect(loadDesktopPackageEnvironment('darwin', parent, directory)).toEqual({ ...LCODER_IDENTITY, ...origins, DSH_DESKTOP_MANDATORY_UPDATE_CONFIG: macPolicy })
       expect(parent).toEqual({ DSH_DESKTOP_MANDATORY_UPDATE_CONFIG: 'stale-policy' })
     })
   })

@@ -125,8 +125,9 @@ updaterCacheDirName: lcoder-updater
 | LCODER_APP_ID | DSH_DESKTOP_APP_ID | 应用标识 |
 | LCODER_UPDATE_ENV | DSH_DESKTOP_AUTO_UPDATE_ENV | 选择 test 或 production 目标 |
 | LCODER_UPDATE_CHANNEL | DSH_DESKTOP_UPDATE_CHANNEL | 选择 latest 或 nightly |
-| LCODER_RELEASE_VERSION | DSH_DESKTOP_BUILD_VERSION | 独立的 LCoder 发布版本 |
-| LCODER_DOWNLOAD_ORIGIN | DOWNLOAD_TEST_ORIGIN | 测试公开源 |
+| LCODER_RELEASE_VERSION | DSH_DESKTOP_RELEASE_VERSION | 独立的 LCoder 发布版本 |
+| LCODER_UPDATE_ORIGIN | DOWNLOAD_TEST_ORIGIN 或 DOWNLOAD_PROD_ORIGIN | 所选部署的公开下载源 |
+| LCODER_UPDATE_PREFIX | DSH_DESKTOP_UPDATE_PREFIX | 对象前缀，默认 `lcoder-desk` |
 | LCODER_DOWNLOAD_BUCKET | DOWNLOAD_TEST_COS_BUCKET 或 DOWNLOAD_PROD_COS_BUCKET | 选中的 COS 桶 |
 | LCODER_DOWNLOAD_SECRET_ID | DOWNLOAD_TEST_COS_SECRET_ID 或 DOWNLOAD_PROD_COS_SECRET_ID | 选中的 COS SecretId |
 | LCODER_DOWNLOAD_SECRET_KEY | DOWNLOAD_TEST_COS_SECRET_KEY 或 DOWNLOAD_PROD_COS_SECRET_KEY | 选中的 COS SecretKey |
@@ -134,8 +135,9 @@ updaterCacheDirName: lcoder-updater
 | LCODER_DOWNLOAD_EO_ZONE_ID | DOWNLOAD_PROD_EO_ZONE_ID | 生产 CDN 刷新地域 |
 | LCODER_PRODUCT_NAME | DSH_DESKTOP_PRODUCT_NAME | 产品名与应用包名 |
 | LCODER_PROTOCOL_SCHEME | DSH_DESKTOP_PROTOCOL_SCHEME | 深链接协议 |
+| LCODER_UNSIGNED_UPDATER | DSH_DESKTOP_UNSIGNED_UPDATER | 在未签名包内嵌 feed（见 §4.1） |
 
-LCoder 变量名是发布配置契约。打包环境加载器里的一步别名映射把它们映射到上游脚本已经读取的内部变量名，打包代码的其余输入保持不变。目标 dotenv 文件使用 LCoder 变量名；真实密钥绝不进入仓库。内部变量名只作内部使用，不构成第二份公开契约。
+LCoder 变量名是发布配置契约。打包环境加载器里的一步别名映射把它们映射到上游脚本已经读取的内部变量名，打包代码的其余输入保持不变。同一步还供应 LCoder 产品名、应用标识、深链接协议、产物前缀、固定下载名前缀、对象前缀、更新缓存目录与发布标签前缀，这些值由 `apps/desktop/scripts/desktop-product-identity.mjs` 持有；一个都不声明这些内部变量的发布环境保留上游身份。目标 dotenv 文件使用 LCoder 变量名；真实密钥绝不进入仓库。内部变量名只作内部使用，不构成第二份公开契约。
 
 ### 2.6 缓存、上传与回滚
 
@@ -264,13 +266,14 @@ LCoder 变量名是发布配置契约。打包环境加载器里的一步别名�
 
 | 文件 | 计划改动 | 为什么必须改 |
 |---|---|---|
-| apps/desktop/scripts/electron-builder-config.mjs | 产品名、协议、产物前缀、打包后的产品名、麦克风说明、未签名更新开关 | 该文件拥有应用包身份与协议注册；插件或 profile 都改不了 |
-| apps/desktop/scripts/desktop-package-environment.mjs | 把 `LCODER_*` 映射到内部名；修改本机 macOS 默认应用标识 | 目标 dotenv 加载器是本地打包与上传的唯一入口 |
-| apps/desktop/scripts/desktop-auto-update-environment.mjs | LCoder 源、`lcoder-desk` 前缀、固定下载文件名 | 该文件解析全部更新目标与固定下载名 |
+| apps/desktop/scripts/electron-builder-config.mjs | 产品名、协议、产物前缀、更新缓存目录、打包后的产品名、麦克风说明、未签名更新开关 | 该文件拥有应用包身份与协议注册；插件或 profile 都改不了 |
+| apps/desktop/scripts/desktop-package-environment.mjs | 把 `LCODER_*` 映射到内部名并提供 LCoder 身份；修改本机默认应用标识 | 目标 dotenv 加载器是本地打包与上传的唯一入口 |
+| apps/desktop/scripts/desktop-auto-update-environment.mjs | 每个部署都从环境读取公开源，对象前缀与固定下载名由产品身份解析 | 该文件解析全部更新目标与固定下载名 |
 | apps/desktop/scripts/desktop-build-version.mjs | 接受不继承上游产品版本的独立 LCoder 发布版本 | 上游校验器强制每个构建版本继承 `0.2.2-alpha.2` |
 | apps/desktop/scripts/package-target.ts | LCoder 产物名与 macOS 应用路径 | 它命名 DMG 并驱动目标构建 |
 | apps/desktop/scripts/package-macos.ts | LCoder 应用包名与产物基名 | 它按名字复制与提升已签名应用 |
 | apps/desktop/scripts/desktop-upload-plan.ts | LCoder 产物基名与固定下载 key | 上传校验会把文件名与已打包发布对齐 |
+| apps/desktop/scripts/desktop-edgeone.ts | 把发布环境传给固定下载名 | 刷新 URL 必须指向发布上传的同一个对象 |
 | apps/desktop/scripts/desktop-publish-config.ts | LCoder 生产源校验 | 当前生产守卫要求上游下载源 |
 | apps/desktop/scripts/desktop-release-tag.ts | LCoder 发布标签前缀 | 生产上传会给打包提交打标签 |
 | apps/desktop/src/main.ts | 协议、参数路由、延迟启动检查、产品名、更新呈现字段 | 主进程拥有协议注册、更新调度与原生窗口 |
