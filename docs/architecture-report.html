@@ -1,0 +1,1256 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LCoder 架构与功能解析 · T-85</title>
+<style>
+:root {
+  color-scheme: light;
+  --bg: #f6f5f1;
+  --bg-2: #efece4;
+  --panel: #fffefb;
+  --panel-2: #fbf9f3;
+  --ink: #1d1b17;
+  --ink-2: #55504a;
+  --ink-3: #837c72;
+  --line: #e3ded3;
+  --line-2: #d3ccbe;
+  --accent: #9a4b28;
+  --accent-soft: #f3e2d6;
+  --teal: #1f625d;
+  --teal-soft: #d9ece8;
+  --code-bg: #f1eee6;
+  --mark: #ffe6a1;
+  --ok: #2f6b3b;
+  --warn: #8a5a12;
+  --bad: #9c2f2f;
+  --shadow: 0 1px 2px rgba(40,32,20,.05), 0 12px 32px rgba(40,32,20,.05);
+  --radius: 14px;
+  --mono: "Cascadia Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --sans: "Segoe UI", -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei UI", "Noto Sans SC", sans-serif;
+  --serif: "Iowan Old Style", "Songti SC", "Source Han Serif SC", Georgia, serif;
+}
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #141312;
+  --bg-2: #1a1917;
+  --panel: #1d1c1a;
+  --panel-2: #232220;
+  --ink: #eceae3;
+  --ink-2: #b8b2a7;
+  --ink-3: #8d877b;
+  --line: #322f2a;
+  --line-2: #443f36;
+  --accent: #e5a380;
+  --accent-soft: #3a2a20;
+  --teal: #86ccc3;
+  --teal-soft: #1e3532;
+  --code-bg: #242321;
+  --mark: #5c4a14;
+  --ok: #8fcf9a;
+  --warn: #e0b063;
+  --bad: #ef8f8f;
+  --shadow: 0 1px 2px rgba(0,0,0,.35), 0 16px 40px rgba(0,0,0,.35);
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 84px; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 15.5px;
+  line-height: 1.75;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+::selection { background: var(--mark); color: var(--ink); }
+a { color: var(--teal); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 3px; }
+code { font-family: var(--mono); font-size: .86em; }
+.layout {
+  display: grid;
+  grid-template-columns: 292px minmax(0, 1fr);
+  min-height: 100vh;
+}
+/* ── sidebar ─────────────────────────────────────────── */
+.sidebar {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow: auto;
+  padding: 26px 20px 40px;
+  background: linear-gradient(180deg, var(--panel) 0%, var(--panel-2) 100%);
+  border-right: 1px solid var(--line);
+  scrollbar-width: thin;
+}
+.sidebar::-webkit-scrollbar { width: 8px; }
+.sidebar::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 8px; }
+.brand { display: flex; align-items: center; gap: 11px; margin-bottom: 6px; }
+.brand-mark {
+  width: 34px; height: 34px; flex: 0 0 auto; border-radius: 10px;
+  background: var(--ink); color: var(--bg);
+  display: grid; place-items: center;
+  font-family: var(--serif); font-size: 19px; font-weight: 700; letter-spacing: -.02em;
+}
+.brand-text strong { display: block; font-size: 15px; letter-spacing: .01em; }
+.brand-text span { display: block; font-size: 11.5px; color: var(--ink-3); letter-spacing: .08em; text-transform: uppercase; }
+.side-note {
+  margin: 16px 0 20px; padding: 10px 12px;
+  background: var(--bg-2); border: 1px solid var(--line); border-radius: 10px;
+  color: var(--ink-2); font-size: 12.5px; line-height: 1.6;
+}
+.toc-label {
+  font-size: 11px; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--ink-3); margin: 0 0 8px 4px;
+}
+.toc { list-style: none; margin: 0; padding: 0; }
+.toc li { margin: 1px 0; }
+.toc a {
+  display: block;
+  padding: 6px 8px; border-radius: 8px;
+  color: var(--ink-2); font-size: 13.5px; line-height: 1.4;
+}
+.toc > li:not(.sub) > a { display: grid; grid-template-columns: 25px 1fr; gap: 4px; }
+.toc a:hover { background: var(--bg-2); color: var(--ink); text-decoration: none; }
+.toc a.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.toc .num { color: var(--ink-3); font-family: var(--mono); font-size: 11.5px; padding-top: 1px; }
+.toc a.active .num { color: var(--accent); }
+.toc .sub { padding-left: 24px; font-size: 12.5px; color: var(--ink-3); }
+.toc .sub:hover { color: var(--ink); }
+.side-foot { margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--line); color: var(--ink-3); font-size: 11.5px; line-height: 1.7; }
+/* ── main / topbar ───────────────────────────────────── */
+.main { min-width: 0; }
+.topbar {
+  position: sticky; top: 0; z-index: 30;
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 28px;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(14px) saturate(1.2);
+  border-bottom: 1px solid var(--line);
+}
+.search-wrap { position: relative; flex: 1 1 auto; max-width: 520px; }
+.search-wrap svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 15px; height: 15px; color: var(--ink-3); pointer-events: none; }
+#q {
+  width: 100%; padding: 9px 74px 9px 34px;
+  border: 1px solid var(--line-2); border-radius: 10px;
+  background: var(--panel); color: var(--ink);
+  font: inherit; font-size: 13.5px;
+  outline: none;
+}
+#q:focus { border-color: var(--teal); box-shadow: 0 0 0 3px color-mix(in srgb, var(--teal) 18%, transparent); }
+#q::placeholder { color: var(--ink-3); }
+.kbd {
+  position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+  display: inline-flex; gap: 4px; align-items: center; pointer-events: none;
+  color: var(--ink-3); font-size: 11px;
+}
+.kbd kbd {
+  font-family: var(--mono); font-size: 10.5px; padding: 1px 5px;
+  border: 1px solid var(--line-2); border-bottom-width: 2px; border-radius: 5px; background: var(--panel-2);
+}
+.hits { font-size: 12px; color: var(--ink-3); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tools { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 7px 11px; border: 1px solid var(--line-2); border-radius: 9px;
+  background: var(--panel); color: var(--ink-2);
+  font: inherit; font-size: 12.5px; cursor: pointer;
+}
+.btn:hover { color: var(--ink); border-color: var(--ink-3); }
+.btn svg { width: 14px; height: 14px; }
+.progress { position: absolute; left: 0; bottom: -1px; height: 2px; width: 0; background: linear-gradient(90deg, var(--accent), var(--teal)); }
+</style>
+<style>
+/* ── content ─────────────────────────────────────────── */
+.content { max-width: 1020px; margin: 0 auto; padding: 38px 44px 90px; }
+.hero { padding: 18px 0 34px; border-bottom: 1px solid var(--line); }
+.eyebrow {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 11.5px; letter-spacing: .13em; text-transform: uppercase; color: var(--accent);
+  padding: 4px 10px; border: 1px solid color-mix(in srgb, var(--accent) 34%, transparent);
+  border-radius: 999px; background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+.hero h1 {
+  margin: 18px 0 10px;
+  font-family: var(--serif); font-weight: 700;
+  font-size: clamp(30px, 4.2vw, 46px); line-height: 1.18; letter-spacing: -.015em;
+}
+.hero h1 em { font-style: normal; color: var(--accent); }
+.lede { margin: 0; max-width: 760px; color: var(--ink-2); font-size: 16px; }
+.meta-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(116px, 1fr));
+  gap: 10px; margin-top: 26px;
+}
+.meta {
+  padding: 12px 14px; background: var(--panel); border: 1px solid var(--line);
+  border-radius: 11px; box-shadow: var(--shadow);
+}
+.meta b { display: block; font-family: var(--serif); font-size: 22px; line-height: 1.2; }
+.meta span { display: block; margin-top: 2px; font-size: 11.5px; color: var(--ink-3); letter-spacing: .04em; }
+.note-line { margin: 20px 0 0; color: var(--ink-3); font-size: 12.5px; }
+.chapter { padding: 46px 0 8px; }
+.chapter + .chapter { border-top: 1px solid var(--line); }
+.chapter-head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+.chapter-num {
+  font-family: var(--mono); font-size: 12px; letter-spacing: .08em;
+  color: var(--accent); background: var(--accent-soft);
+  padding: 3px 9px; border-radius: 999px;
+}
+h2 {
+  margin: 0; font-family: var(--serif); font-size: clamp(24px, 2.7vw, 31px);
+  font-weight: 700; line-height: 1.25; letter-spacing: -.01em;
+}
+h3 {
+  margin: 34px 0 10px; font-size: 17.5px; font-weight: 700; line-height: 1.35;
+  letter-spacing: -.005em;
+}
+h3 .h3n { color: var(--ink-3); font-family: var(--mono); font-size: 12px; margin-right: 8px; font-weight: 400; }
+h4 { margin: 20px 0 6px; font-size: 14.5px; }
+p { margin: 10px 0; }
+ul, ol { margin: 10px 0; padding-left: 22px; }
+li { margin: 5px 0; }
+strong { font-weight: 650; }
+.ref {
+  display: inline-block; margin: 0 2px; padding: 0 5px;
+  background: var(--code-bg); border: 1px solid var(--line);
+  border-radius: 5px; color: var(--ink-2);
+  font-family: var(--mono); font-size: 11.5px; line-height: 1.65;
+  white-space: nowrap; vertical-align: baseline;
+}
+.ref:hover { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
+.tag {
+  display: inline-block; padding: 1px 8px; border-radius: 999px;
+  font-size: 11px; font-weight: 600; letter-spacing: .02em;
+  background: var(--teal-soft); color: var(--teal);
+}
+.tag.warn { background: color-mix(in srgb, var(--warn) 14%, transparent); color: var(--warn); }
+.tag.bad { background: color-mix(in srgb, var(--bad) 14%, transparent); color: var(--bad); }
+.tag.ok { background: color-mix(in srgb, var(--ok) 14%, transparent); color: var(--ok); }
+.callout {
+  display: grid; grid-template-columns: 3px 1fr; gap: 14px;
+  margin: 18px 0; padding: 14px 18px 14px 16px;
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: 0 12px 12px 0; box-shadow: var(--shadow);
+}
+.callout::before { content: ""; background: var(--teal); border-radius: 3px; }
+.callout.warn::before { background: var(--warn); }
+.callout.bad::before { background: var(--bad); }
+.callout p:first-child { margin-top: 0; }
+.callout p:last-child { margin-bottom: 0; }
+.callout b { color: var(--ink); }
+.plain {
+  margin: 14px 0 6px; padding: 11px 16px 11px 17px;
+  background: var(--teal-soft); border-left: 3px solid var(--teal);
+  border-radius: 0 10px 10px 0; color: var(--ink);
+  font-size: 14.5px; line-height: 1.7;
+}
+.plain b { color: var(--teal); margin-right: 7px; }
+.source-note { margin: 14px 0 0; font-size: 12px; line-height: 1.8; color: var(--ink-3); }
+.toc-group {
+  margin: 15px 0 3px 4px; font-size: 10.5px; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--ink-3);
+}
+.toc-group:first-child { margin-top: 2px; }
+.opening .chapter-head { margin-bottom: 2px; }
+.feature-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(285px, 1fr));
+  gap: 12px; margin: 18px 0;
+}
+.feature-card {
+  display: flex; flex-direction: column; gap: 9px;
+  padding: 16px 17px; background: var(--panel);
+  border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow);
+}
+.feature-card h3 { margin: 0; font-size: 15px; line-height: 1.4; }
+.feature-value { margin: 0; color: var(--ink); font-size: 13.5px; line-height: 1.65; }
+.feature-basis { margin: 0; color: var(--ink-3); font-size: 12px; line-height: 1.7; }
+.feature-status { margin: auto 0 0; padding-top: 2px; font-size: 11.5px; color: var(--ink-3); line-height: 1.7; }
+.feature-status .tag { margin-right: 6px; }
+.table-wrap { margin: 16px 0; overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); box-shadow: var(--shadow); }
+table { width: 100%; border-collapse: collapse; font-size: 13.5px; line-height: 1.55; }
+th, td { padding: 10px 13px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
+th { background: var(--panel-2); color: var(--ink-2); font-size: 12px; letter-spacing: .03em; font-weight: 650; white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+td code, td .ref { font-size: 11.5px; }
+td.nowrap { white-space: nowrap; }
+tbody tr:hover td { background: color-mix(in srgb, var(--teal) 5%, transparent); }
+.stack { display: grid; gap: 8px; margin: 20px 0; }
+.stack-row { display: grid; grid-template-columns: 128px 1fr; gap: 12px; align-items: stretch; }
+.stack-label { font-size: 11.5px; color: var(--ink-3); letter-spacing: .06em; text-transform: uppercase; padding-top: 10px; text-align: right; }
+.stack-box {
+  display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+  padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--panel);
+}
+.stack-box .chip {
+  padding: 4px 9px; border-radius: 7px; font-size: 12px;
+  background: var(--bg-2); border: 1px solid var(--line); font-family: var(--mono);
+}
+.stack-box .chip.hot { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 35%, transparent); color: var(--accent); }
+.stack-box .chip.cool { background: var(--teal-soft); border-color: color-mix(in srgb, var(--teal) 30%, transparent); color: var(--teal); }
+.stack-box small { color: var(--ink-3); font-size: 11.5px; }
+.arrow { text-align: center; color: var(--ink-3); font-size: 12px; line-height: 1; }
+.card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; margin: 16px 0; }
+.card {
+  padding: 15px 16px; background: var(--panel); border: 1px solid var(--line);
+  border-radius: 12px; box-shadow: var(--shadow);
+}
+.card h4 { margin: 0 0 6px; font-size: 14px; }
+.card p { margin: 0; color: var(--ink-2); font-size: 13px; line-height: 1.65; }
+.card .ref { margin-top: 8px; }
+.kv { display: grid; grid-template-columns: 110px 1fr; gap: 6px 12px; margin: 10px 0; font-size: 13.5px; }
+.kv dt { color: var(--ink-3); font-size: 12.5px; }
+.kv dd { margin: 0; }
+.anchor { color: var(--ink-3); font-weight: 400; opacity: 0; margin-left: 6px; font-size: .75em; }
+h2:hover .anchor, h3:hover .anchor, h4:hover .anchor { opacity: .7; }
+.hit { box-shadow: inset 3px 0 0 var(--accent); background: color-mix(in srgb, var(--mark) 34%, transparent); border-radius: 6px; }
+[hidden] { display: none !important; }
+.footer { margin-top: 42px; padding-top: 20px; border-top: 1px solid var(--line); color: var(--ink-3); font-size: 12.5px; }
+.to-top {
+  position: fixed; right: 26px; bottom: 26px; z-index: 40;
+  width: 38px; height: 38px; border-radius: 11px; border: 1px solid var(--line-2);
+  background: var(--panel); color: var(--ink-2); display: grid; place-items: center;
+  cursor: pointer; box-shadow: var(--shadow); opacity: 0; pointer-events: none;
+  transition: opacity .2s ease;
+}
+.to-top.show { opacity: 1; pointer-events: auto; }
+.to-top svg { width: 16px; height: 16px; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+@media (max-width: 1020px) {
+  .layout { grid-template-columns: 1fr; }
+  .sidebar { position: relative; height: auto; max-height: 46vh; border-right: 0; border-bottom: 1px solid var(--line); }
+  .content { padding: 28px 22px 72px; }
+  .topbar { padding: 10px 16px; }
+  .hits { display: none; }
+  .stack-row { grid-template-columns: 1fr; gap: 4px; }
+  .stack-label { text-align: left; padding: 2px 0 0; }
+}
+@media print {
+  .sidebar, .topbar, .to-top { display: none; }
+  .layout { display: block; }
+  body { background: #fff; color: #000; }
+  .chapter { break-inside: avoid; }
+}
+</style>
+<script>
+(function () {
+  try {
+    var saved = localStorage.getItem('lcoder-report-theme');
+    var mode = saved === 'light' || saved === 'dark' ? saved : 'auto';
+    var dark = mode === 'dark' || (mode === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+    document.documentElement.setAttribute('data-theme-mode', mode);
+  } catch (error) {
+    document.documentElement.setAttribute('data-theme', 'light');
+    document.documentElement.setAttribute('data-theme-mode', 'auto');
+  }
+})();
+</script>
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar" aria-label="章节目录">
+  <div class="brand">
+    <div class="brand-mark">L</div>
+    <div class="brand-text"><strong>LCoder 架构与功能解析</strong><span>T-85 / 2026-11-07</span></div>
+  </div>
+  <div class="side-note">单文件离线报告。所有技术论断都标注了源码位置（<code>文件:行号</code>），可逐条回查；未实现与未验内容集中在第 12 章。</div>
+  <p class="toc-label">目录</p>
+  <ul class="toc" id="toc">
+    <li class="toc-group">开篇 · 写给非技术读者</li>
+    <li data-ch="ch0-1"><a href="#ch0-1"><span class="num">A1</span><span>为什么要用它</span></a></li>
+    <li data-ch="ch0-2"><a href="#ch0-2"><span class="num">A2</span><span>它怎么解决</span></a></li>
+    <li data-ch="ch0-3"><a href="#ch0-3"><span class="num">A3</span><span>理想状态</span></a></li>
+    <li data-ch="ch0-4"><a href="#ch0-4"><span class="num">A4</span><span>做不到的部分</span></a></li>
+    <li data-ch="highlights"><a href="#highlights"><span class="num">亮</span><span>亮点功能</span></a></li>
+    <li data-ch="glossary"><a href="#glossary"><span class="num">词</span><span>术语白话对照</span></a></li>
+    <li class="toc-group">技术章节</li>
+    <li data-ch="ch1"><a href="#ch1"><span class="num">01</span><span>架构总览</span></a></li>
+    <li class="sub" data-ch="ch1"><a href="#s1-1">一切皆插件与 Cordis</a></li>
+    <li class="sub" data-ch="ch1"><a href="#s1-2">装配层与补丁</a></li>
+    <li class="sub" data-ch="ch1"><a href="#s1-3">运行链路</a></li>
+    <li data-ch="ch2"><a href="#ch2"><span class="num">02</span><span>数据面</span></a></li>
+    <li class="sub" data-ch="ch2"><a href="#s2-1">投影路径</a></li>
+    <li class="sub" data-ch="ch2"><a href="#s2-2">读取链路</a></li>
+    <li class="sub" data-ch="ch2"><a href="#s2-3">谁写 .spec</a></li>
+    <li class="sub" data-ch="ch2"><a href="#s2-4">为何不自建 Remote</a></li>
+    <li data-ch="ch3"><a href="#ch3"><span class="num">03</span><span>内核能力</span></a></li>
+    <li class="sub" data-ch="ch3"><a href="#s3-1">十二个模型工具</a></li>
+    <li class="sub" data-ch="ch3"><a href="#s3-2">状态白名单</a></li>
+    <li class="sub" data-ch="ch3"><a href="#s3-3">另有五个注册工具</a></li>
+    <li class="sub" data-ch="ch3"><a href="#s3-4">九条人机命令</a></li>
+    <li data-ch="ch4"><a href="#ch4"><span class="num">04</span><span>状态机与契约闸门</span></a></li>
+    <li class="sub" data-ch="ch4"><a href="#s4-1">五态图</a></li>
+    <li class="sub" data-ch="ch4"><a href="#s4-2">drafting → contracted</a></li>
+    <li class="sub" data-ch="ch4"><a href="#s4-3">P3 拒签规则</a></li>
+    <li class="sub" data-ch="ch4"><a href="#s4-4">允许路径硬闸</a></li>
+    <li class="sub" data-ch="ch4"><a href="#s4-5">收口三检查</a></li>
+    <li data-ch="ch5"><a href="#ch5"><span class="num">05</span><span>自动化与人签三闸</span></a></li>
+    <li class="sub" data-ch="ch5"><a href="#s5-1">策略文件</a></li>
+    <li class="sub" data-ch="ch5"><a href="#s5-2">三道人签闸</a></li>
+    <li class="sub" data-ch="ch5"><a href="#s5-3">自签的落盘</a></li>
+    <li data-ch="ch6"><a href="#ch6"><span class="num">06</span><span>流程引擎与调度两层</span></a></li>
+    <li class="sub" data-ch="ch6"><a href="#s6-1">流程引擎</a></li>
+    <li class="sub" data-ch="ch6"><a href="#s6-2">调度判定</a></li>
+    <li class="sub" data-ch="ch6"><a href="#s6-3">入队即共同验收</a></li>
+    <li class="sub" data-ch="ch6"><a href="#s6-4">单例会话</a></li>
+    <li class="sub" data-ch="ch6"><a href="#s6-5">按 contextWindow 压缩</a></li>
+    <li data-ch="ch7"><a href="#ch7"><span class="num">07</span><span>会话模型</span></a></li>
+    <li class="sub" data-ch="ch7"><a href="#s7-1">模型切换</a></li>
+    <li class="sub" data-ch="ch7"><a href="#s7-2">附件与图片</a></li>
+    <li class="sub" data-ch="ch7"><a href="#s7-3">消息窗口</a></li>
+    <li data-ch="ch8"><a href="#ch8"><span class="num">08</span><span>云端与登录门禁</span></a></li>
+    <li class="sub" data-ch="ch8"><a href="#s8-1">免费网关路由</a></li>
+    <li class="sub" data-ch="ch8"><a href="#s8-2">令牌刷新</a></li>
+    <li class="sub" data-ch="ch8"><a href="#s8-3">匿名额度</a></li>
+    <li class="sub" data-ch="ch8"><a href="#s8-4">立项后阻断</a></li>
+    <li data-ch="ch9"><a href="#ch9"><span class="num">09</span><span>个人中心与 token 预估</span></a></li>
+    <li class="sub" data-ch="ch9"><a href="#s9-1">区间口径 8:2</a></li>
+    <li class="sub" data-ch="ch9"><a href="#s9-2">四个不可用原因</a></li>
+    <li class="sub" data-ch="ch9"><a href="#s9-3">桌面只渲染</a></li>
+    <li data-ch="ch10"><a href="#ch10"><span class="num">10</span><span>桌面外壳与身份更新</span></a></li>
+    <li class="sub" data-ch="ch10"><a href="#s10-1">壳结构与页面</a></li>
+    <li class="sub" data-ch="ch10"><a href="#s10-2">身份与协议</a></li>
+    <li class="sub" data-ch="ch10"><a href="#s10-3">COS 更新源</a></li>
+    <li class="sub" data-ch="ch10"><a href="#s10-4">未签名限制</a></li>
+    <li data-ch="ch11"><a href="#ch11"><span class="num">11</span><span>关键文件地图</span></a></li>
+    <li data-ch="ch12"><a href="#ch12"><span class="num">12</span><span>未实现与未验清单</span></a></li>
+    <li class="sub" data-ch="ch12"><a href="#s12-1">未实现</a></li>
+    <li class="sub" data-ch="ch12"><a href="#s12-2">未验</a></li>
+    <li class="sub" data-ch="ch12"><a href="#s12-3">口径偏差</a></li>
+  </ul>
+  <div class="side-foot">本报告只读源码与文档，不改任何源码。<br>生成日：2026-11-07 · 主线 lcoder/main</div>
+</aside>
+
+<div class="main">
+<header class="topbar">
+  <div class="search-wrap">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="7" cy="7" r="4.6"></circle><path d="M10.6 10.6 14 14"></path></svg>
+    <input id="q" type="search" placeholder="过滤章节与条目，例如「自签」「worktree」「预估」" autocomplete="off" spellcheck="false" aria-label="搜索并过滤章节与条目">
+    <span class="kbd"><kbd>/</kbd><span>聚焦</span></span>
+  </div>
+  <span class="hits" id="hits" aria-live="polite"></span>
+  <div class="tools">
+    <button class="btn" id="theme-btn" type="button" title="切换主题：自动 / 浅色 / 深色">
+      <svg id="theme-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="8" cy="8" r="3.2"></circle><path d="M8 1.4v1.8M8 12.8v1.8M1.4 8h1.8M12.8 8h1.8M3.3 3.3l1.3 1.3M11.4 11.4l1.3 1.3M12.7 3.3l-1.3 1.3M4.6 11.4l-1.3 1.3"></path></svg>
+      <span id="theme-label">自动</span>
+    </button>
+  </div>
+  <div class="progress" id="progress"></div>
+</header>
+<main class="content" id="top">
+<section class="hero">
+  <span class="eyebrow">架构与功能解析 · 单文件离线</span>
+  <h1>把「规格 → 契约 → 实现 → 验证 → 收口」<br>做成<em>可执行的状态机</em></h1>
+  <p class="lede">LCoder 是 DeepSeek Harness（下称 DSH）的 Windows 桌面端二次开发：它不复制上游业务实现，而是在装配层叠加一个 <code>@lcoder/kernel</code> 宿主插件、一个 <code>@lcoder/workspace</code> 浏览器插件与一层 profile 补丁。前四章用大白话写给非技术读者，后面十二章再拆技术细节；每一条技术结论都带源码行号。</p>
+  <div class="meta-grid">
+    <div class="meta"><b>17</b><span>章</span></div>
+    <div class="meta"><b>12</b><span>模型工具</span></div>
+    <div class="meta"><b>9</b><span>人机命令</span></div>
+    <div class="meta"><b>9</b><span>角色 preset</span></div>
+    <div class="meta"><b>0</b><span>外部资源引用</span></div>
+  </div>
+  <p class="note-line">阅读约定：<code class="ref">文件:行号</code> 指向本检出（E:/Projects/LCoder）的源码；<span class="tag">已实现</span> 有代码可查，<span class="tag warn">未验</span> 指代码存在但真实环境未跑过，<span class="tag bad">未实现</span> 指台账里仍是 todo。</p>
+</section>
+
+<section class="chapter opening" id="ch0-1" data-title="为什么要用它">
+  <div class="chapter-head"><span class="chapter-num">开篇 1</span><h2>为什么要用它<a class="anchor" href="#ch0-1">#</a></h2></div>
+  <p class="plain blk"><b>一句话结论</b>AI 写代码很快，但「为什么改、改到哪、算不算完」这三件事，光靠聊天记录留不住；LCoder 把它们变成仓库里能查的文件和能拦住人的步骤。</p>
+  <h3>先说四个痛点</h3>
+  <ol class="blk">
+    <li><b>说不清在干什么。</b>需求、当时的决定、验收口径散在几百条聊天里。过几天再问「这条为什么这么改」，只能靠回忆，拼不回来。产品文档把这叫「不知道什么算完成」。</li>
+    <li><b>多件事并行会互相踩。</b>两个人或多个窗口同时改一个仓库，改一处坏一处；谁负责哪块、哪些文件能碰，没有写在代码里的边界。</li>
+    <li><b>看起来做完了，其实没验。</b>测试跑绿只说明代码能编译、已有用例没红，不说明新功能真的对；界面没点过就报完成，是 agent 开发里最常见的假完成。</li>
+    <li><b>长会话会把前面的约定忘掉。</b>今天（2026-11-07）在本机实测：模型名义上支持百万字上下文，大约到十一万字就开始自动摘要；摘要后只剩六千字左右，前面说过的禁令、口径和取舍跟着丢了。</li>
+  </ol>
+  <h3>再说三个让人想用的地方</h3>
+  <ul class="blk">
+    <li><b>一个工作台看全。</b>任务板、规格规则、契约、验收证据和对话在同一个窗口里，不用在几个工具之间来回切。</li>
+    <li><b>每件事都有状态，AI 不能自己越级。</b>任务从起草到关闭是固定几步；没签契约就看不到改代码的工具，模型想跳步也没有入口。</li>
+    <li><b>干完要交作业。</b>证据存进仓库，契约和签名留在文件里，会话过程有日志；事后能回看，而不是只留下一句「已完成」。</li>
+  </ul>
+  <p class="source-note blk">依据：产品定位与「不知道什么算完成」见 <code class="ref">docs/prd-and-design.md:13</code>；并行边界与工作目录硬闸见 <code class="ref">packages/lcoder/workspace/src/client/scheduling.ts:159</code>；固定步骤与工具收放见 <code class="ref">packages/lcoder/kernel/src/kernel/task-store.ts:21</code>、<code class="ref">packages/lcoder/kernel/src/kernel/surface.ts:29</code>；证据只认非空文件见 <code class="ref">packages/lcoder/kernel/src/kernel/evidence-store.ts:26</code>；「模型看得见就必须留档」见 <code class="ref">docs/architecture.md:128</code>。第 4 条是本机实测记录，不是仓库源码结论；压缩机制见 6.5。</p>
+</section>
+
+<section class="chapter opening" id="ch0-2" data-title="它怎么解决">
+  <div class="chapter-head"><span class="chapter-num">开篇 2</span><h2>它怎么解决<a class="anchor" href="#ch0-2">#</a></h2></div>
+  <p class="plain blk"><b>一句话结论</b>它不靠模型自觉，而是把「先签字、再动手、留证据、危险动作归人」做成代码里的步骤。</p>
+  <h3>第一步：先立字据再动工</h3>
+  <p class="blk">接到一件事，先写一张「字据」：要做什么、不做什么、怎么算过、允许改哪些文件。没签字之前，模型能读代码、查规则、起草字据，但看不到改文件的工具；签完字、人确认推进，才会出现改代码和跑命令的权限。</p>
+  <h3>第二步：干完要交作业</h3>
+  <p class="blk">收工不是嘴上说完成。收口前会逐条检查：涉及的规则有没有对应到真实代码位置、涉及不可逆项时该签的字是不是还覆盖当前正文、要求留下的证据是不是都有且非空。三样全过，任务才允许进入「已关闭」。</p>
+  <h3>第三步：危险动作只有人能做</h3>
+  <p class="blk">签合同、推进任务状态、批准方案、合并分支、推送远端、部署上线，这些都不在模型能调用的工具清单里。模型可以把准备工作做到位，最后那一下必须由人点。</p>
+  <h3>两层保障：不靠自觉，靠拦</h3>
+  <p class="blk"><b>工具按阶段收放。</b>每个任务阶段只放行一份工具清单，不在清单里的工具等于不存在；配置漏了是「用不了」，不是「可以越权」。</p>
+  <p class="blk"><b>允许改的路径是代码拦的。</b>任务写了允许范围，改范围外的文件会被直接拒绝，并告诉你该改任务范围或换任务——这不是提示词，是代码里的闸。</p>
+  <p class="source-note blk">依据：起草态工具面见 <code class="ref">packages/lcoder/kernel/src/kernel/surface.ts:29</code>；失败默认关闭见 <code class="ref">packages/lcoder/kernel/src/kernel/surface.ts:107</code>；允许路径硬闸见 <code class="ref">packages/lcoder/kernel/src/tools/edit-tools.ts:136</code>；收口三检查见 <code class="ref">packages/lcoder/kernel/src/tools/task-tools.ts:201</code>；签署与推进只走人机命令见 <code class="ref">packages/lcoder/kernel/src/commands/contract-sign.ts:4</code>、<code class="ref">packages/lcoder/kernel/src/commands/task-contract.ts:6</code>；没有 push 见 <code class="ref">docs/PROJECT-RULES.md:23</code>；部署只跑 human 命令见 <code class="ref">packages/lcoder/kernel/src/commands/deploy.ts:1</code>。</p>
+</section>
+
+
+<section class="chapter opening" id="ch0-3" data-title="理想状态">
+  <div class="chapter-head"><span class="chapter-num">开篇 3</span><h2>理想状态<a class="anchor" href="#ch0-3">#</a></h2></div>
+  <p class="plain blk"><b>一句话结论</b>目标是让一个仓库里的每一次改动都能回答四个问题：属于哪个任务、签了什么、证据在哪、谁验收。</p>
+  <div class="callout warn blk"><p><b>先把话说清：这一章写的是目标，不是现状。</b>下面三层是产品想达到的样子；当前做到哪一步、哪些还没做，每层末尾都如实标注，完整清单在第 12 章。</p></div>
+  <h3>对个人：一件事从头到尾查得到</h3>
+  <p class="blk">目标状态是：回头查任何一处改动，都能顺着任务找到当时的契约、签名、验收证据和会话记录，不用再翻聊天。今天已经做到的是任务、契约、签名、方案与证据都以文件形式留在仓库里，界面能把它们读出来（<code class="ref">packages/lcoder/workspace/src/client/projection.ts:415</code>）；会话日志也按「模型看得见就必须留档」保存（<code class="ref">docs/architecture.md:128</code>）。还没做到的是「每一次改动自动挂到任务上」的独立入口——目前主要靠任务、证据文件和会话日志三处对照回看。</p>
+  <h3>对团队：多人多窗口并行，不互相踩</h3>
+  <p class="blk">目标状态是：每个人或每个窗口有自己的隔离工作目录和固定端口，调度时工作目录不同就不复用、不入队，收口走同一套动作，谁也不会把改动写进别人的工作副本。今天已经做到的是调度层把「工作目录不同」当作硬闸，跨工作树不复用、不入队（<code class="ref">packages/lcoder/workspace/src/client/scheduling.ts:159</code>）；并行线一条工作树、一套端口的规矩写在项目规则里（<code class="ref">docs/PROJECT-RULES.md:134</code>）。还没做到的是工作树的创建、端口分配与收口清理仍靠脚本和人，产品里没有一键入口。</p>
+  <h3>对新用户：装好就能开始</h3>
+  <p class="blk">目标状态是：Windows 与 macOS 都能开箱启动，登录后有一份免费额度，可以先把「立项分析」跑通，再决定要不要继续。今天 Windows 开发链路可用；macOS 打包仍是 T-80 待办，真实云端也还没合入主线，桌面默认连的是本机 mock（<code class="ref">docs/tasks.yaml:881</code>、<code class="ref">docs/active-context.md:18</code>）。所以「装好即用」目前只是 Windows 开发机上的部分事实，不是双平台现状。</p>
+  <div class="callout blk"><p><b>诚实的达成度：</b>单机、单仓库、按任务走的主链路已经能跑；多人协作、双平台开箱、真实云端与免费额度仍在建设中。技术实现见第 3–10 章，未实现与未验逐条列在第 12 章。</p></div>
+</section>
+
+<section class="chapter opening" id="ch0-4" data-title="做不到的部分与应对">
+  <div class="chapter-head"><span class="chapter-num">开篇 4</span><h2>做不到的部分与应对<a class="anchor" href="#ch0-4">#</a></h2></div>
+  <p class="plain blk"><b>一句话结论</b>它能把「乱」和「忘」管住，但管不住「错」；下面五件事必须靠人或靠流程兜底。</p>
+  <div class="table-wrap blk"><table>
+    <thead><tr><th>做不到的事</th><th>为什么做不到</th><th>现在怎么缓解</th></tr></thead>
+    <tbody>
+      <tr><td><b>模型会编，代码不保证对</b></td><td>语言模型给的是概率上合理的输出，不是正确性证明；它可能自信地写错，也可能漏掉边界。</td><td>门禁加人签加证据三道兜底：检查落点、签名和证据是否齐全，关键动作由人签。但这只能提高发现概率，不能根治。</td></tr>
+      <tr><td><b>上下文有限，长会话会忘</b></td><td>今天在本机实测：名义百万字，约十一万字开始自动摘要，摘要后只剩六千字左右，前面的禁令和口径会丢。代码里的压缩阈值也按上下文容量的比例算（0.8 / 0.16），不是固定字数。</td><td>操作约定：拆窄工单，一次只做一件事；长输出落文件、只读尾部；压缩发生多次就换新会话，把关键约定重新写进任务或契约。</td></tr>
+      <tr><td><b>真实环境验不了</b></td><td>真实云端、真实短信与支付（支付首期未做）、签名证书、macOS 真机都不在这台开发机上；工具跑不出这些结论。</td><td>只能由人验；工具如实记「未验」，不把计划写成现状。清单见第 12.2 节。</td></tr>
+      <tr><td><b>本机环境差异</b></td><td>这台机器向操作系统询问「文档」目录会挂死，导致「打开仓库」永远没回应。这是特定机器的坑，不是产品能力。</td><td>用配置项把文档目录指到本检出的真实目录绕开（<code class="ref">lcoder/desktop-profile.patch.yml:19</code>）；换机器要按 <code class="ref">docs/PROJECT-RULES.md:127</code> 重配。</td></tr>
+      <tr><td><b>需求本身对不对</b></td><td>机器只能把给定的东西做快；方向错了，它会把错的东西更快地做出来。</td><td>先用立项分析把现状和目标问清，关键取舍由人拍板：方案批准、契约签署都不在模型工具里。</td></tr>
+    </tbody>
+  </table></div>
+  <p class="source-note blk">依据：三道检查见 <code class="ref">packages/lcoder/kernel/src/checkers/index.ts:46</code>、<code class="ref">packages/lcoder/kernel/src/checkers/index.ts:97</code>、<code class="ref">packages/lcoder/kernel/src/checkers/index.ts:162</code>；压缩阈值见 <code class="ref">lcoder/desktop-profile.patch.yml:95</code>；长文件分段读取见 <code class="ref">packages/lcoder/kernel/src/tools/edit-tools.ts:165</code>；真实环境未验见 <code class="ref">docs/desktop-release.md:313</code>；方案批准与契约签署只走人机命令见 <code class="ref">packages/lcoder/kernel/src/commands/proposal-approve.ts:4</code>、<code class="ref">packages/lcoder/kernel/src/commands/contract-sign.ts:4</code>。第 2 条的数字是本机实测记录，不是仓库源码结论。</p>
+</section>
+
+
+<section class="chapter" id="highlights" data-title="亮点功能">
+  <div class="chapter-head"><span class="chapter-num">亮点</span><h2>亮点功能<a class="anchor" href="#highlights">#</a></h2></div>
+  <p class="plain blk"><b>一句话结论</b>这一章只是索引：每张卡一行价值、一行依据、一个状态；具体机制在后面技术章节展开，不在这里重复。</p>
+  <div class="feature-grid">
+    <article class="feature-card blk" id="hi-1">
+      <h3>先立字据再动工</h3>
+      <p class="feature-value">任务先写清要做什么、允许改哪些文件；没签那张字据（契约）之前，改文件、跑命令、挂证据的工具根本不会出现。</p>
+      <p class="feature-basis">依据：允许路径硬闸 <code class="ref">tools/edit-tools.ts:136</code>、状态白名单 <code class="ref">kernel/surface.ts:29</code>；见 3.2、4.4。</p>
+      <p class="feature-status"><span class="tag warn">部分实现</span>LCoder 自己的写工具已按签名收放；上游 bundle 工具的全局收口仍属 T-11</p>
+    </article>
+    <article class="feature-card blk" id="hi-2">
+      <h3>工具按阶段发放</h3>
+      <p class="feature-value">每个任务阶段只发一份工具清单（模型能用的工具），不在清单里的等于不存在；漏配的后果是用不了，不是越权能用。</p>
+      <p class="feature-basis">依据：白名单与角色天花板 <code class="ref">kernel/surface.ts:107</code>、<code class="ref">kernel/surface.ts:202</code>；启动自检 <code class="ref">plugin.ts:182</code>；见 3.2。</p>
+      <p class="feature-status"><span class="tag ok">已实现</span>按任务状态求值，每次模型请求前重算</p>
+    </article>
+    <article class="feature-card blk" id="hi-3">
+      <h3>危险动作只有人能做</h3>
+      <p class="feature-value">签合同、推进任务状态、批准方案、合并分支、发布、部署，这些动作都不在模型能用的工具清单里。</p>
+      <p class="feature-basis">依据：<code class="ref">kernel/surface.ts:18</code>、<code class="ref">docs/PROJECT-RULES.md:23</code>、<code class="ref">commands/deploy.ts:1</code>；见 3.4。</p>
+      <p class="feature-status"><span class="tag ok">已实现</span>本地提交仍是模型可做的窄动作，推远端不在其中</p>
+    </article>
+    <article class="feature-card blk" id="hi-4">
+      <h3>签名可以交给 AI，但有前提</h3>
+      <p class="feature-value">签名可以交给 AI，但要三条同时成立：策略允许、任务不碰不可逆项（改了就很难撤回的东西）、有评审记录；碰了不可逆项就永远人签。</p>
+      <p class="feature-basis">依据：三闸判定 <code class="ref">kernel/sign-gate.ts:33</code>、P3 复核 <code class="ref">checkers/index.ts:97</code>；见 5.2、5.3。</p>
+      <p class="feature-status"><span class="tag warn">部分实现</span>三闸与写入路径已在；生产流程尚未接上，目前只有测试调用</p>
+    </article>
+    <article class="feature-card blk" id="hi-5">
+      <h3>干完要交作业</h3>
+      <p class="feature-value">关闭任务不是嘴上说完成：要过落点（规则对应的代码位置）、签名有效性、证据三道检查；证据是干完留下的可检查记录，空文件不算。</p>
+      <p class="feature-basis">依据：收口三检查 <code class="ref">tools/task-tools.ts:201</code>、<code class="ref">checkers/index.ts:46</code>；见 4.5。</p>
+      <p class="feature-status"><span class="tag ok">已实现</span>签名检查只在任务声明不可逆项时启用</p>
+    </article>
+    <article class="feature-card blk" id="hi-6">
+      <h3>立项到任务的拆解</h3>
+      <p class="feature-value">七问访谈问清需求后，由模型用专用工具落项目信息、业务规则草稿和起草态任务；结果页能回看，重新开始只开新会话，不动已落盘的东西。</p>
+      <p class="feature-basis">依据：七问纪律 <code class="ref">shell/shell-data.ts:354</code>、重开逻辑 <code class="ref">shell/intake.ts:107</code>；见 10.1。</p>
+      <p class="feature-status"><span class="tag ok">已实现</span>访谈后需用户确认需求，才继续落盘与拆任务</p>
+    </article>
+    <article class="feature-card blk" id="hi-7">
+      <h3>并行不打架</h3>
+      <p class="feature-value">不同任务放在各自的隔离工作目录里，调度时不混用；入队会记下共同验收组。工作树与端口分配仍靠脚本约定。</p>
+      <p class="feature-basis">依据：工作树硬闸 <code class="ref">client/scheduling.ts:159</code>、联调组落盘 <code class="ref">commands/task-schedule.ts:114</code>；见 6.3。</p>
+      <p class="feature-status"><span class="tag warn">部分实现</span>隔离与验收组已记；组约束没有做成收口硬闸，工作树/端口仍手动</p>
+    </article>
+    <article class="feature-card blk" id="hi-8">
+      <h3>额度与花费看得见</h3>
+      <p class="feature-value">免费额度、余额拆分和「大约还能用多少字」的区间估算都在界面里；换算只在云端做，桌面不算价。</p>
+      <p class="feature-basis">依据：个人中心 <code class="ref">cloud/PersonalCenter.tsx:67</code>、预估选择 <code class="ref">cloud/estimate.ts:37</code>；见 9.1、9.2。</p>
+      <p class="feature-status"><span class="tag warn">部分实现</span>页面与字段契约已完成；真实云端与真实单价未验</p>
+    </article>
+    <article class="feature-card blk" id="hi-9">
+      <h3>一套界面，两种语言两种主题</h3>
+      <p class="feature-value">中英文案齐全、深浅两套主题，西文字体随包自带，断网也能正常显示。</p>
+      <p class="feature-basis">依据：中英词典 <code class="ref">client/locales.ts:17</code>、<code class="ref">client/locales.ts:574</code>；主题切换 <code class="ref">shell/Shell.tsx:2061</code>；自托管字体 <code class="ref">shell/Shell.module.css:6</code>；见 10.1。</p>
+      <p class="feature-status"><span class="tag ok">已实现</span>中文回退系统字体，西文用随包的 Inter</p>
+    </article>
+    <article class="feature-card blk" id="hi-10">
+      <h3>上游可升级</h3>
+      <p class="feature-value">改过的上游（DeepSeek Harness）文件逐个登记，升级前有体检脚本和演练步骤。</p>
+      <p class="feature-basis">依据：接触面清单 <code class="ref">lcoder/contact-surface.txt:1</code>、升级演练 <code class="ref">lcoder/UPSTREAM-BASELINE.md:117</code>；见 1.2。</p>
+      <p class="feature-status"><span class="tag warn">部分实现</span>工具与步骤已在；真实同步记录仍是「尚未同步过」</p>
+    </article>
+    <article class="feature-card blk" id="hi-11">
+      <h3>文档与看板离线可读</h3>
+      <p class="feature-value">开发台账（记录任务状态的清单）一条命令生成离线看板，双击即开，不需要服务器。</p>
+      <p class="feature-basis">依据：生成约定 <code class="ref">docs/PROJECT-RULES.md:137</code>、生成器 <code class="ref">scripts/build-tasks-html.py:7</code>；见 11.3。</p>
+      <p class="feature-status"><span class="tag ok">已实现</span>内联样式与脚本，产物已生成</p>
+    </article>
+  </div>
+</section>
+
+<section class="chapter" id="glossary" data-title="术语白话对照表">
+  <div class="chapter-head"><span class="chapter-num">附</span><h2>术语白话对照表<a class="anchor" href="#glossary">#</a></h2></div>
+  <p class="plain blk"><b>一句话结论</b>这张表把报告里反复出现的词换成日常说法；第一次遇到时可以先查这里，再回正文看细节。</p>
+  <div class="table-wrap blk"><table>
+    <thead><tr><th>术语</th><th>白话解释</th><th>正文位置</th></tr></thead>
+    <tbody>
+      <tr><td><b>规格</b></td><td>一条能判定的业务规则，写在仓库的文本文件里；每条要有出处，最好再绑定到实现它的代码位置。</td><td>2.1、3.1</td></tr>
+      <tr><td><b>任务</b></td><td>一件要办的事。有编号、标题、分级、状态、允许改的路径、要求的证据；从起草开始，到关闭结束。</td><td>2.1、4.1</td></tr>
+      <tr><td><b>契约</b></td><td>动手前写清「改什么、不改什么、怎么算过、什么算失败」的一张字据；签名后才生效，正文一改签名就作废。</td><td>4.2、4.3</td></tr>
+      <tr><td><b>状态机</b></td><td>任务只能沿固定几步走，不能跳级；非法跳转会被代码直接拒绝。</td><td>4.1</td></tr>
+      <tr><td><b>门禁</b></td><td>某个动作开始前必须先过的一道检查，不过就停住。本报告有两类：登录门禁（没登录不许开新会话）和治理门禁（没签字不许改代码）。</td><td>4.3、8.4</td></tr>
+      <tr><td><b>证据</b></td><td>干完留下的可检查记录，比如构建或测试输出；空文件不算证据。</td><td>2.2、4.5</td></tr>
+      <tr><td><b>工具面</b></td><td>模型此刻能看见、能调用的一组工具；不在名单里的工具等于不存在。</td><td>3.2、3.4</td></tr>
+      <tr><td><b>投影</b></td><td>界面把磁盘上的文件读出来画成行，自己不留第二份真相；文件一变，重读就变。</td><td>2.1、2.2</td></tr>
+      <tr><td><b>回滚闸</b></td><td>本仓没有叫这个名字的代码对象。报告用它统称两类「往回退」的安全机制：任务状态机允许的回退边（契约作废回起草、验收不过回实施，已实现），以及发布侧回滚旧 feed（T-81 未实现）。</td><td>4.1、10.3</td></tr>
+      <tr><td><b>不可逆项</b></td><td>改了就很难撤回的东西，例如对外接口、数据结构、权限、金额计算；任务一旦声明，就必须有人签的契约。</td><td>4.3、5.2</td></tr>
+      <tr><td><b>自签</b></td><td>AI 代替人签字。只有策略允许、任务不碰不可逆项、且有评审记录三条同时成立才允许；否则永远人签。</td><td>5.2、5.3</td></tr>
+      <tr><td><b>收口</b></td><td>申请把任务标记为完成。要先过三检查：规则有落点、该签的字有效、要求的证据非空。</td><td>4.5</td></tr>
+      <tr><td><b>工作树</b></td><td>同一个仓库的另一份独立工作目录。两条任务在不同工作树里就不许复用同一个会话，避免互相踩。</td><td>6.2</td></tr>
+      <tr><td><b>上下文 / 摘要压缩</b></td><td>模型一次能记住的内容有上限；快满时会把旧内容缩写。缩得太多会丢掉早先的约定。</td><td>6.5、开篇 1</td></tr>
+    </tbody>
+  </table></div>
+  <p class="source-note blk">依据：规格与任务形状见 <code class="ref">packages/lcoder/kernel/src/schema/spec.ts:47</code>、<code class="ref">packages/lcoder/kernel/src/schema/spec.ts:107</code>；契约与哈希见 <code class="ref">packages/lcoder/kernel/src/kernel/contract.ts:29</code>；迁移表见 <code class="ref">packages/lcoder/kernel/src/kernel/task-store.ts:21</code>；三检查见 <code class="ref">packages/lcoder/kernel/src/checkers/index.ts:46</code>；工具面见 <code class="ref">packages/lcoder/kernel/src/kernel/surface.ts:202</code>；投影见 <code class="ref">packages/lcoder/workspace/src/client/projection.ts:415</code>；发布回滚见 <code class="ref">docs/desktop-release.md:227</code>；压缩阈值见 <code class="ref">lcoder/desktop-profile.patch.yml:95</code>。</p>
+</section>
+
+<section class="chapter" id="ch1" data-title="架构总览">
+  <div class="chapter-head"><span class="chapter-num">01</span><h2>架构总览<a class="anchor" href="#ch1">#</a></h2></div>
+  <p class="plain blk"><b>白话</b>整套产品像一叠可替换的积木，LCoder 只在最上面加了自己的三块，不撬动上游的地基。</p>
+  <p class="blk">一句话定位：LCoder 是面向 Windows 与 macOS 桌面的「规格驱动开发工作台」，把 <code>.spec</code> 规格库、任务状态机与 agent 工具面收放打包成一层 DSH 插件。目标用户是用 agent 做真实仓库开发、需要可审计变更证据的个人与小团队。<code class="ref">docs/prd-and-design.md:17</code></p>
+
+  <h3 id="s1-1" class="blk"><span class="h3n">1.1</span>everything-is-a-plugin 与 Cordis<a class="anchor" href="#s1-1">#</a></h3>
+  <p class="blk">DSH 的框架是 Cordis：插件向共享 context 贡献服务、类型化事件与可回收副作用。模型适配器、工具注册表、会话日志与 agent loop 本身都是插件，因此每一层都能从配置里替换。<b>没有需要打补丁的特权内核</b>——扩展方式是「在旁边挂一个插件」，注册即 effect，插件卸载时自动回卷。<code class="ref">docs/architecture.md:9</code> <code class="ref">docs/architecture.md:11</code></p>
+  <p class="blk">运行中的 <code>dsh</code> 是由有序层在启动时合成的一棵插件树：一个 <b>profile</b> 是 Harness home 里的命名组合，列出它叠加的 bundle 与自己的 <code>cordis.patch.yml</code>；一个 <b>bundle</b> 是 cordis 配置行及其代码的分发格式，插入的行仍可被更上层 patch。<code class="ref">docs/architecture.md:17</code> <code class="ref">docs/architecture.md:19</code> 补丁按 id 命中一行并整体替换其 config，或插入新行；<code>preset</code> 补丁把同样的操作作用在该声明的 <code>config.plugins</code> 内。<code class="ref">docs/architecture.md:25</code></p>
+
+  <h3 id="s1-2" class="blk"><span class="h3n">1.2</span>LCoder 与上游的分层关系<a class="anchor" href="#s1-2">#</a></h3>
+  <p class="blk">LCoder 是 DSH 的二次开发，不 fork 业务实现、不 import 上游内部路径；基线是 <code>0.2.2-alpha.2</code>（2026-10-30）。<code>master</code> 是只读的上游镜像，<code>lcoder/main</code> 是主线，上游同步走临时 <code>sync/upstream-&lt;version&gt;</code> 分支，全绿才并回。<code class="ref">docs/prd-and-design.md:21</code></p>
+  <p class="blk">内核包自己分三层：<code>schema</code>（<code>.spec</code> 形状与校验）、<code>kernel</code>（规格库、任务状态机、工具面）、<code>checkers</code>（收口判定的纯函数）、<code>tools</code>（模型可调用的工具）；<code>plugin</code> 是对 DSH 的适配层，业务代码不直接依赖上游内部路径。<code class="ref">packages/lcoder/kernel/src/index.ts:3</code> <code class="ref">packages/lcoder/kernel/src/index.ts:10</code></p>
+  <div class="stack" aria-label="装配分层示意">
+    <div class="stack-row"><div class="stack-label">profile</div><div class="stack-box"><span class="chip">desktop</span><span class="chip">web</span><small>命名组合，存于 Harness home</small></div></div>
+    <div class="arrow">↓</div>
+    <div class="stack-row"><div class="stack-label">bundle</div><div class="stack-box"><span class="chip">dsh-base</span><span class="chip">dsh-web-app</span><small>上游 bundle，一字不改</small></div></div>
+    <div class="arrow">↓</div>
+    <div class="stack-row"><div class="stack-label">patch</div><div class="stack-box"><span class="chip hot">lcoder/cordis.patch.yml</span><span class="chip hot">lcoder/desktop-profile.patch.yml</span></div></div>
+    <div class="arrow">↓</div>
+    <div class="stack-row"><div class="stack-label">plugins</div><div class="stack-box"><span class="chip cool">@lcoder/kernel</span><span class="chip cool">@lcoder/kernel/cloud</span><span class="chip cool">@lcoder/workspace</span></div></div>
+    <div class="arrow">↓</div>
+    <div class="stack-row"><div class="stack-label">data</div><div class="stack-box"><span class="chip">.spec/tasks/*.yaml</span><span class="chip">.spec/spec/rules.yaml</span><span class="chip">.spec/contracts/*.yaml</span><span class="chip">.spec/evidence/</span></div></div>
+  </div>
+  <p class="blk">装配补丁保持「只加不改」：web 侧的 <code>lcoder/cordis.patch.yml</code> 只替换 <code>llm-pi-ai</code> 的 provider 配置并插入云端控制器、内核与工作台三行，上游 bundle 的 patch 一个字都不改。<code class="ref">lcoder/cordis.patch.yml:1</code> <code class="ref">lcoder/cordis.patch.yml:45</code> 桌面 profile 再把 <code>ui-sidebar</code>、<code>ui-settings-account</code>、<code>ui-brand-official</code> 三行禁用，由 LCoder 外壳自画顶栏与首屏。<code class="ref">lcoder/desktop-profile.patch.yml:468</code> <code class="ref">lcoder/desktop-profile.patch.yml:482</code></p>
+  <p class="blk">角色的做法也一样：九个 preset 各自挂一份 <code>@lcoder/kernel</code> 并写死自己的 <code>role</code>，新建会话时按 preset 指名；工具面 = <code>SURFACE[任务状态] ∩ 角色表</code>，由预设唯一决定。<code class="ref">lcoder/desktop-profile.patch.yml:58</code> <code class="ref">packages/lcoder/kernel/src/kernel/surface.ts:202</code></p>
+  <div class="callout blk"><p><b>为什么是二开而不是重写。</b>上游已经提供插件宿主、工具注册、会话与 UI 扩展点，直接复用比另写运行时更稳；LCoder 只在装配层加入自己的规则与界面。<code class="ref">docs/prd-and-design.md:13</code></p></div>
+
+  <h3 id="s1-3" class="blk"><span class="h3n">1.3</span>装配补丁与运行链路<a class="anchor" href="#s1-3">#</a></h3>
+  <p class="blk">宿主插件用 Cordis 的标准最小形态：具名导出 <code>name</code> / <code>inject</code> / <code>apply</code>，依赖 <code>tools</code> 与 <code>commands</code> 两个服务，缺一个就不激活。<code class="ref">packages/lcoder/kernel/src/plugin.ts:34</code> <code class="ref">packages/lcoder/kernel/src/plugin.ts:37</code> <code>apply</code> 做四件事：解析角色、解析规格根、注册工具（带 <code>when</code> 求值）、注册人机命令；最后打印一行自检，列出工具数、命令名与当前角色。<code class="ref">packages/lcoder/kernel/src/plugin.ts:96</code> <code class="ref">packages/lcoder/kernel/src/plugin.ts:139</code> <code class="ref">packages/lcoder/kernel/src/plugin.ts:165</code> <code class="ref">packages/lcoder/kernel/src/plugin.ts:182</code></p>
+  <p class="blk">工具注册用 <code>when</code> 而不是 <code>restrict</code>：<code>restrict</code> 只对<b>全局注册</b>的工具生效（报错原文是 <code>names unknown global tools</code>），而 LCoder 在 preset 作用域注册，属于 scoped，必须用每个 model step 求值一次的 <code>when</code>。<code class="ref">packages/lcoder/kernel/src/plugin.ts:66</code> <code class="ref">packages/lcoder/kernel/src/plugin.ts:76</code></p>
+  <p class="blk">浏览器侧入口 <code>@lcoder/workspace</code> 先挂云端 Remote，再按 <code>shell</code> 配置决定走整壳还是回退右栏页签；整壳占用 <code>main</code> 的 <code>lcoder-home</code>，注册后调用 <code>layout.selectPanel</code> 切过去并折叠空侧栏轨道。<code class="ref">packages/lcoder/workspace/src/client/index.ts:245</code> <code class="ref">packages/lcoder/workspace/src/client/index.ts:252</code> <code class="ref">packages/lcoder/workspace/src/client/index.ts:494</code> <code class="ref">packages/lcoder/workspace/src/client/index.ts:514</code></p>
+  <p class="blk">云端控制器必须全局在册：它要在第一条会话出现之前就能给顶栏、门禁与模型请求提供同一个令牌供应器，因此单独一行 <code>@lcoder/kernel/cloud</code>，而角色 preset 里的 kernel 是懒装载，赶不上这一步。<code class="ref">lcoder/cordis.patch.yml:46</code> <code class="ref">packages/lcoder/kernel/src/cloud/plugin.ts:2</code></p>
+  <p class="blk">桌面侧另有一条必须保留的规避：profile 把 <code>workspace-controller.documentsDirectory</code> 配死到本检出下的真实目录，跳过本机向操作系统查询「文档」目录那一步——那一步在开发机上会挂住，把「打开仓库」拖成永久无应答。<code class="ref">lcoder/desktop-profile.patch.yml:19</code> <code class="ref">docs/PROJECT-RULES.md:127</code></p>
+</section>
+<section class="chapter" id="ch2" data-title="数据面">
+  <div class="chapter-head"><span class="chapter-num">02</span><h2>数据面：<code>.spec</code> 文件投影<a class="anchor" href="#ch2">#</a></h2></div>
+  <p class="plain blk"><b>白话</b>任务和规则就是仓库里的几个文本文件，界面只把它们读出来展示，不另存一份。</p>
+  <p class="blk">产品的唯一事实源是仓库里的 <code>.spec/</code>：kernel 是唯一写盘者，UI 只是这些 YAML 的投影。任务与规格不是数据库记录，而是可提交、可评审、可 diff 的文件。<code class="ref">docs/prd-and-design.md:7</code> <code class="ref">docs/PROJECT-RULES.md:19</code></p>
+
+  <h3 id="s2-1" class="blk"><span class="h3n">2.1</span>投影路径与布局绑定<a class="anchor" href="#s2-1">#</a></h3>
+  <p class="blk">投影模块把路径常量写死在同一处，并要求与 kernel 的两处落盘保持一致（<code>task-store.taskPath</code> 与 <code>spec-store.saveRules</code> 都以 <code>.spec</code> 为根）；路径一旦分叉，屏幕上画出的就是另一套事实。<code class="ref">packages/lcoder/workspace/src/client/projection.ts:165</code> <code class="ref">packages/lcoder/workspace/src/client/projection.ts:173</code></p>
+  <div class="table-wrap blk"><table>
+    <thead><tr><th>数据</th><th>路径</th><th>角色</th><th>锚点</th></tr></thead>
+    <tbody>
+      <tr><td>任务</td><td><code>.spec/tasks/*.yaml</code></td><td>五态、分级、允许路径、依赖、证据要求</td><td><code class="ref">projection.ts:174</code></td></tr>
+      <tr><td>规格条目</td><td><code>.spec/spec/rules.yaml</code></td><td>编号、模块、正文、出处、落点、状态</td><td><code class="ref">projection.ts:177</code></td></tr>
+      <tr><td>状态机</td><td><code>.spec/spec/states/*.yaml</code></td><td>状态集合、合法迁移与守卫（kernel 读取）</td><td><code class="ref">kernel/spec-store.ts:27</code></td></tr>
+      <tr><td>契约</td><td><code>.spec/contracts/*.contract.yaml</code></td><td>change / not_change / acceptance / fail_if / sig</td><td><code class="ref">projection.ts:175</code></td></tr>
+      <tr><td>方案</td><td><code>.spec/proposals/P-*.yaml</code></td><td>问题、候选、推荐、决定态</td><td><code class="ref">projection.ts:176</code></td></tr>
+      <tr><td>证据</td><td><code>.spec/evidence/&lt;ID&gt;/*.log</code></td><td>P4 只认非空文件；评审证据按 <code>review*</code> 识别</td><td><code class="ref">kernel/evidence-store.ts:16</code></td></tr>
+      <tr><td>策略</td><td><code>.spec/automation.yaml</code></td><td>按动作开关、停止条件、任务范围</td><td><code class="ref">projection.ts:180</code></td></tr>
+      <tr><td>常驻会话</td><td><code>.spec/agents.yaml</code></td><td><code>schedulerSession</code> / <code>flowSession</code></td><td><code class="ref">schema/spec.ts:315</code></td></tr>
+      <tr><td>项目信息</td><td><code>.spec/project.yaml</code></td><td>交付类型、仓库、文档、部署环境（密码只存引用）</td><td><code class="ref">schema/spec.ts:382</code></td></tr>
+      <tr><td>联调组</td><td><code>.spec/evidence/scheduling/group-*.yaml</code></td><td>入队成员与目标会话</td><td><code class="ref">projection.ts:182</code></td></tr>
+    </tbody>
+  </table></div>
+  <p class="blk">布局与 schema 的绑定也在 schema 里写明：<code>SpecLayout</code> 把每个 glob 映射到对应的 zod schema，校验器据此决定「这个文件该用哪个 schema 解」。<code class="ref">packages/lcoder/kernel/src/schema/spec.ts:404</code></p>
+
+  <h3 id="s2-2" class="blk"><span class="h3n">2.2</span>任务、规格、方案、证据的读取链路<a class="anchor" href="#s2-2">#</a></h3>
+  <p class="blk">内核侧解析规格根的顺序是：<b>会话工作区 → 装配配置 → 进程工作目录</b>。有会话时固定取 <code>session.header.cwd/.spec</code>；没有会话 cwd（headless、启动自检）才退到 <code>config.root</code>，再退到 <code>process.cwd()/.spec</code>。<code class="ref">packages/lcoder/kernel/src/kernel/spec-root.ts:44</code> <code class="ref">packages/lcoder/kernel/src/plugin.ts:99</code> 桌面宿主进程的 cwd 是 profile 目录而非目标仓库，所以会话工作区是唯一能让工具与 UI 读同一份 <code>.spec</code> 的来源。<code class="ref">docs/prd-and-design.md:61</code></p>
+  <p class="blk">浏览器侧一次投影并发读五路：任务、规则、契约、方案、联调组；任一路失败只记一条说明，不让整份投影落空。目录不存在（还没建任务/契约/方案）是常态，按空集处理而不是故障。<code class="ref">packages/lcoder/workspace/src/client/projection.ts:415</code> <code class="ref">packages/lcoder/workspace/src/client/projection.ts:478</code> <code class="ref">packages/lcoder/workspace/src/client/projection.ts:807</code></p>
+  <p class="blk">任务行只投影 YAML 里能直接读到的字段；读不懂的文件进 <code>problems</code>，不编一行假数据。规则行缺 id 或正文就跳过；契约必须同时有 <code>change</code> 与 <code>acceptance</code> 才算可读；方案缺 title / problem / recommendation 就读不懂。<code class="ref">packages/lcoder/workspace/src/client/projection.ts:208</code> <code class="ref">packages/lcoder/workspace/src/client/projection.ts:241</code> <code class="ref">packages/lcoder/workspace/src/client/projection.ts:270</code> <code class="ref">packages/lcoder/workspace/src/client/projection.ts:377</code></p>
+  <p class="blk">证据在 kernel 侧读成「名字 → 字节数」而不是名字列表：<b>存在但空白的证据等于没证据</b>，这个区别只有带上大小才判得出来。评审复核证据的机械判据是证据名匹配 <code>review</code> 或 <code>review-…</code> 且字节数大于 0。<code class="ref">packages/lcoder/kernel/src/kernel/evidence-store.ts:26</code> <code class="ref">packages/lcoder/kernel/src/kernel/evidence-store.ts:46</code></p>
+
+  <h3 id="s2-3" class="blk"><span class="h3n">2.3</span>为什么写入只归 kernel<a class="anchor" href="#s2-3">#</a></h3>
+  <p class="blk">浏览器侧没有任何写盘能力：投影只依赖 <code>workspaceFiles.list/read</code> 两个调用，其余远程能力不进类型。<code class="ref">packages/lcoder/workspace/src/client/projection.ts:153</code> <code class="ref">packages/lcoder/workspace/src/client/index.ts:138</code> 所有落盘都在宿主：<code>saveTask</code> 写入 <code>tasks/&lt;ID&gt;.yaml</code>、<code>saveRules</code> 写 <code>spec/rules.yaml</code>、<code>saveContract</code> 写 <code>contracts/&lt;ID&gt;.contract.yaml</code>，写前都再过一遍 schema。<code class="ref">packages/lcoder/kernel/src/kernel/task-store.ts:204</code> <code class="ref">packages/lcoder/kernel/src/kernel/spec-store.ts:44</code> <code class="ref">packages/lcoder/kernel/src/kernel/contract.ts:67</code></p>
+  <p class="blk">同一口径也约束模型：模型可以起草任务、登记 draft 规格、写项目信息、记录 draft 方案，但不能推进任务状态、签署契约、批准方案，也不能改已存在的规格条目。<code class="ref">docs/PROJECT-RULES.md:19</code></p>
+
+  <h3 id="s2-4" class="blk"><span class="h3n">2.4</span>为什么不自建 Remote<a class="anchor" href="#s2-4">#</a></h3>
+  <p class="blk">规格库本来就是 kernel 落在仓库里的 YAML，是唯一事实源；UI 与规格之间的关系是「投影」，不是「另存一份状态」。因此数据面直接用文件投影，不建第二个 Remote、不用 typert 生成器；状态机判断留在 kernel，UI 不做决策。<code class="ref">docs/prd-and-design.md:59</code> <code class="ref">docs/prd-and-design.md:88</code> <code class="ref">packages/lcoder/workspace/src/client/projection.ts:1</code></p>
+  <div class="callout warn blk"><p><b>一个必须说清的边界：</b>「不自建 Remote」只针对规格数据面。云端登录与额度是另一条面，确实用了 typert Remote（<code>lcoderCloud</code> 命名空间），浏览器侧通过 <code>ctx.remote.$mount</code> 挂载生成物。两者不矛盾：<code>.spec</code> 走文件投影，账号与额度走进程间 Remote。<code class="ref">packages/lcoder/kernel/src/cloud/controller.ts:38</code> <code class="ref">packages/lcoder/workspace/src/client/index.ts:228</code></p></div>
+</section>
+<section class="chapter" id="ch3" data-title="内核能力">
+  <div class="chapter-head"><span class="chapter-num">03</span><h2>内核能力：十二个模型工具与九条人机命令<a class="anchor" href="#ch3">#</a></h2></div>
+  <p class="plain blk"><b>白话</b>模型能用的工具是一张按阶段放开的清单；签字、推进、发布这类动作不在清单里，只能人来做。</p>
+  <p class="blk">工具面是「状态 × 角色」的二维收放：状态决定进度能放开哪些能力，角色是天花板，两者求交；工具面用<b>白名单（allow list）</b>声明，未配置的工具默认不可见（fail-closed）——漏配的后果是「用不了」，不是「越权能用」。<code class="ref">packages/lcoder/kernel/src/kernel/surface.ts:1</code> <code class="ref">packages/lcoder/kernel/src/kernel/surface.ts:107</code> <code class="ref">packages/lcoder/kernel/src/kernel/surface.ts:202</code></p>
+  <p class="blk">产品口径的模型工具是十二个：<code>file_read</code>、<code>project_draft</code>、<code>spec_query</code>、<code>spec_draft</code>、<code>spec_bind</code>、<code>contract_draft</code>、<code>task_read</code>、<code>task_draft</code>、<code>file_edit</code>、<code>cmd_run</code>、<code>evidence_attach</code>、<code>task_close</code>。<code class="ref">docs/prd-and-design.md:55</code> 签名类能力不在任何工具表里，只存在于人机命令面。<code class="ref">packages/lcoder/kernel/src/kernel/surface.ts:18</code></p>
+
+  <div class="callout warn blk"><p><b>口径核对（必读）：</b>PRD 列的是上述十二个；当前注册表因后续任务又增加了五个（<code>file_list</code>、<code>proposal_draft</code>、<code>git_status</code>、<code>git_diff</code>、<code>git_commit</code>），代码实际注册 <b>17 个</b>。本章 3.1 逐个列出产品口径的十二个，3.3 单独列出多出的五个并标来源；不把多出的五个混进产品工具面，也不隐瞒它们已注册。<code class="ref">docs/prd-and-design.md:55</code> <code class="ref">packages/lcoder/kernel/src/plugin.ts:139</code> <code class="ref">packages/lcoder/kernel/src/kernel/surface.ts:28</code></p></div>
+
+  <h3 id="s3-1" class="blk"><span class="h3n">3.1</span>十二个模型工具：输入、输出与失败边界<a class="anchor" href="#s3-1">#</a></h3>
+  <div class="table-wrap blk"><table>
+    <thead><tr><th>工具</th><th>输入 → 输出</th><th>失败边界</th><th>锚点</th></tr></thead>
+    <tbody>
+      <tr id="tool-file_read"><td><code>file_read</code></td><td>仓库内相对路径、起始行、行数 → 分页正文、总行数与是否截断</td><td>绝对路径与 <code>../</code> 越界直接拒绝；CRLF 先归一化再分行，行号才稳定</td><td><code class="ref">edit-tools.ts:66</code> <code class="ref">edit-tools.ts:165</code></td></tr>
+      <tr id="tool-project_draft"><td><code>project_draft</code></td><td>类型、仓库地址、分支、可选三类文档路径 → 首次登记 <code>.spec/project.yaml</code></td><td>文件已存在只回读、绝不覆盖；kind 限 web/desktop/library；地址与分支非空</td><td><code class="ref">project-tools.ts:68</code></td></tr>
+      <tr id="tool-spec_query"><td><code>spec_query</code></td><td>编号 / 模块 / 关键词 / 是否带状态机 → 条目正文、出处、落点与状态</td><td>没有 <code>.spec</code> 时返回空库并给出下一步，不报故障</td><td><code class="ref">spec-tools.ts:44</code></td></tr>
+      <tr id="tool-spec_draft"><td><code>spec_draft</code></td><td>模块、类型、正文、出处（可选引句、编号）→ 新增 draft 条目</td><td>module/kind/text/source_doc 非空；正文重复只回读既有条目；编号须为 <code>R-03</code> 形态且未被占用</td><td><code class="ref">spec-tools.ts:99</code></td></tr>
+      <tr id="tool-spec_bind"><td><code>spec_bind</code></td><td>条目编号 + 文件（可选符号）→ 追加落点</td><td>条目不存在即抛错；相同落点不重复添加</td><td><code class="ref">spec-tools.ts:169</code></td></tr>
+      <tr id="tool-contract_draft"><td><code>contract_draft</code></td><td>任务编号 + change/acceptance（可选 not_change、affected_tests、fail_if）→ 契约文件与正文哈希</td><td>只写 <code>sig: null</code>，不提供签署；正文经 schema 校验</td><td><code class="ref">spec-tools.ts:205</code></td></tr>
+      <tr id="tool-task_read"><td><code>task_read</code></td><td>任务编号（可省略）→ 单条任务或全部任务摘要</td><td>无 <code>.spec</code> 时：带编号报错，不带编号返回空表与提示</td><td><code class="ref">task-tools.ts:62</code></td></tr>
+      <tr id="tool-task_draft"><td><code>task_draft</code></td><td>标题、分级、规则、允许路径、不可逆项、证据要求、方案、依赖、编号 → 新建 drafting 任务</td><td>同标题返回既有任务；编号占用抛错；rules 必须已存在；proposal 必须已存在；依赖不许自依赖或成环；状态与时间戳由代码写死</td><td><code class="ref">task-tools.ts:109</code></td></tr>
+      <tr id="tool-file_edit"><td><code>file_edit</code></td><td>仓库内相对路径 + 完整新内容 → 写入并回字节数</td><td>越界拒绝；<code>scope.allowed_paths</code> 非空时不在前缀内即拒绝（见 4.4）</td><td><code class="ref">edit-tools.ts:253</code> <code class="ref">edit-tools.ts:136</code></td></tr>
+      <tr id="tool-cmd_run"><td><code>cmd_run</code></td><td><code>env.yaml</code> 里的命令 id → 退出码与截尾 4000 字符的输出</td><td>未登记命令拒绝；只有 <code>exec: ai-auto</code> 允许模型执行，<code>human</code> / <code>ai-confirm</code> 一律拒绝并说明该谁跑</td><td><code class="ref">edit-tools.ts:273</code> <code class="ref">edit-tools.ts:293</code></td></tr>
+      <tr id="tool-evidence_attach"><td><code>evidence_attach</code></td><td>任务编号、证据类型、正文 → 写入 <code>.spec/evidence/&lt;ID&gt;/&lt;kind&gt;.log</code></td><td>任务编号先校验再拼路径；类型名只允许小写字母、数字、下划线、短横线</td><td><code class="ref">edit-tools.ts:321</code> <code class="ref">edit-tools.ts:78</code></td></tr>
+      <tr id="tool-task_close"><td><code>task_close</code></td><td>任务编号 → 依次跑 P1/P3/P4，全过才转 <code>closed</code> 并返回转移事件</td><td>任一检查不过就返回违规清单与 hint，状态不变；状态图仍拦非法边</td><td><code class="ref">task-tools.ts:201</code></td></tr>
+    </tbody>
+  </table></div>
+  <p class="blk">这一组的硬约束写在代码里而不是提示词里：读取与编辑只能落在仓库内、命令只认登记过的 id 且只有 <code>ai-auto</code> 可执行、证据只写进 <code>.spec/evidence/&lt;task&gt;/</code>、任务状态与时间戳由 <code>task_draft</code> 写死。<code class="ref">packages/lcoder/kernel/src/tools/edit-tools.ts:1</code> <code class="ref">packages/lcoder/kernel/src/tools/task-tools.ts:9</code></p>
+
+  <h3 id="s3-2" class="blk"><span class="h3n">3.2</span>工具面按任务状态白名单收敛<a class="anchor" href="#s3-2">#</a></h3>
+  <p class="blk">每个状态只放行一份白名单；已放开的不会在状态回退时自动保留——退回去能力自然收回。同状态重复 apply 是空操作，避免无害的状态切换让前缀缓存失效。<code class="ref">packages/lcoder/kernel/src/kernel/surface.ts:21</code> <code class="ref">packages/lcoder/kernel/src/kernel/surface.ts:231</code></p>
+  <div class="table-wrap blk"><table>
+    <thead><tr><th>状态</th><th>白名单要点</th><th>锚点</th></tr></thead>
+    <tbody>
+      <tr><td class="nowrap"><code>drafting</code></td><td>读文件、项目登记、规格查询/起草/绑定、任务读/建、契约起草；<b>没有</b> 编辑、跑命令、挂证据、收口</td><td><code class="ref">surface.ts:29</code></td></tr>
+      <tr><td class="nowrap"><code>contracted</code></td><td>在 drafting 基础上加 <code>file_edit</code>、<code>cmd_run</code>、<code>evidence_attach</code></td><td><code class="ref">surface.ts:30</code></td></tr>
+      <tr><td class="nowrap"><code>implementing</code></td><td>同 contracted（写与跑命令）</td><td><code class="ref">surface.ts:48</code></td></tr>
+      <tr><td class="nowrap"><code>verifying</code></td><td>再加 <code>task_close</code>（可收口）</td><td><code class="ref">surface.ts:66</code></td></tr>
+      <tr><td class="nowrap"><code>closed</code></td><td>只读：读文件、规格查询、任务读；终态只复核不动手</td><td><code class="ref">surface.ts:86</code></td></tr>
+      <tr><td class="nowrap">空看板</td><td>没有 <code>.spec</code> 或 <code>tasks/</code> 为空：读文件、项目登记、规格查询/起草、任务读/建；编辑与命令不放</td><td><code class="ref">surface.ts:107</code></td></tr>
+    </tbody>
+  </table></div>
+  <p class="blk">放行判定在每个 model step 求值一次（<code>when</code>），而不是装载时算一次：契约签了、任务转移了，工具面立刻跟着变。<code class="ref">packages/lcoder/kernel/src/plugin.ts:66</code> <code class="ref">packages/lcoder/kernel/src/plugin.ts:148</code> 之所以不用 <code>restrict</code>，是因为它只对全局注册的工具生效，而 LCoder 在 preset 作用域注册，属于 scoped。<code class="ref">packages/lcoder/kernel/src/plugin.ts:70</code></p>
+  <p class="blk">第二维是角色天花板：九个角色（<code>intake / architect / pm / dev / git / ops / review / scheduler / flow</code>）各有一张上限表，与状态白名单求交后只减不加。<code>dev</code> 刻意不设天花板——它必须等于全部已注册工具，测试用一条断言钉住这个等式；<code>scheduler</code> 与 <code>flow</code> 只有四个只读工具。<code class="ref">packages/lcoder/kernel/src/kernel/surface.ts:123</code> <code class="ref">packages/lcoder/kernel/src/kernel/surface.ts:136</code> 角色名在装载时校验，配错当场抛错，不静默装出更大权限。<code class="ref">packages/lcoder/kernel/src/kernel/surface.ts:187</code> <code class="ref">packages/lcoder/kernel/src/plugin.ts:98</code></p>
+  <p class="blk">启动自检把白名单与实际注册表做差集，报「声明了没注册」与「注册了但任何状态都看不到」两类问题，避免新工具静默隐身或掩码写错空转。<code class="ref">packages/lcoder/kernel/src/kernel/surface.ts:265</code> <code class="ref">packages/lcoder/kernel/src/plugin.ts:182</code></p>
+
+  <h3 id="s3-3" class="blk"><span class="h3n">3.3</span>当前注册表另有五个工具（不在产品口径内）<a class="anchor" href="#s3-3">#</a></h3>
+  <p class="blk">下列五个工具已注册并进入状态白名单，但不属于 PRD 的十二个工具面。它们分别来自目录能力、方案流程与 Git 窄口三组；列在这里是为了让「已注册」与「产品口径」两个数字都对得上。<code class="ref">packages/lcoder/kernel/src/plugin.ts:139</code></p>
+  <div class="table-wrap blk"><table>
+    <thead><tr><th>工具</th><th>用途</th><th>失败边界</th><th>锚点</th></tr></thead>
+    <tbody>
+      <tr id="tool-file_list"><td><code>file_list</code></td><td>列仓库内目录，深度 1–3，目录在前按名排序</td><td>最多 500 条并标记截断；不存在给出「先看仓库根」；只接受目录</td><td><code class="ref">edit-tools.ts:194</code></td></tr>
+      <tr id="tool-proposal_draft"><td><code>proposal_draft</code></td><td>把需求结论落成 <code>.spec/proposals/P-*.yaml</code>：问题、2–3 条候选、推荐</td><td>三组数组等长非空；同标题只回读；已 approved/rejected 的方案不改写；决定态固定 draft</td><td><code class="ref">proposal-tools.ts:84</code></td></tr>
+      <tr id="tool-git_status"><td><code>git_status</code></td><td>看工作区状态（porcelain），可按路径前缀</td><td>先确认是工作树；路径必须落在仓库内</td><td><code class="ref">git-tools.ts:87</code></td></tr>
+      <tr id="tool-git_diff"><td><code>git_diff</code></td><td>看工作区或暂存差异，截尾 4000 字符</td><td>同上；非零退出码抛原文</td><td><code class="ref">git-tools.ts:113</code></td></tr>
+      <tr id="tool-git_commit"><td><code>git_commit</code></td><td>只提交给定路径，写 Conventional Commits 说明</td><td>说明非空；只 add 给定路径；暂存区为空不产生提交；不带 <code>--amend</code>、不带 <code>--no-verify</code>、<b>没有 push</b></td><td><code class="ref">git-tools.ts:138</code></td></tr>
+    </tbody>
+  </table></div>
+  <p class="blk">为什么 Git 不并进 <code>cmd_run</code>：那条路的边界由 <code>env.yaml</code> 登记的命令决定，一条带参数拼接的写法就能把参数面变成字符串；Git 工具只把自己那几个 argv 交给执行器，<code>git</code> 与参数分开传、不走 shell。<code class="ref">packages/lcoder/kernel/src/tools/git-tools.ts:4</code> 推远端始终是人的动作：没有 push 工具，也没有 <code>git push</code> 在 <code>cmd_run</code> 的登记面上。<code class="ref">docs/PROJECT-RULES.md:23</code></p>
+  <h3 id="s3-4" class="blk"><span class="h3n">3.4</span>九条人机命令：不进模型回合<a class="anchor" href="#s3-4">#</a></h3>
+  <p class="blk">命令面与工具面是两套注册：命令由人在会话里发起，不产生模型消息，但 <code>command/run</code> 与 <code>command/done</code> 会进会话日志，于是「谁在什么时候做了什么」留得下证据。<code class="ref">packages/lcoder/kernel/src/plugin.ts:82</code> <code class="ref">packages/lcoder/kernel/src/commands/contract-sign.ts:9</code> 九条命令在 <code>apply</code> 里一次性注册。<code class="ref">packages/lcoder/kernel/src/plugin.ts:165</code></p>
+  <div class="table-wrap blk"><table>
+    <thead><tr><th>命令</th><th>参数 → 成功</th><th>失败边界</th><th>锚点</th></tr></thead>
+    <tbody>
+      <tr id="cmd-contract_sign"><td><code>/contract_sign</code></td><td><code>&lt;任务编号&gt;</code> → 宿主复算正文哈希并写入 <code>sig{by:human}</code>，回执带哈希预览与是否作废上一份签名</td><td>空参数、编号非法、无 <code>.spec</code>、契约读不懂、契约不存在、同一哈希已由人签过</td><td><code class="ref">contract-sign.ts:64</code></td></tr>
+      <tr id="cmd-task_bind"><td><code>/task_bind</code></td><td><code>&lt;任务编号&gt;</code> → 把当前会话写进任务 <code>session</code>，并释放该会话先前认领的其它任务</td><td>必须在会话内执行；无 <code>.spec</code>、任务缺失、编号非法；重复绑定直接回执</td><td><code class="ref">task-bind.ts:51</code></td></tr>
+      <tr id="cmd-task_contract"><td><code>/task_contract</code></td><td><code>&lt;任务编号&gt;</code> → 校验签名有效后把 <code>drafting</code> 推到 <code>contracted</code></td><td>非 drafting；契约缺失或未签；AI 自签三闸复核不过；签名哈希不覆盖当前正文</td><td><code class="ref">task-contract.ts:60</code></td></tr>
+      <tr id="cmd-proposal_approve"><td><code>/proposal_approve</code></td><td><code>&lt;方案编号&gt;</code> → 决定态 <code>draft</code> 写成 <code>approved</code> 并记时刻</td><td>无 <code>.spec</code>、方案读不到、决定态已不是 draft</td><td><code class="ref">proposal-approve.ts:52</code></td></tr>
+      <tr id="cmd-task_schedule"><td><code>/task_schedule</code></td><td><code>&lt;任务编号&gt; &lt;JSON&gt;</code> → 追加 <code>schedule.jsonl</code>；<code>enqueue</code> 可带联调组，写 <code>group-&lt;n&gt;.yaml</code></td><td>JSON ≤ 8192 字符；verdict 限 reuse/enqueue/new/wait；联调组只允许 enqueue 带；成员 ≤ 20 且必须存在</td><td><code class="ref">task-schedule.ts:65</code></td></tr>
+      <tr id="cmd-flow_status"><td><code>/flow_status</code></td><td>可省略任务编号 → 一行 JSON：策略来源、整体判定、逐任务判定与 <code>startable</code></td><td>最多 200 条；策略或任务读不懂返回错误文本，不吞成空计划</td><td><code class="ref">flow-status.ts:52</code></td></tr>
+      <tr id="cmd-flow_log"><td><code>/flow_log</code></td><td><code>&lt;任务编号&gt; &lt;JSON&gt;</code> → 追加 <code>flow.jsonl</code>（动作、结果、挡住原因）</td><td>≤ 8192 字符；action 必须在九种动作内；result 限 success/failed/held/skipped</td><td><code class="ref">flow-log.ts:60</code></td></tr>
+      <tr id="cmd-agent_bind"><td><code>/agent_bind</code></td><td><code>&lt;scheduler|flow&gt; &lt;会话号&gt;</code> → 写回 <code>agents.yaml</code></td><td>角色未知、会话号形态不对、无 <code>.spec</code>、文件里有不认识的键时拒绝覆盖写</td><td><code class="ref">agent-bind.ts:61</code></td></tr>
+      <tr id="cmd-deploy"><td><code>/deploy</code></td><td><code>&lt;命令 id&gt; [任务编号]</code> → 执行 <code>exec: human</code> 的命令，输出落 <code>deploy.log</code></td><td>只认 human 权限；<code>ai-auto</code>/<code>ai-confirm</code> 请走 <code>cmd_run</code>；非零退出码返回尾部输出且不落证据</td><td><code class="ref">deploy.ts:62</code></td></tr>
+    </tbody>
+  </table></div>
+
+  <h4 class="blk">四条治理命令为什么只能人调</h4>
+  <div class="card-grid blk">
+    <div class="card"><h4><code>contract_sign</code></h4><p>模型能调用的签署工具等于模型能给自己签字，S1（未签契约不能改代码）当场失效。命令由宿主复算正文哈希后写 <code>sig</code>，前端不写盘。</p><code class="ref">commands/contract-sign.ts:4</code></div>
+    <div class="card"><h4><code>task_bind</code></h4><p>认领关系决定该会话按哪条任务的状态装工具面；模型若能自己认领，等于自己挑工具面。一条会话同时只认领一条任务，改绑时先释放旧的。</p><code class="ref">commands/task-bind.ts:4</code></div>
+    <div class="card"><h4><code>task_contract</code></h4><p>签名与状态是两件事：签了不等于开工。命令只推 <code>drafting → contracted</code> 这一条边，更往后仍由人手改 YAML，避免把状态机扩成一张命令表。</p><code class="ref">commands/task-contract.ts:6</code></div>
+    <div class="card"><h4><code>proposal_approve</code></h4><p>出方案与拍板分开：模型能比较代价，不能替人决定。命令只做批准这一条，驳回收回由人改 <code>decision: rejected</code>。</p><code class="ref">commands/proposal-approve.ts:4</code></div>
+  </div>
+  <div class="callout blk"><p><b>另外五条同档：</b><code>task_schedule</code>、<code>flow_status</code>、<code>flow_log</code>、<code>agent_bind</code>、<code>deploy</code> 也都不在任何角色或状态的工具面上；其中 <code>/deploy</code> 只会执行登记为 <code>human</code> 的部署命令，且输出落成任务证据。<code class="ref">packages/lcoder/kernel/src/commands/deploy.ts:1</code></p></div>
+</section>
+<section class="chapter" id="ch4" data-title="状态机与契约闸门">
+  <div class="chapter-head"><span class="chapter-num">04</span><h2>状态机与契约闸门<a class="anchor" href="#ch4">#</a></h2></div>
+  <p class="plain blk"><b>白话</b>任务必须按五步走；契约没签或签名对不上当前正文，就不能进入下一步。</p>
+  <p class="blk">状态机只管「图上的边是否合法」；「能不能进 contracted」还取决于契约是否签好、签名是否覆盖当前正文，那是检查器（P3）的事。这条分工刻意分开，规则与流程才不会缠死在一起。<code class="ref">packages/lcoder/kernel/src/kernel/task-store.ts:1</code></p>
+
+  <h3 id="s4-1" class="blk"><span class="h3n">4.1</span>五个状态与合法迁移<a class="anchor" href="#s4-1">#</a></h3>
+  <p class="blk">任务五态：<code>drafting → contracted → implementing → verifying → closed</code>，<code>closed</code> 是终态。<code class="ref">packages/lcoder/kernel/src/schema/spec.ts:96</code> 转移表是数据不是 if-else，<code>transition</code> 不改入参、返回新对象，非法转移抛 <code>IllegalTransitionError</code>。<code class="ref">packages/lcoder/kernel/src/kernel/task-store.ts:21</code> <code class="ref">packages/lcoder/kernel/src/kernel/task-store.ts:65</code></p>
+  <div class="table-wrap blk"><table>
+    <thead><tr><th>当前状态</th><th>允许进入</th><th>说明</th><th>锚点</th></tr></thead>
+    <tbody>
+      <tr><td><code>drafting</code></td><td><code>contracted</code>、<code>closed</code></td><td>表里允许直接收口，但当前没有调用者；起草态的工具面也看不到 <code>task_close</code></td><td><code class="ref">task-store.ts:22</code></td></tr>
+      <tr><td><code>contracted</code></td><td><code>implementing</code>、<code>drafting</code>、<code>closed</code></td><td>回 drafting 表示契约作废、需重签</td><td><code class="ref">task-store.ts:24</code></td></tr>
+      <tr><td><code>implementing</code></td><td><code>verifying</code>、<code>contracted</code></td><td>不能直接 closed——没经过验证就没有证据</td><td><code class="ref">task-store.ts:27</code></td></tr>
+      <tr><td><code>verifying</code></td><td><code>closed</code>、<code>implementing</code></td><td>验收不过退回改</td><td><code class="ref">task-store.ts:29</code></td></tr>
+      <tr><td><code>closed</code></td><td>—</td><td>终态，空数组</td><td><code class="ref">task-store.ts:30</code></td></tr>
+    </tbody>
+  </table></div>
+  <p class="blk">今天真正由代码推进的只有两条边：<code>/task_contract</code> 推 <code>drafting → contracted</code>，<code>task_close</code> 推 <code>verifying → closed</code>；<code>implementing → verifying</code> 没有工具入口，仍由人手改 YAML。<code class="ref">packages/lcoder/kernel/src/commands/task-contract.ts:10</code> <code class="ref">packages/lcoder/kernel/src/tools/task-tools.ts:232</code> <code class="ref">docs/prd-and-design.md:104</code></p>
+
+  <h3 id="s4-2" class="blk"><span class="h3n">4.2</span>drafting → contracted 的推进条件<a class="anchor" href="#s4-2">#</a></h3>
+  <p class="blk"><code>/task_contract T-01</code> 按顺序检查：当前必须是 <code>drafting</code>；契约文件必须存在；<code>sig</code> 不能为空；若签名来自 agent，则三补偿闸必须重新成立；最后，签名里的哈希必须等于<b>按当前正文重新计算</b>的哈希。<code class="ref">packages/lcoder/kernel/src/commands/task-contract.ts:82</code> <code class="ref">packages/lcoder/kernel/src/commands/task-contract.ts:98</code> <code class="ref">packages/lcoder/kernel/src/commands/task-contract.ts:116</code> 全部通过才调用 <code>transition(task,'contracted')</code> 并写回任务文件。<code class="ref">packages/lcoder/kernel/src/commands/task-contract.ts:120</code></p>
+  <p class="blk">哈希口径是「签署那一刻正文的复算值」，不是文件里的一段文本：字段顺序写死，<code>sig</code> 不参与（签名不能覆盖自己）。读一份契约必须连复算哈希一起交出去，否则检查器只能相信文件自己说的话。<code class="ref">packages/lcoder/kernel/src/kernel/contract.ts:24</code> <code class="ref">packages/lcoder/kernel/src/kernel/contract.ts:54</code></p>
+  <p class="blk">签署与推进刻意分成两条命令：签名写坏了状态没动，状态推不动签名还在，失败分得清；<code>contract_sign</code> 只写 <code>sig</code>，不改任务状态。<code class="ref">packages/lcoder/kernel/src/commands/contract-sign.ts:14</code> <code class="ref">packages/lcoder/kernel/src/commands/task-contract.ts:7</code></p>
+
+  <h3 id="s4-3" class="blk"><span class="h3n">4.3</span>P3 拒签规则<a class="anchor" href="#s4-3">#</a></h3>
+  <p class="blk"><b>先看边界：P3 只对声明了不可逆项的任务生效。</b>若 <code>scope.irreversible</code> 为空，检查器直接判通过，不要求契约存在或已签。<code class="ref">packages/lcoder/kernel/src/checkers/index.ts:97</code> 有不可逆项时，依次判：契约必须存在；契约必须已签；若签名是 <code>by: agent</code>，三闸必须同时成立；签名哈希必须覆盖当前正文。<code class="ref">packages/lcoder/kernel/src/checkers/index.ts:104</code> <code class="ref">packages/lcoder/kernel/src/checkers/index.ts:115</code> <code class="ref">packages/lcoder/kernel/src/checkers/index.ts:125</code> <code class="ref">packages/lcoder/kernel/src/checkers/index.ts:142</code></p>
+  <div class="callout warn blk"><p><b>口径提醒：</b>PRD 对 P3 的描述读起来像是「收口一律要求合法签名」，实际实现是<b>条件式</b>——只有不可逆项非空才检查。两者不一致时以代码为准，本报告按代码写。<code class="ref">docs/prd-and-design.md:49</code> <code class="ref">packages/lcoder/kernel/src/checkers/index.ts:98</code></p></div>
+  <p class="blk">AI 自签的签名不是「看起来像签过」就行：schema 要求 <code>by: agent</code> 必须带 <code>actor</code>（具体 preset）与 <code>authorization</code>（策略路径、内容哈希、判定时刻），缺一样直接判非法。<code class="ref">packages/lcoder/kernel/src/schema/spec.ts:169</code> <code class="ref">packages/lcoder/kernel/src/schema/spec.ts:178</code> 因此手写一个 <code>by: agent</code> 也会被 P3 拦下——没有策略与复核依据的自签名比没签更危险。<code class="ref">packages/lcoder/kernel/src/checkers/index.ts:91</code></p>
+
+  <h3 id="s4-4" class="blk"><span class="h3n">4.4</span>允许路径硬闸<a class="anchor" href="#s4-4">#</a></h3>
+  <p class="blk">任务一旦声明 <code>scope.allowed_paths</code>，<code>file_edit</code> 的目标路径必须落在某个前缀下；否则直接抛错，并明确说「这是代码里的闸，不是提示词」。空前缀列表或没有任务时不额外拦。<code class="ref">packages/lcoder/kernel/src/tools/edit-tools.ts:136</code> <code class="ref">packages/lcoder/kernel/src/tools/edit-tools.ts:143</code> 插件在每次调用时按当前会话重新解析该任务的允许路径并注入。<code class="ref">packages/lcoder/kernel/src/plugin.ts:133</code></p>
+  <div class="callout warn blk"><p><b>覆盖面要说清：</b>该硬闸只挂在 <code>file_edit</code> 上。证据写入固定落在 <code>.spec/evidence/</code>，但 <code>git_commit</code> 只校验路径在仓库内，不校验 <code>allowed_paths</code>；因此「允许路径」约束的是文件编辑，不是全部写操作。<code class="ref">packages/lcoder/kernel/src/plugin.ts:145</code> <code class="ref">packages/lcoder/kernel/src/tools/git-tools.ts:54</code></p></div>
+
+  <h3 id="s4-5" class="blk"><span class="h3n">4.5</span>收口三检查：P1 / P3 / P4<a class="anchor" href="#s4-5">#</a></h3>
+  <p class="blk"><code>task_close</code> 依次跑三条检查器，全部通过才转 <code>closed</code>；任一不过就原样返回违规清单与下一步提示，状态不变。<code class="ref">packages/lcoder/kernel/src/tools/task-tools.ts:201</code> <code class="ref">packages/lcoder/kernel/src/tools/task-tools.ts:217</code></p>
+  <ul class="blk">
+    <li><b>P1 条目有落点：</b>只看 <code>confirmed</code> 条目；必须有落点，且文件与符号在代码索引里真实存在。缺失、文件没了、符号找不到分别给不同 hint。<code class="ref">packages/lcoder/kernel/src/checkers/index.ts:46</code> <code class="ref">packages/lcoder/kernel/src/kernel/spec-store.ts:161</code></li>
+    <li><b>P3 不可逆项有合法签署：</b>见 4.3，条件式生效。<code class="ref">packages/lcoder/kernel/src/checkers/index.ts:97</code></li>
+    <li><b>P4 条目有证据：</b><code>evidence_required</code> 的每一项都要有非空记录；空文件算没证据。<code class="ref">packages/lcoder/kernel/src/checkers/index.ts:162</code></li>
+  </ul>
+  <p class="blk">P1 的代码索引目前是<b>文本实现</b>：按词边界在文件内容里找符号名。已知局限写得很直白——注释和字符串里提到同名标识符也会命中，所以它只能证明「这个符号名出现过」，不能证明「这里实现了它」；换 AST 之前，P1 的失败要人工复核。<code class="ref">packages/lcoder/kernel/src/kernel/spec-store.ts:94</code> <code class="ref">packages/lcoder/kernel/src/kernel/spec-store.ts:101</code></p>
+</section>
+<section class="chapter" id="ch5" data-title="自动化与人签三闸">
+  <div class="chapter-head"><span class="chapter-num">05</span><h2>自动化策略与三道人签闸<a class="anchor" href="#ch5">#</a></h2></div>
+  <p class="plain blk"><b>白话</b>默认全部手动；只有策略允许、任务不碰不可逆项、且有评审记录时，才允许 AI 代签。</p>
+  <p class="blk">自动化的前提是「默认不动」：没有 <code>.spec/automation.yaml</code> 时所有动作都是 manual，与未引入自动化时的行为完全一致；「没写」不能被读成「允许自动」。<code class="ref">packages/lcoder/kernel/src/kernel/automation.ts:1</code> <code class="ref">packages/lcoder/kernel/src/kernel/automation.ts:54</code></p>
+
+  <h3 id="s5-1" class="blk"><span class="h3n">5.1</span>策略文件：七个动作、四类停止条件<a class="anchor" href="#s5-1">#</a></h3>
+  <p class="blk">策略按动作开关：<code>draft / contract / sign / implement / verify / close / commit</code>；停止条件有 token 预算、分钟上限、连续失败数、并发上限；<code>tasks</code> 为空表示管全部任务。<code class="ref">packages/lcoder/kernel/src/schema/spec.ts:206</code> <code class="ref">packages/lcoder/kernel/src/schema/spec.ts:244</code> <code class="ref">packages/lcoder/kernel/src/schema/spec.ts:261</code></p>
+  <p class="blk">外部不可逆动作（push、部署、改注册表与环境）<b>永远不进配置</b>：schema 用 <code>.strict()</code> 判非法，而不是读进来再忽略。报错时单独点出这些未知键，并说明「push、部署与外部环境变更永远由人执行」。<code class="ref">packages/lcoder/kernel/src/schema/spec.ts:228</code> <code class="ref">packages/lcoder/kernel/src/kernel/automation.ts:86</code></p>
+  <p class="blk">策略每次求值都重读磁盘，并带出审计事实：来源是 default 还是 file、文件路径、内容 <code>sha256</code>、最后修改时刻。<code class="ref">packages/lcoder/kernel/src/kernel/automation.ts:36</code> <code class="ref">packages/lcoder/kernel/src/kernel/automation.ts:69</code></p>
+
+  <h3 id="s5-2" class="blk"><span class="h3n">5.2</span>三道人签闸：同时成立才放行<a class="anchor" href="#s5-2">#</a></h3>
+  <p class="blk">2026-11-06 用户拍板：签署可以委托给 AI，但用三道补偿闸兜住 P3——三条<b>同时</b>成立才允许自签。这不是「AI 也可以签」的授权，而是把「签署只能是人」这条前提打开后的替代约束。<code class="ref">docs/PROJECT-RULES.md:21</code> <code class="ref">packages/lcoder/kernel/src/kernel/sign-gate.ts:1</code></p>
+  <div class="card-grid blk">
+    <div class="card"><h4>① 策略允许</h4><p><code>automation.yaml</code> 的 <code>actions.sign</code> 必须是 <code>auto</code>；缺文件或 manual 都不成立。</p><code class="ref">sign-gate.ts:35</code></div>
+    <div class="card"><h4>② 无不可逆项</h4><p>任务的 <code>scope.irreversible</code> 必须为空。只要有一项，第三闸永远不成立，结果就是「不可逆项永远人签」。</p><code class="ref">sign-gate.ts:36</code></div>
+    <div class="card"><h4>③ 有评审证据</h4><p>该任务必须有非空的 <code>review*.log</code>：名字以 <code>review</code> 开头（可带后缀）且字节数大于 0。</p><code class="ref">sign-gate.ts:37</code> <code class="ref">evidence-store.ts:46</code></div>
+  </div>
+  <p class="blk">判定是纯函数，失败原因顺序固定（policy → irreversible → review），回执措辞稳定；流程引擎、人机命令与 P3 检查器共用同一份口径，不各写一套。<code class="ref">packages/lcoder/kernel/src/kernel/sign-gate.ts:33</code> <code class="ref">packages/lcoder/kernel/src/kernel/sign-gate.ts:46</code></p>
+  <p class="blk">四处消费同一判定：P3 检查器、<code>/contract_sign</code> 的 AI 自签入口、<code>/task_contract</code> 对 agent 签名的复核、流程引擎对「先签后开工」的判定。<code class="ref">packages/lcoder/kernel/src/checkers/index.ts:125</code> <code class="ref">packages/lcoder/kernel/src/commands/contract-sign.ts:172</code> <code class="ref">packages/lcoder/kernel/src/commands/task-contract.ts:98</code> <code class="ref">packages/lcoder/kernel/src/kernel/flow.ts:306</code></p>
+
+  <h3 id="s5-3" class="blk"><span class="h3n">5.3</span>自签怎么落盘：可审计，不改状态<a class="anchor" href="#s5-3">#</a></h3>
+  <p class="blk"><code>selfSignContract</code> 不是命令、不是工具，入口只给流程执行器。三闸成立后它写 <code>by: agent</code>、记录 <code>actor</code>（具体 preset）与授权依据（策略文件名、内容哈希、判定时刻）；没有可引用的策略文件时拒绝自签。<code class="ref">packages/lcoder/kernel/src/commands/contract-sign.ts:118</code> <code class="ref">packages/lcoder/kernel/src/commands/contract-sign.ts:184</code> 同哈希的 agent 签名重复调用会回执「无需重复签署」，不覆盖。<code class="ref">packages/lcoder/kernel/src/commands/contract-sign.ts:191</code></p>
+  <p class="blk">自签同样不改任务状态：推进仍走 <code>/task_contract</code>。<code class="ref">packages/lcoder/kernel/src/commands/contract-sign.ts:216</code></p>
+  <div class="callout warn blk"><p><b>当前落地程度：</b><code>selfSignContract</code> 只有测试调用者，生产流程入口尚未接上；因此今天「允许 AI 自签」在界面上只是被标出来，并不会自动执行。<code class="ref">docs/prd-and-design.md:102</code> <code class="ref">packages/lcoder/kernel/tests/contract-self-sign.spec.ts:14</code></p></div>
+</section>
+
+<section class="chapter" id="ch6" data-title="流程引擎与调度两层">
+  <div class="chapter-head"><span class="chapter-num">06</span><h2>流程引擎与调度两层<a class="anchor" href="#ch6">#</a></h2></div>
+  <p class="plain blk"><b>白话</b>一层决定下一步做什么，一层决定交给谁做；跨工作目录的任务不会被硬塞给同一个会话。</p>
+  <p class="blk">两层分工：<b>分配层</b>决定「交给谁」，<b>流程层</b>决定「下一步做什么」，两层互不读对方的判定。两层都输出理由与挡住原因，界面只负责画结果。<code class="ref">packages/lcoder/kernel/src/kernel/flow.ts:3</code> <code class="ref">packages/lcoder/workspace/src/client/scheduling.ts:1</code></p>
+
+  <h3 id="s6-1" class="blk"><span class="h3n">6.1</span>流程引擎：纯函数，先看预算<a class="anchor" href="#s6-1">#</a></h3>
+  <p class="blk"><code>decideFlow</code> 的输出只有九种动作：<code>draft / contract / sign / implement / verify / close / commit / external / stop</code>；挡住原因只有四类：<code>signature / dependency / budget / external</code>。<code class="ref">packages/lcoder/kernel/src/kernel/flow.ts:16</code> <code class="ref">packages/lcoder/kernel/src/kernel/flow.ts:28</code> 停止条件先于任务检查：预算用尽时不该再挑一条任务出来显得还有活干。<code class="ref">packages/lcoder/kernel/src/kernel/flow.ts:120</code> <code class="ref">packages/lcoder/kernel/src/kernel/flow.ts:153</code></p>
+  <p class="blk">单条未收口任务的判定：依赖没完成就 <code>stop</code> 并列出等谁；<code>contracted</code> → implement；<code>implementing</code> → verify；<code>verifying</code> 且证据齐 → close，否则继续 verify；<code>drafting</code> 先看契约存不存在，再看签名是否有效，最后才考虑三闸自签。<code class="ref">packages/lcoder/kernel/src/kernel/flow.ts:218</code> <code class="ref">packages/lcoder/kernel/src/kernel/flow.ts:285</code></p>
+  <p class="blk">所有任务都收口之后：先本地提交，再把外部动作交还给人，最后才是真正停止。外部动作永远只作为「等人做」的提示出现。<code class="ref">packages/lcoder/kernel/src/kernel/flow.ts:187</code> <code class="ref">packages/lcoder/kernel/src/kernel/flow.ts:200</code></p>
+  <p class="blk">磁盘装配由 <code>flow-store</code> 单独负责：每次调用重读任务、契约、证据与策略，把文件翻译成事实；<code>committed</code>、<code>externalActions</code> 与已用量来自运行时。读不懂就不猜，直接抛。<code class="ref">packages/lcoder/kernel/src/kernel/flow-store.ts:1</code> <code class="ref">packages/lcoder/kernel/src/kernel/flow-store.ts:43</code> <code class="ref">packages/lcoder/kernel/src/kernel/flow-store.ts:46</code></p>
+  <p class="blk">「能直接交给会话开工」的动作只有 <code>contract / implement / verify / close / commit</code>：签署与外部动作刻意不在其中，把这两类混进批量开工会让一次点击跨过人的决定。<code class="ref">packages/lcoder/kernel/src/kernel/flow.ts:89</code> <code class="ref">packages/lcoder/kernel/src/kernel/flow.ts:102</code></p>
+
+  <h3 id="s6-2" class="blk"><span class="h3n">6.2</span>调度判定：先硬闸，再打分<a class="anchor" href="#s6-2">#</a></h3>
+  <p class="blk"><code>decideScheduling</code> 先走硬闸：前置未完成直接 <code>wait</code>，不进入会话比较；随后逐会话判 worktree、角色、是否在等人回答、是否已有收口任务、是否与组内任务有未完成依赖；被否的候选保留在结果里并写明原因。<code class="ref">packages/lcoder/workspace/src/client/scheduling.ts:140</code> <code class="ref">packages/lcoder/workspace/src/client/scheduling.ts:147</code> <code class="ref">packages/lcoder/workspace/src/client/scheduling.ts:185</code></p>
+  <p class="blk">通过硬闸的候选按信号打分：本任务已认领 +10，已在本会话联调组 +9，同一方案 +3，同一规格模块 +2，改动落点重叠 +1；分数为零判「没有关联信号」而不复用。<code class="ref">packages/lcoder/workspace/src/client/scheduling.ts:172</code> <code class="ref">packages/lcoder/workspace/src/client/scheduling.ts:211</code> <code class="ref">packages/lcoder/workspace/src/client/scheduling.ts:226</code> 最高分并列两个以上时保留 <code>needsChoice</code>，把取舍交回上层。<code class="ref">packages/lcoder/workspace/src/client/scheduling.ts:261</code></p>
+  <p class="blk"><b>worktree 是硬闸不是偏好：</b>工作区路径不同直接否掉，理由写明「worktree 不同」；路径比较归一化反斜杠，Windows 盘符大小写不敏感，读不到路径按「不同」处理——宁可不复用，也不把任务排进别的 worktree。<code class="ref">packages/lcoder/workspace/src/client/scheduling.ts:123</code> <code class="ref">packages/lcoder/workspace/src/client/scheduling.ts:159</code></p>
+
+  <h3 id="s6-3" class="blk"><span class="h3n">6.3</span>入队即共同验收<a class="anchor" href="#s6-3">#</a></h3>
+  <p class="blk">目标会话正忙或队列里还有活时，判定不是「再排一次」而是 <code>enqueue</code>，并带上联调组：这些任务要一起写、一起跑证据、一起验收。组不是任务字段，只是调度留给验收侧的承诺。<code class="ref">packages/lcoder/workspace/src/client/scheduling.ts:248</code> <code class="ref">packages/lcoder/workspace/src/client/projection.ts:131</code></p>
+  <p class="blk">落盘由人机命令负责：<code>/task_schedule</code> 把判定追加到 <code>schedule.jsonl</code>，只有 <code>enqueue</code> 能带 <code>joint</code>；同一目标会话只维护一个 <code>group-&lt;n&gt;.yaml</code>，后来的成员并进去，任务编号去重，成员上限 20。<code class="ref">packages/lcoder/kernel/src/commands/task-schedule.ts:114</code> <code class="ref">packages/lcoder/kernel/src/commands/task-schedule.ts:199</code> <code class="ref">packages/lcoder/kernel/src/commands/task-schedule.ts:221</code></p>
+  <p class="blk">界面侧同时读投影里的组文件（刷新后仍在）与本次判定刚记下的组，任务卡片显示「并入哪条会话、还有哪些成员」，详情页写明共同验收。<code class="ref">packages/lcoder/workspace/src/client/shell/Shell.tsx:732</code> <code class="ref">packages/lcoder/workspace/src/client/shell/Shell.tsx:2808</code></p>
+
+  <h3 id="s6-4" class="blk"><span class="h3n">6.4</span>单例会话：两个常驻调度角色<a class="anchor" href="#s6-4">#</a></h3>
+  <p class="blk">智能调度与流程控制每个仓库各只有一条会话，会话号登记在 <code>.spec/agents.yaml</code>。<code class="ref">packages/lcoder/kernel/src/schema/spec.ts:315</code> 解析顺序是「配置号 → 同 preset 的现存会话 → 新建」；配置号不在当前工作区或 preset 对不上都按未绑定处理，覆盖换机器、删会话与编号过期三种情形。<code class="ref">packages/lcoder/workspace/src/client/singleton.ts:1</code> <code class="ref">packages/lcoder/workspace/src/client/singleton.ts:54</code></p>
+  <p class="blk">界面只读地找现存会话，不触发新建；标题不是角色名时校正回角色名。写回 <code>agents.yaml</code> 只走 <code>/agent_bind</code>，文件里有不认识的键时拒绝覆盖写。<code class="ref">packages/lcoder/workspace/src/client/singleton.ts:78</code> <code class="ref">packages/lcoder/workspace/src/client/singleton.ts:93</code> <code class="ref">packages/lcoder/kernel/src/commands/agent-bind.ts:94</code></p>
+
+  <h3 id="s6-5" class="blk"><span class="h3n">6.5</span>按 contextWindow 压缩<a class="anchor" href="#s6-5">#</a></h3>
+  <p class="blk">web-app bundle 在宿主面禁用了 compaction，所以每个 LCoder preset 自己挂 <code>dsh-compaction-basic</code>，并把它放进 isolate 组；阈值显式写死为 <code>thresholdRatio: 0.8</code>、<code>retainRatio: 0.16</code>，按当前模型的 <code>contextWindow</code> 计算，切模型后仍随容量走。<code class="ref">lcoder/desktop-profile.patch.yml:86</code> <code class="ref">lcoder/desktop-profile.patch.yml:95</code></p>
+  <p class="blk">会话里有可读的 <code>contextPressure</code> 投影：已用、预计、容量；外壳把它折成「已用 / 上限 / 百分比 / 剩余」。压缩事件在消息窗口里留一条可见标记（压缩条数与估算 token），失败也留一条。<code class="ref">packages/lcoder/workspace/src/client/shell/Shell.tsx:1434</code> <code class="ref">packages/lcoder/workspace/src/client/shell/shell-data.ts:212</code> <code class="ref">packages/lcoder/workspace/src/client/shell/shell-data.ts:220</code></p>
+</section>
+<section class="chapter" id="ch7" data-title="会话模型">
+  <div class="chapter-head"><span class="chapter-num">07</span><h2>会话模型：模型、附件与消息窗口<a class="anchor" href="#ch7">#</a></h2></div>
+  <p class="plain blk"><b>白话</b>一个窗口里能换模型、带图片和文件发消息；消息和压缩记录都来自同一条会话流水。</p>
+  <p class="blk">外壳不复制 DSH 的会话运行时：消息、状态、投影都来自宿主，外壳只做读取、折叠与渲染。会话浮层打开期间持有会话引用，否则订阅与读消息都借不到 binding。<code class="ref">packages/lcoder/workspace/src/client/index.ts:297</code> <code class="ref">packages/lcoder/workspace/src/client/index.ts:482</code></p>
+
+  <h3 id="s7-1" class="blk"><span class="h3n">7.1</span>模型切换：chip + 分组面板<a class="anchor" href="#s7-1">#</a></h3>
+  <p class="blk">浮层头部是一个紧凑的模型 chip，点开是分组面板；当前选择来自会话投影的 <code>next</code>，没记过就退回目录默认，并用「默认」小标签区分来源。<code class="ref">packages/lcoder/workspace/src/client/shell/chat-composer.ts:69</code> <code class="ref">packages/lcoder/workspace/src/client/shell/ChatExtras.tsx:101</code> <code class="ref">packages/lcoder/workspace/src/client/shell/Shell.tsx:2962</code></p>
+  <p class="blk">选中一条模型时调 <code>ctx.remote.session.selectModel({sessionId, provider, model})</code> 绑到当前会话；成功后重查目录并关闭面板，失败只清忙碌位、留一句原话，不关面板。<code class="ref">packages/lcoder/workspace/src/client/shell/ChatExtras.tsx:83</code> <code class="ref">packages/lcoder/workspace/src/client/shell/model-settings.ts:495</code> 面板状态机 <code>reduceModelPanel</code> 管打开、加载、选中与失败，连点同一条不会发两次请求。<code class="ref">packages/lcoder/workspace/src/client/shell/chat-composer.ts:196</code></p>
+  <p class="blk">可用性分五态：<code>loading / error / empty / no-credential / ready</code>；「目录查询失败」与「目录为空」与「没有可用凭据」分开显示，不把查询故障说成没有钥匙。<code class="ref">packages/lcoder/workspace/src/client/shell/chat-composer.ts:87</code> <code class="ref">packages/lcoder/workspace/src/client/shell/chat-composer.ts:127</code> 外壳层的模型状态同样是三态：<code>empty</code> 才拦发送，<code>unknown</code> 只说明原因、不禁用发送；云端两条路由已注册但还没令牌时不列模型，这时也不能判「没有可用模型」。<code class="ref">packages/lcoder/workspace/src/client/model-status.ts:20</code> <code class="ref">packages/lcoder/workspace/src/client/index.ts:429</code></p>
+
+  <h3 id="s7-2" class="blk"><span class="h3n">7.2</span>附件与图片：两类管线<a class="anchor" href="#s7-2">#</a></h3>
+  <p class="blk">附件分两类：图片在浏览器里校验后读成 base64，文件先走宿主 <code>fileUploads</code> 拿回执。提示词正文顺序固定为「文本 → 图片 → 文件」，各类内部保持加入顺序。<code class="ref">packages/lcoder/workspace/src/client/shell/chat-composer.ts:221</code> <code class="ref">packages/lcoder/workspace/src/client/shell/chat-composer.ts:333</code> <code class="ref">packages/lcoder/workspace/src/client/index.ts:282</code></p>
+  <p class="blk">图片上限优先读会话投影广播的 <code>imageLimits</code>；读不到时用保守值：单张 10MB、单条最多 4 张、合计 20MB，媒体类型限 PNG/JPEG/WebP/GIF。<code class="ref">packages/lcoder/workspace/src/client/shell/Shell.tsx:811</code> <code class="ref">packages/lcoder/workspace/src/client/shell/chat-composer.ts:29</code> 拒绝原因分四种，每种都带具体数字：类型不支持、单张过大、张数过多、合计过大。<code class="ref">packages/lcoder/workspace/src/client/shell/chat-composer.ts:254</code> <code class="ref">packages/lcoder/workspace/src/client/shell/Shell.tsx:1782</code></p>
+  <p class="blk">发送门槛：有文本或附件、所有文件都已就绪、模型可用、会话与发送面都在、没有在途发送。<code class="ref">packages/lcoder/workspace/src/client/shell/Shell.tsx:817</code> <code class="ref">packages/lcoder/workspace/src/client/shell/chat-composer.ts:312</code> 发送失败时草稿与附件原样保留；宿主明确拒绝图片能力时给「换模型后重发」的专用文案，而不是笼统报错。<code class="ref">packages/lcoder/workspace/src/client/shell/Shell.tsx:1919</code> <code class="ref">packages/lcoder/workspace/src/client/shell/Shell.tsx:1925</code> 换会话会丢掉上一条会话的附件，因为回执按会话绑定。<code class="ref">packages/lcoder/workspace/src/client/shell/Shell.tsx:990</code></p>
+
+  <h3 id="s7-3" class="blk"><span class="h3n">7.3</span>消息窗口：事件投影，不是另存一份对话<a class="anchor" href="#s7-3">#</a></h3>
+  <p class="blk">读消息走会话事件窗口快照，折成外壳的 <code>ShellMessage</code>：用户、答复、注入上下文、一段收敛后的过程、一次压缩标记。<code class="ref">packages/lcoder/workspace/src/client/index.ts:482</code> <code class="ref">packages/lcoder/workspace/src/client/shell/shell-data.ts:83</code></p>
+  <p class="blk">渲染时过滤掉被标记为隐藏的用户消息（立项咒语由外壳自己发，不再画成用户气泡）；上下文与过程折叠成组；压缩成功与失败各留一条系统标记。<code class="ref">packages/lcoder/workspace/src/client/shell/ChatPanel.tsx:42</code> <code class="ref">packages/lcoder/workspace/src/client/shell/ChatPanel.tsx:68</code> 刷新订阅两路：事件窗口给消息，会话快照给「等首个回合」与失败，卡片和浮层靠同一个通知一起刷新。<code class="ref">packages/lcoder/workspace/src/client/index.ts:486</code></p>
+  <p class="blk">立项入口是幂等的：判定读会话事实（<code>blank</code>、窗口里的用户消息数、是否在等首个回合），不读浮层开没开、也不写 localStorage；重复点击只会聚焦/打开浮层，不会重发咒语。<code class="ref">packages/lcoder/workspace/src/client/onboarding.ts:37</code> <code class="ref">packages/lcoder/workspace/src/client/onboarding.ts:40</code></p>
+</section>
+
+<section class="chapter" id="ch8" data-title="云端与登录门禁">
+  <div class="chapter-head"><span class="chapter-num">08</span><h2>云端与登录门禁<a class="anchor" href="#ch8">#</a></h2></div>
+  <p class="plain blk"><b>白话</b>没登录可以先做一次免费立项；之后的新会话和危险操作会要求登录，令牌过期会自动续。</p>
+  <p class="blk">云端账号是独立的业务面：规格数据仍走文件投影，账号、额度与 token 预估走 <code>lcoderCloud</code> Remote。令牌、密码与验证码不出现在任何返回值里；错误统一带 <code>code</code>，界面按码分支，不解析原文。<code class="ref">packages/lcoder/kernel/src/cloud/types.ts:1</code> <code class="ref">packages/lcoder/kernel/src/cloud/types.ts:5</code></p>
+
+  <h3 id="s8-1" class="blk"><span class="h3n">8.1</span>免费网关路由：两条 provider<a class="anchor" href="#s8-1">#</a></h3>
+  <p class="blk">用户令牌与匿名令牌各走一个 provider，<code>apiKeyEnv</code> 分别是 <code>LCODER_CLOUD_ACCESS_TOKEN</code> 与 <code>LCODER_CLOUD_GUEST_TOKEN</code>；宿主刷新出哪一条，下一次请求就用哪一条。两者都只代理 <code>deepseek-flash</code>，上下文窗口 131072、最大输出 8192，基地址可由环境变量覆盖，开发默认指向本机 5091 端口的 mock。<code class="ref">lcoder/cordis.patch.yml:18</code> <code class="ref">lcoder/cordis.patch.yml:24</code> <code class="ref">lcoder/desktop-profile.patch.yml:25</code></p>
+  <p class="blk">请求前后各挂一个钩子：发请求前按 provider 刷新用户令牌或确认匿名令牌可用；请求失败且被归为 401 时，对同一个 <code>agent:turn:step</code> 只放行一次重试，403 与封禁不刷新。<code class="ref">packages/lcoder/kernel/src/cloud/plugin.ts:82</code> <code class="ref">packages/lcoder/kernel/src/cloud/plugin.ts:89</code> <code class="ref">packages/lcoder/kernel/src/cloud/plugin.ts:95</code></p>
+
+  <h3 id="s8-2" class="blk"><span class="h3n">8.2</span>令牌刷新：单飞、轮换、原子落盘<a class="anchor" href="#s8-2">#</a></h3>
+  <p class="blk">访问令牌是带 <code>exp</code> 的 JWT，默认剩余不足 60 秒就刷新；刷新最多阻塞 5 秒，退避最多三次。<code class="ref">packages/lcoder/kernel/src/cloud/tokens.ts:33</code> <code class="ref">packages/lcoder/kernel/src/cloud/tokens.ts:46</code> <code class="ref">packages/lcoder/kernel/src/cloud/tokens.ts:138</code> 并发刷新共享同一个在途请求（单飞），成功后排一个到期前的定时刷新。<code class="ref">packages/lcoder/kernel/src/cloud/tokens.ts:152</code> <code class="ref">packages/lcoder/kernel/src/cloud/tokens.ts:378</code></p>
+  <p class="blk">落盘顺序是契约：<b>先写刷新令牌，再写访问令牌</b>。刷新令牌写成功而访问令牌写失败时，停止使用新访问令牌并把账号标为需要重新登录——绝不会出现刷新令牌已轮换、本机还拿着旧族继续用。<code class="ref">packages/lcoder/kernel/src/cloud/tokens.ts:338</code> <code class="ref">packages/lcoder/kernel/src/cloud/tokens.ts:339</code> 401 重试后仍失败就清本地令牌并置 <code>needs_login</code>。<code class="ref">packages/lcoder/kernel/src/cloud/tokens.ts:173</code></p>
+  <p class="blk">登出无论服务端撤销成功与否都清本机两个令牌；后台刷新失败只记在 <code>lastError</code>，不把界面打崩。<code class="ref">packages/lcoder/kernel/src/cloud/tokens.ts:204</code> <code class="ref">packages/lcoder/kernel/src/cloud/tokens.ts:244</code></p>
+
+  <h3 id="s8-3" class="blk"><span class="h3n">8.3</span>匿名额度：领取、复查、过期<a class="anchor" href="#s8-3">#</a></h3>
+  <p class="blk">匿名令牌没有刷新概念；重复点击领取共享同一个 Future，不会产生第二个 grant。<code class="ref">packages/lcoder/kernel/src/cloud/guest.ts:1</code> <code class="ref">packages/lcoder/kernel/src/cloud/guest.ts:75</code> 每次领取带安装级设备指纹，服务端的授权视图包含剩余请求数、剩余金额、当日额度与模型。<code class="ref">packages/lcoder/kernel/src/cloud/guest.ts:147</code> <code class="ref">packages/lcoder/kernel/src/cloud/types.ts:123</code></p>
+  <p class="blk">状态查询有 5 秒缓存；服务端判过期或未授权就清本地令牌并标 <code>guest_expired</code>，提示「今日免费立项已结束，登录后可继续」。发起模型请求前还要再确认一次令牌剩余时间大于 5 秒。<code class="ref">packages/lcoder/kernel/src/cloud/guest.ts:88</code> <code class="ref">packages/lcoder/kernel/src/cloud/guest.ts:101</code> <code class="ref">packages/lcoder/kernel/src/cloud/guest.ts:126</code></p>
+  <p class="blk">匿名额度是<b>按设备每日一次立项分析</b>（产品口径），额度用尽、过期、IP 限流或设备已领过时，界面直接弹登录而不是继续重试。<code class="ref">docs/tasks.yaml:826</code> <code class="ref">packages/lcoder/workspace/src/client/shell/Shell.tsx:1710</code></p>
+
+  <h3 id="s8-4" class="blk"><span class="h3n">8.4</span>门禁：立项可匿名，其余要登录<a class="anchor" href="#s8-4">#</a></h3>
+  <p class="blk">门禁是纯判定，只看持久事实（登录状态、当前会话是否匿名立项会话、云端是否可用、是否仍在读），不看弹窗开没开——所以重复点击只会聚焦登录，不会多发一次领取或云端请求。<code class="ref">packages/lcoder/workspace/src/client/cloud/gate.ts:1</code> <code class="ref">packages/lcoder/workspace/src/client/cloud/gate.ts:44</code></p>
+  <div class="table-wrap blk"><table>
+    <thead><tr><th>入口</th><th>未登录时</th><th>例外</th></tr></thead>
+    <tbody>
+      <tr><td><code>onboarding</code> 立项分析</td><td>放行（走匿名领取）</td><td>云端不可用或仍在读时挡住</td></tr>
+      <tr><td><code>onboardingFollowup</code> 匿名追问</td><td>仅匿名立项会话放行</td><td>其它会话要求登录</td></tr>
+      <tr><td>新会话 / 任务对话 / 契约签署 / 方案批准 / 批量开工 / 模型服务</td><td>弹登录</td><td>无——立项之后这些入口全部阻断</td></tr>
+    </tbody>
+  </table></div>
+  <p class="blk">入口标识共九种；判定结果只有 allow / login / blocked 三态，blocked 再分 <code>loading</code> 与 <code>cloud-unavailable</code>，界面据此给不同文案而不是统一报错。<code class="ref">packages/lcoder/workspace/src/client/cloud/gate.ts:9</code> <code class="ref">packages/lcoder/workspace/src/client/cloud/gate.ts:33</code></p>
+  <p class="blk">立项按钮先过 <code>onboarding</code> 门禁：已登录就把会话切到用户路由；未登录先 <code>claimGuest</code>，成功后再把会话切到匿名路由，然后才发送咒语；失败按错误码区分是否弹登录。<code class="ref">packages/lcoder/workspace/src/client/shell/Shell.tsx:1669</code> <code class="ref">packages/lcoder/workspace/src/client/shell/Shell.tsx:1703</code> <code class="ref">packages/lcoder/workspace/src/client/shell/Shell.tsx:1716</code> 「切路由」走会话命令面 <code>selectModel</code>，不属于云端 Remote。<code class="ref">packages/lcoder/workspace/src/client/cloud/face.ts:49</code> <code class="ref">packages/lcoder/workspace/src/client/cloud/face.ts:111</code></p>
+  <p class="blk">失败提示按码分支：401/402/403/429/5xx 与网络失败都会被识别成 <code>offline</code>、<code>unauthorized</code>、<code>quota_exhausted</code>、<code>banned</code>、<code>rate_limited</code> 等，并带上服务端 <code>requestId</code>；界面显示按码给的下一步，不显示原文。<code class="ref">packages/lcoder/workspace/src/client/model-status.ts:75</code> <code class="ref">packages/lcoder/workspace/src/client/model-status.ts:85</code> <code class="ref">packages/lcoder/kernel/src/cloud/api.ts:71</code></p>
+</section>
+<section class="chapter" id="ch9" data-title="个人中心与 token 预估">
+  <div class="chapter-head"><span class="chapter-num">09</span><h2>个人中心与 token 预估<a class="anchor" href="#ch9">#</a></h2></div>
+  <p class="plain blk"><b>白话</b>余额能折成「大约还能用多少字」，结果由云端算好，桌面只负责显示，算不出来就说原因。</p>
+  <p class="blk">个人中心是独立整页：账号资料、余额拆分、token 区间、匿名授权与最近用量流水。页面只做展示与分页取数，折算在云端完成，这里不出现任何单价换算。<code class="ref">packages/lcoder/workspace/src/client/cloud/PersonalCenter.tsx:1</code> <code class="ref">packages/lcoder/workspace/src/client/shell/Shell.tsx:380</code></p>
+
+  <h3 id="s9-1" class="blk"><span class="h3n">9.1</span>区间口径：8 比 2，两端都是假设<a class="anchor" href="#s9-1">#</a></h3>
+  <p class="blk">预估对象是「按当前余额还能用多少 token」，字段包括是否可用、不可用原因、模型、可用金额、下限与上限、输入输出占比、价格快照。占比由云端给定（例如 <code>8:2</code>），桌面只把它显示成一句假设说明。<code class="ref">packages/lcoder/kernel/src/cloud/types.ts:75</code> <code class="ref">packages/lcoder/kernel/src/cloud/types.ts:81</code> <code class="ref">packages/lcoder/kernel/src/cloud/types.ts:88</code></p>
+  <p class="blk">产品口径（T-83 拍板）：<b>固定假设区间</b>——下限按输入全部未命中缓存价算，上限按输入全部命中缓存价算；换算只在云端算，桌面只渲染，不在桌面复制单价；匿名授权也显示预估。<code class="ref">docs/tasks.yaml:914</code></p>
+  <p class="blk">页面上的三行说明分别是：占比假设、按哪个模型与多少可用金额估算、三项单位价（输入 / 缓存输入 / 输出，单位是微美元每百万 token）。价格快照只读展示，缺失时不显示该行。<code class="ref">packages/lcoder/workspace/src/client/cloud/PersonalCenter.tsx:78</code> <code class="ref">packages/lcoder/workspace/src/client/cloud/PersonalCenter.tsx:84</code></p>
+
+  <h3 id="s9-2" class="blk"><span class="h3n">9.2</span>四个不可用原因：说清为什么，不显示 0<a class="anchor" href="#s9-2">#</a></h3>
+  <p class="blk">云端只能返回四种原因，界面按码给固定文案；未知值收敛到通用文案，不崩。<code class="ref">packages/lcoder/kernel/src/cloud/types.ts:61</code> <code class="ref">packages/lcoder/workspace/src/client/cloud/estimate.ts:61</code></p>
+  <div class="table-wrap blk"><table>
+    <thead><tr><th>原因码</th><th>含义</th><th>界面</th></tr></thead>
+    <tbody>
+      <tr><td><code>no_effective_price</code></td><td>没有生效价格</td><td>「暂无生效单价」类文案</td></tr>
+      <tr><td><code>zero_unit_price</code></td><td>单价为零</td><td>不把 0 单价折算成 0 token</td></tr>
+      <tr><td><code>zero_balance</code></td><td>可用余额为零</td><td>显示不可用原因，不显示「约 0 到 0」</td></tr>
+      <tr><td><code>estimate_overflow</code></td><td>折算溢出</td><td>提示区间无法给出</td></tr>
+    </tbody>
+  </table></div>
+  <p class="blk">类型注释把这条边界写死：<code>available</code> 为 false 时上下限为 0，<b>界面必须显示「不可用」，不能把 0 显示成预估结果</b>。<code class="ref">packages/lcoder/kernel/src/cloud/types.ts:78</code> <code class="ref">packages/lcoder/workspace/src/client/cloud/estimate.ts:48</code></p>
+  <p class="blk">当前展示哪一份预估：登录后优先账号的，其次匿名的；两者都没有时为 null。<code class="ref">packages/lcoder/workspace/src/client/cloud/estimate.ts:37</code></p>
+
+  <h3 id="s9-3" class="blk"><span class="h3n">9.3</span>桌面只渲染云端结果：一条可机械验证的约束<a class="anchor" href="#s9-3">#</a></h3>
+  <p class="blk">宿主解析预估时只做 JSON 取值与形状校验，不做任何单价运算；字段不全返回 null，由界面显示不可用。<code class="ref">packages/lcoder/kernel/src/cloud/api.ts:124</code> <code class="ref">packages/lcoder/kernel/src/cloud/api.ts:131</code> 客户端格式化只把微美元折成美元，或按区间直出上下限。<code class="ref">packages/lcoder/workspace/src/client/cloud/estimate.ts:18</code> <code class="ref">packages/lcoder/workspace/src/client/cloud/estimate.ts:48</code></p>
+  <p class="blk">这条约束有测试守着：断言客户端源码不含单价常量，也不含 <code>inputOutputRatio: '8:2'</code> 这类折算公式。<code class="ref">packages/lcoder/workspace/tests/personal-center.client.spec.tsx:240</code> <code class="ref">packages/lcoder/workspace/tests/personal-center.client.spec.tsx:247</code></p>
+  <p class="blk">余额拆分四项：发放、已用、可用、预留；匿名卡片显示剩余请求数、剩余金额、发放日与到期时间。用量流水每页 20 条，游标翻页同一时刻只发一页，连点不会重复请求同一个游标。<code class="ref">packages/lcoder/workspace/src/client/cloud/PersonalCenter.tsx:250</code> <code class="ref">packages/lcoder/workspace/src/client/cloud/PersonalCenter.tsx:100</code> <code class="ref">packages/lcoder/workspace/src/client/cloud/PersonalCenter.tsx:133</code></p>
+  <p class="blk">顶栏账户弹窗只加一行 token 区间摘要，完整的资料、余额与流水在个人中心页。<code class="ref">packages/lcoder/workspace/src/client/cloud/CloudAccount.tsx:271</code></p>
+</section>
+
+<section class="chapter" id="ch10" data-title="桌面外壳与身份更新">
+  <div class="chapter-head"><span class="chapter-num">10</span><h2>桌面外壳、品牌身份与更新源<a class="anchor" href="#ch10">#</a></h2></div>
+  <p class="plain blk"><b>白话</b>它有自己的窗口、图标和名字；更新源与签名还在内测阶段，协议跳转也还没接通。</p>
+  <p class="blk">外壳不是独立应用：它占用 DSH 主面板的 <code>lcoder-home</code> 键，禁用原生侧栏后自画左栏与顶栏，主面板占满窗口。<code class="ref">packages/lcoder/workspace/src/client/index.ts:494</code> <code class="ref">lcoder/desktop-profile.patch.yml:468</code></p>
+
+  <h3 id="s10-1" class="blk"><span class="h3n">10.1</span>壳结构与页面<a class="anchor" href="#s10-1">#</a></h3>
+  <div class="card-grid blk">
+    <div class="card"><h4>任务看板</h4><p>项目切换、任务卡片、筛选、依赖与联调组标记；没有工作区或会话时显示空态，不编造数据。</p><code class="ref">Shell.tsx:355</code></div>
+    <div class="card"><h4>任务详情</h4><p>抽屉式详情：状态、分级、规格、允许路径、契约、证据与调度判定；低频控件按需展开。</p><code class="ref">Shell.tsx:372</code></div>
+    <div class="card"><h4>悬浮对话</h4><p>普通与最大化两档；头部有模型 chip、上下文占用、最大化与关闭；输入区支持拖拽附件。</p><code class="ref">Shell.tsx:2946</code></div>
+    <div class="card"><h4>设置</h4><p>模型服务、密钥、专家名册与提示词；专家面板展开时才读，不跟启动抢远程调用。</p><code class="ref">Shell.tsx:396</code></div>
+    <div class="card"><h4>立项结果页</h4><p>独立整页，可回看立项产物；「重新开始」先列已有产物，确认后新建会话重发。</p><code class="ref">Shell.tsx:378</code></div>
+    <div class="card"><h4>个人中心</h4><p>独立整页，与结果页同级；打开时看板让位。</p><code class="ref">Shell.tsx:380</code></div>
+    <div class="card"><h4>流程面板</h4><p>只读求值 <code>/flow_status</code>，逐条勾选可开工任务，结果与失败都追加 <code>/flow_log</code>。</p><code class="ref">Shell.tsx:467</code></div>
+    <div class="card"><h4>窗口按钮</h4><p>仅 Windows 桌面 preload 暴露桥时自绘最小化/最大化/关闭；Web 与 macOS 用原生窗口。</p><code class="ref">window-chrome.ts:1</code></div>
+  </div>
+  <p class="blk">品牌侧：官方鲸标与名称字标被禁用，壳自画顶栏；品牌文案是 <code>LCoder</code>，图标资源包含牛头标 <code>bull-mark.png</code> 与自托管的 Inter 字体。<code class="ref">lcoder/desktop-profile.patch.yml:478</code> <code class="ref">packages/lcoder/workspace/src/client/locales.ts:59</code></p>
+
+  <h3 id="s10-2" class="blk"><span class="h3n">10.2</span>LCoder 身份与 <code>lcoder</code> 协议（协议路由未实现）<a class="anchor" href="#s10-2">#</a></h3>
+  <p class="blk">发布身份集中在一个脚本里：应用标识 <code>ai.lansi.lcoder</code>、产品名 <code>LCoder</code>、协议 <code>lcoder</code>、产物前缀 <code>lcoder-</code>、对象前缀 <code>lcoder-desk</code>、固定下载目录 <code>lcoder-desk/latest</code>、更新缓存目录 <code>lcoder-updater</code>、发布标签前缀 <code>lcoder-v</code>。<code class="ref">apps/desktop/scripts/desktop-product-identity.mjs:53</code> electron-builder 配置从同一身份读取产品名与协议，并在安装包层注册 <code>lcoder</code> 方案。<code class="ref">apps/desktop/scripts/electron-builder-config.mjs:115</code></p>
+  <p class="blk">LCoder 版本与上游基线解耦：源码清单保留上游版本，发布版本在打包时用 <code>LCODER_RELEASE_VERSION</code> 注入，成为安装版本、产物版本与 feed 版本；LCoder 从 <code>0.1.0</code> 起。<code class="ref">docs/desktop-release.md:30</code> 发布渠道 <code>latest</code> 只收稳定版，<code>nightly</code> 收稳定版或预发布版；渠道封在安装包里，切换渠道需要重装。<code class="ref">docs/desktop-release.md:101</code></p>
+  <div class="callout bad blk"><p><b>协议路由是未实现能力，不能写成已支持。</b>打包层按身份注册 <code>lcoder</code> 方案，但应用层仍只注册 <code>dsh</code>：主进程调用 <code>setAsDefaultProtocolClient('dsh')</code>，<code>open-url</code> 只匹配 <code>dsh://open</code>；单实例的 <code>second-instance</code> 监听器也不接收参数，只做聚焦。因此 <code>lcoder</code> 地址最多能拉起或聚焦窗口，<b>不解析路径</b>、不执行任何任务路由。T-78 台账同样把「协议冷热启动单窗口」列为未验。<code class="ref">docs/desktop-release.md:57</code> <code class="ref">apps/desktop/src/main.ts:1408</code> <code class="ref">apps/desktop/src/main.ts:1409</code> <code class="ref">apps/desktop/src/single-instance.ts:7</code> <code class="ref">apps/desktop/src/single-instance.ts:24</code> <code class="ref">docs/tasks.yaml:859</code></p></div>
+  <p class="blk">单实例本身仍是生命周期第一步：拿不到锁的进程转发参数后退出，只有持有进程读写应用数据；macOS 走 <code>open-url</code>，Windows 走第二实例参数，两条路汇到同一个处理函数——但当前该函数只做「聚焦或重建主窗口」。<code class="ref">docs/desktop-release.md:59</code> <code class="ref">apps/desktop/src/single-instance.ts:20</code></p>
+
+  <h3 id="s10-3" class="blk"><span class="h3n">10.3</span>COS 更新源：目录与纪律<a class="anchor" href="#s10-3">#</a></h3>
+  <p class="blk">更新源是 COS + CDN：桶与区域为占位值，公共源只用占位域名 <code>download.example.com</code>；生产对象前缀 <code>lcoder-desk/</code>，测试批次加 <code>lcoder-desk/&lt;release-id&gt;/</code>；目标覆盖 win-x64、mac-arm64、mac-x64。客户端只读 CDN 源，不读 COS 端点。<code class="ref">docs/desktop-release.md:64</code> <code class="ref">docs/desktop-release.md:77</code></p>
+  <p class="blk">对象布局固定：<code>feeds/&lt;target&gt;/{nightly,latest}.yml</code>、<code>bin/&lt;target&gt;/lcoder-&lt;version&gt;-&lt;os&gt;-&lt;arch&gt;.&lt;ext&gt;</code>、<code>latest/</code> 固定下载，以及每个测试批次的独立目录。Windows 发布 NSIS 安装包；macOS 用 DMG 安装、ZIP 作更新载荷并配 blockmap。<code class="ref">docs/desktop-release.md:81</code> <code class="ref">docs/desktop-release.md:96</code></p>
+  <p class="blk">上传纪律：先二进制与 blockmap，最后上传渠道 YAML，feed 绝不指向尚不可读的对象；feed 与固定下载元数据不缓存，二进制可缓存一年；生产固定下载与回滚 feed 需要 CDN 刷新，提交受理不等于完成。<code class="ref">docs/desktop-release.md:144</code> <code class="ref">docs/desktop-release.md:145</code> <code class="ref">docs/desktop-release.md:146</code></p>
+  <p class="blk">每个包内嵌一份 generic provider 的 <code>app-update.yml</code>，地址是该目标的 feed 目录、渠道是安装渠道；没有这份文件的包报告「未配置更新源」，而不是去查默认服务器。<code class="ref">docs/desktop-release.md:110</code> <code class="ref">docs/desktop-release.md:119</code></p>
+  <p class="blk">更新体验的设计（自动检查延迟 20–30 秒、每 6 小时一次、状态机七态、安装从不静默）写在文档里，但实现台账 T-79 仍是 todo；COS 发布流水线 T-81 也是 todo，真实上传未做。<code class="ref">docs/desktop-release.md:153</code> <code class="ref">docs/tasks.yaml:870</code> <code class="ref">docs/tasks.yaml:892</code></p>
+
+  <h3 id="s10-4" class="blk"><span class="h3n">10.4</span>未签名内测限制<a class="anchor" href="#s10-4">#</a></h3>
+  <p class="blk">Windows 未签名包没有 Authenticode 签名，SmartScreen 会提示未知发布者；安装器是按用户安装、不需要提权。更新包按 feed 里的 SHA-512 校验而不是代码签名——机制上能装未签名更新，但仓库尚未接受这条路径、也不承诺。<code class="ref">docs/desktop-release.md:186</code> <code class="ref">docs/desktop-release.md:188</code></p>
+  <p class="blk">macOS 未签名包使用 ad-hoc 签名：Gatekeeper 带隔离属性拒绝首次启动，从 DMG 启动还可能触发 App Translocation；Squirrel.Mac 会比较代码签名，而 ad-hoc 签名逐版本变化，因此未签名自动更新预期失败或拒绝，属未验证路径。<code class="ref">docs/desktop-release.md:194</code> <code class="ref">docs/desktop-release.md:197</code></p>
+  <p class="blk">T-82 是退出条件：Windows 需要代码签名证书与 Authenticode；macOS 需要 Developer ID、硬化运行时、公证与装订票据。直到 T-82 收口，每个 LCoder 构建都只做内部分发，设置页必须如实说明。<code class="ref">docs/desktop-release.md:200</code> <code class="ref">docs/desktop-release.md:205</code></p>
+  <p class="blk">用户数据与日志按产品名分目录：Windows 在 <code>%APPDATA%/LCoder</code>，macOS 在 <code>~/Library/Application Support/LCoder</code> 与 <code>~/Library/Logs/LCoder</code>；LCoder 从空数据开始，不迁移、不复制、不删除 DSH 的数据或 <code>~/.dsh</code>。<code class="ref">docs/desktop-release.md:46</code> <code class="ref">docs/desktop-release.md:53</code></p>
+</section>
+<section class="chapter" id="ch11" data-title="关键文件地图">
+  <div class="chapter-head"><span class="chapter-num">11</span><h2>关键文件地图<a class="anchor" href="#ch11">#</a></h2></div>
+  <p class="plain blk"><b>白话</b>这一章是一张「哪个文件管什么」的目录，方便顺着入口查代码。</p>
+  <p class="blk">一页看完全部入口。读改顺序建议：先看装配补丁，再看 kernel 的 <code>plugin.ts</code> 与 <code>surface.ts</code>，最后进 UI 的 <code>index.ts</code> 与 <code>Shell.tsx</code>。</p>
+
+  <h3 class="blk"><span class="h3n">11.1</span>内核：<code>packages/lcoder/kernel/src</code><a class="anchor" href="#ch11">#</a></h3>
+  <div class="table-wrap blk"><table>
+    <thead><tr><th>文件</th><th>职责</th><th>锚点</th></tr></thead>
+    <tbody>
+      <tr id="f-kernel-index"><td><code>index.ts</code></td><td>公开出口：schema / kernel / checkers / tools / cloud；<code>plugin</code> 是唯一上游适配层</td><td><code class="ref">index.ts:3</code></td></tr>
+      <tr id="f-plugin"><td><code>plugin.ts</code></td><td>Cordis 入口：解析角色与规格根、注册 17 个工具（<code>when</code> 求值）、注册 9 条命令、打印自检</td><td><code class="ref">plugin.ts:96</code></td></tr>
+      <tr id="f-surface"><td><code>kernel/surface.ts</code></td><td>五态白名单、空看板面、九个角色天花板、<code>SurfaceSwitcher</code>、掩码自检</td><td><code class="ref">surface.ts:28</code></td></tr>
+      <tr id="f-schema"><td><code>schema/spec.ts</code></td><td><code>.spec</code> 形状唯一来源：规则、状态机、任务、契约、策略、方案、常驻会话、环境、项目；<code>SpecLayout</code> 绑定 glob</td><td><code class="ref">spec.ts:1</code></td></tr>
+      <tr id="f-spec-store"><td><code>kernel/spec-store.ts</code></td><td>读规则与状态机、写回 <code>rules.yaml</code>、文本代码索引、落点问题与差异</td><td><code class="ref">spec-store.ts:27</code></td></tr>
+      <tr id="f-task-store"><td><code>kernel/task-store.ts</code></td><td>转移表与 <code>transition</code>、任务落盘、编号/标题查重、依赖成环、会话认领选择</td><td><code class="ref">task-store.ts:21</code></td></tr>
+      <tr id="f-contract"><td><code>kernel/contract.ts</code></td><td>契约路径、正文稳定哈希、读时复算、写前过 schema</td><td><code class="ref">contract.ts:20</code></td></tr>
+      <tr id="f-evidence"><td><code>kernel/evidence-store.ts</code></td><td>证据名 → 字节数；<code>review*</code> 复核证据约定</td><td><code class="ref">evidence-store.ts:26</code></td></tr>
+      <tr id="f-automation"><td><code>kernel/automation.ts</code></td><td>策略读取、缺省全手动、审计事实（来源/路径/哈希/时刻）、非法键人话</td><td><code class="ref">automation.ts:54</code></td></tr>
+      <tr id="f-sign-gate"><td><code>kernel/sign-gate.ts</code></td><td>三道人签闸的纯判定与失败措辞</td><td><code class="ref">sign-gate.ts:33</code></td></tr>
+      <tr id="f-flow"><td><code>kernel/flow.ts</code></td><td>流程引擎纯函数：动作、挡住原因、预算、逐任务计划</td><td><code class="ref">flow.ts:120</code></td></tr>
+      <tr id="f-flow-store"><td><code>kernel/flow-store.ts</code></td><td>把 <code>.spec</code> 读成流程事实；与判定分离、不缓存</td><td><code class="ref">flow-store.ts:43</code></td></tr>
+      <tr id="f-checkers"><td><code>checkers/index.ts</code></td><td>P1 落点、P3 签署、P4 证据；只读事实、纯函数、每条违规带 hint</td><td><code class="ref">checkers/index.ts:1</code></td></tr>
+      <tr id="f-tools"><td><code>tools/*.ts</code></td><td>项目、规格、任务、方案、Git、编辑六组工具；输出统一 JSON 渲染</td><td><code class="ref">tools/edit-tools.ts:149</code></td></tr>
+      <tr id="f-commands"><td><code>commands/*.ts</code></td><td>九条人机命令；签名、认领、推进、批准、调度、流程、常驻会话、部署</td><td><code class="ref">commands/contract-sign.ts:49</code></td></tr>
+      <tr id="f-cloud"><td><code>cloud/*.ts</code></td><td>HTTP 面、令牌生命周期、匿名授权、Remote 控制器、全局插件、设备指纹、公开类型</td><td><code class="ref">cloud/plugin.ts:58</code></td></tr>
+    </tbody>
+  </table></div>
+
+  <h3 class="blk"><span class="h3n">11.2</span>工作台：<code>packages/lcoder/workspace/src/client</code><a class="anchor" href="#ch11">#</a></h3>
+  <div class="table-wrap blk"><table>
+    <thead><tr><th>文件</th><th>职责</th><th>锚点</th></tr></thead>
+    <tbody>
+      <tr id="f-ws-index"><td><code>index.ts</code></td><td>浏览器插件入口：挂云端 Remote、整壳或右栏页签、把宿主回调收成 <code>WorkspaceInject</code></td><td><code class="ref">index.ts:245</code></td></tr>
+      <tr id="f-projection"><td><code>projection.ts</code></td><td><code>.spec</code> 五路并发读取与 YAML → 展示行；缺文件不算故障</td><td><code class="ref">projection.ts:415</code></td></tr>
+      <tr id="f-shell"><td><code>shell/Shell.tsx</code></td><td>整壳：看板、详情、设置、结果页、个人中心、悬浮对话、流程面板</td><td><code class="ref">Shell.tsx:355</code></td></tr>
+      <tr id="f-scheduling"><td><code>scheduling.ts</code></td><td>调度判定：依赖与 worktree 硬闸、信号打分、候选理由、联调组</td><td><code class="ref">scheduling.ts:140</code></td></tr>
+      <tr id="f-singleton"><td><code>singleton.ts</code></td><td>两个常驻角色的单例会话解析与标题校正</td><td><code class="ref">singleton.ts:54</code></td></tr>
+      <tr id="f-task-session"><td><code>task-session.ts</code></td><td>任务 ↔ 会话归属判据与卡片状态折叠</td><td><code class="ref">task-session.ts:85</code></td></tr>
+      <tr id="f-model-status"><td><code>model-status.ts</code></td><td>模型可用性三态与失败提示（按错误码，不显示原文）</td><td><code class="ref">model-status.ts:27</code></td></tr>
+      <tr id="f-onboarding"><td><code>onboarding.ts</code></td><td>立项入口幂等判定：读会话事实，不读组件状态</td><td><code class="ref">onboarding.ts:37</code></td></tr>
+      <tr id="f-cloud-ui"><td><code>cloud/*</code></td><td>门禁判定、预估格式化、云端面与挂载、登录状态 Hook、个人中心与账户弹窗</td><td><code class="ref">cloud/gate.ts:44</code> <code class="ref">cloud/PersonalCenter.tsx:119</code></td></tr>
+      <tr id="f-chat"><td><code>shell/chat-composer.ts</code> 等</td><td>附件校验与提示词拼装、模型面板状态机、消息渲染、设置写面</td><td><code class="ref">shell/chat-composer.ts:269</code> <code class="ref">shell/ChatPanel.tsx:34</code></td></tr>
+    </tbody>
+  </table></div>
+
+  <h3 class="blk"><span class="h3n">11.3</span>装配、桌面与文档<a class="anchor" href="#ch11">#</a></h3>
+  <div class="table-wrap blk"><table>
+    <thead><tr><th>文件</th><th>职责</th><th>锚点</th></tr></thead>
+    <tbody>
+      <tr id="f-cordis-patch"><td><code>lcoder/cordis.patch.yml</code></td><td>web 侧补丁：改 provider、插入云端控制器 / kernel / workspace</td><td><code class="ref">cordis.patch.yml:20</code></td></tr>
+      <tr id="f-desktop-patch"><td><code>lcoder/desktop-profile.patch.yml</code></td><td>桌面 profile 与九个角色 preset；禁用原生侧栏 / 登录 / 官方品牌；<code>documentsDirectory</code> 规避</td><td><code class="ref">desktop-profile.patch.yml:1</code></td></tr>
+      <tr id="f-identity"><td><code>apps/desktop/scripts/desktop-product-identity.mjs</code></td><td>唯一的发布身份来源：appId、产品名、协议、前缀、缓存目录、标签前缀</td><td><code class="ref">desktop-product-identity.mjs:53</code></td></tr>
+      <tr id="f-builder"><td><code>apps/desktop/scripts/electron-builder-config.mjs</code></td><td>把身份写进安装包：产品名、协议注册、打包元数据</td><td><code class="ref">electron-builder-config.mjs:115</code></td></tr>
+      <tr id="f-main"><td><code>apps/desktop/src/main.ts</code></td><td>主进程：窗口、菜单、更新检查、协议与单实例入口</td><td><code class="ref">main.ts:1408</code></td></tr>
+      <tr id="f-single"><td><code>apps/desktop/src/single-instance.ts</code></td><td>单实例锁；第二次启动只聚焦持有进程（不接参数）</td><td><code class="ref">single-instance.ts:16</code></td></tr>
+      <tr id="f-prd"><td><code>docs/prd-and-design.md</code></td><td>产品与设计共识：定位、五态、工具面、数据面、决策表、风险</td><td><code class="ref">prd-and-design.md:17</code></td></tr>
+      <tr id="f-rules"><td><code>docs/PROJECT-RULES.md</code></td><td>项目红线、目录归属、分级流程、门禁、环境隔离</td><td><code class="ref">PROJECT-RULES.md:16</code></td></tr>
+      <tr id="f-release"><td><code>docs/desktop-release.md</code></td><td>桌面发布事实源：身份、更新源、体验、签名缺口、发布流程、macOS 矩阵、接触面</td><td><code class="ref">desktop-release.md:7</code></td></tr>
+      <tr id="f-ledger"><td><code>docs/tasks.yaml</code></td><td>开发台账（唯一开发进度源）；看板由它生成</td><td><code class="ref">tasks.yaml:936</code></td></tr>
+      <tr id="f-context"><td><code>docs/active-context.md</code></td><td>当前焦点、已完成的开发任务、下一步</td><td><code class="ref">active-context.md:18</code></td></tr>
+    </tbody>
+  </table></div>
+</section>
+<section class="chapter" id="ch12" data-title="未实现与未验清单">
+  <div class="chapter-head"><span class="chapter-num">12</span><h2>未实现与未验清单<a class="anchor" href="#ch12">#</a></h2></div>
+  <p class="plain blk"><b>白话</b>这一章把「还没做」和「只在代码里、真机没跑过」分开列清，避免把计划当现状。</p>
+  <p class="blk">本清单按证据分三层：<span class="tag bad">未实现</span> 台账仍是 todo 或源码里没有入口；<span class="tag warn">未验</span> 代码存在但真实设备/真实服务没跑过；<span class="tag">口径偏差</span> 文档与代码不一致，已按代码记录。</p>
+
+  <h3 id="s12-1" class="blk"><span class="h3n">12.1</span>未实现<a class="anchor" href="#s12-1">#</a></h3>
+  <div class="table-wrap blk"><table>
+    <thead><tr><th>能力</th><th>证据</th><th>影响</th></tr></thead>
+    <tbody>
+      <tr><td>更新界面（检查/下载/重启状态机）</td><td>T-79 台账 <code>status: todo</code><code class="ref">docs/tasks.yaml:870</code>；文档只有设计<code class="ref">docs/desktop-release.md:153</code></td><td>当前没有可用的手动/自动检查入口</td></tr>
+      <tr><td>macOS 打包与适配</td><td>T-80 <code>todo</code><code class="ref">docs/tasks.yaml:881</code></td><td>没有 DMG/ZIP，没有 arm64/x64 实机结论</td></tr>
+      <tr><td>COS/CDN 发布流水线</td><td>T-81 <code>todo</code><code class="ref">docs/tasks.yaml:892</code></td><td>上传、固定下载、刷新、回滚均未执行</td></tr>
+      <tr><td>Windows 签名与 macOS 公证</td><td>T-82 <code>todo</code><code class="ref">docs/tasks.yaml:903</code></td><td>全部构建只能内部分发</td></tr>
+      <tr><td><code>lcoder</code> 协议路由</td><td>应用层只注册 <code>dsh</code>，<code>open-url</code> 只认 <code>dsh://open</code>，<code>second-instance</code> 不接参数<code class="ref">apps/desktop/src/main.ts:1408</code><code class="ref">apps/desktop/src/single-instance.ts:7</code></td><td>深链最多拉起/聚焦窗口，不解析路径</td></tr>
+      <tr><td>生产流程调用 AI 自签</td><td><code>selfSignContract</code> 只有测试调用者<code class="ref">packages/lcoder/kernel/tests/contract-self-sign.spec.ts:14</code>；PRD 也记录无调用者<code class="ref">docs/prd-and-design.md:102</code></td><td>面板只能标注「允许自签」，不会自动签</td></tr>
+      <tr><td><code>implementing → verifying</code> 的工具入口</td><td>PRD 明确没有入口<code class="ref">docs/prd-and-design.md:104</code></td><td>推进需要人手改任务 YAML</td></tr>
+      <tr><td>真实云端接入主线</td><td>A10 未合入 main，桌面仍连本机 mock<code class="ref">docs/active-context.md:18</code><code class="ref">docs/active-context.md:51</code></td><td>账号/额度/预估只有 mock 链路</td></tr>
+      <tr><td>真实短信与真实单价</td><td>T-75 记录短信为测试通道、单价按上游账单<code class="ref">docs/tasks.yaml:826</code></td><td>预估数字不能当账单价</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3 id="s12-2" class="blk"><span class="h3n">12.2</span>未验（代码存在，真实环境没跑过）<a class="anchor" href="#s12-2">#</a></h3>
+  <div class="table-wrap blk"><table>
+    <thead><tr><th>项</th><th>为什么未验</th><th>证据</th></tr></thead>
+    <tbody>
+      <tr><td>安装后的 LCoder 身份、开始菜单、卸载项、关于面板</td><td>T-78 收口时未打 Windows 包、未安装</td><td><code class="ref">docs/tasks.yaml:859</code></td></tr>
+      <tr><td>userData 落在 <code>%APPDATA%/LCoder</code></td><td>同上，未安装即未验</td><td><code class="ref">docs/tasks.yaml:859</code></td></tr>
+      <tr><td><code>lcoder://</code> 冷启动/热启动单窗口</td><td>T-78 明确挂起未验；源码仍有 dsh 路由</td><td><code class="ref">docs/tasks.yaml:859</code> <code class="ref">apps/desktop/src/main.ts:1408</code></td></tr>
+      <tr><td>真实 COS 上传、CDN 缓存与刷新、DNS/TLS/桶权限</td><td>没有发布凭据与生产源</td><td><code class="ref">docs/desktop-release.md:318</code></td></tr>
+      <tr><td>未签名自动更新（Windows/macOS）</td><td>Windows 未验；macOS 预期失败或拒绝</td><td><code class="ref">docs/desktop-release.md:188</code> <code class="ref">docs/desktop-release.md:197</code></td></tr>
+      <tr><td>Intel Mac 的 x64 产物</td><td>缺 Intel 实机或干净 Rosetta 环境</td><td><code class="ref">docs/desktop-release.md:316</code></td></tr>
+      <tr><td>个人中心的真人手点与真实云端</td><td>T-83 的 32 张截图全部为合成点击</td><td><code class="ref">docs/active-context.md:18</code></td></tr>
+      <tr><td>macOS 菜单、Dock、快捷键、原生目录对话框、权限弹窗</td><td>需要真机逐项过</td><td><code class="ref">docs/desktop-release.md:236</code> <code class="ref">docs/desktop-release.md:321</code></td></tr>
+      <tr><td>真实 Postgres、opencode 上游限流与条款</td><td>云端验收挂起</td><td><code class="ref">docs/active-context.md:51</code></td></tr>
+    </tbody>
+  </table></div>
+
+  <h3 id="s12-3" class="blk"><span class="h3n">12.3</span>口径偏差（文档 vs 代码，按代码记录）<a class="anchor" href="#s12-3">#</a></h3>
+  <div class="table-wrap blk"><table>
+    <thead><tr><th>主题</th><th>文档口径</th><th>代码事实</th></tr></thead>
+    <tbody>
+      <tr><td>模型工具数量</td><td>PRD 十二个<code class="ref">docs/prd-and-design.md:55</code>；验收写十个<code class="ref">docs/prd-and-design.md:79</code></td><td>实际注册 17 个（多 <code>file_list</code>、<code>proposal_draft</code>、<code>git_status/diff/commit</code>）<code class="ref">packages/lcoder/kernel/src/plugin.ts:139</code></td></tr>
+      <tr><td>P3 是否无条件要求签名</td><td>读起来像「收口一律要合法签名」<code class="ref">docs/prd-and-design.md:49</code></td><td>只在 <code>scope.irreversible</code> 非空时检查；空则直接通过<code class="ref">packages/lcoder/kernel/src/checkers/index.ts:97</code></td></tr>
+      <tr><td>起草态能否直接收口</td><td>PRD 五态表写 drafting 的出口是 contracted<code class="ref">docs/prd-and-design.md:43</code></td><td>转移表允许 <code>drafting → closed</code>，但当前无调用者<code class="ref">packages/lcoder/kernel/src/kernel/task-store.ts:22</code></td></tr>
+      <tr><td>插件头注释的工具数</td><td>注释写「十三个工具」<code class="ref">packages/lcoder/kernel/src/plugin.ts:7</code></td><td>同一文件实际注册 17 个<code class="ref">packages/lcoder/kernel/src/plugin.ts:139</code></td></tr>
+      <tr><td>协议</td><td>设计写 <code>lcoder://open</code><code class="ref">docs/desktop-release.md:57</code></td><td>应用层只注册 <code>dsh</code>，深链不解析路径<code class="ref">apps/desktop/src/main.ts:1408</code></td></tr>
+      <tr><td>允许路径闸的覆盖面</td><td>表述为「写操作硬闸」<code class="ref">docs/PROJECT-RULES.md:25</code></td><td>只挂在 <code>file_edit</code>；<code>git_commit</code> 只校验仓库内<code class="ref">packages/lcoder/kernel/src/plugin.ts:145</code></td></tr>
+    </tbody>
+  </table></div>
+
+  <h3 class="blk"><span class="h3n">12.4</span>工程约束（不是缺陷，但会持续影响使用）<a class="anchor" href="#ch12">#</a></h3>
+  <ul class="blk">
+    <li>桌面 profile 必须把 <code>documentsDirectory</code> 指到本检出的真实目录；这是对开发机 OS 查询挂起的规避，换机器要改。<code class="ref">lcoder/desktop-profile.patch.yml:19</code> <code class="ref">docs/PROJECT-RULES.md:127</code></li>
+    <li>P1 的代码索引是文本匹配，注释/字符串同名也会命中；换 AST 前 P1 的失败需要人工复核。<code class="ref">packages/lcoder/kernel/src/kernel/spec-store.ts:94</code></li>
+    <li>没有 push 工具，也没有 <code>git push</code> 在 <code>cmd_run</code> 面上；推远端永远是人的动作。<code class="ref">docs/PROJECT-RULES.md:23</code></li>
+    <li>压缩阈值写死在桌面 profile（0.8 / 0.16），不是运行时可配项。<code class="ref">lcoder/desktop-profile.patch.yml:95</code></li>
+    <li>Gradle/安装包之外的「真实更新源」目前只有文档与占位域名；任何对外宣称都要等 T-81 与 T-82。<code class="ref">docs/desktop-release.md:9</code></li>
+  </ul>
+</section>
+
+<div id="empty" class="callout warn" hidden><p><b>没有匹配的条目。</b>换个关键词，或按 <kbd>Esc</kbd> 清空过滤。可试：自签、worktree、预估、协议、P3。</p></div>
+<footer class="footer">
+  <p>本报告为 T-85 交付物：单文件、离线、无外部资源。内容来自对 <code>packages/lcoder/kernel/src</code>、<code>packages/lcoder/workspace/src</code>、<code>lcoder/*.patch.yml</code>、<code>apps/desktop</code> 与 <code>docs/</code> 的只读检索；未修改任何源码与文档。</p>
+  <p>阅读建议：第 1–2 章建立装配与数据面，第 3–4 章看能力与闸门，第 5–6 章看自动化与调度，第 7–10 章看会话与桌面，第 11 章查文件，第 12 章核对边界。</p>
+</footer>
+</main>
+</div>
+</div>
+<button class="to-top" id="to-top" type="button" title="回到顶部" aria-label="回到顶部">
+  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M8 13V3M3.5 7.5 8 3l4.5 4.5"></path></svg>
+</button>
+<script>
+(function () {
+  var root = document.documentElement;
+  var themeBtn = document.getElementById('theme-btn');
+  var themeLabel = document.getElementById('theme-label');
+  var input = document.getElementById('q');
+  var hits = document.getElementById('hits');
+  var empty = document.getElementById('empty');
+  var bar = document.getElementById('progress');
+  var toTop = document.getElementById('to-top');
+  var chapters = Array.prototype.slice.call(document.querySelectorAll('.chapter'));
+  var firstId = (chapters[0] && chapters[0].id) || 'ch0-1';
+  var mq = window.matchMedia('(prefers-color-scheme: dark)');
+  var labels = { auto: '自动', light: '浅色', dark: '深色' };
+
+  function resolved(mode) {
+    return mode === 'auto' ? (mq.matches ? 'dark' : 'light') : mode;
+  }
+  function applyTheme(mode) {
+    root.setAttribute('data-theme-mode', mode);
+    root.setAttribute('data-theme', resolved(mode));
+    themeLabel.textContent = labels[mode];
+    themeBtn.title = '主题：' + labels[mode] + '（点击切换自动 / 浅色 / 深色）';
+    try { localStorage.setItem('lcoder-report-theme', mode); } catch (error) { void error; }
+  }
+  var mode = root.getAttribute('data-theme-mode');
+  if (mode !== 'auto' && mode !== 'light' && mode !== 'dark') mode = 'auto';
+  applyTheme(mode);
+  themeBtn.addEventListener('click', function () {
+    mode = mode === 'auto' ? 'light' : mode === 'light' ? 'dark' : 'auto';
+    applyTheme(mode);
+  });
+  if (mq.addEventListener) {
+    mq.addEventListener('change', function () { if (mode === 'auto') applyTheme('auto'); });
+  }
+
+  function blocksOf(chapter) {
+    return Array.prototype.filter.call(
+      chapter.querySelectorAll('.blk, .stack'),
+      function (el) { return el.tagName !== 'H3'; }
+    );
+  }
+  function setActive(id) {
+    document.querySelectorAll('#toc > li[data-ch]:not(.sub) > a').forEach(function (link) {
+      link.classList.toggle('active', link.getAttribute('href') === '#' + id);
+    });
+  }
+  function applyFilter() {
+    var q = input.value.trim().toLowerCase();
+    var chapterHits = 0;
+    var blockHits = 0;
+    chapters.forEach(function (chapter) {
+      var blocks = blocksOf(chapter);
+      blocks.forEach(function (block) { block.hidden = false; block.classList.remove('hit'); });
+      chapter.classList.remove('hit');
+      var h2 = chapter.querySelector('h2');
+      if (h2) h2.classList.remove('hit');
+      if (q === '') { chapter.hidden = false; return; }
+      var title = ((chapter.getAttribute('data-title') || '') + ' ' + (h2 ? h2.textContent : '')).toLowerCase();
+      var titleHit = title.indexOf(q) >= 0;
+      var any = false;
+      blocks.forEach(function (block) {
+        var hit = block.textContent.toLowerCase().indexOf(q) >= 0;
+        block.hidden = !titleHit && !hit;
+        if (hit && !titleHit) { block.classList.add('hit'); any = true; blockHits += 1; }
+      });
+      if (titleHit) { any = true; if (h2) h2.classList.add('hit'); }
+      chapter.hidden = !any;
+      if (any) chapterHits += 1;
+    });
+    document.querySelectorAll('#toc li[data-ch]').forEach(function (item) {
+      var chapter = document.getElementById(item.getAttribute('data-ch'));
+      item.hidden = q !== '' && (!chapter || chapter.hidden);
+    });
+    hits.textContent = q === '' ? '' : chapterHits + ' 章 · ' + blockHits + ' 条';
+    empty.hidden = !(q !== '' && chapterHits === 0);
+    if (q === '') { setActive(currentId || firstId); }
+  }
+
+  input.addEventListener('input', applyFilter);
+  document.addEventListener('keydown', function (event) {
+    var typing = /^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName);
+    if (event.key === '/' && !typing) {
+      event.preventDefault();
+      input.focus();
+      input.select();
+    }
+    if (event.key === 'Escape' && document.activeElement === input) {
+      input.value = '';
+      applyFilter();
+      input.blur();
+    }
+  });
+
+  var currentId = null;
+  if ('IntersectionObserver' in window) {
+    var observer = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (!entry.isIntersecting) return;
+        var id = entry.target.id;
+        if (!id) return;
+        currentId = id;
+        setActive(id);
+      });
+    }, { rootMargin: '-16% 0px -72% 0px', threshold: 0 });
+    chapters.forEach(function (chapter) { if (chapter.id) observer.observe(chapter); });
+  }
+
+  function onScroll() {
+    var doc = document.documentElement;
+    var max = doc.scrollHeight - doc.clientHeight;
+    bar.style.width = (max > 0 ? (doc.scrollTop / max) * 100 : 0) + '%';
+    toTop.classList.toggle('show', doc.scrollTop > 640);
+  }
+  document.addEventListener('scroll', onScroll, { passive: true });
+  toTop.addEventListener('click', function () { window.scrollTo({ top: 0, behavior: 'smooth' }); });
+  onScroll();
+  applyFilter();
+  if (location.hash.length > 1) {
+    var target = document.getElementById(location.hash.slice(1));
+    if (target) target.scrollIntoView();
+  }
+})();
+</script>
+</body>
+</html>
