@@ -125,8 +125,9 @@ Each package embeds one generic provider whose URL is that target's feed directo
 | LCODER_APP_ID | DSH_DESKTOP_APP_ID | Application identifier |
 | LCODER_UPDATE_ENV | DSH_DESKTOP_AUTO_UPDATE_ENV | Select test or production destination |
 | LCODER_UPDATE_CHANNEL | DSH_DESKTOP_UPDATE_CHANNEL | Select latest or nightly |
-| LCODER_RELEASE_VERSION | DSH_DESKTOP_BUILD_VERSION | Independent LCoder release version |
-| LCODER_DOWNLOAD_ORIGIN | DOWNLOAD_TEST_ORIGIN | Test public origin |
+| LCODER_RELEASE_VERSION | DSH_DESKTOP_RELEASE_VERSION | Independent LCoder release version |
+| LCODER_UPDATE_ORIGIN | DOWNLOAD_TEST_ORIGIN or DOWNLOAD_PROD_ORIGIN | Public origin of the selected deployment |
+| LCODER_UPDATE_PREFIX | DSH_DESKTOP_UPDATE_PREFIX | Object prefix, `lcoder-desk` by default |
 | LCODER_DOWNLOAD_BUCKET | DOWNLOAD_TEST_COS_BUCKET or DOWNLOAD_PROD_COS_BUCKET | Selected COS bucket |
 | LCODER_DOWNLOAD_SECRET_ID | DOWNLOAD_TEST_COS_SECRET_ID or DOWNLOAD_PROD_COS_SECRET_ID | Selected COS SecretId |
 | LCODER_DOWNLOAD_SECRET_KEY | DOWNLOAD_TEST_COS_SECRET_KEY or DOWNLOAD_PROD_COS_SECRET_KEY | Selected COS SecretKey |
@@ -134,8 +135,9 @@ Each package embeds one generic provider whose URL is that target's feed directo
 | LCODER_DOWNLOAD_EO_ZONE_ID | DOWNLOAD_PROD_EO_ZONE_ID | Production CDN purge zone |
 | LCODER_PRODUCT_NAME | DSH_DESKTOP_PRODUCT_NAME | Product name and bundle name |
 | LCODER_PROTOCOL_SCHEME | DSH_DESKTOP_PROTOCOL_SCHEME | Deep-link scheme |
+| LCODER_UNSIGNED_UPDATER | DSH_DESKTOP_UNSIGNED_UPDATER | Embed the feed in an unsigned package (§4.1) |
 
-The LCoder names are the release configuration contract. One alias step in the package environment loader maps them onto the internal names that upstream scripts already read, so the rest of the packaging code keeps its existing inputs. The target dotenv files use the LCoder names; real secrets never enter the repository. The internal names stay internal and are not a second public contract.
+The LCoder names are the release configuration contract. One alias step in the package environment loader maps them onto the internal names that upstream scripts already read, so the rest of the packaging code keeps its existing inputs. The same step supplies the LCoder product name, application identifier, deep-link scheme, artifact prefix, fixed-download name prefix, object prefix, updater cache directory, and release tag prefix, which `apps/desktop/scripts/desktop-product-identity.mjs` owns; a release environment that declares none of these internal names keeps the upstream identity. The target dotenv files use the LCoder names; real secrets never enter the repository. The internal names stay internal and are not a second public contract.
 
 ### 2.6 Cache, upload, and rollback
 
@@ -264,13 +266,14 @@ The LCoder names are the release configuration contract. One alias step in the p
 
 | File | Planned change | Why it must change |
 |---|---|---|
-| apps/desktop/scripts/electron-builder-config.mjs | Product name, protocol, artifact prefix, packaged product name, microphone description, unsigned updater opt-in | This file owns the bundle identity and the protocol registration; no plugin or profile can change them |
-| apps/desktop/scripts/desktop-package-environment.mjs | Map `LCODER_*` names to internal names; change the local macOS default application identifier | The target dotenv loader is the one entry point for local packaging and upload |
-| apps/desktop/scripts/desktop-auto-update-environment.mjs | LCoder origin, `lcoder-desk` prefixes, fixed-download filenames | This file resolves every update destination and fixed-download name |
+| apps/desktop/scripts/electron-builder-config.mjs | Product name, protocol, artifact prefix, updater cache directory, packaged product name, microphone description, unsigned updater opt-in | This file owns the bundle identity and the protocol registration; no plugin or profile can change them |
+| apps/desktop/scripts/desktop-package-environment.mjs | Map `LCODER_*` names to internal names and supply the LCoder identity; change the local default application identifier | The target dotenv loader is the one entry point for local packaging and upload |
+| apps/desktop/scripts/desktop-auto-update-environment.mjs | Read the public origin for every deployment, resolve the object prefix and fixed-download names from the product identity | This file resolves every update destination and fixed-download name |
 | apps/desktop/scripts/desktop-build-version.mjs | Accept an independent LCoder release version that does not extend the upstream product version | The upstream validator forces every build version to extend `0.2.2-alpha.2` |
 | apps/desktop/scripts/package-target.ts | LCoder artifact names and the macOS application path | It names the DMG and drives the target build |
 | apps/desktop/scripts/package-macos.ts | LCoder bundle name and artifact base | It copies and promotes the signed application by name |
 | apps/desktop/scripts/desktop-upload-plan.ts | LCoder artifact base and fixed-download key | Upload validation compares file names against the packaged release |
+| apps/desktop/scripts/desktop-edgeone.ts | Pass the release environment to the fixed-download name | The purge URL has to name the same object the release uploaded |
 | apps/desktop/scripts/desktop-publish-config.ts | LCoder production origin validation | The production guard currently requires the upstream download origin |
 | apps/desktop/scripts/desktop-release-tag.ts | LCoder release tag prefix | Production upload tags the packaged commit |
 | apps/desktop/src/main.ts | Protocol scheme, argument routing, delayed startup check, product name, update presentation fields | The main process owns protocol registration, the updater schedule, and the native window |

@@ -46,6 +46,9 @@ apps/desktop/scripts/package-macos.ts
 apps/desktop/scripts/desktop-upload-plan.ts
 apps/desktop/scripts/desktop-publish-config.ts
 apps/desktop/scripts/desktop-release-tag.ts
+apps/desktop/scripts/desktop-edgeone.ts
+apps/desktop/tests/desktop-auto-update-environment.spec.ts
+apps/desktop/tests/desktop-package-environment.spec.ts
 apps/desktop/src/single-instance.ts
 apps/desktop/src/update-presentation.ts
 apps/desktop/.env.windows.example

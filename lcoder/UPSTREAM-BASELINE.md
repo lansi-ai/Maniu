@@ -78,27 +78,34 @@ upstream = deepseek-ai/deepseek-harness
 | `apps/desktop/scripts/render-tray-icon.ts` | 只改措辞：文件头与一行注释里的 whale 改为 LCoder mark；管线、`TRAY_ICON_SIZES`、`tray-glyph` 注入与 1.2 倍放大全部不变 | 美术换掉后原措辞会误导下一次改图标的人去找鲸标 |
 规矩：改动写在文件里的 `lcoder:` 前缀注释下，方便 grep 定位，也方便升级时用 `git diff upstream/master...HEAD -- <文件>` 一眼看清。
 
-### 计划接触面（T-78 至 T-82，尚未落地）
+### 计划接触面（T-78 至 T-82）
 
-以下文件已在 `contact-surface.txt` 登记，但改动要等对应任务落地。T-78 还会扩展上表已登记的 `apps/desktop/src/main.ts`、`ipc.ts`、`preload-app.ts`、`locale.ts`、`tests/main-startup.spec.ts` 与 `tests/expected/*.json`，不重复列行。
+以下文件已在 `contact-surface.txt` 登记。T-78 已落地的行标「已落地」；其余仍待对应任务。T-78 还会扩展上表已登记的 `apps/desktop/src/main.ts`、`ipc.ts`、`preload-app.ts`、`locale.ts`、`tests/main-startup.spec.ts` 与 `tests/expected/*.json`，不重复列行。
+
+落地方式统一为「内部变量 + 上游默认值」：上游脚本读新的内部变量，读不到时保留上游字面量；LCoder 的值由 `apps/desktop/scripts/desktop-product-identity.mjs` 持有，由已登记的 `desktop-package-environment.mjs` 在加载发布配置时注入。这样上游 CI、更新资格自测与既有夹具都不必改动，同步上游时冲突面最小。代价是：只走 `pnpm package:desktop:*` 与 `upload:*` 这些经加载器的路径才拿到 LCoder 身份；绕过加载器直接调打包函数会得到上游身份。
 
 | 文件 | 改什么 | 为什么必须改 |
 |---|---|---|
-| `apps/desktop/scripts/electron-builder-config.mjs` | 产品名、协议、产物前缀、打包后产品名、麦克风说明、未签名更新开关 | 应用包身份与协议注册只在这里，插件与 profile 都改不了 |
-| `apps/desktop/scripts/desktop-package-environment.mjs` | 把 `LCODER_*` 映射到内部变量；本机 macOS 默认应用标识改为 `ai.lansi.lcoder` | 目标 dotenv 加载器是本地打包与上传的唯一入口 |
-| `apps/desktop/scripts/desktop-auto-update-environment.mjs` | `lcoder-desk` 前缀、LCoder 固定下载文件名 | 更新目标与固定下载名由它解析 |
-| `apps/desktop/scripts/desktop-build-version.mjs` | 接受不继承上游产品版本的独立 LCoder 发布版本 | 现有校验强制构建版本继承 `0.2.2-alpha.2` |
-| `apps/desktop/scripts/package-target.ts` | `lcoder-` 产物名与 macOS 应用路径 | 它命名 DMG 并驱动目标构建 |
-| `apps/desktop/scripts/package-macos.ts` | `LCoder.app` 包名与产物基名 | 它按名字复制与提升已签名应用 |
-| `apps/desktop/scripts/desktop-upload-plan.ts` | `lcoder-` 产物基名与固定下载 key | 上传校验会把文件名与已打包发布对齐 |
-| `apps/desktop/scripts/desktop-publish-config.ts` | 生产源校验从上游下载源改为 LCoder 源 | 当前守卫写死上游生产源 |
-| `apps/desktop/scripts/desktop-release-tag.ts` | `lcoder-v` 发布标签前缀 | 生产上传会给打包提交打标签 |
+| `apps/desktop/scripts/electron-builder-config.mjs` | 已落地：产品名、协议、产物前缀、更新缓存目录、打包后的产品名、麦克风说明、未签名更新开关 | 应用包身份与协议注册只在这里，插件与 profile 都改不了 |
+| `apps/desktop/scripts/desktop-package-environment.mjs` | 已落地：把 `LCODER_*` 映射到内部变量并提供 LCoder 身份；本机默认应用标识改为 `ai.lansi.lcoder` | 目标 dotenv 加载器是本地打包与上传的唯一入口 |
+| `apps/desktop/scripts/desktop-auto-update-environment.mjs` | 已落地：生产源改由环境提供（写死的 `download.deepseek.com` 已移除）、`lcoder-desk` 前缀、LCoder 固定下载文件名 | 更新目标与固定下载名由它解析 |
+| `apps/desktop/scripts/desktop-build-version.mjs` | 已落地：接受不继承上游产品版本的独立 LCoder 发布版本 | 现有校验强制构建版本继承 `0.2.2-alpha.2` |
+| `apps/desktop/scripts/package-target.ts` | 已落地：`lcoder-` 产物名与 macOS 应用路径 | 它命名 DMG 并驱动目标构建 |
+| `apps/desktop/scripts/package-macos.ts` | 已落地：`LCoder.app` 包名与产物基名 | 它按名字复制与提升已签名应用 |
+| `apps/desktop/scripts/desktop-upload-plan.ts` | 已落地：`lcoder-` 产物基名与固定下载 key | 上传校验会把文件名与已打包发布对齐 |
+| `apps/desktop/scripts/desktop-edgeone.ts` | 已落地：固定下载名接收发布环境 | 刷新 URL 必须指向上传的同一个对象 |
+| `apps/desktop/scripts/desktop-publish-config.ts` | 已落地：生产源校验从写死的上游下载源改为环境配置的 LCoder 源 | 当前守卫写死上游生产源 |
+| `apps/desktop/scripts/desktop-release-tag.ts` | 已落地：`lcoder-v` 发布标签前缀 | 生产上传会给打包提交打标签 |
+| `apps/desktop/tests/desktop-auto-update-environment.spec.ts` | 已落地：生产部署改为必须提供公开源 | 行为变更必须由测试钉住 |
+| `apps/desktop/tests/desktop-package-environment.spec.ts` | 已落地：本机默认身份与 `LCODER_*` 契约 | 行为变更必须由测试钉住 |
 | `apps/desktop/src/single-instance.ts` | 第二实例回调带上参数 | 协议 URL 通过第二实例参数到达 |
 | `apps/desktop/src/update-presentation.ts` | 呈现已安装版本与通道 | 设置页要显示版本与通道 |
-| `apps/desktop/.env.windows.example` | `LCODER_*` 变量名与 LCoder 应用标识 | 操作者从示例起步 |
-| `apps/desktop/.env.macos.example` | 同上，加未签名说明 | 操作者从示例起步 |
+| `apps/desktop/.env.windows.example` | 已落地：`LCODER_*` 变量名与 LCoder 应用标识 | 操作者从示例起步 |
+| `apps/desktop/.env.macos.example` | 已落地：`LCODER_*` 变量名、LCoder 应用标识与未签名说明 | 操作者从示例起步 |
 
 T-81 的真实上传、CDN 刷新与 T-82 的签名公证都只改发布配置与打包脚本；上游 CI 工作流首期不动，macOS 打包在用户机器上完成。
+
+只走上游 CI 的产物名解析仍写死上游前缀，本期未改：`desktop-build-version-discovery.ts` 的产物正则、`retain-desktop-ci.ts` 的基名、`smoke-packaged-runtime.ts` 与 `verify-retained-desktop.ts` 的 `DeepSeek Harness.app`、`installed-update-*` 自测命名空间。它们不在 T-78 打包路径上；要让 CI 发布 LCoder 产物时再逐个登记改动。运行时侧 `src/main.ts` 的 `setAsDefaultProtocolClient('dsh')` 与 `dsh://open` 判定也保持上游值：安装包已按 `lcoder` 注册协议，运行时的协议路由与参数转交属 T-79/T-80。
 
 ---
 
