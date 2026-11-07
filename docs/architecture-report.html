@@ -522,7 +522,7 @@ h2:hover .anchor, h3:hover .anchor, h4:hover .anchor { opacity: .7; }
 
 <section class="chapter" id="highlights" data-title="亮点功能">
   <div class="chapter-head"><span class="chapter-num">亮点</span><h2>亮点功能<a class="anchor" href="#highlights">#</a></h2></div>
-  <p class="plain blk"><b>一句话结论</b>这一章只是索引：每张卡一行价值、一行依据、一个状态；具体机制在后面技术章节展开，不在这里重复。</p>
+  <p class="plain blk"><b>一句话结论</b>这一章只是索引：共 13 张卡，每张一行价值、一行依据、一个状态；具体机制在后面技术章节展开，不在这里重复。</p>
   <div class="feature-grid">
     <article class="feature-card blk" id="hi-1">
       <h3>先立字据再动工</h3>
@@ -565,6 +565,18 @@ h2:hover .anchor, h3:hover .anchor, h4:hover .anchor { opacity: .7; }
       <p class="feature-value">不同任务放在各自的隔离工作目录里，调度时不混用；入队会记下共同验收组。工作树与端口分配仍靠脚本约定。</p>
       <p class="feature-basis">依据：工作树硬闸 <code class="ref">client/scheduling.ts:159</code>、联调组落盘 <code class="ref">commands/task-schedule.ts:114</code>；见 6.3。</p>
       <p class="feature-status"><span class="tag warn">部分实现</span>隔离与验收组已记；组约束没有做成收口硬闸，工作树/端口仍手动</p>
+    </article>
+    <article class="feature-card blk" id="hi-sched">
+      <h3>智能调度：这件事交给谁</h3>
+      <p class="feature-value">一件事该沿用已有会话自己做、排到已有会话里一起做（入队）、新开一条，还是先等，由规则算出来并给出理由，不靠人拍脑袋。与「并行不打架」的分工：那张卡讲工作目录隔离，这张只讲交给哪条会话。</p>
+      <p class="feature-basis">依据：三层分工见 <code class="ref">client/scheduling.ts:2</code>；四种结论（复用、入队、新建、等）见 <code class="ref">client/scheduling.ts:65</code>，判定入口 <code class="ref">client/scheduling.ts:140</code>，工作副本比较 <code class="ref">client/scheduling.ts:123</code>；判定落盘 <code class="ref">commands/task-schedule.ts:131</code>、入队组 <code class="ref">commands/task-schedule.ts:221</code>；只读求值 <code class="ref">commands/flow-status.ts:45</code>；见 6.2、6.3。</p>
+      <p class="feature-status"><span class="tag warn">部分实现</span>硬闸、打分与落盘已有且有单测；示例仓没有两个常驻调度会话的样例，运行时行为未证</p>
+    </article>
+    <article class="feature-card blk" id="hi-flow">
+      <h3>流程控制：下一步做什么</h3>
+      <p class="feature-value">下一步该起草、该签、该实现、该验收还是该停，由纯函数（同样的输入永远给同样的结果）算出来，面板只负责画，不自己拿主意。与「并行不打架」的分工：那张卡管隔离，这张管动作顺序。</p>
+      <p class="feature-basis">依据：九种动作 <code class="ref">kernel/flow.ts:17</code>、判定 <code class="ref">kernel/flow.ts:120</code>；单任务 <code class="ref">kernel/flow.ts:339</code>、批量计划 <code class="ref">kernel/flow.ts:370</code>；事实装配 <code class="ref">kernel/flow-store.ts:43</code>、<code class="ref">kernel/flow-store.ts:89</code>；策略 <code class="ref">kernel/automation.ts:54</code>；命令 <code class="ref">commands/flow-status.ts:45</code>、<code class="ref">commands/flow-log.ts:53</code>，后者写 <code>flow.jsonl</code> <code class="ref">commands/flow-log.ts:118</code>；批量开工入口 <code class="ref">shell/Shell.tsx:1484</code>；见 6.1。</p>
+      <p class="feature-status"><span class="tag warn">部分实现</span>动作集、命令与写盘都有；自签没有执行者，示例仓缺 automation.yaml 与 agents.yaml，缺省全手动与失效重建只有单测</p>
     </article>
     <article class="feature-card blk" id="hi-8">
       <h3>额度与花费看得见</h3>
