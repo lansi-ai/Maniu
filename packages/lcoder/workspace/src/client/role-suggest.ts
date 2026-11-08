@@ -1,6 +1,8 @@
 /**
  * 岗位分配建议的本地纯函数：只排序候选、给可解释理由，不写盘、不调外部模型、不进调度判定。
  *
+ * 理由是稳定 code 加数据参数，不拼句子：界面按 code 查 locales 渲染，中英文共用同一份排序结果。
+ *
  * 三条边界：
  *   1. **能力先于语义。** 需要写盘的任务只保留天花板带 `file_edit` 的角色；只读复核与
  *      设计任务才允许只读角色。天花板由调用方注入，本文件不抄 `surface.ts`。
@@ -65,6 +67,23 @@ export interface SuggestHistoryEntry {
   readonly verdict: 'kept' | 'changed'
 }
 
+/**
+ * 一条命中理由：稳定 code 加数据参数，界面按 code 查 locales。
+ *
+ * `field` 区分命中的是标题还是描述/契约/允许路径拼成的文案；`delta` 是这次命中的加分。
+ */
+export type RoleReason =
+  | { readonly code: 'strong_signal'; readonly term: string; readonly field: 'title' | 'body'; readonly delta: number }
+  | { readonly code: 'medium_signal'; readonly term: string; readonly field: 'title' | 'body'; readonly delta: number }
+  | { readonly code: 'preferred_path'; readonly preferred: string; readonly matched: string; readonly delta: number }
+  | { readonly code: 'history_kept'; readonly count: number; readonly bonus: number }
+  | { readonly code: 'fallback_no_match' }
+
+/** 岗位被排除的原因：同样是稳定 code 加参数，文案由界面按 locales 渲染。 */
+export type RoleDisqualification =
+  | { readonly code: 'inherits_unknown'; readonly inherits: string }
+  | { readonly code: 'write_requires_file_edit'; readonly inherits: string }
+
 /** 内置角色到工具名的天花板表；由调用方从角色表注入，本函数不自带。 */
 export type RoleCeiling = Readonly<Record<BuiltinRoleId, readonly string[]>>
 
@@ -88,10 +107,10 @@ export interface RoleSuggestionCandidate {
   readonly score: number
   /** 候选分占所有有分候选总分的比例；未命中与否决项为 0。 */
   readonly confidence: number
-  /** 命中的信号，措辞直接给人看。 */
-  readonly reasons: readonly string[]
-  /** 被否原因：能力不足、继承角色未知等。 */
-  readonly disqualified?: string
+  /** 命中的信号：稳定 code 加参数，文案由界面按 locales 渲染。 */
+  readonly reasons: readonly RoleReason[]
+  /** 被否决的原因：能力不足、继承角色未知等。 */
+  readonly disqualified?: RoleDisqualification
 }
 
 /** 决策：`suggest` 表示本地规则过阈值，`needs_human` 表示必须由人挑。 */
@@ -155,8 +174,8 @@ interface ScoringContext {
  * @param context - 任务文本与历史事实。
  * @returns 分数与命中的信号理由。
  */
-function scoreJob(job: SuggestRosterJob, context: ScoringContext): { score: number; reasons: string[] } {
-  const reasons: string[] = []
+function scoreJob(job: SuggestRosterJob, context: ScoringContext): { score: number; reasons: RoleReason[] } {
+  const reasons: RoleReason[] = []
   let score = 0
   const counted = new Set<string>()
 
@@ -169,7 +188,7 @@ function scoreJob(job: SuggestRosterJob, context: ScoringContext): { score: numb
     if (!inTitle && !context.body.includes(key)) continue
     const delta = STRONG_WEIGHT + (inTitle ? TITLE_BONUS : 0)
     score += delta
-    reasons.push(`强特征「${term}」命中${inTitle ? '标题' : '文案'} (+${String(delta)})`)
+    reasons.push({ code: 'strong_signal', term, field: inTitle ? 'title' : 'body', delta })
   }
 
   for (const raw of job.signals?.medium ?? []) {
@@ -181,7 +200,7 @@ function scoreJob(job: SuggestRosterJob, context: ScoringContext): { score: numb
     if (!inTitle && !context.body.includes(key)) continue
     const delta = MEDIUM_WEIGHT + (inTitle ? TITLE_BONUS : 0)
     score += delta
-    reasons.push(`弱语义「${term}」命中${inTitle ? '标题' : '文案'} (+${String(delta)})`)
+    reasons.push({ code: 'medium_signal', term, field: inTitle ? 'title' : 'body', delta })
   }
 
   const seenPaths = new Set<string>()
@@ -192,7 +211,7 @@ function scoreJob(job: SuggestRosterJob, context: ScoringContext): { score: numb
     const matched = context.task.allowedPaths.find(path => pathsOverlap(path, preferred))
     if (matched === undefined) continue
     score += PREFERRED_PATH_WEIGHT
-    reasons.push(`落点偏好「${raw.trim()}」命中允许路径 ${matched} (+${String(PREFERRED_PATH_WEIGHT)})`)
+    reasons.push({ code: 'preferred_path', preferred: raw.trim(), matched, delta: PREFERRED_PATH_WEIGHT })
   }
 
   // 历史只在当前任务已有信号时作小幅加权；它不能凭空把无关岗位变成候选。
@@ -202,7 +221,7 @@ function scoreJob(job: SuggestRosterJob, context: ScoringContext): { score: numb
     const bonus = Math.min(kept * HISTORY_KEPT_BONUS, HISTORY_BONUS_CAP)
     if (bonus > 0) {
       score += bonus
-      reasons.push(`历史保留 ${String(kept)} 条同岗位任务 (+${String(bonus)})`)
+      reasons.push({ code: 'history_kept', count: kept, bonus })
     }
   }
 
@@ -238,7 +257,7 @@ export function suggestRole(request: SuggestRoleRequest): RoleSuggestion {
         score: 0,
         confidence: 0,
         reasons: [],
-        disqualified: `继承的内置角色未知：${job.inherits}`,
+        disqualified: { code: 'inherits_unknown', inherits: job.inherits },
       })
       continue
     }
@@ -249,7 +268,7 @@ export function suggestRole(request: SuggestRoleRequest): RoleSuggestion {
         score: 0,
         confidence: 0,
         reasons: [],
-        disqualified: `需要写盘，但岗位继承的 ${job.inherits} 没有 file_edit`,
+        disqualified: { code: 'write_requires_file_edit', inherits: job.inherits },
       })
       continue
     }
@@ -265,7 +284,7 @@ export function suggestRole(request: SuggestRoleRequest): RoleSuggestion {
       roleId: 'dev',
       score: 0,
       confidence: 0,
-      reasons: ['兜底：没有任何名册岗位命中任务信号'],
+      reasons: [{ code: 'fallback_no_match' }],
     }
     return {
       candidates: [fallback, ...candidates],
