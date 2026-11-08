@@ -1023,7 +1023,7 @@ tracks:
       note: "B 级开发，T-90 结论的第二段，用户 2026-11-08 拍板建议层要落到界面。范围三项。一、任务详情增加建议卡片，展示 T-91 的 suggestRole 候选岗位、置信度、命中理由与兜底状态，明确标注建议不改变分配权威。二、采用按钮只把候选填进现有分配选择，仍由人点分配走 /task_assign，禁止自动写。三、深浅两套截图与真实窗口验收，端口 9642 与 9649 与 9650。依赖 T-91，未派工。2026-11-08 16:35 监督窗口派工，实现线会话 e74a2780。工作树 .worktrees/t92-role-card，分支 lcoder/t92-role-card。数据缺口按监督窗口口径处理，产品任务没有 type 与 description，ShellTask 与投影补 irreversible 字段，建议层加可选 writeRequired 且无法证明只读时保守传 true，契约摘要缺失传空串，能力天花板只取 kernel 的 ROLE_TOOLS。2026-11-08 17:25 监督窗口核验并收口。监督窗口复跑主检出 typecheck 五项全过退出零、vitest packages/lcoder 六十二文件六百四十五例全过退出零、test:docs 二十一项全过退出零、build:artifacts 八项全过退出零、build:check 二项全过退出零；实现线另报 oxlint 十二文件零错零警与 verify-client-ui-i18n 一千二百九十三文件全过。真窗口核过七张截图，浅色与深色卡片都在，采用只改选择且无分配回执，需人工挑选与兜底两态都没有采用按钮，点分配后老流程照常写盘。证据已归档 docs/evidence-archive/t92。已合入 lcoder/main 并删除工作树与分支。三条残余，建议理由文案仍为建议层中文数据串未走本地化，界面一律保守按需要写盘处理因此只读岗位不进候选，契约摘要缺失只按标题与允许路径排序。"
     - id: T-93
       title: 建议理由本地化（稳定 code 加参数）
-      status: doing
+      status: done
       face: 用户端
       type: 缺陷
       owner: lance
@@ -1031,7 +1031,7 @@ tracks:
       date: '2026-11-08'
       dep: [T-92]
       inferred: false
-      note: "B 级小修，来源是 T-92 验收残余。建议层现在直接生成中文理由串，英文界面无法本地化；且理由属于用户可见文案，应按仓库的本地化口径走字典。范围三项。一、suggestRole 的理由改为稳定 code 加参数，不再返回中文句子。二、界面按 locales 渲染中英两套理由，保持现有信息量。三、补中英两套文案与至少四例测试，含强特征、弱语义、落点偏好与历史加分。不改打分权重与阈值，不改调度硬闸。未派工。2026-11-08 18:05 监督窗口派工，实现线会话 8dfb3cce。工作树 .worktrees/t93-reason-i18n，分支 lcoder/t93-reason-i18n，端口 9662 与 9669 与 9670。"
+      note: "B 级小修，来源是 T-92 验收残余。建议层现在直接生成中文理由串，英文界面无法本地化；且理由属于用户可见文案，应按仓库的本地化口径走字典。范围三项。一、suggestRole 的理由改为稳定 code 加参数，不再返回中文句子。二、界面按 locales 渲染中英两套理由，保持现有信息量。三、补中英两套文案与至少四例测试，含强特征、弱语义、落点偏好与历史加分。不改打分权重与阈值，不改调度硬闸。未派工。2026-11-08 18:05 监督窗口派工，实现线会话 8dfb3cce。工作树 .worktrees/t93-reason-i18n，分支 lcoder/t93-reason-i18n，端口 9662 与 9669 与 9670。2026-11-08 19:45 监督窗口核验并收口。监督窗口复跑主检出 typecheck 五项全过退出零、vitest packages/lcoder 六十二文件六百四十七例全过退出零、test:docs 二十一项全过退出零、build:artifacts 八项全过退出零、build:check 二项全过退出零、verify-client-ui-i18n 一千二百九十三文件全过；实现线另报 oxlint 六文件零错零警。理由已改稳定 code 加参数，界面按 locales 渲染中英两套；真窗口中文与英文各一张截图，英文通过宿主 locale.preference 临时切换，验证后已删。未验项是 preferred_path 与 history_kept 与两种否决只在单测覆盖，未在真窗口逐一制造。已合入 lcoder/main、归档 docs/evidence-archive/t93 并删除工作树与分支。另清理了实现线遗留的一个闲置 robocopy 进程，它把主检出 home 复制到工作树且挡住删除。基线另有一处既有红，verify-export-jsdoc 在主检出一百九十八条违规，本改动零新增，未在本轮处理。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
