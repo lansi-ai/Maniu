@@ -18,7 +18,7 @@
 - 🚫 不改任何上游文件；确需修改必须先进 [contact-surface.txt](../lcoder/contact-surface.txt)，并在 [UPSTREAM-BASELINE.md](../lcoder/UPSTREAM-BASELINE.md) §3 写明「改什么 / 为什么」。
 - 🚫 `.spec` 下的任务与规格 YAML 是 **LCoder 产品数据**的唯一事实源；UI 只读不写，状态机判断不进 UI。它不是本仓库的开发任务台账。kernel 是唯一写入口：模型可以经 `task_draft` 新建 `drafting` 任务、经 `spec_draft` 新建 `draft` 规格条目、经 `project_draft` 写 `.spec/project.yaml`、经 `proposal_draft` 写 `draft` 方案，但不能推进状态、不能签契约、不能批准方案、不能改**已存在**的规格条目。
 - 🚫 目标平台是 Windows 与 macOS 桌面端；路径处理按平台来——Windows 用盘符、反斜杠与大小写不敏感比较，macOS 用 POSIX 分隔符，默认大小写不敏感卷在比较前先经原生 realpath 归一。
-- 🚫 `contract_sign`、`task_bind`、`task_contract` 与 `proposal_approve` 永不注册为模型工具：分别签契约、写「哪条会话认领哪条任务」、把已签的起草任务推进到已签约、采纳一个方案。只有人能触发它们。**签署可以在三道补偿闸同时成立时交给 AI，这是用户 2026-11-06 的决定**：`.spec/automation.yaml` 里 `sign` 为 `auto`、任务的 `scope.irreversible` 为空、且这条契约有非空的评审复核证据（`review*.log`）。三闸缺一不可；AI 自签写 `by: agent`、具体 `actor` preset，以及授权策略的路径、哈希与判定时刻。任务只要触及不可逆项就永远由人签——P3 拒绝任何三闸不成立的 agent 签名，并在签名哈希不再覆盖当前正文时判其作废。
+- 🚫 `contract_sign`、`task_bind`、`task_contract`、`task_assign` 与 `proposal_approve` 永不注册为模型工具：分别签契约、写「哪条会话认领哪条任务」、把已签的起草任务推进到已签约、把任务分配给岗位、采纳一个方案。只有人能触发它们。**签署可以在三道补偿闸同时成立时交给 AI，这是用户 2026-11-06 的决定**：`.spec/automation.yaml` 里 `sign` 为 `auto`、任务的 `scope.irreversible` 为空、且这条契约有非空的评审复核证据（`review*.log`）。三闸缺一不可；AI 自签写 `by: agent`、具体 `actor` preset，以及授权策略的路径、哈希与判定时刻。任务只要触及不可逆项就永远由人签——P3 拒绝任何三闸不成立的 agent 签名，并在签名哈希不再覆盖当前正文时判其作废。
 - 🚫 `.spec/automation.yaml` 永不承载外部不可逆动作。push、部署、改注册表与外部环境变更永远由人做；schema 遇到这些键直接判非法，而不是读进来忽略。
 - 🚫 Git 只走到本地提交。`git_commit` 只暂存它被给到的路径，不带 `--amend`、不带 `--no-verify`；**没有 push 工具，`cmd_run` 的登记面上也不该登记 `git push`**——推远端、`git reset --hard`、任何强推都仍是人的动作。
 - 🚫 部署只由人触发。`/deploy` 只跑 `.spec/env.yaml` 里 `exec: human` 的那一条命令，并把输出落成任务证据；`deploy` 永不注册为模型工具，登记为 `ai-auto` 或 `ai-confirm` 的命令仍走 `cmd_run` 与审批那条路。
@@ -37,6 +37,7 @@
 | 产品任务契约 | `.spec/contracts/<ID>.contract.yaml` |
 | 产品自动化策略（按动作开关、停止条件、任务范围） | `.spec/automation.yaml` |
 | 常驻调度会话（每仓一条智能调度与一条流程控制） | `.spec/agents.yaml`（`schedulerSession`、`flowSession`） |
+| 岗位名册（轻量岗位，继承内置角色天花板） | `.spec/roles.yaml` |
 | 产品方案（候选、推荐、决定态） | `.spec/proposals/P-<nn>.yaml`；任务用 `proposal:` 回指 |
 | 产品任务证据 | `.spec/evidence/<ID>/<name>.log` |
 | 验收命令与环境 | `.spec/env.yaml`；敏感值写 `.spec/local.yaml`，不提交 |
@@ -114,6 +115,7 @@
 | `.spec/proposals/` | 等人拍板的产品方案 |
 | `.spec/evidence/` | 收口证据 |
 | `.spec/env.yaml` | 验收命令与环境 |
+| `.spec/roles.yaml` | 岗位名册（显示名、继承的内置角色、可选提示词前缀） |
 | [UPSTREAM-BASELINE.md](../lcoder/UPSTREAM-BASELINE.md) | 上游基线、接触面、升级演练 |
 | [contact-surface.txt](../lcoder/contact-surface.txt) | 改过的上游文件清单 |
 | [RUN.md](../lcoder/RUN.md) | 启动与验证手册 |

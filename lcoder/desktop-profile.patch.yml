@@ -2,8 +2,8 @@
 #
 # 运行副本在 `apps/desktop/.desktop-build/development/home/profiles/desktop/cordis.patch.yml`，
 # 那份目录被 .gitignore 忽略；改这里之后按 `lcoder/RUN.md` 第「桌面端」一节拷过去，
-# 并把 `documentsDirectory` 改成**本检出自己的**路径。九个角色 preset 只在本文件里有源，
-# 运行副本是它的拷贝；九个 preset 各挂 ask-user 与 compaction-basic。
+# 并把 `documentsDirectory` 改成**本检出自己的**路径。十个角色 preset 只在本文件里有源，
+# 运行副本是它的拷贝；十个 preset 各挂 ask-user 与 compaction-basic。
 #
 # 三条必核项（缺一条桌面端就起不来或读错仓）：
 #   1. `documentsDirectory` 在，且目录真实存在——本机向操作系统问文档目录会挂住，
@@ -56,7 +56,7 @@
     selectedDefault: lcoder
 
 # ── 实施（沿用 id `lcoder`，让已存在会话的 agentPreset 继续有效）────────
-# 工具面 = SURFACE[任务状态] ∩ 角色表；四个 preset 各挂一份 @lcoder/kernel，
+# 工具面 = SURFACE[任务状态] ∩ 角色表；十个 preset 各挂一份 @lcoder/kernel，
 # 各带自己的 role，所以每个角色的会话拿到的工具面由它的 preset 唯一决定。
 - insert:
     - id: preset-lcoder
@@ -464,6 +464,53 @@
             config:
               selfCheck: true
               role: flow
+
+# ── 研发经理 ─────────────────────────────────────────────────
+# 需求与任务拆完之后给每条任务定岗位。岗位分配是调度硬约束，只有人机命令
+# /task_assign 能写；这个角色只起草岗位名册（role_draft），改不了代码、跑不了命令。
+- insert:
+    - id: preset-lcoder-manager
+      name: "@deepseek-ai/dsh-agent-preset"
+      config:
+        id: lcoder-manager
+        name: LCoder 研发经理
+        description: 任务拆完之后给每条任务定岗位、维护岗位名册（实验）
+        order: 28
+        plugins:
+          - id: persona
+            name: "@deepseek-ai/dsh-persona"
+            config:
+              prefix: >-
+                You are LCoder 研发经理. 你的天花板是 file_read / file_list / spec_query / task_read /
+                task_draft / role_draft：需求与任务拆完之后，逐条判断这条任务该由什么岗位来做，
+                例如 .NET 工程师、Vue 工程师、Python 工程师、安卓工程师。
+                岗位是轻量定义：一个 id、一个显示名、一个必须继承的内置角色，外加可选的提示词前缀。
+                用 role_draft 起草或更新岗位名册（.spec/roles.yaml），不要删除已有岗位；
+                继承只能写内置角色，所以岗位不可能越过角色天花板。
+                你不做分配这个动作：把建议的岗位与理由说清楚，请人用 /task_assign 写进任务。
+                你不改代码、不跑命令、不签契约、不收口；缺工具就如实说，绝不假称已分配。
+          # 提问走弹出选择框：工具阻塞到人选完为止，不让人打字。
+          - id: ask-user
+            name: '@deepseek-ai/dsh-tool-ask-user'
+          # 上下文压缩：web-app 在宿主面禁用了它，必须由 preset 自己挂。
+          # compaction 是 isolate 服务，按上游 preset 的写法放进隔离组；阈值按当前模型的
+          # contextWindow 计算，显式写死这两项，切模型后仍随容量走。
+          - id: compaction
+            name: cordis:group
+            group: true
+            isolate:
+              compaction: true
+            config:
+              - id: compaction-basic
+                name: '@deepseek-ai/dsh-compaction-basic'
+                config:
+                  thresholdRatio: 0.8
+                  retainRatio: 0.16
+          - id: lcoder
+            name: '@lcoder/kernel'
+            config:
+              selfCheck: true
+              role: manager
 
 # ── 外壳 ─────────────────────────────────────────────────────
 # 外壳自带左栏，所以禁用 DSH 原生 ui-sidebar；浏览器侧占用 main 的 lcoder-home。

@@ -14,6 +14,8 @@
  *      而这张表只有五条状态掩码加一张空看板掩码，改它的频率远低于改代码。
  */
 import type { TaskState } from '../schema/spec.js'
+import { BUILTIN_ROLES } from '../schema/roles.js'
+import type { BuiltinRoleId } from '../schema/roles.js'
 
 /**
  * 每个状态下模型可见的工具。
@@ -26,7 +28,7 @@ import type { TaskState } from '../schema/spec.js'
  * 签署是人机命令（`ctx.commands`，不经过模型回合），见 docs/cookbook/adding-a-tool.md。
  */
 export const SURFACE: Readonly<Record<TaskState, readonly string[]>> = {
-  drafting: ['file_read', 'file_list', 'project_draft', 'spec_query', 'spec_draft', 'spec_bind', 'task_read', 'task_draft', 'contract_draft', 'proposal_draft', 'git_status', 'git_diff'],
+  drafting: ['file_read', 'file_list', 'project_draft', 'spec_query', 'spec_draft', 'spec_bind', 'task_read', 'task_draft', 'contract_draft', 'proposal_draft', 'git_status', 'git_diff', 'role_draft'],
   contracted: [
     'file_read',
     'file_list',
@@ -44,6 +46,7 @@ export const SURFACE: Readonly<Record<TaskState, readonly string[]>> = {
     'file_edit',
     'cmd_run',
     'evidence_attach',
+    'role_draft',
   ],
   implementing: [
     'file_read',
@@ -62,6 +65,7 @@ export const SURFACE: Readonly<Record<TaskState, readonly string[]>> = {
     'file_edit',
     'cmd_run',
     'evidence_attach',
+    'role_draft',
   ],
   verifying: [
     'file_read',
@@ -81,6 +85,7 @@ export const SURFACE: Readonly<Record<TaskState, readonly string[]>> = {
     'cmd_run',
     'evidence_attach',
     'task_close',
+    'role_draft',
   ],
   // 终态只读：能复核，不能动手。
   closed: ['file_read', 'file_list', 'spec_query', 'task_read', 'git_status', 'git_diff'],
@@ -119,19 +124,22 @@ export const UNSCOPEED_SURFACE: readonly string[] = [
 
 // ── 角色天花板 ─────────────────────────────────────────────
 
-/** 一个会话所属的角色；一个角色就是一个 Agent preset，装配层用 `role` 配置本插件。 */
-export type RoleId = 'intake' | 'architect' | 'pm' | 'dev' | 'git' | 'ops' | 'review' | 'scheduler' | 'flow'
+/**
+ * 一个会话所属的角色；一个角色就是一个 Agent preset，装配层用 `role` 配置本插件。
+ * 名字集合与岗位 `inherits` 共用 `schema/roles.ts` 那一份。
+ */
+export type RoleId = BuiltinRoleId
 
 /** 全部角色，`Config.role` 的取值域。 */
-export const ROLES: readonly RoleId[] = ['intake', 'architect', 'pm', 'dev', 'git', 'ops', 'review', 'scheduler', 'flow']
+export const ROLES: readonly RoleId[] = BUILTIN_ROLES
 
 /**
  * 每个角色最多能拿到哪些工具。
  *
  * 与 `SURFACE` 求交后才进模型视野，所以这张表只会让能力变少，不会越过状态：
  * `contract_sign` 不在任何一行里，它是人机命令（见文件头那条注意）。
- * `dev` 这一行必须等于 `allToolNames()`，否则新增工具会静默地对实施角色隐身，
- * `surface.spec.ts` 用一条断言钉住这个等式。
+ * `dev` 这一行必须等于 `allToolNames()` 去掉只对研发经理开放的 `role_draft`，
+ * 否则新增工具会静默地对实施角色隐身，`surface.spec.ts` 用一条断言钉住这个等式。
  */
 export const ROLE_TOOLS: Readonly<Record<RoleId, readonly string[]>> = {
   /** 立项/产品：读产品文档、列目录、读规格、读任务，把调研结论落成项目信息与起草态条目和任务。 */
@@ -176,6 +184,12 @@ export const ROLE_TOOLS: Readonly<Record<RoleId, readonly string[]>> = {
    * 它不推进状态、不签契约、不收口；那些仍走人机命令或后续执行器。
    */
   flow: ['file_read', 'file_list', 'spec_query', 'task_read'],
+  /**
+   * 研发经理：需求与任务拆完之后，给每条任务定岗位。
+   * 它只起草岗位名册（`role_draft`），**分配仍是人机命令** `/task_assign`；
+   * 没有任何改代码或跑命令的能力。
+   */
+  manager: ['file_read', 'file_list', 'spec_query', 'task_read', 'task_draft', 'role_draft'],
 }
 
 /**

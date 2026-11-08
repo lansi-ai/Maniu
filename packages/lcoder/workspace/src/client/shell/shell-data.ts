@@ -7,7 +7,11 @@
 import type { SessionEventLikeEntry } from '@deepseek-ai/dsh-api-session-controller/client'
 // Type-only: pulls the `compaction/*` SessionEventMap members into this program.
 import type {} from '@deepseek-ai/dsh-compaction/types'
+import { BUILTIN_ROLES } from '@lcoder/kernel/src/schema/roles.ts'
 import type { LcoderWorkspaceKey } from '../locales.ts'
+
+/** 内置角色 id；与 kernel 的岗位 `inherits` 共用同一份，用来判断岗位 id 是否已知。 */
+export const BUILTIN_ROLE_IDS: readonly string[] = BUILTIN_ROLES
 
 /** 五态任务状态。 */
 export type ShellTaskState = 'drafting' | 'contracted' | 'implementing' | 'verifying' | 'closed'
@@ -27,6 +31,8 @@ export interface ShellTask {
   readonly proposal?: string
   /** 前置任务编号；缺省表示没有依赖。 */
   readonly dependsOn?: readonly string[]
+  /** 分配到的岗位 id；`/task_assign` 写过才有，缺省表示未分配。 */
+  readonly role?: string
   /** 任务声明的允许路径；调度按它判落点重叠。 */
   readonly paths: readonly string[]
 }

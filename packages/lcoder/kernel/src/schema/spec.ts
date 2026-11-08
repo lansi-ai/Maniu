@@ -9,6 +9,8 @@
  */
 import { z } from 'zod'
 
+import { BUILTIN_ROLES, ROLE_ID_PATTERN } from './roles.js'
+
 /** 评审纪律里稳定不变的编号形态：R-02 / T-014 / W-01 / Q-03。 */
 const Id = z.string().regex(/^[A-Z]+-\d{2,}$/, '形如 R-02 / T-014 的稳定编号')
 
@@ -142,6 +144,14 @@ export const Task = z.object({
    * 会话号换机器或删会话后失效，失效按未认领处理，不报故障。
    */
   session: z.string().min(1).optional(),
+  /**
+   * 这条任务分配的岗位：`roles.yaml` 里的岗位 id，或一个内置角色 id。
+   *
+   * 只有人机命令 `/task_assign` 写它，模型不写：分配是调度硬约束，模型能自己认岗
+   * 就等于自己挑工具面。读侧遇到名册与内置角色都不认识的 id 时按「未知岗位」显示，
+   * 不报故障——与会话号失效同一口径。缺省表示还没分配。
+   */
+  role: z.string().min(1).optional(),
   opened_at: IsoDateTime,
   closed_at: IsoDateTime.nullable().default(null),
 })
@@ -310,7 +320,7 @@ export type Proposal = z.infer<typeof Proposal>
  *
  * 与 `Task.session` 同一口径——宿主 home 里的运行时标识。会话被删、换机器或
  * 编号对不上时按未绑定处理，由界面重新找一条同 preset 的会话或新建后写回。
- * 这里只登记两个调度角色的会话，不承担角色名册或权限配置。
+ * 这里只登记两个调度角色的会话，不承担角色名册或权限配置；岗位名册在 `roles.yaml`。
  */
 export const AgentsRegistry = z
   .object({
@@ -321,6 +331,55 @@ export const AgentsRegistry = z
   })
   .strict()
 export type AgentsRegistry = z.infer<typeof AgentsRegistry>
+
+// ── 6.6 岗位名册 ────────────────────────────────────────────
+
+/** 岗位 id：小写字母开头，只含小写字母、数字、下划线与连字符；不得占用内置角色名。 */
+export const JobRoleId = z
+  .string()
+  .regex(ROLE_ID_PATTERN, '岗位 id 要小写字母开头，只含小写字母、数字、下划线或连字符')
+  .refine(id => !(BUILTIN_ROLES as readonly string[]).includes(id), '岗位 id 不能与内置角色同名')
+
+/**
+ * 一个岗位：轻量定义，天花板继承某个内置角色。
+ *
+ * `persona` 只是提示词前缀，不改变工具面——能力仍由 `inherits` 指向的角色表决定，
+ * 所以新增岗位不可能越过内置角色的权限。
+ */
+export const JobRole = z
+  .object({
+    id: JobRoleId,
+    /** 显示名，如「.NET 工程师」。 */
+    name: z.string().min(1),
+    /** 继承哪个内置角色；未知名字当场判非法。 */
+    inherits: z.enum(BUILTIN_ROLES),
+    /** 可选的提示词前缀。 */
+    persona: z.string().min(1).optional(),
+  })
+  .strict()
+export type JobRole = z.infer<typeof JobRole>
+
+/**
+ * `.spec/roles.yaml`：项目自定的岗位名册，由研发经理起草、人机命令分配。
+ *
+ * 文件缺失视为空名册；名册里 id 不得重复——同一个名字指两个天花板时，
+ * 调度硬闸与工具面就没有唯一答案。
+ */
+export const RolesFile = z
+  .object({
+    roles: z.array(JobRole).default([]),
+  })
+  .strict()
+  .superRefine((file, ctx) => {
+    const seen = new Set<string>()
+    for (const [index, role] of file.roles.entries()) {
+      if (seen.has(role.id)) {
+        ctx.addIssue({ code: 'custom', path: ['roles', index, 'id'], message: `岗位 id 重复：${role.id}` })
+      }
+      seen.add(role.id)
+    }
+  })
+export type RolesFile = z.infer<typeof RolesFile>
 
 // ── 7. 环境档案 ─────────────────────────────────────────────
 
@@ -409,6 +468,7 @@ export const SpecLayout = [
   { glob: 'contracts/*.contract.yaml', schema: Contract, many: true },
   { glob: 'automation.yaml', schema: AutomationPolicy, many: false },
   { glob: 'agents.yaml', schema: AgentsRegistry, many: false },
+  { glob: 'roles.yaml', schema: RolesFile, many: false },
   { glob: 'env.yaml', schema: Env, many: false },
   { glob: 'project.yaml', schema: ProjectInfo, many: false },
 ] as const

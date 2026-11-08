@@ -31,8 +31,23 @@ export interface TaskRow {
   readonly proposal?: string
   /** 前置任务编号；空数组表示没有依赖。 */
   readonly dependsOn: readonly string[]
+  /** 分配到的岗位 id；`/task_assign` 写过才有，缺省表示未分配。 */
+  readonly role?: string
   /** 任务声明的允许路径（`scope.allowed_paths`）；调度按它判落点重叠。 */
   readonly paths: readonly string[]
+}
+
+/**
+ * 岗位名册里的一行。
+ *
+ * 名册文件缺失时调用方拿到空表——「没有自定岗位」是常态，不是故障。
+ * 任务上的岗位 id 在这张表里查不到、又不是内置角色时，界面显示「未知岗位」。
+ */
+export interface JobRoleRow {
+  readonly id: string
+  readonly name: string
+  readonly inherits: string
+  readonly persona?: string
 }
 
 /** 中栏一条规格条目。 */
@@ -179,6 +194,7 @@ export const PROJECT_FILE = `${SPEC_DIR}/project.yaml`
 export const LOCAL_FILE = `${SPEC_DIR}/local.yaml`
 export const AUTOMATION_FILE = `${SPEC_DIR}/automation.yaml`
 export const AGENTS_FILE = `${SPEC_DIR}/agents.yaml`
+export const ROLES_FILE = `${SPEC_DIR}/roles.yaml`
 export const SCHEDULING_DIR = `${SPEC_DIR}/evidence/scheduling`
 
 /** 单页行数上限：任务与规则 YAML 都是几十行的量级，500 足够且低于宿主默认页。 */
@@ -217,6 +233,7 @@ export function taskTextToRow(fileName: string, text: string): TaskRow | undefin
   if (title === undefined) return undefined
   const session = asText(fields.session)
   const proposal = asText(fields.proposal)
+  const role = asText(fields.role)
   const scope = recordOf(fields.scope)
   return {
     id: asText(fields.id) ?? fileName.replace(/\.yaml$/, ''),
@@ -227,6 +244,7 @@ export function taskTextToRow(fileName: string, text: string): TaskRow | undefin
     evidence: stringArray(fields.evidence_required),
     ...(session === undefined ? {} : { session }),
     ...(proposal === undefined ? {} : { proposal }),
+    ...(role === undefined ? {} : { role }),
     dependsOn: stringArray(fields.depends_on),
     paths: stringArray(scope?.allowed_paths),
   }
@@ -683,6 +701,53 @@ export async function loadAgentsRegistry(
     },
     problems: [],
   }
+}
+
+/** `.spec/roles.yaml` 的读取结果；文件缺失不算错误。 */
+export interface RolesLoad {
+  /** 名册里的岗位；文件缺失或为空时是空数组。 */
+  readonly roles: readonly JobRoleRow[]
+  readonly problems: readonly string[]
+}
+
+/**
+ * 读 `.spec/roles.yaml`。文件不存在是常态（还没有自定岗位），不算故障。
+ * @param files - 窄化文件面。
+ * @param sessionId - 提供相对路径基准的会话。
+ * @param signal - 取消信号。
+ * @returns 岗位行与逐文件问题；缺文件时 `roles` 为空数组。
+ */
+export async function loadRolesRegistry(
+  files: ProjectionFilesRemote,
+  sessionId: SessionId,
+  signal: AbortSignal,
+): Promise<RolesLoad> {
+  const page = await files.readPage(sessionId, ROLES_FILE, signal)
+  if (!page.ok) {
+    return isMissing(page.error, ROLES_FILE)
+      ? { roles: [], problems: [] }
+      : { roles: [], problems: [`${ROLES_FILE}: ${messageOf(page.error)}`] }
+  }
+
+  let doc: Record<string, unknown> | undefined
+  try {
+    doc = recordOf(parseYaml(page.value.text))
+  } catch {
+    doc = undefined
+  }
+  if (doc === undefined) return { roles: [], problems: [`${ROLES_FILE}: 不是能读的 YAML`] }
+
+  const list = Array.isArray(doc.roles) ? doc.roles : []
+  const roles: JobRoleRow[] = list.flatMap((entry: unknown) => {
+    const fields = recordOf(entry)
+    const id = asText(fields?.id)
+    const name = asText(fields?.name)
+    const inherits = asText(fields?.inherits)
+    if (id === undefined || name === undefined || inherits === undefined) return []
+    const persona = asText(fields?.persona)
+    return [{ id, name, inherits, ...(persona === undefined ? {} : { persona }) }]
+  })
+  return { roles, problems: [] }
 }
 
 /** `.spec/project.yaml` 的读取结果；文件缺失不算错误。 */

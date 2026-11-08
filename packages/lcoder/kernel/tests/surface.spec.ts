@@ -153,8 +153,8 @@ describe('空看板工具面', () => {
 })
 
 describe('角色天花板', () => {
-  it('实施角色等于全集：新增工具不会静默对实施隐身', () => {
-    expect([...ROLE_TOOLS.dev].sort()).toEqual(allToolNames())
+  it('实施角色等于全集去掉只对研发经理开放的岗位工具', () => {
+    expect([...ROLE_TOOLS.dev].sort()).toEqual(allToolNames().filter(name => name !== 'role_draft'))
   })
 
   it('立项、架构、产品、评审四个角色都动不了代码与命令', () => {
@@ -213,8 +213,24 @@ describe('角色天花板', () => {
     }
   })
 
-  it('九个角色都能列目录：立项不需要额外工具就能看清仓库结构', () => {
+  it('每个角色都能列目录：立项不需要额外工具就能看清仓库结构', () => {
     for (const role of ROLES) expect(ROLE_TOOLS[role]).toContain('file_list')
+  })
+
+  it('role_draft 只对研发经理可见，且研发经理没有任何代码或命令工具', () => {
+    expect(ROLE_TOOLS.manager).toEqual(['file_read', 'file_list', 'spec_query', 'task_read', 'task_draft', 'role_draft'])
+    for (const tool of ['file_edit', 'cmd_run', 'git_commit', 'contract_draft', 'task_close', 'evidence_attach']) {
+      expect(ROLE_TOOLS.manager).not.toContain(tool)
+    }
+    for (const role of ROLES) {
+      if (role === 'manager') continue
+      expect(ROLE_TOOLS[role]).not.toContain('role_draft')
+    }
+    // 状态维也不能替研发经理把岗位工具漏出去：这张表里只有它的角色行带 role_draft。
+    for (const state of [...STATES, null] as const) {
+      expect(allowedTools(state, 'manager')).not.toContain('file_edit')
+      expect(allowedTools(state, 'manager')).not.toContain('cmd_run')
+    }
   })
 
   it('智能调度与流程控制只有四件只读工具，任何状态都拿不到编辑、命令、契约与收口', () => {
@@ -245,7 +261,7 @@ describe('角色天花板', () => {
     expect(allowedTools('drafting', null)).toEqual(SURFACE.drafting)
   })
 
-  it('parseRole 认九个角色，未设给 null，配错当场响', () => {
+  it('parseRole 认全部内置角色，未设给 null，配错当场响', () => {
     expect(parseRole(undefined)).toBeNull()
     for (const role of ROLES) expect(parseRole(role)).toBe(role)
     expect(() => parseRole('qa')).toThrow(TypeError)

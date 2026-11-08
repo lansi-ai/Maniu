@@ -3,13 +3,121 @@
  *
  * 三层分工在这一个文件里体现得很清楚：
  *   1. 信号层是纯数据——任务的依赖与关联（方案、规格模块、允许路径）、会话的忙闲与认领历史；
- *   2. 判定层先走硬闸（依赖未完成、worktree 不同、会话在等审批、角色不匹配），
+ *   2. 判定层先走硬闸（依赖未完成、worktree 不同、会话在等审批、岗位不匹配），
  *      再按信号打分排候选；候选只有一个时直接定，两个以上并列才把决定权交出去（`needsChoice`）；
  *   3. 输出必须带理由：每个候选都留下命中的信号与被否原因，调用方据此给人看「为什么选它」。
  *
  * 这一层不读写盘、不调远程、不订阅，所以每条规则都能被单测钉死；
  * `Shell.tsx` 只负责拿结果、执行（复用 / 入队 / 新建 / 按住）并渲染理由。
  */
+import { isBuiltinRole } from '@lcoder/kernel/src/schema/roles.ts'
+import type { BuiltinRoleId } from '@lcoder/kernel/src/schema/roles.ts'
+
+/** 名册里的一条岗位；判闸与写理由只需要 id、显示名与继承的内置角色。 */
+export interface SchedulingRole {
+  readonly id: string
+  readonly name?: string
+  readonly inherits: string
+}
+
+/** 把一侧的岗位 id 归一成「岗位 id + 继承的内置角色」，或只有内置角色。 */
+interface NormalizedRole {
+  readonly job?: string
+  readonly builtin: BuiltinRoleId
+  /** 给人看的名字：名册显示名，或内置角色 id。 */
+  readonly label: string
+}
+
+/** 默认预设（dev）的 id 不带角色后缀；其余 LCoder preset 形如 `lcoder-<角色>`。 */
+const PRESET_PREFIX = 'lcoder'
+
+/**
+ * 从会话 preset id 反推内置角色：`lcoder` 是实施，`lcoder-<内置角色>` 直接取后缀。
+ * 其它 preset（上游角色）反推不出 LCoder 角色，返回 undefined。
+ * @param preset - 会话的 `agentPreset`。
+ * @returns 内置角色或 undefined。
+ */
+export function builtinRoleOfPreset(preset: string | undefined): BuiltinRoleId | undefined {
+  if (preset === undefined || preset === '') return undefined
+  const name = preset === PRESET_PREFIX
+    ? 'dev'
+    : preset.startsWith(`${PRESET_PREFIX}-`) ? preset.slice(PRESET_PREFIX.length + 1) : undefined
+  return name !== undefined && isBuiltinRole(name) ? name : undefined
+}
+
+/**
+ * 一条会话的有效岗位。
+ *
+ * 优先级：已认领任务上的 role → 建会话时人选的岗位 → 会话 preset 反推的内置角色。
+ * 认领任务给出多个不一致的岗位时整组忽略，不把会话归给其中任何一条，也不回填一条
+ * 猜出来的岗位——一次错派不能污染后续判定。任一步都拿不到就返回 undefined，闸不生效。
+ * @param input - 认领任务上的 role、建会话时选的岗位、会话 preset。
+ * @returns 有效岗位 id（可能是名册岗位、内置角色或 preset），缺信息为 undefined。
+ */
+export function effectiveSessionRole(input: {
+  readonly claimed: readonly (string | undefined)[]
+  readonly chosen?: string | undefined
+  readonly preset?: string | undefined
+}): string | undefined {
+  const claimed = [...new Set(input.claimed.filter((role): role is string => role !== undefined && role !== ''))]
+  if (claimed.length === 1) return claimed[0]
+  if (input.chosen !== undefined && input.chosen !== '') return input.chosen
+  return input.preset === undefined || input.preset === '' ? undefined : input.preset
+}
+
+/**
+ * 一侧的岗位 id 归一化。名册优先，其次内置角色，最后按 preset 规则反推；
+ * 都不认识时返回 undefined——读侧把未知 id 当「缺信息」，闸不生效。
+ * @param raw - 任务或会话上的角色 id。
+ * @param roles - 项目岗位名册。
+ * @returns 归一化后的角色。
+ */
+function normalizeRole(raw: string | undefined, roles: readonly SchedulingRole[]): NormalizedRole | undefined {
+  if (raw === undefined || raw === '') return undefined
+  const job = roles.find(role => role.id === raw)
+  if (job !== undefined) {
+    // 名册写坏的继承不当成合法岗位：两侧缺信息时闸不生效，而不是猜一个天花板。
+    return isBuiltinRole(job.inherits)
+      ? { job: job.id, builtin: job.inherits, label: job.name ?? job.id }
+      : undefined
+  }
+  if (isBuiltinRole(raw)) return { builtin: raw, label: raw }
+  const builtin = builtinRoleOfPreset(raw)
+  return builtin === undefined ? undefined : { builtin, label: builtin }
+}
+
+/**
+ * 严格岗位、实施兜底。
+ *
+ * 任务侧与会话侧都有可解析的岗位时才判：
+ *   - 两侧都是名册岗位：必须同一个岗位；
+ *   - 任务侧是名册岗位、会话侧是内置角色：只有会话恰为任务继承的实施（`dev`）才放行；
+ *   - 任务侧是内置角色：按内置角色比较（名册岗位用它的继承角色参与）。
+ * @param taskRole - 任务侧归一化结果。
+ * @param sessionRole - 会话侧归一化结果。
+ * @returns 允许复用为 true。
+ */
+function roleGatePasses(taskRole: NormalizedRole, sessionRole: NormalizedRole): boolean {
+  if (taskRole.job !== undefined) {
+    if (sessionRole.job !== undefined) return taskRole.job === sessionRole.job
+    return sessionRole.builtin === taskRole.builtin && sessionRole.builtin === 'dev'
+  }
+  return taskRole.builtin === sessionRole.builtin
+}
+
+/**
+ * 角色不匹配的人话。
+ * @param taskRole - 任务侧归一化结果。
+ * @param sessionRole - 会话侧归一化结果。
+ * @returns 否决理由。
+ */
+function roleMismatchReason(taskRole: NormalizedRole, sessionRole: NormalizedRole): string {
+  if (taskRole.job !== undefined) {
+    const fallback = sessionRole.job === undefined ? '；只有实施（dev）可以兜底' : ''
+    return `岗位不匹配（任务要求 ${taskRole.label}，会话是 ${sessionRole.label}${fallback}）`
+  }
+  return `角色不匹配（任务要求 ${taskRole.label}，会话是 ${sessionRole.label}）`
+}
 
 /** 任务侧参与判定的信号；由调用方从 `TaskRow` 与规格条目里拼出来。 */
 export interface SchedulingTask {
@@ -25,13 +133,14 @@ export interface SchedulingTask {
   readonly paths: readonly string[]
   /** 这条任务所在的仓库目录；与会话工作区不同时不许复用或入队。 */
   readonly repoPath: string
-  /** 这条任务要求的角色；缺省表示不限。 */
+  /** 这条任务要求的岗位；缺省表示不限。 */
   readonly role?: string
 }
 
 /** 会话侧参与判定的信号。 */
 export interface SchedulingSession {
   readonly sessionId: string
+  /** 这条会话的有效岗位：认领任务上的 role、建会话时选的岗位，或 preset 反推的内置角色。 */
   readonly role?: string
   readonly running: boolean
   /** 正在等人回答或等审批。 */
@@ -135,12 +244,14 @@ export function sameWorkspace(left: string, right: string): boolean {
  * @param task - 要安排的任务。
  * @param sessions - 本工作区的会话名册。
  * @param knownStates - 任务编号到状态的映射，用于判断依赖是否完成。
+ * @param roles - 项目岗位名册；缺省为空表，此时名册岗位按未知 id 处理（闸不生效）。
  * @returns 判定、候选比较与理由。
  */
 export function decideScheduling(
   task: SchedulingTask,
   sessions: readonly SchedulingSession[],
   knownStates: Readonly<Record<string, string>>,
+  roles: readonly SchedulingRole[] = [],
 ): SchedulingDecision {
   const reasons: string[] = []
 
@@ -178,9 +289,12 @@ export function decideScheduling(
       score += 9
     }
     const comparable = session.claims.filter(claim => claim.id !== task.id)
-    // 第二层硬闸：角色不匹配不能复用（agentPreset 在首回合后锁定）。
-    if (task.role !== undefined && session.role !== undefined && session.role !== task.role) {
-      return { sessionId: session.sessionId, score: 0, signals, rejected: `角色不匹配（${session.role}）` }
+    // 第二层硬闸：严格岗位、实施兜底。任一侧拿不到可解析的岗位就让闸失效，
+    // 存量会话因此不会被误拦；两侧都有岗位时按归一化后的岗位对比较。
+    const taskRole = normalizeRole(task.role, roles)
+    const sessionRole = normalizeRole(session.role, roles)
+    if (taskRole !== undefined && sessionRole !== undefined && !roleGatePasses(taskRole, sessionRole)) {
+      return { sessionId: session.sessionId, score: 0, signals, rejected: roleMismatchReason(taskRole, sessionRole) }
     }
     if (session.awaitingInteraction && !ownsTask && !inGroup) {
       return { sessionId: session.sessionId, score: 0, signals, rejected: '正在等人回答，塞进去会把上下文搅在一起' }

@@ -3,10 +3,17 @@
  */
 import { describe, expect, it } from 'vitest'
 
-import { decideScheduling, sameWorkspace } from '../src/client/scheduling.ts'
-import type { SchedulingSession, SchedulingTask } from '../src/client/scheduling.ts'
+import { builtinRoleOfPreset, decideScheduling, effectiveSessionRole, sameWorkspace } from '../src/client/scheduling.ts'
+import type { SchedulingRole, SchedulingSession, SchedulingTask } from '../src/client/scheduling.ts'
 
 const REPO = 'E:/Projects/demo'
+
+/** 项目岗位名册：两个实施岗位与一个评审岗位。 */
+const ROLES: readonly SchedulingRole[] = [
+  { id: 'dotnet-engineer', name: '.NET 工程师', inherits: 'dev' },
+  { id: 'vue-engineer', name: 'Vue 工程师', inherits: 'dev' },
+  { id: 'api-architect', name: '接口架构师', inherits: 'review' },
+]
 
 const TASK: SchedulingTask = {
   id: 'T-02',
@@ -72,6 +79,15 @@ describe('调度判定', () => {
 
     expect(decision.verdict).toBe('new')
     expect(decision.candidates[0]?.rejected).toContain('角色不匹配')
+  })
+
+  it('任务分配了岗位而会话角色不同：否决复用，理由里带任务要求的岗位名', () => {
+    const decision = decideScheduling({ ...TASK, role: 'vue-engineer' }, [session({ role: 'review' })], { 'T-01': 'implementing' }, ROLES)
+
+    expect(decision.verdict).toBe('new')
+    expect(decision.candidates[0]?.rejected).toContain('Vue 工程师')
+    expect(decision.candidates[0]?.rejected).toContain('review')
+    expect(decision.candidates[0]?.rejected).toContain('岗位不匹配')
   })
 
   it('没有关联信号就新开，理由写明', () => {
@@ -198,5 +214,104 @@ describe('调度判定', () => {
     expect(decision.verdict).toBe('reuse')
     expect(decision.candidates[0]?.signals).toContain('已在本会话联调组')
     expect(decision.joint).toBeUndefined()
+  })
+})
+
+/**
+ * 用户 2026-11-08 拍板的语义：严格岗位，允许实施兜底。
+ * 任务岗位为 R、会话有效岗位为 S，两侧先归一成（岗位 id，继承的内置角色）。
+ */
+describe('岗位硬闸：严格岗位 + 实施兜底', () => {
+  const JOB_TASK: SchedulingTask = { ...TASK, role: 'dotnet-engineer' }
+
+  it('R 与 S 是同一个名册岗位：允许复用', () => {
+    const decision = decideScheduling(
+      JOB_TASK,
+      [session({ role: 'dotnet-engineer' })],
+      { 'T-01': 'implementing' },
+      ROLES,
+    )
+
+    expect(decision.verdict).toBe('reuse')
+    expect(decision.chosen).toBe('session-a')
+    expect(decision.candidates[0]?.rejected).toBeUndefined()
+  })
+
+  it('R 与 S 是两个不同名册岗位：否决，理由带两侧岗位名', () => {
+    const decision = decideScheduling(
+      JOB_TASK,
+      [session({ role: 'vue-engineer' })],
+      { 'T-01': 'implementing' },
+      ROLES,
+    )
+
+    expect(decision.verdict).toBe('new')
+    expect(decision.candidates[0]?.rejected).toContain('.NET 工程师')
+    expect(decision.candidates[0]?.rejected).toContain('Vue 工程师')
+  })
+
+  it('R 是名册岗位、S 是内置 dev：按实施兜底允许复用', () => {
+    const decision = decideScheduling(
+      JOB_TASK,
+      [session({ role: 'dev' })],
+      { 'T-01': 'implementing' },
+      ROLES,
+    )
+
+    expect(decision.verdict).toBe('reuse')
+    expect(decision.candidates[0]?.rejected).toBeUndefined()
+  })
+
+  it('R 是名册岗位、S 是内置 review：不是实施，否决', () => {
+    const decision = decideScheduling(
+      JOB_TASK,
+      [session({ role: 'review' })],
+      { 'T-01': 'implementing' },
+      ROLES,
+    )
+
+    expect(decision.verdict).toBe('new')
+    expect(decision.candidates[0]?.rejected).toContain('.NET 工程师')
+    expect(decision.candidates[0]?.rejected).toContain('review')
+    expect(decision.candidates[0]?.rejected).toContain('兜底')
+  })
+
+  it('两侧都缺岗位信息时闸不生效，不误拦存量会话', () => {
+    const decision = decideScheduling(
+      { ...TASK },
+      [session({ role: '' })],
+      { 'T-01': 'implementing' },
+      ROLES,
+    )
+
+    expect(decision.verdict).toBe('reuse')
+    expect(decision.candidates[0]?.rejected).toBeUndefined()
+  })
+})
+
+describe('会话有效岗位的推导', () => {
+  it('认领任务优先于建会话时的选择与 preset，后者依次兜底', () => {
+    expect(effectiveSessionRole({ claimed: ['dotnet-engineer'], chosen: 'lcoder-review', preset: 'lcoder-review' }))
+      .toBe('dotnet-engineer')
+    expect(effectiveSessionRole({ claimed: [undefined], chosen: 'vue-engineer', preset: 'lcoder-review' }))
+      .toBe('vue-engineer')
+    expect(effectiveSessionRole({ claimed: [], chosen: undefined, preset: 'lcoder-manager' }))
+      .toBe('lcoder-manager')
+    expect(effectiveSessionRole({ claimed: [], chosen: undefined, preset: undefined })).toBeUndefined()
+  })
+
+  it('认领任务岗位不一致时整组忽略，不把会话归给任何一条', () => {
+    expect(effectiveSessionRole({
+      claimed: ['dotnet-engineer', 'vue-engineer'],
+      chosen: 'lcoder-review',
+      preset: 'lcoder-review',
+    })).toBe('lcoder-review')
+  })
+
+  it('preset 反推：lcoder 是实施，lcoder-manager 是研发经理，上游 preset 不映射', () => {
+    expect(builtinRoleOfPreset('lcoder')).toBe('dev')
+    expect(builtinRoleOfPreset('lcoder-manager')).toBe('manager')
+    expect(builtinRoleOfPreset('standard')).toBeUndefined()
+    expect(builtinRoleOfPreset(undefined)).toBeUndefined()
   })
 })

@@ -31,6 +31,7 @@ LCoder 是 DeepSeek Harness 的二开，不 fork 业务实现，也不直接 imp
 | 证据 `Evidence` | `.spec/evidence/T-xx/*.log` | 非空才算证据 |
 | 环境 `Env` | `.spec/env.yaml` | 仓库、验收命令、凭据来源 |
 | 常驻会话 `AgentsRegistry` | `.spec/agents.yaml` | 智能调度与流程控制的单例会话号；失效时按工作区里 preset 匹配的会话重找 |
+| 岗位 `RolesFile` | `.spec/roles.yaml` | 项目自定的岗位：id、显示名、继承的内置角色，以及可选的提示词前缀 |
 
 形状的唯一来源是 [packages/lcoder/kernel/src/schema/spec.ts](../packages/lcoder/kernel/src/schema/spec.ts)：schema 只保证形状对，语义合规由检查器承担。
 
@@ -52,7 +53,7 @@ LCoder 是 DeepSeek Harness 的二开，不 fork 业务实现，也不直接 imp
 
 ## 6. 工具面
 
-模型工具与每个角色的天花板只在 `packages/lcoder/kernel/src/kernel/surface.ts` 里定义（`SURFACE`、`UNSCOPEED_SURFACE` 与 `ROLE_TOOLS`），本文不再复述名字与数量。工具面按任务状态收放，采用 allow 列表（fail-closed）；未配置的工具默认不可见，漏配的后果是「用不了」而不是「越权能用」。读不到任务状态的仓库（没有 `.spec`，或 `tasks/` 为空）拿的是 `UNSCOPEED_SURFACE`：能调研、能落项目信息与规格条目、能立任务，拿不到本包的编辑与命令能力。工具面还有第二维：角色就是一个 Agent preset，在创建会话时选定、首个回合之后锁定，可见工具是 `SURFACE[状态]` 与角色天花板求交，所以角色只能减能力、不能越状态。`dev` 一行刻意不设天花板，但它必须等于注册全集，这条等式由测试钉住，防止新增工具静默地对实施角色隐身。四条命令永远不进模型工具面，任何状态表与角色表里都没有：`contract_sign`、`task_bind`、`task_contract`、`proposal_approve`。它们只做人机命令入口；`contract_sign` 尤其不能是模型工具——模型能调用签署工具，就等于模型能给自己签字。`/contract_sign <任务编号>` 不经过模型回合，宿主复算契约正文哈希后写 `sig`，调用与回执都记进会话日志。注册时用 `when` 在每次 model step 求值，而不是 `restrict`；`restrict` 只对全局注册生效，作用域注册盖不住。`when` 也因此只覆盖本包的注册：bundle 全局注册的工具（`read`、`write`、`edit`、`glob`、`grep`、`bash`、`pwsh`）对该 profile 的每个 Agent 仍可见，要收住它们需要 Agent 作用域的 `restrict`（见 §11）。
+模型工具与每个角色的天花板只在 `packages/lcoder/kernel/src/kernel/surface.ts` 里定义（`SURFACE`、`UNSCOPEED_SURFACE` 与 `ROLE_TOOLS`），本文不再复述名字与数量。工具面按任务状态收放，采用 allow 列表（fail-closed）；未配置的工具默认不可见，漏配的后果是「用不了」而不是「越权能用」。读不到任务状态的仓库（没有 `.spec`，或 `tasks/` 为空）拿的是 `UNSCOPEED_SURFACE`：能调研、能落项目信息与规格条目、能立任务，拿不到本包的编辑与命令能力。工具面还有第二维：角色就是一个 Agent preset，在创建会话时选定、首个回合之后锁定，可见工具是 `SURFACE[状态]` 与角色天花板求交，所以角色只能减能力、不能越状态。`dev` 一行刻意不设天花板，但它必须等于注册全集，这条等式由测试钉住，防止新增工具静默地对实施角色隐身。五条命令永远不进模型工具面，任何状态表与角色表里都没有：`contract_sign`、`task_bind`、`task_contract`、`task_assign`、`proposal_approve`。它们只做人机命令入口；`contract_sign` 尤其不能是模型工具——模型能调用签署工具，就等于模型能给自己签字。`/contract_sign <任务编号>` 不经过模型回合，宿主复算契约正文哈希后写 `sig`，调用与回执都记进会话日志。注册时用 `when` 在每次 model step 求值，而不是 `restrict`；`restrict` 只对全局注册生效，作用域注册盖不住。`when` 也因此只覆盖本包的注册：bundle 全局注册的工具（`read`、`write`、`edit`、`glob`、`grep`、`bash`、`pwsh`）对该 profile 的每个 Agent 仍可见，要收住它们需要 Agent 作用域的 `restrict`（见 §11）。
 
 ## 7. 数据面
 
@@ -63,6 +64,8 @@ kernel 的规格根跟随会话工作区：一次工具调用取 `session.header
 任务还可以记录「这条事由哪条会话在办」：`.spec/tasks/<ID>.yaml` 的 `session` 字段。它由人在为该任务打开对话时经 `/task_bind` 写入，模型不写；会话号取自宿主自己的调用上下文，所以前端无法去认领不属于它的会话。这个值是本机 home 里的运行时标识，换机器或会话被删之后内核退回「配置的任务号，再退回看板第一条」，任务的状态本身不会因为认领失效而被改动。释放认领是把这个键整个删掉，不留空值——空值会让整张看板读不懂。
 
 `.spec/automation.yaml` 承载每个项目一份的自动化策略：按动作的开关（`draft`、`contract`、`sign`、`implement`、`verify`、`close`、`commit`）、停止条件（token 预算、时长、连续失败次数、并发上限）与可选的任务范围。缺文件即全手动，与没有自动化时的行为一致。外部不可逆动作——push、部署、改注册表与环境变更——不能出现在这份文件里；schema 遇到这些键直接判非法，而不是读进来忽略。kernel 每次求值都重读，改完下一次判定即生效。
+
+岗位是项目在 `.spec/roles.yaml` 里自定的轻量定义：id、显示名、它继承的内置角色，以及可选的提示词前缀。继承就是全部天花板，新岗位不可能越过它指名的内置角色；研发经理（`manager`）是第十个内置角色，`role_draft` 是它唯一的岗位写入口——只能追加或更新一项、不能删除，继承不合法当场拒绝。分配是另一件、只由人做的事：`/task_assign <任务编号> <岗位 id>` 先查名册、再查内置角色，写回 `Task.role`，不改任务状态；模型侧没有任何分配入口。读侧永不失败：名册与内置角色都不认识的 `role` 按未知岗位显示，与会话号失效同一口径。分配到的岗位是调度硬约束，按「严格岗位 + 实施兜底」判定。两侧先归一成（岗位 id，继承的内置角色）一对：两个名册岗位必须相同；任务岗位是名册岗位时，只有会话有效岗位恰为它继承的内置 `dev` 才放行；任务岗位本身就是内置角色时，按内置角色比较。会话有效岗位依次取自己认领任务上的岗位、建会话时人选的岗位、preset 反推的内置角色（`lcoder` 是 `dev`，`lcoder-<内置角色>` 取后缀）；认领任务岗位彼此不一致时不贡献任何岗位，任一侧拿不到可解析的岗位时闸不生效，存量会话因此不会被误拦。
 
 两条常驻调度会话登记在 `.spec/agents.yaml`。会话不在、被删或 `agentPreset` 对不上时按未绑定处理：工作台先找运行 `lcoder-scheduler` 或 `lcoder-flow` 的同工作区会话，找不到才新建，并通过 `/agent_bind` 把会话号写回。流程面板读 `/flow_status`，每次开工结果通过 `/flow_log` 追加；两条命令都不推进任务状态，签署与外部动作始终与批量开工分开。
 
@@ -95,6 +98,7 @@ kernel 的规格根跟随会话工作区：一次工具调用取 `session.header
 | D8 | 任务归属认领写进 `.spec`，不从标题推断 | `.spec` 是产品事实唯一来源；会话标题人可以改，不能当外键 |
 | D9 | 并行靠一个工作区多条会话 | 一任务一会话、深度 1，孙代被拒，成本可控而角色仍能委派到评审 |
 | D10 | AI 只在三补偿闸同时成立时自签 | 用户 2026-11-06 的决定；打开「只能人签」前提后，靠策略 `sign: auto`、`scope.irreversible` 为空、评审复核证据三闸让 P3 仍然成立 |
+| D11 | 岗位是继承内置角色天花板的轻量定义；分配是人机命令，且是调度硬约束 | 经理可以命名岗位而不可能造出新权限；让模型分配就等于让它挑哪条会话可以复用这条任务 |
 
 ## 11. 风险与技术债
 
@@ -102,6 +106,7 @@ kernel 的规格根跟随会话工作区：一次工具调用取 `session.header
 - 流程引擎、策略读取与 AI 自签已实现，并有单测与真实文件覆盖。「开工」入口、流程面板与逐任务动作流水已通过人机命令 `/flow_status` 与 `/flow_log` 接通；`selfSignContract` 在测试之外仍没有调用方，所以面板只标出「可自签」，不替人执行。没有 `.spec/automation.yaml` 的仓库仍按全手动运行。
 - 没有可用模型时发消息曾经静默失败：准入把消息收进入队就返回接受，回合在宿主侧才失败，事件流里不会出现 `user/message`。`client/model-status.ts` 把 `session/modelCatalog` 折成 ready、empty、unknown 三态；empty 时拦住发送并说清凭据该放哪，会话快照的 `promptError` 与 `lastAgentError` 在浮层就地显示。仓内隔离 home 不带 provider 凭据，全新检出要先有 `DEEPSEEK_API_KEY` 才能跑对话。
 - `implementing → verifying` 没有工具入口，状态推进需要人工改任务文件。
+- 角色硬闸按「严格岗位 + 实施兜底」判定。会话有效岗位依次取自己认领任务上的岗位、建会话时人选的岗位、preset 反推的内置角色（`lcoder` 映射 `dev`，`lcoder-<内置角色>` 映射该角色）；认领任务的岗位彼此不一致时不贡献任何岗位，也不猜一个。任务分给名册岗位时，只有同一个岗位、或有效岗位恰为它继承的内置 `dev` 的会话可以复用，其它内置角色一律否决并在理由里写明两侧岗位名。任一侧拿不到可解析的岗位时闸不生效，本次改动之前建的会话照常可用。会话上人选的岗位只在建它的那个窗口里记得住；重启后靠已认领任务或 preset 提供岗位，两者都没有的会话让闸不生效。
 - 立项面只收住本包的编辑与命令工具；bundle 注册的工具对该 profile 的每个 Agent 仍可用，所以未立项仓库不会因为 LCoder 就失去改代码能力。用 Agent 作用域 `restrict` 收住它们记为 T-11。
 - 产品示例 `DEMO-01` 处于 `drafting`，尚无契约；示例 `env.yaml` 已就位。
 - 开发任务不使用 `.spec` 契约与证据，开发门禁见 [PROJECT-RULES.zh.md](PROJECT-RULES.zh.md) §3。

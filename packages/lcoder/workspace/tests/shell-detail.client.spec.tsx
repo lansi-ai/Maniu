@@ -21,7 +21,7 @@ import type { ShellProps } from '../src/client/shell/Shell.tsx'
 import type { CloudFace } from '../src/client/cloud/face.ts'
 import { zh } from '../src/client/locales.ts'
 import {
-  CONTRACTS_DIR, PROPOSALS_DIR, SCHEDULING_DIR, TASKS_DIR,
+  CONTRACTS_DIR, PROPOSALS_DIR, ROLES_FILE, SCHEDULING_DIR, TASKS_DIR,
 } from '../src/client/projection.ts'
 import type { ProjectionFilesRemote } from '../src/client/projection.ts'
 
@@ -34,6 +34,8 @@ const t = makeTranslate(zh)
 interface SpecFiles {
   readonly tasks?: Readonly<Record<string, string>>
   readonly contracts?: Readonly<Record<string, string>>
+  /** `.spec/roles.yaml` 的正文；缺省按文件不存在处理。 */
+  readonly roles?: string
 }
 
 /** 目录缺失的远程失败；`isMissing` 按 code 认这种。 */
@@ -62,6 +64,14 @@ function fakeFiles(spec: SpecFiles): ProjectionFilesRemote {
       }
     },
     readPage: async (_sessionId, path) => {
+      if (path === ROLES_FILE) {
+        return spec.roles === undefined
+          ? missing(path)
+          : {
+            ok: true,
+            value: { absolutePath: `${REPO}/${path}`, version: 'v1', offset: 1, text: spec.roles, lines: spec.roles.split('\n').length, eof: true },
+          }
+      }
       const slash = path.lastIndexOf('/')
       const dir = path.slice(0, slash)
       const name = path.slice(slash + 1)
@@ -92,6 +102,8 @@ interface ShellScenario {
   readonly spec: SpecFiles
   readonly sessions?: readonly SessionSummary[]
   readonly running?: ReadonlySet<string>
+  /** 分配命令替身；缺省给一个成功回执，不写投影。 */
+  readonly assignTask?: ShellProps['assignTask']
 }
 
 /** 已登录的云端替身：门禁放行，详情用例只关心渲染事实；门禁本身有 cloud-login 专测。 */
@@ -168,6 +180,7 @@ function renderShell(scenario: ShellScenario) {
     checkModels: async () => ({ state: 'ready' }),
     createSession: async () => SessionId('s-9'),
     signContract: async () => ({ ok: true, text: '已签署' }),
+    assignTask: scenario.assignTask ?? vi.fn(async () => ({ ok: true, text: '已分配' })),
     logSchedule,
   }
   const view = render(<Shell {...props} />)
@@ -196,6 +209,79 @@ describe('任务详情', () => {
     fireEvent.click(screen.getByTitle(zh['shell.newSession']))
     expect(await screen.findByText('评审')).toBeTruthy()
     expect(screen.getByText(zh['shell.role'])).toBeTruthy()
+  })
+
+  it('任务卡与详情显示已分配岗位；未知 id 与未分配照实画出来', async () => {
+    renderShell({
+      spec: {
+        tasks: {
+          'T-01.yaml': `${TASK_T01}role: vue-engineer\n`,
+          'T-02.yaml': `${TASK_T02}role: ghost-role\n`,
+          'T-03.yaml': 'id: T-03\ntitle: 还没分配的任务\nstate: drafting\ngrade: C\n',
+        },
+        roles: 'roles:\n  - id: vue-engineer\n    name: Vue 工程师\n    inherits: dev\n',
+      },
+    })
+
+    // 卡片：名册里认识的显示名、名册与内置角色都不认识的显示未知岗位、缺字段显示未分配。
+    expect(await screen.findByText(`${zh['shell.jobRole']} Vue 工程师`)).toBeTruthy()
+    expect(screen.getByText(`${zh['shell.jobRole']} ${zh['shell.roleUnknown']}`)).toBeTruthy()
+    expect(screen.getByText(`${zh['shell.jobRole']} ${zh['shell.roleUnassigned']}`)).toBeTruthy()
+
+    // 详情：同一个岗位显示在元信息里（卡片上那一条仍在，所以至少两处）。
+    await openTask('起草中的任务')
+    expect(screen.getAllByText('Vue 工程师').length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('分配成功后已打开的详情立即显示岗位，不用关掉重开', async () => {
+    const tasks: Record<string, string> = { 'T-01.yaml': TASK_T01 }
+    const assignTask = vi.fn(async (_sessionId: SessionId, taskId: string, roleId: string) => {
+      // 模拟命令落盘：下一次重读投影能看到 role，与真实 `/task_assign` 同形。
+      tasks[`${taskId}.yaml`] = `${tasks[`${taskId}.yaml`] ?? ''}role: ${roleId}\n`
+      return { ok: true, text: `已分配给 ${roleId}` }
+    })
+
+    renderShell({
+      spec: {
+        tasks,
+        roles: 'roles:\n  - id: dotnet-engineer\n    name: .NET 工程师\n    inherits: dev\n',
+      },
+      assignTask,
+    })
+
+    await openTask('起草中的任务')
+    expect(screen.getByText(zh['shell.jobRole']).parentElement?.textContent).toContain(zh['shell.roleUnassigned'])
+
+    fireEvent.click(screen.getByRole('button', { name: '.NET 工程师' }))
+    fireEvent.click(screen.getByRole('button', { name: zh['shell.assignRoleAction'] }))
+
+    await waitFor(() => {
+      expect(assignTask).toHaveBeenCalledWith(expect.any(String), 'T-01', 'dotnet-engineer')
+    })
+    // 弹窗始终开着：详情元信息自己刷新成新岗位，回执也还在。
+    await waitFor(() => {
+      expect(screen.getByText(zh['shell.jobRole']).parentElement?.textContent).toContain('.NET 工程师')
+    })
+    expect(screen.getByText('已分配给 dotnet-engineer')).toBeTruthy()
+  })
+
+  it('分配被拒时不改显示：详情仍是未分配', async () => {
+    const assignTask = vi.fn(async () => ({ ok: false, text: '岗位不存在' }))
+
+    renderShell({
+      spec: {
+        tasks: { 'T-01.yaml': TASK_T01 },
+        roles: 'roles:\n  - id: dotnet-engineer\n    name: .NET 工程师\n    inherits: dev\n',
+      },
+      assignTask,
+    })
+
+    await openTask('起草中的任务')
+    fireEvent.click(screen.getByRole('button', { name: '.NET 工程师' }))
+    fireEvent.click(screen.getByRole('button', { name: zh['shell.assignRoleAction'] }))
+
+    await waitFor(() => { expect(screen.getByText('岗位不存在')).toBeTruthy() })
+    expect(screen.getByText(zh['shell.jobRole']).parentElement?.textContent).toContain(zh['shell.roleUnassigned'])
   })
 
   it('没有契约文件时不出现签署暗示，也不提供签署按钮', async () => {
