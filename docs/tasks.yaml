@@ -976,7 +976,7 @@ tracks:
       date: '2026-11-08'
       dep: [T-86]
       inferred: false
-      note: "A 级（新持久化格式 + 新内置角色 + 新写入口 + 打通已有调度硬闸）。用户 2026-11-08 提出研发经理角色与岗位分配，需求与任务拆完后由经理给每个任务派岗位，例如 .NET 工程师与 Vue 工程师与 Python 工程师与安卓工程师，岗位由经理自定，项目迭代可新增。已拍板四条，岗位为轻量定义并继承内置角色天花板，分配由人机命令写，分配是硬约束，研发经理作为第十个内置角色。调研结论三点。一、RoleId 与 ROLE_TOOLS 写死在 surface.ts，现为九个。二、调度层早已有岗位不匹配否决，位置在 scheduling.ts 约一百八十二行，但因 Task 没有 role 字段从不触发，这是本任务能大幅省工的关键。三、.spec/agents.yaml 明示不承担角色名册，不得往那里扩。范围七项，roles.yaml 与 schema、Task.role、人机命令 /task_assign、role 透传到调度并补单测、manager 角色与预设、仅 manager 可见的 role_draft 工具、任务卡与详情显示岗位。文档要做双源同步，PROJECT-RULES 目录表加 roles.yaml，prd 写岗位与分配与经理三者关系，中英配对重录。工作树 .worktrees/t89-assign，分支 lcoder/t89-assign，端口渲染 9602、主进程 9609、宿主 9610、mock 5093，实现线会话 2f8d83b6。"
+      note: "A 级（新持久化格式 + 新内置角色 + 新写入口 + 打通已有调度硬闸）。用户 2026-11-08 提出研发经理角色与岗位分配，需求与任务拆完后由经理给每个任务派岗位，例如 .NET 工程师与 Vue 工程师与 Python 工程师与安卓工程师，岗位由经理自定，项目迭代可新增。已拍板四条，岗位为轻量定义并继承内置角色天花板，分配由人机命令写，分配是硬约束，研发经理作为第十个内置角色。调研结论三点。一、RoleId 与 ROLE_TOOLS 写死在 surface.ts，现为九个。二、调度层早已有岗位不匹配否决，位置在 scheduling.ts 约一百八十二行，但因 Task 没有 role 字段从不触发，这是本任务能大幅省工的关键。三、.spec/agents.yaml 明示不承担角色名册，不得往那里扩。范围七项，roles.yaml 与 schema、Task.role、人机命令 /task_assign、role 透传到调度并补单测、manager 角色与预设、仅 manager 可见的 role_draft 工具、任务卡与详情显示岗位。文档要做双源同步，PROJECT-RULES 目录表加 roles.yaml，prd 写岗位与分配与经理三者关系，中英配对重录。工作树 .worktrees/t89-assign，分支 lcoder/t89-assign，端口渲染 9602、主进程 9609、宿主 9610、mock 5093，实现线会话 2f8d83b6。2026-11-08 09:40 监督窗口第一次验收，门禁全绿但发现硬闸未接通。证据是 sessionRoles 只在建常驻调度与流程会话时写入预设 id，普通任务会话没有岗位字段，因此调度层的岗位比较对日常会话永不触发，分配只影响显示。已拍板语义为严格岗位加实施兑底，并要求会话有效岗位按三级优先推导，先认领任务上的岗位，再建会话时人选的岗位，最后从预设反推，另补五例单测并重写 PRD 风险段。工作树保持不动，等第二次回报再收口。"
     - id: T-87
       title: 一键冒烟脚本 smoke.cmd（CDP 探针式）
       status: done
