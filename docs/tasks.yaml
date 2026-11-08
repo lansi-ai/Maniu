@@ -966,6 +966,17 @@ tracks:
       dep: [T-86]
       inferred: false
       note: "B 级文档修正，来源是 T-86 审计的必修前三条，用户 2026-11-08 拍板先做这三条纯文档。范围三块。一、深链口径，docs/desktop-release.md 第 59 至 60 行与第 248 行与第 307 行三处把 lcoder 深链写成已支持，要改成安装包注册方案但应用层未路由，唯一被解析的仍是 dsh://open，中文配对同步。二、看板，docs/active-context.md 第 9 行的工具数与第 37 至 47 行的七条风险已与代码相反，要按当前事实重写，无证据的直接删除，中文配对同步。三、数字收敛，docs/prd-and-design.md 第 55 行与第 79 行的工具数不再逐个数，改成以 kernel 的 surface 角色表为准，并加一句说明本文是 MVP-0 基线、后续能力见台账与 desktop-release，packages/lcoder/kernel/src/plugin.ts 第 7 行注释同步改成指向同一处。实际数字是十七个模型工具与九条人机命令。禁止改行为，只改文字与注释。验收为 test:docs 二十一项全过、配对重录、动了源码注释则补跑 typecheck 与 oxlint，并给出退出码与数字。禁止提交 git，由监督窗口统一提交。2026-11-08 01:25 监督窗口派工，实现线会话 6e1459a6，在主检出只改 docs/desktop-release 与 docs/active-context 与 docs/prd-and-design 三对中英文件，加 kernel 的 plugin.ts 第 7 行注释。不动逻辑，改了注释要补跑 typecheck 与 oxlint。2026-11-08 01:50 监督窗口核验并收口。三块都落地，且比审计时点多修两处。深链共改五处，除审计列的三处外，还揪出「两条路径汇入同一个处理器、open-url 会缓存重放」这句与事实相反的话，并新增一行单列应用侧 lcoder 路由属后续工作，把现在能用与将来要做分开。看板第 9 行不再点数，风险段十一条合并重写为九条事实句，删掉的是与代码相反的推测项。数字方面 PRD 第 0 节加 MVP-0 基线免责句，第 55 与 79 行不再逐个数，改为以 kernel 的 surface 角色表为准，四条永不进模型工具面的红线保留，plugin.ts 第 7 行注释同步指向同一处。监督窗口复跑门禁为 test:docs 二十一项全过退出零、typecheck 五项全过退出零、oxlint 单文件零错零警。已入库。"
+    - id: T-89
+      title: 岗位分配数据面（roles.yaml、Task.role、/task_assign、调度硬闸）
+      status: doing
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-08'
+      date: '2026-11-08'
+      dep: [T-86]
+      inferred: false
+      note: "A 级（新持久化格式 + 新内置角色 + 新写入口 + 打通已有调度硬闸）。用户 2026-11-08 提出研发经理角色与岗位分配，需求与任务拆完后由经理给每个任务派岗位，例如 .NET 工程师与 Vue 工程师与 Python 工程师与安卓工程师，岗位由经理自定，项目迭代可新增。已拍板四条，岗位为轻量定义并继承内置角色天花板，分配由人机命令写，分配是硬约束，研发经理作为第十个内置角色。调研结论三点。一、RoleId 与 ROLE_TOOLS 写死在 surface.ts，现为九个。二、调度层早已有岗位不匹配否决，位置在 scheduling.ts 约一百八十二行，但因 Task 没有 role 字段从不触发，这是本任务能大幅省工的关键。三、.spec/agents.yaml 明示不承担角色名册，不得往那里扩。范围七项，roles.yaml 与 schema、Task.role、人机命令 /task_assign、role 透传到调度并补单测、manager 角色与预设、仅 manager 可见的 role_draft 工具、任务卡与详情显示岗位。文档要做双源同步，PROJECT-RULES 目录表加 roles.yaml，prd 写岗位与分配与经理三者关系，中英配对重录。工作树 .worktrees/t89-assign，分支 lcoder/t89-assign，端口渲染 9602、主进程 9609、宿主 9610、mock 5093，实现线会话 2f8d83b6。"
     - id: T-87
       title: 一键冒烟脚本 smoke.cmd（CDP 探针式）
       status: done
