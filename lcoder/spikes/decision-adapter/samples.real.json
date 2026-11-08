@@ -1,0 +1,719 @@
+{
+  "description": "真实任务弱标签样本。来源 docs/tasks.yaml，逐条 title/type/face/module 原样抄录，summary 取 note 首句前 160 字。expectedRole 是人工弱标签，不是事实。",
+  "count": 40,
+  "samples": [
+    {
+      "id": "T-49",
+      "title": "立项分析按钮幂等——首次发咒语，此后只开浮层",
+      "summary": "B 级（一个组件入口、一个纯判定与新 spec，不改契约与文件格式）",
+      "type": "缺陷",
+      "face": "用户端",
+      "module": "workspace",
+      "dep": [
+        "T-23"
+      ],
+      "expectedRole": "dev",
+      "labelRationale": "组件入口加纯判定修复，改产品代码；名册四个岗位都不对应 React/TS",
+      "labelStrength": "weak",
+      "source": {
+        "file": "docs/tasks.yaml",
+        "line": 581
+      }
+    },
+    {
+      "id": "T-50",
+      "title": "任务依赖与关联标记——depends_on 进 schema，写盘前查存在与环",
+      "summary": "A 级（产品数据契约变更）",
+      "type": "开发",
+      "face": "用户端",
+      "module": "workspace",
+      "dep": [
+        "T-25"
+      ],
+      "expectedRole": "dev",
+      "labelRationale": "schema 与读写路径实现；名册无后端岗位",
+      "labelStrength": "weak",
+      "source": {
+        "file": "docs/tasks.yaml",
+        "line": 536
+      }
+    },
+    {
+      "id": "T-51",
+      "title": "三层判定与执行——等依赖按住、无依赖入队、无匹配才新开",
+      "summary": "B 级；依赖 T-50 的字段与 T-53 的判定结果",
+      "type": "开发",
+      "face": "用户端",
+      "module": "workspace",
+      "dep": [
+        "T-50"
+      ],
+      "expectedRole": "dev",
+      "labelRationale": "调度判定接到外壳执行，改产品代码",
+      "labelStrength": "weak",
+      "source": {
+        "file": "docs/tasks.yaml",
+        "line": 547
+      }
+    },
+    {
+      "id": "T-52",
+      "title": "排队与依赖的可见性——卡片状态、顶栏队列计数与详情明细",
+      "summary": "B 级；显示层",
+      "type": "开发",
+      "face": "用户端",
+      "module": "workspace",
+      "dep": [
+        "T-51"
+      ],
+      "expectedRole": "dev",
+      "labelRationale": "队列可见性属于界面实现；名册的 vue 岗位是 Vue 栈，不能套到 React 外壳",
+      "labelStrength": "weak",
+      "source": {
+        "file": "docs/tasks.yaml",
+        "line": 558
+      }
+    },
+    {
+      "id": "T-53",
+      "title": "调度判定与思考过程——信号打分、候选比较、决策落盘并在界面可见",
+      "summary": "B 级；T-51 的判定内核",
+      "type": "开发",
+      "face": "用户端",
+      "module": "workspace",
+      "dep": [
+        "T-50"
+      ],
+      "expectedRole": "dev",
+      "labelRationale": "调度内核与界面实现",
+      "labelStrength": "weak",
+      "source": {
+        "file": "docs/tasks.yaml",
+        "line": 569
+      }
+    },
+    {
+      "id": "T-54",
+      "title": "空态栏两档入口——全新项目与已有资料，共用一条会话的幂等发送",
+      "summary": "B 级（一处空态栏、两个按钮与词典，复用既有两条咒语生成器与同一条会话判定）",
+      "type": "开发",
+      "face": "用户端",
+      "module": "workspace",
+      "dep": [
+        "T-49"
+      ],
+      "expectedRole": "dev",
+      "labelRationale": "空态栏两个入口的界面实现",
+      "labelStrength": "weak",
+      "source": {
+        "file": "docs/tasks.yaml",
+        "line": 593
+      }
+    },
+    {
+      "id": "T-55",
+      "title": "worktree 作为调度硬闸——跨工作副本不许复用或入队",
+      "summary": "2026-11-06 收口",
+      "type": "开发",
+      "face": "用户端",
+      "module": "workspace",
+      "dep": [
+        "T-53"
+      ],
+      "expectedRole": "dev",
+      "labelRationale": "调度硬闸代码实现",
+      "labelStrength": "weak",
+      "source": {
+        "file": "docs/tasks.yaml",
+        "line": 604
+      }
+    },
+    {
+      "id": "T-56",
+      "title": "流程引擎——按任务集合、状态、门禁与策略产出下一动作与理由",
+      "summary": "2026-11-06 收口",
+      "type": "开发",
+      "face": "用户端",
+      "module": "workspace",
+      "dep": [
+        "T-50",
+        "T-53"
+      ],
+      "expectedRole": "dev",
+      "labelRationale": "流程引擎纯函数与事实装配",
+      "labelStrength": "weak",
+      "source": {
+        "file": "docs/tasks.yaml",
+        "line": 615
+      }
+    },
+    {
+      "id": "T-57",
+      "title": "自动化策略——按动作细粒度开关加停止条件，缺省全手动",
+      "summary": "2026-11-06 收口",
+      "type": "开发",
+      "face": "用户端",
+      "module": "workspace",
+      "dep": [
+        "T-56"
+      ],
+      "expectedRole": "dev",
+      "labelRationale": "新增产品数据 schema 并接读取；architect 没有 file_edit，落地只能给实施",
+      "labelStrength": "weak",
+      "source": {
+        "file": "docs/tasks.yaml",
+        "line": 626
+      }
+    },
+    {
+      "id": "T-58",
+      "title": "AI 自签与补偿闸——策略允许时可自签，不可逆项永远要人签",
+      "summary": "2026-11-06 收口",
+      "type": "开发",
+      "face": "用户端",
+      "module": "workspace",
+      "dep": [
+        "T-57"
+      ],
+      "expectedRole": "dev",
+      "labelRationale": "自签闸与状态机实现，附文档同步",
+      "labelStrength": "weak",
+      "source": {
+        "file": "docs/tasks.yaml",
+        "line": 637
+      }
+    },
+    {
+      "id": "T-59",
+      "title": "开工入口与流程面板——一句话开工、下一步与挡住原因、动作流水",
+      "summary": "2026-11-06 收口",
+      "type": "开发",
+      "face": "用户端",
+      "module": "workspace",
+      "dep": [
+        "T-56",
+        "T-57"
+      ],
+      "expectedRole": "dev",
+      "labelRationale": "流程面板与两条人机命令实现",
+      "labelStrength": "weak",
+      "source": {
+        "file": "docs/tasks.yaml",
+        "line": 648
+      }
+    },
+    {
+      "id": "T-60",
+      "title": "两个常驻调度会话与页面入口——单例会话、一键打开、失效重建",
+      "summary": "2026-11-06 收口",
+      "type": "开发",
+      "face": "用户端",
+      "module": "workspace",
+      "dep": [
+        "T-51",
+        "T-56"
+      ],
+      "expectedRole": "dev",
+      "labelRationale": "两个常驻 preset 与外壳入口实现",
+      "labelStrength": "weak",
+      "source": {
+        "file": "docs/tasks.yaml",
+        "line": 660
+      }
+    },
+    {
+      "id": "T-61",
+      "title": "调度会话的长上下文自动压缩与可见性——按模型上下文容量取阈值",
+      "summary": "2026-11-06 收口",
+      "type": "开发",
+      "face": "用户端",
+      "module": "workspace",
+      "dep": [
+        "T-60"
+      ],
+      "expectedRole": "dev",
+      "labelRationale": "压缩装配与可见性实现",
+      "labelStrength": "weak",
+      "source": {
+        "file": "docs/tasks.yaml",
+        "line": 671
+      }
+    },
+    {
+      "id": "T-62",
+      "title": "立项咒语改写为两档模板——全新项目与已有资料共用一套纪律",
+      "summary": "B 级；用户 2026-11-06 提供了一份《LCoder 空项目直接启动提示词》并要求改写成两档模板",
+      "type": "变更",
+      "face": "用户端",
+      "module": "workspace",
+      "dep": [
+        "T-57"
+      ],
+      "expectedRole": "dev",
+      "labelRationale": "立项咒语模板改写并补测；仍是源码文件改动",
+      "labelStrength": "weak",
+      "source": {
+        "file": "docs/tasks.yaml",
+        "line": 683
+      }
+    },
+    {
+      "id": "T-63",
+      "title": "提问改为弹出选择框——给选项而不是让人打字",
+      "summary": "B 级；用户 2026-11-06 要求「给用户选择的时候需要弹出选择框，而不是让用户自己输入」",
+      "type": "变更",
+      "face": "用户端",
+      "module": "workspace",
+      "dep": [
+        "T-62"
+      ],
+      "expectedRole": "dev",
+      "labelRationale": "装配加 ask-user 与提问口径",
+      "labelStrength": "weak",
+      "source": {
+        "file": "docs/tasks.yaml",
+        "line": 694
+      }
+    },
+    {
+      "id": "T-64",
+      "title": "应用图标换成牛头标，托盘用裁头版保证小尺寸可读",
+      "summary": "C 级（美术替换，不改行为）",
+      "type": "变更",
+      "face": "用户端",
+      "module": "workspace",
+      "dep": [
+        "T-39"
+      ],
+      "expectedRole": "dev",
+      "labelRationale": "图标资产替换与外壳标替换",
+      "labelStrength": "weak",
+      "source": {
+        "file": "docs/tasks.yaml",
+        "line": 705
+      }
+    },
+    {
+      "id": "T-65",
+      "title": "首屏登录整窗默认关掉——直接进工作台，缺模型由外壳提示",
+      "summary": "C 级",
+      "type": "缺陷",
+      "face": "用户端",
+      "module": "workspace",
+      "dep": [
+        "T-34"
+      ],
+      "expectedRole": "dev",
+      "labelRationale": "主进程首屏开关实现",
+      "labelStrength": "weak",
+      "source": {
+        "file": "docs/tasks.yaml",
+        "line": 716
+      }
+    },
+    {
+      "id": "T-66",
+      "title": "会话浮层加模型选择——紧凑 chip 与分组面板，切换同时作用当前会话与全局默认",
+      "summary": "2026-11-06 收口",
+      "type": "开发",
+      "face": "用户端",
+      "module": "workspace",
+      "dep": [],
+      "expectedRole": "dev",
+      "labelRationale": "模型选择浮层实现",
+      "labelStrength": "weak",
+      "source": {
+        "file": "docs/tasks.yaml",
+        "line": 727
+      }
+    },
+    {
+      "id": "T-67",
+      "title": "会话浮层加图片与文件上传——缩略图与回执，失败如实报且不清草稿",
+      "summary": "2026-11-06 收口",
+      "type": "开发",
+      "face": "用户端",
+      "module": "workspace",
+      "dep": [],
+      "expectedRole": "dev",
+      "labelRationale": "附件上传与 remote 注入实现",
+      "labelStrength": "weak",
+      "source": {
+        "file": "docs/tasks.yaml",
+        "line": 738
+      }
+    },
+    {
+      "id": "T-68",
+      "title": "上游同步体检脚本——拉取、差异摘要与接触面碰撞",
+      "summary": "C 级",
+      "type": "流程",
+      "face": "工程",
+      "module": "workspace",
+      "dep": [
+        "T-19"
+      ],
+      "expectedRole": "ops",
+      "labelRationale": "type 为流程：上游体检脚本属于运维工具",
+      "labelStrength": "weak",
+      "source": {
+        "file": "docs/tasks.yaml",
+        "line": 749
+      }
+    },
+    {
+      "id": "T-69",
+      "title": "按层重建脚本——只重出改过的那一层，不连上游全量构建",
+      "summary": "C 级",
+      "type": "流程",
+      "face": "工程",
+      "module": "workspace",
+      "dep": [
+        "T-68"
+      ],
+      "expectedRole": "ops",
+      "labelRationale": "type 为流程：按层重建脚本属于运维工具",
+      "labelStrength": "weak",
+      "source": {
+        "file": "docs/tasks.yaml",
+        "line": 760
+      }
+    },
+    {
+      "id": "T-70",
+      "title": "对话输出改为流式、贴底自动跟随、滚动条平时隐形",
+      "summary": "B 级",
+      "type": "缺陷",
+      "face": "用户端",
+      "module": "workspace",
+      "dep": [
+        "T-33"
+      ],
+      "expectedRole": "dev",
+      "labelRationale": "流式渲染与滚动缺陷修复",
+      "labelStrength": "weak",
+      "source": {
+        "file": "docs/tasks.yaml",
+        "line": 771
+      }
+    },
+    {
+      "id": "T-71",
+      "title": "提问与审批遮罩对齐标题区实际高度——去掉写死的 56px 偏移",
+      "summary": "B 级",
+      "type": "缺陷",
+      "face": "用户端",
+      "module": "workspace",
+      "dep": [
+        "T-66"
+      ],
+      "expectedRole": "dev",
+      "labelRationale": "遮罩几何缺陷修复",
+      "labelStrength": "weak",
+      "source": {
+        "file": "docs/tasks.yaml",
+        "line": 782
+      }
+    },
+    {
+      "id": "T-72",
+      "title": "立项咒语不进对话正文——外壳自己发的内容不再画成用户气泡",
+      "summary": "B 级",
+      "type": "缺陷",
+      "face": "用户端",
+      "module": "workspace",
+      "dep": [
+        "T-71"
+      ],
+      "expectedRole": "dev",
+      "labelRationale": "内置咒语不画成用户气泡的修复",
+      "labelStrength": "weak",
+      "source": {
+        "file": "docs/tasks.yaml",
+        "line": 793
+      }
+    },
+    {
+      "id": "T-73",
+      "title": "任务详情页三处裁剪——去掉角色选择与调度思考过程，契约提示只在有契约时出现",
+      "summary": "B 级（用户端三处裁剪）",
+      "type": "开发",
+      "face": "用户端",
+      "module": "workspace",
+      "dep": [
+        "T-25"
+      ],
+      "expectedRole": "dev",
+      "labelRationale": "任务详情三处裁剪实现",
+      "labelStrength": "weak",
+      "source": {
+        "file": "docs/tasks.yaml",
+        "line": 804
+      }
+    },
+    {
+      "id": "T-74",
+      "title": "立项分析结果页与重新开始——结果可回看，重开走新会话并先列已有产物",
+      "summary": "B 级（用户端新增结果页与重开流程，不改数据面与状态机）",
+      "type": "开发",
+      "face": "用户端",
+      "module": "workspace",
+      "dep": [
+        "T-72"
+      ],
+      "expectedRole": "dev",
+      "labelRationale": "结果页与重新开始流程实现",
+      "labelStrength": "weak",
+      "source": {
+        "file": "docs/tasks.yaml",
+        "line": 815
+      }
+    },
+    {
+      "id": "T-75",
+      "title": "云端账号与免费模型网关——设计包与契约（独立仓 LCoder-cloud）",
+      "summary": "A 级（新架构 + 外部服务 + 账号与额度契约）",
+      "type": "开发",
+      "face": "工程",
+      "module": "workspace",
+      "dep": [],
+      "expectedRole": "architect",
+      "labelRationale": "纯设计包，产出 ADR/OpenAPI/DDL，不改业务代码",
+      "labelStrength": "weak",
+      "source": {
+        "file": "docs/tasks.yaml",
+        "line": 826
+      }
+    },
+    {
+      "id": "T-76",
+      "title": "桌面登录与匿名门禁——接通云端账号、令牌刷新与立项后阻断",
+      "summary": "A 级（新增账号接入与全局门禁，不改上游）",
+      "type": "开发",
+      "face": "用户端",
+      "module": "workspace",
+      "dep": [
+        "T-75"
+      ],
+      "expectedRole": "dev",
+      "labelRationale": "登录门禁与令牌刷新实现",
+      "labelStrength": "weak",
+      "source": {
+        "file": "docs/tasks.yaml",
+        "line": 837
+      }
+    },
+    {
+      "id": "T-77",
+      "title": "桌面品牌身份、自动更新与 macOS 支持——设计包与契约",
+      "summary": "A 级",
+      "type": "开发",
+      "face": "用户端",
+      "module": "workspace",
+      "dep": [
+        "T-76"
+      ],
+      "expectedRole": "architect",
+      "labelRationale": "纯设计包，产出身份与发布契约、平台矩阵",
+      "labelStrength": "weak",
+      "source": {
+        "file": "docs/tasks.yaml",
+        "line": 848
+      }
+    },
+    {
+      "id": "T-78",
+      "title": "LCoder 身份与更新源接入——品牌、appId、协议与 COS feed",
+      "summary": "A 级",
+      "type": "开发",
+      "face": "用户端",
+      "module": "workspace",
+      "dep": [
+        "T-77"
+      ],
+      "expectedRole": "dev",
+      "labelRationale": "身份与更新源实现",
+      "labelStrength": "weak",
+      "source": {
+        "file": "docs/tasks.yaml",
+        "line": 859
+      }
+    },
+    {
+      "id": "T-79",
+      "title": "LCoder 更新界面——启动自动检查与设置页手动检查",
+      "summary": "B 级",
+      "type": "开发",
+      "face": "用户端",
+      "module": "workspace",
+      "dep": [
+        "T-78"
+      ],
+      "expectedRole": "dev",
+      "labelRationale": "更新界面实现",
+      "labelStrength": "weak",
+      "source": {
+        "file": "docs/tasks.yaml",
+        "line": 870
+      }
+    },
+    {
+      "id": "T-80",
+      "title": "macOS 适配与 unsigned 打包——arm64 与 x64",
+      "summary": "A 级",
+      "type": "开发",
+      "face": "用户端",
+      "module": "workspace",
+      "dep": [
+        "T-78"
+      ],
+      "expectedRole": "dev",
+      "labelRationale": "macOS 适配与打包实现",
+      "labelStrength": "weak",
+      "source": {
+        "file": "docs/tasks.yaml",
+        "line": 881
+      }
+    },
+    {
+      "id": "T-81",
+      "title": "COS 与 CDN 发布回滚流水线",
+      "summary": "A 级",
+      "type": "流程",
+      "face": "工程",
+      "module": "workspace",
+      "dep": [
+        "T-78"
+      ],
+      "expectedRole": "ops",
+      "labelRationale": "type 为流程：COS/CDN 发布与回滚流水线",
+      "labelStrength": "weak",
+      "source": {
+        "file": "docs/tasks.yaml",
+        "line": 892
+      }
+    },
+    {
+      "id": "T-82",
+      "title": "Windows 与 macOS 正式签名与公证",
+      "summary": "A 级，证书阻塞",
+      "type": "流程",
+      "face": "工程",
+      "module": "workspace",
+      "dep": [
+        "T-80",
+        "T-81"
+      ],
+      "expectedRole": "ops",
+      "labelRationale": "type 为流程：签名与公证",
+      "labelStrength": "weak",
+      "source": {
+        "file": "docs/tasks.yaml",
+        "line": 903
+      }
+    },
+    {
+      "id": "T-83",
+      "title": "个人中心——账号信息、积分余额与可用 token 预估",
+      "summary": "B 级，跨仓依赖云端 A10 的预估字段",
+      "type": "开发",
+      "face": "用户端",
+      "module": "workspace",
+      "dep": [
+        "T-76",
+        "A10"
+      ],
+      "expectedRole": "dev",
+      "labelRationale": "个人中心页面与云端读取实现",
+      "labelStrength": "weak",
+      "source": {
+        "file": "docs/tasks.yaml",
+        "line": 914
+      }
+    },
+    {
+      "id": "T-84",
+      "title": "根 README 改写为 LCoder 身份并同步中文配对",
+      "summary": "B 级文档",
+      "type": "文档",
+      "face": "用户端",
+      "module": "workspace",
+      "dep": [],
+      "expectedRole": "dev",
+      "labelRationale": "写 README；名册没有文档岗位，有 file_edit 的只有实施与运维",
+      "labelStrength": "weak",
+      "source": {
+        "file": "docs/tasks.yaml",
+        "line": 925
+      }
+    },
+    {
+      "id": "T-85",
+      "title": "架构与功能解析 HTML 报告（单文件离线）",
+      "summary": "B 级文档产出",
+      "type": "文档",
+      "face": "用户端",
+      "module": "workspace",
+      "dep": [],
+      "expectedRole": "dev",
+      "labelRationale": "写单文件 HTML 报告；同上，属文件写入",
+      "labelStrength": "weak",
+      "source": {
+        "file": "docs/tasks.yaml",
+        "line": 936
+      }
+    },
+    {
+      "id": "T-86",
+      "title": "预期目标与台账漂移审计报告",
+      "summary": "B 级审计",
+      "type": "文档",
+      "face": "工程",
+      "module": "workspace",
+      "dep": [
+        "T-84"
+      ],
+      "expectedRole": "review",
+      "labelRationale": "只读审计，按章程不改代码与台账",
+      "labelStrength": "weak",
+      "source": {
+        "file": "docs/tasks.yaml",
+        "line": 947
+      }
+    },
+    {
+      "id": "T-87",
+      "title": "一键冒烟脚本 smoke.cmd（CDP 探针式）",
+      "summary": "B 级工具",
+      "type": "开发",
+      "face": "工程",
+      "module": "workspace",
+      "dep": [],
+      "expectedRole": "dev",
+      "labelRationale": "type 为开发：冒烟脚本是产品开发工具，需 file_edit 与跑命令",
+      "labelStrength": "weak",
+      "source": {
+        "file": "docs/tasks.yaml",
+        "line": 969
+      }
+    },
+    {
+      "id": "T-88",
+      "title": "修正三条文档漂移（深链口径、看板风险段、数字收敛）",
+      "summary": "B 级文档修正，来源是 T-86 审计的必修前三条，用户 2026-11-08 拍板先做这三条纯文档",
+      "type": "文档",
+      "face": "工程",
+      "module": "workspace",
+      "dep": [
+        "T-86"
+      ],
+      "expectedRole": "dev",
+      "labelRationale": "文档修正，实际写文件",
+      "labelStrength": "weak",
+      "source": {
+        "file": "docs/tasks.yaml",
+        "line": 958
+      }
+    }
+  ]
+}

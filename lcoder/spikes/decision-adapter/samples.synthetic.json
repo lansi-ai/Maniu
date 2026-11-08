@@ -1,0 +1,226 @@
+{
+  "description": "合成样本：只为覆盖 .spec/roles.yaml 的四个岗位与内置角色，不是真实任务，禁止与真实样本混算准确率。字段按适配器接口草案的完整输入填（任务标题、描述、契约摘要、规则、文件面、依赖、名册），用来验证接口形状与打分路径，不证明真实准确率。",
+  "count": 20,
+  "samples": [
+    {
+      "id": "S-01",
+      "title": "订单结算接口新增折扣计算",
+      "description": "在 C# 结算服务里新增折扣计算接口，按会员等级与满减规则返回应付金额。",
+      "contract": "输出 DiscountQuote；输入订单号与会员号；失败返回可重试错误。",
+      "rules": ["R-02 接口改动先改契约", "R-07 金额用 decimal"],
+      "paths": ["src/Settlement/DiscountService.cs", "src/Settlement/DiscountQuote.cs"],
+      "dependsOn": [],
+      "expectedRole": "dotnet-engineer",
+      "labelRationale": "文件面与技术词都是 C#/.NET 结算服务，四个岗位中只有 .NET 工程师匹配"
+    },
+    {
+      "id": "S-02",
+      "title": "WPF 客户端补打印预览窗口",
+      "description": "给桌面端 WPF 客户端加打印预览，使用 XAML 布局与分页打印。",
+      "contract": "预览窗口可缩放、可翻页；取消不落打印任务。",
+      "rules": ["R-11 UI 文案走资源文件"],
+      "paths": ["src/Client/Views/PrintPreview.xaml", "src/Client/Views/PrintPreview.xaml.cs"],
+      "dependsOn": [],
+      "expectedRole": "dotnet-engineer",
+      "labelRationale": "XAML/WPF 属于 .NET 桌面栈"
+    },
+    {
+      "id": "S-03",
+      "title": "库存服务 gRPC 接口迁移",
+      "description": "把库存查询从 REST 迁到 .NET gRPC 服务，保持 proto 兼容。",
+      "contract": "proto 只增字段不删；旧 REST 保留一个迭代。",
+      "rules": ["R-04 兼容优先"],
+      "paths": ["src/Inventory/Grpc/InventoryService.cs", "proto/inventory.proto"],
+      "dependsOn": ["S-01"],
+      "expectedRole": "dotnet-engineer",
+      "labelRationale": "gRPC 服务实现语言是 C#"
+    },
+    {
+      "id": "S-04",
+      "title": "对账报表导出批处理（C#）",
+      "description": "用 C# 控制台批处理把日终对账结果导出 CSV 并上传到内部存储。",
+      "contract": "单次导出可重入；失败保留半成品并给出错误码。",
+      "rules": ["R-09 批处理必须有重入保护"],
+      "paths": ["src/Jobs/ReconcileExport/Program.cs"],
+      "dependsOn": [],
+      "expectedRole": "dotnet-engineer",
+      "labelRationale": "C# 控制台批处理，仍属 .NET 工程师"
+    },
+    {
+      "id": "S-05",
+      "title": "订单列表页筛选与分页",
+      "description": "Vue3 订单列表加状态筛选、日期区间与分页，组件复用现有表格。",
+      "contract": "筛选条件进 URL query；翻页不丢筛选。",
+      "rules": ["R-15 列表改动补交互用例"],
+      "paths": ["src/views/order/OrderList.vue", "src/components/OrderTable.vue"],
+      "dependsOn": [],
+      "expectedRole": "vue-engineer",
+      "labelRationale": "Vue3 单文件组件与前端页面"
+    },
+    {
+      "id": "S-06",
+      "title": "权限配置弹窗重做",
+      "description": "把角色授权弹窗改成树形勾选，Vue 组件内维护半选状态。",
+      "contract": "保存前提示未保存改动；取消恢复原值。",
+      "rules": ["R-18 弹窗必须可键盘操作"],
+      "paths": ["src/components/PermissionDialog.vue"],
+      "dependsOn": [],
+      "expectedRole": "vue-engineer",
+      "labelRationale": "Vue 组件交互实现"
+    },
+    {
+      "id": "S-07",
+      "title": "后台主题与栅格布局调整",
+      "description": "按设计稿调整 Vue 后台的深色主题变量与栅格间距。",
+      "contract": "深浅两套主题都通过对比度检查。",
+      "rules": ["R-20 颜色变量集中管理"],
+      "paths": ["src/styles/theme.scss", "src/layout/Grid.vue"],
+      "dependsOn": [],
+      "expectedRole": "vue-engineer",
+      "labelRationale": "前端 Vue 布局与样式"
+    },
+    {
+      "id": "S-08",
+      "title": "Nuxt 商城首页改版",
+      "description": "用 Nuxt 重做商城首页区块，服务端渲染首屏。",
+      "contract": "首屏 LCP 不超过两秒；无 JS 时仍可读商品列表。",
+      "rules": ["R-22 首屏性能预算"],
+      "paths": ["pages/index.vue", "components/HomeBanner.vue"],
+      "dependsOn": [],
+      "expectedRole": "vue-engineer",
+      "labelRationale": "Nuxt 是 Vue 生态"
+    },
+    {
+      "id": "S-09",
+      "title": "供应商对账脚本",
+      "description": "写 Python 脚本按月拉取供应商账单、比对差异并输出异常清单。",
+      "contract": "脚本可重复执行；异常清单固定列。",
+      "rules": ["R-25 数据脚本不得改生产表"],
+      "paths": ["scripts/reconcile_vendor.py"],
+      "dependsOn": [],
+      "expectedRole": "python-engineer",
+      "labelRationale": "Python 数据处理脚本"
+    },
+    {
+      "id": "S-10",
+      "title": "埋点数据清洗 ETL",
+      "description": "用 Python 与 pandas 清洗埋点日志，去重后写入分析库。",
+      "contract": "脏数据比例输出到报告；失败不提交分区。",
+      "rules": ["R-26 分区写入先落临时表"],
+      "paths": ["etl/clean_events.py"],
+      "dependsOn": ["S-09"],
+      "expectedRole": "python-engineer",
+      "labelRationale": "Python/pandas 数据管道"
+    },
+    {
+      "id": "S-11",
+      "title": "内部 Flask 查询接口",
+      "description": "用 Flask 暴露内部查询接口，带分页与超时。",
+      "contract": "错误码统一；只读账号授权。",
+      "rules": ["R-28 内部接口也要鉴权"],
+      "paths": ["service/api/query.py"],
+      "dependsOn": [],
+      "expectedRole": "python-engineer",
+      "labelRationale": "Python 服务端接口"
+    },
+    {
+      "id": "S-12",
+      "title": "公开价格采集爬虫",
+      "description": "写 Python 爬虫采集公开报价，遵守 robots 与限速。",
+      "contract": "同域请求不超过每秒一次；失败重试三次。",
+      "rules": ["R-30 爬虫必须限速"],
+      "paths": ["crawler/price_spider.py"],
+      "dependsOn": [],
+      "expectedRole": "python-engineer",
+      "labelRationale": "Python 爬虫脚本"
+    },
+    {
+      "id": "S-13",
+      "title": "安卓登录页与短信验证",
+      "description": "用 Kotlin 在安卓客户端实现登录页与短信验证码倒计时。",
+      "contract": "验证码按钮倒计时六十秒；失败不清输入。",
+      "rules": ["R-31 权限申请要写进证据"],
+      "paths": ["app/src/main/java/com/demo/LoginActivity.kt"],
+      "dependsOn": [],
+      "expectedRole": "android-engineer",
+      "labelRationale": "Kotlin/安卓客户端"
+    },
+    {
+      "id": "S-14",
+      "title": "推送通道与 Gradle 配置",
+      "description": "接入安卓推送 SDK，调整 Gradle 变体与混淆规则。",
+      "contract": "三套变体都能构建；推送权限按需申请。",
+      "rules": ["R-33 变体配置集中管理"],
+      "paths": ["app/build.gradle.kts", "app/src/main/AndroidManifest.xml"],
+      "dependsOn": [],
+      "expectedRole": "android-engineer",
+      "labelRationale": "Android 构建配置"
+    },
+    {
+      "id": "S-15",
+      "title": "安卓离线缓存",
+      "description": "安卓客户端加离线缓存与断网提示，使用 Room 存储。",
+      "contract": "断网可读上次数据；恢复联网后合并。",
+      "rules": ["R-35 存储改动补迁移"],
+      "paths": ["app/src/main/java/com/demo/data/CacheStore.kt"],
+      "dependsOn": ["S-13"],
+      "expectedRole": "android-engineer",
+      "labelRationale": "安卓客户端存储"
+    },
+    {
+      "id": "S-16",
+      "title": "Jetpack 导航改造",
+      "description": "把安卓单页导航改成 Jetpack Navigation，补返回栈行为。",
+      "contract": "返回栈符合系统手势；深链可打开指定页。",
+      "rules": ["R-36 深链要有测试"],
+      "paths": ["app/src/main/java/com/demo/nav/AppNavHost.kt"],
+      "dependsOn": [],
+      "expectedRole": "android-engineer",
+      "labelRationale": "Jetpack 导航属于安卓栈"
+    },
+    {
+      "id": "S-17",
+      "title": "支付模块契约与数据库设计",
+      "description": "只出设计包：支付状态机、接口契约、数据库 DDL 与失败码表，不写业务代码。",
+      "contract": "状态机无悬挂态；DDL 可回滚。",
+      "rules": ["R-40 契约经人签后才实施"],
+      "paths": ["docs/design/payment.md", "db/payment.sql"],
+      "dependsOn": [],
+      "expectedRole": "architect",
+      "labelRationale": "纯契约与数据设计，不改代码"
+    },
+    {
+      "id": "S-18",
+      "title": "测试环境发布流水线与回滚",
+      "description": "写部署脚本与流水线：先备份、再迁移、后发布，失败自动回滚。",
+      "contract": "回滚不改数据；发布记录写到证据目录。",
+      "rules": ["R-42 部署由人触发"],
+      "paths": ["deploy/pipeline.yml", "deploy/rollback.sh"],
+      "dependsOn": ["S-17"],
+      "expectedRole": "ops",
+      "labelRationale": "发布、回滚与部署脚本属于运维"
+    },
+    {
+      "id": "S-19",
+      "title": "上线前安全复核",
+      "description": "只读复核认证、授权与日志脱敏，出问题清单，不改代码。",
+      "contract": "每条结论带文件与行号；不写仓库。",
+      "rules": ["R-44 复核只读"],
+      "paths": ["src/auth", "src/log"],
+      "dependsOn": [],
+      "expectedRole": "review",
+      "labelRationale": "只读评审，不给改代码能力"
+    },
+    {
+      "id": "S-20",
+      "title": "下一迭代需求排序与提案",
+      "description": "收拢下一迭代需求，输出优先级提案与取舍理由，等客户拍板。",
+      "contract": "提案含选项、推荐与成本；不实施。",
+      "rules": ["R-46 提案要写放弃项"],
+      "paths": ["docs/proposals/P-02.yaml"],
+      "dependsOn": [],
+      "expectedRole": "pm",
+      "labelRationale": "需求与优先级提案，不落代码"
+    }
+  ]
+}
