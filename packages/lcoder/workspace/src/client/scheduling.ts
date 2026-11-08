@@ -87,7 +87,7 @@ function normalizeRole(raw: string | undefined, roles: readonly SchedulingRole[]
 }
 
 /**
- * 严格岗位、实施兑底。
+ * 严格岗位、实施兜底。
  *
  * 任务侧与会话侧都有可解析的岗位时才判：
  *   - 两侧都是名册岗位：必须同一个岗位；

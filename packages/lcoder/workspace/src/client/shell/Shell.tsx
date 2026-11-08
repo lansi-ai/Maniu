@@ -911,6 +911,17 @@ export function Shell({
   }, [files, activeWorkspaceId, sessionId, reload])
 
   /**
+   * 投影重读后把已打开的详情换成同一任务的新快照：分配岗位、状态推进都在弹窗里
+   * 立即生效，不用关掉重开。任务被删时保留当前快照，不擅自关窗。
+   */
+  useEffect(() => {
+    setDetail((current) => {
+      if (current === null) return current
+      return tasks.find(task => task.id === current.id) ?? current
+    })
+  }, [tasks])
+
+  /**
    * 进项目、换会话或重读投影后求一次流程判定。结果既供顶栏「开工」面板，
    * 也供看板上方那条常驻状态；判定失败只就地说明，不挡任务板。
    */
@@ -1193,7 +1204,8 @@ export function Shell({
 
   /**
    * 把选中任务分配给岗位。分配是调度硬约束，所以只走人机命令：
-   * 浏览器不写 `.spec`，命令回执原样显示，写完重读投影。
+   * 浏览器不写 `.spec`，命令回执原样显示；只有回执成功才重读投影，
+   * 失败时界面保持原样，不把一次拒绝画成已分配。
    */
   const assignSelected = async (): Promise<void> => {
     if (detail === null || sessionId === undefined || assignTask === undefined) return
@@ -1204,8 +1216,9 @@ export function Shell({
     setAssigning(true)
     setAssignResult(null)
     try {
-      setAssignResult(await assignTask(sessionId, detail.id, roleAssignChoice))
-      setReload(value => value + 1)
+      const result = await assignTask(sessionId, detail.id, roleAssignChoice)
+      setAssignResult(result)
+      if (result.ok) setReload(value => value + 1)
     } catch (error: unknown) {
       setAssignResult({ ok: false, text: String(error) })
     } finally {
