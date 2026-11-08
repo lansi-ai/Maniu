@@ -217,4 +217,25 @@ describe('本地岗位建议', () => {
     ]))
     expect(byId(result.candidates, 'vue-engineer').score).toBe(0)
   })
+
+  it('显式 writeRequired=false 时，没有类型声明的只读任务允许只读角色', () => {
+    const result = suggestRole(request({
+      task: { ...TASK, type: '', title: 'OpenAPI 审计报告', allowedPaths: [] },
+      writeRequired: false,
+    }))
+
+    expect(byId(result.candidates, 'api-architect').disqualified).toBeUndefined()
+    expect(result.decision).toBe('suggest')
+    expect(result.recommended?.roleId).toBe('api-architect')
+  })
+
+  it('显式 writeRequired=true 时，只读角色被能力天花板排除', () => {
+    const result = suggestRole(request({
+      task: { ...TASK, type: '', title: 'OpenAPI 审计报告', allowedPaths: [] },
+      writeRequired: true,
+    }))
+
+    expect(byId(result.candidates, 'api-architect').disqualified).toContain('没有 file_edit')
+    expect(result.decision).toBe('needs_human')
+  })
 })

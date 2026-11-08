@@ -160,6 +160,7 @@ describe('文件投影', () => {
       session: undefined,
       dependsOn: [],
       paths: [],
+      irreversible: [],
     })
     // 依赖是任务文件里的事实：写了就原样读回，空着就是没有依赖。
     expect(taskTextToRow('T-014.yaml', `${TASK_YAML}
@@ -183,6 +184,13 @@ scope:
     - src/login
     - src/session
 `)?.paths).toEqual(['src/login', 'src/session'])
+    // 不可逆动作是建议层转人工的依据；没写就是空集。
+    expect(taskTextToRow('T-014.yaml', `${TASK_YAML}
+scope:
+  irreversible:
+    - settlement_formula
+`)?.irreversible).toEqual(['settlement_formula'])
+    expect(taskTextToRow('T-014.yaml', TASK_YAML)?.irreversible).toEqual([])
   })
 
   it('rulesTextToRows 跳过缺 id / text 的条目，不替规格库补事实', () => {

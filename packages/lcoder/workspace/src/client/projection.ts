@@ -11,6 +11,7 @@ import { parse as parseYaml } from 'yaml'
 import type {
   WorkspaceDirectoryListing, WorkspaceFileText,
 } from '@deepseek-ai/dsh-api-workspace-files/types'
+import type { RoleSignals } from '@lcoder/kernel/src/schema/spec.ts'
 import type { ShellEnvironment, ShellProjectInfo } from './shell/shell-data.ts'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
@@ -35,6 +36,8 @@ export interface TaskRow {
   readonly role?: string
   /** 任务声明的允许路径（`scope.allowed_paths`）；调度按它判落点重叠。 */
   readonly paths: readonly string[]
+  /** 任务声明的不可逆动作（`scope.irreversible`）；非空时本地建议恒转人工。 */
+  readonly irreversible: readonly string[]
 }
 
 /**
@@ -48,6 +51,8 @@ export interface JobRoleRow {
   readonly name: string
   readonly inherits: string
   readonly persona?: string
+  /** 岗位的可机读信号；只供建议层排序，缺省表示名册没声明。 */
+  readonly signals?: RoleSignals
 }
 
 /** 中栏一条规格条目。 */
@@ -247,7 +252,21 @@ export function taskTextToRow(fileName: string, text: string): TaskRow | undefin
     ...(role === undefined ? {} : { role }),
     dependsOn: stringArray(fields.depends_on),
     paths: stringArray(scope?.allowed_paths),
+    irreversible: stringArray(scope?.irreversible),
   }
+}
+
+/** 岗位信号：只收三组字符串，读不懂返回 undefined；建议层自己按缺省处理空组。 */
+function roleSignalsOf(value: unknown): RoleSignals | undefined {
+  const fields = recordOf(value)
+  if (fields === undefined) return undefined
+  const signals: RoleSignals = {
+    strong: stringArray(fields.strong),
+    medium: stringArray(fields.medium),
+    preferredPaths: stringArray(fields.preferredPaths),
+  }
+  const total = signals.strong.length + signals.medium.length + signals.preferredPaths.length
+  return total === 0 ? undefined : signals
 }
 
 /** 字符串数组字段：只收字符串项，其余忽略。 */
@@ -745,7 +764,14 @@ export async function loadRolesRegistry(
     const inherits = asText(fields?.inherits)
     if (id === undefined || name === undefined || inherits === undefined) return []
     const persona = asText(fields?.persona)
-    return [{ id, name, inherits, ...(persona === undefined ? {} : { persona }) }]
+    const signals = roleSignalsOf(fields?.signals)
+    return [{
+      id,
+      name,
+      inherits,
+      ...(persona === undefined ? {} : { persona }),
+      ...(signals === undefined ? {} : { signals }),
+    }]
   })
   return { roles, problems: [] }
 }

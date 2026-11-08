@@ -198,6 +198,31 @@ const TASK_T01 = 'id: T-01\ntitle: 起草中的任务\nstate: drafting\ngrade: B
 const TASK_T02 = 'id: T-02\ntitle: 与 T-01 同方案的任务\nstate: drafting\ngrade: B\nproposal: P-01\n'
 const CONTRACT_T01 = 'id: T-01\nchange:\n  - 加登录限流\nacceptance:\n  - 五次失败锁定十分钟\n'
 
+/** 命中 vue 信号的任务：标题里的强特征与弱语义都算分。 */
+const TASK_VUE = 'id: T-01\ntitle: 修复 vue 页面组件\nstate: drafting\ngrade: B\n'
+/** 同样的标题，但声明了不可逆动作：建议层恒转人工。 */
+const TASK_VUE_IRREVERSIBLE = `${TASK_VUE}scope:\n  irreversible: [settlement_formula]\n`
+/** 没有任何信号命中的任务：建议层回内置 dev 兜底。 */
+const TASK_PLAIN = 'id: T-03\ntitle: 整理佣金规则\nstate: drafting\ngrade: B\n'
+
+/** 两个实施岗位：Vue 有标题信号，.NET 没有；名册第一条决定默认选择。 */
+const ROLES_VUE = `roles:
+  - id: dotnet-engineer
+    name: .NET 工程师
+    inherits: dev
+    signals:
+      strong: [c#, dotnet]
+      medium: []
+      preferredPaths: []
+  - id: vue-engineer
+    name: Vue 工程师
+    inherits: dev
+    signals:
+      strong: [vue]
+      medium: [页面]
+      preferredPaths: [src/views/]
+`
+
 describe('任务详情', () => {
   it('详情里没有角色行，「＋ 新会话」弹窗仍有角色可选', async () => {
     renderShell({ spec: { tasks: { 'T-01.yaml': TASK_T01 } } })
@@ -329,5 +354,57 @@ describe('任务详情', () => {
 
     expect(screen.getByText(zh['shell.queuedIn']).parentElement?.textContent).toContain('第 1 位')
     expect(screen.getByText('调度日志没写成：evidence 目录不可写')).toBeTruthy()
+  })
+})
+
+describe('任务详情的建议岗位卡片', () => {
+  it('命中信号时展示推荐岗位、置信度与命中理由，并写明建议不改分配', async () => {
+    renderShell({ spec: { tasks: { 'T-01.yaml': TASK_VUE }, roles: ROLES_VUE } })
+    await openTask('修复 vue 页面组件')
+
+    expect(await screen.findByText(zh['shell.roleSuggestStatusSuggest'])).toBeTruthy()
+    // 名册芯片与卡片各一处显示名。
+    expect(screen.getAllByText('Vue 工程师').length).toBeGreaterThanOrEqual(2)
+    expect(screen.getByText('置信度 100%')).toBeTruthy()
+    expect(screen.getByText(/强特征「vue」命中标题/)).toBeTruthy()
+    expect(screen.getByText(/弱语义「页面」命中标题/)).toBeTruthy()
+    expect(screen.getByText(zh['shell.roleSuggestNote'])).toBeTruthy()
+    // 产品任务没有类型字段，卡片如实写出「按需要写盘处理」。
+    expect(screen.getByText(zh['shell.roleSuggestHint'])).toBeTruthy()
+  })
+
+  it('点采用只改详情里的岗位选择，不调分配命令也不写回执', async () => {
+    const assignTask = vi.fn(async () => ({ ok: true, text: '已分配' }))
+    renderShell({
+      spec: { tasks: { 'T-01.yaml': TASK_VUE }, roles: ROLES_VUE },
+      assignTask,
+    })
+    await openTask('修复 vue 页面组件')
+
+    const vueChip = screen.getByRole('button', { name: 'Vue 工程师' })
+    expect(vueChip.getAttribute('aria-pressed')).toBe('false')
+
+    fireEvent.click(screen.getByRole('button', { name: zh['shell.roleSuggestAdopt'] }))
+
+    expect(vueChip.getAttribute('aria-pressed')).toBe('true')
+    expect(assignTask).not.toHaveBeenCalled()
+    expect(screen.queryByText('已分配')).toBeNull()
+  })
+
+  it('不可逆任务给「需人工挑选」，没有采用按钮', async () => {
+    renderShell({ spec: { tasks: { 'T-01.yaml': TASK_VUE_IRREVERSIBLE }, roles: ROLES_VUE } })
+    await openTask('修复 vue 页面组件')
+
+    expect(await screen.findByText(zh['shell.roleSuggestStatusNeedsHuman'])).toBeTruthy()
+    expect(screen.queryByRole('button', { name: zh['shell.roleSuggestAdopt'] })).toBeNull()
+  })
+
+  it('没有任何信号命中时给兜底候选，也不提供采用按钮', async () => {
+    renderShell({ spec: { tasks: { 'T-03.yaml': TASK_PLAIN }, roles: ROLES_VUE } })
+    await openTask('整理佣金规则')
+
+    expect(await screen.findByText(zh['shell.roleSuggestStatusFallback'])).toBeTruthy()
+    expect(screen.getByText('置信度 0%')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: zh['shell.roleSuggestAdopt'] })).toBeNull()
   })
 })

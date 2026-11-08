@@ -35,6 +35,8 @@ export interface ShellTask {
   readonly role?: string
   /** 任务声明的允许路径；调度按它判落点重叠。 */
   readonly paths: readonly string[]
+  /** 任务声明的不可逆动作；非空时本地建议只能转人工。 */
+  readonly irreversible: readonly string[]
 }
 
 /** 装配层声明的一个角色（Agent preset）；外壳的新会话按它指名。 */

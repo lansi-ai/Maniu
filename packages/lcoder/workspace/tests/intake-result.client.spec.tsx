@@ -43,6 +43,7 @@ function taskOf(id: string, title: string, proposal?: string): ShellTask {
     evidence: [],
     surface: '读 / 契约',
     paths: [],
+    irreversible: [],
     ...(proposal === undefined ? {} : { proposal }),
   }
 }
