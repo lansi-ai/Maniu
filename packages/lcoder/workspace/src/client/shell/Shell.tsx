@@ -18,10 +18,10 @@ import type { PromptContentPart } from '@deepseek-ai/dsh-api-session-controller/
 // Type-only: pulls the `agentPreset` Session projection value into this program.
 import type {} from '@deepseek-ai/dsh-agent-preset-registry/types'
 import {
-  loadAgentsRegistry, loadLocalSecrets, loadProjectInfo, loadWorkspaceProjection,
+  loadAgentsRegistry, loadLocalSecrets, loadProjectInfo, loadRolesRegistry, loadWorkspaceProjection,
 } from '../projection.ts'
 import type {
-  AgentsRow, ContractRow, ProjectionFilesRemote, ProposalRow, RuleRow, SchedulingGroupRow, TaskRow,
+  AgentsRow, ContractRow, JobRoleRow, ProjectionFilesRemote, ProposalRow, RuleRow, SchedulingGroupRow, TaskRow,
 } from '../projection.ts'
 import { parseFlowStatus } from '../flow-status.ts'
 import type {
@@ -33,7 +33,7 @@ import {
   AGENT_ROLES, liveAgentSession, resolveAgentSession, titleNeedsFix,
 } from '../singleton.ts'
 import type { AgentRole, AgentSessionCandidate } from '../singleton.ts'
-import { decideScheduling } from '../scheduling.ts'
+import { decideScheduling, effectiveSessionRole } from '../scheduling.ts'
 import type { SchedulingDecision, SchedulingSession, SchedulingTask } from '../scheduling.ts'
 import type { ExpertPrompt, ExpertRow } from '../experts.ts'
 import { describeOpenFailure } from '../open-failure.ts'
@@ -76,6 +76,7 @@ import { projectDirectoryPicker } from './project-directory.ts'
 import type {
   ShellContextPressure, ShellMessage, ShellProjectInfo, ShellRole, ShellSignResult, ShellTask, ShellTaskState,
 } from './shell-data.ts'
+import { BUILTIN_ROLE_IDS } from './shell-data.ts'
 import bullMark from '../assets/bull-mark.png'
 import css from './Shell.module.css'
 
@@ -107,6 +108,8 @@ export type ShellProps =
     readonly approveProposal?: (sessionId: SessionId, proposalId: string) => Promise<ShellSignResult>
     /** 派 `/task_bind <编号>` 把任务认给这条会话；认领关系由宿主写盘。 */
     readonly bindTask?: (sessionId: SessionId, taskId: string) => Promise<ShellSignResult>
+    /** 派 `/task_assign <编号> <岗位>` 把任务分配给岗位；分配是调度硬约束，只有人机命令写。 */
+    readonly assignTask?: (sessionId: SessionId, taskId: string, roleId: string) => Promise<ShellSignResult>
     /** 派 `/task_schedule <编号> <JSON>` 把这次判定追加到任务证据目录，供事后审计。 */
     readonly logSchedule?: (sessionId: SessionId, taskId: string, json: string) => Promise<ShellSignResult>
     /** 派 `/flow_status` 求流程判定；返回一行 JSON，由外壳解析展示。 */
@@ -319,6 +322,7 @@ function toShellTask(row: TaskRow): ShellTask {
     surface: SURFACE[state],
     ...(row.session === undefined ? {} : { session: row.session }),
     ...(row.proposal === undefined ? {} : { proposal: row.proposal }),
+    ...(row.role === undefined ? {} : { role: row.role }),
     ...(row.dependsOn.length === 0 ? {} : { dependsOn: row.dependsOn }),
     paths: row.paths,
   }
@@ -343,7 +347,7 @@ function resolveSecrets(info: ShellProjectInfo, secrets: Readonly<Record<string,
  */
 export function Shell({
   t, files, openRepository, sendPrompt, uploadAttachment, readDefaultModel, signContract, advanceContract,
-  approveProposal, bindTask, logSchedule,
+  approveProposal, bindTask, assignTask, logSchedule,
   readFlowStatus, logFlow, bindAgentSession, renameSession, readContextPressure,
   createSession, listRoles, listExperts, readExpert,
   readMessages, subscribeSession, holdSession, checkModels, subscribeModels, readSessionNotice, readSessionFlags, modelSettings,
@@ -450,13 +454,19 @@ export function Shell({
   const attachmentFiles = useRef(new Map<string, File>())
   /** 装配层声明的角色名册；读不到就是空表，新会话走宿主默认角色。 */
   const [roles, setRoles] = useState<readonly ShellRole[]>([])
+  /** `.spec/roles.yaml` 的岗位名册；缺文件是空表，任务上的未知 id 仍照实显示。 */
+  const [jobRoles, setJobRoles] = useState<readonly JobRoleRow[]>([])
+  /** 详情里选中的岗位；打开任务时取当前分配，没有就取名册第一条。 */
+  const [roleAssignChoice, setRoleAssignChoice] = useState<string>('')
+  const [assigning, setAssigning] = useState(false)
+  const [assignResult, setAssignResult] = useState<ShellSignResult | null>(null)
   /** 下一次新开会话要用的角色；null 表示交给宿主默认。 */
   const [roleChoice, setRoleChoice] = useState<string | null>(null)
   /** 建会话与认领进行中：禁用入口，避免连点开出两条会话。 */
   const [claiming, setClaiming] = useState(false)
   /** 只有本客户端物化过的会话才读得到这两位；null 表示读不到，卡片就不画这两个态。 */
   const [taskFlags, setTaskFlags] = useState<{ readonly awaitingFirstTurn: boolean; readonly failed: boolean } | null>(null)
-  /** 本窗口建会话时选的角色；会话行读不到 agentPreset，硬闸只在两侧都知道时生效。 */
+  /** 本窗口建会话时选的角色（preset，或以后的岗位 id）；会话有效岗位在读取时按认领任务优先算出。 */
   const [sessionRoles, setSessionRoles] = useState<Readonly<Record<string, string>>>({})
   /** 每条任务最近一次调度判定；只在本次窗口内留档，落盘由 `/task_schedule` 负责。 */
   const [schedule, setSchedule] = useState<Readonly<Record<string, ShellSchedule>>>({})
@@ -570,8 +580,21 @@ export function Shell({
     if (typeof summary === 'string' && summary !== '') return summary
     const projected = sessionProjections[id]?.values.agentPreset
     if (typeof projected === 'string' && projected !== '') return projected
-    return sessionRoles[String(id)]
+    // 本窗口记下的可能是岗位 id（未来的名册选择），只有 preset 形态才拿来当 preset。
+    const named = sessionRoles[String(id)]
+    return named !== undefined && (named === 'lcoder' || named.startsWith('lcoder-')) ? named : undefined
   }
+
+  /**
+   * 一条会话的有效岗位：已认领任务上的 role 优先，其次建会话时选的岗位，
+   * 最后从 preset 反推内置角色。认领任务岗位不一致时返回下一档，不把会话归给任一条。
+   */
+  const sessionRoleOf = (id: SessionId): string | undefined =>
+    effectiveSessionRole({
+      claimed: tasks.filter(task => task.session === String(id)).map(task => task.role),
+      chosen: sessionRoles[String(id)],
+      preset: agentPresetOf(id),
+    })
 
   /** 常驻会话解析用的工作区会话名册。 */
   const agentCandidates = (): readonly AgentSessionCandidate[] =>
@@ -696,14 +719,26 @@ export function Shell({
     modules: modulesOf(task),
     paths: task.paths,
     repoPath: projectPath,
+    ...(task.role === undefined ? {} : { role: task.role }),
   })
 
-  /** 本工作区的会话名册；角色只在本次窗口建会话时知道，其余留空让硬闸失效。 */
+  /**
+   * 任务上的岗位怎么说给人听：没分配、自定岗位、内置角色，或名册里查不到的未知 id。
+   * 未知 id 不报故障——与会话号失效同口径，只把「不知道」如实画出来。
+   */
+  const roleLabelOf = (role: string | undefined): string => {
+    if (role === undefined) return t('shell.roleUnassigned')
+    const job = jobRoles.find(row => row.id === role)
+    if (job !== undefined) return job.name
+    return BUILTIN_ROLE_IDS.includes(role) ? role : t('shell.roleUnknown')
+  }
+
+  /** 本工作区的会话名册；岗位按「认领任务 → 建会话时的选择 → preset」在读取时算出。 */
   const schedulingSessions = (): readonly SchedulingSession[] =>
     workspaceSessions.map((id) => {
       const row = sessionRows[id]
       const pushed = sessionStatus.get(id)
-      const role = sessionRoles[String(id)]
+      const role = sessionRoleOf(id)
       return {
         sessionId: String(id),
         ...(role === undefined ? {} : { role }),
@@ -830,6 +865,7 @@ export function Shell({
       setRulesCount(0)
       setInfo(null)
       setAgents(null)
+      setJobRoles([])
       setFlow(null)
       setFlowError(null)
       setProblems([])
@@ -843,7 +879,8 @@ export function Shell({
       loadProjectInfo(files, sessionId, controller.signal),
       loadLocalSecrets(files, sessionId, controller.signal),
       loadAgentsRegistry(files, sessionId, controller.signal),
-    ]).then(([projection, projectInfo, secrets, agentRegistry]) => {
+      loadRolesRegistry(files, sessionId, controller.signal),
+    ]).then(([projection, projectInfo, secrets, agentRegistry, roleRegistry]) => {
       if (controller.signal.aborted) return
       setTasks(projection.tasks.map(toShellTask))
       setRules(projection.rules)
@@ -851,9 +888,10 @@ export function Shell({
       setContracts(projection.contracts)
       setProposals(projection.proposals)
       setRulesCount(projection.rules.length)
-      setProblems([...projection.problems, ...projectInfo.problems, ...agentRegistry.problems])
+      setProblems([...projection.problems, ...projectInfo.problems, ...agentRegistry.problems, ...roleRegistry.problems])
       setInfo(projectInfo.info === null ? null : resolveSecrets(projectInfo.info, secrets))
       setAgents(agentRegistry.agents)
+      setJobRoles(roleRegistry.roles)
       setLoading(false)
     }).catch((error: unknown) => {
       if (controller.signal.aborted) return
@@ -865,6 +903,7 @@ export function Shell({
       setRulesCount(0)
       setInfo(null)
       setAgents(null)
+      setJobRoles([])
       setProblems([String(error)])
       setLoading(false)
     })
@@ -1078,6 +1117,8 @@ export function Shell({
     setPrompt(promptOf(task))
     setCopied(false)
     setSignResult(null)
+    setAssignResult(null)
+    setRoleAssignChoice(task.role ?? jobRoles[0]?.id ?? '')
     // 上一个任务的「没会话」提示不属于这个任务。
     setChatError(null)
   }
@@ -1147,6 +1188,28 @@ export function Shell({
       setSignResult({ ok: false, text: String(error) })
     } finally {
       setSigning(false)
+    }
+  }
+
+  /**
+   * 把选中任务分配给岗位。分配是调度硬约束，所以只走人机命令：
+   * 浏览器不写 `.spec`，命令回执原样显示，写完重读投影。
+   */
+  const assignSelected = async (): Promise<void> => {
+    if (detail === null || sessionId === undefined || assignTask === undefined) return
+    if (roleAssignChoice === '') {
+      setAssignResult({ ok: false, text: t('shell.roleUnknown') })
+      return
+    }
+    setAssigning(true)
+    setAssignResult(null)
+    try {
+      setAssignResult(await assignTask(sessionId, detail.id, roleAssignChoice))
+      setReload(value => value + 1)
+    } catch (error: unknown) {
+      setAssignResult({ ok: false, text: String(error) })
+    } finally {
+      setAssigning(false)
     }
   }
 
@@ -1292,7 +1355,7 @@ export function Shell({
     if (!requireUser('taskConversation')) {
       return { taskId: task.id, ok: false, held: false, text: t('shell.cloudSessionGate') }
     }
-    const decision = decideScheduling(schedulingTaskOf(task), schedulingSessions(), knownStates)
+    const decision = decideScheduling(schedulingTaskOf(task), schedulingSessions(), knownStates, jobRoles)
     const at = new Date().toISOString()
     const text = promptOf(task, decision)
     setPrompt(text)
@@ -1644,6 +1707,8 @@ export function Shell({
     void (async () => {
       const created = await createSession(projectPath, roleChoice ?? undefined)
       if (signedIn) await routeSession(created, 'user')
+      // 人选的角色要留在本窗口：之后的调度判定按它算这条会话的有效岗位。
+      if (roleChoice !== null) setSessionRoles(current => ({ ...current, [String(created)]: roleChoice }))
       setSessionOverride(created)
       setRolePicker(false)
       setChat(null)
@@ -1998,6 +2063,7 @@ export function Shell({
                 <div className={css.tags}>
                   <span className={`${css.tag} ${TASK_STATUS[status].className ?? ''}`}>{statusLabel}</span>
                   {task.proposal === undefined ? null : <span className={css.tag}>{task.proposal}</span>}
+                  <span className={css.tag}>{t('shell.jobRole')} {roleLabelOf(task.role)}</span>
                   {waitingOn.length === 0
                     ? null
                     : <span className={`${css.tag} ${css.tagWarn}`}>{t('shell.dependsOn')} {waitingOn.join('、')}</span>}
@@ -2785,6 +2851,7 @@ export function Shell({
             <div className={css.modalBody}>
               <div className={css.metaGrid}>
                 <div className={css.meta}><div className={css.metaK}>{t('shell.grade')}</div><div className={css.metaV}>{detail.grade}</div></div>
+                <div className={css.meta}><div className={css.metaK}>{t('shell.jobRole')}</div><div className={css.metaV}>{roleLabelOf(detail.role)}</div></div>
                 <div className={css.meta}><div className={css.metaK}>{t('shell.rules')}</div><div className={css.metaV}>{detail.rules.join(', ') || '—'}</div></div>
                 {detail.dependsOn === undefined
                   ? null
@@ -2818,6 +2885,41 @@ export function Shell({
                   )}
                 <div className={css.meta}><div className={css.metaK}>{t('shell.evidence')}</div><div className={css.metaV}>{detail.evidence.join(', ') || '—'}</div></div>
                 <div className={css.meta}><div className={css.metaK}>{t('shell.surface')}</div><div className={css.metaV}>{detail.surface}</div></div>
+              </div>
+              <div className={css.field}>
+                <label>
+                  {t('shell.assignRole')}
+                  <span className={css.labelHint}>{t('shell.assignRoleHint')}</span>
+                </label>
+                {jobRoles.length === 0
+                  ? <p className={css.empty}>{t('shell.roleRosterEmpty')}</p>
+                  : (
+                    <>
+                      <div className={css.roleRow}>
+                        {jobRoles.map(row => (
+                          <button
+                            type="button"
+                            key={row.id}
+                            className={`${css.roleChip} ${roleAssignChoice === row.id ? css.roleChipActive : ''}`}
+                            onClick={() => { setRoleAssignChoice(row.id) }}
+                          >
+                            {row.name}
+                          </button>
+                        ))}
+                      </div>
+                      <button
+                        type="button"
+                        className={css.primaryBtn}
+                        disabled={assigning || assignTask === undefined || !hasSession || roleAssignChoice === ''}
+                        onClick={() => { void assignSelected() }}
+                      >
+                        {assigning ? t('shell.assigning') : t('shell.assignRoleAction')}
+                      </button>
+                    </>
+                  )}
+                {assignResult === null ? null : (
+                  <p className={assignResult.ok ? css.secretRef : css.problem}>{assignResult.text}</p>
+                )}
               </div>
               {detailSchedule === undefined || scheduleErrors[detail.id] === undefined
                 ? null

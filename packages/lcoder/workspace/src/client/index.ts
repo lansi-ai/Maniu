@@ -322,6 +322,12 @@ export async function apply(ctx: ClientContext, config: Config = {}): Promise<vo
     const bindTask = (sessionId: SessionId, taskId: string): Promise<ShellSignResult> =>
       runHumanCommand(sessionId, `/task_bind ${taskId}`)
     /**
+     * 把任务分配给岗位。分配是调度硬约束，所以同样只由人在命令面发起；
+     * 岗位 id 来自 `.spec/roles.yaml` 的投影，模型侧没有分配入口。
+     */
+    const assignTask = (sessionId: SessionId, taskId: string, roleId: string): Promise<ShellSignResult> =>
+      runHumanCommand(sessionId, `/task_assign ${taskId} ${roleId}`)
+    /**
      * 调度判定由浏览器算出，落盘仍归 kernel：这条命令把判定追加到任务证据目录，
      * 命令本身也进会话日志，事后能对上「哪条会话、什么时候、为什么这么排」。
      */
@@ -498,7 +504,8 @@ export async function apply(ctx: ClientContext, config: Config = {}): Promise<vo
           key: 'lcoder-home',
           locale: NS,
           inject: () => ({
-            files, openRepository, sendPrompt, uploadAttachment, signContract, bindTask, logSchedule, advanceContract, approveProposal,
+            files, openRepository, sendPrompt, uploadAttachment, signContract, bindTask, assignTask,
+            logSchedule, advanceContract, approveProposal,
             createSession, listRoles, listExperts, readExpert,
             readMessages, subscribeSession, holdSession, checkModels, subscribeModels,
             readSessionNotice, readSessionFlags, modelSettings, readDefaultModel,

@@ -76,6 +76,7 @@ export function createTaskTools(specRootInput: RootInput): ToolDefinition[] {
             rules: t.rules,
             scope: t.scope,
             evidence_required: t.evidence_required,
+            ...(t.role === undefined ? {} : { role: t.role }),
           }
         }
         return {

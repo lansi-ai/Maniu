@@ -36,6 +36,7 @@ const TOOL_NAMES = [
   'git_status',
   'project_draft',
   'proposal_draft',
+  'role_draft',
   'spec_bind',
   'spec_draft',
   'spec_query',
@@ -177,7 +178,7 @@ function setSession(repo: string, id: string, sessionId: string): void {
 }
 
 describe('插件装配', () => {
-  it('注册十七个工具，其中包含 task_draft、proposal_draft 与 git_commit', () => {
+  it('注册十八个工具，其中包含 task_draft、proposal_draft、role_draft 与 git_commit', () => {
     const { spec } = makeRepo()
     const harness = makeHarness()
     apply(harness.ctx, { root: spec, selfCheck: false })
@@ -187,6 +188,7 @@ describe('插件装配', () => {
         ...TOOL_NAMES.map(name => `lcoder.tool(${name})`),
         'lcoder.command(contract_sign)',
         'lcoder.command(task_bind)',
+        'lcoder.command(task_assign)',
         'lcoder.command(task_contract)',
         'lcoder.command(task_schedule)',
         'lcoder.command(flow_status)',
@@ -199,7 +201,7 @@ describe('插件装配', () => {
     harness.runEffects()
     expect(harness.registrations.map(r => r.name).sort()).toEqual(TOOL_NAMES)
     expect(harness.commands.map(c => c.name)).toEqual([
-      'contract_sign', 'task_bind', 'task_contract', 'task_schedule',
+      'contract_sign', 'task_bind', 'task_assign', 'task_contract', 'task_schedule',
       'flow_status', 'flow_log', 'agent_bind', 'proposal_approve', 'deploy',
     ])
   })
@@ -212,6 +214,16 @@ describe('插件装配', () => {
 
     expect(harness.registrations.map(r => r.name)).not.toContain('contract_sign')
     expect(harness.commands.map(c => c.name)).toContain('contract_sign')
+  })
+
+  it('分配不是工具：task_assign 只进命令面，模型拿不到分配入口', () => {
+    const { spec } = makeRepo()
+    const harness = makeHarness()
+    apply(harness.ctx, { root: spec, selfCheck: false })
+    harness.runEffects()
+
+    expect(harness.registrations.map(r => r.name)).not.toContain('task_assign')
+    expect(harness.commands.map(c => c.name)).toContain('task_assign')
   })
 
   it('角色装配：评审在已签契约状态下仍动不了代码', () => {
@@ -347,7 +359,7 @@ describe('插件装配', () => {
     harness.runEffects()
 
     const text = logged.mock.calls.map(call => String(call[0])).join('\n')
-    expect(text).toContain('已注册 17 个工具')
+    expect(text).toContain('已注册 18 个工具')
     expect(text).not.toContain('掩码声明了但未注册')
     expect(text).not.toContain('任何状态都看不到')
   })
