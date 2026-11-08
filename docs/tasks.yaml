@@ -999,6 +999,28 @@ tracks:
       dep: [T-89]
       inferred: false
       note: "B 级调研 spike。用户 2026-11-08 问决策场景能否引入 Jev 决策模型，例如某个任务该由哪个岗位来干。监督窗口已查三点，Jev 是闭源托管 API，公开资料称未对中国大陆开放且不能本地部署，输入价约每百万 token 零点零四二美元，支持运行时自定义候选集与置信度阈值；同类还有 OpenAI Decisions API 与基于开源权重的 Microsoft Decision-1，另有 Clef 系开源权重与 Laya、Von 等复现。已拍板先做可替换适配器 spike，只出建议不写事实，/task_assign 与严格岗位硬闸的权威不动。范围五项。一、写分配建议适配器接口草案，输入任务标题与契约摘要与规则与文件面与依赖与岗位名册，输出候选岗位排序与置信度与可解释理由与人工兜底阈值。二、现查候选供应商的大陆可访问性、是否开源可本地、SDK、定价、中文支持、数据外发条款，逐项标已证或未证，只认官方页与实测。三、用仓内真实任务取至少三十条样本做本地规则基线，给 hit@1 与 miss 清单，样本期望岗位标为弱标签并逐条写依据，禁止伪造准确率。四、给接入建议，含接入点、阈值策略、成本与离线退化路径，明确不接主链。五、交付 docs 下单个 spike 报告与 lcoder/spikes 下只读评估脚本，按 T-86 先例处理文档门禁的配对清单豁免。门禁为 test:docs 与 oxlint 脚本改动。禁止改产品代码与台账看板，禁止提交 git 与 push，不写 AppData 与注册表。工作树 .worktrees/t90-decision-spike，分支 lcoder/t90-decision-spike，基于 T-89 分支叠放，无桌面端口需求。2026-11-08 12:55 监督窗口派工，实现线会话 9c288751。2026-11-08 14:00 监督窗口核验并收口。交付四件新增加一处配对清单豁免，报告三百四十六行、脚本三百二十二行、真实样本四十条与合成样本二十条分文件存放。监督窗口复跑门禁，test:docs 二十一项全过退出零，评估脚本跑出真实 hit@1 23/40 与 35/40 两组数字与报告一致，oxlint 单文件零错零警；Jev 本机探测复核为 HTTP 451 地区拒绝。结论采纳为现在不接外部决策模型，先补名册可机读能力声明与本地建议层，外部 provider 留作可选且默认关闭；未验项与风险照报告第七节保留。已合入 lcoder/main 并删除工作树与分支。两项残余，脚本未进 typecheck 程序只在 oxlint 与 tsx 实跑下验证，样本为弱标签且规则与标签同源，准确率不可外引。"
+    - id: T-91
+      title: 名册可机读信号与本地分配建议纯函数
+      status: doing
+      face: 工程
+      type: 开发
+      owner: lance
+      created: '2026-11-08'
+      date: '2026-11-08'
+      dep: [T-90]
+      inferred: false
+      note: "B 级开发，来源是 T-90 调研结论落地，用户 2026-11-08 拍板先改名册与建议层，不接外部决策模型。范围五项。一、JobRole 增加可选 signals，含 strong 与 medium 与 preferredPaths 三组字符串数组，schema 严格校验非空去重并限长，role-store 读写透传，role_draft 工具增加对应可选入参。二、.spec/roles.yaml 四个岗位补真实技术栈强特征词与落点偏好。三、新增本地建议纯函数 suggestRole，输入任务标题与描述与类型与依赖与允许路径与名册与契约摘要，输出候选排序与置信度与命中理由与 needs_human 与人工动作，能力过滤按 surface 的 file_edit 天花板，无命中回 dev 兜底且置信度零并转人工，不写任何文件、不调外部模型、不进入调度硬闸。四、单测覆盖强特征命中、能力过滤、无信号兜底、第二名逼近时转人工、不可逆任务恒转人工、signals 读写往返与非法值拒绝，至少十例。五、文档双源同步，.spec 说明、kernel README 的 role_draft 参数、PRD 名册 signals 段，中英配对重录。门禁 typecheck 与 vitest packages/lcoder 与 oxlint 改动与 test:docs。不改 /task_assign 与 scheduling 闸语义，不改台账看板，禁止提交与 push。工作树 .worktrees/t91-role-signals，分支 lcoder/t91-role-signals，无桌面端口需求。2026-11-08 14:20 监督窗口派工，实现线会话 9290c688。"
+    - id: T-92
+      title: 任务详情建议卡片（本地建议层上界面）
+      status: todo
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-08'
+      date: '2026-11-08'
+      dep: [T-91]
+      inferred: false
+      note: "B 级开发，T-90 结论的第二段，用户 2026-11-08 拍板建议层要落到界面。范围三项。一、任务详情增加建议卡片，展示 T-91 的 suggestRole 候选岗位、置信度、命中理由与兜底状态，明确标注建议不改变分配权威。二、采用按钮只把候选填进现有分配选择，仍由人点分配走 /task_assign，禁止自动写。三、深浅两套截图与真实窗口验收，端口 9642 与 9649 与 9650。依赖 T-91，未派工。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
