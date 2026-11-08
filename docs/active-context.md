@@ -46,8 +46,8 @@ English | [中文](active-context.zh.md)
 
 ## 04. Next immediate actions (Next Immediate Actions)
 
-- **Currently working on**: T-94, moving the role suggestion from a separate card onto the existing assignment chips; the card duplicated the same role list. Scoring, thresholds and the assignment authority stay unchanged.
-- **About to execute**: accept T-94, then continue the desktop release chain T-79 to T-82 per the user's priority; the merge and push decision for the local commits stays with the user.
+- **Currently working on**: no active implementation line. The role-assignment chain T-89 to T-94 is closed on `lcoder/main`; the desktop release chain T-79 to T-82 and the pending product-task `type` field are the next candidates.
+- **About to execute**: continue the release chain or add the product-task `type` field per the user's priority; the merge and push decision for the local commits stays with the user.
 - **Open decisions**: whether product tasks should gain a `type` field so the suggestion layer can distinguish read-only tasks; the production SMS provider, the exact opencode rates behind the 20-dollar grant, the deployment domain and host, and whether to add an application-level anonymous kill switch and a `/health` endpoint.
 - **Development evidence**: gate output is recorded in the task note in `docs/tasks.yaml` or the commit message; `.spec/evidence` serves product tasks only.
 - **Board regeneration**: after a development status change, edit `docs/tasks.yaml` first, then run `python scripts/build-tasks-html.py`.
