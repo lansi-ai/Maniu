@@ -75,12 +75,13 @@ export function resolveRole(root: string, id: string): RoleResolution | undefine
   return isBuiltinRole(id) ? { kind: 'builtin', id } : undefined
 }
 
-/** 追加或更新一项岗位所需的字段。 */
+/** 追加或更新一项岗位所需的字段；`signals` 原样透传，读写往返不丢。 */
 export interface RoleUpsert {
   readonly id: string
   readonly name: string
   readonly inherits: JobRole['inherits']
   readonly persona?: string
+  readonly signals?: JobRole['signals']
 }
 
 /**

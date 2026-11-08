@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { Contract, Env, RuleEntry as Rule, Task } from '../src/schema/index.js'
+import { Contract, Env, RolesFile, RuleEntry as Rule, Task } from '../src/schema/index.js'
 
 /**
  * 这些用例不只是"能不能跑"，它们固定了几条设计边界。
@@ -79,6 +79,33 @@ describe('.spec schema', () => {
     const base = { id: 'T-014', title: 'x', grade: 'C' as const, state: 'drafting' as const }
     expect(Task.safeParse({ ...base, opened_at: '2026-11-02' }).success).toBe(true)
     expect(Task.safeParse({ ...base, opened_at: '昨天' }).success).toBe(false)
+  })
+
+  it('岗位信号三组可省可空，缺组补空数组且按组忽略大小写去重', () => {
+    const file = RolesFile.parse({
+      roles: [{
+        id: 'vue-engineer',
+        name: 'Vue 工程师',
+        inherits: 'dev',
+        signals: { strong: ['vue', 'Vue', ' vue '] },
+      }],
+    })
+
+    expect(file.roles[0]?.signals).toEqual({ strong: ['vue'], medium: [], preferredPaths: [] })
+  })
+
+  it('岗位信号的空词、超长、超限与未知组在 schema 层被拒', () => {
+    const base = { id: 'vue-engineer', name: 'Vue 工程师', inherits: 'dev' }
+
+    expect(RolesFile.safeParse({ roles: [{ ...base, signals: { strong: [''] } }] }).success).toBe(false)
+    expect(RolesFile.safeParse({ roles: [{ ...base, signals: { strong: ['x'.repeat(65)] } }] }).success).toBe(false)
+    expect(RolesFile.safeParse({
+      roles: [{
+        ...base,
+        signals: { strong: Array.from({ length: 33 }, (_, index) => `t${String(index)}`) },
+      }],
+    }).success).toBe(false)
+    expect(RolesFile.safeParse({ roles: [{ ...base, signals: { strong: ['vue'], unknown: [] } }] }).success).toBe(false)
   })
 
   it('环境命令的默认执行权是 ai-confirm，不是 ai-auto', () => {

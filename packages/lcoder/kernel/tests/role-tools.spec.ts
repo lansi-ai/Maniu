@@ -54,6 +54,47 @@ describe('role_draft 岗位名册', () => {
     ])
   })
 
+  it('signals 写入名册并原样读回，工具回显同一份', async () => {
+    const spec = makeSpec()
+    const signals = {
+      strong: ['c#', 'C#', ' dotnet '],
+      medium: ['接口'],
+      preferredPaths: ['src/Server/'],
+    }
+
+    const result = await draft(spec, { id: 'dotnet-engineer', name: '.NET 工程师', inherits: 'dev', signals })
+
+    expect((result.role as { signals: unknown }).signals).toEqual({
+      strong: ['c#', 'dotnet'],
+      medium: ['接口'],
+      preferredPaths: ['src/Server/'],
+    })
+    expect(loadRoles(spec)[0]?.signals).toEqual({
+      strong: ['c#', 'dotnet'],
+      medium: ['接口'],
+      preferredPaths: ['src/Server/'],
+    })
+  })
+
+  it('signals 里的空词、超长条目与超限组都当场拒，名册不变', async () => {
+    const spec = makeSpec()
+
+    await expect(draft(spec, {
+      id: 'vue-engineer', name: 'Vue 工程师', inherits: 'dev', signals: { strong: [''] },
+    })).rejects.toThrow(/空字符串/)
+    await expect(draft(spec, {
+      id: 'vue-engineer', name: 'Vue 工程师', inherits: 'dev', signals: { strong: ['x'.repeat(65)] },
+    })).rejects.toThrow(/64/)
+    await expect(draft(spec, {
+      id: 'vue-engineer',
+      name: 'Vue 工程师',
+      inherits: 'dev',
+      signals: { strong: Array.from({ length: 33 }, (_, index) => `t${String(index)}`) },
+    })).rejects.toThrow(/32/)
+
+    expect(loadRoles(spec)).toEqual([])
+  })
+
   it('继承不合法或占用内置角色名都当场拒，名册不变', async () => {
     const spec = makeSpec()
 
