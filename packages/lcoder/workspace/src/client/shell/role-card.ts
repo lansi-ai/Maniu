@@ -7,21 +7,21 @@
  */
 import { ROLE_TOOLS } from '@lcoder/kernel/src/kernel/surface.ts'
 import { suggestRole } from '../role-suggest.ts'
-import type { SuggestRosterJob } from '../role-suggest.ts'
+import type { RoleDisqualification, RoleReason, SuggestRosterJob } from '../role-suggest.ts'
 import type { JobRoleRow } from '../projection.ts'
 import type { ShellTask } from './shell-data.ts'
 
 /** 卡片顶部的状态：过阈值给建议、有候选但要人挑、没有任何名册岗位命中。 */
 export type RoleCardStatus = 'suggest' | 'needs_human' | 'fallback'
 
-/** 一个展示候选；`reasons` 已截到两条。 */
+/** 一个展示候选；`reasons` 已截到两条，仍是 code 加参数，文案由界面按 locales 渲染。 */
 export interface RoleCardCandidate {
   readonly roleId: string
   /** 名册里的显示名；兜底的内置角色直接显示 id。 */
   readonly label: string
   /** 候选分占比，界面换算成百分比。 */
   readonly confidence: number
-  readonly reasons: readonly string[]
+  readonly reasons: readonly RoleReason[]
 }
 
 /** 卡片要画的一切；`canAdopt` 为 true 时才有采用按钮。 */
@@ -36,7 +36,7 @@ export interface RoleCardView {
   /** 被否决的候选条数；0 表示没有。 */
   readonly disqualified: number
   /** 被否决的第一条原因；没有否决项时不出现。 */
-  readonly disqualifiedReason?: string
+  readonly disqualifiedReason?: RoleDisqualification
   /** 建议层按「需要写盘」处理；界面把这条判定如实写给用户看。 */
   readonly writeRequired: boolean
 }

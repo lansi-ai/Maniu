@@ -19,7 +19,7 @@ import type { PanelInfo } from '@deepseek-ai/dsh-client-ui-layout/client'
 import { Shell } from '../src/client/shell/Shell.tsx'
 import type { ShellProps } from '../src/client/shell/Shell.tsx'
 import type { CloudFace } from '../src/client/cloud/face.ts'
-import { zh } from '../src/client/locales.ts'
+import { zh, en } from '../src/client/locales.ts'
 import {
   CONTRACTS_DIR, PROPOSALS_DIR, ROLES_FILE, SCHEDULING_DIR, TASKS_DIR,
 } from '../src/client/projection.ts'
@@ -29,6 +29,7 @@ afterEach(cleanup)
 
 const REPO = 'E:/Projects/demo'
 const t = makeTranslate(zh)
+const enT = makeTranslate(en)
 
 /** 一份内存里的 `.spec`：只给任务与契约，其余目录按缺失处理。 */
 interface SpecFiles {
@@ -104,6 +105,8 @@ interface ShellScenario {
   readonly running?: ReadonlySet<string>
   /** 分配命令替身；缺省给一个成功回执，不写投影。 */
   readonly assignTask?: ShellProps['assignTask']
+  /** 界面词典；缺省中文，英文用例显式传入。 */
+  readonly t?: ShellProps['t']
 }
 
 /** 已登录的云端替身：门禁放行，详情用例只关心渲染事实；门禁本身有 cloud-login 专测。 */
@@ -162,7 +165,7 @@ function renderShell(scenario: ShellScenario) {
   }
   const logSchedule = vi.fn(async () => ({ ok: false, text: 'evidence 目录不可写' }))
   const props: ShellProps = {
-    t,
+    t: scenario.t ?? t,
     cloud: signedInCloud(),
     files: fakeFiles(scenario.spec),
     usePanelInfo: <S,>(selector: (state: PanelInfo) => S): S => selector({ activePanelId: null }),
@@ -188,10 +191,10 @@ function renderShell(scenario: ShellScenario) {
 }
 
 /** 等任务卡出现在看板上，再点开它的详情。 */
-async function openTask(title: string): Promise<void> {
+async function openTask(title: string, translate: ShellProps['t'] = t): Promise<void> {
   const card = await screen.findByText(title)
   fireEvent.click(card)
-  await screen.findByText(zh['shell.startPrompt'])
+  await screen.findByText(translate('shell.startPrompt'))
 }
 
 const TASK_T01 = 'id: T-01\ntitle: 起草中的任务\nstate: drafting\ngrade: B\n'
@@ -221,6 +224,16 @@ const ROLES_VUE = `roles:
       strong: [vue]
       medium: [页面]
       preferredPaths: [src/views/]
+`
+
+/** 同样的名册再加一个只读评审岗位：产品任务按需要写盘处理，它会被能力天花板排除。 */
+const ROLES_VUE_READONLY = `${ROLES_VUE}  - id: vue-reviewer
+    name: Vue 评审
+    inherits: review
+    signals:
+      strong: [vue]
+      medium: []
+      preferredPaths: []
 `
 
 describe('任务详情', () => {
@@ -366,11 +379,22 @@ describe('任务详情的建议岗位卡片', () => {
     // 名册芯片与卡片各一处显示名。
     expect(screen.getAllByText('Vue 工程师').length).toBeGreaterThanOrEqual(2)
     expect(screen.getByText('置信度 100%')).toBeTruthy()
-    expect(screen.getByText(/强特征「vue」命中标题/)).toBeTruthy()
-    expect(screen.getByText(/弱语义「页面」命中标题/)).toBeTruthy()
+    expect(screen.getByText('强特征「vue」命中标题 (+5)')).toBeTruthy()
+    expect(screen.getByText('弱语义「页面」命中标题 (+3)')).toBeTruthy()
     expect(screen.getByText(zh['shell.roleSuggestNote'])).toBeTruthy()
     // 产品任务没有类型字段，卡片如实写出「按需要写盘处理」。
     expect(screen.getByText(zh['shell.roleSuggestHint'])).toBeTruthy()
+  })
+
+  it('英文界面按 code 渲染英文理由文案', async () => {
+    renderShell({ spec: { tasks: { 'T-01.yaml': TASK_VUE }, roles: ROLES_VUE }, t: enT })
+    await openTask('修复 vue 页面组件', enT)
+
+    expect(await screen.findByText(en['shell.roleSuggestStatusSuggest'])).toBeTruthy()
+    expect(screen.getByText('Confidence 100%')).toBeTruthy()
+    expect(screen.getByText('Strong signal "vue" matched the title (+5)')).toBeTruthy()
+    expect(screen.getByText('Weak signal "页面" matched the title (+3)')).toBeTruthy()
+    expect(screen.getByText(en['shell.roleSuggestNote'])).toBeTruthy()
   })
 
   it('点采用只改详情里的岗位选择，不调分配命令也不写回执', async () => {
@@ -405,6 +429,15 @@ describe('任务详情的建议岗位卡片', () => {
 
     expect(await screen.findByText(zh['shell.roleSuggestStatusFallback'])).toBeTruthy()
     expect(screen.getByText('置信度 0%')).toBeTruthy()
+    expect(screen.getByText(zh['shell.roleReasonFallback'])).toBeTruthy()
     expect(screen.queryByRole('button', { name: zh['shell.roleSuggestAdopt'] })).toBeNull()
+  })
+
+  it('中文界面把否决理由也按 code 渲染', async () => {
+    renderShell({ spec: { tasks: { 'T-01.yaml': TASK_VUE }, roles: ROLES_VUE_READONLY } })
+    await openTask('修复 vue 页面组件')
+
+    expect(await screen.findByText(zh['shell.roleSuggestStatusSuggest'])).toBeTruthy()
+    expect(screen.getByText('另有 1 个岗位被排除：需要写盘，但岗位继承的 review 没有 file_edit')).toBeTruthy()
   })
 })

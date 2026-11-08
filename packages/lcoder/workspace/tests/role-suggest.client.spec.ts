@@ -87,8 +87,8 @@ describe('本地岗位建议', () => {
     expect(result.policy).toEqual({ accept: LOCAL_ROLE_POLICY.accept, margin: LOCAL_ROLE_POLICY.margin, source: 'default' })
     expect(result.recommended?.margin).toBeGreaterThanOrEqual(1)
     expect(byId(result.candidates, 'dotnet-engineer').reasons).toEqual(expect.arrayContaining([
-      expect.stringContaining('强特征「c#」命中标题'),
-      expect.stringContaining('落点偏好「src/Server/」命中允许路径'),
+      { code: 'strong_signal', term: 'c#', field: 'title', delta: 5 },
+      { code: 'preferred_path', preferred: 'src/Server/', matched: 'src/Server/Api.cs', delta: 4 },
     ]))
   })
 
@@ -100,6 +100,12 @@ describe('本地岗位建议', () => {
     expect(result.candidates[0]?.roleId).toBe('vue-engineer')
     expect(byId(result.candidates, 'vue-engineer').score).toBe(5)
     expect(byId(result.candidates, 'dotnet-engineer').score).toBe(3)
+    expect(byId(result.candidates, 'vue-engineer').reasons).toEqual([
+      { code: 'strong_signal', term: 'vue', field: 'title', delta: 5 },
+    ])
+    expect(byId(result.candidates, 'dotnet-engineer').reasons).toEqual([
+      { code: 'medium_signal', term: '接口', field: 'title', delta: 3 },
+    ])
   })
 
   it('写盘任务把只读角色排除，并写明缺 file_edit', () => {
@@ -107,7 +113,8 @@ describe('本地岗位建议', () => {
       task: { ...TASK, title: 'OpenAPI 契约与 c# 接口一起改' },
     }))
 
-    expect(byId(result.candidates, 'api-architect').disqualified).toContain('没有 file_edit')
+    expect(byId(result.candidates, 'api-architect').disqualified)
+      .toEqual({ code: 'write_requires_file_edit', inherits: 'review' })
     expect(result.recommended?.roleId).toBe('dotnet-engineer')
     expect(result.decision).toBe('suggest')
   })
@@ -129,6 +136,7 @@ describe('本地岗位建议', () => {
 
     expect(result.candidates[0]?.roleId).toBe('dev')
     expect(result.candidates[0]?.confidence).toBe(0)
+    expect(result.candidates[0]?.reasons).toEqual([{ code: 'fallback_no_match' }])
     expect(result.decision).toBe('needs_human')
     expect(result.humanAction).toBe('leave_unassigned')
     expect(result.recommended).toBeUndefined()
@@ -164,6 +172,7 @@ describe('本地岗位建议', () => {
 
     expect(result.candidates.map(candidate => candidate.roleId)).toEqual(['dev'])
     expect(result.candidates[0]?.confidence).toBe(0)
+    expect(result.candidates[0]?.reasons).toEqual([{ code: 'fallback_no_match' }])
     expect(result.decision).toBe('needs_human')
   })
 
@@ -180,7 +189,8 @@ describe('本地岗位建议', () => {
       },
     }))
 
-    expect(byId(result.candidates, 'wizard').disqualified).toContain('继承的内置角色未知')
+    expect(byId(result.candidates, 'wizard').disqualified)
+      .toEqual({ code: 'inherits_unknown', inherits: 'wizard' })
     expect(result.candidates[0]?.roleId).toBe('dev')
     expect(result.decision).toBe('needs_human')
   })
@@ -213,7 +223,7 @@ describe('本地岗位建议', () => {
 
     expect(byId(result.candidates, 'dotnet-engineer').score).toBe(7)
     expect(byId(result.candidates, 'dotnet-engineer').reasons).toEqual(expect.arrayContaining([
-      expect.stringContaining('历史保留 2 条同岗位任务 (+2)'),
+      { code: 'history_kept', count: 2, bonus: 2 },
     ]))
     expect(byId(result.candidates, 'vue-engineer').score).toBe(0)
   })
@@ -235,7 +245,8 @@ describe('本地岗位建议', () => {
       writeRequired: true,
     }))
 
-    expect(byId(result.candidates, 'api-architect').disqualified).toContain('没有 file_edit')
+    expect(byId(result.candidates, 'api-architect').disqualified)
+      .toEqual({ code: 'write_requires_file_edit', inherits: 'review' })
     expect(result.decision).toBe('needs_human')
   })
 })

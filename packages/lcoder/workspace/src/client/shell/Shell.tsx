@@ -10,7 +10,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, MouseEvent, ReactNode } from 'react'
-import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import type { PropsLocale, PropsRuntime, TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
@@ -59,6 +59,7 @@ import { CLOUD_GUEST_ROUTE } from '../cloud/routes.ts'
 import { buildIntakePrompt, buildOnboardingPrompt, buildShellPrompt, SHELL_STATES, TASK_FLOW_MENTION_PREFIX } from './shell-data.ts'
 import { buildRoleCard } from './role-card.ts'
 import type { RoleCardStatus, RoleCardView } from './role-card.ts'
+import type { RoleDisqualification, RoleReason } from '../role-suggest.ts'
 import { ChatTranscript, PendingInteractionCard } from './ChatPanel.tsx'
 import { ChatAttachButton, ChatAttachmentList, ChatModelChip } from './ChatExtras.tsx'
 import {
@@ -312,6 +313,38 @@ const ROLE_CARD_STATUS: Record<RoleCardStatus, LcoderWorkspaceKey> = {
   suggest: 'shell.roleSuggestStatusSuggest',
   needs_human: 'shell.roleSuggestStatusNeedsHuman',
   fallback: 'shell.roleSuggestStatusFallback',
+}
+
+/** 命中理由的 code 到词典键与参数；参数只带数据，句子由词典给。 */
+function roleReasonText(t: TranslateNS<'lcoderWorkspace'>, reason: RoleReason): string {
+  switch (reason.code) {
+    case 'strong_signal':
+      return t(reason.field === 'title' ? 'shell.roleReasonStrongTitle' : 'shell.roleReasonStrongBody', {
+        term: reason.term, delta: reason.delta,
+      })
+    case 'medium_signal':
+      return t(reason.field === 'title' ? 'shell.roleReasonMediumTitle' : 'shell.roleReasonMediumBody', {
+        term: reason.term, delta: reason.delta,
+      })
+    case 'preferred_path':
+      return t('shell.roleReasonPreferredPath', {
+        preferred: reason.preferred, matched: reason.matched, delta: reason.delta,
+      })
+    case 'history_kept':
+      return t('shell.roleReasonHistory', { count: reason.count, bonus: reason.bonus })
+    case 'fallback_no_match':
+      return t('shell.roleReasonFallback')
+  }
+}
+
+/** 否决理由的 code 到词典键与参数。 */
+function roleDisqualificationText(t: TranslateNS<'lcoderWorkspace'>, reason: RoleDisqualification): string {
+  switch (reason.code) {
+    case 'inherits_unknown':
+      return t('shell.roleDisqualifiedInherits', { inherits: reason.inherits })
+    case 'write_requires_file_edit':
+      return t('shell.roleDisqualifiedWrite', { inherits: reason.inherits })
+  }
 }
 
 function shellState(value: string): ShellTaskState {
@@ -2973,8 +3006,10 @@ export function Shell({
                                   {fill(t('shell.roleSuggestConfidence'), { percent: Math.round(candidate.confidence * 100) })}
                                 </span>
                               </div>
-                              {candidate.reasons.map(reason => (
-                                <p key={reason} className={css.suggestReason}>{reason}</p>
+                              {candidate.reasons.map((reason, index) => (
+                                <p key={`${reason.code}-${String(index)}`} className={css.suggestReason}>
+                                  {roleReasonText(t, reason)}
+                                </p>
                               ))}
                             </li>
                           ))}
@@ -2995,7 +3030,7 @@ export function Shell({
                         <p className={css.suggestExcluded}>
                           {fill(t('shell.roleSuggestExcluded'), {
                             n: detailSuggestion.disqualified,
-                            reason: detailSuggestion.disqualifiedReason,
+                            reason: roleDisqualificationText(t, detailSuggestion.disqualifiedReason),
                           })}
                         </p>
                       )}
