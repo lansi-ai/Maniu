@@ -7,7 +7,7 @@
  * 角色名册与模型可用性是直接注入的窄接口。
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { SessionId } from '@deepseek-ai/dsh-session/types'
 import { WorkspaceId } from '@deepseek-ai/dsh-workspace'
@@ -226,10 +226,18 @@ const ROLES_VUE = `roles:
       preferredPaths: [src/views/]
 `
 
-/** 同样的名册再加一个只读评审岗位：产品任务按需要写盘处理，它会被能力天花板排除。 */
-const ROLES_VUE_READONLY = `${ROLES_VUE}  - id: vue-reviewer
-    name: Vue 评审
-    inherits: review
+/** 两个同样命中标题的岗位：最高候选分占比低于阈值，本地规则转人工。 */
+const ROLES_VUE_TIE = `roles:
+  - id: vue-a
+    name: Vue 甲
+    inherits: dev
+    signals:
+      strong: [vue]
+      medium: []
+      preferredPaths: []
+  - id: vue-b
+    name: Vue 乙
+    inherits: dev
     signals:
       strong: [vue]
       medium: []
@@ -370,34 +378,39 @@ describe('任务详情', () => {
   })
 })
 
-describe('任务详情的建议岗位卡片', () => {
-  it('命中信号时展示推荐岗位、置信度与命中理由，并写明建议不改分配', async () => {
+describe('任务详情的分配芯片内联建议', () => {
+  it('推荐徽标只出现在推荐芯片上，芯片下方一行给理由与置信度，岗位名不再列两遍', async () => {
     renderShell({ spec: { tasks: { 'T-01.yaml': TASK_VUE }, roles: ROLES_VUE } })
     await openTask('修复 vue 页面组件')
 
-    expect(await screen.findByText(zh['shell.roleSuggestStatusSuggest'])).toBeTruthy()
-    // 名册芯片与卡片各一处显示名。
-    expect(screen.getAllByText('Vue 工程师').length).toBeGreaterThanOrEqual(2)
-    expect(screen.getByText('置信度 100%')).toBeTruthy()
-    expect(screen.getByText('强特征「vue」命中标题 (+5)')).toBeTruthy()
-    expect(screen.getByText('弱语义「页面」命中标题 (+3)')).toBeTruthy()
-    expect(screen.getByText(zh['shell.roleSuggestNote'])).toBeTruthy()
-    // 产品任务没有类型字段，卡片如实写出「按需要写盘处理」。
-    expect(screen.getByText(zh['shell.roleSuggestHint'])).toBeTruthy()
+    const vueChip = screen.getByRole('button', { name: /^Vue 工程师/ })
+    const dotnetChip = screen.getByRole('button', { name: '.NET 工程师' })
+    expect(within(vueChip).getByText(zh['shell.roleHintBadge'])).toBeTruthy()
+    expect(within(dotnetChip).queryByText(zh['shell.roleHintBadge'])).toBeNull()
+    expect(screen.getAllByText(zh['shell.roleHintBadge']).length).toBe(1)
+
+    // 岗位名只在芯片上出现：没有单独的候选清单重复列一遍。
+    expect(screen.getAllByText('Vue 工程师').length).toBe(1)
+    const mentions = screen.getAllByRole('button')
+      .filter(button => button.textContent?.includes('Vue 工程师'))
+    expect(mentions.length).toBe(1)
+
+    expect(screen.getByText(
+      '强特征「vue」命中标题 (+5)；弱语义「页面」命中标题 (+3)；置信度 100% · 分配仍由人执行 /task_assign',
+    )).toBeTruthy()
   })
 
-  it('英文界面按 code 渲染英文理由文案', async () => {
+  it('英文界面按 code 渲染理由、置信度与人工提示', async () => {
     renderShell({ spec: { tasks: { 'T-01.yaml': TASK_VUE }, roles: ROLES_VUE }, t: enT })
     await openTask('修复 vue 页面组件', enT)
 
-    expect(await screen.findByText(en['shell.roleSuggestStatusSuggest'])).toBeTruthy()
-    expect(screen.getByText('Confidence 100%')).toBeTruthy()
-    expect(screen.getByText('Strong signal "vue" matched the title (+5)')).toBeTruthy()
-    expect(screen.getByText('Weak signal "页面" matched the title (+3)')).toBeTruthy()
-    expect(screen.getByText(en['shell.roleSuggestNote'])).toBeTruthy()
+    expect(await screen.findByText(en['shell.roleHintBadge'])).toBeTruthy()
+    expect(screen.getByText(
+      'Strong signal "vue" matched the title (+5); Weak signal "页面" matched the title (+3) · Confidence 100% · A human still runs /task_assign',
+    )).toBeTruthy()
   })
 
-  it('点采用只改详情里的岗位选择，不调分配命令也不写回执', async () => {
+  it('点采用建议只改详情里的岗位选择，不调分配命令也不写回执', async () => {
     const assignTask = vi.fn(async () => ({ ok: true, text: '已分配' }))
     renderShell({
       spec: { tasks: { 'T-01.yaml': TASK_VUE }, roles: ROLES_VUE },
@@ -405,39 +418,44 @@ describe('任务详情的建议岗位卡片', () => {
     })
     await openTask('修复 vue 页面组件')
 
-    const vueChip = screen.getByRole('button', { name: 'Vue 工程师' })
+    const vueChip = screen.getByRole('button', { name: /^Vue 工程师/ })
     expect(vueChip.getAttribute('aria-pressed')).toBe('false')
 
-    fireEvent.click(screen.getByRole('button', { name: zh['shell.roleSuggestAdopt'] }))
+    fireEvent.click(screen.getByRole('button', { name: zh['shell.roleHintAdopt'] }))
 
     expect(vueChip.getAttribute('aria-pressed')).toBe('true')
     expect(assignTask).not.toHaveBeenCalled()
     expect(screen.queryByText('已分配')).toBeNull()
   })
 
-  it('不可逆任务给「需人工挑选」，没有采用按钮', async () => {
+  it('不可逆任务写「需人工挑选」并带原因，不标芯片也不给采用按钮', async () => {
     renderShell({ spec: { tasks: { 'T-01.yaml': TASK_VUE_IRREVERSIBLE }, roles: ROLES_VUE } })
     await openTask('修复 vue 页面组件')
 
-    expect(await screen.findByText(zh['shell.roleSuggestStatusNeedsHuman'])).toBeTruthy()
-    expect(screen.queryByRole('button', { name: zh['shell.roleSuggestAdopt'] })).toBeNull()
+    expect(await screen.findByText('本地规则没有把握，请人工挑选（任务含不可逆动作）')).toBeTruthy()
+    expect(screen.queryByText(zh['shell.roleHintBadge'])).toBeNull()
+    expect(screen.queryByRole('button', { name: zh['shell.roleHintAdopt'] })).toBeNull()
+    expect(screen.getAllByRole('button').filter(button => button.textContent === 'Vue 工程师').length).toBe(1)
   })
 
-  it('没有任何信号命中时给兜底候选，也不提供采用按钮', async () => {
+  it('两个候选同样命中时算需人工挑选', async () => {
+    renderShell({ spec: { tasks: { 'T-01.yaml': TASK_VUE }, roles: ROLES_VUE_TIE } })
+    await openTask('修复 vue 页面组件')
+
+    expect(await screen.findByText('本地规则没有把握，请人工挑选（最高候选置信度不足）')).toBeTruthy()
+    expect(screen.queryByText(zh['shell.roleHintBadge'])).toBeNull()
+    expect(screen.queryByRole('button', { name: zh['shell.roleHintAdopt'] })).toBeNull()
+  })
+
+  it('没有任何信号命中时写兜底提示，不标芯片也不列岗位清单', async () => {
     renderShell({ spec: { tasks: { 'T-03.yaml': TASK_PLAIN }, roles: ROLES_VUE } })
     await openTask('整理佣金规则')
 
-    expect(await screen.findByText(zh['shell.roleSuggestStatusFallback'])).toBeTruthy()
-    expect(screen.getByText('置信度 0%')).toBeTruthy()
-    expect(screen.getByText(zh['shell.roleReasonFallback'])).toBeTruthy()
-    expect(screen.queryByRole('button', { name: zh['shell.roleSuggestAdopt'] })).toBeNull()
-  })
-
-  it('中文界面把否决理由也按 code 渲染', async () => {
-    renderShell({ spec: { tasks: { 'T-01.yaml': TASK_VUE }, roles: ROLES_VUE_READONLY } })
-    await openTask('修复 vue 页面组件')
-
-    expect(await screen.findByText(zh['shell.roleSuggestStatusSuggest'])).toBeTruthy()
-    expect(screen.getByText('另有 1 个岗位被排除：需要写盘，但岗位继承的 review 没有 file_edit')).toBeTruthy()
+    expect(await screen.findByText('没有名册岗位命中，建议人工确认')).toBeTruthy()
+    expect(screen.queryByText(zh['shell.roleHintBadge'])).toBeNull()
+    expect(screen.queryByRole('button', { name: zh['shell.roleHintAdopt'] })).toBeNull()
+    // 名册芯片各出现一次，兜底态不另列候选。
+    expect(screen.getAllByRole('button').filter(button => button.textContent === '.NET 工程师').length).toBe(1)
+    expect(screen.getAllByRole('button').filter(button => button.textContent === 'Vue 工程师').length).toBe(1)
   })
 })

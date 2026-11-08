@@ -57,9 +57,9 @@ import type { CloudFace } from '../cloud/face.ts'
 import { useCloudSession } from '../cloud/use-cloud.ts'
 import { CLOUD_GUEST_ROUTE } from '../cloud/routes.ts'
 import { buildIntakePrompt, buildOnboardingPrompt, buildShellPrompt, SHELL_STATES, TASK_FLOW_MENTION_PREFIX } from './shell-data.ts'
-import { buildRoleCard } from './role-card.ts'
-import type { RoleCardStatus, RoleCardView } from './role-card.ts'
-import type { RoleDisqualification, RoleReason } from '../role-suggest.ts'
+import { buildRoleHint } from './role-hint.ts'
+import type { RoleHintBlocker, RoleHintView } from './role-hint.ts'
+import type { RoleReason } from '../role-suggest.ts'
 import { ChatTranscript, PendingInteractionCard } from './ChatPanel.tsx'
 import { ChatAttachButton, ChatAttachmentList, ChatModelChip } from './ChatExtras.tsx'
 import {
@@ -309,10 +309,9 @@ const SESSION_FILTER_LABELS: Record<SessionFilter, LcoderWorkspaceKey> = {
   active: 'shell.sessionActive',
 }
 
-const ROLE_CARD_STATUS: Record<RoleCardStatus, LcoderWorkspaceKey> = {
-  suggest: 'shell.roleSuggestStatusSuggest',
-  needs_human: 'shell.roleSuggestStatusNeedsHuman',
-  fallback: 'shell.roleSuggestStatusFallback',
+const ROLE_HINT_BLOCKER: Record<RoleHintBlocker, LcoderWorkspaceKey> = {
+  irreversible: 'shell.roleHintBlockerIrreversible',
+  low_confidence: 'shell.roleHintBlockerLowConfidence',
 }
 
 /** 命中理由的 code 到词典键与参数；参数只带数据，句子由词典给。 */
@@ -337,13 +336,20 @@ function roleReasonText(t: TranslateNS<'lcoderWorkspace'>, reason: RoleReason): 
   }
 }
 
-/** 否决理由的 code 到词典键与参数。 */
-function roleDisqualificationText(t: TranslateNS<'lcoderWorkspace'>, reason: RoleDisqualification): string {
-  switch (reason.code) {
-    case 'inherits_unknown':
-      return t('shell.roleDisqualifiedInherits', { inherits: reason.inherits })
-    case 'write_requires_file_edit':
-      return t('shell.roleDisqualifiedWrite', { inherits: reason.inherits })
+/** 芯片下方的那一行依据：推荐态给理由与置信度，另外两态只给一句人工提示。 */
+function roleHintText(t: TranslateNS<'lcoderWorkspace'>, hint: RoleHintView): string {
+  switch (hint.status) {
+    case 'suggest':
+      return fill(t('shell.roleHintLine'), {
+        reasons: hint.recommended.reasons
+          .map(reason => roleReasonText(t, reason))
+          .join(t('shell.roleHintReasonSeparator')),
+        percent: Math.round(hint.recommended.confidence * 100),
+      })
+    case 'needs_human':
+      return fill(t('shell.roleHintNeedsHuman'), { reason: t(ROLE_HINT_BLOCKER[hint.blocker]) })
+    case 'fallback':
+      return t('shell.roleHintFallback')
   }
 }
 
@@ -1212,9 +1218,9 @@ export function Shell({
   const detailSchedule = detail === null ? undefined : schedule[detail.id]
   /** 选中任务所在的联调组；投影里有就是持久的，刷新后仍在。 */
   const detailJoint = detail === null ? undefined : jointOf(detail)
-  /** 详情里的本地建议；只是排序，分配仍由人点「分配」走 `/task_assign`。 */
-  const detailSuggestion: RoleCardView | null = useMemo(
-    () => (detail === null ? null : buildRoleCard(detail, jobRoles, detailContract?.acceptance ?? [])),
+  /** 详情里的本地建议；只标在现有芯片上，分配仍由人点「分配」走 `/task_assign`。 */
+  const detailHint: RoleHintView | null = useMemo(
+    () => (detail === null ? null : buildRoleHint(detail, jobRoles, detailContract?.acceptance ?? [])),
     [detail, jobRoles, detailContract],
   )
   /** 签署与外部动作不混进普通开工：单独列出来让人先处理。 */
@@ -2957,18 +2963,38 @@ export function Shell({
                   : (
                     <>
                       <div className={css.roleRow}>
-                        {jobRoles.map(row => (
-                          <button
-                            type="button"
-                            key={row.id}
-                            aria-pressed={roleAssignChoice === row.id}
-                            className={`${css.roleChip} ${roleAssignChoice === row.id ? css.roleChipActive : ''}`}
-                            onClick={() => { setRoleAssignChoice(row.id) }}
-                          >
-                            {row.name}
-                          </button>
-                        ))}
+                        {jobRoles.map((row) => {
+                          const suggested = detailHint?.status === 'suggest' && detailHint.recommended.roleId === row.id
+                          return (
+                            <button
+                              type="button"
+                              key={row.id}
+                              aria-pressed={roleAssignChoice === row.id}
+                              className={`${css.roleChip} ${roleAssignChoice === row.id ? css.roleChipActive : ''}${suggested ? ` ${css.roleChipSuggested}` : ''}`}
+                              onClick={() => { setRoleAssignChoice(row.id) }}
+                            >
+                              {row.name}
+                              {suggested ? <span className={css.roleChipBadge}>{t('shell.roleHintBadge')}</span> : null}
+                            </button>
+                          )
+                        })}
                       </div>
+                      {detailHint === null ? null : (
+                        <div className={css.roleHintRow}>
+                          <p className={css.roleHintLine}>{roleHintText(t, detailHint)}</p>
+                          {detailHint.status === 'suggest'
+                            ? (
+                              <button
+                                type="button"
+                                className={`${css.secondaryBtn} ${css.headAction}`}
+                                onClick={() => { setRoleAssignChoice(detailHint.recommended.roleId) }}
+                              >
+                                {t('shell.roleHintAdopt')}
+                              </button>
+                            )
+                            : null}
+                        </div>
+                      )}
                       <button
                         type="button"
                         className={css.primaryBtn}
@@ -2983,60 +3009,6 @@ export function Shell({
                   <p className={assignResult.ok ? css.secretRef : css.problem}>{assignResult.text}</p>
                 )}
               </div>
-              {detailSuggestion === null ? null : (
-                <div className={css.field}>
-                  <label>
-                    {t('shell.roleSuggest')}
-                    {detailSuggestion.writeRequired ? <span className={css.labelHint}>{t('shell.roleSuggestHint')}</span> : null}
-                  </label>
-                  <div className={css.suggestCard}>
-                    <div className={css.suggestTop}>
-                      <span className={`${css.pill} ${css.pillBrand}`}>{t(ROLE_CARD_STATUS[detailSuggestion.status])}</span>
-                    </div>
-                    <p className={css.suggestNote}>{t('shell.roleSuggestNote')}</p>
-                    {detailSuggestion.candidates.length === 0
-                      ? <p className={css.empty}>{t('shell.roleSuggestEmpty')}</p>
-                      : (
-                        <ul className={css.suggestList}>
-                          {detailSuggestion.candidates.map(candidate => (
-                            <li key={candidate.roleId} className={css.suggestItem}>
-                              <div className={css.suggestRowHead}>
-                                <span className={css.suggestRoleName}>{candidate.label}</span>
-                                <span className={css.suggestConfidence}>
-                                  {fill(t('shell.roleSuggestConfidence'), { percent: Math.round(candidate.confidence * 100) })}
-                                </span>
-                              </div>
-                              {candidate.reasons.map((reason, index) => (
-                                <p key={`${reason.code}-${String(index)}`} className={css.suggestReason}>
-                                  {roleReasonText(t, reason)}
-                                </p>
-                              ))}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    {detailSuggestion.canAdopt && detailSuggestion.adoptRoleId !== undefined ? (
-                      <button
-                        type="button"
-                        className={css.secondaryBtn}
-                        onClick={() => { setRoleAssignChoice(detailSuggestion.adoptRoleId ?? '') }}
-                      >
-                        {t('shell.roleSuggestAdopt')}
-                      </button>
-                    ) : null}
-                    {detailSuggestion.disqualified === 0 || detailSuggestion.disqualifiedReason === undefined
-                      ? null
-                      : (
-                        <p className={css.suggestExcluded}>
-                          {fill(t('shell.roleSuggestExcluded'), {
-                            n: detailSuggestion.disqualified,
-                            reason: roleDisqualificationText(t, detailSuggestion.disqualifiedReason),
-                          })}
-                        </p>
-                      )}
-                  </div>
-                </div>
-              )}
               {detailSchedule === undefined || scheduleErrors[detail.id] === undefined
                 ? null
                 : <p className={css.problem}>{fill(t('shell.scheduleLogFailed'), { detail: scheduleErrors[detail.id] ?? '' })}</p>}
