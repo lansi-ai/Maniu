@@ -87,6 +87,49 @@ describe('岗位名册', () => {
     expect(resolveRole(root, 'ghost')).toBeUndefined()
   })
 
+  it('signals 写入后原样读回，空数组保留为空组', () => {
+    const root = makeSpec()
+    const role = {
+      id: 'dotnet-engineer',
+      name: '.NET 工程师',
+      inherits: 'dev' as const,
+      signals: { strong: ['c#', 'dotnet'], medium: [], preferredPaths: ['src/Server/'] },
+    }
+
+    saveRoles(root, [role])
+
+    expect(loadRoles(root)).toEqual([role])
+  })
+
+  it('signals 按组忽略大小写去重并去掉首尾空白，保留首次写法', () => {
+    const root = makeSpec()
+    saveRoles(root, [{
+      id: 'vue-engineer',
+      name: 'Vue 工程师',
+      inherits: 'dev',
+      signals: { strong: ['vue', 'Vue', ' vue '], medium: ['页面'], preferredPaths: [] },
+    }])
+
+    expect(loadRoles(root)[0]?.signals).toEqual({ strong: ['vue'], medium: ['页面'], preferredPaths: [] })
+  })
+
+  it('非法 signals 被拒且不覆盖原文件：空词、超长、超限、非数组、未知组', () => {
+    const root = makeSpec()
+    const base = { id: 'vue-engineer', name: 'Vue 工程师', inherits: 'dev' as const }
+    saveRoles(root, [base])
+
+    expect(() => saveRoles(root, [{ ...base, signals: { strong: [''] } } as never])).toThrow(/不能有空字符串/)
+    expect(() => saveRoles(root, [{ ...base, signals: { strong: ['x'.repeat(65)] } } as never])).toThrow(/64/)
+    expect(() => saveRoles(root, [{
+      ...base,
+      signals: { strong: Array.from({ length: 33 }, (_, index) => `t${String(index)}`) },
+    } as never])).toThrow(/32/)
+    expect(() => saveRoles(root, [{ ...base, signals: { strong: 'vue' } } as never])).toThrow(/字符串数组/)
+    expect(() => saveRoles(root, [{ ...base, signals: { strong: ['vue'], extra: [] } } as never])).toThrow()
+
+    expect(loadRoles(root)).toEqual([base])
+  })
+
   it('更新一项岗位不丢其它岗位，也不改变顺序', () => {
     const root = makeSpec()
     saveRoles(root, [

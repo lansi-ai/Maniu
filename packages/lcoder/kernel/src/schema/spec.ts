@@ -340,11 +340,60 @@ export const JobRoleId = z
   .regex(ROLE_ID_PATTERN, '岗位 id 要小写字母开头，只含小写字母、数字、下划线或连字符')
   .refine(id => !(BUILTIN_ROLES as readonly string[]).includes(id), '岗位 id 不能与内置角色同名')
 
+/** 岗位信号的规模上限：每组最多 32 条、每条最多 64 个字符；去重后按原顺序落盘。 */
+export const SIGNAL_LIMITS = { perGroup: 32, perTerm: 64 } as const
+
+/**
+ * 一组信号词。空白条目与空白词判非法；同一组内忽略大小写去重，保留首次出现的写法。
+ * @param label - 出错信息里的字段名。
+ * @returns 校验并去重后的字符串数组。
+ */
+function signalList(label: string) {
+  return z
+    .array(
+      z
+        .string({ error: `${label} 必须是字符串数组` })
+        .trim()
+        .min(1, `${label} 里不能有空字符串`)
+        .max(SIGNAL_LIMITS.perTerm, `${label} 单条不能超过 ${String(SIGNAL_LIMITS.perTerm)} 个字符`),
+      { error: `${label} 必须是字符串数组` },
+    )
+    .max(SIGNAL_LIMITS.perGroup, `${label} 最多 ${String(SIGNAL_LIMITS.perGroup)} 条`)
+    .transform((terms) => {
+      const seen = new Set<string>()
+      return terms.filter((term) => {
+        const key = term.toLowerCase()
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
+    })
+    .default([])
+}
+
+/**
+ * 岗位的可机读能力声明：技术栈强特征词、弱语义词与文件落点偏好。
+ *
+ * 三组都是字符串数组，允许为空；`strong` 命中权重高于 `medium`，`preferredPaths`
+ * 按路径前缀与任务允许路径比对。这里只校验形状与上限，不判断词是否真的属于该技术栈。
+ */
+export const RoleSignals = z
+  .object({
+    /** 技术栈强特征词，如 `c#`、`vue`、`kotlin`。 */
+    strong: signalList('signals.strong'),
+    /** 弱语义词，如「页面」「脚本」。 */
+    medium: signalList('signals.medium'),
+    /** 文件落点偏好，按路径前缀比较，如 `src/Client/`、`app/src/main/`。 */
+    preferredPaths: signalList('signals.preferredPaths'),
+  })
+  .strict()
+export type RoleSignals = z.infer<typeof RoleSignals>
+
 /**
  * 一个岗位：轻量定义，天花板继承某个内置角色。
  *
  * `persona` 只是提示词前缀，不改变工具面——能力仍由 `inherits` 指向的角色表决定，
- * 所以新增岗位不可能越过内置角色的权限。
+ * 所以新增岗位不可能越过内置角色的权限。`signals` 只供建议层排序，不参与调度硬闸。
  */
 export const JobRole = z
   .object({
@@ -355,6 +404,8 @@ export const JobRole = z
     inherits: z.enum(BUILTIN_ROLES),
     /** 可选的提示词前缀。 */
     persona: z.string().min(1).optional(),
+    /** 可选的可机读信号；缺省表示这个岗位没有声明任何词或落点。 */
+    signals: RoleSignals.optional(),
   })
   .strict()
 export type JobRole = z.infer<typeof JobRole>
