@@ -75,6 +75,11 @@ export interface SuggestRoleRequest {
   readonly roster: { readonly jobs: readonly SuggestRosterJob[] }
   readonly ceiling: RoleCeiling
   readonly history?: readonly SuggestHistoryEntry[]
+  /**
+   * 调用方对「任务是否要写盘」的判定；缺省时按任务类型与允许路径推断。
+   * 产品任务没有类型字段，界面侧无法证明只读，因此传 `true`（保守口径）。
+   */
+  readonly writeRequired?: boolean
 }
 
 /** 一个候选岗位；`disqualified` 有值时该候选不参与排序与推荐。 */
@@ -131,7 +136,7 @@ function round2(value: number): number {
   return Math.round(value * 100) / 100
 }
 
-/** 任务是否需要写盘：类型属写盘类型，或声明了允许路径。 */
+/** 任务是否需要写盘：类型属写盘类型，或声明了允许路径；调用方可显式覆盖。 */
 function needsWrite(task: SuggestTask): boolean {
   return WRITE_TASK_TYPES.includes(task.type) || task.allowedPaths.length > 0
 }
@@ -223,7 +228,7 @@ export function suggestRole(request: SuggestRoleRequest): RoleSuggestion {
     body: [task.description, request.contract?.summary ?? '', ...task.allowedPaths].join('\n').toLowerCase(),
     history: request.history ?? [],
   }
-  const writeRequired = needsWrite(task)
+  const writeRequired = request.writeRequired ?? needsWrite(task)
   const candidates: RoleSuggestionCandidate[] = []
 
   for (const job of request.roster.jobs) {

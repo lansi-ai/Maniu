@@ -57,6 +57,8 @@ import type { CloudFace } from '../cloud/face.ts'
 import { useCloudSession } from '../cloud/use-cloud.ts'
 import { CLOUD_GUEST_ROUTE } from '../cloud/routes.ts'
 import { buildIntakePrompt, buildOnboardingPrompt, buildShellPrompt, SHELL_STATES, TASK_FLOW_MENTION_PREFIX } from './shell-data.ts'
+import { buildRoleCard } from './role-card.ts'
+import type { RoleCardStatus, RoleCardView } from './role-card.ts'
 import { ChatTranscript, PendingInteractionCard } from './ChatPanel.tsx'
 import { ChatAttachButton, ChatAttachmentList, ChatModelChip } from './ChatExtras.tsx'
 import {
@@ -306,6 +308,12 @@ const SESSION_FILTER_LABELS: Record<SessionFilter, LcoderWorkspaceKey> = {
   active: 'shell.sessionActive',
 }
 
+const ROLE_CARD_STATUS: Record<RoleCardStatus, LcoderWorkspaceKey> = {
+  suggest: 'shell.roleSuggestStatusSuggest',
+  needs_human: 'shell.roleSuggestStatusNeedsHuman',
+  fallback: 'shell.roleSuggestStatusFallback',
+}
+
 function shellState(value: string): ShellTaskState {
   return KNOWN_STATES.has(value) ? value as ShellTaskState : 'drafting'
 }
@@ -325,6 +333,7 @@ function toShellTask(row: TaskRow): ShellTask {
     ...(row.role === undefined ? {} : { role: row.role }),
     ...(row.dependsOn.length === 0 ? {} : { dependsOn: row.dependsOn }),
     paths: row.paths,
+    irreversible: row.irreversible,
   }
 }
 
@@ -1152,6 +1161,7 @@ export function Shell({
       evidence: [],
       surface: '',
       paths: [],
+      irreversible: [],
     })
   }
 
@@ -1169,6 +1179,11 @@ export function Shell({
   const detailSchedule = detail === null ? undefined : schedule[detail.id]
   /** 选中任务所在的联调组；投影里有就是持久的，刷新后仍在。 */
   const detailJoint = detail === null ? undefined : jointOf(detail)
+  /** 详情里的本地建议；只是排序，分配仍由人点「分配」走 `/task_assign`。 */
+  const detailSuggestion: RoleCardView | null = useMemo(
+    () => (detail === null ? null : buildRoleCard(detail, jobRoles, detailContract?.acceptance ?? [])),
+    [detail, jobRoles, detailContract],
+  )
   /** 签署与外部动作不混进普通开工：单独列出来让人先处理。 */
   const attentionPlans = flow === null
     ? []
@@ -1634,7 +1649,7 @@ export function Shell({
 
   /** 常驻会话浮层用的空任务壳：标题就是角色名，不冒充某条任务。 */
   const pseudoChat = (title: string): ShellTask => ({
-    id: '', title, state: 'drafting', grade: '-', rules: [], evidence: [], surface: '', paths: [],
+    id: '', title, state: 'drafting', grade: '-', rules: [], evidence: [], surface: '', paths: [], irreversible: [],
   })
 
   /**
@@ -1758,7 +1773,7 @@ export function Shell({
     setChatError(null)
     setPrompt(text)
     setCopied(false)
-    setChat({ id: '', title: t('shell.onboardingChat'), state: 'drafting', grade: '-', rules: [], evidence: [], surface: '', paths: [] })
+    setChat({ id: '', title: t('shell.onboardingChat'), state: 'drafting', grade: '-', rules: [], evidence: [], surface: '', paths: [], irreversible: [] })
     const action = onboardingAction({
       hasSession: sessionId !== undefined && sendPrompt !== undefined,
       hasModel: !modelBlocked,
@@ -2913,6 +2928,7 @@ export function Shell({
                           <button
                             type="button"
                             key={row.id}
+                            aria-pressed={roleAssignChoice === row.id}
                             className={`${css.roleChip} ${roleAssignChoice === row.id ? css.roleChipActive : ''}`}
                             onClick={() => { setRoleAssignChoice(row.id) }}
                           >
@@ -2934,6 +2950,58 @@ export function Shell({
                   <p className={assignResult.ok ? css.secretRef : css.problem}>{assignResult.text}</p>
                 )}
               </div>
+              {detailSuggestion === null ? null : (
+                <div className={css.field}>
+                  <label>
+                    {t('shell.roleSuggest')}
+                    {detailSuggestion.writeRequired ? <span className={css.labelHint}>{t('shell.roleSuggestHint')}</span> : null}
+                  </label>
+                  <div className={css.suggestCard}>
+                    <div className={css.suggestTop}>
+                      <span className={`${css.pill} ${css.pillBrand}`}>{t(ROLE_CARD_STATUS[detailSuggestion.status])}</span>
+                    </div>
+                    <p className={css.suggestNote}>{t('shell.roleSuggestNote')}</p>
+                    {detailSuggestion.candidates.length === 0
+                      ? <p className={css.empty}>{t('shell.roleSuggestEmpty')}</p>
+                      : (
+                        <ul className={css.suggestList}>
+                          {detailSuggestion.candidates.map(candidate => (
+                            <li key={candidate.roleId} className={css.suggestItem}>
+                              <div className={css.suggestRowHead}>
+                                <span className={css.suggestRoleName}>{candidate.label}</span>
+                                <span className={css.suggestConfidence}>
+                                  {fill(t('shell.roleSuggestConfidence'), { percent: Math.round(candidate.confidence * 100) })}
+                                </span>
+                              </div>
+                              {candidate.reasons.map(reason => (
+                                <p key={reason} className={css.suggestReason}>{reason}</p>
+                              ))}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    {detailSuggestion.canAdopt && detailSuggestion.adoptRoleId !== undefined ? (
+                      <button
+                        type="button"
+                        className={css.secondaryBtn}
+                        onClick={() => { setRoleAssignChoice(detailSuggestion.adoptRoleId ?? '') }}
+                      >
+                        {t('shell.roleSuggestAdopt')}
+                      </button>
+                    ) : null}
+                    {detailSuggestion.disqualified === 0 || detailSuggestion.disqualifiedReason === undefined
+                      ? null
+                      : (
+                        <p className={css.suggestExcluded}>
+                          {fill(t('shell.roleSuggestExcluded'), {
+                            n: detailSuggestion.disqualified,
+                            reason: detailSuggestion.disqualifiedReason,
+                          })}
+                        </p>
+                      )}
+                  </div>
+                </div>
+              )}
               {detailSchedule === undefined || scheduleErrors[detail.id] === undefined
                 ? null
                 : <p className={css.problem}>{fill(t('shell.scheduleLogFailed'), { detail: scheduleErrors[detail.id] ?? '' })}</p>}

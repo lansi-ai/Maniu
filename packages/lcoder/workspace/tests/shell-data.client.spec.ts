@@ -26,6 +26,7 @@ const TASK: ShellTask = {
   evidence: ['typecheck'],
   surface: 'file_read、task_read',
   paths: [],
+  irreversible: [],
 }
 
 describe('咒语的仓内发送与仓外复制', () => {
