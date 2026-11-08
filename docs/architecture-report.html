@@ -254,20 +254,30 @@ strong { font-weight: 650; }
 }
 .toc-group:first-child { margin-top: 2px; }
 .opening .chapter-head { margin-bottom: 2px; }
-.feature-grid {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(285px, 1fr));
-  gap: 12px; margin: 18px 0; align-items: start;
+.diff-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+  gap: 14px; margin: 18px 0; align-items: start;
 }
-.feature-card {
-  display: flex; flex-direction: column; gap: 9px;
+.diff-card {
   padding: 16px 17px; background: var(--panel);
   border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow);
 }
-.feature-card h3 { margin: 0; font-size: 15px; line-height: 1.4; }
-.feature-value { margin: 0; color: var(--ink); font-size: 13.5px; line-height: 1.65; }
-.feature-basis { margin: 0; color: var(--ink-3); font-size: 12px; line-height: 1.7; }
-.feature-status { margin: auto 0 0; padding-top: 2px; font-size: 11.5px; color: var(--ink-3); line-height: 1.7; }
-.feature-status .tag { margin-right: 6px; }
+.diff-card h4 { margin: 0 0 10px; font-size: 15px; line-height: 1.45; }
+.diff-row {
+  display: grid; grid-template-columns: 78px 1fr; gap: 10px;
+  margin: 6px 0; font-size: 13px; line-height: 1.65;
+}
+.diff-label { font-size: 11px; letter-spacing: .04em; color: var(--ink-3); padding-top: 2px; }
+.diff-row.cost { margin-top: 9px; padding-top: 9px; border-top: 1px dashed var(--line-2); }
+.diff-row.cost .tag { margin-left: 6px; }
+.cap-group { margin: 16px 0; }
+.cap-group h4 { display: flex; align-items: center; gap: 8px; margin: 14px 0 8px; font-size: 14px; }
+.cap-list {
+  list-style: none; margin: 0; padding: 0;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 2px 20px;
+}
+.cap-list li { padding: 5px 0; border-bottom: 1px dotted var(--line); font-size: 13px; line-height: 1.6; color: var(--ink-2); }
+.cap-list b { color: var(--ink); font-weight: 600; }
 .table-wrap { margin: 16px 0; overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); box-shadow: var(--shadow); }
 table { width: 100%; border-collapse: collapse; font-size: 13.5px; line-height: 1.55; }
 th, td { padding: 10px 13px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
@@ -452,7 +462,7 @@ h2:hover .anchor, h3:hover .anchor, h4:hover .anchor { opacity: .7; }
     <div class="meta"><b>9</b><span>角色 preset</span></div>
     <div class="meta"><b>0</b><span>外部资源引用</span></div>
   </div>
-  <p class="note-line">阅读约定：<code class="ref">文件:行号</code> 指向本检出（E:/Projects/LCoder）的源码；<span class="tag">已实现</span> 有代码可查，<span class="tag warn">未验</span> 指代码存在但真实环境未跑过，<span class="tag bad">未实现</span> 指台账里仍是 todo。</p>
+  <p class="note-line">阅读约定：<code class="ref">文件:行号</code> 指向本检出（E:/Projects/LCoder）的源码；<span class="tag ok">已实现</span> 有代码可查；<span class="tag warn">部分实现</span> 主体在、缺口写明；<span class="tag">未验</span> 代码存在但真实环境未跑过；<span class="tag bad">未实现</span> 台账仍是 todo。</p>
 </section>
 
 <section class="chapter opening" id="ch0-1" data-title="为什么要用它">
@@ -522,86 +532,103 @@ h2:hover .anchor, h3:hover .anchor, h4:hover .anchor { opacity: .7; }
 
 <section class="chapter" id="highlights" data-title="亮点功能">
   <div class="chapter-head"><span class="chapter-num">亮点</span><h2>亮点功能<a class="anchor" href="#highlights">#</a></h2></div>
-  <p class="plain blk"><b>一句话结论</b>这一章只是索引：共 13 张卡，每张一行价值、一行依据、一个状态；具体机制在后面技术章节展开，不在这里重复。</p>
-  <div class="feature-grid">
-    <article class="feature-card blk" id="hi-1">
-      <h3>先立字据再动工</h3>
-      <p class="feature-value">任务先写清要做什么、允许改哪些文件；没签那张字据（契约）之前，改文件、跑命令、挂证据的工具根本不会出现。</p>
-      <p class="feature-basis">依据：允许路径硬闸 <code class="ref">tools/edit-tools.ts:136</code>、状态白名单 <code class="ref">kernel/surface.ts:29</code>；见 3.2、4.4。</p>
-      <p class="feature-status"><span class="tag warn">部分实现</span>LCoder 自己的写工具已按签名收放；上游 bundle 工具的全局收口仍属 T-11</p>
+  <p class="plain blk"><b>本章只讲一件事</b>同为写代码的 agent，LCoder 在哪些地方刻意做得不一样、为什么，以及为此付出了什么代价。</p>
+  <div class="callout blk"><p><b>对比口径：</b>下面说的「主流常见做法」指对话式编码工具的通用形态，不点名任何具体产品，也不判断任何具体产品缺什么；差异不等于全面占优，每张卡最后一行都写代价或现状。机制细节不在本章展开，只在需要时给一处源码锚点，完整实现在第 1–12 章。</p></div>
+  <h3>差异卡：九处刻意不同</h3>
+  <div class="diff-grid">
+    <article class="diff-card blk" id="diff-1">
+      <h4>入口：从一件任务开始，不从一句话开始</h4>
+      <p class="diff-row"><span class="diff-label">主流常见</span><span>多数以聊天为中心的 agent 从一个对话框开始：想到什么就说什么，需求、决定和验收散在会话里。</span></p>
+      <p class="diff-row"><span class="diff-label">LCoder</span><span>第一屏是任务板（记录任务与状态的清单）。任务、规则、契约、证据都在仓库的 <code>.spec</code> 里；要让 agent 改代码，先得有一条签过契约的任务，起草阶段看不到写文件的工具。<code class="ref">shell/Shell.tsx:355</code> <code class="ref">kernel/task-store.ts:21</code> <code class="ref">kernel/surface.ts:29</code></span></p>
+      <p class="diff-row"><span class="diff-label">解决什么</span><span>对话可以很长，但任务只有一个编号；回头按编号查，不用翻聊天记录。</span></p>
+      <p class="diff-row cost"><span class="diff-label">代价 / 现状</span><span>入门多一步立项与签字；没有任务的仓库仍可对话和立项，但改不了代码。<span class="tag ok">已实现</span></span></p>
     </article>
-    <article class="feature-card blk" id="hi-2">
-      <h3>工具按阶段发放</h3>
-      <p class="feature-value">每个任务阶段只发一份工具清单（模型能用的工具），不在清单里的等于不存在；漏配的后果是用不了，不是越权能用。</p>
-      <p class="feature-basis">依据：白名单与角色天花板 <code class="ref">kernel/surface.ts:107</code>、<code class="ref">kernel/surface.ts:202</code>；启动自检 <code class="ref">plugin.ts:182</code>；见 3.2。</p>
-      <p class="feature-status"><span class="tag ok">已实现</span>按任务状态求值，每次模型请求前重算</p>
+    <article class="diff-card blk" id="diff-2">
+      <h4>约束：靠代码闸，不靠模型自觉</h4>
+      <p class="diff-row"><span class="diff-label">主流常见</span><span>常见做法把规则写进系统提示或规则文件，靠模型自觉遵守；越权往往只能事后发现。</span></p>
+      <p class="diff-row"><span class="diff-label">LCoder</span><span>把工具清单和允许修改的路径做成代码闸：不在当前阶段的工具对模型不可见；写入超出任务允许范围会被直接拒绝。<code class="ref">kernel/surface.ts:107</code> <code class="ref">kernel/surface.ts:202</code> <code class="ref">tools/edit-tools.ts:136</code></span></p>
+      <p class="diff-row"><span class="diff-label">解决什么</span><span>漏配的后果是「用不了」，不是「悄悄越权」；拒绝发生在写入前，不靠提示词自律。</span></p>
+      <p class="diff-row cost"><span class="diff-label">代价 / 现状</span><span>工具表与角色表要维护，漏配会让能力静默消失（启动自检会报）；上游自带的工具包不在同一条闸内，仍属 T-11。<span class="tag warn">部分实现</span></span></p>
     </article>
-    <article class="feature-card blk" id="hi-3">
-      <h3>危险动作只有人能做</h3>
-      <p class="feature-value">签合同、推进任务状态、批准方案、合并分支、发布、部署，这些动作都不在模型能用的工具清单里。</p>
-      <p class="feature-basis">依据：<code class="ref">kernel/surface.ts:18</code>、<code class="ref">docs/PROJECT-RULES.md:23</code>、<code class="ref">commands/deploy.ts:1</code>；见 3.4。</p>
-      <p class="feature-status"><span class="tag ok">已实现</span>本地提交仍是模型可做的窄动作，推远端不在其中</p>
+    <article class="diff-card blk" id="diff-3">
+      <h4>完成：过检查并交证据，不听自述</h4>
+      <p class="diff-row"><span class="diff-label">主流常见</span><span>常见判定是模型自述完成，或测试变绿就认为做完；界面没点过也可能报完成。</span></p>
+      <p class="diff-row"><span class="diff-label">LCoder</span><span>关闭任务要过三道检查：规则有真实代码落点、该签的字覆盖当前正文、要求的证据非空；任一不过，状态不变并返回违规清单。<code class="ref">tools/task-tools.ts:201</code> <code class="ref">checkers/index.ts:46</code> <code class="ref">checkers/index.ts:162</code></span></p>
+      <p class="diff-row"><span class="diff-label">解决什么</span><span>把「做完了」从一句声明变成一组可检查的事实；证据是干完留下的可检查记录，空文件不算。</span></p>
+      <p class="diff-row cost"><span class="diff-label">代价 / 现状</span><span>签名检查只在任务声明不可逆项（改了就很难撤回的东西）时启用；落点检查是文本索引，注释同名会误命中，失败要人复核；真机点击收口未验。<span class="tag ok">已实现</span></span></p>
     </article>
-    <article class="feature-card blk" id="hi-4">
-      <h3>签名可以交给 AI，但有前提</h3>
-      <p class="feature-value">签名可以交给 AI，但要三条同时成立：策略允许、任务不碰不可逆项（改了就很难撤回的东西）、有评审记录；碰了不可逆项就永远人签。</p>
-      <p class="feature-basis">依据：三闸判定 <code class="ref">kernel/sign-gate.ts:33</code>、P3 复核 <code class="ref">checkers/index.ts:97</code>；见 5.2、5.3。</p>
-      <p class="feature-status"><span class="tag warn">部分实现</span>三闸与写入路径已在；生产流程尚未接上，目前只有测试调用</p>
+    <article class="diff-card blk" id="diff-4">
+      <h4>危险动作：结构性移除，不给拦截机会</h4>
+      <p class="diff-row"><span class="diff-label">主流常见</span><span>常见做法是每个危险操作弹一次确认，让人点允许；拦截发生在动作前一刻。</span></p>
+      <p class="diff-row"><span class="diff-label">LCoder</span><span>签约、推进任务状态、批准方案、合并、推送、部署根本不在模型工具清单里；它们只存在于由人手动触发的命令，或仓库外的操作。<code class="ref">kernel/surface.ts:18</code> <code class="ref">docs/PROJECT-RULES.md:23</code> <code class="ref">commands/deploy.ts:1</code></span></p>
+      <p class="diff-row"><span class="diff-label">解决什么</span><span>不是「请求被拒」，而是「没有这个入口」，模型无法靠说服或重试绕过。</span></p>
+      <p class="diff-row cost"><span class="diff-label">代价 / 现状</span><span>每一步都要人到场，节奏被人卡住；本地提交仍允许模型做；没有 push、合并、部署入口。<span class="tag ok">已实现</span></span></p>
     </article>
-    <article class="feature-card blk" id="hi-5">
-      <h3>干完要交作业</h3>
-      <p class="feature-value">关闭任务不是嘴上说完成：要过落点（规则对应的代码位置）、签名有效性、证据三道检查；证据是干完留下的可检查记录，空文件不算。</p>
-      <p class="feature-basis">依据：收口三检查 <code class="ref">tools/task-tools.ts:201</code>、<code class="ref">checkers/index.ts:46</code>；见 4.5。</p>
-      <p class="feature-status"><span class="tag ok">已实现</span>签名检查只在任务声明不可逆项时启用</p>
+    <article class="diff-card blk" id="diff-5">
+      <h4>并行：工作副本硬闸，不靠口头协调</h4>
+      <p class="diff-row"><span class="diff-label">主流常见</span><span>常见做法靠人自己开分支、记端口、协调谁改哪块；并行一多就靠口头约定。</span></p>
+      <p class="diff-row"><span class="diff-label">LCoder</span><span>调度（决定交给哪条会话）先走硬闸：工作副本（同一个仓库的另一份独立目录）不同就不复用、不入队；再按方案、规格模块、改动落点打分，并写清每个候选命中或被否的理由。<code class="ref">client/scheduling.ts:123</code> <code class="ref">client/scheduling.ts:140</code> <code class="ref">client/scheduling.ts:159</code></span></p>
+      <p class="diff-row"><span class="diff-label">解决什么</span><span>并行任务不会悄悄写进别人的工作副本；为什么选这条会话可以查，不用猜。</span></p>
+      <p class="diff-row cost"><span class="diff-label">代价 / 现状</span><span>工作副本与端口分配仍靠脚本；入队组（排到已有会话里一起做）只是记录，不是收口硬闸；示例仓没有常驻调度会话样例，运行时未证。<span class="tag warn">部分实现</span></span></p>
     </article>
-    <article class="feature-card blk" id="hi-6">
-      <h3>立项到任务的拆解</h3>
-      <p class="feature-value">七问访谈问清需求后，由模型用专用工具落项目信息、业务规则草稿和起草态任务；结果页能回看，重新开始只开新会话，不动已落盘的东西。</p>
-      <p class="feature-basis">依据：七问纪律 <code class="ref">shell/shell-data.ts:354</code>、重开逻辑 <code class="ref">shell/intake.ts:107</code>；见 10.1。</p>
-      <p class="feature-status"><span class="tag ok">已实现</span>访谈后需用户确认需求，才继续落盘与拆任务</p>
+    <article class="diff-card blk" id="diff-6">
+      <h4>可解释：给出理由，不给黑盒结论</h4>
+      <p class="diff-row"><span class="diff-label">主流常见</span><span>常见做法把任务分给哪条会话、下一步做什么做成黑盒选择，只给结果不给依据。</span></p>
+      <p class="diff-row"><span class="diff-label">LCoder</span><span>调度（交给谁）与流程（下一步做什么）都是纯函数（同样输入永远同样结果）：调度输出候选得分、命中信号与被否原因；流程输出九种动作之一、理由与挡住原因。<code class="ref">kernel/flow.ts:17-26</code> <code class="ref">kernel/flow.ts:120</code> <code class="ref">client/scheduling.ts:2</code></span></p>
+      <p class="diff-row"><span class="diff-label">解决什么</span><span>人和模型都能追问「为什么是它」「为什么现在不做」，而不是只看到一个结论。</span></p>
+      <p class="diff-row cost"><span class="diff-label">代价 / 现状</span><span>纯函数与单测有，但流程执行器只接了一半：自签动作没有执行者；示例仓缺 automation.yaml 与 agents.yaml，缺省全手动与失效重建只有单测。<span class="tag warn">部分实现</span></span></p>
     </article>
-    <article class="feature-card blk" id="hi-7">
-      <h3>并行不打架</h3>
-      <p class="feature-value">不同任务放在各自的隔离工作目录里，调度时不混用；入队会记下共同验收组。工作树与端口分配仍靠脚本约定。</p>
-      <p class="feature-basis">依据：工作树硬闸 <code class="ref">client/scheduling.ts:159</code>、联调组落盘 <code class="ref">commands/task-schedule.ts:114</code>；见 6.3。</p>
-      <p class="feature-status"><span class="tag warn">部分实现</span>隔离与验收组已记；组约束没有做成收口硬闸，工作树/端口仍手动</p>
+    <article class="diff-card blk" id="diff-7">
+      <h4>契约与批注：先立字据，再动手</h4>
+      <p class="diff-row"><span class="diff-label">主流常见</span><span>常见做法是先改，改完再解释；讨论、实现和验收混在同一段对话里。</span></p>
+      <p class="diff-row"><span class="diff-label">LCoder</span><span>先起草契约（动手前写清改什么、不改什么、怎么算过、什么算失败），再签；签署可以人签，也可以在策略允许、任务不碰不可逆项、有评审记录（review 证据）三条同时成立时交给 AI 自签；签名绑定正文哈希，正文一改就作废。<code class="ref">tools/spec-tools.ts:205</code> <code class="ref">kernel/contract.ts:29</code> <code class="ref">kernel/sign-gate.ts:33</code> <code class="ref">commands/task-contract.ts:60</code></span></p>
+      <p class="diff-row"><span class="diff-label">解决什么</span><span>动手前先对齐「什么算过」；事后改正文会让签名失效，不能悄悄改口径，评审批注也能作为复核证据。</span></p>
+      <p class="diff-row cost"><span class="diff-label">代价 / 现状</span><span>入门多一道签字流程；AI 自签的生产流程还没接上，目前只有测试调用；不可逆项永远人签。<span class="tag warn">部分实现</span></span></p>
     </article>
-    <article class="feature-card blk" id="hi-sched">
-      <h3>智能调度：这件事交给谁</h3>
-      <p class="feature-value">一件事该沿用已有会话自己做、排到已有会话里一起做（入队）、新开一条，还是先等，由规则算出来并给出理由，不靠人拍脑袋。与「并行不打架」的分工：那张卡讲工作目录隔离，这张只讲交给哪条会话。</p>
-      <p class="feature-basis">依据：三层分工见 <code class="ref">client/scheduling.ts:2</code>；四种结论（复用、入队、新建、等）见 <code class="ref">client/scheduling.ts:65</code>，判定入口 <code class="ref">client/scheduling.ts:140</code>，工作副本比较 <code class="ref">client/scheduling.ts:123</code>；判定落盘 <code class="ref">commands/task-schedule.ts:131</code>、入队组 <code class="ref">commands/task-schedule.ts:221</code>；只读求值 <code class="ref">commands/flow-status.ts:45</code>；见 6.2、6.3。</p>
-      <p class="feature-status"><span class="tag warn">部分实现</span>硬闸、打分与落盘已有且有单测；示例仓没有两个常驻调度会话的样例，运行时行为未证</p>
+    <article class="diff-card blk" id="diff-8">
+      <h4>成本：动手前可见，不等事后账单</h4>
+      <p class="diff-row"><span class="diff-label">主流常见</span><span>常见做法是事后对账：等账单出来才知道花了多少。</span></p>
+      <p class="diff-row"><span class="diff-label">LCoder</span><span>界面直接摆出免费额度、余额拆分和「大约还能用多少字」的区间；换算只在云端做，桌面只显示，算不出来就说原因。<code class="ref">cloud/PersonalCenter.tsx:250</code> <code class="ref">cloud/estimate.ts:37</code> <code class="ref">cloud/types.ts:61</code></span></p>
+      <p class="diff-row"><span class="diff-label">解决什么</span><span>动手前就能判断这次任务大概够不够用，而不是月底才发现；不可用时显示原因，不把零当成预估。</span></p>
+      <p class="diff-row cost"><span class="diff-label">代价 / 现状</span><span>页面与字段契约已完成，但真实云端未合入主线，真实单价与额度未验；没有真实账号时只能看本机模拟服务。<span class="tag warn">部分实现</span></span></p>
     </article>
-    <article class="feature-card blk" id="hi-flow">
-      <h3>流程控制：下一步做什么</h3>
-      <p class="feature-value">下一步该起草、该签、该实现、该验收还是该停，由纯函数（同样的输入永远给同样的结果）算出来，面板只负责画，不自己拿主意。与「并行不打架」的分工：那张卡管隔离，这张管动作顺序。</p>
-      <p class="feature-basis">依据：九种动作 <code class="ref">kernel/flow.ts:17</code>、判定 <code class="ref">kernel/flow.ts:120</code>；单任务 <code class="ref">kernel/flow.ts:339</code>、批量计划 <code class="ref">kernel/flow.ts:370</code>；事实装配 <code class="ref">kernel/flow-store.ts:43</code>、<code class="ref">kernel/flow-store.ts:89</code>；策略 <code class="ref">kernel/automation.ts:54</code>；命令 <code class="ref">commands/flow-status.ts:45</code>、<code class="ref">commands/flow-log.ts:53</code>，后者写 <code>flow.jsonl</code> <code class="ref">commands/flow-log.ts:118</code>；批量开工入口 <code class="ref">shell/Shell.tsx:1484</code>；见 6.1。</p>
-      <p class="feature-status"><span class="tag warn">部分实现</span>动作集、命令与写盘都有；自签没有执行者，示例仓缺 automation.yaml 与 agents.yaml，缺省全手动与失效重建只有单测</p>
+    <article class="diff-card blk" id="diff-9">
+      <h4>知识：留在仓库里，不留在会话里</h4>
+      <p class="diff-row"><span class="diff-label">主流常见</span><span>常见做法把知识留在会话历史里；换个窗口、换台机器就要重新解释。</span></p>
+      <p class="diff-row"><span class="diff-label">LCoder</span><span>任务、契约、证据、流程判定都落成仓库里的文件；看板与这份报告都能离线打开，事后按任务号回看。<code class="ref">client/projection.ts:415</code> <code class="ref">kernel/evidence-store.ts:26</code> <code class="ref">commands/flow-log.ts:118</code></span></p>
+      <p class="diff-row"><span class="diff-label">解决什么</span><span>知识跟着仓库走，不跟着某条会话走；新人和新会话读文件就能接上，不必重放整段对话。</span></p>
+      <p class="diff-row cost"><span class="diff-label">代价 / 现状</span><span>流程判定要调用 <code>/flow_log</code> 才落盘，证据要在流程里写入，没写就没有；示例仓样例不全，部分链路只有单测。<span class="tag warn">部分实现</span></span></p>
     </article>
-    <article class="feature-card blk" id="hi-8">
-      <h3>额度与花费看得见</h3>
-      <p class="feature-value">免费额度、余额拆分和「大约还能用多少字」的区间估算都在界面里；换算只在云端做，桌面不算价。</p>
-      <p class="feature-basis">依据：个人中心 <code class="ref">cloud/PersonalCenter.tsx:67</code>、预估选择 <code class="ref">cloud/estimate.ts:37</code>；见 9.1、9.2。</p>
-      <p class="feature-status"><span class="tag warn">部分实现</span>页面与字段契约已完成；真实云端与真实单价未验</p>
-    </article>
-    <article class="feature-card blk" id="hi-9">
-      <h3>一套界面，两种语言两种主题</h3>
-      <p class="feature-value">中英文案齐全、深浅两套主题，西文字体随包自带，断网也能正常显示。</p>
-      <p class="feature-basis">依据：中英词典 <code class="ref">client/locales.ts:17</code>、<code class="ref">client/locales.ts:574</code>；主题切换 <code class="ref">shell/Shell.tsx:2061</code>；自托管字体 <code class="ref">shell/Shell.module.css:6</code>；见 10.1。</p>
-      <p class="feature-status"><span class="tag ok">已实现</span>中文回退系统字体，西文用随包的 Inter</p>
-    </article>
-    <article class="feature-card blk" id="hi-10">
-      <h3>上游可升级</h3>
-      <p class="feature-value">改过的上游（DeepSeek Harness）文件逐个登记，升级前有体检脚本和演练步骤。</p>
-      <p class="feature-basis">依据：接触面清单 <code class="ref">lcoder/contact-surface.txt:1</code>、升级演练 <code class="ref">lcoder/UPSTREAM-BASELINE.md:117</code>；见 1.2。</p>
-      <p class="feature-status"><span class="tag warn">部分实现</span>工具与步骤已在；真实同步记录仍是「尚未同步过」</p>
-    </article>
-    <article class="feature-card blk" id="hi-11">
-      <h3>文档与看板离线可读</h3>
-      <p class="feature-value">开发台账（记录任务状态的清单）一条命令生成离线看板，双击即开，不需要服务器。</p>
-      <p class="feature-basis">依据：生成约定 <code class="ref">docs/PROJECT-RULES.md:137</code>、生成器 <code class="ref">scripts/build-tasks-html.py:7</code>；见 11.3。</p>
-      <p class="feature-status"><span class="tag ok">已实现</span>内联样式与脚本，产物已生成</p>
-    </article>
+  </div>
+
+  <h3>能力清单（按状态）</h3>
+  <p class="blk">原来按能力罗列的 13 条仍保留，降级成紧凑清单；状态沿用审计口径，机制见对应章节，不在本章展开。</p>
+  <div class="cap-group blk">
+    <h4><span class="tag ok">已实现</span> 6 条</h4>
+    <ul class="cap-list">
+      <li><b>工具按阶段发放</b> —— 不在当前阶段的工具不可见（3.2）</li>
+      <li><b>危险动作只有人能做</b> —— 签约、推进、批准、部署不在工具表（3.4）</li>
+      <li><b>干完要交作业</b> —— 落点、签名、证据三道检查（4.5）</li>
+      <li><b>立项到任务的拆解</b> —— 七问访谈后由模型落项目、规格草稿与起草态任务（10.1）</li>
+      <li><b>一套界面，两种语言两种主题</b> —— 中英词典、深浅主题、自托管西文字体（10.1）</li>
+      <li><b>文档与看板离线可读</b> —— 台账生成离线看板，双击即开（11.3）</li>
+    </ul>
+  </div>
+  <div class="cap-group blk">
+    <h4><span class="tag warn">部分实现</span> 7 条</h4>
+    <ul class="cap-list">
+      <li><b>先立字据再动工</b> —— 写工具受签名与允许路径约束；上游 bundle 工具未全局收口（T-11）</li>
+      <li><b>签名可以交给 AI，但有前提</b> —— 三闸与写入路径已在，生产流程尚无调用者</li>
+      <li><b>并行不打架</b> —— 工作副本硬闸与验收组已记；组不是收口硬闸，端口仍手动</li>
+      <li><b>智能调度</b> —— 判定、打分与落盘有单测；示例仓无常驻调度会话样例</li>
+      <li><b>流程控制</b> —— 动作、命令与写盘有；自签无执行者，示例仓缺策略文件</li>
+      <li><b>额度与花费看得见</b> —— 页面与契约完成；真实云端与真实单价未验</li>
+      <li><b>上游可升级</b> —— 接触面、体检脚本与演练步骤在；真实同步未做</li>
+    </ul>
+  </div>
+  <div class="cap-group blk">
+    <h4><span class="tag">未验</span> 0 条</h4>
+    <p>本清单没有条目落在这一档；具体未验事项见 12.2。</p>
   </div>
 </section>
 
