@@ -46,8 +46,8 @@ English | [中文](active-context.zh.md)
 
 ## 04. Next immediate actions (Next Immediate Actions)
 
-- **Currently working on**: T-98 and T-101 are closed on `lcoder/main`. T-99 builds the agent status dashboard tab (summary, session table, event feed) and leaves a graph slot; T-100 phase one builds the standalone relation-graph layout and component, with phase two wiring after T-99.
-- **About to execute**: land T-99, then T-100 phase two, then continue the desktop release chain T-79 to T-82.
+- **Currently working on**: T-98, T-99 and T-101 are closed on `lcoder/main`. T-100 phase two is wiring the relation graph into the dashboard page after merging main, then capturing the real window and running the full gates.
+- **About to execute**: accept T-100, then continue the desktop release chain T-79 to T-82.
 - **Open decisions**: whether product tasks should gain a `type` field so the suggestion layer can distinguish read-only tasks; the production SMS provider, the exact opencode rates behind the 20-dollar grant, the deployment domain and host, and whether to add an application-level anonymous kill switch and a `/health` endpoint.
 - **Development evidence**: gate output is recorded in the task note in `docs/tasks.yaml` or the commit message; `.spec/evidence` serves product tasks only.
 - **Board regeneration**: after a development status change, edit `docs/tasks.yaml` first, then run `python scripts/build-tasks-html.py`.
