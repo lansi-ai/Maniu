@@ -207,6 +207,8 @@ const TASK_VUE = 'id: T-01\ntitle: 修复 vue 页面组件\nstate: drafting\ngra
 const TASK_VUE_IRREVERSIBLE = `${TASK_VUE}scope:\n  irreversible: [settlement_formula]\n`
 /** 没有任何信号命中的任务：建议层回内置 dev 兜底。 */
 const TASK_PLAIN = 'id: T-03\ntitle: 整理佣金规则\nstate: drafting\ngrade: B\n'
+/** 五项元信息都有值的任务：用来断言紧凑列表没有漏字段。 */
+const TASK_META = 'id: T-01\ntitle: 元信息齐全的任务\nstate: drafting\ngrade: B\nrules:\n  - R-1\nevidence_required:\n  - E-1\n'
 
 /** 两个实施岗位：Vue 有标题信号，.NET 没有；名册第一条决定默认选择。 */
 const ROLES_VUE = `roles:
@@ -274,12 +276,13 @@ describe('任务详情', () => {
     expect(screen.getByText(`${zh['shell.jobRole']} ${zh['shell.roleUnknown']}`)).toBeTruthy()
     expect(screen.getByText(`${zh['shell.jobRole']} ${zh['shell.roleUnassigned']}`)).toBeTruthy()
 
-    // 详情：同一个岗位显示在元信息里（卡片上那一条仍在，所以至少两处）。
+    // 详情：同一个岗位显示在元信息里；问号按钮带可访问名称，不改岗位文本节点。
     await openTask('起草中的任务')
-    expect(screen.getAllByText('Vue 工程师').length).toBeGreaterThanOrEqual(2)
+    const detail = screen.getByRole('dialog', { name: 'T-01 起草中的任务' })
+    expect(within(detail).getByText(zh['shell.jobRole']).parentElement?.textContent).toContain('Vue 工程师')
   })
 
-  it('分配成功后已打开的详情立即显示岗位，不用关掉重开', async () => {
+  it('岗位弹窗确认后才分配：调用 assignTask 并显示回执，详情立即刷新', async () => {
     const tasks: Record<string, string> = { 'T-01.yaml': TASK_T01 }
     const assignTask = vi.fn(async (_sessionId: SessionId, taskId: string, roleId: string) => {
       // 模拟命令落盘：下一次重读投影能看到 role，与真实 `/task_assign` 同形。
@@ -296,22 +299,27 @@ describe('任务详情', () => {
     })
 
     await openTask('起草中的任务')
-    expect(screen.getByText(zh['shell.jobRole']).parentElement?.textContent).toContain(zh['shell.roleUnassigned'])
+    const detail = screen.getByRole('dialog', { name: 'T-01 起草中的任务' })
+    expect(within(detail).getByText(zh['shell.jobRole']).parentElement?.textContent).toContain(zh['shell.roleUnassigned'])
 
-    fireEvent.click(screen.getByRole('button', { name: '.NET 工程师' }))
-    fireEvent.click(screen.getByRole('button', { name: zh['shell.assignRoleAction'] }))
+    fireEvent.click(within(detail).getByRole('button', { name: zh['shell.roleDialogTitle'] }))
+    const roleDialog = screen.getByRole('dialog', { name: zh['shell.roleDialogTitle'] })
+    fireEvent.click(within(roleDialog).getByRole('button', { name: '.NET 工程师' }))
+    fireEvent.click(within(roleDialog).getByRole('button', { name: zh['shell.roleDialogConfirm'] }))
 
     await waitFor(() => {
       expect(assignTask).toHaveBeenCalledWith(expect.any(String), 'T-01', 'dotnet-engineer')
     })
+    await waitFor(() => {
+      expect(within(roleDialog).getByText('已分配给 dotnet-engineer')).toBeTruthy()
+    })
     // 弹窗始终开着：详情元信息自己刷新成新岗位，回执也还在。
     await waitFor(() => {
-      expect(screen.getByText(zh['shell.jobRole']).parentElement?.textContent).toContain('.NET 工程师')
+      expect(within(detail).getByText(zh['shell.jobRole']).parentElement?.textContent).toContain('.NET 工程师')
     })
-    expect(screen.getByText('已分配给 dotnet-engineer')).toBeTruthy()
   })
 
-  it('分配被拒时不改显示：详情仍是未分配', async () => {
+  it('分配被拒时回执留在弹窗，详情仍是未分配', async () => {
     const assignTask = vi.fn(async () => ({ ok: false, text: '岗位不存在' }))
 
     renderShell({
@@ -323,11 +331,66 @@ describe('任务详情', () => {
     })
 
     await openTask('起草中的任务')
-    fireEvent.click(screen.getByRole('button', { name: '.NET 工程师' }))
-    fireEvent.click(screen.getByRole('button', { name: zh['shell.assignRoleAction'] }))
+    const detail = screen.getByRole('dialog', { name: 'T-01 起草中的任务' })
+    fireEvent.click(within(detail).getByRole('button', { name: zh['shell.roleDialogTitle'] }))
+    const roleDialog = screen.getByRole('dialog', { name: zh['shell.roleDialogTitle'] })
+    fireEvent.click(within(roleDialog).getByRole('button', { name: '.NET 工程师' }))
+    fireEvent.click(within(roleDialog).getByRole('button', { name: zh['shell.roleDialogConfirm'] }))
 
-    await waitFor(() => { expect(screen.getByText('岗位不存在')).toBeTruthy() })
-    expect(screen.getByText(zh['shell.jobRole']).parentElement?.textContent).toContain(zh['shell.roleUnassigned'])
+    await waitFor(() => { expect(within(roleDialog).getByText('岗位不存在')).toBeTruthy() })
+    expect(within(detail).getByText(zh['shell.jobRole']).parentElement?.textContent).toContain(zh['shell.roleUnassigned'])
+  })
+
+  it('标题下不再显示项目、仓库路径与规格根', async () => {
+    renderShell({ spec: { tasks: { 'T-01.yaml': TASK_META } } })
+    await openTask('元信息齐全的任务')
+
+    const detail = screen.getByRole('dialog', { name: 'T-01 元信息齐全的任务' })
+    // 只看标题块：启动咒语里本来就会提到规格根与项目路径。
+    const head = detail.querySelector('h3')?.parentElement
+    expect(head?.textContent).toBe('T-01 · 元信息齐全的任务')
+  })
+
+  it('元信息五项都在，改成无卡片的紧凑列表', async () => {
+    renderShell({ spec: { tasks: { 'T-01.yaml': TASK_META } } })
+    await openTask('元信息齐全的任务')
+
+    const detail = screen.getByRole('dialog', { name: 'T-01 元信息齐全的任务' })
+    for (const label of [zh['shell.grade'], zh['shell.jobRole'], zh['shell.rules'], zh['shell.evidence'], zh['shell.surface']]) {
+      expect(within(detail).getByText(label).tagName).toBe('DT')
+    }
+    expect(within(detail).getAllByRole('term').length).toBe(5)
+    expect(within(detail).getAllByRole('definition').length).toBe(5)
+
+    const list = within(detail).getByText(zh['shell.grade']).closest('dl')
+    expect(list).not.toBeNull()
+    expect(list?.textContent).toContain('B')
+    expect(list?.textContent).toContain('R-1')
+    expect(list?.textContent).toContain('E-1')
+    expect(list?.textContent).toContain('读 / 契约')
+
+    // 旧的分配区整块不在：没有分配按钮、没有采用建议、没有硬约束小字。
+    expect(within(detail).queryByRole('button', { name: '分配' })).toBeNull()
+    expect(within(detail).queryByText('采用建议')).toBeNull()
+    expect(within(detail).queryByText('分配是调度硬约束，由人写入')).toBeNull()
+  })
+
+  it('问号按钮打开岗位弹窗，打开本身不写盘', async () => {
+    const assignTask = vi.fn(async () => ({ ok: true, text: '已分配' }))
+    renderShell({
+      spec: { tasks: { 'T-01.yaml': TASK_T01 }, roles: ROLES_VUE },
+      assignTask,
+    })
+    await openTask('起草中的任务')
+
+    const detail = screen.getByRole('dialog', { name: 'T-01 起草中的任务' })
+    fireEvent.click(within(detail).getByRole('button', { name: zh['shell.roleDialogTitle'] }))
+
+    const roleDialog = screen.getByRole('dialog', { name: zh['shell.roleDialogTitle'] })
+    expect(within(roleDialog).getByText('当前岗位：未分配')).toBeTruthy()
+    expect(within(roleDialog).getByRole('button', { name: '.NET 工程师' })).toBeTruthy()
+    expect(within(roleDialog).getByRole('button', { name: /^Vue 工程师/ })).toBeTruthy()
+    expect(assignTask).not.toHaveBeenCalled()
   })
 
   it('没有契约文件时不出现签署暗示，也不提供签署按钮', async () => {
@@ -378,39 +441,26 @@ describe('任务详情', () => {
   })
 })
 
-describe('任务详情的分配芯片内联建议', () => {
-  it('推荐徽标只出现在推荐芯片上，芯片下方一行给理由与置信度，岗位名不再列两遍', async () => {
+describe('任务详情的岗位弹窗与建议徽标', () => {
+  it('推荐徽标只出现在弹窗的推荐项，详情里不显示建议理由', async () => {
     renderShell({ spec: { tasks: { 'T-01.yaml': TASK_VUE }, roles: ROLES_VUE } })
     await openTask('修复 vue 页面组件')
 
-    const vueChip = screen.getByRole('button', { name: /^Vue 工程师/ })
-    const dotnetChip = screen.getByRole('button', { name: '.NET 工程师' })
+    const detail = screen.getByRole('dialog', { name: 'T-01 修复 vue 页面组件' })
+    expect(within(detail).queryByText(zh['shell.roleHintBadge'])).toBeNull()
+    expect(within(detail).queryByText(/置信度/)).toBeNull()
+    expect(within(detail).queryByText(/强特征/)).toBeNull()
+
+    fireEvent.click(within(detail).getByRole('button', { name: zh['shell.roleDialogTitle'] }))
+    const roleDialog = screen.getByRole('dialog', { name: zh['shell.roleDialogTitle'] })
+    const vueChip = within(roleDialog).getByRole('button', { name: /^Vue 工程师/ })
+    const dotnetChip = within(roleDialog).getByRole('button', { name: '.NET 工程师' })
     expect(within(vueChip).getByText(zh['shell.roleHintBadge'])).toBeTruthy()
     expect(within(dotnetChip).queryByText(zh['shell.roleHintBadge'])).toBeNull()
-    expect(screen.getAllByText(zh['shell.roleHintBadge']).length).toBe(1)
-
-    // 岗位名只在芯片上出现：没有单独的候选清单重复列一遍。
-    expect(screen.getAllByText('Vue 工程师').length).toBe(1)
-    const mentions = screen.getAllByRole('button')
-      .filter(button => button.textContent?.includes('Vue 工程师'))
-    expect(mentions.length).toBe(1)
-
-    expect(screen.getByText(
-      '强特征「vue」命中标题 (+5)；弱语义「页面」命中标题 (+3)；置信度 100% · 分配仍由人执行 /task_assign',
-    )).toBeTruthy()
+    expect(within(roleDialog).getAllByText(zh['shell.roleHintBadge']).length).toBe(1)
   })
 
-  it('英文界面按 code 渲染理由、置信度与人工提示', async () => {
-    renderShell({ spec: { tasks: { 'T-01.yaml': TASK_VUE }, roles: ROLES_VUE }, t: enT })
-    await openTask('修复 vue 页面组件', enT)
-
-    expect(await screen.findByText(en['shell.roleHintBadge'])).toBeTruthy()
-    expect(screen.getByText(
-      'Strong signal "vue" matched the title (+5); Weak signal "页面" matched the title (+3) · Confidence 100% · A human still runs /task_assign',
-    )).toBeTruthy()
-  })
-
-  it('点采用建议只改详情里的岗位选择，不调分配命令也不写回执', async () => {
+  it('取消关闭弹窗不调分配命令', async () => {
     const assignTask = vi.fn(async () => ({ ok: true, text: '已分配' }))
     renderShell({
       spec: { tasks: { 'T-01.yaml': TASK_VUE }, roles: ROLES_VUE },
@@ -418,44 +468,76 @@ describe('任务详情的分配芯片内联建议', () => {
     })
     await openTask('修复 vue 页面组件')
 
-    const vueChip = screen.getByRole('button', { name: /^Vue 工程师/ })
-    expect(vueChip.getAttribute('aria-pressed')).toBe('false')
+    const detail = screen.getByRole('dialog', { name: 'T-01 修复 vue 页面组件' })
+    fireEvent.click(within(detail).getByRole('button', { name: zh['shell.roleDialogTitle'] }))
+    const roleDialog = screen.getByRole('dialog', { name: zh['shell.roleDialogTitle'] })
+    fireEvent.click(within(roleDialog).getByRole('button', { name: '.NET 工程师' }))
+    fireEvent.click(within(roleDialog).getByRole('button', { name: zh['shell.cancel'] }))
 
-    fireEvent.click(screen.getByRole('button', { name: zh['shell.roleHintAdopt'] }))
-
-    expect(vueChip.getAttribute('aria-pressed')).toBe('true')
+    expect(screen.queryByRole('dialog', { name: zh['shell.roleDialogTitle'] })).toBeNull()
     expect(assignTask).not.toHaveBeenCalled()
-    expect(screen.queryByText('已分配')).toBeNull()
   })
 
-  it('不可逆任务写「需人工挑选」并带原因，不标芯片也不给采用按钮', async () => {
-    renderShell({ spec: { tasks: { 'T-01.yaml': TASK_VUE_IRREVERSIBLE }, roles: ROLES_VUE } })
+  it('点弹窗外关闭也不调分配命令', async () => {
+    const assignTask = vi.fn(async () => ({ ok: true, text: '已分配' }))
+    renderShell({
+      spec: { tasks: { 'T-01.yaml': TASK_VUE }, roles: ROLES_VUE },
+      assignTask,
+    })
     await openTask('修复 vue 页面组件')
 
-    expect(await screen.findByText('本地规则没有把握，请人工挑选（任务含不可逆动作）')).toBeTruthy()
-    expect(screen.queryByText(zh['shell.roleHintBadge'])).toBeNull()
-    expect(screen.queryByRole('button', { name: zh['shell.roleHintAdopt'] })).toBeNull()
-    expect(screen.getAllByRole('button').filter(button => button.textContent === 'Vue 工程师').length).toBe(1)
+    const detail = screen.getByRole('dialog', { name: 'T-01 修复 vue 页面组件' })
+    fireEvent.click(within(detail).getByRole('button', { name: zh['shell.roleDialogTitle'] }))
+    const roleDialog = screen.getByRole('dialog', { name: zh['shell.roleDialogTitle'] })
+    fireEvent.click(within(roleDialog).getByRole('button', { name: '.NET 工程师' }))
+    fireEvent.click(roleDialog.parentElement!)
+
+    expect(screen.queryByRole('dialog', { name: zh['shell.roleDialogTitle'] })).toBeNull()
+    expect(assignTask).not.toHaveBeenCalled()
   })
 
-  it('两个候选同样命中时算需人工挑选', async () => {
-    renderShell({ spec: { tasks: { 'T-01.yaml': TASK_VUE }, roles: ROLES_VUE_TIE } })
-    await openTask('修复 vue 页面组件')
-
-    expect(await screen.findByText('本地规则没有把握，请人工挑选（最高候选置信度不足）')).toBeTruthy()
-    expect(screen.queryByText(zh['shell.roleHintBadge'])).toBeNull()
-    expect(screen.queryByRole('button', { name: zh['shell.roleHintAdopt'] })).toBeNull()
-  })
-
-  it('没有任何信号命中时写兜底提示，不标芯片也不列岗位清单', async () => {
+  it('兜底态弹窗不带建议徽标', async () => {
     renderShell({ spec: { tasks: { 'T-03.yaml': TASK_PLAIN }, roles: ROLES_VUE } })
     await openTask('整理佣金规则')
 
-    expect(await screen.findByText('没有名册岗位命中，建议人工确认')).toBeTruthy()
-    expect(screen.queryByText(zh['shell.roleHintBadge'])).toBeNull()
-    expect(screen.queryByRole('button', { name: zh['shell.roleHintAdopt'] })).toBeNull()
-    // 名册芯片各出现一次，兜底态不另列候选。
-    expect(screen.getAllByRole('button').filter(button => button.textContent === '.NET 工程师').length).toBe(1)
-    expect(screen.getAllByRole('button').filter(button => button.textContent === 'Vue 工程师').length).toBe(1)
+    const detail = screen.getByRole('dialog', { name: 'T-03 整理佣金规则' })
+    fireEvent.click(within(detail).getByRole('button', { name: zh['shell.roleDialogTitle'] }))
+    const roleDialog = screen.getByRole('dialog', { name: zh['shell.roleDialogTitle'] })
+
+    expect(within(roleDialog).queryByText(zh['shell.roleHintBadge'])).toBeNull()
+    expect(within(roleDialog).getByRole('button', { name: '.NET 工程师' })).toBeTruthy()
+    expect(within(roleDialog).getByRole('button', { name: 'Vue 工程师' })).toBeTruthy()
+  })
+
+  it('需人工挑选的两态同样不标徽标', async () => {
+    renderShell({ spec: { tasks: { 'T-01.yaml': TASK_VUE_IRREVERSIBLE }, roles: ROLES_VUE } })
+    await openTask('修复 vue 页面组件')
+
+    const detail = screen.getByRole('dialog', { name: 'T-01 修复 vue 页面组件' })
+    fireEvent.click(within(detail).getByRole('button', { name: zh['shell.roleDialogTitle'] }))
+    const roleDialog = screen.getByRole('dialog', { name: zh['shell.roleDialogTitle'] })
+    expect(within(roleDialog).queryByText(zh['shell.roleHintBadge'])).toBeNull()
+
+    cleanup()
+    renderShell({ spec: { tasks: { 'T-01.yaml': TASK_VUE }, roles: ROLES_VUE_TIE } })
+    await openTask('修复 vue 页面组件')
+    const tieDetail = screen.getByRole('dialog', { name: 'T-01 修复 vue 页面组件' })
+    fireEvent.click(within(tieDetail).getByRole('button', { name: zh['shell.roleDialogTitle'] }))
+    const tieDialog = screen.getByRole('dialog', { name: zh['shell.roleDialogTitle'] })
+    expect(within(tieDialog).queryByText(zh['shell.roleHintBadge'])).toBeNull()
+  })
+
+  it('英文界面给出弹窗标题、当前岗位、确认按钮与徽标', async () => {
+    renderShell({ spec: { tasks: { 'T-01.yaml': TASK_VUE }, roles: ROLES_VUE }, t: enT })
+    await openTask('修复 vue 页面组件', enT)
+
+    const detail = screen.getByRole('dialog', { name: 'T-01 修复 vue 页面组件' })
+    fireEvent.click(within(detail).getByRole('button', { name: en['shell.roleDialogTitle'] }))
+    const roleDialog = screen.getByRole('dialog', { name: en['shell.roleDialogTitle'] })
+
+    expect(within(roleDialog).getByText('Current role: Unassigned')).toBeTruthy()
+    expect(within(roleDialog).getByRole('button', { name: en['shell.roleDialogConfirm'] })).toBeTruthy()
+    expect(within(roleDialog).getByText(en['shell.roleHintBadge'])).toBeTruthy()
+    expect(within(roleDialog).getByRole('button', { name: /^Vue Engineer|^Vue 工程师/ })).toBeTruthy()
   })
 })

@@ -10,7 +10,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, MouseEvent, ReactNode } from 'react'
-import type { PropsLocale, PropsRuntime, TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
+import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
@@ -57,9 +57,7 @@ import type { CloudFace } from '../cloud/face.ts'
 import { useCloudSession } from '../cloud/use-cloud.ts'
 import { CLOUD_GUEST_ROUTE } from '../cloud/routes.ts'
 import { buildIntakePrompt, buildOnboardingPrompt, buildShellPrompt, SHELL_STATES, TASK_FLOW_MENTION_PREFIX } from './shell-data.ts'
-import { buildRoleHint } from './role-hint.ts'
-import type { RoleHintBlocker, RoleHintView } from './role-hint.ts'
-import type { RoleReason } from '../role-suggest.ts'
+import { recommendedRoleId } from './role-hint.ts'
 import { ChatTranscript, PendingInteractionCard } from './ChatPanel.tsx'
 import { ChatAttachButton, ChatAttachmentList, ChatModelChip } from './ChatExtras.tsx'
 import {
@@ -309,50 +307,6 @@ const SESSION_FILTER_LABELS: Record<SessionFilter, LcoderWorkspaceKey> = {
   active: 'shell.sessionActive',
 }
 
-const ROLE_HINT_BLOCKER: Record<RoleHintBlocker, LcoderWorkspaceKey> = {
-  irreversible: 'shell.roleHintBlockerIrreversible',
-  low_confidence: 'shell.roleHintBlockerLowConfidence',
-}
-
-/** 命中理由的 code 到词典键与参数；参数只带数据，句子由词典给。 */
-function roleReasonText(t: TranslateNS<'lcoderWorkspace'>, reason: RoleReason): string {
-  switch (reason.code) {
-    case 'strong_signal':
-      return t(reason.field === 'title' ? 'shell.roleReasonStrongTitle' : 'shell.roleReasonStrongBody', {
-        term: reason.term, delta: reason.delta,
-      })
-    case 'medium_signal':
-      return t(reason.field === 'title' ? 'shell.roleReasonMediumTitle' : 'shell.roleReasonMediumBody', {
-        term: reason.term, delta: reason.delta,
-      })
-    case 'preferred_path':
-      return t('shell.roleReasonPreferredPath', {
-        preferred: reason.preferred, matched: reason.matched, delta: reason.delta,
-      })
-    case 'history_kept':
-      return t('shell.roleReasonHistory', { count: reason.count, bonus: reason.bonus })
-    case 'fallback_no_match':
-      return t('shell.roleReasonFallback')
-  }
-}
-
-/** 芯片下方的那一行依据：推荐态给理由与置信度，另外两态只给一句人工提示。 */
-function roleHintText(t: TranslateNS<'lcoderWorkspace'>, hint: RoleHintView): string {
-  switch (hint.status) {
-    case 'suggest':
-      return fill(t('shell.roleHintLine'), {
-        reasons: hint.recommended.reasons
-          .map(reason => roleReasonText(t, reason))
-          .join(t('shell.roleHintReasonSeparator')),
-        percent: Math.round(hint.recommended.confidence * 100),
-      })
-    case 'needs_human':
-      return fill(t('shell.roleHintNeedsHuman'), { reason: t(ROLE_HINT_BLOCKER[hint.blocker]) })
-    case 'fallback':
-      return t('shell.roleHintFallback')
-  }
-}
-
 function shellState(value: string): ShellTaskState {
   return KNOWN_STATES.has(value) ? value as ShellTaskState : 'drafting'
 }
@@ -504,10 +458,12 @@ export function Shell({
   const [roles, setRoles] = useState<readonly ShellRole[]>([])
   /** `.spec/roles.yaml` 的岗位名册；缺文件是空表，任务上的未知 id 仍照实显示。 */
   const [jobRoles, setJobRoles] = useState<readonly JobRoleRow[]>([])
-  /** 详情里选中的岗位；打开任务时取当前分配，没有就取名册第一条。 */
+  /** 岗位弹窗里选中的岗位；打开弹窗时取当前分配，未分配就留空。 */
   const [roleAssignChoice, setRoleAssignChoice] = useState<string>('')
   const [assigning, setAssigning] = useState(false)
   const [assignResult, setAssignResult] = useState<ShellSignResult | null>(null)
+  /** 岗位编辑弹窗；开关只动界面，不写盘。 */
+  const [roleDialogOpen, setRoleDialogOpen] = useState(false)
   /** 下一次新开会话要用的角色；null 表示交给宿主默认。 */
   const [roleChoice, setRoleChoice] = useState<string | null>(null)
   /** 建会话与认领进行中：禁用入口，避免连点开出两条会话。 */
@@ -1177,7 +1133,8 @@ export function Shell({
     setCopied(false)
     setSignResult(null)
     setAssignResult(null)
-    setRoleAssignChoice(task.role ?? jobRoles[0]?.id ?? '')
+    setRoleAssignChoice(task.role ?? '')
+    setRoleDialogOpen(false)
     // 上一个任务的「没会话」提示不属于这个任务。
     setChatError(null)
   }
@@ -1218,11 +1175,25 @@ export function Shell({
   const detailSchedule = detail === null ? undefined : schedule[detail.id]
   /** 选中任务所在的联调组；投影里有就是持久的，刷新后仍在。 */
   const detailJoint = detail === null ? undefined : jointOf(detail)
-  /** 详情里的本地建议；只标在现有芯片上，分配仍由人点「分配」走 `/task_assign`。 */
-  const detailHint: RoleHintView | null = useMemo(
-    () => (detail === null ? null : buildRoleHint(detail, jobRoles, detailContract?.acceptance ?? [])),
+  /** 弹窗里要标建议徽标的岗位；只消费推荐 id，理由不进入界面。 */
+  const recommendedRole = useMemo(
+    () => (detail === null ? null : recommendedRoleId(detail, jobRoles, detailContract?.acceptance ?? [])),
     [detail, jobRoles, detailContract],
   )
+  /** 打开弹窗只准备选择，不写盘；取消与点外部都从这里退出。 */
+  const openRoleDialog = (): void => {
+    if (detail === null) return
+    setRoleAssignChoice(detail.role ?? '')
+    setAssignResult(null)
+    setRoleDialogOpen(true)
+  }
+  const closeRoleDialog = (): void => {
+    setRoleDialogOpen(false)
+    setAssignResult(null)
+  }
+  useEffect(() => {
+    if (detail === null) setRoleDialogOpen(false)
+  }, [detail])
   /** 签署与外部动作不混进普通开工：单独列出来让人先处理。 */
   const attentionPlans = flow === null
     ? []
@@ -2897,11 +2868,10 @@ export function Shell({
 
       {detail !== null ? (
         <div className={css.modalBackdrop} onClick={(event) => { if (event.target === event.currentTarget) setDetail(null) }}>
-          <div className={css.modal}>
+          <div className={css.modal} role="dialog" aria-modal="true" aria-label={`${detail.id} ${detail.title}`}>
             <div className={css.modalHead}>
               <div className={css.grow}>
                 <h3>{detail.id} · {detail.title}</h3>
-                <p>{projectName} / {projectPath} · {t('shell.specRoot')} {specRoot || '—'}</p>
               </div>
               <span className={css.pill}>{t(STATE_LABEL[detail.state])}</span>
               <button
@@ -2916,99 +2886,73 @@ export function Shell({
               <button type="button" className={css.iconBtn} onClick={() => { setDetail(null) }}>✕</button>
             </div>
             <div className={css.modalBody}>
-              <div className={css.metaGrid}>
-                <div className={css.meta}><div className={css.metaK}>{t('shell.grade')}</div><div className={css.metaV}>{detail.grade}</div></div>
-                <div className={css.meta}><div className={css.metaK}>{t('shell.jobRole')}</div><div className={css.metaV}>{roleLabelOf(detail.role)}</div></div>
-                <div className={css.meta}><div className={css.metaK}>{t('shell.rules')}</div><div className={css.metaV}>{detail.rules.join(', ') || '—'}</div></div>
+              <dl className={css.metaStrip}>
+                <div className={css.metaItem}>
+                  <dt className={css.metaK}>{t('shell.grade')}</dt>
+                  <dd className={css.metaV}>{detail.grade}</dd>
+                </div>
+                <div className={css.metaItem}>
+                  <dt className={css.metaK}>{t('shell.jobRole')}</dt>
+                  <dd className={css.metaV}>
+                    {roleLabelOf(detail.role)}
+                    <button
+                      type="button"
+                      className={css.metaHelp}
+                      aria-label={t('shell.roleDialogTitle')}
+                      onClick={openRoleDialog}
+                    >
+                      ?
+                    </button>
+                  </dd>
+                </div>
+                <div className={css.metaItem}>
+                  <dt className={css.metaK}>{t('shell.rules')}</dt>
+                  <dd className={css.metaV}>{detail.rules.join(', ') || '—'}</dd>
+                </div>
                 {detail.dependsOn === undefined
                   ? null
-                  : <div className={css.meta}><div className={css.metaK}>{t('shell.dependsOn')}</div><div className={css.metaV}>{detail.dependsOn.join('、')}</div></div>}
+                  : (
+                    <div className={css.metaItem}>
+                      <dt className={css.metaK}>{t('shell.dependsOn')}</dt>
+                      <dd className={css.metaV}>{detail.dependsOn.join('、')}</dd>
+                    </div>
+                  )}
                 {detailSchedule?.queue === undefined
                   ? null
                   : (
-                    <div className={css.meta}>
-                      <div className={css.metaK}>{t('shell.queuedIn')}</div>
-                      <div className={css.metaV}>
+                    <div className={css.metaItem}>
+                      <dt className={css.metaK}>{t('shell.queuedIn')}</dt>
+                      <dd className={css.metaV}>
                         {sessionLabel(detailSchedule.queue.sessionId)}
                         {' · '}
                         {fill(t('shell.queuePosition'), { n: detailSchedule.queue.position })}
-                      </div>
+                      </dd>
                     </div>
                   )}
                 {detailJoint === undefined
                   ? null
                   : (
-                    <div className={css.meta}>
-                      <div className={css.metaK}>{t('shell.jointGroup')}</div>
-                      <div className={css.metaV}>
+                    <div className={css.metaItem}>
+                      <dt className={css.metaK}>{t('shell.jointGroup')}</dt>
+                      <dd className={css.metaV}>
                         {t('shell.jointMembers')}：{detailJoint.members.join('、')}
                         {' · '}
                         {t('shell.jointAcceptance')}
                         {detailJoint.createdAt === undefined
                           ? ''
                           : ` · ${fill(t('shell.jointCreatedAt'), { at: detailJoint.createdAt })}`}
-                      </div>
+                      </dd>
                     </div>
                   )}
-                <div className={css.meta}><div className={css.metaK}>{t('shell.evidence')}</div><div className={css.metaV}>{detail.evidence.join(', ') || '—'}</div></div>
-                <div className={css.meta}><div className={css.metaK}>{t('shell.surface')}</div><div className={css.metaV}>{detail.surface}</div></div>
-              </div>
-              <div className={css.field}>
-                <label>
-                  {t('shell.assignRole')}
-                  <span className={css.labelHint}>{t('shell.assignRoleHint')}</span>
-                </label>
-                {jobRoles.length === 0
-                  ? <p className={css.empty}>{t('shell.roleRosterEmpty')}</p>
-                  : (
-                    <>
-                      <div className={css.roleRow}>
-                        {jobRoles.map((row) => {
-                          const suggested = detailHint?.status === 'suggest' && detailHint.recommended.roleId === row.id
-                          return (
-                            <button
-                              type="button"
-                              key={row.id}
-                              aria-pressed={roleAssignChoice === row.id}
-                              className={`${css.roleChip} ${roleAssignChoice === row.id ? css.roleChipActive : ''}${suggested ? ` ${css.roleChipSuggested}` : ''}`}
-                              onClick={() => { setRoleAssignChoice(row.id) }}
-                            >
-                              {row.name}
-                              {suggested ? <span className={css.roleChipBadge}>{t('shell.roleHintBadge')}</span> : null}
-                            </button>
-                          )
-                        })}
-                      </div>
-                      {detailHint === null ? null : (
-                        <div className={css.roleHintRow}>
-                          <p className={css.roleHintLine}>{roleHintText(t, detailHint)}</p>
-                          {detailHint.status === 'suggest'
-                            ? (
-                              <button
-                                type="button"
-                                className={`${css.secondaryBtn} ${css.headAction}`}
-                                onClick={() => { setRoleAssignChoice(detailHint.recommended.roleId) }}
-                              >
-                                {t('shell.roleHintAdopt')}
-                              </button>
-                            )
-                            : null}
-                        </div>
-                      )}
-                      <button
-                        type="button"
-                        className={css.primaryBtn}
-                        disabled={assigning || assignTask === undefined || !hasSession || roleAssignChoice === ''}
-                        onClick={() => { void assignSelected() }}
-                      >
-                        {assigning ? t('shell.assigning') : t('shell.assignRoleAction')}
-                      </button>
-                    </>
-                  )}
-                {assignResult === null ? null : (
-                  <p className={assignResult.ok ? css.secretRef : css.problem}>{assignResult.text}</p>
-                )}
-              </div>
+                <div className={css.metaItem}>
+                  <dt className={css.metaK}>{t('shell.evidence')}</dt>
+                  <dd className={css.metaV}>{detail.evidence.join(', ') || '—'}</dd>
+                </div>
+                <div className={css.metaItem}>
+                  <dt className={css.metaK}>{t('shell.surface')}</dt>
+                  <dd className={css.metaV}>{detail.surface}</dd>
+                </div>
+              </dl>
               {detailSchedule === undefined || scheduleErrors[detail.id] === undefined
                 ? null
                 : <p className={css.problem}>{fill(t('shell.scheduleLogFailed'), { detail: scheduleErrors[detail.id] ?? '' })}</p>}
@@ -3127,6 +3071,66 @@ export function Shell({
                 onClick={() => { startConversation(detail) }}
               >
                 {conversationLabel(detail)}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {detail !== null && roleDialogOpen ? (
+        <div
+          className={`${css.modalBackdrop} ${css.modalNested}`}
+          onClick={(event) => { if (event.target === event.currentTarget) closeRoleDialog() }}
+        >
+          <div
+            className={`${css.modal} ${css.modalSmall}`}
+            role="dialog"
+            aria-modal="true"
+            aria-label={t('shell.roleDialogTitle')}
+          >
+            <div className={css.modalHead}>
+              <div className={css.grow}>
+                <h3>{t('shell.roleDialogTitle')}</h3>
+                <p>{fill(t('shell.roleDialogCurrent'), { role: roleLabelOf(detail.role) })}</p>
+              </div>
+              <button type="button" className={css.iconBtn} onClick={closeRoleDialog}>✕</button>
+            </div>
+            <div className={css.modalBody}>
+              {jobRoles.length === 0
+                ? <p className={css.empty}>{t('shell.roleRosterEmpty')}</p>
+                : (
+                  <div className={css.roleRow}>
+                    {jobRoles.map((row) => {
+                      const suggested = recommendedRole === row.id
+                      return (
+                        <button
+                          type="button"
+                          key={row.id}
+                          aria-pressed={roleAssignChoice === row.id}
+                          className={`${css.roleChip} ${roleAssignChoice === row.id ? css.roleChipActive : ''}${suggested ? ` ${css.roleChipSuggested}` : ''}`}
+                          onClick={() => { setRoleAssignChoice(row.id) }}
+                        >
+                          {row.name}
+                          {suggested ? <span className={css.roleChipBadge}>{t('shell.roleHintBadge')}</span> : null}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              {assignResult === null ? null : (
+                <p className={assignResult.ok ? css.secretRef : css.problem}>{assignResult.text}</p>
+              )}
+            </div>
+            <div className={css.modalFoot}>
+              <div className={css.spacer} />
+              <button type="button" className={css.secondaryBtn} onClick={closeRoleDialog}>{t('shell.cancel')}</button>
+              <button
+                type="button"
+                className={css.primaryBtn}
+                disabled={assigning || assignTask === undefined || !hasSession || roleAssignChoice === ''}
+                onClick={() => { void assignSelected() }}
+              >
+                {assigning ? t('shell.assigning') : t('shell.roleDialogConfirm')}
               </button>
             </div>
           </div>

@@ -286,8 +286,6 @@
 .roleChipSuggested { border-color: var(--lc-brand); color: var(--lc-brand-ink); }
 .roleChipSuggested:hover { border-color: var(--lc-brand); color: var(--lc-brand-ink); }
 .roleChipBadge { margin-left: 6px; padding: 1px 6px; border-radius: var(--lc-radius-pill); background: var(--lc-brand); color: #fff; font-size: var(--lc-text-xs); font-weight: 600; line-height: 1.4; vertical-align: 1px; }
-.roleHintRow { display: flex; align-items: center; gap: var(--lc-space-2); margin: var(--lc-space-2) 0; }
-.roleHintLine { margin: 0; flex: 1; min-width: 0; color: var(--lc-muted); font-size: var(--lc-text-xs); line-height: 1.5; }
 .spacer { flex: 1; }
 .iconBtn {
   width: 38px; height: 38px; border: 1px solid var(--lc-line); background: var(--lc-surface);
@@ -484,6 +482,7 @@
   box-shadow: var(--lc-shadow-pop);
 }
 .modalSmall { width: min(600px, 100%); }
+.modalNested { z-index: 60; }
 .modalHead { display: flex; align-items: flex-start; gap: var(--lc-space-3); padding: 22px var(--lc-space-6) 16px; border-bottom: 1px solid var(--lc-line); }
 .grow { flex: 1; min-width: 0; }
 .modalHead h3 { margin: 0 0 4px; font: 600 var(--lc-text-xl) / var(--lc-leading-tight) var(--lc-font-display); letter-spacing: var(--lc-tracking-tight); }
@@ -495,6 +494,18 @@
 .meta { background: var(--lc-surface-2); border: 1px solid var(--lc-line); border-radius: var(--lc-radius-md); padding: 10px 12px; }
 .metaK { font-size: var(--lc-text-xs); color: var(--lc-faint); }
 .metaV { font-size: 13.5px; font-weight: 600; margin-top: 3px; }
+.metaStrip { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 22px; margin: 0; }
+.metaItem { display: inline-flex; align-items: baseline; gap: 6px; min-width: 0; }
+.metaItem .metaK { white-space: nowrap; }
+.metaItem .metaV { margin-top: 0; }
+.metaHelp {
+  width: 17px; height: 17px; margin-left: 6px; padding: 0;
+  display: inline-grid; place-items: center; vertical-align: 1px;
+  border: 1px solid var(--lc-line); border-radius: 50%;
+  background: transparent; color: var(--lc-muted);
+  font-size: var(--lc-text-xs); line-height: 1; cursor: pointer;
+}
+.metaHelp:hover { border-color: var(--lc-brand-2); color: var(--lc-ink); }
 .field label { display: flex; align-items: center; justify-content: space-between; font-size: var(--lc-text-sm); color: var(--lc-muted); margin-bottom: var(--lc-space-2); }
 .labelHint { color: var(--lc-faint); font-size: var(--lc-text-xs); }
 .promptBox {
