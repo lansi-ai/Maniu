@@ -56,7 +56,7 @@ import type { CloudGateEntry } from '../cloud/gate.ts'
 import type { CloudFace } from '../cloud/face.ts'
 import { useCloudSession } from '../cloud/use-cloud.ts'
 import { CLOUD_GUEST_ROUTE } from '../cloud/routes.ts'
-import { buildIntakePrompt, buildOnboardingPrompt, buildShellPrompt, SHELL_STATES, TASK_FLOW_MENTION_PREFIX } from './shell-data.ts'
+import { buildIntakePrompt, buildOnboardingPrompt, buildShellPrompt, SHELL_STATES } from './shell-data.ts'
 import { recommendedRoleId } from './role-hint.ts'
 import { ChatTranscript, PendingInteractionCard } from './ChatPanel.tsx'
 import { ChatAttachButton, ChatAttachmentList, ChatModelChip } from './ChatExtras.tsx'
@@ -161,6 +161,15 @@ const STATE_LABEL = {
   verifying: 'shell.verifying',
   closed: 'shell.closed',
 } as const
+
+/** 详情里的会话动作按任务阶段取名；行为仍是打开该任务会话。 */
+const STATE_ACTION_LABEL: Record<ShellTaskState, LcoderWorkspaceKey> = {
+  drafting: 'shell.confirmRequirement',
+  contracted: 'shell.startDevelopment',
+  implementing: 'shell.submitAcceptance',
+  verifying: 'shell.completeAcceptance',
+  closed: 'shell.viewRecord',
+}
 
 /** 门禁入口到既有按钮文案的映射；登录提示里用同一句话。 */
 const CLOUD_ENTRY_LABEL: Record<CloudGateEntry, LcoderWorkspaceKey> = {
@@ -376,7 +385,6 @@ export function Shell({
   /** 新会话的角色选择浮层。 */
   const [rolePicker, setRolePicker] = useState(false)
   const [detail, setDetail] = useState<ShellTask | null>(null)
-  const [prompt, setPrompt] = useState('')
   const [chat, setChat] = useState<ShellTask | null>(null)
   /** 普通档与最大化两档；关闭对话时回到普通档。 */
   const [chatMax, setChatMax] = useState(false)
@@ -395,7 +403,6 @@ export function Shell({
   const [intakeTierHint, setIntakeTierHint] = useState<{ readonly sessionId: string; readonly tier: IntakeTier } | null>(null)
   const [drawer, setDrawer] = useState(false)
   const [revealed, setRevealed] = useState<Record<string, boolean>>({})
-  const [copied, setCopied] = useState(false)
   /** 看板筛选：低频控件，默认收起，只在判据生效时让入口带上标记。 */
   const [filterOpen, setFilterOpen] = useState(false)
   const [filter, setFilter] = useState<TaskFilter>(EMPTY_TASK_FILTER)
@@ -1129,8 +1136,6 @@ export function Shell({
 
   const openTask = (task: ShellTask): void => {
     setDetail(task)
-    setPrompt(promptOf(task))
-    setCopied(false)
     setSignResult(null)
     setAssignResult(null)
     setRoleAssignChoice(task.role ?? '')
@@ -1315,17 +1320,6 @@ export function Shell({
     })
   }
 
-  /** 复制到仓外开工才补技能引用；发进本会话的提示词保持编辑器里那份。 */
-  const copyPrompt = (): void => {
-    void navigator.clipboard.writeText(`${TASK_FLOW_MENTION_PREFIX}${prompt}`).then(
-      () => {
-        setCopied(true)
-        setTimeout(() => { setCopied(false) }, 1200)
-      },
-      () => { setCopied(false) },
-    )
-  }
-
   /** 入队判定带的联调组；其它判定没有组。 */
   const jointOfDecision = (decision: SchedulingDecision): ShellSchedule['joint'] =>
     decision.joint === undefined || decision.chosen === undefined
@@ -1386,8 +1380,7 @@ export function Shell({
    * - `enqueue`：把咒语写进匹配会话的队列，并记下会话与第几位。
    * - `new`：同仓库新开会话，按选中角色认领后发送。
    *
-   * 启动咒语在这里就地生成，不读 `prompt` 状态：那份状态要等渲染后的 effect 才跟上任务，
-   * 直接发出去的是上一任务的文本。
+   * 启动咒语在这里就地生成，保证发出去的是本条任务的文本。
    */
   const openTaskConversation = async (task: ShellTask): Promise<FlowRunResult> => {
     if (!requireUser('taskConversation')) {
@@ -1396,7 +1389,6 @@ export function Shell({
     const decision = decideScheduling(schedulingTaskOf(task), schedulingSessions(), knownStates, jobRoles)
     const at = new Date().toISOString()
     const text = promptOf(task, decision)
-    setPrompt(text)
     setDetail(task)
     setChatError(null)
     setScheduleErrors(current => Object.fromEntries(Object.entries(current).filter(([key]) => key !== task.id)))
@@ -1730,9 +1722,9 @@ export function Shell({
     }
   }
 
-  /** 详情弹窗头/底的会话动作文案；与 startConversation 的两种去向一致。 */
+  /** 详情弹窗头/底的会话动作文案；随任务阶段变化，行为仍是打开该任务会话。 */
   const conversationLabel = (task: ShellTask): string =>
-    claiming ? t('shell.claiming') : liveSessionOf(task) !== undefined ? t('shell.resumeChat') : t('shell.startChat')
+    claiming ? t('shell.claiming') : t(STATE_ACTION_LABEL[task.state])
 
   /**
    * 开一条不绑任务的会话：只为了看一眼这个角色的工具面，或接着上一轮自由讨论。
@@ -1781,8 +1773,6 @@ export function Shell({
       : buildOnboardingPrompt(project, info?.docs ?? { product: '', architecture: '', tests: '' })
     setDetail(null)
     setChatError(null)
-    setPrompt(text)
-    setCopied(false)
     setChat({ id: '', title: t('shell.onboardingChat'), state: 'drafting', grade: '-', rules: [], evidence: [], surface: '', paths: [], irreversible: [] })
     const action = onboardingAction({
       hasSession: sessionId !== undefined && sendPrompt !== undefined,
@@ -3052,15 +3042,10 @@ export function Shell({
                   )}
                 </div>
               )}
-              <div className={css.field}>
-                <label>{t('shell.startPrompt')} <span className={css.labelHint}>{t('shell.promptHint')}</span></label>
-                <textarea className={css.promptBox} value={prompt} onChange={(event) => { setPrompt(event.target.value) }} />
-              </div>
               {/* 「打开对话」没打开浮层时，原因就地显示在这里——浮层本身还没被切出来。 */}
               {chatError === null ? null : <p className={css.problem}>{chatError}</p>}
             </div>
             <div className={css.modalFoot}>
-              <button type="button" className={css.secondaryBtn} onClick={copyPrompt}>{copied ? t('shell.copied') : t('shell.copyPrompt')}</button>
               <div className={css.spacer} />
               <button type="button" className={css.secondaryBtn} onClick={() => { setDetail(null) }}>{t('shell.cancel')}</button>
               <button

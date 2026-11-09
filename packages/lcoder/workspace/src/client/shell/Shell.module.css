@@ -508,12 +508,6 @@
 .metaHelp:hover { border-color: var(--lc-brand-2); color: var(--lc-ink); }
 .field label { display: flex; align-items: center; justify-content: space-between; font-size: var(--lc-text-sm); color: var(--lc-muted); margin-bottom: var(--lc-space-2); }
 .labelHint { color: var(--lc-faint); font-size: var(--lc-text-xs); }
-.promptBox {
-  width: 100%; min-height: 210px; resize: vertical;
-  border: 1px solid var(--lc-line); border-radius: var(--lc-radius-md); padding: 14px;
-  background: var(--lc-surface-2); color: var(--lc-ink);
-  font: 12.5px / 1.65 var(--lc-font-mono);
-}
 
 .projectPicker { display: grid; gap: var(--lc-space-2); }
 .repoOpen { display: flex; gap: var(--lc-space-2); margin-top: var(--lc-space-3); }

@@ -1,0 +1,102 @@
+{
+  "screenshots": [
+    "E:\\Projects\\LCoder\\.worktrees\\t96-stage-copy\\docs\\evidence-archive\\t96\\t96-zh-drafting-light.png",
+    "E:\\Projects\\LCoder\\.worktrees\\t96-stage-copy\\docs\\evidence-archive\\t96\\t96-zh-contracted-light.png",
+    "E:\\Projects\\LCoder\\.worktrees\\t96-stage-copy\\docs\\evidence-archive\\t96\\t96-zh-implementing-light.png",
+    "E:\\Projects\\LCoder\\.worktrees\\t96-stage-copy\\docs\\evidence-archive\\t96\\t96-zh-verifying-light.png",
+    "E:\\Projects\\LCoder\\.worktrees\\t96-stage-copy\\docs\\evidence-archive\\t96\\t96-zh-closed-light.png",
+    "E:\\Projects\\LCoder\\.worktrees\\t96-stage-copy\\docs\\evidence-archive\\t96\\t96-zh-drafting-dark.png",
+    "E:\\Projects\\LCoder\\.worktrees\\t96-stage-copy\\docs\\evidence-archive\\t96\\t96-en-drafting-light.png"
+  ],
+  "details": {
+    "T-96-01": {
+      "state": "drafting",
+      "label": "T-96-01 需求确认演示",
+      "buttons": [
+        "确认需求",
+        "✕",
+        "?",
+        "取消",
+        "确认需求"
+      ]
+    },
+    "T-96-02": {
+      "state": "contracted",
+      "label": "T-96-02 待开发演示",
+      "buttons": [
+        "开始开发",
+        "✕",
+        "?",
+        "取消",
+        "开始开发"
+      ]
+    },
+    "T-96-03": {
+      "state": "implementing",
+      "label": "T-96-03 开发中演示",
+      "buttons": [
+        "提交验收",
+        "✕",
+        "?",
+        "取消",
+        "提交验收"
+      ]
+    },
+    "T-96-04": {
+      "state": "verifying",
+      "label": "T-96-04 验收中演示",
+      "buttons": [
+        "完成验收",
+        "✕",
+        "?",
+        "取消",
+        "完成验收"
+      ]
+    },
+    "T-96-05": {
+      "state": "closed",
+      "label": "T-96-05 已完成演示",
+      "buttons": [
+        "查看记录",
+        "✕",
+        "?",
+        "取消",
+        "查看记录"
+      ]
+    },
+    "english": {
+      "label": "T-96-01 需求确认演示",
+      "buttons": [
+        "Confirm requirements",
+        "✕",
+        "?",
+        "Cancel",
+        "Confirm requirements"
+      ]
+    }
+  },
+  "nodes": {
+    "startedAt": "2026-11-09T05:53:32.803Z",
+    "ports": {
+      "renderer": 9722,
+      "main": 9729,
+      "host": 9730,
+      "cloud": 5093
+    },
+    "launcherPid": 2944,
+    "electronPids": [
+      3060,
+      44428,
+      14416,
+      16564,
+      7956
+    ],
+    "mockPid": 45016,
+    "artifacts": {
+      "packages/lcoder/workspace/lib/client.js": "2026-11-09T05:39:50.307Z",
+      "apps/desktop/lib/main.js": "2026-11-09T05:39:39.164Z",
+      "apps/web/dist/index.html": "2026-11-09T05:39:59.430Z",
+      "apps/desktop-host/lib/index.js": "2026-11-09T05:39:31.596Z"
+    }
+  }
+}

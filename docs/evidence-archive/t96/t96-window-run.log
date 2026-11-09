@@ -1,0 +1,20 @@
+[t96] temp tasks: T-96-01, T-96-02, T-96-03, T-96-04, T-96-05
+[t96] ports free
+[t96] electron dist E:\Projects\LCoder\.worktrees\t96-stage-copy\node_modules\.pnpm\electron@44.7.0_supports-color@9.4.0\node_modules\electron\dist
+[t96] build: artifacts are current
+[t96] profile: E:\Projects\LCoder\.worktrees\t96-stage-copy\apps\desktop\.desktop-build\development\home\profiles\desktop
+[t96] mock cloud: 127.0.0.1:5093
+[t96] desktop launcher pid=2944 started 2026-11-09T05:53:32.851Z
+[t96] ready http://127.0.0.1:60199/?token=TLmwPHb7XrR0BdvXUSrIzJ6VcNhrXLnEhIedgwn6iDo
+[t96] cdp: attached dsh-app://app/
+[t96] repository opened
+[t96] screenshot t96-zh-drafting-light
+[t96] screenshot t96-zh-contracted-light
+[t96] screenshot t96-zh-implementing-light
+[t96] screenshot t96-zh-verifying-light
+[t96] screenshot t96-zh-closed-light
+[t96] screenshot t96-zh-drafting-dark
+[t96] screenshot t96-en-drafting-light
+[t96] details {"T-96-01":{"state":"drafting","label":"T-96-01 需求确认演示","buttons":["确认需求","✕","?","取消","确认需求"]},"T-96-02":{"state":"contracted","label":"T-96-02 待开发演示","buttons":["开始开发","✕","?","取消","开始开发"]},"T-96-03":{"state":"implementing","label":"T-96-03 开发中演示","buttons":["提交验收","✕","?","取消","提交验收"]},"T-96-04":{"state":"verifying","label":"T-96-04 验收中演示","buttons":["完成验收","✕","?","取消","完成验收"]},"T-96-05":{"state":"closed","label":"T-96-05 已完成演示","buttons":["查看记录","✕","?","取消","查看记录"]},"english":{"label":"T-96-01 需求确认演示","buttons":["Confirm requirements","✕","?","Cancel","Confirm requirements"]}}
+[t96] ports freed {"renderer":true,"main":true,"host":true,"cloud":true}
+[t96] temp tasks removed
