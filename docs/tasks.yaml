@@ -1067,7 +1067,7 @@ tracks:
       note: "B 级开发，来源是用户 2026-11-09 任务详情验收反馈三条。一、任务详情不再显示 dev-flow 启动咒语整块，含标题与文本域与复制提示词按钮；咒语仍作为打开会话的内部内容，不展示。二、详情头部与底部的开始对话按钮按当前阶段换文案，行为不变，仍是打开该任务会话：需求确认阶段为确认需求，待开发阶段为开始开发，开发中阶段为提交验收，验收中阶段为完成验收，已完成阶段为查看记录。三、五个阶段的显示名改为需求确认与待开发与开发中与验收中与已完成，同步看板列名与任务卡标签；底层状态值与契约命令不动。已拍板只改显示名与按钮，不合并状态机。门禁 typecheck 与 vitest 与 oxlint 与 test:docs 与 build 与 i18n。真窗口用五条临时任务覆盖五态并出中英与深浅截图，验证后还原 .spec。端口 9722 与 9729 与 9730。未派工。2026-11-09 12:40 监督窗口派工，实现线会话 03e1c646。工作树 .worktrees/t96-stage-copy，分支 lcoder/t96-stage-copy。2026-11-09 13:59 监督窗口核验并收口。监督窗口复跑主检出 typecheck 五项全过退出零、vitest packages/lcoder 六十二文件六百五十四例全过退出零、test:docs 二十一项全过退出零、build:artifacts 八项全过退出零、build:check 二项全过退出零、verify-client-ui-i18n 一千二百九十三文件全过；实现线另报 oxlint 三文件零错零警。真窗口核过七张，五态列名与详情标签为需求确认与待开发与开发中与验收中与已完成，头尾按钮分别为确认需求与开始开发与提交验收与完成验收与查看记录，详情已无启动咒语与复制提示词；英文与深色已出图。未验项是任务卡内未新增独立阶段标签，已绑定会话的任务没有逐态真窗口复验。已合入 lcoder/main、归档 docs/evidence-archive/t96 并删除工作树与分支。"
     - id: T-97
       title: 产品任务数据面扩展（描述、两维分类、图片附件）
-      status: doing
+      status: done
       face: 用户端
       type: 开发
       owner: lance
@@ -1075,10 +1075,10 @@ tracks:
       date: '2026-11-09'
       dep: [T-96]
       inferred: false
-      note: "A 级产品契约变更，来源是用户 2026-11-09 详情验收反馈，任务看不出具体需求，需要描述与分类。已拍板两个维度，领域 page 与 api 与 data 与 other，变更类型 bug 与 feature 与 improvement 与 style；图片走独立附件字段 attachments，存 .spec 下相对路径，只允许图片扩展名，禁绝对路径与上跳。范围六项。一、Task schema 增加可选 description、category、changeType、attachments，旧任务不填可解析。二、task_draft 工具增加对应参数与校验，附件限数量与扩展名并禁越界路径。三、文件投影透传四项给外壳。四、.spec 示例任务补描述与分类，并建一张示例图片附件。五、文档双源同步 .spec 说明与 PRD 与 kernel README，中英配对重录。六、测试覆盖默认值、非法分类、非法附件路径、投影透传与 task_draft 写盘。门禁 typecheck 与 vitest packages/lcoder 与 oxlint 与 test:docs。不改状态机与调度与分配权威，不改台账看板，禁止提交与 push。工作树 .worktrees/t97-task-fields，分支 lcoder/t97-task-fields，无桌面端口需求。未派工。2026-11-09 14:40 监督窗口派工，实现线会话 ff2a1226。"
+      note: "A 级产品契约变更，来源是用户 2026-11-09 详情验收反馈，任务看不出具体需求，需要描述与分类。已拍板两个维度，领域 page 与 api 与 data 与 other，变更类型 bug 与 feature 与 improvement 与 style；图片走独立附件字段 attachments，存 .spec 下相对路径，只允许图片扩展名，禁绝对路径与上跳。范围六项。一、Task schema 增加可选 description、category、changeType、attachments，旧任务不填可解析。二、task_draft 工具增加对应参数与校验，附件限数量与扩展名并禁越界路径。三、文件投影透传四项给外壳。四、.spec 示例任务补描述与分类，并建一张示例图片附件。五、文档双源同步 .spec 说明与 PRD 与 kernel README，中英配对重录。六、测试覆盖默认值、非法分类、非法附件路径、投影透传与 task_draft 写盘。门禁 typecheck 与 vitest packages/lcoder 与 oxlint 与 test:docs。不改状态机与调度与分配权威，不改台账看板，禁止提交与 push。工作树 .worktrees/t97-task-fields，分支 lcoder/t97-task-fields，无桌面端口需求。未派工。2026-11-09 14:40 监督窗口派工，实现线会话 ff2a1226。2026-11-09 15:07 监督窗口核验并收口。监督窗口复跑主检出 typecheck 五项全过退出零、vitest packages/lcoder 六十三文件六百六十五例全过退出零、test:docs 二十一项全过退出零、build:artifacts 八项全过退出零、build:check 二项全过退出零、verify-client-ui-i18n 一千二百九十三文件全过；实现线另报 oxlint 十一文件零错零警。核过命名已统一为 change_type，产品 YAML 与 task_draft 参数一致，内部行类型保留驼峰；Task 改为 strict 后未知键会拒绝，这是本轮契约选择，后续扩字段需显式改 schema。示例 DEMO-01 已带描述、分类、变更类型与附件，附件图已入库。未验项为详情展示与图片渲染，交 T-98。已合入 lcoder/main 并删除工作树与分支。"
     - id: T-98
       title: 任务详情展示描述、分类、图片附件并精简元信息
-      status: todo
+      status: doing
       face: 用户端
       type: 开发
       owner: lance
@@ -1086,7 +1086,7 @@ tracks:
       date: '2026-11-09'
       dep: [T-97]
       inferred: false
-      note: "B 级开发，依赖 T-97，来源是用户 2026-11-09 详情验收反馈。范围四项。一、详情标题下显示任务描述，保留换行；无描述显示暂无描述。二、标题区显示两枚分类标签，领域与变更类型，中英显示名映射。三、附件区显示图片缩略图，点击放大，只读；无附件不显示该区。四、元信息默认只显示岗位与难度，分级改叫难度，A 高与 B 中与 C 低；规则与证据要求与工具面收进更多折叠，并各配一句白话解释。不改契约与状态机。真窗口用带描述与图片的临时任务验收，端口 9742 与 9749 与 9750。未派工。"
+      note: "B 级开发，依赖 T-97，来源是用户 2026-11-09 详情验收反馈。范围四项。一、详情标题下显示任务描述，保留换行；无描述显示暂无描述。二、标题区显示两枚分类标签，领域与变更类型，中英显示名映射。三、附件区显示图片缩略图，点击放大，只读；无附件不显示该区。四、元信息默认只显示岗位与难度，分级改叫难度，A 高与 B 中与 C 低；规则与证据要求与工具面收进更多折叠，并各配一句白话解释。不改契约与状态机。真窗口用带描述与图片的临时任务验收，端口 9742 与 9749 与 9750。未派工。2026-11-09 15:20 监督窗口派工，实现线会话 d6203b43。工作树 .worktrees/t98-detail-view，分支 lcoder/t98-detail-view。"
     - id: T-99
       title: Agent 状态大盘页签（汇总、会话表、事件流）
       status: todo
