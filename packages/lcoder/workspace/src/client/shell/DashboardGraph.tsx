@@ -10,10 +10,10 @@ import type { KeyboardEvent, ReactNode } from 'react'
 import type { LcoderWorkspaceKey } from '../locales.ts'
 import { SHELL_STATES } from './shell-data.ts'
 import {
-  GRAPH_COLUMN_HEADER_HEIGHT, GRAPH_PADDING, layoutDashboardGraph,
+  edgePath, GRAPH_COLUMN_HEADER_HEIGHT, GRAPH_PADDING, layoutDashboardGraph,
 } from './dashboard-graph.ts'
 import type {
-  DashboardGraphColumnState, DashboardGraphEdge, DashboardGraphEdgeKind, DashboardGraphInput,
+  DashboardGraphColumnState, DashboardGraphEdgeKind, DashboardGraphInput,
   DashboardGraphSessionNode, DashboardGraphTaskNode,
 } from './dashboard-graph.ts'
 import css from './DashboardGraph.module.css'
@@ -58,12 +58,6 @@ const GRAPHEMES = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
 function truncate(text: string, max: number): string {
   const pieces = [...GRAPHEMES.segment(text)].map(part => part.segment)
   return pieces.length <= max ? text : `${pieces.slice(0, max - 1).join('')}…`
-}
-
-/** 边的曲线：两端锚点在同一纵向中线上加两个控制点，跨列或同行都平滑。 */
-function pathOf(edge: DashboardGraphEdge): string {
-  const midY = (edge.y1 + edge.y2) / 2
-  return `M ${String(edge.x1)} ${String(edge.y1)} C ${String(edge.x1)} ${String(midY)}, ${String(edge.x2)} ${String(midY)}, ${String(edge.x2)} ${String(edge.y2)}`
 }
 
 /**
@@ -163,7 +157,7 @@ export function DashboardGraph({ data, t, onOpenTask }: DashboardGraphProps): Re
           <path
             key={`${edge.kind}:${edge.from}->${edge.to}`}
             className={EDGE_CLASSES[edge.kind]}
-            d={pathOf(edge)}
+            d={edgePath(edge)}
             markerEnd={markerOf(edge.kind)}
           />
         ))}

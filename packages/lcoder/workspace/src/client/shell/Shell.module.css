@@ -1117,11 +1117,6 @@
   font-size: var(--lc-text-lg); font-weight: 700;
   letter-spacing: var(--lc-tracking-tight); font-variant-numeric: tabular-nums;
 }
-.dashboardGraphEmpty {
-  border: 1px dashed var(--lc-line); border-radius: var(--lc-radius-md);
-  padding: 28px 16px; text-align: center;
-  color: var(--lc-muted); font-size: var(--lc-text-sm); background: var(--lc-surface-2);
-}
 .dashboardTableWrap { overflow: auto; }
 .dashboardTable {
   width: 100%; border-collapse: collapse; font-size: var(--lc-text-sm);

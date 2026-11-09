@@ -1,0 +1,64 @@
+{
+  "startedAt": "2026-11-09T10:19:33.000Z",
+  "readyUrl": "http://127.0.0.1:58983/?token=***",
+  "ports": {
+    "renderer": 9782,
+    "main": 9789,
+    "host": 9790,
+    "cloud": 5093
+  },
+  "pids": {
+    "launcher": 40672,
+    "mockCloud": 32272,
+    "electron": [44152, 12776, 39808, 38828, 39308]
+  },
+  "artifacts": {
+    "packages/lcoder/workspace/lib/client.js": "2026-11-09T10:15:04.202Z",
+    "apps/desktop/lib/main.js": "2026-11-09T10:14:55.761Z",
+    "apps/desktop-host/lib/index.js": "2026-11-09T10:14:46.738Z",
+    "apps/web/dist/index.html": "2026-11-09T10:15:10.957Z"
+  },
+  "screenshots": [
+    {
+      "path": "docs/evidence-archive/t100/t100-graph-zh-light.png",
+      "theme": "light",
+      "content": "五个状态列（需求确认/待开发/开发中/验收中/已完成）、5 个任务节点、会话节点「登录接口限流」、6 条边（4 依赖 + 1 认领 + 1 联调组）与图例"
+    },
+    {
+      "path": "docs/evidence-archive/t100/t100-graph-zh-dark.png",
+      "theme": "dark",
+      "content": "同一张关系图的深色主题"
+    },
+    {
+      "path": "docs/evidence-archive/t100/t100-graph-detail-dark.png",
+      "theme": "dark",
+      "content": "点关系图里的 T-G03 节点后打开的任务详情弹窗（aria-label: T-G03 登录接口限流）"
+    },
+    {
+      "path": "docs/evidence-archive/t100/t100-graph-empty-light.png",
+      "theme": "light",
+      "content": "无任务时的空态：任务关系图显示「暂无可画的任务」，会话表仍显示会话 1"
+    }
+  ],
+  "graphFacts": {
+    "edgePaths": 6,
+    "edgeKinds": { "depends_on": 4, "claims": 1, "group": 1 },
+    "taskButtons": [
+      "T-G01 需求确认",
+      "T-G02 契约签署",
+      "T-G03 登录接口限流",
+      "T-G04 登录审计日志",
+      "T-G05 登录文档收口"
+    ],
+    "sessionLabel": "登录接口限流"
+  },
+  "interactions": {
+    "openDashboard": "DOM click on top-bar button「状态大盘」",
+    "nodeClick": "对 SVG <g role=button> 派发 MouseEvent('click', {bubbles:true})；SVGElement 没有 .click()，因此未用原生 click",
+    "detailDialog": "点击后出现 role=dialog aria-label「T-G03 登录接口限流」，关闭按钮为 HTML button（原生 click）",
+    "themeToggle": "点击顶栏「◐」按钮，浅色与深色各截一张",
+    "manualRefresh": "点「刷新」后任务文件移走，关系图进入空态",
+    "autoRefresh": "任务文件恢复后不点任何按钮，等 17 秒，边数从 0 回到 6"
+  },
+  "workspace": "apps/desktop/.desktop-build/development/docs/deepseek-harness/default-workspace（演示 .spec：T-G01..T-G05，认领 T-G03，联调组 G-01 含 T-G04）"
+}

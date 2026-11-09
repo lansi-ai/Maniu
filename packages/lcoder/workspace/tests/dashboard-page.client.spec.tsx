@@ -21,6 +21,7 @@ import {
   DASHBOARD_REFRESH_MS, summarizeDashboard,
 } from '../src/client/dashboard.ts'
 import type { DashboardSessionRow } from '../src/client/dashboard.ts'
+import type { DashboardGraphInput } from '../src/client/shell/dashboard-graph.ts'
 import type { ActionLogEntry } from '../src/client/flow-history.ts'
 import { zh } from '../src/client/locales.ts'
 import { TASKS_DIR } from '../src/client/projection.ts'
@@ -75,6 +76,23 @@ const EVENT: ActionLogEntry = {
   detail: '选中会话 A',
 }
 
+const GRAPH: DashboardGraphInput = {
+  tasks: [
+    { id: 'T-01', title: '登录限流', state: 'implementing', session: 's-1' },
+    { id: 'T-02', title: '整理佣金规则', state: 'drafting' },
+  ],
+  sessions: [{
+    id: 's-1',
+    label: '评审会话',
+    role: '评审',
+    running: true,
+    awaitingInteraction: false,
+    pending: 2,
+    claims: ['T-01'],
+    groupTasks: ['T-02'],
+  }],
+}
+
 function propsOf(overrides: Partial<AgentDashboardPageProps> = {}): AgentDashboardPageProps {
   return {
     t,
@@ -84,6 +102,8 @@ function propsOf(overrides: Partial<AgentDashboardPageProps> = {}): AgentDashboa
     eventProblems: {},
     loading: false,
     error: null,
+    graph: GRAPH,
+    onOpenTask: vi.fn(),
     onBack: vi.fn(),
     onRefresh: vi.fn(),
     ...overrides,
@@ -116,11 +136,15 @@ describe('状态大盘整页', () => {
     expect(idle?.textContent).toContain('T-02')
   })
 
-  it('没有事件时画事件空态，并保留关系图占位', () => {
+  it('没有事件时画事件空态，关系图槽位画出三类边图例', () => {
     const { container } = render(<AgentDashboardPage {...propsOf()} />)
     expect(screen.getByText(zh['shell.dashboardEventsEmpty'])).toBeTruthy()
-    expect(container.querySelector('[data-dashboard-graph-slot]')?.textContent)
-      .toContain(zh['shell.dashboardGraphPending'])
+    const slot = container.querySelector('[data-dashboard-graph-slot]')
+    expect(slot?.textContent).toContain(zh['shell.dashboardGraph'])
+    expect(slot?.textContent).toContain(zh['shell.graphDependsOn'])
+    expect(slot?.textContent).toContain(zh['shell.graphClaims'])
+    expect(slot?.textContent).toContain(zh['shell.graphGroup'])
+    expect(slot?.querySelector(`[aria-label="${zh['shell.graph']}"]`)).not.toBeNull()
   })
 
   it('单任务读取失败只画一条问题行，不影响其它事件', () => {
@@ -244,5 +268,15 @@ describe('状态大盘入口', () => {
     fireEvent.click(screen.getByRole('button', { name: new RegExp(zh['shell.backToBoard']) }))
     expect(await screen.findByText(zh['shell.board'])).toBeTruthy()
     expect(container.querySelector('[data-lcoder-dashboard]')).toBeNull()
+  })
+
+  it('点关系图里的任务节点打开任务详情', async () => {
+    renderShell()
+    fireEvent.click(screen.getByRole('button', { name: zh['shell.dashboard'] }))
+
+    const node = await screen.findByRole('button', { name: /T-01 大盘里的任务/ })
+    fireEvent.click(node)
+
+    expect(await screen.findByRole('dialog', { name: 'T-01 大盘里的任务' })).toBeTruthy()
   })
 })

@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  GRAPH_PADDING, GRAPH_SECTION_GAP, GRAPH_SESSION_HEIGHT, GRAPH_SESSION_WIDTH, GRAPH_TASK_HEIGHT,
+  edgePath, GRAPH_PADDING, GRAPH_SECTION_GAP, GRAPH_SESSION_HEIGHT, GRAPH_SESSION_WIDTH, GRAPH_TASK_HEIGHT,
   GRAPH_TASK_WIDTH, GRAPH_COLUMN_GAP, GRAPH_COLUMN_HEADER_HEIGHT, layoutDashboardGraph,
 } from '../src/client/shell/dashboard-graph.ts'
 import type { DashboardGraphInput, DashboardGraphSession } from '../src/client/shell/dashboard-graph.ts'
@@ -130,6 +130,11 @@ describe('关系图布局', () => {
     })
 
     expect(layout.edges).toEqual([])
+  })
+
+  it('边路径用两端锚点与纵向中线上的控制点', () => {
+    expect(edgePath({ kind: 'depends_on', from: 'a', to: 'b', x1: 1, y1: 2, x2: 3, y2: 6 }))
+      .toBe('M 1 2 C 1 4, 3 4, 3 6')
   })
 
   it('空输入返回空布局，只有会话时仍排一行', () => {

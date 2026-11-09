@@ -629,7 +629,6 @@ export const zh = {
   'shell.dashboardEventsEmpty': '还没有事件日志；开工或调度后这里会出现最近三十条。',
   'shell.dashboardEventProblemTag': '读取失败',
   'shell.dashboardGraph': '任务关系图',
-  'shell.dashboardGraphPending': '关系图由 T-100 接入。',
 } satisfies Record<string, string>
 
 /** 工作台词典的键集。 */
@@ -1251,5 +1250,4 @@ export const en = {
   'shell.dashboardEventsEmpty': 'No event logs yet; starting work or scheduling adds the latest 30 entries here.',
   'shell.dashboardEventProblemTag': 'Read failed',
   'shell.dashboardGraph': 'Task relation graph',
-  'shell.dashboardGraphPending': 'The relation graph will be wired in by T-100.',
 } satisfies Record<LcoderWorkspaceKey, string>

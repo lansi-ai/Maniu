@@ -171,6 +171,16 @@ function columnOf(state: string): DashboardGraphColumnState {
 }
 
 /**
+ * 一条边的 SVG 路径：两端锚点在同一纵向中线上加两个控制点，跨列或同行都平滑。
+ * @param edge - 已算好锚点的边。
+ * @returns `path` 的 `d` 属性值。
+ */
+export function edgePath(edge: DashboardGraphEdge): string {
+  const midY = (edge.y1 + edge.y2) / 2
+  return `M ${String(edge.x1)} ${String(edge.y1)} C ${String(edge.x1)} ${String(midY)}, ${String(edge.x2)} ${String(midY)}, ${String(edge.x2)} ${String(edge.y2)}`
+}
+
+/**
  * 计算关系图布局。
  *
  * 任务按五态分列（未知状态追加一列），列内按编号排序；会话排一行，也按编号排序。
