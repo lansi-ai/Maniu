@@ -1,54 +1,27 @@
 /**
- * 任务详情「分配岗位」芯片上的内联建议：推荐直接标在现有岗位上，
- * 芯片下方只留一行依据，不再单独列候选清单。
+ * 岗位弹窗里的本地推荐：只取 `suggestRole` 推荐的岗位 id，理由与置信度不进入界面。
  *
  * 这里只是展示：不写 `.spec`、不调 `/task_assign`，也不把建议塞进调度判定。
  * 能力天花板直接取 kernel 的 `ROLE_TOOLS`，不在这里抄第二份。
  */
 import { ROLE_TOOLS } from '@lcoder/kernel/src/kernel/surface.ts'
 import { suggestRole } from '../role-suggest.ts'
-import type { RoleReason, SuggestRosterJob } from '../role-suggest.ts'
+import type { SuggestRosterJob } from '../role-suggest.ts'
 import type { JobRoleRow } from '../projection.ts'
 import type { ShellTask } from './shell-data.ts'
 
-/** 内联建议的三种状态：过阈值推荐一个岗位、有候选但要人挑、没有任何名册岗位命中。 */
-export type RoleHintStatus = 'suggest' | 'needs_human' | 'fallback'
-
-/** 需要人工挑选的原因；界面按 code 查 locales 拼进那一行说明。 */
-export type RoleHintBlocker = 'irreversible' | 'low_confidence'
-
-/** 推荐岗位与依据行要用的理由；`reasons` 已截到两条。 */
-export interface RoleHintRecommendation {
-  readonly roleId: string
-  /** 候选分占比，界面换算成百分比。 */
-  readonly confidence: number
-  readonly reasons: readonly RoleReason[]
-}
-
 /**
- * 内联建议要画的一切。
- *
- * 只有 `suggest` 带推荐岗位与采用动作；另外两态不标任何芯片，只给一句人工提示。
- */
-export type RoleHintView =
-  | { readonly status: 'suggest'; readonly recommended: RoleHintRecommendation; readonly canAdopt: true }
-  | { readonly status: 'needs_human'; readonly blocker: RoleHintBlocker }
-  | { readonly status: 'fallback' }
-
-const MAX_REASONS = 2
-
-/**
- * 生成芯片内联建议的视图数据。
+ * 算出弹窗里该标建议徽标的岗位。
  * @param task - 详情里的任务事实；类型与描述在产品任务里不存在，按空串传入。
  * @param roster - `.spec/roles.yaml` 的岗位行。
  * @param acceptance - 该任务的契约验收条；没有契约时传空数组。
- * @returns 三态之一；推荐态附岗位、置信度与最多两条理由。
+ * @returns 推荐岗位 id；没过阈值、无命中或推荐岗位不在名册时返回 null。
  */
-export function buildRoleHint(
+export function recommendedRoleId(
   task: ShellTask,
   roster: readonly JobRoleRow[],
   acceptance: readonly string[],
-): RoleHintView {
+): string | null {
   const jobs: SuggestRosterJob[] = roster.map(row => ({
     id: row.id,
     name: row.name,
@@ -74,23 +47,7 @@ export function buildRoleHint(
     writeRequired: true,
   })
 
-  const positive = suggestion.candidates.filter(candidate =>
-    candidate.disqualified === undefined && candidate.score > 0)
   const recommended = suggestion.recommended
-  if (suggestion.decision === 'suggest' && recommended !== undefined && roster.some(job => job.id === recommended.roleId)) {
-    const candidate = suggestion.candidates.find(entry => entry.roleId === recommended.roleId)
-    return {
-      status: 'suggest',
-      recommended: {
-        roleId: recommended.roleId,
-        confidence: recommended.confidence,
-        reasons: candidate?.reasons.slice(0, MAX_REASONS) ?? [],
-      },
-      canAdopt: true,
-    }
-  }
-
-  if (positive.length === 0) return { status: 'fallback' }
-  if (task.irreversible.length > 0) return { status: 'needs_human', blocker: 'irreversible' }
-  return { status: 'needs_human', blocker: 'low_confidence' }
+  if (suggestion.decision !== 'suggest' || recommended === undefined) return null
+  return roster.some(job => job.id === recommended.roleId) ? recommended.roleId : null
 }
