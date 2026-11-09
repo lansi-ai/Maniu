@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /**
- * 任务详情弹窗的渲染事实：不让人选角色、契约提示只在有契约时出现、
- * 调度思考过程移出详情但入队位置与日志失败仍看得见。
+ * 任务详情弹窗的渲染事实：不让人选角色、契约提示只在有契约时出现、不再显示启动咒语、
+ * 会话动作随任务阶段换文案、调度思考过程移出详情但入队位置与日志失败仍看得见。
  *
  * 外壳拿的是投影面与三个选择器钩子；这里用内存投影替掉真远程，
  * 角色名册与模型可用性是直接注入的窄接口。
@@ -191,10 +191,10 @@ function renderShell(scenario: ShellScenario) {
 }
 
 /** 等任务卡出现在看板上，再点开它的详情。 */
-async function openTask(title: string, translate: ShellProps['t'] = t): Promise<void> {
+async function openTask(title: string): Promise<HTMLElement> {
   const card = await screen.findByText(title)
   fireEvent.click(card)
-  await screen.findByText(translate('shell.startPrompt'))
+  return screen.findByRole('dialog')
 }
 
 const TASK_T01 = 'id: T-01\ntitle: 起草中的任务\nstate: drafting\ngrade: B\n'
@@ -209,6 +209,23 @@ const TASK_VUE_IRREVERSIBLE = `${TASK_VUE}scope:\n  irreversible: [settlement_fo
 const TASK_PLAIN = 'id: T-03\ntitle: 整理佣金规则\nstate: drafting\ngrade: B\n'
 /** 五项元信息都有值的任务：用来断言紧凑列表没有漏字段。 */
 const TASK_META = 'id: T-01\ntitle: 元信息齐全的任务\nstate: drafting\ngrade: B\nrules:\n  - R-1\nevidence_required:\n  - E-1\n'
+
+/** 五条任务覆盖五个阶段：显示名与会话动作文案各一条。 */
+const STAGE_CASES = [
+  { id: 'T-01', state: 'drafting', title: '需求确认里的任务', label: 'shell.drafting', action: 'shell.confirmRequirement' },
+  { id: 'T-02', state: 'contracted', title: '待开发里的任务', label: 'shell.contracted', action: 'shell.startDevelopment' },
+  { id: 'T-03', state: 'implementing', title: '开发中的任务', label: 'shell.implementing', action: 'shell.submitAcceptance' },
+  { id: 'T-04', state: 'verifying', title: '验收中的任务', label: 'shell.verifying', action: 'shell.completeAcceptance' },
+  { id: 'T-05', state: 'closed', title: '已完成的任务', label: 'shell.closed', action: 'shell.viewRecord' },
+] as const
+
+/** 五态任务的 `.spec/tasks` 文件表。 */
+function stageTasks(): Readonly<Record<string, string>> {
+  return Object.fromEntries(STAGE_CASES.map(item => [
+    `${item.id}.yaml`,
+    `id: ${item.id}\ntitle: ${item.title}\nstate: ${item.state}\ngrade: B\n`,
+  ]))
+}
 
 /** 两个实施岗位：Vue 有标题信号，.NET 没有；名册第一条决定默认选择。 */
 const ROLES_VUE = `roles:
@@ -425,12 +442,12 @@ describe('任务详情', () => {
     })
 
     await openTask('与 T-01 同方案的任务')
-    fireEvent.click(screen.getAllByRole('button', { name: zh['shell.startChat'] })[0]!)
-    await waitFor(() => { expect(screen.queryByText(zh['shell.startPrompt'])).toBeNull() })
+    fireEvent.click(screen.getAllByRole('button', { name: zh['shell.confirmRequirement'] })[0]!)
+    await waitFor(() => { expect(screen.queryByRole('dialog')).toBeNull() })
 
     // 重新点开详情：判定已留档，日志失败也记在这一条上。
     fireEvent.click(screen.getAllByText('与 T-01 同方案的任务')[0]!)
-    await screen.findByText(zh['shell.startPrompt'])
+    await screen.findByRole('dialog')
 
     expect(screen.queryByText('调度思考过程')).toBeNull()
     expect(screen.queryByText('候选会话')).toBeNull()
@@ -529,7 +546,7 @@ describe('任务详情的岗位弹窗与建议徽标', () => {
 
   it('英文界面给出弹窗标题、当前岗位、确认按钮与徽标', async () => {
     renderShell({ spec: { tasks: { 'T-01.yaml': TASK_VUE }, roles: ROLES_VUE }, t: enT })
-    await openTask('修复 vue 页面组件', enT)
+    await openTask('修复 vue 页面组件')
 
     const detail = screen.getByRole('dialog', { name: 'T-01 修复 vue 页面组件' })
     fireEvent.click(within(detail).getByRole('button', { name: en['shell.roleDialogTitle'] }))
@@ -539,5 +556,58 @@ describe('任务详情的岗位弹窗与建议徽标', () => {
     expect(within(roleDialog).getByRole('button', { name: en['shell.roleDialogConfirm'] })).toBeTruthy()
     expect(within(roleDialog).getByText(en['shell.roleHintBadge'])).toBeTruthy()
     expect(within(roleDialog).getByRole('button', { name: /^Vue Engineer|^Vue 工程师/ })).toBeTruthy()
+  })
+})
+
+describe('任务详情的阶段文案', () => {
+  it('详情不再显示启动咒语与复制提示词', async () => {
+    renderShell({ spec: { tasks: { 'T-01.yaml': TASK_T01 } } })
+    const detail = await openTask('起草中的任务')
+
+    expect(within(detail).queryByText(/dev-flow 启动咒语/)).toBeNull()
+    expect(within(detail).queryByText('自动填入，可编辑')).toBeNull()
+    expect(within(detail).queryByRole('button', { name: '复制提示词' })).toBeNull()
+    expect(within(detail).queryByRole('textbox')).toBeNull()
+  })
+
+  it('五态下详情标签与头尾两个按钮文案各自正确', async () => {
+    renderShell({ spec: { tasks: stageTasks() } })
+
+    for (const item of STAGE_CASES) {
+      const detail = await openTask(item.title)
+      expect(within(detail).getByText(zh[item.label])).toBeTruthy()
+      // 头部与底部是同一句话，两个入口都能看到。
+      expect(within(detail).getAllByRole('button', { name: zh[item.action] }).length).toBe(2)
+
+      fireEvent.click(within(detail).getByRole('button', { name: zh['shell.cancel'] }))
+      await waitFor(() => { expect(screen.queryByRole('dialog')).toBeNull() })
+    }
+  })
+
+  it('看板列名与任务卡所在列用新阶段名，旧名不再出现', async () => {
+    renderShell({ spec: { tasks: stageTasks() } })
+
+    for (const item of STAGE_CASES) {
+      expect(await screen.findByText(zh[item.label])).toBeTruthy()
+      const card = screen.getByText(item.title).closest('button')
+      expect(card?.parentElement?.textContent).toContain(zh[item.label])
+    }
+    for (const old of ['起草', '已签契约', '实施中', '验证中', '已收口']) {
+      expect(screen.queryByText(old)).toBeNull()
+    }
+  })
+
+  it('英文界面给出阶段名与阶段按钮', async () => {
+    renderShell({ spec: { tasks: stageTasks() }, t: enT })
+
+    for (const item of STAGE_CASES) {
+      expect(await screen.findByText(en[item.label])).toBeTruthy()
+    }
+
+    const detail = await openTask(STAGE_CASES[0].title)
+    expect(within(detail).getByText(en['shell.drafting'])).toBeTruthy()
+    expect(within(detail).getAllByRole('button', { name: en['shell.confirmRequirement'] }).length).toBe(2)
+    expect(within(detail).queryByText(/dev-flow startup prompt/)).toBeNull()
+    expect(within(detail).queryByRole('button', { name: 'Copy prompt' })).toBeNull()
   })
 })
