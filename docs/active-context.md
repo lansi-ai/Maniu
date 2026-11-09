@@ -47,7 +47,7 @@ English | [中文](active-context.zh.md)
 ## 04. Next immediate actions (Next Immediate Actions)
 
 - **Currently working on**: T-97, extending the product task schema with a description, two classification axes (domain and change type) and image attachments; the detail UI follows in T-98.
-- **About to execute**: accept T-97, then T-98 renders the description, tags, thumbnails and the simplified metadata, then continue the desktop release chain T-79 to T-82.
+- **About to execute**: accept T-97, then T-98 renders the description, tags, thumbnails and simplified metadata; T-99 and T-100 add the agent status dashboard tab and its relation graph, then continue the desktop release chain T-79 to T-82.
 - **Open decisions**: whether product tasks should gain a `type` field so the suggestion layer can distinguish read-only tasks; the production SMS provider, the exact opencode rates behind the 20-dollar grant, the deployment domain and host, and whether to add an application-level anonymous kill switch and a `/health` endpoint.
 - **Development evidence**: gate output is recorded in the task note in `docs/tasks.yaml` or the commit message; `.spec/evidence` serves product tasks only.
 - **Board regeneration**: after a development status change, edit `docs/tasks.yaml` first, then run `python scripts/build-tasks-html.py`.
