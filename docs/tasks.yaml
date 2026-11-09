@@ -1109,6 +1109,17 @@ tracks:
       dep: [T-99]
       inferred: false
       note: "B 级开发，依赖 T-99，补状态大盘的关系图。范围三项。一、任务节点按状态分列，边画 depends_on 依赖；会话节点与认领任务用实线相连，联调组成员加一条组内边。二、布局用确定性网格与 SVG 曲线，不引第三方图库；节点可点开任务详情。三、无任务或无会话时给空态；与 T-99 共用 15 秒刷新。真窗口截图证明边与状态。未派工。2026-11-09 15:40 监督窗口派工第一阶段，实现线会话 b0dea9b1。工作树 .worktrees/t100-graph，分支 lcoder/t100-graph。第一阶段只做独立布局与组件不接页面；第二阶段等 T-99 提交后合入其分支接线并做真窗口。"
+    - id: T-101
+      title: worktree 空间脚本（共享运行时、稀疏检出、清理、占用巡检）
+      status: doing
+      face: 工程
+      type: 开发
+      owner: lance
+      created: '2026-11-09'
+      date: '2026-11-09'
+      dep: []
+      inferred: false
+      note: "C 级工具脚本，来源是用户 2026-11-09 要求把 worktree 空间优化第 1 与 5 与 6 与 7 条做成脚本。范围一个 PowerShell 主脚本与一个 cmd 包装，提供四个子命令。一、junction 把工作树的 .desktop-build/downloads 与 targets 用 NTFS junction 指向主检出，复用 Electron 运行时；目标已存在且非空必须报错不覆盖。二、sparse 用 git worktree --no-checkout 加 sparse-checkout 建只含指定目录的工作树，供文档与契约线使用。三、clean 先删 node_modules 与各包 lib 与 apps 下 lib 与 web dist 与 .desktop-build，再用仓内 rm-longpath.mjs 清长路径残留；加 -Remove 才注销工作树与删分支，默认不动 git。四、inspect 统计各工作树占用并给超阈值提示，说明硬链接共享会高估。约束：不改主检出与其它工作树，不删 .spec 产品数据，不碰用户未指定分支；PowerShell 5.1 兼容，ps1 恰一个 BOM，cmd 纯 ASCII CRLF。验收在临时 .worktrees/_probe-* 上四个子命令各跑一遍并清理，给命令与输出。工作树 .worktrees/t101-worktree-tool，分支 lcoder/t101-worktree-tool，无端口需求。未派工。2026-11-09 16:10 监督窗口派工，实现线会话 4a4bdd12。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
