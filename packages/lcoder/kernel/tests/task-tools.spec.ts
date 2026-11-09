@@ -316,6 +316,77 @@ describe('task_draft 立项', () => {
     ).rejects.toThrow(/可用编号：（规格库还没有条目）/)
   })
 
+  it('task_draft 写入描述、分类、变更类型与附件，并能读回', async () => {
+    const { spec } = makeRepo()
+    const r = await call(spec, 'task_draft', {
+      title: '自营订单佣金为 0',
+      grade: 'B',
+      description: '自营商品按 0% 抽佣。\n结算记录要能看出这是自营免佣。',
+      category: 'data',
+      change_type: 'feature',
+      attachments: ['attachments/T-02/shot.png'],
+    })
+    expect(r).toMatchObject({
+      description: '自营商品按 0% 抽佣。\n结算记录要能看出这是自营免佣。',
+      category: 'data',
+      change_type: 'feature',
+      attachments: ['attachments/T-02/shot.png'],
+    })
+
+    const loaded = await call(spec, 'task_read', { task_id: r.task_id })
+    expect(loaded).toMatchObject({
+      description: '自营商品按 0% 抽佣。\n结算记录要能看出这是自营免佣。',
+      category: 'data',
+      change_type: 'feature',
+      attachments: ['attachments/T-02/shot.png'],
+    })
+    expect(readFileSync(join(spec, 'tasks', `${String(r.task_id)}.yaml`), 'utf8')).toContain('change_type: feature')
+  })
+
+  it('旧任务不填四项时读回空描述与空附件，分类省略', async () => {
+    const { spec } = makeRepo()
+    const r = await call(spec, 'task_draft', { title: '只写标题', grade: 'C' })
+    expect(r).toMatchObject({ description: '', attachments: [] })
+    expect(r.category).toBeUndefined()
+    expect(r.change_type).toBeUndefined()
+  })
+
+  it('YAML 用 change_type 能读回；写驼峰 changeType 被 strict 拒', async () => {
+    const { spec } = makeRepo()
+    const path = join(spec, 'tasks', 'T-01.yaml')
+    const original = readFileSync(path, 'utf8')
+
+    writeFileSync(path, `${original}\nchange_type: bug\n`, 'utf8')
+    const loaded = await call(spec, 'task_read', { task_id: 'T-01' })
+    expect(loaded.change_type).toBe('bug')
+
+    writeFileSync(path, `${original}\nchangeType: bug\n`, 'utf8')
+    await expect(call(spec, 'task_read', { task_id: 'T-01' })).rejects.toThrow()
+  })
+
+  it('非法分类、变更类型与附件在 schema 层被拒，不落盘', async () => {
+    const { spec } = makeRepo()
+    const base = { title: '分类与附件校验', grade: 'B' }
+
+    await expect(call(spec, 'task_draft', { ...base, category: 'ui' })).rejects.toThrow()
+    await expect(call(spec, 'task_draft', { ...base, change_type: 'fix' })).rejects.toThrow()
+    await expect(
+      call(spec, 'task_draft', { ...base, attachments: ['attachments/../shot.png'] }),
+    ).rejects.toThrow(/不能包含 \.\./)
+    await expect(
+      call(spec, 'task_draft', { ...base, attachments: ['C:/shot.png'] }),
+    ).rejects.toThrow(/不能是绝对路径/)
+    await expect(
+      call(spec, 'task_draft', { ...base, attachments: ['attachments/T-01/notes.txt'] }),
+    ).rejects.toThrow(/只允许 png/)
+    await expect(
+      call(spec, 'task_draft', {
+        ...base,
+        attachments: Array.from({ length: 9 }, (_, index) => `attachments/T-01/${String(index)}.png`),
+      }),
+    ).rejects.toThrow(/最多 8 张/)
+  })
+
   it('没有 .spec 时 task_read 给空表；指定编号才报错', async () => {
     const spec = join(makeUnscopedRepo(), '.spec')
     await expect(call(spec, 'task_read', {})).resolves.toMatchObject({ tasks: [] })

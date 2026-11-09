@@ -80,6 +80,14 @@ export function transition(task: Task, to: TaskState, at: string): TransitionRes
 export interface OpenTaskInput {
   id: string
   title: string
+  /** 模型给的原始文本；长度由 `Task` schema 校验。 */
+  description?: string
+  /** 模型给的原始分类；枚举由 `Task` schema 校验。 */
+  category?: string
+  /** 模型给的原始变更类型；枚举由 `Task` schema 校验。 */
+  change_type?: string
+  /** 模型给的原始附件路径；相对、扩展名与数量由 `Task` schema 校验。 */
+  attachments?: string[]
   grade: Task['grade']
   rules?: string[]
   scope?: Task['scope']

@@ -37,6 +37,8 @@ function taskOf(id: string, title: string, proposal?: string): ShellTask {
   return {
     id,
     title,
+    description: '',
+    attachments: [],
     state: 'drafting',
     grade: 'B',
     rules: [],

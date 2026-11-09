@@ -20,6 +20,8 @@ const PROJECT = { name: 'Demo 商城', path: 'E:/Projects/demo', branch: 'main' 
 const TASK: ShellTask = {
   id: 'T-01',
   title: '订单导出',
+  description: '',
+  attachments: [],
   state: 'drafting',
   grade: 'B',
   rules: ['R-01'],

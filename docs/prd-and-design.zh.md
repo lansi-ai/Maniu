@@ -26,7 +26,7 @@ LCoder 是 DeepSeek Harness 的二开，不 fork 业务实现，也不直接 imp
 |---|---|---|
 | 规格条目 `RuleEntry` | `.spec/spec/rules.yaml` | 稳定编号、出处、状态、代码落点与验收引用 |
 | 状态机 `StateMachine` | `.spec/spec/states/*.yaml` | 状态集合、合法迁移与守卫 |
-| 任务 `Task` | `.spec/tasks/T-xx.yaml` | 五态、分级、允许路径、不可逆项、所需证据 |
+| 任务 `Task` | `.spec/tasks/T-xx.yaml` | 五态、分级、允许路径、不可逆项、所需证据，以及可选的描述、领域与变更类型分类、图片附件 |
 | 契约 `Contract` | `.spec/contracts/T-xx.contract.yaml` | change / not_change / acceptance / fail_if，加人签 |
 | 证据 `Evidence` | `.spec/evidence/T-xx/*.log` | 非空才算证据 |
 | 环境 `Env` | `.spec/env.yaml` | 仓库、验收命令、凭据来源 |
@@ -60,6 +60,8 @@ LCoder 是 DeepSeek Harness 的二开，不 fork 业务实现，也不直接 imp
 工作台直接读 `.spec` 下的 YAML，通过上游 `workspaceFiles` 远程命名空间做文件投影，不自建 Remote，也不引 typert 生成器。投影面按会话注入；没有绑定工作区时三栏保持骨架态。状态机判断不进 UI，仍归 kernel。路径必须与 kernel 落盘一致：`task-store.taskPath` 与 `spec-store.saveRules` 都以 `.spec` 为根；分叉不会有类型错误，只会画出错的数据。
 
 kernel 的规格根跟随会话工作区：一次工具调用取 `session.header.cwd/.spec`。没有会话 cwd（headless 启动、启动自检）时退回配置的 `root`，再退回 `process.cwd()/.spec`。桌面端宿主以 profile 目录而不是目标仓库作为进程 cwd，因此只有会话工作区能让工具与 UI 投影读同一个 `.spec`。
+
+任务还可以带一段描述、领域（`category`：`page`、`api`、`data`、`other`）、变更类型（`change_type`：`bug`、`feature`、`improvement`、`style`）与最多 8 张图片附件。描述允许换行，最多 4000 个字符。附件是相对 `.spec` 根目录的路径，约定为 `attachments/<任务编号>/<文件名>`，扩展名限 `png`、`jpg`、`jpeg`、`webp`、`gif`；绝对路径、`..` 上跳、空串与其他扩展名都被拒。文件缺失不算 schema 错误，界面可以显示占位。这四个字段出现之前写下的任务照常解析，描述为空串、没有分类、附件为空数组。
 
 任务还可以记录「这条事由哪条会话在办」：`.spec/tasks/<ID>.yaml` 的 `session` 字段。它由人在为该任务打开对话时经 `/task_bind` 写入，模型不写；会话号取自宿主自己的调用上下文，所以前端无法去认领不属于它的会话。这个值是本机 home 里的运行时标识，换机器或会话被删之后内核退回「配置的任务号，再退回看板第一条」，任务的状态本身不会因为认领失效而被改动。释放认领是把这个键整个删掉，不留空值——空值会让整张看板读不懂。
 

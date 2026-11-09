@@ -26,7 +26,7 @@ LCoder is a second development of DeepSeek Harness: it does not fork business im
 |---|---|---|
 | Specification entry `RuleEntry` | `.spec/spec/rules.yaml` | Stable id, source, status, code bindings, and acceptance references |
 | State machine `StateMachine` | `.spec/spec/states/*.yaml` | State set, legal transitions, and guards |
-| Task `Task` | `.spec/tasks/T-xx.yaml` | Five states, grade, allowed paths, irreversible items, required evidence |
+| Task `Task` | `.spec/tasks/T-xx.yaml` | Five states, grade, allowed paths, irreversible items, required evidence, plus an optional description, domain and change-type classification, and image attachments |
 | Contract `Contract` | `.spec/contracts/T-xx.contract.yaml` | change / not_change / acceptance / fail_if plus the human signature |
 | Evidence `Evidence` | `.spec/evidence/T-xx/*.log` | Only a non-empty file counts as evidence |
 | Environment `Env` | `.spec/env.yaml` | Repository, acceptance commands, credential sources |
@@ -60,6 +60,8 @@ The model tools and the per-role ceilings live in one place, `packages/lcoder/ke
 The workbench reads YAML under `.spec` directly and projects files through the upstream `workspaceFiles` remote namespace; it does not build its own Remote and does not use the typert generator. The projection is injected per session; without a bound workspace the three columns stay as a skeleton. State-machine decisions stay out of the UI and remain in the kernel. Paths must match the kernel's writes: `task-store.taskPath` and `spec-store.saveRules` both use `.spec` as root; a fork produces no type error, only wrong data on screen.
 
 The kernel's specification root follows the session workspace: a tool call uses `session.header.cwd/.spec`. Without a session cwd (headless launches, startup self-check) it falls back to the configured `root`, then to `process.cwd()/.spec`. The desktop host runs with the profile directory as its process cwd, not the target repository, so the session workspace is the only source that keeps the tools and the UI projection on the same `.spec`.
+
+A task can also carry a description, a domain (`category`: `page`, `api`, `data`, `other`), a change type (`change_type`: `bug`, `feature`, `improvement`, `style`), and up to eight image `attachments`. The description allows newlines and is capped at 4000 characters. An attachment is a path relative to the `.spec` root, conventionally `attachments/<task id>/<file>`, with a `png`, `jpg`, `jpeg`, `webp`, or `gif` extension; absolute paths, `..` segments, empty strings, and other extensions are rejected. A missing file is not a schema error, so the UI can show a placeholder. Tasks written before these fields existed parse with an empty description, no classification, and no attachments.
 
 A task can additionally record which session works on it: `session` in `.spec/tasks/<ID>.yaml`. A human writes it through the `/task_bind` command when opening a conversation for that task, and the model never writes it — the session id comes from the host's own invocation, so a browser cannot claim a session that is not its own. The value is a runtime identifier inside this machine's home: after a machine change or a deleted session the kernel falls back to the configured task id and then to the first task on the board, and the task's own state never changes because of a stale claim. Releasing a claim deletes the key rather than leaving it empty, because an empty value makes the whole board unreadable.
 

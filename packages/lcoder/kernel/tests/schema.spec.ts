@@ -75,6 +75,87 @@ describe('.spec schema', () => {
     expect(Task.safeParse({ ...base, session: '' }).success).toBe(false)
   })
 
+  it('旧任务不填描述、分类、变更类型与附件时，按空串、省略与空数组解析', () => {
+    const task = Task.parse({
+      id: 'T-014',
+      title: '佣金支持 0',
+      grade: 'B' as const,
+      state: 'drafting' as const,
+      opened_at: '2026-11-02T09:10:00+08:00',
+    })
+    expect(task.description).toBe('')
+    expect(task.category).toBeUndefined()
+    expect(task.change_type).toBeUndefined()
+    expect(task.attachments).toEqual([])
+  })
+
+  it('描述允许换行，超过上限给出可读错误', () => {
+    const base = {
+      id: 'T-014',
+      title: '佣金支持 0',
+      grade: 'B' as const,
+      state: 'drafting' as const,
+      opened_at: '2026-11-02T09:10:00+08:00',
+    }
+    expect(Task.parse({ ...base, description: '第一行\n第二行' }).description).toBe('第一行\n第二行')
+    const tooLong = Task.safeParse({ ...base, description: 'x'.repeat(4001) })
+    expect(tooLong.success).toBe(false)
+    expect(tooLong.success ? '' : tooLong.error.issues[0]?.message).toContain('最多 4000 个字符')
+  })
+
+  it('领域与变更类型只接受约定枚举', () => {
+    const base = {
+      id: 'T-014',
+      title: '佣金支持 0',
+      grade: 'B' as const,
+      state: 'drafting' as const,
+      opened_at: '2026-11-02T09:10:00+08:00',
+    }
+    for (const category of ['page', 'api', 'data', 'other']) {
+      expect(Task.safeParse({ ...base, category }).success).toBe(true)
+    }
+    for (const changeType of ['bug', 'feature', 'improvement', 'style']) {
+      expect(Task.safeParse({ ...base, change_type: changeType }).success).toBe(true)
+    }
+    expect(Task.parse({ ...base, change_type: 'bug' }).change_type).toBe('bug')
+    expect(Task.safeParse({ ...base, category: 'ui' }).success).toBe(false)
+    expect(Task.safeParse({ ...base, change_type: 'fix' }).success).toBe(false)
+    // 字段名是 YAML 契约的一部分：驼峰写法按未知键拒绝，而不是静默丢掉。
+    expect(Task.safeParse({ ...base, changeType: 'bug' }).success).toBe(false)
+  })
+
+  it('附件只收 .spec 相对路径的图片：绝对路径、上跳、空串与非图片都被拒', () => {
+    const base = {
+      id: 'T-014',
+      title: '佣金支持 0',
+      grade: 'B' as const,
+      state: 'drafting' as const,
+      opened_at: '2026-11-02T09:10:00+08:00',
+    }
+    expect(Task.parse({
+      ...base,
+      attachments: ['attachments/T-014/shot.png', 'attachments/T-014/photo.JPEG'],
+    }).attachments).toEqual(['attachments/T-014/shot.png', 'attachments/T-014/photo.JPEG'])
+    expect(Task.safeParse({ ...base, attachments: ['C:/shot.png'] }).success).toBe(false)
+    expect(Task.safeParse({ ...base, attachments: ['/abs/shot.png'] }).success).toBe(false)
+    expect(Task.safeParse({ ...base, attachments: ['attachments/../shot.png'] }).success).toBe(false)
+    expect(Task.safeParse({ ...base, attachments: [''] }).success).toBe(false)
+    expect(Task.safeParse({ ...base, attachments: ['attachments/T-014/notes.txt'] }).success).toBe(false)
+  })
+
+  it('附件最多 8 张', () => {
+    const base = {
+      id: 'T-014',
+      title: '佣金支持 0',
+      grade: 'B' as const,
+      state: 'drafting' as const,
+      opened_at: '2026-11-02T09:10:00+08:00',
+    }
+    const images = Array.from({ length: 8 }, (_, index) => `attachments/T-014/${String(index)}.png`)
+    expect(Task.safeParse({ ...base, attachments: images }).success).toBe(true)
+    expect(Task.safeParse({ ...base, attachments: [...images, 'attachments/T-014/8.png'] }).success).toBe(false)
+  })
+
   it('任务的时间必须是可解析的 ISO 时间', () => {
     const base = { id: 'T-014', title: 'x', grade: 'C' as const, state: 'drafting' as const }
     expect(Task.safeParse({ ...base, opened_at: '2026-11-02' }).success).toBe(true)

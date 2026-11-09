@@ -9,7 +9,7 @@
  * `task_draft` 是模型唯一的立项入口：它只新建 `drafting` 任务，状态、时间戳
  * 由代码写定——模型说不出「已经签过」，也说不出「什么时候开的」。
  */
-import { resolve } from 'node:path'
+import { isAbsolute, relative, resolve, sep } from 'node:path'
 
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
@@ -49,6 +49,23 @@ function taskDraftProposal(specRoot: string, raw: string | undefined): string | 
   return text
 }
 
+/**
+ * 附件路径写盘前复核：解析后的目标必须仍在规格根内。
+ *
+ * schema 已拒绝绝对路径与 `..`；这里按实际解析结果再查一次，
+ * 让「写进 YAML 的路径」与「磁盘上的落点」用同一套判定。
+ * @param specRoot - 规格根。
+ * @param attachments - 已通过 schema 的附件路径。
+ */
+function assertAttachmentsInsideSpec(specRoot: string, attachments: readonly string[]): void {
+  for (const attachment of attachments) {
+    const target = relative(specRoot, resolve(specRoot, attachment))
+    if (target === '' || target === '..' || target.startsWith(`..${sep}`) || isAbsolute(target)) {
+      throw new Error(`附件路径不能跳出 .spec 根目录：${attachment}`)
+    }
+  }
+}
+
 export function createTaskTools(specRootInput: RootInput): ToolDefinition[] {
   return [
     defineTool({
@@ -71,6 +88,10 @@ export function createTaskTools(specRootInput: RootInput): ToolDefinition[] {
           return {
             id: t.id,
             title: t.title,
+            description: t.description,
+            ...(t.category === undefined ? {} : { category: t.category }),
+            ...(t.change_type === undefined ? {} : { change_type: t.change_type }),
+            attachments: t.attachments,
             grade: t.grade,
             state: t.state,
             rules: t.rules,
@@ -96,6 +117,14 @@ export function createTaskTools(specRootInput: RootInput): ToolDefinition[] {
         '新建一个起草态（drafting）任务，把调研结论落成 .spec/tasks/<编号>.yaml。状态由本工具写死为 drafting，时间戳取执行时刻：本工具不能改任务状态、不能签契约、不能改代码。同标题已存在任务时返回那个任务，不重复建。',
       parameters: {
         title: { type: 'string', required: true, description: '任务标题，一句话说清要办成什么' },
+        description: { type: 'string', description: '需求描述：具体要做什么、为什么，允许换行，最多 4000 个字符' },
+        category: { type: 'string', description: '领域分类：page（页面）、api（接口）、data（数据）、other（其他）' },
+        change_type: { type: 'string', description: '变更类型：bug（缺陷）、feature（新功能）、improvement（改进）、style（样式）' },
+        attachments: {
+          type: 'array',
+          items: { type: 'string' },
+          description: '图片附件，相对 .spec 根目录，如 attachments/T-01/shot.png；只允许 png、jpg、jpeg、webp、gif，最多 8 张',
+        },
         grade: { type: 'string', required: true, description: '分级：A（契约/架构/规则变更）、B（常规功能）、C（小修）' },
         rules: { type: 'array', items: { type: 'string' }, description: '触及的规格条目编号，必须已存在于 spec/rules.yaml' },
         allowed_paths: { type: 'array', items: { type: 'string' }, description: '允许改动的仓库内路径前缀' },
@@ -127,6 +156,10 @@ export function createTaskTools(specRootInput: RootInput): ToolDefinition[] {
             state: duplicate.state,
             grade: duplicate.grade,
             rules: duplicate.rules,
+            description: duplicate.description,
+            ...(duplicate.category === undefined ? {} : { category: duplicate.category }),
+            ...(duplicate.change_type === undefined ? {} : { change_type: duplicate.change_type }),
+            attachments: duplicate.attachments,
             created: false,
             note: `已有一个同标题任务 ${duplicate.id}（${duplicate.state}），没有重复新建。要继续就基于它起草契约。`,
           }
@@ -167,6 +200,10 @@ export function createTaskTools(specRootInput: RootInput): ToolDefinition[] {
         const task = openTask({
           id,
           title,
+          description: args.description ?? '',
+          ...(args.category === undefined ? {} : { category: args.category }),
+          ...(args.change_type === undefined ? {} : { change_type: args.change_type }),
+          attachments: args.attachments ?? [],
           grade,
           rules: requestedRules,
           scope: { irreversible: args.irreversible ?? [], allowed_paths: args.allowed_paths ?? [] },
@@ -175,6 +212,7 @@ export function createTaskTools(specRootInput: RootInput): ToolDefinition[] {
           ...(dependsOn.length === 0 ? {} : { depends_on: dependsOn }),
           opened_at: new Date().toISOString(),
         })
+        assertAttachmentsInsideSpec(specRoot, task.attachments)
         const path = saveTask(specRoot, task)
 
         return {
@@ -183,6 +221,10 @@ export function createTaskTools(specRootInput: RootInput): ToolDefinition[] {
           state: task.state,
           grade: task.grade,
           rules: task.rules,
+          description: task.description,
+          ...(task.category === undefined ? {} : { category: task.category }),
+          ...(task.change_type === undefined ? {} : { change_type: task.change_type }),
+          attachments: task.attachments,
           depends_on: task.depends_on,
           created: true,
           note: '任务已建，状态 drafting。契约用 contract_draft 起草；签署只能由人完成，本工具不提供签署。',

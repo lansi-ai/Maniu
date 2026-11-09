@@ -106,9 +106,65 @@ export const TaskState = z.enum([
 ])
 export type TaskState = z.infer<typeof TaskState>
 
+/** 任务领域：页面、接口、数据、其他。 */
+export const TaskCategory = z.enum(['page', 'api', 'data', 'other'])
+export type TaskCategory = z.infer<typeof TaskCategory>
+
+/** 变更类型：缺陷、新功能、改进、样式。 */
+export const TaskChangeType = z.enum(['bug', 'feature', 'improvement', 'style'])
+export type TaskChangeType = z.infer<typeof TaskChangeType>
+
+/** 任务描述上限：够写清背景与验收，又不至于把任务文件撑成文档。 */
+const TASK_DESCRIPTION_MAX = 4000
+/** 一条任务的图片附件上限。 */
+const TASK_ATTACHMENT_LIMIT = 8
+/** 附件允许的图片扩展名；比较时忽略大小写。 */
+const IMAGE_EXTENSIONS: readonly string[] = ['png', 'jpg', 'jpeg', 'webp', 'gif']
+
+/**
+ * 附件路径：相对 `.spec` 根目录，例如 `attachments/T-01/shot.png`。
+ *
+ * 绝对路径与 `..` 上跳会被拒，写盘侧再按规格根复核一次，两处都守；
+ * 只校形状，不要求文件已经存在——缺图由界面显示占位。
+ */
+const AttachmentPath = z.string().superRefine((value, ctx) => {
+  const path = value.trim()
+  if (path === '') {
+    ctx.addIssue({ code: 'custom', message: '附件路径不能为空' })
+    return
+  }
+  if (/^(?:[A-Za-z]:|[\\/])/.test(path)) {
+    ctx.addIssue({ code: 'custom', message: `附件路径必须是相对 .spec 根目录的相对路径，不能是绝对路径：${value}` })
+    return
+  }
+  const segments = path.split(/[\\/]/)
+  if (segments.includes('..')) {
+    ctx.addIssue({ code: 'custom', message: `附件路径不能包含 ..，不能跳出 .spec 根目录：${value}` })
+    return
+  }
+  const extension = /\.([A-Za-z0-9]+)$/.exec(segments[segments.length - 1] ?? '')?.[1]
+  if (extension === undefined || !IMAGE_EXTENSIONS.includes(extension.toLowerCase())) {
+    ctx.addIssue({ code: 'custom', message: `附件只允许 png、jpg、jpeg、webp、gif 图片：${value}` })
+  }
+})
+
 export const Task = z.object({
   id: Id,
   title: z.string().min(1),
+  /** 需求描述：具体要做什么、为什么；允许换行，最多 4000 个字符。缺省为空串。 */
+  description: z
+    .string()
+    .max(TASK_DESCRIPTION_MAX, `任务描述最多 ${String(TASK_DESCRIPTION_MAX)} 个字符`)
+    .default(''),
+  /** 领域分类；缺省表示还没分。 */
+  category: TaskCategory.optional(),
+  /** 变更类型；缺省表示还没分。 */
+  change_type: TaskChangeType.optional(),
+  /** 图片附件：相对 `.spec` 根目录的路径，最多 8 张；缺省为空数组。 */
+  attachments: z
+    .array(AttachmentPath)
+    .max(TASK_ATTACHMENT_LIMIT, `附件最多 ${String(TASK_ATTACHMENT_LIMIT)} 张`)
+    .default([]),
   grade: TaskGrade,
   state: TaskState,
   /** 本任务触及的规格条目。 */
@@ -154,7 +210,7 @@ export const Task = z.object({
   role: z.string().min(1).optional(),
   opened_at: IsoDateTime,
   closed_at: IsoDateTime.nullable().default(null),
-})
+}).strict()
 export type Task = z.infer<typeof Task>
 
 // ── 4. 契约 ─────────────────────────────────────────────────

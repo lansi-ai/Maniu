@@ -153,6 +153,8 @@ describe('文件投影', () => {
     expect(taskTextToRow('T-014.yaml', TASK_YAML)).toEqual({
       id: 'T-014',
       title: '登录接口限流',
+      description: '',
+      attachments: [],
       state: 'contracted',
       grade: 'B',
       rules: ['R-LOGIN-01'],
@@ -162,6 +164,20 @@ describe('文件投影', () => {
       paths: [],
       irreversible: [],
     })
+    // 描述、两维分类与附件是任务文件里的事实：写了就原样透给外壳，没写就是空。
+    const withMetadata = taskTextToRow('T-014.yaml', `${TASK_YAML}
+description: "第一行\\n第二行"
+category: page
+change_type: bug
+attachments:
+  - attachments/T-014/shot.png
+`)
+    expect(withMetadata?.description).toBe('第一行\n第二行')
+    expect(withMetadata?.category).toBe('page')
+    expect(withMetadata?.changeType).toBe('bug')
+    expect(withMetadata?.attachments).toEqual(['attachments/T-014/shot.png'])
+    expect(taskTextToRow('T-014.yaml', TASK_YAML)?.category).toBeUndefined()
+    expect(taskTextToRow('T-014.yaml', TASK_YAML)?.attachments).toEqual([])
     // 依赖是任务文件里的事实：写了就原样读回，空着就是没有依赖。
     expect(taskTextToRow('T-014.yaml', `${TASK_YAML}
 depends_on:
