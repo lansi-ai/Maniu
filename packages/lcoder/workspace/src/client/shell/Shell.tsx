@@ -8,7 +8,7 @@
  * 外壳占用 `main` 的 `lcoder-home` 键；DSH 原生侧栏在桌面 profile 里禁用，
  * 启动时折叠空轨道，主面板占满窗口。
  */
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, MouseEvent, ReactNode } from 'react'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
@@ -29,6 +29,9 @@ import type {
 } from '../flow-status.ts'
 import { loadActionLog } from '../flow-history.ts'
 import type { ActionLogEntry } from '../flow-history.ts'
+import { dashboardStatusOf, loadDashboardEvents, summarizeDashboard } from '../dashboard.ts'
+import type { DashboardSessionRow } from '../dashboard.ts'
+import { AgentDashboardPage } from './AgentDashboardPage.tsx'
 import {
   AGENT_ROLES, liveAgentSession, resolveAgentSession, titleNeedsFix,
 } from '../singleton.ts'
@@ -60,6 +63,8 @@ import { buildIntakePrompt, buildOnboardingPrompt, buildShellPrompt, SHELL_STATE
 import { recommendedRoleId } from './role-hint.ts'
 import { ChatTranscript, PendingInteractionCard } from './ChatPanel.tsx'
 import { ChatAttachButton, ChatAttachmentList, ChatModelChip } from './ChatExtras.tsx'
+import { TaskAttachments } from './TaskAttachments.tsx'
+import type { TaskAttachmentReader } from './TaskAttachments.tsx'
 import {
   attachmentsReady, buildPromptContent, checkImageCandidate, currentChatModel, formatBytes,
   promptFailureOf, promptIsEmpty, resolveImageLimits, uploadedFile,
@@ -88,6 +93,8 @@ export type ShellProps =
   & {
     /** 文件投影面；没有时外壳保持空态。 */
     readonly files?: ProjectionFilesRemote
+    /** 按 `.spec` 相对路径读图片附件；读不到由返回值表达，外壳画占位。 */
+    readonly readAttachment?: TaskAttachmentReader
     /** 把仓库路径注册成工作区并建一个会话；返回可用于读取 `.spec` 的会话。 */
     readonly openRepository?: (path: string) => Promise<{ workspaceId: string; sessionId: SessionId }>
     /** 向真实会话发送文本或带附件的提示；失败抛出带 code 与 reason 的错误。 */
@@ -171,6 +178,45 @@ const STATE_ACTION_LABEL: Record<ShellTaskState, LcoderWorkspaceKey> = {
   closed: 'shell.viewRecord',
 }
 
+/** 领域分类到词典键；schema 之外的取值按原样显示。 */
+const CATEGORY_LABEL: Readonly<Record<string, LcoderWorkspaceKey>> = {
+  page: 'shell.categoryPage',
+  api: 'shell.categoryApi',
+  data: 'shell.categoryData',
+  other: 'shell.categoryOther',
+}
+
+/** 变更类型到词典键；schema 之外的取值按原样显示。 */
+const CHANGE_TYPE_LABEL: Readonly<Record<string, LcoderWorkspaceKey>> = {
+  bug: 'shell.changeBug',
+  feature: 'shell.changeFeature',
+  improvement: 'shell.changeImprovement',
+  style: 'shell.changeStyle',
+}
+
+/** 分级 A/B/C 到难度展示名；其它取值原样显示。 */
+const DIFFICULTY_LABEL: Readonly<Record<string, LcoderWorkspaceKey>> = {
+  A: 'shell.difficultyHigh',
+  B: 'shell.difficultyMedium',
+  C: 'shell.difficultyLow',
+}
+
+/**
+ * 取一个受控取值的展示名。
+ * @param labels - 取值到词典键的映射。
+ * @param value - 任务上的原始取值。
+ * @param t - 词典函数。
+ * @returns 映射后的文案；映射里没有时原样返回。
+ */
+function mappedLabel(
+  labels: Readonly<Record<string, LcoderWorkspaceKey>>,
+  value: string,
+  t: (key: LcoderWorkspaceKey) => string,
+): string {
+  const key = labels[value]
+  return key === undefined ? value : t(key)
+}
+
 /** 门禁入口到既有按钮文案的映射；登录提示里用同一句话。 */
 const CLOUD_ENTRY_LABEL: Record<CloudGateEntry, LcoderWorkspaceKey> = {
   onboarding: 'shell.onboardingExistingDocs',
@@ -200,6 +246,15 @@ const SURFACE: Record<ShellTaskState, string> = {
   implementing: '全量',
   verifying: '全量 + 收口',
   closed: '只读',
+}
+
+/** 工具面展示文案的词典键；启动咒语仍用 `SURFACE` 的中文原文。 */
+const SURFACE_LABEL: Record<ShellTaskState, LcoderWorkspaceKey> = {
+  drafting: 'shell.surfaceReadContract',
+  contracted: 'shell.surfaceReadContractEdit',
+  implementing: 'shell.surfaceFull',
+  verifying: 'shell.surfaceFullClose',
+  closed: 'shell.surfaceReadonly',
 }
 
 /**
@@ -366,7 +421,7 @@ function resolveSecrets(info: ShellProjectInfo, secrets: Readonly<Record<string,
  * @returns 顶栏 + 任务板 + 项目信息抽屉 + 浮层。
  */
 export function Shell({
-  t, files, openRepository, sendPrompt, uploadAttachment, readDefaultModel, signContract, advanceContract,
+  t, files, readAttachment, openRepository, sendPrompt, uploadAttachment, readDefaultModel, signContract, advanceContract,
   approveProposal, bindTask, assignTask, logSchedule,
   readFlowStatus, logFlow, bindAgentSession, renameSession, readContextPressure,
   createSession, listRoles, listExperts, readExpert,
@@ -402,6 +457,8 @@ export function Shell({
   const [resultPage, setResultPage] = useState(false)
   /** 个人中心：独立整页，与结果页同级；打开时看板让位。 */
   const [personalPage, setPersonalPage] = useState(false)
+  /** Agent 状态大盘：独立整页，顶栏一级入口；打开时看板让位。 */
+  const [dashboardPage, setDashboardPage] = useState(false)
   /** 重开确认框与它在途状态；浮层头与结果页共用同一套。 */
   const [restartOpen, setRestartOpen] = useState(false)
   const [restarting, setRestarting] = useState(false)
@@ -506,6 +563,13 @@ export function Shell({
   const [flowResults, setFlowResults] = useState<readonly FlowRunResult[]>([])
   const [flowHistory, setFlowHistory] = useState<readonly ActionLogEntry[]>([])
   const [flowHistoryProblems, setFlowHistoryProblems] = useState<readonly string[]>([])
+  /** 状态大盘的合并事件流与逐任务读取问题；关页签后清空。 */
+  const [dashboardEvents, setDashboardEvents] = useState<readonly ActionLogEntry[]>([])
+  const [dashboardEventProblems, setDashboardEventProblems] = useState<Readonly<Record<string, string>>>({})
+  const [dashboardEventError, setDashboardEventError] = useState<string | null>(null)
+  const [dashboardLoading, setDashboardLoading] = useState(false)
+  const dashboardAbort = useRef<AbortController | null>(null)
+  const dashboardTaskIds = useMemo(() => tasks.map(task => task.id), [tasks])
   /** 动作流水没写成的原因；按任务号记。 */
   const [flowLogErrors, setFlowLogErrors] = useState<Readonly<Record<string, string>>>({})
   /** 浮层会话的上下文占用与容量；随事件刷新。 */
@@ -784,6 +848,38 @@ export function Shell({
   }
 
   /**
+   * 状态大盘的一行：状态读宿主推流，任务读投影，更新时刻只在宿主给出时显示。
+   * 认领任务优先取未收口的那条；会话没认领任务时留空，由页面写「未认领」。
+   */
+  const dashboardSessions = (): readonly DashboardSessionRow[] =>
+    workspaceSessions.map((id) => {
+      const row = sessionRows[id]
+      const pushed = sessionStatus.get(id)
+      const claimed = tasks.find(task => task.session === String(id) && task.state !== 'closed')
+        ?? tasks.find(task => task.session === String(id))
+      return {
+        sessionId: String(id),
+        name: row?.title ?? sessionLabel(String(id)),
+        role: roleLabelOf(sessionRoleOf(id)),
+        status: dashboardStatusOf({
+          pendingInteraction: pushed?.pendingInteraction,
+          running: pushed?.running ?? row?.running ?? false,
+        }),
+        ...(claimed === undefined ? {} : { taskId: claimed.id, taskTitle: claimed.title }),
+        queue: queueDepth(String(id)),
+        ...(row?.updatedAt === undefined ? {} : { updatedAt: row.updatedAt }),
+        workspace: row?.cwd ?? projectPath,
+      }
+    })
+  const dashboardRows = dashboardSessions()
+  const dashboardSummary = summarizeDashboard(dashboardRows, tasks)
+
+  /** 大盘刷新：重读投影，事件流 effect 随 reload 重新读日志。 */
+  const refreshDashboard = useCallback((): void => {
+    setReload(value => value + 1)
+  }, [])
+
+  /**
    * 本任务所在的联调组：优先读投影里的组文件（刷新后仍在），
    * 投影还没跟上时退回本次判定刚记下的组。
    */
@@ -955,6 +1051,47 @@ export function Shell({
     if (!flowOpen) return
     void refreshHistory()
   }, [flowOpen, reload, files, sessionId, tasks.length])
+
+  /**
+   * 状态大盘打开时重读事件流；关页签立刻中止在途读取并清空旧项目的事件，
+   * 自动刷新只由页面内的定时器触发，离开页签就随卸载停止。
+   */
+  useEffect(() => {
+    if (!dashboardPage) {
+      dashboardAbort.current?.abort()
+      dashboardAbort.current = null
+      setDashboardEvents([])
+      setDashboardEventProblems({})
+      setDashboardEventError(null)
+      setDashboardLoading(false)
+      return
+    }
+    if (files === undefined || sessionId === undefined) {
+      setDashboardEvents([])
+      setDashboardEventProblems({})
+      setDashboardEventError(null)
+      setDashboardLoading(false)
+      return
+    }
+    const controller = new AbortController()
+    dashboardAbort.current?.abort()
+    dashboardAbort.current = controller
+    setDashboardLoading(true)
+    setDashboardEventError(null)
+    void loadDashboardEvents(files, sessionId, dashboardTaskIds, controller.signal).then((load) => {
+      if (controller.signal.aborted) return
+      setDashboardEvents(load.entries)
+      setDashboardEventProblems(load.problems)
+      setDashboardLoading(false)
+    }, (error: unknown) => {
+      if (controller.signal.aborted) return
+      setDashboardEvents([])
+      setDashboardEventProblems({})
+      setDashboardEventError(`${t('shell.problems')} ${String(error)}`)
+      setDashboardLoading(false)
+    })
+    return () => { controller.abort() }
+  }, [dashboardPage, reload, files, sessionId, dashboardTaskIds, t])
 
   /**
    * 角色名册来自装配层的 Agent preset 声明，外壳活一次读一次就够：
@@ -2110,7 +2247,7 @@ export function Shell({
                     ? null
                     : <span className={`${css.tag} ${css.tagQueued}`}>{fill(t('shell.queuePosition'), { n: queueMark.position })}</span>}
                   {task.rules.map(rule => <span key={rule} className={css.tag}>{rule}</span>)}
-                  <span className={`${css.tag} ${task.state === 'closed' ? css.tagOk : ''}`}>{task.surface}</span>
+                  <span className={`${css.tag} ${task.state === 'closed' ? css.tagOk : ''}`}>{t(SURFACE_LABEL[task.state])}</span>
                   {!contracts.some(row => row.id === task.id && row.signedBy === 'human')
                     ? null
                     : <span className={`${css.tag} ${css.tagOk}`}>{t('shell.contractSigned')}</span>}
@@ -2234,6 +2371,17 @@ export function Shell({
                 </button>
               )
             })}
+            <button
+              type="button"
+              className={`${css.agentChip} ${dashboardPage ? css.agentChipActive : ''}`}
+              onClick={() => {
+                setDashboardPage(true)
+                setResultPage(false)
+                setPersonalPage(false)
+              }}
+            >
+              {t('shell.dashboard')}
+            </button>
           </div>
         )}
         {!hasWorkspace ? null : (
@@ -2299,7 +2447,20 @@ export function Shell({
             onOpenLogin={() => { setPersonalPage(false); setCloudDialog('login'); focusCloudPhone() }}
           />
         ) : null}
-        {resultPage && !personalPage ? (
+        {dashboardPage && !personalPage ? (
+          <AgentDashboardPage
+            t={t}
+            sessions={dashboardRows}
+            summary={dashboardSummary}
+            events={dashboardEvents}
+            eventProblems={dashboardEventProblems}
+            loading={dashboardLoading}
+            error={dashboardEventError}
+            onBack={() => { setDashboardPage(false) }}
+            onRefresh={refreshDashboard}
+          />
+        ) : null}
+        {resultPage && !personalPage && !dashboardPage ? (
           <IntakeResultPage
             t={t}
             proposals={proposals}
@@ -2313,7 +2474,7 @@ export function Shell({
             onStartOnboarding={(kind) => { setResultPage(false); startOnboarding(kind) }}
           />
         ) : null}
-        {resultPage || personalPage ? null : <div className={css.boardWrap}>
+        {resultPage || personalPage || dashboardPage ? null : <div className={css.boardWrap}>
           <div className={css.boardHead}>
             <h3>{t('shell.board')}</h3>
             <span className={css.boardHint}>{t('shell.boardHint')}</span>
@@ -2365,7 +2526,7 @@ export function Shell({
                     }))
                   }}
                 >
-                  {grade}
+                  {mappedLabel(DIFFICULTY_LABEL, grade, t)}
                 </button>
               ))}
               <span className={css.filterLabel}>{t('shell.filterSession')}</span>
@@ -2873,6 +3034,17 @@ export function Shell({
             <div className={css.modalHead}>
               <div className={css.grow}>
                 <h3>{detail.id} · {detail.title}</h3>
+                <p className={css.detailDescription}>{detail.description.trim() || t('shell.noDescription')}</p>
+                {detail.category === undefined && detail.changeType === undefined ? null : (
+                  <div className={css.detailTags}>
+                    {detail.category === undefined
+                      ? null
+                      : <span className={css.detailTag}>{mappedLabel(CATEGORY_LABEL, detail.category, t)}</span>}
+                    {detail.changeType === undefined
+                      ? null
+                      : <span className={css.detailTag}>{mappedLabel(CHANGE_TYPE_LABEL, detail.changeType, t)}</span>}
+                  </div>
+                )}
               </div>
               <span className={css.pill}>{t(STATE_LABEL[detail.state])}</span>
               <button
@@ -2887,10 +3059,13 @@ export function Shell({
               <button type="button" className={css.iconBtn} onClick={() => { setDetail(null) }}>✕</button>
             </div>
             <div className={css.modalBody}>
+              {detail.attachments.length === 0 ? null : (
+                <TaskAttachments t={t} sessionId={sessionId} paths={detail.attachments} read={readAttachment} />
+              )}
               <dl className={css.metaStrip}>
                 <div className={css.metaItem}>
-                  <dt className={css.metaK}>{t('shell.grade')}</dt>
-                  <dd className={css.metaV}>{detail.grade}</dd>
+                  <dt className={css.metaK}>{t('shell.difficulty')}</dt>
+                  <dd className={css.metaV}>{mappedLabel(DIFFICULTY_LABEL, detail.grade, t)}</dd>
                 </div>
                 <div className={css.metaItem}>
                   <dt className={css.metaK}>{t('shell.jobRole')}</dt>
@@ -2905,10 +3080,6 @@ export function Shell({
                       ?
                     </button>
                   </dd>
-                </div>
-                <div className={css.metaItem}>
-                  <dt className={css.metaK}>{t('shell.rules')}</dt>
-                  <dd className={css.metaV}>{detail.rules.join(', ') || '—'}</dd>
                 </div>
                 {detail.dependsOn === undefined
                   ? null
@@ -2945,15 +3116,24 @@ export function Shell({
                       </dd>
                     </div>
                   )}
-                <div className={css.metaItem}>
-                  <dt className={css.metaK}>{t('shell.evidence')}</dt>
-                  <dd className={css.metaV}>{detail.evidence.join(', ') || '—'}</dd>
-                </div>
-                <div className={css.metaItem}>
-                  <dt className={css.metaK}>{t('shell.surface')}</dt>
-                  <dd className={css.metaV}>{detail.surface}</dd>
-                </div>
               </dl>
+              <details className={css.metaMore}>
+                <summary className={css.metaMoreSummary}>{t('shell.more')}</summary>
+                <dl className={css.metaMoreList}>
+                  <div className={css.metaMoreItem}>
+                    <dt><span className={css.metaMoreLabel}>{t('shell.rules')}</span><span className={css.metaHint}>{t('shell.rulesHint')}</span></dt>
+                    <dd>{detail.rules.join('、') || '—'}</dd>
+                  </div>
+                  <div className={css.metaMoreItem}>
+                    <dt><span className={css.metaMoreLabel}>{t('shell.evidence')}</span><span className={css.metaHint}>{t('shell.evidenceHint')}</span></dt>
+                    <dd>{detail.evidence.join('、') || '—'}</dd>
+                  </div>
+                  <div className={css.metaMoreItem}>
+                    <dt><span className={css.metaMoreLabel}>{t('shell.surface')}</span><span className={css.metaHint}>{t('shell.surfaceHint')}</span></dt>
+                    <dd>{t(SURFACE_LABEL[detail.state])}</dd>
+                  </div>
+                </dl>
+              </details>
               {detailSchedule === undefined || scheduleErrors[detail.id] === undefined
                 ? null
                 : <p className={css.problem}>{fill(t('shell.scheduleLogFailed'), { detail: scheduleErrors[detail.id] ?? '' })}</p>}
@@ -3388,6 +3568,7 @@ export function Shell({
           onOpenPersonalCenter={() => {
             setCloudDialog(null)
             setChatError(null)
+            setDashboardPage(false)
             setPersonalPage(true)
             void cloudSession.refresh()
           }}

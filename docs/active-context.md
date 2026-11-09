@@ -46,8 +46,8 @@ English | [中文](active-context.zh.md)
 
 ## 04. Next immediate actions (Next Immediate Actions)
 
-- **Currently working on**: T-98, rendering the task description, the two classification tags, image thumbnails with an enlarge view, and a slimmer metadata block that keeps only role and difficulty; rules, evidence and tool surface move into a collapsible with plain explanations.
-- **About to execute**: accept T-98, then T-99 and T-100 add the agent status dashboard tab and its relation graph, then continue the desktop release chain T-79 to T-82.
+- **Currently working on**: T-98, T-99 and T-101 are closed on `lcoder/main`. T-100 phase two is wiring the relation graph into the dashboard page after merging main, then capturing the real window and running the full gates.
+- **About to execute**: accept T-100, then continue the desktop release chain T-79 to T-82.
 - **Open decisions**: whether product tasks should gain a `type` field so the suggestion layer can distinguish read-only tasks; the production SMS provider, the exact opencode rates behind the 20-dollar grant, the deployment domain and host, and whether to add an application-level anonymous kill switch and a `/health` endpoint.
 - **Development evidence**: gate output is recorded in the task note in `docs/tasks.yaml` or the commit message; `.spec/evidence` serves product tasks only.
 - **Board regeneration**: after a development status change, edit `docs/tasks.yaml` first, then run `python scripts/build-tasks-html.py`.

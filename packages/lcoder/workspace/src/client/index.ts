@@ -48,13 +48,14 @@ import { withOpenDeadline } from './open-failure.ts'
 import { noticeFromSnapshot, statusFromCatalog, statusOfFailure } from './model-status.ts'
 import type { ModelStatus, ShellSessionNotice } from './model-status.ts'
 import { en, zh } from './locales.ts'
-import { loadWorkspaceProjection, PAGE_LINES } from './projection.ts'
+import { loadWorkspaceProjection, PAGE_LINES, SPEC_DIR } from './projection.ts'
 import { expertsFromRoster, personaPromptOf } from './experts.ts'
 import type { ExpertPrompt, ExpertRow } from './experts.ts'
 import type { AgentRole } from './singleton.ts'
 import { messagesFromEntries } from './shell/shell-data.ts'
 import type { ShellContextPressure, ShellMessage, ShellRole, ShellSignResult } from './shell/shell-data.ts'
 import { DEFAULT_CHAT_SIZE, Shell } from './shell/Shell.tsx'
+import type { TaskAttachmentReader } from './shell/TaskAttachments.tsx'
 import { createModelSettingsFace } from './shell/model-settings.ts'
 import type { ModelSettingsFace, ModelSettingsRemote } from './shell/model-settings.ts'
 import { WorkspaceBody } from './WorkspaceBody.tsx'
@@ -251,6 +252,16 @@ export async function apply(ctx: ClientContext, config: Config = {}): Promise<vo
   // 只有显式 shell: false 才回退旧页签。
   if (config.shell !== false) {
     const files = projectionFiles(ctx)
+    /**
+     * 按 `.spec` 相对路径读图片附件：复用上游 `workspaceFiles.readBytes`，
+     * 与图片预览同一探测面，不建新协议也不从渲染端旁路读盘。
+     */
+    const readAttachment: TaskAttachmentReader = async (sessionId, path, signal) => {
+      const result = await ctx.remote.workspaceFiles.readBytes(
+        sessionId, `${SPEC_DIR}/${path.replaceAll('\\', '/')}`, {}, signal,
+      )
+      return result.ok ? { ok: true, value: result.value.data } : result
+    }
     const chatSize = chatSizeOf(config)
     const openTimeoutMs = config.openTimeoutMs ?? DEFAULT_OPEN_TIMEOUT_MS
     const openRepository = async (path: string): Promise<{ workspaceId: string; sessionId: SessionId }> => {
@@ -504,7 +515,7 @@ export async function apply(ctx: ClientContext, config: Config = {}): Promise<vo
           key: 'lcoder-home',
           locale: NS,
           inject: () => ({
-            files, openRepository, sendPrompt, uploadAttachment, signContract, bindTask, assignTask,
+            files, readAttachment, openRepository, sendPrompt, uploadAttachment, signContract, bindTask, assignTask,
             logSchedule, advanceContract, approveProposal,
             createSession, listRoles, listExperts, readExpert,
             readMessages, subscribeSession, holdSession, checkModels, subscribeModels,

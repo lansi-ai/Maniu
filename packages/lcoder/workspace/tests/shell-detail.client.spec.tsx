@@ -105,6 +105,8 @@ interface ShellScenario {
   readonly running?: ReadonlySet<string>
   /** 分配命令替身；缺省给一个成功回执，不写投影。 */
   readonly assignTask?: ShellProps['assignTask']
+  /** 按 `.spec` 相对路径给出的附件字节；缺的路径按读不到处理。 */
+  readonly attachments?: Readonly<Record<string, Uint8Array>>
   /** 界面词典；缺省中文，英文用例显式传入。 */
   readonly t?: ShellProps['t']
 }
@@ -168,6 +170,12 @@ function renderShell(scenario: ShellScenario) {
     t: scenario.t ?? t,
     cloud: signedInCloud(),
     files: fakeFiles(scenario.spec),
+    readAttachment: async (_sessionId, path) => {
+      const bytes = scenario.attachments?.[path]
+      return bytes === undefined
+        ? missing(path)
+        : { ok: true, value: bytes }
+    },
     usePanelInfo: <S,>(selector: (state: PanelInfo) => S): S => selector({ activePanelId: null }),
     useWorkspaces: <S,>(selector: (state: WorkspaceSnapshot) => S): S => selector(workspaces),
     useWorkspaceAccess: () => true,
@@ -209,6 +217,12 @@ const TASK_VUE_IRREVERSIBLE = `${TASK_VUE}scope:\n  irreversible: [settlement_fo
 const TASK_PLAIN = 'id: T-03\ntitle: 整理佣金规则\nstate: drafting\ngrade: B\n'
 /** 五项元信息都有值的任务：用来断言紧凑列表没有漏字段。 */
 const TASK_META = 'id: T-01\ntitle: 元信息齐全的任务\nstate: drafting\ngrade: B\nrules:\n  - R-1\nevidence_required:\n  - E-1\n'
+
+/** 一张能过 base64 的最小 PNG 头；渲染端不真的解码图片。 */
+const PNG_BYTES = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3])
+
+/** 两张附件：一张有字节，一张缺失。 */
+const TASK_ATTACHED = 'id: T-01\ntitle: 带图的任务\nstate: drafting\ngrade: B\nattachments:\n  - attachments/T-01/shot.png\n  - attachments/T-01/gone.png\n'
 
 /** 五条任务覆盖五个阶段：显示名与会话动作文案各一条。 */
 const STAGE_CASES = [
@@ -365,31 +379,130 @@ describe('任务详情', () => {
     const detail = screen.getByRole('dialog', { name: 'T-01 元信息齐全的任务' })
     // 只看标题块：启动咒语里本来就会提到规格根与项目路径。
     const head = detail.querySelector('h3')?.parentElement
-    expect(head?.textContent).toBe('T-01 · 元信息齐全的任务')
+    expect(head?.textContent).toContain('T-01 · 元信息齐全的任务')
+    expect(head?.textContent).not.toContain(REPO)
+    expect(head?.textContent).not.toContain('.spec')
   })
 
-  it('元信息五项都在，改成无卡片的紧凑列表', async () => {
+  it('标题下显示任务描述并保留换行；没有描述时给出空态', async () => {
+    const described = `${TASK_T01}description: |\n  第一行说明\n  第二行说明\n`
+    renderShell({ spec: { tasks: { 'T-01.yaml': described } } })
+    const detail = await openTask('起草中的任务')
+
+    const text = within(detail).getByText(content => content.includes('第一行说明') && content.includes('第二行说明'))
+    expect(text.textContent).toBe('第一行说明\n第二行说明')
+
+    cleanup()
+    renderShell({ spec: { tasks: { 'T-01.yaml': TASK_META } } })
+    const plain = await openTask('元信息齐全的任务')
+    expect(within(plain).getByText(zh['shell.noDescription'])).toBeTruthy()
+  })
+
+  it('标题区显示领域与变更类型两枚标签；缺省不显示', async () => {
+    const classified = `${TASK_T01}category: api\nchange_type: bug\n`
+    renderShell({ spec: { tasks: { 'T-01.yaml': classified } } })
+    const detail = await openTask('起草中的任务')
+
+    expect(within(detail).getByText(zh['shell.categoryApi'])).toBeTruthy()
+    expect(within(detail).getByText(zh['shell.changeBug'])).toBeTruthy()
+
+    cleanup()
+    renderShell({ spec: { tasks: { 'T-01.yaml': TASK_T01 } } })
+    const plain = await openTask('起草中的任务')
+    expect(within(plain).queryByText(zh['shell.categoryApi'])).toBeNull()
+    expect(within(plain).queryByText(zh['shell.changeBug'])).toBeNull()
+    expect(within(plain).queryByText(zh['shell.category'])).toBeNull()
+    expect(within(plain).queryByText(zh['shell.changeType'])).toBeNull()
+  })
+
+  it('元信息默认只留岗位与难度，其余三项收进「更多」并各带白话解释', async () => {
     renderShell({ spec: { tasks: { 'T-01.yaml': TASK_META } } })
     await openTask('元信息齐全的任务')
 
     const detail = screen.getByRole('dialog', { name: 'T-01 元信息齐全的任务' })
-    for (const label of [zh['shell.grade'], zh['shell.jobRole'], zh['shell.rules'], zh['shell.evidence'], zh['shell.surface']]) {
-      expect(within(detail).getByText(label).tagName).toBe('DT')
-    }
-    expect(within(detail).getAllByRole('term').length).toBe(5)
-    expect(within(detail).getAllByRole('definition').length).toBe(5)
+    const strip = within(detail).getByText(zh['shell.difficulty']).closest('dl')
+    expect(strip).not.toBeNull()
+    expect(strip?.textContent).toContain(zh['shell.jobRole'])
+    expect(strip?.textContent).toContain(zh['shell.difficultyMedium'])
+    expect(strip?.textContent).not.toContain(zh['shell.rules'])
+    expect(strip?.textContent).not.toContain(zh['shell.evidence'])
+    expect(strip?.textContent).not.toContain(zh['shell.surface'])
 
-    const list = within(detail).getByText(zh['shell.grade']).closest('dl')
-    expect(list).not.toBeNull()
-    expect(list?.textContent).toContain('B')
-    expect(list?.textContent).toContain('R-1')
-    expect(list?.textContent).toContain('E-1')
-    expect(list?.textContent).toContain('读 / 契约')
+    const more = within(detail).getByText(zh['shell.more']).closest('details')
+    expect(more?.open).toBe(false)
+    expect(within(more as HTMLElement).getByText(zh['shell.rules'])).toBeTruthy()
+    expect(within(more as HTMLElement).getByText(zh['shell.rulesHint'])).toBeTruthy()
+    expect(within(more as HTMLElement).getByText('R-1')).toBeTruthy()
+    expect(within(more as HTMLElement).getByText(zh['shell.evidence'])).toBeTruthy()
+    expect(within(more as HTMLElement).getByText(zh['shell.evidenceHint'])).toBeTruthy()
+    expect(within(more as HTMLElement).getByText('E-1')).toBeTruthy()
+    expect(within(more as HTMLElement).getByText(zh['shell.surface'])).toBeTruthy()
+    expect(within(more as HTMLElement).getByText(zh['shell.surfaceHint'])).toBeTruthy()
+    expect(within(more as HTMLElement).getByText('读 / 契约')).toBeTruthy()
+
+    fireEvent.click(within(detail).getByText(zh['shell.more']))
+    expect(more?.open).toBe(true)
 
     // 旧的分配区整块不在：没有分配按钮、没有采用建议、没有硬约束小字。
     expect(within(detail).queryByRole('button', { name: '分配' })).toBeNull()
     expect(within(detail).queryByText('采用建议')).toBeNull()
     expect(within(detail).queryByText('分配是调度硬约束，由人写入')).toBeNull()
+  })
+
+  it('附件区画出缩略图，缺失文件只占位；点击放大是只读弹窗', async () => {
+    renderShell({
+      spec: { tasks: { 'T-01.yaml': TASK_ATTACHED } },
+      attachments: { 'attachments/T-01/shot.png': PNG_BYTES },
+    })
+    const detail = await openTask('带图的任务')
+
+    const thumb = await within(detail).findByAltText('shot.png')
+    expect(thumb.getAttribute('src')).toMatch(/^data:image\/png;base64,/)
+    expect(within(detail).getByText('gone.png')).toBeTruthy()
+    expect(within(detail).getByText(zh['shell.attachmentMissing'])).toBeTruthy()
+
+    const openName = `${zh['shell.attachmentOpen']} shot.png`
+    fireEvent.click(within(detail).getByRole('button', { name: openName }))
+    const zoom = await screen.findByRole('dialog', { name: openName })
+    expect(within(zoom).getByRole('img', { name: 'shot.png' }).getAttribute('src')).toMatch(/^data:image\/png;base64,/)
+
+    fireEvent.click(within(zoom).getByRole('button', { name: zh['shell.attachmentClose'] }))
+    await waitFor(() => { expect(screen.queryByRole('dialog', { name: openName })).toBeNull() })
+  })
+
+  it('没有附件时不出现附件区', async () => {
+    renderShell({ spec: { tasks: { 'T-01.yaml': TASK_T01 } } })
+    const detail = await openTask('起草中的任务')
+    expect(within(detail).queryByText(zh['shell.taskAttachments'])).toBeNull()
+  })
+
+  it('英文界面给出描述、分类标签、难度、更多与附件区', async () => {
+    const task = 'id: T-01\ntitle: Attached task\nstate: drafting\ngrade: B\n'
+      + 'description: |\n  First line\n  Second line\ncategory: api\nchange_type: bug\n'
+      + 'attachments:\n  - attachments/T-01/shot.png\n'
+    renderShell({
+      spec: { tasks: { 'T-01.yaml': task } },
+      attachments: { 'attachments/T-01/shot.png': PNG_BYTES },
+      t: enT,
+    })
+    const detail = await openTask('Attached task')
+
+    const text = within(detail).getByText(content => content.includes('First line') && content.includes('Second line'))
+    expect(text.textContent).toBe('First line\nSecond line')
+    expect(within(detail).getByText(en['shell.categoryApi'])).toBeTruthy()
+    expect(within(detail).getByText(en['shell.changeBug'])).toBeTruthy()
+    expect(within(detail).getByText(en['shell.difficulty'])).toBeTruthy()
+    expect(within(detail).getByText(en['shell.difficultyMedium'])).toBeTruthy()
+    expect(within(detail).getByText(en['shell.more'])).toBeTruthy()
+    expect(within(detail).getByText(en['shell.taskAttachments'])).toBeTruthy()
+    expect(await within(detail).findByAltText('shot.png')).toBeTruthy()
+
+    fireEvent.click(within(detail).getByText(en['shell.more']))
+    for (const hint of [en['shell.rulesHint'], en['shell.evidenceHint'], en['shell.surfaceHint']]) {
+      expect(within(detail).getByText(hint)).toBeTruthy()
+    }
+    expect(within(detail).getByText(en['shell.surfaceReadContract'])).toBeTruthy()
+    expect(within(detail).queryByText('读 / 契约')).toBeNull()
   })
 
   it('问号按钮打开岗位弹窗，打开本身不写盘', async () => {
@@ -451,7 +564,10 @@ describe('任务详情', () => {
 
     expect(screen.queryByText('调度思考过程')).toBeNull()
     expect(screen.queryByText('候选会话')).toBeNull()
-    expect(container.querySelector('details')).toBeNull()
+    for (const detail of container.querySelectorAll('details')) {
+      expect(detail.textContent).not.toContain('调度思考过程')
+      expect(detail.textContent).not.toContain('候选会话')
+    }
 
     expect(screen.getByText(zh['shell.queuedIn']).parentElement?.textContent).toContain('第 1 位')
     expect(screen.getByText('调度日志没写成：evidence 目录不可写')).toBeTruthy()
