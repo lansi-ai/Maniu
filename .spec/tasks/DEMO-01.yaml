@@ -1,5 +1,12 @@
 id: DEMO-01
 title: 佣金支持 0（自营免佣）
+description: |
+  自营商品的佣金率要支持 0：结算按订单实付乘以费率计算，费率允许为 0。
+  自营免佣的结算记录要能看出这是规则结果，而不是漏算或未配置。
+category: data
+change_type: feature
+attachments:
+  - attachments/DEMO-01/bull-mark.png
 grade: B
 state: drafting
 rules: [DR-02]

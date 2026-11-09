@@ -20,6 +20,14 @@ import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 export interface TaskRow {
   readonly id: string
   readonly title: string
+  /** 需求描述；没写是空串。 */
+  readonly description: string
+  /** 领域分类 page/api/data/other；没写表示还没分。 */
+  readonly category?: string
+  /** 变更类型 bug/feature/improvement/style；没写表示还没分。 */
+  readonly changeType?: string
+  /** 相对 `.spec` 根目录的图片附件；没写是空数组。 */
+  readonly attachments: readonly string[]
   readonly state: string
   readonly grade: string
   /** 任务声明的规则编号；外壳与启动咒语直接使用。 */
@@ -239,10 +247,16 @@ export function taskTextToRow(fileName: string, text: string): TaskRow | undefin
   const session = asText(fields.session)
   const proposal = asText(fields.proposal)
   const role = asText(fields.role)
+  const category = asText(fields.category)
+  const changeType = asText(fields.change_type)
   const scope = recordOf(fields.scope)
   return {
     id: asText(fields.id) ?? fileName.replace(/\.yaml$/, ''),
     title,
+    description: asText(fields.description) ?? '',
+    ...(category === undefined ? {} : { category }),
+    ...(changeType === undefined ? {} : { changeType }),
+    attachments: stringArray(fields.attachments),
     state: asText(fields.state) ?? 'unknown',
     grade: asText(fields.grade) ?? '-',
     rules: stringArray(fields.rules),

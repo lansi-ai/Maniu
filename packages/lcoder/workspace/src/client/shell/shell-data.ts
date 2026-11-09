@@ -20,6 +20,14 @@ export type ShellTaskState = 'drafting' | 'contracted' | 'implementing' | 'verif
 export interface ShellTask {
   readonly id: string
   readonly title: string
+  /** 需求描述；没写是空串。 */
+  readonly description: string
+  /** 领域分类 page/api/data/other；没写表示还没分。 */
+  readonly category?: string
+  /** 变更类型 bug/feature/improvement/style；没写表示还没分。 */
+  readonly changeType?: string
+  /** 相对 `.spec` 根目录的图片附件；没写是空数组。 */
+  readonly attachments: readonly string[]
   readonly state: ShellTaskState
   readonly grade: string
   readonly rules: readonly string[]

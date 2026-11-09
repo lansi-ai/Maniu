@@ -320,11 +320,20 @@ function shellState(value: string): ShellTaskState {
   return KNOWN_STATES.has(value) ? value as ShellTaskState : 'drafting'
 }
 
-function toShellTask(row: TaskRow): ShellTask {
+/**
+ * 文件投影的一行 → 外壳任务：展示字段原样透传，状态收敛到五态。
+ * @param row - 投影读到的任务行。
+ * @returns 看板与详情使用的外壳任务。
+ */
+export function toShellTask(row: TaskRow): ShellTask {
   const state = shellState(row.state)
   return {
     id: row.id,
     title: row.title,
+    description: row.description,
+    ...(row.category === undefined ? {} : { category: row.category }),
+    ...(row.changeType === undefined ? {} : { changeType: row.changeType }),
+    attachments: row.attachments,
     state,
     grade: row.grade,
     rules: row.rules,
@@ -1156,6 +1165,8 @@ export function Shell({
     setChat(bound ?? {
       id: '',
       title: `${t('shell.sessions')} ${String(index + 1)}`,
+      description: '',
+      attachments: [],
       state: 'drafting',
       grade: '-',
       rules: [],
@@ -1651,7 +1662,7 @@ export function Shell({
 
   /** 常驻会话浮层用的空任务壳：标题就是角色名，不冒充某条任务。 */
   const pseudoChat = (title: string): ShellTask => ({
-    id: '', title, state: 'drafting', grade: '-', rules: [], evidence: [], surface: '', paths: [], irreversible: [],
+    id: '', title, description: '', attachments: [], state: 'drafting', grade: '-', rules: [], evidence: [], surface: '', paths: [], irreversible: [],
   })
 
   /**
@@ -1773,7 +1784,7 @@ export function Shell({
       : buildOnboardingPrompt(project, info?.docs ?? { product: '', architecture: '', tests: '' })
     setDetail(null)
     setChatError(null)
-    setChat({ id: '', title: t('shell.onboardingChat'), state: 'drafting', grade: '-', rules: [], evidence: [], surface: '', paths: [], irreversible: [] })
+    setChat({ id: '', title: t('shell.onboardingChat'), description: '', attachments: [], state: 'drafting', grade: '-', rules: [], evidence: [], surface: '', paths: [], irreversible: [] })
     const action = onboardingAction({
       hasSession: sessionId !== undefined && sendPrompt !== undefined,
       hasModel: !modelBlocked,
