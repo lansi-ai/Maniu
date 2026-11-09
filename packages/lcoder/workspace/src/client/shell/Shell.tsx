@@ -60,6 +60,8 @@ import { buildIntakePrompt, buildOnboardingPrompt, buildShellPrompt, SHELL_STATE
 import { recommendedRoleId } from './role-hint.ts'
 import { ChatTranscript, PendingInteractionCard } from './ChatPanel.tsx'
 import { ChatAttachButton, ChatAttachmentList, ChatModelChip } from './ChatExtras.tsx'
+import { TaskAttachments } from './TaskAttachments.tsx'
+import type { TaskAttachmentReader } from './TaskAttachments.tsx'
 import {
   attachmentsReady, buildPromptContent, checkImageCandidate, currentChatModel, formatBytes,
   promptFailureOf, promptIsEmpty, resolveImageLimits, uploadedFile,
@@ -88,6 +90,8 @@ export type ShellProps =
   & {
     /** 文件投影面；没有时外壳保持空态。 */
     readonly files?: ProjectionFilesRemote
+    /** 按 `.spec` 相对路径读图片附件；读不到由返回值表达，外壳画占位。 */
+    readonly readAttachment?: TaskAttachmentReader
     /** 把仓库路径注册成工作区并建一个会话；返回可用于读取 `.spec` 的会话。 */
     readonly openRepository?: (path: string) => Promise<{ workspaceId: string; sessionId: SessionId }>
     /** 向真实会话发送文本或带附件的提示；失败抛出带 code 与 reason 的错误。 */
@@ -171,6 +175,45 @@ const STATE_ACTION_LABEL: Record<ShellTaskState, LcoderWorkspaceKey> = {
   closed: 'shell.viewRecord',
 }
 
+/** 领域分类到词典键；schema 之外的取值按原样显示。 */
+const CATEGORY_LABEL: Readonly<Record<string, LcoderWorkspaceKey>> = {
+  page: 'shell.categoryPage',
+  api: 'shell.categoryApi',
+  data: 'shell.categoryData',
+  other: 'shell.categoryOther',
+}
+
+/** 变更类型到词典键；schema 之外的取值按原样显示。 */
+const CHANGE_TYPE_LABEL: Readonly<Record<string, LcoderWorkspaceKey>> = {
+  bug: 'shell.changeBug',
+  feature: 'shell.changeFeature',
+  improvement: 'shell.changeImprovement',
+  style: 'shell.changeStyle',
+}
+
+/** 分级 A/B/C 到难度展示名；其它取值原样显示。 */
+const DIFFICULTY_LABEL: Readonly<Record<string, LcoderWorkspaceKey>> = {
+  A: 'shell.difficultyHigh',
+  B: 'shell.difficultyMedium',
+  C: 'shell.difficultyLow',
+}
+
+/**
+ * 取一个受控取值的展示名。
+ * @param labels - 取值到词典键的映射。
+ * @param value - 任务上的原始取值。
+ * @param t - 词典函数。
+ * @returns 映射后的文案；映射里没有时原样返回。
+ */
+function mappedLabel(
+  labels: Readonly<Record<string, LcoderWorkspaceKey>>,
+  value: string,
+  t: (key: LcoderWorkspaceKey) => string,
+): string {
+  const key = labels[value]
+  return key === undefined ? value : t(key)
+}
+
 /** 门禁入口到既有按钮文案的映射；登录提示里用同一句话。 */
 const CLOUD_ENTRY_LABEL: Record<CloudGateEntry, LcoderWorkspaceKey> = {
   onboarding: 'shell.onboardingExistingDocs',
@@ -200,6 +243,15 @@ const SURFACE: Record<ShellTaskState, string> = {
   implementing: '全量',
   verifying: '全量 + 收口',
   closed: '只读',
+}
+
+/** 工具面展示文案的词典键；启动咒语仍用 `SURFACE` 的中文原文。 */
+const SURFACE_LABEL: Record<ShellTaskState, LcoderWorkspaceKey> = {
+  drafting: 'shell.surfaceReadContract',
+  contracted: 'shell.surfaceReadContractEdit',
+  implementing: 'shell.surfaceFull',
+  verifying: 'shell.surfaceFullClose',
+  closed: 'shell.surfaceReadonly',
 }
 
 /**
@@ -366,7 +418,7 @@ function resolveSecrets(info: ShellProjectInfo, secrets: Readonly<Record<string,
  * @returns 顶栏 + 任务板 + 项目信息抽屉 + 浮层。
  */
 export function Shell({
-  t, files, openRepository, sendPrompt, uploadAttachment, readDefaultModel, signContract, advanceContract,
+  t, files, readAttachment, openRepository, sendPrompt, uploadAttachment, readDefaultModel, signContract, advanceContract,
   approveProposal, bindTask, assignTask, logSchedule,
   readFlowStatus, logFlow, bindAgentSession, renameSession, readContextPressure,
   createSession, listRoles, listExperts, readExpert,
@@ -2110,7 +2162,7 @@ export function Shell({
                     ? null
                     : <span className={`${css.tag} ${css.tagQueued}`}>{fill(t('shell.queuePosition'), { n: queueMark.position })}</span>}
                   {task.rules.map(rule => <span key={rule} className={css.tag}>{rule}</span>)}
-                  <span className={`${css.tag} ${task.state === 'closed' ? css.tagOk : ''}`}>{task.surface}</span>
+                  <span className={`${css.tag} ${task.state === 'closed' ? css.tagOk : ''}`}>{t(SURFACE_LABEL[task.state])}</span>
                   {!contracts.some(row => row.id === task.id && row.signedBy === 'human')
                     ? null
                     : <span className={`${css.tag} ${css.tagOk}`}>{t('shell.contractSigned')}</span>}
@@ -2365,7 +2417,7 @@ export function Shell({
                     }))
                   }}
                 >
-                  {grade}
+                  {mappedLabel(DIFFICULTY_LABEL, grade, t)}
                 </button>
               ))}
               <span className={css.filterLabel}>{t('shell.filterSession')}</span>
@@ -2873,6 +2925,17 @@ export function Shell({
             <div className={css.modalHead}>
               <div className={css.grow}>
                 <h3>{detail.id} · {detail.title}</h3>
+                <p className={css.detailDescription}>{detail.description.trim() || t('shell.noDescription')}</p>
+                {detail.category === undefined && detail.changeType === undefined ? null : (
+                  <div className={css.detailTags}>
+                    {detail.category === undefined
+                      ? null
+                      : <span className={css.detailTag}>{mappedLabel(CATEGORY_LABEL, detail.category, t)}</span>}
+                    {detail.changeType === undefined
+                      ? null
+                      : <span className={css.detailTag}>{mappedLabel(CHANGE_TYPE_LABEL, detail.changeType, t)}</span>}
+                  </div>
+                )}
               </div>
               <span className={css.pill}>{t(STATE_LABEL[detail.state])}</span>
               <button
@@ -2887,10 +2950,13 @@ export function Shell({
               <button type="button" className={css.iconBtn} onClick={() => { setDetail(null) }}>✕</button>
             </div>
             <div className={css.modalBody}>
+              {detail.attachments.length === 0 ? null : (
+                <TaskAttachments t={t} sessionId={sessionId} paths={detail.attachments} read={readAttachment} />
+              )}
               <dl className={css.metaStrip}>
                 <div className={css.metaItem}>
-                  <dt className={css.metaK}>{t('shell.grade')}</dt>
-                  <dd className={css.metaV}>{detail.grade}</dd>
+                  <dt className={css.metaK}>{t('shell.difficulty')}</dt>
+                  <dd className={css.metaV}>{mappedLabel(DIFFICULTY_LABEL, detail.grade, t)}</dd>
                 </div>
                 <div className={css.metaItem}>
                   <dt className={css.metaK}>{t('shell.jobRole')}</dt>
@@ -2905,10 +2971,6 @@ export function Shell({
                       ?
                     </button>
                   </dd>
-                </div>
-                <div className={css.metaItem}>
-                  <dt className={css.metaK}>{t('shell.rules')}</dt>
-                  <dd className={css.metaV}>{detail.rules.join(', ') || '—'}</dd>
                 </div>
                 {detail.dependsOn === undefined
                   ? null
@@ -2945,15 +3007,24 @@ export function Shell({
                       </dd>
                     </div>
                   )}
-                <div className={css.metaItem}>
-                  <dt className={css.metaK}>{t('shell.evidence')}</dt>
-                  <dd className={css.metaV}>{detail.evidence.join(', ') || '—'}</dd>
-                </div>
-                <div className={css.metaItem}>
-                  <dt className={css.metaK}>{t('shell.surface')}</dt>
-                  <dd className={css.metaV}>{detail.surface}</dd>
-                </div>
               </dl>
+              <details className={css.metaMore}>
+                <summary className={css.metaMoreSummary}>{t('shell.more')}</summary>
+                <dl className={css.metaMoreList}>
+                  <div className={css.metaMoreItem}>
+                    <dt><span className={css.metaMoreLabel}>{t('shell.rules')}</span><span className={css.metaHint}>{t('shell.rulesHint')}</span></dt>
+                    <dd>{detail.rules.join('、') || '—'}</dd>
+                  </div>
+                  <div className={css.metaMoreItem}>
+                    <dt><span className={css.metaMoreLabel}>{t('shell.evidence')}</span><span className={css.metaHint}>{t('shell.evidenceHint')}</span></dt>
+                    <dd>{detail.evidence.join('、') || '—'}</dd>
+                  </div>
+                  <div className={css.metaMoreItem}>
+                    <dt><span className={css.metaMoreLabel}>{t('shell.surface')}</span><span className={css.metaHint}>{t('shell.surfaceHint')}</span></dt>
+                    <dd>{t(SURFACE_LABEL[detail.state])}</dd>
+                  </div>
+                </dl>
+              </details>
               {detailSchedule === undefined || scheduleErrors[detail.id] === undefined
                 ? null
                 : <p className={css.problem}>{fill(t('shell.scheduleLogFailed'), { detail: scheduleErrors[detail.id] ?? '' })}</p>}
