@@ -53,20 +53,20 @@ export async function loadActionLog(
 
   await Promise.all(taskIds.map(async (taskId) => {
     const dir = `.spec/evidence/${taskId}`
-    const flow = await readLog(files, sessionId, `${dir}/flow.jsonl`, signal)
+    const flow = await readEvidenceLog(files, sessionId, `${dir}/flow.jsonl`, signal)
     if (flow.problem !== undefined) problems.push(flow.problem)
     if (flow.text !== null) {
       for (const line of linesOf(flow.text)) {
-        const entry = flowEntry(taskId, line)
+        const entry = parseFlowEntry(taskId, line)
         if (entry !== null) entries.push(entry)
       }
     }
 
-    const schedule = await readLog(files, sessionId, `${dir}/schedule.jsonl`, signal)
+    const schedule = await readEvidenceLog(files, sessionId, `${dir}/schedule.jsonl`, signal)
     if (schedule.problem !== undefined) problems.push(schedule.problem)
     if (schedule.text !== null) {
       for (const line of linesOf(schedule.text)) {
-        const entry = scheduleEntry(taskId, line)
+        const entry = parseScheduleEntry(taskId, line)
         if (entry !== null) entries.push(entry)
       }
     }
@@ -80,8 +80,16 @@ export async function loadActionLog(
   return { entries: entries.slice(0, ACTION_LOG_LIMIT), problems }
 }
 
-/** 一个有内容的 JSONL 正文；缺失返回 null 且不算问题。 */
-async function readLog(
+/**
+ * 读一个证据日志文件的多页正文；缺失文件返回 null 且不算问题。
+ * 调用方负责把抛出的读取异常归到具体文件或任务上。
+ * @param files - 窄化文件面。
+ * @param sessionId - 提供相对路径基准的会话。
+ * @param path - 证据文件的相对路径。
+ * @param signal - 取消信号。
+ * @returns 正文与读取问题；文件不存在时正文为 null。
+ */
+export async function readEvidenceLog(
   files: ProjectionFilesRemote,
   sessionId: SessionId,
   path: string,
@@ -106,7 +114,13 @@ function linesOf(text: string): string[] {
   return text.split('\n').filter(line => line.trim() !== '')
 }
 
-function flowEntry(taskId: string, line: string): ActionLogEntry | null {
+/**
+ * 解析一行 `flow.jsonl`；缺 `action` 或不是 JSON 对象时返回 null。
+ * @param taskId - 这条记录归属的任务编号。
+ * @param line - 文件里的一行。
+ * @returns 可展示条目，或 null。
+ */
+export function parseFlowEntry(taskId: string, line: string): ActionLogEntry | null {
   const row = parseRecord(line)
   if (row === null) return null
   const action = textOf(row.action)
@@ -127,7 +141,13 @@ function flowEntry(taskId: string, line: string): ActionLogEntry | null {
   }
 }
 
-function scheduleEntry(taskId: string, line: string): ActionLogEntry | null {
+/**
+ * 解析一行 `schedule.jsonl`；缺 `verdict` 或不是 JSON 对象时返回 null。
+ * @param taskId - 这条记录归属的任务编号。
+ * @param line - 文件里的一行。
+ * @returns 可展示条目，或 null。
+ */
+export function parseScheduleEntry(taskId: string, line: string): ActionLogEntry | null {
   const row = parseRecord(line)
   if (row === null) return null
   const verdict = textOf(row.verdict)

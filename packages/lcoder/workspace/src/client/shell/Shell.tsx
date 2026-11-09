@@ -8,7 +8,7 @@
  * 外壳占用 `main` 的 `lcoder-home` 键；DSH 原生侧栏在桌面 profile 里禁用，
  * 启动时折叠空轨道，主面板占满窗口。
  */
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, MouseEvent, ReactNode } from 'react'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
@@ -29,6 +29,9 @@ import type {
 } from '../flow-status.ts'
 import { loadActionLog } from '../flow-history.ts'
 import type { ActionLogEntry } from '../flow-history.ts'
+import { dashboardStatusOf, loadDashboardEvents, summarizeDashboard } from '../dashboard.ts'
+import type { DashboardSessionRow } from '../dashboard.ts'
+import { AgentDashboardPage } from './AgentDashboardPage.tsx'
 import {
   AGENT_ROLES, liveAgentSession, resolveAgentSession, titleNeedsFix,
 } from '../singleton.ts'
@@ -402,6 +405,8 @@ export function Shell({
   const [resultPage, setResultPage] = useState(false)
   /** 个人中心：独立整页，与结果页同级；打开时看板让位。 */
   const [personalPage, setPersonalPage] = useState(false)
+  /** Agent 状态大盘：独立整页，顶栏一级入口；打开时看板让位。 */
+  const [dashboardPage, setDashboardPage] = useState(false)
   /** 重开确认框与它在途状态；浮层头与结果页共用同一套。 */
   const [restartOpen, setRestartOpen] = useState(false)
   const [restarting, setRestarting] = useState(false)
@@ -506,6 +511,13 @@ export function Shell({
   const [flowResults, setFlowResults] = useState<readonly FlowRunResult[]>([])
   const [flowHistory, setFlowHistory] = useState<readonly ActionLogEntry[]>([])
   const [flowHistoryProblems, setFlowHistoryProblems] = useState<readonly string[]>([])
+  /** 状态大盘的合并事件流与逐任务读取问题；关页签后清空。 */
+  const [dashboardEvents, setDashboardEvents] = useState<readonly ActionLogEntry[]>([])
+  const [dashboardEventProblems, setDashboardEventProblems] = useState<Readonly<Record<string, string>>>({})
+  const [dashboardEventError, setDashboardEventError] = useState<string | null>(null)
+  const [dashboardLoading, setDashboardLoading] = useState(false)
+  const dashboardAbort = useRef<AbortController | null>(null)
+  const dashboardTaskIds = useMemo(() => tasks.map(task => task.id), [tasks])
   /** 动作流水没写成的原因；按任务号记。 */
   const [flowLogErrors, setFlowLogErrors] = useState<Readonly<Record<string, string>>>({})
   /** 浮层会话的上下文占用与容量；随事件刷新。 */
@@ -784,6 +796,38 @@ export function Shell({
   }
 
   /**
+   * 状态大盘的一行：状态读宿主推流，任务读投影，更新时刻只在宿主给出时显示。
+   * 认领任务优先取未收口的那条；会话没认领任务时留空，由页面写「未认领」。
+   */
+  const dashboardSessions = (): readonly DashboardSessionRow[] =>
+    workspaceSessions.map((id) => {
+      const row = sessionRows[id]
+      const pushed = sessionStatus.get(id)
+      const claimed = tasks.find(task => task.session === String(id) && task.state !== 'closed')
+        ?? tasks.find(task => task.session === String(id))
+      return {
+        sessionId: String(id),
+        name: row?.title ?? sessionLabel(String(id)),
+        role: roleLabelOf(sessionRoleOf(id)),
+        status: dashboardStatusOf({
+          pendingInteraction: pushed?.pendingInteraction,
+          running: pushed?.running ?? row?.running ?? false,
+        }),
+        ...(claimed === undefined ? {} : { taskId: claimed.id, taskTitle: claimed.title }),
+        queue: queueDepth(String(id)),
+        ...(row?.updatedAt === undefined ? {} : { updatedAt: row.updatedAt }),
+        workspace: row?.cwd ?? projectPath,
+      }
+    })
+  const dashboardRows = dashboardSessions()
+  const dashboardSummary = summarizeDashboard(dashboardRows, tasks)
+
+  /** 大盘刷新：重读投影，事件流 effect 随 reload 重新读日志。 */
+  const refreshDashboard = useCallback((): void => {
+    setReload(value => value + 1)
+  }, [])
+
+  /**
    * 本任务所在的联调组：优先读投影里的组文件（刷新后仍在），
    * 投影还没跟上时退回本次判定刚记下的组。
    */
@@ -955,6 +999,47 @@ export function Shell({
     if (!flowOpen) return
     void refreshHistory()
   }, [flowOpen, reload, files, sessionId, tasks.length])
+
+  /**
+   * 状态大盘打开时重读事件流；关页签立刻中止在途读取并清空旧项目的事件，
+   * 自动刷新只由页面内的定时器触发，离开页签就随卸载停止。
+   */
+  useEffect(() => {
+    if (!dashboardPage) {
+      dashboardAbort.current?.abort()
+      dashboardAbort.current = null
+      setDashboardEvents([])
+      setDashboardEventProblems({})
+      setDashboardEventError(null)
+      setDashboardLoading(false)
+      return
+    }
+    if (files === undefined || sessionId === undefined) {
+      setDashboardEvents([])
+      setDashboardEventProblems({})
+      setDashboardEventError(null)
+      setDashboardLoading(false)
+      return
+    }
+    const controller = new AbortController()
+    dashboardAbort.current?.abort()
+    dashboardAbort.current = controller
+    setDashboardLoading(true)
+    setDashboardEventError(null)
+    void loadDashboardEvents(files, sessionId, dashboardTaskIds, controller.signal).then((load) => {
+      if (controller.signal.aborted) return
+      setDashboardEvents(load.entries)
+      setDashboardEventProblems(load.problems)
+      setDashboardLoading(false)
+    }, (error: unknown) => {
+      if (controller.signal.aborted) return
+      setDashboardEvents([])
+      setDashboardEventProblems({})
+      setDashboardEventError(`${t('shell.problems')} ${String(error)}`)
+      setDashboardLoading(false)
+    })
+    return () => { controller.abort() }
+  }, [dashboardPage, reload, files, sessionId, dashboardTaskIds, t])
 
   /**
    * 角色名册来自装配层的 Agent preset 声明，外壳活一次读一次就够：
@@ -2234,6 +2319,17 @@ export function Shell({
                 </button>
               )
             })}
+            <button
+              type="button"
+              className={`${css.agentChip} ${dashboardPage ? css.agentChipActive : ''}`}
+              onClick={() => {
+                setDashboardPage(true)
+                setResultPage(false)
+                setPersonalPage(false)
+              }}
+            >
+              {t('shell.dashboard')}
+            </button>
           </div>
         )}
         {!hasWorkspace ? null : (
@@ -2299,7 +2395,20 @@ export function Shell({
             onOpenLogin={() => { setPersonalPage(false); setCloudDialog('login'); focusCloudPhone() }}
           />
         ) : null}
-        {resultPage && !personalPage ? (
+        {dashboardPage && !personalPage ? (
+          <AgentDashboardPage
+            t={t}
+            sessions={dashboardRows}
+            summary={dashboardSummary}
+            events={dashboardEvents}
+            eventProblems={dashboardEventProblems}
+            loading={dashboardLoading}
+            error={dashboardEventError}
+            onBack={() => { setDashboardPage(false) }}
+            onRefresh={refreshDashboard}
+          />
+        ) : null}
+        {resultPage && !personalPage && !dashboardPage ? (
           <IntakeResultPage
             t={t}
             proposals={proposals}
@@ -2313,7 +2422,7 @@ export function Shell({
             onStartOnboarding={(kind) => { setResultPage(false); startOnboarding(kind) }}
           />
         ) : null}
-        {resultPage || personalPage ? null : <div className={css.boardWrap}>
+        {resultPage || personalPage || dashboardPage ? null : <div className={css.boardWrap}>
           <div className={css.boardHead}>
             <h3>{t('shell.board')}</h3>
             <span className={css.boardHint}>{t('shell.boardHint')}</span>
@@ -3388,6 +3497,7 @@ export function Shell({
           onOpenPersonalCenter={() => {
             setCloudDialog(null)
             setChatError(null)
+            setDashboardPage(false)
             setPersonalPage(true)
             void cloudSession.refresh()
           }}
