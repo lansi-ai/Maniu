@@ -1,0 +1,69 @@
+/* 状态大盘的关系图：坐标由 dashboard-graph.ts 给出，这里只管画布、节点与边的视觉。
+   五态取壳里已有的颜色变量；verifying 在壳里没有对应变量，沿用看板状态点的紫色。 */
+
+.graph {
+  --lc-graph-drafting: var(--lc-faint);
+  --lc-graph-contracted: var(--lc-brand);
+  --lc-graph-implementing: var(--lc-status-warn);
+  --lc-graph-verifying: #af52de;
+  --lc-graph-closed: var(--lc-status-ok);
+  --lc-graph-unknown: var(--lc-muted);
+
+  display: flex;
+  flex-direction: column;
+  gap: var(--lc-space-3);
+  min-width: 0;
+}
+
+.canvas {
+  width: 100%;
+  height: auto;
+  overflow: visible;
+  font-family: var(--lc-font-ui);
+}
+
+.columnLabel { font-size: 12px; font-weight: 600; fill: var(--lc-muted); }
+.columnCount { font-size: 11px; fill: var(--lc-faint); }
+
+.taskNode { outline: none; }
+.clickable { cursor: pointer; }
+.taskRect { fill: var(--lc-surface); stroke: var(--lc-line-strong); stroke-width: 1; }
+.clickable:hover .taskRect { stroke: var(--lc-brand-2); }
+.clickable:focus-visible .taskRect { stroke: var(--lc-brand); stroke-width: 2; }
+.taskTitle { font-size: 12px; font-weight: 600; fill: var(--lc-ink); }
+.taskMeta { font-size: 10.5px; fill: var(--lc-faint); }
+
+.sessionRect { fill: var(--lc-surface-2); stroke: var(--lc-line); stroke-width: 1; }
+.sessionLabel { font-size: 12px; font-weight: 600; fill: var(--lc-ink); }
+.sessionPending { font-size: 10.5px; fill: var(--lc-muted); }
+
+.edgeDependsOn { fill: none; stroke: var(--lc-muted); stroke-width: 1.3; opacity: .55; }
+.edgeClaims { fill: none; stroke: var(--lc-brand); stroke-width: 1.5; opacity: .75; }
+.edgeGroup { fill: none; stroke: var(--lc-faint); stroke-width: 1.2; stroke-dasharray: 4 3; opacity: .7; }
+
+.arrowDepends { fill: var(--lc-muted); }
+.arrowClaims { fill: var(--lc-brand); }
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lc-space-3);
+  align-items: center;
+  font-size: var(--lc-text-xs);
+  color: var(--lc-muted);
+}
+.legendItem { display: inline-flex; align-items: center; gap: 6px; }
+.swatch { display: inline-block; width: 18px; height: 0; border-top: 1.5px solid var(--lc-muted); opacity: .8; }
+.swatchClaims { border-top-color: var(--lc-brand); }
+.swatchGroup { border-top-style: dashed; border-top-color: var(--lc-faint); }
+
+.empty {
+  margin: 0;
+  padding: var(--lc-space-5);
+  text-align: center;
+  font-size: var(--lc-text-xs);
+  color: var(--lc-faint);
+  border: 1px dashed var(--lc-line-strong);
+  border-radius: var(--lc-radius-md);
+}
+.hint { margin: 0; font-size: var(--lc-text-xs); color: var(--lc-faint); }

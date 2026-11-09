@@ -63,6 +63,13 @@ export const zh = {
   'shell.baseUrlPlaceholder': 'https://gateway.example.com/v1',
   'shell.proposal': '所属方案',
   'shell.dependsOn': '等',
+  'shell.graph': '任务关系图',
+  'shell.graphDependsOn': '依赖',
+  'shell.graphClaims': '会话认领',
+  'shell.graphGroup': '联调组',
+  'shell.graphEmpty': '暂无可画的任务',
+  'shell.graphNoSessions': '还没有会话，只显示任务依赖',
+  'shell.graphUnknownState': '未知状态',
   'shell.proposalMissing': '这个方案文件读不到，可能已被删除或改名。',
   'shell.proposalProblem': '要解决的问题',
   'shell.proposalOptions': '候选方案',
@@ -622,7 +629,6 @@ export const zh = {
   'shell.dashboardEventsEmpty': '还没有事件日志；开工或调度后这里会出现最近三十条。',
   'shell.dashboardEventProblemTag': '读取失败',
   'shell.dashboardGraph': '任务关系图',
-  'shell.dashboardGraphPending': '关系图由 T-100 接入。',
 } satisfies Record<string, string>
 
 /** 工作台词典的键集。 */
@@ -678,6 +684,13 @@ export const en = {
   'shell.baseUrlPlaceholder': 'https://gateway.example.com/v1',
   'shell.proposal': 'Source proposal',
   'shell.dependsOn': 'Waits for',
+  'shell.graph': 'Task graph',
+  'shell.graphDependsOn': 'Depends on',
+  'shell.graphClaims': 'Session claim',
+  'shell.graphGroup': 'Joint group',
+  'shell.graphEmpty': 'No tasks to draw',
+  'shell.graphNoSessions': 'No sessions yet; showing task dependencies only',
+  'shell.graphUnknownState': 'Unknown state',
   'shell.proposalMissing': 'This proposal file cannot be read; it may have been deleted or renamed.',
   'shell.proposalProblem': 'Problem',
   'shell.proposalOptions': 'Options',
@@ -1237,5 +1250,4 @@ export const en = {
   'shell.dashboardEventsEmpty': 'No event logs yet; starting work or scheduling adds the latest 30 entries here.',
   'shell.dashboardEventProblemTag': 'Read failed',
   'shell.dashboardGraph': 'Task relation graph',
-  'shell.dashboardGraphPending': 'The relation graph will be wired in by T-100.',
 } satisfies Record<LcoderWorkspaceKey, string>

@@ -32,6 +32,7 @@ import type { ActionLogEntry } from '../flow-history.ts'
 import { dashboardStatusOf, loadDashboardEvents, summarizeDashboard } from '../dashboard.ts'
 import type { DashboardSessionRow } from '../dashboard.ts'
 import { AgentDashboardPage } from './AgentDashboardPage.tsx'
+import type { DashboardGraphInput } from './dashboard-graph.ts'
 import {
   AGENT_ROLES, liveAgentSession, resolveAgentSession, titleNeedsFix,
 } from '../singleton.ts'
@@ -873,6 +874,34 @@ export function Shell({
     })
   const dashboardRows = dashboardSessions()
   const dashboardSummary = summarizeDashboard(dashboardRows, tasks)
+
+  /**
+   * 关系图的输入：全量任务（不按看板筛选裁剪）与会话的认领/联调组。
+   * 会话名与看板一致——认领任务用任务标题，否则按次序列号。
+   */
+  const dashboardGraph = (): DashboardGraphInput => ({
+    tasks: tasks.map(task => ({
+      id: task.id,
+      title: task.title,
+      state: task.state,
+      dependsOn: task.dependsOn ?? [],
+      ...(task.session === undefined ? {} : { session: task.session }),
+      ...(task.role === undefined ? {} : { role: task.role }),
+    })),
+    sessions: schedulingSessions().map((session) => {
+      const label = sessionLabel(session.sessionId)
+      return {
+        id: session.sessionId,
+        label,
+        ...(session.role === undefined ? {} : { role: session.role }),
+        running: session.running,
+        awaitingInteraction: session.awaitingInteraction,
+        pending: session.pending,
+        claims: session.claims.map(claim => claim.id),
+        groupTasks: session.groupTasks.map(task => task.id),
+      }
+    }),
+  })
 
   /** 大盘刷新：重读投影，事件流 effect 随 reload 重新读日志。 */
   const refreshDashboard = useCallback((): void => {
@@ -2456,6 +2485,11 @@ export function Shell({
             eventProblems={dashboardEventProblems}
             loading={dashboardLoading}
             error={dashboardEventError}
+            graph={dashboardGraph()}
+            onOpenTask={(taskId) => {
+              const task = tasks.find(row => row.id === taskId)
+              if (task !== undefined) openTask(task)
+            }}
             onBack={() => { setDashboardPage(false) }}
             onRefresh={refreshDashboard}
           />

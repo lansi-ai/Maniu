@@ -1,8 +1,8 @@
 /**
  * Agent 状态大盘：一张独立整页，汇总会话与任务、列出会话表、合并最近事件。
  *
- * 数据全部来自宿主推流与 `.spec` 投影，这里只展示、不写盘。关系图区域固定留白，
- * 由 T-100 把组件接进 `data-dashboard-graph-slot`，本页不引入图库。
+ * 数据全部来自宿主推流与 `.spec` 投影，这里只展示、不写盘。关系图区域由外壳传入
+ * 已映射好的任务/会话数据，本页只把 `DashboardGraph` 放进 `data-dashboard-graph-slot`。
  */
 import { useEffect } from 'react'
 import type { ReactNode } from 'react'
@@ -14,6 +14,8 @@ import type {
 import type { ActionLogEntry } from '../flow-history.ts'
 import type { LcoderWorkspaceKey } from '../locales.ts'
 import { SHELL_STATES } from './shell-data.ts'
+import { DashboardGraph } from './DashboardGraph.tsx'
+import type { DashboardGraphInput } from './dashboard-graph.ts'
 import css from './Shell.module.css'
 
 /** 本包词典的翻译函数。 */
@@ -30,6 +32,10 @@ export interface AgentDashboardPageProps {
   readonly loading: boolean
   /** 整页读取失败的原因；为空时不显示。 */
   readonly error: string | null
+  /** 关系图的数据；任务与认领/联调组由外壳映射。 */
+  readonly graph: DashboardGraphInput
+  /** 点关系图里的任务节点时打开任务详情。 */
+  readonly onOpenTask: (taskId: string) => void
   readonly onBack: () => void
   readonly onRefresh: () => void
 }
@@ -62,7 +68,7 @@ function eventText(entry: ActionLogEntry): string {
  * @returns 状态大盘整页。
  */
 export function AgentDashboardPage({
-  t, sessions, summary, events, eventProblems, loading, error, onBack, onRefresh,
+  t, sessions, summary, events, eventProblems, loading, error, graph, onOpenTask, onBack, onRefresh,
 }: AgentDashboardPageProps): ReactNode {
   useEffect(() => {
     const timer = window.setInterval(onRefresh, DASHBOARD_REFRESH_MS)
@@ -121,7 +127,7 @@ export function AgentDashboardPage({
 
       <section className={css.dashboardSection} data-dashboard-graph-slot>
         <h3>{t('shell.dashboardGraph')}</h3>
-        <div className={css.dashboardGraphEmpty}>{t('shell.dashboardGraphPending')}</div>
+        <DashboardGraph data={graph} t={t} onOpenTask={onOpenTask} />
       </section>
 
       <section className={css.dashboardSection}>
