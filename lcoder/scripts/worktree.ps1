@@ -12,6 +12,9 @@
 #   worktree.cmd -Action sparse -Name <新树名> -Branch <分支> -Paths packages/lcoder,apps/desktop
 #       用 git worktree add --no-checkout 加 cone 模式 sparse-checkout，只检出指定目录。
 #       -Paths 用逗号或（PowerShell 数组）传入均可。分支已存在则直接挂上，不存在则新建。
+#   worktree.cmd -Action sparse -Name <新树名> -Branch <分支> -Exclude .agents,docs,website
+#       同一机制的排除写法：检出除列出的顶层目录以外的全部内容；与 -Paths 互斥。
+#       snapshots 与 website 不能排除：pnpm run typecheck 的 host 聚合检查会导入它们。
 #   worktree.cmd -Action clean -Name <工作树名>
 #       只删构建大件：node_modules、packages\*\*\lib、apps\*\lib、apps\web\dist、
 #       apps\desktop\.desktop-build。默认不碰 git（worktree 仍注册、分支保留）。
@@ -56,6 +59,7 @@ param(
   [string]$Branch,
   [string]$Base,
   [string[]]$Paths,
+  [string[]]$Exclude,
   [string]$Target,
   [string]$Path,
   [switch]$Remove,
@@ -234,7 +238,6 @@ function Set-JunctionForTarget([string]$Target) {
 function Invoke-Sparse {
   if (-not $Name) { throw '缺少 -Name：请给出新工作树名。' }
   if (-not $Branch) { throw '缺少 -Branch：请给出分支名。' }
-  if (-not $Paths -or @($Paths).Count -eq 0) { throw '缺少 -Paths：请给出至少一个目录（逗号或数组）。' }
   # powershell -File 与 .cmd 转发时逗号是普通字符，不会自动拆成数组；这里统一再拆一次。
   $directories = New-Object System.Collections.Generic.List[string]
   foreach ($value in @($Paths)) {
@@ -243,7 +246,35 @@ function Invoke-Sparse {
       if ($trimmed) { $directories.Add($trimmed) }
     }
   }
-  if ($directories.Count -eq 0) { throw '缺少 -Paths：请给出至少一个目录（逗号或数组）。' }
+  $excluded = New-Object System.Collections.Generic.List[string]
+  foreach ($value in @($Exclude)) {
+    foreach ($piece in ([string]$value -split ',')) {
+      # 容许写成 docs/ 或 docs\：只按顶层目录名比较。
+      $trimmed = $piece.Trim().TrimEnd([char[]]@('/', '\'))
+      if ($trimmed) { $excluded.Add($trimmed) }
+    }
+  }
+  if ($directories.Count -gt 0 -and $excluded.Count -gt 0) {
+    throw '不能同时给 -Paths 与 -Exclude：一个列要检出的目录，一个列要排除的目录。'
+  }
+  if ($excluded.Count -gt 0) {
+    # cone 模式只能按目录给白名单；排除写法在脚本里换算成「全部顶层目录减去清单」。
+    foreach ($nameToExclude in $excluded) {
+      if ($nameToExclude -match '[\\/]') { throw "只支持排除顶层目录：$nameToExclude。子目录请用 -Paths 给出包含清单。" }
+    }
+    $top = Invoke-Git $mainRoot @('ls-tree', '-d', '--name-only', 'HEAD')
+    if ($top.Code -ne 0) { throw ('读取顶层目录失败：' + ($top.Lines -join ' ')) }
+    $tops = @($top.Lines | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+    $unknown = @($excluded | Where-Object { $candidate = $_; @($tops | Where-Object { $_ -ieq $candidate }).Count -eq 0 })
+    if ($unknown.Count -gt 0) {
+      throw ('不认识的顶层目录：' + ($unknown -join ', ') + '。可排除的有：' + ($tops -join ', '))
+    }
+    foreach ($dir in $tops) {
+      if (@($excluded | Where-Object { $_ -ieq $dir }).Count -eq 0) { $directories.Add($dir) }
+    }
+    if ($directories.Count -eq 0) { throw '排除清单覆盖了所有顶层目录，稀疏树会没有源码。' }
+  }
+  if ($directories.Count -eq 0) { throw '缺少 -Paths 或 -Exclude：请给出目录清单。' }
   $target = Resolve-TargetPath
   Assert-TargetAllowed $target
   if (Test-Path -LiteralPath $target) {
@@ -275,6 +306,7 @@ function Invoke-Sparse {
 
   Write-Host "已建稀疏工作树：$target" -ForegroundColor Green
   Write-Host ("分支：$Branch；包含目录：" + ($directories -join ', '))
+  if ($excluded.Count -gt 0) { Write-Host ("排除目录：" + ($excluded -join ', ')) }
   Write-Host '下一步：树内 pnpm install 与 pnpm run build:artifacts；需要共享 Electron 运行时再跑 -Action junction。' -ForegroundColor DarkGray
 }
 
@@ -1286,6 +1318,9 @@ function Show-Help {
   Write-Host ''
   Write-Host '  worktree.cmd -Action sparse -Name <新树名> -Branch <分支> -Paths <目录1,目录2>'
   Write-Host '      建只含指定目录的稀疏工作树（cone 模式）；目标已存在时报错。'
+  Write-Host '  worktree.cmd -Action sparse -Name <新树名> -Branch <分支> -Exclude <目录1,目录2>'
+  Write-Host '      排除写法：检出除列出顶层目录外的全部内容；与 -Paths 互斥，不认识的名字直接报错。'
+  Write-Host '      注意：pnpm run typecheck 会读 snapshots 与 website，排除它们时 host 聚合检查会红。'
   Write-Host ''
   Write-Host '  worktree.cmd -Action clean -Name <工作树名>'
   Write-Host '      删 node_modules、packages\*\*\lib、apps\*\lib、apps\web\dist、.desktop-build。'
