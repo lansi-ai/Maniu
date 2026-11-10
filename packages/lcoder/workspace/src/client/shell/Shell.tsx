@@ -416,6 +416,28 @@ function resolveSecrets(info: ShellProjectInfo, secrets: Readonly<Record<string,
 }
 
 /**
+ * 从模型选择投影里读出 provider。
+ *
+ * 旧会话摘要直接给 `{ provider, model }`；当前投影给 `{ lastUsed, next }`。
+ * @param projected - 未校验的投影值。
+ * @returns provider 标识；读不到时 undefined。
+ */
+function providerOfSelection(projected: unknown): string | undefined {
+  const providerOf = (value: unknown): string | undefined =>
+    typeof value === 'object' && value !== null && 'provider' in value && typeof value.provider === 'string'
+      ? value.provider
+      : undefined
+  if (typeof projected !== 'object' || projected === null) return undefined
+  const direct = providerOf(projected)
+  if (direct !== undefined) return direct
+  if ('next' in projected) {
+    const next = providerOf(projected.next)
+    if (next !== undefined) return next
+  }
+  return 'lastUsed' in projected ? providerOf(projected.lastUsed) : undefined
+}
+
+/**
  * 外壳主组件。
  * @param props - 槽位组合进来的 props。
  * @returns 顶栏 + 任务板 + 项目信息抽屉 + 浮层。
@@ -596,14 +618,11 @@ export function Shell({
     || cloudSession.error?.code === 'cloud_unavailable'
   /** 登录状态读不出来（云端没装配或读取失败）；这时只渲染登录页，不放行到工作台。 */
   const loginBlocked = cloudSession.state === null && cloudSession.error !== null
-  /** 当前会话绑的 provider；投影还没物化时读不到。 */
+  /** 当前会话绑的 provider；兼容旧的扁平摘要与当前 `{ lastUsed, next }` 投影形状。 */
   const sessionCloudProvider = (id: SessionId | undefined): string | undefined => {
     if (id === undefined) return undefined
     const summary = sessionRows[id]?.projectionValues?.modelSelection
-    const projected: unknown = summary ?? sessionProjections[id]?.values.modelSelection
-    if (typeof projected !== 'object' || projected === null) return undefined
-    const provider = (projected as { provider?: unknown }).provider
-    return typeof provider === 'string' ? provider : undefined
+    return providerOfSelection(summary ?? sessionProjections[id]?.values.modelSelection)
   }
   const cloudFacts = {
     signedIn,

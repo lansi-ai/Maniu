@@ -112,6 +112,8 @@ interface ShellScenario {
   readonly t?: ShellProps['t']
   /** 云端面替身；缺省已登录。 */
   readonly cloud?: CloudFace
+  /** 首条会话投影里的模型路由；用来模拟旧版本遗留的匿名会话。 */
+  readonly provider?: string
 }
 
 /** 已登录的云端替身：门禁放行，详情用例只关心渲染事实；门禁本身有 cloud-login 专测。 */
@@ -141,11 +143,21 @@ function signedInCloud(): CloudFace {
 /** 组装外壳 props：真实词典、内存投影、可直接断言的窄接口替身。 */
 function renderShell(scenario: ShellScenario) {
   const rows = scenario.sessions ?? [sessionRow('s-1', REPO, false)]
+  /** 需要时就先放一条会话投影：旧版本匿名会话按 provider 识别。 */
+  const initialProjections: Record<SessionId, SessionListState['projectionsBySession'][SessionId]> = {}
+  if (scenario.provider !== undefined && rows[0] !== undefined) {
+    const selection = { provider: scenario.provider, model: 'deepseek-flash' }
+    initialProjections[rows[0].id] = {
+      values: { modelSelection: { lastUsed: selection, next: selection } },
+      state: 'ready',
+      error: null,
+    }
+  }
   const sessionList: SessionListState = {
     ids: rows.map(row => row.id),
     byId: Object.fromEntries(rows.map(row => [row.id, row])),
     phase: 'ready',
-    projectionsBySession: {},
+    projectionsBySession: initialProjections,
   }
   const status: SessionStatusSnapshot = new Map(rows.map(row => [row.id, {
     running: scenario.running?.has(String(row.id)) ?? false,
@@ -793,5 +805,17 @@ describe('登录门禁（整页）', () => {
 
     expect(await screen.findByRole('heading', { name: zh['shell.cloudSignIn'], level: 2 })).toBeTruthy()
     expect(screen.queryByText(zh['shell.board'])).toBeNull()
+  })
+})
+
+describe('旧匿名会话', () => {
+  it('打开时切回用户路由一次，不重复切换', async () => {
+    const cloud = signedInCloud()
+    const selectRoute = vi.fn(async () => ({ ok: true as const, value: { provider: 'lcoder-cloud', model: 'deepseek-flash' } }))
+    cloud.selectRoute = selectRoute
+    renderShell({ spec: {}, cloud, provider: 'lcoder-cloud-guest' })
+
+    await waitFor(() => { expect(selectRoute).toHaveBeenCalledWith(SessionId('s-1')) })
+    expect(selectRoute).toHaveBeenCalledTimes(1)
   })
 })
