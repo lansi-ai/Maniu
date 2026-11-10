@@ -22,7 +22,7 @@
   config:
     documentsDirectory: 'E:\Projects\LCoder\apps\desktop\.desktop-build\development\docs'
 
-# 云端两条路由：用户令牌与匿名令牌各走一个 apiKeyEnv；BaseURL 只指向云端。
+# 云端只有用户路由一条：令牌走 apiKeyEnv，BaseURL 只指向云端；桌面端不再注册匿名路由。
 - id: llm-pi-ai
   name: '@deepseek-ai/dsh-llm-pi-ai'
   config:
@@ -30,16 +30,6 @@
       lcoder-cloud:
         displayName: LCoder Cloud
         apiKeyEnv: LCODER_CLOUD_ACCESS_TOKEN
-        api: openai-completions
-        baseURL: !!js process.env.LCODER_CLOUD_BASE_URL || 'http://127.0.0.1:5091/v1'
-        models:
-          - id: deepseek-flash
-            name: DeepSeek Flash
-            contextWindow: 131072
-            maxTokens: 8192
-      lcoder-cloud-guest:
-        displayName: LCoder Cloud（匿名立项）
-        apiKeyEnv: LCODER_CLOUD_GUEST_TOKEN
         api: openai-completions
         baseURL: !!js process.env.LCODER_CLOUD_BASE_URL || 'http://127.0.0.1:5091/v1'
         models:

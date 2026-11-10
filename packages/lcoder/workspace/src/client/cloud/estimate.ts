@@ -30,13 +30,12 @@ export function usdPrecise(microUsd: number): string {
 }
 
 /**
- * 当前该展示哪份预估：登录后看账号，匿名看当日授权。
+ * 当前该展示哪份预估：桌面端只有账号预估，旧授权数据不再参与展示。
  * @param state - 登录状态。
- * @returns 预估；两者都没有时返回 null。
+ * @returns 预估；没有时返回 null。
  */
 export function activeEstimate(state: CloudState | null): CloudTokenEstimate | null {
-  if (state === null) return null
-  return state.estimate ?? state.guest?.estimate ?? null
+  return state?.estimate ?? null
 }
 
 /**

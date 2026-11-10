@@ -6,11 +6,11 @@
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import type {
-  CloudAuthValue, CloudGuestClaimInput, CloudGuestView, CloudLoginPasswordInput, CloudLoginSmsInput,
+  CloudAuthValue, CloudLoginPasswordInput, CloudLoginSmsInput,
   CloudOkValue, CloudRegisterInput, CloudResult, CloudSendSmsInput, CloudSmsValue, CloudState,
   CloudUsagePage, CloudUsageQuery,
 } from '@lcoder/kernel/src/cloud/types.ts'
-import { CLOUD_GUEST_ROUTE, CLOUD_MODEL, CLOUD_USER_ROUTE } from './routes.ts'
+import { CLOUD_MODEL, CLOUD_USER_ROUTE } from './routes.ts'
 
 /** 生成贡献在 `ctx.remote` 上的签名；与 `typert.remote-client.d.ts` 一致。 */
 export interface CloudRemoteNamespace {
@@ -22,7 +22,6 @@ export interface CloudRemoteNamespace {
   refresh(): Promise<RemoteResult<CloudResult<CloudAuthValue>>>
   me(): Promise<RemoteResult<CloudResult<CloudAuthValue>>>
   logout(): Promise<RemoteResult<CloudResult<CloudOkValue>>>
-  claimGuest(input: CloudGuestClaimInput): Promise<RemoteResult<CloudResult<CloudGuestView>>>
   usage(query: CloudUsageQuery): Promise<RemoteResult<CloudResult<CloudUsagePage>>>
 }
 
@@ -42,7 +41,6 @@ export interface CloudRemotePort {
   refresh(): Promise<CloudResult<CloudAuthValue>>
   me(): Promise<CloudResult<CloudAuthValue>>
   logout(): Promise<CloudResult<CloudOkValue>>
-  claimGuest(input: CloudGuestClaimInput): Promise<CloudResult<CloudGuestView>>
   usage(query: CloudUsageQuery): Promise<CloudResult<CloudUsagePage>>
 }
 
@@ -65,11 +63,10 @@ export interface CloudFace extends CloudRemotePort {
   /** Remote 贡献是否成功挂载。 */
   readonly available: boolean
   /**
-   * 把一条会话切到用户或匿名路由。
+   * 把一条会话切到用户路由；桌面端已没有匿名路由可切。
    * @param sessionId - 要切换的会话。
-   * @param mode - `user` 或 `guest`。
    */
-  selectRoute(sessionId: SessionId, mode: 'user' | 'guest'): Promise<CloudResult<{ readonly provider: string; readonly model: string }>>
+  selectRoute(sessionId: SessionId): Promise<CloudResult<{ readonly provider: string; readonly model: string }>>
 }
 
 /** 调用抛异常时补出的失败结果；界面不需要崩。 */
@@ -106,10 +103,9 @@ export function createCloudFace(port: CloudRemotePort & CloudModelPort): CloudFa
     refresh: () => call(() => port.refresh()),
     me: () => call(() => port.me()),
     logout: () => call(() => port.logout()),
-    claimGuest: input => call(() => port.claimGuest(input)),
     usage: query => call(() => port.usage(query)),
-    async selectRoute(sessionId, mode) {
-      const provider = mode === 'user' ? CLOUD_USER_ROUTE : CLOUD_GUEST_ROUTE
+    async selectRoute(sessionId) {
+      const provider = CLOUD_USER_ROUTE
       let selected: Awaited<ReturnType<CloudModelPort['selectModel']>>
       try {
         selected = await port.selectModel({ sessionId, provider, model: CLOUD_MODEL })
@@ -135,7 +131,6 @@ export function unavailableCloudFace(error: unknown): CloudFace {
     refresh: fail,
     me: fail,
     logout: fail,
-    claimGuest: fail,
     usage: fail,
     selectRoute: fail,
   }

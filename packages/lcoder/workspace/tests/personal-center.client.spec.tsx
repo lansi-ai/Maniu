@@ -95,7 +95,6 @@ function faceOf(usage: (query: CloudUsageQuery) => Promise<{ ok: true; value: Cl
     refresh: vi.fn(),
     me: vi.fn(),
     logout: vi.fn(),
-    claimGuest: vi.fn(),
     usage: vi.fn(usage),
     selectRoute: vi.fn(),
   }
@@ -115,7 +114,6 @@ function renderCenter(state: CloudState | null, usage = emptyPage()) {
       state={state}
       t={t}
       onBack={vi.fn()}
-      onOpenLogin={vi.fn()}
     />,
   )
   return usage
@@ -143,7 +141,6 @@ describe('个人中心 · token 预估', () => {
           state={signedIn({ estimate: { ...ESTIMATE, available: false, unavailableReason: reason } })}
           t={t}
           onBack={vi.fn()}
-          onOpenLogin={vi.fn()}
         />,
       )
       expect(screen.getByText(text)).toBeTruthy()
@@ -166,29 +163,20 @@ describe('个人中心 · token 预估', () => {
     await waitFor(() => { expect(usage).toHaveBeenCalledTimes(1) })
   })
 
-  it('匿名授权也展示云端给出的预估', () => {
+  it('未登录时不显示任何游客区块，只给登录提示', () => {
     renderCenter({
       signedIn: false,
       needsLogin: false,
       user: null,
       quota: null,
       estimate: null,
-      guest: {
-        grantDate: '2026-11-07',
-        expiresAt: '2026-11-08T00:00:00.000Z',
-        remainingRequests: 12,
-        remainingCostMicroUsd: 90_000,
-        limits: { maxRequests: 20, maxCostMicroUsd: 150_000, dailyGrantLimit: 1 },
-        model: 'deepseek-flash',
-        scope: 'onboarding',
-        revoked: false,
-        estimate: { ...ESTIMATE, availableMicroUsd: 90_000, lowerBoundTokens: 292_207, upperBoundTokens: 846_100 },
-      },
+      guest: null,
       guestExpired: false,
       lastError: null,
     })
-    expect(screen.getByText('约可用 292207 到 846100 token')).toBeTruthy()
     expect(screen.getByText(zh['shell.cloudUsageSignIn'])).toBeTruthy()
+    expect(screen.queryByText(/免费立项/)).toBeNull()
+    expect(screen.queryByText(/剩余成本额度/)).toBeNull()
   })
 })
 

@@ -307,6 +307,66 @@
 .shell[data-chrome="custom"] .topbar :where(button, input, textarea, select, a, summary, [role="button"]) {
   -webkit-app-region: no-drag;
 }
+/* 未登录时的全屏登录页：同一条窗口栏 + 品牌区与表单分栏；窄窗退化为单列居中。 */
+.loginChrome {
+  display: flex; align-items: center; gap: var(--lc-space-3);
+  height: var(--lc-chrome-height); min-height: var(--lc-chrome-height);
+  padding: 0 8px 0 var(--lc-space-6);
+  border-bottom: 1px solid var(--lc-line); background: var(--lc-surface); flex: 0 0 auto;
+}
+.shell[data-chrome="custom"] .loginChrome {
+  -webkit-app-region: drag;
+  user-select: none;
+  position: relative;
+  z-index: 60;
+}
+.shell[data-chrome="custom"] .loginChrome :where(button, input, textarea, select, a, summary, [role="button"]) {
+  -webkit-app-region: no-drag;
+}
+.loginMain {
+  flex: 1; min-height: 0; overflow: auto;
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(360px, 440px);
+  align-items: center; gap: clamp(32px, 6vw, 96px);
+  padding: clamp(32px, 6vh, 72px) clamp(24px, 6vw, 88px);
+}
+.loginBrand { display: grid; gap: var(--lc-space-4); align-content: center; min-width: 0; }
+.loginBrandTitle {
+  margin: 0;
+  font: 800 clamp(44px, 5vw, 68px) / 1 var(--lc-font-display);
+  letter-spacing: var(--lc-tracking-tight);
+}
+.loginBrandText { margin: 0; max-width: 30ch; color: var(--lc-muted); font-size: var(--lc-text-lg); line-height: var(--lc-leading); }
+.loginCard {
+  display: grid; gap: var(--lc-space-4); width: 100%; min-width: 0;
+  padding: clamp(22px, 3vw, 30px);
+  background: var(--lc-surface); border: 1px solid var(--lc-line);
+  border-radius: var(--lc-radius-xl); box-shadow: var(--lc-shadow-card);
+}
+.loginCardTitle {
+  margin: 0;
+  font: 700 var(--lc-text-xl) / var(--lc-leading-tight) var(--lc-font-display);
+  letter-spacing: var(--lc-tracking-tight);
+}
+.loginStatus { display: grid; gap: var(--lc-space-3); justify-items: start; }
+.loginStatusTitle { margin: 0; font-size: var(--lc-text-lg); font-weight: 700; }
+.loginStatusText { margin: 0; color: var(--lc-muted); font-size: var(--lc-text-md); }
+.loginSpinner {
+  width: 18px; height: 18px; border-radius: 50%;
+  border: 2px solid var(--lc-line); border-top-color: var(--lc-brand);
+  animation: loginSpin 0.9s linear infinite;
+}
+@keyframes loginSpin { to { transform: rotate(360deg); } }
+@media (max-width: 900px) {
+  .loginMain {
+    grid-template-columns: minmax(0, 1fr); justify-items: center;
+    gap: var(--lc-space-5); padding: 36px 20px;
+  }
+  .loginBrand { justify-items: center; text-align: center; gap: var(--lc-space-2); }
+  .loginBrandTitle { font-size: clamp(28px, 8vw, 40px); }
+  .loginBrandText { max-width: 40ch; font-size: var(--lc-text-md); }
+  .loginCard { width: min(460px, 100%); }
+}
+
 /* 窗口栏是常驻 chrome：遮罩与浮层从它下方开始，按钮始终可点。 */
 .shell[data-chrome="custom"] :is(.modalBackdrop, .drawerBackdrop, .floating) {
   top: var(--lc-chrome-height);
@@ -544,6 +604,8 @@
 .metaMoreLabel { color: var(--lc-muted); }
 .metaMoreItem dd { margin: 0; color: var(--lc-ink); font-size: 13.5px; font-weight: 600; word-break: break-word; }
 .metaHint { margin-left: 8px; color: var(--lc-faint); font-weight: 400; }
+.field { display: block; }
+.field > input { width: 100%; }
 .field label { display: flex; align-items: center; justify-content: space-between; font-size: var(--lc-text-sm); color: var(--lc-muted); margin-bottom: var(--lc-space-2); }
 .labelHint { color: var(--lc-faint); font-size: var(--lc-text-xs); }
 
@@ -1035,6 +1097,22 @@
 .cloudTabActive { background: var(--lc-surface); color: var(--lc-ink); font-weight: 600; box-shadow: var(--lc-shadow-xs); }
 .cloudForm { display: grid; gap: var(--lc-space-3); }
 .cloudCodeRow { display: flex; align-items: center; gap: var(--lc-space-2); }
+.cloudPhoneRow {
+  display: flex; align-items: center; min-width: 0;
+  border: 1px solid var(--lc-line); border-radius: var(--lc-radius-sm);
+  background: var(--lc-surface);
+}
+.cloudPhoneRow:focus-within { border-color: var(--lc-brand-2); }
+.cloudPhonePrefix { padding-left: 11px; color: var(--lc-muted); font-size: 13.5px; user-select: none; }
+.cloudPhoneInput {
+  flex: 1; min-width: 0; border: 0; outline: none; background: transparent;
+  padding: 9px 11px 9px 7px; color: var(--lc-ink); font-size: 13.5px;
+}
+/* 聚焦反馈由外框的 :focus-within 承担；内层输入框不再叠一圈兜底焦点环。 */
+.cloudPhoneInput:focus-visible { outline: none; }
+.cloudFieldInvalid,
+.cloudFieldInvalid:focus-within { border-color: var(--lc-status-danger); }
+.cloudFieldError { margin: 6px 0 0; color: var(--lc-status-danger); font-size: var(--lc-text-xs); }
 .cloudHint { margin: 0; font-size: var(--lc-text-xs); color: var(--lc-status-ok); }
 .cloudErrorBox {
   display: grid; gap: 4px; padding: 10px 12px;
@@ -1044,8 +1122,8 @@
 }
 .cloudErrorBox strong { font-size: var(--lc-text-sm); color: var(--lc-status-danger); }
 .cloudRequestId { color: var(--lc-faint); font-family: var(--lc-font-mono); word-break: break-all; }
-.cloudGuestLine { margin: 0; padding-top: var(--lc-space-2); border-top: 1px solid var(--lc-line); color: var(--lc-muted); font-size: var(--lc-text-xs); }
-.cloudAccountGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--lc-space-3); }
+.cloudMetaLine { margin: 0; padding-top: var(--lc-space-2); border-top: 1px solid var(--lc-line); color: var(--lc-muted); font-size: var(--lc-text-xs); }
+.cloudAccountGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--lc-space-3); }
 .cloudMetric { display: grid; gap: 3px; padding: 12px 14px; border: 1px solid var(--lc-line); border-radius: var(--lc-radius-md); background: var(--lc-surface-2); }
 .cloudMetricLabel { font-size: var(--lc-text-xs); color: var(--lc-faint); }
 .cloudMetricValue { font-size: var(--lc-text-lg); font-weight: 700; letter-spacing: var(--lc-tracking-tight); }
