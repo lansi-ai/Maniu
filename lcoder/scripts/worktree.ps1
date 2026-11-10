@@ -29,6 +29,16 @@
 #       pnpm/rebuild 的非零退出码原样透传。
 #   worktree.cmd -Action lock -Seconds <秒> [-Name LCoder-Heavy]
 #       持锁睡眠后释放，用于并发演示。
+#   worktree.cmd -Action warm -Name <槽位> [-Base <ref>] [-ForceInstall] [-TimeoutSec 1800]
+#       新建或复用预热槽位 .worktrees\<槽位>：完整检出（非稀疏）、junction、按需安装、
+#       按需全量产物；池元数据写在 .worktrees\<槽位>.pool.json（不在树内）。
+#   worktree.cmd -Action claim -Name <槽位> -Branch <分支> [-Base <ref>] [-ForceInstall]
+#       确保槽位已预热，切到分支（不存在则从 Base 建），锁文件哈希不一致就重装，
+#       优先 rebuild.cmd 分层重建产物；打印各阶段耗时与就绪提示。
+#   worktree.cmd -Action release -Name <槽位> [-StopInstances]
+#       清未跟踪文件并回 detached 基线；保留 node_modules 与 apps\desktop\.desktop-build。
+#       默认不动进程；-StopInstances 只停本槽位路径下的桌面实例与 mock。
+#   inspect 额外列出预热池槽位：分支、锁文件是否匹配、产物是否新鲜、占用体积。
 #
 # 重活互斥：install 与分层重建都会抢同一批磁盘和 CPU，并发跑会互相拖死。provision/build/lock
 # 统一取机器级命名 Mutex（优先 Global\LCoder-Heavy；无权限时退回 Local\LCoder-Heavy 并说明）。
@@ -40,15 +50,18 @@
 #   - clean 一律拒绝主检出（-Force 也不放行）。
 #   - 删除前逐条打印路径；不删 .spec 产品数据与源码。
 param(
-  [ValidateSet('help', 'junction', 'sparse', 'clean', 'inspect', 'provision', 'build', 'lock')]
+  [ValidateSet('help', 'junction', 'sparse', 'clean', 'inspect', 'provision', 'build', 'lock', 'warm', 'claim', 'release')]
   [string]$Action = 'help',
   [string]$Name,
   [string]$Branch,
+  [string]$Base,
   [string[]]$Paths,
   [string]$Target,
   [string]$Path,
   [switch]$Remove,
   [switch]$Force,
+  [switch]$ForceInstall,
+  [switch]$StopInstances,
   [switch]$Deep,
   [switch]$DryRun,
   [ValidateRange(1, 86400)]
@@ -153,7 +166,8 @@ function Assert-RegisteredWorktree([string]$Path) {
   if ($topPath -ine $full) {
     throw "目标不是工作树根：$full（git 根是 $topPath）"
   }
-  $registered = @($worktrees | Where-Object { [IO.Path]::GetFullPath($_.Path).TrimEnd('\') -ieq $full })
+  # 每次都重新取列表：warm/claim 可能刚创建了本树，启动时的快照已经过期。
+  $registered = @((Get-Worktrees) | Where-Object { [IO.Path]::GetFullPath($_.Path).TrimEnd('\') -ieq $full })
   if ($registered.Count -eq 0) {
     throw "目标不在 git worktree list 中：$full"
   }
@@ -174,6 +188,12 @@ function Get-ReparseTarget([string]$Path) {
 function Invoke-Junction {
   $target = Resolve-TargetPath -MustExist
   Assert-TargetAllowed $target
+  Set-JunctionForTarget $target
+  Write-Host '完成。home 与 electron-user-data 未共享，会话与登录态仍各自独立。' -ForegroundColor Green
+}
+
+# warm 复用同一套 junction 逻辑；目标已由调用方校验过。
+function Set-JunctionForTarget([string]$Target) {
   $pairs = @(
     @{ Name = 'downloads'; Source = (Join-Path $mainRoot 'apps\desktop\.desktop-build\downloads') },
     @{ Name = 'targets';   Source = (Join-Path $mainRoot 'apps\desktop\.desktop-build\targets') }
@@ -183,7 +203,7 @@ function Invoke-Junction {
     if (-not (Test-Path -LiteralPath $source)) {
       throw "主检出缺少 $($pair.Name)：$source。先在主检出跑一次 dev:desktop 生成运行时。"
     }
-    $destination = Join-Path $target ("apps\desktop\.desktop-build\" + $pair.Name)
+    $destination = Join-Path $Target ("apps\desktop\.desktop-build\" + $pair.Name)
     New-Item -ItemType Directory -Force -Path (Split-Path $destination -Parent) | Out-Null
 
     if (Test-Path -LiteralPath $destination) {
@@ -210,7 +230,6 @@ function Invoke-Junction {
     }
     Write-Host "已建立 junction：$destination -> $source" -ForegroundColor Green
   }
-  Write-Host '完成。home 与 electron-user-data 未共享，会话与登录态仍各自独立。' -ForegroundColor Green
 }
 function Invoke-Sparse {
   if (-not $Name) { throw '缺少 -Name：请给出新工作树名。' }
@@ -259,25 +278,55 @@ function Invoke-Sparse {
   Write-Host '下一步：树内 pnpm install 与 pnpm run build:artifacts；需要共享 Electron 运行时再跑 -Action junction。' -ForegroundColor DarkGray
 }
 
+function Invoke-PnpmInstallLocked([string]$Target) {
+  $lock = Enter-HeavyLock 'LCoder-Heavy' $TimeoutSec
+  $started = Get-Date
+  try {
+    $result = Invoke-LockedNative 'pnpm install --offline --frozen-lockfile' 'pnpm' @('install', '--offline', '--frozen-lockfile') $Target
+    return [pscustomobject]@{ Code = $result.Code; Elapsed = $result.Elapsed }
+  } finally {
+    Exit-HeavyLock $lock $started
+  }
+}
+
+function Invoke-PnpmFullBuildLocked([string]$Target) {
+  $lock = Enter-HeavyLock 'LCoder-Heavy' $TimeoutSec
+  $started = Get-Date
+  try {
+    $result = Invoke-LockedNative 'pnpm run build:artifacts（全量）' 'pnpm' @('run', 'build:artifacts') $Target
+    return [pscustomobject]@{ Code = $result.Code; Elapsed = $result.Elapsed }
+  } finally {
+    Exit-HeavyLock $lock $started
+  }
+}
+
+function Invoke-RebuildLayeredLocked([string]$Target) {
+  $rebuild = Join-Path $Target 'lcoder\scripts\rebuild.cmd'
+  if (-not (Test-Path -LiteralPath $rebuild)) {
+    Write-Host '树内没有 lcoder\scripts\rebuild.cmd，退回全量 artifacts。' -ForegroundColor Yellow
+    return (Invoke-PnpmFullBuildLocked $Target)
+  }
+  $lock = Enter-HeavyLock 'LCoder-Heavy' $TimeoutSec
+  $started = Get-Date
+  try {
+    $result = Invoke-LockedNative 'rebuild.cmd auto（分层）' 'cmd.exe' @('/d', '/c', $rebuild, 'auto') $Target
+    return [pscustomobject]@{ Code = $result.Code; Elapsed = $result.Elapsed }
+  } finally {
+    Exit-HeavyLock $lock $started
+  }
+}
+
 function Invoke-Provision {
   $target = Resolve-TargetPath -MustExist
   Assert-TargetAllowed $target
   Assert-RegisteredWorktree $target
-  $lock = Enter-HeavyLock 'LCoder-Heavy' $TimeoutSec
-  $started = Get-Date
-  $code = 0
-  try {
-    $result = Invoke-LockedNative 'pnpm install --offline --frozen-lockfile' 'pnpm' @('install', '--offline', '--frozen-lockfile') $target
-    $code = $result.Code
-    if ($code -ne 0) {
-      Write-Host ('provision 失败：pnpm 退出码 ' + $code + '，耗时 ' + $result.Elapsed + ' 秒。离线安装失败多半是本地 pnpm store 缺包，去掉 --offline 联网补一次。') -ForegroundColor Red
-    } else {
-      Write-Host ('provision 完成：' + $target) -ForegroundColor Green
-    }
-  } finally {
-    Exit-HeavyLock $lock $started
+  $result = Invoke-PnpmInstallLocked $target
+  if ($result.Code -ne 0) {
+    Write-Host ('provision 失败：pnpm 退出码 ' + $result.Code + '，耗时 ' + $result.Elapsed + ' 秒。离线安装失败多半是本地 pnpm store 缺包，去掉 --offline 联网补一次。') -ForegroundColor Red
+  } else {
+    Write-Host ('provision 完成：' + $target) -ForegroundColor Green
   }
-  return $code
+  return $result.Code
 }
 
 function Invoke-Build {
@@ -318,6 +367,449 @@ function Invoke-Build {
     Exit-HeavyLock $lock $started
   }
   return $code
+}
+
+# ── 预热池 ─────────────────────────────────────────────────────────
+# 槽位元数据放在 .worktrees\<槽位>.pool.json（树外），避免污染工作区。
+function Assert-SlotName {
+  if (-not $Name) { throw '缺少 -Name：请给出池槽位名（例如 _pool-a）。' }
+  if ($Name -match '[\\/:*?"<>|]') { throw "槽位名不能包含路径分隔符：$Name" }
+}
+
+function Get-PoolMetadataPath([string]$Slot) {
+  return (Join-Path $worktreesRoot ($Slot + '.pool.json'))
+}
+
+function Read-PoolMetadata([string]$Slot) {
+  $file = Get-PoolMetadataPath $Slot
+  if (-not (Test-Path -LiteralPath $file)) { return $null }
+  try {
+    return (Get-Content -LiteralPath $file -Raw -Encoding utf8 | ConvertFrom-Json)
+  } catch {
+    Write-Host ("池元数据无法解析，按缺失处理：" + $file + "（" + $_.Exception.Message + "）") -ForegroundColor Yellow
+    return $null
+  }
+}
+
+function Write-PoolMetadata($Metadata) {
+  $file = Get-PoolMetadataPath $Metadata.slot
+  $json = ($Metadata | ConvertTo-Json -Depth 5)
+  [IO.File]::WriteAllText($file, $json + "`n", [Text.UTF8Encoding]::new($false))
+  Write-Host ("池元数据：" + $file) -ForegroundColor DarkGray
+}
+
+# 锁文件按内容哈希判断，不看 mtime：同一内容重新落盘不应触发重装。
+function Get-LockHash([string]$Target) {
+  $file = Join-Path $Target 'pnpm-lock.yaml'
+  if (-not (Test-Path -LiteralPath $file)) { throw "缺少锁文件：$file" }
+  return (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash
+}
+
+function Get-ShortHash([string]$Hash) {
+  if (-not $Hash) { return '(无)' }
+  if ($Hash.Length -le 12) { return $Hash }
+  return $Hash.Substring(0, 12)
+}
+
+function Get-HeadSha([string]$Target) {
+  $result = Invoke-Git $Target @('rev-parse', 'HEAD')
+  if ($result.Code -ne 0 -or $result.Lines.Count -eq 0) {
+    throw ("无法读取 HEAD：" + $Target + "（" + ($result.Lines -join ' ') + "）")
+  }
+  return $result.Lines[0].Trim()
+}
+
+function Resolve-Commit([string]$Ref) {
+  $result = Invoke-Git $mainRoot @('rev-parse', '--verify', '--quiet', ($Ref + '^{commit}'))
+  if ($result.Code -ne 0) { throw "无法解析基线引用：$Ref" }
+  return $result.Lines[0].Trim()
+}
+
+# 全量 artifacts 的基线标记；缺它就只能全量重建，不能只重出 lcoder 那几层。
+function Test-ArtifactBaseline([string]$Target) {
+  return ((Test-Path -LiteralPath (Join-Path $Target 'apps\desktop\lib\main.js')) -and
+          (Test-Path -LiteralPath (Join-Path $Target 'packages\lcoder\kernel\lib\index.js')))
+}
+
+function Get-ChangedPaths([string]$Target, [string]$From, [string]$To) {
+  $result = Invoke-Git $Target @('diff', '--name-only', $From, $To)
+  if ($result.Code -ne 0) {
+    throw ("无法比较产物基线（" + $From + ".." + $To + "）：" + ($result.Lines -join ' '))
+  }
+  return @($result.Lines | Where-Object { $_ })
+}
+
+function Ensure-SlotWorktree([string]$Slot, [string]$BaseRef) {
+  $target = [IO.Path]::GetFullPath((Join-Path $worktreesRoot $Slot)).TrimEnd('\')
+  if ($target -ieq $mainRoot) { throw '拒绝：槽位目标是主检出。' }
+  if (Test-Path -LiteralPath $target) {
+    $list = Get-Worktrees
+    $entry = @($list | Where-Object { [IO.Path]::GetFullPath($_.Path).TrimEnd('\') -ieq $target })
+    if ($entry.Count -eq 0) {
+      throw ("槽位目录已存在但没有注册为工作树：" + $target + "。确认是残留后手工删除（或用 rm-longpath.mjs）再重试。")
+    }
+    return $target
+  }
+  $ref = if ($BaseRef) { $BaseRef } else { 'HEAD' }
+  $commit = Resolve-Commit $ref
+  Write-Host ("首次建槽位（完整检出）：" + $target + " @ " + $ref + "（" + (Get-ShortHash $commit) + "）") -ForegroundColor Cyan
+  $started = Get-Date
+  $added = Invoke-Git $mainRoot @('worktree', 'add', '--detach', $target, $commit)
+  foreach ($line in $added.Lines) { Write-Host ('  ' + $line) }
+  if ($added.Code -ne 0) {
+    throw ("git worktree add 失败（退出码 " + $added.Code + "）：" + ($added.Lines -join ' '))
+  }
+  # 槽位必须是完整检出：稀疏目录会让依赖与产物不全，claim 就失去意义。
+  $sparse = Invoke-Git $target @('sparse-checkout', 'list')
+  if ($sparse.Code -eq 0) {
+    Write-Host '槽位仍是稀疏检出，关闭 sparse-checkout 做完整检出。' -ForegroundColor Yellow
+    $disabled = Invoke-Git $target @('sparse-checkout', 'disable')
+    if ($disabled.Code -ne 0) { throw ("关闭 sparse-checkout 失败：" + ($disabled.Lines -join ' ')) }
+  }
+  Write-Host ("工作树创建完成：{0} 秒" -f ([int]((Get-Date) - $started).TotalSeconds)) -ForegroundColor Green
+  return $target
+}
+
+# 只停本槽位路径下的进程：命令行里必须出现该树自己的 electron-user-data / mock / dev.ts。
+function Stop-SlotInstances([string]$Target) {
+  $electronData = Join-Path $Target 'apps\desktop\.desktop-build\development\electron-user-data'
+  $mockScript = Join-Path $Target 'lcoder\scripts\mock-cloud.mjs'
+  $devScript = Join-Path $Target 'apps\desktop\scripts\dev.ts'
+  $all = @(Get-CimInstance Win32_Process | Where-Object { $_.CommandLine })
+  $matched = @($all | Where-Object {
+    ($_.Name -eq 'electron.exe' -and $_.CommandLine -like ('*' + $electronData + '*')) -or
+    ($_.Name -eq 'node.exe' -and $_.CommandLine -like ('*' + $mockScript + '*')) -or
+    ($_.Name -eq 'node.exe' -and $_.CommandLine -like ('*' + $devScript + '*'))
+  })
+  if ($matched.Count -eq 0) {
+    Write-Host '本槽位没有正在运行的桌面实例或 mock。' -ForegroundColor DarkGray
+    return @()
+  }
+  $pids = New-Object System.Collections.Generic.List[int]
+  foreach ($p in $matched) {
+    Write-Host ("停掉本槽位进程 PID {0}（{1}）" -f $p.ProcessId, $p.Name) -ForegroundColor DarkYellow
+    $pids.Add([int]$p.ProcessId)
+    & taskkill.exe /PID $p.ProcessId /T /F *> $null
+  }
+  Start-Sleep -Milliseconds 600
+  $alive = @(Get-CimInstance Win32_Process | Where-Object { $pids -contains [int]$_.ProcessId })
+  if ($alive.Count -gt 0) {
+    throw ("仍有本槽位进程未退出：PID " + (($alive | ForEach-Object { $_.ProcessId }) -join ', '))
+  }
+  return $pids
+}
+
+function Invoke-Warm {
+  Assert-SlotName
+  $slot = $Name
+  $startedAll = Get-Date
+  $target = Ensure-SlotWorktree $slot $Base
+  Assert-TargetAllowed $target
+  Assert-RegisteredWorktree $target
+
+  $meta = Read-PoolMetadata $slot
+  $head = Get-HeadSha $target
+  $lockHash = Get-LockHash $target
+
+  $junctionStart = Get-Date
+  Set-JunctionForTarget $target
+  $junctionSec = [int]((Get-Date) - $junctionStart).TotalSeconds
+
+  $installSec = 0
+  $installReason = $null
+  $hasNodeModules = Test-Path -LiteralPath (Join-Path $target 'node_modules')
+  if ($ForceInstall) {
+    $installReason = '-ForceInstall'
+  } elseif (-not $hasNodeModules) {
+    $installReason = 'node_modules 缺失'
+  } elseif (-not $meta) {
+    $installReason = '缺少池元数据，无法证明依赖与锁文件一致'
+  } elseif ($meta.lockHash -ne $lockHash) {
+    $installReason = ('锁文件哈希不一致：池内 ' + (Get-ShortHash $meta.lockHash) + '，当前 ' + (Get-ShortHash $lockHash))
+  }
+  if ($installReason) {
+    Write-Host ('需要安装依赖：' + $installReason) -ForegroundColor Yellow
+    $installed = Invoke-PnpmInstallLocked $target
+    $installSec = $installed.Elapsed
+    if ($installed.Code -ne 0) {
+      throw ('warm 卡在依赖安装：pnpm 退出码 ' + $installed.Code + '，耗时 ' + $installSec + ' 秒。')
+    }
+    $lockHash = Get-LockHash $target
+  } else {
+    Write-Host '依赖已就绪（锁文件哈希一致），跳过安装。' -ForegroundColor DarkGray
+  }
+
+  $currentHead = Get-HeadSha $target
+  $buildKind = 'none'
+  if (-not (Test-ArtifactBaseline $target)) {
+    $buildKind = 'full'
+  } elseif ($meta -and $meta.artifactCommit -eq $currentHead) {
+    $buildKind = 'none'
+  } elseif ($meta -and $meta.artifactCommit) {
+    $buildKind = 'layered'
+  } else {
+    $buildKind = 'full'
+  }
+  if ($installReason -and $buildKind -eq 'none') { $buildKind = 'layered' }
+
+  $buildSec = 0
+  if ($buildKind -eq 'full') {
+    Write-Host '构建：全量 build:artifacts（缺少基线或没有上次构建记录）。' -ForegroundColor Cyan
+    $built = Invoke-PnpmFullBuildLocked $target
+    $buildSec = $built.Elapsed
+    if ($built.Code -ne 0) {
+      throw ('warm 卡在产物构建：全量 build:artifacts 退出码 ' + $built.Code + '，耗时 ' + $buildSec + ' 秒。')
+    }
+  } elseif ($buildKind -eq 'layered') {
+    Write-Host '构建：rebuild.cmd auto 分层重建。' -ForegroundColor Cyan
+    $built = Invoke-RebuildLayeredLocked $target
+    $buildSec = $built.Elapsed
+    if ($built.Code -ne 0) {
+      throw ('warm 卡在产物构建：rebuild.cmd 退出码 ' + $built.Code + '，耗时 ' + $buildSec + ' 秒。')
+    }
+  } else {
+    Write-Host '产物与当前提交一致，跳过构建。' -ForegroundColor DarkGray
+  }
+
+  $now = (Get-Date).ToString('o')
+  $metaOut = [ordered]@{
+    version          = 1
+    slot             = $slot
+    baseCommit       = if ($meta -and $meta.baseCommit) { $meta.baseCommit } else { $currentHead }
+    head             = $currentHead
+    lockHash         = $lockHash
+    provisionedAt    = if ($installReason) { $now } elseif ($meta -and $meta.provisionedAt) { $meta.provisionedAt } else { $now }
+    provisionSeconds = if ($installReason) { $installSec } elseif ($meta -and $null -ne $meta.provisionSeconds) { $meta.provisionSeconds } else { 0 }
+    artifactCommit   = $currentHead
+    artifactBuiltAt  = if ($buildKind -ne 'none') { $now } elseif ($meta -and $meta.artifactBuiltAt) { $meta.artifactBuiltAt } else { $now }
+    buildKind        = $buildKind
+    buildSeconds     = $buildSec
+    warmedAt         = $now
+  }
+  Write-PoolMetadata $metaOut
+
+  $totalSec = [int]((Get-Date) - $startedAll).TotalSeconds
+  Write-Host ''
+  Write-Host ('warm 完成：' + $target) -ForegroundColor Green
+  Write-Host ("  junction {0} 秒 | 安装 {1} 秒（{2}） | 构建 {3} 秒（{4}） | 合计 {5} 秒" -f $junctionSec, $installSec, $(if ($installReason) { $installReason } else { '跳过' }), $buildSec, $buildKind, $totalSec)
+  Write-Host ("  锁文件 " + (Get-ShortHash $lockHash) + " | HEAD " + (Get-ShortHash $currentHead))
+}
+
+function Invoke-Claim {
+  Assert-SlotName
+  if (-not $Branch) { throw '缺少 -Branch：请给出要切到的分支。' }
+  $slot = $Name
+  $startedAll = Get-Date
+  # 先做分支占用检查：被别的树检出时不必先付建树/安装的代价。
+  $slotTarget = [IO.Path]::GetFullPath((Join-Path $worktreesRoot $slot)).TrimEnd('\')
+  if ($slotTarget -ieq $mainRoot) { throw '拒绝：槽位目标是主检出。' }
+  $list = Get-Worktrees
+  $occupied = @($list | Where-Object {
+    $_.Branch -eq $Branch -and ([IO.Path]::GetFullPath($_.Path).TrimEnd('\') -ine $slotTarget)
+  })
+  if ($occupied.Count -gt 0) {
+    throw ("分支 " + $Branch + " 已被另一棵工作树检出：" + $occupied[0].Path + "。先在那边 release，或改用别的分支（本工具不强切）。")
+  }
+
+  $target = Ensure-SlotWorktree $slot $Base
+  Assert-TargetAllowed $target
+  Assert-RegisteredWorktree $target
+
+  $meta = Read-PoolMetadata $slot
+  $needsWarm = (-not $meta) -or
+    (-not (Test-Path -LiteralPath (Join-Path $target 'node_modules'))) -or
+    (-not (Test-ArtifactBaseline $target))
+  if ($needsWarm) {
+    Write-Host '槽位未就绪（缺元数据、依赖或产物基线），先跑 warm 阶段。' -ForegroundColor Yellow
+    Invoke-Warm
+    $meta = Read-PoolMetadata $slot
+  }
+
+  $checkoutStart = Get-Date
+  $current = Invoke-Git $target @('rev-parse', '--abbrev-ref', 'HEAD')
+  $currentBranch = if ($current.Code -eq 0 -and $current.Lines.Count -gt 0) { $current.Lines[0].Trim() } else { 'HEAD' }
+  if ($currentBranch -ne $Branch) {
+    $known = (Invoke-Git $mainRoot @('rev-parse', '--verify', '--quiet', "refs/heads/$Branch")).Code -eq 0
+    if ($known) {
+      Write-Host ('切换到已有分支：' + $Branch) -ForegroundColor Cyan
+      $switch = Invoke-Git $target @('checkout', $Branch)
+    } else {
+      $baseRef = if ($Base) { $Base } else { 'HEAD' }
+      $baseCommit = Resolve-Commit $baseRef
+      Write-Host ('新建分支：' + $Branch + '（从 ' + $baseRef + ' @ ' + (Get-ShortHash $baseCommit) + '）') -ForegroundColor Cyan
+      $switch = Invoke-Git $target @('checkout', '-b', $Branch, $baseCommit)
+    }
+    if ($switch.Code -ne 0) {
+      throw ("切换分支 $Branch 失败。槽位可能有未提交改动或未跟踪文件冲突，先跑 -Action release -Name $slot 再 claim。git 输出：" + ($switch.Lines -join ' '))
+    }
+  } else {
+    Write-Host ('槽位已在该分支：' + $Branch) -ForegroundColor DarkGray
+  }
+  $checkoutSec = [int]((Get-Date) - $checkoutStart).TotalSeconds
+
+  $lockHash = Get-LockHash $target
+  $oldHash = if ($meta -and $meta.lockHash) { $meta.lockHash } else { $null }
+  $installSec = 0
+  $installNote = '跳过（哈希一致）'
+  if ($ForceInstall -or -not $oldHash -or $oldHash -ne $lockHash) {
+    if ($oldHash -and $oldHash -ne $lockHash) {
+      Write-Host ('锁文件哈希不一致：池内依赖基于 ' + (Get-ShortHash $oldHash) + '，当前树是 ' + (Get-ShortHash $lockHash) + '。') -ForegroundColor Yellow
+      Write-Host '必须重装依赖，不会静默沿用旧 node_modules。' -ForegroundColor Yellow
+      $installNote = '锁文件变化，已重装'
+    } else {
+      Write-Host '依赖缺失或强制安装：执行 pnpm install。' -ForegroundColor Yellow
+      $installNote = '缺失或强制安装'
+    }
+    $installed = Invoke-PnpmInstallLocked $target
+    $installSec = $installed.Elapsed
+    if ($installed.Code -ne 0) {
+      throw ('claim 卡在依赖安装：pnpm 退出码 ' + $installed.Code + '，耗时 ' + $installSec + ' 秒。')
+    }
+    $lockHash = Get-LockHash $target
+  } else {
+    Write-Host '锁文件哈希一致，跳过安装。' -ForegroundColor DarkGray
+  }
+
+  $head = Get-HeadSha $target
+  $buildKind = 'none'
+  $buildReason = '产物与当前提交一致'
+  if (-not (Test-ArtifactBaseline $target)) {
+    $buildKind = 'full'
+    $buildReason = '缺少产物基线'
+  } elseif (-not $meta -or -not $meta.artifactCommit) {
+    $buildKind = 'full'
+    $buildReason = '没有上次构建记录'
+  } elseif ($meta.artifactCommit -eq $head) {
+    $buildKind = 'none'
+  } else {
+    $changed = Get-ChangedPaths $target $meta.artifactCommit $head
+    if ($changed.Count -eq 0) {
+      $buildKind = 'none'
+      $buildReason = '提交树没有变化'
+    } else {
+      $outside = @($changed | Where-Object { -not ($_ -like 'lcoder/*' -or $_ -like 'apps/desktop/*') })
+      if ($outside.Count -gt 0) {
+        $buildKind = 'full'
+        $buildReason = ('改动触及 lcoder/ 与 apps/desktop/ 之外（' + $outside.Count + ' 个文件，如 ' + $outside[0] + '）')
+      } else {
+        $buildKind = 'layered'
+        $buildReason = ('只有 ' + $changed.Count + ' 个 lcoder/apps/desktop 文件变化')
+      }
+    }
+  }
+  if ($installSec -gt 0 -and $buildKind -eq 'none') {
+    $buildKind = 'layered'
+    $buildReason = '刚重装依赖，重出 lcoder 层'
+  }
+
+  $buildSec = 0
+  if ($buildKind -eq 'full') {
+    Write-Host ('构建：全量 build:artifacts（' + $buildReason + '）。') -ForegroundColor Cyan
+    $built = Invoke-PnpmFullBuildLocked $target
+    $buildSec = $built.Elapsed
+    if ($built.Code -ne 0) {
+      throw ('claim 卡在产物构建：全量 build:artifacts 退出码 ' + $built.Code + '，耗时 ' + $buildSec + ' 秒。')
+    }
+  } elseif ($buildKind -eq 'layered') {
+    Write-Host ('构建：rebuild.cmd auto 分层重建（' + $buildReason + '）。') -ForegroundColor Cyan
+    $built = Invoke-RebuildLayeredLocked $target
+    $buildSec = $built.Elapsed
+    if ($built.Code -ne 0) {
+      throw ('claim 卡在产物构建：rebuild.cmd 退出码 ' + $built.Code + '，耗时 ' + $buildSec + ' 秒。')
+    }
+  } else {
+    Write-Host ('构建：跳过（' + $buildReason + '）。') -ForegroundColor DarkGray
+  }
+
+  $now = (Get-Date).ToString('o')
+  $metaOut = [ordered]@{
+    version          = 1
+    slot             = $slot
+    baseCommit       = if ($meta -and $meta.baseCommit) { $meta.baseCommit } else { $head }
+    head             = $head
+    branch           = $Branch
+    lockHash         = $lockHash
+    provisionedAt    = if ($installSec -gt 0) { $now } elseif ($meta -and $meta.provisionedAt) { $meta.provisionedAt } else { $now }
+    provisionSeconds = if ($installSec -gt 0) { $installSec } elseif ($meta -and $null -ne $meta.provisionSeconds) { $meta.provisionSeconds } else { 0 }
+    artifactCommit   = $head
+    artifactBuiltAt  = if ($buildKind -ne 'none') { $now } elseif ($meta -and $meta.artifactBuiltAt) { $meta.artifactBuiltAt } else { $now }
+    buildKind        = $buildKind
+    buildSeconds     = $buildSec
+    warmedAt         = $now
+    claimedAt        = $now
+  }
+  Write-PoolMetadata $metaOut
+
+  $totalSec = [int]((Get-Date) - $startedAll).TotalSeconds
+  Write-Host ''
+  Write-Host ('claim 就绪：' + $target) -ForegroundColor Green
+  Write-Host ("  分支 {0} | HEAD {1} | 锁文件 {2}" -f $Branch, (Get-ShortHash $head), (Get-ShortHash $lockHash))
+  Write-Host ("  切分支 {0} 秒 | 安装 {1} 秒（{2}） | 构建 {3} 秒（{4}） | 合计 {5} 秒" -f $checkoutSec, $installSec, $installNote, $buildSec, $buildKind, $totalSec)
+  Write-Host ('  下一步：lcoder\scripts\start-desktop.cmd -Fast（首次起窗口仍需按需准备运行目录）。') -ForegroundColor DarkGray
+}
+
+function Invoke-Release {
+  Assert-SlotName
+  $slot = $Name
+  $target = [IO.Path]::GetFullPath((Join-Path $worktreesRoot $slot)).TrimEnd('\')
+  Assert-TargetAllowed $target
+  Assert-RegisteredWorktree $target
+  $meta = Read-PoolMetadata $slot
+  $previousBranch = if ($meta -and $meta.branch) { $meta.branch } else { '(无)' }
+
+  if ($StopInstances) {
+    $stopped = Stop-SlotInstances $target
+  } else {
+    Write-Host '默认不动进程；需要停本槽位实例时加 -StopInstances。' -ForegroundColor DarkGray
+    $stopped = @()
+  }
+
+  $dirty = @((Invoke-Git $target @('status', '--porcelain')).Lines | Where-Object { $_ })
+  if ($dirty.Count -gt 0) {
+    Write-Host ('清理槽位工作区：' + $dirty.Count + ' 项已跟踪改动或未跟踪文件。') -ForegroundColor Cyan
+  } else {
+    Write-Host '槽位工作区本来就干净。' -ForegroundColor DarkGray
+  }
+  $reset = Invoke-Git $target @('reset', '--hard', '--quiet')
+  if ($reset.Code -ne 0) { throw ('git reset --hard 失败：' + ($reset.Lines -join ' ')) }
+  # 不加 -x：node_modules、apps\desktop\.desktop-build、lib/ 都是 ignored，必须保留。
+  $clean = Invoke-Git $target @('clean', '-fd')
+  if ($clean.Code -ne 0) { throw ('git clean -fd 失败：' + ($clean.Lines -join ' ')) }
+  foreach ($line in $clean.Lines) { Write-Host ('  ' + $line) }
+
+  $baseCommit = if ($meta -and $meta.baseCommit) { $meta.baseCommit } else { Resolve-Commit 'HEAD' }
+  $detached = Invoke-Git $target @('checkout', '--detach', $baseCommit)
+  if ($detached.Code -ne 0) { throw ('回 detached 基线失败：' + ($detached.Lines -join ' ')) }
+
+  $nodeModules = Join-Path $target 'node_modules'
+  $desktopBuild = Join-Path $target 'apps\desktop\.desktop-build'
+  if (-not (Test-Path -LiteralPath $nodeModules)) { throw 'release 后 node_modules 丢失：清理误删了依赖，请重跑 warm。' }
+  if (-not (Test-Path -LiteralPath $desktopBuild)) { Write-Host '提示：apps\desktop\.desktop-build 不在，下次 warm 会重建 junction。' -ForegroundColor Yellow }
+
+  $now = (Get-Date).ToString('o')
+  $metaOut = [ordered]@{
+    version          = 1
+    slot             = $slot
+    baseCommit       = $baseCommit
+    head             = $baseCommit
+    branch           = ''
+    lockHash         = if ($meta -and $meta.lockHash) { $meta.lockHash } else { (Get-LockHash $target) }
+    provisionedAt    = if ($meta) { $meta.provisionedAt } else { $now }
+    provisionSeconds = if ($meta -and $null -ne $meta.provisionSeconds) { $meta.provisionSeconds } else { 0 }
+    artifactCommit   = if ($meta -and $meta.artifactCommit) { $meta.artifactCommit } else { $baseCommit }
+    artifactBuiltAt  = if ($meta) { $meta.artifactBuiltAt } else { $now }
+    buildKind        = if ($meta) { $meta.buildKind } else { 'none' }
+    buildSeconds     = if ($meta -and $null -ne $meta.buildSeconds) { $meta.buildSeconds } else { 0 }
+    warmedAt         = if ($meta -and $meta.warmedAt) { $meta.warmedAt } else { $now }
+    releasedAt       = $now
+  }
+  Write-PoolMetadata $metaOut
+
+  Write-Host ''
+  Write-Host ('release 完成：' + $target) -ForegroundColor Green
+  Write-Host ("  已回 detached " + (Get-ShortHash $baseCommit) + "；node_modules 保留，node_modules 与产物未被 git clean 触碰。")
+  if ($stopped.Count -gt 0) { Write-Host ('  已停本槽位进程：PID ' + ($stopped -join ', ')) -ForegroundColor DarkYellow }
+  Write-Host ('  分支 ' + $previousBranch + ' 可再次 claim。') -ForegroundColor DarkGray
 }
 
 # 并发演示用：-Name 是锁名标签（默认 LCoder-Heavy），不解析工作树路径。
@@ -696,6 +1188,55 @@ function Invoke-Inspect {
   if ($over.Count -gt 0) {
     Write-Host ("超过 WarnGB=$WarnGB 的树：" + ($over -join '；')) -ForegroundColor Yellow
   }
+  Invoke-InspectPools
+}
+
+# 预热池状态：槽位、分支、锁文件是否匹配、产物是否新鲜、占用体积。
+function Invoke-InspectPools {
+  $files = @()
+  if (Test-Path -LiteralPath $worktreesRoot) {
+    $files = @(Get-ChildItem -LiteralPath $worktreesRoot -File -Force -Filter '*.pool.json' -ErrorAction SilentlyContinue)
+  }
+  Write-Host ''
+  if ($files.Count -eq 0) {
+    Write-Host '预热池：没有槽位元数据（warm 后会出现 <槽位>.pool.json）。' -ForegroundColor DarkGray
+    return
+  }
+  Write-Host ('预热池槽位（' + $files.Count + ' 个）') -ForegroundColor Cyan
+  foreach ($file in $files) {
+    $slot = $file.Name -replace '\.pool\.json$', ''
+    $meta = Read-PoolMetadata $slot
+    $target = [IO.Path]::GetFullPath((Join-Path $worktreesRoot $slot)).TrimEnd('\')
+    if (-not (Test-Path -LiteralPath $target)) {
+      Write-Host ("槽位 $slot：目录不存在（元数据残留）")
+      continue
+    }
+    $headResult = Invoke-Git $target @('rev-parse', 'HEAD')
+    $head = if ($headResult.Code -eq 0 -and $headResult.Lines.Count -gt 0) { $headResult.Lines[0].Trim() } else { '' }
+    $branchResult = Invoke-Git $target @('rev-parse', '--abbrev-ref', 'HEAD')
+    $branch = if ($branchResult.Code -eq 0 -and $branchResult.Lines.Count -gt 0) { $branchResult.Lines[0].Trim() } else { '?' }
+    if ($branch -eq 'HEAD') { $branch = '(detached)' }
+
+    $lockState = '未知'
+    if ($meta -and $meta.lockHash) {
+      $nowHash = try { Get-LockHash $target } catch { $null }
+      if ($null -eq $nowHash) { $lockState = '锁文件缺失' }
+      elseif ($nowHash -eq $meta.lockHash) { $lockState = '匹配 ' + (Get-ShortHash $nowHash) }
+      else { $lockState = '不匹配（池内 ' + (Get-ShortHash $meta.lockHash) + ' / 当前 ' + (Get-ShortHash $nowHash) + '）' }
+    }
+    $fresh = ($meta -and $meta.artifactCommit -and $meta.artifactCommit -eq $head -and (Test-ArtifactBaseline $target))
+    $freshText = if ($fresh) { '新鲜' } elseif (-not (Test-ArtifactBaseline $target)) { '缺产物' } else { '过期（产物基于 ' + (Get-ShortHash $(if ($meta) { $meta.artifactCommit } else { '' })) + '）' }
+
+    $size = Get-BoundedTotal $target
+    $nm = Join-Path $target 'node_modules'
+    $nmText = if (Test-Path -LiteralPath $nm) { '有（未统计，硬链接共享）' } else { '无' }
+
+    Write-Host ("槽位 $slot [$branch] HEAD " + (Get-ShortHash $head))
+    Write-Host ("    锁文件 {0} | 产物 {1} | 已统计 {2}（含 .desktop-build " + (Format-Size (Get-TreeSize (Join-Path $target 'apps\desktop\.desktop-build'))) + "） | node_modules {3}" -f $lockState, $freshText, (Format-Size $size), $nmText)
+    if ($meta -and $null -ne $meta.provisionSeconds -and $meta.provisionSeconds -gt 0) {
+      Write-Host ("    上次安装 " + $meta.provisionSeconds + " 秒；上次构建 " + $meta.buildKind + " " + $meta.buildSeconds + " 秒") -ForegroundColor DarkGray
+    }
+  }
 }
 
 function Show-Help {
@@ -715,6 +1256,7 @@ function Show-Help {
   Write-Host '  worktree.cmd -Action inspect [-WarnGB 8] [-Deep]'
   Write-Host '      列出主检出与 .worktrees 下各工作树占用，拆分 lib 与 .desktop-build。'
   Write-Host '      默认有界：node_modules 标"硬链接共享、未逐文件统计"；-Deep 才精确统计。'
+  Write-Host '      额外列出预热池槽位：分支、锁文件是否匹配、产物是否新鲜、占用体积。'
   Write-Host ''
   Write-Host '  worktree.cmd -Action provision -Path <工作树> [-TimeoutSec 1800]'
   Write-Host '      持机器级锁，在目标工作树跑 pnpm install --offline --frozen-lockfile。'
@@ -729,8 +1271,22 @@ function Show-Help {
   Write-Host '  worktree.cmd -Action lock -Seconds <秒> [-Name LCoder-Heavy]'
   Write-Host '      持锁睡眠后释放；用来演示互斥：第二条会打印等待，直到第一条释放才继续。'
   Write-Host ''
-  Write-Host '重活锁：provision/build/lock 抢同一把命名 Mutex，优先 Global\LCoder-Heavy（机器级）；'
-  Write-Host '无权限时退回 Local\LCoder-Heavy 并打印说明（只在当前登录会话内互斥）。'
+  Write-Host '  worktree.cmd -Action warm -Name <槽位> [-Base <ref>] [-ForceInstall] [-TimeoutSec 1800]'
+  Write-Host '      新建/复用预热槽位 .worktrees\<槽位>：完整检出（非稀疏）、junction、'
+  Write-Host '      按需安装依赖、按需全量产物；池元数据写在 .worktrees\<槽位>.pool.json。'
+  Write-Host '      首次 warm 仍要付完整检出、安装与构建的代价，之后 claim 才快。'
+  Write-Host ''
+  Write-Host '  worktree.cmd -Action claim -Name <槽位> -Branch <分支> [-Base <ref>] [-ForceInstall]'
+  Write-Host '      确保槽位已预热；切到分支（不存在则从 Base 建，已存在则校验没被别树占用）；'
+  Write-Host '      锁文件哈希不一致就重装（不静默沿用旧依赖），产物优先 rebuild.cmd 分层、'
+  Write-Host '      缺基线才全量。输出各阶段耗时与就绪提示；分支被别树检出时报错不强切。'
+  Write-Host ''
+  Write-Host '  worktree.cmd -Action release -Name <槽位> [-StopInstances]'
+  Write-Host '      清未跟踪文件、回 detached 基线；保留 node_modules 与 apps\desktop\.desktop-build。'
+  Write-Host '      默认不动进程；-StopInstances 只停本槽位路径下的桌面实例与 mock-cloud。'
+  Write-Host ''
+  Write-Host '重活锁：provision/build/lock/warm/claim/release 共用同一把命名 Mutex，优先 Global\LCoder-Heavy'
+  Write-Host '（机器级）；无权限时退回 Local\LCoder-Heavy 并打印说明（只在当前登录会话内互斥）。'
   Write-Host ''
   Write-Host '公共参数：-Target <完整路径> 覆盖默认的 .worktrees\<Name>；-Force 放行 .worktrees 之外的路径。'
   Write-Host '主检出一律拒绝 clean；删除前会逐条打印路径。'
@@ -747,6 +1303,9 @@ try {
     'provision' { $exitCode = Invoke-Provision }
     'build' { $exitCode = Invoke-Build }
     'lock' { Invoke-Lock }
+    'warm' { Invoke-Warm }
+    'claim' { Invoke-Claim }
+    'release' { Invoke-Release }
   }
 } catch {
   Write-Host ('错误：' + $_.Exception.Message) -ForegroundColor Red
