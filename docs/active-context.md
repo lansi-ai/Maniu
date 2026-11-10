@@ -46,7 +46,7 @@ English | [中文](active-context.zh.md)
 
 ## 04. Next immediate actions (Next Immediate Actions)
 
-- **Currently working on**: no active implementation line. T-98 to T-101 are closed on `lcoder/main`: task-detail description, tags, image attachments and the compact metadata; the agent status dashboard with its relation graph; and the worktree tool with serial install/build locks.
+- **Currently working on**: no active implementation line. T-102 is closed on `lcoder/main`: mandatory sign-in with a full-window login and registration page, removal of the desktop guest path, and the six form fixes. T-103 (cyber frosted-glass theme with the neon and ice skins) is registered and awaits dispatch.
 - **About to execute**: the cloud admin and site acceptance plus the desktop release chain T-79 to T-82 remain; the merge and push decision for the local commits stays with the user.
 - **Open decisions**: whether product tasks should gain a `type` field so the suggestion layer can distinguish read-only tasks; the production SMS provider, the exact opencode rates behind the 20-dollar grant, the deployment domain and host, and whether to add an application-level anonymous kill switch and a `/health` endpoint.
 - **Development evidence**: gate output is recorded in the task note in `docs/tasks.yaml` or the commit message; `.spec/evidence` serves product tasks only.

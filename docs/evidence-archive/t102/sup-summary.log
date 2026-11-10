@@ -1,0 +1,6 @@
+typecheck=0
+vitest=0
+i18n=0
+docs=0
+build-check=0
+oxlint=0

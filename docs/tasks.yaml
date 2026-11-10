@@ -1120,6 +1120,29 @@ tracks:
       dep: []
       inferred: false
       note: "C 级工具脚本，来源是用户 2026-11-09 要求把 worktree 空间优化第 1 与 5 与 6 与 7 条做成脚本。范围一个 PowerShell 主脚本与一个 cmd 包装，提供四个子命令。一、junction 把工作树的 .desktop-build/downloads 与 targets 用 NTFS junction 指向主检出，复用 Electron 运行时；目标已存在且非空必须报错不覆盖。二、sparse 用 git worktree --no-checkout 加 sparse-checkout 建只含指定目录的工作树，供文档与契约线使用。三、clean 先删 node_modules 与各包 lib 与 apps 下 lib 与 web dist 与 .desktop-build，再用仓内 rm-longpath.mjs 清长路径残留；加 -Remove 才注销工作树与删分支，默认不动 git。四、inspect 统计各工作树占用并给超阈值提示，说明硬链接共享会高估。约束：不改主检出与其它工作树，不删 .spec 产品数据，不碰用户未指定分支；PowerShell 5.1 兼容，ps1 恰一个 BOM，cmd 纯 ASCII CRLF。验收在临时 .worktrees/_probe-* 上四个子命令各跑一遍并清理，给命令与输出。工作树 .worktrees/t101-worktree-tool，分支 lcoder/t101-worktree-tool，无端口需求。未派工。2026-11-09 16:10 监督窗口派工，实现线会话 4a4bdd12。2026-11-09 17:10 旧实现会话连续两次 Edit 失败，监督窗口换线续跑，新会话 d47b6a1f；同一工作树，只补 provision 与 build 与 lock 三个动作并验收互斥。2026-11-09 17:52 监督窗口核验并收口。监督窗口复跑 help 七动作、两个 lock -Seconds 4 并发（第二个等 4 秒后于第一个释放同刻拿到锁）、build -DryRun 正常；实现线报告 provision 退出 0 耗时 629 秒、build 在补齐 tsc 基线与 desktop 运行目录后退出 0 且锁释放。已知限制：TimeoutSec 只约束等锁；Local 回退与稀疏树 fallback 未实跑；绕过脚本直接 pnpm install 不受锁保护；全新树首次 build 会因 rebuild.cmd 前置缺 artifacts 与 desktop 目录先红两次。已合入 lcoder/main，脚本落 lcoder/scripts/worktree.ps1 与 worktree.cmd。2026-11-10 09:55 监督窗口回收旧工作树时发现旧线保留一版未提交改进（-Path 支持、目标必须是已注册工作树、非零退出码原样透传、局部 $path 覆盖脚本级 -Path 的冲突修复），已提交并合入 main；主检出 help 与 lock 实测退出零，工作树随后清理。"
+    - id: T-102
+      title: 强制登录与全屏登录注册页（去匿名、表单修复）
+      status: done
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-10'
+      date: '2026-11-10'
+      dep: []
+      inferred: false
+      note: "B 级开发，来源是用户 2026-11-10 反馈登录注册弹窗六条。一、整个弹窗样式跑偏，字段标签与输入框挤成一行、提示文字落在输入框右侧；已只读定位根因是 CloudAccount.tsx 把 css.field 直接用在 label 上，而 Shell.module.css 只定义 .field label，字段容器没有布局规则，改回 div.field 包 label 再放输入的既有结构。二、删掉无用小字三处，登录弹窗副标题、手机号下方的国家码提示、底部今日免费立项剩余行，对应文案键一并清掉两套语言。三、注册不再要求显示名，删掉输入框与提交参数，服务端 displayName 本就可选。四、注册页签标题改为注册 LCoder，标题随后页签变化，登录页签仍为登录 LCoder。五、参数不合法要有正确提示，手机号、验证码、密码改为字段级就地报错，发送验证码按钮不再因号码不合法而静默禁用，改动后清掉该字段报错；密码规则对齐服务端为 10 到 128 位且同时含字母与数字，服务端返回的其它错误码仍走错误块。六、手机号只支持中国大陆，输入框固定 +86 前缀，只收 11 位数字并即时过滤非数字，校验为 1 开头第二位 3 到 9 共 11 位，调用云端仍传 +86 加号码。范围是 CloudAccount.tsx 与 Shell.module.css 与 locales 中英两套与 cloud-login.client.spec.tsx。不改云端契约与宿主云端面，不改台账看板，禁止提交与 push。真窗口端口 9802 与 9809 与 9810，覆盖登录与注册两页签、三处小字已消失、字段级报错、深浅主题与中英文案。2026-11-10 13:41 监督窗口派工，实现线会话 3b0c6bf1。工作树 .worktrees/t102-login-fix，分支 lcoder/t102-login-fix；provision 退出 0 耗时 571 秒，junction 已完成。全新树首次分层构建因缺 lib/types 基线红一次，按文档改跑 rebuild.cmd all，宿主编译与双端 bundle 与聚合检查均 PASS，Web 构建阶段因对话打断停在 13:35；本工作树 node_modules 里 electron 缺 path.txt 且 dist 为空，已补 path.txt 并把 dist junction 到主检出（复发条件为重建该树 node_modules，根治方向是让 electron 安装脚本被 pnpm 批准或把 dist 纳入 junction 动作）。2026-11-10 14:04 用户在本窗口追加需求并变更验收口径，原弹窗样式验收作废，改为四件事。一、强制登录，启动与刷新与退出登录后若未登录只渲染全屏登录页，工作台任何入口不可见不可用，登录成功才进工作台，云端未装配或状态读取失败在登录页内就地报错并给重试，登录态以宿主 state 的 signedIn 为准。二、去除桌面端匿名路径，gate 的 onboarding 与 onboardingFollowup 匿名放行删除，Shell 的 guest 领取与 guest 路由与匿名立项追问删除，顶栏与账户摘要的游客额度展示与 GuestLine 删除，旧 guest 路由会话打开时要求登录并切回 user 路由，桌面端不再发 /v1/guest，服务端游客接口保留。三、登录注册由弹窗改整窗全屏页，无遮罩无关闭按钮不点背景关闭，保留窗口最小化与最大化与关闭控件和可拖拽标题区，已登录的账户摘要弹窗可保留。四、视觉沿用苹果风与 Inter 与现有字号，深浅主题与中英双语全覆盖，宽窗左右分栏窄窗单列。原六条表单修复保留。实现线会话 3b0c6bf1 已收到追加工单；验收改为全屏页深浅与注册与登录后与退出与窄窗六图，加无 /v1/guest 请求断言。2026-11-10 用户拍板功能完成后不再做截图测试，理由太浪费时间；已产出的截图只作参考，不再作为验收门禁，后续真窗口只保留一次启动冒烟，视觉与交互由用户自己看。2026-11-10 15:10 监督窗口核验并收口。工作树内复跑 typecheck 五项全过退出零、vitest packages/lcoder 六十七文件七百一十三例全过退出零、verify-client-ui-i18n 一千二百九十八文件全过、test:docs 二十一项全过、build:check 二项全过、oxlint 十五文件零错零警；合入后在主检出复跑 typecheck 五项、vitest 六十七文件七百一十三例、i18n 一千二百九十八文件，均退出零。按用户 2026-11-10 拍板不再做截图测试，实现线此前截图只作参考不入验收门禁，本轮以门禁与代码核对为准。代码核对确认未登录早返回只渲染全屏登录页、工作台不进 DOM、云端未装配或读取失败给重试不放行、登录成功只回调刷新不切路由、桌面端删除 guest 领取与 guest 路由注册、旧匿名会话命中后登录再切用户路由、桌面 profile 删掉匿名 provider。未验项为真实云端联调、加载态真窗口闪过快只在单测、旧匿名会话真机复现。已归档 docs/evidence-archive/t102，停本线实例与 mock，删除工作树与分支；C 级运行时手工补丁登记为本树 electron 补 path.txt 并 junction dist 到主检出。"
+
+    - id: T-103
+      title: 赛博毛玻璃整壳换肤（霓虹夜航与冷银冰蓝）
+      status: todo
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-10'
+      date: '2026-11-10'
+      dep: [T-102]
+      inferred: false
+      note: "B 级视觉整壳变更，来源是用户 2026-11-10 要求整体组件风格改为赛博电子加毛玻璃。已用真实 HTML 原型出设计稿并做过真渲染核对，三视图（工作台、全屏登录页、组件样张）乘两套皮肤（霓虹夜航、冷银冰蓝）可切换。用户拍板两套都做且可切换，替换现有深浅主题开关，默认霓虹夜航。范围五块。一、把 Shell.module.css 的设计变量与组件样式整体切到赛博毛玻璃 token，深空或石墨底、细网格、三层以内磨砂玻璃、发光描边，Inter 与现有字号不动。二、覆盖顶栏、左轨、任务卡、看板列、会话面板、状态大盘、个人中心、弹窗、全屏登录页与表单控件。三、设置页把深浅开关换成皮肤选择并持久化，默认霓虹夜航，浅色主题按拍板移除。四、backdrop-filter 不支持或低配时降级为半透明实色加描边，不能白屏。五、功能完成后不做截图测试，只跑门禁与一次启动冒烟，视觉由用户手看，深浅不再作为验收维度。不改业务逻辑与契约，不改台账看板，禁止提交与 push。依赖 T-102 收口后开线，避免与 Shell.module.css 和 CloudAccount.tsx 冲突。真窗口端口 9822 与 9829 与 9830。未派工。2026-11-10 用户拍板功能完成后不再做截图测试，理由太浪费时间；已产出的截图只作参考，不再作为验收门禁，后续真窗口只保留一次启动冒烟，视觉与交互由用户自己看。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
