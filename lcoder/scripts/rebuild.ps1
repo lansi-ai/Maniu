@@ -23,7 +23,26 @@ $OutputEncoding = [Text.UTF8Encoding]::new()
 
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $profileSource = Join-Path $PSScriptRoot '..\desktop-profile.patch.yml'
-$profileRuntime = Join-Path $root 'apps\desktop\.desktop-build\development\home\profiles\desktop\cordis.patch.yml'
+$profileDir = Join-Path $root 'apps\desktop\.desktop-build\development\home\profiles\desktop'
+$profileRuntime = Join-Path $profileDir 'cordis.patch.yml'
+$profileManifest = Join-Path $profileDir 'package.json'
+$profileWorkspace = Join-Path $profileDir 'pnpm-workspace.yaml'
+
+# 装配源只有 cordis.patch.yml；profile 的 package.json 与 node_modules 链接只能在这里补。
+# 缺了它们，外壳的 client 半边不进插件清单，新树启动看到的是原版 DSH。
+$profileLinks = @(
+  @{ name = '@lcoder/kernel';    path = (Join-Path $root 'packages\lcoder\kernel') },
+  @{ name = '@lcoder/workspace'; path = (Join-Path $root 'packages\lcoder\workspace') }
+)
+
+# 与 packages/boot/app-boot 的 initProfile 模板一致：out-of-tree 插件要的 pnpm 设置。
+$profilePnpmWorkspace = @"
+packages:
+  - .
+
+nodeLinker: hoisted
+autoInstallPeers: false
+"@
 
 # 运行副本 = 装配源 + 本机本地段（见 lcoder/RUN.md）。重拷时一并写回，否则会话浮层设置会丢。
 $profileLocal = @"
@@ -83,12 +102,97 @@ function Get-Stale {
   return @($stale)
 }
 
+function Get-ProfileManifest {
+  # 与主检出已验证的 package.json 同形；两条 link 指向当前树，换 worktree 就换目标。
+  $kernel = 'link:' + ($profileLinks[0].path -replace '\\', '/')
+  $workspace = 'link:' + ($profileLinks[1].path -replace '\\', '/')
+  $text = @"
+{
+  "name": "dsh-profile-desktop",
+  "private": true,
+  "dependencies": {
+    "@lcoder/kernel": "$kernel",
+    "@lcoder/workspace": "$workspace"
+  },
+  "dsh": {
+    "profile": {
+      "bundles": [
+        "@deepseek-ai/dsh-base",
+        "@deepseek-ai/dsh-web-app"
+      ]
+    }
+  }
+}
+"@
+  return $text + "`n"
+}
+
+function Test-ProfileLink([string]$linkPath, [string]$expectedPath) {
+  if (-not (Test-Path -LiteralPath $linkPath)) { return $false }
+  $item = Get-Item -LiteralPath $linkPath -Force -ErrorAction SilentlyContinue
+  # 只认重解析点：真实目录拷贝不算链接，桌面按依赖解析会拿不到包的更新。
+  if ($null -eq $item -or -not $item.LinkType) { return $false }
+  $target = @($item.Target)[0]
+  if (-not $target) { return $false }
+  $resolved = if ([IO.Path]::IsPathRooted($target)) { $target } else { Join-Path (Split-Path -Parent $linkPath) $target }
+  $resolved = [IO.Path]::GetFullPath($resolved).TrimEnd('\')
+  return ($resolved -ieq [IO.Path]::GetFullPath($expectedPath).TrimEnd('\'))
+}
+
+function Get-ProfileLinkPath([string]$packageName) {
+  return Join-Path $profileDir ('node_modules\' + $packageName.Replace('/', '\'))
+}
+
 function Sync-Profile {
   if (-not (Test-Path $profileSource)) { Write-Host '✗ 找不到装配源 lcoder/desktop-profile.patch.yml' -ForegroundColor Red; return $false }
+  New-Item -ItemType Directory -Force -Path $profileDir | Out-Null
   $content = (Get-Content -LiteralPath $profileSource -Raw -Encoding utf8).TrimEnd("`r", "`n")
   [IO.File]::WriteAllText($profileRuntime, $content + $profileLocal, [Text.UTF8Encoding]::new($false))
   $presets = ([regex]::Matches((Get-Content -LiteralPath $profileRuntime -Raw -Encoding utf8), 'id: preset-lcoder')).Count
   Write-Host ("✓ 运行副本已重拷，preset 数：" + $presets + "（要重启实例）") -ForegroundColor Green
+
+  $desired = Get-ProfileManifest
+  $current = if (Test-Path $profileManifest) { Get-Content -LiteralPath $profileManifest -Raw -Encoding utf8 } else { $null }
+  $manifestChanged = ($null -eq $current) -or ($current -cne $desired)
+  if ($manifestChanged) {
+    [IO.File]::WriteAllText($profileManifest, $desired, [Text.UTF8Encoding]::new($false))
+    Write-Host '✓ profile/package.json 已写：两条 link 依赖指向本树' -ForegroundColor Green
+  }
+
+  if (-not (Test-Path $profileWorkspace)) {
+    [IO.File]::WriteAllText($profileWorkspace, $profilePnpmWorkspace, [Text.UTF8Encoding]::new($false))
+  }
+
+  $missing = @()
+  foreach ($entry in $profileLinks) {
+    if (-not (Test-ProfileLink (Get-ProfileLinkPath $entry.name) $entry.path)) { $missing += $entry.name }
+  }
+  if ($manifestChanged -or $missing.Count -gt 0) {
+    $why = if ($missing.Count -gt 0) { '缺链接：' + ($missing -join '、') } else { 'package.json 刚更新' }
+    Write-Host ('  需要物化 link 依赖（' + $why + '），在 profile 内跑离线 pnpm install --force') -ForegroundColor DarkGray
+    Push-Location $profileDir
+    try {
+      # node_modules 元数据仍记着已装时，普通 install 会报 up to date 却不补链接；--force 只重链，仍离线。
+      $installed = Invoke-Native 'profile pnpm install --offline --force' @('install', '--offline', '--force') $profileDir
+    } finally {
+      Pop-Location
+    }
+    if (-not $installed) {
+      Write-Host '✗ profile 保障卡在 pnpm install --offline：link 依赖没装上，桌面会退回原版 DSH。' -ForegroundColor Red
+      return $false
+    }
+  } else {
+    Write-Host '✓ profile 依赖已就绪（两条 link 均解析到本树），跳过安装' -ForegroundColor Green
+  }
+
+  foreach ($entry in $profileLinks) {
+    $linkPath = Get-ProfileLinkPath $entry.name
+    if (-not (Test-ProfileLink $linkPath $entry.path)) {
+      Write-Host ('✗ profile 保障卡在链接物化：' + $linkPath + ' 未指向 ' + $entry.path) -ForegroundColor Red
+      return $false
+    }
+  }
+  Write-Host '✓ profile 齐备：package.json、两条 @lcoder 链接' -ForegroundColor Green
   return $true
 }
 
@@ -103,7 +207,10 @@ if ($Layer -eq 'all') {
 $plan = if ($Layer -eq 'auto') { Get-Stale } else { @($Layer) }
 
 if ($plan.Count -eq 0) {
-  Write-Host '三层产物都是最新的，装配副本也没落后。要强制全量就加 all。' -ForegroundColor Green
+  if ($DryRun) { Write-Host '三层产物都是最新的，装配副本与 profile 依赖未校验（-DryRun 不落盘）。' -ForegroundColor Green; exit 0 }
+  # 预热/warm 会走到这条「产物已最新」的短路；profile 依赖仍要保障，否则新树启动仍是原版 DSH。
+  if (-not (Sync-Profile)) { exit 1 }
+  Write-Host '三层产物都是最新的，装配副本与 profile 依赖已校验。要强制全量就加 all。' -ForegroundColor Green
   exit 0
 }
 Write-Host ('本次要重建：' + ($plan -join '、')) -ForegroundColor Yellow

@@ -316,6 +316,24 @@ function Invoke-RebuildLayeredLocked([string]$Target) {
   }
 }
 
+function Invoke-ProfileGuardLocked([string]$Target) {
+  # 构建被跳过时（全量构建或产物已最新）也必须保障 profile：新树缺 package.json 的 link 依赖，
+  # 桌面起来就是原版 DSH。走树内 rebuild.cmd 的 profile 层，保证只有一份实现。
+  $rebuild = Join-Path $Target 'lcoder\scripts\rebuild.cmd'
+  if (-not (Test-Path -LiteralPath $rebuild)) {
+    Write-Host '树内没有 lcoder\scripts\rebuild.cmd，无法执行 profile 保障。' -ForegroundColor Red
+    return [pscustomobject]@{ Code = 1; Elapsed = 0 }
+  }
+  $lock = Enter-HeavyLock 'LCoder-Heavy' $TimeoutSec
+  $started = Get-Date
+  try {
+    $result = Invoke-LockedNative 'rebuild.cmd profile（profile 保障）' 'cmd.exe' @('/d', '/c', $rebuild, 'profile') $Target
+    return [pscustomobject]@{ Code = $result.Code; Elapsed = $result.Elapsed }
+  } finally {
+    Exit-HeavyLock $lock $started
+  }
+}
+
 function Invoke-Provision {
   $target = Resolve-TargetPath -MustExist
   Assert-TargetAllowed $target
@@ -571,6 +589,17 @@ function Invoke-Warm {
     Write-Host '产物与当前提交一致，跳过构建。' -ForegroundColor DarkGray
   }
 
+  # 分层路径的 rebuild.cmd auto 已带 profile 保障；全量与「跳过构建」这两条都要补一次。
+  $profileSec = 0
+  if ($buildKind -ne 'layered') {
+    Write-Host 'profile 保障：检查 package.json 的 link 依赖与 node_modules 链接。' -ForegroundColor Cyan
+    $guarded = Invoke-ProfileGuardLocked $target
+    $profileSec = $guarded.Elapsed
+    if ($guarded.Code -ne 0) {
+      throw ('warm 卡在 profile 保障：rebuild.cmd profile 退出码 ' + $guarded.Code + '，耗时 ' + $profileSec + ' 秒。')
+    }
+  }
+
   $now = (Get-Date).ToString('o')
   $metaOut = [ordered]@{
     version          = 1
@@ -719,6 +748,15 @@ function Invoke-Claim {
     }
   } else {
     Write-Host ('构建：跳过（' + $buildReason + '）。') -ForegroundColor DarkGray
+  }
+
+  # 分层路径的 rebuild.cmd auto 已带 profile 保障；全量与「跳过构建」这两条都要补一次。
+  if ($buildKind -ne 'layered') {
+    Write-Host 'profile 保障：检查 package.json 的 link 依赖与 node_modules 链接。' -ForegroundColor Cyan
+    $guarded = Invoke-ProfileGuardLocked $target
+    if ($guarded.Code -ne 0) {
+      throw ('claim 卡在 profile 保障：rebuild.cmd profile 退出码 ' + $guarded.Code + '，耗时 ' + $guarded.Elapsed + ' 秒。')
+    }
   }
 
   $now = (Get-Date).ToString('o')

@@ -124,7 +124,7 @@ pnpm run dev:desktop > lcoder/desktop.log 2>&1
 
 LCoder 的挂载写进那份仓内 home 的 profile（`apps/desktop/.desktop-build/development/home/profiles/desktop/`）：
 `cordis.patch.yml` 放 LCoder 段，`package.json` 里用 `link:` 指向**当前检出**的
-`packages/lcoder/kernel` 与 `packages/lcoder/workspace`（worktree 里就跑 worktree 的包，别指回主仓）。
+`packages/lcoder/kernel` 与 `packages/lcoder/workspace`（worktree 里就跑 worktree 的包，别指回主仓）。`lcoder\scripts\rebuild.cmd profile` 会自动写这份 `package.json` 与 `node_modules/@lcoder` 两条链接，`warm`/`claim` 在跳过构建时也会执行同一步。
 
 ### 本机必读：桌面 profile 要配 `documentsDirectory`
 
@@ -162,11 +162,11 @@ pnpm --filter @lcoder/workspace bundle   # 只重打外壳产物；start:desktop
 
 ## 并联工作树
 
-并行窗口用独立 worktree 时，web 用 worktree 自己的仓内 home（`DSH_HOME='<worktree>\.dsh-home'`），桌面用 worktree 自带的 `apps/desktop/.desktop-build/development/home`；两者都不碰主窗口共用的目录。smoke 的端口换 3081，桌面按上一节的三件套换一组预留 inspector。首次先 `pnpm install`、`pnpm run build:artifacts`（新 worktree 只 `pnpm install` 会因缺 `lib/` 产物而起不来），再按第 2 节把 worktree 的两个包 `link:` 进 worktree 自己的 profile。
+并行窗口用独立 worktree 时，web 用 worktree 自己的仓内 home（`DSH_HOME='<worktree>\.dsh-home'`），桌面用 worktree 自带的 `apps/desktop/.desktop-build/development/home`；两者都不碰主窗口共用的目录。smoke 的端口换 3081，桌面按上一节的三件套换一组预留 inspector。首次先 `pnpm install`、`pnpm run build:artifacts`（新 worktree 只 `pnpm install` 会因缺 `lib/` 产物而起不来）；profile 的 `package.json` 两条 `link:` 与 `node_modules/@lcoder` 两条链接由 `lcoder\scripts\rebuild.cmd profile` 自动写成本 tree，不必手抄。
 
 装完先核一条再判门禁，`grep -o 'InstallationProbe = .*' node_modules/.pnpm/@botiverse+oar@0.67.0_patch_*/node_modules/@botiverse/oar/dist/contracts/installation.d.ts` 要带 `options?`——`pnpm-workspace.yaml` 给这个依赖打了补丁，新 tree 的 `pnpm install` 可能静默不应用，症状是 `packages/experimental/subagent-oar/src/run.ts:253` 报 TS2554、host compiler 退出 1、桌面产物链全断。`pnpm install --force` 即解；别把它记成上游类型错误（`lcoder/PITFALLS.md` W-09）。
 
-装配源进仓后，worktree 的桌面 profile 不再手抄。`lcoder/desktop-profile.patch.yml` 是十个角色 preset 与 LCoder 段的唯一可审阅源，拷进本 worktree 的 `…/home/profiles/desktop/cordis.patch.yml` 后核三件：`documentsDirectory` 指向一个真实存在的目录、两条 `link:` 指向**本 worktree** 的两个包、十个 preset 的 `role` 各就各位（`dev` / `intake` / `architect` / `pm` / `git` / `ops` / `review` / `scheduler` / `flow` / `manager`；kernel 只挂在 preset 内，没有全局行）。十个 preset 各挂 `ask-user` 与一个 `isolate` 组里的 `compaction-basic`——web-app 在宿主面禁用了 compaction，preset 必须自己挂，且 compaction 是 isolate 服务。改过装配源后要重新拷一次运行副本，否则角色名册里看不到新角色。
+装配源进仓后，worktree 的桌面 profile 由脚本装配，不再手抄。`lcoder/desktop-profile.patch.yml` 是十个角色 preset 与 LCoder 段的唯一可审阅源，`rebuild.cmd profile`（`warm`/`claim` 在跳过构建时也会跑）把它连同本机本地段拷进本 worktree 的 `…/home/profiles/desktop/cordis.patch.yml`，并写出 `package.json` 的两条 `link:` 与 `node_modules/@lcoder/{kernel,workspace}` 链接。仍要手工核三件：`documentsDirectory` 指向一个真实存在的目录、两条 `link:` 解析到**本 worktree** 的两个包（不是主检出）、十个 preset 的 `role` 各就各位（`dev` / `intake` / `architect` / `pm` / `git` / `ops` / `review` / `scheduler` / `flow` / `manager`；kernel 只挂在 preset 内，没有全局行）。十个 preset 各挂 `ask-user` 与一个 `isolate` 组里的 `compaction-basic`——web-app 在宿主面禁用了 compaction，preset 必须自己挂，且 compaction 是 isolate 服务。改过装配源后重跑一次 `rebuild.cmd profile`，否则角色名册里看不到新角色。
 
 还有一条本机偏离：worktree 首启动时 `@electron/get` 下载 Electron 会对本机 GitHub 超时，先对拷主仓 `apps/desktop/.desktop-build/downloads` 缓存并设 `ELECTRON_SKIP_BINARY_DOWNLOAD=1`，否则 `start:desktop` 以 `aborted due to timeout` 退出。web 冒烟用的 `.dsh-home/profiles/web` 同样要装两条 `link:`，少一条就报 `2 entries did not activate`。
 
