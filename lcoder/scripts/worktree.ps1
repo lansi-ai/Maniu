@@ -1028,9 +1028,17 @@ function Invoke-Clean {
     Write-Host '将删除以下路径：' -ForegroundColor Cyan
     foreach ($path in $paths) { Write-Host ('  ' + $path) }
     $rmScript = Join-Path $scriptRoot 'rm-longpath.mjs'
-    $removed = Invoke-Native 'node' (@($rmScript) + $paths.ToArray())
-    foreach ($line in $removed.Lines) { Write-Host ('  ' + $line) }
-    $failed = @($removed.Lines | Where-Object { $_ -like 'FAILED *' })
+    # 一次传几百个 lib 路径会超过 Windows 命令行上限（CreateProcess 32k）而根本起不来 node；
+    # 分批发给同一个删除脚本，退出码与逐条 FAILED 报告的语义不变。
+    $failed = @()
+    $batchSize = 40
+    for ($offset = 0; $offset -lt $paths.Count; $offset += $batchSize) {
+      $count = [Math]::Min($batchSize, $paths.Count - $offset)
+      $batch = $paths.GetRange($offset, $count)
+      $removed = Invoke-Native 'node' (@($rmScript) + $batch.ToArray())
+      foreach ($line in $removed.Lines) { Write-Host ('  ' + $line) }
+      $failed += @($removed.Lines | Where-Object { $_ -like 'FAILED *' })
+    }
     if ($failed.Count -gt 0) {
       throw "有 $($failed.Count) 项删除失败（见上）。多半是实例仍在占用文件，关掉该树的桌面/web 实例后重跑。"
     }
