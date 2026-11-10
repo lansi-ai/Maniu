@@ -1310,7 +1310,7 @@ function Invoke-InspectPools {
     $nmText = if (Test-Path -LiteralPath $nm) { '有（未统计，硬链接共享）' } else { '无' }
 
     Write-Host ("槽位 $slot [$branch] HEAD " + (Get-ShortHash $head))
-    Write-Host ("    锁文件 {0} | 产物 {1} | 已统计 {2}（含 .desktop-build " + (Format-Size (Get-TreeSize (Join-Path $target 'apps\desktop\.desktop-build'))) + "） | node_modules {3}" -f $lockState, $freshText, (Format-Size $size), $nmText)
+    Write-Host (("    锁文件 {0} | 产物 {1} | 已统计 {2}（含 .desktop-build " + (Format-Size (Get-TreeSize (Join-Path $target 'apps\desktop\.desktop-build'))) + "） | node_modules {3}") -f $lockState, $freshText, (Format-Size $size), $nmText)
     if ($meta -and $null -ne $meta.provisionSeconds -and $meta.provisionSeconds -gt 0) {
       Write-Host ("    上次安装 " + $meta.provisionSeconds + " 秒；上次构建 " + $meta.buildKind + " " + $meta.buildSeconds + " 秒") -ForegroundColor DarkGray
     }
