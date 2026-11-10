@@ -2,14 +2,13 @@
  * 顶栏账号入口与登录/账户弹窗。
  *
  * 登录弹窗只负责收集输入与展示失败；领取匿名授权、刷新令牌与落盘都在宿主。
- * 同一时刻只允许一个提交，倒计时结束前发送按钮不可用。
+ * 同一时刻只允许一个提交，倒计时结束前发送按钮不可用。字段校验在失焦提交时
+ * 就地报错，改动该字段即清除它的提示。
  */
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import type {
-  CloudErrorInfo, CloudGuestView, CloudState,
-} from '@lcoder/kernel/src/cloud/types.ts'
+import type { CloudErrorInfo, CloudState } from '@lcoder/kernel/src/cloud/types.ts'
 import type { LcoderWorkspaceKey } from '../locales.ts'
 import { cloudErrorAction, cloudErrorKey } from './errors.ts'
 import { activeEstimate, estimateRange, fill, usd } from './estimate.ts'
@@ -43,9 +42,34 @@ export interface CloudDialogProps {
 /** 登录页签。 */
 type LoginTab = 'sms' | 'password' | 'register'
 
-/** 手机号格式。 */
-function validPhone(phone: string): boolean {
-  return /^\+[1-9][0-9]{6,14}$/.test(phone.trim())
+/** 可校验的输入字段。 */
+type LoginField = 'phone' | 'code' | 'password'
+
+/** 每个字段的就地提示；缺省表示该字段没有错误。 */
+type FieldErrors = Partial<Record<LoginField, LcoderWorkspaceKey>>
+
+/** 中国大陆手机号：只收 11 位数字，1 开头，第二位 3–9。 */
+const PHONE_PATTERN = /^1[3-9][0-9]{9}$/
+
+/** 验证码：6 位数字。 */
+const CODE_PATTERN = /^[0-9]{6}$/
+
+/**
+ * 密码规则与云端一致：10 到 128 位，且同时含字母与数字。
+ * @param value - 用户输入的密码原文。
+ * @returns 是否满足注册与密码登录的要求。
+ */
+function validPassword(value: string): boolean {
+  return value.length >= 10 && value.length <= 128 && /[A-Za-z]/.test(value) && /[0-9]/.test(value)
+}
+
+/**
+ * 只保留手机号里的数字并截到 11 位；国家码由固定前缀承担。
+ * @param value - 输入框的原始文本。
+ * @returns 过滤后的 11 位以内的数字串。
+ */
+function phoneDigits(value: string): string {
+  return value.replace(/\D/g, '').slice(0, 11)
 }
 
 /** 顶栏账号入口。 */
@@ -98,23 +122,6 @@ function ErrorBox({ error, t }: { readonly error: CloudErrorInfo; readonly t: Cl
   )
 }
 
-/** 当前匿名剩余量的一行。 */
-function GuestLine({ guest, expired, t }: {
-  readonly guest: CloudGuestView | null
-  readonly expired: boolean
-  readonly t: CloudDialogProps['t']
-}): ReactNode {
-  if (expired) return <p className={css.cloudGuestLine}>{t('shell.cloudGuestExpired')}</p>
-  if (guest === null) return <p className={css.cloudGuestLine}>{t('shell.cloudGuestAvailable')}</p>
-  return (
-    <p className={css.cloudGuestLine}>
-      {fill(t('shell.cloudGuestRemaining'), { count: guest.remainingRequests })}
-      {' · '}
-      {fill(t('shell.cloudGuestCostLeft'), { amount: usd(guest.remainingCostMicroUsd) })}
-    </p>
-  )
-}
-
 /**
  * 登录或账户弹窗。
  * @param props - 模式、云端面、当前状态与回调。
@@ -125,8 +132,8 @@ export function CloudDialog({ mode, face, state, sessionId, t, onClose, onChange
   const [phone, setPhone] = useState('')
   const [code, setCode] = useState('')
   const [password, setPassword] = useState('')
-  const [displayName, setDisplayName] = useState('')
   const [countdown, setCountdown] = useState(0)
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
   const [busy, setBusy] = useState<'send' | 'submit' | 'refresh' | 'logout' | undefined>(undefined)
   const [error, setError] = useState<CloudErrorInfo | null>(null)
   const [hint, setHint] = useState<string | null>(null)
@@ -149,6 +156,7 @@ export function CloudDialog({ mode, face, state, sessionId, t, onClose, onChange
   useEffect(() => {
     setError(null)
     setHint(null)
+    setFieldErrors({})
     if (mode === 'login') setTimeout(() => { phoneRef.current?.focus() }, 0)
   }, [mode])
 
@@ -162,17 +170,30 @@ export function CloudDialog({ mode, face, state, sessionId, t, onClose, onChange
   const guestExpired = state?.guestExpired ?? false
   const quota = state?.quota ?? null
   const user = state?.user ?? null
-  const title = mode === 'login' ? t('shell.cloudSignIn') : t('shell.cloudAccount')
+  const title = mode === 'login'
+    ? tab === 'register' ? t('shell.cloudRegisterTitle') : t('shell.cloudSignIn')
+    : t('shell.cloudAccount')
   const subtitle = mode === 'login'
-    ? t('shell.cloudLoginHint')
+    ? null
     : user === null ? t('shell.cloudSignedIn') : user.phoneMasked ?? user.displayName ?? user.id
+
+  /** 只清除被改动字段的提示，别的字段保持原样。 */
+  const clearFieldError = (field: LoginField): void => {
+    setFieldErrors(current => current[field] === undefined ? current : { ...current, [field]: undefined })
+  }
+
+  /** 手机号以固定 +86 前缀组合成 E.164 再交给宿主。 */
+  const fullPhone = `+86${phone}`
 
   const sendCode = async (): Promise<void> => {
     if (face === undefined || countdown > 0) return
-    if (!validPhone(phone)) { setError({ code: 'validation_failed', message: t('shell.cloudPhoneInvalid') }); return }
+    if (!PHONE_PATTERN.test(phone)) {
+      setFieldErrors(errors => ({ ...errors, phone: 'shell.cloudPhoneInvalid' }))
+      return
+    }
     if (!begin('send')) return
     setError(null); setHint(null)
-    const answer = await face.sendSms({ phone: phone.trim(), purpose: tab === 'register' ? 'register' : 'login' })
+    const answer = await face.sendSms({ phone: fullPhone, purpose: tab === 'register' ? 'register' : 'login' })
     end()
     if (!answer.ok) {
       setError(answer.error)
@@ -185,27 +206,19 @@ export function CloudDialog({ mode, face, state, sessionId, t, onClose, onChange
 
   const submit = async (): Promise<void> => {
     if (face === undefined) return
-    if (!validPhone(phone)) { setError({ code: 'validation_failed', message: t('shell.cloudPhoneInvalid') }); return }
-    if (tab !== 'password' && !/^[0-9]{6}$/.test(code.trim())) {
-      setError({ code: 'validation_failed', message: t('shell.cloudCodeInvalid') })
-      return
-    }
-    if (tab !== 'sms' && password.length < 10) {
-      setError({ code: 'validation_failed', message: t('shell.cloudPasswordTooShort') })
-      return
-    }
+    const problems: FieldErrors = {}
+    if (!PHONE_PATTERN.test(phone)) problems.phone = 'shell.cloudPhoneInvalid'
+    if (tab !== 'password' && !CODE_PATTERN.test(code)) problems.code = 'shell.cloudCodeInvalid'
+    if (tab !== 'sms' && !validPassword(password)) problems.password = 'shell.cloudPasswordInvalid'
+    setFieldErrors(problems)
+    if (Object.keys(problems).length > 0) return
     if (!begin('submit')) return
     setError(null); setHint(null)
     const answer = tab === 'sms'
-      ? await face.loginSms({ phone: phone.trim(), code: code.trim() })
+      ? await face.loginSms({ phone: fullPhone, code })
       : tab === 'password'
-        ? await face.loginPassword({ phone: phone.trim(), password })
-        : await face.register({
-          phone: phone.trim(),
-          code: code.trim(),
-          password,
-          ...displayName.trim().length === 0 ? {} : { displayName: displayName.trim() },
-        })
+        ? await face.loginPassword({ phone: fullPhone, password })
+        : await face.register({ phone: fullPhone, code, password })
     end()
     if (!answer.ok) { setError(answer.error); return }
     await afterLogin()
@@ -266,7 +279,6 @@ export function CloudDialog({ mode, face, state, sessionId, t, onClose, onChange
           </span>
         </div>
       </div>
-      <GuestLine guest={guest} expired={guestExpired} t={t} />
       <p className={css.cloudGuestLine}>
         {t('shell.cloudEstimateDialogLabel')}
         {': '}
@@ -318,7 +330,7 @@ export function CloudDialog({ mode, face, state, sessionId, t, onClose, onChange
             role="tab"
             aria-selected={tab === item}
             className={`${css.cloudTab} ${tab === item ? css.cloudTabActive : ''}`}
-            onClick={() => { setTab(item); setError(null); setHint(null) }}
+            onClick={() => { setTab(item); setError(null); setHint(null); setFieldErrors({}) }}
           >
             {t(item === 'sms' ? 'shell.cloudTabSms' : item === 'password' ? 'shell.cloudTabPassword' : 'shell.cloudTabRegister')}
           </button>
@@ -328,50 +340,75 @@ export function CloudDialog({ mode, face, state, sessionId, t, onClose, onChange
         className={css.cloudForm}
         onSubmit={(event) => { event.preventDefault(); void submit() }}
       >
-        <label className={css.field}>
-          <span>{t('shell.cloudPhone')}</span>
-          <input
-            ref={phoneRef}
-            id="lcoder-cloud-phone"
-            className={css.modelInput}
-            type="tel"
-            inputMode="tel"
-            autoComplete="tel"
-            spellCheck={false}
-            value={phone}
-            placeholder="+8615550100000"
-            onChange={(event) => { setPhone(event.target.value) }}
-          />
-          <span className={css.labelHint}>{t('shell.cloudPhoneHint')}</span>
-        </label>
-        {tab === 'password' ? (
-          <label className={css.field}>
-            <span>{t('shell.cloudPassword')}</span>
+        <div className={css.field}>
+          <label htmlFor="lcoder-cloud-phone">{t('shell.cloudPhone')}</label>
+          <div className={`${css.cloudPhoneRow} ${fieldErrors.phone === undefined ? '' : css.cloudFieldInvalid}`}>
+            <span className={css.cloudPhonePrefix}>+86</span>
             <input
-              className={css.modelInput}
+              ref={phoneRef}
+              id="lcoder-cloud-phone"
+              className={css.cloudPhoneInput}
+              type="tel"
+              inputMode="numeric"
+              autoComplete="tel-national"
+              spellCheck={false}
+              value={phone}
+              placeholder={t('shell.cloudPhonePlaceholder')}
+              aria-invalid={fieldErrors.phone !== undefined}
+              aria-describedby={fieldErrors.phone === undefined ? undefined : 'lcoder-cloud-phone-error'}
+              onChange={(event) => {
+                setPhone(phoneDigits(event.target.value))
+                clearFieldError('phone')
+              }}
+            />
+          </div>
+          {fieldErrors.phone === undefined
+            ? null
+            : <p className={css.cloudFieldError} id="lcoder-cloud-phone-error">{t(fieldErrors.phone)}</p>}
+        </div>
+        {tab === 'password' ? (
+          <div className={css.field}>
+            <label htmlFor="lcoder-cloud-password">{t('shell.cloudPassword')}</label>
+            <input
+              id="lcoder-cloud-password"
+              className={`${css.modelInput} ${fieldErrors.password === undefined ? '' : css.cloudFieldInvalid}`}
               type="password"
               autoComplete="current-password"
               value={password}
-              onChange={(event) => { setPassword(event.target.value) }}
+              aria-invalid={fieldErrors.password !== undefined}
+              aria-describedby={fieldErrors.password === undefined ? undefined : 'lcoder-cloud-password-error'}
+              onChange={(event) => {
+                setPassword(event.target.value)
+                clearFieldError('password')
+              }}
             />
-          </label>
+            {fieldErrors.password === undefined
+              ? null
+              : <p className={css.cloudFieldError} id="lcoder-cloud-password-error">{t(fieldErrors.password)}</p>}
+          </div>
         ) : (
-          <label className={css.field}>
-            <span>{t('shell.cloudCode')}</span>
+          <div className={css.field}>
+            <label htmlFor="lcoder-cloud-code">{t('shell.cloudCode')}</label>
             <div className={css.cloudCodeRow}>
               <input
-                className={css.modelInput}
+                id="lcoder-cloud-code"
+                className={`${css.modelInput} ${fieldErrors.code === undefined ? '' : css.cloudFieldInvalid}`}
                 type="text"
                 inputMode="numeric"
                 autoComplete="one-time-code"
                 maxLength={6}
                 value={code}
-                onChange={(event) => { setCode(event.target.value.replace(/\D/g, '')) }}
+                aria-invalid={fieldErrors.code !== undefined}
+                aria-describedby={fieldErrors.code === undefined ? undefined : 'lcoder-cloud-code-error'}
+                onChange={(event) => {
+                  setCode(event.target.value.replace(/\D/g, ''))
+                  clearFieldError('code')
+                }}
               />
               <button
                 type="button"
                 className={css.secondaryBtn}
-                disabled={busy !== undefined || countdown > 0 || !validPhone(phone)}
+                disabled={busy !== undefined || countdown > 0}
                 onClick={() => { void sendCode() }}
               >
                 {busy === 'send'
@@ -379,32 +416,32 @@ export function CloudDialog({ mode, face, state, sessionId, t, onClose, onChange
                   : countdown > 0 ? fill(t('shell.cloudResendIn'), { seconds: countdown }) : t('shell.cloudSendCode')}
               </button>
             </div>
-          </label>
+            {fieldErrors.code === undefined
+              ? null
+              : <p className={css.cloudFieldError} id="lcoder-cloud-code-error">{t(fieldErrors.code)}</p>}
+          </div>
         )}
         {tab === 'register' ? (
-          <>
-            <label className={css.field}>
-              <span>{t('shell.cloudPassword')}</span>
-              <input
-                className={css.modelInput}
-                type="password"
-                autoComplete="new-password"
-                value={password}
-                onChange={(event) => { setPassword(event.target.value) }}
-              />
-              <span className={css.labelHint}>{t('shell.cloudPasswordHint')}</span>
-            </label>
-            <label className={css.field}>
-              <span>{t('shell.cloudDisplayName')}</span>
-              <input
-                className={css.modelInput}
-                type="text"
-                maxLength={40}
-                value={displayName}
-                onChange={(event) => { setDisplayName(event.target.value) }}
-              />
-            </label>
-          </>
+          <div className={css.field}>
+            <label htmlFor="lcoder-cloud-password">{t('shell.cloudPassword')}</label>
+            <input
+              id="lcoder-cloud-password"
+              className={`${css.modelInput} ${fieldErrors.password === undefined ? '' : css.cloudFieldInvalid}`}
+              type="password"
+              autoComplete="new-password"
+              value={password}
+              aria-invalid={fieldErrors.password !== undefined}
+              aria-describedby={fieldErrors.password === undefined ? undefined : 'lcoder-cloud-password-error'}
+              onChange={(event) => {
+                setPassword(event.target.value)
+                clearFieldError('password')
+              }}
+            />
+            <span className={css.labelHint}>{t('shell.cloudPasswordHint')}</span>
+            {fieldErrors.password === undefined
+              ? null
+              : <p className={css.cloudFieldError} id="lcoder-cloud-password-error">{t(fieldErrors.password)}</p>}
+          </div>
         ) : null}
         {hint === null ? null : <p className={css.cloudHint}>{hint}</p>}
         {error === null ? null : <ErrorBox error={error} t={t} />}
@@ -417,7 +454,6 @@ export function CloudDialog({ mode, face, state, sessionId, t, onClose, onChange
           <button type="button" className={css.secondaryBtn} onClick={onClose}>{t('shell.cancel')}</button>
         </div>
       </form>
-      <GuestLine guest={guest} expired={guestExpired} t={t} />
     </>
   )
 
@@ -427,7 +463,7 @@ export function CloudDialog({ mode, face, state, sessionId, t, onClose, onChange
         <div className={css.modalHead}>
           <div className={css.grow}>
             <h3>{title}</h3>
-            <p>{subtitle}</p>
+            {subtitle === null ? null : <p>{subtitle}</p>}
           </div>
           <button type="button" className={css.iconBtn} onClick={onClose}>✕</button>
         </div>

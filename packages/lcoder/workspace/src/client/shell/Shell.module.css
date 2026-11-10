@@ -544,6 +544,8 @@
 .metaMoreLabel { color: var(--lc-muted); }
 .metaMoreItem dd { margin: 0; color: var(--lc-ink); font-size: 13.5px; font-weight: 600; word-break: break-word; }
 .metaHint { margin-left: 8px; color: var(--lc-faint); font-weight: 400; }
+.field { display: block; }
+.field > input { width: 100%; }
 .field label { display: flex; align-items: center; justify-content: space-between; font-size: var(--lc-text-sm); color: var(--lc-muted); margin-bottom: var(--lc-space-2); }
 .labelHint { color: var(--lc-faint); font-size: var(--lc-text-xs); }
 
@@ -1035,6 +1037,22 @@
 .cloudTabActive { background: var(--lc-surface); color: var(--lc-ink); font-weight: 600; box-shadow: var(--lc-shadow-xs); }
 .cloudForm { display: grid; gap: var(--lc-space-3); }
 .cloudCodeRow { display: flex; align-items: center; gap: var(--lc-space-2); }
+.cloudPhoneRow {
+  display: flex; align-items: center; min-width: 0;
+  border: 1px solid var(--lc-line); border-radius: var(--lc-radius-sm);
+  background: var(--lc-surface);
+}
+.cloudPhoneRow:focus-within { border-color: var(--lc-brand-2); }
+.cloudPhonePrefix { padding-left: 11px; color: var(--lc-muted); font-size: 13.5px; user-select: none; }
+.cloudPhoneInput {
+  flex: 1; min-width: 0; border: 0; outline: none; background: transparent;
+  padding: 9px 11px 9px 7px; color: var(--lc-ink); font-size: 13.5px;
+}
+/* 聚焦反馈由外框的 :focus-within 承担；内层输入框不再叠一圈兜底焦点环。 */
+.cloudPhoneInput:focus-visible { outline: none; }
+.cloudFieldInvalid,
+.cloudFieldInvalid:focus-within { border-color: var(--lc-status-danger); }
+.cloudFieldError { margin: 6px 0 0; color: var(--lc-status-danger); font-size: var(--lc-text-xs); }
 .cloudHint { margin: 0; font-size: var(--lc-text-xs); color: var(--lc-status-ok); }
 .cloudErrorBox {
   display: grid; gap: 4px; padding: 10px 12px;

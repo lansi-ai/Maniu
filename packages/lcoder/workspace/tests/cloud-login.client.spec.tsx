@@ -11,6 +11,7 @@ import { SessionId } from '@deepseek-ai/dsh-session/types'
 import { CloudDialog } from '../src/client/cloud/CloudAccount.tsx'
 import { cloudErrorAction, cloudErrorKey } from '../src/client/cloud/errors.ts'
 import type { CloudFace } from '../src/client/cloud/face.ts'
+import type { CloudAuthValue } from '@lcoder/kernel/src/cloud/types.ts'
 import { gateEntry } from '../src/client/cloud/gate.ts'
 import type { CloudGateFacts } from '../src/client/cloud/gate.ts'
 import { zh } from '../src/client/locales.ts'
@@ -98,56 +99,57 @@ function faceOf(overrides: Partial<CloudFace> = {}): CloudFace {
   }
 }
 
+/** 已登录会话的授权结果，注册与登录成功都复用它。 */
+function authSession(): CloudAuthValue {
+  return {
+    user: { id: 'u1', displayName: null, phoneMasked: '+861****0000', status: 'active' },
+    quota: {
+      grantedMicroUsd: 20_000_000, reservedMicroUsd: 0, spentMicroUsd: 0, availableMicroUsd: 20_000_000, currency: 'USD',
+    },
+    expiresIn: 900,
+  }
+}
+
+/** 渲染登录弹窗；回调可在用例里替换。 */
+function renderDialog(face: CloudFace, onClose: () => void = () => {}, onChanged: () => void = () => {}): void {
+  render(
+    <CloudDialog
+      mode="login"
+      face={face}
+      state={null}
+      sessionId={SessionId('s-1')}
+      t={t}
+      onClose={onClose}
+      onChanged={onChanged}
+    />,
+  )
+}
+
+/** 手机号输入框；前缀固定 +86，只收 11 位数字。 */
+function phoneInput(): HTMLInputElement {
+  return screen.getByLabelText(/手机号/) as HTMLInputElement
+}
+
 describe('登录弹窗', () => {
   it('连点发送验证码只发一次，并进入倒计时', async () => {
     const sendSms = vi.fn().mockResolvedValue({ ok: true, value: { requestId: 'r1', resendAfterSeconds: 60, expiresInSeconds: 300 } })
-    const face = faceOf({ sendSms })
-    render(
-      <CloudDialog
-        mode="login"
-        face={face}
-        state={null}
-        sessionId={SessionId('s-1')}
-        t={t}
-        onClose={() => {}}
-        onChanged={() => {}}
-      />,
-    )
-    fireEvent.change(screen.getByLabelText(/手机号/), { target: { value: '+8615550100000' } })
+    renderDialog(faceOf({ sendSms }))
+    fireEvent.change(phoneInput(), { target: { value: '15550100000' } })
     const send = screen.getByRole('button', { name: zh['shell.cloudSendCode'] })
     fireEvent.click(send)
     fireEvent.click(send)
     await waitFor(() => { expect(sendSms).toHaveBeenCalledTimes(1) })
+    expect(sendSms).toHaveBeenCalledWith({ phone: '+8615550100000', purpose: 'login' })
     await waitFor(() => { expect(screen.getAllByText(/60/).length).toBeGreaterThan(0) })
   })
 
   it('登录成功切当前会话到用户路由并关闭弹窗', async () => {
-    const loginSms = vi.fn().mockResolvedValue({
-      ok: true,
-      value: {
-        user: { id: 'u1', displayName: null, phoneMasked: '+861****0000', status: 'active' },
-        quota: {
-          grantedMicroUsd: 20_000_000, reservedMicroUsd: 0, spentMicroUsd: 0, availableMicroUsd: 20_000_000, currency: 'USD',
-        },
-        expiresIn: 900,
-      },
-    })
+    const loginSms = vi.fn().mockResolvedValue({ ok: true, value: authSession() })
     const selectRoute = vi.fn().mockResolvedValue({ ok: true, value: { provider: 'lcoder-cloud', model: 'deepseek-flash' } })
-    const face = faceOf({ loginSms, selectRoute })
     const onClose = vi.fn()
     const onChanged = vi.fn()
-    render(
-      <CloudDialog
-        mode="login"
-        face={face}
-        state={null}
-        sessionId={SessionId('s-1')}
-        t={t}
-        onClose={onClose}
-        onChanged={onChanged}
-      />,
-    )
-    fireEvent.change(screen.getByLabelText(/手机号/), { target: { value: '+8615550100000' } })
+    renderDialog(faceOf({ loginSms, selectRoute }), onClose, onChanged)
+    fireEvent.change(phoneInput(), { target: { value: '15550100000' } })
     fireEvent.change(screen.getByLabelText(zh['shell.cloudCode']), { target: { value: '123456' } })
     fireEvent.click(screen.getByRole('button', { name: zh['shell.cloudLoginSubmit'] }))
     await waitFor(() => {
@@ -160,13 +162,76 @@ describe('登录弹窗', () => {
 
   it('验证码发送太频繁时就地显示映射文案并给出倒计时', async () => {
     const sendSms = vi.fn().mockResolvedValue({ ok: false, error: { code: 'sms_rate_limited', message: 'slow down', retryAfterSeconds: 30 } })
-    const face = faceOf({ sendSms })
-    render(
-      <CloudDialog mode="login" face={face} state={null} sessionId={SessionId('s-1')} t={t} onClose={() => {}} onChanged={() => {}} />,
-    )
-    fireEvent.change(screen.getByLabelText(/手机号/), { target: { value: '+8615550100000' } })
+    renderDialog(faceOf({ sendSms }))
+    fireEvent.change(phoneInput(), { target: { value: '15550100000' } })
     fireEvent.click(screen.getByRole('button', { name: zh['shell.cloudSendCode'] }))
     await waitFor(() => { expect(screen.getByText(zh['shell.cloudErrorSmsRateLimited'])).toBeTruthy() })
     expect(screen.getByText(/30/)).toBeTruthy()
+  })
+
+  it('注册页签标题为「注册 LCoder」，切回登录页签恢复登录标题', () => {
+    renderDialog(faceOf())
+    expect(screen.getByRole('heading', { name: zh['shell.cloudSignIn'] })).toBeTruthy()
+    fireEvent.click(screen.getByRole('tab', { name: zh['shell.cloudTabRegister'] }))
+    expect(screen.getByRole('heading', { name: zh['shell.cloudRegisterTitle'] })).toBeTruthy()
+    expect(screen.queryByRole('heading', { name: zh['shell.cloudSignIn'] })).toBeNull()
+    fireEvent.click(screen.getByRole('tab', { name: zh['shell.cloudTabSms'] }))
+    expect(screen.getByRole('heading', { name: zh['shell.cloudSignIn'] })).toBeTruthy()
+  })
+
+  it('注册页没有显示名输入，提交只传手机号、验证码与密码', async () => {
+    const register = vi.fn().mockResolvedValue({ ok: true, value: authSession() })
+    const onClose = vi.fn()
+    renderDialog(faceOf({ register }), onClose)
+    fireEvent.click(screen.getByRole('tab', { name: zh['shell.cloudTabRegister'] }))
+    expect(screen.queryByLabelText(/显示名/)).toBeNull()
+    fireEvent.change(phoneInput(), { target: { value: '15550100000' } })
+    fireEvent.change(screen.getByLabelText(zh['shell.cloudCode']), { target: { value: '123456' } })
+    fireEvent.change(screen.getByLabelText(zh['shell.cloudPassword']), { target: { value: 'abc1234567' } })
+    fireEvent.click(screen.getByRole('button', { name: zh['shell.cloudRegisterSubmit'] }))
+    await waitFor(() => {
+      expect(register).toHaveBeenCalledWith({ phone: '+8615550100000', code: '123456', password: 'abc1234567' })
+      expect(onClose).toHaveBeenCalled()
+    })
+  })
+
+  it('手机号只保留数字并限 11 位', () => {
+    renderDialog(faceOf())
+    fireEvent.change(phoneInput(), { target: { value: '1555-010-0000123x' } })
+    expect(phoneInput().value).toBe('15550100000')
+    fireEvent.change(phoneInput(), { target: { value: '+86 15550100000' } })
+    expect(phoneInput().value).toBe('86155501000')
+  })
+
+  it('手机号不合法时点发送验证码给出字段提示且不发请求', () => {
+    const sendSms = vi.fn()
+    renderDialog(faceOf({ sendSms }))
+    fireEvent.change(phoneInput(), { target: { value: '12345' } })
+    const send = screen.getByRole('button', { name: zh['shell.cloudSendCode'] }) as HTMLButtonElement
+    expect(send.disabled).toBe(false)
+    fireEvent.click(send)
+    expect(screen.getByText(zh['shell.cloudPhoneInvalid'])).toBeTruthy()
+    expect(phoneInput().getAttribute('aria-invalid')).toBe('true')
+    expect(sendSms).not.toHaveBeenCalled()
+  })
+
+  it('空表单提交逐字段报错，改动字段后只清除该字段的提示', () => {
+    renderDialog(faceOf())
+    fireEvent.click(screen.getByRole('tab', { name: zh['shell.cloudTabRegister'] }))
+    fireEvent.click(screen.getByRole('button', { name: zh['shell.cloudRegisterSubmit'] }))
+    expect(screen.getByText(zh['shell.cloudPhoneInvalid'])).toBeTruthy()
+    expect(screen.getByText(zh['shell.cloudCodeInvalid'])).toBeTruthy()
+    expect(screen.getByText(zh['shell.cloudPasswordInvalid'])).toBeTruthy()
+    fireEvent.change(screen.getByLabelText(zh['shell.cloudCode']), { target: { value: '123456' } })
+    expect(screen.queryByText(zh['shell.cloudCodeInvalid'])).toBeNull()
+    expect(screen.getByText(zh['shell.cloudPhoneInvalid'])).toBeTruthy()
+    expect(screen.getByText(zh['shell.cloudPasswordInvalid'])).toBeTruthy()
+  })
+
+  it('登录弹窗不再显示三处辅助小字', () => {
+    renderDialog(faceOf())
+    expect(screen.queryByText('今日还可免费立项 1 次')).toBeNull()
+    expect(screen.queryByText('手机号验证码或密码登录；登录后沿用当前上下文')).toBeNull()
+    expect(screen.queryByText('带国家码，例如 +8615550100000')).toBeNull()
   })
 })
