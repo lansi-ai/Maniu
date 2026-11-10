@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -100,6 +100,61 @@ describe('desktop development project', () => {
     expect(readFileSync(join(cli, 'package.json'), 'utf8')).toBe('{"name":"@deepseek-ai/dsh","version":"1.2.3"}\n')
     expect(readFileSync(join(host, 'lib', 'index.js'), 'utf8')).toBe('')
 
+  })
+
+  it('reuses an unchanged project and relinks after a hoisted dependency changes', () => {
+    const root = temporaryRoot()
+    const cli = join(root, 'apps', 'cli')
+    const host = join(root, 'apps', 'desktop-host')
+    const dependencies = join(root, 'workspace-dependencies')
+    mkdirSync(join(cli, 'lib'), { recursive: true })
+    mkdirSync(join(host, 'lib'), { recursive: true })
+    mkdirSync(join(dependencies, 'first'), { recursive: true })
+    writeFileSync(join(cli, 'package.json'), '{"name":"@deepseek-ai/dsh","version":"1.2.3"}\n')
+    writeFileSync(join(host, 'package.json'), '{"name":"@deepseek-ai/dsh-desktop-host","version":"1.2.3"}\n')
+    writeFileSync(join(host, 'lib', 'index.js'), '')
+    writeFileSync(join(dependencies, 'first', 'package.json'), '{"name":"first","version":"1.0.0"}\n')
+    const options = {
+      projectDir: join(root, 'development'), cliDir: cli, hostDir: host, dependencyDir: dependencies,
+      release: release(), target: 'win-x64' as const,
+    }
+    const project = prepareDevelopmentProject(options)
+    const record = join(project, '.development-inputs.json')
+    const reused = JSON.parse(readFileSync(record, 'utf8')) as { inputs: string }
+    const directoryStamp = lstatSync(project).mtimeMs
+
+    expect(prepareDevelopmentProject(options)).toBe(project)
+    expect(lstatSync(project).mtimeMs).toBe(directoryStamp)
+
+    mkdirSync(join(dependencies, 'added'))
+    writeFileSync(join(dependencies, 'added', 'package.json'), '{"name":"added","version":"2.0.0"}\n')
+    prepareDevelopmentProject(options)
+    expect(realpathSync(join(project, 'node_modules', 'added'))).toBe(realpathSync(join(dependencies, 'added')))
+    expect((JSON.parse(readFileSync(record, 'utf8')) as { inputs: string }).inputs).not.toBe(reused.inputs)
+  })
+
+  it('rebuilds a project whose runtime descriptor or link was removed', () => {
+    const root = temporaryRoot()
+    const cli = join(root, 'apps', 'cli')
+    const host = join(root, 'apps', 'desktop-host')
+    const dependencies = join(root, 'workspace-dependencies')
+    mkdirSync(join(cli, 'lib'), { recursive: true })
+    mkdirSync(join(host, 'lib'), { recursive: true })
+    mkdirSync(dependencies, { recursive: true })
+    writeFileSync(join(cli, 'package.json'), '{"name":"@deepseek-ai/dsh","version":"1.2.3"}\n')
+    writeFileSync(join(host, 'package.json'), '{"name":"@deepseek-ai/dsh-desktop-host","version":"1.2.3"}\n')
+    writeFileSync(join(host, 'lib', 'index.js'), '')
+    const options = {
+      projectDir: join(root, 'development'), cliDir: cli, hostDir: host, dependencyDir: dependencies,
+      release: release(), target: 'win-x64' as const,
+    }
+    const project = prepareDevelopmentProject(options)
+    rmSync(join(project, 'desktop-runtime.json'))
+    prepareDevelopmentProject(options)
+    expect(existsSync(join(project, 'desktop-runtime.json'))).toBe(true)
+    rmSync(join(project, 'node_modules', '@deepseek-ai', 'dsh'), { recursive: true })
+    prepareDevelopmentProject(options)
+    expect(realpathSync(join(project, 'node_modules', '@deepseek-ai', 'dsh'))).toBe(realpathSync(cli))
   })
 
   it('rejects a CLI package from another release', () => {

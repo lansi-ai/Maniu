@@ -78,6 +78,23 @@ upstream = deepseek-ai/deepseek-harness
 | `apps/desktop/scripts/render-tray-icon.ts` | 只改措辞：文件头与一行注释里的 whale 改为 LCoder mark；管线、`TRAY_ICON_SIZES`、`tray-glyph` 注入与 1.2 倍放大全部不变 | 美术换掉后原措辞会误导下一次改图标的人去找鲸标 |
 规矩：改动写在文件里的 `lcoder:` 前缀注释下，方便 grep 定位，也方便升级时用 `git diff upstream/master...HEAD -- <文件>` 一眼看清。
 
+### T-105 开发启动复用（修改 2 个、新增 6 个）
+
+预热态 `start-desktop -NoBuild` 实测 37.4 秒，其中约 35 秒重复做三件与产品无关的事：重建 1572 个 junction 的开发项目目录（2.1–2.9 秒）、重装 254MB 运行时 payload（26–33 秒）、同步拉起 Electron 只问一句 Node 版本（48–395 毫秒）。三处都在 dev 脚本里，装配层与 profile 都在 Electron 起来之后才生效，够不到；运行时侧也没有可挂的插件位。复用判据必须与建链/装配逻辑同源，因此改动只能在脚本内部，不能靠外部开关。输入未变时启动降到 5.9 秒。
+
+| 文件 | 类型 | 改什么 | 为什么必须改 |
+|---|---|---|---|
+| `apps/desktop/scripts/development-project.ts` | 修改 | `DependencyLinkEntry` 与 `dependencyLinkEntries` 把链接枚举从建链逻辑里抽出来，建链与指纹共用一份；新增 `workspaceDependencyStamps`（workspace 依赖 realpath 与 package.json 戳）、`projectInputsDigest`（release、target、链接集合与链接戳、workspace 依赖戳、host 产物戳、生成器源码戳）、`projectReusable`（记录摘要 + 两处主链接 realpath 校验）；摘要命中直接返回，未命中才删目录重建并在末尾写 `.development-inputs.json`。CLI/Host 版本、`lib/index.js`、pnpm 链接目录的既有校验与报错原样保留 | 这个函数就是每次启动最贵的一步，判据必须与它自己建出来的东西同源（链接集合变了、workspace 依赖版本变了、生成器源码改了都要失效），放在调用方等于把同一套规则写两遍 |
+| `apps/desktop/tests/development-project.spec.ts` | 修改 | 追加两个用例：输入未变时复用同一目录（目录 mtime 不变）、hoisted 依赖新增后重链并换摘要；`desktop-runtime.json` 或主链接被删后重建 | 复用是行为变更，没有测试钉住的话，以后改生成逻辑会静默留下过期目录，而开发启动看起来照常成功 |
+| `apps/desktop/scripts/development-cache.ts` | 新增 | 缓存原语：`fileStamp`（mtime+大小）、`linkStamp`（不跟随 junction）、`treeDigest`、`inputsDigest`、`readCacheRecord`（缺失/截断/非对象一律当未命中）、`writeCacheRecord`（tmp+rename 原子写） | 三个复用点共用一套判据，避免各写一份戳格式；只服务 desktop 开发脚本，没有插件位可放 |
+| `apps/desktop/scripts/electron-node-version.ts` | 新增 | 按 `electron.exe` 路径 + 大小 + mtime 缓存 `process.versions.node`，记录失效才同步拉起 Electron 探测，并对返回值做版本格式校验 | 这是远程模型/界面之外的纯本地探测，每次启动同步起一个 Electron 进程毫无收益；封装成独立函数才能让 dev.ts 少一个 `execFileSync` 依赖 |
+| `apps/desktop/scripts/prepare-development-runtime.ts` | 新增 | `cacheInputs` 汇总 target、desktop 版本、pnpm 身份、`lock.json` 全文与戳、组装源码戳（`prepare.ts`、`prune-python-tests.ts`、`tool-workspace-dependencies/src/index.ts`、`prepare-primary-runtime.ts`）、Office 资产树摘要；`payloadReusable` 校验 `runtime.json` 六字段与 pythonPackages 并确认六处入口存在；未命中才动态导入 `prepare-primary-runtime.ts` 重建，`-Smoke` 时再动态导入 smoke 真实执行 payload | 原函数每次 rm 后重装整个 payload，是启动耗时的大头；复用记录放在 `.desktop-build/development/` 而不是 runtime 目录，避免多出一个文件进入打包产物；组装源码进摘要，上游改了装配逻辑会自动失效 |
+| `apps/desktop/tests/development-cache.spec.ts` | 新增 | 覆盖戳的缺失/链接语义、记录只认完整对象、原子替换、目录树摘要顺序无关与内容敏感 | 缓存判据错了只会表现为「少重建一次」，没有测试很难发现 |
+| `apps/desktop/tests/electron-node-version.spec.ts` | 新增 | 覆盖记录命中只探测一次、可执行文件变化或记录删除后复探、不可用版本报错 | 同上，探测失效会导致 release 指纹写错 Node 版本 |
+| `apps/desktop/tests/prepare-development-runtime.spec.ts` | 新增 | 覆盖 `payloadReusable`：清单与入口齐全才复用，版本/`pythonPackages` 不符、缺入口、缺清单、截断 JSON、空目录一律重建 | 复用判据必须证明会拒绝失效 payload，否则会把坏运行时当成就绪 |
+
+`apps/desktop/scripts/dev.ts`（已登记）本次追加：Node 版本探测改用缓存函数、运行时准备改调 `prepareDevelopmentRuntime`，并去掉对 `prepare-primary-runtime.ts` 的静态导入（命中路径不再加载 tar/extract-zip 链）。登记行不重复，改动见上表判据。
+
 ### 计划接触面（T-78 至 T-82）
 
 以下文件已在 `contact-surface.txt` 登记。T-78 已落地的行标「已落地」；其余仍待对应任务。T-78 还会扩展上表已登记的 `apps/desktop/src/main.ts`、`ipc.ts`、`preload-app.ts`、`locale.ts`、`tests/main-startup.spec.ts` 与 `tests/expected/*.json`，不重复列行。

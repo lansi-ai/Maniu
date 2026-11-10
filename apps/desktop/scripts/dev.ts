@@ -1,6 +1,6 @@
 /** Build and launch the unpackaged Electron shell against the current workspace. */
 
-import { spawn, execFileSync } from 'node:child_process'
+import { spawn } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { join, resolve } from 'node:path'
@@ -10,7 +10,8 @@ import type { DesktopRelease } from '../src/release.ts'
 import { developmentRuntimeDirectory, resolveDesktopBuildTarget } from './desktop-build-paths.mjs'
 import { prepareDevelopmentProject } from './development-project.ts'
 import { prepareDevelopmentApp } from './development-app.ts'
-import { preparePrimaryRuntime } from './prepare-primary-runtime.ts'
+import { electronNodeVersion } from './electron-node-version.ts'
+import { prepareDevelopmentRuntime } from './prepare-development-runtime.ts'
 
 const APP_ROOT = resolve(import.meta.dirname, '..')
 const REPOSITORY_ROOT = resolve(APP_ROOT, '..', '..')
@@ -104,12 +105,13 @@ async function main(): Promise<void> {
   }
   const version = packageVersion(join(APP_ROOT, 'package.json'), 'desktop package')
   const pnpmVersion = packageVersion(join(APP_ROOT, 'node_modules', 'pnpm', 'package.json'), 'pnpm package')
+  const electron = createRequire(import.meta.url)('electron')
+  if (typeof electron !== 'string') throw new Error('desktop development: electron executable is unavailable')
   const release: DesktopRelease = {
     schemaVersion: 1,
     version,
     hostProtocolVersion: DESKTOP_HOST_PROTOCOL_VERSION,
-    nodeVersion: execFileSync(createRequire(import.meta.url)('electron') as string, ['-p', 'process.versions.node'],
-      { encoding: 'utf8', env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } }).trim(),
+    nodeVersion: electronNodeVersion(electron, join(DEVELOPMENT_ROOT, 'electron-node-version.json')),
     pnpmVersion,
   }
   prepareDevelopmentProject({
@@ -122,7 +124,8 @@ async function main(): Promise<void> {
   })
   // lcoder: 运行时冒烟（打包 python 三条检查加 Office 往返）是发布验收的口径，每次开发启动
   // 跑一遍要百秒级；产物没变、只想开窗时可用 DSH_DESKTOP_SKIP_RUNTIME_SMOKE=1 跳过。
-  await preparePrimaryRuntime({ deferSmoke: process.env.DSH_DESKTOP_SKIP_RUNTIME_SMOKE === '1' })
+  // 运行时内容未变的复用由 prepareDevelopmentRuntime 决定，跳过冒烟不等于跳过产物就绪检查。
+  await prepareDevelopmentRuntime({ deferSmoke: process.env.DSH_DESKTOP_SKIP_RUNTIME_SMOKE === '1' })
   await launchElectron()
 }
 
