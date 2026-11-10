@@ -12,6 +12,7 @@ import { prepareDevelopmentProject } from './development-project.ts'
 import { prepareDevelopmentApp } from './development-app.ts'
 import { electronNodeVersion } from './electron-node-version.ts'
 import { prepareDevelopmentRuntime } from './prepare-development-runtime.ts'
+import { recordedBuildReusable, recordSuccessfulBuild, workspaceInputsDigest } from './development-build-cache.ts'
 
 const APP_ROOT = resolve(import.meta.dirname, '..')
 const REPOSITORY_ROOT = resolve(APP_ROOT, '..', '..')
@@ -94,8 +95,16 @@ async function launchElectron(): Promise<void> {
 async function main(): Promise<void> {
   const { values } = parseArgs({ options: { 'skip-build': { type: 'boolean', default: false } } })
   if (!values['skip-build']) {
-    await runPackageScript('build:artifacts', REPOSITORY_ROOT)
-    await runPackageScript('build', APP_ROOT)
+    // lcoder: 产物输入未变时跳过构建（默认启动占 52 秒的那一步）；判据见 development-build-cache.ts。
+    const build = { root: REPOSITORY_ROOT, recordPath: join(DEVELOPMENT_ROOT, 'build-inputs.json'),
+      digest: workspaceInputsDigest(REPOSITORY_ROOT) }
+    if (recordedBuildReusable(build)) {
+      console.log('desktop development: workspace inputs unchanged; reusing built artifacts')
+    } else {
+      await runPackageScript('build:artifacts', REPOSITORY_ROOT)
+      await runPackageScript('build', APP_ROOT)
+      recordSuccessfulBuild(build, build.digest)
+    }
   }
   for (const path of [
     join(APP_ROOT, 'lib', 'main.js'),
