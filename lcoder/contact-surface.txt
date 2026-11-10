@@ -41,9 +41,11 @@ apps/desktop/tests/development-project.spec.ts
 
 # ── T-105 新增文件（落在上游目录内，按 desktop-edgeone 先例登记）──
 apps/desktop/scripts/development-cache.ts
+apps/desktop/scripts/development-build-cache.ts
 apps/desktop/scripts/electron-node-version.ts
 apps/desktop/scripts/prepare-development-runtime.ts
 apps/desktop/tests/development-cache.spec.ts
+apps/desktop/tests/development-build-cache.spec.ts
 apps/desktop/tests/electron-node-version.spec.ts
 apps/desktop/tests/prepare-development-runtime.spec.ts
 
