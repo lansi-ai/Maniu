@@ -1,43 +1,19 @@
 /**
- * 顶栏账号入口与登录/账户弹窗。
+ * 全屏登录页、顶栏账号入口与账户摘要弹窗。
  *
- * 登录弹窗只负责收集输入与展示失败；领取匿名授权、刷新令牌与落盘都在宿主。
- * 同一时刻只允许一个提交，倒计时结束前发送按钮不可用。字段校验在失焦提交时
- * 就地报错，改动该字段即清除它的提示。
+ * 桌面端不提供匿名路径：未登录时外壳只渲染 `CloudLoginScreen`，工作台不可见。
+ * 登录页只负责收集输入与展示失败；领取令牌、刷新与落盘都在宿主。
+ * 同一时刻只允许一个提交，倒计时结束前发送按钮不可用；字段校验就地报错，
+ * 改动该字段即清除它的提示。
  */
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { CloudErrorInfo, CloudState } from '@lcoder/kernel/src/cloud/types.ts'
 import type { LcoderWorkspaceKey } from '../locales.ts'
 import { cloudErrorAction, cloudErrorKey } from './errors.ts'
 import { activeEstimate, estimateRange, fill, usd } from './estimate.ts'
 import type { CloudFace } from './face.ts'
 import css from '../shell/Shell.module.css'
-
-/** 弹窗模式。 */
-export type CloudDialogMode = 'login' | 'account'
-
-/** 顶栏账号入口 props。 */
-export interface CloudAccountButtonProps {
-  readonly state: CloudState | null
-  readonly loading: boolean
-  readonly t: (key: LcoderWorkspaceKey) => string
-  readonly onClick: () => void
-}
-
-/** 登录/账户弹窗 props。 */
-export interface CloudDialogProps {
-  readonly mode: CloudDialogMode
-  readonly face: CloudFace | undefined
-  readonly state: CloudState | null
-  readonly sessionId: SessionId | undefined
-  readonly t: (key: LcoderWorkspaceKey) => string
-  readonly onClose: () => void
-  readonly onChanged: () => void | Promise<void>
-  /** 账户弹窗里进入个人中心；缺省时不显示入口。 */
-  readonly onOpenPersonalCenter?: () => void
-}
 
 /** 登录页签。 */
 type LoginTab = 'sms' | 'password' | 'register'
@@ -47,6 +23,9 @@ type LoginField = 'phone' | 'code' | 'password'
 
 /** 每个字段的就地提示；缺省表示该字段没有错误。 */
 type FieldErrors = Partial<Record<LoginField, LcoderWorkspaceKey>>
+
+/** 词典读取面。 */
+type Translate = (key: LcoderWorkspaceKey) => string
 
 /** 中国大陆手机号：只收 11 位数字，1 开头，第二位 3–9。 */
 const PHONE_PATTERN = /^1[3-9][0-9]{9}$/
@@ -72,33 +51,56 @@ function phoneDigits(value: string): string {
   return value.replace(/\D/g, '').slice(0, 11)
 }
 
-/** 顶栏账号入口。 */
-export function CloudAccountButton({ state, loading, t, onClick }: CloudAccountButtonProps): ReactNode {
-  const signedIn = state?.signedIn === true
+/** 顶栏账号入口 props。 */
+export interface CloudAccountButtonProps {
+  readonly state: CloudState | null
+  readonly t: Translate
+  readonly onClick: () => void
+}
+
+/** 全屏登录页 props。 */
+export interface CloudLoginScreenProps {
+  readonly face: CloudFace | undefined
+  /** 首次读取登录状态。 */
+  readonly loading: boolean
+  /** 读不到登录状态的阻断性错误；有它就不渲染表单。 */
+  readonly error: CloudErrorInfo | null
+  readonly t: Translate
+  readonly onRetry: () => void
+  /** 登录成功后通知外壳重新读状态。 */
+  readonly onAuthenticated: () => void | Promise<void>
+}
+
+/** 账户摘要弹窗 props。 */
+export interface CloudDialogProps {
+  readonly face: CloudFace | undefined
+  readonly state: CloudState | null
+  readonly t: Translate
+  readonly onClose: () => void
+  readonly onChanged: () => void | Promise<void>
+  /** 账户弹窗里进入个人中心；缺省时不显示入口。 */
+  readonly onOpenPersonalCenter?: () => void
+}
+
+/** 顶栏账号入口；工作台只在已登录时渲染，所以这里不再有游客分支。 */
+export function CloudAccountButton({ state, t, onClick }: CloudAccountButtonProps): ReactNode {
   const user = state?.user ?? null
-  const guest = state?.guest ?? null
   const name = user?.displayName ?? user?.phoneMasked ?? t('shell.cloudAccount')
   const initial = (name.replace(/^\+/, '') || 'L').slice(0, 1).toUpperCase()
   const quota = state?.quota ?? null
-  const sub = signedIn
-    ? quota === null
-      ? t('shell.cloudSignedIn')
-      : `${t('shell.cloudQuotaLeft')} ${usd(quota.availableMicroUsd)}`
-    : state?.guestExpired === true
-      ? t('shell.cloudGuestExpired')
-      : guest !== null && guest.remainingRequests > 0
-        ? fill(t('shell.cloudGuestRemaining'), { count: guest.remainingRequests })
-        : t('shell.cloudSignInHint')
+  const sub = quota === null
+    ? t('shell.cloudSignedIn')
+    : `${t('shell.cloudQuotaLeft')} ${usd(quota.availableMicroUsd)}`
   return (
     <button
       type="button"
-      className={`${css.cloudButton} ${signedIn ? css.cloudButtonSignedIn : ''}`}
-      title={signedIn ? t('shell.cloudAccount') : t('shell.cloudSignIn')}
+      className={css.cloudButton}
+      title={t('shell.cloudAccount')}
       onClick={onClick}
     >
-      <span className={css.cloudAvatar}>{loading && state === null ? '…' : initial}</span>
+      <span className={css.cloudAvatar}>{initial}</span>
       <span className={css.cloudButtonText}>
-        <span className={css.cloudButtonName}>{loading && state === null ? t('shell.loading') : name}</span>
+        <span className={css.cloudButtonName}>{name}</span>
         <span className={css.cloudButtonMeta}>{sub}</span>
       </span>
     </button>
@@ -106,7 +108,7 @@ export function CloudAccountButton({ state, loading, t, onClick }: CloudAccountB
 }
 
 /** 一处可复用的错误块。 */
-function ErrorBox({ error, t }: { readonly error: CloudErrorInfo; readonly t: CloudDialogProps['t'] }): ReactNode {
+function ErrorBox({ error, t }: { readonly error: CloudErrorInfo; readonly t: Translate }): ReactNode {
   const action = cloudErrorAction(error.code)
   const key = cloudErrorKey(error.code)
   const text = fill(t(key), { code: error.code })
@@ -123,26 +125,27 @@ function ErrorBox({ error, t }: { readonly error: CloudErrorInfo; readonly t: Cl
 }
 
 /**
- * 登录或账户弹窗。
- * @param props - 模式、云端面、当前状态与回调。
- * @returns 登录表单或账户摘要。
+ * 登录表单：页签、字段校验与提交。
+ * @param props - 云端面、词典与登录成功回调。
+ * @returns 登录或注册表单。
  */
-export function CloudDialog({ mode, face, state, sessionId, t, onClose, onChanged, onOpenPersonalCenter }: CloudDialogProps): ReactNode {
+function CloudLoginForm({ face, t, onAuthenticated }: {
+  readonly face: CloudFace | undefined
+  readonly t: Translate
+  readonly onAuthenticated: () => void | Promise<void>
+}): ReactNode {
   const [tab, setTab] = useState<LoginTab>('sms')
   const [phone, setPhone] = useState('')
   const [code, setCode] = useState('')
   const [password, setPassword] = useState('')
   const [countdown, setCountdown] = useState(0)
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
-  const [busy, setBusy] = useState<'send' | 'submit' | 'refresh' | 'logout' | undefined>(undefined)
+  const [busy, setBusy] = useState<'send' | 'submit' | undefined>(undefined)
   const [error, setError] = useState<CloudErrorInfo | null>(null)
   const [hint, setHint] = useState<string | null>(null)
-  const [confirmLogout, setConfirmLogout] = useState(false)
-  const phoneRef = useRef<HTMLInputElement | null>(null)
   /** 同一 tick 的连点也要挡住；`busy` 状态要等下一次渲染才生效。 */
   const busyRef = useRef(false)
-
-  const begin = (kind: 'send' | 'submit' | 'refresh' | 'logout'): boolean => {
+  const begin = (kind: 'send' | 'submit'): boolean => {
     if (busyRef.current) return false
     busyRef.current = true
     setBusy(kind)
@@ -154,28 +157,12 @@ export function CloudDialog({ mode, face, state, sessionId, t, onClose, onChange
   }
 
   useEffect(() => {
-    setError(null)
-    setHint(null)
-    setFieldErrors({})
-    if (mode === 'login') setTimeout(() => { phoneRef.current?.focus() }, 0)
-  }, [mode])
-
-  useEffect(() => {
     if (countdown <= 0) return
     const timer = setInterval(() => { setCountdown(value => Math.max(0, value - 1)) }, 1_000)
     return () => { clearInterval(timer) }
   }, [countdown])
 
-  const guest = state?.guest ?? null
-  const guestExpired = state?.guestExpired ?? false
-  const quota = state?.quota ?? null
-  const user = state?.user ?? null
-  const title = mode === 'login'
-    ? tab === 'register' ? t('shell.cloudRegisterTitle') : t('shell.cloudSignIn')
-    : t('shell.cloudAccount')
-  const subtitle = mode === 'login'
-    ? null
-    : user === null ? t('shell.cloudSignedIn') : user.phoneMasked ?? user.displayName ?? user.id
+  const title = tab === 'register' ? t('shell.cloudRegisterTitle') : t('shell.cloudSignIn')
 
   /** 只清除被改动字段的提示，别的字段保持原样。 */
   const clearFieldError = (field: LoginField): void => {
@@ -221,107 +208,14 @@ export function CloudDialog({ mode, face, state, sessionId, t, onClose, onChange
         : await face.register({ phone: fullPhone, code, password })
     end()
     if (!answer.ok) { setError(answer.error); return }
-    await afterLogin()
+    setCode('')
+    setPassword('')
+    await onAuthenticated()
   }
 
-  /** 登录成功：切当前会话路由并关闭弹窗，不重开会话。 */
-  const afterLogin = async (): Promise<void> => {
-    if (face !== undefined && sessionId !== undefined) {
-      const routed = await face.selectRoute(sessionId, 'user')
-      if (!routed.ok) {
-        setError(routed.error)
-        await onChanged()
-        return
-      }
-    }
-    setCode(''); setPassword('')
-    await onChanged()
-    onClose()
-  }
-
-  const refresh = async (): Promise<void> => {
-    if (face === undefined || !begin('refresh')) return
-    setError(null)
-    const answer = await face.refresh()
-    end()
-    if (!answer.ok) { setError(answer.error); return }
-    await onChanged()
-  }
-
-  const logout = async (): Promise<void> => {
-    if (face === undefined || !begin('logout')) return
-    setError(null)
-    const answer = await face.logout()
-    end()
-    setConfirmLogout(false)
-    if (!answer.ok) { setError(answer.error); return }
-    await onChanged()
-    onClose()
-  }
-
-  const account = (
+  return (
     <>
-      <div className={css.cloudAccountGrid}>
-        <div className={css.cloudMetric}>
-          <span className={css.cloudMetricLabel}>{t('shell.cloudQuota')}</span>
-          <span className={css.cloudMetricValue}>{quota === null ? '—' : usd(quota.availableMicroUsd)}</span>
-          <span className={css.cloudMetricHint}>
-            {quota === null ? '' : `${t('shell.cloudGranted')} ${usd(quota.grantedMicroUsd)}`}
-          </span>
-        </div>
-        <div className={css.cloudMetric}>
-          <span className={css.cloudMetricLabel}>{t('shell.cloudGuest')}</span>
-          <span className={css.cloudMetricValue}>
-            {guestExpired ? t('shell.cloudGuestExpiredShort') : guest === null ? '—' : String(guest.remainingRequests)}
-          </span>
-          <span className={css.cloudMetricHint}>
-            {guest === null || guestExpired ? '' : fill(t('shell.cloudGuestCostLeft'), { amount: usd(guest.remainingCostMicroUsd) })}
-          </span>
-        </div>
-      </div>
-      <p className={css.cloudGuestLine}>
-        {t('shell.cloudEstimateDialogLabel')}
-        {': '}
-        {estimateRange(activeEstimate(state), t)}
-      </p>
-      {state?.lastError === null || state?.lastError === undefined ? null : <ErrorBox error={state.lastError} t={t} />}
-      {error === null ? null : <ErrorBox error={error} t={t} />}
-      <div className={css.cloudActions}>
-        {onOpenPersonalCenter === undefined ? null : (
-          <button
-            type="button"
-            className={css.secondaryBtn}
-            disabled={busy !== undefined}
-            onClick={() => { onOpenPersonalCenter() }}
-          >
-            {t('shell.cloudOpenPersonalCenter')}
-          </button>
-        )}
-        <button type="button" className={css.secondaryBtn} disabled={busy !== undefined} onClick={() => { void refresh() }}>
-          {busy === 'refresh' ? t('shell.cloudRefreshing') : t('shell.cloudRefresh')}
-        </button>
-        {confirmLogout
-          ? (
-            <>
-              <button type="button" className={css.secondaryBtn} disabled={busy !== undefined} onClick={() => { setConfirmLogout(false) }}>
-                {t('shell.modelCancel')}
-              </button>
-              <button type="button" className={css.dangerBtn} disabled={busy !== undefined} onClick={() => { void logout() }}>
-                {busy === 'logout' ? t('shell.modelSaving') : t('shell.cloudConfirmLogout')}
-              </button>
-            </>
-          )
-          : (
-            <button type="button" className={css.dangerBtn} disabled={busy !== undefined} onClick={() => { setConfirmLogout(true) }}>
-              {t('shell.cloudLogout')}
-            </button>
-          )}
-      </div>
-    </>
-  )
-
-  const login = (
-    <>
+      <h2 className={css.loginCardTitle}>{title}</h2>
       <div className={css.cloudTabs} role="tablist" aria-label={t('shell.cloudSignIn')}>
         {(['sms', 'password', 'register'] as const).map(item => (
           <button
@@ -345,13 +239,13 @@ export function CloudDialog({ mode, face, state, sessionId, t, onClose, onChange
           <div className={`${css.cloudPhoneRow} ${fieldErrors.phone === undefined ? '' : css.cloudFieldInvalid}`}>
             <span className={css.cloudPhonePrefix}>+86</span>
             <input
-              ref={phoneRef}
               id="lcoder-cloud-phone"
               className={css.cloudPhoneInput}
               type="tel"
               inputMode="numeric"
               autoComplete="tel-national"
               spellCheck={false}
+              autoFocus
               value={phone}
               placeholder={t('shell.cloudPhonePlaceholder')}
               aria-invalid={fieldErrors.phone !== undefined}
@@ -451,24 +345,140 @@ export function CloudDialog({ mode, face, state, sessionId, t, onClose, onChange
               ? t('shell.cloudSubmitting')
               : tab === 'register' ? t('shell.cloudRegisterSubmit') : t('shell.cloudLoginSubmit')}
           </button>
-          <button type="button" className={css.secondaryBtn} onClick={onClose}>{t('shell.cancel')}</button>
         </div>
       </form>
     </>
   )
+}
+
+/**
+ * 全屏登录页：未登录时整窗覆盖应用内容区。
+ * @param props - 云端面、加载/错误状态、词典与重试/成功回调。
+ * @returns 品牌区与登录表单，或读取状态中的加载/错误视图。
+ */
+export function CloudLoginScreen({ face, loading, error, t, onRetry, onAuthenticated }: CloudLoginScreenProps): ReactNode {
+  return (
+    <main className={css.loginMain}>
+      <section className={css.loginBrand}>
+        <h1 className={css.loginBrandTitle}>{t('shell.brand')}</h1>
+        <p className={css.loginBrandText}>{t('shell.loginTagline')}</p>
+      </section>
+      <section className={css.loginCard}>
+        {loading
+          ? (
+            <div className={css.loginStatus} role="status">
+              <span className={css.loginSpinner} aria-hidden="true" />
+              <p className={css.loginStatusText}>{t('shell.loginChecking')}</p>
+            </div>
+          )
+          : error === null
+            ? <CloudLoginForm face={face} t={t} onAuthenticated={onAuthenticated} />
+            : (
+              <div className={css.loginStatus} role="alert">
+                <p className={css.loginStatusTitle}>{t('shell.loginUnavailable')}</p>
+                <p className={css.loginStatusText}>{fill(t(cloudErrorKey(error.code)), { code: error.code })}</p>
+                {error.requestId === undefined ? null : <p className={css.cloudRequestId}>{t('shell.cloudRequestId')}: {error.requestId}</p>}
+                <button type="button" className={css.primaryBtn} onClick={onRetry}>{t('shell.loginRetry')}</button>
+              </div>
+            )}
+      </section>
+    </main>
+  )
+}
+
+/**
+ * 已登录后的账户摘要弹窗。
+ * @param props - 云端面、当前状态、词典与关闭/刷新/个人中心回调。
+ * @returns 账户额度、token 预估与账号动作。
+ */
+export function CloudDialog({ face, state, t, onClose, onChanged, onOpenPersonalCenter }: CloudDialogProps): ReactNode {
+  const [busy, setBusy] = useState<'refresh' | 'logout' | undefined>(undefined)
+  const [error, setError] = useState<CloudErrorInfo | null>(null)
+  const [confirmLogout, setConfirmLogout] = useState(false)
+  const quota = state?.quota ?? null
+  const user = state?.user ?? null
+  const subtitle = user === null ? t('shell.cloudSignedIn') : user.phoneMasked ?? user.displayName ?? user.id
+
+  const refresh = async (): Promise<void> => {
+    if (face === undefined || busy !== undefined) return
+    setBusy('refresh')
+    setError(null)
+    const answer = await face.refresh()
+    setBusy(undefined)
+    if (!answer.ok) { setError(answer.error); return }
+    await onChanged()
+  }
+
+  const logout = async (): Promise<void> => {
+    if (face === undefined || busy !== undefined) return
+    setBusy('logout')
+    setError(null)
+    const answer = await face.logout()
+    setBusy(undefined)
+    setConfirmLogout(false)
+    if (!answer.ok) { setError(answer.error); return }
+    await onChanged()
+    onClose()
+  }
 
   return (
     <div className={css.modalBackdrop} onClick={(event) => { if (event.target === event.currentTarget) onClose() }}>
       <div className={`${css.modal} ${css.cloudModal}`}>
         <div className={css.modalHead}>
           <div className={css.grow}>
-            <h3>{title}</h3>
-            {subtitle === null ? null : <p>{subtitle}</p>}
+            <h3>{t('shell.cloudAccount')}</h3>
+            <p>{subtitle}</p>
           </div>
           <button type="button" className={css.iconBtn} onClick={onClose}>✕</button>
         </div>
         <div className={css.modalBody}>
-          {mode === 'login' ? login : account}
+          <div className={css.cloudAccountGrid}>
+            <div className={css.cloudMetric}>
+              <span className={css.cloudMetricLabel}>{t('shell.cloudQuota')}</span>
+              <span className={css.cloudMetricValue}>{quota === null ? '—' : usd(quota.availableMicroUsd)}</span>
+              <span className={css.cloudMetricHint}>
+                {quota === null ? '' : `${t('shell.cloudGranted')} ${usd(quota.grantedMicroUsd)}`}
+              </span>
+            </div>
+          </div>
+          <p className={css.cloudMetaLine}>
+            {t('shell.cloudEstimateDialogLabel')}
+            {': '}
+            {estimateRange(activeEstimate(state), t)}
+          </p>
+          {state?.lastError === null || state?.lastError === undefined ? null : <ErrorBox error={state.lastError} t={t} />}
+          {error === null ? null : <ErrorBox error={error} t={t} />}
+          <div className={css.cloudActions}>
+            {onOpenPersonalCenter === undefined ? null : (
+              <button
+                type="button"
+                className={css.secondaryBtn}
+                disabled={busy !== undefined}
+                onClick={() => { onOpenPersonalCenter() }}
+              >
+                {t('shell.cloudOpenPersonalCenter')}
+              </button>
+            )}
+            <button type="button" className={css.secondaryBtn} disabled={busy !== undefined} onClick={() => { void refresh() }}>
+              {busy === 'refresh' ? t('shell.cloudRefreshing') : t('shell.cloudRefresh')}
+            </button>
+            {confirmLogout
+              ? (
+                <>
+                  <button type="button" className={css.secondaryBtn} disabled={busy !== undefined} onClick={() => { setConfirmLogout(false) }}>
+                    {t('shell.modelCancel')}
+                  </button>
+                  <button type="button" className={css.dangerBtn} disabled={busy !== undefined} onClick={() => { void logout() }}>
+                    {busy === 'logout' ? t('shell.modelSaving') : t('shell.cloudConfirmLogout')}
+                  </button>
+                </>
+              )
+              : (
+                <button type="button" className={css.dangerBtn} disabled={busy !== undefined} onClick={() => { setConfirmLogout(true) }}>
+                  {t('shell.cloudLogout')}
+                </button>
+              )}
+          </div>
         </div>
       </div>
     </div>

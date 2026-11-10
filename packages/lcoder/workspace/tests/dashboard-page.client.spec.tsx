@@ -14,6 +14,7 @@ import type { WorkspaceSnapshot } from '@deepseek-ai/dsh-api-workspace-controlle
 import type { SessionStatusSnapshot } from '@deepseek-ai/dsh-client-ui-session/client'
 import type { PanelInfo } from '@deepseek-ai/dsh-client-ui-layout/client'
 import { Shell } from '../src/client/shell/Shell.tsx'
+import type { CloudFace } from '../src/client/cloud/face.ts'
 import type { ShellProps } from '../src/client/shell/Shell.tsx'
 import { AgentDashboardPage } from '../src/client/shell/AgentDashboardPage.tsx'
 import type { AgentDashboardPageProps } from '../src/client/shell/AgentDashboardPage.tsx'
@@ -204,6 +205,28 @@ function shellFiles(): ProjectionFilesRemote {
 }
 
 /** 装一个最小外壳：一条运行中的会话与一份任务。 */
+/** 已登录云端替身：整壳只在登录后渲染，大盘用例只关心渲染事实。 */
+function signedInCloud(): CloudFace {
+  return {
+    available: true,
+    state: async () => ({
+      ok: true,
+      value: {
+        signedIn: true, needsLogin: false, user: null, quota: null, estimate: null, guest: null, guestExpired: false, lastError: null,
+      },
+    }),
+    sendSms: vi.fn(),
+    register: vi.fn(),
+    loginSms: vi.fn(),
+    loginPassword: vi.fn(),
+    refresh: vi.fn(),
+    me: vi.fn(),
+    logout: vi.fn(),
+    usage: vi.fn(),
+    selectRoute: vi.fn(),
+  }
+}
+
 function renderShell(): ReturnType<typeof render> {
   const summary: SessionSummary = {
     id: SessionId('s-1'),
@@ -242,6 +265,7 @@ function renderShell(): ReturnType<typeof render> {
   }
   const props: ShellProps = {
     t,
+    cloud: signedInCloud(),
     files: shellFiles(),
     usePanelInfo: <S,>(selector: (state: PanelInfo) => S): S => selector({ activePanelId: null }),
     useWorkspaces: <S,>(selector: (state: WorkspaceSnapshot) => S): S => selector(workspaces),
@@ -260,7 +284,8 @@ function renderShell(): ReturnType<typeof render> {
 describe('状态大盘入口', () => {
   it('顶栏按钮打开整页，返回后回到任务看板', async () => {
     const { container } = renderShell()
-    fireEvent.click(screen.getByRole('button', { name: zh['shell.dashboard'] }))
+    // 整壳只在登录状态读回来之后才渲染工作台；先等顶栏入口出现。
+    fireEvent.click(await screen.findByRole('button', { name: zh['shell.dashboard'] }))
     expect(await screen.findByRole('heading', { name: zh['shell.dashboard'] })).toBeTruthy()
     expect(container.querySelector('[data-lcoder-dashboard]')).not.toBeNull()
     expect(await screen.findByText('施工会话')).toBeTruthy()
@@ -272,7 +297,7 @@ describe('状态大盘入口', () => {
 
   it('点关系图里的任务节点打开任务详情', async () => {
     renderShell()
-    fireEvent.click(screen.getByRole('button', { name: zh['shell.dashboard'] }))
+    fireEvent.click(await screen.findByRole('button', { name: zh['shell.dashboard'] }))
 
     const node = await screen.findByRole('button', { name: /T-01 大盘里的任务/ })
     fireEvent.click(node)

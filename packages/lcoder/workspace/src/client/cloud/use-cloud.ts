@@ -1,7 +1,7 @@
 /**
  * 登录状态的 React 读取面：首次装载、窗口获得焦点时复查、登录后主动刷新。
  *
- * 只缓存展示值；匿名剩余量仍以服务端返回为准。
+ * 只缓存展示值；余额与额度仍以服务端返回为准。
  */
 import { useEffect, useRef, useState } from 'react'
 import type { CloudErrorInfo, CloudState } from '@lcoder/kernel/src/cloud/types.ts'

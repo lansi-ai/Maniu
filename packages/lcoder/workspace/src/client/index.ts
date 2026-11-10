@@ -40,7 +40,7 @@ import type { PromptContentPart } from '@deepseek-ai/dsh-api-session-controller/
 import cloudRemote from './cloud/remote.generated.ts'
 import { createCloudFace, unavailableCloudFace } from './cloud/face.ts'
 import type { CloudFace, CloudModelPort, CloudRemoteNamespace, CloudRemotePort } from './cloud/face.ts'
-import { CLOUD_GUEST_ROUTE, CLOUD_USER_ROUTE } from './cloud/routes.ts'
+import { CLOUD_USER_ROUTE } from './cloud/routes.ts'
 import { ChatPromptError } from './shell/chat-composer.ts'
 import type { ChatUploadResult } from './shell/chat-composer.ts'
 import { WORKSPACE_ID, workspaceDefinition } from './definition.ts'
@@ -215,7 +215,6 @@ function cloudPort(ctx: ClientContext): CloudRemotePort & CloudModelPort {
     refresh: async () => unwrapCloud(await cloud.refresh()),
     me: async () => unwrapCloud(await cloud.me()),
     logout: async () => unwrapCloud(await cloud.logout()),
-    claimGuest: async input => unwrapCloud(await cloud.claimGuest(input)),
     usage: async query => unwrapCloud(await cloud.usage(query)),
     selectModel: request => ctx.remote.session.selectModel(request),
   }
@@ -452,11 +451,11 @@ export async function apply(ctx: ClientContext, config: Config = {}): Promise<vo
       if (!catalog.ok) return statusOfFailure(catalog.error.code, catalog.error.message)
       const status = statusFromCatalog(catalog.value)
       if (status.state !== 'empty') return status
-      // 云端路由在拿到用户令牌或匿名令牌之前不列模型，但它们已经注册；
-      // 这时不能说「没有可用模型」，否则立项入口会被自己挡住。
+      // 云端路由在拿到用户令牌之前不列模型，但它已经注册；
+      // 这时不能说「没有可用模型」，否则登录后的入口会被自己挡住。
       const providers = await ctx.remote.llm.listProviders()
       const cloudReady = providers.ok
-        && providers.value.some(provider => provider.id === CLOUD_USER_ROUTE || provider.id === CLOUD_GUEST_ROUTE)
+        && providers.value.some(provider => provider.id === CLOUD_USER_ROUTE)
       return cloudReady ? { state: 'ready' } : status
     }
     /** 目录默认模型；查询失败返回 null，chip 宁可不显示也不编造。 */

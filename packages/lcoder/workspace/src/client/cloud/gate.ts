@@ -1,8 +1,8 @@
 /**
- * 匿名门禁的纯判定：哪个入口在什么登录状态下放行。
+ * 登录门禁的纯判定：哪个入口在什么登录状态下放行。
  *
- * 判定只看持久事实（登录状态、当前会话是否匿名立项会话），不看弹窗开没开；
- * 重复点击因此只会聚焦登录，不会多发一次领取或云端请求。
+ * 桌面端去掉了匿名路径：未登录时外壳只渲染全屏登录页，工作台不渲染；
+ * 这些入口判定仍保留给「已进入工作台之后云端临时不可用」的情况。
  */
 
 /** 需要门禁的入口。 */
@@ -25,8 +25,6 @@ export interface CloudGateFacts {
   readonly loading: boolean
   /** 云端通道不可用（未装配或 mounts 失败）。 */
   readonly cloudUnavailable: boolean
-  /** 当前会话是否由匿名立项令牌驱动。 */
-  readonly onboardingSession: boolean
 }
 
 /** 判定结果。 */
@@ -39,15 +37,10 @@ export type CloudGateDecision =
  * 判定一个入口。
  * @param entry - 入口标识。
  * @param facts - 登录与云端事实。
- * @returns 放行、弹登录或暂不处理。
+ * @returns 放行、要求登录或暂不处理；没有匿名放行分支。
  */
 export function gateEntry(entry: CloudGateEntry, facts: CloudGateFacts): CloudGateDecision {
   if (facts.cloudUnavailable) return { kind: 'blocked', reason: 'cloud-unavailable' }
-  if (entry === 'onboarding') return facts.loading ? { kind: 'blocked', reason: 'loading' } : { kind: 'allow' }
-  if (entry === 'onboardingFollowup') {
-    if (facts.signedIn) return { kind: 'allow' }
-    if (facts.onboardingSession) return { kind: 'allow' }
-  }
   if (facts.loading) return { kind: 'blocked', reason: 'loading' }
   if (facts.signedIn) return { kind: 'allow' }
   return { kind: 'login', reason: entry }

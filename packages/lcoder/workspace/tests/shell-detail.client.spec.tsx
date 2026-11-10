@@ -19,6 +19,7 @@ import type { PanelInfo } from '@deepseek-ai/dsh-client-ui-layout/client'
 import { Shell } from '../src/client/shell/Shell.tsx'
 import type { ShellProps } from '../src/client/shell/Shell.tsx'
 import type { CloudFace } from '../src/client/cloud/face.ts'
+import type { CloudState } from '@lcoder/kernel/src/cloud/types.ts'
 import { zh, en } from '../src/client/locales.ts'
 import {
   CONTRACTS_DIR, PROPOSALS_DIR, ROLES_FILE, SCHEDULING_DIR, TASKS_DIR,
@@ -109,6 +110,8 @@ interface ShellScenario {
   readonly attachments?: Readonly<Record<string, Uint8Array>>
   /** 界面词典；缺省中文，英文用例显式传入。 */
   readonly t?: ShellProps['t']
+  /** 云端面替身；缺省已登录。 */
+  readonly cloud?: CloudFace
 }
 
 /** 已登录的云端替身：门禁放行，详情用例只关心渲染事实；门禁本身有 cloud-login 专测。 */
@@ -130,7 +133,6 @@ function signedInCloud(): CloudFace {
     refresh: vi.fn(),
     me: vi.fn(),
     logout: vi.fn(),
-    claimGuest: vi.fn(),
     usage: vi.fn(),
     selectRoute: async () => ({ ok: true, value: { provider: 'lcoder-cloud', model: 'deepseek-flash' } }),
   }
@@ -168,7 +170,7 @@ function renderShell(scenario: ShellScenario) {
   const logSchedule = vi.fn(async () => ({ ok: false, text: 'evidence 目录不可写' }))
   const props: ShellProps = {
     t: scenario.t ?? t,
-    cloud: signedInCloud(),
+    cloud: scenario.cloud ?? signedInCloud(),
     files: fakeFiles(scenario.spec),
     readAttachment: async (_sessionId, path) => {
       const bytes = scenario.attachments?.[path]
@@ -725,5 +727,71 @@ describe('任务详情的阶段文案', () => {
     expect(within(detail).getAllByRole('button', { name: en['shell.confirmRequirement'] }).length).toBe(2)
     expect(within(detail).queryByText(/dev-flow startup prompt/)).toBeNull()
     expect(within(detail).queryByRole('button', { name: 'Copy prompt' })).toBeNull()
+  })
+})
+
+/** 登录态事实；状态替身复用这两份。 */
+const SIGNED_IN_STATE: CloudState = {
+  signedIn: true, needsLogin: false,
+  user: { id: 'u1', displayName: null, phoneMasked: '+861****0000', status: 'active' },
+  quota: null, estimate: null, guest: null, guestExpired: false, lastError: null,
+}
+const SIGNED_OUT_STATE: CloudState = {
+  ...SIGNED_IN_STATE, signedIn: false, needsLogin: true, user: null,
+}
+
+describe('登录门禁（整页）', () => {
+  it('未登录时只渲染全屏登录页，工作台不在 DOM 里', async () => {
+    const cloud = signedInCloud()
+    cloud.state = async () => ({ ok: true, value: SIGNED_OUT_STATE })
+    renderShell({ spec: {}, cloud })
+
+    expect(await screen.findByRole('heading', { name: zh['shell.cloudSignIn'], level: 2 })).toBeTruthy()
+    expect(screen.queryByText(zh['shell.board'])).toBeNull()
+    expect(screen.queryByRole('button', { name: zh['shell.startWork'] })).toBeNull()
+    expect(screen.queryByTitle(zh['shell.newSession'])).toBeNull()
+    expect(document.querySelector('[class*="modalBackdrop"]')).toBeNull()
+  })
+
+  it('登录后渲染工作台', async () => {
+    renderShell({ spec: {} })
+    expect(await screen.findByText(zh['shell.board'])).toBeTruthy()
+    expect(screen.queryByRole('heading', { name: zh['shell.cloudSignIn'], level: 2 })).toBeNull()
+  })
+
+  it('读取登录状态时显示加载态', () => {
+    const cloud = signedInCloud()
+    cloud.state = () => new Promise<never>(() => {})
+    renderShell({ spec: {}, cloud })
+    expect(screen.getByText(zh['shell.loginChecking'])).toBeTruthy()
+    expect(screen.queryByText(zh['shell.board'])).toBeNull()
+  })
+
+  it('读不到登录状态时就地报错并可重试，不放行到工作台', async () => {
+    const state = vi.fn(async () => ({ ok: false as const, error: { code: 'cloud_unavailable', message: 'not mounted' } }))
+    const cloud = signedInCloud()
+    cloud.state = state
+    renderShell({ spec: {}, cloud })
+
+    expect(await screen.findByText(zh['shell.loginUnavailable'])).toBeTruthy()
+    expect(screen.queryByText(zh['shell.board'])).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: zh['shell.loginRetry'] }))
+    await waitFor(() => { expect(state).toHaveBeenCalledTimes(2) })
+  })
+
+  it('退出登录后回到全屏登录页', async () => {
+    let signed = true
+    const cloud = signedInCloud()
+    cloud.state = async () => ({ ok: true, value: signed ? SIGNED_IN_STATE : SIGNED_OUT_STATE })
+    cloud.logout = vi.fn(async () => { signed = false; return { ok: true as const, value: { ok: true } } })
+    renderShell({ spec: {}, cloud })
+
+    expect(await screen.findByText(zh['shell.board'])).toBeTruthy()
+    fireEvent.click(screen.getByTitle(zh['shell.cloudAccount']))
+    fireEvent.click(await screen.findByRole('button', { name: zh['shell.cloudLogout'] }))
+    fireEvent.click(await screen.findByRole('button', { name: zh['shell.cloudConfirmLogout'] }))
+
+    expect(await screen.findByRole('heading', { name: zh['shell.cloudSignIn'], level: 2 })).toBeTruthy()
+    expect(screen.queryByText(zh['shell.board'])).toBeNull()
   })
 })

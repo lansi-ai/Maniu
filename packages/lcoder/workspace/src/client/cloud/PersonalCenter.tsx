@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type {
-  CloudErrorInfo, CloudGuestView, CloudState, CloudUsageItem,
+  CloudErrorInfo, CloudState, CloudUsageItem,
 } from '@lcoder/kernel/src/cloud/types.ts'
 import type { LcoderWorkspaceKey } from '../locales.ts'
 import { cloudErrorKey } from './errors.ts'
@@ -21,7 +21,6 @@ export interface PersonalCenterProps {
   readonly state: CloudState | null
   readonly t: CloudTranslate
   readonly onBack: () => void
-  readonly onOpenLogin: () => void
 }
 
 /** 每页流水条数；与云端默认一致。 */
@@ -97,30 +96,15 @@ function EstimateCard({ state, t }: { readonly state: CloudState | null; readonl
   )
 }
 
-/** 匿名授权区块。 */
-function GuestCard({ guest, t }: { readonly guest: CloudGuestView | null; readonly t: CloudTranslate }): ReactNode {
-  if (guest === null) return null
-  return (
-    <section className={css.pcCard}>
-      <h4 className={css.pcCardTitle}>{t('shell.cloudGuest')}</h4>
-      <Row label={t('shell.cloudGuest')} value={fill(t('shell.cloudGuestRemaining'), { count: guest.remainingRequests })} />
-      <Row label={t('shell.cloudGuestCostLeftLabel')} value={usd(guest.remainingCostMicroUsd)} />
-      <Row label={t('shell.cloudGrantDate')} value={stamp(guest.grantDate)} />
-      <Row label={t('shell.cloudExpiresAt')} value={stamp(guest.expiresAt)} />
-    </section>
-  )
-}
-
 /**
  * 个人中心整页。
  * @param props - 云端面、登录状态、词典与返回/登录回调。
  * @returns 账号、余额、预估与用量。
  */
-export function PersonalCenter({ face, state, t, onBack, onOpenLogin }: PersonalCenterProps): ReactNode {
+export function PersonalCenter({ face, state, t, onBack }: PersonalCenterProps): ReactNode {
   const signedIn = state?.signedIn === true
   const user = state?.user ?? null
   const quota = state?.quota ?? null
-  const guest = state?.guest ?? null
 
   const [items, setItems] = useState<readonly CloudUsageItem[]>([])
   const [cursor, setCursor] = useState<string | null>(null)
@@ -223,12 +207,9 @@ export function PersonalCenter({ face, state, t, onBack, onOpenLogin }: Personal
           <p className={css.pcSub}>
             {signedIn
               ? user?.displayName ?? user?.phoneMasked ?? t('shell.cloudSignedIn')
-              : t('shell.cloudPersonalCenterGuest')}
+              : t('shell.cloudSignIn')}
           </p>
         </div>
-        {signedIn ? null : (
-          <button type="button" className={css.primaryBtn} onClick={onOpenLogin}>{t('shell.cloudSignIn')}</button>
-        )}
       </header>
 
       <div className={css.pcGrid}>
@@ -262,7 +243,6 @@ export function PersonalCenter({ face, state, t, onBack, onOpenLogin }: Personal
         </section>
 
         <EstimateCard state={state} t={t} />
-        <GuestCard guest={signedIn ? null : guest} t={t} />
       </div>
 
       {usage}

@@ -51,15 +51,14 @@ import { onboardingAction } from '../onboarding.ts'
 import { intakeArtifactsOf, intakeTierOfMessages, PROPOSAL_DECISION, runIntakeRestart } from './intake.ts'
 import type { IntakeTier } from './intake.ts'
 import { IntakeResultPage, IntakeRestartDialog } from './IntakeResultPage.tsx'
-import { CloudAccountButton, CloudDialog } from '../cloud/CloudAccount.tsx'
-import type { CloudDialogMode } from '../cloud/CloudAccount.tsx'
+import { CloudAccountButton, CloudDialog, CloudLoginScreen } from '../cloud/CloudAccount.tsx'
 import { PersonalCenter } from '../cloud/PersonalCenter.tsx'
 import { gateEntry } from '../cloud/gate.ts'
 import { cloudErrorKey, cloudNextKey } from '../cloud/errors.ts'
 import type { CloudGateEntry } from '../cloud/gate.ts'
 import type { CloudFace } from '../cloud/face.ts'
 import { useCloudSession } from '../cloud/use-cloud.ts'
-import { CLOUD_GUEST_ROUTE } from '../cloud/routes.ts'
+import { CLOUD_LEGACY_GUEST_ROUTE } from '../cloud/routes.ts'
 import { buildIntakePrompt, buildOnboardingPrompt, buildShellPrompt, SHELL_STATES } from './shell-data.ts'
 import { recommendedRoleId } from './role-hint.ts'
 import { ChatTranscript, PendingInteractionCard } from './ChatPanel.tsx'
@@ -154,7 +153,7 @@ export type ShellProps =
     readonly holdSession?: (sessionId: SessionId) => () => void
     /** 普通档对话窗尺寸（像素）；最大化档始终占满应用。配置缺省时用内置默认值。 */
     readonly chatSize?: { readonly width: number; readonly height: number }
-    /** 云端登录与匿名授权面；缺省时显示「云端未装配」。 */
+    /** 云端登录面；缺省时登录页显示「云端未装配」。 */
     readonly cloud?: CloudFace
   }
 
@@ -437,7 +436,7 @@ export function Shell({
   const sessionStatus = useSessionStatus(state => state)
   /** 云端登录状态；登录弹窗、顶栏与门禁共用这一份。 */
   const cloudSession = useCloudSession(cloud)
-  const [cloudDialog, setCloudDialog] = useState<CloudDialogMode | null>(null)
+  const [accountOpen, setAccountOpen] = useState(false)
 
   const [workspaceId, setWorkspaceId] = useState<string | null>(null)
   const [dark, setDark] = useState(false)
@@ -595,6 +594,8 @@ export function Shell({
   const signedIn = cloudSession.state?.signedIn === true
   const cloudUnavailable = cloud === undefined || !cloud.available
     || cloudSession.error?.code === 'cloud_unavailable'
+  /** 登录状态读不出来（云端没装配或读取失败）；这时只渲染登录页，不放行到工作台。 */
+  const loginBlocked = cloudSession.state === null && cloudSession.error !== null
   /** 当前会话绑的 provider；投影还没物化时读不到。 */
   const sessionCloudProvider = (id: SessionId | undefined): string | undefined => {
     if (id === undefined) return undefined
@@ -604,41 +605,47 @@ export function Shell({
     const provider = (projected as { provider?: unknown }).provider
     return typeof provider === 'string' ? provider : undefined
   }
-  /** 匿名立项会话是唯一允许匿名继续追问的会话。 */
-  const onboardingSession = sessionCloudProvider(sessionId) === CLOUD_GUEST_ROUTE
   const cloudFacts = {
     signedIn,
     loading: cloudSession.loading,
     cloudUnavailable,
-    onboardingSession,
   }
-  /** 聚焦登录手机号框；弹窗已经开着时只做这一件事。 */
-  const focusCloudPhone = (): void => {
-    setTimeout(() => { document.getElementById('lcoder-cloud-phone')?.focus() }, 0)
-  }
-  /** 弹登录；重复点击只聚焦，不发任何云端请求。 */
-  const openLogin = (entry: CloudGateEntry): void => {
-    if (cloudDialog !== null) { focusCloudPhone(); return }
-    setCloudDialog('login')
-    setChatError(fill(t('shell.cloudGateNotice'), { entry: t(CLOUD_ENTRY_LABEL[entry]) }))
-    focusCloudPhone()
-  }
-  /** 需要用户令牌的入口统一走这里。 */
+  /** 需要用户令牌的入口统一走这里；未登录时外壳只渲染登录页，这里兜住云端不可用。 */
   const requireUser = (entry: CloudGateEntry): boolean => {
     const decision = gateEntry(entry, cloudFacts)
     if (decision.kind === 'allow') return true
-    if (decision.kind === 'login') { openLogin(entry); return false }
+    if (decision.kind === 'login') {
+      setChatError(fill(t('shell.cloudGateNotice'), { entry: t(CLOUD_ENTRY_LABEL[entry]) }))
+      return false
+    }
     setChatError(decision.reason === 'loading' ? t('shell.cloudGateLoading') : t('shell.cloudGateUnavailable'))
     return false
   }
-  /** 把会话切到用户或匿名路由；失败就地提示，不偷偷换别的模型。 */
-  const routeSession = async (id: SessionId, mode: 'user' | 'guest'): Promise<boolean> => {
+  /** 把会话切回用户路由；失败就地提示，不偷偷换别的模型。 */
+  const routeSession = async (id: SessionId): Promise<boolean> => {
     if (cloud === undefined) { setChatError(t('shell.cloudGateUnavailable')); return false }
-    const routed = await cloud.selectRoute(id, mode)
+    const routed = await cloud.selectRoute(id)
     if (routed.ok) return true
     setChatError(fill(t('shell.cloudSwitchFailed'), { detail: routed.error.code }))
     return false
   }
+  /**
+   * 旧版本匿名立项会话：打开时切回用户路由一次。
+   *
+   * 桌面端已去匿名，但历史会话可能还记着匿名路由；只在登录后切一次，
+   * 失败留在浮层错误里，不重试也不偷偷换模型。
+   */
+  const reroutedLegacy = useRef<Set<string>>(new Set())
+  const legacyGuestSession = sessionId !== undefined
+    && sessionCloudProvider(sessionId) === CLOUD_LEGACY_GUEST_ROUTE
+  useEffect(() => {
+    if (!signedIn || sessionId === undefined || !legacyGuestSession) return
+    const key = String(sessionId)
+    if (reroutedLegacy.current.has(key)) return
+    reroutedLegacy.current.add(key)
+    void routeSession(sessionId)
+    // 只在登录态或当前会话变化时检查一次；routeSession 是每次渲染的新闭包。
+  }, [signedIn, sessionId, legacyGuestSession])
   /** 本工作区登记在册的会话，按上游顺序；顶栏的会话条就按这条列表排。 */
   const workspaceSessions = workspace?.sessionIds ?? []
   /** 同一批会话折成归属与状态需要的形状（带 running 与 blank）。 */
@@ -1632,8 +1639,8 @@ export function Shell({
       setClaiming(true)
       try {
         const targetProvider = sessionCloudProvider(target)
-        if (signedIn && (targetProvider === undefined || targetProvider === CLOUD_GUEST_ROUTE)) {
-          if (!await routeSession(target, 'user')) {
+        if (signedIn && (targetProvider === undefined || targetProvider === CLOUD_LEGACY_GUEST_ROUTE)) {
+          if (!await routeSession(target)) {
             return { taskId: task.id, ok: false, held: false, text: t('shell.cloudSessionGate') }
           }
         }
@@ -1665,7 +1672,7 @@ export function Shell({
       // 任务对话总是按宿主默认角色开会话：角色选择只服务顶栏「＋」弹窗，
       // 这里读 roleChoice 会把上一次弹窗里的选择带进任务。
       const created = await createSession(projectPath)
-      if (signedIn) await routeSession(created, 'user')
+      if (signedIn) await routeSession(created)
       const claimed = await bindTask(created, task.id)
       if (!claimed.ok) throw new Error(claimed.text)
       setSessionOverride(created)
@@ -1874,7 +1881,7 @@ export function Shell({
     try {
       if (createSession === undefined) throw new Error(t('shell.noSession'))
       const created = await createSession(projectPath, AGENT_ROLES[role].preset)
-      if (signedIn) await routeSession(created, 'user')
+      if (signedIn) await routeSession(created)
       setSessionOverride(created)
       setDetail(null)
       setChat(pseudoChat(title))
@@ -1913,7 +1920,7 @@ export function Shell({
     setClaiming(true)
     void (async () => {
       const created = await createSession(projectPath, roleChoice ?? undefined)
-      if (signedIn) await routeSession(created, 'user')
+      if (signedIn) await routeSession(created)
       // 人选的角色要留在本窗口：之后的调度判定按它算这条会话的有效岗位。
       if (roleChoice !== null) setSessionRoles(current => ({ ...current, [String(created)]: roleChoice }))
       setSessionOverride(created)
@@ -1940,8 +1947,10 @@ export function Shell({
    */
   const startOnboarding = (kind: 'new' | 'docs'): void => {
     const gate = gateEntry('onboarding', cloudFacts)
-    if (gate.kind === 'blocked') {
-      setChatError(gate.reason === 'loading' ? t('shell.cloudGateLoading') : t('shell.cloudGateUnavailable'))
+    if (gate.kind !== 'allow') {
+      setChatError(gate.kind === 'blocked' && gate.reason === 'loading'
+        ? t('shell.cloudGateLoading')
+        : t('shell.cloudGateUnavailable'))
       return
     }
     const project = { name: projectName, path: projectPath, branch: projectBranch }
@@ -1967,29 +1976,14 @@ export function Shell({
     }
     if (action.kind === 'open' || sessionId === undefined || sendPrompt === undefined) return
     onboardingSending.current = true
-    setChatError(t('shell.cloudGuestClaiming'))
     void (async () => {
       try {
-        if (signedIn) {
-          if (!await routeSession(sessionId, 'user')) return
-        } else {
-          if (cloud === undefined) { setChatError(t('shell.cloudGateUnavailable')); return }
-          const claimed = await cloud.claimGuest({})
-          if (!claimed.ok) {
-            setChatError(fill(t('shell.cloudClaimFailed'), { detail: claimed.error.code }))
-            if (claimed.error.code === 'guest_quota_exhausted'
-              || claimed.error.code === 'guest_expired'
-              || claimed.error.code === 'guest_ip_limited'
-              || claimed.error.code === 'device_already_granted') openLogin('onboarding')
-            return
-          }
-          if (!await routeSession(sessionId, 'guest')) return
-        }
+        if (!await routeSession(sessionId)) return
         setChatError(null)
         await sendPrompt(sessionId, text)
         void cloudSession.refresh()
       } catch (error: unknown) {
-        setChatError(fill(t('shell.cloudClaimFailed'), { detail: String(error) }))
+        setChatError(fill(t('shell.onboardingSendFailed'), { detail: String(error) }))
       } finally {
         onboardingSending.current = false
       }
@@ -2158,25 +2152,15 @@ export function Shell({
     if (sendingRef.current || chatSessionId === undefined || sendPrompt === undefined
       || promptIsEmpty(draft, attachments) || !chatAttachmentsReady || modelBlocked) return
     const sendGate = gateEntry('onboardingFollowup', cloudFacts)
-    if (sendGate.kind === 'login') {
-      openLogin('onboardingFollowup')
-      setChatError(t('shell.cloudSessionGate'))
+    if (sendGate.kind !== 'allow') {
+      setChatError(sendGate.kind === 'blocked' && sendGate.reason === 'loading'
+        ? t('shell.cloudGateLoading')
+        : t('shell.cloudGateUnavailable'))
       return
     }
-    if (sendGate.kind === 'blocked') {
-      setChatError(sendGate.reason === 'loading' ? t('shell.cloudGateLoading') : t('shell.cloudGateUnavailable'))
-      return
-    }
-    if (!signedIn && cloudSession.state?.guestExpired === true) {
-      openLogin('onboardingFollowup')
-      setChatError(t('shell.cloudErrorGuestExpired'))
-      return
-    }
-    if (signedIn) {
-      const provider = sessionCloudProvider(chatSessionId)
-      if ((provider === undefined || provider === CLOUD_GUEST_ROUTE)
-        && !await routeSession(chatSessionId, 'user')) return
-    }
+    const provider = sessionCloudProvider(chatSessionId)
+    if ((provider === undefined || provider === CLOUD_LEGACY_GUEST_ROUTE)
+      && !await routeSession(chatSessionId)) return
     const text = draft.trim()
     setChatError(null)
     setAttachError(null)
@@ -2328,6 +2312,65 @@ export function Shell({
     runWindowCommand('toggle-maximize')
   }
 
+  /** 窗口按钮只在 Windows 桌面壳里出现；登录页与工作台共用同一组。 */
+  const windowControls = windowBridge === undefined ? null : (
+    <div className={css.windowControls}>
+      <button
+        type="button"
+        className={css.windowBtn}
+        title={t('shell.minimizeWindow')}
+        aria-label={t('shell.minimizeWindow')}
+        onClick={() => { runWindowCommand('minimize') }}
+      >
+        –
+      </button>
+      <button
+        type="button"
+        className={css.windowBtn}
+        title={t(windowMaximized ? 'shell.restore' : 'shell.maximize')}
+        aria-label={t(windowMaximized ? 'shell.restore' : 'shell.maximize')}
+        onClick={() => { runWindowCommand('toggle-maximize') }}
+      >
+        {windowMaximized ? '❐' : '□'}
+      </button>
+      <button
+        type="button"
+        className={`${css.windowBtn} ${css.windowClose}`}
+        title={t('shell.closeWindow')}
+        aria-label={t('shell.closeWindow')}
+        onClick={() => { runWindowCommand('close') }}
+      >
+        ✕
+      </button>
+    </div>
+  )
+
+  /** 未登录（或登录状态读不出来）时只渲染全屏登录页；工作台不进入 DOM。 */
+  if (!signedIn) {
+    return (
+      <div className={css.shell} data-theme={dark ? 'dark' : 'light'} data-chrome={windowBridge === undefined ? undefined : 'custom'}>
+        <header className={css.loginChrome} onDoubleClick={windowBridge === undefined ? undefined : onTopbarDoubleClick}>
+          <div className={css.topBrand}>
+            <img className={css.topLogo} src={bullMark} alt="" />
+            <span className={css.topTitle}>{t('shell.brand')}</span>
+          </div>
+          <div className={css.spacer} />
+          <button type="button" className={css.iconBtn} title={t('shell.theme')} onClick={() => { setDark(value => !value) }}>◐</button>
+          {windowControls}
+        </header>
+        <CloudLoginScreen
+          face={cloud}
+          loading={cloudSession.loading}
+          error={loginBlocked ? cloudSession.error : null}
+          t={t}
+          onRetry={() => { void cloudSession.refresh() }}
+          onAuthenticated={() => cloudSession.refresh()}
+        />
+        <div className={css.demoBadge}>{t('shell.brand')} · {t('shell.realData')}</div>
+      </div>
+    )
+  }
+
   return (
     <div className={css.shell} data-theme={dark ? 'dark' : 'light'} data-chrome={windowBridge === undefined ? undefined : 'custom'}>
       <header className={css.topbar} onDoubleClick={windowBridge === undefined ? undefined : onTopbarDoubleClick}>
@@ -2421,49 +2464,13 @@ export function Shell({
         <div className={css.spacer} />
         <CloudAccountButton
           state={cloudSession.state}
-          loading={cloudSession.loading}
           t={t}
-          onClick={() => {
-            if (cloudDialog === 'login') { focusCloudPhone(); return }
-            if (cloudDialog !== null) return
-            setCloudDialog(signedIn ? 'account' : 'login')
-            if (!signedIn) focusCloudPhone()
-          }}
+          onClick={() => { setAccountOpen(true) }}
         />
         <button type="button" className={css.secondaryBtn} onClick={() => { setDrawer(true) }}>ⓘ {t('shell.projectInfo')}</button>
         <button type="button" className={css.iconBtn} title={t('shell.theme')} onClick={() => { setDark(value => !value) }}>◐</button>
         <button type="button" className={css.iconBtn} title={t('shell.settings')} onClick={() => { setSettings(true) }}>⚙</button>
-        {windowBridge === undefined ? null : (
-          <div className={css.windowControls}>
-            <button
-              type="button"
-              className={css.windowBtn}
-              title={t('shell.minimizeWindow')}
-              aria-label={t('shell.minimizeWindow')}
-              onClick={() => { runWindowCommand('minimize') }}
-            >
-              –
-            </button>
-            <button
-              type="button"
-              className={css.windowBtn}
-              title={t(windowMaximized ? 'shell.restore' : 'shell.maximize')}
-              aria-label={t(windowMaximized ? 'shell.restore' : 'shell.maximize')}
-              onClick={() => { runWindowCommand('toggle-maximize') }}
-            >
-              {windowMaximized ? '❐' : '□'}
-            </button>
-            <button
-              type="button"
-              className={`${css.windowBtn} ${css.windowClose}`}
-              title={t('shell.closeWindow')}
-              aria-label={t('shell.closeWindow')}
-              onClick={() => { runWindowCommand('close') }}
-            >
-              ✕
-            </button>
-          </div>
-        )}
+        {windowControls}
       </header>
 
       <main className={css.main}>
@@ -2473,7 +2480,6 @@ export function Shell({
             state={cloudSession.state}
             t={t}
             onBack={() => { setPersonalPage(false) }}
-            onOpenLogin={() => { setPersonalPage(false); setCloudDialog('login'); focusCloudPhone() }}
           />
         ) : null}
         {dashboardPage && !personalPage ? (
@@ -3501,16 +3507,14 @@ export function Shell({
             <div className={css.modalBody}>
               {modelSettings === undefined
                 ? null
-                : cloud !== undefined && !signedIn
-                  ? <p className={css.modelNotice}>{t('shell.cloudModelSettingsLocked')}</p>
-                  : (
-                    <ModelSettings
-                      face={modelSettings}
-                      sessionId={sessionId}
-                      t={t}
-                      onChanged={() => { modelRefresh.current() }}
-                    />
-                  )}
+                : (
+                  <ModelSettings
+                    face={modelSettings}
+                    sessionId={sessionId}
+                    t={t}
+                    onChanged={() => { modelRefresh.current() }}
+                  />
+                )}
               <div className={css.settingsGrid}>
                 <div className={css.settingRow}><div className={css.settingLabel}><span className={css.settingLabelB}>{t('shell.specRoot')}</span><span className={css.settingLabelSpan}>{specRoot || '—'}</span></div><span className={css.pill}>{t('shell.sessionBound')}</span></div>
                 <div className={css.settingRow}><div className={css.settingLabel}><span className={css.settingLabelB}>{t('shell.floating')}</span><span className={css.settingLabelSpan}>{t('shell.floatingHint')}</span></div><button type="button" className={`${css.switch} ${css.switchOn}`} /></div>
@@ -3590,24 +3594,21 @@ export function Shell({
         </div>
       ) : null}
 
-      {cloudDialog === null ? null : (
+      {accountOpen ? (
         <CloudDialog
-          mode={cloudDialog}
           face={cloud}
           state={cloudSession.state}
-          sessionId={chatSessionId ?? sessionId}
           t={t}
-          onClose={() => { setCloudDialog(null); setChatError(null) }}
+          onClose={() => { setAccountOpen(false) }}
           onChanged={() => { void cloudSession.refresh() }}
           onOpenPersonalCenter={() => {
-            setCloudDialog(null)
-            setChatError(null)
+            setAccountOpen(false)
             setDashboardPage(false)
             setPersonalPage(true)
             void cloudSession.refresh()
           }}
         />
-      )}
+      ) : null}
 
       <div className={css.demoBadge}>{t('shell.brand')} · {t('shell.realData')}</div>
     </div>
