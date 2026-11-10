@@ -3,7 +3,7 @@
 # 为什么有它：并行开发线各自一个 worktree，每个树都装一份 node_modules（GB 级、pnpm 硬链接到全局
 # store）、各自下载一份 Electron 运行时（downloads 91MB + targets 268MB），磁盘很快见底；清理时
 # git worktree remove 又会被超过 MAX_PATH 的嵌套 node_modules 卡住（见 lcoder/PITFALLS.md W-12）。
-# 这个脚本把四件事固定成可重复的命令，下次开线直接调用。
+# 这个脚本把工作树空间优化与重活串行固定成可重复的命令，下次开线直接调用。
 #
 # 用法：
 #   worktree.cmd -Action junction -Name <工作树名>
@@ -21,10 +21,12 @@
 #   worktree.cmd -Action inspect [-WarnGB 8] [-Deep]
 #       列出主检出与 .worktrees 下各工作树的占用，拆分 lib 与 .desktop-build。
 #       默认有界统计：node_modules 只标"硬链接共享、未逐文件统计"；-Deep 才精确统计它。
-#   worktree.cmd -Action provision -Name <工作树名> [-TimeoutSec 1800]
+#   worktree.cmd -Action provision -Path <工作树> [-TimeoutSec 1800]
 #       持机器级锁，在目标工作树跑 pnpm install --offline --frozen-lockfile。
-#   worktree.cmd -Action build -Name <工作树名> [-TimeoutSec 1800] [-DryRun]
+#       目标必须是 git worktree list 里的树；也可用 -Name <名字> 指向 .worktrees\<名字>。
+#   worktree.cmd -Action build -Path <工作树> [-TimeoutSec 1800] [-DryRun]
 #       持同一把锁做分层重建：优先 lcoder\scripts\rebuild.cmd，缺它才 pnpm run build:artifacts。
+#       pnpm/rebuild 的非零退出码原样透传。
 #   worktree.cmd -Action lock -Seconds <秒> [-Name LCoder-Heavy]
 #       持锁睡眠后释放，用于并发演示。
 #
@@ -44,6 +46,7 @@ param(
   [string]$Branch,
   [string[]]$Paths,
   [string]$Target,
+  [string]$Path,
   [switch]$Remove,
   [switch]$Force,
   [switch]$Deep,
@@ -105,16 +108,19 @@ $mainRoot = [IO.Path]::GetFullPath($worktrees[0].Path).TrimEnd('\')
 $worktreesRoot = [IO.Path]::GetFullPath((Join-Path $mainRoot '.worktrees')).TrimEnd('\')
 
 function Resolve-TargetPath([switch]$MustExist) {
-  $path = $null
-  if ($Target) {
-    $path = $Target
+  # 局部变量不能叫 $path：PowerShell 变量名大小写不敏感，会覆盖脚本级 -Path 参数。
+  $candidate = $null
+  if ($Path) {
+    $candidate = $Path
+  } elseif ($Target) {
+    $candidate = $Target
   } elseif ($Name) {
     if ($Name -match '[\\/:*?"<>|]') { throw "工作树名不能包含路径分隔符：$Name" }
-    $path = Join-Path $worktreesRoot $Name
+    $candidate = Join-Path $worktreesRoot $Name
   } else {
-    throw '缺少 -Name（或 -Target）：请给出工作树名。'
+    throw '缺少 -Path（或 -Name / -Target）：请给出目标工作树。'
   }
-  $full = [IO.Path]::GetFullPath($path).TrimEnd('\')
+  $full = [IO.Path]::GetFullPath($candidate).TrimEnd('\')
   if ($MustExist -and -not (Test-Path -LiteralPath $full)) {
     throw "目标工作树不存在：$full"
   }
@@ -130,6 +136,26 @@ function Assert-TargetAllowed([string]$Path) {
   $under = $full.StartsWith($worktreesRoot + '\', [StringComparison]::OrdinalIgnoreCase)
   if (-not $under -and -not $Force) {
     throw "拒绝：目标不在主检出 .worktrees 下（$full）。确认无误后加 -Force。"
+  }
+}
+
+# provision/build 的硬约束：目标存在、是工作树根、且在 git worktree list 里。
+function Assert-RegisteredWorktree([string]$Path) {
+  $full = [IO.Path]::GetFullPath($Path).TrimEnd('\')
+  if (-not (Test-Path -LiteralPath $full -PathType Container)) {
+    throw "目标工作树不存在：$full"
+  }
+  $top = Invoke-Git $full @('rev-parse', '--show-toplevel')
+  if ($top.Code -ne 0) {
+    throw "目标不是 git 工作树：$full（$($top.Lines -join ' ')）"
+  }
+  $topPath = [IO.Path]::GetFullPath($top.Lines[0].Trim()).TrimEnd('\')
+  if ($topPath -ine $full) {
+    throw "目标不是工作树根：$full（git 根是 $topPath）"
+  }
+  $registered = @($worktrees | Where-Object { [IO.Path]::GetFullPath($_.Path).TrimEnd('\') -ieq $full })
+  if ($registered.Count -eq 0) {
+    throw "目标不在 git worktree list 中：$full"
   }
 }
 
@@ -236,22 +262,28 @@ function Invoke-Sparse {
 function Invoke-Provision {
   $target = Resolve-TargetPath -MustExist
   Assert-TargetAllowed $target
+  Assert-RegisteredWorktree $target
   $lock = Enter-HeavyLock 'LCoder-Heavy' $TimeoutSec
   $started = Get-Date
+  $code = 0
   try {
     $result = Invoke-LockedNative 'pnpm install --offline --frozen-lockfile' 'pnpm' @('install', '--offline', '--frozen-lockfile') $target
-    if ($result.Code -ne 0) {
-      throw ('pnpm install 失败：退出码 ' + $result.Code + '，耗时 ' + $result.Elapsed + ' 秒。离线安装失败多半是本地 pnpm store 缺包，去掉 --offline 联网补一次。')
+    $code = $result.Code
+    if ($code -ne 0) {
+      Write-Host ('provision 失败：pnpm 退出码 ' + $code + '，耗时 ' + $result.Elapsed + ' 秒。离线安装失败多半是本地 pnpm store 缺包，去掉 --offline 联网补一次。') -ForegroundColor Red
+    } else {
+      Write-Host ('provision 完成：' + $target) -ForegroundColor Green
     }
-    Write-Host ('provision 完成：' + $target) -ForegroundColor Green
   } finally {
     Exit-HeavyLock $lock $started
   }
+  return $code
 }
 
 function Invoke-Build {
   $target = Resolve-TargetPath -MustExist
   Assert-TargetAllowed $target
+  Assert-RegisteredWorktree $target
   # 分层重建优先用树内 rebuild.cmd（只重出过期的那几层）；树里没有脚本才退回全量 artifacts。
   $rebuild = Join-Path $target 'lcoder\scripts\rebuild.cmd'
   if (Test-Path -LiteralPath $rebuild) {
@@ -269,19 +301,23 @@ function Invoke-Build {
     Write-Host ('  命令：' + $file + ' ' + ($arguments -join ' '))
     Write-Host ('  工作目录：' + $target)
     Write-Host '  -DryRun 不取锁、不构建。' -ForegroundColor DarkGray
-    return
+    return 0
   }
   $lock = Enter-HeavyLock 'LCoder-Heavy' $TimeoutSec
   $started = Get-Date
+  $code = 0
   try {
     $result = Invoke-LockedNative $label $file $arguments $target
-    if ($result.Code -ne 0) {
-      throw ('分层重建失败：退出码 ' + $result.Code + '，耗时 ' + $result.Elapsed + ' 秒。')
+    $code = $result.Code
+    if ($code -ne 0) {
+      Write-Host ('分层重建失败：退出码 ' + $code + '，耗时 ' + $result.Elapsed + ' 秒。') -ForegroundColor Red
+    } else {
+      Write-Host 'build 完成。' -ForegroundColor Green
     }
-    Write-Host 'build 完成。' -ForegroundColor Green
   } finally {
     Exit-HeavyLock $lock $started
   }
+  return $code
 }
 
 # 并发演示用：-Name 是锁名标签（默认 LCoder-Heavy），不解析工作树路径。
@@ -680,13 +716,15 @@ function Show-Help {
   Write-Host '      列出主检出与 .worktrees 下各工作树占用，拆分 lib 与 .desktop-build。'
   Write-Host '      默认有界：node_modules 标"硬链接共享、未逐文件统计"；-Deep 才精确统计。'
   Write-Host ''
-  Write-Host '  worktree.cmd -Action provision -Name <工作树名> [-TimeoutSec 1800]'
+  Write-Host '  worktree.cmd -Action provision -Path <工作树> [-TimeoutSec 1800]'
   Write-Host '      持机器级锁，在目标工作树跑 pnpm install --offline --frozen-lockfile。'
-  Write-Host '      打印等锁时长、退出码、耗时；等锁超时直接报错，不杀正在跑的命令。'
+  Write-Host '      目标必须是 git worktree list 里的树；-Name <名字> 等价于 .worktrees\<名字>。'
+  Write-Host '      打印等锁时长、退出码、耗时；pnpm 非零退出码原样透传。'
   Write-Host ''
-  Write-Host '  worktree.cmd -Action build -Name <工作树名> [-TimeoutSec 1800] [-DryRun]'
+  Write-Host '  worktree.cmd -Action build -Path <工作树> [-TimeoutSec 1800] [-DryRun]'
   Write-Host '      持同一把锁做分层重建：优先 <树>\lcoder\scripts\rebuild.cmd（只重出过期层）；'
   Write-Host '      树里没有该脚本才 pnpm run build:artifacts。-DryRun 只打印将要执行的命令。'
+  Write-Host '      目标同样必须是 git worktree list 里的树；非零退出码原样透传。'
   Write-Host ''
   Write-Host '  worktree.cmd -Action lock -Seconds <秒> [-Name LCoder-Heavy]'
   Write-Host '      持锁睡眠后释放；用来演示互斥：第二条会打印等待，直到第一条释放才继续。'
@@ -699,18 +737,19 @@ function Show-Help {
 }
 
 try {
+  $exitCode = 0
   switch ($Action) {
     'help' { Show-Help }
     'junction' { Invoke-Junction }
     'sparse' { Invoke-Sparse }
     'clean' { Invoke-Clean }
     'inspect' { Invoke-Inspect }
-    'provision' { Invoke-Provision }
-    'build' { Invoke-Build }
+    'provision' { $exitCode = Invoke-Provision }
+    'build' { $exitCode = Invoke-Build }
     'lock' { Invoke-Lock }
   }
 } catch {
   Write-Host ('错误：' + $_.Exception.Message) -ForegroundColor Red
   exit 1
 }
-exit 0
+exit $exitCode
