@@ -1176,7 +1176,7 @@ tracks:
       date: '2026-11-10'
       dep: [T-104]
       inferred: false
-      note: "B 级工程实测优化，来源同上。范围三项实测，只采纳在门禁与构建上都成立的做法并给前后数字。一、ignore-scripts 加从主检出拷预构建原生产物与 Electron 标记，测安装耗时并验证构建与定向测试。二、pnpm 按过滤器只装 lcoder 与 desktop 相关依赖，验证 typecheck 与 vitest 与构建是否成立。三、稀疏检出排除 .agents 与 snapshots 与 docs 与 website 与 benchmarks 与 python 与 .github，测 worktree add 耗时并验证受影响的测试。失败项写清原因后回退，默认值改动必须有依据。工作树 .worktrees/t106-install，无端口需求。依赖 T-104，未派工。2026-11-10 19:20 监督窗口派工，实现线会话 55e47dac，claim 预热槽位 pool-ui-1 到分支 lcoder/t106-install；三项实测 ignore-scripts 与过滤安装与稀疏检出，探针槽位用完清理，只采纳门禁与构建都成立的做法。2026-11-10 21:05 监督窗口核验并收口。三项实测结论如下。一、ignore-scripts 安装 556 秒，对基线 571 到 701 秒只省 12 到 142 秒，且要依赖从已安装树拷 electron 与 node-pty 产物，全新 clone 无源可拷，未落地。二、过滤安装 459 秒，但 55 个 workspace 项目没有 node_modules，typecheck 与 build 在第一个门就红，不成立。三、稀疏排除把 add 从 40 秒降到 11 秒、盘上 13,437 文件；安全排除子集只有 .agents 与 docs 与 .github 与 benchmarks 与 python，snapshots 与 website 必须保留，按 7 项排除时 typecheck 与 test:docs 红。安装时间仍由 pnpm 链接 398 个项目主导，真正的解法是预热池 claim。已落地的是 sparse 的选配 -Exclude（默认不变）与 clean 分批调用删除脚本（修复命令行长度上限导致的必然失败）。监督窗口独立复跑 ps1 解析、help 与 test:docs。未验项是安全子集首次安装秒数为推算、ignore-scripts 只测一次、-Smoke 全链未走。已合入 lcoder/main 并 release pool-ui-1。"
+      note: "B 级工程实测优化，来源同上。范围三项实测，只采纳在门禁与构建上都成立的做法并给前后数字。一、ignore-scripts 加从主检出拷预构建原生产物与 Electron 标记，测安装耗时并验证构建与定向测试。二、pnpm 按过滤器只装 lcoder 与 desktop 相关依赖，验证 typecheck 与 vitest 与构建是否成立。三、稀疏检出排除 .agents 与 snapshots 与 docs 与 website 与 benchmarks 与 python 与 .github，测 worktree add 耗时并验证受影响的测试。失败项写清原因后回退，默认值改动必须有依据。工作树 .worktrees/t106-install，无端口需求。依赖 T-104，未派工。2026-11-10 19:20 监督窗口派工，实现线会话 55e47dac，claim 预热槽位 pool-ui-1 到分支 lcoder/t106-install；三项实测 ignore-scripts 与过滤安装与稀疏检出，探针槽位用完清理，只采纳门禁与构建都成立的做法。2026-11-10 21:05 监督窗口核验并收口。三项实测结论如下。一、ignore-scripts 安装 556 秒，对基线 571 到 701 秒只省 12 到 142 秒，且要依赖从已安装树拷 electron 与 node-pty 产物，全新 clone 无源可拷，未落地。二、过滤安装 459 秒，但 55 个 workspace 项目没有 node_modules，typecheck 与 build 在第一个门就红，不成立。三、稀疏排除把 add 从 40 秒降到 11 秒、盘上 13,437 文件；安全排除子集只有 .agents 与 docs 与 .github 与 benchmarks 与 python，snapshots 与 website 必须保留，按 7 项排除时 typecheck 与 test:docs 红。安装时间仍由 pnpm 链接 398 个项目主导，真正的解法是预热池 claim。已落地的是 sparse 的选配 -Exclude（默认不变）与 clean 分批调用删除脚本（修复命令行长度上限导致的必然失败）。监督窗口独立复跑 ps1 解析、help 与 test:docs。未验项是安全子集首次安装秒数为推算、ignore-scripts 只测一次、-Smoke 全链未走。已合入 lcoder/main 并 release pool-ui-1。2026-11-10 21:38 收口后发现归档日志含 commit hash 导致 test:docs 红，已脱敏该行并复跑全过。"
 
     - id: T-107
       title: 新工作树桌面 profile 自动补齐 link 依赖
@@ -1189,6 +1189,18 @@ tracks:
       dep: [T-104]
       inferred: false
       note: "C 级工具修复，来源是 T-103 实跑时发现新工作树启动后挂载的是原版 DSH 而不是 LCoder 外壳。根因是 rebuild.cmd profile 只同步 cordis.patch.yml，不写 profiles/desktop 的 package.json 两条 link 依赖，也不建 node_modules 下 @lcoder 两条链接，于是 @lcoder/workspace 的 client 半边没进插件清单，外壳不挂载。范围：改 lcoder/scripts/rebuild.ps1 的 profile 步骤，同时写 package.json（name 与 private 与 dsh.profile.bundles 保持不变，dependencies 两条 link 指向本树 packages/lcoder 的 kernel 与 workspace）并物化 @lcoder 链接或跑 profile 内 pnpm install；warm 走同一步。验收：在 _pool-probe-b 上删掉 profile 的 package.json 与链接后跑 rebuild.cmd profile 能恢复，启动桌面看到 LCoder 全屏登录页而不是原版 DSH，端口 9862 与 9869 与 9870；门禁 test:docs 与一次启动冒烟，不做截图。依赖 T-104，未派工。2026-11-10 17:05 监督窗口派工，实现线会话 fe9ea9e4；用预热槽位 _pool-probe-b，claim 到分支 lcoder/t107-profile，端口 9862 与 9869 与 9870。2026-11-10 17:25 监督窗口核验并收口。独立复跑两个 ps1 解析通过、help 退出 0、test:docs 二十一项全过；profile 保障幂等复跑零点三五秒且跳过安装，两条 link 的 realpath 均指向本树。实现线实跑删掉 profile 依赖与链接后可恢复、preset 为十；启动后页面文案为 LCoder 全屏登录页且无原版 DSH 欢迎页。未验项为 warm 全量构建分支与打包应用 profile。已合入 lcoder/main、release 槽位 _pool-probe-b、删除分支。"
+
+    - id: T-108
+      title: 池槽位巡检输出占位符修复
+      status: done
+      face: 工程
+      type: 开发
+      owner: lance
+      created: '2026-11-10'
+      date: '2026-11-10'
+      dep: [T-104]
+      inferred: false
+      note: "C 级小修复，来源是监督窗口把预热槽位改名为 pool-slot-1 与 pool-slot-2 后跑 inspect，发现槽位行的 锁文件 与 产物 与 已统计 三处占位符未替换。原因是写成了字符串拼接后再接 -f，PowerShell 的 -f 只作用于最后一段，前面的 {0} 到 {2} 原样输出。范围只改 lcoder/scripts/worktree.ps1 的 Invoke-InspectPools 一行格式化，让整段拼接先成整体再 -f。验收：help 正常，inspect 对两个槽位输出锁文件与产物与统计数字，pnpm test:docs 全过。工作树用 pool-slot-1 claim 到 lcoder/t108-inspect-fix，无端口需求。2026-11-10 21:35 监督窗口派工，实现线会话 0d69ef9e；claim pool-slot-1 到分支 lcoder/t108-inspect-fix。2026-11-10 21:40 监督窗口核验并收口。inspect 四段实际值正常，ps1 解析与 help 通过；test:docs 首跑红在 T-106 归档日志里的 commit hash，监督窗口已把该行脱敏并复跑二十一项全过。已合入 lcoder/main、release pool-slot-1、删除分支。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
