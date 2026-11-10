@@ -1,0 +1,48 @@
+本次要重建：workspace、profile
+▶ @lcoder/workspace bundle
+  native/system/packages/darwin-arm64      | [WARN] Unsupported platform: wanted: {"cpu":["arm64"],"os":["darwin"],"libc":["any"]} (current: {"os":"win32","cpu":"x64","libc":"unknown"})
+  native/system/packages/darwin-x64        | [WARN] Unsupported platform: wanted: {"cpu":["x64"],"os":["darwin"],"libc":["any"]} (current: {"os":"win32","cpu":"x64","libc":"unknown"})
+  native/system/packages/linux-arm64       | [WARN] Unsupported platform: wanted: {"cpu":["arm64"],"os":["linux"],"libc":["any"]} (current: {"os":"win32","cpu":"x64","libc":"unknown"})
+  native/system/packages/linux-x64         | [WARN] Unsupported platform: wanted: {"cpu":["x64"],"os":["linux"],"libc":["any"]} (current: {"os":"win32","cpu":"x64","libc":"unknown"})
+  packages/experimental/cua-macos          | [WARN] Unsupported platform: wanted: {"cpu":["any"],"os":["darwin"],"libc":["any"]} (current: {"os":"win32","cpu":"x64","libc":"unknown"})
+  $ tsdown
+  ℹ tsdown v0.22.2 powered by rolldown v1.1.1
+  ℹ config file: E:\Projects\LCoder\.worktrees\_probe-t106-sparse\packages\lcoder\workspace\tsdown.config.ts
+  ℹ [@lcoder/workspace] entry: lib/types/index.js
+  ℹ [@lcoder/workspace] target: es2024
+  ℹ [@lcoder/workspace] tsconfig: tsconfig.json
+  ℹ [@lcoder/workspace/client] entry: src/client/index.ts
+  ℹ [@lcoder/workspace/client] tsconfig: tsconfig.json
+  ℹ Build start
+  ℹ [@lcoder/workspace] [ESM] lib\index.js  0.43 kB │ gzip: 0.37 kB
+  ℹ [@lcoder/workspace] [ESM] 1 files, total: 0.43 kB
+  ✔ [@lcoder/workspace] Build complete in 40ms
+  ℹ [@lcoder/workspace/client] Hint: consider adding deps.onlyBundle option to avoid unintended bundling of dependencies, or set deps.onlyBundle: false to disable this hint.
+  See more at https://tsdown.dev/options/dependencies#deps-onlybundle
+  Detected dependencies in bundle:
+  - yaml
+  ℹ [@lcoder/workspace/client] [CJS] lib\client.js                                969.27 kB │ gzip: 211.46 kB
+  ℹ [@lcoder/workspace/client] [CJS] lib\client.js.map                              1.05 MB
+  ℹ [@lcoder/workspace/client] [CJS] lib\assets\InterVariable-f55b18fdf5a4.woff2  352.24 kB │ gzip: 351.78 kB
+  ℹ [@lcoder/workspace/client] [CJS] lib\assets\bull-mark-076494031dfb.png          9.02 kB │ gzip:   9.02 kB
+  ℹ [@lcoder/workspace/client] [CJS] 4 files, total: 2.38 MB
+  ✔ [@lcoder/workspace/client] Build complete in 235ms
+✓ @lcoder/workspace bundle（1 秒）
+  外壳产物由宿主直出：刷新页面即生效，不用重启
+✓ 运行副本已重拷，preset 数：10（要重启实例）
+✓ profile/package.json 已写：两条 link 依赖指向本树
+  需要物化 link 依赖（缺链接：@lcoder/kernel、@lcoder/workspace），在 profile 内跑离线 pnpm install --force
+▶ profile pnpm install --offline --force
+  [WARN] using --force I sure hope you know what you are doing
+  [WARN] The store at C:\Users\Administrator\.pnpm\store\v11 is not used because packages cannot be hard linked from it into this project. Using the store at E:\.pnpm-store\v11 instead. Set storeDir to choose the store.
+  Already up to date
+
+  dependencies:
+  + @lcoder/kernel 0.0.0 <- ..\..\..\..\..\..\..\packages\lcoder\kernel
+  + @lcoder/workspace 0.0.0 <- ..\..\..\..\..\..\..\packages\lcoder\workspace
+
+  Done in 417ms using pnpm v11.28.5
+✓ profile pnpm install --offline --force（1 秒）
+✓ profile 齐备：package.json、两条 @lcoder 链接
+
+重建完成。需要重启的话：lcoder\scripts\start-desktop.cmd -Fast

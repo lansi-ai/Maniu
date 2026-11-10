@@ -1,0 +1,55 @@
+$ tsx scripts/build.ts --scope typecheck
+run-gates: typecheck running 5 gate(s) with 5 worker(s) from 12 local default worker(s) of 20 CPU(s).
+run-gates: start Host Typert
+run-gates: PASS Host Typert (8.61s)
+run-gates: start host compiler
+run-gates: PASS host compiler (49.20s)
+run-gates: start client compiler
+run-gates: start host aggregate check
+run-gates: PASS client compiler (38.99s)
+run-gates: start client aggregate check
+
+== FAILED host aggregate check (47.74s) ==
+command: tsc -b tsconfig.host.json
+outcome: exit 1
+packages/experimental/cua-macos/tests/native-fixture.ts(4,34): error TS2307: Cannot find module '../../../../snapshots/session/cua-native/fixture-host.mjs' or its corresponding type declarations.
+scripts/project-doc-site.spec.ts(12,57): error TS2307: Cannot find module '../website/build.ts' or its corresponding type declarations.
+scripts/project-doc-site.spec.ts(13,79): error TS2307: Cannot find module '../website/docs.ts' or its corresponding type declarations.
+scripts/project-doc-site.spec.ts(356,36): error TS7006: Parameter 'page' implicitly has an 'any' type.
+scripts/project-doc-site.spec.ts(357,22): error TS7006: Parameter 'page' implicitly has an 'any' type.
+scripts/project-doc-site.spec.ts(369,43): error TS7006: Parameter 'page' implicitly has an 'any' type.
+scripts/project-doc-site.spec.ts(370,41): error TS7006: Parameter 'page' implicitly has an 'any' type.
+scripts/project-doc-site.spec.ts(373,27): error TS2339: Property 'locale' does not exist on type '{}'.
+scripts/project-doc-site.spec.ts(377,29): error TS2339: Property 'source' does not exist on type '{}'.
+scripts/project-doc-site.spec.ts(378,29): error TS2339: Property 'contentLocale' does not exist on type '{}'.
+scripts/project-doc-site.spec.ts(380,29): error TS2339: Property 'source' does not exist on type '{}'.
+scripts/project-doc-site.spec.ts(381,29): error TS2339: Property 'contentLocale' does not exist on type '{}'.
+scripts/project-doc-site.spec.ts(407,37): error TS7006: Parameter 'candidate' implicitly has an 'any' type.
+scripts/project-doc-site.spec.ts(447,40): error TS7006: Parameter 'page' implicitly has an 'any' type.
+scripts/project-doc-site.spec.ts(450,41): error TS7006: Parameter 'page' implicitly has an 'any' type.
+scripts/project-doc-site.spec.ts(451,40): error TS7006: Parameter 'page' implicitly has an 'any' type.
+scripts/project-doc-site.spec.ts(454,29): error TS7006: Parameter 'page' implicitly has an 'any' type.
+scripts/project-doc-site.spec.ts(461,35): error TS7006: Parameter 'page' implicitly has an 'any' type.
+scripts/project-doc-site.spec.ts(462,38): error TS7006: Parameter 'page' implicitly has an 'any' type.
+scripts/project-doc-site.spec.ts(473,36): error TS7006: Parameter 'page' implicitly has an 'any' type.
+scripts/project-doc-site.spec.ts(475,24): error TS7006: Parameter 'page' implicitly has an 'any' type.
+scripts/project-doc-site.spec.ts(476,24): error TS7006: Parameter 'page' implicitly has an 'any' type.
+scripts/project-doc-site.spec.ts(480,36): error TS7006: Parameter 'page' implicitly has an 'any' type.
+scripts/project-doc-site.spec.ts(482,22): error TS7006: Parameter 'page' implicitly has an 'any' type.
+scripts/project-doc-site.spec.ts(486,22): error TS7006: Parameter 'page' implicitly has an 'any' type.
+scripts/project-doc-site.spec.ts(504,54): error TS7006: Parameter 'page' implicitly has an 'any' type.
+scripts/project-doc-site.spec.ts(539,45): error TS7006: Parameter 'page' implicitly has an 'any' type.
+scripts/project-doc-site.spec.ts(569,50): error TS2345: Argument of type '{ source: string; route: string; sidebar: string; }' is not assignable to parameter of type 'Pick<DocsPage, "source" | "outline" | "sidebar" | "route">'.
+  Property 'outline' is missing in type '{ source: string; route: string; sidebar: string; }' but required in type 'Pick<DocsPage, "source" | "outline" | "sidebar" | "route">'.
+scripts/project-doc-site.spec.ts(575,65): error TS2345: Argument of type '{ source: string; route: string; sidebar: null; }' is not assignable to parameter of type 'Pick<DocsPage, "source" | "outline" | "sidebar" | "route">'.
+  Property 'outline' is missing in type '{ source: string; route: string; sidebar: null; }' but required in type 'Pick<DocsPage, "source" | "outline" | "sidebar" | "route">'.
+scripts/project-doc-site.ts(19,92): error TS2307: Cannot find module '../website/docs.ts' or its corresponding type declarations.
+scripts/project-doc-site.ts(321,40): error TS7006: Parameter 'page' implicitly has an 'any' type.
+scripts/session-query-spill-command.spec.ts(13,27): error TS2307: Cannot find module '../snapshots/session/session-query-spill/resolve-spill-command.mjs' or its corresponding type declarations.
+run-gates: PASS client aggregate check (26.88s)
+
+run-gates: 4 passed, 1 failed, 0 skipped in 123.70s.
+run-gates: unsuccessful gates:
+  - FAILED host aggregate check (47.74s, exit 1)
+    tsc -b tsconfig.host.json
+[ELIFECYCLE] Command failed with exit code 1.

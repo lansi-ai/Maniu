@@ -1,0 +1,5 @@
+将删除以下路径：
+  E:\Projects\LCoder\.worktrees\_probe-t106-filter\node_modules
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-filter\node_modules
+已注销 worktree：E:\Projects\LCoder\.worktrees\_probe-t106-filter
+已删除已合入分支：lcoder/t106-probe-filter

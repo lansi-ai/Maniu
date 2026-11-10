@@ -1,0 +1,767 @@
+将删除以下路径：
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\node_modules
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\acp\acp\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\api\account-controller\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\api\gateway\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\api\job-controller\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\api\remote-access\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\api\remotes\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\api\session-controller\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\api\settings-controller\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\api\terminal-controller\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\api\workspace-controller\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\api\workspace-files\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\attachment\attachment\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\attachment\attachment-local\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\boot\app-boot\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\boot\cmdline\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\boot\config-editor\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\boot\hmr\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\boot\plugin-manager\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\boot\plugin-market\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\browser-use\browser-use\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\bundle\acp-app\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\bundle\base\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\bundle\headless\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\bundle\sdk-app\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\bundle\sdk-minimal\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\bundle\web-app\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\connection\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\file-upload\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\hmr\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\locale\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\modules\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\product-analytics\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\resources\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\shortcuts\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\store\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-agent-preset\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-approval\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-attachment\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-brand-official\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-chat\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-commands\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-context-menu\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-conversation\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-deliverables\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-directory-picker-browse\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-directory-picker-native\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-dockkit\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-entry-customization\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-file-actions\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-file-drag\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-goal\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-input-trigger\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-jobs\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-layout\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-message-feedback\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-model-selection\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-open-in-app\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-permission-presets\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-plan\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-plugin-manager\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-plugin-market\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-primitives\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-reference\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-renderer\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-schedule\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-secret-mask\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-session\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-settings\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-settings-account\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-settings-agent-loop\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-settings-general\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-settings-models\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-settings-plugin-inventory\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-settings-plugins\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-settings-session-log\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-settings-shell\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-settings-subagent\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-settings-web-search\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-shortcuts\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-sidebar\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-sidebar-browser\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-sidebar-documentpreview\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-sidebar-files\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-sidebar-right\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-sidebar-terminal\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-skill\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-slots\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-subagent\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-theme\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-tool\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-trajectory\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-user-questions\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-workflow-run\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-workspace\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\web\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\compaction\command-compact\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\compaction\compaction\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\compaction\compaction-basic\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\compaction\compaction-image-offload\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\compaction\compaction-tool-result-pruner\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\computer-use\computer-use\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\context\agent-instructions\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\context\file-reference\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\context\file-reference-local\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\context\harness-dev-context\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\context\session-reference\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\context\time-context\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\context\tmux-context\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\core\agent\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\core\agent-default-model\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\core\agent-loop\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\core\agent-tool-presentation\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\core\scope\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\core\session\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\core\system-prompt\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\core\tool-executor-native\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\core\tool-executor-ptc\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\core\tools\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\credentials\authorization\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\credentials\credentials\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\credentials\credentials-local\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\credentials\deepseek-account\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\credentials\deepseek-account-platform\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\deliverables\deliverable-file-references\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\deliverables\tool-present\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\deliverables\workspace-changes\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\document\office-to-pdf\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\action-cards\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\agent-team\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\agent-team-profile\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\api-speech-to-text\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\auto-review\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\badge-skill-bundle\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\browser-use-chrome-devtools-mcp\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\browser-use-playwright-mcp\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\browser-use-runtime\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\browser-use-stagehand-native\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\claude-code-mods\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\client-ui-action-cards\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\client-ui-agent-team\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\client-ui-claude-code-mods\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\client-ui-cot-translation\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\client-ui-creation-recommendations\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\client-ui-forge\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\client-ui-plugin-recommendations\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\client-ui-stats\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\client-ui-voice-input\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\computer-use-cua-driver-mcp\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\computer-use-cua-driver-native\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\cot-translation-bundle\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\creation-recommendations\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\cua\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\cua-bundle\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\cua-macos\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\forge\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\forge-bundle\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\forge-github\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\forge-session\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\hook-protocol\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\hooks-claude-code\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\hooks-codex\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\inspector\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\inspector-profile\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\liveshare\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\liveshare-protocol\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\personalized-recommendations\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\plugin-market-bundle\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\plugin-recommendations\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\ptc-runtime-python\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\ralph-bundle\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\session-inspector\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\session-search\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\session-title-all-prompts-llm\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\session-titles-bundle\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\skill-badge\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\speech-to-text\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\speech-to-text-sensevoice\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\subagent-oar\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\terminal-bundle\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\tool-agent-team\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\tool-ralph\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\tool-session-query\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\tool-subagent-oar\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\tool-terminal\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\tool-worktree\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\translator\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\voice-input-bundle\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\webhook\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\webhook-github\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\webworker-packer\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\webworker-runtime\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\worktree\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\extensions\cordis-client-runner\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\extensions\cordis-host-runner\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\extensions\tool-cordis\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\extensions\ui-cordis\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\feedback\command-feedback\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\feedback\message-feedback\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\fs\fs\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\fs\fs-local\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\fs\fs-observation-policy\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\fs\fs-patch\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\fs\fs-sandbox\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\fs\tool-fs\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\fs\tool-fs-search\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\fs\tool-str-replace-editor\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\goal\command-goal\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\goal\goal\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\goal\goal-round-driver\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\goal\tool-goal\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\guard\repeat-tool-reminder\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\guard\timeout-policy\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\host\directory-picker\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\host\directory-picker-auto\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\host\directory-picker-browse\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\host\directory-picker-native\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\host\frontend-static\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\host\open-in-app\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\host\plugin-inventory\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\host\product-telemetry-otel\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\host\webserver\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\identity\anonymous-user-id\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\interaction\commands\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\interaction\permission-presets\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\interaction\tool-ask-user\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\interaction\user-approval\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\interaction\user-questions\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\jobs\jobs\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\jobs\jobs-local\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\jobs\tool-jobs\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\lcoder\kernel\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\lcoder\workspace\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\llm\deepseek-llm-api-extensions\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\llm\llm\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\llm\llm-deepseek\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\llm\llm-deepseek-account\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\llm\llm-deepseek-api-key\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\llm\llm-pi-ai\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\llm\llm-retry\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\llm\plugin-package-inventory-deepseek\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\llm\token-meter\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\lsp\lsp\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\lsp\lsp-stdio\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\lsp\tool-lsp\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\mcp\mcp-client\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\mcp\mcp-resources\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\plan\plan-mode\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\preset\agent-preset\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\preset\agent-preset-registry\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\preset\persona\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\ptc-runtime\ptc-runtime\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\ptc-runtime\ptc-runtime-node\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\sandbox\sandbox\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\sandbox\sandbox-local\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\sandbox\sandbox-policy\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\sandbox\sandbox-windows-acl\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\schedule\schedule\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\schedule\tool-schedule\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\sdk\client\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\sdk\protocol\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\sdk\server\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\session\message-quotes\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\session\session-checkpoint-policy\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\session\session-format\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\session\session-format-catalog\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\session\session-format-v0-to-v1\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\session\session-format-v1-to-v2\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\session\session-format-v2-to-v3\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\session\session-format-v3-to-v4\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\session\session-log-deepseek\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\session\session-persistence\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\session\session-persistence-jsonl\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\session\session-projection\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\session\session-projection-cache\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\session\session-stats\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\session\session-telemetry\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\session\session-telemetry-otel\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\session\session-title\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\session\session-title-first-prompt-llm\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\session\session-title-llm\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\session\session-turn-outline\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\session\tool-working-directory\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\session\working-directory\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\session-query\session-log-export\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\session-query\session-query\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\session-query\session-query-sqlite\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\settings\settings\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\shell\bash-local\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\shell\bash-sandbox\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\shell\pwsh-local\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\shell\pwsh-sandbox\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\shell\shell\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\shell\shell-env\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\shell\tool-bash\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\shell\tool-bash-persistent\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\shell\tool-pwsh\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\shell\tool-pwsh-persistent\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\skill\skill\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\skill\skill-filesystem\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\skill\skill-office\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\skill\tool-skill\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\skill\tool-workspace-dependencies\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\spill\spill\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\spill\spill-local\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\spill\spill-policy\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\ssh\fs-ssh\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\ssh\sandbox-ssh\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\ssh\ssh\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\ssh\ssh-helper-runtime\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\ssh\subprocess-ssh\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\storage\storage\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\storage\storage-domain\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\storage\storage-json\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\storage\storage-sqlite\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\subagent\subagent\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\subagent\subagent-acp\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\subagent\subagent-claude-code\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\subagent\subagent-codex\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\subagent\subagent-dsh-sdk\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\subagent\subagent-fork-in-process\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\subagent\subagent-spawn-in-process\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\subagent\tool-subagent\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\subagent\tool-subagent-control\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\subprocess\subprocess\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\subprocess\subprocess-local\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\subprocess\win32-process\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\telemetry\otel\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\terminal\terminal\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\terminal\terminal-bash\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\test-support\agent-loop-testkit\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\test-support\client-runtime\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\test-support\llm-mock-server\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\test-support\llm-replay\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\test-support\loader-smoke\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\test-support\remote-mock\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\test-support\session-snapshot\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\test-support\tool-testkit\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\todo\tool-todo\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\typert\generator\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\typert\loader\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\typert\protocol\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\typert\registry\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\util\atomic-write\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\util\brand\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\util\chunked-list\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\util\code-language\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\util\crypto\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\util\deque\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\util\file-drag\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\util\home-paths\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\util\http-proxy\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\util\launch-environment\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\util\lazy-require\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\util\native-command\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\util\official-bundles\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\util\output-retention\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\util\package-manifest\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\util\plugin-detail\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\util\plugin-market-index\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\util\time\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\util\timeout\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\util\values\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\util\workspace-path\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\web\tool-web\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\web\web\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\web\web-deepseek-api\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\web\web-fetch-http\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\web\web-search-deepseek\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\web\web-search-exa\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\web\web-search-perplexity\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\workflow\tool-workflow\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\workflow\workflow\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\workflow\workflow-ptc\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\workspace\workspace\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\apps\cli\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\apps\desktop\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\apps\desktop-host\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\apps\plugin-market-generator\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\apps\web\lib
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\apps\web\dist
+  E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\apps\desktop\.desktop-build
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\node_modules
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\acp\acp\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\api\account-controller\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\api\gateway\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\api\job-controller\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\api\remote-access\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\api\remotes\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\api\session-controller\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\api\settings-controller\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\api\terminal-controller\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\api\workspace-controller\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\api\workspace-files\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\attachment\attachment\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\attachment\attachment-local\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\boot\app-boot\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\boot\cmdline\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\boot\config-editor\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\boot\hmr\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\boot\plugin-manager\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\boot\plugin-market\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\browser-use\browser-use\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\bundle\acp-app\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\bundle\base\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\bundle\headless\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\bundle\sdk-app\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\bundle\sdk-minimal\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\bundle\web-app\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\connection\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\file-upload\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\hmr\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\locale\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\modules\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\product-analytics\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\resources\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\shortcuts\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\store\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-agent-preset\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-approval\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-attachment\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-brand-official\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-chat\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-commands\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-context-menu\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-conversation\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-deliverables\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-directory-picker-browse\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-directory-picker-native\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-dockkit\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-entry-customization\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-file-actions\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-file-drag\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-goal\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-input-trigger\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-jobs\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-layout\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-message-feedback\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-model-selection\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-open-in-app\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-permission-presets\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-plan\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-plugin-manager\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-plugin-market\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-primitives\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-reference\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-renderer\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-schedule\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-secret-mask\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-session\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-settings\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-settings-account\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-settings-agent-loop\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-settings-general\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-settings-models\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-settings-plugin-inventory\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-settings-plugins\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-settings-session-log\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-settings-shell\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-settings-subagent\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-settings-web-search\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-shortcuts\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-sidebar\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-sidebar-browser\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-sidebar-documentpreview\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-sidebar-files\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-sidebar-right\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-sidebar-terminal\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-skill\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-slots\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-subagent\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-theme\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-tool\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-trajectory\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-user-questions\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-workflow-run\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-workspace\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\web\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\compaction\command-compact\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\compaction\compaction\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\compaction\compaction-basic\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\compaction\compaction-image-offload\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\compaction\compaction-tool-result-pruner\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\computer-use\computer-use\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\context\agent-instructions\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\context\file-reference\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\context\file-reference-local\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\context\harness-dev-context\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\context\session-reference\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\context\time-context\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\context\tmux-context\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\core\agent\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\core\agent-default-model\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\core\agent-loop\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\core\agent-tool-presentation\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\core\scope\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\core\session\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\core\system-prompt\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\core\tool-executor-native\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\core\tool-executor-ptc\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\core\tools\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\credentials\authorization\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\credentials\credentials\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\credentials\credentials-local\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\credentials\deepseek-account\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\credentials\deepseek-account-platform\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\deliverables\deliverable-file-references\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\deliverables\tool-present\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\deliverables\workspace-changes\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\document\office-to-pdf\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\action-cards\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\agent-team\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\agent-team-profile\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\api-speech-to-text\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\auto-review\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\badge-skill-bundle\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\browser-use-chrome-devtools-mcp\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\browser-use-playwright-mcp\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\browser-use-runtime\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\browser-use-stagehand-native\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\claude-code-mods\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\client-ui-action-cards\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\client-ui-agent-team\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\client-ui-claude-code-mods\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\client-ui-cot-translation\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\client-ui-creation-recommendations\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\client-ui-forge\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\client-ui-plugin-recommendations\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\client-ui-stats\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\client-ui-voice-input\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\computer-use-cua-driver-mcp\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\computer-use-cua-driver-native\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\cot-translation-bundle\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\creation-recommendations\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\cua\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\cua-bundle\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\cua-macos\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\forge\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\forge-bundle\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\forge-github\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\forge-session\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\hook-protocol\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\hooks-claude-code\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\hooks-codex\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\inspector\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\inspector-profile\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\liveshare\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\liveshare-protocol\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\personalized-recommendations\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\plugin-market-bundle\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\plugin-recommendations\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\ptc-runtime-python\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\ralph-bundle\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\session-inspector\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\session-search\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\session-title-all-prompts-llm\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\session-titles-bundle\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\skill-badge\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\speech-to-text\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\speech-to-text-sensevoice\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\subagent-oar\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\terminal-bundle\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\tool-agent-team\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\tool-ralph\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\tool-session-query\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\tool-subagent-oar\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\tool-terminal\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\tool-worktree\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\translator\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\voice-input-bundle\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\webhook\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\webhook-github\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\webworker-packer\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\webworker-runtime\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\worktree\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\extensions\cordis-client-runner\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\extensions\cordis-host-runner\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\extensions\tool-cordis\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\extensions\ui-cordis\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\feedback\command-feedback\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\feedback\message-feedback\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\fs\fs\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\fs\fs-local\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\fs\fs-observation-policy\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\fs\fs-patch\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\fs\fs-sandbox\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\fs\tool-fs\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\fs\tool-fs-search\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\fs\tool-str-replace-editor\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\goal\command-goal\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\goal\goal\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\goal\goal-round-driver\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\goal\tool-goal\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\guard\repeat-tool-reminder\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\guard\timeout-policy\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\host\directory-picker\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\host\directory-picker-auto\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\host\directory-picker-browse\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\host\directory-picker-native\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\host\frontend-static\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\host\open-in-app\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\host\plugin-inventory\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\host\product-telemetry-otel\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\host\webserver\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\identity\anonymous-user-id\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\interaction\commands\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\interaction\permission-presets\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\interaction\tool-ask-user\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\interaction\user-approval\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\interaction\user-questions\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\jobs\jobs\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\jobs\jobs-local\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\jobs\tool-jobs\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\lcoder\kernel\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\lcoder\workspace\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\llm\deepseek-llm-api-extensions\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\llm\llm\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\llm\llm-deepseek\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\llm\llm-deepseek-account\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\llm\llm-deepseek-api-key\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\llm\llm-pi-ai\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\llm\llm-retry\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\llm\plugin-package-inventory-deepseek\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\llm\token-meter\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\lsp\lsp\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\lsp\lsp-stdio\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\lsp\tool-lsp\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\mcp\mcp-client\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\mcp\mcp-resources\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\plan\plan-mode\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\preset\agent-preset\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\preset\agent-preset-registry\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\preset\persona\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\ptc-runtime\ptc-runtime\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\ptc-runtime\ptc-runtime-node\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\sandbox\sandbox\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\sandbox\sandbox-local\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\sandbox\sandbox-policy\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\sandbox\sandbox-windows-acl\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\schedule\schedule\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\schedule\tool-schedule\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\sdk\client\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\sdk\protocol\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\sdk\server\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\session\message-quotes\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\session\session-checkpoint-policy\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\session\session-format\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\session\session-format-catalog\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\session\session-format-v0-to-v1\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\session\session-format-v1-to-v2\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\session\session-format-v2-to-v3\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\session\session-format-v3-to-v4\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\session\session-log-deepseek\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\session\session-persistence\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\session\session-persistence-jsonl\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\session\session-projection\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\session\session-projection-cache\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\session\session-stats\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\session\session-telemetry\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\session\session-telemetry-otel\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\session\session-title\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\session\session-title-first-prompt-llm\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\session\session-title-llm\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\session\session-turn-outline\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\session\tool-working-directory\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\session\working-directory\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\session-query\session-log-export\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\session-query\session-query\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\session-query\session-query-sqlite\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\settings\settings\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\shell\bash-local\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\shell\bash-sandbox\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\shell\pwsh-local\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\shell\pwsh-sandbox\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\shell\shell\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\shell\shell-env\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\shell\tool-bash\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\shell\tool-bash-persistent\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\shell\tool-pwsh\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\shell\tool-pwsh-persistent\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\skill\skill\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\skill\skill-filesystem\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\skill\skill-office\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\skill\tool-skill\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\skill\tool-workspace-dependencies\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\spill\spill\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\spill\spill-local\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\spill\spill-policy\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\ssh\fs-ssh\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\ssh\sandbox-ssh\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\ssh\ssh\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\ssh\ssh-helper-runtime\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\ssh\subprocess-ssh\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\storage\storage\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\storage\storage-domain\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\storage\storage-json\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\storage\storage-sqlite\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\subagent\subagent\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\subagent\subagent-acp\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\subagent\subagent-claude-code\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\subagent\subagent-codex\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\subagent\subagent-dsh-sdk\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\subagent\subagent-fork-in-process\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\subagent\subagent-spawn-in-process\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\subagent\tool-subagent\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\subagent\tool-subagent-control\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\subprocess\subprocess\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\subprocess\subprocess-local\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\subprocess\win32-process\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\telemetry\otel\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\terminal\terminal\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\terminal\terminal-bash\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\test-support\agent-loop-testkit\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\test-support\client-runtime\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\test-support\llm-mock-server\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\test-support\llm-replay\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\test-support\loader-smoke\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\test-support\remote-mock\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\test-support\session-snapshot\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\test-support\tool-testkit\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\todo\tool-todo\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\typert\generator\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\typert\loader\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\typert\protocol\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\typert\registry\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\util\atomic-write\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\util\brand\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\util\chunked-list\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\util\code-language\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\util\crypto\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\util\deque\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\util\file-drag\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\util\home-paths\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\util\http-proxy\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\util\launch-environment\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\util\lazy-require\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\util\native-command\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\util\official-bundles\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\util\output-retention\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\util\package-manifest\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\util\plugin-detail\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\util\plugin-market-index\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\util\time\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\util\timeout\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\util\values\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\util\workspace-path\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\web\tool-web\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\web\web\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\web\web-deepseek-api\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\web\web-fetch-http\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\web\web-search-deepseek\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\web\web-search-exa\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\web\web-search-perplexity\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\workflow\tool-workflow\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\workflow\workflow\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\workflow\workflow-ptc\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\workspace\workspace\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\apps\cli\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\apps\desktop\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\apps\desktop-host\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\apps\plugin-market-generator\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\apps\web\lib
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\apps\web\dist
+  DELETED E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\apps\desktop\.desktop-build
+已注销 worktree：E:\Projects\LCoder\.worktrees\_probe-t106-noscripts
+已删除已合入分支：lcoder/t106-probe-noscripts

@@ -1,0 +1,18 @@
+本次要重建：profile
+✓ 运行副本已重拷，preset 数：10（要重启实例）
+✓ profile/package.json 已写：两条 link 依赖指向本树
+  需要物化 link 依赖（缺链接：@lcoder/kernel、@lcoder/workspace），在 profile 内跑离线 pnpm install --force
+▶ profile pnpm install --offline --force
+  [WARN] using --force I sure hope you know what you are doing
+  [WARN] The store at C:\Users\Administrator\.pnpm\store\v11 is not used because packages cannot be hard linked from it into this project. Using the store at E:\.pnpm-store\v11 instead. Set storeDir to choose the store.
+  Already up to date
+
+  dependencies:
+  + @lcoder/kernel 0.0.0 <- ..\..\..\..\..\..\..\packages\lcoder\kernel
+  + @lcoder/workspace 0.0.0 <- ..\..\..\..\..\..\..\packages\lcoder\workspace
+
+  Done in 415ms using pnpm v11.28.5
+✓ profile pnpm install --offline --force（1 秒）
+✓ profile 齐备：package.json、两条 @lcoder 链接
+
+重建完成。需要重启的话：lcoder\scripts\start-desktop.cmd -Fast

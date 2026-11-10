@@ -1,0 +1,4 @@
+已建稀疏工作树：E:\Projects\LCoder\.worktrees\_probe-t106-sparse
+分支：lcoder/t106-probe-sparse；包含目录：.claude, .spec, apps, lcoder, native, packages, patches, scripts, vendor
+排除目录：.agents, snapshots, docs, website, benchmarks, python, .github
+下一步：树内 pnpm install 与 pnpm run build:artifacts；需要共享 Electron 运行时再跑 -Action junction。

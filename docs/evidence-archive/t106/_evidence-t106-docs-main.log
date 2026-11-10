@@ -1,0 +1,46 @@
+$ tsx scripts/run-gates.ts doc-quick
+run-gates: doc-quick running 21 gate(s) with 8 worker(s) from 12 local default worker(s) of 20 CPU(s), doc-quick cap 8.
+run-gates: start markdown links
+run-gates: start type equivalence
+run-gates: start translation pairing
+run-gates: start markdown wrap
+run-gates: start npm dependency catalog
+run-gates: start Session format references
+run-gates: start public repository links
+run-gates: start repository references
+run-gates: PASS npm dependency catalog (0.84s)
+run-gates: start concrete terms
+run-gates: PASS type equivalence (3.76s)
+run-gates: start doc refs
+run-gates: PASS concrete terms (4.40s)
+run-gates: start package README Summaries
+run-gates: PASS doc refs (1.70s)
+run-gates: start package README model experience
+run-gates: PASS Session format references (5.53s)
+run-gates: start agent note classification
+run-gates: PASS package README Summaries (0.81s)
+run-gates: start agent note format
+run-gates: PASS agent note classification (0.89s)
+run-gates: start archived agent notes
+run-gates: PASS public repository links (6.85s)
+run-gates: start skill invocation metadata
+run-gates: PASS agent note format (0.94s)
+run-gates: start translation prompt
+run-gates: PASS archived agent notes (1.08s)
+run-gates: start doc budgets
+run-gates: PASS skill invocation metadata (0.78s)
+run-gates: start upgrade guides
+run-gates: PASS translation prompt (0.79s)
+run-gates: start documentation standard tests
+run-gates: PASS doc budgets (0.78s)
+run-gates: start package README limitations
+run-gates: PASS upgrade guides (1.11s)
+run-gates: PASS package README model experience (4.38s)
+run-gates: PASS repository references (10.50s)
+run-gates: PASS documentation standard tests (2.89s)
+run-gates: PASS package README limitations (3.55s)
+run-gates: PASS markdown wrap (16.81s)
+run-gates: PASS markdown links (17.50s)
+run-gates: PASS translation pairing (18.95s)
+
+run-gates: 21 passed, 0 failed, 0 skipped in 18.96s.

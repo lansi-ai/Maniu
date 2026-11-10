@@ -1,0 +1,247 @@
+native/system/packages/darwin-arm64      | [WARN] Unsupported platform: wanted: {"cpu":["arm64"],"os":["darwin"],"libc":["any"]} (current: {"os":"win32","cpu":"x64","libc":"unknown"})
+native/system/packages/darwin-x64        | [WARN] Unsupported platform: wanted: {"cpu":["x64"],"os":["darwin"],"libc":["any"]} (current: {"os":"win32","cpu":"x64","libc":"unknown"})
+native/system/packages/linux-arm64       | [WARN] Unsupported platform: wanted: {"cpu":["arm64"],"os":["linux"],"libc":["any"]} (current: {"os":"win32","cpu":"x64","libc":"unknown"})
+native/system/packages/linux-x64         | [WARN] Unsupported platform: wanted: {"cpu":["x64"],"os":["linux"],"libc":["any"]} (current: {"os":"win32","cpu":"x64","libc":"unknown"})
+packages/experimental/cua-macos          | [WARN] Unsupported platform: wanted: {"cpu":["any"],"os":["darwin"],"libc":["any"]} (current: {"os":"win32","cpu":"x64","libc":"unknown"})
+Scope: all 398 workspace projects
+[WARN] The store at C:\Users\Administrator\.pnpm\store\v11 is not used because packages cannot be hard linked from it into this project. Using the store at E:\.pnpm-store\v11 instead. Set storeDir to choose the store.
+[WARN] There are cyclic workspace dependencies: E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\apps\cli, E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\sdk\client; E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\apps\web, E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\test-support\client-runtime, E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\bundle\web-app; E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\api\gateway, E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\api\remote-access; E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\api\remotes, E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-trajectory, E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-chat, E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-sidebar-documentpreview, E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-sidebar-files; E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-conversation, E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\client\ui-workspace; E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\compaction\compaction, E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\interaction\commands, E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\core\agent, E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\session\session-projection, E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\test-support\loader-smoke, E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\core\tools, E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\test-support\agent-loop-testkit, E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\core\agent-loop, E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\session\session-persistence-jsonl, E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\session\session-format-catalog, E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\compaction\compaction-image-offload, E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\compaction\compaction-basic, E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\compaction\compaction-tool-result-pruner; E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\core\agent-default-model, E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\settings\settings; E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\client-ui-creation-recommendations, E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\creation-recommendations; E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\client-ui-plugin-recommendations, E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\experimental\plugin-recommendations; E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\llm\llm-deepseek, E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\llm\llm-deepseek-api-key; E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\preset\agent-preset, E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\preset\agent-preset-registry; E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\sandbox\sandbox-local, E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\sandbox\sandbox-windows-acl; E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\session\tool-working-directory, E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\session\working-directory; E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\ssh\fs-ssh, E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\ssh\ssh; E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\subagent\subagent-spawn-in-process, E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\packages\subagent\tool-subagent; E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\vendor\cordis, E:\Projects\LCoder\.worktrees\_probe-t106-noscripts\vendor\include
+✓ Lockfile passes supply-chain policies (verified 3d ago)
+Lockfile is up to date, resolution step is skipped
+Progress: resolved 1, reused 0, downloaded 0, added 0
+Packages: +1438
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+Progress: resolved 1438, reused 1429, downloaded 0, added 0
+Progress: resolved 1438, reused 1429, downloaded 0, added 1
+Packages are hard linked from the content-addressable store to the virtual store.
+  Content-addressable store is at: E:\.pnpm-store\v11
+  Virtual store is at:             node_modules/.pnpm
+Progress: resolved 1438, reused 1429, downloaded 0, added 23
+Progress: resolved 1438, reused 1429, downloaded 0, added 25
+Progress: resolved 1438, reused 1429, downloaded 0, added 26
+Progress: resolved 1438, reused 1429, downloaded 0, added 30
+Progress: resolved 1438, reused 1429, downloaded 0, added 31
+Progress: resolved 1438, reused 1429, downloaded 0, added 35
+Progress: resolved 1438, reused 1429, downloaded 0, added 36
+Progress: resolved 1438, reused 1429, downloaded 0, added 41
+Progress: resolved 1438, reused 1429, downloaded 0, added 42
+Progress: resolved 1438, reused 1429, downloaded 0, added 47
+Progress: resolved 1438, reused 1429, downloaded 0, added 48
+Progress: resolved 1438, reused 1429, downloaded 0, added 57
+Progress: resolved 1438, reused 1429, downloaded 0, added 58
+Progress: resolved 1438, reused 1429, downloaded 0, added 69
+Progress: resolved 1438, reused 1429, downloaded 0, added 70
+Progress: resolved 1438, reused 1429, downloaded 0, added 85
+Progress: resolved 1438, reused 1429, downloaded 0, added 88
+Progress: resolved 1438, reused 1429, downloaded 0, added 89
+Progress: resolved 1438, reused 1429, downloaded 0, added 103
+Progress: resolved 1438, reused 1429, downloaded 0, added 104
+Progress: resolved 1438, reused 1429, downloaded 0, added 113
+Progress: resolved 1438, reused 1429, downloaded 0, added 114
+Progress: resolved 1438, reused 1429, downloaded 0, added 115
+Progress: resolved 1438, reused 1429, downloaded 0, added 116
+Progress: resolved 1438, reused 1429, downloaded 0, added 119
+Progress: resolved 1438, reused 1429, downloaded 0, added 120
+Progress: resolved 1438, reused 1429, downloaded 0, added 124
+Progress: resolved 1438, reused 1429, downloaded 0, added 125
+Progress: resolved 1438, reused 1429, downloaded 0, added 128
+Progress: resolved 1438, reused 1429, downloaded 0, added 129
+Progress: resolved 1438, reused 1429, downloaded 0, added 139
+Progress: resolved 1438, reused 1429, downloaded 0, added 140
+Progress: resolved 1438, reused 1429, downloaded 0, added 143
+Progress: resolved 1438, reused 1429, downloaded 0, added 144
+Progress: resolved 1438, reused 1429, downloaded 0, added 157
+Progress: resolved 1438, reused 1429, downloaded 0, added 158
+Progress: resolved 1438, reused 1429, downloaded 0, added 166
+Progress: resolved 1438, reused 1429, downloaded 0, added 167
+Progress: resolved 1438, reused 1429, downloaded 0, added 179
+Progress: resolved 1438, reused 1429, downloaded 0, added 180
+Progress: resolved 1438, reused 1429, downloaded 0, added 182
+Progress: resolved 1438, reused 1429, downloaded 0, added 183
+Progress: resolved 1438, reused 1429, downloaded 0, added 184
+Progress: resolved 1438, reused 1429, downloaded 0, added 185
+Progress: resolved 1438, reused 1429, downloaded 0, added 190
+Progress: resolved 1438, reused 1429, downloaded 0, added 191
+Progress: resolved 1438, reused 1429, downloaded 0, added 206
+Progress: resolved 1438, reused 1429, downloaded 0, added 207
+Progress: resolved 1438, reused 1429, downloaded 0, added 215
+Progress: resolved 1438, reused 1429, downloaded 0, added 216
+Progress: resolved 1438, reused 1429, downloaded 0, added 224
+Progress: resolved 1438, reused 1429, downloaded 0, added 225
+Progress: resolved 1438, reused 1429, downloaded 0, added 273
+Progress: resolved 1438, reused 1429, downloaded 0, added 274
+Progress: resolved 1438, reused 1429, downloaded 0, added 319
+Progress: resolved 1438, reused 1429, downloaded 0, added 320
+Progress: resolved 1438, reused 1429, downloaded 0, added 332
+Progress: resolved 1438, reused 1429, downloaded 0, added 333
+Progress: resolved 1438, reused 1429, downloaded 0, added 349
+Progress: resolved 1438, reused 1429, downloaded 0, added 350
+Progress: resolved 1438, reused 1429, downloaded 0, added 401
+Progress: resolved 1438, reused 1429, downloaded 0, added 402
+Progress: resolved 1438, reused 1429, downloaded 0, added 423
+Progress: resolved 1438, reused 1429, downloaded 0, added 424
+Progress: resolved 1438, reused 1429, downloaded 0, added 445
+Progress: resolved 1438, reused 1429, downloaded 0, added 446
+Progress: resolved 1438, reused 1429, downloaded 0, added 457
+Progress: resolved 1438, reused 1429, downloaded 0, added 458
+Progress: resolved 1438, reused 1429, downloaded 0, added 475
+Progress: resolved 1438, reused 1429, downloaded 0, added 476
+Progress: resolved 1438, reused 1429, downloaded 0, added 491
+Progress: resolved 1438, reused 1429, downloaded 0, added 492
+Progress: resolved 1438, reused 1429, downloaded 0, added 515
+Progress: resolved 1438, reused 1429, downloaded 0, added 516
+Progress: resolved 1438, reused 1429, downloaded 0, added 519
+Progress: resolved 1438, reused 1429, downloaded 0, added 520
+Progress: resolved 1438, reused 1429, downloaded 0, added 527
+Progress: resolved 1438, reused 1429, downloaded 0, added 528
+Progress: resolved 1438, reused 1429, downloaded 0, added 538
+Progress: resolved 1438, reused 1429, downloaded 0, added 539
+Progress: resolved 1438, reused 1429, downloaded 0, added 543
+Progress: resolved 1438, reused 1429, downloaded 0, added 544
+Progress: resolved 1438, reused 1429, downloaded 0, added 563
+Progress: resolved 1438, reused 1429, downloaded 0, added 564
+Progress: resolved 1438, reused 1429, downloaded 0, added 565
+Progress: resolved 1438, reused 1429, downloaded 0, added 566
+Progress: resolved 1438, reused 1429, downloaded 0, added 570
+Progress: resolved 1438, reused 1429, downloaded 0, added 571
+Progress: resolved 1438, reused 1429, downloaded 0, added 572
+Progress: resolved 1438, reused 1429, downloaded 0, added 573
+Progress: resolved 1438, reused 1429, downloaded 0, added 604
+Progress: resolved 1438, reused 1429, downloaded 0, added 605
+Progress: resolved 1438, reused 1429, downloaded 0, added 616
+Progress: resolved 1438, reused 1429, downloaded 0, added 617
+Progress: resolved 1438, reused 1429, downloaded 0, added 620
+Progress: resolved 1438, reused 1429, downloaded 0, added 621
+Progress: resolved 1438, reused 1429, downloaded 0, added 626
+Progress: resolved 1438, reused 1429, downloaded 0, added 627
+Progress: resolved 1438, reused 1429, downloaded 0, added 634
+Progress: resolved 1438, reused 1429, downloaded 0, added 635
+Progress: resolved 1438, reused 1429, downloaded 0, added 642
+Progress: resolved 1438, reused 1429, downloaded 0, added 643
+Progress: resolved 1438, reused 1429, downloaded 0, added 655
+Progress: resolved 1438, reused 1429, downloaded 0, added 656
+Progress: resolved 1438, reused 1429, downloaded 0, added 661
+Progress: resolved 1438, reused 1429, downloaded 0, added 662
+Progress: resolved 1438, reused 1429, downloaded 0, added 676
+Progress: resolved 1438, reused 1429, downloaded 0, added 677
+Progress: resolved 1438, reused 1429, downloaded 0, added 710
+Progress: resolved 1438, reused 1429, downloaded 0, added 711
+Progress: resolved 1438, reused 1429, downloaded 0, added 767
+Progress: resolved 1438, reused 1429, downloaded 0, added 768
+Progress: resolved 1438, reused 1429, downloaded 0, added 817
+Progress: resolved 1438, reused 1429, downloaded 0, added 818
+Progress: resolved 1438, reused 1429, downloaded 0, added 870
+Progress: resolved 1438, reused 1429, downloaded 0, added 871
+Progress: resolved 1438, reused 1429, downloaded 0, added 894
+Progress: resolved 1438, reused 1429, downloaded 0, added 895
+Progress: resolved 1438, reused 1429, downloaded 0, added 957
+Progress: resolved 1438, reused 1429, downloaded 0, added 958
+Progress: resolved 1438, reused 1429, downloaded 0, added 992
+Progress: resolved 1438, reused 1429, downloaded 0, added 993
+Progress: resolved 1438, reused 1429, downloaded 0, added 1029
+Progress: resolved 1438, reused 1429, downloaded 0, added 1030
+Progress: resolved 1438, reused 1429, downloaded 0, added 1061
+Progress: resolved 1438, reused 1429, downloaded 0, added 1062
+Progress: resolved 1438, reused 1429, downloaded 0, added 1101
+Progress: resolved 1438, reused 1429, downloaded 0, added 1102
+Progress: resolved 1438, reused 1429, downloaded 0, added 1144
+Progress: resolved 1438, reused 1429, downloaded 0, added 1145
+Progress: resolved 1438, reused 1429, downloaded 0, added 1208
+Progress: resolved 1438, reused 1429, downloaded 0, added 1209
+Progress: resolved 1438, reused 1429, downloaded 0, added 1272
+Progress: resolved 1438, reused 1429, downloaded 0, added 1273
+Progress: resolved 1438, reused 1429, downloaded 0, added 1318
+Progress: resolved 1438, reused 1429, downloaded 0, added 1319
+Progress: resolved 1438, reused 1429, downloaded 0, added 1387
+Progress: resolved 1438, reused 1429, downloaded 0, added 1388
+Progress: resolved 1438, reused 1429, downloaded 0, added 1432
+Progress: resolved 1438, reused 1429, downloaded 0, added 1433
+Progress: resolved 1438, reused 1429, downloaded 0, added 1438, done
+
+devDependencies:
++ @deepseek-ai/dsh-action-cards 0.2.2-alpha.2 <- packages\experimental\action-cards
++ @deepseek-ai/dsh-agent 0.2.2-alpha.2 <- packages\core\agent
++ @deepseek-ai/dsh-browser-use 0.2.2-alpha.2 <- packages\browser-use\browser-use
++ @deepseek-ai/dsh-computer-use 0.2.2-alpha.2 <- packages\computer-use\computer-use
++ @deepseek-ai/dsh-cua 0.2.2-alpha.2 <- packages\experimental\cua
++ @deepseek-ai/dsh-cua-bundle 0.2.2-alpha.2 <- packages\experimental\cua-bundle
++ @deepseek-ai/dsh-experimental-browser-use-chrome-devtools-mcp 0.2.2-alpha.2 <- packages\experimental\browser-use-chrome-devtools-mcp
++ @deepseek-ai/dsh-experimental-browser-use-playwright-mcp 0.2.2-alpha.2 <- packages\experimental\browser-use-playwright-mcp
++ @deepseek-ai/dsh-experimental-browser-use-runtime 0.2.2-alpha.2 <- packages\experimental\browser-use-runtime
++ @deepseek-ai/dsh-experimental-browser-use-stagehand-native 0.2.2-alpha.2 <- packages\experimental\browser-use-stagehand-native
++ @deepseek-ai/dsh-experimental-claude-code-mods 0.2.2-alpha.2 <- packages\experimental\claude-code-mods
++ @deepseek-ai/dsh-experimental-computer-use-cua-driver-mcp 0.2.2-alpha.2 <- packages\experimental\computer-use-cua-driver-mcp
++ @deepseek-ai/dsh-experimental-computer-use-cua-driver-native 0.2.2-alpha.2 <- packages\experimental\computer-use-cua-driver-native
++ @deepseek-ai/dsh-experimental-cua-macos 0.2.2-alpha.2 <- packages\experimental\cua-macos
++ @deepseek-ai/dsh-experimental-forge 0.2.2-alpha.2 <- packages\experimental\forge
++ @deepseek-ai/dsh-experimental-forge-github 0.2.2-alpha.2 <- packages\experimental\forge-github
++ @deepseek-ai/dsh-experimental-forge-session 0.2.2-alpha.2 <- packages\experimental\forge-session
++ @deepseek-ai/dsh-experimental-subagent-oar 0.2.2-alpha.2 <- packages\experimental\subagent-oar
++ @deepseek-ai/dsh-experimental-tool-subagent-oar 0.2.2-alpha.2 <- packages\experimental\tool-subagent-oar
++ @deepseek-ai/dsh-experimental-tool-worktree 0.2.2-alpha.2 <- packages\experimental\tool-worktree
++ @deepseek-ai/dsh-experimental-worktree 0.2.2-alpha.2 <- packages\experimental\worktree
++ @deepseek-ai/dsh-hooks-claude-code 0.2.2-alpha.2 <- packages\experimental\hooks-claude-code
++ @deepseek-ai/dsh-hooks-codex 0.2.2-alpha.2 <- packages\experimental\hooks-codex
++ @deepseek-ai/dsh-llm 0.2.2-alpha.2 <- packages\llm\llm
++ @deepseek-ai/dsh-llm-replay 0.2.2-alpha.2 <- packages\test-support\llm-replay
++ @deepseek-ai/dsh-mcp-client 0.2.2-alpha.2 <- packages\mcp\mcp-client
++ @deepseek-ai/dsh-skill-office 0.2.2-alpha.2 <- packages\skill\skill-office
++ @deepseek-ai/dsh-subagent-dsh-sdk 0.2.2-alpha.2 <- packages\subagent\subagent-dsh-sdk
++ @deepseek-ai/dsh-tool-executor-native 0.2.2-alpha.2 <- packages\core\tool-executor-native
++ @deepseek-ai/dsh-tool-executor-ptc 0.2.2-alpha.2 <- packages\core\tool-executor-ptc
++ @deepseek-ai/dsh-tool-ralph 0.2.2-alpha.2 <- packages\experimental\tool-ralph
++ @deepseek-ai/dsh-tool-session-query 0.2.2-alpha.2 <- packages\experimental\tool-session-query
++ @deepseek-ai/dsh-tool-terminal 0.2.2-alpha.2 <- packages\experimental\tool-terminal
++ @deepseek-ai/dsh-tool-working-directory 0.2.2-alpha.2 <- packages\session\tool-working-directory
++ @deepseek-ai/dsh-tool-workspace-dependencies 0.2.2-alpha.2 <- packages\skill\tool-workspace-dependencies
++ @deepseek-ai/dsh-web-fetch-http 0.2.2-alpha.2 <- packages\web\web-fetch-http
++ @deepseek-ai/dsh-working-directory 0.2.2-alpha.2 <- packages\session\working-directory
++ @stylistic/eslint-plugin 5.10.0
++ @testing-library/dom 10.4.2
++ @testing-library/react 16.3.3
++ @types/js-yaml 4.0.9
++ @types/jsdom 28.0.3
++ @types/mdast 4.0.4
++ @types/node 22.20.1
++ @types/papaparse 5.5.2
++ @types/react 18.3.31
++ @types/react-dom 18.3.7
++ @types/semver 7.8.0
++ @types/spdx-expression-parse 4.0.0
++ @vitest/coverage-v8 4.1.11
++ @yao-pkg/pkg 6.21.0
++ @yarnpkg/cli-dist 4.18.0
++ eslint-plugin-sonarjs 4.2.0
++ execa 10.0.1
++ extract-zip 2.0.1
++ fast-check 4.9.0
++ fflate 0.8.3
++ istanbul-lib-report 3.0.1
++ js-yaml 4.3.2
++ jscpd 5.1.2
++ jsdom 29.1.1
++ lefthook 2.1.12
++ lightningcss 1.33.0
++ mdast-util-from-markdown 2.0.3
++ mdast-util-gfm 3.1.0
++ mermaid 11.17.2
++ micromark-extension-gfm 3.0.0
++ oxlint 1.81.0
++ oxlint-tsgolint 7.0.2001
++ papaparse 5.5.3
++ pnpm 11.28.5
++ publint 0.3.24
++ semver 7.8.5
++ smol-toml 1.9.0
++ spdx-expression-parse 5.0.0
++ tar 7.5.22
++ tsdown 0.22.2
++ tsx 4.23.13
++ typescript 6.0.3
++ vite 8.2.2
++ vite-tsconfig-paths 6.1.1
++ vitest 4.1.11
++ zod 4.4.3
+
+Done in 9m 15.7s using pnpm v11.28.5
+EXIT=0 SECONDS=556

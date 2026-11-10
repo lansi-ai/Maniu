@@ -1,0 +1,57 @@
+$ tsx scripts/build.ts --scope typecheck
+run-gates: typecheck running 5 gate(s) with 5 worker(s) from 12 local default worker(s) of 20 CPU(s).
+run-gates: start Host Typert
+
+== FAILED Host Typert (0.41s) ==
+command: tsx scripts/generate-typert.ts
+outcome: exit 1
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+Error [ERR_MODULE_NOT_FOUND]: Cannot find package '@jridgewell/gen-mapping' imported from E:\Projects\LCoder\.worktrees\_probe-t106-filter\packages\typert\generator\src\emitter.ts
+Did you mean to import "@jridgewell/gen-mapping/dist/gen-mapping.umd.js"?
+    at Object.getPackageJSONURL (node:internal/modules/package_json_reader:301:9)
+    at packageResolve (node:internal/modules/esm/resolve:768:81)
+    at moduleResolve (node:internal/modules/esm/resolve:859:18)
+    at defaultResolve (node:internal/modules/esm/resolve:992:11)
+    at #cachedDefaultResolve (node:internal/modules/esm/loader:691:20)
+    at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:708:38)
+    at nextStep (node:internal/modules/customization_hooks:189:26)
+    at resolveBaseSync (file:///E:/Projects/LCoder/.worktrees/_probe-t106-filter/node_modules/.pnpm/tsx@4.23.13/node_modules/tsx/dist/register-SoqaU4rg.mjs:2:10932)
+    at resolveDirectorySync (file:///E:/Projects/LCoder/.worktrees/_probe-t106-filter/node_modules/.pnpm/tsx@4.23.13/node_modules/tsx/dist/register-SoqaU4rg.mjs:2:12238)
+    at resolveTsPathsSync (file:///E:/Projects/LCoder/.worktrees/_probe-t106-filter/node_modules/.pnpm/tsx@4.23.13/node_modules/tsx/dist/register-SoqaU4rg.mjs:2:13445) {
+  code: 'ERR_MODULE_NOT_FOUND'
+}
+
+Node.js v24.16.0
+
+== SKIPPED host compiler (0.00s) ==
+command: tsc -b <tsconfig.host.json references>
+outcome: dependency failed or skipped: host-typert
+
+== SKIPPED client compiler (0.00s) ==
+command: tsc -b <tsconfig.client.json references>
+outcome: dependency failed or skipped: host-src
+
+== SKIPPED host aggregate check (0.00s) ==
+command: tsc -b tsconfig.host.json
+outcome: dependency failed or skipped: host-src
+
+== SKIPPED client aggregate check (0.00s) ==
+command: tsc -b tsconfig.client.json
+outcome: dependency failed or skipped: client-src
+
+run-gates: 0 passed, 1 failed, 4 skipped in 0.42s.
+run-gates: unsuccessful gates:
+  - FAILED Host Typert (0.41s, exit 1)
+    tsx scripts/generate-typert.ts
+  - SKIPPED host compiler (0.00s, dependency failed or skipped: host-typert)
+    tsc -b <tsconfig.host.json references>
+  - SKIPPED client compiler (0.00s, dependency failed or skipped: host-src)
+    tsc -b <tsconfig.client.json references>
+  - SKIPPED host aggregate check (0.00s, dependency failed or skipped: host-src)
+    tsc -b tsconfig.host.json
+  - SKIPPED client aggregate check (0.00s, dependency failed or skipped: client-src)
+    tsc -b tsconfig.client.json
+[ELIFECYCLE] Command failed with exit code 1.

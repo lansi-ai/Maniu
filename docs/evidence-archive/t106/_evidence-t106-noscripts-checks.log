@@ -1,0 +1,5 @@
+PHASE=typecheck EXIT=0 SECONDS=135
+PHASE=vitest-lcoder EXIT=0 SECONDS=10
+PHASE=build-artifacts EXIT=0 SECONDS=40
+PHASE=rebuild-auto EXIT=1 SECONDS=0
+CHECKS_DONE
