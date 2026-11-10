@@ -176,7 +176,7 @@ node lcoder/scripts/audit-package-closure.mjs --json <输出路径>
 `--check` 自测输出如下。
 
 ```text
-自测通过：分类互斥、合计等于包数、根清单单列、两次运行结果逐字节一致。
+自测通过：分类唯一、合计等于包数、根清单单列、两次运行结果逐字节一致。
 ```
 
 `--check` 退出码为 0；默认运行最近一次的关键数字为工作区 397 个包加根清单，运行时 338、构建 56、测试 3、候选 0，core package set 333 个包，manifest workspace 边 6,523 条，实测链接 5,095 条。

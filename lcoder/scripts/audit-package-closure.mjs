@@ -823,7 +823,7 @@ function formatTable(rows, headers) {
   return [line(headers), line(widths.map(width => '-'.repeat(width))), ...rows.map(line)].join('\n')
 }
 
-function printStats(label, stats, runtimeSize) {
+function printStats(label, stats) {
   const rows = [[
     label,
     stats.packages,
@@ -835,10 +835,6 @@ function printStats(label, stats, runtimeSize) {
     stats.incomingEdges,
     stats.incomingLinks,
   ]]
-  if (runtimeSize !== undefined) {
-    // 运行时行把根清单也计入包数，但文件和字节只统计可删除的包。
-    rows[0][1] = stats.packages + runtimeSize
-  }
   console.log(formatTable(rows, ['分类', '包数', '文件数', '字节', '运行时边', 'dev 边', 'workspace 边', 'workspace 入边', '实测入链']))
 }
 
@@ -848,7 +844,7 @@ export function printReport(analysis) {
   console.log(`工作区清单 ${analysis.workspace.packages} 个包 + 根清单 = ${analysis.workspace.total} 个 pnpm 工程（patterns: ${analysis.workspace.patterns.join(', ')}）`)
   console.log('')
   console.log('分类（优先级 运行时 > 构建 > 测试；文件与字节只统计可删除的包）')
-  printStats('运行时', analysis.stats.runtime, 1)
+  printStats('运行时', analysis.stats.runtime)
   printStats('构建', analysis.stats.build)
   printStats('测试', analysis.stats.test)
   printStats('候选', analysis.stats.candidate)
@@ -925,7 +921,7 @@ async function main() {
       for (const failure of failures) console.log(`  - ${failure}`)
       return 1
     }
-    console.log('自测通过：分类互斥、合计等于包数、根清单单列、两次运行结果逐字节一致。')
+    console.log('自测通过：分类唯一、合计等于包数、根清单单列、两次运行结果逐字节一致。')
     return 0
   }
   const analysis = analyze(options)
