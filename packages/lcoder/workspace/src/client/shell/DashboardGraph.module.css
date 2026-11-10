@@ -1,11 +1,11 @@
 /* 状态大盘的关系图：坐标由 dashboard-graph.ts 给出，这里只管画布、节点与边的视觉。
-   五态取壳里已有的颜色变量；verifying 在壳里没有对应变量，沿用看板状态点的紫色。 */
+   五态都取壳里的状态色 token，换皮肤时图与看板同步。 */
 
 .graph {
   --lc-graph-drafting: var(--lc-faint);
   --lc-graph-contracted: var(--lc-brand);
   --lc-graph-implementing: var(--lc-status-warn);
-  --lc-graph-verifying: #af52de;
+  --lc-graph-verifying: var(--lc-state-verifying);
   --lc-graph-closed: var(--lc-status-ok);
   --lc-graph-unknown: var(--lc-muted);
 

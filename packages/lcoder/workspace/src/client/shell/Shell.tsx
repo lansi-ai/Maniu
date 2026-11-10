@@ -60,6 +60,8 @@ import type { CloudFace } from '../cloud/face.ts'
 import { useCloudSession } from '../cloud/use-cloud.ts'
 import { CLOUD_LEGACY_GUEST_ROUTE } from '../cloud/routes.ts'
 import { buildIntakePrompt, buildOnboardingPrompt, buildShellPrompt, SHELL_STATES } from './shell-data.ts'
+import { browserSkinStorage, readSkin, SKINS, writeSkin } from './skin.ts'
+import type { Skin } from './skin.ts'
 import { recommendedRoleId } from './role-hint.ts'
 import { ChatTranscript, PendingInteractionCard } from './ChatPanel.tsx'
 import { ChatAttachButton, ChatAttachmentList, ChatModelChip } from './ChatExtras.tsx'
@@ -461,7 +463,7 @@ export function Shell({
   const [accountOpen, setAccountOpen] = useState(false)
 
   const [workspaceId, setWorkspaceId] = useState<string | null>(null)
-  const [dark, setDark] = useState(false)
+  const [skin, setSkin] = useState<Skin>(() => readSkin(browserSkinStorage()))
   /** 字体预设：A 系统、B 现代；默认 B，用户看完两档再定。 */
   const [fontPreset, setFontPreset] = useState<'system' | 'modern'>('modern')
   /** Windows 桌面自绘标题栏；Web 与 macOS 没有这个桥，不画窗口按钮。 */
@@ -1203,6 +1205,14 @@ export function Shell({
     root.dataset.lcoderFont = fontPreset
     return () => { delete root.dataset.lcoderFont }
   }, [fontPreset])
+
+  /** 皮肤写到 html 供页面底色使用，同时保存选择；刷新后按保存值恢复。 */
+  useEffect(() => {
+    const root = document.documentElement
+    root.dataset.lcoderSkin = skin
+    writeSkin(browserSkinStorage(), skin)
+    return () => { delete root.dataset.lcoderSkin }
+  }, [skin])
 
   useEffect(() => {
     if (chat === null || chatSessionId === undefined || readMessages === undefined || subscribeSession === undefined) {
@@ -2364,17 +2374,31 @@ export function Shell({
     </div>
   )
 
+  /** 顶栏只给两档快速切换；设置弹窗里按名字明确选择。 */
+  const skinLabel = t(skin === 'neon' ? 'shell.skinNeon' : 'shell.skinSilver')
+  const cycleSkin = (): void => {
+    setSkin(current => (current === 'neon' ? 'silver' : 'neon'))
+  }
+
   /** 未登录（或登录状态读不出来）时只渲染全屏登录页；工作台不进入 DOM。 */
   if (!signedIn) {
     return (
-      <div className={css.shell} data-theme={dark ? 'dark' : 'light'} data-chrome={windowBridge === undefined ? undefined : 'custom'}>
+      <div className={css.shell} data-skin={skin} data-chrome={windowBridge === undefined ? undefined : 'custom'}>
         <header className={css.loginChrome} onDoubleClick={windowBridge === undefined ? undefined : onTopbarDoubleClick}>
           <div className={css.topBrand}>
             <img className={css.topLogo} src={bullMark} alt="" />
             <span className={css.topTitle}>{t('shell.brand')}</span>
           </div>
           <div className={css.spacer} />
-          <button type="button" className={css.iconBtn} title={t('shell.theme')} onClick={() => { setDark(value => !value) }}>◐</button>
+          <button
+            type="button"
+            className={css.iconBtn}
+            title={`${t('shell.skin')} · ${skinLabel}`}
+            aria-label={`${t('shell.skin')} · ${skinLabel}`}
+            onClick={cycleSkin}
+          >
+            <span className={`${css.skinOrb} ${skin === 'neon' ? css.skinOrbNeon : css.skinOrbSilver}`} aria-hidden="true" />
+          </button>
           {windowControls}
         </header>
         <CloudLoginScreen
@@ -2391,7 +2415,7 @@ export function Shell({
   }
 
   return (
-    <div className={css.shell} data-theme={dark ? 'dark' : 'light'} data-chrome={windowBridge === undefined ? undefined : 'custom'}>
+    <div className={css.shell} data-skin={skin} data-chrome={windowBridge === undefined ? undefined : 'custom'}>
       <header className={css.topbar} onDoubleClick={windowBridge === undefined ? undefined : onTopbarDoubleClick}>
         <div className={css.topBrand}>
           <img className={css.topLogo} src={bullMark} alt="" />
@@ -2487,7 +2511,15 @@ export function Shell({
           onClick={() => { setAccountOpen(true) }}
         />
         <button type="button" className={css.secondaryBtn} onClick={() => { setDrawer(true) }}>ⓘ {t('shell.projectInfo')}</button>
-        <button type="button" className={css.iconBtn} title={t('shell.theme')} onClick={() => { setDark(value => !value) }}>◐</button>
+        <button
+          type="button"
+          className={css.iconBtn}
+          title={`${t('shell.skin')} · ${skinLabel}`}
+          aria-label={`${t('shell.skin')} · ${skinLabel}`}
+          onClick={cycleSkin}
+        >
+          <span className={`${css.skinOrb} ${skin === 'neon' ? css.skinOrbNeon : css.skinOrbSilver}`} aria-hidden="true" />
+        </button>
         <button type="button" className={css.iconBtn} title={t('shell.settings')} onClick={() => { setSettings(true) }}>⚙</button>
         {windowControls}
       </header>
@@ -3537,7 +3569,32 @@ export function Shell({
               <div className={css.settingsGrid}>
                 <div className={css.settingRow}><div className={css.settingLabel}><span className={css.settingLabelB}>{t('shell.specRoot')}</span><span className={css.settingLabelSpan}>{specRoot || '—'}</span></div><span className={css.pill}>{t('shell.sessionBound')}</span></div>
                 <div className={css.settingRow}><div className={css.settingLabel}><span className={css.settingLabelB}>{t('shell.floating')}</span><span className={css.settingLabelSpan}>{t('shell.floatingHint')}</span></div><button type="button" className={`${css.switch} ${css.switchOn}`} /></div>
-                <div className={css.settingRow}><div className={css.settingLabel}><span className={css.settingLabelB}>{t('shell.theme')}</span><span className={css.settingLabelSpan}>{t('shell.themeHint')}</span></div><button type="button" className={`${css.switch} ${dark ? css.switchOn : ''}`} onClick={() => { setDark(value => !value) }} /></div>
+                <div className={css.settingRow}>
+                  <div className={css.settingLabel}>
+                    <span className={css.settingLabelB}>{t('shell.skin')}</span>
+                    <span className={css.settingLabelSpan}>{t('shell.skinHint')}</span>
+                  </div>
+                  <div className={css.skinPresets} role="group" aria-label={t('shell.skin')}>
+                    {SKINS.map((value) => {
+                      const label = t(value === 'neon' ? 'shell.skinNeon' : 'shell.skinSilver')
+                      return (
+                        <button
+                          type="button"
+                          key={value}
+                          className={`${css.skinOption} ${skin === value ? css.skinOptionOn : ''}`}
+                          aria-pressed={skin === value}
+                          onClick={() => { setSkin(value) }}
+                        >
+                          <span
+                            className={`${css.skinSwatch} ${value === 'neon' ? css.skinSwatchNeon : css.skinSwatchSilver}`}
+                            aria-hidden="true"
+                          />
+                          {label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
                 <div className={css.settingRow}>
                   <div className={css.settingLabel}>
                     <span className={css.settingLabelB}>{t('shell.font')}</span>
