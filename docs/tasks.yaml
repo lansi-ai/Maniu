@@ -1202,6 +1202,18 @@ tracks:
       inferred: false
       note: "C 级小修复，来源是监督窗口把预热槽位改名为 pool-slot-1 与 pool-slot-2 后跑 inspect，发现槽位行的 锁文件 与 产物 与 已统计 三处占位符未替换。原因是写成了字符串拼接后再接 -f，PowerShell 的 -f 只作用于最后一段，前面的 {0} 到 {2} 原样输出。范围只改 lcoder/scripts/worktree.ps1 的 Invoke-InspectPools 一行格式化，让整段拼接先成整体再 -f。验收：help 正常，inspect 对两个槽位输出锁文件与产物与统计数字，pnpm test:docs 全过。工作树用 pool-slot-1 claim 到 lcoder/t108-inspect-fix，无端口需求。2026-11-10 21:35 监督窗口派工，实现线会话 0d69ef9e；claim pool-slot-1 到分支 lcoder/t108-inspect-fix。2026-11-10 21:40 监督窗口核验并收口。inspect 四段实际值正常，ps1 解析与 help 通过；test:docs 首跑红在 T-106 归档日志里的 commit hash，监督窗口已把该行脱敏并复跑二十一项全过。已合入 lcoder/main、release pool-slot-1、删除分支。"
 
+    - id: T-109
+      title: 上游包闭包审计（运行时、构建、测试）
+      status: done
+      face: 工程
+      type: 调研
+      owner: lance
+      created: '2026-11-10'
+      date: '2026-11-10'
+      dep: []
+      inferred: false
+      note: "C 级只读审计，来源是用户 2026-11-10 想删除上游不用的代码。已说明发布物走 core package set，删源码不会让安装包变小；先审计再决定是否删。范围：用一个可复跑的脚本把 398 个 workspace 包分为运行时闭包（desktop profile 的 base 与 web-app 两个 bundle、core package set、desktop 与 desktop-host 依赖）、构建闭包（根 tsconfig 聚合、scripts 构建与打包链、electron-builder 与 prepare 脚本）、测试闭包（各包 tests、snapshots、website、benchmarks、python）与候选四类；统计候选数量、检出文件数、pnpm 链接数与预计收益，给出可删比例与风险。不删任何上游包、不改依赖与锁文件；脚本与报告落在 lcoder/ 下，放在 pool-slot-1 里做，跑 test:docs。真窗口端口无需求。2026-11-10 22:00 监督窗口派工，实现线会话 13d0190f；claim pool-slot-1 到分支 lcoder/t109-closure-audit，只读审计并产出脚本与报告。2026-11-10 22:10 监督窗口核验并收口。脚本 --check 自测通过（分类唯一、合计等于包数、两次运行逐字节一致），主检出 test:docs 二十一项全过。审计结论：运行时 338 包、构建 56 包、测试 3 包、严格候选 0；根 tsconfig 聚合与根 tsdown 把 packages 与 vendor 全纳入构建面，其余被包内测试与 benchmarks 与 website 与 python 兜住。core package set 为 333 包、9,962 文件、68.17 MiB；运行时不发布的 59 包只有 1,695 文件、10.53 MiB，占受控源码 13.2% 文件，删了不会让安装包变小，反而破坏门禁与上游同步。建议不动源码，磁盘用稀疏检出与 clean；要缩安装包应裁 core package set 与客户端 bundle。未验项是 core set 为等价推导未解包真实安装包、未跑真实打包。已合入 lcoder/main 并 release pool-slot-1。"
+
 milestones:
 - name: MVP-0 工作台本地跑通
   track: lcoder

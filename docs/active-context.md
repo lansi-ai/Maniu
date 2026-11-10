@@ -46,7 +46,7 @@ English | [中文](active-context.zh.md)
 
 ## 04. Next immediate actions (Next Immediate Actions)
 
-- **Currently working on**: no active implementation line. The warm pool slots are renamed `pool-slot-1` and `pool-slot-2` and locked against accidental removal; T-108 fixed their inspect output. T-104 to T-107 closed the worktree and startup work.
+- **Currently working on**: no active implementation line. T-109 closed the upstream package-closure audit: zero packages are safe to delete because the shipped app already uses a 333-package core set and the 59 non-shipped packages remain reachable from build or tests. Use sparse checkout for disk and prune the packaged core set for installer size.
 - **About to execute**: the cloud admin and site acceptance plus the desktop release chain T-79 to T-82 remain; the merge and push decision for the local commits stays with the user.
 - **Open decisions**: whether product tasks should gain a `type` field so the suggestion layer can distinguish read-only tasks; the production SMS provider, the exact opencode rates behind the 20-dollar grant, the deployment domain and host, and whether to add an application-level anonymous kill switch and a `/health` endpoint.
 - **Development evidence**: gate output is recorded in the task note in `docs/tasks.yaml` or the commit message; `.spec/evidence` serves product tasks only.
