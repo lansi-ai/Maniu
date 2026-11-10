@@ -1,0 +1,107 @@
+[33mThe plugin "vite-tsconfig-paths" is detected. Vite now supports tsconfig paths resolution natively via the [1mresolve.tsconfigPaths[22m option. You can remove the plugin and set [1mresolve.tsconfigPaths: true[22m in your Vite config instead.[39m
+[33mThe plugin "vite-tsconfig-paths" is detected. Vite now supports tsconfig paths resolution natively via the [1mresolve.tsconfigPaths[22m option. You can remove the plugin and set [1mresolve.tsconfigPaths: true[22m in your Vite config instead.[39m
+[33mThe plugin "vite-tsconfig-paths" is detected. Vite now supports tsconfig paths resolution natively via the [1mresolve.tsconfigPaths[22m option. You can remove the plugin and set [1mresolve.tsconfigPaths: true[22m in your Vite config instead.[39m
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.11 [39m[90mE:/Projects/LCoder/.worktrees/pool-ui-1[39m
+
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/kernel/tests/task-assign.spec.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 116[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/kernel/tests/validate.spec.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 197[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/kernel/tests/role-store.spec.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 156[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/kernel/tests/flow-store.spec.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 127[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/kernel/tests/task-bind.spec.ts [2m([22m[2m8 tests[22m[2m)[22m[33m 328[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/kernel/tests/task-contract.spec.ts [2m([22m[2m9 tests[22m[2m)[22m[33m 412[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/kernel/tests/contract-self-sign.spec.ts [2m([22m[2m8 tests[22m[2m)[22m[33m 488[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/kernel/tests/contract-sign.spec.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 106[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/kernel/tests/task-schedule.spec.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 236[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/kernel/tests/proposal-approve.spec.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 81[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/kernel/tests/flow-commands.spec.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 283[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/kernel/tests/deploy.spec.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 111[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/kernel/tests/spec-root.spec.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 135[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/kernel/tests/proposal-tools.spec.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 180[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/kernel/tests/spec-tools.spec.ts [2m([22m[2m15 tests[22m[2m)[22m[32m 159[2mms[22m[39m
+[90mstderr[2m | packages/lcoder/kernel/tests/plugin.spec.ts[2m > [22m[2m插件装配[2m > [22m[2m角色装配：评审在已签契约状态下仍动不了代码
+[22m[39m[lcoder] 规格根：C:\Users\Administrator\AppData\Local\Temp\lcoder-plugin-xQmZTY\.spec
+
+[90mstderr[2m | packages/lcoder/kernel/tests/plugin.spec.ts[2m > [22m[2m插件装配[2m > [22m[2m角色与状态同时收：起草态的评审只剩四个读工具
+[22m[39m[lcoder] 规格根：C:\Users\Administrator\AppData\Local\Temp\lcoder-plugin-Rli9YX\.spec
+
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/kernel/tests/project-tools.spec.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 41[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/kernel/tests/agent-bind.spec.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 48[2mms[22m[39m
+[90mstderr[2m | packages/lcoder/kernel/tests/plugin.spec.ts[2m > [22m[2m插件装配[2m > [22m[2m不配角色时状态表原样生效，保持单维旧行为
+[22m[39m[lcoder] 规格根：C:\Users\Administrator\AppData\Local\Temp\lcoder-plugin-I2rv3R\.spec
+
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/workspace/tests/open-failure.client.spec.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 40[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/kernel/tests/automation.spec.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 70[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/kernel/tests/edit-tools.spec.ts [2m([22m[2m20 tests[22m[2m)[22m[33m 536[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/workspace/tests/projection.client.spec.ts [2m([22m[2m19 tests[22m[2m)[22m[32m 40[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/kernel/tests/cloud-api.spec.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 34[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/kernel/tests/role-tools.spec.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 66[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/kernel/tests/task-store.spec.ts [2m([22m[2m18 tests[22m[2m)[22m[32m 32[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/kernel/tests/surface.spec.ts [2m([22m[2m31 tests[22m[2m)[22m[32m 32[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/kernel/tests/spec-store.spec.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 23[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/workspace/tests/experts.client.spec.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 24[2mms[22m[39m
+[90mstderr[2m | packages/lcoder/kernel/tests/plugin.spec.ts[2m > [22m[2m插件装配[2m > [22m[2m两条会话各按自己认领的任务装面，互不顶掉
+[22m[39m[lcoder] 规格根：C:\Users\Administrator\AppData\Local\Temp\lcoder-plugin-6QHL4S\.spec
+
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/workspace/tests/flow-history.client.spec.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/kernel/tests/cloud-guest.spec.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 19[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/kernel/tests/schema.spec.ts [2m([22m[2m16 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/kernel/tests/task-tools.spec.ts [2m([22m[2m26 tests[22m[2m)[22m[33m 1047[2mms[22m[39m
+[90mstderr[2m | packages/lcoder/kernel/tests/plugin.spec.ts[2m > [22m[2m插件装配[2m > [22m[2m认领会话号失效时回落配置任务，不按认领处理
+[22m[39m[lcoder] 规格根：C:\Users\Administrator\AppData\Local\Temp\lcoder-plugin-eDYvC8\.spec
+
+[90mstderr[2m | packages/lcoder/kernel/tests/plugin.spec.ts[2m > [22m[2m插件装配[2m > [22m[2m仓库还没有 .spec 时只放开七个立项工具
+[22m[39m[lcoder] 规格根：C:\Users\Administrator\AppData\Local\Temp\lcoder-plugin-unscoped-ktF01Q\.spec
+
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/workspace/tests/chat-composer.client.spec.ts [2m([22m[2m27 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/kernel/tests/git-tools.spec.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 28[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/workspace/tests/shell-data.client.spec.ts [2m([22m[2m22 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/kernel/tests/cloud-tokens.spec.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+[90mstderr[2m | packages/lcoder/kernel/tests/plugin.spec.ts[2m > [22m[2m插件装配[2m > [22m[2m有 drafting 任务时给起草面，仍不放 file_edit 与 cmd_run
+[22m[39m[lcoder] 规格根：C:\Users\Administrator\AppData\Local\Temp\lcoder-plugin-5GdL7Z\.spec
+
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/kernel/tests/flow.spec.ts [2m([22m[2m25 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+[90mstderr[2m | packages/lcoder/kernel/tests/plugin.spec.ts[2m > [22m[2m插件装配[2m > [22m[2m任务状态改了，下一次求值就跟着变
+[22m[39m[lcoder] 规格根：C:\Users\Administrator\AppData\Local\Temp\lcoder-plugin-GOMlI8\.spec
+
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/workspace/tests/scheduling.client.spec.ts [2m([22m[2m28 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/workspace/tests/intake.client.spec.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/workspace/tests/agents-projection.client.spec.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/kernel/tests/checkers.spec.ts [2m([22m[2m16 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+[90mstderr[2m | packages/lcoder/kernel/tests/plugin.spec.ts[2m > [22m[2m插件装配[2m > [22m[2mconfig.taskId 指定按哪个任务取面
+[22m[39m[lcoder] 规格根：C:\Users\Administrator\AppData\Local\Temp\lcoder-plugin-E113Gd\.spec
+
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/workspace/tests/role-suggest.client.spec.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/workspace/tests/dashboard-graph.client.spec.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/workspace/tests/dashboard.client.spec.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/workspace/tests/model-status.client.spec.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/workspace/tests/flow-status.client.spec.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/workspace/tests/task-session.client.spec.ts [2m([22m[2m19 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/kernel/tests/sign-gate.spec.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/workspace/tests/singleton.client.spec.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/kernel/tests/plugin.spec.ts [2m([22m[2m17 tests[22m[2m)[22m[33m 2025[2mms[22m[39m
+     [33m[2m✓[22m[39m 两条会话各按自己认领的任务装面，互不顶掉 [33m 596[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/workspace/tests/onboarding.client.spec.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/workspace/tests/task-filter.client.spec.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/workspace/tests/window-chrome.client.spec.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/workspace/tests/skin.client.spec.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/workspace/tests/project-directory.client.spec.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/workspace/tests/pending.client.spec.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/workspace/tests/task-card-visual.client.spec.ts [2m([22m[2m1 test[22m[2m)[22m[32m 3[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/workspace/tests/model-settings.client.spec.ts [2m([22m[2m18 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/workspace/tests/apply.client.spec.ts [2m([22m[2m23 tests[22m[2m)[22m[32m 163[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/workspace/tests/shell-task-map.client.spec.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/workspace/tests/definition.client.spec.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/workspace/tests/workspace-body.client.spec.tsx [2m([22m[2m7 tests[22m[2m)[22m[32m 137[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/workspace/tests/dashboard-graph-view.client.spec.tsx [2m([22m[2m5 tests[22m[2m)[22m[32m 226[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/workspace/tests/intake-result.client.spec.tsx [2m([22m[2m11 tests[22m[2m)[22m[33m 302[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/workspace/tests/chat-panel.client.spec.tsx [2m([22m[2m7 tests[22m[2m)[22m[33m 375[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/workspace/tests/personal-center.client.spec.tsx [2m([22m[2m8 tests[22m[2m)[22m[33m 390[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/workspace/tests/cloud-login.client.spec.tsx [2m([22m[2m14 tests[22m[2m)[22m[33m 439[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/workspace/tests/dashboard-page.client.spec.tsx [2m([22m[2m8 tests[22m[2m)[22m[33m 389[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m packages/lcoder/workspace/tests/shell-detail.client.spec.tsx [2m([22m[2m31 tests[22m[2m)[22m[33m 1643[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m68 passed[39m[22m[90m (68)[39m
+[2m      Tests [22m [1m[32m717 passed[39m[22m[90m (717)[39m
+[2m   Start at [22m 16:58:29
+[2m   Duration [22m 9.87s[2m (transform 39.35s, setup 4.76s, import 74.71s, tests 11.55s, environment 16.91s)[22m
