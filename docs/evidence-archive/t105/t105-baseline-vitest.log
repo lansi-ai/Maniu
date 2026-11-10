@@ -1,0 +1,651 @@
+[33mThe plugin "vite-tsconfig-paths" is detected. Vite now supports tsconfig paths resolution natively via the [1mresolve.tsconfigPaths[22m option. You can remove the plugin and set [1mresolve.tsconfigPaths: true[22m in your Vite config instead.[39m
+[33mThe plugin "vite-tsconfig-paths" is detected. Vite now supports tsconfig paths resolution natively via the [1mresolve.tsconfigPaths[22m option. You can remove the plugin and set [1mresolve.tsconfigPaths: true[22m in your Vite config instead.[39m
+[33mThe plugin "vite-tsconfig-paths" is detected. Vite now supports tsconfig paths resolution natively via the [1mresolve.tsconfigPaths[22m option. You can remove the plugin and set [1mresolve.tsconfigPaths: true[22m in your Vite config instead.[39m
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.11 [39m[90mE:/Projects/LCoder/.worktrees/pool-ui-1[39m
+
+ [31m❯[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/background-notice.spec.ts [2m([22m[2m5 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[32m 261[2mms[22m[39m
+[31m   [31m×[31m keeps the window visible until confirmation and remembers acknowledgement across launches[39m[32m 10[2mms[22m[39m
+   [32m✓[39m keeps cancellation eligible for another close and never records it[32m 62[2mms[22m[39m
+   [32m✓[39m does not hide or record a late acknowledgement after disposal[32m 1[2mms[22m[39m
+   [32m✓[39m keeps acknowledgement in memory when its marker cannot be written[32m 61[2mms[22m[39m
+   [32m✓[39m keeps the window visible after a dialog failure and permits another attempt[32m 125[2mms[22m[39m
+ [31m❯[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/windows-cli-signals.spec.ts [2m([22m[2m2 tests[22m[2m | [22m[33m2 skipped[39m[2m)[22m[32m 15[2mms[22m[39m
+     [2m[90m↓[39m[22m delivers SIGINT before process exit
+     [2m[90m↓[39m[22m delivers SIGBREAK before process exit
+ [31m❯[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/fatal-recovery.spec.ts [2m([22m[2m30 tests[22m[2m | [22m[31m6 failed[39m[2m)[22m[33m 846[2mms[22m[39m
+[31m   [31m×[31m offers exit and restart for a listener conflict without a saved report in en[39m[32m 66[2mms[22m[39m
+[31m   [31m×[31m offers exit and restart for a listener conflict without a saved report in zh-CN[39m[32m 54[2mms[22m[39m
+   [32m✓[39m offers the same listener conflict recovery on win32[32m 62[2mms[22m[39m
+   [32m✓[39m offers the same listener conflict recovery on darwin[32m 61[2mms[22m[39m
+   [32m✓[39m offers the same listener conflict recovery on linux[32m 62[2mms[22m[39m
+[31m   [31m×[31m records the en native recovery dialog[39m[32m 63[2mms[22m[39m
+[31m   [31m×[31m records the zh-CN native recovery dialog[39m[32m 62[2mms[22m[39m
+   [32m✓[39m locks the first report before the dialog settles and never resets after an action[32m 51[2mms[22m[39m
+   [32m✓[39m waits for shutdown before executing choice 0[32m 1[2mms[22m[39m
+   [32m✓[39m waits for shutdown before executing choice 1[32m 0[2mms[22m[39m
+   [32m✓[39m waits for shutdown before executing choice 2[32m 0[2mms[22m[39m
+   [32m✓[39m reports a user-requested disable failure and allows exit without restarting[32m 1[2mms[22m[39m
+   [32m✓[39m allows exit after shutdown cleanup fails[32m 0[2mms[22m[39m
+   [32m✓[39m bounds long diagnostics and recovery-operation errors in en[32m 1[2mms[22m[39m
+   [32m✓[39m bounds long diagnostics and recovery-operation errors in zh-CN[32m 1[2mms[22m[39m
+[31m   [31m×[31m names the report file even when the error is short enough to show whole, in en[39m[32m 54[2mms[22m[39m
+[31m   [31m×[31m names the report file even when the error is short enough to show whole, in zh-CN[39m[32m 52[2mms[22m[39m
+   [32m✓[39m keeps the report line inside the detail budget when the error is long[32m 56[2mms[22m[39m
+   [32m✓[39m names the report file in the listener-conflict dialog too[32m 63[2mms[22m[39m
+   [32m✓[39m shows the dialog without a path when the report write fails or returns nothing[32m 125[2mms[22m[39m
+   [32m✓[39m does not wait longer than the report deadline before showing the dialog[32m 2[2mms[22m[39m
+   [32m✓[39m writes the report once for the first fatal failure and not for the recovery-failure redisplay[32m 0[2mms[22m[39m
+   [32m✓[39m reveals the saved report without stopping the Host or restarting[32m 1[2mms[22m[39m
+   [32m✓[39m keeps the original failure and report path when revealing the file fails[32m 1[2mms[22m[39m
+   [32m✓[39m makes a report that finishes after the initial deadline available without rewriting it[32m 2[2mms[22m[39m
+   [32m✓[39m does not attempt to reveal an unavailable report[32m 1[2mms[22m[39m
+   [32m✓[39m keeps the recovery failure visible when fetching a pending report[32m 1[2mms[22m[39m
+   [32m✓[39m keeps the recovery failure visible when fetching a failed report[32m 1[2mms[22m[39m
+   [32m✓[39m keeps the original attachment when revealing after a recovery failure (reveal fails=false)[32m 1[2mms[22m[39m
+   [32m✓[39m keeps the original attachment when revealing after a recovery failure (reveal fails=true)[32m 0[2mms[22m[39m
+ [31m❯[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/windows-update-publisher.spec.ts [2m([22m[2m6 tests[22m[2m | [22m[31m2 failed[39m[2m)[22m[33m 620[2mms[22m[39m
+     [32m✓[39m preserves organization identity and escapes DN delimiters using the updater parser[32m 7[2mms[22m[39m
+     [32m✓[39m rejects missing or ambiguous publisher identity: {"CN":"","O":"Company","C":"CN"}[32m 5[2mms[22m[39m
+     [32m✓[39m rejects missing or ambiguous publisher identity: {"CN":"Publisher","C":"CN"}[32m 3[2mms[22m[39m
+     [32m✓[39m rejects missing or ambiguous publisher identity: {"CN":"Publisher","O":"Company","C":["CN","US"]}[32m 3[2mms[22m[39m
+[31m     [31m×[31m supplies publisher metadata with explicit Windows target = true[39m[33m 593[2mms[22m[39m
+[31m     [31m×[31m supplies publisher metadata with explicit Windows target = false[39m[32m 7[2mms[22m[39m
+ [31m❯[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/purge-command.spec.ts [2m([22m[2m1 test[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 1540[2mms[22m[39m
+[31m   [31m×[31m forwards the documented pnpm purge command through both package scripts to the real argument parser[39m[33m 1538[2mms[22m[39m
+ [31m❯[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/welcome-renderer.client.spec.tsx [2m([22m[2m30 tests[22m[2m | [22m[31m8 failed[39m[2m)[22m[33m 580[2mms[22m[39m
+[31m     [31m×[31m renders the zh-CN entry and API-key step[39m[32m 48[2mms[22m[39m
+[31m     [31m×[31m renders the en entry and API-key step[39m[32m 9[2mms[22m[39m
+     [32m✓[39m sends one trimmed key, prevents competing actions, and clears it after saving[32m 85[2mms[22m[39m
+     [32m✓[39m rejects invalid input before sending it: [32m 7[2mms[22m[39m
+     [32m✓[39m rejects invalid input before sending it: bad key[32m 8[2mms[22m[39m
+     [32m✓[39m rejects invalid input before sending it: 密钥[32m 7[2mms[22m[39m
+     [32m✓[39m rejects invalid input before sending it: DEEPSEEK_API_KEY=sk-example[32m 7[2mms[22m[39m
+     [32m✓[39m rejects invalid input before sending it: "sk-example"[32m 5[2mms[22m[39m
+     [32m✓[39m rejects invalid input before sending it: `sk-example`[32m 5[2mms[22m[39m
+     [32m✓[39m retains an unsaved draft and allows retry after a refused save[32m 133[2mms[22m[39m
+     [32m✓[39m skips without saving and starts a fresh renderer at the entry again[32m 63[2mms[22m[39m
+     [32m✓[39m returns to the entry without saving and clears the draft and validation error[32m 6[2mms[22m[39m
+     [32m✓[39m keeps visible copy in the shell dictionaries and denies network access[32m 0[2mms[22m[39m
+[31m   [31m×[31m renders zh-CN timeout with manual retry and API-key alternative[39m[32m 6[2mms[22m[39m
+[31m   [31m×[31m renders en timeout with manual retry and API-key alternative[39m[32m 5[2mms[22m[39m
+[31m   [31m×[31m renders zh-CN browser fallback and copies only the active login link[39m[32m 6[2mms[22m[39m
+[31m   [31m×[31m renders en browser fallback and copies only the active login link[39m[32m 5[2mms[22m[39m
+   [32m✓[39m keeps a newer account notification when the start response arrives late[32m 4[2mms[22m[39m
+   [32m✓[39m does not restore a copied-link status after leaving the waiting phase[32m 4[2mms[22m[39m
+   [32m✓[39m keeps the key draft while account notifications arrive and releases the subscription on unmount[32m 5[2mms[22m[39m
+   [32m✓[39m restores the copy action after copied feedback and cleans up on unmount[32m 8[2mms[22m[39m
+   [32m✓[39m restores the copy action after failed feedback and cleans up on unmount[32m 6[2mms[22m[39m
+   [32m✓[39m keeps the expiry notice visible after returning to Welcome: zh-CN[32m 91[2mms[22m[39m
+   [32m✓[39m keeps the expiry notice visible after returning to Welcome: en[32m 18[2mms[22m[39m
+   [32m✓[39m does not infer a notification from a retained expired account snapshot[32m 4[2mms[22m[39m
+   [32m✓[39m keeps the entry usable when notification IPC fails[32m 7[2mms[22m[39m
+   [32m✓[39m ignores a notification received after its renderer unmounts[32m 8[2mms[22m[39m
+[31m   [31m×[31m returns from completed sign-in to the initial page after sign-out: zh-CN[39m[32m 6[2mms[22m[39m
+[31m   [31m×[31m returns from completed sign-in to the initial page after sign-out: en[39m[32m 5[2mms[22m[39m
+   [32m✓[39m reports each return to the welcome entry once, including account cancellation[32m 6[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/shell-file-selection.spec.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 919[2mms[22m[39m
+   [33m[2m✓[22m[39m omits shell build files from darwin/arm64 ASAR while retaining runtime assets [33m 393[2mms[22m[39m
+ [31m❯[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/installer-packaging.spec.ts [2m([22m[2m6 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 1112[2mms[22m[39m
+     [32m✓[39m rejects a missing production policy before signing on win32[32m 125[2mms[22m[39m
+     [32m✓[39m rejects a missing production policy before signing on darwin[32m 0[2mms[22m[39m
+     [33m[2m✓[22m[39m preserves installer metadata and dependency ownership on win32 [33m 568[2mms[22m[39m
+     [33m[2m✓[22m[39m preserves installer metadata and dependency ownership on darwin [33m 408[2mms[22m[39m
+     [32m✓[39m names unsigned Windows artifacts so they cannot pass for release builds[32m 2[2mms[22m[39m
+[31m     [31m×[31m packages every preload entry point the shell loads[39m[32m 7[2mms[22m[39m
+ [31m❯[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/welcome-startup.spec.ts [2m([22m[2m2 tests[22m[2m | [22m[31m2 failed[39m[2m)[22m[33m 3212[2mms[22m[39m
+[31m   [31m×[31m starts welcome onboarding without carrying update focus into login or skip (Windows update=false)[39m[33m 2124[2mms[22m[39m
+[31m   [31m×[31m starts welcome onboarding without carrying update focus into login or skip (Windows update=true)[39m[33m 1086[2mms[22m[39m
+tar (child): Cannot connect to C: resolve failed
+tar: Child returned status 128
+tar: Error is not recoverable: exiting now
+ [31m❯[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/prepare-package-set.spec.ts [2m([22m[2m20 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 8260[2mms[22m[39m
+     [32m✓[39m does not select a packaging target when imported as a library[32m 3[2mms[22m[39m
+     [32m✓[39m includes only the available internal production closure[32m 80[2mms[22m[39m
+     [32m✓[39m rejects required prepared package @deepseek-ai/dsh-base absent from the packed release inputs[32m 106[2mms[22m[39m
+     [32m✓[39m rejects required prepared package @deepseek-ai/cordis absent from the packed release inputs[32m 93[2mms[22m[39m
+     [32m✓[39m rejects required prepared package @deepseek-ai/node-addon-system absent from the packed release inputs[32m 88[2mms[22m[39m
+     [32m✓[39m leaves independently published Office packages to npm resolution[32m 44[2mms[22m[39m
+     [32m✓[39m requires both Desktop Host and public CLI entries[32m 1[2mms[22m[39m
+   [32m✓[39m selects the CUA native tarball for target darwin/arm64 independently of the host[32m 42[2mms[22m[39m
+   [32m✓[39m selects the CUA native tarball for target darwin/x64 independently of the host[32m 46[2mms[22m[39m
+   [32m✓[39m selects the CUA native tarball for target win32/x64 independently of the host[32m 42[2mms[22m[39m
+   [32m✓[39m honors optional package platform constraints {"cpu":["arm64"]}[32m 41[2mms[22m[39m
+   [32m✓[39m honors optional package platform constraints {"os":["!win32"]}[32m 42[2mms[22m[39m
+   [32m✓[39m honors optional package platform constraints {"os":["!linux"]}[32m 46[2mms[22m[39m
+   [32m✓[39m honors optional package platform constraints {"os":[]}[32m 42[2mms[22m[39m
+   [32m✓[39m honors optional package platform constraints {"os":["any"]}[32m 49[2mms[22m[39m
+   [32m✓[39m honors optional package platform constraints {"os":["any","!win32"]}[32m 45[2mms[22m[39m
+   [32m✓[39m honors optional package platform constraints {"cpu":["x64"]}[32m 44[2mms[22m[39m
+   [32m✓[39m rejects malformed platform constraints {"os":"darwin"}[32m 45[2mms[22m[39m
+   [32m✓[39m rejects malformed platform constraints {"cpu":[42]}[32m 41[2mms[22m[39m
+[31m   [31m×[31m copies no macOS tarball into the Windows package set[39m[33m 7317[2mms[22m[39m
+ [31m❯[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/cua-optional-package.spec.ts [2m([22m[2m1 test[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 9717[2mms[22m[39m
+[31m   [31m×[31m fetches the macOS optional tarball only for Darwin, with an empty cache for every target[39m[33m 9715[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Suites 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m [30m[45m thread-safe [49m[39m apps/desktop/tests/windows-cli-signals.spec.ts[2m > [22mWindows Electron console signals
+[31m[1mError[22m: spawn C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe ENOENT[39m
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/24]⎯[22m[39m
+
+
+[31m⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 23 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m [30m[45m thread-safe [49m[39m apps/desktop/tests/background-notice.spec.ts[2m > [22mkeeps the window visible until confirmation and remembers acknowledgement across launches
+[31m[1mAssertionError[22m: expected "vi.fn()" to be called once with arguments: [ { type: 'info', …(5) } ][90m
+
+Received:
+
+[1m  1st vi.fn() call:
+
+[22m[33m@@ -4,9 +4,9 @@[90m
+[2m        "确认",[22m
+[2m      ],[22m
+[2m      "cancelId": -1,[22m
+[2m      "defaultId": 0,[22m
+[2m      "message": "正在运行的任务不会中断，可在系统托盘中重新打开窗口",[22m
+[32m-     "title": "DeepSeek Harness",[90m
+[31m+     "title": "LCoder",[90m
+[2m      "type": "info",[22m
+[2m    },[22m
+[2m  ][22m
+[31m[90m
+
+Number of calls: [1m1[22m
+[31m[39m
+[36m [2m❯[22m apps/desktop/tests/background-notice.spec.ts:[2m34:18[22m[39m
+    [90m 32|[39m   [34mexpect[39m(f[33m.[39mhide)[33m.[39mnot[33m.[39m[34mtoHaveBeenCalled[39m()
+    [90m 33|[39m   [34mexpect[39m([34mexistsSync[39m(f[33m.[39mmarkerPath))[33m.[39m[34mtoBe[39m([35mfalse[39m)
+    [90m 34|[39m   expect(f.show).toHaveBeenCalledExactlyOnceWith({ type: 'info', title…
+    [90m   |[39m                  [31m^[39m
+    [90m 35|[39m     message: '正在运行的任务不会中断，可在系统托盘中重新打开窗口', buttons: ['确认'], defaultId: …
+    [90m 36|[39m   [34mexpect[39m(f[33m.[39mfocus)[33m.[39m[34mtoHaveBeenCalledOnce[39m()
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/24]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m [30m[45m thread-safe [49m[39m apps/desktop/tests/cua-optional-package.spec.ts[2m > [22mfetches the macOS optional tarball only for Darwin, with an empty cache for every target
+[31m[1mExecaError[22m: Command failed with exit code 2: tar -tzf "C:\Users\Administrator\AppData\Local\Temp\cua-cold-install-rEWJ4j\dsh-experimental-cua-macos\package.tgz"
+
+tar (child): Cannot connect to C: resolve failed
+
+gzip: stdin: unexpected end of file
+tar: Child returned status 128
+tar: Error is not recoverable: exiting now[39m
+[90m [2m❯[22m getFinalError node_modules/.pnpm/execa@10.0.1/node_modules/execa/lib/return/final-error.js:[2m6:9[22m[39m
+[90m [2m❯[22m makeError node_modules/.pnpm/execa@10.0.1/node_modules/execa/lib/return/result.js:[2m108:16[22m[39m
+[90m [2m❯[22m getAsyncResult node_modules/.pnpm/execa@10.0.1/node_modules/execa/lib/methods/main-async.js:[2m209:4[22m[39m
+[90m [2m❯[22m handlePromise node_modules/.pnpm/execa@10.0.1/node_modules/execa/lib/methods/main-async.js:[2m192:17[22m[39m
+[36m [2m❯[22m apps/desktop/tests/cua-optional-package.spec.ts:[2m72:22[22m[39m
+    [90m 70|[39m     packages[33m.[39m[35mset[39m(name[33m,[39m { manifest[33m,[39m bytes })
+    [90m 71|[39m     [35mif[39m (name [33m===[39m providerName) {
+    [90m 72|[39m       const result = await execa('tar', ['-tzf', join(directory, 'pack…
+    [90m   |[39m                      [31m^[39m
+    [90m 73|[39m       expect(result.stdout).toContain('package/native/bin/darwin-arm64…
+    [90m 74|[39m       [34mexpect[39m(result[33m.[39mstdout)[33m.[39m[34mtoContain[39m([32m`package/[39m[36m${[39mnativePayload[36m}[39m[32m`[39m)
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/24]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m [30m[45m thread-safe [49m[39m apps/desktop/tests/fatal-recovery.spec.ts[2m > [22moffers exit and restart for a listener conflict without a saved report in en
+[31m[1mError[22m: Snapshot `offers exit and restart for a listener conflict without a saved report in en 1` mismatched[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[33m@@ -1,6 +1,6 @@[39m
+[32m- [7mDeepSeek Harness[27m is unavailable[39m
+[31m+ [7mLCoder[27m is unavailable[39m
+[2m  The application could not start or stopped unexpectedly.[22m
+[2m  Another DSH instance (such as dsh web or the desktop app) is running. They cannot start at the same time. Quit the other running DSH instance, then restart.[22m
+[2m  The diagnostic report could not be saved. You can provide a screenshot of this dialog when requesting support.[22m
+[2m  Exit[22m
+[2m  Restart[22m
+
+[36m [2m❯[22m apps/desktop/tests/fatal-recovery.spec.ts:[2m45:3[22m[39m
+    [90m 43|[39m     operations.messages().exitApplication, operations.messages().resta…
+    [90m 44|[39m   ])
+    [90m 45|[39m   await expect([options.title, options.message, options.detail, ...opt…
+    [90m   |[39m   [31m^[39m
+    [90m 46|[39m     [33m.[39m[34mtoMatchFileSnapshot[39m([32m`expected/fatal-address-in-use-[39m[36m${[39mlocale[36m}[39m[32m.txt`[39m)
+    [90m 47|[39m   choice[33m.[39m[34mresolve[39m({ response[33m:[39m [34m1[39m[33m,[39m checkboxChecked[33m:[39m [35mfalse[39m })
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/24]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m [30m[45m thread-safe [49m[39m apps/desktop/tests/fatal-recovery.spec.ts[2m > [22moffers exit and restart for a listener conflict without a saved report in zh-CN
+[31m[1mError[22m: Snapshot `offers exit and restart for a listener conflict without a saved report in zh-CN 1` mismatched[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[33m@@ -1,6 +1,6 @@[39m
+[32m- [7mDeepSeek Harness[27m 无法使用[39m
+[31m+ [7mLCoder[27m 无法使用[39m
+[2m  应用无法启动或已意外停止。[22m
+[2m  有其他正在运行的 DSH（如其他 dsh web、桌面端），无法同时启动，请退出其他正在运行的 DSH 后重启。[22m
+[2m  诊断报告未能保存，反馈问题时可提供此窗口的截图。[22m
+[2m  退出[22m
+[2m  重启[22m
+
+[36m [2m❯[22m apps/desktop/tests/fatal-recovery.spec.ts:[2m45:3[22m[39m
+    [90m 43|[39m     operations.messages().exitApplication, operations.messages().resta…
+    [90m 44|[39m   ])
+    [90m 45|[39m   await expect([options.title, options.message, options.detail, ...opt…
+    [90m   |[39m   [31m^[39m
+    [90m 46|[39m     [33m.[39m[34mtoMatchFileSnapshot[39m([32m`expected/fatal-address-in-use-[39m[36m${[39mlocale[36m}[39m[32m.txt`[39m)
+    [90m 47|[39m   choice[33m.[39m[34mresolve[39m({ response[33m:[39m [34m1[39m[33m,[39m checkboxChecked[33m:[39m [35mfalse[39m })
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/24]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m [30m[45m thread-safe [49m[39m apps/desktop/tests/fatal-recovery.spec.ts[2m > [22mrecords the en native recovery dialog
+[31m[1mError[22m: Snapshot `records the en native recovery dialog 1` mismatched[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[33m@@ -1,6 +1,6 @@[39m
+[32m- [7mDeepSeek Harness[27m is unavailable[39m
+[31m+ [7mLCoder[27m is unavailable[39m
+[2m  The application could not start or stopped unexpectedly.[22m
+[2m  Desktop Host failed[22m
+[2m  Plugin initialization failed[22m
+[2m  The diagnostic report could not be saved. You can provide a screenshot of this dialog when requesting support.[22m
+
+
+[36m [2m❯[22m apps/desktop/tests/fatal-recovery.spec.ts:[2m73:3[22m[39m
+    [90m 71|[39m   [35mawait[39m [34mshown[39m(operations)
+    [90m 72|[39m   [35mconst[39m options [33m=[39m operations[33m.[39mshow[33m.[39mmock[33m.[39mcalls[[34m0[39m][33m![39m[[34m0[39m]
+    [90m 73|[39m   await expect([options.title, options.message, options.detail, ...opt…
+    [90m   |[39m   [31m^[39m
+    [90m 74|[39m     [33m.[39m[34mtoMatchFileSnapshot[39m([32m`expected/fatal-dialog-[39m[36m${[39mlocale[36m}[39m[32m.txt`[39m)
+    [90m 75|[39m   choice[33m.[39m[34mresolve[39m({ response[33m:[39m [34m0[39m[33m,[39m checkboxChecked[33m:[39m [35mfalse[39m })
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/24]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m [30m[45m thread-safe [49m[39m apps/desktop/tests/fatal-recovery.spec.ts[2m > [22mrecords the zh-CN native recovery dialog
+[31m[1mError[22m: Snapshot `records the zh-CN native recovery dialog 1` mismatched[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[33m@@ -1,6 +1,6 @@[39m
+[32m- [7mDeepSeek Harness[27m 无法使用[39m
+[31m+ [7mLCoder[27m 无法使用[39m
+[2m  应用无法启动或已意外停止。[22m
+[2m  Desktop Host failed[22m
+[2m  Plugin initialization failed[22m
+[2m  诊断报告未能保存，反馈问题时可提供此窗口的截图。[22m
+
+
+[36m [2m❯[22m apps/desktop/tests/fatal-recovery.spec.ts:[2m73:3[22m[39m
+    [90m 71|[39m   [35mawait[39m [34mshown[39m(operations)
+    [90m 72|[39m   [35mconst[39m options [33m=[39m operations[33m.[39mshow[33m.[39mmock[33m.[39mcalls[[34m0[39m][33m![39m[[34m0[39m]
+    [90m 73|[39m   await expect([options.title, options.message, options.detail, ...opt…
+    [90m   |[39m   [31m^[39m
+    [90m 74|[39m     [33m.[39m[34mtoMatchFileSnapshot[39m([32m`expected/fatal-dialog-[39m[36m${[39mlocale[36m}[39m[32m.txt`[39m)
+    [90m 75|[39m   choice[33m.[39m[34mresolve[39m({ response[33m:[39m [34m0[39m[33m,[39m checkboxChecked[33m:[39m [35mfalse[39m })
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/24]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m [30m[45m thread-safe [49m[39m apps/desktop/tests/fatal-recovery.spec.ts[2m > [22mnames the report file even when the error is short enough to show whole, in en
+[31m[1mError[22m: Snapshot `names the report file even when the error is short enough to show whole, in en 1` mismatched[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[33m@@ -1,6 +1,6 @@[39m
+[32m- [7mDeepSeek Harness[27m is unavailable[39m
+[31m+ [7mLCoder[27m is unavailable[39m
+[2m  The application could not start or stopped unexpectedly.[22m
+[2m  Desktop Host failed[22m
+[2m  Plugin initialization failed[22m
+[2m  Diagnostic report: C:\Users\someone\AppData\Roaming\DeepSeek Harness\logs\crash-2026-09-22T10-30-00-000Z-host.log[22m
+
+
+[36m [2m❯[22m apps/desktop/tests/fatal-recovery.spec.ts:[2m163:3[22m[39m
+    [90m161|[39m   expect(options.detail).not.toContain(operations.messages().diagnosti…
+    [90m162|[39m   [34mexpect[39m(options[33m.[39mdetail)[33m.[39m[34mtoContain[39m([33mREPORT_PATH[39m)
+    [90m163|[39m   await expect([options.title, options.message, options.detail, ...opt…
+    [90m   |[39m   [31m^[39m
+    [90m164|[39m     .toMatchFileSnapshot(`expected/fatal-dialog-with-report-${locale}.…
+    [90m165|[39m   choice[33m.[39m[34mresolve[39m({ response[33m:[39m [34m0[39m[33m,[39m checkboxChecked[33m:[39m [35mfalse[39m })
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/24]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m [30m[45m thread-safe [49m[39m apps/desktop/tests/fatal-recovery.spec.ts[2m > [22mnames the report file even when the error is short enough to show whole, in zh-CN
+[31m[1mError[22m: Snapshot `names the report file even when the error is short enough to show whole, in zh-CN 1` mismatched[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[33m@@ -1,6 +1,6 @@[39m
+[32m- [7mDeepSeek Harness[27m 无法使用[39m
+[31m+ [7mLCoder[27m 无法使用[39m
+[2m  应用无法启动或已意外停止。[22m
+[2m  Desktop Host failed[22m
+[2m  Plugin initialization failed[22m
+[2m  诊断报告：C:\Users\someone\AppData\Roaming\DeepSeek Harness\logs\crash-2026-09-22T10-30-00-000Z-host.log[22m
+
+
+[36m [2m❯[22m apps/desktop/tests/fatal-recovery.spec.ts:[2m163:3[22m[39m
+    [90m161|[39m   expect(options.detail).not.toContain(operations.messages().diagnosti…
+    [90m162|[39m   [34mexpect[39m(options[33m.[39mdetail)[33m.[39m[34mtoContain[39m([33mREPORT_PATH[39m)
+    [90m163|[39m   await expect([options.title, options.message, options.detail, ...opt…
+    [90m   |[39m   [31m^[39m
+    [90m164|[39m     .toMatchFileSnapshot(`expected/fatal-dialog-with-report-${locale}.…
+    [90m165|[39m   choice[33m.[39m[34mresolve[39m({ response[33m:[39m [34m0[39m[33m,[39m checkboxChecked[33m:[39m [35mfalse[39m })
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/24]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m [30m[45m thread-safe [49m[39m apps/desktop/tests/installer-packaging.spec.ts[2m > [22minstaller preparation preserves application dependencies[2m > [22mpackages every preload entry point the shell loads
+[31m[1mError[22m: desktop auto-update: DOWNLOAD_PROD_ORIGIN must be set to a non-empty value[39m
+[36m [2m❯[22m requiredEnvironmentValue apps/desktop/scripts/desktop-auto-update-environment.mjs:[2m129:11[22m[39m
+    [90m127|[39m  */[39m
+    [90m128|[39m [35mfunction[39m [34mhttpsOrigin[39m(value[33m,[39m name) {
+    [90m129|[39m   [35mlet[39m parsed
+    [90m   |[39m           [31m^[39m
+    [90m130|[39m   [35mtry[39m {
+    [90m131|[39m     parsed [33m=[39m [35mnew[39m [33mURL[39m(value)
+[90m [2m❯[22m resolveDesktopAutoUpdateConfig apps/desktop/scripts/desktop-auto-update-environment.mjs:[2m173:30[22m[39m
+[90m [2m❯[22m createElectronBuilderConfig apps/desktop/scripts/electron-builder-config.mjs:[2m117:118[22m[39m
+[90m [2m❯[22m apps/desktop/tests/installer-packaging.spec.ts:[2m131:18[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/24]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m [30m[45m thread-safe [49m[39m apps/desktop/tests/prepare-package-set.spec.ts[2m > [22mcopies no macOS tarball into the Windows package set
+[31m[1mError[22m: Command failed: tar -czf C:\Users\Administrator\AppData\Local\Temp\desktop-platform-packages-OxQ2yW\inputs\dsh.tgz -C C:\Users\Administrator\AppData\Local\Temp\desktop-platform-packages-OxQ2yW\dsh package
+tar (child): Cannot connect to C: resolve failed
+tar: Child returned status 128
+tar: Error is not recoverable: exiting now
+[39m
+[36m [2m❯[22m apps/desktop/tests/prepare-package-set.spec.ts:[2m156:5[22m[39m
+    [90m154|[39m       }
+    [90m155|[39m     }
+    [90m156|[39m     execFileSync('tar', ['-czf', join(inputs, `${stem}.tgz`), '-C', jo…
+    [90m   |[39m     [31m^[39m
+    [90m157|[39m   }
+    [90m158|[39m   [35mconst[39m output [33m=[39m [34mjoin[39m(root[33m,[39m [32m'output'[39m)
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/24]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m [30m[45m thread-safe [49m[39m apps/desktop/tests/purge-command.spec.ts[2m > [22mforwards the documented pnpm purge command through both package scripts to the real argument parser
+[31m[1mError[22m: Command failed: C:\Program Files\nodejs\node.exe E:\Projects\LCoder\.worktrees\pool-ui-1\node_modules\pnpm\bin\pnpm.mjs run purge:latest mac-arm64
+$ pnpm --filter @deepseek-ai/dsh-desktop run purge:latest mac-arm64
+$ tsx scripts/upload-target.ts --latest --purge-only mac-arm64
+node:internal/modules/esm/resolve:271
+    throw new ERR_MODULE_NOT_FOUND(
+          ^
+
+Error [ERR_MODULE_NOT_FOUND]: Cannot find module 'C:\Users\Administrator\AppData\Local\Temp\desktop-purge-command-um774z\apps\desktop\scripts\desktop-product-identity.mjs' imported from C:\Users\Administrator\AppData\Local\Temp\desktop-purge-command-um774z\apps\desktop\scripts\desktop-auto-update-environment.mjs
+    at finalizeResolution (node:internal/modules/esm/resolve:271:11)
+    at moduleResolve (node:internal/modules/esm/resolve:865:10)
+    at defaultResolve (node:internal/modules/esm/resolve:992:11)
+    at #cachedDefaultResolve (node:internal/modules/esm/loader:691:20)
+    at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:708:38)
+    at nextStep (node:internal/modules/customization_hooks:189:26)
+    at resolveBaseSync (file:///E:/Projects/LCoder/.worktrees/pool-ui-1/node_modules/.pnpm/tsx@4.23.13/node_modules/tsx/dist/register-SoqaU4rg.mjs:2:10932)
+    at resolveDirectorySync (file:///E:/Projects/LCoder/.worktrees/pool-ui-1/node_modules/.pnpm/tsx@4.23.13/node_modules/tsx/dist/register-SoqaU4rg.mjs:2:12238)
+    at resolveTsPathsSync (file:///E:/Projects/LCoder/.worktrees/pool-ui-1/node_modules/.pnpm/tsx@4.23.13/node_modules/tsx/dist/register-SoqaU4rg.mjs:2:13445)
+    at resolve (file:///E:/Projects/LCoder/.worktrees/pool-ui-1/node_modules/.pnpm/tsx@4.23.13/node_modules/tsx/dist/register-SoqaU4rg.mjs:2:15991) {
+  code: 'ERR_MODULE_NOT_FOUND',
+  url: 'file:///C:/Users/Administrator/AppData/Local/Temp/desktop-purge-command-um774z/apps/desktop/scripts/desktop-product-identity.mjs'
+}
+
+Node.js v24.16.0
+[39m
+[90m [2m❯[22m resolveBaseSync node_modules/.pnpm/tsx@4.23.13/node_modules/tsx/dist/register-SoqaU4rg.mjs:[2m2:10932[22m[39m
+[90m [2m❯[22m resolveDirectorySync node_modules/.pnpm/tsx@4.23.13/node_modules/tsx/dist/register-SoqaU4rg.mjs:[2m2:12238[22m[39m
+[90m [2m❯[22m resolveTsPathsSync node_modules/.pnpm/tsx@4.23.13/node_modules/tsx/dist/register-SoqaU4rg.mjs:[2m2:13445[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/24]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m [30m[45m thread-safe [49m[39m apps/desktop/tests/welcome-renderer.client.spec.tsx[2m > [22mdesktop welcome presentation[2m > [22mrenders the zh-CN entry and API-key step
+[31m[1mError[22m: Snapshot `desktop welcome presentation > renders the zh-CN entry and API-key step 1` mismatched[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- DeepSeek Harness[39m
+[32m- DeepSeek Harness[39m
+[32m- 欢迎使用 DeepSeek Harness[39m
+[31m+ LCoder[39m
+[31m+ LCoder[39m
+[31m+ 欢迎使用 LCoder[39m
+[2m  组装无限可能，共探智能上限[22m
+[2m  登录[22m
+[2m  添加 API Key[22m
+
+
+[36m [2m❯[22m apps/desktop/tests/welcome-renderer.client.spec.tsx:[2m55:5[22m[39m
+    [90m 53|[39m     [34mexpect[39m(view[33m.[39mdocument[33m.[39mdocumentElement[33m.[39mlang)[33m.[39m[34mtoBe[39m(language)
+    [90m 54|[39m     expect(view.document.querySelector('img')!.getAttribute('src')).to…
+    [90m 55|[39m     await expect(view.copy()).toMatchFileSnapshot(`./expected/welcome/…
+    [90m   |[39m     [31m^[39m
+    [90m 56|[39m     fireEvent[33m.[39m[34mclick[39m(view[33m.[39m[34mbutton[39m([32m'#api-key'[39m))
+    [90m 57|[39m     [34mexpect[39m(view[33m.[39mdocument[33m.[39mactiveElement)[33m.[39m[34mtoBe[39m(view[33m.[39minput)
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[13/24]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m [30m[45m thread-safe [49m[39m apps/desktop/tests/welcome-renderer.client.spec.tsx[2m > [22mdesktop welcome presentation[2m > [22mrenders the en entry and API-key step
+[31m[1mError[22m: Snapshot `desktop welcome presentation > renders the en entry and API-key step 1` mismatched[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- DeepSeek Harness[39m
+[32m- DeepSeek Harness[39m
+[32m- Welcome to DeepSeek Harness[39m
+[31m+ LCoder[39m
+[31m+ LCoder[39m
+[31m+ Welcome to LCoder[39m
+[2m  Build potential. Explore intelligence.[22m
+[2m  Sign in[22m
+[2m  Add API Key[22m
+
+
+[36m [2m❯[22m apps/desktop/tests/welcome-renderer.client.spec.tsx:[2m55:5[22m[39m
+    [90m 53|[39m     [34mexpect[39m(view[33m.[39mdocument[33m.[39mdocumentElement[33m.[39mlang)[33m.[39m[34mtoBe[39m(language)
+    [90m 54|[39m     expect(view.document.querySelector('img')!.getAttribute('src')).to…
+    [90m 55|[39m     await expect(view.copy()).toMatchFileSnapshot(`./expected/welcome/…
+    [90m   |[39m     [31m^[39m
+    [90m 56|[39m     fireEvent[33m.[39m[34mclick[39m(view[33m.[39m[34mbutton[39m([32m'#api-key'[39m))
+    [90m 57|[39m     [34mexpect[39m(view[33m.[39mdocument[33m.[39mactiveElement)[33m.[39m[34mtoBe[39m(view[33m.[39minput)
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[14/24]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m [30m[45m thread-safe [49m[39m apps/desktop/tests/welcome-renderer.client.spec.tsx[2m > [22mrenders zh-CN timeout with manual retry and API-key alternative
+[31m[1mError[22m: Snapshot `renders zh-CN timeout with manual retry and API-key alternative 1` mismatched[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- DeepSeek Harness[39m
+[32m- DeepSeek Harness[39m
+[31m+ LCoder[39m
+[31m+ LCoder[39m
+[2m  登录已超时[22m
+[2m  重新登录[22m
+[2m  添加 API Key[22m
+[2m  请重新登录后继续操作[22m
+
+
+[36m [2m❯[22m apps/desktop/tests/welcome-renderer.client.spec.tsx:[2m166:3[22m[39m
+    [90m164|[39m   [34mexpect[39m(view[33m.[39m[34mbutton[39m([32m'#auth-api-key'[39m)[33m.[39mhidden)[33m.[39m[34mtoBe[39m([35mfalse[39m)
+    [90m165|[39m   [34mexpect[39m(view[33m.[39mapi[33m.[39mstartSignIn)[33m.[39mnot[33m.[39m[34mtoHaveBeenCalled[39m()
+    [90m166|[39m   await expect(view.copy() + view.document.querySelector('#auth-descri…
+    [90m   |[39m   [31m^[39m
+    [90m167|[39m   fireEvent[33m.[39m[34mclick[39m(view[33m.[39m[34mbutton[39m([32m'#auth-api-key'[39m))
+    [90m168|[39m   expect(view.document.querySelector('#auth-page')!.hasAttribute('hidd…
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[15/24]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m [30m[45m thread-safe [49m[39m apps/desktop/tests/welcome-renderer.client.spec.tsx[2m > [22mrenders en timeout with manual retry and API-key alternative
+[31m[1mError[22m: Snapshot `renders en timeout with manual retry and API-key alternative 1` mismatched[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- DeepSeek Harness[39m
+[32m- DeepSeek Harness[39m
+[31m+ LCoder[39m
+[31m+ LCoder[39m
+[2m  Sign in timed out[22m
+[2m  Sign in again[22m
+[2m  Add API Key[22m
+[2m  Sign in again to continue[22m
+
+
+[36m [2m❯[22m apps/desktop/tests/welcome-renderer.client.spec.tsx:[2m166:3[22m[39m
+    [90m164|[39m   [34mexpect[39m(view[33m.[39m[34mbutton[39m([32m'#auth-api-key'[39m)[33m.[39mhidden)[33m.[39m[34mtoBe[39m([35mfalse[39m)
+    [90m165|[39m   [34mexpect[39m(view[33m.[39mapi[33m.[39mstartSignIn)[33m.[39mnot[33m.[39m[34mtoHaveBeenCalled[39m()
+    [90m166|[39m   await expect(view.copy() + view.document.querySelector('#auth-descri…
+    [90m   |[39m   [31m^[39m
+    [90m167|[39m   fireEvent[33m.[39m[34mclick[39m(view[33m.[39m[34mbutton[39m([32m'#auth-api-key'[39m))
+    [90m168|[39m   expect(view.document.querySelector('#auth-page')!.hasAttribute('hidd…
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[16/24]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m [30m[45m thread-safe [49m[39m apps/desktop/tests/welcome-renderer.client.spec.tsx[2m > [22mrenders zh-CN browser fallback and copies only the active login link
+[31m[1mError[22m: Snapshot `renders zh-CN browser fallback and copies only the active login link 1` mismatched[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[33m@@ -1,7 +1,7 @@[39m
+[32m- DeepSeek Harness[39m
+[32m- DeepSeek Harness[39m
+[31m+ LCoder[39m
+[31m+ LCoder[39m
+[2m  没有自动打开浏览器？[22m
+[2m  复制登录链接[22m
+[2m  正在完成登录… [disabled][22m
+[2m  取消[22m
+[2m  复制登录链接，用浏览器手动打开完成登录[22m
+
+[36m [2m❯[22m apps/desktop/tests/welcome-renderer.client.spec.tsx:[2m178:3[22m[39m
+    [90m176|[39m     attempt: { id: 'waiting' as NonNullable<AccountView['attempt']>['i…
+    [90m177|[39m   [34mreceive[39m(waiting)
+    [90m178|[39m   await expect(view.copy() + view.document.querySelector('#auth-descri…
+    [90m   |[39m   [31m^[39m
+    [90m179|[39m     .toMatchFileSnapshot(`./expected/welcome/${language}-waiting.expec…
+    [90m180|[39m   fireEvent[33m.[39m[34mclick[39m(view[33m.[39m[34mbutton[39m([32m'#auth-copy'[39m))
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[17/24]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m [30m[45m thread-safe [49m[39m apps/desktop/tests/welcome-renderer.client.spec.tsx[2m > [22mrenders en browser fallback and copies only the active login link
+[31m[1mError[22m: Snapshot `renders en browser fallback and copies only the active login link 1` mismatched[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[33m@@ -1,7 +1,7 @@[39m
+[32m- DeepSeek Harness[39m
+[32m- DeepSeek Harness[39m
+[31m+ LCoder[39m
+[31m+ LCoder[39m
+[2m  Browser didn’t open automatically?[22m
+[2m  Copy sign-in link[22m
+[2m  Completing sign in… [disabled][22m
+[2m  Cancel[22m
+[2m  Copy the sign-in link and open it in your browser to sign in.[22m
+
+[36m [2m❯[22m apps/desktop/tests/welcome-renderer.client.spec.tsx:[2m178:3[22m[39m
+    [90m176|[39m     attempt: { id: 'waiting' as NonNullable<AccountView['attempt']>['i…
+    [90m177|[39m   [34mreceive[39m(waiting)
+    [90m178|[39m   await expect(view.copy() + view.document.querySelector('#auth-descri…
+    [90m   |[39m   [31m^[39m
+    [90m179|[39m     .toMatchFileSnapshot(`./expected/welcome/${language}-waiting.expec…
+    [90m180|[39m   fireEvent[33m.[39m[34mclick[39m(view[33m.[39m[34mbutton[39m([32m'#auth-copy'[39m))
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[18/24]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m [30m[45m thread-safe [49m[39m apps/desktop/tests/welcome-renderer.client.spec.tsx[2m > [22mreturns from completed sign-in to the initial page after sign-out: zh-CN
+[31m[1mError[22m: Snapshot `returns from completed sign-in to the initial page after sign-out: zh-CN 1` mismatched[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- DeepSeek Harness[39m
+[32m- DeepSeek Harness[39m
+[32m- 欢迎使用 DeepSeek Harness[39m
+[31m+ LCoder[39m
+[31m+ LCoder[39m
+[31m+ 欢迎使用 LCoder[39m
+[2m  组装无限可能，共探智能上限[22m
+[2m  登录[22m
+[2m  添加 API Key[22m
+
+
+[36m [2m❯[22m apps/desktop/tests/welcome-renderer.client.spec.tsx:[2m329:3[22m[39m
+    [90m327|[39m   [34mexpect[39m(view[33m.[39m[34mbutton[39m([32m'#sign-in'[39m)[33m.[39m[34mclosest[39m([32m'[hidden]'[39m))[33m.[39m[34mtoBeNull[39m()
+    [90m328|[39m   expect(view.document.querySelector<HTMLElement>('#auth-page')!.hidde…
+    [90m329|[39m   await expect(view.copy()).toMatchFileSnapshot(`./expected/welcome/${…
+    [90m   |[39m   [31m^[39m
+    [90m330|[39m })
+    [90m331|[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[19/24]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m [30m[45m thread-safe [49m[39m apps/desktop/tests/welcome-renderer.client.spec.tsx[2m > [22mreturns from completed sign-in to the initial page after sign-out: en
+[31m[1mError[22m: Snapshot `returns from completed sign-in to the initial page after sign-out: en 1` mismatched[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- DeepSeek Harness[39m
+[32m- DeepSeek Harness[39m
+[32m- Welcome to DeepSeek Harness[39m
+[31m+ LCoder[39m
+[31m+ LCoder[39m
+[31m+ Welcome to LCoder[39m
+[2m  Build potential. Explore intelligence.[22m
+[2m  Sign in[22m
+[2m  Add API Key[22m
+
+
+[36m [2m❯[22m apps/desktop/tests/welcome-renderer.client.spec.tsx:[2m329:3[22m[39m
+    [90m327|[39m   [34mexpect[39m(view[33m.[39m[34mbutton[39m([32m'#sign-in'[39m)[33m.[39m[34mclosest[39m([32m'[hidden]'[39m))[33m.[39m[34mtoBeNull[39m()
+    [90m328|[39m   expect(view.document.querySelector<HTMLElement>('#auth-page')!.hidde…
+    [90m329|[39m   await expect(view.copy()).toMatchFileSnapshot(`./expected/welcome/${…
+    [90m   |[39m   [31m^[39m
+    [90m330|[39m })
+    [90m331|[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[20/24]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m [30m[45m thread-safe [49m[39m apps/desktop/tests/welcome-startup.spec.ts[2m > [22mstarts welcome onboarding without carrying update focus into login or skip (Windows update=false)
+[41m[1m FAIL [22m[49m [30m[45m thread-safe [49m[39m apps/desktop/tests/welcome-startup.spec.ts[2m > [22mstarts welcome onboarding without carrying update focus into login or skip (Windows update=true)
+[31m[1mAssertionError[22m: expected "vi.fn()" to be called once, but got 0 times[39m
+[36m [2m❯[22m apps/desktop/tests/welcome-startup.spec.ts:[2m209:58[22m[39m
+    [90m207|[39m     [34mexpect[39m(state[33m.[39mshowWorkspace)[33m.[39mnot[33m.[39m[34mtoHaveBeenCalled[39m()
+    [90m208|[39m     reading[33m.[39m[34mresolve[39m(undefined)
+    [90m209|[39m     await vi.waitFor(() => { expect(state.beforeWelcome).toHaveBeenCal…
+    [90m   |[39m                                                          [31m^[39m
+    [90m210|[39m     [34mactivate[39m()
+    [90m211|[39m     [34mexpect[39m(state[33m.[39mshowWorkspace)[33m.[39mnot[33m.[39m[34mtoHaveBeenCalled[39m()
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[21/24]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m [30m[45m thread-safe [49m[39m apps/desktop/tests/windows-update-publisher.spec.ts[2m > [22mWindows update publisher[2m > [22msupplies publisher metadata with explicit Windows target = true
+[41m[1m FAIL [22m[49m [30m[45m thread-safe [49m[39m apps/desktop/tests/windows-update-publisher.spec.ts[2m > [22mWindows update publisher[2m > [22msupplies publisher metadata with explicit Windows target = false
+[31m[1mError[22m: desktop auto-update: DOWNLOAD_PROD_ORIGIN must be set to a non-empty value[39m
+[36m [2m❯[22m requiredEnvironmentValue apps/desktop/scripts/desktop-auto-update-environment.mjs:[2m129:11[22m[39m
+    [90m127|[39m  */[39m
+    [90m128|[39m [35mfunction[39m [34mhttpsOrigin[39m(value[33m,[39m name) {
+    [90m129|[39m   [35mlet[39m parsed
+    [90m   |[39m           [31m^[39m
+    [90m130|[39m   [35mtry[39m {
+    [90m131|[39m     parsed [33m=[39m [35mnew[39m [33mURL[39m(value)
+[90m [2m❯[22m resolveDesktopAutoUpdateConfig apps/desktop/scripts/desktop-auto-update-environment.mjs:[2m173:30[22m[39m
+[90m [2m❯[22m createElectronBuilderConfig apps/desktop/scripts/electron-builder-config.mjs:[2m117:118[22m[39m
+[90m [2m❯[22m apps/desktop/tests/windows-update-publisher.spec.ts:[2m102:19[22m[39m
+[90m [2m❯[22m withCertificate apps/desktop/tests/windows-update-publisher.spec.ts:[2m43:9[22m[39m
+[90m [2m❯[22m apps/desktop/tests/windows-update-publisher.spec.ts:[2m97:3[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[22/24]⎯[22m[39m
+
+
+[2m  Snapshots [22m [1m[31m14 failed[39m[22m
+[2m Test Files [22m [1m[31m10 failed[39m[22m[2m | [22m[1m[32m1 passed[39m[22m[90m (11)[39m
+[2m      Tests [22m [1m[31m23 failed[39m[22m[2m | [22m[1m[32m81 passed[39m[22m[2m | [22m[33m2 skipped[39m[90m (106)[39m
+[2m   Start at [22m 18:39:36
+[2m   Duration [22m 10.28s[2m (transform 3.18s, setup 750ms, import 4.97s, tests 27.08s, environment 894ms)[22m

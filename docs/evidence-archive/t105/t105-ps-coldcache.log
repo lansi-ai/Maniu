@@ -1,0 +1,40 @@
+启动 E:\Projects\LCoder\.worktrees\pool-ui-1
+日志 E:\Projects\LCoder\.worktrees\pool-ui-1\lcoder\logs\desktop-main.log
+---- 实时输出（Ctrl+C 只停止跟随，不影响已启动的实例） ----
+[  1s] $ pnpm --filter @deepseek-ai/dsh-desktop run start
+[  1s] native/system/packages/darwin-arm64      | [WARN] Unsupported platform: wanted: {"cpu":["arm64"],"os":["darwin"],"libc":["any"]} (current: {"os":"win32","cpu":"x64","libc":"unknown"})
+[  1s] native/system/packages/darwin-x64        | [WARN] Unsupported platform: wanted: {"cpu":["x64"],"os":["darwin"],"libc":["any"]} (current: {"os":"win32","cpu":"x64","libc":"unknown"})
+[  1s] native/system/packages/linux-arm64       | [WARN] Unsupported platform: wanted: {"cpu":["arm64"],"os":["linux"],"libc":["any"]} (current: {"os":"win32","cpu":"x64","libc":"unknown"})
+[  1s] native/system/packages/linux-x64         | [WARN] Unsupported platform: wanted: {"cpu":["x64"],"os":["linux"],"libc":["any"]} (current: {"os":"win32","cpu":"x64","libc":"unknown"})
+[  1s] packages/experimental/cua-macos          | [WARN] Unsupported platform: wanted: {"cpu":["any"],"os":["darwin"],"libc":["any"]} (current: {"os":"win32","cpu":"x64","libc":"unknown"})
+[  1s] $ tsx scripts/dev.ts --skip-build
+[  2s] desktop development timing: dev.ts module loaded +0ms (uptime 146ms)
+[  2s] desktop development timing: artifacts checked +1ms (uptime 147ms)
+[  2s] desktop development timing: electron node version probed +395ms (uptime 542ms)
+[  4s] desktop development timing: development project prepared +2332ms (uptime 2478ms)
+[ 24s] …还在准备（日志已 20 秒没有新行，进程仍存活），继续等
+[ 30s] desktop development timing: primary runtime prepared +27950ms (uptime 28096ms)
+[ 30s] desktop development: DSH_HOME=E:\Projects\LCoder\.worktrees\pool-ui-1\apps\desktop\.desktop-build\development\home
+[ 30s] desktop development: userData=E:\Projects\LCoder\.worktrees\pool-ui-1\apps\desktop\.desktop-build\development\electron-user-data
+[ 30s] desktop development: inspectors main=9829, renderer=9822, host=9830
+[ 30s] desktop development timing: electron spawn +27951ms (uptime 28097ms)
+[ 30s]
+[ 30s] Debugger listening on ws://127.0.0.1:9829/8879e696-5dd9-4ec5-8d13-f560f3f8a3e0
+[ 30s] For help, see: https://nodejs.org/learn/getting-started/debugging
+[ 30s]
+[ 30s] DevTools listening on ws://127.0.0.1:9822/devtools/browser/0d143c09-82fa-439e-b003-c994d7ed539d
+[ 30s] Error occurred in handler for 'dsh-desktop:mandatory-status': Error: No handler registered for 'dsh-desktop:mandatory-status'
+[ 30s]     at Session.<anonymous> (node:electron/js2c/browser_init:1:120085)
+[ 30s]     at Session.emit (node:events:514:28)
+[ 30s] [43336:1110/183252.435:INFO:CONSOLE:2] "%cElectron Security Warning (Insecure Content-Security-Policy) font-weight: bold; This renderer process has either no Content Security
+[ 30s]   Policy set or a policy with "unsafe-eval" enabled. This exposes users of
+[ 30s]   this app to unnecessary security risks.
+[ 30s]
+[ 30s] For more information and help, consult
+[ 30s] https://electronjs.org/docs/tutorial/security.
+[ 30s] This warning will not show up
+[ 30s] once the app is packaged.", source: node:electron/js2c/sandbox_bundle (2)
+[ 33s] dsh web: http://127.0.0.1:59760/?token=QpP5RZjvJU2SZJ5GYiP02aWFGLbvbCttf7IEiHMl_So
+
+就绪：http://127.0.0.1:59760/?token=QpP5RZjvJU2SZJ5GYiP02aWFGLbvbCttf7IEiHMl_So
+窗口应已弹出；关窗口即停止。

@@ -46,7 +46,7 @@ English | [中文](active-context.zh.md)
 
 ## 04. Next immediate actions (Next Immediate Actions)
 
-- **Currently working on**: T-105 on the prewarmed slot `pool-ui-1`; the desktop dev start is split into phases and cached so a warm start targets under 20 seconds. T-107 is closed: new worktrees now write their desktop profile links automatically and no longer mount the upstream DSH.
+- **Currently working on**: T-106 on the prewarmed slot `pool-ui-1`; ignore-scripts, filtered installs and sparse checkouts are being measured to cut first-time worktree preparation. T-105 is closed: warm desktop starts now take about 6 to 7 seconds and unchanged inputs skip the build.
 - **About to execute**: the cloud admin and site acceptance plus the desktop release chain T-79 to T-82 remain; the merge and push decision for the local commits stays with the user.
 - **Open decisions**: whether product tasks should gain a `type` field so the suggestion layer can distinguish read-only tasks; the production SMS provider, the exact opencode rates behind the 20-dollar grant, the deployment domain and host, and whether to add an application-level anonymous kill switch and a `/health` endpoint.
 - **Development evidence**: gate output is recorded in the task note in `docs/tasks.yaml` or the commit message; `.spec/evidence` serves product tasks only.

@@ -1,0 +1,33 @@
+启动 E:\Projects\LCoder\.worktrees\pool-ui-1
+日志 E:\Projects\LCoder\.worktrees\pool-ui-1\lcoder\logs\desktop-main.log
+---- 实时输出（Ctrl+C 只停止跟随，不影响已启动的实例） ----
+[  1s] $ pnpm --filter @deepseek-ai/dsh-desktop run start
+[  1s] native/system/packages/darwin-arm64      | [WARN] Unsupported platform: wanted: {"cpu":["arm64"],"os":["darwin"],"libc":["any"]} (current: {"os":"win32","cpu":"x64","libc":"unknown"})
+[  1s] native/system/packages/darwin-x64        | [WARN] Unsupported platform: wanted: {"cpu":["x64"],"os":["darwin"],"libc":["any"]} (current: {"os":"win32","cpu":"x64","libc":"unknown"})
+[  1s] native/system/packages/linux-arm64       | [WARN] Unsupported platform: wanted: {"cpu":["arm64"],"os":["linux"],"libc":["any"]} (current: {"os":"win32","cpu":"x64","libc":"unknown"})
+[  1s] native/system/packages/linux-x64         | [WARN] Unsupported platform: wanted: {"cpu":["x64"],"os":["linux"],"libc":["any"]} (current: {"os":"win32","cpu":"x64","libc":"unknown"})
+[  1s] packages/experimental/cua-macos          | [WARN] Unsupported platform: wanted: {"cpu":["any"],"os":["darwin"],"libc":["any"]} (current: {"os":"win32","cpu":"x64","libc":"unknown"})
+[  1s] $ tsx scripts/dev.ts --skip-build
+[  2s] desktop development: DSH_HOME=E:\Projects\LCoder\.worktrees\pool-ui-1\apps\desktop\.desktop-build\development\home
+[  2s] desktop development: userData=E:\Projects\LCoder\.worktrees\pool-ui-1\apps\desktop\.desktop-build\development\electron-user-data
+[  2s] desktop development: inspectors main=9829, renderer=9822, host=9830
+[  2s]
+[  2s] Debugger listening on ws://127.0.0.1:9829/10fada32-3f3f-4a47-9f4f-7e00dfe89e70
+[  2s] For help, see: https://nodejs.org/learn/getting-started/debugging
+[  2s]
+[  2s] DevTools listening on ws://127.0.0.1:9822/devtools/browser/84f80d0b-20d1-44ec-8df5-8b9c1f7572e7
+[  2s] Error occurred in handler for 'dsh-desktop:mandatory-status': Error: No handler registered for 'dsh-desktop:mandatory-status'
+[  2s]     at Session.<anonymous> (node:electron/js2c/browser_init:1:120085)
+[  2s]     at Session.emit (node:events:514:28)
+[  2s] [47184:1110/184342.649:INFO:CONSOLE:2] "%cElectron Security Warning (Insecure Content-Security-Policy) font-weight: bold; This renderer process has either no Content Security
+[  2s]   Policy set or a policy with "unsafe-eval" enabled. This exposes users of
+[  2s]   this app to unnecessary security risks.
+[  2s]
+[  2s] For more information and help, consult
+[  2s] https://electronjs.org/docs/tutorial/security.
+[  2s] This warning will not show up
+[  2s] once the app is packaged.", source: node:electron/js2c/sandbox_bundle (2)
+[  5s] dsh web: http://127.0.0.1:50385/?token=7ZbqnSJtEqGooXorFPkA0oeBUie9jxO-Wq605pTZ6W8
+
+就绪：http://127.0.0.1:50385/?token=7ZbqnSJtEqGooXorFPkA0oeBUie9jxO-Wq605pTZ6W8
+窗口应已弹出；关窗口即停止。

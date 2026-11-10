@@ -1,0 +1,33 @@
+启动 E:\Projects\LCoder\.worktrees\pool-ui-1
+日志 E:\Projects\LCoder\.worktrees\pool-ui-1\lcoder\logs\desktop-main.log
+---- 实时输出（Ctrl+C 只停止跟随，不影响已启动的实例） ----
+[  1s] $ pnpm --filter @deepseek-ai/dsh-desktop run dev
+[  1s] native/system/packages/darwin-arm64      | [WARN] Unsupported platform: wanted: {"cpu":["arm64"],"os":["darwin"],"libc":["any"]} (current: {"os":"win32","cpu":"x64","libc":"unknown"})
+[  1s] native/system/packages/darwin-x64        | [WARN] Unsupported platform: wanted: {"cpu":["x64"],"os":["darwin"],"libc":["any"]} (current: {"os":"win32","cpu":"x64","libc":"unknown"})
+[  1s] native/system/packages/linux-arm64       | [WARN] Unsupported platform: wanted: {"cpu":["arm64"],"os":["linux"],"libc":["any"]} (current: {"os":"win32","cpu":"x64","libc":"unknown"})
+[  1s] native/system/packages/linux-x64         | [WARN] Unsupported platform: wanted: {"cpu":["x64"],"os":["linux"],"libc":["any"]} (current: {"os":"win32","cpu":"x64","libc":"unknown"})
+[  1s] packages/experimental/cua-macos          | [WARN] Unsupported platform: wanted: {"cpu":["any"],"os":["darwin"],"libc":["any"]} (current: {"os":"win32","cpu":"x64","libc":"unknown"})
+[  1s] $ tsx scripts/dev.ts
+[  2s] desktop development: workspace inputs unchanged; reusing built artifacts
+[  3s] desktop development: DSH_HOME=E:\Projects\LCoder\.worktrees\pool-ui-1\apps\desktop\.desktop-build\development\home
+[  3s] desktop development: userData=E:\Projects\LCoder\.worktrees\pool-ui-1\apps\desktop\.desktop-build\development\electron-user-data
+[  3s] desktop development: inspectors main=9229, renderer=9222, host=9230
+[  3s]
+[  3s] Starting inspector on 127.0.0.1:9229 failed: address already in use
+[  3s] [7100:1110/192417.947:ERROR:net\socket\tcp_socket_win.cc:530] bind() returned an error: 通常每个套接字地址(协议/网络地址/端口)只允许使用一次。 (0x2740)
+[  3s] [7100:1110/192417.947:ERROR:content\browser\devtools\devtools_http_handler.cc:311] Cannot start http server for devtools.
+[  3s] Error occurred in handler for 'dsh-desktop:mandatory-status': Error: No handler registered for 'dsh-desktop:mandatory-status'
+[  3s]     at Session.<anonymous> (node:electron/js2c/browser_init:1:120085)
+[  3s]     at Session.emit (node:events:514:28)
+[  3s] [7100:1110/192418.197:INFO:CONSOLE:2] "%cElectron Security Warning (Insecure Content-Security-Policy) font-weight: bold; This renderer process has either no Content Security
+[  3s]   Policy set or a policy with "unsafe-eval" enabled. This exposes users of
+[  3s]   this app to unnecessary security risks.
+[  3s]
+[  3s] For more information and help, consult
+[  3s] https://electronjs.org/docs/tutorial/security.
+[  3s] This warning will not show up
+[  3s] once the app is packaged.", source: node:electron/js2c/sandbox_bundle (2)
+[  6s] dsh web: http://127.0.0.1:49868/?token=-S-gQvXojdY-N-2Ob7ZVh1aROpwPnj93LrgdVjJVE3U
+
+就绪：http://127.0.0.1:49868/?token=-S-gQvXojdY-N-2Ob7ZVh1aROpwPnj93LrgdVjJVE3U
+窗口应已弹出；关窗口即停止。

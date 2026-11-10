@@ -1,0 +1,28 @@
+$ tsx scripts/build.ts --scope typecheck
+run-gates: typecheck running 5 gate(s) with 5 worker(s) from 12 local default worker(s) of 20 CPU(s).
+run-gates: start Host Typert
+run-gates: PASS Host Typert (6.87s)
+run-gates: start host compiler
+run-gates: PASS host compiler (0.96s)
+run-gates: start client compiler
+run-gates: start host aggregate check
+run-gates: PASS client compiler (0.83s)
+run-gates: start client aggregate check
+run-gates: PASS client aggregate check (0.90s)
+
+== FAILED host aggregate check (11.00s) ==
+command: tsc -b tsconfig.host.json
+outcome: exit 1
+apps/desktop/scripts/prepare-development-runtime.ts(90,26): error TS2339: Property 'python' does not exist on type 'PayloadIdentity'.
+apps/desktop/scripts/prepare-development-runtime.ts(112,29): error TS7053: Element implicitly has an 'any' type because expression of type '"pnpm" | "desktopVersion" | "python" | "node" | "platform" | "arch"' can't be used to index type 'PayloadIdentity'.
+  Property 'python' does not exist on type 'PayloadIdentity'.
+apps/desktop/scripts/prepare-development-runtime.ts(133,43): error TS2353: Object literal may only specify known properties, and 'python' does not exist in type 'PayloadIdentity'.
+apps/desktop/tests/prepare-development-runtime.spec.ts(21,3): error TS2353: Object literal may only specify known properties, and 'python' does not exist in type 'PayloadIdentity'.
+apps/desktop/tests/prepare-development-runtime.spec.ts(45,22): error TS2339: Property 'python' does not exist on type 'PayloadIdentity'.
+apps/desktop/tests/prepare-development-runtime.spec.ts(46,20): error TS2339: Property 'node' does not exist on type 'PayloadIdentity'.
+
+run-gates: 4 passed, 1 failed, 0 skipped in 18.83s.
+run-gates: unsuccessful gates:
+  - FAILED host aggregate check (11.00s, exit 1)
+    tsc -b tsconfig.host.json
+[ELIFECYCLE] Command failed with exit code 1.

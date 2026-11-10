@@ -1,0 +1,130 @@
+启动 E:\Projects\LCoder\.worktrees\pool-ui-1
+日志 E:\Projects\LCoder\.worktrees\pool-ui-1\lcoder\logs\desktop-main.log
+---- 实时输出（Ctrl+C 只停止跟随，不影响已启动的实例） ----
+[  1s] $ pnpm --filter @deepseek-ai/dsh-desktop run dev
+[  1s] native/system/packages/darwin-arm64      | [WARN] Unsupported platform: wanted: {"cpu":["arm64"],"os":["darwin"],"libc":["any"]} (current: {"os":"win32","cpu":"x64","libc":"unknown"})
+[  1s] native/system/packages/darwin-x64        | [WARN] Unsupported platform: wanted: {"cpu":["x64"],"os":["darwin"],"libc":["any"]} (current: {"os":"win32","cpu":"x64","libc":"unknown"})
+[  1s] native/system/packages/linux-arm64       | [WARN] Unsupported platform: wanted: {"cpu":["arm64"],"os":["linux"],"libc":["any"]} (current: {"os":"win32","cpu":"x64","libc":"unknown"})
+[  1s] native/system/packages/linux-x64         | [WARN] Unsupported platform: wanted: {"cpu":["x64"],"os":["linux"],"libc":["any"]} (current: {"os":"win32","cpu":"x64","libc":"unknown"})
+[  1s] packages/experimental/cua-macos          | [WARN] Unsupported platform: wanted: {"cpu":["any"],"os":["darwin"],"libc":["any"]} (current: {"os":"win32","cpu":"x64","libc":"unknown"})
+[  1s] $ tsx scripts/dev.ts
+[  2s] $ tsx scripts/build.ts --scope artifacts
+[  4s] run-gates: build:artifacts running 8 gate(s) with 8 worker(s) from 12 local default worker(s) of 20 CPU(s).
+[  4s] run-gates: start native addon
+[  4s] run-gates: start Host Typert
+[  4s] run-gates: PASS native addon (0.60s)
+[ 11s] run-gates: PASS Host Typert (7.10s)
+[ 11s] run-gates: start host compiler
+[ 13s] run-gates: PASS host compiler (2.19s)
+[ 13s] run-gates: start Host bundle
+[ 22s] run-gates: PASS Host bundle (8.67s)
+[ 22s] run-gates: start Desktop bundle
+[ 24s] run-gates: PASS Desktop bundle (1.63s)
+[ 24s] run-gates: start client compiler
+[ 24s] run-gates: PASS client compiler (0.68s)
+[ 24s] run-gates: start Client bundle
+[ 32s] run-gates: PASS Client bundle (8.26s)
+[ 32s] run-gates: start Web build
+[ 38s] run-gates: PASS Web build (5.30s)
+[ 38s]
+[ 38s] run-gates: 8 passed, 0 failed, 0 skipped in 33.83s.
+[ 38s] build: recorded 370 client artifact(s) with 3 public value(s)
+[ 38s] $ tsc -b && pnpm run bundle
+[ 39s] $ tsdown --config-loader native
+[ 39s] ℹ tsdown v0.22.2 powered by rolldown v1.1.1
+[ 40s] ℹ config file: E:\Projects\LCoder\.worktrees\pool-ui-1\apps\desktop\tsdown.config.ts
+[ 40s] ℹ entry: lib/types/operation-report-worker.js
+[ 40s] ℹ target: es2024
+[ 40s] ℹ tsconfig: tsconfig.json
+[ 40s] ℹ entry: lib/types/main.js
+[ 40s] ℹ target: es2024
+[ 40s] ℹ tsconfig: tsconfig.json
+[ 40s] ℹ entry: lib/types/command-manager-entry.js
+[ 40s] ℹ target: es2024
+[ 40s] ℹ tsconfig: tsconfig.json
+[ 40s] ℹ entry: lib/types/preload-app.js
+[ 40s] ℹ target: es2024
+[ 40s] ℹ tsconfig: tsconfig.json
+[ 40s] ℹ entry: lib/types/preload-welcome.js
+[ 40s] ℹ target: es2024
+[ 40s] ℹ tsconfig: tsconfig.json
+[ 40s] ℹ entry: lib/types/preload-mandatory.js
+[ 40s] ℹ target: es2024
+[ 40s] ℹ tsconfig: tsconfig.json
+[ 40s] ℹ entry: lib/types/preload-platform-account.js
+[ 40s] ℹ target: es2024
+[ 40s] ℹ tsconfig: tsconfig.json
+[ 40s] ℹ entry: lib/types/preload-update-dialog.js
+[ 40s] ℹ target: es2024
+[ 40s] ℹ tsconfig: tsconfig.json
+[ 40s] ℹ Build start
+[ 40s] ℹ [CJS] lib\preload-mandatory.cjs  1.03 kB │ gzip: 0.47 kB
+[ 40s] ℹ [CJS] 1 files, total: 1.03 kB
+[ 40s] ℹ [CJS] lib\preload-update-dialog.cjs  1.11 kB │ gzip: 0.52 kB
+[ 40s] ℹ [CJS] 1 files, total: 1.11 kB
+[ 40s] ℹ [CJS] lib\preload-platform-account.cjs  2.08 kB │ gzip: 0.90 kB
+[ 40s] ℹ [CJS] 1 files, total: 2.08 kB
+[ 40s] ℹ [CJS] lib\preload-app.cjs  15.97 kB │ gzip: 4.58 kB
+[ 40s] ℹ [CJS] 1 files, total: 15.97 kB
+[ 40s] ✔ Build complete in 66ms
+[ 40s] ✔ Build complete in 66ms
+[ 40s] ℹ [CJS] lib\preload-welcome.cjs  107.45 kB │ gzip: 27.66 kB
+[ 40s] ℹ [CJS] 1 files, total: 107.45 kB
+[ 40s] ✔ Build complete in 68ms
+[ 40s] ✔ Build complete in 68ms
+[ 40s] ✔ Build complete in 69ms
+[ 40s] ℹ [ESM] lib\command-manager-entry.js  23.00 kB │ gzip: 6.88 kB
+[ 40s] ℹ [ESM] 1 files, total: 23.00 kB
+[ 40s] ✔ Build complete in 78ms
+[ 40s] ℹ Hint: consider adding deps.onlyBundle option to avoid unintended bundling of dependencies, or set deps.onlyBundle: false to disable this hint.
+[ 40s] See more at https://tsdown.dev/options/dependencies#deps-onlybundle
+[ 40s] Detected dependencies in bundle:
+[ 40s] - zod
+[ 40s] ℹ [ESM] lib\operation-report-worker.js  141.34 kB │ gzip: 28.93 kB
+[ 40s] ℹ [ESM] 1 files, total: 141.34 kB
+[ 40s] ✔ Build complete in 93ms
+[ 40s] ℹ Hint: consider adding deps.onlyBundle option to avoid unintended bundling of dependencies, or set deps.onlyBundle: false to disable this hint.
+[ 40s] See more at https://tsdown.dev/options/dependencies#deps-onlybundle
+[ 40s] Detected dependencies in bundle:
+[ 40s] - mime
+[ 40s] - js-yaml
+[ 40s] - zod
+[ 40s] ℹ [ESM] lib\main.js  832.83 kB │ gzip: 209.79 kB
+[ 40s] ℹ [ESM] 1 files, total: 832.83 kB
+[ 40s] ✔ Build complete in 142ms
+[ 40s] vite v6.4.3 building for production...
+[ 40s] transforming...
+[ 40s] ✓ 34 modules transformed.
+[ 40s] rendering chunks...
+[ 40s] computing gzip size...
+[ 40s] lib/welcome/Montserrat-OFL.txt          4.40 kB │ gzip:  1.98 kB
+[ 40s] lib/welcome/montserrat-light.woff2     61.55 kB
+[ 40s] lib/welcome/montserrat-regular.woff2   62.01 kB
+[ 40s] lib/welcome/montserrat-medium.woff2    62.15 kB
+[ 40s] lib/welcome/brand-font.css              0.55 kB │ gzip:  0.20 kB
+[ 40s] lib/welcome/design-platform.css        24.86 kB │ gzip:  3.29 kB
+[ 40s] lib/welcome/welcome.css                38.77 kB │ gzip:  5.36 kB
+[ 40s] lib/welcome/welcome.js                229.22 kB │ gzip: 70.07 kB
+[ 40s] ✓ built in 496ms
+[ 43s] desktop development: DSH_HOME=E:\Projects\LCoder\.worktrees\pool-ui-1\apps\desktop\.desktop-build\development\home
+[ 43s] desktop development: userData=E:\Projects\LCoder\.worktrees\pool-ui-1\apps\desktop\.desktop-build\development\electron-user-data
+[ 43s] desktop development: inspectors main=9229, renderer=9222, host=9230
+[ 43s]
+[ 43s] Starting inspector on 127.0.0.1:9229 failed: address already in use
+[ 43s] [21836:1110/192306.660:ERROR:net\socket\tcp_socket_win.cc:530] bind() returned an error: 通常每个套接字地址(协议/网络地址/端口)只允许使用一次。 (0x2740)
+[ 43s] [21836:1110/192306.661:ERROR:content\browser\devtools\devtools_http_handler.cc:311] Cannot start http server for devtools.
+[ 43s] Error occurred in handler for 'dsh-desktop:mandatory-status': Error: No handler registered for 'dsh-desktop:mandatory-status'
+[ 43s]     at Session.<anonymous> (node:electron/js2c/browser_init:1:120085)
+[ 43s]     at Session.emit (node:events:514:28)
+[ 43s] [21836:1110/192306.988:INFO:CONSOLE:2] "%cElectron Security Warning (Insecure Content-Security-Policy) font-weight: bold; This renderer process has either no Content Security
+[ 43s]   Policy set or a policy with "unsafe-eval" enabled. This exposes users of
+[ 43s]   this app to unnecessary security risks.
+[ 43s]
+[ 43s] For more information and help, consult
+[ 43s] https://electronjs.org/docs/tutorial/security.
+[ 43s] This warning will not show up
+[ 43s] once the app is packaged.", source: node:electron/js2c/sandbox_bundle (2)
+[ 46s] dsh web: http://127.0.0.1:49813/?token=0UPCtvCxIh2Cko_Th69GH0Z4cFCb01EVYr1G6uLftLc
+
+就绪：http://127.0.0.1:49813/?token=0UPCtvCxIh2Cko_Th69GH0Z4cFCb01EVYr1G6uLftLc
+窗口应已弹出；关窗口即停止。

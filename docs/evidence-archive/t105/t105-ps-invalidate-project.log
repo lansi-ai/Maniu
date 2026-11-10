@@ -1,0 +1,62 @@
+启动 E:\Projects\LCoder\.worktrees\pool-ui-1
+日志 E:\Projects\LCoder\.worktrees\pool-ui-1\lcoder\logs\desktop-main.log
+---- 实时输出（Ctrl+C 只停止跟随，不影响已启动的实例） ----
+[  1s] native/system/packages/darwin-arm64      | [WARN] Unsupported platform: wanted: {"cpu":["arm64"],"os":["darwin"],"libc":["any"]} (current: {"os":"win32","cpu":"x64","libc":"unknown"})
+[  1s] native/system/packages/darwin-x64        | [WARN] Unsupported platform: wanted: {"cpu":["x64"],"os":["darwin"],"libc":["any"]} (current: {"os":"win32","cpu":"x64","libc":"unknown"})
+[  1s] native/system/packages/linux-arm64       | [WARN] Unsupported platform: wanted: {"cpu":["arm64"],"os":["linux"],"libc":["any"]} (current: {"os":"win32","cpu":"x64","libc":"unknown"})
+[  1s] native/system/packages/linux-x64         | [WARN] Unsupported platform: wanted: {"cpu":["x64"],"os":["linux"],"libc":["any"]} (current: {"os":"win32","cpu":"x64","libc":"unknown"})
+[  1s] packages/experimental/cua-macos          | [WARN] Unsupported platform: wanted: {"cpu":["any"],"os":["darwin"],"libc":["any"]} (current: {"os":"win32","cpu":"x64","libc":"unknown"})
+[  1s] Scope: all 398 workspace projects
+[  1s] [WARN] The store at C:\Users\Administrator\.pnpm\store\v11 is not used because packages cannot be hard linked from it into this project. Using the store at E:\.pnpm-store\v11 instead. Set storeDir to choose the store.
+[  1s] [WARN] There are cyclic workspace dependencies: E:\Projects\LCoder\.worktrees\pool-ui-1\apps\cli, E:\Projects\LCoder\.worktrees\pool-ui-1\packages\sdk\client; E:\Projects\LCoder\.worktrees\pool-ui-1\apps\web, E:\Projects\LCoder\.worktrees\pool-ui-1\packages\test-support\client-runtime, E:\Projects\LCoder\.worktrees\pool-ui-1\packages\bundle\web-app; E:\Projects\LCoder\.worktrees\pool-ui-1\packages\api\gateway, E:\Projects\LCoder\.worktrees\pool-ui-1\packages\api\remote-access; E:\Projects\LCoder\.worktrees\pool-ui-1\packages\api\remotes, E:\Projects\LCoder\.worktrees\pool-ui-1\packages\client\ui-trajectory, E:\Projects\LCoder\.worktrees\pool-ui-1\packages\client\ui-chat, E:\Projects\LCoder\.worktrees\pool-ui-1\packages\client\ui-sidebar-documentpreview, E:\Projects\LCoder\.worktrees\pool-ui-1\packages\client\ui-sidebar-files; E:\Projects\LCoder\.worktrees\pool-ui-1\packages\client\ui-conversation, E:\Projects\LCoder\.worktrees\pool-ui-1\packages\client\ui-workspace; E:\Projects\LCoder\.worktrees\pool-ui-1\packages\compaction\compaction, E:\Projects\LCoder\.worktrees\pool-ui-1\packages\interaction\commands, E:\Projects\LCoder\.worktrees\pool-ui-1\packages\core\agent, E:\Projects\LCoder\.worktrees\pool-ui-1\packages\session\session-projection, E:\Projects\LCoder\.worktrees\pool-ui-1\packages\test-support\loader-smoke, E:\Projects\LCoder\.worktrees\pool-ui-1\packages\core\tools, E:\Projects\LCoder\.worktrees\pool-ui-1\packages\test-support\agent-loop-testkit, E:\Projects\LCoder\.worktrees\pool-ui-1\packages\core\agent-loop, E:\Projects\LCoder\.worktrees\pool-ui-1\packages\session\session-persistence-jsonl, E:\Projects\LCoder\.worktrees\pool-ui-1\packages\session\session-format-catalog, E:\Projects\LCoder\.worktrees\pool-ui-1\packages\compaction\compaction-image-offload, E:\Projects\LCoder\.worktrees\pool-ui-1\packages\compaction\compaction-basic, E:\Projects\LCoder\.worktrees\pool-ui-1\packages\compaction\compaction-tool-result-pruner; E:\Projects\LCoder\.worktrees\pool-ui-1\packages\core\agent-default-model, E:\Projects\LCoder\.worktrees\pool-ui-1\packages\settings\settings; E:\Projects\LCoder\.worktrees\pool-ui-1\packages\experimental\client-ui-creation-recommendations, E:\Projects\LCoder\.worktrees\pool-ui-1\packages\experimental\creation-recommendations; E:\Projects\LCoder\.worktrees\pool-ui-1\packages\experimental\client-ui-plugin-recommendations, E:\Projects\LCoder\.worktrees\pool-ui-1\packages\experimental\plugin-recommendations; E:\Projects\LCoder\.worktrees\pool-ui-1\packages\llm\llm-deepseek, E:\Projects\LCoder\.worktrees\pool-ui-1\packages\llm\llm-deepseek-api-key; E:\Projects\LCoder\.worktrees\pool-ui-1\packages\preset\agent-preset, E:\Projects\LCoder\.worktrees\pool-ui-1\packages\preset\agent-preset-registry; E:\Projects\LCoder\.worktrees\pool-ui-1\packages\sandbox\sandbox-local, E:\Projects\LCoder\.worktrees\pool-ui-1\packages\sandbox\sandbox-windows-acl; E:\Projects\LCoder\.worktrees\pool-ui-1\packages\session\tool-working-directory, E:\Projects\LCoder\.worktrees\pool-ui-1\packages\session\working-directory; E:\Projects\LCoder\.worktrees\pool-ui-1\packages\ssh\fs-ssh, E:\Projects\LCoder\.worktrees\pool-ui-1\packages\ssh\ssh; E:\Projects\LCoder\.worktrees\pool-ui-1\packages\subagent\subagent-spawn-in-process, E:\Projects\LCoder\.worktrees\pool-ui-1\packages\subagent\tool-subagent; E:\Projects\LCoder\.worktrees\pool-ui-1\vendor\cordis, E:\Projects\LCoder\.worktrees\pool-ui-1\vendor\include
+[  2s] ✓ Lockfile passes supply-chain policies (verified 3d ago)
+[  2s] Lockfile is up to date, resolution step is skipped
+[  2s] Already up to date
+[  2s] Update available! 11.28.5 → 12.18.0.
+[  2s] Changelog: https://pnpm.io/v/12.18.0
+[  2s] To update, run: Invoke-WebRequest https://get.pnpm.io/install.ps1 -UseBasicParsing | Invoke-Expression
+[  8s]
+[  9s] packages/subprocess/subprocess-local postinstall$ node scripts/ensure-spawn-helper.mjs
+[  9s] packages/subprocess/subprocess-local postinstall: Done
+[ 11s] . postinstall$ node scripts/install-lefthook.mjs
+[ 12s] . postinstall: sync hooks: ✔️(pre-commit, pre-merge-commit, pre-push)
+[ 12s] . postinstall: (node:18340) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+[ 12s] . postinstall: (Use `node --trace-deprecation ...` to show where the warning was created)
+[ 12s] . postinstall: Done
+[ 12s] Done in 11.4s using pnpm v11.28.5
+[ 12s] $ pnpm --filter @deepseek-ai/dsh-desktop run start
+[ 13s] native/system/packages/darwin-arm64      | [WARN] Unsupported platform: wanted: {"cpu":["arm64"],"os":["darwin"],"libc":["any"]} (current: {"os":"win32","cpu":"x64","libc":"unknown"})
+[ 13s] native/system/packages/darwin-x64        | [WARN] Unsupported platform: wanted: {"cpu":["x64"],"os":["darwin"],"libc":["any"]} (current: {"os":"win32","cpu":"x64","libc":"unknown"})
+[ 13s] native/system/packages/linux-arm64       | [WARN] Unsupported platform: wanted: {"cpu":["arm64"],"os":["linux"],"libc":["any"]} (current: {"os":"win32","cpu":"x64","libc":"unknown"})
+[ 13s] native/system/packages/linux-x64         | [WARN] Unsupported platform: wanted: {"cpu":["x64"],"os":["linux"],"libc":["any"]} (current: {"os":"win32","cpu":"x64","libc":"unknown"})
+[ 13s] packages/experimental/cua-macos          | [WARN] Unsupported platform: wanted: {"cpu":["any"],"os":["darwin"],"libc":["any"]} (current: {"os":"win32","cpu":"x64","libc":"unknown"})
+[ 14s] $ tsx scripts/dev.ts --skip-build
+[ 14s] desktop development timing: dev.ts module loaded +0ms (uptime 146ms)
+[ 14s] desktop development timing: artifacts checked +1ms (uptime 147ms)
+[ 14s] desktop development timing: electron node version probed +3ms (uptime 148ms)
+[ 16s] desktop development timing: development project prepared +2184ms (uptime 2329ms)
+[ 16s] desktop development timing: primary runtime prepared +2187ms (uptime 2333ms)
+[ 16s] desktop development: DSH_HOME=E:\Projects\LCoder\.worktrees\pool-ui-1\apps\desktop\.desktop-build\development\home
+[ 16s] desktop development: userData=E:\Projects\LCoder\.worktrees\pool-ui-1\apps\desktop\.desktop-build\development\electron-user-data
+[ 16s] desktop development: inspectors main=9829, renderer=9822, host=9830
+[ 16s] desktop development timing: electron spawn +2187ms (uptime 2333ms)
+[ 16s]
+[ 16s] Debugger listening on ws://127.0.0.1:9829/39b9635c-1dab-46f6-a06b-3916adce12f8
+[ 16s] For help, see: https://nodejs.org/learn/getting-started/debugging
+[ 16s]
+[ 16s] DevTools listening on ws://127.0.0.1:9822/devtools/browser/62598591-6ce1-49f2-940e-197a9a2693ad
+[ 16s] Error occurred in handler for 'dsh-desktop:mandatory-status': Error: No handler registered for 'dsh-desktop:mandatory-status'
+[ 16s]     at Session.<anonymous> (node:electron/js2c/browser_init:1:120085)
+[ 16s]     at Session.emit (node:events:514:28)
+[ 17s] [34492:1110/183412.615:INFO:CONSOLE:2] "%cElectron Security Warning (Insecure Content-Security-Policy) font-weight: bold; This renderer process has either no Content Security
+[ 17s]   Policy set or a policy with "unsafe-eval" enabled. This exposes users of
+[ 17s]   this app to unnecessary security risks.
+[ 17s]
+[ 17s] For more information and help, consult
+[ 17s] https://electronjs.org/docs/tutorial/security.
+[ 17s] This warning will not show up
+[ 17s] once the app is packaged.", source: node:electron/js2c/sandbox_bundle (2)
+[ 20s] dsh web: http://127.0.0.1:65055/?token=IA_cOZi8GSUG1RiFRLtQCML3tNdTLZ7PLCaYh38wZnY
+
+就绪：http://127.0.0.1:65055/?token=IA_cOZi8GSUG1RiFRLtQCML3tNdTLZ7PLCaYh38wZnY
+窗口应已弹出；关窗口即停止。

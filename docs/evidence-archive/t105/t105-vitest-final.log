@@ -1,0 +1,1123 @@
+[33mThe plugin "vite-tsconfig-paths" is detected. Vite now supports tsconfig paths resolution natively via the [1mresolve.tsconfigPaths[22m option. You can remove the plugin and set [1mresolve.tsconfigPaths: true[22m in your Vite config instead.[39m
+[33mThe plugin "vite-tsconfig-paths" is detected. Vite now supports tsconfig paths resolution natively via the [1mresolve.tsconfigPaths[22m option. You can remove the plugin and set [1mresolve.tsconfigPaths: true[22m in your Vite config instead.[39m
+[33mThe plugin "vite-tsconfig-paths" is detected. Vite now supports tsconfig paths resolution natively via the [1mresolve.tsconfigPaths[22m option. You can remove the plugin and set [1mresolve.tsconfigPaths: true[22m in your Vite config instead.[39m
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.11 [39m[90mE:/Projects/LCoder/.worktrees/pool-ui-1[39m
+
+ [31m❯[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/background-notice.spec.ts [2m([22m[2m5 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[32m 252[2mms[22m[39m
+[31m   [31m×[31m keeps the window visible until confirmation and remembers acknowledgement across launches[39m[32m 12[2mms[22m[39m
+   [32m✓[39m keeps cancellation eligible for another close and never records it[32m 56[2mms[22m[39m
+   [32m✓[39m does not hide or record a late acknowledgement after disposal[32m 1[2mms[22m[39m
+   [32m✓[39m keeps acknowledgement in memory when its marker cannot be written[32m 54[2mms[22m[39m
+   [32m✓[39m keeps the window visible after a dialog failure and permits another attempt[32m 127[2mms[22m[39m
+ [31m❯[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/windows-cli-signals.spec.ts [2m([22m[2m2 tests[22m[2m | [22m[33m2 skipped[39m[2m)[22m[32m 27[2mms[22m[39m
+     [2m[90m↓[39m[22m delivers SIGINT before process exit
+     [2m[90m↓[39m[22m delivers SIGBREAK before process exit
+ [31m❯[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/fatal-recovery.spec.ts [2m([22m[2m30 tests[22m[2m | [22m[31m6 failed[39m[2m)[22m[33m 883[2mms[22m[39m
+[31m   [31m×[31m offers exit and restart for a listener conflict without a saved report in en[39m[32m 66[2mms[22m[39m
+[31m   [31m×[31m offers exit and restart for a listener conflict without a saved report in zh-CN[39m[32m 53[2mms[22m[39m
+   [32m✓[39m offers the same listener conflict recovery on win32[32m 66[2mms[22m[39m
+   [32m✓[39m offers the same listener conflict recovery on darwin[32m 62[2mms[22m[39m
+   [32m✓[39m offers the same listener conflict recovery on linux[32m 57[2mms[22m[39m
+[31m   [31m×[31m records the en native recovery dialog[39m[32m 62[2mms[22m[39m
+[31m   [31m×[31m records the zh-CN native recovery dialog[39m[32m 60[2mms[22m[39m
+   [32m✓[39m locks the first report before the dialog settles and never resets after an action[32m 55[2mms[22m[39m
+   [32m✓[39m waits for shutdown before executing choice 0[32m 1[2mms[22m[39m
+   [32m✓[39m waits for shutdown before executing choice 1[32m 0[2mms[22m[39m
+   [32m✓[39m waits for shutdown before executing choice 2[32m 0[2mms[22m[39m
+   [32m✓[39m reports a user-requested disable failure and allows exit without restarting[32m 1[2mms[22m[39m
+   [32m✓[39m allows exit after shutdown cleanup fails[32m 0[2mms[22m[39m
+   [32m✓[39m bounds long diagnostics and recovery-operation errors in en[32m 2[2mms[22m[39m
+   [32m✓[39m bounds long diagnostics and recovery-operation errors in zh-CN[32m 1[2mms[22m[39m
+[31m   [31m×[31m names the report file even when the error is short enough to show whole, in en[39m[32m 65[2mms[22m[39m
+[31m   [31m×[31m names the report file even when the error is short enough to show whole, in zh-CN[39m[32m 60[2mms[22m[39m
+   [32m✓[39m keeps the report line inside the detail budget when the error is long[32m 63[2mms[22m[39m
+   [32m✓[39m names the report file in the listener-conflict dialog too[32m 71[2mms[22m[39m
+   [32m✓[39m shows the dialog without a path when the report write fails or returns nothing[32m 128[2mms[22m[39m
+   [32m✓[39m does not wait longer than the report deadline before showing the dialog[32m 3[2mms[22m[39m
+   [32m✓[39m writes the report once for the first fatal failure and not for the recovery-failure redisplay[32m 1[2mms[22m[39m
+   [32m✓[39m reveals the saved report without stopping the Host or restarting[32m 1[2mms[22m[39m
+   [32m✓[39m keeps the original failure and report path when revealing the file fails[32m 1[2mms[22m[39m
+   [32m✓[39m makes a report that finishes after the initial deadline available without rewriting it[32m 1[2mms[22m[39m
+   [32m✓[39m does not attempt to reveal an unavailable report[32m 0[2mms[22m[39m
+   [32m✓[39m keeps the recovery failure visible when fetching a pending report[32m 1[2mms[22m[39m
+   [32m✓[39m keeps the recovery failure visible when fetching a failed report[32m 1[2mms[22m[39m
+   [32m✓[39m keeps the original attachment when revealing after a recovery failure (reveal fails=false)[32m 1[2mms[22m[39m
+   [32m✓[39m keeps the original attachment when revealing after a recovery failure (reveal fails=true)[32m 0[2mms[22m[39m
+ [31m❯[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/windows-update-publisher.spec.ts [2m([22m[2m6 tests[22m[2m | [22m[31m2 failed[39m[2m)[22m[33m 1215[2mms[22m[39m
+     [32m✓[39m preserves organization identity and escapes DN delimiters using the updater parser[32m 13[2mms[22m[39m
+     [32m✓[39m rejects missing or ambiguous publisher identity: {"CN":"","O":"Company","C":"CN"}[32m 5[2mms[22m[39m
+     [32m✓[39m rejects missing or ambiguous publisher identity: {"CN":"Publisher","C":"CN"}[32m 4[2mms[22m[39m
+     [32m✓[39m rejects missing or ambiguous publisher identity: {"CN":"Publisher","O":"Company","C":["CN","US"]}[32m 6[2mms[22m[39m
+[31m     [31m×[31m supplies publisher metadata with explicit Windows target = true[39m[33m 1178[2mms[22m[39m
+[31m     [31m×[31m supplies publisher metadata with explicit Windows target = false[39m[32m 6[2mms[22m[39m
+ [31m❯[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/purge-command.spec.ts [2m([22m[2m1 test[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 2375[2mms[22m[39m
+[31m   [31m×[31m forwards the documented pnpm purge command through both package scripts to the real argument parser[39m[33m 2373[2mms[22m[39m
+ [31m❯[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/welcome-renderer.client.spec.tsx [2m([22m[2m30 tests[22m[2m | [22m[31m8 failed[39m[2m)[22m[33m 886[2mms[22m[39m
+[31m     [31m×[31m renders the zh-CN entry and API-key step[39m[32m 54[2mms[22m[39m
+[31m     [31m×[31m renders the en entry and API-key step[39m[32m 11[2mms[22m[39m
+     [32m✓[39m sends one trimmed key, prevents competing actions, and clears it after saving[32m 104[2mms[22m[39m
+     [32m✓[39m rejects invalid input before sending it: [32m 9[2mms[22m[39m
+     [32m✓[39m rejects invalid input before sending it: bad key[32m 9[2mms[22m[39m
+     [32m✓[39m rejects invalid input before sending it: 密钥[32m 7[2mms[22m[39m
+     [32m✓[39m rejects invalid input before sending it: DEEPSEEK_API_KEY=sk-example[32m 13[2mms[22m[39m
+     [32m✓[39m rejects invalid input before sending it: "sk-example"[32m 9[2mms[22m[39m
+     [32m✓[39m rejects invalid input before sending it: `sk-example`[32m 7[2mms[22m[39m
+     [32m✓[39m retains an unsaved draft and allows retry after a refused save[32m 130[2mms[22m[39m
+     [32m✓[39m skips without saving and starts a fresh renderer at the entry again[32m 76[2mms[22m[39m
+     [32m✓[39m returns to the entry without saving and clears the draft and validation error[32m 13[2mms[22m[39m
+     [32m✓[39m keeps visible copy in the shell dictionaries and denies network access[32m 1[2mms[22m[39m
+[31m   [31m×[31m renders zh-CN timeout with manual retry and API-key alternative[39m[32m 32[2mms[22m[39m
+[31m   [31m×[31m renders en timeout with manual retry and API-key alternative[39m[32m 28[2mms[22m[39m
+[31m   [31m×[31m renders zh-CN browser fallback and copies only the active login link[39m[32m 9[2mms[22m[39m
+[31m   [31m×[31m renders en browser fallback and copies only the active login link[39m[32m 12[2mms[22m[39m
+   [32m✓[39m keeps a newer account notification when the start response arrives late[32m 16[2mms[22m[39m
+   [32m✓[39m does not restore a copied-link status after leaving the waiting phase[32m 12[2mms[22m[39m
+   [32m✓[39m keeps the key draft while account notifications arrive and releases the subscription on unmount[32m 11[2mms[22m[39m
+   [32m✓[39m restores the copy action after copied feedback and cleans up on unmount[32m 12[2mms[22m[39m
+   [32m✓[39m restores the copy action after failed feedback and cleans up on unmount[32m 11[2mms[22m[39m
+   [32m✓[39m keeps the expiry notice visible after returning to Welcome: zh-CN[32m 140[2mms[22m[39m
+   [32m✓[39m keeps the expiry notice visible after returning to Welcome: en[32m 45[2mms[22m[39m
+   [32m✓[39m does not infer a notification from a retained expired account snapshot[32m 9[2mms[22m[39m
+   [32m✓[39m keeps the entry usable when notification IPC fails[32m 17[2mms[22m[39m
+   [32m✓[39m ignores a notification received after its renderer unmounts[32m 25[2mms[22m[39m
+[31m   [31m×[31m returns from completed sign-in to the initial page after sign-out: zh-CN[39m[32m 19[2mms[22m[39m
+[31m   [31m×[31m returns from completed sign-in to the initial page after sign-out: en[39m[32m 15[2mms[22m[39m
+   [32m✓[39m reports each return to the welcome entry once, including account cancellation[32m 28[2mms[22m[39m
+
+DSH_DESKTOP_PACKAGING_FATAL
+
+DSH_DESKTOP_PACKAGING_FATAL
+ [31m❯[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/installer-packaging.spec.ts [2m([22m[2m6 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 2183[2mms[22m[39m
+     [33m[2m✓[22m[39m rejects a missing production policy before signing on win32 [33m 314[2mms[22m[39m
+     [32m✓[39m rejects a missing production policy before signing on darwin[32m 1[2mms[22m[39m
+     [33m[2m✓[22m[39m preserves installer metadata and dependency ownership on win32 [33m 998[2mms[22m[39m
+     [33m[2m✓[22m[39m preserves installer metadata and dependency ownership on darwin [33m 850[2mms[22m[39m
+     [32m✓[39m names unsigned Windows artifacts so they cannot pass for release builds[32m 3[2mms[22m[39m
+[31m     [31m×[31m packages every preload entry point the shell loads[39m[32m 15[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/windows-signature-cache.spec.ts [2m([22m[2m24 tests[22m[2m)[22m[33m 2933[2mms[22m[39m
+   [33m[2m✓[22m[39m restores cached signatures into deeply nested dependency paths [33m 302[2mms[22m[39m
+[REDACTED]fixture failure [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/operation-journal.spec.ts [2m([22m[2m8 tests[22m[2m)[22m[33m 1930[2mms[22m[39m
+   [33m[2m✓[22m[39m retains two bounded segments after dense operations across 50 plugins [33m 1838[2mms[22m[39m
+
+DSH_DESKTOP_PACKAGING_FATAL
+ [31m❯[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/welcome-startup.spec.ts [2m([22m[2m2 tests[22m[2m | [22m[31m2 failed[39m[2m)[22m[33m 4067[2mms[22m[39m
+[31m   [31m×[31m starts welcome onboarding without carrying update focus into login or skip (Windows update=false)[39m[33m 2965[2mms[22m[39m
+[31m   [31m×[31m starts welcome onboarding without carrying update focus into login or skip (Windows update=true)[39m[33m 1099[2mms[22m[39m
+desktop macOS notarization: verified disk image /tmp/release.dmg
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/macos-signature.spec.ts [2m([22m[2m17 tests[22m[2m)[22m[33m 1399[2mms[22m[39m
+     [33m[2m✓[22m[39m accepts LZMA DMGs through builder validation while rejecting unknown formats [33m 723[2mms[22m[39m
+     [33m[2m✓[22m[39m validates Windows signing without requiring macOS identifiers for a Windows target [33m 606[2mms[22m[39m
+v24.16.0
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/installed-update-builder.spec.ts [2m([22m[2m11 tests[22m[2m)[22m[33m 3912[2mms[22m[39m
+     [33m[2m✓[22m[39m rejects modified frozen application bytes in lib/main.js [33m 420[2mms[22m[39m
+     [33m[2m✓[22m[39m keeps signed NSIS hooks and one isolated identity/feed while selecting each private runtime and output [33m 2001[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/desktop-publication-failure.spec.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 1163[2mms[22m[39m
+   [33m[2m✓[22m[39m prints rollback usage through the real CLI before any audit or remote operation [33m 1154[2mms[22m[39m
+
+DSH_DESKTOP_PACKAGING_FATAL
+app [REDACTED] [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/macos-package-preset.spec.ts [2m([22m[2m4 tests[22m[2m | [22m[33m1 skipped[39m[2m)[22m[33m 3100[2mms[22m[39m
+   [33m[2m✓[22m[39m records arm64 debugging artifact paths only for an explicit CI selection without notarization credentials [33m 1461[2mms[22m[39m
+   [33m[2m✓[22m[39m records x64 debugging artifact paths only for an explicit CI selection without notarization credentials [33m 1598[2mms[22m[39m
+dmg [REDACTED] [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/packaging-run.spec.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 2860[2mms[22m[39m
+     [33m[2m✓[22m[39m kills the stage and its descendant on a fatal marker before either exits voluntarily [33m 897[2mms[22m[39m
+     [33m[2m✓[22m[39m fails closed when the output journal cannot be written [33m 745[2mms[22m[39m
+     [33m[2m✓[22m[39m records a stage deadline separately from child exit and refuses subsequent stages [33m 716[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/windows-signature-batch.spec.ts [2m([22m[2m11 tests[22m[2m)[22m[33m 2576[2mms[22m[39m
+   [33m[2m✓[22m[39m Unicode paths retain the same Windows trust result as individual inspection [33m 2571[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/command-manager-flow.spec.ts [2m([22m[2m8 tests[22m[2m | [22m[33m2 skipped[39m[2m)[22m[33m 6317[2mms[22m[39m
+   [33m[2m✓[22m[39m requires confirmation before replacing an existing command [33m 816[2mms[22m[39m
+   [33m[2m✓[22m[39m passes the displayed fingerprint and reports a stale worker refusal [33m 1153[2mms[22m[39m
+   [33m[2m✓[22m[39m repairs its own selected command without a switch confirmation in en-US [33m 1089[2mms[22m[39m
+   [33m[2m✓[22m[39m repairs its own selected command without a switch confirmation in zh-CN [33m 1378[2mms[22m[39m
+   [33m[2m✓[22m[39m keeps confirmation when repairing a command shadowed by another installation [33m 915[2mms[22m[39m
+   [33m[2m✓[22m[39m coalesces repeated menu clicks and keeps update preparation waiting for the active decision [33m 965[2mms[22m[39m
+
+DSH_DESKTOP_PACKAGING_FATAL
+
+DSH_DESKTOP_PACKAGING_FATAL
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/windows-signature-cache-directory.spec.ts [2m([22m[2m11 tests[22m[2m)[22m[33m 3125[2mms[22m[39m
+   [33m[2m✓[22m[39m prepares storage when the inherited process execution policy is Restricted [33m 490[2mms[22m[39m
+   [33m[2m✓[22m[39m creates private storage and rejects linked or publicly readable cache roots [33m 2628[2mms[22m[39m
+
+DSH_DESKTOP_PACKAGING_FATAL
+
+DSH_DESKTOP_PACKAGING_FATAL
+
+DSH_DESKTOP_PACKAGING_FATAL
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/windows-sign.spec.ts [2m([22m[2m13 tests[22m[2m)[22m[33m 4563[2mms[22m[39m
+     [33m[2m✓[22m[39m keeps hardware protection separate from timestamp-exhausted [33m 3127[2mms[22m[39m
+     [33m[2m✓[22m[39m keeps hardware protection separate from timestamp-recovered [33m 1127[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/host-process.spec.ts [2m([22m[2m29 tests[22m[2m)[22m[33m 6538[2mms[22m[39m
+     [33m[2m✓[22m[39m persists validated operation IPC across Host lifetimes and isolates a failing diagnostic sink [33m 375[2mms[22m[39m
+     [33m[2m✓[22m[39m correlates quit inspections with task requests and fails an unanswered one at its own deadline [33m 2213[2mms[22m[39m
+     [33m[2m✓[22m[39m returns the Web authentication URL and waits for graceful shutdown [33m 306[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/windows-token-identity.spec.ts [2m([22m[2m15 tests[22m[2m)[22m[33m 2037[2mms[22m[39m
+   [33m[2m✓[22m[39m exercises native control flow with a fake CSP and never constructs the native adapter [33m 2027[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/main-startup.spec.ts [2m([22m[2m154 tests[22m[2m)[22m[33m 6657[2mms[22m[39m
+     [33m[2m✓[22m[39m selects the package manager before Host startup (packaged=true) [33m 1237[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/desktop-build-commit.spec.ts [2m([22m[2m11 tests[22m[2m)[22m[33m 1195[2mms[22m[39m
+     [33m[2m✓[22m[39m passes on a host that can read archives [33m 307[2mms[22m[39m
+     [33m[2m✓[22m[39m reports the Windows installer compiler when the host cannot locate Visual Studio [33m 346[2mms[22m[39m
+     [33m[2m✓[22m[39m writes nothing into the working directory while probing [33m 323[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/prepare-runtime-patches.spec.ts [2m([22m[2m16 tests[22m[2m)[22m[33m 6975[2mms[22m[39m
+   [33m[2m✓[22m[39m classifies the current workspace and shares only runtime patch bytes [33m 3773[2mms[22m[39m
+   [33m[2m✓[22m[39m pnpm applies runtime-only bytes and rejects an inapplicable patch (invalid=false) [33m 1421[2mms[22m[39m
+   [33m[2m✓[22m[39m pnpm applies runtime-only bytes and rejects an inapplicable patch (invalid=true) [33m 1588[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/windows-signing-stage.spec.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 1377[2mms[22m[39m
+   [33m[2m✓[22m[39m independent signing stages wait and recheck the cache before accessing hardware [33m 428[2mms[22m[39m
+   [33m[2m✓[22m[39m cache clearing waits until another process finishes signing and publishing [33m 388[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/windows-signing-preflight.spec.ts [2m([22m[2m21 tests[22m[2m)[22m[33m 1666[2mms[22m[39m
+   [33m[2m✓[22m[39m compiles a real unsigned probe without executing it or accessing a token [33m 972[2mms[22m[39m
+desktop macOS packaging: App notarization and ZIP started at 2026-11-10T10:47:41.264Z
+desktop macOS packaging: DMG creation and notarization started at 2026-11-10T10:47:41.265Z
+desktop macOS packaging: App notarization and ZIP completed in 0.02s
+desktop macOS packaging: DMG creation and notarization completed in 0.03s
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/windows-asar-unpack.spec.ts [2m([22m[2m24 tests[22m[2m | [22m[33m3 skipped[39m[2m)[22m[33m 6713[2mms[22m[39m
+   [33m[2m✓[22m[39m unpacks PE files through builder source patterns (external=true) [33m 725[2mms[22m[39m
+   [33m[2m✓[22m[39m rejects an inline PE even when a neighboring unpacked copy exists [33m 462[2mms[22m[39m
+   [33m[2m✓[22m[39m validates the real builder hook for unsigned=true [33m 315[2mms[22m[39m
+   [33m[2m✓[22m[39m unpacks platform ripgrep executables with external source=true [33m 408[2mms[22m[39m
+   [33m[2m✓[22m[39m keeps the complete Office engine outside ASAR with external source=true [33m 335[2mms[22m[39m
+   [33m[2m✓[22m[39m rejects an unpacked extra without a matching file record [33m 1206[2mms[22m[39m
+desktop macOS packaging: App notarization and ZIP started at 2026-11-10T10:47:41.588Z
+desktop macOS packaging: DMG creation and notarization started at 2026-11-10T10:47:41.588Z
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/installed-update-publication.spec.ts [2m([22m[2m16 tests[22m[2m)[22m[33m 2291[2mms[22m[39m
+     [33m[2m✓[22m[39m uploads without advertising, publishes version 1, then requires version 1 startup before publishing version 2 [33m 552[2mms[22m[39m
+desktop macOS packaging: App notarization and ZIP completed in 0.09s
+desktop macOS packaging: DMG creation and notarization completed in 0.12s
+desktop upload: record C:\Users\Administrator\AppData\Local\Temp\dsh-desktop-upload-sLDNqL\repository\apps\desktop\records\production-mac-arm64-OiKe6e
+desktop package: win-x64 publishes 0.2.2-alpha.2
+tar (child): Cannot connect to C: resolve failed
+tar: Child returned status 128
+tar: Error is not recoverable: exiting now
+ [31m❯[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/prepare-package-set.spec.ts [2m([22m[2m20 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 8517[2mms[22m[39m
+     [32m✓[39m does not select a packaging target when imported as a library[32m 4[2mms[22m[39m
+     [32m✓[39m includes only the available internal production closure[32m 89[2mms[22m[39m
+     [32m✓[39m rejects required prepared package @deepseek-ai/dsh-base absent from the packed release inputs[32m 111[2mms[22m[39m
+     [32m✓[39m rejects required prepared package @deepseek-ai/cordis absent from the packed release inputs[32m 93[2mms[22m[39m
+     [32m✓[39m rejects required prepared package @deepseek-ai/node-addon-system absent from the packed release inputs[32m 93[2mms[22m[39m
+     [32m✓[39m leaves independently published Office packages to npm resolution[32m 64[2mms[22m[39m
+     [32m✓[39m requires both Desktop Host and public CLI entries[32m 1[2mms[22m[39m
+   [32m✓[39m selects the CUA native tarball for target darwin/arm64 independently of the host[32m 65[2mms[22m[39m
+   [32m✓[39m selects the CUA native tarball for target darwin/x64 independently of the host[32m 54[2mms[22m[39m
+   [32m✓[39m selects the CUA native tarball for target win32/x64 independently of the host[32m 65[2mms[22m[39m
+   [32m✓[39m honors optional package platform constraints {"cpu":["arm64"]}[32m 54[2mms[22m[39m
+   [32m✓[39m honors optional package platform constraints {"os":["!win32"]}[32m 53[2mms[22m[39m
+   [32m✓[39m honors optional package platform constraints {"os":["!linux"]}[32m 59[2mms[22m[39m
+   [32m✓[39m honors optional package platform constraints {"os":[]}[32m 62[2mms[22m[39m
+   [32m✓[39m honors optional package platform constraints {"os":["any"]}[32m 73[2mms[22m[39m
+   [32m✓[39m honors optional package platform constraints {"os":["any","!win32"]}[32m 45[2mms[22m[39m
+   [32m✓[39m honors optional package platform constraints {"cpu":["x64"]}[32m 57[2mms[22m[39m
+   [32m✓[39m rejects malformed platform constraints {"os":"darwin"}[32m 59[2mms[22m[39m
+   [32m✓[39m rejects malformed platform constraints {"cpu":[42]}[32m 72[2mms[22m[39m
+[31m   [31m×[31m copies no macOS tarball into the Windows package set[39m[33m 7341[2mms[22m[39m
+desktop upload: uploaded desktop/dsh-latest-macos-arm64.dmg
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/desktop-publish-record.spec.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 976[2mms[22m[39m
+   [33m[2m✓[22m[39m excludes another process while a channel lock is held and admits it after release [33m 731[2mms[22m[39m
+desktop upload: record C:\Users\Administrator\AppData\Local\Temp\dsh-desktop-upload-1SFEok\repository\apps\desktop\records\production-mac-x64-Schk6N
+desktop upload: uploaded desktop/dsh-latest-macos-x64.dmg
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/operation-history.spec.ts [2m([22m[2m12 tests[22m[2m)[22m[33m 1380[2mms[22m[39m
+   [33m[2m✓[22m[39m reads no more than its byte budget from a two GiB file and ignores unrelated history [33m 1286[2mms[22m[39m
+desktop upload: record C:\Users\Administrator\AppData\Local\Temp\dsh-desktop-upload-p1RSKS\repository\apps\desktop\records\production-win-x64-2LhwfU
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/packaged-runtime-verification.spec.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 1260[2mms[22m[39m
+     [33m[2m✓[22m[39m requires the product version when the target tree supplies the runtime [33m 1222[2mms[22m[39m
+desktop upload: uploaded desktop/dsh-latest-windows-x64.exe
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/windows-pty-exit.spec.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 8646[2mms[22m[39m
+   [33m[2m✓[22m[39m releases the terminal worker after natural exit [33m 4326[2mms[22m[39m
+   [33m[2m✓[22m[39m releases the terminal worker after kill exit [33m 4319[2mms[22m[39m
+desktop upload: record C:\Users\Administrator\AppData\Local\Temp\dsh-desktop-upload-EyqY4K\repository\apps\desktop\records\test-mac-arm64-V6tClH
+desktop upload: uploaded desktop/dsh-latest-macos-arm64.dmg
+desktop package: mac-x64 publishes 0.2.2-alpha.2
+desktop upload: record C:\Users\Administrator\AppData\Local\Temp\dsh-desktop-upload-p0A5YN\repository\apps\desktop\records\test-mac-x64-HfofpB
+desktop upload: uploaded desktop/dsh-latest-macos-x64.dmg
+desktop upload: record C:\Users\Administrator\AppData\Local\Temp\dsh-desktop-upload-WiYgzx\repository\apps\desktop\records\test-win-x64-IYkHwU
+desktop upload: uploaded desktop/dsh-latest-windows-x64.exe
+desktop macOS packaging: App notarization and ZIP started at 2026-11-10T10:47:42.313Z
+desktop macOS packaging: DMG creation and notarization started at 2026-11-10T10:47:42.313Z
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/package-target-errors.spec.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 1298[2mms[22m[39m
+   [33m[2m✓[22m[39m records and prints redacted parent failures on win32 [33m 1006[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/installer-locales.spec.ts [2m([22m[2m22 tests[22m[2m)[22m[33m 1257[2mms[22m[39m
+   [33m[2m✓[22m[39m uses the real electron-builder language identifiers and English fallback [33m 569[2mms[22m[39m
+desktop macOS packaging: App notarization and ZIP started at 2026-11-10T10:47:42.465Z
+desktop macOS packaging: DMG creation and notarization started at 2026-11-10T10:47:42.465Z
+desktop macOS packaging: DMG creation and notarization completed in 0.00s
+desktop macOS packaging: App notarization and ZIP completed in 0.03s
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/runtime-tree.spec.ts [2m([22m[2m31 tests[22m[2m)[22m[33m 1497[2mms[22m[39m
+desktop macOS packaging: App notarization and ZIP started at 2026-11-10T10:47:42.610Z
+desktop macOS packaging: DMG creation and notarization started at 2026-11-10T10:47:42.611Z
+desktop macOS packaging: DMG creation and notarization completed in 0.03s
+desktop upload: record C:\Users\Administrator\AppData\Local\Temp\dsh-upload-audit-6kBejC\records\test-win-x64-K35cOE
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/command-path.spec.ts [2m([22m[2m1 test[22m[2m)[22m[33m 1305[2mms[22m[39m
+   [33m[2m✓[22m[39m preserves unrelated PATH entries and rejects stale or foreign removal [33m 1303[2mms[22m[39m
+desktop upload: uploaded bin/package.exe
+desktop upload: uploaded feeds/nightly.yml
+desktop upload: record C:\Users\Administrator\AppData\Local\Temp\dsh-upload-audit-2pP0ia\records\production-win-x64-vG3O7f
+desktop macOS packaging: App notarization and ZIP started at 2026-11-10T10:47:42.821Z
+desktop macOS packaging: DMG creation and notarization started at 2026-11-10T10:47:42.821Z
+desktop upload: uploaded bin/package.exe
+desktop macOS packaging: DMG creation and notarization completed in 0.04s
+desktop upload: uploaded feeds/nightly.yml
+desktop upload: record C:\Users\Administrator\AppData\Local\Temp\dsh-upload-audit-eNjicx\records\test-win-x64-8MHndP
+[90mstdout[2m | apps/desktop/tests/installed-update-packaging.spec.ts[2m > [22m[2moperator-driven packaging entry[2m > [22m[2msupervises an inert child with failure=true, retains redaction and refuses reuse
+[22m[39mINSTALLED_UPDATE_PACKAGING_RECORD C:\Users\Administrator\AppData\Local\Temp\dsh-packaging-entry-glBh0i\installed-update-JKccgp\0.1.6-nightly.20260914.1\packaging\2026-11-10T10-47-42.900Z-yDao6x
+
+desktop upload: record C:\Users\Administrator\AppData\Local\Temp\dsh-upload-audit-9RA21g\records\test-win-x64-cSphCE
+desktop macOS packaging: App notarization and ZIP completed in 0.14s
+desktop upload: uploaded bin/package.exe
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/desktop-upload-plan.spec.ts [2m([22m[2m20 tests[22m[2m)[22m[33m 1401[2mms[22m[39m
+     [33m[2m✓[22m[39m uploads only the selected latest installer to each deployment using the existing COS transport [33m 675[2mms[22m[39m
+desktop upload: record C:\Users\Administrator\AppData\Local\Temp\dsh-upload-audit-XM1NLH\records\test-win-x64-CUQgz1
+desktop upload: record C:\Users\Administrator\AppData\Local\Temp\dsh-upload-audit-mcUDDD\records\test-win-x64-k77t6m
+desktop upload: record C:\Users\Administrator\AppData\Local\Temp\dsh-upload-audit-A7nGQs\records\test-win-x64-sdy3ub
+[REDACTED] [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/cli-launcher.spec.ts [2m([22m[2m2 tests[22m[2m | [22m[33m1 skipped[39m[2m)[22m[33m 1389[2mms[22m[39m
+   [33m[2m✓[22m[39m preserves common arguments, cwd, environment, binary input, stderr and exit status [33m 1387[2mms[22m[39m
+desktop upload: uploaded bin/package.exe
+desktop upload: record C:\Users\Administrator\AppData\Local\Temp\dsh-upload-audit-oWkRWC\records\test-win-x64-wqigzy
+[90mstdout[2m | apps/desktop/tests/installed-update-packaging.spec.ts[2m > [22m[2moperator-driven packaging entry[2m > [22m[2msupervises an inert child with failure=false, retains redaction and refuses reuse
+[22m[39mINSTALLED_UPDATE_PACKAGING_RECORD C:\Users\Administrator\AppData\Local\Temp\dsh-packaging-entry-BLlozN\installed-update-lSlu1y\0.1.6-nightly.20260914.1\packaging\2026-11-10T10-47-43.632Z-jvGhlD
+
+desktop upload: record C:\Users\Administrator\AppData\Local\Temp\dsh-upload-audit-jd4F0Y\records\test-win-x64-eJSDkw
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/installed-update-qualification.spec.ts [2m([22m[2m33 tests[22m[2m)[22m[33m 2238[2mms[22m[39m
+     [33m[2m✓[22m[39m rejects an oversized snapshot before collecting bytes [33m 337[2mms[22m[39m
+     [33m[2m✓[22m[39m runs the documented source CLI and retains an incomplete report instead of claiming operator acceptance [33m 925[2mms[22m[39m
+desktop upload: uploaded bin/package.exe
+desktop upload: uploaded feeds/nightly.yml
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop-host/tests/office-engine.spec.ts [2m([22m[2m10 tests[22m[2m)[22m[33m 1258[2mms[22m[39m
+   [33m[2m✓[22m[39m refreshes a cached plugin exports while Office resolution stays active [33m 452[2mms[22m[39m
+   [33m[2m✓[22m[39m refreshes a cached plugin main while Office resolution stays active [33m 574[2mms[22m[39m
+desktop upload: record C:\Users\Administrator\AppData\Local\Temp\dsh-upload-audit-jd4F0Y\records\test-win-x64-KFaNZN
+desktop macOS packaging: App notarization and ZIP started at 2026-11-10T10:47:43.737Z
+desktop macOS packaging: DMG creation and notarization started at 2026-11-10T10:47:43.737Z
+desktop macOS packaging: DMG creation and notarization completed in 0.00s
+desktop upload: uploaded bin/package.exe
+desktop upload: uploaded feeds/nightly.yml
+desktop macOS packaging: App notarization and ZIP completed in 0.02s
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/pack-local-packages.spec.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 9697[2mms[22m[39m
+   [33m[2m✓[22m[39m packs local client artifacts without a release publication record [33m 2254[2mms[22m[39m
+   [33m[2m✓[22m[39m rejects official client artifacts before replacing local packages [33m 986[2mms[22m[39m
+   [33m[2m✓[22m[39m rejects stale client artifacts before replacing local packages [33m 1081[2mms[22m[39m
+   [33m[2m✓[22m[39m rejects missing client artifacts before replacing local packages [33m 1003[2mms[22m[39m
+   [33m[2m✓[22m[39m rejects local client artifacts in the release packing command [33m 1048[2mms[22m[39m
+   [33m[2m✓[22m[39m validates local tarball contents before reporting success [33m 2395[2mms[22m[39m
+   [33m[2m✓[22m[39m rejects an invalid local pack concurrency before replacing packages [33m 927[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/desktop-upload-run.spec.ts [2m([22m[2m10 tests[22m[2m)[22m[33m 1193[2mms[22m[39m
+     [33m[2m✓[22m[39m reports a dropped connection at PUT 1 once without sending the object again [33m 487[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/package-macos.spec.ts [2m([22m[2m11 tests[22m[2m)[22m[33m 2612[2mms[22m[39m
+     [33m[2m✓[22m[39m overlaps notarization on isolated x64 copies and promotes only completed payloads [33m 536[2mms[22m[39m
+     [33m[2m✓[22m[39m collects both failures after both lanes release their copies and publishes neither payload [33m 479[2mms[22m[39m
+     [33m[2m✓[22m[39m rejects incomplete metadata qualification without promoting artifacts [33m 850[2mms[22m[39m
+[REDACTED] [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/desktop-release-store.spec.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 308[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/runtime-preparation.spec.ts [2m([22m[2m14 tests[22m[2m)[22m[33m 1808[2mms[22m[39m
+   [33m[2m✓[22m[39m prepares mac-arm64 with one pnpm distribution and its CLI resources [33m 435[2mms[22m[39m
+   [33m[2m✓[22m[39m overlaps Windows payloads and waits for primary to finish last before publishing CLI and versions [33m 558[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/runtime-file-policy.spec.ts [2m([22m[2m12 tests[22m[2m)[22m[33m 2308[2mms[22m[39m
+   [33m[2m✓[22m[39m omits development artifacts while preserving executable modules, assets and license files [33m 486[2mms[22m[39m
+   [33m[2m✓[22m[39m copies ConPTY sources only for Windows targets (win32/arm64) [33m 749[2mms[22m[39m
+[90mstdout[2m | apps/desktop/tests/installed-update-packaging.spec.ts[2m > [22m[2moperator-driven packaging entry[2m > [22m[2mrefuses an intervening output change before launching the builder
+[22m[39mINSTALLED_UPDATE_PACKAGING_RECORD C:\Users\Administrator\AppData\Local\Temp\dsh-packaging-entry-NvQ5pI\installed-update-gDdwip\0.1.6-nightly.20260914.1\packaging\2026-11-10T10-47-44.054Z-KXQynm
+
+[90mstdout[2m | apps/desktop/tests/installed-update-packaging.spec.ts[2m > [22m[2moperator-driven packaging entry[2m > [22m[2mrefuses an intervening source change before launching the builder
+[22m[39mINSTALLED_UPDATE_PACKAGING_RECORD C:\Users\Administrator\AppData\Local\Temp\dsh-packaging-entry-ecruCX\installed-update-nluDBi\0.1.6-nightly.20260914.1\packaging\2026-11-10T10-47-44.129Z-5lHVvi
+
+[90mstdout[2m | apps/desktop/tests/installed-update-packaging.spec.ts[2m > [22m[2moperator-driven packaging entry[2m > [22m[2mrefuses an intervening git-head change before launching the builder
+[22m[39mINSTALLED_UPDATE_PACKAGING_RECORD C:\Users\Administrator\AppData\Local\Temp\dsh-packaging-entry-05pE49\installed-update-TV0sHs\0.1.6-nightly.20260914.1\packaging\2026-11-10T10-47-44.213Z-HMwHR7
+
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/windows-package-preset.spec.ts [2m([22m[2m8 tests[22m[2m)[22m[33m 1085[2mms[22m[39m
+   [33m[2m✓[22m[39m loads unsigned public settings without requiring the signing secret file or personal dotenv [33m 343[2mms[22m[39m
+   [33m[2m✓[22m[39m cache maintenance reaches cache path validation without a signing file [33m 645[2mms[22m[39m
+[90mstdout[2m | apps/desktop/tests/installed-update-packaging.spec.ts[2m > [22m[2moperator-driven packaging entry[2m > [22m[2mrefuses an intervening git-status change before launching the builder
+[22m[39mINSTALLED_UPDATE_PACKAGING_RECORD C:\Users\Administrator\AppData\Local\Temp\dsh-packaging-entry-8vk2QT\installed-update-Ni3mdF\0.1.6-nightly.20260914.1\packaging\2026-11-10T10-47-44.298Z-4SISPP
+
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/installed-update-packaging.spec.ts [2m([22m[2m10 tests[22m[2m)[22m[33m 1616[2mms[22m[39m
+     [33m[2m✓[22m[39m supervises an inert child with failure=true, retains redaction and refuses reuse [33m 765[2mms[22m[39m
+     [33m[2m✓[22m[39m supervises an inert child with failure=false, retains redaction and refuses reuse [33m 371[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/installed-update-runtime.spec.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 1542[2mms[22m[39m
+     [33m[2m✓[22m[39m retags only release-owned packages and dependencies while preserving source and third-party versions [33m 1108[2mms[22m[39m
+     [33m[2m✓[22m[39m stops after a failed version and retains partial materials without a completion receipt [32m 300[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/project-manager.spec.ts [2m([22m[2m36 tests[22m[2m)[22m[33m 2838[2mms[22m[39m
+     [33m[2m✓[22m[39m preserves plugin files without running pnpm when bundled Node changes [33m 588[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/windows-signing-state.spec.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 625[2mms[22m[39m
+     [33m[2m✓[22m[39m admits one independent process and retains its slot after that process exits [33m 571[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/installed-update-bootstrap.spec.ts [2m([22m[2m11 tests[22m[2m)[22m[33m 644[2mms[22m[39m
+     [33m[2m✓[22m[39m executes the generated entry for both versions with isolated persistent paths before main imports [33m 528[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/account-backend.spec.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 385[2mms[22m[39m
+   [33m[2m✓[22m[39m receives live expiry separately from account snapshots [33m 377[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/primary-runtime-signing.spec.ts [2m([22m[2m24 tests[22m[2m)[22m[33m 1362[2mms[22m[39m
+   [33m[2m✓[22m[39m reads a Windows system signature without using signing hardware [33m 799[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/macos-runtime.spec.ts [2m([22m[2m11 tests[22m[2m | [22m[33m7 skipped[39m[2m)[22m[32m 106[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/desktop-publication-preflight.spec.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 315[2mms[22m[39m
+ [31m❯[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/cua-optional-package.spec.ts [2m([22m[2m1 test[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 11781[2mms[22m[39m
+[31m   [31m×[31m fetches the macOS optional tarball only for Darwin, with an empty cache for every target[39m[33m 11780[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/flock-entry.spec.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 250[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/package-target-stages.spec.ts [2m([22m[2m48 tests[22m[2m)[22m[33m 498[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/retain-desktop-ci.spec.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 560[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/windows-signing-concurrency.spec.ts [2m([22m[2m16 tests[22m[2m)[22m[33m 1508[2mms[22m[39m
+   [33m[2m✓[22m[39m completes all three modes and releases each default-account batch only after recording every verification [33m 546[2mms[22m[39m
+   [33m[2m✓[22m[39m uses fresh real-file copies for 1, 2, 4 workers and reverses the second round [33m 346[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/installed-update-cos.spec.ts [2m([22m[2m15 tests[22m[2m)[22m[32m 194[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop-host/tests/office.spec.ts [2m([22m[2m1 test[22m[2m)[22m[33m 607[2mms[22m[39m
+   [33m[2m✓[22m[39m loads Desktop Office CLI paths and removes them on disposal [33m 605[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/macos-signature-cache.spec.ts [2m([22m[2m13 tests[22m[2m | [22m[33m3 skipped[39m[2m)[22m[33m 304[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/file-drag.spec.ts [2m([22m[2m11 tests[22m[2m)[22m[33m 445[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/installed-update-network.spec.ts [2m([22m[2m20 tests[22m[2m)[22m[33m 11933[2mms[22m[39m
+     [33m[2m✓[22m[39m records block without touching host firewall state [33m 999[2mms[22m[39m
+     [33m[2m✓[22m[39m records creation-failure without touching host firewall state [33m 1082[2mms[22m[39m
+     [33m[2m✓[22m[39m records existing without touching host firewall state [33m 729[2mms[22m[39m
+     [33m[2m✓[22m[39m records foreign without touching host firewall state [33m 982[2mms[22m[39m
+     [33m[2m✓[22m[39m records declined without touching host firewall state [33m 1012[2mms[22m[39m
+     [33m[2m✓[22m[39m records changed without touching host firewall state [33m 883[2mms[22m[39m
+     [33m[2m✓[22m[39m records changed-during-confirmation without touching host firewall state [33m 956[2mms[22m[39m
+     [33m[2m✓[22m[39m records restore without touching host firewall state [33m 932[2mms[22m[39m
+     [33m[2m✓[22m[39m records restore-absent without touching host firewall state [33m 915[2mms[22m[39m
+     [33m[2m✓[22m[39m records restore-failure without touching host firewall state [33m 1108[2mms[22m[39m
+     [33m[2m✓[22m[39m records restore-declined without touching host firewall state [33m 1065[2mms[22m[39m
+     [33m[2m✓[22m[39m records status without touching host firewall state [33m 1041[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/update-error-renderer.spec.ts [2m([22m[2m11 tests[22m[2m)[22m[33m 432[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/preload-menu.client.spec.ts [2m([22m[2m8 tests[22m[2m)[22m[33m 365[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/macos-app-update-config.spec.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 129[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/windows-signing-corpus.spec.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 140[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/installed-update-distribution.spec.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 828[2mms[22m[39m
+     [33m[2m✓[22m[39m rejects missing-map before producing any distribution plan [33m 456[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/platform-view.spec.ts [2m([22m[2m37 tests[22m[2m)[22m[32m 226[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/logged-notarytool.spec.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 235[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop-host/tests/file-drag.spec.ts [2m([22m[2m7 tests[22m[2m | [22m[33m1 skipped[39m[2m)[22m[32m 158[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/read-desktop-app-key.spec.ts [2m([22m[2m1 test[22m[2m)[22m[32m 177[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/file-drag-files.spec.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 240[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/file-drag-release.spec.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 420[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/policy-test-auth.spec.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 197[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop-host/tests/fatal-diagnostic.spec.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 140[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/settings.spec.ts [2m([22m[2m18 tests[22m[2m)[22m[32m 157[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/shell-theme.spec.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 286[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/desktop-package-environment.spec.ts [2m([22m[2m75 tests[22m[2m)[22m[32m 264[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/microphone-permissions.spec.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 134[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/desktop-bundle-imports.spec.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 132[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/installed-update-signature.spec.ts [2m([22m[2m12 tests[22m[2m | [22m[33m1 skipped[39m[2m)[22m[33m 527[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/preload-mandatory-overlay.spec.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 250[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/policy-login-loading.spec.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 240[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/update-journal.spec.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 78[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/cos-operation.spec.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 145[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/desktop-package-selection.spec.ts [2m([22m[2m20 tests[22m[2m)[22m[32m 292[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/operation-report.spec.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 129[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/packaging-step.spec.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 73[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/file-actions.spec.ts [2m([22m[2m16 tests[22m[2m)[22m[32m 124[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/windows-runtime-code.spec.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 302[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/mandatory-update-window.spec.ts [2m([22m[2m28 tests[22m[2m)[22m[32m 115[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/desktop-publish-cos.spec.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 188[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/runtime-manifests.spec.ts [2m([22m[2m1 test[22m[2m)[22m[32m 88[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/prepared-runtime-smoke.spec.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 182[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/desktop-publish-templates.spec.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 82[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/windows-timestamp.spec.ts [2m([22m[2m13 tests[22m[2m)[22m[33m 4996[2mms[22m[39m
+   [33m[2m✓[22m[39m uses short tool paths for deeply nested targets and publishes the completed bytes [33m 626[2mms[22m[39m
+   [33m[2m✓[22m[39m does not retry uncertain timestamp process failure {"code":"ENOENT"} [33m 610[2mms[22m[39m
+   [33m[2m✓[22m[39m does not retry uncertain timestamp process failure {"code":1,"killed":true} [33m 555[2mms[22m[39m
+   [33m[2m✓[22m[39m does not retry uncertain timestamp process failure {"code":1,"signal":"SIGTERM"} [33m 462[2mms[22m[39m
+   [33m[2m✓[22m[39m rejects successful commands with an invalid final signature {"status":"Valid","timestamped":false,"thumbprint":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"} [33m 588[2mms[22m[39m
+   [33m[2m✓[22m[39m rejects successful commands with an invalid final signature {"status":"Valid","timestamped":true,"thumbprint":"BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"} [33m 538[2mms[22m[39m
+   [33m[2m✓[22m[39m does not overwrite an input changed while its signature is being completed [33m 712[2mms[22m[39m
+   [33m[2m✓[22m[39m does not retry hardware failures or request timestamps after them [33m 497[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/desktop-publish-config.spec.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 92[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/preload-app.spec.ts [2m([22m[2m27 tests[22m[2m)[22m[32m 175[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/web-document.spec.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 59[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/crash-report.spec.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 84[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/development-project.spec.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 309[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/locale-cache.spec.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 39[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/preload-theme.client.spec.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 150[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/mandatory-update-policy.spec.ts [2m([22m[2m32 tests[22m[2m)[22m[32m 70[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/prepare-development-runtime.spec.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 82[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/core-package-set.spec.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 31[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/desktop-product-identity.spec.ts [2m([22m[2m27 tests[22m[2m)[22m[32m 156[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/desktop-publish-local-preflight.spec.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 109[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/desktop-publish-tag.spec.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 38[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/macos-cache-policy.spec.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 65[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/runtime-tree-read-failure.spec.ts [2m([22m[2m1 test[22m[2m)[22m[32m 36[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/owned-directory.spec.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 19[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/host-update-tasks.spec.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 29[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/desktop-publish.spec.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 65[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/welcome-host.spec.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 33[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/keybindings.spec.ts [2m([22m[2m1 test[22m[2m)[22m[32m 77[2mms[22m[39m
+desktop package: numbering 0.1.6-alpha.2.20260921.1 after 0 local artifacts for 0.1.6-alpha.2.20260921.*
+desktop package: numbering 0.1.6-test.20260921.5 after 1 local artifact for 0.1.6-test.20260921.*
+desktop package: numbering 0.1.6-alpha.2.20260921.11 after 3 local artifacts for 0.1.6-alpha.2.20260921.*
+desktop package: numbering 0.1.6-alpha.2.20260921.1 after 0 local artifacts for 0.1.6-alpha.2.20260921.*
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/desktop-rollback.spec.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 18[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/login-shell-environment.spec.ts [2m([22m[2m21 tests[22m[2m | [22m[33m5 skipped[39m[2m)[22m[32m 31[2mms[22m[39m
+desktop package: numbering 0.1.6-alpha.2.20260921.4 after 2 local artifacts for 0.1.6-alpha.2.20260921.*
+desktop package: numbering 0.1.6-alpha.2.20260921.5 after 2 local artifacts for 0.1.6-alpha.2.20260921.*
+desktop package: numbering 0.1.6-alpha.2.20260921.3 after 1 local artifact for 0.1.6-alpha.2.20260921.*
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/desktop-build-version-discovery.spec.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 138[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/profile-mcp.spec.ts [2m([22m[2m1 test[22m[2m)[22m[32m 28[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop-host/tests/quit-inspection.spec.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 22[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/locale.spec.ts [2m([22m[2m16 tests[22m[2m)[22m[32m 22[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/development-cache.spec.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 35[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/update-presentation.spec.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 58[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop-host/tests/operation-diagnostics.spec.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 53[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/upload-target.spec.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 18[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/update-coordinator.spec.ts [2m([22m[2m20 tests[22m[2m)[22m[32m 18[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/macos-signing-keychain.spec.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 19[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop-host/tests/platform-session.spec.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 18[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/update-schedule.spec.ts [2m([22m[2m20 tests[22m[2m)[22m[32m 22[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/desktop-publication-summary.spec.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 55[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/update-dialog.spec.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 18[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/command-management.spec.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 32[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/desktop-auto-update-environment.spec.ts [2m([22m[2m23 tests[22m[2m)[22m[32m 18[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/electron-node-version.spec.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 29[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/welcome-window.spec.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/desktop-publish-route.spec.ts [2m([22m[2m15 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/macos-disk-image-signature.spec.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 26[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/update-http-executor.spec.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/windows-directory-installer.spec.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/update-window.spec.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/preload-windows.client.spec.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 77[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/windows-signing-experiment.spec.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/operation-report-job.spec.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/quit-confirmation.spec.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/macos-package-settings.spec.ts [2m([22m[2m25 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/desktop-edgeone.spec.ts [2m([22m[2m15 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/backend-controller.spec.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/desktop-release-tag.spec.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/update-overlay.spec.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/desktop-policy-environment.spec.ts [2m([22m[2m25 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/desktop-build-paths.spec.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/directory-picker.spec.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/desktop-publish-preflight.spec.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/update-attention.spec.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/tray.spec.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/desktop-build-version.spec.ts [2m([22m[2m20 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/client-metadata.spec.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/primary-runtime-preparation.spec.ts [2m([22m[2m1 test[22m[2m)[22m[32m 27[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/logged-notarytool-exit.spec.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/single-instance.spec.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/device-info.spec.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/tray-icon.spec.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/package-target.spec.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/node-environment.spec.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/desktop-cli.spec.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/macos-signature-cache-directory.spec.ts [2m([22m[2m3 tests[22m[2m | [22m[33m2 skipped[39m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/macos-notarized-application.spec.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/update-channel.spec.ts [2m([22m[2m1 test[22m[2m)[22m[32m 4[2mms[22m[39m
+ [2m[90m↓[39m[22m [30m[45m thread-safe [49m[39m apps/desktop/tests/macos-notarization-proxy.spec.ts [2m([22m[2m17 tests[22m[2m | [22m[33m17 skipped[39m[2m)[22m
+ [2m[90m↓[39m[22m [30m[45m thread-safe [49m[39m apps/desktop/tests/development-app.spec.ts [2m([22m[2m1 test[22m[2m | [22m[33m1 skipped[39m[2m)[22m
+ [2m[90m↓[39m[22m [30m[45m thread-safe [49m[39m apps/desktop/tests/command-installation.spec.ts [2m([22m[2m17 tests[22m[2m | [22m[33m17 skipped[39m[2m)[22m
+ [2m[90m↓[39m[22m [30m[45m thread-safe [49m[39m apps/desktop/tests/macos-signing-walk.spec.ts [2m([22m[2m1 test[22m[2m | [22m[33m1 skipped[39m[2m)[22m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/prepare-windows-ci.spec.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/preload-platform.client.spec.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/keyboard.spec.ts [2m([22m[2m38 tests[22m[2m)[22m[32m 231[2mms[22m[39m
+ [2m[90m↓[39m[22m [30m[45m thread-safe [49m[39m apps/desktop/tests/ptc-runtime.spec.ts [2m([22m[2m2 tests[22m[2m | [22m[33m2 skipped[39m[2m)[22m
+ [31m❯[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/shell-file-selection.spec.ts [2m([22m[2m3 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 5912[2mms[22m[39m
+[31m   [31m×[31m omits shell build files from darwin/arm64 ASAR while retaining runtime assets[39m[33m 5051[2mms[22m[39m
+   [33m[2m✓[22m[39m omits shell build files from darwin/x64 ASAR while retaining runtime assets [33m 564[2mms[22m[39m
+   [32m✓[39m omits shell build files from win32/x64 ASAR while retaining runtime assets[32m 295[2mms[22m[39m
+ [32m✓[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/upload-with-credentials.spec.ts [2m([22m[2m12 tests[22m[2m)[22m[33m 16883[2mms[22m[39m
+     [33m[2m✓[22m[39m checks production credentials without uploading or changing the parent [33m 1647[2mms[22m[39m
+     [33m[2m✓[22m[39m checks test credentials without uploading or changing the parent [33m 1692[2mms[22m[39m
+     [33m[2m✓[22m[39m rejects plaintext credentials without printing values [33m 1279[2mms[22m[39m
+     [33m[2m✓[22m[39m rejects blank credentials without printing values [33m 1358[2mms[22m[39m
+     [33m[2m✓[22m[39m rejects missing credentials without printing values [33m 1128[2mms[22m[39m
+     [33m[2m✓[22m[39m reports invalid purge arguments before decrypting credentials [33m 1817[2mms[22m[39m
+     [33m[2m✓[22m[39m isolates the upload child and sanitizes both output streams [33m 2348[2mms[22m[39m
+     [33m[2m✓[22m[39m isolates the upload-latest child and sanitizes both output streams [33m 2345[2mms[22m[39m
+     [33m[2m✓[22m[39m isolates the upload-failure child and sanitizes both output streams [33m 2266[2mms[22m[39m
+     [33m[2m✓[22m[39m isolates the upload-purge child and sanitizes both output streams [33m 995[2mms[22m[39m
+ [31m❯[39m [30m[45m thread-safe [49m[39m apps/desktop/tests/installed-update-package-content.spec.ts [2m([22m[2m48 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 19555[2mms[22m[39m
+     [33m[2m✓[22m[39m reads real ASAR and runtime inventories for 0.1.6-nightly.20260914.1 without claiming installation [33m 1053[2mms[22m[39m
+     [33m[2m✓[22m[39m reads real ASAR and runtime inventories for 0.1.6-nightly.20260914.2 without claiming installation [33m 991[2mms[22m[39m
+     [33m[2m✓[22m[39m rejects mismatched packaged name [33m 559[2mms[22m[39m
+     [33m[2m✓[22m[39m rejects mismatched packaged version [33m 901[2mms[22m[39m
+     [33m[2m✓[22m[39m rejects mismatched packaged dshDesktopAppId [33m 706[2mms[22m[39m
+     [33m[2m✓[22m[39m rejects mismatched packaged main [33m 926[2mms[22m[39m
+     [33m[2m✓[22m[39m rejects mismatched packaged type [33m 1582[2mms[22m[39m
+     [33m[2m✓[22m[39m rejects mismatched packaged dshMandatoryUpdatePolicy [33m 2946[2mms[22m[39m
+[31m     [31m×[31m rejects changed application content from the archive[39m[33m 5084[2mms[22m[39m
+     [33m[2m✓[22m[39m rejects missing application content from the archive [33m 961[2mms[22m[39m
+     [32m✓[39m rejects additional application content from the archive[32m 247[2mms[22m[39m
+     [32m✓[39m rejects credential-file application content from the archive[32m 221[2mms[22m[39m
+     [32m✓[39m rejects mismatched packaged update url[32m 180[2mms[22m[39m
+     [32m✓[39m rejects mismatched packaged update channel[32m 171[2mms[22m[39m
+     [32m✓[39m rejects mismatched packaged update provider[32m 164[2mms[22m[39m
+     [32m✓[39m rejects mismatched packaged update updaterCacheDirName[32m 160[2mms[22m[39m
+     [32m✓[39m rejects mismatched packaged update publisherName[32m 156[2mms[22m[39m
+     [32m✓[39m rejects an updater package whose version differs from the verifier[32m 178[2mms[22m[39m
+     [33m[2m✓[22m[39m accepts only the builder transformation of runtime dependency manifests [33m 306[2mms[22m[39m
+     [32m✓[39m rejects unsealed runtime content even when metadata is regenerated[32m 210[2mms[22m[39m
+     [32m✓[39m rejects resealed-change runtime content even when metadata is regenerated[32m 217[2mms[22m[39m
+     [32m✓[39m rejects resealed-addition runtime content even when metadata is regenerated[32m 211[2mms[22m[39m
+     [32m✓[39m identifies changed executable resources for separate signature verification[32m 219[2mms[22m[39m
+     [32m✓[39m accepts relative Windows archive entries[32m 1[2mms[22m[39m
+     [32m✓[39m rejects unsafe extraction path "../escape"[32m 0[2mms[22m[39m
+     [32m✓[39m rejects unsafe extraction path "/absolute"[32m 0[2mms[22m[39m
+     [32m✓[39m rejects unsafe extraction path "C:\\absolute"[32m 0[2mms[22m[39m
+     [32m✓[39m rejects unsafe extraction path "file:stream"[32m 0[2mms[22m[39m
+     [32m✓[39m rejects unsafe extraction path "a//b"[32m 0[2mms[22m[39m
+     [32m✓[39m rejects unsafe extraction path "a/./b"[32m 0[2mms[22m[39m
+     [32m✓[39m rejects unsafe extraction path "a/../b"[32m 0[2mms[22m[39m
+     [32m✓[39m rejects unsafe extraction path "CON"[32m 0[2mms[22m[39m
+     [32m✓[39m rejects unsafe extraction path "NUL.txt"[32m 0[2mms[22m[39m
+     [32m✓[39m rejects unsafe extraction path "name."[32m 0[2mms[22m[39m
+     [32m✓[39m rejects unsafe extraction path "name "[32m 0[2mms[22m[39m
+     [32m✓[39m rejects unsafe extraction path "a\\..\\b"[32m 0[2mms[22m[39m
+     [32m✓[39m rejects unsafe extraction path "a\u0000b"[32m 0[2mms[22m[39m
+     [32m✓[39m rejects unsafe extraction path "a?b"[32m 0[2mms[22m[39m
+     [32m✓[39m rejects missing, duplicate, or link entries ""[32m 0[2mms[22m[39m
+     [32m✓[39m rejects missing, duplicate, or link entries "Path = a\nPath = A\n"[32m 0[2mms[22m[39m
+     [32m✓[39m rejects missing, duplicate, or link entries "Path = a\nSymbolic Link = ../outside\n"[32m 0[2mms[22m[39m
+     [32m✓[39m rejects missing, duplicate, or link entries "Path = a\nHard Link = b\n"[32m 0[2mms[22m[39m
+     [32m✓[39m retains success evidence and stops later stages after failure[32m 251[2mms[22m[39m
+     [32m✓[39m retains signature evidence and stops later stages after failure[32m 169[2mms[22m[39m
+     [32m✓[39m retains unsafe-path evidence and stops later stages after failure[32m 170[2mms[22m[39m
+     [32m✓[39m retains extraction evidence and stops later stages after failure[32m 174[2mms[22m[39m
+     [32m✓[39m retains content evidence and stops later stages after failure[32m 201[2mms[22m[39m
+     [32m✓[39m retains changed-input evidence and stops later stages after failure[32m 237[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Suites 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m [30m[45m thread-safe [49m[39m apps/desktop/tests/windows-cli-signals.spec.ts[2m > [22mWindows Electron console signals
+[31m[1mError[22m: spawn C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe ENOENT[39m
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/26]⎯[22m[39m
+
+
+[31m⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 25 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m [30m[45m thread-safe [49m[39m apps/desktop/tests/background-notice.spec.ts[2m > [22mkeeps the window visible until confirmation and remembers acknowledgement across launches
+[31m[1mAssertionError[22m: expected "vi.fn()" to be called once with arguments: [ { type: 'info', …(5) } ][90m
+
+Received:
+
+[1m  1st vi.fn() call:
+
+[22m[33m@@ -4,9 +4,9 @@[90m
+[2m        "确认",[22m
+[2m      ],[22m
+[2m      "cancelId": -1,[22m
+[2m      "defaultId": 0,[22m
+[2m      "message": "正在运行的任务不会中断，可在系统托盘中重新打开窗口",[22m
+[32m-     "title": "DeepSeek Harness",[90m
+[31m+     "title": "LCoder",[90m
+[2m      "type": "info",[22m
+[2m    },[22m
+[2m  ][22m
+[31m[90m
+
+Number of calls: [1m1[22m
+[31m[39m
+[36m [2m❯[22m apps/desktop/tests/background-notice.spec.ts:[2m34:18[22m[39m
+    [90m 32|[39m   [34mexpect[39m(f[33m.[39mhide)[33m.[39mnot[33m.[39m[34mtoHaveBeenCalled[39m()
+    [90m 33|[39m   [34mexpect[39m([34mexistsSync[39m(f[33m.[39mmarkerPath))[33m.[39m[34mtoBe[39m([35mfalse[39m)
+    [90m 34|[39m   expect(f.show).toHaveBeenCalledExactlyOnceWith({ type: 'info', title…
+    [90m   |[39m                  [31m^[39m
+    [90m 35|[39m     message: '正在运行的任务不会中断，可在系统托盘中重新打开窗口', buttons: ['确认'], defaultId: …
+    [90m 36|[39m   [34mexpect[39m(f[33m.[39mfocus)[33m.[39m[34mtoHaveBeenCalledOnce[39m()
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/26]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m [30m[45m thread-safe [49m[39m apps/desktop/tests/cua-optional-package.spec.ts[2m > [22mfetches the macOS optional tarball only for Darwin, with an empty cache for every target
+[31m[1mExecaError[22m: Command failed with exit code 2: tar -tzf "C:\Users\Administrator\AppData\Local\Temp\cua-cold-install-uxmSn2\dsh-experimental-cua-macos\package.tgz"
+
+tar (child): Cannot connect to C: resolve failed
+
+gzip: stdin: unexpected end of file
+tar: Child returned status 128
+tar: Error is not recoverable: exiting now[39m
+[90m [2m❯[22m getFinalError node_modules/.pnpm/execa@10.0.1/node_modules/execa/lib/return/final-error.js:[2m6:9[22m[39m
+[90m [2m❯[22m makeError node_modules/.pnpm/execa@10.0.1/node_modules/execa/lib/return/result.js:[2m108:16[22m[39m
+[90m [2m❯[22m getAsyncResult node_modules/.pnpm/execa@10.0.1/node_modules/execa/lib/methods/main-async.js:[2m209:4[22m[39m
+[90m [2m❯[22m handlePromise node_modules/.pnpm/execa@10.0.1/node_modules/execa/lib/methods/main-async.js:[2m192:17[22m[39m
+[36m [2m❯[22m apps/desktop/tests/cua-optional-package.spec.ts:[2m72:22[22m[39m
+    [90m 70|[39m     packages[33m.[39m[35mset[39m(name[33m,[39m { manifest[33m,[39m bytes })
+    [90m 71|[39m     [35mif[39m (name [33m===[39m providerName) {
+    [90m 72|[39m       const result = await execa('tar', ['-tzf', join(directory, 'pack…
+    [90m   |[39m                      [31m^[39m
+    [90m 73|[39m       expect(result.stdout).toContain('package/native/bin/darwin-arm64…
+    [90m 74|[39m       [34mexpect[39m(result[33m.[39mstdout)[33m.[39m[34mtoContain[39m([32m`package/[39m[36m${[39mnativePayload[36m}[39m[32m`[39m)
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/26]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m [30m[45m thread-safe [49m[39m apps/desktop/tests/fatal-recovery.spec.ts[2m > [22moffers exit and restart for a listener conflict without a saved report in en
+[31m[1mError[22m: Snapshot `offers exit and restart for a listener conflict without a saved report in en 1` mismatched[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[33m@@ -1,6 +1,6 @@[39m
+[32m- [7mDeepSeek Harness[27m is unavailable[39m
+[31m+ [7mLCoder[27m is unavailable[39m
+[2m  The application could not start or stopped unexpectedly.[22m
+[2m  Another DSH instance (such as dsh web or the desktop app) is running. They cannot start at the same time. Quit the other running DSH instance, then restart.[22m
+[2m  The diagnostic report could not be saved. You can provide a screenshot of this dialog when requesting support.[22m
+[2m  Exit[22m
+[2m  Restart[22m
+
+[36m [2m❯[22m apps/desktop/tests/fatal-recovery.spec.ts:[2m45:3[22m[39m
+    [90m 43|[39m     operations.messages().exitApplication, operations.messages().resta…
+    [90m 44|[39m   ])
+    [90m 45|[39m   await expect([options.title, options.message, options.detail, ...opt…
+    [90m   |[39m   [31m^[39m
+    [90m 46|[39m     [33m.[39m[34mtoMatchFileSnapshot[39m([32m`expected/fatal-address-in-use-[39m[36m${[39mlocale[36m}[39m[32m.txt`[39m)
+    [90m 47|[39m   choice[33m.[39m[34mresolve[39m({ response[33m:[39m [34m1[39m[33m,[39m checkboxChecked[33m:[39m [35mfalse[39m })
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/26]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m [30m[45m thread-safe [49m[39m apps/desktop/tests/fatal-recovery.spec.ts[2m > [22moffers exit and restart for a listener conflict without a saved report in zh-CN
+[31m[1mError[22m: Snapshot `offers exit and restart for a listener conflict without a saved report in zh-CN 1` mismatched[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[33m@@ -1,6 +1,6 @@[39m
+[32m- [7mDeepSeek Harness[27m 无法使用[39m
+[31m+ [7mLCoder[27m 无法使用[39m
+[2m  应用无法启动或已意外停止。[22m
+[2m  有其他正在运行的 DSH（如其他 dsh web、桌面端），无法同时启动，请退出其他正在运行的 DSH 后重启。[22m
+[2m  诊断报告未能保存，反馈问题时可提供此窗口的截图。[22m
+[2m  退出[22m
+[2m  重启[22m
+
+[36m [2m❯[22m apps/desktop/tests/fatal-recovery.spec.ts:[2m45:3[22m[39m
+    [90m 43|[39m     operations.messages().exitApplication, operations.messages().resta…
+    [90m 44|[39m   ])
+    [90m 45|[39m   await expect([options.title, options.message, options.detail, ...opt…
+    [90m   |[39m   [31m^[39m
+    [90m 46|[39m     [33m.[39m[34mtoMatchFileSnapshot[39m([32m`expected/fatal-address-in-use-[39m[36m${[39mlocale[36m}[39m[32m.txt`[39m)
+    [90m 47|[39m   choice[33m.[39m[34mresolve[39m({ response[33m:[39m [34m1[39m[33m,[39m checkboxChecked[33m:[39m [35mfalse[39m })
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/26]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m [30m[45m thread-safe [49m[39m apps/desktop/tests/fatal-recovery.spec.ts[2m > [22mrecords the en native recovery dialog
+[31m[1mError[22m: Snapshot `records the en native recovery dialog 1` mismatched[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[33m@@ -1,6 +1,6 @@[39m
+[32m- [7mDeepSeek Harness[27m is unavailable[39m
+[31m+ [7mLCoder[27m is unavailable[39m
+[2m  The application could not start or stopped unexpectedly.[22m
+[2m  Desktop Host failed[22m
+[2m  Plugin initialization failed[22m
+[2m  The diagnostic report could not be saved. You can provide a screenshot of this dialog when requesting support.[22m
+
+
+[36m [2m❯[22m apps/desktop/tests/fatal-recovery.spec.ts:[2m73:3[22m[39m
+    [90m 71|[39m   [35mawait[39m [34mshown[39m(operations)
+    [90m 72|[39m   [35mconst[39m options [33m=[39m operations[33m.[39mshow[33m.[39mmock[33m.[39mcalls[[34m0[39m][33m![39m[[34m0[39m]
+    [90m 73|[39m   await expect([options.title, options.message, options.detail, ...opt…
+    [90m   |[39m   [31m^[39m
+    [90m 74|[39m     [33m.[39m[34mtoMatchFileSnapshot[39m([32m`expected/fatal-dialog-[39m[36m${[39mlocale[36m}[39m[32m.txt`[39m)
+    [90m 75|[39m   choice[33m.[39m[34mresolve[39m({ response[33m:[39m [34m0[39m[33m,[39m checkboxChecked[33m:[39m [35mfalse[39m })
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/26]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m [30m[45m thread-safe [49m[39m apps/desktop/tests/fatal-recovery.spec.ts[2m > [22mrecords the zh-CN native recovery dialog
+[31m[1mError[22m: Snapshot `records the zh-CN native recovery dialog 1` mismatched[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[33m@@ -1,6 +1,6 @@[39m
+[32m- [7mDeepSeek Harness[27m 无法使用[39m
+[31m+ [7mLCoder[27m 无法使用[39m
+[2m  应用无法启动或已意外停止。[22m
+[2m  Desktop Host failed[22m
+[2m  Plugin initialization failed[22m
+[2m  诊断报告未能保存，反馈问题时可提供此窗口的截图。[22m
+
+
+[36m [2m❯[22m apps/desktop/tests/fatal-recovery.spec.ts:[2m73:3[22m[39m
+    [90m 71|[39m   [35mawait[39m [34mshown[39m(operations)
+    [90m 72|[39m   [35mconst[39m options [33m=[39m operations[33m.[39mshow[33m.[39mmock[33m.[39mcalls[[34m0[39m][33m![39m[[34m0[39m]
+    [90m 73|[39m   await expect([options.title, options.message, options.detail, ...opt…
+    [90m   |[39m   [31m^[39m
+    [90m 74|[39m     [33m.[39m[34mtoMatchFileSnapshot[39m([32m`expected/fatal-dialog-[39m[36m${[39mlocale[36m}[39m[32m.txt`[39m)
+    [90m 75|[39m   choice[33m.[39m[34mresolve[39m({ response[33m:[39m [34m0[39m[33m,[39m checkboxChecked[33m:[39m [35mfalse[39m })
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/26]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m [30m[45m thread-safe [49m[39m apps/desktop/tests/fatal-recovery.spec.ts[2m > [22mnames the report file even when the error is short enough to show whole, in en
+[31m[1mError[22m: Snapshot `names the report file even when the error is short enough to show whole, in en 1` mismatched[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[33m@@ -1,6 +1,6 @@[39m
+[32m- [7mDeepSeek Harness[27m is unavailable[39m
+[31m+ [7mLCoder[27m is unavailable[39m
+[2m  The application could not start or stopped unexpectedly.[22m
+[2m  Desktop Host failed[22m
+[2m  Plugin initialization failed[22m
+[2m  Diagnostic report: C:\Users\someone\AppData\Roaming\DeepSeek Harness\logs\crash-2026-09-22T10-30-00-000Z-host.log[22m
+
+
+[36m [2m❯[22m apps/desktop/tests/fatal-recovery.spec.ts:[2m163:3[22m[39m
+    [90m161|[39m   expect(options.detail).not.toContain(operations.messages().diagnosti…
+    [90m162|[39m   [34mexpect[39m(options[33m.[39mdetail)[33m.[39m[34mtoContain[39m([33mREPORT_PATH[39m)
+    [90m163|[39m   await expect([options.title, options.message, options.detail, ...opt…
+    [90m   |[39m   [31m^[39m
+    [90m164|[39m     .toMatchFileSnapshot(`expected/fatal-dialog-with-report-${locale}.…
+    [90m165|[39m   choice[33m.[39m[34mresolve[39m({ response[33m:[39m [34m0[39m[33m,[39m checkboxChecked[33m:[39m [35mfalse[39m })
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/26]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m [30m[45m thread-safe [49m[39m apps/desktop/tests/fatal-recovery.spec.ts[2m > [22mnames the report file even when the error is short enough to show whole, in zh-CN
+[31m[1mError[22m: Snapshot `names the report file even when the error is short enough to show whole, in zh-CN 1` mismatched[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[33m@@ -1,6 +1,6 @@[39m
+[32m- [7mDeepSeek Harness[27m 无法使用[39m
+[31m+ [7mLCoder[27m 无法使用[39m
+[2m  应用无法启动或已意外停止。[22m
+[2m  Desktop Host failed[22m
+[2m  Plugin initialization failed[22m
+[2m  诊断报告：C:\Users\someone\AppData\Roaming\DeepSeek Harness\logs\crash-2026-09-22T10-30-00-000Z-host.log[22m
+
+
+[36m [2m❯[22m apps/desktop/tests/fatal-recovery.spec.ts:[2m163:3[22m[39m
+    [90m161|[39m   expect(options.detail).not.toContain(operations.messages().diagnosti…
+    [90m162|[39m   [34mexpect[39m(options[33m.[39mdetail)[33m.[39m[34mtoContain[39m([33mREPORT_PATH[39m)
+    [90m163|[39m   await expect([options.title, options.message, options.detail, ...opt…
+    [90m   |[39m   [31m^[39m
+    [90m164|[39m     .toMatchFileSnapshot(`expected/fatal-dialog-with-report-${locale}.…
+    [90m165|[39m   choice[33m.[39m[34mresolve[39m({ response[33m:[39m [34m0[39m[33m,[39m checkboxChecked[33m:[39m [35mfalse[39m })
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/26]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m [30m[45m thread-safe [49m[39m apps/desktop/tests/installed-update-package-content.spec.ts[2m > [22minstalled update archive contents[2m > [22mrejects changed application content from the archive
+[31m[1mError[22m: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".[39m
+[36m [2m❯[22m apps/desktop/tests/installed-update-package-content.spec.ts:[2m180:4[22m[39m
+    [90m178|[39m       packaged[33m.[39mversion [33m=[39m [32m'0.0.0'[39m
+    [90m179|[39m       [35mawait[39m [34mwriteFile[39m(packagedPath[33m,[39m [33mJSON[39m[33m.[39m[34mstringify[39m(packaged[33m,[39m [35mnull[39m[33m,[39m [34m2[39m))
+    [90m180|[39m       [35mawait[39m [34mseal[39m()
+    [90m   |[39m    [31m^[39m
+    [90m181|[39m       await expect(verifyInstalledUpdatePackageContent(manifest, versi…
+    [90m182|[39m     })
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/26]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m [30m[45m thread-safe [49m[39m apps/desktop/tests/installer-packaging.spec.ts[2m > [22minstaller preparation preserves application dependencies[2m > [22mpackages every preload entry point the shell loads
+[31m[1mError[22m: desktop auto-update: DOWNLOAD_PROD_ORIGIN must be set to a non-empty value[39m
+[36m [2m❯[22m requiredEnvironmentValue apps/desktop/scripts/desktop-auto-update-environment.mjs:[2m129:11[22m[39m
+    [90m127|[39m  */[39m
+    [90m128|[39m [35mfunction[39m [34mhttpsOrigin[39m(value[33m,[39m name) {
+    [90m129|[39m   [35mlet[39m parsed
+    [90m   |[39m           [31m^[39m
+    [90m130|[39m   [35mtry[39m {
+    [90m131|[39m     parsed [33m=[39m [35mnew[39m [33mURL[39m(value)
+[90m [2m❯[22m resolveDesktopAutoUpdateConfig apps/desktop/scripts/desktop-auto-update-environment.mjs:[2m173:30[22m[39m
+[90m [2m❯[22m createElectronBuilderConfig apps/desktop/scripts/electron-builder-config.mjs:[2m117:118[22m[39m
+[90m [2m❯[22m apps/desktop/tests/installer-packaging.spec.ts:[2m131:18[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/26]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m [30m[45m thread-safe [49m[39m apps/desktop/tests/prepare-package-set.spec.ts[2m > [22mcopies no macOS tarball into the Windows package set
+[31m[1mError[22m: Command failed: tar -czf C:\Users\Administrator\AppData\Local\Temp\desktop-platform-packages-nisoxi\inputs\dsh.tgz -C C:\Users\Administrator\AppData\Local\Temp\desktop-platform-packages-nisoxi\dsh package
+tar (child): Cannot connect to C: resolve failed
+tar: Child returned status 128
+tar: Error is not recoverable: exiting now
+[39m
+[36m [2m❯[22m apps/desktop/tests/prepare-package-set.spec.ts:[2m156:5[22m[39m
+    [90m154|[39m       }
+    [90m155|[39m     }
+    [90m156|[39m     execFileSync('tar', ['-czf', join(inputs, `${stem}.tgz`), '-C', jo…
+    [90m   |[39m     [31m^[39m
+    [90m157|[39m   }
+    [90m158|[39m   [35mconst[39m output [33m=[39m [34mjoin[39m(root[33m,[39m [32m'output'[39m)
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/26]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m [30m[45m thread-safe [49m[39m apps/desktop/tests/purge-command.spec.ts[2m > [22mforwards the documented pnpm purge command through both package scripts to the real argument parser
+[31m[1mError[22m: Command failed: C:\Program Files\nodejs\node.exe E:\Projects\LCoder\.worktrees\pool-ui-1\node_modules\pnpm\bin\pnpm.mjs run purge:latest mac-arm64
+$ pnpm --filter @deepseek-ai/dsh-desktop run purge:latest mac-arm64
+$ tsx scripts/upload-target.ts --latest --purge-only mac-arm64
+node:internal/modules/esm/resolve:271
+    throw new ERR_MODULE_NOT_FOUND(
+          ^
+
+Error [ERR_MODULE_NOT_FOUND]: Cannot find module 'C:\Users\Administrator\AppData\Local\Temp\desktop-purge-command-napmQK\apps\desktop\scripts\desktop-product-identity.mjs' imported from C:\Users\Administrator\AppData\Local\Temp\desktop-purge-command-napmQK\apps\desktop\scripts\desktop-auto-update-environment.mjs
+    at finalizeResolution (node:internal/modules/esm/resolve:271:11)
+    at moduleResolve (node:internal/modules/esm/resolve:865:10)
+    at defaultResolve (node:internal/modules/esm/resolve:992:11)
+    at #cachedDefaultResolve (node:internal/modules/esm/loader:691:20)
+    at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:708:38)
+    at nextStep (node:internal/modules/customization_hooks:189:26)
+    at resolveBaseSync (file:///E:/Projects/LCoder/.worktrees/pool-ui-1/node_modules/.pnpm/tsx@4.23.13/node_modules/tsx/dist/register-SoqaU4rg.mjs:2:10932)
+    at resolveDirectorySync (file:///E:/Projects/LCoder/.worktrees/pool-ui-1/node_modules/.pnpm/tsx@4.23.13/node_modules/tsx/dist/register-SoqaU4rg.mjs:2:12238)
+    at resolveTsPathsSync (file:///E:/Projects/LCoder/.worktrees/pool-ui-1/node_modules/.pnpm/tsx@4.23.13/node_modules/tsx/dist/register-SoqaU4rg.mjs:2:13445)
+    at resolve (file:///E:/Projects/LCoder/.worktrees/pool-ui-1/node_modules/.pnpm/tsx@4.23.13/node_modules/tsx/dist/register-SoqaU4rg.mjs:2:15991) {
+  code: 'ERR_MODULE_NOT_FOUND',
+  url: 'file:///C:/Users/Administrator/AppData/Local/Temp/desktop-purge-command-napmQK/apps/desktop/scripts/desktop-product-identity.mjs'
+}
+
+Node.js v24.16.0
+[39m
+[90m [2m❯[22m resolveBaseSync node_modules/.pnpm/tsx@4.23.13/node_modules/tsx/dist/register-SoqaU4rg.mjs:[2m2:10932[22m[39m
+[90m [2m❯[22m resolveDirectorySync node_modules/.pnpm/tsx@4.23.13/node_modules/tsx/dist/register-SoqaU4rg.mjs:[2m2:12238[22m[39m
+[90m [2m❯[22m resolveTsPathsSync node_modules/.pnpm/tsx@4.23.13/node_modules/tsx/dist/register-SoqaU4rg.mjs:[2m2:13445[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[13/26]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m [30m[45m thread-safe [49m[39m apps/desktop/tests/shell-file-selection.spec.ts[2m > [22momits shell build files from darwin/arm64 ASAR while retaining runtime assets
+[31m[1mError[22m: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".[39m
+[36m [2m❯[22m apps/desktop/tests/shell-file-selection.spec.ts:[2m32:3[22m[39m
+    [90m 30|[39m   [[32m'darwin'[39m[33m,[39m [32m'arm64'[39m][33m,[39m [[32m'darwin'[39m[33m,[39m [32m'x64'[39m][33m,[39m [[32m'win32'[39m[33m,[39m [32m'x64'[39m][33m,[39m
+    [90m 31|[39m ] as const)('omits shell build files from %s/%s ASAR while retaining r…
+    [90m 32|[39m   [35mconst[39m root [33m=[39m [35mawait[39m [34mmkdtemp[39m([34mjoin[39m([34mtmpdir[39m()[33m,[39m [32m'desktop-shell-files-'[39m))
+    [90m   |[39m   [31m^[39m
+    [90m 33|[39m   [34monTestFinished[39m(() [33m=>[39m [34mrm[39m(root[33m,[39m { recursive[33m:[39m [35mtrue[39m[33m,[39m force[33m:[39m [35mtrue[39m }))
+    [90m 34|[39m   [35mconst[39m appDir [33m=[39m [34mjoin[39m(root[33m,[39m [32m'app'[39m)
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[14/26]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m [30m[45m thread-safe [49m[39m apps/desktop/tests/welcome-renderer.client.spec.tsx[2m > [22mdesktop welcome presentation[2m > [22mrenders the zh-CN entry and API-key step
+[31m[1mError[22m: Snapshot `desktop welcome presentation > renders the zh-CN entry and API-key step 1` mismatched[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- DeepSeek Harness[39m
+[32m- DeepSeek Harness[39m
+[32m- 欢迎使用 DeepSeek Harness[39m
+[31m+ LCoder[39m
+[31m+ LCoder[39m
+[31m+ 欢迎使用 LCoder[39m
+[2m  组装无限可能，共探智能上限[22m
+[2m  登录[22m
+[2m  添加 API Key[22m
+
+
+[36m [2m❯[22m apps/desktop/tests/welcome-renderer.client.spec.tsx:[2m55:5[22m[39m
+    [90m 53|[39m     [34mexpect[39m(view[33m.[39mdocument[33m.[39mdocumentElement[33m.[39mlang)[33m.[39m[34mtoBe[39m(language)
+    [90m 54|[39m     expect(view.document.querySelector('img')!.getAttribute('src')).to…
+    [90m 55|[39m     await expect(view.copy()).toMatchFileSnapshot(`./expected/welcome/…
+    [90m   |[39m     [31m^[39m
+    [90m 56|[39m     fireEvent[33m.[39m[34mclick[39m(view[33m.[39m[34mbutton[39m([32m'#api-key'[39m))
+    [90m 57|[39m     [34mexpect[39m(view[33m.[39mdocument[33m.[39mactiveElement)[33m.[39m[34mtoBe[39m(view[33m.[39minput)
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[15/26]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m [30m[45m thread-safe [49m[39m apps/desktop/tests/welcome-renderer.client.spec.tsx[2m > [22mdesktop welcome presentation[2m > [22mrenders the en entry and API-key step
+[31m[1mError[22m: Snapshot `desktop welcome presentation > renders the en entry and API-key step 1` mismatched[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- DeepSeek Harness[39m
+[32m- DeepSeek Harness[39m
+[32m- Welcome to DeepSeek Harness[39m
+[31m+ LCoder[39m
+[31m+ LCoder[39m
+[31m+ Welcome to LCoder[39m
+[2m  Build potential. Explore intelligence.[22m
+[2m  Sign in[22m
+[2m  Add API Key[22m
+
+
+[36m [2m❯[22m apps/desktop/tests/welcome-renderer.client.spec.tsx:[2m55:5[22m[39m
+    [90m 53|[39m     [34mexpect[39m(view[33m.[39mdocument[33m.[39mdocumentElement[33m.[39mlang)[33m.[39m[34mtoBe[39m(language)
+    [90m 54|[39m     expect(view.document.querySelector('img')!.getAttribute('src')).to…
+    [90m 55|[39m     await expect(view.copy()).toMatchFileSnapshot(`./expected/welcome/…
+    [90m   |[39m     [31m^[39m
+    [90m 56|[39m     fireEvent[33m.[39m[34mclick[39m(view[33m.[39m[34mbutton[39m([32m'#api-key'[39m))
+    [90m 57|[39m     [34mexpect[39m(view[33m.[39mdocument[33m.[39mactiveElement)[33m.[39m[34mtoBe[39m(view[33m.[39minput)
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[16/26]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m [30m[45m thread-safe [49m[39m apps/desktop/tests/welcome-renderer.client.spec.tsx[2m > [22mrenders zh-CN timeout with manual retry and API-key alternative
+[31m[1mError[22m: Snapshot `renders zh-CN timeout with manual retry and API-key alternative 1` mismatched[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- DeepSeek Harness[39m
+[32m- DeepSeek Harness[39m
+[31m+ LCoder[39m
+[31m+ LCoder[39m
+[2m  登录已超时[22m
+[2m  重新登录[22m
+[2m  添加 API Key[22m
+[2m  请重新登录后继续操作[22m
+
+
+[36m [2m❯[22m apps/desktop/tests/welcome-renderer.client.spec.tsx:[2m166:3[22m[39m
+    [90m164|[39m   [34mexpect[39m(view[33m.[39m[34mbutton[39m([32m'#auth-api-key'[39m)[33m.[39mhidden)[33m.[39m[34mtoBe[39m([35mfalse[39m)
+    [90m165|[39m   [34mexpect[39m(view[33m.[39mapi[33m.[39mstartSignIn)[33m.[39mnot[33m.[39m[34mtoHaveBeenCalled[39m()
+    [90m166|[39m   await expect(view.copy() + view.document.querySelector('#auth-descri…
+    [90m   |[39m   [31m^[39m
+    [90m167|[39m   fireEvent[33m.[39m[34mclick[39m(view[33m.[39m[34mbutton[39m([32m'#auth-api-key'[39m))
+    [90m168|[39m   expect(view.document.querySelector('#auth-page')!.hasAttribute('hidd…
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[17/26]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m [30m[45m thread-safe [49m[39m apps/desktop/tests/welcome-renderer.client.spec.tsx[2m > [22mrenders en timeout with manual retry and API-key alternative
+[31m[1mError[22m: Snapshot `renders en timeout with manual retry and API-key alternative 1` mismatched[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- DeepSeek Harness[39m
+[32m- DeepSeek Harness[39m
+[31m+ LCoder[39m
+[31m+ LCoder[39m
+[2m  Sign in timed out[22m
+[2m  Sign in again[22m
+[2m  Add API Key[22m
+[2m  Sign in again to continue[22m
+
+
+[36m [2m❯[22m apps/desktop/tests/welcome-renderer.client.spec.tsx:[2m166:3[22m[39m
+    [90m164|[39m   [34mexpect[39m(view[33m.[39m[34mbutton[39m([32m'#auth-api-key'[39m)[33m.[39mhidden)[33m.[39m[34mtoBe[39m([35mfalse[39m)
+    [90m165|[39m   [34mexpect[39m(view[33m.[39mapi[33m.[39mstartSignIn)[33m.[39mnot[33m.[39m[34mtoHaveBeenCalled[39m()
+    [90m166|[39m   await expect(view.copy() + view.document.querySelector('#auth-descri…
+    [90m   |[39m   [31m^[39m
+    [90m167|[39m   fireEvent[33m.[39m[34mclick[39m(view[33m.[39m[34mbutton[39m([32m'#auth-api-key'[39m))
+    [90m168|[39m   expect(view.document.querySelector('#auth-page')!.hasAttribute('hidd…
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[18/26]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m [30m[45m thread-safe [49m[39m apps/desktop/tests/welcome-renderer.client.spec.tsx[2m > [22mrenders zh-CN browser fallback and copies only the active login link
+[31m[1mError[22m: Snapshot `renders zh-CN browser fallback and copies only the active login link 1` mismatched[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[33m@@ -1,7 +1,7 @@[39m
+[32m- DeepSeek Harness[39m
+[32m- DeepSeek Harness[39m
+[31m+ LCoder[39m
+[31m+ LCoder[39m
+[2m  没有自动打开浏览器？[22m
+[2m  复制登录链接[22m
+[2m  正在完成登录… [disabled][22m
+[2m  取消[22m
+[2m  复制登录链接，用浏览器手动打开完成登录[22m
+
+[36m [2m❯[22m apps/desktop/tests/welcome-renderer.client.spec.tsx:[2m178:3[22m[39m
+    [90m176|[39m     attempt: { id: 'waiting' as NonNullable<AccountView['attempt']>['i…
+    [90m177|[39m   [34mreceive[39m(waiting)
+    [90m178|[39m   await expect(view.copy() + view.document.querySelector('#auth-descri…
+    [90m   |[39m   [31m^[39m
+    [90m179|[39m     .toMatchFileSnapshot(`./expected/welcome/${language}-waiting.expec…
+    [90m180|[39m   fireEvent[33m.[39m[34mclick[39m(view[33m.[39m[34mbutton[39m([32m'#auth-copy'[39m))
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[19/26]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m [30m[45m thread-safe [49m[39m apps/desktop/tests/welcome-renderer.client.spec.tsx[2m > [22mrenders en browser fallback and copies only the active login link
+[31m[1mError[22m: Snapshot `renders en browser fallback and copies only the active login link 1` mismatched[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[33m@@ -1,7 +1,7 @@[39m
+[32m- DeepSeek Harness[39m
+[32m- DeepSeek Harness[39m
+[31m+ LCoder[39m
+[31m+ LCoder[39m
+[2m  Browser didn’t open automatically?[22m
+[2m  Copy sign-in link[22m
+[2m  Completing sign in… [disabled][22m
+[2m  Cancel[22m
+[2m  Copy the sign-in link and open it in your browser to sign in.[22m
+
+[36m [2m❯[22m apps/desktop/tests/welcome-renderer.client.spec.tsx:[2m178:3[22m[39m
+    [90m176|[39m     attempt: { id: 'waiting' as NonNullable<AccountView['attempt']>['i…
+    [90m177|[39m   [34mreceive[39m(waiting)
+    [90m178|[39m   await expect(view.copy() + view.document.querySelector('#auth-descri…
+    [90m   |[39m   [31m^[39m
+    [90m179|[39m     .toMatchFileSnapshot(`./expected/welcome/${language}-waiting.expec…
+    [90m180|[39m   fireEvent[33m.[39m[34mclick[39m(view[33m.[39m[34mbutton[39m([32m'#auth-copy'[39m))
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[20/26]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m [30m[45m thread-safe [49m[39m apps/desktop/tests/welcome-renderer.client.spec.tsx[2m > [22mreturns from completed sign-in to the initial page after sign-out: zh-CN
+[31m[1mError[22m: Snapshot `returns from completed sign-in to the initial page after sign-out: zh-CN 1` mismatched[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- DeepSeek Harness[39m
+[32m- DeepSeek Harness[39m
+[32m- 欢迎使用 DeepSeek Harness[39m
+[31m+ LCoder[39m
+[31m+ LCoder[39m
+[31m+ 欢迎使用 LCoder[39m
+[2m  组装无限可能，共探智能上限[22m
+[2m  登录[22m
+[2m  添加 API Key[22m
+
+
+[36m [2m❯[22m apps/desktop/tests/welcome-renderer.client.spec.tsx:[2m329:3[22m[39m
+    [90m327|[39m   [34mexpect[39m(view[33m.[39m[34mbutton[39m([32m'#sign-in'[39m)[33m.[39m[34mclosest[39m([32m'[hidden]'[39m))[33m.[39m[34mtoBeNull[39m()
+    [90m328|[39m   expect(view.document.querySelector<HTMLElement>('#auth-page')!.hidde…
+    [90m329|[39m   await expect(view.copy()).toMatchFileSnapshot(`./expected/welcome/${…
+    [90m   |[39m   [31m^[39m
+    [90m330|[39m })
+    [90m331|[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[21/26]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m [30m[45m thread-safe [49m[39m apps/desktop/tests/welcome-renderer.client.spec.tsx[2m > [22mreturns from completed sign-in to the initial page after sign-out: en
+[31m[1mError[22m: Snapshot `returns from completed sign-in to the initial page after sign-out: en 1` mismatched[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- DeepSeek Harness[39m
+[32m- DeepSeek Harness[39m
+[32m- Welcome to DeepSeek Harness[39m
+[31m+ LCoder[39m
+[31m+ LCoder[39m
+[31m+ Welcome to LCoder[39m
+[2m  Build potential. Explore intelligence.[22m
+[2m  Sign in[22m
+[2m  Add API Key[22m
+
+
+[36m [2m❯[22m apps/desktop/tests/welcome-renderer.client.spec.tsx:[2m329:3[22m[39m
+    [90m327|[39m   [34mexpect[39m(view[33m.[39m[34mbutton[39m([32m'#sign-in'[39m)[33m.[39m[34mclosest[39m([32m'[hidden]'[39m))[33m.[39m[34mtoBeNull[39m()
+    [90m328|[39m   expect(view.document.querySelector<HTMLElement>('#auth-page')!.hidde…
+    [90m329|[39m   await expect(view.copy()).toMatchFileSnapshot(`./expected/welcome/${…
+    [90m   |[39m   [31m^[39m
+    [90m330|[39m })
+    [90m331|[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[22/26]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m [30m[45m thread-safe [49m[39m apps/desktop/tests/welcome-startup.spec.ts[2m > [22mstarts welcome onboarding without carrying update focus into login or skip (Windows update=false)
+[41m[1m FAIL [22m[49m [30m[45m thread-safe [49m[39m apps/desktop/tests/welcome-startup.spec.ts[2m > [22mstarts welcome onboarding without carrying update focus into login or skip (Windows update=true)
+[31m[1mAssertionError[22m: expected "vi.fn()" to be called once, but got 0 times[39m
+[36m [2m❯[22m apps/desktop/tests/welcome-startup.spec.ts:[2m209:58[22m[39m
+    [90m207|[39m     [34mexpect[39m(state[33m.[39mshowWorkspace)[33m.[39mnot[33m.[39m[34mtoHaveBeenCalled[39m()
+    [90m208|[39m     reading[33m.[39m[34mresolve[39m(undefined)
+    [90m209|[39m     await vi.waitFor(() => { expect(state.beforeWelcome).toHaveBeenCal…
+    [90m   |[39m                                                          [31m^[39m
+    [90m210|[39m     [34mactivate[39m()
+    [90m211|[39m     [34mexpect[39m(state[33m.[39mshowWorkspace)[33m.[39mnot[33m.[39m[34mtoHaveBeenCalled[39m()
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[23/26]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m [30m[45m thread-safe [49m[39m apps/desktop/tests/windows-update-publisher.spec.ts[2m > [22mWindows update publisher[2m > [22msupplies publisher metadata with explicit Windows target = true
+[41m[1m FAIL [22m[49m [30m[45m thread-safe [49m[39m apps/desktop/tests/windows-update-publisher.spec.ts[2m > [22mWindows update publisher[2m > [22msupplies publisher metadata with explicit Windows target = false
+[31m[1mError[22m: desktop auto-update: DOWNLOAD_PROD_ORIGIN must be set to a non-empty value[39m
+[36m [2m❯[22m requiredEnvironmentValue apps/desktop/scripts/desktop-auto-update-environment.mjs:[2m129:11[22m[39m
+    [90m127|[39m  */[39m
+    [90m128|[39m [35mfunction[39m [34mhttpsOrigin[39m(value[33m,[39m name) {
+    [90m129|[39m   [35mlet[39m parsed
+    [90m   |[39m           [31m^[39m
+    [90m130|[39m   [35mtry[39m {
+    [90m131|[39m     parsed [33m=[39m [35mnew[39m [33mURL[39m(value)
+[90m [2m❯[22m resolveDesktopAutoUpdateConfig apps/desktop/scripts/desktop-auto-update-environment.mjs:[2m173:30[22m[39m
+[90m [2m❯[22m createElectronBuilderConfig apps/desktop/scripts/electron-builder-config.mjs:[2m117:118[22m[39m
+[90m [2m❯[22m apps/desktop/tests/windows-update-publisher.spec.ts:[2m102:19[22m[39m
+[90m [2m❯[22m withCertificate apps/desktop/tests/windows-update-publisher.spec.ts:[2m43:9[22m[39m
+[90m [2m❯[22m apps/desktop/tests/windows-update-publisher.spec.ts:[2m97:3[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[24/26]⎯[22m[39m
+
+
+[2m  Snapshots [22m [1m[31m14 failed[39m[22m
+[2m Test Files [22m [1m[31m12 failed[39m[22m[2m | [22m[1m[32m168 passed[39m[22m[2m | [22m[33m5 skipped[39m[90m (185)[39m
+[2m      Tests [22m [1m[31m25 failed[39m[22m[2m | [22m[1m[32m2051 passed[39m[22m[2m | [22m[33m66 skipped[39m[90m (2142)[39m
+[2m   Start at [22m 18:47:32
+[2m   Duration [22m 21.96s[2m (transform 20.90s, setup 6.70s, import 56.74s, tests 228.01s, environment 9.06s)[22m

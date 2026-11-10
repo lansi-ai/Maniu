@@ -1157,6 +1157,17 @@ tracks:
       note: "B 级工程工具优化，来源是用户 2026-11-10 反馈 worktree 起得太慢与上游代码太多。监督窗口只读实测基线为 worktree add 六十四秒、remove 二十四秒、二万零五百六十一文件；pnpm install 五百七十一秒、三百九十八个 workspace 项目、一千四百三十八个包；首次全量构建约三分半。方案是两棵预热工作树常驻，新任务只切分支与重建产物，锁文件变化时自动重装。范围四项。一、worktree.cmd 增加 warm 动作，建树、junction、首次 provision，记录锁文件哈希与产物标记到 .worktrees 下的池元数据。二、增加 claim 动作，按分支与基线切树，校验锁文件哈希与依赖、按需重建产物，打印各阶段耗时。三、增加 release 动作，停本树实例（显式开关）、清工作区、回 detached 基线并保留依赖；不得杀主检出或别树进程。四、inspect 展示池状态与占用。约束：不改主检出、不删 .spec、不写注册表与用户目录、不安装应用；探针树用完清理；单任务准备目标一分钟内并给前后数字。工作树 .worktrees/t104-speed 为稀疏树只含 lcoder 与 docs，无端口需求。2026-11-10 15:40 监督窗口派工，实现线会话 68ff35f0。稀疏工作树 .worktrees/t104-speed，分支 lcoder/t104-speed，只含 lcoder 与 docs，无端口需求。2026-11-10 15:58 用户拍板不再单独跑安装验证，脚本通过 ps1 解析与 help 自检后合入主线；warm/claim/release 的运行时验证由 T-103 首次 warm 承接。探针槽位 _pool-probe-a 的安装被中止，随后清理。未验项为 warm 与 claim 与 release 的实跑数字和锁文件不一致重装路径；若 T-103 首跑失败，回到本任务修。补核；探针槽位 _pool-probe-b 实际完成了 warm 与 claim，安装 529 秒、claim 约 88 秒、锁文件哈希一致且产物基线就绪，说明 warm 与 claim 在真实树上跑通；_pool-probe-a 的第二次 warm 被打断后已停进程并清理，t104-speed 目录删除遇到 EPERM 残留但已从 worktree 注册中移除，稍后再清。2026-11-10 17:00 T-103 实跑发现预热池漏了桌面 profile 的 link 依赖，新树会挂原版 DSH；已开 T-107 修 rebuild 的 profile 步骤。"
     - id: T-105
       title: 桌面启动耗时优化（缓存运行时准备）
+      status: done
+      face: 工程
+      type: 开发
+      owner: lance
+      created: '2026-11-10'
+      date: '2026-11-10'
+      dep: [T-104]
+      inferred: false
+      note: "B 级工程优化，来源同上。监督窗口实测 dev 启动到 ready 约四十秒，一秒到二十九秒在 Electron 启动前，三十秒到四十秒在 Electron 与宿主就绪。只读定位到每次启动都同步执行 electron -p 取 Node 版本、prepareDevelopmentProject 重写开发项目目录、preparePrimaryRuntime 校验二百六十八兆运行时缓存。范围：把可缓存的探测与目录准备改成按内容或时间戳缓存，避免每次整份重写与重复校验；不改产品行为、不改云端契约、不改 profile 语义。验收：预热态连续三次启动取中位数，目标二十秒内或给出不可再降的分阶段证据；门禁 typecheck 与 apps/desktop 定向 vitest 与 test:docs；真窗口一次启动冒烟，按用户新规不做截图。工作树 .worktrees/t105-startup，端口 9822 与 9829 与 9830。依赖 T-104，未派工。2026-11-10 17:28 监督窗口派工，实现线会话 33d459db，claim 预热槽位 pool-ui-1 到分支 lcoder/t105-startup；先做一个阶段分解基线再改缓存，端口 9822 与 9829 与 9830，按新规不做截图。2026-11-10 19:05 实现线首轮完成并合入主线，预热态 -NoBuild 启动从 37.4 秒降到 5.9 秒，监督窗口独立复测 ready 落在 5 秒；apps/desktop 全量测试的 12 个失败文件已逐个对过主检出基线，同为环境或并行抖动。发现默认 start-desktop 仍每次跑 build:artifacts 与 desktop build（约 26 秒），已退回同一线补做产物指纹跳过，要求默认路径也进入 20 秒内。接触面已登记。2026-11-10 19:30 监督窗口核验并收口，同一分支三个提交。监督窗口独立复测：-NoBuild ready 五秒；默认 start-desktop 在输入未变时七秒且日志出现 reusing built artifacts；主检出 typecheck 与 test:docs 全过。实现线报默认路径 47.1 秒降到 6.46 秒中位、冷缓存 52.7 秒、改源码触发重建 46.9 秒、摘要开销 0.85 秒；新增文件与改动的 apps/desktop 脚本已登记 contact-surface 与 UPSTREAM-BASELINE 第 3 节。apps/desktop 全量测试的 12 个失败文件逐个对过主检出基线，同为环境或并行抖动。未验项是 macOS 与 Linux 路径、产物哨兵只验 4 个、改 tests 不触发重建、链接重建后首启 18 秒未拆解、未走 -Smoke 全链。已合入 lcoder/main、归档 docs/evidence-archive/t105、release pool-ui-1。"
+    - id: T-106
+      title: 安装瘦身与稀疏检出实测
       status: doing
       face: 工程
       type: 开发
@@ -1165,18 +1176,7 @@ tracks:
       date: '2026-11-10'
       dep: [T-104]
       inferred: false
-      note: "B 级工程优化，来源同上。监督窗口实测 dev 启动到 ready 约四十秒，一秒到二十九秒在 Electron 启动前，三十秒到四十秒在 Electron 与宿主就绪。只读定位到每次启动都同步执行 electron -p 取 Node 版本、prepareDevelopmentProject 重写开发项目目录、preparePrimaryRuntime 校验二百六十八兆运行时缓存。范围：把可缓存的探测与目录准备改成按内容或时间戳缓存，避免每次整份重写与重复校验；不改产品行为、不改云端契约、不改 profile 语义。验收：预热态连续三次启动取中位数，目标二十秒内或给出不可再降的分阶段证据；门禁 typecheck 与 apps/desktop 定向 vitest 与 test:docs；真窗口一次启动冒烟，按用户新规不做截图。工作树 .worktrees/t105-startup，端口 9822 与 9829 与 9830。依赖 T-104，未派工。2026-11-10 17:28 监督窗口派工，实现线会话 33d459db，claim 预热槽位 pool-ui-1 到分支 lcoder/t105-startup；先做一个阶段分解基线再改缓存，端口 9822 与 9829 与 9830，按新规不做截图。"
-    - id: T-106
-      title: 安装瘦身与稀疏检出实测
-      status: todo
-      face: 工程
-      type: 开发
-      owner: lance
-      created: '2026-11-10'
-      date: '2026-11-10'
-      dep: [T-104]
-      inferred: false
-      note: "B 级工程实测优化，来源同上。范围三项实测，只采纳在门禁与构建上都成立的做法并给前后数字。一、ignore-scripts 加从主检出拷预构建原生产物与 Electron 标记，测安装耗时并验证构建与定向测试。二、pnpm 按过滤器只装 lcoder 与 desktop 相关依赖，验证 typecheck 与 vitest 与构建是否成立。三、稀疏检出排除 .agents 与 snapshots 与 docs 与 website 与 benchmarks 与 python 与 .github，测 worktree add 耗时并验证受影响的测试。失败项写清原因后回退，默认值改动必须有依据。工作树 .worktrees/t106-install，无端口需求。依赖 T-104，未派工。"
+      note: "B 级工程实测优化，来源同上。范围三项实测，只采纳在门禁与构建上都成立的做法并给前后数字。一、ignore-scripts 加从主检出拷预构建原生产物与 Electron 标记，测安装耗时并验证构建与定向测试。二、pnpm 按过滤器只装 lcoder 与 desktop 相关依赖，验证 typecheck 与 vitest 与构建是否成立。三、稀疏检出排除 .agents 与 snapshots 与 docs 与 website 与 benchmarks 与 python 与 .github，测 worktree add 耗时并验证受影响的测试。失败项写清原因后回退，默认值改动必须有依据。工作树 .worktrees/t106-install，无端口需求。依赖 T-104，未派工。2026-11-10 19:20 监督窗口派工，实现线会话 55e47dac，claim 预热槽位 pool-ui-1 到分支 lcoder/t106-install；三项实测 ignore-scripts 与过滤安装与稀疏检出，探针槽位用完清理，只采纳门禁与构建都成立的做法。"
 
     - id: T-107
       title: 新工作树桌面 profile 自动补齐 link 依赖
