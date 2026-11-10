@@ -134,6 +134,10 @@
 - Windows 上 kill `dev:web` 不会带走子进程；换实例前按进程树清理，再确认端口空闲。
 - 不要给 `dev:web` 接管道；输出重定向到文件再读，否则日志会被缓冲到进程结束。
 - 一条桌面线一个 worktree：主窗用默认 Electron inspector 端口（9229/9222/9230），feature worktree 用 `DSH_DESKTOP_MAIN_INSPECT_PORT`、`DSH_DESKTOP_RENDERER_DEBUG_PORT`、`DSH_DESKTOP_HOST_INSPECT_PORT` 设一组预留端口，端口号记在该任务的台账备注里。`apps/desktop/scripts/dev.ts` 把 `DSH_HOME` 与 Electron `userData` 指进 `apps/desktop/.desktop-build/development/`，worktree 不写主窗的 `~/.dsh`；这些默认值别改——把 `DSH_HOME` 设成 `~/.dsh` 就等于让一次验证去写本机安装态。`@lcoder/*` 的 link 要指向 worktree 自己的包目录。
+- **重活单通道。** 所有跨工作树的 `pnpm install` 与构建产物生成都走 `lcoder/scripts/worktree.cmd -Action provision` 或 `-Action build`；脚本持一把机器级命名互斥，同一时间只允许一条重活。禁止手工并发跑这些命令；测试可以并行，但要限制 worker。
+- **并行预算：同时最多两条 UI 工作树。** 需要安装或构建的波次只留一条在重活车道，其余等；文档与契约线用 `-Action sparse`，完全不装依赖。
+- **共享运行时、隔离会话数据。** `-Action junction` 只共享 `.desktop-build/downloads` 与 `targets`；`electron-user-data` 与仓内 home 仍按工作树独立。
+- **收口即清。** 合入后用 `worktree.cmd -Action clean -Remove` 清理；不要把带 `node_modules` 或构建产物的树留在 `.worktrees`。
 - 插件路径是批量 combo URL，不是 `plugins/<name>/client.js`；单独请求会 404。
 - 文档门禁：`pnpm run test:docs`；包 README 必须有 `kind` / `description` frontmatter 与 `Summary` / `Table of Contents` / `Dev Note` 骨架。
 - 看板：先改 `docs/tasks.yaml`，再跑 `python scripts/build-tasks-html.py`；产物是 `docs/tasks-html/index.html`。`.spec` 不参与看板生成。
