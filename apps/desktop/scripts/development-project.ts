@@ -18,6 +18,7 @@ import type { DesktopRelease } from '../src/release.ts'
 import { DESKTOP_RUNTIME_FILE, type DesktopRuntimeDescriptor } from '../src/runtime-tree.ts'
 import type { DesktopAutoUpdateTarget } from './desktop-auto-update-environment.mjs'
 import { desktopTargetPlatform } from './desktop-build-paths.mjs'
+// lcoder: 输入指纹复用，避免每次启动重建整个项目目录。改什么、为什么见 lcoder/UPSTREAM-BASELINE.md 第 3 节。
 import { fileStamp, inputsDigest, linkStamp, readCacheRecord, writeCacheRecord } from './development-cache.ts'
 
 /** Record of the inputs that produced the current project directory. */
