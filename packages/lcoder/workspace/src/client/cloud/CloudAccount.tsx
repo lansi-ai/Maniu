@@ -28,6 +28,13 @@ type FieldErrors = Partial<Record<LoginField, LcoderWorkspaceKey>>
 /** 词典读取面。 */
 type Translate = (key: LcoderWorkspaceKey) => string
 
+/** 登录页悬停时淡入的装饰伪代码；不进布局、不上读屏。 */
+const AMBIENT_CODE = [
+  'const spec = read(repo)',
+  'await plan.compose(task)',
+  'if (gate.pass) ship()',
+]
+
 /** 中国大陆手机号：只收 11 位数字，1 开头，第二位 3–9。 */
 const PHONE_PATTERN = /^1[3-9][0-9]{9}$/
 
@@ -361,9 +368,14 @@ export function CloudLoginScreen({ face, loading, error, t, onRetry, onAuthentic
   return (
     <main className={css.loginMain}>
       <LoginGridBackdrop />
+      <div className={css.loginAmbient} aria-hidden="true" data-lc-login-ambient="">
+        <div className={css.ambientCode}>
+          {AMBIENT_CODE.map(code => <span key={code} className={css.ambientCodeLine}>{code}</span>)}
+        </div>
+      </div>
       <section className={css.loginBrand}>
         <h1 className={css.loginBrandTitle}>{t('shell.brand')}</h1>
-        <p className={css.loginBrandText}>{t('shell.loginTagline')}</p>
+        <p className={css.loginSlogan} aria-hidden="true">{t('shell.loginSlogan')}</p>
       </section>
       <section className={css.loginCard}>
         {loading
