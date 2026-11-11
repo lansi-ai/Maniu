@@ -1250,6 +1250,18 @@ tracks:
       inferred: false
       note: "C 级工具增强，来源是用户 2026-11-11 要求 start-all 真正一键可用。现状只拉 Web 与桌面，不处理云端地址，桌面仍指向配置里的 mock 5091，导致启动后登录报云端不可用。范围：start-all 增加 -CloudApi（默认 http://127.0.0.1:5081/v1）与 -SkipCloudCheck；启动前探测派生出的 health 地址，健康就把 LCODER_CLOUD_BASE_URL 注入 Web 与桌面两个子进程，失败则红字给出启动命令与环境变量提示并退出非零，不自动拉起 API。不改 start-desktop 与 Web 的其它行为；帮助与 RUN.md 同步。验收：对已在跑的 5081 探测成功并启动两端；对无效端口探测失败并退出非零；有 record 日志行；不做截图。工作树用 pool-slot-2 claim 到 lcoder/t112-startall-cloud。2026-11-11 02:25 监督窗口派工，实现线会话 221f80ae；claim pool-slot-2 到分支 lcoder/t112-startall-cloud。2026-11-11 03:10 监督窗口核验并收口。独立复跑 ps1 解析、help 与 test:docs 全过；实现线实跑 5081 探测成功并注入环境，inspector 读 process.env 得 5081 地址；5999 失败非零；-ListOnly 与 -Stop 不探测；Web 侧未实跑因 3080 被主检出占用，注入与桌面同一环境块。已合入 lcoder/main 并 release pool-slot-2。"
 
+    - id: T-113
+      title: start-all 识别自身启动器已退出的 Web 实例
+      status: done
+      face: 工程
+      type: 开发
+      owner: lance
+      created: '2026-11-11'
+      date: '2026-11-11'
+      dep: [T-110]
+      inferred: false
+      note: "C 级工具修复，来源是用户 2026-11-11 实跑 start-all -Fast 报 3080 被本检出以外的进程占用 PID 50824。实际是本检出上一次 start-all 起的 Web，启动器 PID 记录为 50604 已退出，遗留 node 的命令行只有相对路径 apps/cli/src/bin.ts web，不含检出根，归属判定失败。范围：状态文件同时记录启动器与就绪后的监听 PID；归属判定在 state.root 等于本检出且端口匹配时，允许信任记录中的监听 PID 并辅以 DSH web 命令行签名；仍按祖先链检查根路径作为补充。foreign 进程仍拒绝并提示换 -WebPort。验收：本树起 Web 3081，杀掉启动器只留监听 node，再跑 -Stop 与再次启动都能识别并停掉；对一个非本仓的占端口进程仍拒绝；ps1 解析、help、test:docs 全过。工作树用 pool-slot-1 claim 到 lcoder/t113-web-owner。2026-11-11 03:30 监督窗口派工，实现线会话 abed4307；claim pool-slot-1 到分支 lcoder/t113-web-owner。2026-11-11 03:45 监督窗口核验并收口。两脚本解析通过、start-all -Help 与 -ListOnly 退出零、test:docs 二十一项全过。实现线实测状态双 PID 与遗留监听接管，外部 3082 进程仍被拒绝且不误杀；自测中修掉未按端口限定导致的误杀。未验项是 3080 上真实 start-all 停起回归。已合入 lcoder/main 并 release pool-slot-1。"
+
 milestones:
 - name: MVP-0 工作台本地跑通
   track: lcoder
