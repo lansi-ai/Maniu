@@ -1274,6 +1274,18 @@ tracks:
       inferred: false
       note: "C 级工具增强，来源是用户 2026-11-11 实跑 start-all -Fast 时本地 API 已退出，脚本只探测不拉起，导致中止。用户拍板加显式开关。范围：新增 -StartCloudApi 与 -CloudRepo 与 -CloudEnvFile 与 -CloudApiTimeoutSec。探测失败且给了开关时，从云仓起 dotnet run --project src/Api --urls http://localhost:5081，工作目录为云仓，子进程继承当前环境；若 .env 存在则解析并注入 KEY=VALUE（不打印值），超时内轮询 health；成功则继续注入 LCODER_CLOUD_BASE_URL 并启动两端，失败则打印日志路径与最后几行非敏感输出并非零退出。状态文件记 apiPid，-Stop 只停由本脚本启动的 API，外部 API 不动；-ListOnly 列出 API 状态。不打印任何密钥值。验收：无开关时行为不变；给开关且 API 不可用时可拉起并在 health 通过后继续；环境缺失或启动失败时错误可读并非零；ps1 解析、help、test:docs 全过。工作树用 pool-slot-1 claim 到 lcoder/t114-start-api。2026-11-11 04:30 监督窗口派工，实现线会话 713cfed4；claim pool-slot-1 到分支 lcoder/t114-start-api。2026-11-11 07:40 监督窗口核验并收口。[续跑后完成] ps1 解析与 help 全过；实现线实跑失败路径：-StartCloudApi 拉起 dotnet 并轮询，进程退出后给日志路径与脱敏尾行（DATABASE_URL 未设），退出 1；.env 解析与显式文件缺失报错、apiPid 归属保护均验；test:docs 二十一项过。未验健康通过后的续启，本机无数据库与密钥。已合入 lcoder/main、release pool-slot-1。"
 
+    - id: T-115
+      title: start-all 的 -Fast 未跳过桌面运行时冒烟
+      status: done
+      face: 工程
+      type: 修复
+      owner: lance
+      created: '2026-11-11'
+      date: '2026-11-11'
+      dep: [T-114]
+      inferred: false
+      note: "C 级修复，来源是用户 2026-11-11 实跑 start-all -Fast，日志显示构建已跳过但桌面仍跑了运行时冒烟（No broken requirements 与 Office 往返），耗时约四十六秒。根因在 lcoder/scripts/lcoder-dev-common.ps1 的 Start-DesktopInstance：注释写开发启动默认跳过，代码却是 if (-not $SkipSmoke) { 设置跳过 }，导致 start-all 传了 -SkipSmoke 反而不设置 DSH_DESKTOP_SKIP_RUNTIME_SMOKE，冒烟被执行。范围：改正判断使传 -SkipSmoke 或无该开关时都跳过，只有显式要冒烟才执行；同步 start-all 与 start-desktop 的帮助口径。验收：start-all -Fast 启动日志不再出现 Office 往返，桌面 ready 回到六到七秒级；ps1 解析、help、test:docs 全过；不做截图。工作树用 pool-slot-2 claim 到 lcoder/t115-fast-smoke。2026-11-11 08:15 监督窗口核验并收口。三份 ps1 解析通过、start-all -Help 退出零；实现线实跑 -Fast -NoWeb 不再出现 Office 往返，热启动 5 秒 ready、总 10 秒；冷启动 39 秒，其中 dev.ts 运行时准备约 17 秒，仍待压缩。start-desktop -Smoke 改为正向 -RunSmoke，未真跑。已合入 lcoder/main、release pool-slot-2。"
+
 milestones:
 - name: MVP-0 工作台本地跑通
   track: lcoder
