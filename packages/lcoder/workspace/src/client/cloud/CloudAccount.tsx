@@ -373,29 +373,31 @@ export function CloudLoginScreen({ face, loading, error, t, onRetry, onAuthentic
           {AMBIENT_CODE.map(code => <span key={code} className={css.ambientCodeLine}>{code}</span>)}
         </div>
       </div>
-      <section className={css.loginBrand}>
-        <h1 className={css.loginBrandTitle}>{t('shell.brand')}</h1>
-        <p className={css.loginSlogan} aria-hidden="true">{t('shell.loginSlogan')}</p>
-      </section>
-      <section className={css.loginCard}>
-        {loading
-          ? (
-            <div className={css.loginStatus} role="status">
-              <span className={css.loginSpinner} aria-hidden="true" />
-              <p className={css.loginStatusText}>{t('shell.loginChecking')}</p>
-            </div>
-          )
-          : error === null
-            ? <CloudLoginForm face={face} t={t} onAuthenticated={onAuthenticated} />
-            : (
-              <div className={css.loginStatus} role="alert">
-                <p className={css.loginStatusTitle}>{t('shell.loginUnavailable')}</p>
-                <p className={css.loginStatusText}>{fill(t(cloudErrorKey(error.code)), { code: error.code })}</p>
-                {error.requestId === undefined ? null : <p className={css.cloudRequestId}>{t('shell.cloudRequestId')}: {error.requestId}</p>}
-                <button type="button" className={css.primaryBtn} onClick={onRetry}>{t('shell.loginRetry')}</button>
+      <div className={css.loginStage}>
+        <section className={css.loginBrand}>
+          <h1 className={css.loginBrandTitle}>{t('shell.brand')}</h1>
+          <p className={css.loginSlogan} aria-hidden="true">{t('shell.loginSlogan')}</p>
+        </section>
+        <section className={css.loginCard}>
+          {loading
+            ? (
+              <div className={css.loginStatus} role="status">
+                <span className={css.loginSpinner} aria-hidden="true" />
+                <p className={css.loginStatusText}>{t('shell.loginChecking')}</p>
               </div>
-            )}
-      </section>
+            )
+            : error === null
+              ? <CloudLoginForm face={face} t={t} onAuthenticated={onAuthenticated} />
+              : (
+                <div className={css.loginStatus} role="alert">
+                  <p className={css.loginStatusTitle}>{t('shell.loginUnavailable')}</p>
+                  <p className={css.loginStatusText}>{fill(t(cloudErrorKey(error.code)), { code: error.code })}</p>
+                  {error.requestId === undefined ? null : <p className={css.cloudRequestId}>{t('shell.cloudRequestId')}: {error.requestId}</p>}
+                  <button type="button" className={css.primaryBtn} onClick={onRetry}>{t('shell.loginRetry')}</button>
+                </div>
+              )}
+        </section>
+      </div>
     </main>
   )
 }

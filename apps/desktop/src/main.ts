@@ -30,7 +30,7 @@ import { installDesktopFileDrag } from './file-drag.ts'
 import { installDesktopDirectoryPicker } from './directory-picker.ts'
 import { installMicrophonePermissions } from './microphone-permissions.ts'
 import { DesktopBackendController } from './backend-controller.ts'
-import { DESKTOP_IPC, SCHEME, assertDesktopSender, type DesktopUpdateState } from './ipc.ts'
+import { DESKTOP_IPC, SCHEME, assertDesktopSender, type DesktopUpdateState, type DesktopWindowDragRequest } from './ipc.ts'
 import { readDeviceInfo } from './device-info.ts'
 import { desktopUpdateReadyConfirmation, formatDesktopMessage, resolveDesktopLocale, resolveDesktopStartupLocale } from './locale.ts'
 import { claimDesktopSingleInstance } from './single-instance.ts'
@@ -1148,6 +1148,22 @@ async function main(): Promise<void> {
         || event.senderFrame !== mainWindow.webContents.mainFrame) throw new Error('desktop window: rejected sender')
       return mainWindow
     }
+    /**
+     * Validate a drag request from the renderer. Coordinates are the pointer
+     * event's screen points; the main process owns the press-time anchor.
+     */
+    const parseWindowDrag = (value: unknown): DesktopWindowDragRequest | undefined => {
+      if (typeof value !== 'object' || value === null || !('phase' in value)) return undefined
+      if (value.phase === 'end') return { phase: 'end' }
+      if (value.phase !== 'start' && value.phase !== 'move') return undefined
+      if (!('screenX' in value) || !('screenY' in value)) return undefined
+      const { screenX, screenY } = value
+      if (typeof screenX !== 'number' || typeof screenY !== 'number'
+        || !Number.isFinite(screenX) || !Number.isFinite(screenY)) return undefined
+      return { phase: value.phase, screenX, screenY }
+    }
+    /** Press-time window offset; only the drag that started last can move the window. */
+    let windowDrag: { originX: number; originY: number; anchorX: number; anchorY: number } | undefined
     ipcMain.handle(DESKTOP_IPC.windowCommand, (event, command: unknown) => {
       const window = primaryWindow(event)
       if (command === 'minimize') { window.minimize(); return }
@@ -1158,6 +1174,34 @@ async function main(): Promise<void> {
       }
       if (command === 'close') { window.close(); return }
       throw new Error('desktop window: invalid command')
+    })
+    // lcoder: 登录页标题栏没有原生 drag 区（drag 区不向页面派发悬停事件），
+    // 改由渲染端 pointerdown 捕获指针、按屏幕坐标差值移动窗口。
+    ipcMain.handle(DESKTOP_IPC.windowDrag, (event, request: unknown) => {
+      const window = primaryWindow(event)
+      const drag = parseWindowDrag(request)
+      if (drag === undefined) throw new Error('desktop window: invalid drag request')
+      if (drag.phase === 'end') { windowDrag = undefined; return }
+      const origin = (): { originX: number; originY: number } => {
+        const [x, y] = window.getPosition()
+        return { originX: x ?? 0, originY: y ?? 0 }
+      }
+      if (drag.phase === 'start') {
+        windowDrag = { ...origin(), anchorX: drag.screenX, anchorY: drag.screenY }
+        return
+      }
+      if (windowDrag === undefined || window.isFullScreen()) return
+      // 拖动最大化窗口时先还原，再从还原后的位置继续跟随指针，和系统标题栏一致。
+      if (window.isMaximized()) {
+        window.unmaximize()
+        windowDrag = { ...origin(), anchorX: drag.screenX, anchorY: drag.screenY }
+        return
+      }
+      const anchor = windowDrag
+      window.setPosition(
+        Math.round(anchor.originX + drag.screenX - anchor.anchorX),
+        Math.round(anchor.originY + drag.screenY - anchor.anchorY),
+      )
     })
     ipcMain.handle(DESKTOP_IPC.windowState, (event) => {
       const window = primaryWindow(event)

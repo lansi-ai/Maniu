@@ -79,6 +79,7 @@ import { ModelSettings } from './ModelSettings.tsx'
 import type { ModelSettingsFace } from './model-settings.ts'
 import { desktopWindowBridge } from './window-chrome.ts'
 import type { DesktopWindowCommand, DesktopWindowState } from './window-chrome.ts'
+import { useWindowDrag } from './window-drag.ts'
 import { runningCardClass } from './task-card-visual.ts'
 import { projectDirectoryPicker } from './project-directory.ts'
 import type {
@@ -616,6 +617,8 @@ export function Shell({
   const hasWorkspace = workspace !== undefined
   const hasSession = sessionId !== undefined
   const signedIn = cloudSession.state?.signedIn === true
+  /** 登录页标题栏的自绘拖拽；原生 drag 区会让标题栏上的悬停事件失效。 */
+  const loginDrag = useWindowDrag(windowBridge, !signedIn)
   const cloudUnavailable = cloud === undefined || !cloud.available
     || cloudSession.error?.code === 'cloud_unavailable'
   /** 登录状态读不出来（云端没装配或读取失败）；这时只渲染登录页，不放行到工作台。 */
@@ -2390,10 +2393,15 @@ export function Shell({
   if (!signedIn) {
     return (
       <div className={css.shell} data-skin={skin} data-chrome={windowBridge === undefined ? undefined : 'custom'}>
-        <header className={css.loginChrome} onDoubleClick={windowBridge === undefined ? undefined : onTopbarDoubleClick}>
-          <div className={css.topBrand}>
-            <span className={css.topTitle}>{t('shell.brand')}</span>
-          </div>
+        <header
+          className={css.loginChrome}
+          data-lc-login-chrome=""
+          onPointerDown={loginDrag.onPointerDown}
+          onPointerMove={loginDrag.onPointerMove}
+          onPointerUp={loginDrag.onPointerUp}
+          onPointerCancel={loginDrag.onPointerCancel}
+          onDoubleClick={windowBridge === undefined ? undefined : onTopbarDoubleClick}
+        >
           <div className={css.spacer} />
           <button
             type="button"

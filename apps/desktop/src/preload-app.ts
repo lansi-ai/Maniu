@@ -3,7 +3,7 @@ import type { FileSaveResult } from '@deepseek-ai/dsh-client-ui-file-actions/typ
 
 import type { DesktopShortcutInput, ShortcutConfigSnapshot, ShortcutSaveResult } from '@deepseek-ai/dsh-client-shortcuts/protocol'
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
-import { DESKTOP_IPC, SCHEME, type DesktopUpdatePresentation, type DesktopWindowCommand, type DesktopWindowState, type DshDesktopProductApi } from './ipc.ts'
+import { DESKTOP_IPC, SCHEME, type DesktopUpdatePresentation, type DesktopWindowCommand, type DesktopWindowDragRequest, type DesktopWindowState, type DshDesktopProductApi } from './ipc.ts'
 import { PLATFORM_IPC } from './platform-ipc.ts'
 import { markDocumentPlatform, syncWindowFullscreen } from './preload-platform.ts'
 import { syncNativeTheme } from './preload-theme.ts'
@@ -66,6 +66,7 @@ function createProductApi(): DshDesktopProductApi {
     ...(process.platform === 'win32' ? {
       window: {
         command: (command: DesktopWindowCommand) => ipcRenderer.invoke(DESKTOP_IPC.windowCommand, command) as Promise<void>,
+        drag: (request: DesktopWindowDragRequest) => ipcRenderer.invoke(DESKTOP_IPC.windowDrag, request) as Promise<void>,
         state: () => ipcRenderer.invoke(DESKTOP_IPC.windowState) as Promise<DesktopWindowState>,
         attention: (awaiting: number) => ipcRenderer.invoke(DESKTOP_IPC.windowAttention, awaiting) as Promise<void>,
         subscribe(listener: (state: DesktopWindowState) => void): () => void {
