@@ -1346,6 +1346,18 @@ tracks:
       inferred: false
       note: "B 级视觉与交互，来源是用户 2026-11-11 登录页四条。一、标题栏悬停失效的根因是原生 drag 区不派发鼠标事件；用户拍板改成自绘拖拽换悬停。二、隐藏代码与口号要在整页任意位置悬停都出现，不只悬停到它们自身；三、去掉登录页左上角 LCoder 文字；四、登录卡与 LCoder 向中间靠拢并把 LCoder 放大。范围：登录页标题栏去掉 -webkit-app-region drag，改为 pointerdown 捕获指针后按 screenX 与 screenY 通过主进程新 IPC 移动窗口，pointerup 与失焦结束；双击仍最大化；关闭与皮肤按钮仍可点。工作台顶栏保持原生 drag 不变。主进程涉及 apps/desktop 的 main 与 ipc 与 preload，属已登记接触面，扩展时按 PROJECT-RULES 补 UPSTREAM-BASELINE 说明。登录页布局改为中心容器最大宽度，左栏品牌字号上调，间距收紧。验收：门禁 typecheck 与 packages/lcoder vitest 与 apps/desktop 定向 vitest 与 test:docs 与 i18n；真窗口冒烟确认标题栏悬停可触发网格与隐藏层、拖拽能移动窗口、双击最大化、关闭可用；不做截图。工作树用 pool-slot-1 claim 到 lcoder/t120-login-drag，端口 9822 与 9829 与 9830。2026-11-11 12:10 监督窗口派工，实现线会话 3d7817d9；claim pool-slot-1 到分支 lcoder/t120-login-drag。2026-11-11 14:35 监督窗口核验并收口。独立复跑 vitest 七十文件七百三十六例、test:docs 二十一项全过；实现线报 typecheck 五项、i18n 一千三百零二文件、build:check 二项，apps/desktop 定向 main-startup 与 preload 一百八十三例全过，全量失败均为既有环境项。冒烟：合成 pointerdown 与 move 使窗口从 640 与 286 移到 720 与 346，双击最大化与还原正常；标题栏悬停 headerHover 为真，隐藏层 opacity 从零到一、画布 alpha 上升；中心容器 1080，品牌字 76.8px，左上文字已删。未验项是关闭按钮进入既有后台关闭确认后未继续点原生确认框、非百分百缩放拖拽、工作台未真窗口复验。已合入 lcoder/main、release pool-slot-1。"
 
+    - id: T-121
+      title: 项目切换与项目信息融合重构
+      status: done
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-11'
+      date: '2026-11-11'
+      dep: []
+      inferred: false
+      note: "B 级交互重构，来源是用户 2026-11-11 认为项目切换频率不高，顶栏不该同时有项目卡片与项目信息按钮。方案：两者合并成顶栏一个低调的项目名加下拉箭头控件，无底色无方块无路径，悬停才显底色；点击打开现有项目信息抽屉，抽屉顶部新增切换项目区，含工作区列表与打开仓库输入，下面保留基本信息与文档与环境；删除独立切换弹窗与项目信息按钮。路径与分支与规格根只留在抽屉里；无工作区时控件显示选择项目。窄窗与空态要处理，切换后仍清空会话覆盖并关闭抽屉。不改业务逻辑与契约。验收 typecheck 与 packages/lcoder vitest 与 oxlint 与 test:docs 与 i18n；真窗口冒烟确认只剩一个控件、抽屉内可切换与打开仓库、无独立弹窗；不做截图。工作树用 pool-slot-1 claim 到 lcoder/t121-project-merge，端口 9822 与 9829 与 9830。2026-11-11 15:05 监督窗口派工，实现线会话 34487165；claim pool-slot-1 到分支 lcoder/t121-project-merge。2026-11-11 15:25 监督窗口核验并收口。独立复跑 vitest 七十文件七百三十八例、i18n 一千三百零二文件、test:docs 二十一项全过；实现线报 typecheck 五项、build 八项、build:check 二项。oxlint 新增零错，Shell.tsx 四条 unbound-method 为 T-120 基线。真窗口七项全过：顶栏仅一个项目控件、无项目信息按钮与独立弹窗；抽屉内可切换与打开仓库，切换后关闭并清空会话覆盖；空态与 760px 窄窗正常。未验项是窄窗仅视口模拟、未复核原生目录对话框。已合入 lcoder/main、release pool-slot-1。"
+
 milestones:
 - name: MVP-0 工作台本地跑通
   track: lcoder
