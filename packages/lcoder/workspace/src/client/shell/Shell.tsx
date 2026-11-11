@@ -470,7 +470,6 @@ export function Shell({
   /** Windows 桌面自绘标题栏；Web 与 macOS 没有这个桥，不画窗口按钮。 */
   const windowBridge = useMemo(() => desktopWindowBridge(), [])
   const [windowMaximized, setWindowMaximized] = useState(false)
-  const [projectPicker, setProjectPicker] = useState(false)
   /** 新会话的角色选择浮层。 */
   const [rolePicker, setRolePicker] = useState(false)
   const [detail, setDetail] = useState<ShellTask | null>(null)
@@ -2228,7 +2227,7 @@ export function Shell({
       const opened = await openRepository(path)
       setWorkspaceId(opened.workspaceId)
       setSessionOverride(opened.sessionId)
-      setProjectPicker(false)
+      setDrawer(false)
     } catch (error: unknown) {
       const failure = describeOpenFailure(error)
       setRepoError(`${t(failure.key)}（${failure.detail}）`)
@@ -2433,13 +2432,15 @@ export function Shell({
           <img className={css.topLogo} src={bullMark} alt="" />
           <span className={css.topTitle}>{t('shell.brand')}</span>
         </div>
-        <button type="button" className={css.topProject} title={t('shell.switchProject')} onClick={() => { setProjectPicker(true) }}>
-          <span className={css.psLogo}>{(projectName || 'L').slice(0, 1).toUpperCase()}</span>
-          <span className={css.psText}>
-            <span className={css.psName}>{projectName}</span>
-            <span className={css.psPath}>{projectPath || '—'}</span>
-          </span>
-          <span className={css.psChevron}>⌄</span>
+        {/* 项目名只是一枚低调的入口：无底色，悬停才显，点击打开项目信息抽屉。 */}
+        <button
+          type="button"
+          className={css.projectTrigger}
+          title={t('shell.projectInfo')}
+          onClick={() => { setDrawer(true) }}
+        >
+          <span className={css.psName}>{hasWorkspace ? projectName : t('shell.chooseProject')}</span>
+          <span className={css.psChevron} aria-hidden="true">⌄</span>
         </button>
         {!hasWorkspace ? null : (
           <div className={css.sessionBar}>
@@ -2522,7 +2523,6 @@ export function Shell({
           t={t}
           onClick={() => { setAccountOpen(true) }}
         />
-        <button type="button" className={css.secondaryBtn} onClick={() => { setDrawer(true) }}>ⓘ {t('shell.projectInfo')}</button>
         <button
           type="button"
           className={css.iconBtn}
@@ -2723,6 +2723,63 @@ export function Shell({
             </div>
             <div className={css.drawerBody}>
               <section className={css.drawerSection}>
+                <h4>{t('shell.switchProject')}</h4>
+                <p className={css.drawerHint}>{t('shell.projectPickerHint')}</p>
+                {workspaces.length === 0
+                  ? <p className={css.empty}>{t('shell.noWorkspace')}</p>
+                  : (
+                    <div className={css.projectPicker}>
+                      {workspaces.map((item) => {
+                        const id = String(item.workspaceId)
+                        return (
+                          <button
+                            type="button"
+                            key={id}
+                            className={`${css.projectOption} ${id === activeWorkspaceId ? css.projectOptionActive : ''}`}
+                            onClick={() => { setWorkspaceId(id); setSessionOverride(null); setDrawer(false); setResultPage(false) }}
+                          >
+                            <span className={css.psLogo}>{(item.title || 'L').slice(0, 1).toUpperCase()}</span>
+                            <span className={css.poText}>
+                              <span className={css.poName}>{item.title}</span>
+                              <span className={css.poPath}>{item.path}</span>
+                            </span>
+                            <span className={css.poCount}>{item.sessionIds.length} {t('shell.sessions')}</span>
+                            {id === activeWorkspaceId ? <span className={css.poCheck}>✓</span> : null}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                <div className={css.repoOpen}>
+                  <input
+                    className={css.repoInput}
+                    value={repoPath}
+                    placeholder={t('shell.repoPathHint')}
+                    onChange={(event) => { setRepoPath(event.target.value) }}
+                  />
+                  {projectDirectory === undefined ? null : (
+                    <button
+                      type="button"
+                      className={css.secondaryBtn}
+                      disabled={opening || browsing}
+                      onClick={() => { void browseRepo() }}
+                    >
+                      {t('shell.browse')}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className={css.primaryBtn}
+                    disabled={opening || openRepository === undefined || repoPath.trim() === ''}
+                    onClick={() => { void submitRepo() }}
+                  >
+                    {opening ? t('shell.opening') : t('shell.openRepo')}
+                  </button>
+                </div>
+                {repoError === null ? null : <p className={css.problem}>{repoError}</p>}
+              </section>
+
+              <section className={css.drawerSection}>
                 <h4>{t('shell.basic')}</h4>
                 <div className={css.infoGrid}>
                   <div className={css.infoRow}><span>{t('shell.kind')}</span><b>{info?.kind ?? '—'}</b></div>
@@ -2789,74 +2846,6 @@ export function Shell({
               </section>
             </div>
           </aside>
-        </div>
-      ) : null}
-
-      {projectPicker ? (
-        <div className={css.modalBackdrop} onClick={(event) => { if (event.target === event.currentTarget) setProjectPicker(false) }}>
-          <div className={`${css.modal} ${css.modalSmall}`}>
-            <div className={css.modalHead}>
-              <div className={css.grow}><h3>{t('shell.switchProject')}</h3><p>{t('shell.projectPickerHint')}</p></div>
-              <button type="button" className={css.iconBtn} onClick={() => { setProjectPicker(false) }}>✕</button>
-            </div>
-            <div className={css.modalBody}>
-              {workspaces.length === 0
-                ? <p className={css.empty}>{t('shell.noWorkspace')}</p>
-                : (
-                  <div className={css.projectPicker}>
-                    {workspaces.map((item) => {
-                      const id = String(item.workspaceId)
-                      return (
-                        <button
-                          type="button"
-                          key={id}
-                          className={`${css.projectOption} ${id === activeWorkspaceId ? css.projectOptionActive : ''}`}
-                          onClick={() => { setWorkspaceId(id); setSessionOverride(null); setProjectPicker(false); setResultPage(false) }}
-                        >
-                          <span className={css.psLogo}>{(item.title || 'L').slice(0, 1).toUpperCase()}</span>
-                          <span className={css.poText}>
-                            <span className={css.poName}>{item.title}</span>
-                            <span className={css.poPath}>{item.path}</span>
-                          </span>
-                          <span className={css.poCount}>{item.sessionIds.length} {t('shell.sessions')}</span>
-                          {id === activeWorkspaceId ? <span className={css.poCheck}>✓</span> : null}
-                        </button>
-                      )
-                    })}
-                  </div>
-                )}
-              <div className={css.repoOpen}>
-                <input
-                  className={css.repoInput}
-                  value={repoPath}
-                  placeholder={t('shell.repoPathHint')}
-                  onChange={(event) => { setRepoPath(event.target.value) }}
-                />
-                {projectDirectory === undefined ? null : (
-                  <button
-                    type="button"
-                    className={css.secondaryBtn}
-                    disabled={opening || browsing}
-                    onClick={() => { void browseRepo() }}
-                  >
-                    {t('shell.browse')}
-                  </button>
-                )}
-                <button
-                  type="button"
-                  className={css.primaryBtn}
-                  disabled={opening || openRepository === undefined || repoPath.trim() === ''}
-                  onClick={() => { void submitRepo() }}
-                >
-                  {opening ? t('shell.opening') : t('shell.openRepo')}
-                </button>
-              </div>
-              {repoError === null ? null : <p className={css.problem}>{repoError}</p>}
-            </div>
-            <div className={css.modalFoot}>
-              <span className={css.boardHint}>{t('shell.projectSource')}</span>
-            </div>
-          </div>
         </div>
       ) : null}
 
