@@ -114,6 +114,8 @@ interface ShellScenario {
   readonly cloud?: CloudFace
   /** 首条会话投影里的模型路由；用来模拟旧版本遗留的匿名会话。 */
   readonly provider?: string
+  /** 工作区列表；缺省给一条会话所在的工作区。 */
+  readonly workspaces?: WorkspaceSnapshot['items']
 }
 
 /** 已登录的云端替身：门禁放行，详情用例只关心渲染事实；门禁本身有 cloud-login 专测。 */
@@ -165,7 +167,7 @@ function renderShell(scenario: ShellScenario) {
     completionUnread: false,
   }]))
   const workspaces: WorkspaceSnapshot = {
-    items: [{
+    items: scenario.workspaces ?? [{
       workspaceId: WorkspaceId('w-1'),
       path: REPO,
       title: 'demo',
@@ -817,5 +819,74 @@ describe('旧匿名会话', () => {
 
     await waitFor(() => { expect(selectRoute).toHaveBeenCalledWith(SessionId('s-1')) })
     expect(selectRoute).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('顶栏项目控件与项目信息抽屉', () => {
+  const OTHER = 'E:/Projects/other'
+
+  function workspaceItem(id: string, title: string, path: string, sessionIds: readonly SessionId[]) {
+    return {
+      workspaceId: WorkspaceId(id),
+      path,
+      title,
+      sessionIds,
+      createdAt: '2026-11-06T00:00:00.000Z',
+      updatedAt: '2026-11-06T00:00:00.000Z',
+    }
+  }
+
+  it('顶栏只剩一个项目控件，点开后可在抽屉里切换工作区并关闭', async () => {
+    const { container } = renderShell({
+      spec: {},
+      sessions: [
+        sessionRow('s-1', REPO, false),
+        sessionRow('s-2', OTHER, false),
+        sessionRow('s-3', OTHER, false),
+      ],
+      workspaces: [
+        workspaceItem('w-1', 'demo', REPO, [SessionId('s-1')]),
+        workspaceItem('w-2', 'other', OTHER, [SessionId('s-2'), SessionId('s-3')]),
+      ],
+    })
+
+    const trigger = await screen.findByRole('button', { name: 'demo' })
+    const header = container.querySelector('header')
+    expect(header).not.toBeNull()
+    const topbar = within(header as HTMLElement)
+    expect(topbar.queryByTitle(zh['shell.switchProject'])).toBeNull()
+    expect(topbar.queryByText(`ⓘ ${zh['shell.projectInfo']}`)).toBeNull()
+    expect(trigger.textContent).not.toContain(REPO)
+
+    fireEvent.click(trigger)
+    const heading = await screen.findByRole('heading', { name: zh['shell.projectInfo'] })
+    const drawer = heading.closest('aside')
+    expect(drawer).not.toBeNull()
+    const body = within(drawer as HTMLElement)
+    expect(body.getByText(zh['shell.projectPickerHint'])).toBeTruthy()
+    expect(body.getByPlaceholderText(zh['shell.repoPathHint'])).toBeTruthy()
+    expect(body.getByRole('button', { name: zh['shell.openRepo'] })).toBeTruthy()
+    expect(body.getByText('✓')).toBeTruthy()
+    expect(body.getByText(`1 ${zh['shell.sessions']}`)).toBeTruthy()
+    expect(body.getByText(`2 ${zh['shell.sessions']}`)).toBeTruthy()
+
+    fireEvent.click(body.getByText('other'))
+    await waitFor(() => {
+      expect(screen.queryByRole('heading', { name: zh['shell.projectInfo'] })).toBeNull()
+    })
+    expect(within(header as HTMLElement).getByRole('button', { name: 'other' })).toBeTruthy()
+  })
+
+  it('没有工作区时顶栏显示选择项目，抽屉给出空态与打开仓库', async () => {
+    renderShell({ spec: {}, sessions: [], workspaces: [] })
+    fireEvent.click(await screen.findByRole('button', { name: zh['shell.chooseProject'] }))
+
+    const heading = await screen.findByRole('heading', { name: zh['shell.projectInfo'] })
+    const drawer = heading.closest('aside')
+    expect(drawer).not.toBeNull()
+    const body = within(drawer as HTMLElement)
+    expect(body.getByText(zh['shell.noWorkspace'])).toBeTruthy()
+    expect(body.getByPlaceholderText(zh['shell.repoPathHint'])).toBeTruthy()
+    expect(body.getByRole('button', { name: zh['shell.openRepo'] })).toBeTruthy()
   })
 })
