@@ -1240,7 +1240,7 @@ tracks:
 
     - id: T-112
       title: start-all 自动探测本地云端 API
-      status: doing
+      status: done
       face: 工程
       type: 开发
       owner: lance
@@ -1248,7 +1248,7 @@ tracks:
       date: '2026-11-11'
       dep: [T-110]
       inferred: false
-      note: "C 级工具增强，来源是用户 2026-11-11 要求 start-all 真正一键可用。现状只拉 Web 与桌面，不处理云端地址，桌面仍指向配置里的 mock 5091，导致启动后登录报云端不可用。范围：start-all 增加 -CloudApi（默认 http://127.0.0.1:5081/v1）与 -SkipCloudCheck；启动前探测派生出的 health 地址，健康就把 LCODER_CLOUD_BASE_URL 注入 Web 与桌面两个子进程，失败则红字给出启动命令与环境变量提示并退出非零，不自动拉起 API。不改 start-desktop 与 Web 的其它行为；帮助与 RUN.md 同步。验收：对已在跑的 5081 探测成功并启动两端；对无效端口探测失败并退出非零；有 record 日志行；不做截图。工作树用 pool-slot-2 claim 到 lcoder/t112-startall-cloud。2026-11-11 02:25 监督窗口派工，实现线会话 221f80ae；claim pool-slot-2 到分支 lcoder/t112-startall-cloud。"
+      note: "C 级工具增强，来源是用户 2026-11-11 要求 start-all 真正一键可用。现状只拉 Web 与桌面，不处理云端地址，桌面仍指向配置里的 mock 5091，导致启动后登录报云端不可用。范围：start-all 增加 -CloudApi（默认 http://127.0.0.1:5081/v1）与 -SkipCloudCheck；启动前探测派生出的 health 地址，健康就把 LCODER_CLOUD_BASE_URL 注入 Web 与桌面两个子进程，失败则红字给出启动命令与环境变量提示并退出非零，不自动拉起 API。不改 start-desktop 与 Web 的其它行为；帮助与 RUN.md 同步。验收：对已在跑的 5081 探测成功并启动两端；对无效端口探测失败并退出非零；有 record 日志行；不做截图。工作树用 pool-slot-2 claim 到 lcoder/t112-startall-cloud。2026-11-11 02:25 监督窗口派工，实现线会话 221f80ae；claim pool-slot-2 到分支 lcoder/t112-startall-cloud。2026-11-11 03:10 监督窗口核验并收口。独立复跑 ps1 解析、help 与 test:docs 全过；实现线实跑 5081 探测成功并注入环境，inspector 读 process.env 得 5081 地址；5999 失败非零；-ListOnly 与 -Stop 不探测；Web 侧未实跑因 3080 被主检出占用，注入与桌面同一环境块。已合入 lcoder/main 并 release pool-slot-2。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
