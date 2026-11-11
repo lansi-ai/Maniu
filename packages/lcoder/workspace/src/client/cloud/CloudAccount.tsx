@@ -13,6 +13,7 @@ import type { LcoderWorkspaceKey } from '../locales.ts'
 import { cloudErrorAction, cloudErrorKey } from './errors.ts'
 import { activeEstimate, estimateRange, fill, usd } from './estimate.ts'
 import type { CloudFace } from './face.ts'
+import { LoginGridBackdrop } from './LoginGridBackdrop.tsx'
 import css from '../shell/Shell.module.css'
 
 /** 登录页签。 */
@@ -359,6 +360,7 @@ function CloudLoginForm({ face, t, onAuthenticated }: {
 export function CloudLoginScreen({ face, loading, error, t, onRetry, onAuthenticated }: CloudLoginScreenProps): ReactNode {
   return (
     <main className={css.loginMain}>
+      <LoginGridBackdrop />
       <section className={css.loginBrand}>
         <h1 className={css.loginBrandTitle}>{t('shell.brand')}</h1>
         <p className={css.loginBrandText}>{t('shell.loginTagline')}</p>

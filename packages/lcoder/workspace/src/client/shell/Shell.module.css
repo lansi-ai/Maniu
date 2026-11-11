@@ -187,6 +187,9 @@
   pointer-events: none;
 }
 
+/* 登录页的网格由 LoginGridBackdrop 画布接管，这里关掉静态底图，避免两层网格错位重影。 */
+.shell:has(> .loginMain)::before { display: none; }
+
 /* 磨砂面：只给常驻 chrome、登录卡与浮层。基础规则是实色 + 描边，
    不支持 backdrop-filter 的环境直接落到这里，文字仍然可读。 */
 .shell :is(.topbar, .sidebar, .loginChrome, .loginCard, .modal, .drawer, .chatWindow) {

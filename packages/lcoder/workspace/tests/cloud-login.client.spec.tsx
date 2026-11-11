@@ -242,4 +242,12 @@ describe('全屏登录页', () => {
     expect(screen.getByText(zh['shell.cloudPhoneInvalid'])).toBeTruthy()
     expect(screen.getByText(zh['shell.cloudPasswordInvalid'])).toBeTruthy()
   })
+
+  it('登录页挂载背景画布，表单仍在同一屏内可交互', () => {
+    renderLogin(faceOf())
+    const canvas = document.querySelector('main canvas')
+    expect(canvas).not.toBeNull()
+    expect(canvas?.getAttribute('aria-hidden')).toBe('true')
+    expect(screen.getByLabelText(zh['shell.cloudPhone'])).toBeTruthy()
+  })
 })
