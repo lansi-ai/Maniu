@@ -1334,6 +1334,18 @@ tracks:
       inferred: false
       note: "B 级视觉修复，来源是用户 2026-11-11 登录页反馈四条。一、登录页右上角去掉最小化与最大化与还原按钮，只保留关闭，工作台顶栏不变。二、去掉右下角 LCoder 真实 spec 那行小字，只登录页。三、鼠标悬浮网格隆起效果现在看不到，要查清是画布层级被 T-118 的 position relative 或外壳底色盖住，还是本机 prefers-reduced-motion 为 reduce 导致只画静态；修到画布可见，并把指针驱动的隆起视为用户主动操作，在 reduce 下也响应，静止时仍静态；窗口隐藏或卸载要停 rAF。四、去掉左上角品牌图标，只保留 LCoder 文字。不改工作台、业务逻辑与文案。验收：typecheck、packages/lcoder vitest、oxlint、test:docs、i18n 全过；真窗口冒烟确认登录页无最大最小按钮与右下小字、左上只有文字、画布像素在指针移动前后变化；不做截图。工作树用 pool-slot-2 claim 到 lcoder/t119-login-chrome。2026-11-11 11:45 监督窗口派工，实现线会话 44f2e255；claim pool-slot-2 到分支 lcoder/t119-login-chrome。2026-11-11 11:55 监督窗口核验并收口。独立复跑 vitest 六十九文件七百三十二例、i18n 一千三百零一文件、test:docs 二十一项全过。根因是 prefers-reduced-motion 为 reduce 时指针监听被跳过，不是画布被盖住；修后 reduce 下指针移动仍隆起并静止回落，画布采样 alpha 从 17 峰值到 187。登录页仅留关闭按钮、无左上图标与右下小字；工作台分支代码未改但未真窗口复验。已合入 lcoder/main、release pool-slot-2。"
 
+    - id: T-120
+      title: 登录页自绘拖拽与居中排版收口
+      status: done
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-11'
+      date: '2026-11-11'
+      dep: [T-119]
+      inferred: false
+      note: "B 级视觉与交互，来源是用户 2026-11-11 登录页四条。一、标题栏悬停失效的根因是原生 drag 区不派发鼠标事件；用户拍板改成自绘拖拽换悬停。二、隐藏代码与口号要在整页任意位置悬停都出现，不只悬停到它们自身；三、去掉登录页左上角 LCoder 文字；四、登录卡与 LCoder 向中间靠拢并把 LCoder 放大。范围：登录页标题栏去掉 -webkit-app-region drag，改为 pointerdown 捕获指针后按 screenX 与 screenY 通过主进程新 IPC 移动窗口，pointerup 与失焦结束；双击仍最大化；关闭与皮肤按钮仍可点。工作台顶栏保持原生 drag 不变。主进程涉及 apps/desktop 的 main 与 ipc 与 preload，属已登记接触面，扩展时按 PROJECT-RULES 补 UPSTREAM-BASELINE 说明。登录页布局改为中心容器最大宽度，左栏品牌字号上调，间距收紧。验收：门禁 typecheck 与 packages/lcoder vitest 与 apps/desktop 定向 vitest 与 test:docs 与 i18n；真窗口冒烟确认标题栏悬停可触发网格与隐藏层、拖拽能移动窗口、双击最大化、关闭可用；不做截图。工作树用 pool-slot-1 claim 到 lcoder/t120-login-drag，端口 9822 与 9829 与 9830。2026-11-11 12:10 监督窗口派工，实现线会话 3d7817d9；claim pool-slot-1 到分支 lcoder/t120-login-drag。2026-11-11 14:35 监督窗口核验并收口。独立复跑 vitest 七十文件七百三十六例、test:docs 二十一项全过；实现线报 typecheck 五项、i18n 一千三百零二文件、build:check 二项，apps/desktop 定向 main-startup 与 preload 一百八十三例全过，全量失败均为既有环境项。冒烟：合成 pointerdown 与 move 使窗口从 640 与 286 移到 720 与 346，双击最大化与还原正常；标题栏悬停 headerHover 为真，隐藏层 opacity 从零到一、画布 alpha 上升；中心容器 1080，品牌字 76.8px，左上文字已删。未验项是关闭按钮进入既有后台关闭确认后未继续点原生确认框、非百分百缩放拖拽、工作台未真窗口复验。已合入 lcoder/main、release pool-slot-1。"
+
 milestones:
 - name: MVP-0 工作台本地跑通
   track: lcoder
