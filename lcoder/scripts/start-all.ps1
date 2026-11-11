@@ -15,6 +15,13 @@
 #   lcoder\scripts\start-all.cmd -KeepFollowing  # 就绪后继续跟随两边日志（Ctrl+C 只停跟随）
 #   lcoder\scripts\start-all.cmd -ListOnly       # 只列本检出会停掉哪些进程
 #   lcoder\scripts\start-all.cmd -Stop           # 停本检出的两边并核对端口释放
+#   lcoder\scripts\start-all.cmd -CloudApi http://127.0.0.1:5091/v1  # 换云端地址（默认 5081）
+#   lcoder\scripts\start-all.cmd -SkipCloudCheck # 不探测云端，直接启动
+#
+# 云端先于构建探测：由 -CloudApi 去掉末尾 /v1 拼出 /health，2 秒内 GET 到 200 才算可用。
+# 可用就把地址写进 LCODER_CLOUD_BASE_URL，Web 与桌面两个子进程都继承；不可用则红字报出
+# 检测地址与补救方式并以非零退出——不静默起一个登录不可用的桌面。默认地址 5081 是本机
+# LCoder-cloud 的 API；仓库里的 dev-only mock 在 5091，要 mock 就用 -CloudApi 指过去。
 #
 # 桌面的 inspector 端口沿用上游环境变量：DSH_DESKTOP_MAIN_INSPECT_PORT（9229）、
 # DSH_DESKTOP_RENDERER_DEBUG_PORT（9222）、DSH_DESKTOP_HOST_INSPECT_PORT（9230）。
@@ -27,6 +34,8 @@ param(
   [switch]$Stop,
   [switch]$ListOnly,
   [switch]$KeepFollowing,
+  [string]$CloudApi = 'http://127.0.0.1:5081/v1',
+  [switch]$SkipCloudCheck,
   [switch]$Help,
   [int]$ReadyTimeoutSec = 300
 )
@@ -57,13 +66,24 @@ start-all：一条命令拉起本检出的 Web 与桌面端（开发态）。
   -Stop              停掉本检出的两边，并核对端口已释放
   -ListOnly          只列出会停掉哪些进程，不做任何改动
   -KeepFollowing     两边就绪后继续跟随日志
+  -CloudApi <地址>   云端 /v1 基地址（默认 http://127.0.0.1:5081/v1）
+  -SkipCloudCheck    不探测云端，直接启动（-Stop / -ListOnly 本来就不探测）
   -ReadyTimeoutSec <秒>  单边连续多少秒没有新输出算失败（默认 300）
   -Help              打印本帮助
 
+云端探测
+  由 -CloudApi 去掉末尾的 /v1 拼出 /health，GET 超时 2 秒；200 视为可用。
+  可用：把地址注入 LCODER_CLOUD_BASE_URL，Web 与桌面两个子进程都继承。
+  不可用：红字打印检测地址、本地 API 的启动方式与可直接设置的 LCODER_CLOUD_BASE_URL，
+  并以退出码 1 中止，不会起一个登录不可用的实例。探测发生在构建与停旧实例之前。
+  -CloudApi 没显式给时沿用环境里已有的 LCODER_CLOUD_BASE_URL，再退到默认地址。
+  -SkipCloudCheck 跳过探测，但仍会把当前 -CloudApi 注入两个子进程。
+
 顺序与产物
-  1. 构建：pnpm run build:artifacts，再 pnpm --filter @deepseek-ai/dsh-desktop run build
-  2. Web：pnpm run start:web，日志 lcoder\logs\web.log
-  3. 桌面：复用 start-desktop 的启动与就绪检测，日志 lcoder\logs\desktop-main.log
+  1. 云端：探测 /health 并注入 LCODER_CLOUD_BASE_URL（-Stop / -ListOnly 跳过）
+  2. 构建：pnpm run build:artifacts，再 pnpm --filter @deepseek-ai/dsh-desktop run build
+  3. Web：pnpm run start:web，日志 lcoder\logs\web.log
+  4. 桌面：复用 start-desktop 的启动与就绪检测，日志 lcoder\logs\desktop-main.log
   Web 的 DSH_HOME 默认指向本检出 .dsh-home；桌面的 home/userData 沿用 dev.ts 的仓内默认值。
 
 进程归属
@@ -74,6 +94,32 @@ start-all：一条命令拉起本检出的 Web 与桌面端（开发态）。
 
 function Assert-WebPort {
   if ($WebPort -lt 1 -or $WebPort -gt 65535) { throw "WebPort 必须是 1..65535 的整数，收到 $WebPort" }
+}
+
+# 由 /v1 基地址推出健康检查地址：去掉末尾的 /v1，再拼 /health。
+function Get-CloudHealthUrl {
+  param([Parameter(Mandatory = $true)][string]$BaseUrl)
+  $trimmed = $BaseUrl.TrimEnd('/')
+  if ($trimmed -match '/v1$') { $trimmed = $trimmed.Substring(0, $trimmed.Length - 3).TrimEnd('/') }
+  return ($trimmed + '/health')
+}
+
+# 2 秒内 GET 健康检查；只有 200 视为可用。超时、拒连与非 200 都落到 Detail，不抛错。
+# @returns @{ Available = bool; Detail = string }
+function Test-CloudApiAvailable {
+  param([Parameter(Mandatory = $true)][string]$HealthUrl)
+  try {
+    $response = Invoke-WebRequest -Uri $HealthUrl -UseBasicParsing -TimeoutSec 2 -ErrorAction Stop
+    $code = [int]$response.StatusCode
+    if ($code -eq 200) { return @{ Available = $true; Detail = 'HTTP 200' } }
+    return @{ Available = $false; Detail = ("HTTP {0}" -f $code) }
+  } catch {
+    $detail = $_.Exception.Message
+    if ($_.Exception.Response -and $_.Exception.Response.StatusCode) {
+      $detail = ("HTTP {0}" -f [int]$_.Exception.Response.StatusCode)
+    }
+    return @{ Available = $false; Detail = $detail }
+  }
 }
 
 # 端口是否有人在听。Get-NetTCPConnection 在 Windows 8+ 可用。
@@ -327,6 +373,14 @@ $env:PATH = (Join-Path $env:USERPROFILE '.pnpm\bin') + ';' + $env:PATH
 $env:NO_COLOR = '1'
 $env:FORCE_COLOR = '0'
 
+# 云端地址：显式 -CloudApi 优先；没给时沿用环境里已有的 LCODER_CLOUD_BASE_URL，再退到默认。
+if (-not $PSBoundParameters.ContainsKey('CloudApi') -and $env:LCODER_CLOUD_BASE_URL) {
+  $CloudApi = $env:LCODER_CLOUD_BASE_URL
+}
+$CloudApi = $CloudApi.Trim().TrimEnd('/')
+if ($CloudApi -notmatch '^https?://') { throw ("-CloudApi 必须是 http(s) 地址，收到 {0}" -f $CloudApi) }
+$cloudHealthUrl = Get-CloudHealthUrl -BaseUrl $CloudApi
+
 if ($ListOnly) {
   Write-Host ("本检出 {0}" -f $root) -ForegroundColor Cyan
   if ($runWeb) {
@@ -354,6 +408,24 @@ if ($runWeb -and (Test-PortListening -Port $WebPort)) {
     throw ("端口 {0} 已被本检出以外的进程占用（PID {1}）；不动它，换一个 -WebPort。" -f $WebPort, (($owners | ForEach-Object { $_.ProcessId }) -join ','))
   }
 }
+
+# 云端探测放在构建与停旧实例之前：地址不通就尽早失败，别先花掉一轮构建、也别拆掉在跑的实例。
+if ($SkipCloudCheck) {
+  Write-Host ("云端：跳过探测（-SkipCloudCheck），待注入地址 {0}" -f $CloudApi) -ForegroundColor DarkYellow
+} else {
+  $probe = Test-CloudApiAvailable -HealthUrl $cloudHealthUrl
+  if (-not $probe.Available) {
+    Write-Host ("云端 API 不可用：GET {0} 失败（{1}；超时 2 秒）。" -f $cloudHealthUrl, $probe.Detail) -ForegroundColor Red
+    Write-Host '  登录与模型路由都走它，现在启动只会得到登录不可用的实例，已中止。' -ForegroundColor Red
+    Write-Host '  起本地 API（LCoder-cloud 仓）：dotnet run --project src/Api --urls http://localhost:5081' -ForegroundColor Red
+    Write-Host '  或起 dev-only mock（监听 5091）：node lcoder/scripts/mock-cloud.mjs，并用 -CloudApi http://127.0.0.1:5091/v1' -ForegroundColor Red
+    Write-Host '  指向别处：-CloudApi https://<host>/v1；也可直接设 LCODER_CLOUD_BASE_URL 后加 -SkipCloudCheck' -ForegroundColor Red
+    exit 1
+  }
+  Write-Host ("云端：探测 {0} → {1}（可用）" -f $cloudHealthUrl, $probe.Detail) -ForegroundColor Green
+}
+$env:LCODER_CLOUD_BASE_URL = $CloudApi
+Write-Host ("云端：已注入 LCODER_CLOUD_BASE_URL={0}（Web 与桌面两个子进程继承）" -f $CloudApi) -ForegroundColor Cyan
 
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 Write-Host ("本检出 {0}" -f $root) -ForegroundColor Cyan
@@ -399,6 +471,8 @@ if ($runDesktop) {
 
 Write-Host ''
 Write-Host '---- 就绪 ----' -ForegroundColor Green
+$cloudProbeLabel = if ($SkipCloudCheck) { '跳过探测' } else { '健康检查 200' }
+Write-Host ("云端  : {0}（{1}）" -f $CloudApi, $cloudProbeLabel)
 if ($runWeb) { Write-Host ("Web   : {0}" -f $webUrl); Write-Host ("        日志 {0}" -f $webLog) -ForegroundColor DarkGray }
 if ($runDesktop) {
   Write-Host ("桌面  : {0}" -f $desktopUrl)
