@@ -2341,7 +2341,18 @@ export function Shell({
     runWindowCommand('toggle-maximize')
   }
 
-  /** 窗口按钮只在 Windows 桌面壳里出现；登录页与工作台共用同一组。 */
+  /** 窗口按钮只在 Windows 桌面壳里出现；登录页只保留关闭，工作台用整组。 */
+  const closeWindowButton = windowBridge === undefined ? null : (
+    <button
+      type="button"
+      className={`${css.windowBtn} ${css.windowClose}`}
+      title={t('shell.closeWindow')}
+      aria-label={t('shell.closeWindow')}
+      onClick={() => { runWindowCommand('close') }}
+    >
+      ✕
+    </button>
+  )
   const windowControls = windowBridge === undefined ? null : (
     <div className={css.windowControls}>
       <button
@@ -2362,17 +2373,12 @@ export function Shell({
       >
         {windowMaximized ? '❐' : '□'}
       </button>
-      <button
-        type="button"
-        className={`${css.windowBtn} ${css.windowClose}`}
-        title={t('shell.closeWindow')}
-        aria-label={t('shell.closeWindow')}
-        onClick={() => { runWindowCommand('close') }}
-      >
-        ✕
-      </button>
+      {closeWindowButton}
     </div>
   )
+  const loginWindowControls = windowBridge === undefined
+    ? null
+    : <div className={css.windowControls}>{closeWindowButton}</div>
 
   /** 顶栏只给两档快速切换；设置弹窗里按名字明确选择。 */
   const skinLabel = t(skin === 'neon' ? 'shell.skinNeon' : 'shell.skinSilver')
@@ -2386,7 +2392,6 @@ export function Shell({
       <div className={css.shell} data-skin={skin} data-chrome={windowBridge === undefined ? undefined : 'custom'}>
         <header className={css.loginChrome} onDoubleClick={windowBridge === undefined ? undefined : onTopbarDoubleClick}>
           <div className={css.topBrand}>
-            <img className={css.topLogo} src={bullMark} alt="" />
             <span className={css.topTitle}>{t('shell.brand')}</span>
           </div>
           <div className={css.spacer} />
@@ -2399,7 +2404,7 @@ export function Shell({
           >
             <span className={`${css.skinOrb} ${skin === 'neon' ? css.skinOrbNeon : css.skinOrbSilver}`} aria-hidden="true" />
           </button>
-          {windowControls}
+          {loginWindowControls}
         </header>
         <CloudLoginScreen
           face={cloud}
@@ -2409,7 +2414,6 @@ export function Shell({
           onRetry={() => { void cloudSession.refresh() }}
           onAuthenticated={() => cloudSession.refresh()}
         />
-        <div className={css.demoBadge}>{t('shell.brand')} · {t('shell.realData')}</div>
       </div>
     )
   }

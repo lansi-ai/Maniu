@@ -417,6 +417,7 @@
    顶栏不画底色、分隔线与阴影，网格画布从窗口顶端连续铺到主面板。 */
 .loginChrome {
   display: flex; align-items: center; gap: var(--lc-space-3);
+  position: relative; z-index: 1;
   height: var(--lc-chrome-height); min-height: var(--lc-chrome-height);
   padding: 0 8px 0 var(--lc-space-6);
   background: transparent; border-bottom: 0; box-shadow: none; flex: 0 0 auto;
