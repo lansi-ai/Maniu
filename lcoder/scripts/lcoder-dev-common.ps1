@@ -1,8 +1,10 @@
 ﻿# 本检出开发脚本共用的小函数（start-desktop / start-all 共用）。
 #
 # 只被其它脚本 dot-source，不能单独运行：本文件没有参数块、没有主流程。
-# 归属判定一律按路径：electron 必须带本检出的 --user-data-dir，node 启动器必须带本检出根路径；
-# 不按端口、不按进程名（同机别的工作树与安装版都有同名进程）。
+# 这里给桌面端与通用场景用：归属判定按路径，electron 必须带本检出的 --user-data-dir，
+# node 启动器必须带本检出根路径；不按进程名（同机别的工作树与安装版都有同名进程）。
+# Web 的监听进程是例外：pnpm 以相对路径带起 node，命令行不含检出根，由 start-all.ps1
+# 结合状态文件里记录的监听 PID 判定。
 
 # 返回本检出的桌面开发 user-data-dir（dev.ts 的默认值，见 apps/desktop/scripts/dev.ts）。
 function Get-DesktopDevelopmentUserData {
