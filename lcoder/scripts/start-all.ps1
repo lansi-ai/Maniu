@@ -6,10 +6,10 @@
 # 日志位置与带 token 的地址。进程归属按检出根、状态文件记录的监听 PID 与命令行签名判断，
 # 不碰主检出、别的工作树、别处占着端口的 Web。
 #
-# Web 的归属为什么要状态文件：pnpm 以相对路径带起 node（apps/cli/src/bin.ts web），
-# 监听进程的命令行不含检出根，而启动器（cmd → pnpm）在 Web 跑着时也会先退掉。只记启动器
-# 会留下一个找不回的监听进程占住端口。因此就绪后把端口 owner 的 PID 也写进状态文件；
-# 之后只有状态里的 root 与端口都吻合、PID 与命令行签名也对得上时才认。
+# Web 的归属为什么要状态文件：启动器（cmd → node/pnpm）在 Web 跑着时也会先退掉，
+# 只记启动器会留下一个找不回的监听进程占住端口。因此就绪后把端口 owner 的 PID 也写进状态文件；
+# 之后只有状态里的 root 与端口都吻合、PID 与命令行签名也对得上时才认。签名同时认
+# 构建产物（apps/cli/lib/bin.js web，命令行带检出根）与源码（apps/cli/src/bin.ts web）两种入口。
 #
 # 用法：
 #   lcoder\scripts\start-all.cmd                 # 构建 → 起 Web(3080) → 起桌面(9222/9229/9230)
@@ -117,7 +117,7 @@ start-all：一条命令拉起本检出的 Web 与桌面端（开发态）。
 顺序与产物
   1. 云端：探测 /health 并注入 LCODER_CLOUD_BASE_URL（-Stop / -ListOnly 跳过）
   2. 构建：pnpm run build:artifacts，再 pnpm --filter @deepseek-ai/dsh-desktop run build
-  3. Web：pnpm run start:web，日志 lcoder\logs\web.log
+  3. Web：有已构建产物时直接跑 apps/cli/lib/bin.js，否则回退 pnpm run start:web；日志 lcoder\logs\web.log
   4. 桌面：复用 start-desktop 的启动与就绪检测，日志 lcoder\logs\desktop-main.log
   Web 的 DSH_HOME 默认指向本检出 .dsh-home；桌面的 home/userData 沿用 dev.ts 的仓内默认值。
   运行时冒烟（python 三条检查加 Office 往返）是发布验收口径，start-all 不跑；
@@ -421,6 +421,7 @@ function Test-WebCommandLineSignature {
   if ($Name -and $Name -notin @('node.exe', 'cmd.exe')) { return $false }
   return (
     $CommandLine -match '(?i)apps[\\/]cli[\\/]src[\\/]bin\.ts\s+web(\s|$)' -or
+    $CommandLine -match '(?i)apps[\\/]cli[\\/]lib[\\/]bin\.js\s+web(\s|$)' -or
     $CommandLine -match '(?i)scripts[\\/]dev-web\.ts(\s|$)' -or
     $CommandLine -match '(?i)\b(start|dev):web\b'
   )
@@ -572,15 +573,24 @@ function Invoke-RepoBuild {
   }
 }
 
-# 起 Web（start:web 口径，不带 watch）；DSH_HOME 不写用户目录，只在启动这一下临时设置。
+# 起 Web（不带 watch）；DSH_HOME 不写用户目录，只在启动这一下临时设置。
+# 有已构建产物时直接跑 dsh 的发布入口 apps/cli/lib/bin.js：与 apps/cli/src/bin.ts 同一份代码，
+# 但省掉 pnpm 工作区解析与 tsx 的逐文件转译（每次启动都要重做）。-Fast 的语义本就是「产物没变」，
+# 与桌面端 -Fast 直接跑构建产物一致；产物缺失时回退到 start:web 的源码口径，行为不变。
 function Start-WebInstance {
   $previousHome = $env:DSH_HOME
   if (-not $previousHome) { $env:DSH_HOME = Join-Path $root '.dsh-home' }
   # pnpm 11 在 node_modules 与锁文件不一致时会先跑一次安装并弹交互确认，隐藏窗口里没有 stdin，
   # 会一直等；依赖由 worktree claim / rebuild 负责，这里不重装。该开关只认 CLI 配置。
+  $builtEntry = Join-Path $root 'apps\cli\lib\bin.js'
+  $webCommand = if (Test-Path $builtEntry) {
+    "node `"$builtEntry`" web --port $WebPort --no-open"
+  } else {
+    "pnpm --config.verify-deps-before-run=false run start:web --port $WebPort --no-open"
+  }
   try {
     $process = Start-Process -FilePath 'cmd.exe' `
-      -ArgumentList '/d', '/c', "pnpm --config.verify-deps-before-run=false run start:web --port $WebPort --no-open > `"$webLog`" 2>&1" `
+      -ArgumentList '/d', '/c', "$webCommand > `"$webLog`" 2>&1" `
       -WorkingDirectory $root -WindowStyle Hidden -PassThru
     return $process.Id
   } finally {
