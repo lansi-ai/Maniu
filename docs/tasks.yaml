@@ -1226,6 +1226,30 @@ tracks:
       inferred: false
       note: "C 级工具脚本，来源是用户 2026-11-11 要求在主仓一条命令同时拉起 Web 与桌面。范围：新增 lcoder/scripts/start-all.cmd 与 start-all.ps1。默认先起 Web（3080）再起桌面（默认 9222 与 9229 与 9230），两者都走构建路径；-Fast 跳过构建与冒烟，-NoWeb 与 -NoDesktop 可单起，-WebPort 可换端口，-Stop 停本检出的两边，-ListOnly 只列进程，日志落 lcoder/logs 下的 web.log 与 desktop-main.log，Ctrl+C 只停跟随不停实例，与 start-desktop 语义一致。只停本检出路径的进程，不碰主检出以外的实例与其他工作树；PowerShell 5.1 兼容，ps1 恰一个 BOM，cmd 纯 ASCII CRLF。验收在工作树槽位里用 web 3081 与桌面 9882 与 9889 与 9890 起一次，确认两边 ready 行与进程归属，再 -Stop，确认无残留；ps1 解析与 help 与 test:docs 全过，不做截图。工作树用 pool-slot-2 claim 到 lcoder/t110-start-all。2026-11-11 01:45 监督窗口派工，实现线会话 1c1af6ee；claim pool-slot-2 到分支 lcoder/t110-start-all。2026-11-11 02:00 监督窗口核验并收口。start-all 与 start-desktop 的 -ListOnly 均退出零，ps1 解析通过，test:docs 二十一项全过；实现线另报本树 Web 3081 与桌面 9882 与 9889 与 9890 双端 ready 与 -Stop 清理，未做截图。已合入 lcoder/main、release pool-slot-2。"
 
+    - id: T-111
+      title: 登录页离线文案与强制登录口径对齐
+      status: done
+      face: 用户端
+      type: 修复
+      owner: lance
+      created: '2026-11-11'
+      date: '2026-11-11'
+      dep: [T-102]
+      inferred: false
+      note: "C 级文案修复，来源是用户 2026-11-11 真窗口截图。强制登录后本地功能已不可用，但离线错误仍写 云端不可用本地功能可继续 与 稍后重试本地项目仍可编辑，与事实矛盾。范围只改 locales 中英两套的两条文案，cloudOffline 改为 云端服务不可用，请检查网络或服务地址后重试；cloudNextRetry 去掉本地项目仍可编辑，改为 稍后重试，若持续失败请检查云端服务地址。顺带核对强制登录后是否还有其它 guest 遗留文案被引用，未被引用的只记录不删。不改逻辑与契约。工作树用 pool-slot-1 claim 到 lcoder/t111-offline-copy，跑 i18n 与 packages/lcoder vitest 与 test:docs，不做截图。2026-11-11 02:10 监督窗口派工，实现线会话 10592f3a；claim pool-slot-1 到分支 lcoder/t111-offline-copy。2026-11-11 02:55 监督窗口核验并收口。改四条中英文案，独立复跑 i18n 与 test:docs 全过；实现线报 packages/lcoder 六十八文件七百一十七例通过。guest 遗留清单：错误码映射与 PersonalCenter 仍引用五个 guest 键，kernel 另有两处硬编码，届时未删除，只记录。已合入 lcoder/main 并 release pool-slot-1。"
+
+    - id: T-112
+      title: start-all 自动探测本地云端 API
+      status: doing
+      face: 工程
+      type: 开发
+      owner: lance
+      created: '2026-11-11'
+      date: '2026-11-11'
+      dep: [T-110]
+      inferred: false
+      note: "C 级工具增强，来源是用户 2026-11-11 要求 start-all 真正一键可用。现状只拉 Web 与桌面，不处理云端地址，桌面仍指向配置里的 mock 5091，导致启动后登录报云端不可用。范围：start-all 增加 -CloudApi（默认 http://127.0.0.1:5081/v1）与 -SkipCloudCheck；启动前探测派生出的 health 地址，健康就把 LCODER_CLOUD_BASE_URL 注入 Web 与桌面两个子进程，失败则红字给出启动命令与环境变量提示并退出非零，不自动拉起 API。不改 start-desktop 与 Web 的其它行为；帮助与 RUN.md 同步。验收：对已在跑的 5081 探测成功并启动两端；对无效端口探测失败并退出非零；有 record 日志行；不做截图。工作树用 pool-slot-2 claim 到 lcoder/t112-startall-cloud。2026-11-11 02:25 监督窗口派工，实现线会话 221f80ae；claim pool-slot-2 到分支 lcoder/t112-startall-cloud。"
+
 milestones:
 - name: MVP-0 工作台本地跑通
   track: lcoder
