@@ -1322,6 +1322,18 @@ tracks:
       inferred: false
       note: "B 级视觉收口，来源是用户 2026-11-11 反馈登录页四处。一、顶栏与主面板看起来不整体，去掉两者之间的边框与阴影让它们融合，同时保留可拖拽标题区与窗口控件。二、登录页左侧只保留 LCoder 大字，删除副标题；字色不要纯白，用两色渐变但整体压低，鼠标悬停时变亮变彩。三、整页悬停时渐显一段装饰代码与中文口号 代码改变世界，默认不可见，离开淡出；不占布局、不挡交互、对读屏隐藏。四、颜色避免单一白，代码行与口号也用 token 里的强调色与次要色做层次。文案走中英两套 locales，不硬编码；不改工作台。做一次启动冒烟用计算样式证明隐藏层在悬停前后透明度与标题色变化，不做截图。工作树用 pool-slot-1 claim 到 lcoder/t118-login-polish，端口 9822 与 9829 与 9830。2026-11-11 10:40 监督窗口派工，实现线会话 7d6ae57d；claim pool-slot-1 到分支 lcoder/t118-login-polish。2026-11-11 11:30 监督窗口核验并收口。独立复跑 vitest 六十九文件七百三十二例、i18n 一千三百零一文件、test:docs 二十一项全过。实现线冒烟：顶栏背景透明、无边框无阴影且与主区同为 64 高；左侧仅 LCoder；标题两色渐变默认 opacity 0.52，悬停标题升到 1；整页悬停时隐藏代码与口号从 0 到 1，移出 1.1 秒回落；冰蓝同步换色。未验项是截图观感、真实拖窗与窄窗。已合入 lcoder/main、release pool-slot-1。"
 
+    - id: T-119
+      title: 登录页收口（去窗口按钮与品牌图标、修复网格）
+      status: done
+      face: 用户端
+      type: 修复
+      owner: lance
+      created: '2026-11-11'
+      date: '2026-11-11'
+      dep: [T-117, T-118]
+      inferred: false
+      note: "B 级视觉修复，来源是用户 2026-11-11 登录页反馈四条。一、登录页右上角去掉最小化与最大化与还原按钮，只保留关闭，工作台顶栏不变。二、去掉右下角 LCoder 真实 spec 那行小字，只登录页。三、鼠标悬浮网格隆起效果现在看不到，要查清是画布层级被 T-118 的 position relative 或外壳底色盖住，还是本机 prefers-reduced-motion 为 reduce 导致只画静态；修到画布可见，并把指针驱动的隆起视为用户主动操作，在 reduce 下也响应，静止时仍静态；窗口隐藏或卸载要停 rAF。四、去掉左上角品牌图标，只保留 LCoder 文字。不改工作台、业务逻辑与文案。验收：typecheck、packages/lcoder vitest、oxlint、test:docs、i18n 全过；真窗口冒烟确认登录页无最大最小按钮与右下小字、左上只有文字、画布像素在指针移动前后变化；不做截图。工作树用 pool-slot-2 claim 到 lcoder/t119-login-chrome。2026-11-11 11:45 监督窗口派工，实现线会话 44f2e255；claim pool-slot-2 到分支 lcoder/t119-login-chrome。2026-11-11 11:55 监督窗口核验并收口。独立复跑 vitest 六十九文件七百三十二例、i18n 一千三百零一文件、test:docs 二十一项全过。根因是 prefers-reduced-motion 为 reduce 时指针监听被跳过，不是画布被盖住；修后 reduce 下指针移动仍隆起并静止回落，画布采样 alpha 从 17 峰值到 187。登录页仅留关闭按钮、无左上图标与右下小字；工作台分支代码未改但未真窗口复验。已合入 lcoder/main、release pool-slot-2。"
+
 milestones:
 - name: MVP-0 工作台本地跑通
   track: lcoder
