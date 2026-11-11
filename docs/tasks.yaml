@@ -1286,6 +1286,18 @@ tracks:
       inferred: false
       note: "C 级修复，来源是用户 2026-11-11 实跑 start-all -Fast，日志显示构建已跳过但桌面仍跑了运行时冒烟（No broken requirements 与 Office 往返），耗时约四十六秒。根因在 lcoder/scripts/lcoder-dev-common.ps1 的 Start-DesktopInstance：注释写开发启动默认跳过，代码却是 if (-not $SkipSmoke) { 设置跳过 }，导致 start-all 传了 -SkipSmoke 反而不设置 DSH_DESKTOP_SKIP_RUNTIME_SMOKE，冒烟被执行。范围：改正判断使传 -SkipSmoke 或无该开关时都跳过，只有显式要冒烟才执行；同步 start-all 与 start-desktop 的帮助口径。验收：start-all -Fast 启动日志不再出现 Office 往返，桌面 ready 回到六到七秒级；ps1 解析、help、test:docs 全过；不做截图。工作树用 pool-slot-2 claim 到 lcoder/t115-fast-smoke。2026-11-11 08:15 监督窗口核验并收口。三份 ps1 解析通过、start-all -Help 退出零；实现线实跑 -Fast -NoWeb 不再出现 Office 往返，热启动 5 秒 ready、总 10 秒；冷启动 39 秒，其中 dev.ts 运行时准备约 17 秒，仍待压缩。start-desktop -Smoke 改为正向 -RunSmoke，未真跑。已合入 lcoder/main、release pool-slot-2。"
 
+    - id: T-116
+      title: Web 启动耗时剖析与优化
+      status: done
+      face: 工程
+      type: 开发
+      owner: lance
+      created: '2026-11-11'
+      date: '2026-11-11'
+      dep: [T-105]
+      inferred: false
+      note: "B 级工程优化，来源是用户 2026-11-11 实跑 start-all -Fast，构建与冒烟都跳过的情况下 Web 仍要约 46 秒才 ready。T-105 只优化了桌面 dev.ts，Web 走 apps/cli 的 start:web（tsx 加载源码 + web profile 插件树），没有对应缓存。范围：先加临时阶段计时（tsx 加载、CLI 解析、profile 读取与装配、插件激活、宿主 ready），三次取中位数；再对比 start:web 与直接跑已构建产物或 dev:web 的差异，找出真正大头；只做行为不变的缓存或路径选择，目标预热态十五秒内或给出不可再降的分段证据。若需改上游 apps/cli 或 package 脚本，先按 PROJECT-RULES 登记 contact-surface 与 UPSTREAM-BASELINE 第 3 节。验收：门禁 typecheck 与 test:docs；start:web 在 3081 起一次并 HTTP 200，不碰主检出 9222 与 5081；不做截图。工作树用 pool-slot-1 claim 到 lcoder/t116-web-startup。2026-11-11 08:25 监督窗口派工，实现线会话 68888735；claim pool-slot-1 到分支 lcoder/t116-web-startup。2026-11-11 08:55 监督窗口核验并收口。ps1 解析、help、test:docs 全过。剖析结论是 46 秒不是应用内固定阶段：warm 源码启动 3.67 秒、产物入口 2.02 秒；46 秒出现在重写产物后的首触 I/O，与 API 和桌面同时启动叠加，同机连续七次均为 3 秒级，CPU 累计仅 7.2 秒。已落地 start-all 优先 node 跑 apps/cli/lib/bin.js，缺失回退 pnpm start:web，-Stop 两种签名都能识别。未验项是那次 20 秒静默的系统调用归属未抓到，profile 装配 1.5 到 1.8 秒仍是剩余大头。已合入 lcoder/main、release pool-slot-1。"
+
 milestones:
 - name: MVP-0 工作台本地跑通
   track: lcoder
