@@ -110,6 +110,10 @@ pnpm run dev:desktop > lcoder/desktop.log 2>&1     # 不要接管道；也不要
 `apps/desktop/.desktop-build/development/home`，`userData` 默认到同级 `electron-user-data`，
 两者都在仓内、都被忽略。显式设成 `~/.dsh` 会让这次验证直接写本机安装态，禁止。
 
+### 一条命令起两边：`start-all.cmd`
+
+Web 与桌面要一起验时用 `lcoder\scripts\start-all.cmd`：先停本检出的旧实例 → 构建（`build:artifacts` 加桌面外壳）→ 先起 Web（3080）再起桌面（9222/9229/9230）→ 两边就绪后打印日志位置与带 token 的地址。日志固定落 `lcoder/logs/web.log` 与 `lcoder/logs/desktop-main.log`。`-Fast` 跳过构建与冒烟、`-NoWeb`/`-NoDesktop` 只起一边、`-WebPort` 换 Web 端口、`-Stop` 停本检出的两边并核对端口释放、`-ListOnly` 只列进程、`-KeepFollowing` 就绪后继续跟随（Ctrl+C 只停跟随）。Web 的 `DSH_HOME` 默认落本检出 `.dsh-home`；桌面 inspector 端口沿用 `DSH_DESKTOP_MAIN_INSPECT_PORT` / `DSH_DESKTOP_RENDERER_DEBUG_PORT` / `DSH_DESKTOP_HOST_INSPECT_PORT`。进程归属只按本检出路径与 user-data-dir 判断：端口上的进程不属于本检出时只报告、不终止，主检出与别的工作树的实例不会被带走。
+
 对话还需要模型钥匙，而它不会跟着 home 走：仓内那份 `.credentials.yaml` 只有 web 登录态记录，
 没有 provider 凭据。缺它的现象是「发了没反应」——宿主把消息收进入队就返回接受，回合才失败，
 会话日志里连 `user/message` 都没有。外壳会提示「宿主侧没有可用模型」并拦住发送，配法是把钥匙

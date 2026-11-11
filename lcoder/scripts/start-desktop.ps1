@@ -29,18 +29,10 @@ $OutputEncoding = [Text.UTF8Encoding]::new()
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $logDir = Join-Path $root 'lcoder\logs'
 $log = Join-Path $logDir 'desktop-main.log'
-$electronData = Join-Path $root 'apps\desktop\.desktop-build\development\electron-user-data'
+. (Join-Path $PSScriptRoot 'lcoder-dev-common.ps1')
 
-function Get-RepoDevProcesses {
-  # 只认这个检出：electron 的 --user-data-dir 落在本仓，或启动器在跑本仓的 scripts/dev.ts。
-  $all = Get-CimInstance Win32_Process | Where-Object { $_.CommandLine }
-  $all | Where-Object {
-    ($_.Name -eq 'electron.exe' -and $_.CommandLine -like "*$electronData*") -or
-    ($_.Name -eq 'node.exe' -and $_.CommandLine -like "*$root*" -and $_.CommandLine -like '*scripts*dev.ts*')
-  }
-}
-
-$targets = Get-RepoDevProcesses
+# 只认这个检出：electron 的 --user-data-dir 落在本仓，或启动器在跑本仓的 scripts/dev.ts。
+$targets = @(Get-RepoDesktopProcesses -Root $root)
 if ($ListOnly) {
   if ($targets.Count -eq 0) { Write-Host '没有正在运行的 LCoder 桌面实例。' -ForegroundColor Green }
   else { $targets | ForEach-Object { Write-Host ("会停掉 PID {0}（{1}）" -f $_.ProcessId, $_.Name) } }
@@ -48,39 +40,21 @@ if ($ListOnly) {
 }
 
 if (-not $KeepRunning -and @($targets).Count -gt 0) {
-  # 枚举与终止之间，子进程可能已经被父进程的 /T 带走：此时 taskkill 报 not found 属预期。
-  # 脚本整体是 Stop 偏好，这里临时放行，免得一条预期内的失败把整次启动中断。
-  $previousPreference = $ErrorActionPreference
-  $ErrorActionPreference = 'Continue'
-  foreach ($p in $targets) {
-    Write-Host ("停掉旧实例 PID {0}（{1}）" -f $p.ProcessId, $p.Name) -ForegroundColor DarkYellow
-    & taskkill.exe /PID $p.ProcessId /T /F *> $null
-  }
-  $ErrorActionPreference = $previousPreference
+  Stop-RepoProcessTrees -Processes $targets
   Start-Sleep -Milliseconds 800
 }
 
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 if (Test-Path $log) { Remove-Item $log -Force }
 
-$env:PATH = (Join-Path $env:USERPROFILE '.pnpm\bin') + ';' + $env:PATH
-$env:NO_COLOR = '1'          # 让 vite / 门禁不再吐 ANSI，日志本身就干净
-$env:FORCE_COLOR = '0'
-
 Write-Host ("启动 {0}" -f $root) -ForegroundColor Cyan
 Write-Host ("日志 {0}" -f $log) -ForegroundColor DarkGray
 $started = Get-Date
 # -NoBuild 走 start:desktop（跳过 26 秒左右的构建门禁）；改过源码不要用它，会跑旧产物。
-$scriptName = if ($NoBuild -or $Fast) { 'start:desktop' } else { 'dev:desktop' }
 # 运行时冒烟（python 三条检查加 Office 往返）是发布验收口径，百秒级；开发启动默认跳过，
 # 需要复核时加 -Smoke。
-if (-not $Smoke) { $env:DSH_DESKTOP_SKIP_RUNTIME_SMOKE = '1' }
-Start-Process -FilePath 'cmd.exe' `
-  -ArgumentList '/d', '/c', "pnpm run $scriptName > `"$log`" 2>&1" `
-  -WorkingDirectory $root -WindowStyle Hidden | Out-Null
+Start-DesktopInstance -Root $root -LogPath $log -SkipBuild:($NoBuild -or $Fast) -SkipSmoke:$Smoke | Out-Null
 
-$esc = [string][char]27
-$ansi = [regex]($esc + '\[[0-9;?]*[a-zA-Z]')
 # 超时按「多久没有新输出」算，不按总时长：准备运行时会静默几分钟，那不算卡死。
 $deadline = $started.AddSeconds($ReadyTimeoutSec)
 $lastOutput = Get-Date
@@ -89,26 +63,24 @@ $stop = $false
 Write-Host '---- 实时输出（Ctrl+C 只停止跟随，不影响已启动的实例） ----' -ForegroundColor DarkGray
 
 while (-not $stop) {
-  if (Test-Path $log) {
-    $lines = @(Get-Content -LiteralPath $log -Encoding utf8 -ErrorAction SilentlyContinue)
-    if ($lines.Count -gt $printed) {
-      $deadline = (Get-Date).AddSeconds($ReadyTimeoutSec)
-      $lastOutput = Get-Date
-    }
-    for ($i = $printed; $i -lt $lines.Count; $i++) {
-      $line = $ansi.Replace($lines[$i], '')
-      $elapsed = [int]((Get-Date) - $started).TotalSeconds
-      Write-Host ("[{0,3}s] {1}" -f $elapsed, $line)
-      if ($line -match 'dsh web:\s*(http://\S+)') {
-        $url = $Matches[1]
-        Write-Host ''
-        Write-Host ("就绪：{0}" -f $url) -ForegroundColor Green
-        Write-Host '窗口应已弹出；关窗口即停止。' -ForegroundColor Green
-        if (-not $KeepFollowing) { $stop = $true }
-      }
-    }
-    $printed = $lines.Count
+  $delta = Read-LogDelta -LogPath $log -From $printed
+  if ($delta.Lines.Count -gt 0) {
+    $deadline = (Get-Date).AddSeconds($ReadyTimeoutSec)
+    $lastOutput = Get-Date
   }
+  foreach ($raw in $delta.Lines) {
+    $line = Remove-AnsiColors -Line $raw
+    $elapsed = [int]((Get-Date) - $started).TotalSeconds
+    Write-Host ("[{0,3}s] {1}" -f $elapsed, $line)
+    if ($line -match 'dsh web:\s*(http://\S+)') {
+      $url = $Matches[1]
+      Write-Host ''
+      Write-Host ("就绪：{0}" -f $url) -ForegroundColor Green
+      Write-Host '窗口应已弹出；关窗口即停止。' -ForegroundColor Green
+      if (-not $KeepFollowing) { $stop = $true }
+    }
+  }
+  $printed = $delta.Count
   if (-not $stop -and ((Get-Date) - $lastOutput).TotalSeconds -ge 20) {
     $quiet = [int]((Get-Date) - $lastOutput).TotalSeconds
     $elapsed = [int]((Get-Date) - $started).TotalSeconds
