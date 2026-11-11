@@ -2,7 +2,8 @@
  * 登录页的背景网格：静止时与外壳原网格同款，指针附近按高斯影响隆起并提亮。
  *
  * 颜色每帧从皮肤 CSS 变量读取，切换皮肤由 MutationObserver 触发重绘，无需重建页面。
- * 画布固定覆盖整窗、不接指针事件；窗口隐藏或「减少动态效果」时只画静态网格。
+ * 画布固定覆盖整窗、不接指针事件。指针移动属于用户主动操作，在「减少动态效果」下也响应，
+ * 但只画当帧、不跑动画帧循环；指针静止或窗口隐藏后回到静态网格。
  */
 import { useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
@@ -221,6 +222,7 @@ export function LoginGridBackdrop(): ReactNode {
     if (canvas === null) return
     let palette = readPalette(canvas)
     let frame = 0
+    let idleTimer: number | undefined
     let strength = 0
     let target = 0
     let pointerX: number | null = null
@@ -241,6 +243,18 @@ export function LoginGridBackdrop(): ReactNode {
       if (frame !== 0) cancelAnimationFrame(frame)
       frame = 0
       lastFrame = 0
+    }
+    const clearIdle = (): void => {
+      if (idleTimer !== undefined) window.clearTimeout(idleTimer)
+      idleTimer = undefined
+    }
+    const settle = (): void => {
+      clearIdle()
+      pointerX = null
+      pointerY = null
+      strength = 0
+      target = 0
+      paintStatic()
     }
 
     const tick = (now: number): void => {
@@ -271,9 +285,21 @@ export function LoginGridBackdrop(): ReactNode {
       pointerY = event.clientY - rect.top
       lastMove = performance.now()
       target = 1
+      if (reduced) {
+        // 减少动态效果：只画指针当前这一帧，静止后立即回落到静态网格。
+        stopFrame()
+        render(pointerX, pointerY, 1)
+        clearIdle()
+        idleTimer = window.setTimeout(settle, IDLE_MS)
+        return
+      }
       ensureFrame()
     }
     const release = (): void => {
+      if (reduced) {
+        settle()
+        return
+      }
       target = 0
       ensureFrame()
     }
@@ -290,24 +316,16 @@ export function LoginGridBackdrop(): ReactNode {
 
     const onReducedChange = (): void => {
       reduced = reducedQuery?.matches ?? false
-      if (!reduced) {
-        attachPointer()
-        return
-      }
-      detachPointer()
       stopFrame()
-      strength = 0
-      target = 0
-      paintStatic()
+      settle()
     }
     const onVisibility = (): void => {
       if (!document.hidden) {
-        paintStatic()
+        if (frame === 0 && idleTimer === undefined) paintStatic()
         return
       }
       stopFrame()
-      strength = 0
-      target = 0
+      settle()
     }
     const onResize = (): void => {
       if (frame === 0) paintStatic()
@@ -326,12 +344,13 @@ export function LoginGridBackdrop(): ReactNode {
     }
 
     paintStatic()
-    if (!reduced) attachPointer()
+    attachPointer()
     window.addEventListener('resize', onResize)
     document.addEventListener('visibilitychange', onVisibility)
     reducedQuery?.addEventListener('change', onReducedChange)
 
     return () => {
+      clearIdle()
       detachPointer()
       stopFrame()
       window.removeEventListener('resize', onResize)
