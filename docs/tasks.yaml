@@ -1214,6 +1214,18 @@ tracks:
       inferred: false
       note: "C 级只读审计，来源是用户 2026-11-10 想删除上游不用的代码。已说明发布物走 core package set，删源码不会让安装包变小；先审计再决定是否删。范围：用一个可复跑的脚本把 398 个 workspace 包分为运行时闭包（desktop profile 的 base 与 web-app 两个 bundle、core package set、desktop 与 desktop-host 依赖）、构建闭包（根 tsconfig 聚合、scripts 构建与打包链、electron-builder 与 prepare 脚本）、测试闭包（各包 tests、snapshots、website、benchmarks、python）与候选四类；统计候选数量、检出文件数、pnpm 链接数与预计收益，给出可删比例与风险。不删任何上游包、不改依赖与锁文件；脚本与报告落在 lcoder/ 下，放在 pool-slot-1 里做，跑 test:docs。真窗口端口无需求。2026-11-10 22:00 监督窗口派工，实现线会话 13d0190f；claim pool-slot-1 到分支 lcoder/t109-closure-audit，只读审计并产出脚本与报告。2026-11-10 22:10 监督窗口核验并收口。脚本 --check 自测通过（分类唯一、合计等于包数、两次运行逐字节一致），主检出 test:docs 二十一项全过。审计结论：运行时 338 包、构建 56 包、测试 3 包、严格候选 0；根 tsconfig 聚合与根 tsdown 把 packages 与 vendor 全纳入构建面，其余被包内测试与 benchmarks 与 website 与 python 兜住。core package set 为 333 包、9,962 文件、68.17 MiB；运行时不发布的 59 包只有 1,695 文件、10.53 MiB，占受控源码 13.2% 文件，删了不会让安装包变小，反而破坏门禁与上游同步。建议不动源码，磁盘用稀疏检出与 clean；要缩安装包应裁 core package set 与客户端 bundle。未验项是 core set 为等价推导未解包真实安装包、未跑真实打包。已合入 lcoder/main 并 release pool-slot-1。"
 
+    - id: T-110
+      title: start-all 一键启动脚本（Web 与桌面）
+      status: done
+      face: 工程
+      type: 开发
+      owner: lance
+      created: '2026-11-11'
+      date: '2026-11-11'
+      dep: []
+      inferred: false
+      note: "C 级工具脚本，来源是用户 2026-11-11 要求在主仓一条命令同时拉起 Web 与桌面。范围：新增 lcoder/scripts/start-all.cmd 与 start-all.ps1。默认先起 Web（3080）再起桌面（默认 9222 与 9229 与 9230），两者都走构建路径；-Fast 跳过构建与冒烟，-NoWeb 与 -NoDesktop 可单起，-WebPort 可换端口，-Stop 停本检出的两边，-ListOnly 只列进程，日志落 lcoder/logs 下的 web.log 与 desktop-main.log，Ctrl+C 只停跟随不停实例，与 start-desktop 语义一致。只停本检出路径的进程，不碰主检出以外的实例与其他工作树；PowerShell 5.1 兼容，ps1 恰一个 BOM，cmd 纯 ASCII CRLF。验收在工作树槽位里用 web 3081 与桌面 9882 与 9889 与 9890 起一次，确认两边 ready 行与进程归属，再 -Stop，确认无残留；ps1 解析与 help 与 test:docs 全过，不做截图。工作树用 pool-slot-2 claim 到 lcoder/t110-start-all。2026-11-11 01:45 监督窗口派工，实现线会话 1c1af6ee；claim pool-slot-2 到分支 lcoder/t110-start-all。2026-11-11 02:00 监督窗口核验并收口。start-all 与 start-desktop 的 -ListOnly 均退出零，ps1 解析通过，test:docs 二十一项全过；实现线另报本树 Web 3081 与桌面 9882 与 9889 与 9890 双端 ready 与 -Stop 清理，未做截图。已合入 lcoder/main、release pool-slot-2。"
+
 milestones:
 - name: MVP-0 工作台本地跑通
   track: lcoder
