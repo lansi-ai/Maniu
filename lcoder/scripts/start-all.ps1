@@ -22,11 +22,20 @@
 #   lcoder\scripts\start-all.cmd -Stop           # 停本检出的两边并核对端口释放
 #   lcoder\scripts\start-all.cmd -CloudApi http://127.0.0.1:5091/v1  # 换云端地址（默认 5081）
 #   lcoder\scripts\start-all.cmd -SkipCloudCheck # 不探测云端，直接启动
+#   lcoder\scripts\start-all.cmd -StartCloudApi  # 探测失败时拉起本地 LCoder-cloud API
 #
 # 云端先于构建探测：由 -CloudApi 去掉末尾 /v1 拼出 /health，2 秒内 GET 到 200 才算可用。
 # 可用就把地址写进 LCODER_CLOUD_BASE_URL，Web 与桌面两个子进程都继承；不可用则红字报出
 # 检测地址与补救方式并以非零退出——不静默起一个登录不可用的桌面。默认地址 5081 是本机
 # LCoder-cloud 的 API；仓库里的 dev-only mock 在 5091，要 mock 就用 -CloudApi 指过去。
+#
+# -StartCloudApi 把探测失败从「直接中止」改成「先拉起本机 API 再探测」：以 -CloudRepo 为
+# 工作目录执行 dotnet run --project src/Api --urls http://localhost:5081，子进程继承当前
+# 环境并叠加 -CloudEnvFile（默认 <CloudRepo>\.env，不存在则跳过）解析出的 KEY=VALUE；
+# stdout/stderr 落 lcoder\logs\cloud-api.log，1 秒一轮轮询 /health，直到
+# -CloudApiTimeoutSec 超时。任何一步失败都打印日志路径与不含密钥的最后几行并非零退出。
+# 成功后才继续原有的成功分支（注入地址、起 Web 与桌面）。启动的 PID 记进状态文件，
+# -Stop 只停由本脚本拉起且命令行签名吻合的 API，别处起的 API 不动。
 #
 # 桌面的 inspector 端口沿用上游环境变量：DSH_DESKTOP_MAIN_INSPECT_PORT（9229）、
 # DSH_DESKTOP_RENDERER_DEBUG_PORT（9222）、DSH_DESKTOP_HOST_INSPECT_PORT（9230）。
@@ -41,6 +50,11 @@ param(
   [switch]$KeepFollowing,
   [string]$CloudApi = 'http://127.0.0.1:5081/v1',
   [switch]$SkipCloudCheck,
+  [switch]$StartCloudApi,
+  [string]$CloudRepo = 'E:\Projects\LCoder-cloud',
+  [string]$CloudEnvFile,
+  [ValidateRange(5, 3600)]
+  [int]$CloudApiTimeoutSec = 90,
   [switch]$Help,
   [int]$ReadyTimeoutSec = 300
 )
@@ -53,6 +67,9 @@ $root = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $logDir = Join-Path $root 'lcoder\logs'
 $webLog = Join-Path $logDir 'web.log'
 $desktopLog = Join-Path $logDir 'desktop-main.log'
+$cloudApiLog = Join-Path $logDir 'cloud-api.log'
+# -StartCloudApi 固定把本地 API 起在这个地址（与 -CloudApi 默认端口一致）。
+$cloudApiListenUrl = 'http://localhost:5081'
 $statePath = Join-Path $logDir 'start-all-state.json'
 . (Join-Path $PSScriptRoot 'lcoder-dev-common.ps1')
 
@@ -73,6 +90,10 @@ start-all：一条命令拉起本检出的 Web 与桌面端（开发态）。
   -KeepFollowing     两边就绪后继续跟随日志
   -CloudApi <地址>   云端 /v1 基地址（默认 http://127.0.0.1:5081/v1）
   -SkipCloudCheck    不探测云端，直接启动（-Stop / -ListOnly 本来就不探测）
+  -StartCloudApi     探测失败时拉起本地 LCoder-cloud API，成功后再启动
+  -CloudRepo <路径>  本地云仓（默认 E:\Projects\LCoder-cloud）
+  -CloudEnvFile <路径>  API 子进程的环境文件（默认 <CloudRepo>\.env；不存在则跳过）
+  -CloudApiTimeoutSec <秒>  拉起 API 后等 /health 的上限（默认 90）
   -ReadyTimeoutSec <秒>  单边连续多少秒没有新输出算失败（默认 300）
   -Help              打印本帮助
 
@@ -84,6 +105,15 @@ start-all：一条命令拉起本检出的 Web 与桌面端（开发态）。
   -CloudApi 没显式给时沿用环境里已有的 LCODER_CLOUD_BASE_URL，再退到默认地址。
   -SkipCloudCheck 跳过探测，但仍会把当前 -CloudApi 注入两个子进程。
 
+拉起本地 API（-StartCloudApi）
+  只在探测失败时生效；成功后回到上面的成功分支（注入 LCODER_CLOUD_BASE_URL、起 Web 与桌面）。
+  命令：dotnet run --project src/Api --urls http://localhost:5081（工作目录 -CloudRepo）。
+  环境：继承当前进程；再解析 -CloudEnvFile（默认 <CloudRepo>\.env，不存在则跳过）里的
+  KEY=VALUE 注入子进程。注释与空行忽略，不展开变量，任何值都不打印。
+  日志：lcoder\logs\cloud-api.log；1 秒一轮轮询 /health，超时或进程提前退出就打印日志
+  路径与不含密钥的最后几行，并以退出码 1 中止。本地 API 固定起在 5081，所以 -CloudApi
+  的端口也必须是 5081；要指到别处请自行起 API 后配 -CloudApi 与 -SkipCloudCheck。
+
 顺序与产物
   1. 云端：探测 /health 并注入 LCODER_CLOUD_BASE_URL（-Stop / -ListOnly 跳过）
   2. 构建：pnpm run build:artifacts，再 pnpm --filter @deepseek-ai/dsh-desktop run build
@@ -94,7 +124,9 @@ start-all：一条命令拉起本检出的 Web 与桌面端（开发态）。
 进程归属
   停 electron --user-data-dir 落在本检出、命令行带本检出根路径的进程，以及状态文件
   记录的 Web 启动器/监听进程（root 与端口都吻合且命令行是 Web 签名）。端口上的进程
-  不属于本检出时只报告、不终止。Ctrl+C 只停止跟随，不停已启动的实例。
+  不属于本检出时只报告、不终止。本地 API 同理：-Stop 只停状态文件记录、且命令行是
+  dotnet run src/Api 签名的 PID；别处起的 API 与端口占用只报告、不终止。
+  Ctrl+C 只停止跟随，不停已启动的实例。
 '@
 }
 
@@ -126,6 +158,209 @@ function Test-CloudApiAvailable {
     }
     return @{ Available = $false; Detail = $detail }
   }
+}
+
+# 从云端地址取端口；只用于展示与端口占用判断，解析失败返回 0。
+function Get-CloudApiUrlPort {
+  param([Parameter(Mandatory = $true)][string]$Url)
+  try { return ([Uri]$Url).Port } catch { return 0 }
+}
+
+# 解析 KEY=VALUE 环境文件：忽略空行与 # 注释，去掉成对引号，不展开变量。
+# 只返回键与值，调用方负责注入并在任何输出里遮掉值。
+# @returns @{ Entries = object[]（每项 Key/Value）; Skipped = int }
+function Read-DotEnvEntries {
+  param([Parameter(Mandatory = $true)][string]$Path)
+  $entries = New-Object System.Collections.Generic.List[object]
+  $skipped = 0
+  foreach ($raw in @(Get-Content -LiteralPath $Path -Encoding utf8)) {
+    $line = ([string]$raw).Trim()
+    if (-not $line -or $line.StartsWith('#')) { continue }
+    $equals = $line.IndexOf('=')
+    if ($equals -le 0) { $skipped++; continue }
+    $key = $line.Substring(0, $equals).Trim()
+    if ($key.StartsWith('export ')) { $key = $key.Substring(7).Trim() }
+    $value = $line.Substring($equals + 1).Trim()
+    if ($key -notmatch '^[A-Za-z_][A-Za-z0-9_]*$') { $skipped++; continue }
+    $doubleQuoted = $value.Length -ge 2 -and $value.StartsWith('"') -and $value.EndsWith('"')
+    $singleQuoted = $value.Length -ge 2 -and $value.StartsWith("'") -and $value.EndsWith("'")
+    if ($doubleQuoted -or $singleQuoted) { $value = $value.Substring(1, $value.Length - 2) }
+    $entries.Add([pscustomobject]@{ Key = $key; Value = $value })
+  }
+  return @{ Entries = $entries.ToArray(); Skipped = $skipped }
+}
+
+# 打印前的脱敏：先按本次注入的实际值逐条替换，再兜底遮常见键值对与连接串口令。
+function Hide-SecretText {
+  param([string]$Text, [string[]]$Secrets)
+  if (-not $Text) { return '' }
+  $masked = $Text
+  foreach ($secret in @($Secrets)) {
+    if ($null -ne $secret -and $secret.Length -ge 4) { $masked = $masked.Replace($secret, '***') }
+  }
+  $masked = [regex]::Replace($masked, '(?i)(password|pwd|secret|token|api[_-]?key|signing[_-]?key)\s*=\s*[^;\s'']+', '$1=***')
+  $masked = [regex]::Replace($masked, '(?i)(postgres(?:ql)?://[^:\s/]+:)[^@\s]+@', '$1***@')
+  return $masked
+}
+
+# 本地 API 启动链的命令行签名：dotnet run 且带 src/Api。cmd 包装器与 dotnet 本身都认，
+# 别的宿主只提到这些词时 Name 校验会挡掉。
+function Test-CloudApiCommandLineSignature {
+  param([string]$CommandLine, [string]$Name)
+  if (-not $CommandLine) { return $false }
+  if ($Name -and $Name -notin @('cmd.exe', 'dotnet.exe')) { return $false }
+  return ($CommandLine -match '(?i)dotnet(\.exe)?"?\s+run\b' -and $CommandLine -match '(?i)src[\\/]Api\b')
+}
+
+# 状态文件里记录的、仍存活且命令行签名吻合的 API PID；没有则返回 0。
+# 再次启动时原样带入状态，避免把上一次拉起的 API 从 -Stop 的视野里丢掉。
+function Get-RecordedCloudApiPid {
+  $state = Read-StartAllState
+  if ($null -eq $state -or $state.root -ne $root -or $null -eq $state.apiPid) { return 0 }
+  $recordedPid = [int]$state.apiPid
+  if ($recordedPid -le 0) { return 0 }
+  $process = Get-CimInstance Win32_Process -Filter ("ProcessId = " + $recordedPid) -ErrorAction SilentlyContinue
+  if ($null -eq $process) { return 0 }
+  if (-not (Test-CloudApiCommandLineSignature -CommandLine $process.CommandLine -Name $process.Name)) { return 0 }
+  return $recordedPid
+}
+
+# 把状态文件里的 apiPid 归零，保留 Web 记录（-Stop 先停 API 再停 Web，不能整份删掉）。
+function Clear-StartAllStateApiRecord {
+  $state = Read-StartAllState
+  if ($null -eq $state -or $state.root -ne $root) { return }
+  if ($null -eq $state.apiPid -or [int]$state.apiPid -eq 0) { return }
+  $state.apiPid = 0
+  $state | ConvertTo-Json | Set-Content -LiteralPath $statePath -Encoding utf8
+}
+
+# 以云仓为工作目录拉起本地 API；继承当前环境并叠加环境文件里的 KEY=VALUE。
+# 返回值 @{ Pid; Secrets }；Secrets 只用于后续输出脱敏，不打印。
+function Start-CloudApiInstance {
+  param(
+    [Parameter(Mandatory = $true)][string]$Repo,
+    [string]$EnvFile,
+    [switch]$EnvFileExplicit
+  )
+  $projectDir = Join-Path $Repo 'src\Api'
+  if (-not (Test-Path -LiteralPath $projectDir)) {
+    throw ("云仓缺少 src\Api：{0}。用 -CloudRepo 指向 LCoder-cloud 检出。" -f $Repo)
+  }
+  $dotnet = Get-Command dotnet -ErrorAction SilentlyContinue
+  if ($null -eq $dotnet) {
+    throw 'PATH 里没有 dotnet；本地 API 需要 .NET SDK。装好后重试，或自行启动 API 后配 -CloudApi 与 -SkipCloudCheck。'
+  }
+  New-Item -ItemType Directory -Force -Path $logDir | Out-Null
+
+  $secrets = New-Object System.Collections.Generic.List[string]
+  $entries = @()
+  if ($EnvFile -and (Test-Path -LiteralPath $EnvFile)) {
+    $parsed = Read-DotEnvEntries -Path $EnvFile
+    $entries = @($parsed.Entries)
+    foreach ($entry in $entries) { $secrets.Add([string]$entry.Value) }
+    Write-Host ("API：从 {0} 注入 {1} 个环境变量（跳过 {2} 行；值不打印）" -f $EnvFile, $entries.Count, $parsed.Skipped) -ForegroundColor Cyan
+  } elseif ($EnvFile -and $EnvFileExplicit) {
+    throw ("-CloudEnvFile 指定的文件不存在：{0}" -f $EnvFile)
+  } else {
+    Write-Host ("API：环境文件 {0} 不存在，只继承当前进程环境" -f $EnvFile) -ForegroundColor DarkGray
+  }
+
+  $previous = @{}
+  foreach ($entry in $entries) {
+    $key = [string]$entry.Key
+    if (-not $previous.ContainsKey($key)) {
+      $previous[$key] = [Environment]::GetEnvironmentVariable($key, 'Process')
+    }
+    [Environment]::SetEnvironmentVariable($key, [string]$entry.Value, 'Process')
+  }
+  try {
+    $process = Start-Process -FilePath 'cmd.exe' `
+      -ArgumentList '/d', '/c', "dotnet run --project src/Api --urls $cloudApiListenUrl > `"$cloudApiLog`" 2>&1" `
+      -WorkingDirectory $Repo -WindowStyle Hidden -PassThru
+    return @{ Pid = $process.Id; Secrets = $secrets.ToArray() }
+  } finally {
+    foreach ($key in $previous.Keys) {
+      [Environment]::SetEnvironmentVariable($key, $previous[$key], 'Process')
+    }
+  }
+}
+
+# 日志最后几行，打印前按本次注入值脱敏。
+function Get-CloudApiLogTail {
+  param([string[]]$Secrets, [int]$Lines = 15)
+  if (-not (Test-Path -LiteralPath $cloudApiLog)) { return @('（日志尚未生成）') }
+  $tail = @(Get-Content -LiteralPath $cloudApiLog -Encoding utf8 -Tail $Lines -ErrorAction SilentlyContinue)
+  return @($tail | ForEach-Object { Hide-SecretText -Text ([string]$_) -Secrets $Secrets })
+}
+
+# 1 秒一轮轮询 /health，直到可用、进程退出或超时。失败分支打印日志路径与脱敏尾行。
+# @returns @{ Ready = bool }
+function Wait-CloudApiReady {
+  param(
+    [Parameter(Mandatory = $true)][string]$HealthUrl,
+    [Parameter(Mandatory = $true)][int]$LauncherPid,
+    [Parameter(Mandatory = $true)][int]$TimeoutSec,
+    [string[]]$Secrets
+  )
+  $started = Get-Date
+  $deadline = (Get-Date).AddSeconds($TimeoutSec)
+  $lastReport = Get-Date
+  $detail = ''
+  while ($true) {
+    $probe = Test-CloudApiAvailable -HealthUrl $HealthUrl
+    if ($probe.Available) { return @{ Ready = $true } }
+    $detail = $probe.Detail
+    if ($null -eq (Get-Process -Id $LauncherPid -ErrorAction SilentlyContinue)) {
+      Write-Host ("本地 API 进程已退出，未通过健康检查（{0}）。" -f $detail) -ForegroundColor Red
+      Write-Host ("  日志：{0}" -f $cloudApiLog) -ForegroundColor Red
+      Get-CloudApiLogTail -Secrets $Secrets | ForEach-Object { Write-Host ("  " + $_) }
+      Write-Host '  常见原因：环境文件缺 DATABASE_URL / JWT_SIGNING_KEY 等必填项，或 dotnet 构建失败。' -ForegroundColor Red
+      return @{ Ready = $false }
+    }
+    if (((Get-Date) - $lastReport).TotalSeconds -ge 10) {
+      Write-Host ("  本地 API 仍在启动或构建（已 {0} 秒；最后探测 {1}），继续轮询…" -f [int]((Get-Date) - $started).TotalSeconds, $detail) -ForegroundColor DarkYellow
+      $lastReport = Get-Date
+    }
+    if ((Get-Date) -gt $deadline) {
+      Write-Host ("本地 API 在 {0} 秒内未通过健康检查（最后探测 {1}）。" -f $TimeoutSec, $detail) -ForegroundColor Red
+      Write-Host ("  日志：{0}" -f $cloudApiLog) -ForegroundColor Red
+      Get-CloudApiLogTail -Secrets $Secrets | ForEach-Object { Write-Host ("  " + $_) }
+      Write-Host '  排查：环境文件是否补齐、数据库是否可达、端口 5081 是否被占用；或加大 -CloudApiTimeoutSec。' -ForegroundColor Red
+      return @{ Ready = $false }
+    }
+    Start-Sleep -Milliseconds 1000
+  }
+}
+
+# 只停本脚本拉起、且状态文件记录与命令行签名都吻合的 API；外部 API 与端口占用只报告。
+# @returns bool：是否干净（没有遗留本脚本的 API）
+function Stop-OwnedCloudApi {
+  $state = Read-StartAllState
+  if ($null -eq $state -or $state.root -ne $root -or $null -eq $state.apiPid -or [int]$state.apiPid -le 0) {
+    Write-Host 'API：状态文件没有本脚本记录的实例。' -ForegroundColor DarkGray
+    return $true
+  }
+  $recordedPid = [int]$state.apiPid
+  $apiPort = 5081
+  if ($null -ne $state.apiPort -and [int]$state.apiPort -gt 0) { $apiPort = [int]$state.apiPort }
+  $process = Get-CimInstance Win32_Process -Filter ("ProcessId = " + $recordedPid) -ErrorAction SilentlyContinue
+  if ($null -eq $process) {
+    Write-Host ("API：记录的 PID {0} 已退出，清掉记录。" -f $recordedPid) -ForegroundColor DarkGray
+    Clear-StartAllStateApiRecord
+    return $true
+  }
+  if (-not (Test-CloudApiCommandLineSignature -CommandLine $process.CommandLine -Name $process.Name)) {
+    Write-Host ("API：PID {0} 存在但命令行不是本脚本的 dotnet run src/Api 签名，不动它。" -f $recordedPid) -ForegroundColor Red
+    return $false
+  }
+  Stop-RepoProcessTrees -Processes @($process)
+  Clear-StartAllStateApiRecord
+  if (Wait-PortReleased -Port $apiPort -TimeoutSec 20) {
+    Write-Host ("API：已停止，端口 {0} 已释放。" -f $apiPort) -ForegroundColor Green
+    return $true
+  }
+  Write-Host ("API：进程已停但端口 {0} 仍被占用（可能是别处起的 API）。" -f $apiPort) -ForegroundColor Red
+  return $false
 }
 
 # 端口是否有人在听。Get-NetTCPConnection 在 Windows 8+ 可用。
@@ -239,14 +474,24 @@ function Read-MatchingStartAllState {
 
 # 写状态：launcherPid 是拉起 Web 的 cmd/pnpm（会先退出）；webPid 是就绪后实际监听端口的
 # 进程，0 表示尚未取到。归属校验要求 root 与端口吻合，再核对 PID 与命令行签名。
+# apiPid 是 -StartCloudApi 拉起的本地 API（0 表示没有）；不显式给时沿用同一检出的旧记录。
 function Save-StartAllState {
-  param([int]$LauncherPid, [int]$Port, [int]$WebPid = 0)
+  param([int]$LauncherPid, [int]$Port, [int]$WebPid = 0, [int]$ApiPid = -1, [int]$ApiPort = 5081)
   New-Item -ItemType Directory -Force -Path $logDir | Out-Null
+  $existing = Read-StartAllState
+  if ($ApiPid -lt 0) {
+    $ApiPid = if ($null -ne $existing -and $existing.root -eq $root -and $null -ne $existing.apiPid) { [int]$existing.apiPid } else { 0 }
+  }
+  if (-not $PSBoundParameters.ContainsKey('ApiPort') -and $null -ne $existing -and $existing.root -eq $root -and $null -ne $existing.apiPort -and [int]$existing.apiPort -gt 0) {
+    $ApiPort = [int]$existing.apiPort
+  }
   $state = [ordered]@{
     root = $root
     launcherPid = $LauncherPid
     webPid = $WebPid
     webPort = $Port
+    apiPid = $ApiPid
+    apiPort = $ApiPort
     started = (Get-Date).ToString('o')
   }
   $state | ConvertTo-Json | Set-Content -LiteralPath $statePath -Encoding utf8
@@ -485,6 +730,9 @@ if (-not $PSBoundParameters.ContainsKey('CloudApi') -and $env:LCODER_CLOUD_BASE_
 $CloudApi = $CloudApi.Trim().TrimEnd('/')
 if ($CloudApi -notmatch '^https?://') { throw ("-CloudApi 必须是 http(s) 地址，收到 {0}" -f $CloudApi) }
 $cloudHealthUrl = Get-CloudHealthUrl -BaseUrl $CloudApi
+$cloudApiPort = Get-CloudApiUrlPort -Url $CloudApi
+# 上一次本脚本拉起的 API 仍存活时原样带入状态，别让本次启动把它从 -Stop 的视野里丢掉。
+$cloudApiPid = Get-RecordedCloudApiPid
 
 if ($ListOnly) {
   Write-Host ("本检出 {0}" -f $root) -ForegroundColor Cyan
@@ -498,11 +746,29 @@ if ($ListOnly) {
     if ($desktop.Count -eq 0) { Write-Host '桌面：没有正在运行的实例。' -ForegroundColor Green }
     else { $desktop | ForEach-Object { Write-Host ("桌面：会停掉 PID {0}（{1}）" -f $_.ProcessId, $_.Name) } }
   }
+  $apiState = Read-StartAllState
+  if ($null -ne $apiState -and $apiState.root -eq $root -and $null -ne $apiState.apiPid -and [int]$apiState.apiPid -gt 0) {
+    $apiProcess = Get-CimInstance Win32_Process -Filter ("ProcessId = " + [int]$apiState.apiPid) -ErrorAction SilentlyContinue
+    if ($null -eq $apiProcess) {
+      Write-Host ("API：状态记录的 PID {0} 已退出（-Stop 会清掉这条记录）。" -f $apiState.apiPid) -ForegroundColor DarkGray
+    } elseif (Test-CloudApiCommandLineSignature -CommandLine $apiProcess.CommandLine -Name $apiProcess.Name) {
+      Write-Host ("API：会停掉 PID {0}（{1}，本脚本拉起）" -f $apiProcess.ProcessId, $apiProcess.Name)
+    } else {
+      Write-Host ("API：PID {0} 命令行不吻合，-Stop 不会动它。" -f $apiProcess.ProcessId) -ForegroundColor DarkYellow
+    }
+  } elseif (Test-PortListening -Port $cloudApiPort) {
+    Write-Host ("API：端口 {0} 有监听，但不是本脚本拉起的（状态文件无记录），-Stop 不动它。" -f $cloudApiPort) -ForegroundColor DarkYellow
+  } else {
+    Write-Host ("API：没有本脚本拉起的实例，端口 {0} 空着。" -f $cloudApiPort) -ForegroundColor Green
+  }
   return
 }
 
 if ($Stop) {
-  if (-not (Stop-OwnedSides -StopWeb $runWeb -StopDesktop $runDesktop)) { exit 1 }
+  # 先停 API：它按状态文件独立识别，随后停 Web 会清整份状态，顺序不能反。
+  $apiClean = Stop-OwnedCloudApi
+  $sidesClean = Stop-OwnedSides -StopWeb $runWeb -StopDesktop $runDesktop
+  if (-not $apiClean -or -not $sidesClean) { exit 1 }
   return
 }
 
@@ -519,10 +785,37 @@ if ($SkipCloudCheck) {
   Write-Host ("云端：跳过探测（-SkipCloudCheck），待注入地址 {0}" -f $CloudApi) -ForegroundColor DarkYellow
 } else {
   $probe = Test-CloudApiAvailable -HealthUrl $cloudHealthUrl
+  if (-not $probe.Available -and $StartCloudApi) {
+    # -StartCloudApi：探测不成时改为拉起本地 API，成功后才回到下面的成功分支。
+    Write-Host ("云端：探测 {0} 失败（{1}）；-StartCloudApi 已启用，拉起本地 API。" -f $cloudHealthUrl, $probe.Detail) -ForegroundColor Yellow
+    if ($cloudApiPort -ne 5081) {
+      throw ("-StartCloudApi 固定把本地 API 起在 5081，当前 -CloudApi 端口是 {0}，起了也探测不到。改成 5081，或自行启动 API 后加 -SkipCloudCheck。" -f $cloudApiPort)
+    }
+    if (Test-PortListening -Port 5081) {
+      throw ("端口 5081 已被占用，但 {0} 探测失败（{1}）；不动那个进程。先排查占用者，或自行启动 API 后加 -SkipCloudCheck。" -f $cloudHealthUrl, $probe.Detail)
+    }
+    $envFile = if ($PSBoundParameters.ContainsKey('CloudEnvFile')) { $CloudEnvFile } else { Join-Path $CloudRepo '.env' }
+    $launch = Start-CloudApiInstance -Repo $CloudRepo -EnvFile $envFile -EnvFileExplicit:$PSBoundParameters.ContainsKey('CloudEnvFile')
+    $cloudApiPid = [int]$launch.Pid
+    Write-Host ("API：已启动（PID {0}），日志 {1}" -f $cloudApiPid, $cloudApiLog) -ForegroundColor Cyan
+    $ready = Wait-CloudApiReady -HealthUrl $cloudHealthUrl -LauncherPid $cloudApiPid -TimeoutSec $CloudApiTimeoutSec -Secrets $launch.Secrets
+    if (-not $ready.Ready) {
+      # 本脚本拉起的进程留在后台会占住 5081，下一次启动又走不成；停掉并说明。
+      $leftover = Get-CimInstance Win32_Process -Filter ("ProcessId = " + $cloudApiPid) -ErrorAction SilentlyContinue
+      if ($null -ne $leftover) {
+        Stop-RepoProcessTrees -Processes @($leftover)
+        Write-Host ("  已停掉本次拉起的 API（PID {0}），日志保留：{1}" -f $cloudApiPid, $cloudApiLog) -ForegroundColor Yellow
+      }
+      exit 1
+    }
+    $probe = Test-CloudApiAvailable -HealthUrl $cloudHealthUrl
+    Write-Host ("云端：本地 API 健康检查通过（{0}）" -f $probe.Detail) -ForegroundColor Green
+  }
   if (-not $probe.Available) {
     Write-Host ("云端 API 不可用：GET {0} 失败（{1}；超时 2 秒）。" -f $cloudHealthUrl, $probe.Detail) -ForegroundColor Red
     Write-Host '  登录与模型路由都走它，现在启动只会得到登录不可用的实例，已中止。' -ForegroundColor Red
     Write-Host '  起本地 API（LCoder-cloud 仓）：dotnet run --project src/Api --urls http://localhost:5081' -ForegroundColor Red
+    Write-Host '  或加 -StartCloudApi 让本脚本拉起（-CloudRepo / -CloudEnvFile 可改路径，默认 <CloudRepo>\.env）' -ForegroundColor Red
     Write-Host '  或起 dev-only mock（监听 5091）：node lcoder/scripts/mock-cloud.mjs，并用 -CloudApi http://127.0.0.1:5091/v1' -ForegroundColor Red
     Write-Host '  指向别处：-CloudApi https://<host>/v1；也可直接设 LCODER_CLOUD_BASE_URL 后加 -SkipCloudCheck' -ForegroundColor Red
     exit 1
@@ -536,6 +829,11 @@ New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 Write-Host ("本检出 {0}" -f $root) -ForegroundColor Cyan
 # 先停旧实例：桌面被单实例锁挡住的报错比这难看得多。
 Stop-OwnedSides -StopWeb $runWeb -StopDesktop $runDesktop | Out-Null
+# 停 Web 会清掉整份状态文件；本地 API 的记录要在那之后补写，-Stop 才认得它。
+if ($cloudApiPid -gt 0) {
+  Save-StartAllState -LauncherPid 0 -Port $WebPort -ApiPid $cloudApiPid -ApiPort 5081
+  Write-Host ("API：PID {0} 已记入状态文件（-Stop 只停这一条记录且签名吻合的进程）" -f $cloudApiPid) -ForegroundColor DarkGray
+}
 if ($runWeb) { if (Test-Path -LiteralPath $webLog) { Remove-Item -LiteralPath $webLog -Force } }
 if ($runDesktop) { if (Test-Path -LiteralPath $desktopLog) { Remove-Item -LiteralPath $desktopLog -Force } }
 
@@ -547,7 +845,7 @@ $desktopUrl = ''
 if ($runWeb) {
   $webStarted = Get-Date
   $webPid = Start-WebInstance
-  Save-StartAllState -LauncherPid $webPid -Port $WebPort
+  Save-StartAllState -LauncherPid $webPid -Port $WebPort -ApiPid $cloudApiPid
   Write-Host ("Web：已启动（PID {0}），日志 {1}" -f $webPid, $webLog) -ForegroundColor Cyan
   $result = Wait-SideReady -Name 'web' -LogPath $webLog -LauncherPid $webPid -Started $webStarted
   if (-not $result.Ready) {
@@ -560,7 +858,7 @@ if ($runWeb) {
   # 只记启动器会让下一次 -Stop / 启动把端口 owner 当成本检出以外的进程。
   $listenerPid = Get-WebListenerPid -Port $WebPort
   if ($listenerPid -gt 0) {
-    Save-StartAllState -LauncherPid $webPid -Port $WebPort -WebPid $listenerPid
+    Save-StartAllState -LauncherPid $webPid -Port $WebPort -WebPid $listenerPid -ApiPid $cloudApiPid
     Write-Host ("Web：监听进程 PID {0}（已记入状态）" -f $listenerPid) -ForegroundColor DarkGray
   }
   Write-Host ("Web 就绪：{0}" -f $webUrl) -ForegroundColor Green
@@ -585,6 +883,7 @@ Write-Host ''
 Write-Host '---- 就绪 ----' -ForegroundColor Green
 $cloudProbeLabel = if ($SkipCloudCheck) { '跳过探测' } else { '健康检查 200' }
 Write-Host ("云端  : {0}（{1}）" -f $CloudApi, $cloudProbeLabel)
+if ($cloudApiPid -gt 0) { Write-Host ("        本地 API PID {0}（本脚本拉起；日志 {1}）" -f $cloudApiPid, $cloudApiLog) -ForegroundColor DarkGray }
 if ($runWeb) { Write-Host ("Web   : {0}" -f $webUrl); Write-Host ("        日志 {0}" -f $webLog) -ForegroundColor DarkGray }
 if ($runDesktop) {
   Write-Host ("桌面  : {0}" -f $desktopUrl)
