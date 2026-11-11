@@ -1262,6 +1262,18 @@ tracks:
       inferred: false
       note: "C 级工具修复，来源是用户 2026-11-11 实跑 start-all -Fast 报 3080 被本检出以外的进程占用 PID 50824。实际是本检出上一次 start-all 起的 Web，启动器 PID 记录为 50604 已退出，遗留 node 的命令行只有相对路径 apps/cli/src/bin.ts web，不含检出根，归属判定失败。范围：状态文件同时记录启动器与就绪后的监听 PID；归属判定在 state.root 等于本检出且端口匹配时，允许信任记录中的监听 PID 并辅以 DSH web 命令行签名；仍按祖先链检查根路径作为补充。foreign 进程仍拒绝并提示换 -WebPort。验收：本树起 Web 3081，杀掉启动器只留监听 node，再跑 -Stop 与再次启动都能识别并停掉；对一个非本仓的占端口进程仍拒绝；ps1 解析、help、test:docs 全过。工作树用 pool-slot-1 claim 到 lcoder/t113-web-owner。2026-11-11 03:30 监督窗口派工，实现线会话 abed4307；claim pool-slot-1 到分支 lcoder/t113-web-owner。2026-11-11 03:45 监督窗口核验并收口。两脚本解析通过、start-all -Help 与 -ListOnly 退出零、test:docs 二十一项全过。实现线实测状态双 PID 与遗留监听接管，外部 3082 进程仍被拒绝且不误杀；自测中修掉未按端口限定导致的误杀。未验项是 3080 上真实 start-all 停起回归。已合入 lcoder/main 并 release pool-slot-1。"
 
+    - id: T-114
+      title: start-all 可选拉起本地云端 API
+      status: done
+      face: 工程
+      type: 开发
+      owner: lance
+      created: '2026-11-11'
+      date: '2026-11-11'
+      dep: [T-112]
+      inferred: false
+      note: "C 级工具增强，来源是用户 2026-11-11 实跑 start-all -Fast 时本地 API 已退出，脚本只探测不拉起，导致中止。用户拍板加显式开关。范围：新增 -StartCloudApi 与 -CloudRepo 与 -CloudEnvFile 与 -CloudApiTimeoutSec。探测失败且给了开关时，从云仓起 dotnet run --project src/Api --urls http://localhost:5081，工作目录为云仓，子进程继承当前环境；若 .env 存在则解析并注入 KEY=VALUE（不打印值），超时内轮询 health；成功则继续注入 LCODER_CLOUD_BASE_URL 并启动两端，失败则打印日志路径与最后几行非敏感输出并非零退出。状态文件记 apiPid，-Stop 只停由本脚本启动的 API，外部 API 不动；-ListOnly 列出 API 状态。不打印任何密钥值。验收：无开关时行为不变；给开关且 API 不可用时可拉起并在 health 通过后继续；环境缺失或启动失败时错误可读并非零；ps1 解析、help、test:docs 全过。工作树用 pool-slot-1 claim 到 lcoder/t114-start-api。2026-11-11 04:30 监督窗口派工，实现线会话 713cfed4；claim pool-slot-1 到分支 lcoder/t114-start-api。2026-11-11 07:40 监督窗口核验并收口。[续跑后完成] ps1 解析与 help 全过；实现线实跑失败路径：-StartCloudApi 拉起 dotnet 并轮询，进程退出后给日志路径与脱敏尾行（DATABASE_URL 未设），退出 1；.env 解析与显式文件缺失报错、apiPid 归属保护均验；test:docs 二十一项过。未验健康通过后的续启，本机无数据库与密钥。已合入 lcoder/main、release pool-slot-1。"
+
 milestones:
 - name: MVP-0 工作台本地跑通
   track: lcoder
