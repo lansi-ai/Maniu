@@ -11,7 +11,7 @@
 #   lcoder\scripts\start-desktop.cmd -KeepFollowing # 就绪后继续跟随日志
 #   lcoder\scripts\start-desktop.cmd -Smoke         # 连运行时冒烟一起跑（发布验收口径，慢百秒级）
 #   lcoder\scripts\start-desktop.cmd -NoBuild       # 跳过构建门禁（改过源码别用）
-#   lcoder\scripts\start-desktop.cmd -Fast          # -NoBuild 加跳过冒烟（产物没变时的最快启动）
+#   lcoder\scripts\start-desktop.cmd -Fast          # -NoBuild（产物没变时的最快启动；默认同样不跑冒烟）
 param(
   [switch]$KeepRunning,
   [switch]$KeepFollowing,
@@ -53,7 +53,7 @@ $started = Get-Date
 # -NoBuild 走 start:desktop（跳过 26 秒左右的构建门禁）；改过源码不要用它，会跑旧产物。
 # 运行时冒烟（python 三条检查加 Office 往返）是发布验收口径，百秒级；开发启动默认跳过，
 # 需要复核时加 -Smoke。
-Start-DesktopInstance -Root $root -LogPath $log -SkipBuild:($NoBuild -or $Fast) -SkipSmoke:$Smoke | Out-Null
+Start-DesktopInstance -Root $root -LogPath $log -SkipBuild:($NoBuild -or $Fast) -RunSmoke:$Smoke | Out-Null
 
 # 超时按「多久没有新输出」算，不按总时长：准备运行时会静默几分钟，那不算卡死。
 $deadline = $started.AddSeconds($ReadyTimeoutSec)
