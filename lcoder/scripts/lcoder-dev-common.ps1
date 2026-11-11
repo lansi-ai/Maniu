@@ -48,7 +48,7 @@ function Start-DesktopInstance {
     [Parameter(Mandatory = $true)][string]$Root,
     [Parameter(Mandatory = $true)][string]$LogPath,
     [switch]$SkipBuild,
-    [switch]$SkipSmoke
+    [switch]$RunSmoke
   )
   $previousPath = $env:PATH
   $previousNoColor = $env:NO_COLOR
@@ -61,8 +61,10 @@ function Start-DesktopInstance {
   # 会一直等（worktree 的依赖由 claim/rebuild 负责，不在这里重装）。
   # verify-deps-before-run 只认 CLI 配置，环境变量无效。
   $pnpm = 'pnpm --config.verify-deps-before-run=false'
-  # 运行时冒烟（python 三条检查加 Office 往返）是发布验收口径，百秒级；开发启动默认跳过。
-  if (-not $SkipSmoke) { $env:DSH_DESKTOP_SKIP_RUNTIME_SMOKE = '1' }
+  # 运行时冒烟（python 三条检查加 Office 往返）是发布验收口径，百秒级；开发启动默认跳过，
+  # 只有调用方显式要求复核（start-desktop -Smoke）才不设置，并清掉环境里遗留的同名变量。
+  if ($RunSmoke) { Remove-Item Env:\DSH_DESKTOP_SKIP_RUNTIME_SMOKE -ErrorAction SilentlyContinue }
+  else { $env:DSH_DESKTOP_SKIP_RUNTIME_SMOKE = '1' }
   try {
     # -SkipBuild 走 start:desktop（跳过构建门禁）；改过源码不要用它，会跑旧产物。
     $scriptName = if ($SkipBuild) { 'start:desktop' } else { 'dev:desktop' }
@@ -74,7 +76,8 @@ function Start-DesktopInstance {
     $env:PATH = $previousPath
     $env:NO_COLOR = $previousNoColor
     $env:FORCE_COLOR = $previousForceColor
-    $env:DSH_DESKTOP_SKIP_RUNTIME_SMOKE = $previousSkipSmoke
+    if ($null -eq $previousSkipSmoke) { Remove-Item Env:\DSH_DESKTOP_SKIP_RUNTIME_SMOKE -ErrorAction SilentlyContinue }
+    else { $env:DSH_DESKTOP_SKIP_RUNTIME_SMOKE = $previousSkipSmoke }
   }
 }
 

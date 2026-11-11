@@ -13,7 +13,7 @@
 #
 # 用法：
 #   lcoder\scripts\start-all.cmd                 # 构建 → 起 Web(3080) → 起桌面(9222/9229/9230)
-#   lcoder\scripts\start-all.cmd -Fast           # 跳过构建与冒烟（产物没变时的最快启动）
+#   lcoder\scripts\start-all.cmd -Fast           # 跳过构建（产物没变时的最快启动；冒烟本来就不跑）
 #   lcoder\scripts\start-all.cmd -NoWeb          # 只起桌面
 #   lcoder\scripts\start-all.cmd -NoDesktop      # 只起 Web
 #   lcoder\scripts\start-all.cmd -WebPort 3081   # 换 Web 端口
@@ -81,7 +81,7 @@ start-all：一条命令拉起本检出的 Web 与桌面端（开发态）。
   lcoder\scripts\start-all.cmd [选项]
 
 选项
-  -Fast              跳过构建与运行时冒烟，直接用现有产物启动
+  -Fast              跳过构建，直接用现有产物启动（运行时冒烟一律不跑）
   -NoWeb             只起桌面
   -NoDesktop         只起 Web
   -WebPort <端口>     Web 端口（默认 3080）
@@ -120,6 +120,8 @@ start-all：一条命令拉起本检出的 Web 与桌面端（开发态）。
   3. Web：pnpm run start:web，日志 lcoder\logs\web.log
   4. 桌面：复用 start-desktop 的启动与就绪检测，日志 lcoder\logs\desktop-main.log
   Web 的 DSH_HOME 默认指向本检出 .dsh-home；桌面的 home/userData 沿用 dev.ts 的仓内默认值。
+  运行时冒烟（python 三条检查加 Office 往返）是发布验收口径，start-all 不跑；
+  要复核用 lcoder\scripts\start-desktop.cmd -Smoke（百秒级）。
 
 进程归属
   停 electron --user-data-dir 落在本检出、命令行带本检出根路径的进程，以及状态文件
@@ -866,8 +868,9 @@ if ($runWeb) {
 
 if ($runDesktop) {
   $desktopStarted = Get-Date
-  # 构建已在上一步做完：这里走 start:desktop，不再重复构建；冒烟同 start-desktop 默认值一样不跑。
-  $desktopPid = Start-DesktopInstance -Root $root -LogPath $desktopLog -SkipBuild -SkipSmoke
+  # 构建已在上一步做完：这里走 start:desktop，不再重复构建；运行时冒烟是发布验收口径，
+  # start-all 一律不跑（显式复核用 start-desktop -Smoke）。
+  $desktopPid = Start-DesktopInstance -Root $root -LogPath $desktopLog -SkipBuild
   Write-Host ("桌面：已启动（PID {0}），日志 {1}" -f $desktopPid, $desktopLog) -ForegroundColor Cyan
   $result = Wait-SideReady -Name 'desktop' -LogPath $desktopLog -LauncherPid $desktopPid -Started $desktopStarted
   if (-not $result.Ready) {
