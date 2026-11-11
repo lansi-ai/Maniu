@@ -39,6 +39,7 @@ export const DESKTOP_IPC = {
   nativeThemeSet: 'dsh-desktop:native-theme-set',
   windowFullscreen: 'dsh-desktop:window-fullscreen',
   windowCommand: 'dsh-desktop:window-command',
+  windowDrag: 'dsh-desktop:window-drag',
   windowState: 'dsh-desktop:window-state',
   windowStateChanged: 'dsh-desktop:window-state-changed',
   windowAttention: 'dsh-desktop:window-attention',
@@ -48,6 +49,18 @@ export const DESKTOP_IPC = {
 
 /** Window chrome commands accepted by the main process. */
 export type DesktopWindowCommand = 'minimize' | 'toggle-maximize' | 'close'
+
+/**
+ * Cursor-anchored window move for documents that cannot keep a native drag region.
+ *
+ * `start` anchors the window offset at the pointer-down screen point, `move`
+ * follows the pointer's screen point from that anchor, and `end` releases it.
+ * The screen points are `PointerEvent.screenX`/`screenY` from the renderer.
+ */
+export type DesktopWindowDragRequest =
+  | { readonly phase: 'start'; readonly screenX: number; readonly screenY: number }
+  | { readonly phase: 'move'; readonly screenX: number; readonly screenY: number }
+  | { readonly phase: 'end' }
 
 /** Live window chrome state consumed by the self-drawn titlebar. */
 export interface DesktopWindowState {
@@ -59,6 +72,8 @@ export interface DesktopWindowState {
 export interface DesktopWindowBridge {
   /** Minimize, toggle maximize, or request close (the main process applies its close policy). */
   command(command: DesktopWindowCommand): Promise<void>
+  /** Move the window from a self-drawn titlebar's pointer drag. */
+  drag(request: DesktopWindowDragRequest): Promise<void>
   /** Current maximize and fullscreen state. */
   state(): Promise<DesktopWindowState>
   /** Subscribe to maximize and fullscreen transitions; returns the unsubscribe function. */

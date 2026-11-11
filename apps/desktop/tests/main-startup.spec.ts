@@ -103,6 +103,9 @@ const harness = await vi.hoisted(async () => {
     readonly restore = vi.fn()
     readonly setSize = vi.fn()
     readonly getBounds = vi.fn(() => ({ x: 0, y: 0, width: 800, height: 700 }))
+    position = { x: 0, y: 0 }
+    getPosition(): [number, number] { return [this.position.x, this.position.y] }
+    readonly setPosition = vi.fn((x: number, y: number) => { this.position = { x, y } })
     readonly setMinimumSize = vi.fn()
     readonly setTitleBarOverlay = vi.fn()
     readonly setVibrancy = vi.fn()
@@ -919,6 +922,7 @@ describe('desktop main startup', () => {
     }
     expect(harness.hosts).toHaveLength(0)
     expect(harness.handlers.has(DESKTOP_IPC.windowCommand)).toBe(platform === 'win32')
+    expect(harness.handlers.has(DESKTOP_IPC.windowDrag)).toBe(platform === 'win32')
     expect(harness.handlers.has(DESKTOP_IPC.windowState)).toBe(platform === 'win32')
   })
 
@@ -944,6 +948,49 @@ describe('desktop main startup', () => {
     expect(window.destroyed).toBe(false)
     expect(() => command(event, 'explode')).toThrow('invalid command')
     expect(state(event)).toEqual({ maximized: false, fullscreen: false })
+  })
+
+  it('moves the Windows window from a login titlebar pointer drag', async () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
+    await import('../src/main.ts')
+    await harness.preparing.promise
+    const window = harness.windows[0]!
+    window.position = { x: 100, y: 200 }
+    const event = { sender: window.webContents, senderFrame: window.webContents.mainFrame }
+    const drag = harness.handlers.get(DESKTOP_IPC.windowDrag)!
+
+    expect(() => drag({ ...event, sender: {} }, { phase: 'start', screenX: 0, screenY: 0 }))
+      .toThrow('rejected sender')
+    drag(event, { phase: 'start', screenX: 500, screenY: 300 })
+    drag(event, { phase: 'move', screenX: 540, screenY: 330 })
+    expect(window.setPosition).toHaveBeenLastCalledWith(140, 230)
+    drag(event, { phase: 'move', screenX: 480, screenY: 280 })
+    expect(window.setPosition).toHaveBeenLastCalledWith(80, 180)
+    // 结束后的移动不再推窗口，直到下一次按下重新记录偏移。
+    drag(event, { phase: 'end' })
+    drag(event, { phase: 'move', screenX: 600, screenY: 400 })
+    expect(window.setPosition).toHaveBeenCalledTimes(2)
+    expect(() => drag(event, { phase: 'move', screenX: 1 })).toThrow('invalid drag request')
+    expect(() => drag(event, { phase: 'start', screenX: '1', screenY: 2 })).toThrow('invalid drag request')
+  })
+
+  it('restores a maximized window before following the pointer', async () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
+    await import('../src/main.ts')
+    await harness.preparing.promise
+    const window = harness.windows[0]!
+    const event = { sender: window.webContents, senderFrame: window.webContents.mainFrame }
+    const drag = harness.handlers.get(DESKTOP_IPC.windowDrag)!
+
+    window.maximized = true
+    window.position = { x: 40, y: 60 }
+    drag(event, { phase: 'start', screenX: 500, screenY: 300 })
+    drag(event, { phase: 'move', screenX: 560, screenY: 340 })
+    expect(window.unmaximize).toHaveBeenCalledTimes(1)
+    expect(window.setPosition).not.toHaveBeenCalled()
+    drag(event, { phase: 'move', screenX: 600, screenY: 380 })
+    expect(window.setPosition).toHaveBeenLastCalledWith(80, 100)
+    drag(event, { phase: 'end' })
   })
 
   it('flashes the taskbar only while the window is unfocused and something waits on a human', async () => {

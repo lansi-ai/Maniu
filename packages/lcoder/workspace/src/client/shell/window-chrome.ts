@@ -9,6 +9,15 @@
 /** Window operations accepted by the Windows desktop shell. */
 export type DesktopWindowCommand = 'minimize' | 'toggle-maximize' | 'close'
 
+/**
+ * 登录页自绘拖拽的一条消息：`start` 让主进程记下按下时的窗口偏移，
+ * `move` 带指针的屏幕坐标跟随，`end` 收尾。
+ */
+export type DesktopWindowDragRequest =
+  | { readonly phase: 'start'; readonly screenX: number; readonly screenY: number }
+  | { readonly phase: 'move'; readonly screenX: number; readonly screenY: number }
+  | { readonly phase: 'end' }
+
 /** Live maximize and fullscreen state of the desktop window. */
 export interface DesktopWindowState {
   readonly maximized: boolean
@@ -19,6 +28,10 @@ export interface DesktopWindowState {
 export interface DesktopWindowBridge {
   /** Run a window command; close goes through the main process close policy. */
   command(command: DesktopWindowCommand): Promise<void>
+  /**
+   * 登录页标题栏的自绘拖拽；旧版 preload 没有这一条，所以可选。
+   */
+  drag?(request: DesktopWindowDragRequest): Promise<void>
   /** Read the current maximize and fullscreen state. */
   state(): Promise<DesktopWindowState>
   /** Subscribe to maximize and fullscreen transitions. */

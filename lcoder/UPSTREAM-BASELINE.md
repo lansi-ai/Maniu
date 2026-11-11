@@ -99,6 +99,16 @@ upstream = deepseek-ai/deepseek-harness
 
 `apps/desktop/scripts/dev.ts`（已登记）本次追加：Node 版本探测改用缓存函数、运行时准备改调 `prepareDevelopmentRuntime`，默认启动先用 `workspaceInputsDigest` 判断是否跳过 `build:artifacts` 与 Desktop bundle，并去掉对 `prepare-primary-runtime.ts` 的静态导入（命中路径不再加载 tar/extract-zip 链）。登记行不重复，改动见上表判据。
 
+### T-120 登录页自绘拖拽（扩展 3 个已登记文件）
+
+登录页标题栏原先用 `-webkit-app-region: drag`；drag 区不向页面派发鼠标事件，标题栏上的悬停装饰因此永远不出现。改为自绘拖拽后，工作台顶栏的原生 drag 区保持不变，只扩展已登记的主进程与 preload 接触面。
+
+| 文件 | 扩展 | 为什么必须改 |
+|---|---|---|
+| `apps/desktop/src/main.ts` | Windows 分支新增 `windowDrag` 处理器：按下时记录窗口位置与屏幕坐标，按差值 `setPosition`；窗口已最大化时先还原再跟随 | 移动窗口只能由主进程做，装配层与页面都拿不到 `BrowserWindow` |
+| `apps/desktop/src/ipc.ts` | 新增 `windowDrag` 私有通道、`DesktopWindowDragRequest` 类型与窗口桥上的 `drag(request)` | 通道名与消息类型是 preload 与页面共用的单一来源 |
+| `apps/desktop/src/preload-app.ts` | Windows 窗口桥暴露 `drag(request)` | `contextBridge` 只能由 preload 注入，插件层无法补这一条 |
+
 ### 计划接触面（T-78 至 T-82）
 
 以下文件已在 `contact-surface.txt` 登记。T-78 已落地的行标「已落地」；其余仍待对应任务。T-78 还会扩展上表已登记的 `apps/desktop/src/main.ts`、`ipc.ts`、`preload-app.ts`、`locale.ts`、`tests/main-startup.spec.ts` 与 `tests/expected/*.json`，不重复列行。
