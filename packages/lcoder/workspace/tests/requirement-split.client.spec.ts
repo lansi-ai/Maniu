@@ -187,6 +187,43 @@ describe('两段中文指令', () => {
     expect(prompt).toContain('不改需求文档、.spec/project.yaml、已有方案与规格条目')
   })
 
+  it('项目经理先判断仓库现状：空仓时第一条是基础框架，功能任务都依赖它', () => {
+    const prompt = buildPmSplitPrompt(requirementTask(), { document: DOCUMENT })
+    expect(prompt).toContain('先用 file_list 查看仓库根目录与关键文件')
+    expect(prompt).toContain('判断它是空仓、只有需求文档，还是已有可运行的项目框架')
+    expect(prompt).toContain('把这个判断写进回复')
+    expect(prompt).toContain('第一条任务必须是「项目基础框架与脚手架」')
+    expect(prompt).toContain('技术选型落地（语言、桌面外壳、本地存储形式）')
+    expect(prompt).toContain('目录与模块骨架、开发与构建与打包命令、基础窗口、数据读写骨架')
+    expect(prompt).toContain('双击即可运行、断网可用的最小验证')
+    expect(prompt).toContain('它不依赖任何功能任务')
+    expect(prompt).toContain('所有功能任务都在 depends_on 里依赖这条基础任务')
+    expect(prompt).toContain('description 的范围与验收标准、grade、rules、scope.allowed_paths')
+    expect(prompt).toContain('state 为 drafting')
+  })
+
+  it('仓库已有可运行框架时不重复建设，只补最少的基础缺口', () => {
+    const prompt = buildPmSplitPrompt(requirementTask(), { document: DOCUMENT })
+    expect(prompt).toContain('仓库已有可运行框架时不重复建设')
+    expect(prompt).toContain('只按实际缺口补最少的基础任务')
+    expect(prompt).toContain('缺少打包脚本、缺少数据层骨架')
+    expect(prompt).toContain('没有缺口就不建')
+  })
+
+  it('研发经理把基础框架任务给架构师，缺岗位时按技术特征起草', () => {
+    const prompt = buildManagerAssignPrompt({
+      task: requirementTask(),
+      source: { document: DOCUMENT },
+      newTasks: [splitTask('T-02', { title: '项目基础框架与脚手架' })],
+      roster: [],
+    })
+    expect(prompt).toContain('「项目基础框架与脚手架」任务给架构师')
+    expect(prompt).toContain('名册里没有架构师或脚手架岗位时')
+    expect(prompt).toContain('用 role_draft 起草，继承 architect 或 dev')
+    expect(prompt).toContain('signals 写清技术选型、脚手架、构建、打包特征')
+    expect(prompt).toContain('其余任务里的打包与本地存储、界面与交互仍按领域分配')
+  })
+
   it('研发经理指令带需求、任务清单、名册与唯一映射契约', () => {
     const prompt = buildManagerAssignPrompt({
       task: requirementTask(),
