@@ -1037,12 +1037,6 @@
 .skinOrb { width: 16px; height: 16px; border-radius: 50%; border: 1px solid var(--lc-line-strong); }
 .skinOrbNeon { background: conic-gradient(from 210deg, #22d3ee, #f472b6, #22d3ee); box-shadow: 0 0 12px rgba(34, 211, 238, 0.45); }
 .skinOrbSilver { background: conic-gradient(from 210deg, #7dd3fc, #a3e635, #7dd3fc); box-shadow: 0 0 10px rgba(125, 211, 252, 0.35); }
-.demoBadge {
-  position: absolute; right: 16px; bottom: 14px; z-index: 30;
-  font-size: var(--lc-text-xs); color: var(--lc-muted); background: var(--lc-surface);
-  border: 1px solid var(--lc-line); border-radius: var(--lc-radius-pill); padding: 5px 11px;
-  box-shadow: var(--lc-shadow-xs);
-}
 
 .drawerBackdrop {
   position: absolute; inset: 0; z-index: 45;
@@ -1058,7 +1052,18 @@
 .drawerHead h3 { margin: 0 0 4px; font: 600 18px / var(--lc-leading-tight) var(--lc-font-display); letter-spacing: var(--lc-tracking-tight); }
 .drawerHead p { margin: 0; font-size: var(--lc-text-sm); color: var(--lc-muted); }
 .drawerBody { flex: 1; overflow: auto; padding: 20px; display: grid; gap: var(--lc-space-5); align-content: start; }
-.drawerSection h4 { margin: 0 0 var(--lc-space-2); font-size: var(--lc-text-xs); letter-spacing: .08em; text-transform: uppercase; color: var(--lc-faint); }
+.drawerSection { border-top: 1px solid var(--lc-line); padding-top: var(--lc-space-3); }
+.drawerSection:first-child { border-top: 0; padding-top: 0; }
+.drawerSectionSummary { display: flex; align-items: center; gap: var(--lc-space-2); cursor: pointer; list-style: none; }
+.drawerSectionSummary::-webkit-details-marker { display: none; }
+.drawerSectionSummary::before { content: '▸'; flex: 0 0 auto; font-size: 10px; color: var(--lc-faint); transition: transform .16s ease; }
+.drawerSection[open] > .drawerSectionSummary::before { transform: rotate(90deg); }
+.drawerSectionTitle { font-size: var(--lc-text-xs); letter-spacing: .08em; text-transform: uppercase; color: var(--lc-faint); }
+.drawerSectionCurrent {
+  margin-left: auto; min-width: 0; font-size: var(--lc-text-sm); font-weight: 600; color: var(--lc-ink);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.drawerSection > summary + * { margin-top: var(--lc-space-3); }
 .drawerHint { margin: 0 0 var(--lc-space-3); font-size: var(--lc-text-sm); color: var(--lc-muted); }
 .infoGrid { display: grid; gap: var(--lc-space-2); }
 .infoRow { display: flex; align-items: center; justify-content: space-between; gap: var(--lc-space-3); font-size: var(--lc-text-sm); }

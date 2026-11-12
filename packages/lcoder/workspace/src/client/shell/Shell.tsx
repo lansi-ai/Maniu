@@ -2722,8 +2722,11 @@ export function Shell({
               <button type="button" className={css.iconBtn} onClick={() => { setDrawer(false) }}>✕</button>
             </div>
             <div className={css.drawerBody}>
-              <section className={css.drawerSection}>
-                <h4>{t('shell.switchProject')}</h4>
+              <details className={css.drawerSection}>
+                <summary className={css.drawerSectionSummary}>
+                  <span className={css.drawerSectionTitle}>{t('shell.switchProject')}</span>
+                  <span className={css.drawerSectionCurrent}>{hasWorkspace ? projectName : t('shell.chooseProject')}</span>
+                </summary>
                 <p className={css.drawerHint}>{t('shell.projectPickerHint')}</p>
                 {workspaces.length === 0
                   ? <p className={css.empty}>{t('shell.noWorkspace')}</p>
@@ -2777,10 +2780,12 @@ export function Shell({
                   </button>
                 </div>
                 {repoError === null ? null : <p className={css.problem}>{repoError}</p>}
-              </section>
+              </details>
 
-              <section className={css.drawerSection}>
-                <h4>{t('shell.basic')}</h4>
+              <details className={css.drawerSection}>
+                <summary className={css.drawerSectionSummary}>
+                  <span className={css.drawerSectionTitle}>{t('shell.basic')}</span>
+                </summary>
                 <div className={css.infoGrid}>
                   <div className={css.infoRow}><span>{t('shell.kind')}</span><b>{info?.kind ?? '—'}</b></div>
                   <div className={css.infoRow}>
@@ -2794,17 +2799,21 @@ export function Shell({
                   <div className={css.infoRow}><span>{t('shell.tasks')}</span><b>{tasks.length}</b></div>
                   <div className={css.infoRow}><span>{t('shell.rules')}</span><b>{rulesCount}</b></div>
                 </div>
-              </section>
+              </details>
 
-              <section className={css.drawerSection}>
-                <h4>{t('shell.docs')}</h4>
+              <details className={css.drawerSection}>
+                <summary className={css.drawerSectionSummary}>
+                  <span className={css.drawerSectionTitle}>{t('shell.docs')}</span>
+                </summary>
                 <div className={css.docRow}><span>{t('shell.productDoc')}</span><code>{info?.docs.product || '—'}</code></div>
                 <div className={css.docRow}><span>{t('shell.architectureDoc')}</span><code>{info?.docs.architecture || '—'}</code></div>
                 <div className={css.docRow}><span>{t('shell.tests')}</span><code>{info?.docs.tests || '—'}</code></div>
-              </section>
+              </details>
 
-              <section className={css.drawerSection}>
-                <h4>{t('shell.environments')}</h4>
+              <details className={css.drawerSection}>
+                <summary className={css.drawerSectionSummary}>
+                  <span className={css.drawerSectionTitle}>{t('shell.environments')}</span>
+                </summary>
                 {info === null
                   ? <p className={css.empty}>{t('shell.projectInfoMissing')}</p>
                   : info.kind !== 'web' || info.environments.length === 0
@@ -2843,7 +2852,7 @@ export function Shell({
                         </div>
                       )
                     })}
-              </section>
+              </details>
             </div>
           </aside>
         </div>
@@ -3686,8 +3695,6 @@ export function Shell({
           }}
         />
       ) : null}
-
-      <div className={css.demoBadge}>{t('shell.brand')} · {t('shell.realData')}</div>
     </div>
   )
 }

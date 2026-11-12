@@ -15,10 +15,10 @@ const INTERACTIVE = 'button, input, textarea, select, a, summary, [role="button"
 
 /** 绑定到登录页标题栏的指针事件处理器。 */
 export interface WindowDragHandlers {
-  onPointerDown(event: ReactPointerEvent<HTMLElement>): void
-  onPointerMove(event: ReactPointerEvent<HTMLElement>): void
-  onPointerUp(event: ReactPointerEvent<HTMLElement>): void
-  onPointerCancel(event: ReactPointerEvent<HTMLElement>): void
+  onPointerDown: (event: ReactPointerEvent<HTMLElement>) => void
+  onPointerMove: (event: ReactPointerEvent<HTMLElement>) => void
+  onPointerUp: (event: ReactPointerEvent<HTMLElement>) => void
+  onPointerCancel: (event: ReactPointerEvent<HTMLElement>) => void
 }
 
 /**
@@ -31,9 +31,8 @@ export function useWindowDrag(bridge: DesktopWindowBridge | undefined, enabled: 
   const active = useRef<{ element: HTMLElement; pointerId: number } | undefined>(undefined)
 
   const send = useCallback((request: DesktopWindowDragRequest): void => {
-    const drag = bridge?.drag
-    if (drag === undefined) return
-    void drag.call(bridge, request).catch((error: unknown) => {
+    if (bridge === undefined || bridge.drag === undefined) return
+    void bridge.drag(request).catch((error: unknown) => {
       console.error('LCoder window drag failed', error)
     })
   }, [bridge])
