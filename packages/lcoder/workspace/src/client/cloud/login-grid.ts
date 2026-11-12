@@ -1,8 +1,11 @@
 /**
- * 登录页背景网格的纯几何：高斯影响、顶点位移、亮度混合与 CSS 颜色解析。
+ * 登录页背景底纹的纯几何：高斯影响、顶点位移、亮度混合、梅花姿态与 CSS 颜色解析。
  *
  * 组件只负责采样、配色与 canvas 绘制；这里的函数不碰 DOM，可以单独测。
  */
+
+/** 底纹类型：`grid` 是细网格线，`plum` 是散落的五瓣梅花。 */
+export type BackdropMotif = 'grid' | 'plum'
 
 /** 指针影响的形状参数，单位都是 CSS 像素。 */
 export interface GridWarpSpec {
@@ -117,6 +120,84 @@ export function gridOffsets(extent: number, spacing: number, offset = 0): number
     positions.push(position)
   }
   return positions
+}
+
+/**
+ * 读取皮肤声明的底纹类型。
+ * @param value - `--lc-backdrop-motif` 的计算值。
+ * @returns 已知类型；空值、未知值与大小写不一致都回 `grid`。
+ */
+export function readMotif(value: string): BackdropMotif {
+  return value.trim() === 'plum' ? 'plum' : 'grid'
+}
+
+/** 一朵梅花的姿态；偏移以节点间距为单位，半径缩放无量纲。 */
+export interface BlossomPose {
+  /** 相对节点的横向偏移，单位为间距。 */
+  readonly dx: number
+  /** 相对节点的纵向偏移，单位为间距。 */
+  readonly dy: number
+  /** 整朵花的旋转角，弧度。 */
+  readonly angle: number
+  /** 半径缩放，0.7–1。 */
+  readonly scale: number
+}
+
+/**
+ * 按节点行列取一个确定性的梅花姿态：同一格静止与动画帧一致，相邻格错开。
+ * @param column - 节点列号。
+ * @param row - 节点行号。
+ * @returns 该格梅花的偏移、旋转与缩放。
+ */
+export function blossomPose(column: number, row: number): BlossomPose {
+  const noise = (salt: number): number => {
+    const seed = Math.sin(column * 127.1 + row * 311.7 + salt * 74.7) * 43758.5453
+    return seed - Math.floor(seed)
+  }
+  return {
+    dx: (noise(1) - 0.5) * 0.5,
+    dy: (noise(2) - 0.5) * 0.5,
+    angle: noise(3) * Math.PI * 2,
+    scale: 0.7 + noise(4) * 0.3,
+  }
+}
+
+/** 梅花的花瓣数。 */
+export const PLUM_PETALS = 5
+
+/** 一片花瓣的椭圆参数；中心相对花朵中心，长轴沿径向。 */
+export interface PetalEllipse {
+  /** 花瓣中心的横坐标。 */
+  readonly x: number
+  /** 花瓣中心的纵坐标。 */
+  readonly y: number
+  /** 半短轴，沿切向。 */
+  readonly rx: number
+  /** 半长轴，沿径向。 */
+  readonly ry: number
+  /** 长轴的旋转角，弧度。 */
+  readonly rotation: number
+}
+
+/**
+ * 五瓣梅花的几何：花瓣等角分布在半径之外，长轴沿径向。
+ * @param radius - 花朵中心到花瓣中心的距离。
+ * @param angle - 整朵花的旋转角，弧度。
+ * @returns 五片花瓣的椭圆参数，相对花朵中心。
+ */
+export function plumPetals(radius: number, angle: number): PetalEllipse[] {
+  const petals: PetalEllipse[] = []
+  for (let index = 0; index < PLUM_PETALS; index++) {
+    const theta = angle + (index * Math.PI * 2) / PLUM_PETALS
+    petals.push({
+      x: Math.cos(theta) * radius,
+      y: Math.sin(theta) * radius,
+      rx: radius * 0.44,
+      ry: radius * 0.92,
+      rotation: theta - Math.PI / 2,
+    })
+  }
+  return petals
 }
 
 /** 3、4、6、8 位十六进制颜色。 */
