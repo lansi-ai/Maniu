@@ -4,7 +4,7 @@
  * 纯判定（是否需求卡、时间格式化、拆分指令、立项问答解析）同文件覆盖。
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { zh } from '../src/client/locales.ts'
 import type { ProposalRow } from '../src/client/projection.ts'
@@ -89,6 +89,49 @@ describe('需求卡片判定', () => {
     expect(prompt).toContain('随手记账')
     expect(prompt).toContain('drafting')
     expect(prompt).toContain('不要修改需求本身')
+    expect(prompt).toContain('每条任务对应一个可独立验收的业务结果')
+  })
+
+  it('带需求文档时以它为唯一依据，只拆第一版功能清单与验收标准', () => {
+    const document = '# 项目需求概要\n\n## 第一版功能清单\n- 记一笔\n- 翻记录\n\n## 暂不开发\n- 云同步\n- 多人共享'
+    const prompt = buildRequirementSplitPrompt(taskOf(), { document })
+    expect(prompt).toContain('《项目需求概要》')
+    expect(prompt).toContain('.spec/requirements/P-01.md')
+    expect(prompt).toContain('只覆盖文档里的第一版功能清单与验收标准')
+    expect(prompt).toContain('暂不开发的范围不要拆成任务')
+    expect(prompt).toContain('- 记一笔\n- 翻记录')
+    expect(prompt).toContain('drafting')
+    expect(prompt).toContain('只引用需求里已确认的规则编号')
+    expect(prompt).toContain('对应的需求条目与依赖关系')
+    expect(prompt).not.toContain('没有读到这条需求对应的需求文档')
+  })
+
+  it('缺需求文档时退回任务描述与方案正文，并说明读不到文档', () => {
+    const prompt = buildRequirementSplitPrompt(taskOf(), { proposal: '现状：仓库为空目录，项目尚未立项。' })
+    expect(prompt).toContain('没有读到这条需求对应的需求文档')
+    expect(prompt).toContain('.spec/requirements/P-01.md')
+    expect(prompt).toContain('第一行需求内容')
+    expect(prompt).toContain('现状：仓库为空目录，项目尚未立项。')
+    expect(prompt).not.toContain('《项目需求概要》正文')
+    expect(prompt).toContain('drafting')
+  })
+
+  it('方案正文也读不到时不编造，如实标出缺口', () => {
+    const prompt = buildRequirementSplitPrompt(taskOf())
+    expect(prompt).toContain('没有读到这条需求对应的需求文档')
+    expect(prompt).toContain('（读不到方案正文）')
+  })
+
+  it('需求文档过长时按段落边界截断，不切半句', () => {
+    const paragraph = `第一版功能清单第 ${'一'.repeat(40)} 条验收标准。`
+    const document = Array.from({ length: 300 }, () => paragraph).join('\n\n')
+    const prompt = buildRequirementSplitPrompt(taskOf(), { document })
+    const start = prompt.indexOf('"""')
+    const body = prompt.slice(start + 3, prompt.lastIndexOf('"""')).trim()
+    expect(document.length).toBeGreaterThan(8000)
+    expect(body.length).toBeLessThanOrEqual(8000)
+    expect(body.endsWith('。')).toBe(true)
+    expect(prompt).toContain('按段落截断')
   })
 })
 
@@ -423,6 +466,32 @@ describe('需求卡片渲染', () => {
     const button = container.querySelector<HTMLButtonElement>('[data-requirement-split]')
     expect(button?.disabled).toBe(true)
     expect(button?.textContent).toBe(zh['shell.splittingTasks'])
+  })
+
+  it('拆分动作收到卡片读到的完整需求文档；没有文档时收到 undefined', () => {
+    const onSplit = vi.fn()
+    const requirementDocument = { id: 'P-01', text: '项目需求概要 V1\n\n第一版功能清单' }
+    render(
+      <RequirementCard
+        t={t}
+        task={taskOf()}
+        requirementDocument={requirementDocument}
+        answers={[]}
+        splitting={false}
+        error={null}
+        onClose={vi.fn()}
+        onSplit={onSplit}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: zh['shell.splitTasks'] }))
+    expect(onSplit).toHaveBeenLastCalledWith(requirementDocument)
+
+    cleanup()
+    const withoutDoc = render(
+      <RequirementCard t={t} task={taskOf()} answers={[]} splitting={false} error={null} onClose={vi.fn()} onSplit={onSplit} />,
+    )
+    fireEvent.click(within(withoutDoc.container).getByRole('button', { name: zh['shell.splitTasks'] }))
+    expect(onSplit).toHaveBeenLastCalledWith(undefined)
   })
 
   it('拆分失败原文就地显示，卡片不关', () => {

@@ -1744,10 +1744,11 @@ export function Shell({
   /**
    * 拆分需求：给需求所属会话发一条拆分指令，把需求拆成 drafting 任务。
    *
-   * 优先任务已认领的会话，没有就用当前会话；不新建会话、不改需求本身。
-   * 发送成功后关卡片并重读投影，新任务在下一轮看板刷新里出现。
+   * 指令以卡片交给的完整需求文档为依据；没有文档时退回任务描述与回指方案的正文，
+   * 并在指令里说明读不到文档。优先任务已认领的会话，没有就用当前会话；不新建会话、
+   * 不改需求本身。发送成功后关卡片并重读投影，新任务在下一轮看板刷新里出现。
    */
-  const splitRequirement = async (task: ShellTask): Promise<void> => {
+  const splitRequirement = async (task: ShellTask, requirementDocument?: RequirementDocRow): Promise<void> => {
     if (splitting) return
     const claimed = claimTaskSession(task.session, taskSessionRows)?.sessionId
     const target = claimed ?? sessionId
@@ -1755,10 +1756,14 @@ export function Shell({
       setSplitError(t('shell.noSession'))
       return
     }
+    const proposal = task.proposal === undefined ? undefined : proposals.find(row => row.id === task.proposal)
     setSplitting(true)
     setSplitError(null)
     try {
-      await sendPrompt(target, buildRequirementSplitPrompt(task))
+      await sendPrompt(target, buildRequirementSplitPrompt(task, {
+        ...(requirementDocument === undefined ? {} : { document: requirementDocument.text }),
+        ...(proposal === undefined ? {} : { proposal: proposal.problem }),
+      }))
       setDetail(null)
       setReload(value => value + 1)
     } catch (error: unknown) {
@@ -3649,7 +3654,7 @@ export function Shell({
                 splitting={splitting}
                 error={splitError}
                 onClose={() => { setDetail(null) }}
-                onSplit={() => { void splitRequirement(detail) }}
+                onSplit={(document) => { void splitRequirement(detail, document) }}
               />
             </div>
           ) : (

@@ -3,7 +3,8 @@
  *
  * 需求文档优先取 `.spec/requirements/<方案编号>.md` 的完整正文；没有该文件时退回
  * 立项会话里的《项目需求概要》，再退回任务回指方案的 `problem`，最后用任务自己的
- * description。方案候选与推荐只在没有完整需求文档时展示。拆分指令由外壳发送。
+ * description。方案候选与推荐只在没有完整需求文档时展示。拆分时把已读到的完整需求
+ * 文档交给外壳，指令以它作为拆分依据。
  */
 import { useState } from 'react'
 import type { ReactNode } from 'react'
@@ -36,7 +37,11 @@ export interface RequirementCardProps {
   /** 就地错误原文；没有时为 null。 */
   readonly error: string | null
   readonly onClose: () => void
-  readonly onSplit: () => void
+  /**
+   * 拆分动作；参数是卡片已读到的完整需求文档，没有落盘文件时为 undefined，
+   * 由外壳退回任务与方案文本。
+   */
+  readonly onSplit: (requirementDocument: RequirementDocRow | undefined) => void
 }
 
 /** 内容折叠时的一行摘要：取正文第一段，过长截断。 */
@@ -204,7 +209,7 @@ export function RequirementCard({
           className={css.primaryBtn}
           data-requirement-split
           disabled={splitting}
-          onClick={onSplit}
+          onClick={() => { onSplit(requirementDocument) }}
         >
           {splitting ? t('shell.splittingTasks') : t('shell.splitTasks')}
         </button>
