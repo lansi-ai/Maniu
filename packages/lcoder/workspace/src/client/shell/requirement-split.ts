@@ -248,6 +248,7 @@ export function buildPmSplitPrompt(task: ShellTask, source: RequirementSplitSour
     buildRequirementSplitPrompt(task, source),
     '',
     '执行身份：你是这条需求的项目经理，负责把已确认的需求拆成开发任务。',
+    '- 用户已在界面上确认这份需求并亲自点击「拆分任务」，这就是明确的拆分授权；不要再要求批准方案或重复追问。',
     '- 只产出 .spec/tasks 下的任务文件，state 一律 drafting；不开始实现，不调用编辑与命令工具。',
     '- 不改需求文档、.spec/project.yaml、已有方案与规格条目，不推进任何任务状态。',
     '- 拆完只回报新建任务的编号、标题与依赖，然后停下；岗位分配由研发经理接手。',

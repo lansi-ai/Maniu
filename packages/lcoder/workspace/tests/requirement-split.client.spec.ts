@@ -166,6 +166,7 @@ describe('两段中文指令', () => {
     expect(prompt).toContain('- 记一笔\n- 翻记录')
     expect(prompt).toContain('暂不开发的范围不要拆成任务')
     expect(prompt).toContain('执行身份：你是这条需求的项目经理')
+    expect(prompt).toContain('明确的拆分授权')
     expect(prompt).toContain('只产出 .spec/tasks 下的任务文件，state 一律 drafting')
     expect(prompt).toContain('不改需求文档、.spec/project.yaml、已有方案与规格条目')
   })
