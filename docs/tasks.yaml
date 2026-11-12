@@ -1538,6 +1538,18 @@ tracks:
       inferred: false
       note: "B 级修复，来源是用户 2026-11-12「虽然标题改成了需求文档，但内容不是」。现状卡片正文取方案 problem，开头是仓库现状与方案元信息，并不是分析师当时输出的《项目需求概要 V0.1》正文。修法：从该任务会话的助手消息里取出包含「项目需求概要」的最新一条作为需求文档，优先展示；没有这条文档时才退回方案 problem 与候选与推荐，再退回任务 description。新增纯函数 intakeSummaryOf 并单测；Shell 读任务会话消息时一并计算文档传给卡片；卡片组件新增 document 属性，正文优先用它，规则与等级行保留，方案候选只在回退分支出现。约束是不改宿主契约、文案走词典、四套皮肤与窄窗可用、长文限高滚动。验收 typecheck 与 packages/lcoder vitest 与 oxlint 与 test:docs 与 i18n；单测覆盖文档优选与回退；真窗口用 CDP 读 DOM 确认卡片正文是需求概要正文，不做截图。工作树用 pool-slot-1 claim 到 lcoder/t136-requirement-document，端口 9822 与 9829 与 9830。2026-11-12 18:55 监督窗口直接实现并收口。新增 intakeSummaryOf 取会话里的项目需求概要正文，卡片优先展示，读不到才退回方案与任务描述；工作树与主检出均复跑 typecheck 五项、vitest、i18n、test:docs、oxlint、build:artifacts 与 build:check 全过。未验项是重启后的真窗口正文，需用户手看。已合入 lcoder/main、release pool-slot-1。"
 
+    - id: T-137
+      title: 需求文档落盘到 .spec/requirements 并优先读取
+      status: doing
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-12'
+      date: '2026-11-12'
+      dep: [T-136]
+      inferred: false
+      note: "B 级落盘与读取，来源是用户 2026-11-12 确认完整需求文档要单独写成 .spec/requirements/P-01.md。现状：完整《项目需求概要》只在会话日志里，方案 YAML 的 problem 是压缩说明；已按用户选择把现有会话里的完整文档迁到目标仓 .spec/requirements/P-01.md。范围：一、projection 新增 requirements 读取，扫 .spec/requirements 下的 .md，行形状为编号与正文，目录缺失不算故障，读不到的文件进 problems；二、需求卡片优先按任务回指的方案编号取 requirements 正文，取不到再退回会话概要与方案与任务描述；三、修正 T-136 的会话概要选择，改为取包含项目需求概要且最长的一条，避免把确认后的回执当成文档；四、立项咒语补一步：用户确认后，把完整《项目需求概要》原样写到 .spec/requirements/<方案编号>.md，目录不存在就创建，写完回读核对；这是立项流程唯一允许直接写的文件，其余仍只用专用工具。约束是不改宿主契约、不新增页面、文案走词典、四套皮肤与窄窗可用。验收 typecheck 与 packages/lcoder vitest 与 oxlint 与 test:docs 与 i18n；单测覆盖 requirements 投影读取、卡片优先级与概要选择；真窗口用目标仓 T-01 定向断言正文来自 P-01.md，不做截图。工作树用 pool-slot-1 claim 到 lcoder/t137-requirement-file，端口 9822 与 9829 与 9830。2026-11-12 19:15 监督窗口派工，实现线会话 d024cf3f；另已把现有会话里的完整需求文档迁到目标仓 .spec/requirements/P-01.md。"
+
 milestones:
 - name: MVP-0 工作台本地跑通
   track: lcoder
