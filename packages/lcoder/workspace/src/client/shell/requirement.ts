@@ -155,23 +155,88 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+/** 拆分指令附带需求正文的上限；超出时按段落边界截断，不切半句。 */
+const MAX_DOCUMENT_CHARS = 8000
+
+/**
+ * 拆分指令可用的需求正文来源。
+ *
+ * 优先用落盘的需求文档；没有文件时退回任务回指方案的正文。两者都没有时，指令只带
+ * 任务描述并说明读不到需求文档，不让分析师凭空补范围。
+ */
+export interface RequirementSplitSource {
+  /** `.spec/requirements/<方案编号>.md` 的完整正文；没有落盘文件时为 undefined。 */
+  readonly document?: string | undefined
+  /** 任务回指方案的 `problem` 正文；方案文件也没读到时为 undefined。 */
+  readonly proposal?: string | undefined
+}
+
+/**
+ * 按段落或句子边界截断正文，保留完整的一句。
+ *
+ * 只在上限内找最近的段落空行、换行或句末标点；一个边界都没有时才硬切。
+ * @param text - 已去掉首尾空白的正文。
+ * @returns 截断后的正文与是否发生截断。
+ */
+function boundDocument(text: string): { text: string; truncated: boolean } {
+  if (text.length <= MAX_DOCUMENT_CHARS) return { text, truncated: false }
+  const head = text.slice(0, MAX_DOCUMENT_CHARS)
+  const cuts = ['\n\n', '\n', '。', '；', '！', '？'].map(mark => head.lastIndexOf(mark))
+  const at = Math.max(...cuts)
+  // 边界在首字附近时截出来几乎没有内容，退回硬切更诚实。
+  const kept = at > MAX_DOCUMENT_CHARS / 4 ? head.slice(0, at + 1) : head
+  return { text: kept.trimEnd(), truncated: true }
+}
+
+/** 需求文档在 `.spec` 里的路径；任务没回指方案时指向目录。 */
+function documentPathOf(task: ShellTask): string {
+  return task.proposal === undefined ? '.spec/requirements/' : `.spec/requirements/${task.proposal}.md`
+}
+
 /**
  * 拆分任务时发给分析师的指令。
  *
- * 只要求把这一条需求拆成 drafting 任务写进 `.spec/tasks`；不改需求、项目与方案，
- * 不开始实现，也不推进状态。
+ * 带需求文档时以它为唯一范围依据：只拆文档里的第一版功能清单与验收标准，暂不开发的
+ * 范围不拆。缺文档时退回任务描述与方案正文，并说明读不到文档。无论哪种来源，都只把
+ * 这一条需求拆成 drafting 任务写进 `.spec/tasks`；不改需求、项目与方案，不开始实现，
+ * 也不推进状态。
  * @param task - 被拆分的需求任务。
+ * @param source - 已读到的需求文档与方案正文；都没有时省略。
  * @returns 中文指令正文。
  */
-export function buildRequirementSplitPrompt(task: ShellTask): string {
-  return [
+export function buildRequirementSplitPrompt(task: ShellTask, source: RequirementSplitSource = {}): string {
+  const document = source.document?.trim() ?? ''
+  const proposal = source.proposal?.trim() ?? ''
+  const path = documentPathOf(task)
+  const lines = [
     `需求拆分：请把需求 ${task.id}（${task.title}）拆分成可执行的开发任务，写入 .spec/tasks。`,
     '',
+    document === ''
+      ? `依据：没有读到这条需求对应的需求文档（${path}），只能退回任务描述与方案正文划分范围；两者冲突时以任务描述为准，并在结果里说明缺了需求文档。`
+      : `依据：以末尾附上的《项目需求概要》（${path}）为唯一范围依据——只覆盖文档里的第一版功能清单与验收标准；文档里标为暂不开发的范围不要拆成任务。`,
+    '',
     '要求：',
-    '- 每条任务 state 为 drafting；标题用可交付的业务结果，不要用技术步骤堆叠。',
-    '- 每条任务写清 description（范围与验收标准）、grade、rules、depends_on 与 scope.allowed_paths；规则只能引用需求里已确认的编号。',
-    '- 拆出的任务保持可独立验收；有先后依赖的用 depends_on 表达。',
+    '- 每条任务对应一个可独立验收的业务结果，不按纯技术步骤堆叠。',
+    '- 每条任务 state 为 drafting；写清 description（范围与验收标准）、grade、rules（只引用需求里已确认的规则编号）、depends_on 与 scope.allowed_paths。',
+    '- 有先后依赖的用 depends_on 表达。',
     '- 不要修改需求本身、.spec/project.yaml、已有方案与规格条目；不要开始实现、不要签契约、不要推进任务状态。',
-    '- 完成后列出新建的任务编号、标题与依赖关系。',
-  ].join('\n')
+    '- 完成后列出新建的任务编号、标题、对应的需求条目与依赖关系。',
+  ]
+  if (document === '') {
+    lines.push(
+      '',
+      '任务描述：',
+      boundDocument(task.description.trim()).text || '（任务没有描述）',
+      '',
+      '方案正文：',
+      proposal === '' ? '（读不到方案正文）' : boundDocument(proposal).text,
+    )
+    return lines.join('\n')
+  }
+  const bounded = boundDocument(document)
+  lines.push('', `《项目需求概要》正文（${path}）：`, '"""', bounded.text, '"""')
+  if (bounded.truncated) {
+    lines.push('', `（正文在本指令里按段落截断在上限内；未附上的部分请读取 ${path} 后再拆，不要凭猜测补范围。）`)
+  }
+  return lines.join('\n')
 }

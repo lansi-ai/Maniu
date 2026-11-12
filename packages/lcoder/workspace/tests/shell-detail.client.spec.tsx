@@ -23,7 +23,7 @@ import type { CloudFace } from '../src/client/cloud/face.ts'
 import type { CloudState } from '@lcoder/kernel/src/cloud/types.ts'
 import { zh, en } from '../src/client/locales.ts'
 import {
-  CONTRACTS_DIR, PROPOSALS_DIR, ROLES_FILE, SCHEDULING_DIR, TASKS_DIR,
+  CONTRACTS_DIR, PROPOSALS_DIR, REQUIREMENTS_DIR, ROLES_FILE, SCHEDULING_DIR, TASKS_DIR,
 } from '../src/client/projection.ts'
 import type { ProjectionFilesRemote } from '../src/client/projection.ts'
 
@@ -37,6 +37,10 @@ const enT = makeTranslate(en)
 interface SpecFiles {
   readonly tasks?: Readonly<Record<string, string>>
   readonly contracts?: Readonly<Record<string, string>>
+  /** `.spec/requirements/` 下的完整需求文档；按文件名作方案编号。 */
+  readonly requirements?: Readonly<Record<string, string>>
+  /** `.spec/proposals/` 下的方案文件。 */
+  readonly proposals?: Readonly<Record<string, string>>
   /** `.spec/roles.yaml` 的正文；缺省按文件不存在处理。 */
   readonly roles?: string
 }
@@ -50,7 +54,8 @@ function fakeFiles(spec: SpecFiles): ProjectionFilesRemote {
   const dirs: Readonly<Record<string, Readonly<Record<string, string>>>> = {
     [TASKS_DIR]: spec.tasks ?? {},
     [CONTRACTS_DIR]: spec.contracts ?? {},
-    [PROPOSALS_DIR]: {},
+    [PROPOSALS_DIR]: spec.proposals ?? {},
+    [REQUIREMENTS_DIR]: spec.requirements ?? {},
     [SCHEDULING_DIR]: {},
   }
   return {
@@ -121,6 +126,8 @@ interface ShellScenario {
   readonly readMessages?: ShellProps['readMessages']
   readonly subscribeSession?: ShellProps['subscribeSession']
   readonly holdSession?: ShellProps['holdSession']
+  /** 向会话发送提示；需求拆分走这一支。 */
+  readonly sendPrompt?: ShellProps['sendPrompt']
 }
 
 /** 已登录的云端替身：门禁放行，详情用例只关心渲染事实；门禁本身有 cloud-login 专测。 */
@@ -217,6 +224,7 @@ function renderShell(scenario: ShellScenario) {
     ...(scenario.readMessages === undefined ? {} : { readMessages: scenario.readMessages }),
     ...(scenario.subscribeSession === undefined ? {} : { subscribeSession: scenario.subscribeSession }),
     ...(scenario.holdSession === undefined ? {} : { holdSession: scenario.holdSession }),
+    ...(scenario.sendPrompt === undefined ? {} : { sendPrompt: scenario.sendPrompt }),
   }
   const view = render(<Shell {...props} />)
   return { ...view, props, logSchedule }
@@ -627,6 +635,30 @@ describe('任务详情', () => {
 
     expect(screen.getByText(zh['shell.queuedIn']).parentElement?.textContent).toContain('第 1 位')
     expect(screen.getByText('调度日志没写成：evidence 目录不可写')).toBeTruthy()
+  })
+})
+
+describe('需求卡片的拆分接线', () => {
+  const REQUIREMENT_DOC = '# 项目需求概要 V1\n\n## 第一版功能清单\n- 记一笔\n- 翻记录\n\n## 暂不开发\n- 云同步\n'
+  const TASK_REQUIREMENT = 'id: T-01\ntitle: 随手记账\nstate: drafting\ngrade: B\nproposal: P-01\n'
+
+  it('拆分指令带卡片读到的完整需求文档，发往任务所在会话', async () => {
+    const sent: { sessionId: SessionId; content: string }[] = []
+    const sendPrompt: NonNullable<ShellProps['sendPrompt']> = async (sessionId, content) => {
+      sent.push({ sessionId, content: typeof content === 'string' ? content : '' })
+    }
+    renderShell({
+      spec: { tasks: { 'T-01.yaml': TASK_REQUIREMENT }, requirements: { 'P-01.md': REQUIREMENT_DOC } },
+      sendPrompt,
+    })
+    await openTask('随手记账')
+
+    fireEvent.click(await screen.findByRole('button', { name: zh['shell.splitTasks'] }))
+    await waitFor(() => { expect(sent).toHaveLength(1) })
+    expect(String(sent[0]?.sessionId)).toBe('s-1')
+    expect(sent[0]?.content).toContain('《项目需求概要》（.spec/requirements/P-01.md）')
+    expect(sent[0]?.content).toContain('- 记一笔\n- 翻记录')
+    expect(sent[0]?.content).toContain('暂不开发的范围不要拆成任务')
   })
 })
 
