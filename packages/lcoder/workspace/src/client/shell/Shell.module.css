@@ -1299,6 +1299,8 @@
 .modelSectionHead p { margin: 0; font-size: 12.5px; color: var(--lc-muted); }
 .modelGroup { display: grid; gap: var(--lc-space-2); }
 .modelGroupTitle { font-size: var(--lc-text-sm); font-weight: 600; color: var(--lc-muted); margin-top: 4px; }
+.modelDefaultSection { display: grid; gap: 8px; padding: 12px 14px; border: 1px solid var(--lc-line); border-radius: var(--lc-radius-md); background: var(--lc-surface); }
+.modelDefaultCurrent { margin: 0; font-size: var(--lc-text-sm); color: var(--lc-ink); }
 .modelRow { border: 1px solid var(--lc-line); border-radius: var(--lc-radius-md); background: var(--lc-surface); overflow: hidden; }
 .modelRowMain { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: var(--lc-space-3); padding: 11px 14px; border: 0; background: transparent; color: var(--lc-ink); text-align: left; }
 .modelRowMain:hover { background: var(--lc-hover); }

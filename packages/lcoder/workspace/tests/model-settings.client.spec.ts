@@ -7,7 +7,7 @@
  */
 import { describe, expect, it, vi } from 'vitest'
 import {
-  createModelSettingsFace, deriveKeyRef, joinDirectory, loadModelSettings, parseModelIds,
+  createModelSettingsFace, defaultModelOptions, deriveKeyRef, joinDirectory, loadModelSettings, parseModelIds,
   validBaseURL, validRouteName,
 } from '../src/client/shell/model-settings.ts'
 import type {
@@ -127,6 +127,30 @@ describe('模型设置的纯规则', () => {
 
   it('模型 id 按行或逗号拆分并去重', () => {
     expect(parseModelIds('a\nb, a\n\nc ')).toEqual(['a', 'b', 'c'])
+  })
+
+  it('默认模型候选摊平 rows、按 provider + model 去重并保留展示名', () => {
+    const options = defaultModelOptions([
+      row({
+        provider: 'deepseek-official',
+        displayName: 'DeepSeek',
+        models: [
+          { id: 'deepseek-chat', name: 'DeepSeek Chat' },
+          { id: 'deepseek-chat', name: 'DeepSeek Chat' },
+          { id: 'deepseek-flash', name: 'DeepSeek Flash' },
+        ],
+      }),
+      row({ provider: 'anthropic', displayName: 'anthropic', models: [{ id: 'claude-sonnet-4-5', name: 'Claude Sonnet 4.5' }] }),
+      row({ provider: 'empty', displayName: 'Empty', models: [] }),
+    ])
+    expect(options.map(option => `${option.provider}:${option.model}`)).toEqual([
+      'deepseek-official:deepseek-chat',
+      'deepseek-official:deepseek-flash',
+      'anthropic:claude-sonnet-4-5',
+    ])
+    expect(options[0]).toEqual({
+      provider: 'deepseek-official', model: 'deepseek-chat', providerName: 'DeepSeek', modelName: 'DeepSeek Chat',
+    })
   })
 
   it('目录 join 把账户与官方排在前，注册但无目录的追加在后', () => {

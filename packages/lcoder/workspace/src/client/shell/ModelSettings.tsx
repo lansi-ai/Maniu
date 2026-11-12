@@ -12,9 +12,9 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { LcoderWorkspaceKey } from '../locales.ts'
 import css from './Shell.module.css'
 import type {
-  ModelProviderRow, ModelSettingsFace, ModelSettingsSnapshot, ProfilePatch,
+  DefaultModelOption, ModelProviderRow, ModelSettingsFace, ModelSettingsSnapshot, ProfilePatch,
 } from './model-settings.ts'
-import { parseModelIds, validBaseURL, validRouteName } from './model-settings.ts'
+import { parseModelIds, validBaseURL, validRouteName, defaultModelOptions } from './model-settings.ts'
 
 /** 面板 props。 */
 export interface ModelSettingsProps {
@@ -59,6 +59,103 @@ function rowStatus(row: ModelProviderRow): { key: LcoderWorkspaceKey; className?
   if (row.apiKeyConfigured) return { key: 'shell.modelConfigured', className: css.tagOk }
   if (row.apiKeyEnv === undefined && row.nativeConfigured) return { key: 'shell.modelNativeAuth', className: css.tagOk }
   return { key: 'shell.modelNotConfigured', className: css.pill }
+}
+
+/** 候选在下拉里的稳定键。 */
+function optionKey(option: DefaultModelOption): string {
+  return `${option.provider}\u0000${option.model}`
+}
+
+/** 候选的展示名：服务商 · 模型。 */
+function optionLabel(option: DefaultModelOption, t: ModelSettingsProps['t']): string {
+  return fill(t('shell.modelDefaultOption'), { provider: option.providerName, model: option.modelName })
+}
+
+/** 顶部默认模型区 props。 */
+interface DefaultSectionProps {
+  rows: readonly ModelProviderRow[]
+  defaultSelection: { provider: string; model: string } | undefined
+  face: ModelSettingsFace
+  sessionId: SessionId | undefined
+  t: ModelSettingsProps['t']
+  onChanged: () => void
+}
+
+/**
+ * 顶部「默认模型」区：从快照摊平候选，选中一个再写入当前会话与全局默认。
+ * @param props - 行表、当前默认、数据面、会话、词典与保存回调。
+ * @returns 当前默认、候选下拉与「设为默认」按钮。
+ */
+function DefaultModelSection({ rows, defaultSelection, face, sessionId, t, onChanged }: DefaultSectionProps): ReactNode {
+  const options = useMemo(() => defaultModelOptions(rows), [rows])
+  const currentKey = defaultSelection === undefined ? null : `${defaultSelection.provider}\u0000${defaultSelection.model}`
+  const [pick, setPick] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [failure, setFailure] = useState<string | null>(null)
+  const keys = new Set(options.map(optionKey))
+  const selectedKey = pick !== null && keys.has(pick)
+    ? pick
+    : currentKey !== null && keys.has(currentKey) ? currentKey : options[0] === undefined ? '' : optionKey(options[0])
+  const selected = options.find(option => optionKey(option) === selectedKey)
+  const current = currentKey !== null && keys.has(currentKey)
+    ? options.find(option => optionKey(option) === currentKey)
+    : undefined
+  const currentLabel = defaultSelection === undefined
+    ? undefined
+    : current === undefined
+      ? fill(t('shell.modelDefaultOption'), { provider: defaultSelection.provider, model: defaultSelection.model })
+      : optionLabel(current, t)
+
+  const apply = async (): Promise<void> => {
+    if (sessionId === undefined || selected === undefined) return
+    setBusy(true); setFailure(null)
+    const outcome = await face.setDefault(sessionId, selected.provider, selected.model)
+    setBusy(false)
+    if (outcome !== undefined) { setFailure(outcome); return }
+    setPick(null)
+    onChanged()
+  }
+
+  return (
+    <div className={css.modelDefaultSection}>
+      <div>
+        <div className={css.modelGroupTitle}>{t('shell.modelDefaultModel')}</div>
+        <p className={css.modelHint}>{t('shell.modelSetDefaultHint')}</p>
+      </div>
+      <p className={css.modelDefaultCurrent}>
+        {currentLabel === undefined
+          ? t('shell.modelDefaultUnset')
+          : fill(t('shell.modelDefaultCurrent'), { model: currentLabel })}
+      </p>
+      {options.length === 0
+        ? <p className={css.modelNotice}>{t('shell.modelDefaultNoModels')}</p>
+        : (
+          <div className={css.modelInline}>
+            <select
+              className={css.modelInput}
+              value={selectedKey}
+              aria-label={t('shell.modelDefaultModel')}
+              disabled={busy}
+              onChange={(event) => { setPick(event.target.value); setFailure(null) }}
+            >
+              {options.map(option => (
+                <option key={optionKey(option)} value={optionKey(option)}>{optionLabel(option, t)}</option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className={css.primaryBtn}
+              disabled={busy || sessionId === undefined}
+              onClick={() => { void apply() }}
+            >
+              {busy ? t('shell.modelSaving') : t('shell.modelSetDefault')}
+            </button>
+          </div>
+        )}
+      {sessionId === undefined ? <p className={css.modelNotice}>{t('shell.modelSetDefaultNoSession')}</p> : null}
+      {failure !== null ? <p className={css.modelError}>{failure}</p> : null}
+    </div>
+  )
 }
 
 /**
@@ -117,6 +214,14 @@ export function ModelSettings({ face, sessionId, t, onChanged }: ModelSettingsPr
             <p className={css.modelNotice}>{fill(t('shell.modelCredentialError'), { detail: snapshot.credentialError })}</p>
           ) : null}
           {!snapshot.writable ? <p className={css.modelNotice}>{t('shell.modelReadOnly')}</p> : null}
+          <DefaultModelSection
+            rows={snapshot.rows}
+            defaultSelection={snapshot.defaultSelection}
+            face={face}
+            sessionId={sessionId}
+            t={t}
+            onChanged={changed}
+          />
           {searchable ? (
             <input
               className={css.modelInput}
