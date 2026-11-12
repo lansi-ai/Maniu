@@ -99,6 +99,7 @@ function propsOf(overrides: Partial<IntakeWizardProps> = {}): IntakeWizardProps 
     approveResult: null,
     canApprove: true,
     restartBusy: false,
+    discussing: false,
     onCancel: vi.fn(),
     onConfirm: vi.fn(),
     onSelectModel: vi.fn(),
@@ -107,6 +108,7 @@ function propsOf(overrides: Partial<IntakeWizardProps> = {}): IntakeWizardProps 
     onApprove: vi.fn(),
     onConfirmNeed: vi.fn(),
     onOpenBoard: vi.fn(),
+    onDiscuss: vi.fn(),
     onRestart: vi.fn(),
     ...overrides,
   }
@@ -367,19 +369,82 @@ describe('结果卡', () => {
     expect(screen.getByText(zh['shell.proposalProblem'])).toBeTruthy()
   })
 
-  it('更多轮次展开后是重新开始，确认框与重开逻辑仍由外壳负责', () => {
+  it('更多轮次弹出菜单，两项分别是更多讨论与重新开始；重开仍是外壳的 onRestart', () => {
+    const onDiscuss = vi.fn()
     const onRestart = vi.fn()
     render(<IntakeWizard {...propsOf({
-      phase: 'result', result: 'proposal', proposal: proposalOf(), onRestart,
+      phase: 'result', result: 'proposal', proposal: proposalOf(), onDiscuss, onRestart,
     })} />)
 
     const more = screen.getByRole('button', { name: zh['shell.wizardMoreRounds'] })
     expect(more.getAttribute('aria-expanded')).toBe('false')
+    expect(more.getAttribute('aria-haspopup')).toBe('menu')
+    expect(screen.queryByRole('menu')).toBeNull()
+
     fireEvent.click(more)
     expect(more.getAttribute('aria-expanded')).toBe('true')
-    expect(screen.getByText(zh['shell.wizardRestartHint'])).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: zh['shell.restartIntake'] }))
+    const menu = screen.getByRole('menu')
+    expect(menu.querySelectorAll('[role="menuitem"]')).toHaveLength(2)
+    expect(screen.getByRole('menuitem', { name: zh['shell.wizardMoreDiscuss'] })).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('menuitem', { name: zh['shell.restartIntake'] }))
     expect(onRestart).toHaveBeenCalledTimes(1)
+    expect(onDiscuss).not.toHaveBeenCalled()
+    expect(screen.queryByRole('menu')).toBeNull()
+  })
+
+  it('点更多讨论只调用外壳回调并收起菜单', () => {
+    const onDiscuss = vi.fn()
+    render(<IntakeWizard {...propsOf({
+      phase: 'result', result: 'proposal', proposal: proposalOf(), onDiscuss,
+    })} />)
+
+    fireEvent.click(screen.getByRole('button', { name: zh['shell.wizardMoreRounds'] }))
+    fireEvent.click(screen.getByRole('menuitem', { name: zh['shell.wizardMoreDiscuss'] }))
+    expect(onDiscuss).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('menu')).toBeNull()
+  })
+
+  it('发送在途时更多讨论菜单项禁用，再点不发第二次', () => {
+    const onDiscuss = vi.fn()
+    render(<IntakeWizard {...propsOf({
+      phase: 'result', result: 'proposal', proposal: proposalOf(), discussing: true, onDiscuss,
+    })} />)
+
+    fireEvent.click(screen.getByRole('button', { name: zh['shell.wizardMoreRounds'] }))
+    const item = screen.getByRole<HTMLButtonElement>('menuitem', { name: zh['shell.wizardMoreDiscuss'] })
+    expect(item.disabled).toBe(true)
+    fireEvent.click(item)
+    expect(onDiscuss).not.toHaveBeenCalled()
+  })
+
+  it('Esc 或点菜单外都收起菜单', () => {
+    render(<IntakeWizard {...propsOf({
+      phase: 'result', result: 'proposal', proposal: proposalOf(),
+    })} />)
+
+    const more = screen.getByRole('button', { name: zh['shell.wizardMoreRounds'] })
+    fireEvent.click(more)
+    expect(screen.queryByRole('menu')).not.toBeNull()
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('menu')).toBeNull()
+
+    fireEvent.click(more)
+    expect(screen.queryByRole('menu')).not.toBeNull()
+    fireEvent.pointerDown(document.body)
+    expect(screen.queryByRole('menu')).toBeNull()
+  })
+
+  it('菜单挂在触发按钮旁的锚点上，菜单外不再重复显示重新开始', () => {
+    const { container } = render(<IntakeWizard {...propsOf({
+      phase: 'result', result: 'proposal', proposal: proposalOf(),
+    })} />)
+
+    expect(screen.queryByRole('menuitem', { name: zh['shell.restartIntake'] })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: zh['shell.wizardMoreRounds'] }))
+    const anchor = container.querySelector('[data-wizard-more]')?.parentElement
+    expect(anchor?.querySelector('[data-wizard-more-menu]')).not.toBeNull()
+    expect(screen.getAllByRole('menuitem', { name: zh['shell.restartIntake'] })).toHaveLength(1)
   })
 
   it('采纳失败原文就地显示，卡片不关；在途时确认按钮禁用', () => {

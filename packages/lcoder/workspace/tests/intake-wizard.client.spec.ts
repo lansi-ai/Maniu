@@ -5,7 +5,8 @@
 import { describe, expect, it } from 'vitest'
 import type { ShellMessage } from '../src/client/shell/shell-data.ts'
 import {
-  defaultIntakeModel, INTAKE_CONFIRM_COMMAND, intakeConfirmed, intakeModelOptions, intakePromptStarted,
+  defaultIntakeModel, INTAKE_CONFIRM_COMMAND, INTAKE_MORE_DISCUSSION, intakeConfirmed, intakeModelOptions,
+  intakePromptStarted,
   intakeResultView, intakeWizardOutput, intakeWizardPhase,
 } from '../src/client/shell/intake-wizard.ts'
 import type { IntakeModelCatalog, IntakeWizardFacts } from '../src/client/shell/intake-wizard.ts'
@@ -218,6 +219,21 @@ describe('需求是否已确认', () => {
 
   it('空会话不算已确认', () => {
     expect(intakeConfirmed([])).toBe(false)
+  })
+})
+
+describe('第二轮讨论指令', () => {
+  it('写明来源、放开七问上限但只补最多五个问题，仍逐题用选择框', () => {
+    expect(INTAKE_MORE_DISCUSSION).toContain('用户主动要求的第二轮需求讨论')
+    expect(INTAKE_MORE_DISCUSSION).toContain('不受第一轮七问上限的限制')
+    expect(INTAKE_MORE_DISCUSSION).toContain('最多再问 5 个关键问题')
+    expect(INTAKE_MORE_DISCUSSION).toContain('逐题用 ask_user_question 弹出选择框')
+  })
+
+  it('要求输出新的《项目需求概要》，先不登记并等用户确认', () => {
+    expect(INTAKE_MORE_DISCUSSION).toContain('新的《项目需求概要》')
+    expect(INTAKE_MORE_DISCUSSION).toContain('先不要登记')
+    expect(INTAKE_MORE_DISCUSSION).toContain('等用户回复「确认需求」')
   })
 })
 

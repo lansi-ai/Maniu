@@ -16,6 +16,20 @@ export type IntakeWizardPhase = 'home' | 'questions' | 'thinking' | 'result' | '
  */
 export const INTAKE_CONFIRM_COMMAND = '确认需求'
 
+/**
+ * 结果卡「更多讨论」代发的第二轮讨论指令；不改立项咒语本身。
+ *
+ * 仍在这一条会话里继续问：不受第一轮七问上限限制，但只补最多五个关键问题；
+ * 问答仍逐题走选择框，结束后输出新的《项目需求概要》并停下等「确认需求」，
+ * 不提前登记 .spec。会话里出现这条用户消息即说明第二轮已开始，不另记界面状态。
+ */
+export const INTAKE_MORE_DISCUSSION = `继续做一轮需求讨论：这是用户主动要求的第二轮需求讨论，不受第一轮七问上限的限制。
+
+- 先回看已有的需求概要，找出仍影响第一版的关键缺口；已经答过的信息不要重复问。
+- 最多再问 5 个关键问题；仍然一次只问一个，逐题用 ask_user_question 弹出选择框，给 2 到 4 个具体选项并留「其他（我自己说）」。
+- 问完后输出一份新的《项目需求概要》，写明相对上一版的变化。
+- 先不要登记：不调用 project_draft、spec_draft、task_draft，也不写 .spec；输出完停下，等用户回复「确认需求」。`
+
 /** 阶段判定用到的会话事实。 */
 export interface IntakeWizardFacts {
   /** 向导是否打开；关闭后一律是 `closed`。 */

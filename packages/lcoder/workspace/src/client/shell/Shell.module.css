@@ -1767,7 +1767,22 @@
 .wizardConfirmed { margin: 0; color: var(--lc-ink); font-size: var(--lc-text-sm); }
 .wizardAnalyst > [data-wizard-confirm-failed] { grid-column: 1 / -1; }
 .wizardResultActions { display: flex; flex-wrap: wrap; gap: var(--lc-space-2); }
-.wizardMore { display: grid; gap: var(--lc-space-2); justify-items: start; border-top: 1px solid var(--lc-line); padding-top: var(--lc-space-3); }
+/* 「更多轮次」弹出菜单锚在按钮正下方，不盖住触发按钮；窄窗下最宽只占七成视口。 */
+.wizardMoreWrap { position: relative; display: inline-flex; }
+.wizardMenu {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 6;
+  min-width: 160px; max-width: min(280px, 70vw);
+  display: grid; gap: 2px; padding: 6px;
+  background: var(--lc-surface); border: 1px solid var(--lc-line-strong);
+  border-radius: var(--lc-radius-md); box-shadow: var(--lc-shadow-pop);
+}
+.wizardMenuItem {
+  border: 0; background: transparent; color: var(--lc-ink); text-align: left;
+  padding: 7px 10px; border-radius: var(--lc-radius-sm);
+  font-size: var(--lc-text-sm); white-space: nowrap;
+}
+.wizardMenuItem:hover:not(:disabled), .wizardMenuItem:focus-visible { background: var(--lc-hover); }
+.wizardMenuItem:disabled { color: var(--lc-faint); }
 
 .wizardEmpty { margin: 0; color: var(--lc-muted); font-size: var(--lc-text-sm); display: grid; gap: var(--lc-space-2); justify-items: start; }
 .wizardModels { display: grid; gap: 6px; max-height: 220px; overflow: auto; }
