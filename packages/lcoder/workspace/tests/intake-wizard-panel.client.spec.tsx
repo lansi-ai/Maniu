@@ -199,6 +199,25 @@ describe('提问层', () => {
       expect(answer).toHaveBeenCalledWith({ answers: [{ id: 'q1', selected: ['管理员'] }] })
     })
   })
+
+  it('提问层保留右栏活动区，问题卡画在活动区里', () => {
+    const { container } = render(<IntakeWizard {...propsOf({ phase: 'questions', question: questionOf() })} />)
+
+    expect(container.querySelector('[data-wizard-layout="split"]')).not.toBeNull()
+    const stage = container.querySelector('[data-wizard-stage]')
+    expect(stage?.getAttribute('data-phase')).toBe('questions')
+    expect(stage?.querySelector('[data-wizard-question]')).not.toBeNull()
+  })
+})
+
+describe('头像', () => {
+  it('需求分析师用品牌图做头像，不再是渐变圆点', () => {
+    const { container } = render(<IntakeWizard {...propsOf({ phase: 'questions', question: questionOf() })} />)
+
+    const avatar = container.querySelector('img[aria-hidden="true"]')
+    expect(avatar).not.toBeNull()
+    expect(avatar?.getAttribute('src')).toContain('bull-mark')
+  })
 })
 
 describe('思考中', () => {
@@ -225,6 +244,14 @@ describe('思考中', () => {
     expect(screen.queryByText('先确认使用场景')).toBeNull()
   })
 
+  it('思考阶段收起右栏活动区，思考提示回到左栏并占满单栏', () => {
+    const { container } = render(<IntakeWizard {...propsOf({ phase: 'thinking' })} />)
+
+    expect(container.querySelector('[data-wizard-layout="solo"]')).not.toBeNull()
+    expect(container.querySelector('[data-wizard-stage]')).toBeNull()
+    expect(container.querySelector('[data-wizard-layout="solo"] aside [data-wizard-thinking]')).not.toBeNull()
+  })
+
   it('本轮结束但还没读到方案时 loading 停转，改为结束说明并直接给重新开始', () => {
     const onRestart = vi.fn()
     const { container } = render(<IntakeWizard {...propsOf({
@@ -236,6 +263,7 @@ describe('思考中', () => {
     const spinner = container.querySelector('[data-wizard-spinner]')
     expect(spinner?.getAttribute('data-spinning')).toBe('false')
     expect(container.querySelector('[data-wizard-thinking]')?.getAttribute('data-running')).toBe('false')
+    expect(container.querySelector('[data-wizard-stage]')).toBeNull()
     expect(screen.getByText(zh['shell.wizardThinkingEnded'])).toBeTruthy()
     expect(screen.queryByText(zh['shell.wizardThinking'])).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: zh['shell.restartIntake'] }))
@@ -277,6 +305,8 @@ describe('结果卡', () => {
     expect(screen.getByText('先做借还书闭环')).toBeTruthy()
     expect(screen.getByText(zh['shell.proposalDraft'])).toBeTruthy()
     expect(screen.getByText(zh['shell.wizardResultTasks'].replace('{count}', '2'))).toBeTruthy()
+    expect(container.querySelector('[data-wizard-layout="split"]')).not.toBeNull()
+    expect(container.querySelector('[data-wizard-stage]')?.getAttribute('data-phase')).toBe('result')
     expect(container.querySelectorAll('[data-wizard-task]')).toHaveLength(2)
     expect(container.querySelector('[data-wizard-task="T-01"]')).not.toBeNull()
     expect(container.querySelector('[data-wizard-task="T-02"]')).not.toBeNull()
