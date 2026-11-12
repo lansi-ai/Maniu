@@ -1370,6 +1370,30 @@ tracks:
       inferred: false
       note: "B 级交互微调，来源是用户 2026-11-11 截图三条。一、工作台右下角 LCoder 真实 spec 小字去掉，连带未被引用的文案键与样式清理。二、项目信息抽屉里切换项目默认折叠，不默认展开长列表。三、基本信息与交付与文档与环境各按类型可折叠，默认全折叠，只显示小节标题与一行摘要；展开后保留现有内容与交互。用 details 与 summary 实现并复用现有折叠样式，不引第三方库；默认闭合不影响切换与打开仓库功能。顺手修 Shell.tsx 四条 unbound-method 基线 lint（T-120 拖拽处理器），不改变行为。验收 typecheck 与 packages/lcoder vitest 与 oxlint 与 test:docs 与 i18n；真窗口冒烟确认右下角无小字、抽屉打开时各节均为折叠态、展开后内容与操作正常；不做截图。工作树用 pool-slot-2 claim 到 lcoder/t122-drawer-fold。2026-11-11 15:35 监督窗口派工，实现线会话 e3a01cb5；claim pool-slot-2 到分支 lcoder/t122-drawer-fold。2026-11-11 17:00 监督窗口核验并收口。独立复跑 vitest 七十文件七百三十九例、test:docs 二十一项全过；实现线报 typecheck 五项、i18n 一千三百零二文件、oxlint 零错，T-120 四条基线已清。真窗口十一项：右下角无小字；抽屉四节默认折叠且摘要显示当前项目；展开后切换与打开仓库与密码显隐正常；切换后仍关闭。未验项是原生目录对话框未点开、真实 secret 显示路径、两套皮肤手看。已合入 lcoder/main、release pool-slot-2。"
 
+    - id: T-123
+      title: 新增浅色粉霓虹皮肤
+      status: done
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-12'
+      date: '2026-11-12'
+      dep: [T-103]
+      inferred: false
+      note: "B 级视觉扩展，来源是用户 2026-11-12 要求增加浅色赛博霓虹主题，主题色粉色。范围：skin.ts 增加第三套 skin（建议标识 rose，中文名 粉樱霓虹，英文 Rose neon），默认仍是霓虹夜航；设置与顶栏色球循环支持三套；Shell.module.css 增加浅色 token（浅粉底、深色文字、粉色强调与两色渐变、浅色玻璃与网格线），登录页画布与网格跟着 accent 变粉；所有组件只靠 token 适配，不逐个写死颜色；窄窗与深浅对比度至少 4.5 比 1。不改业务逻辑与契约。验收 typecheck 与 packages/lcoder vitest 与 oxlint 与 test:docs 与 i18n；真窗口冒烟确认三套皮肤可切、刷新后保持、登录页与看板文字可读；不做截图。工作树用 pool-slot-1 claim 到 lcoder/t123-rose-skin。2026-11-12 09:30 监督窗口派工，实现线会话 d61c82a8；claim pool-slot-1 到分支 lcoder/t123-rose-skin。2026-11-12 10:50 监督窗口核验并收口。独立复跑 vitest 七十二文件七百四十九例、i18n、test:docs 全过；实现线报 rose 对比度正文 15.84、次要 6.91、说明 4.87、品牌 4.77，满足 4.5；登录画布粉色落笔，刷新保持。未验项是最终视觉手看与 smoke.cmd 基座漂移。"
+
+    - id: T-124
+      title: 任务看板跟随文档变更自动刷新
+      status: done
+      face: 用户端
+      type: 修复
+      owner: lance
+      created: '2026-11-12'
+      date: '2026-11-12'
+      dep: [T-123]
+      inferred: false
+      note: "B 级修复，来源是用户 2026-11-12 反馈 .spec 文档外部更新时任务看板不及时加载。现状投影只在 files 与 workspace 与 session 与 reload 变化时读取，没有定时与焦点刷新。范围：有工作区且页面可见时每十秒通过现有 setReload 重读投影与项目信息；window focus 与 visibilitychange 回前台立即重读，隐藏时暂停；重读失败不打断看板只记录问题；不新增宿主接口与不改契约。验收：外部改 .spec 任务 YAML 后十秒内看板更新；切回窗口立即更新；单测覆盖定时器启停与焦点刷新；门禁 typecheck 与 packages/lcoder vitest 与 test:docs 与 i18n；不做截图。依赖 T-123，避免同文件冲突，未派工。2026-11-12 09:45 监督窗口派工，实现线会话 e2135fa3；claim pool-slot-2 到分支 lcoder/t124-board-refresh，与 T-123 并行。2026-11-12 10:50 监督窗口核验并收口。独立复跑 vitest 七十二文件七百四十九例、i18n、test:docs；实现线真窗口靶仓：外部改 YAML 8.05 秒更新、focus 211 毫秒、无加载挡板。未验项是隐藏态停表与 9822 端口复验，因 T-123 占用改用 9823 与 9831 与 9832。"
+
 milestones:
 - name: MVP-0 工作台本地跑通
   track: lcoder
