@@ -51,7 +51,8 @@ import { onboardingAction } from '../onboarding.ts'
 import { intakeArtifactsOf, intakeTierOfMessages, PROPOSAL_DECISION, runIntakeRestart, latestProposal } from './intake.ts'
 import type { IntakeTier } from './intake.ts'
 import {
-  defaultIntakeModel, intakeModelOptions, intakePromptStarted, intakeWizardOutput, intakeWizardPhase,
+  defaultIntakeModel, INTAKE_CONFIRM_TEXT, intakeConfirmed, intakeModelOptions, intakePromptStarted,
+  intakeResultView, intakeWizardOutput, intakeWizardPhase,
 } from './intake-wizard.ts'
 import type { IntakeModelOption } from './intake-wizard.ts'
 import { useIntakeRunActive } from './intake-run.ts'
@@ -532,6 +533,8 @@ export function Shell({
   const [intakeModelState, setIntakeModelState] = useState<IntakeModelState>('idle')
   /** 模型目录请求是否在途；挡住同一 tick 里的重复读取。 */
   const intakeModelLoading = useRef(false)
+  /** 结果卡里的「确认需求」发送在途；在途时按钮禁用并显示正在发送。 */
+  const [wizardConfirming, setWizardConfirming] = useState(false)
   /** 结果卡里的采纳：成功才关向导，失败原文就地显示。 */
   const [wizardApproving, setWizardApproving] = useState(false)
   const [wizardApproveResult, setWizardApproveResult] = useState<ShellSignResult | null>(null)
@@ -1087,23 +1090,40 @@ export function Shell({
     userMessages: wizardUserMessages,
     awaitingFirstTurn: wizardFlags?.awaitingFirstTurn,
   })
+  /** 会话里是否已经有用户确认过需求；确认按钮与结果卡都按这条日志事实判，不另记状态。 */
+  const wizardConfirmed = useMemo(() => intakeConfirmed(wizardMessages), [wizardMessages])
+  /** 项目或任务已落盘：确认后的结果卡据此决定说「已确认」还是如实报失败。 */
+  const wizardLanded = info !== null || tasks.length > 0
+  /**
+   * 状态行与阶段共用沉降后的运行事实：回合之间 `running` 会短暂为 false，
+   * 沉降窗口把这两秒仍当作思考中；确定停止后才换结论，结果卡不会在两轮之间闪。
+   * 待答问题仍算在跑；向导没开始或停在首页时立即交回未运行。
+   */
+  const wizardStatusRunning = useIntakeRunActive({
+    enabled: wizardOpen && wizardStarted && (wizardQuestion?.questions.length ?? 0) === 0,
+    running: wizardTurnActive,
+    questionCount: wizardQuestion?.questions.length ?? 0,
+    activity: wizardMessages.length,
+  })
+  /** 自己发出的确认消息也算在跑：发送在途时不再按上一轮结论画结果卡。 */
+  const wizardRunFact = wizardStatusRunning || wizardConfirming
   const wizardPhase = intakeWizardPhase({
     open: wizardOpen,
     started: wizardStarted,
     questionCount: wizardQuestion?.questions.length ?? 0,
-    running: wizardRunning,
+    running: wizardRunFact,
     hasOutput: wizardOutput.hasOutput,
     proposalCount: proposals.length,
+    summary: wizardOutput.summary,
+    confirmed: wizardConfirmed,
+    landed: wizardLanded,
   })
-  /**
-   * 状态行不直接用瞬时 `running`：回合之间它可能短暂为 false，
-   * 沉降窗口把这两秒仍当作思考中，只有持续停下才换成结束态。
-   */
-  const wizardStatusRunning = useIntakeRunActive({
-    enabled: wizardOpen && wizardPhase === 'thinking',
-    running: wizardTurnActive,
-    questionCount: wizardQuestion?.questions.length ?? 0,
-    activity: wizardMessages.length,
+  /** 结果卡的内容种类：方案优先，其次本轮聊天概要，再其次已确认落盘。 */
+  const wizardResultView = intakeResultView({
+    proposalCount: proposals.length,
+    summary: wizardOutput.summary,
+    confirmed: wizardConfirmed,
+    landed: wizardLanded,
   })
   const wizardProposal = latestProposal(proposals)
   const intakeModels = intakeModelOptions(intakeModelSnapshot)
@@ -2300,6 +2320,40 @@ export function Shell({
         setWizardSending(false)
       }
     })()
+  }
+
+  /**
+   * 概要路径的「确认需求」：向同一会话发一条确认消息，让分析师按立项咒语落盘。
+   *
+   * 不新建会话；会话里已经有这条用户消息就不再发送，刷新、关掉重开、重复点击都只回到结果卡。
+   * 发送在途即算在跑，阶段当场回到思考中，不等下一条事件。
+   */
+  const confirmIntakeRequirement = (): void => {
+    if (wizardConfirming || wizardConfirmed) return
+    if (sessionId === undefined || sendPrompt === undefined) {
+      setWizardError(t('shell.noSession'))
+      return
+    }
+    setWizardError(null)
+    setWizardConfirming(true)
+    void (async () => {
+      try {
+        if (!await routeSession(sessionId)) return
+        await sendPrompt(sessionId, INTAKE_CONFIRM_TEXT)
+        void cloudSession.refresh()
+      } catch (error: unknown) {
+        setWizardError(fill(t('shell.onboardingSendFailed'), { detail: String(error) }))
+      } finally {
+        setWizardConfirming(false)
+      }
+    })()
+  }
+
+  /** 已确认并落盘后直接回看板：关掉向导并重读投影，聊天会话留在原地。 */
+  const openBoardFromWizard = (): void => {
+    setWizardOpen(false)
+    setResultPage(false)
+    setReload(value => value + 1)
   }
 
   /** 结果卡采纳方案：成功才关向导并重读投影；失败原文留在卡上，不关。 */
@@ -3876,8 +3930,13 @@ export function Shell({
           modelBlocked={modelBlocked}
           sending={wizardSending}
           proposal={wizardProposal ?? null}
+          result={wizardResultView}
+          summary={wizardOutput.summary}
+          confirmed={wizardConfirmed}
+          confirming={wizardConfirming}
+          landed={wizardLanded}
           tasks={tasks}
-          running={wizardStatusRunning}
+          running={wizardRunFact}
           approving={wizardApproving}
           approveResult={wizardApproveResult}
           canApprove={approveProposal !== undefined && sessionId !== undefined}
@@ -3888,6 +3947,8 @@ export function Shell({
           onLoadModels={loadIntakeModels}
           onOpenSettings={() => { setSettings(true) }}
           onApprove={approveWizardProposal}
+          onConfirmNeed={confirmIntakeRequirement}
+          onOpenBoard={openBoardFromWizard}
           onRestart={requestIntakeRestart}
         />
       ) : null}

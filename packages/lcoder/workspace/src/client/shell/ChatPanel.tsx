@@ -22,8 +22,11 @@ import css from './Shell.module.css'
 /** 本包词典的翻译函数。 */
 type Translate = PropsLocale<'lcoderWorkspace'>['t']
 
-/** Markdown 代码块与脚注的本地化文案；身份稳定，避免流式渲染缓存失效。 */
-function useMarkdownLabels(t: Translate): { code: { copyLabel: string; copiedLabel: string }; footnotes: string } {
+/**
+ * Markdown 代码块与脚注的本地化文案；身份稳定，避免流式渲染缓存失效。
+ * 结果卡里的聊天概要也复用这份标签。
+ */
+export function useMarkdownLabels(t: Translate): { code: { copyLabel: string; copiedLabel: string }; footnotes: string } {
   return useMemo(() => ({
     code: { copyLabel: t('shell.copyCode'), copiedLabel: t('shell.copiedCode') },
     footnotes: t('shell.footnotes'),

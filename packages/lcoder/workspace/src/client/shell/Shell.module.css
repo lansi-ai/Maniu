@@ -1740,6 +1740,14 @@
   background: var(--lc-brand-soft); color: var(--lc-brand-ink);
   font: var(--lc-text-xs) / 1.5 var(--lc-font-mono);
 }
+/* 只有聊天概要时：Markdown 正文限高滚动，长概要不在弹窗里撑到整页。 */
+.wizardSummary {
+  min-width: 0; max-height: 344px; overflow: auto;
+  padding: 2px 2px 0; font-size: var(--lc-text-sm); line-height: var(--lc-leading);
+  overflow-wrap: anywhere;
+}
+.wizardConfirmed { margin: 0; color: var(--lc-ink); font-size: var(--lc-text-sm); }
+.wizardAnalyst > [data-wizard-confirm-failed] { grid-column: 1 / -1; }
 .wizardResultActions { display: flex; flex-wrap: wrap; gap: var(--lc-space-2); }
 .wizardMore { display: grid; gap: var(--lc-space-2); justify-items: start; border-top: 1px solid var(--lc-line); padding-top: var(--lc-space-3); }
 
