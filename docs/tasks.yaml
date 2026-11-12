@@ -1600,7 +1600,7 @@ tracks:
 
     - id: T-142
       title: 设置页支持选择默认模型
-      status: todo
+      status: doing
       face: 用户端
       type: 开发
       owner: lance
@@ -1608,7 +1608,7 @@ tracks:
       date: '2026-11-12'
       dep: [T-141]
       inferred: false
-      note: "B 级设置增强，来源是用户 2026-11-12 要求能设置默认使用模型并把默认设为官网 DeepSeek。现状默认模型只能在 provider 行内编辑里逐个点设为默认，没有顶层入口；无会话时不可用。范围：ModelSettings 面板顶部新增默认模型区，列出快照里所有可路由模型（服务商 · 模型），显示当前默认 snapshot.defaultSelection；选中一枚点设为默认，走既有 face.setDefault(sessionId, provider, model)，成功后 reload 与 onChanged；无会话时按钮禁用并说明先开会话；四套皮肤与窄窗可用，中英文案。另在 desktop profile 增加 agent-default-model 覆盖为 deepseek-official 与 deepseek-flash，新装与重建默认走官网。验收 typecheck 与 packages/lcoder vitest 与 oxlint 与 test:docs 与 i18n；单测覆盖默认展示、无会话禁用、点击调用 setDefault；真窗口最多一次定向断言，不做截图。工作树用 pool-slot-1 claim 到 lcoder/t142-default-model，端口 9822 与 9829 与 9830。"
+      note: "B 级设置增强，来源是用户 2026-11-12 要求能设置默认使用模型并把默认设为官网 DeepSeek。现状默认模型只能在 provider 行内编辑里逐个点设为默认，没有顶层入口；无会话时不可用。范围：ModelSettings 面板顶部新增默认模型区，列出快照里所有可路由模型（服务商 · 模型），显示当前默认 snapshot.defaultSelection；选中一枚点设为默认，走既有 face.setDefault(sessionId, provider, model)，成功后 reload 与 onChanged；无会话时按钮禁用并说明先开会话；四套皮肤与窄窗可用，中英文案。另在 desktop profile 增加 agent-default-model 覆盖为 deepseek-official 与 deepseek-flash，新装与重建默认走官网。验收 typecheck 与 packages/lcoder vitest 与 oxlint 与 test:docs 与 i18n；单测覆盖默认展示、无会话禁用、点击调用 setDefault；真窗口最多一次定向断言，不做截图。工作树用 pool-slot-1 claim 到 lcoder/t142-default-model，端口 9822 与 9829 与 9830。2026-11-12 21:20 监督窗口派工，实现线会话 5e897a60；主检出已把 profile 默认模型覆盖为 deepseek-official 与 deepseek-flash 并重出 profile。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
