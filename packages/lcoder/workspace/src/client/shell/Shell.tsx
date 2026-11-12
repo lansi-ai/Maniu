@@ -1938,12 +1938,11 @@ export function Shell({
         return
       }
 
-      // 新拆分会话沿用需求所在会话当前选的模型：默认模型指向不可用网关时，
-      // 用户只要在本会话切到可用模型，项目经理与研发经理就不会再撞同一个 502。
-      const splitModelSession = claimTaskSession(task.session, taskSessionRows)?.sessionId ?? sessionId
-      const splitModel = (splitModelSession === undefined
+      // 拆分会话跟随设置里的默认模型：用户在设置页改完默认后，项目经理与研发经理
+      // 立刻用新默认，不再被需求会话里的旧模型选择盖住。读不到快照就交给宿主默认。
+      const splitModel = modelSettings === undefined
         ? undefined
-        : sessionProjections[splitModelSession]?.values.modelSelection?.next) ?? undefined
+        : (await modelSettings.load()).defaultSelection
       const outcome = await runRequirementSplit({
         task,
         source: { document },

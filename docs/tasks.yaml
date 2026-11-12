@@ -1610,6 +1610,18 @@ tracks:
       inferred: false
       note: "B 级设置增强，来源是用户 2026-11-12 要求能设置默认使用模型并把默认设为官网 DeepSeek。现状默认模型只能在 provider 行内编辑里逐个点设为默认，没有顶层入口；无会话时不可用。范围：ModelSettings 面板顶部新增默认模型区，列出快照里所有可路由模型（服务商 · 模型），显示当前默认 snapshot.defaultSelection；选中一枚点设为默认，走既有 face.setDefault(sessionId, provider, model)，成功后 reload 与 onChanged；无会话时按钮禁用并说明先开会话；四套皮肤与窄窗可用，中英文案。另在 desktop profile 增加 agent-default-model 覆盖为 deepseek-official 与 deepseek-flash，新装与重建默认走官网。验收 typecheck 与 packages/lcoder vitest 与 oxlint 与 test:docs 与 i18n；单测覆盖默认展示、无会话禁用、点击调用 setDefault；真窗口最多一次定向断言，不做截图。工作树用 pool-slot-1 claim 到 lcoder/t142-default-model，端口 9822 与 9829 与 9830。2026-11-12 21:20 监督窗口派工，实现线会话 5e897a60；主检出已把 profile 默认模型覆盖为 deepseek-official 与 deepseek-flash 并重出 profile。2026-11-12 21:30 监督窗口核验并收口。独立复跑 typecheck 五项、vitest 七十九文件九百零二例、i18n 一千三百零九文件、test:docs 二十一项、改动文件 oxlint 全过；主检出复跑同组门禁与 build:artifacts 与 build:check 全过。设置页顶部新增默认模型区，列出快照内全部模型、显示当前默认、无会话禁用并提示。未验项是四套皮肤与窄窗的真窗口视觉。已合入 lcoder/main、release pool-slot-1。"
 
+    - id: T-143
+      title: 拆分会话改跟随设置里的默认模型
+      status: done
+      face: 用户端
+      type: 修复
+      owner: lance
+      created: '2026-11-12'
+      date: '2026-11-12'
+      dep: [T-142]
+      inferred: false
+      note: "B 级修复，来源是用户 2026-11-12 反馈设置默认模型后拆分仍用旧模型。原因 T-141 让拆分会话继承需求会话当前模型，盖住了设置里的全局默认。修法：拆分时重新读 modelSettings 快照的 defaultSelection，创建项目经理与研发经理会话后写入该默认；不再看需求会话的旧选择，读不到快照就交给宿主默认。vitest 与 i18n 与 test:docs 与 build:artifacts 全过。未验项是设置页改默认后立刻拆分的真窗口链路。直接在主检出修复。"
+
 milestones:
 - name: MVP-0 工作台本地跑通
   track: lcoder
