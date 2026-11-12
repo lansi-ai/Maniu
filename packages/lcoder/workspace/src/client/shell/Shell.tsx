@@ -76,7 +76,7 @@ import { ChatTranscript, PendingInteractionCard } from './ChatPanel.tsx'
 import { intakeAnswersOf, intakeSummaryOf, isRequirementTask } from './requirement.ts'
 import type { RequirementAnswer } from './requirement.ts'
 import {
-  existingSplitTasks, runRequirementSplit,
+  existingSplitTasks, runRequirementSplit, splitTasksOf,
 } from './requirement-split.ts'
 import type {
   RequirementSplitFailure, RequirementSplitFailureReason, RequirementSplitSummary,
@@ -142,6 +142,8 @@ export type ShellProps =
     readonly bindTask?: (sessionId: SessionId, taskId: string) => Promise<ShellSignResult>
     /** 派 `/task_assign <编号> <岗位>` 把任务分配给岗位；分配是调度硬约束，只有人机命令写。 */
     readonly assignTask?: (sessionId: SessionId, taskId: string, roleId: string) => Promise<ShellSignResult>
+    /** 派 `/task_split_ready <编号>` 把拆分任务从起草直接推到待开发；需求文档为契约依据。 */
+    readonly splitReady?: (sessionId: SessionId, taskId: string) => Promise<ShellSignResult>
     /** 派 `/task_schedule <编号> <JSON>` 把这次判定追加到任务证据目录，供事后审计。 */
     readonly logSchedule?: (sessionId: SessionId, taskId: string, json: string) => Promise<ShellSignResult>
     /** 派 `/flow_status` 求流程判定；返回一行 JSON，由外壳解析展示。 */
@@ -433,6 +435,10 @@ function splitSummaryLines(t: ShellProps['t'], summary: RequirementSplitSummary)
       task: attempt.taskId, role: attempt.roleId, detail: attempt.detail,
     }))
   }
+  for (const attempt of summary.advances) {
+    if (attempt.ok) continue
+    lines.push(fill(t('shell.splitAdvanceFailed'), { task: attempt.taskId, detail: attempt.detail }))
+  }
   for (const taskId of summary.unassigned) {
     lines.push(fill(t('shell.splitUnassigned'), { task: taskId }))
   }
@@ -572,7 +578,7 @@ function providerOfSelection(projected: unknown): string | undefined {
  */
 export function Shell({
   t, files, readAttachment, openRepository, sendPrompt, uploadAttachment, readDefaultModel, signContract, advanceContract,
-  approveProposal, bindTask, assignTask, logSchedule,
+  approveProposal, bindTask, assignTask, splitReady, logSchedule,
   readFlowStatus, logFlow, bindAgentSession, renameSession, readContextPressure,
   createSession, listRoles, listExperts, readExpert,
   readMessages, subscribeSession, holdSession, checkModels, subscribeModels, readSessionNotice, readSessionFlags, modelSettings,
@@ -1882,15 +1888,12 @@ export function Shell({
     }
     const flow = splitFlows[task.id]
     if (flow?.status === 'running' || splitRuns.current.has(task.id)) return
-    if (flow?.status === 'done') {
-      setSplitError(null)
-      return
-    }
     if (modelStatus?.state === 'empty') {
       setSplitError(t('shell.splitNoModel'))
       return
     }
-    if (createSession === undefined || sendPrompt === undefined || assignTask === undefined) {
+    if (createSession === undefined || sendPrompt === undefined || assignTask === undefined
+      || splitReady === undefined || sessionId === undefined) {
       setSplitError(t('shell.splitNeedSessions'))
       return
     }
@@ -1923,20 +1926,30 @@ export function Shell({
 
     try {
       const snapshot = await loadSplitSnapshot()
+      const split = splitTasksOf(snapshot.tasks, task)
       const existing = existingSplitTasks(snapshot.tasks, task)
-      const pending = existing.filter(row => row.role === undefined)
-      if (existing.length > 0 && pending.length === 0) {
+      // 没有还在起草的拆分任务、但同方案已有拆出任务：这批已经全部进了待开发或更后，
+      // 按持久事实给完成结果，不再重拆。重启后 flow 状态丢失也走这条。
+      if (existing.length === 0 && split.length > 0) {
         setSplitFlows(current => ({
           ...current,
           [task.id]: {
             status: 'done',
-            newTasks: viewTasks(existing),
-            summary: { taskCount: existing.length, assignedCount: existing.length, lines: [] },
+            newTasks: viewTasks(split),
+            summary: {
+              taskCount: split.length,
+              assignedCount: split.filter(row => row.role !== undefined).length,
+              readyCount: split.filter(row => row.state !== 'drafting').length,
+              lines: [],
+            },
           },
         }))
+        setSplitError(null)
         setReload(value => value + 1)
         return
       }
+      // 还有起草态任务时走重试路径：不再建项目经理会话，只补未分配岗位，
+      // 再把整批推进到待开发。
 
       // 拆分会话跟随设置里的默认模型：用户在设置页改完默认后，项目经理与研发经理
       // 立刻用新默认，不再被需求会话里的旧模型选择盖住。读不到快照就交给宿主默认。
@@ -1947,7 +1960,7 @@ export function Shell({
         task,
         source: { document },
         roster: snapshot.roles,
-        ...(pending.length === 0 ? {} : { existingTasks: pending }),
+        ...(existing.length === 0 ? {} : { existingTasks: existing }),
         beforeTaskIds: snapshot.tasks.map(row => row.id),
       }, {
         createSession: async (preset) => {
@@ -1967,6 +1980,8 @@ export function Shell({
         isRunning: id => liveSessionStatus.current.get(id as SessionId)?.running
           ?? liveSessionRows.current[id as SessionId]?.running,
         assignTask: (id, taskId, roleId) => assignTask(id as SessionId, taskId, roleId),
+        // 推进命令由当前主会话发起：它是这个仓库里已持有的会话，命令只写 `.spec`。
+        splitReady: taskId => splitReady(sessionId, taskId),
         loadTasks: async () => (await loadSplitSnapshot()).tasks,
         loadRoster: async () => (await loadSplitSnapshot()).roles,
         now: () => Date.now(),
@@ -2001,6 +2016,7 @@ export function Shell({
                 summary: {
                   taskCount: known.length,
                   assignedCount: known.filter(row => row.role !== undefined).length,
+                  readyCount: 0,
                   lines: [],
                 },
               }),
@@ -2012,7 +2028,6 @@ export function Shell({
       }
 
       const known = existing.length > 0 ? existing : outcome.newTasks
-      const preAssigned = known.filter(row => row.role !== undefined).length
       const lines = splitSummaryLines(t, outcome.summary)
       setSplitFlows(current => ({
         ...current,
@@ -2020,8 +2035,9 @@ export function Shell({
           status: 'done',
           newTasks: viewTasks(known),
           summary: {
-            taskCount: known.length,
-            assignedCount: preAssigned + outcome.summary.assignedCount,
+            taskCount: outcome.summary.taskCount,
+            assignedCount: outcome.summary.assignedCount,
+            readyCount: outcome.summary.advancedCount,
             lines,
           },
         },

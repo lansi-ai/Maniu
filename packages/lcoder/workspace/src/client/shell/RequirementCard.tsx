@@ -21,7 +21,7 @@ import css from './Shell.module.css'
 type Translate = PropsLocale<'lcoderWorkspace'>['t']
 
 /** 拆分流程停在的段；与 `requirement-split.ts` 的阶段一一对应。 */
-export type RequirementSplitStageView = 'pm' | 'manager' | 'assigning'
+export type RequirementSplitStageView = 'pm' | 'manager' | 'assigning' | 'readying'
 
 /** 卡片要画的一次拆分流程；文案已由外壳按词典拼好，卡片只排版。 */
 export interface RequirementSplitFlowView {
@@ -33,6 +33,8 @@ export interface RequirementSplitFlowView {
   readonly summary?: {
     readonly taskCount: number
     readonly assignedCount: number
+    /** 成功进入待开发（contracted）的条数。 */
+    readonly readyCount: number
     /** 逐条失败或未分配的说明，已本地化。 */
     readonly lines: readonly string[]
   }
@@ -104,6 +106,7 @@ function SectionHead({
 function runningStageText(t: Translate, stage: RequirementSplitStageView | undefined): string {
   if (stage === 'manager') return t('shell.splitManagerRunning')
   if (stage === 'assigning') return t('shell.splitAssigning')
+  if (stage === 'readying') return t('shell.splitReadying')
   return t('shell.splitPmRunning')
 }
 
@@ -127,6 +130,7 @@ function SplitFlowSection({ t, flow }: { readonly t: Translate; readonly flow: R
           {t('shell.splitResult', {
             tasks: `${flow.summary.taskCount}`,
             assigned: `${flow.summary.assignedCount}`,
+            ready: `${flow.summary.readyCount}`,
           })}
         </p>
       ) : null}

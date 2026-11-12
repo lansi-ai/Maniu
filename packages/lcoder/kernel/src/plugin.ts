@@ -20,6 +20,7 @@ import { createTaskAssignCommand } from './commands/task-assign.js'
 import { createTaskBindCommand } from './commands/task-bind.js'
 import { createTaskContractCommand } from './commands/task-contract.js'
 import { createTaskScheduleCommand } from './commands/task-schedule.js'
+import { createTaskSplitReadyCommand } from './commands/task-split-ready.js'
 import { createEditTools, spawnRunner } from './tools/edit-tools.js'
 import { createGitTools } from './tools/git-tools.js'
 import { createProjectTools } from './tools/project-tools.js'
@@ -170,6 +171,7 @@ export function apply(ctx: PluginContext, config: LcoderConfig = {}): void {
     createTaskBindCommand(rootInput),
     createTaskAssignCommand(rootInput),
     createTaskContractCommand(rootInput),
+    createTaskSplitReadyCommand(rootInput),
     createTaskScheduleCommand(rootInput),
     createFlowStatusCommand(rootInput),
     createFlowLogCommand(rootInput),
