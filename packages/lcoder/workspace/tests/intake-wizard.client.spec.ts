@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ShellMessage } from '../src/client/shell/shell-data.ts'
 import {
-  defaultIntakeModel, INTAKE_CONFIRM_TEXT, intakeConfirmed, intakeModelOptions, intakePromptStarted,
+  defaultIntakeModel, INTAKE_CONFIRM_COMMAND, intakeConfirmed, intakeModelOptions, intakePromptStarted,
   intakeResultView, intakeWizardOutput, intakeWizardPhase,
 } from '../src/client/shell/intake-wizard.ts'
 import type { IntakeModelCatalog, IntakeWizardFacts } from '../src/client/shell/intake-wizard.ts'
@@ -204,7 +204,7 @@ describe('思考过程汇总', () => {
 
 describe('需求是否已确认', () => {
   it('用户消息去掉首尾空白后完全等于确认需求才算已确认', () => {
-    expect(intakeConfirmed([{ role: 'user', text: `  ${INTAKE_CONFIRM_TEXT}\n` }])).toBe(true)
+    expect(intakeConfirmed([{ role: 'user', text: `  ${INTAKE_CONFIRM_COMMAND}\n` }])).toBe(true)
   })
 
   it('立项咒语、注入上下文、助手答复与近似说法都不算确认', () => {

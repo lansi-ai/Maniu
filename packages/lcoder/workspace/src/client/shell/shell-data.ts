@@ -45,6 +45,8 @@ export interface ShellTask {
   readonly paths: readonly string[]
   /** 任务声明的不可逆动作；非空时本地建议只能转人工。 */
   readonly irreversible: readonly string[]
+  /** 任务开立时间（`opened_at`）；缺省表示文件里没写。 */
+  readonly openedAt?: string
 }
 
 /** 装配层声明的一个角色（Agent preset）；外壳的新会话按它指名。 */

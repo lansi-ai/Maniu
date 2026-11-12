@@ -51,7 +51,7 @@ import { onboardingAction } from '../onboarding.ts'
 import { intakeArtifactsOf, intakeTierOfMessages, PROPOSAL_DECISION, runIntakeRestart, latestProposal } from './intake.ts'
 import type { IntakeTier } from './intake.ts'
 import {
-  defaultIntakeModel, INTAKE_CONFIRM_TEXT, intakeConfirmed, intakeModelOptions, intakePromptStarted,
+  defaultIntakeModel, INTAKE_CONFIRM_COMMAND, intakeConfirmed, intakeModelOptions, intakePromptStarted,
   intakeResultView, intakeWizardOutput, intakeWizardPhase,
 } from './intake-wizard.ts'
 import type { IntakeModelOption } from './intake-wizard.ts'
@@ -72,6 +72,8 @@ import { browserSkinStorage, readSkin, SKINS, writeSkin } from './skin.ts'
 import type { Skin } from './skin.ts'
 import { recommendedRoleId } from './role-hint.ts'
 import { ChatTranscript, PendingInteractionCard } from './ChatPanel.tsx'
+import { buildRequirementSplitPrompt, isRequirementTask } from './requirement.ts'
+import { RequirementCard } from './RequirementCard.tsx'
 import { questionOf } from './pending.ts'
 import { ChatAttachButton, ChatAttachmentList, ChatModelChip } from './ChatExtras.tsx'
 import { TaskAttachments } from './TaskAttachments.tsx'
@@ -445,6 +447,7 @@ export function toShellTask(row: TaskRow): ShellTask {
     ...(row.dependsOn.length === 0 ? {} : { dependsOn: row.dependsOn }),
     paths: row.paths,
     irreversible: row.irreversible,
+    ...(row.openedAt === undefined ? {} : { openedAt: row.openedAt }),
   }
 }
 
@@ -515,6 +518,9 @@ export function Shell({
   /** 新会话的角色选择浮层。 */
   const [rolePicker, setRolePicker] = useState(false)
   const [detail, setDetail] = useState<ShellTask | null>(null)
+  /** 需求卡片的拆分指令发送在途与就地错误。 */
+  const [splitting, setSplitting] = useState(false)
+  const [splitError, setSplitError] = useState<string | null>(null)
   const [chat, setChat] = useState<ShellTask | null>(null)
   /** 普通档与最大化两档；关闭对话时回到普通档。 */
   const [chatMax, setChatMax] = useState(false)
@@ -1526,6 +1532,8 @@ export function Shell({
     setAssignResult(null)
     setRoleAssignChoice(task.role ?? '')
     setRoleDialogOpen(false)
+    setSplitting(false)
+    setSplitError(null)
     // 上一个任务的「没会话」提示不属于这个任务。
     setChatError(null)
   }
@@ -1681,6 +1689,33 @@ export function Shell({
       setApproveResult({ ok: false, text: String(error) })
     } finally {
       setApproving(false)
+    }
+  }
+
+  /**
+   * 拆分需求：给需求所属会话发一条拆分指令，把需求拆成 drafting 任务。
+   *
+   * 优先任务已认领的会话，没有就用当前会话；不新建会话、不改需求本身。
+   * 发送成功后关卡片并重读投影，新任务在下一轮看板刷新里出现。
+   */
+  const splitRequirement = async (task: ShellTask): Promise<void> => {
+    if (splitting) return
+    const claimed = claimTaskSession(task.session, taskSessionRows)?.sessionId
+    const target = claimed ?? sessionId
+    if (target === undefined || sendPrompt === undefined) {
+      setSplitError(t('shell.noSession'))
+      return
+    }
+    setSplitting(true)
+    setSplitError(null)
+    try {
+      await sendPrompt(target, buildRequirementSplitPrompt(task))
+      setDetail(null)
+      setReload(value => value + 1)
+    } catch (error: unknown) {
+      setSplitError(fill(t('shell.requirementSplitFailed'), { detail: String(error) }))
+    } finally {
+      setSplitting(false)
     }
   }
 
@@ -2339,7 +2374,7 @@ export function Shell({
     void (async () => {
       try {
         if (!await routeSession(sessionId)) return
-        await sendPrompt(sessionId, INTAKE_CONFIRM_TEXT)
+        await sendPrompt(sessionId, INTAKE_CONFIRM_COMMAND)
         void cloudSession.refresh()
       } catch (error: unknown) {
         setWizardError(fill(t('shell.onboardingSendFailed'), { detail: String(error) }))
@@ -3500,226 +3535,238 @@ export function Shell({
 
       {detail !== null ? (
         <div className={css.modalBackdrop} onClick={(event) => { if (event.target === event.currentTarget) setDetail(null) }}>
-          <div className={css.modal} role="dialog" aria-modal="true" aria-label={`${detail.id} ${detail.title}`}>
-            <div className={css.modalHead}>
-              <div className={css.grow}>
-                <h3>{detail.id} · {detail.title}</h3>
-                <p className={css.detailDescription}>{detail.description.trim() || t('shell.noDescription')}</p>
-                {detail.category === undefined && detail.changeType === undefined ? null : (
-                  <div className={css.detailTags}>
-                    {detail.category === undefined
-                      ? null
-                      : <span className={css.detailTag}>{mappedLabel(CATEGORY_LABEL, detail.category, t)}</span>}
-                    {detail.changeType === undefined
-                      ? null
-                      : <span className={css.detailTag}>{mappedLabel(CHANGE_TYPE_LABEL, detail.changeType, t)}</span>}
-                  </div>
-                )}
-              </div>
-              <span className={css.pill}>{t(STATE_LABEL[detail.state])}</span>
-              <button
-                type="button"
-                className={`${css.secondaryBtn} ${css.headAction}`}
-                disabled={modelBlocked || claiming}
-                title={modelBlocked ? t('shell.noModels') : undefined}
-                onClick={() => { startConversation(detail) }}
-              >
-                {conversationLabel(detail)}
-              </button>
-              <button type="button" className={css.iconBtn} onClick={() => { setDetail(null) }}>✕</button>
+          {isRequirementTask(detail) ? (
+            <div className={`${css.modal} ${css.requirementModal}`} role="dialog" aria-modal="true" aria-label={`${detail.id} ${detail.title}`}>
+              <RequirementCard
+                t={t}
+                task={detail}
+                splitting={splitting}
+                error={splitError}
+                onClose={() => { setDetail(null) }}
+                onSplit={() => { void splitRequirement(detail) }}
+              />
             </div>
-            <div className={css.modalBody}>
-              {detail.attachments.length === 0 ? null : (
-                <TaskAttachments t={t} sessionId={sessionId} paths={detail.attachments} read={readAttachment} />
-              )}
-              <dl className={css.metaStrip}>
-                <div className={css.metaItem}>
-                  <dt className={css.metaK}>{t('shell.difficulty')}</dt>
-                  <dd className={css.metaV}>{mappedLabel(DIFFICULTY_LABEL, detail.grade, t)}</dd>
+          ) : (
+            <div className={css.modal} role="dialog" aria-modal="true" aria-label={`${detail.id} ${detail.title}`}>
+              <div className={css.modalHead}>
+                <div className={css.grow}>
+                  <h3>{detail.id} · {detail.title}</h3>
+                  <p className={css.detailDescription}>{detail.description.trim() || t('shell.noDescription')}</p>
+                  {detail.category === undefined && detail.changeType === undefined ? null : (
+                    <div className={css.detailTags}>
+                      {detail.category === undefined
+                        ? null
+                        : <span className={css.detailTag}>{mappedLabel(CATEGORY_LABEL, detail.category, t)}</span>}
+                      {detail.changeType === undefined
+                        ? null
+                        : <span className={css.detailTag}>{mappedLabel(CHANGE_TYPE_LABEL, detail.changeType, t)}</span>}
+                    </div>
+                  )}
                 </div>
-                <div className={css.metaItem}>
-                  <dt className={css.metaK}>{t('shell.jobRole')}</dt>
-                  <dd className={css.metaV}>
-                    {roleLabelOf(detail.role)}
-                    <button
-                      type="button"
-                      className={css.metaHelp}
-                      aria-label={t('shell.roleDialogTitle')}
-                      onClick={openRoleDialog}
-                    >
-                      ?
-                    </button>
-                  </dd>
-                </div>
-                {detail.dependsOn === undefined
-                  ? null
-                  : (
-                    <div className={css.metaItem}>
-                      <dt className={css.metaK}>{t('shell.dependsOn')}</dt>
-                      <dd className={css.metaV}>{detail.dependsOn.join('、')}</dd>
-                    </div>
-                  )}
-                {detailSchedule?.queue === undefined
-                  ? null
-                  : (
-                    <div className={css.metaItem}>
-                      <dt className={css.metaK}>{t('shell.queuedIn')}</dt>
-                      <dd className={css.metaV}>
-                        {sessionLabel(detailSchedule.queue.sessionId)}
-                        {' · '}
-                        {fill(t('shell.queuePosition'), { n: detailSchedule.queue.position })}
-                      </dd>
-                    </div>
-                  )}
-                {detailJoint === undefined
-                  ? null
-                  : (
-                    <div className={css.metaItem}>
-                      <dt className={css.metaK}>{t('shell.jointGroup')}</dt>
-                      <dd className={css.metaV}>
-                        {t('shell.jointMembers')}：{detailJoint.members.join('、')}
-                        {' · '}
-                        {t('shell.jointAcceptance')}
-                        {detailJoint.createdAt === undefined
-                          ? ''
-                          : ` · ${fill(t('shell.jointCreatedAt'), { at: detailJoint.createdAt })}`}
-                      </dd>
-                    </div>
-                  )}
-              </dl>
-              <details className={css.metaMore}>
-                <summary className={css.metaMoreSummary}>{t('shell.more')}</summary>
-                <dl className={css.metaMoreList}>
-                  <div className={css.metaMoreItem}>
-                    <dt><span className={css.metaMoreLabel}>{t('shell.rules')}</span><span className={css.metaHint}>{t('shell.rulesHint')}</span></dt>
-                    <dd>{detail.rules.join('、') || '—'}</dd>
-                  </div>
-                  <div className={css.metaMoreItem}>
-                    <dt><span className={css.metaMoreLabel}>{t('shell.evidence')}</span><span className={css.metaHint}>{t('shell.evidenceHint')}</span></dt>
-                    <dd>{detail.evidence.join('、') || '—'}</dd>
-                  </div>
-                  <div className={css.metaMoreItem}>
-                    <dt><span className={css.metaMoreLabel}>{t('shell.surface')}</span><span className={css.metaHint}>{t('shell.surfaceHint')}</span></dt>
-                    <dd>{t(SURFACE_LABEL[detail.state])}</dd>
-                  </div>
-                </dl>
-              </details>
-              {detailSchedule === undefined || scheduleErrors[detail.id] === undefined
-                ? null
-                : <p className={css.problem}>{fill(t('shell.scheduleLogFailed'), { detail: scheduleErrors[detail.id] ?? '' })}</p>}
-              <div className={css.field}>
-                <label>
-                  {t('shell.contract')}
-                  {detailContract === undefined ? null : <span className={css.labelHint}> {t('shell.contractHint')}</span>}
-                </label>
-                {detailContract === undefined ? (
-                  <p className={css.empty}>{t('shell.contractMissing')}</p>
-                ) : (
-                  <>
-                    <div className={css.metaGrid}>
-                      <div className={css.meta}>
-                        <div className={css.metaK}>{t('shell.contractChange')}</div>
-                        <div className={css.metaV}>{detailContract.change.join('；')}</div>
-                      </div>
-                      <div className={css.meta}>
-                        <div className={css.metaK}>{t('shell.contractNotChange')}</div>
-                        <div className={css.metaV}>{detailContract.notChange.join('；') || '—'}</div>
-                      </div>
-                      <div className={css.meta}>
-                        <div className={css.metaK}>{t('shell.contractAcceptance')}</div>
-                        <div className={css.metaV}>{detailContract.acceptance.join('；')}</div>
-                      </div>
-                      <div className={css.meta}>
-                        <div className={css.metaK}>{t('shell.contractFailIf')}</div>
-                        <div className={css.metaV}>{detailContract.failIf.join('；') || '—'}</div>
-                      </div>
-                    </div>
-                    <p className={css.secretRef}>
-                      {detailContract.signedBy === 'human'
-                        ? `${t('shell.signedAt')} ${detailContract.signedAt ?? '—'}`
-                        : detailContract.signedBy === 'agent'
-                          ? t('shell.signedByAgent')
-                          : t('shell.unsigned')}
-                    </p>
-                    {detailContract.signedBy !== 'human' || detail.state !== 'drafting' ? null : (
-                      <button
-                        type="button"
-                        className={css.primaryBtn}
-                        disabled={advancing || advanceContract === undefined || !hasSession}
-                        onClick={() => { void advanceSelected() }}
-                      >
-                        {advancing ? t('shell.advancing') : t('shell.advanceContracted')}
-                      </button>
-                    )}
-                    {advanceResult === null ? null : (
-                      <p className={advanceResult.ok ? css.secretRef : css.problem}>{advanceResult.text}</p>
-                    )}
-                    {detailContract.signedBy === 'human' ? null : (
-                      <button
-                        type="button"
-                        className={css.primaryBtn}
-                        disabled={signing || signContract === undefined || !hasSession}
-                        onClick={() => { void signSelected() }}
-                      >
-                        {signing ? t('shell.signing') : t('shell.sign')}
-                      </button>
-                    )}
-                    {signResult === null ? null : (
-                      <p className={signResult.ok ? css.secretRef : css.problem}>{signResult.text}</p>
-                    )}
-                  </>
-                )}
+                <span className={css.pill}>{t(STATE_LABEL[detail.state])}</span>
+                <button
+                  type="button"
+                  className={`${css.secondaryBtn} ${css.headAction}`}
+                  disabled={modelBlocked || claiming}
+                  title={modelBlocked ? t('shell.noModels') : undefined}
+                  onClick={() => { startConversation(detail) }}
+                >
+                  {conversationLabel(detail)}
+                </button>
+                <button type="button" className={css.iconBtn} onClick={() => { setDetail(null) }}>✕</button>
               </div>
-              {detail.proposal === undefined ? null : (
+              <div className={css.modalBody}>
+                {detail.attachments.length === 0 ? null : (
+                  <TaskAttachments t={t} sessionId={sessionId} paths={detail.attachments} read={readAttachment} />
+                )}
+                <dl className={css.metaStrip}>
+                  <div className={css.metaItem}>
+                    <dt className={css.metaK}>{t('shell.difficulty')}</dt>
+                    <dd className={css.metaV}>{mappedLabel(DIFFICULTY_LABEL, detail.grade, t)}</dd>
+                  </div>
+                  <div className={css.metaItem}>
+                    <dt className={css.metaK}>{t('shell.jobRole')}</dt>
+                    <dd className={css.metaV}>
+                      {roleLabelOf(detail.role)}
+                      <button
+                        type="button"
+                        className={css.metaHelp}
+                        aria-label={t('shell.roleDialogTitle')}
+                        onClick={openRoleDialog}>
+                        ?
+                      </button>
+                    </dd>
+                  </div>
+                  {detail.dependsOn === undefined
+                    ? null
+                    : (
+                      <div className={css.metaItem}>
+                        <dt className={css.metaK}>{t('shell.dependsOn')}</dt>
+                        <dd className={css.metaV}>{detail.dependsOn.join('、')}</dd>
+                      </div>
+                    )}
+                  {detailSchedule?.queue === undefined
+                    ? null
+                    : (
+                      <div className={css.metaItem}>
+                        <dt className={css.metaK}>{t('shell.queuedIn')}</dt>
+                        <dd className={css.metaV}>
+                          {sessionLabel(detailSchedule.queue.sessionId)}
+                          {' · '}
+                          {fill(t('shell.queuePosition'), { n: detailSchedule.queue.position })}
+                        </dd>
+                      </div>
+                    )}
+                  {detailJoint === undefined
+                    ? null
+                    : (
+                      <div className={css.metaItem}>
+                        <dt className={css.metaK}>{t('shell.jointGroup')}</dt>
+                        <dd className={css.metaV}>
+                          {t('shell.jointMembers')}：{detailJoint.members.join('、')}
+                          {' · '}
+                          {t('shell.jointAcceptance')}
+                          {detailJoint.createdAt === undefined
+                            ? ''
+                            : ` · ${fill(t('shell.jointCreatedAt'), { at: detailJoint.createdAt })}`}
+                        </dd>
+                      </div>
+                    )}
+                </dl>
+                <details className={css.metaMore}>
+                  <summary className={css.metaMoreSummary}>{t('shell.more')}</summary>
+                  <dl className={css.metaMoreList}>
+                    <div className={css.metaMoreItem}>
+                      <dt><span className={css.metaMoreLabel}>{t('shell.rules')}</span><span className={css.metaHint}>{t('shell.rulesHint')}</span></dt>
+                      <dd>{detail.rules.join('、') || '—'}</dd>
+                    </div>
+                    <div className={css.metaMoreItem}>
+                      <dt><span className={css.metaMoreLabel}>{t('shell.evidence')}</span><span className={css.metaHint}>{t('shell.evidenceHint')}</span></dt>
+                      <dd>{detail.evidence.join('、') || '—'}</dd>
+                    </div>
+                    <div className={css.metaMoreItem}>
+                      <dt><span className={css.metaMoreLabel}>{t('shell.surface')}</span><span className={css.metaHint}>{t('shell.surfaceHint')}</span></dt>
+                      <dd>{t(SURFACE_LABEL[detail.state])}</dd>
+                    </div>
+                  </dl>
+                </details>
+                {detailSchedule === undefined || scheduleErrors[detail.id] === undefined
+                  ? null
+                  : <p className={css.problem}>{fill(t('shell.scheduleLogFailed'), { detail: scheduleErrors[detail.id] ?? '' })}</p>}
                 <div className={css.field}>
-                  <label>{t('shell.proposal')} <span className={css.labelHint}>{detail.proposal}</span></label>
-                  {detailProposal === undefined ? (
-                    <p className={css.problem}>{t('shell.proposalMissing')}</p>
+                  <label>
+                    {t('shell.contract')}
+                    {detailContract === undefined ? null : <span className={css.labelHint}> {t('shell.contractHint')}</span>}
+                  </label>
+                  {detailContract === undefined ? (
+                    <p className={css.empty}>{t('shell.contractMissing')}</p>
                   ) : (
                     <>
-                      <div className={css.meta}>
-                        <div className={css.metaK}>{t('shell.proposalProblem')}</div>
-                        <div className={css.metaV}>{detailProposal.problem}</div>
-                        <div className={css.metaK}>{t('shell.proposalOptions')}</div>
-                        <div className={css.metaV}>
-                          {detailProposal.options.map(option => `${option.name}：${option.summary}（${option.cost}）`).join('；')}
+                      <div className={css.metaGrid}>
+                        <div className={css.meta}>
+                          <div className={css.metaK}>{t('shell.contractChange')}</div>
+                          <div className={css.metaV}>{detailContract.change.join('；')}</div>
                         </div>
-                        <div className={css.metaK}>{t('shell.proposalRecommendation')}</div>
-                        <div className={css.metaV}>{detailProposal.recommendation}</div>
+                        <div className={css.meta}>
+                          <div className={css.metaK}>{t('shell.contractNotChange')}</div>
+                          <div className={css.metaV}>{detailContract.notChange.join('；') || '—'}</div>
+                        </div>
+                        <div className={css.meta}>
+                          <div className={css.metaK}>{t('shell.contractAcceptance')}</div>
+                          <div className={css.metaV}>{detailContract.acceptance.join('；')}</div>
+                        </div>
+                        <div className={css.meta}>
+                          <div className={css.metaK}>{t('shell.contractFailIf')}</div>
+                          <div className={css.metaV}>{detailContract.failIf.join('；') || '—'}</div>
+                        </div>
                       </div>
                       <p className={css.secretRef}>
-                        {t(PROPOSAL_DECISION[detailProposal.decision])}
-                        {detailProposal.decidedAt === null ? '' : ` ${detailProposal.decidedAt}`}
+                        {detailContract.signedBy === 'human'
+                          ? `${t('shell.signedAt')} ${detailContract.signedAt ?? '—'}`
+                          : detailContract.signedBy === 'agent'
+                            ? t('shell.signedByAgent')
+                            : t('shell.unsigned')}
                       </p>
-                      {detailProposal.decision === 'draft' && approveProposal !== undefined && hasSession ? (
-                        <button type="button" className={css.primaryBtn} disabled={approving} onClick={() => { void approveSelected() }}>
-                          {approving ? t('shell.approving') : t('shell.approveProposal')}
+                      {detailContract.signedBy !== 'human' || detail.state !== 'drafting' ? null : (
+                        <button
+                          type="button"
+                          className={css.primaryBtn}
+                          disabled={advancing || advanceContract === undefined || !hasSession}
+                          onClick={() => { void advanceSelected() }}
+                        >
+                          {advancing ? t('shell.advancing') : t('shell.advanceContracted')}
                         </button>
-                      ) : null}
-                      {approveResult === null ? null : (
-                        <p className={approveResult.ok ? css.secretRef : css.problem}>{approveResult.text}</p>
+                      )}
+                      {advanceResult === null ? null : (
+                        <p className={advanceResult.ok ? css.secretRef : css.problem}>{advanceResult.text}</p>
+                      )}
+                      {detailContract.signedBy === 'human' ? null : (
+                        <button
+                          type="button"
+                          className={css.primaryBtn}
+                          disabled={signing || signContract === undefined || !hasSession}
+                          onClick={() => { void signSelected() }}
+                        >
+                          {signing ? t('shell.signing') : t('shell.sign')}
+                        </button>
+                      )}
+                      {signResult === null ? null : (
+                        <p className={signResult.ok ? css.secretRef : css.problem}>{signResult.text}</p>
                       )}
                     </>
                   )}
                 </div>
-              )}
-              {/* 「打开对话」没打开浮层时，原因就地显示在这里——浮层本身还没被切出来。 */}
-              {chatError === null ? null : <p className={css.problem}>{chatError}</p>}
+                {detail.proposal === undefined ? null : (
+                  <div className={css.field}>
+                    <label>{t('shell.proposal')} <span className={css.labelHint}>{detail.proposal}</span></label>
+                    {detailProposal === undefined ? (
+                      <p className={css.problem}>{t('shell.proposalMissing')}</p>
+                    ) : (
+                      <>
+                        <div className={css.meta}>
+                          <div className={css.metaK}>{t('shell.proposalProblem')}</div>
+                          <div className={css.metaV}>{detailProposal.problem}</div>
+                          <div className={css.metaK}>{t('shell.proposalOptions')}</div>
+                          <div className={css.metaV}>
+                            {detailProposal.options.map(option => `${option.name}：${option.summary}（${option.cost}）`).join('；')}
+                          </div>
+                          <div className={css.metaK}>{t('shell.proposalRecommendation')}</div>
+                          <div className={css.metaV}>{detailProposal.recommendation}</div>
+                        </div>
+                        <p className={css.secretRef}>
+                          {t(PROPOSAL_DECISION[detailProposal.decision])}
+                          {detailProposal.decidedAt === null ? '' : ` ${detailProposal.decidedAt}`}
+                        </p>
+                        {detailProposal.decision === 'draft' && approveProposal !== undefined && hasSession ? (
+                          <button type="button" className={css.primaryBtn} disabled={approving} onClick={() => { void approveSelected() }}>
+                            {approving ? t('shell.approving') : t('shell.approveProposal')}
+                          </button>
+                        ) : null}
+                        {approveResult === null ? null : (
+                          <p className={approveResult.ok ? css.secretRef : css.problem}>{approveResult.text}</p>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+                {/* 「打开对话」没打开浮层时，原因就地显示在这里——浮层本身还没被切出来。 */}
+                {chatError === null ? null : <p className={css.problem}>{chatError}</p>}
+              </div>
+              <div className={css.modalFoot}>
+                <div className={css.spacer} />
+                <button type="button" className={css.secondaryBtn} onClick={() => { setDetail(null) }}>{t('shell.cancel')}</button>
+                <button
+                  type="button"
+                  className={css.primaryBtn}
+                  disabled={modelBlocked || claiming}
+                  title={modelBlocked ? t('shell.noModels') : undefined}
+                  onClick={() => { startConversation(detail) }}
+                >
+                  {conversationLabel(detail)}
+                </button>
+              </div>
             </div>
-            <div className={css.modalFoot}>
-              <div className={css.spacer} />
-              <button type="button" className={css.secondaryBtn} onClick={() => { setDetail(null) }}>{t('shell.cancel')}</button>
-              <button
-                type="button"
-                className={css.primaryBtn}
-                disabled={modelBlocked || claiming}
-                title={modelBlocked ? t('shell.noModels') : undefined}
-                onClick={() => { startConversation(detail) }}
-              >
-                {conversationLabel(detail)}
-              </button>
-            </div>
-          </div>
+          )}
         </div>
       ) : null}
 
