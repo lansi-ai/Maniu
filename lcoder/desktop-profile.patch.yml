@@ -515,6 +515,13 @@
 # 品牌侧去 DeepSeek：官方鲸标与名称字标不再出现在壳里（壳自画顶栏）。
 - id: ui-brand-official
   disabled: true
+# 默认模型走官网 DeepSeek；云端网关只作为可选路线，不改默认。
+# 设置页里的「设为默认」仍会写回这条配置。
+- id: agent-default-model
+  config:
+    provider: deepseek-official
+    model: deepseek-flash
+
 
 - insert:
     # 云端控制器全局在册：顶栏、门禁与模型请求共用一个令牌供应器。
