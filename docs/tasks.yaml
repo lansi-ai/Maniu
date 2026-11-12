@@ -1466,6 +1466,18 @@ tracks:
       inferred: false
       note: "B 级视觉扩展，来源是用户 2026-11-12「我想增加一个浅色主题（非粉色）」。现有 neon 是深色霓虹、silver 是深色冷银、rose 是浅粉；新增第四套 frost（霜白晨雾），浅色非粉，冷白底、深蓝灰正文、蓝到青绿的品牌渐变、网格底纹。范围：skin.ts 增加 frost 并纳入 SKINS，顺序 neon 到 silver 到 frost 到 rose 回 neon；Shell.tsx 的 SKIN_LABEL 与 NEXT_SKIN 与 SKIN_ORB 与 SKIN_SWATCH 同步；locales 中英皮肤名与 skinHint 更新；Shell.module.css 增加 data-skin 为 frost 的 token 块与色球色块样式，全部走现有 token，不改组件颜色逻辑；登录页画布与工作台网格读品牌色与底纹 token 应自动生效。配色约束：color-scheme 为 light，正文与次要正文与说明文字对浅底对比度至少 4.5，品牌文字与按钮文字也达标，另外三套皮肤不变；给出实测对比度。与 T-129 并行时只动皮肤 token 与色球色块，不向导样式。验收 typecheck 与 packages/lcoder vitest 与 oxlint 与 test:docs 与 i18n；单测覆盖 frost 是已知皮肤与读写回；真窗口最多一次启动做定向断言（设置页四套可切换、切 frost 后 shell 的 data-skin 与关键 token 生效、刷新保持、切回 neon 正常），不做截图。工作树用 pool-slot-2 claim 到 lcoder/t130-frost-skin，端口 9823 与 9831 与 9832。2026-11-12 15:05 监督窗口派工，实现线会话 c7449da6；claim pool-slot-2 到分支 lcoder/t130-frost-skin。2026-11-12 15:42 监督窗口核验并收口。独立复跑 typecheck 五项、vitest 七十四文件七百九十六例、test:docs 二十一项、i18n 一千三百零五文件全过；主检出复跑同一组门禁并跑 build:artifacts 八项与 build:check 两项全过。监督窗口独立复算对比度：正文 16.4、次要 7.13、说明 5.44、品牌 5.56、按钮文字 5.74，最低 4.69。实现线把 faint 加深到 526879、warn 到 92400e、ok 与 closed 到 046c50 以过 4.5。未验项是 frost 在真实工作台各页面的手看。已合入 lcoder/main、release pool-slot-2。"
 
+    - id: T-131
+      title: 立项结果支持聊天概要并接确认落盘
+      status: doing
+      face: 用户端
+      type: 修复
+      owner: lance
+      created: '2026-11-12'
+      date: '2026-11-12'
+      dep: [T-129]
+      inferred: false
+      note: "B 级功能修复，来源是用户 2026-11-12 反馈七个选择题答完后没有生成方案。已用会话日志取证：目标仓 LCoder-First-Demo 只有一条立项会话，七问逐题答完，最后一轮模型输出了完整的《项目需求概要 V0.1》，回合 completed 正常结束，但没有调用 proposal_draft 也没有写任何 .spec 文件；这是提示词要求先出概要等用户确认再登记的结果，而向导只认提案文件，于是把概要藏起来并显示未读到方案。修法：一、从会话消息里取出最后一条助手答复正文，作为聊天概要；二、结果阶段改为本轮已停止且（有方案或有效概要）即可进入，不再只认提案；三、结果卡在有概要无方案时用 Markdown 渲染概要（限高可滚动），保留确认需求与更多轮次；四、确认需求在这条路径下给同一会话发送「确认需求」，让代理按咒语落盘，发送在途禁用并有发送标记，防止重复发送；按当前会话里是否已有该用户消息判定已确认，刷新与重开不重发；五、已确认后新一轮结束若出现方案则走既有 proposal_approve 采纳并回看板，若已落盘项目或任务而无方案则显示已确认与去看板，若仍无任何落盘则如实提示并保留更多轮次；六、只有既无概要又无方案时才显示本轮已结束未读到方案；结束态沉降窗口与既有提问、采纳、重开、幂等逻辑不变。约束是不改会话与宿主契约、不改立项咒语、不新增页面、用户可见文案走词典、三套浅深皮肤与窄窗可用，概要渲染不执行 HTML。验收 typecheck 与 packages/lcoder vitest 与 oxlint 与 test:docs 与 i18n；纯函数单测覆盖最后答复提取、已确认判定与阶段判定；组件测试覆盖概要做好卡与已确认态；真窗口用现有目标仓复现到结果卡并断言概要可见、确认需求发送后进入思考、不重复发送，不做截图。工作树用 pool-slot-1 claim 到 lcoder/t131-intake-summary，端口 9822 与 9829 与 9830。2026-11-12 16:00 监督窗口派工，实现线会话 748aaa28；claim pool-slot-1 到分支 lcoder/t131-intake-summary。"
+
 milestones:
 - name: MVP-0 工作台本地跑通
   track: lcoder
