@@ -154,24 +154,19 @@ describe('分配校验与汇总', () => {
     })
   })
 
-  it('汇总把命令失败、被拒条目、晋级结果与最终未分配分别记下', () => {
+  it('汇总把命令失败、被拒条目与最终未分配分别记下', () => {
     const tasks = [splitTask('T-02'), splitTask('T-03'), splitTask('T-04', { role: 'architect' })]
     const summary = summarizeSplit(tasks, [
       { taskId: 'T-02', roleId: 'architect', ok: true, detail: '已分配' },
       { taskId: 'T-03', roleId: 'dev', ok: false, detail: '岗位不认识' },
-    ], [{ task: 'T-09', role: 'dev', reason: 'unknown-task' }], [
-      { taskId: 'T-02', ok: true, detail: '已进入待开发' },
-      { taskId: 'T-03', ok: false, detail: '还没分配岗位' },
-    ])
+    ], [{ task: 'T-09', role: 'dev', reason: 'unknown-task' }])
     expect(summary.taskCount).toBe(3)
     expect(summary.assignedCount).toBe(2)
-    expect(summary.advancedCount).toBe(1)
     expect(summary.unassigned).toEqual(['T-03'])
     expect(summary.rejected).toHaveLength(1)
-    expect(summary.advances).toHaveLength(2)
     expect(summarizeSplit(
-      [splitTask('T-02')], [], [{ task: 'T-02', role: '', reason: 'empty-role' }], [],
-    )).toMatchObject({ assignedCount: 0, advancedCount: 0, unassigned: [] })
+      [splitTask('T-02')], [], [{ task: 'T-02', role: '', reason: 'empty-role' }],
+    )).toMatchObject({ assignedCount: 0, unassigned: [] })
   })
 })
 
@@ -257,7 +252,6 @@ interface SplitWorld {
   readonly created: { readonly sessionId: string; readonly preset: string }[]
   readonly prompts: { readonly sessionId: string; readonly text: string }[]
   readonly assignments: { readonly sessionId: string; readonly taskId: string; readonly roleId: string }[]
-  readonly readyCalls: string[]
   readonly messages: Map<string, readonly ShellMessage[]>
   readonly running: Map<string, boolean | undefined>
   readonly notices: Map<string, ShellSessionNotice | null>
@@ -266,7 +260,6 @@ interface SplitWorld {
   released: number
   onSleep?: () => void
   assignResult?: (taskId: string, roleId: string) => ShellSignResult
-  splitReadyResult?: (taskId: string) => ShellSignResult
 }
 
 /** 组装注入面；`createSession` 依次给 s-1、s-2，并把会话置为运行中。 */
@@ -276,7 +269,6 @@ function splitWorld(overrides: Partial<SplitWorld> = {}): { world: SplitWorld; p
     created: [],
     prompts: [],
     assignments: [],
-    readyCalls: [],
     messages: new Map(),
     running: new Map(),
     notices: new Map(),
@@ -301,10 +293,6 @@ function splitWorld(overrides: Partial<SplitWorld> = {}): { world: SplitWorld; p
     assignTask: async (sessionId, taskId, roleId) => {
       world.assignments.push({ sessionId, taskId, roleId })
       return world.assignResult?.(taskId, roleId) ?? { ok: true, text: '已分配' }
-    },
-    splitReady: async (taskId) => {
-      world.readyCalls.push(taskId)
-      return world.splitReadyResult?.(taskId) ?? { ok: true, text: '已进入待开发' }
     },
     loadTasks: async () => world.tasks,
     loadRoster: async () => world.roster,
@@ -355,7 +343,7 @@ describe('一键拆分链路', () => {
       onProgress: (item) => { progress.push(item.stage) },
     })
 
-    expect(progress).toEqual(['pm', 'manager', 'assigning', 'readying'])
+    expect(progress).toEqual(['pm', 'manager', 'assigning'])
     expect(world.created).toEqual([
       { sessionId: 's-1', preset: REQUIREMENT_SPLIT_PM_PRESET },
       { sessionId: 's-2', preset: REQUIREMENT_SPLIT_MANAGER_PRESET },
@@ -365,13 +353,12 @@ describe('一键拆分链路', () => {
     expect(world.prompts[1]?.text).toContain('- T-02：T-02 的开发任务')
     expect(world.prompts[1]?.text).toContain('当前岗位名册')
     expect(world.assignments).toEqual([{ sessionId: 's-2', taskId: 'T-02', roleId: 'architect' }])
-    expect(world.readyCalls).toEqual(['T-02'])
     expect(world.released).toBe(2)
     expect(outcome).toMatchObject({
       kind: 'done',
       pmSession: 's-1',
       managerSession: 's-2',
-      summary: { taskCount: 1, assignedCount: 1, advancedCount: 1, unassigned: [] },
+      summary: { taskCount: 1, assignedCount: 1, unassigned: [] },
     })
   })
 
@@ -479,7 +466,7 @@ describe('一键拆分链路', () => {
     ])
   })
 
-  it('已有拆分结果时跳过项目经理，只为未分配任务建研发经理会话并推进待开发', async () => {
+  it('已有拆分结果时跳过项目经理，只为未分配任务建研发经理会话', async () => {
     const { world, ports } = splitWorld()
     world.onSleep = () => {
       if (world.running.get('s-1') === true) {
@@ -490,14 +477,13 @@ describe('一键拆分链路', () => {
     expect(world.created).toEqual([{ sessionId: 's-1', preset: REQUIREMENT_SPLIT_MANAGER_PRESET }])
     expect(world.prompts).toHaveLength(1)
     expect(world.assignments).toEqual([{ sessionId: 's-1', taskId: 'T-02', roleId: 'architect' }])
-    expect(world.readyCalls).toEqual(['T-02'])
     expect(outcome).toMatchObject({
       kind: 'done',
-      summary: { taskCount: 1, assignedCount: 1, advancedCount: 1 },
+      summary: { taskCount: 1, assignedCount: 1 },
     })
   })
 
-  it('重试只补未分配的岗位，已分配任务照常推进到待开发', async () => {
+  it('重试只补未分配的岗位，已分配任务不再进清单', async () => {
     const { world, ports } = splitWorld()
     world.onSleep = () => {
       if (world.running.get('s-1') === true) {
@@ -513,14 +499,13 @@ describe('一键拆分链路', () => {
     expect(world.prompts[0]?.text).not.toContain('- T-02：')
     expect(world.prompts[0]?.text).toContain('- T-03：')
     expect(world.assignments).toEqual([{ sessionId: 's-1', taskId: 'T-03', roleId: 'dev' }])
-    expect(world.readyCalls).toEqual(['T-02', 'T-03'])
     expect(outcome).toMatchObject({
       kind: 'done',
-      summary: { taskCount: 2, assignedCount: 2, advancedCount: 2, unassigned: [] },
+      summary: { taskCount: 2, assignedCount: 2, unassigned: [] },
     })
   })
 
-  it('已不是起草态的任务跳过推进，不报错也不建研发经理会话', async () => {
+  it('已分配岗位的任务不再建会话，也不推进状态', async () => {
     const { world, ports } = splitWorld()
     const outcome = await runRequirementSplit(planOf({
       existingTasks: [
@@ -532,18 +517,14 @@ describe('一键拆分链路', () => {
     expect(world.created).toEqual([])
     expect(world.prompts).toEqual([])
     expect(world.assignments).toEqual([])
-    expect(world.readyCalls).toEqual(['T-03'])
     expect(outcome).toMatchObject({
       kind: 'done',
-      summary: { taskCount: 2, assignedCount: 2, advancedCount: 1, unassigned: [] },
+      summary: { taskCount: 2, assignedCount: 2, unassigned: [] },
     })
   })
 
-  it('推进失败逐条记下原文，其余任务照常晋级', async () => {
+  it('分配完成后停在方案讨论，不调用任何推进命令', async () => {
     const { world, ports } = splitWorld()
-    world.splitReadyResult = taskId => taskId === 'T-02'
-      ? { ok: true, text: '已进入待开发' }
-      : { ok: false, text: 'T-03 还没分配岗位' }
     world.onSleep = () => {
       if (world.running.get('s-1') === true) {
         finishSession(world, 's-1', '{"assignments":[{"task":"T-02","role":"architect"},{"task":"T-03","role":"dev"}]}')
@@ -555,11 +536,9 @@ describe('一键拆分链路', () => {
 
     expect(outcome.kind).toBe('done')
     if (outcome.kind !== 'done') return
-    expect(outcome.summary.advancedCount).toBe(1)
-    expect(outcome.summary.advances).toEqual([
-      { taskId: 'T-02', ok: true, detail: '已进入待开发' },
-      { taskId: 'T-03', ok: false, detail: 'T-03 还没分配岗位' },
-    ])
+    expect(outcome.summary.assignedCount).toBe(2)
+    expect(world.created).toHaveLength(1)
+    expect(world.prompts).toHaveLength(1)
   })
 
   it('研发经理超时保留已拆出的任务，重试不必再拆一遍', async () => {

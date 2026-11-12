@@ -112,8 +112,9 @@ interface ShellScenario {
   readonly running?: ReadonlySet<string>
   /** 分配命令替身；缺省给一个成功回执，不写投影。 */
   readonly assignTask?: ShellProps['assignTask']
-  /** 推进到待开发的命令替身；缺省给成功回执，不写投影。 */
-  readonly splitReady?: ShellProps['splitReady']
+  /** 签署与推进替身；方案讨论确认用。 */
+  readonly signContract?: ShellProps['signContract']
+  readonly advanceContract?: ShellProps['advanceContract']
   /** 按 `.spec` 相对路径给出的附件字节；缺的路径按读不到处理。 */
   readonly attachments?: Readonly<Record<string, Uint8Array>>
   /** 界面词典；缺省中文，英文用例显式传入。 */
@@ -222,9 +223,9 @@ function renderShell(scenario: ShellScenario) {
     listRoles: async () => [{ id: 'lcoder-review', name: '评审' }],
     checkModels: async () => ({ state: 'ready' }),
     createSession: scenario.createSession ?? (async () => SessionId('s-9')),
-    signContract: async () => ({ ok: true, text: '已签署' }),
+    signContract: scenario.signContract ?? (async () => ({ ok: true, text: '已签署' })),
+    advanceContract: scenario.advanceContract ?? (async () => ({ ok: true, text: '已进入已签约' })),
     assignTask: scenario.assignTask ?? vi.fn(async () => ({ ok: true, text: '已分配' })),
-    splitReady: scenario.splitReady ?? vi.fn(async () => ({ ok: true, text: '已进入待开发' })),
     logSchedule,
     ...(scenario.readMessages === undefined ? {} : { readMessages: scenario.readMessages }),
     ...(scenario.subscribeSession === undefined ? {} : { subscribeSession: scenario.subscribeSession }),
@@ -715,19 +716,17 @@ describe('需求卡片的拆分接线', () => {
         text: '{"assignments":[{"task":"T-02","role":"architect"}]}',
       }])
     }
-    const assignTask: NonNullable<ShellProps['assignTask']> = vi.fn(async () => ({ ok: true, text: '已分配' }))
-    const splitReady: NonNullable<ShellProps['splitReady']> = vi.fn(async (_sessionId, taskId) => {
+    const assignTask: NonNullable<ShellProps['assignTask']> = vi.fn(async (_sessionId, taskId) => {
       const key = `${taskId}.yaml`
       const text = spec.tasks[key]
-      if (text !== undefined) spec.tasks[key] = text.replace('state: drafting', 'state: contracted')
-      return { ok: true, text: '已进入待开发' }
+      if (text !== undefined) spec.tasks[key] = `${text}role: architect\n`
+      return { ok: true, text: '已分配' }
     })
     renderShell({
       spec,
       createSession,
       sendPrompt,
       assignTask,
-      splitReady,
       readMessages: id => messages.get(String(id)) ?? [],
       holdSession: () => () => {},
     })
@@ -737,15 +736,14 @@ describe('需求卡片的拆分接线', () => {
     await waitFor(() => {
       expect(assignTask).toHaveBeenCalledWith(SessionId('s-10'), 'T-02', 'architect')
     })
-    expect(splitReady).toHaveBeenCalledWith(SessionId('s-1'), 'T-02')
     expect(createSession).toHaveBeenNthCalledWith(1, REPO, 'lcoder-pm')
     expect(createSession).toHaveBeenNthCalledWith(2, REPO, 'lcoder-manager')
-    expect(await screen.findByText(t('shell.splitResult', { tasks: '1', assigned: '1', ready: '1' }))).toBeTruthy()
+    expect(await screen.findByText(t('shell.splitResult', { tasks: '1', assigned: '1' }))).toBeTruthy()
     expect(screen.getByRole('button', { name: zh['shell.splitViewBoard'] })).toBeTruthy()
 
     fireEvent.click(screen.getByRole('button', { name: zh['shell.close'] }))
     await openTask('随手记账')
-    expect(await screen.findByText(t('shell.splitResult', { tasks: '1', assigned: '1', ready: '1' }))).toBeTruthy()
+    expect(await screen.findByText(t('shell.splitResult', { tasks: '1', assigned: '1' }))).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: zh['shell.splitTasks'] }))
     expect(createSession).toHaveBeenCalledTimes(2)
   })
@@ -1076,5 +1074,104 @@ describe('顶栏项目控件与项目信息抽屉', () => {
     expect(body.getByText(zh['shell.noWorkspace'])).toBeTruthy()
     expect(body.getByPlaceholderText(zh['shell.repoPathHint'])).toBeTruthy()
     expect(body.getByRole('button', { name: zh['shell.openRepo'] })).toBeTruthy()
+  })
+})
+
+describe('方案讨论列与确认门禁', () => {
+  const DISCUSS_TASK = 'id: T-02\ntitle: 记一笔\nstate: drafting\ngrade: B\nproposal: P-01\nrole: vue-engineer\n'
+  const LIGHT_TASK = 'id: T-03\ntitle: 翻记录\nstate: drafting\ngrade: C\nproposal: P-01\nrole: vue-engineer\n'
+  const DISCUSS_ROLES = [
+    'roles:',
+    '  - id: vue-engineer',
+    '    name: Vue 工程师',
+    '    inherits: dev',
+    '  - id: architect',
+    '    name: 架构师',
+    '    inherits: architect',
+    '',
+  ].join('\n')
+  const UNSIGNED_CONTRACT = [
+    'id: T-02',
+    'change:',
+    '  - 实现记一笔',
+    'not_change:',
+    '  - 不改需求',
+    'acceptance:',
+    '  - 保存后在列表可见',
+    'fail_if:',
+    '  - 金额不合法仍落账',
+    '',
+  ].join('\n')
+
+  it('已分配岗位的 drafting 任务进方案讨论列，缺契约的标待讨论', async () => {
+    renderShell({
+      spec: {
+        tasks: { 'T-02.yaml': DISCUSS_TASK, 'T-03.yaml': LIGHT_TASK },
+        contracts: { 'T-02.contract.yaml': UNSIGNED_CONTRACT },
+        roles: DISCUSS_ROLES,
+      },
+    })
+    const discussing = await screen.findByText(zh['shell.discussing'])
+    const card = screen.getByText('记一笔').closest('button')
+    expect(card?.parentElement?.textContent).toContain(zh['shell.discussing'])
+    expect(discussing).toBeTruthy()
+    expect(screen.getByText(zh['shell.discussionContractDraftedTag'])).toBeTruthy()
+    expect(screen.getByText(zh['shell.discussionWaiting'])).toBeTruthy()
+  })
+
+  it('详情列出参与岗位、逐任务契约状态和两个讨论动作', async () => {
+    renderShell({
+      spec: {
+        tasks: { 'T-02.yaml': DISCUSS_TASK },
+        contracts: { 'T-02.contract.yaml': UNSIGNED_CONTRACT },
+        roles: DISCUSS_ROLES,
+      },
+    })
+    const detail = await openTask('记一笔')
+    const section = detail.querySelector('[data-plan-discussion]') as HTMLElement
+    expect(section).not.toBeNull()
+    expect(section.textContent).toContain('Vue 工程师')
+    expect(section.textContent).toContain('架构师')
+    expect(section.textContent).toContain('T-02 契约已起草，待确认')
+    expect(within(section).getByRole('button', { name: zh['shell.discussionConfirm'] })).toBeTruthy()
+    expect(within(section).getByRole('button', { name: zh['shell.discussionReconfirm'] })).toBeTruthy()
+  })
+
+  it('确认方案逐条签署并推进，签名成功后调用 task_contract', async () => {
+    const signContract = vi.fn(async () => ({ ok: true, text: '已签署' }))
+    const advanceContract = vi.fn(async () => ({ ok: true, text: '已进入已签约' }))
+    renderShell({
+      spec: {
+        tasks: { 'T-02.yaml': DISCUSS_TASK },
+        contracts: { 'T-02.contract.yaml': UNSIGNED_CONTRACT },
+        roles: DISCUSS_ROLES,
+      },
+      signContract,
+      advanceContract,
+    })
+    const detail = await openTask('记一笔')
+    fireEvent.click(within(detail).getByRole('button', { name: zh['shell.discussionConfirm'] }))
+    await waitFor(() => {
+      expect(signContract).toHaveBeenCalledWith(SessionId('s-1'), 'T-02')
+      expect(advanceContract).toHaveBeenCalledWith(SessionId('s-1'), 'T-02')
+    })
+  })
+
+  it('签署失败不推进，失败原因留在详情里', async () => {
+    const signContract = vi.fn(async () => ({ ok: false, text: '签名被拒' }))
+    const advanceContract = vi.fn(async () => ({ ok: true, text: '已进入已签约' }))
+    renderShell({
+      spec: {
+        tasks: { 'T-02.yaml': DISCUSS_TASK },
+        contracts: { 'T-02.contract.yaml': UNSIGNED_CONTRACT },
+        roles: DISCUSS_ROLES,
+      },
+      signContract,
+      advanceContract,
+    })
+    const detail = await openTask('记一笔')
+    fireEvent.click(within(detail).getByRole('button', { name: zh['shell.discussionConfirm'] }))
+    expect(await screen.findByText('T-02 契约签署失败：签名被拒')).toBeTruthy()
+    expect(advanceContract).not.toHaveBeenCalled()
   })
 })
