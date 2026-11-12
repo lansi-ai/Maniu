@@ -1516,7 +1516,7 @@ tracks:
 
     - id: T-135
       title: 需求卡片显示需求文档与立项问答
-      status: doing
+      status: done
       face: 用户端
       type: 修复
       owner: lance
@@ -1524,7 +1524,7 @@ tracks:
       date: '2026-11-12'
       dep: [T-134]
       inferred: false
-      note: "B 级修正，来源是用户 2026-11-12 截图与两条。一、需求卡片的需求内容现在取任务 description，应改为之前生成的需求文档，也就是任务回指的方案 .spec/proposals 文件，展示方案的问题与需求基线正文、候选与推荐，Markdown 渲染；没有方案文件时才退回任务 description。二、卡片还要显示用户在立项分析时的提问与回答。数据面：工具调用结果目前只保留成败，给 ShellProcessItem 的 tool 补 result 文本（至少 ask_user_question），新增纯函数从消息里解析问与答（问题 header 与正文、用户选择或自定义回答），按题号去重；Shell 在打开需求卡片时按任务会话（没有则当前会话）读取消息并解析，传给卡片。界面：需求卡片分两个默认折叠区，需求内容（方案文档）与立项问答（逐题问题加回答，空则说明没有记录）；创建人、创建时间、标题与底部拆分任务不变。约束是不改宿主契约、不新增页面、文案走词典、四套皮肤与窄窗可用、长文限高滚动。验收 typecheck 与 packages/lcoder vitest 与 oxlint 与 test:docs 与 i18n；单测覆盖问答解析与组件渲染、无方案回退；真窗口最多一次定向断言，不做截图。工作树用 pool-slot-1 claim 到 lcoder/t135-requirement-detail，端口 9822 与 9829 与 9830。2026-11-12 18:15 监督窗口派工，实现线会话 b7828a7d；claim pool-slot-1 到分支 lcoder/t135-requirement-detail。"
+      note: "B 级修正，来源是用户 2026-11-12 截图与两条。一、需求卡片的需求内容现在取任务 description，应改为之前生成的需求文档，也就是任务回指的方案 .spec/proposals 文件，展示方案的问题与需求基线正文、候选与推荐，Markdown 渲染；没有方案文件时才退回任务 description。二、卡片还要显示用户在立项分析时的提问与回答。数据面：工具调用结果目前只保留成败，给 ShellProcessItem 的 tool 补 result 文本（至少 ask_user_question），新增纯函数从消息里解析问与答（问题 header 与正文、用户选择或自定义回答），按题号去重；Shell 在打开需求卡片时按任务会话（没有则当前会话）读取消息并解析，传给卡片。界面：需求卡片分两个默认折叠区，需求内容（方案文档）与立项问答（逐题问题加回答，空则说明没有记录）；创建人、创建时间、标题与底部拆分任务不变。约束是不改宿主契约、不新增页面、文案走词典、四套皮肤与窄窗可用、长文限高滚动。验收 typecheck 与 packages/lcoder vitest 与 oxlint 与 test:docs 与 i18n；单测覆盖问答解析与组件渲染、无方案回退；真窗口最多一次定向断言，不做截图。工作树用 pool-slot-1 claim 到 lcoder/t135-requirement-detail，端口 9822 与 9829 与 9830。2026-11-12 18:15 监督窗口派工，实现线会话 b7828a7d；claim pool-slot-1 到分支 lcoder/t135-requirement-detail。2026-11-12 18:50 监督窗口核验并收口。实现线提交后独立复跑 typecheck 五项、vitest 七十七文件八百五十五例、i18n 一千三百零八文件、test:docs 二十一项、改动文件 oxlint 全过；主检出统一复跑同组门禁与 build:artifacts 与 build:check 全过。需求内容改读方案文档并回退任务描述，新增立项问答折叠区，问答从 ask_user_question 结果解析。未验项是真实目标仓卡片的方案正文与问答真窗口展示。已合入 lcoder/main、release pool-slot-1。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
