@@ -138,7 +138,7 @@ describe('向导首页', () => {
     expect(onConfirm).toHaveBeenCalledTimes(1)
   })
 
-  it('展开高级配置才读模型目录，空态给去设置入口', () => {
+  it('展开高级配置会补读模型目录，空态给去设置入口', () => {
     const onLoadModels = vi.fn()
     const onOpenSettings = vi.fn()
     const { container, rerender } = render(<IntakeWizard {...propsOf({ onLoadModels, onOpenSettings })} />)
@@ -153,6 +153,20 @@ describe('向导首页', () => {
     expect(screen.getByText(zh['shell.wizardNoModels'])).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: zh['shell.wizardGoSettings'] }))
     expect(onOpenSettings).toHaveBeenCalledTimes(1)
+  })
+
+  it('折叠摘要直接显示目录默认模型，读取中只说读取，不再写尚未读取', () => {
+    const { container, rerender } = render(<IntakeWizard {...propsOf({ modelState: 'idle' })} />)
+
+    const brief = (): string | undefined => container
+      .querySelector('details[data-wizard-section="advanced"] summary')?.textContent ?? undefined
+    expect(brief()).toContain(zh['shell.wizardModelLoading'])
+    expect(brief()).not.toContain('尚未读取')
+
+    rerender(<IntakeWizard {...propsOf({
+      modelState: 'ready', models: [MODEL_A, MODEL_B], selectedModel: MODEL_A,
+    })} />)
+    expect(brief()).toContain('DeepSeek · DeepSeek Chat')
   })
 
   it('有模型时逐枚列出，选中的一枚标记按下', () => {
@@ -268,6 +282,16 @@ describe('思考中', () => {
     expect(screen.queryByText(zh['shell.wizardThinking'])).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: zh['shell.restartIntake'] }))
     expect(onRestart).toHaveBeenCalledTimes(1)
+  })
+
+  it('状态并入分析师头行，结束态有紧凑重开且不再挂更多轮次标签', () => {
+    const { container } = render(<IntakeWizard {...propsOf({ phase: 'thinking', running: false })} />)
+
+    const analyst = container.querySelector('[data-wizard-analyst]')
+    expect(analyst).not.toBeNull()
+    expect(analyst?.querySelector('[data-wizard-thinking]')).not.toBeNull()
+    expect(analyst?.querySelector('[data-wizard-thinking-restart]')).not.toBeNull()
+    expect(screen.queryByText(zh['shell.wizardMoreRounds'])).toBeNull()
   })
 
   it('思考与结果阶段不再压暗底层，首页与提问层才是模态', () => {

@@ -54,6 +54,7 @@ import {
   defaultIntakeModel, intakeModelOptions, intakePromptStarted, intakeWizardOutput, intakeWizardPhase,
 } from './intake-wizard.ts'
 import type { IntakeModelOption } from './intake-wizard.ts'
+import { useIntakeRunActive } from './intake-run.ts'
 import { IntakeWizard } from './IntakeWizard.tsx'
 import type { IntakeModelState } from './IntakeWizard.tsx'
 import { IntakeResultPage, IntakeRestartDialog } from './IntakeResultPage.tsx'
@@ -525,6 +526,8 @@ export function Shell({
   const [wizardModelChoice, setWizardModelChoice] = useState<IntakeModelOption | null>(null)
   const [intakeModelSnapshot, setIntakeModelSnapshot] = useState<ModelSettingsSnapshot | null>(null)
   const [intakeModelState, setIntakeModelState] = useState<IntakeModelState>('idle')
+  /** 模型目录请求是否在途；挡住同一 tick 里的重复读取。 */
+  const intakeModelLoading = useRef(false)
   /** 结果卡里的采纳：成功才关向导，失败原文就地显示。 */
   const [wizardApproving, setWizardApproving] = useState(false)
   const [wizardApproveResult, setWizardApproveResult] = useState<ShellSignResult | null>(null)
@@ -1087,6 +1090,16 @@ export function Shell({
     running: wizardRunning,
     hasOutput: wizardOutput.hasOutput,
     proposalCount: proposals.length,
+  })
+  /**
+   * 状态行不直接用瞬时 `running`：回合之间它可能短暂为 false，
+   * 沉降窗口把这两秒仍当作思考中，只有持续停下才换成结束态。
+   */
+  const wizardStatusRunning = useIntakeRunActive({
+    enabled: wizardOpen && wizardPhase === 'thinking',
+    running: wizardTurnActive,
+    questionCount: wizardQuestion?.questions.length ?? 0,
+    activity: wizardMessages.length,
   })
   const wizardProposal = latestProposal(proposals)
   const intakeModels = intakeModelOptions(intakeModelSnapshot)
@@ -2124,21 +2137,33 @@ export function Shell({
     setWizardApproveResult(null)
   }
 
-  /** 第一次展开高级配置时读模型目录；读不到给去设置的入口。 */
+  /**
+   * 读模型目录：向导打开时就调用，展开高级配置只做补读或重试。
+   * 重复调用由在途标记与 `loading`/`ready` 状态挡掉；关闭再打开会把状态清回 idle 并重读。
+   */
   const loadIntakeModels = (): void => {
+    if (intakeModelLoading.current) return
     if (intakeModelState === 'loading' || intakeModelState === 'ready') return
     if (modelSettings === undefined) {
       setIntakeModelState('error')
       return
     }
+    intakeModelLoading.current = true
     setIntakeModelState('loading')
     void modelSettings.load().then((snapshot) => {
       setIntakeModelSnapshot(snapshot)
       setIntakeModelState(snapshot.status === 'error' ? 'error' : 'ready')
     }, () => {
       setIntakeModelState('error')
+    }).finally(() => {
+      intakeModelLoading.current = false
     })
   }
+
+  /** 向导一打开就把模型目录读好：折叠摘要要直接显示真实模型，不能等展开高级配置。 */
+  useEffect(() => {
+    if (wizardOpen && intakeModelState === 'idle') loadIntakeModels()
+  }, [wizardOpen, intakeModelState])
 
   /**
    * 把一档立项咒语发到指定会话。
@@ -3848,7 +3873,7 @@ export function Shell({
           sending={wizardSending}
           proposal={wizardProposal ?? null}
           tasks={tasks}
-          running={wizardTurnActive}
+          running={wizardStatusRunning}
           approving={wizardApproving}
           approveResult={wizardApproveResult}
           canApprove={approveProposal !== undefined && sessionId !== undefined}
