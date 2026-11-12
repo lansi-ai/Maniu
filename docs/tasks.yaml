@@ -1622,6 +1622,18 @@ tracks:
       inferred: false
       note: "B 级修复，来源是用户 2026-11-12 反馈设置默认模型后拆分仍用旧模型。原因 T-141 让拆分会话继承需求会话当前模型，盖住了设置里的全局默认。修法：拆分时重新读 modelSettings 快照的 defaultSelection，创建项目经理与研发经理会话后写入该默认；不再看需求会话的旧选择，读不到快照就交给宿主默认。vitest 与 i18n 与 test:docs 与 build:artifacts 全过。未验项是设置页改默认后立刻拆分的真窗口链路。直接在主检出修复。"
 
+    - id: T-144
+      title: 默认模型下拉用安全值避免选择失效
+      status: done
+      face: 用户端
+      type: 修复
+      owner: lance
+      created: '2026-11-12'
+      date: '2026-11-12'
+      dep: [T-142, T-143]
+      inferred: false
+      note: "B 级修复，来源是用户 2026-11-12 反馈切换默认模型没有用。根因：默认模型下拉的 option value 用 NUL 作 provider 与 model 的分隔，DOM 会清洗该字符，change 后取不到候选，界面回落到当前默认，点击设为默认实际仍在写 LCoder Cloud。修法：optionKey 与 currentKey 改用 encodeURIComponent 加竖线的可打印编码。另已用界面把全局默认设为 deepseek-official 与 deepseek-flash，设置页当前默认显示 DeepSeek V4.1-Flash，profile 覆盖已移除，重启后回到 base 的官网默认。vitest 与 i18n 与 test:docs 与 build:artifacts 全过。未验项是重启后重新选择并拆分的真窗口链路。直接在主检出修复。"
+
 milestones:
 - name: MVP-0 工作台本地跑通
   track: lcoder

@@ -63,7 +63,7 @@ function rowStatus(row: ModelProviderRow): { key: LcoderWorkspaceKey; className?
 
 /** 候选在下拉里的稳定键。 */
 function optionKey(option: DefaultModelOption): string {
-  return `${option.provider}\u0000${option.model}`
+  return `${encodeURIComponent(option.provider)}|${encodeURIComponent(option.model)}`
 }
 
 /** 候选的展示名：服务商 · 模型。 */
@@ -88,7 +88,9 @@ interface DefaultSectionProps {
  */
 function DefaultModelSection({ rows, defaultSelection, face, sessionId, t, onChanged }: DefaultSectionProps): ReactNode {
   const options = useMemo(() => defaultModelOptions(rows), [rows])
-  const currentKey = defaultSelection === undefined ? null : `${defaultSelection.provider}\u0000${defaultSelection.model}`
+  const currentKey = defaultSelection === undefined
+    ? null
+    : `${encodeURIComponent(defaultSelection.provider)}|${encodeURIComponent(defaultSelection.model)}`
   const [pick, setPick] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [failure, setFailure] = useState<string | null>(null)
