@@ -131,6 +131,18 @@ export function readMotif(value: string): BackdropMotif {
   return value.trim() === 'plum' ? 'plum' : 'grid'
 }
 
+/**
+ * 节点行列的确定性伪随机值。
+ * @param column - 节点列号。
+ * @param row - 节点行号。
+ * @param salt - 同一节点上不同用途的独立噪声。
+ * @returns 0–1 之间的值。
+ */
+function nodeNoise(column: number, row: number, salt: number): number {
+  const seed = Math.sin(column * 127.1 + row * 311.7 + salt * 74.7) * 43758.5453
+  return seed - Math.floor(seed)
+}
+
 /** 一朵梅花的姿态；偏移以节点间距为单位，半径缩放无量纲。 */
 export interface BlossomPose {
   /** 相对节点的横向偏移，单位为间距。 */
@@ -150,16 +162,25 @@ export interface BlossomPose {
  * @returns 该格梅花的偏移、旋转与缩放。
  */
 export function blossomPose(column: number, row: number): BlossomPose {
-  const noise = (salt: number): number => {
-    const seed = Math.sin(column * 127.1 + row * 311.7 + salt * 74.7) * 43758.5453
-    return seed - Math.floor(seed)
-  }
   return {
-    dx: (noise(1) - 0.5) * 0.5,
-    dy: (noise(2) - 0.5) * 0.5,
-    angle: noise(3) * Math.PI * 2,
-    scale: 0.7 + noise(4) * 0.3,
+    dx: (nodeNoise(column, row, 1) - 0.5) * 0.5,
+    dy: (nodeNoise(column, row, 2) - 0.5) * 0.5,
+    angle: nodeNoise(column, row, 3) * Math.PI * 2,
+    scale: 0.7 + nodeNoise(column, row, 4) * 0.3,
   }
+}
+
+/** 节点长出梅花的概率；其余节点留空，避免整片连成网。 */
+export const BLOSSOM_DENSITY = 0.34
+
+/**
+ * 该节点是否长出一朵梅花。
+ * @param column - 节点列号。
+ * @param row - 节点行号。
+ * @returns 为真时画一朵花；同一节点恒定。
+ */
+export function blossomVisible(column: number, row: number): boolean {
+  return nodeNoise(column, row, 5) < BLOSSOM_DENSITY
 }
 
 /** 梅花的花瓣数。 */
@@ -179,6 +200,15 @@ export interface PetalEllipse {
   readonly rotation: number
 }
 
+/** 花瓣半短轴相对花朵半径；花瓣之间留出可见缝隙。 */
+export const PETAL_WIDTH_RATIO = 0.42
+
+/** 花瓣半长轴相对花朵半径；内端停在中心点外，给花心留位置。 */
+export const PETAL_LENGTH_RATIO = 0.78
+
+/** 花心圆半径相对花朵半径。 */
+export const PETAL_CORE_RATIO = 0.26
+
 /**
  * 五瓣梅花的几何：花瓣等角分布在半径之外，长轴沿径向。
  * @param radius - 花朵中心到花瓣中心的距离。
@@ -192,8 +222,8 @@ export function plumPetals(radius: number, angle: number): PetalEllipse[] {
     petals.push({
       x: Math.cos(theta) * radius,
       y: Math.sin(theta) * radius,
-      rx: radius * 0.44,
-      ry: radius * 0.92,
+      rx: radius * PETAL_WIDTH_RATIO,
+      ry: radius * PETAL_LENGTH_RATIO,
       rotation: theta - Math.PI / 2,
     })
   }

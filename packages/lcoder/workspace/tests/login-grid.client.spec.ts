@@ -6,7 +6,8 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  blossomPose, clamp01, gridInfluence, gridOffsets, lineAlpha, parseCssColor, PLUM_PETALS, plumPetals,
+  blossomPose, blossomVisible, BLOSSOM_DENSITY, clamp01, gridInfluence, gridOffsets, lineAlpha,
+  parseCssColor, PETAL_CORE_RATIO, PETAL_LENGTH_RATIO, PETAL_WIDTH_RATIO, PLUM_PETALS, plumPetals,
   readMotif, rgba, warpVertex,
 } from '../src/client/cloud/login-grid.ts'
 import type { GridWarpSpec } from '../src/client/cloud/login-grid.ts'
@@ -136,12 +137,38 @@ describe('底纹类型与梅花', () => {
     const first = petals[0]
     expect(first?.x).toBeCloseTo(10)
     expect(first?.y).toBeCloseTo(0)
-    expect(first?.rx).toBeCloseTo(4.4)
-    expect(first?.ry).toBeCloseTo(9.2)
+    expect(first?.rx).toBeCloseTo(10 * PETAL_WIDTH_RATIO)
+    expect(first?.ry).toBeCloseTo(10 * PETAL_LENGTH_RATIO)
     expect(first?.rotation).toBeCloseTo(-Math.PI / 2)
     for (const petal of petals) {
       expect(Math.hypot(petal.x, petal.y)).toBeCloseTo(10)
+      expect(petal.ry).toBeGreaterThan(petal.rx)
+      expect(petal.ry).toBeLessThan(10)
     }
+    expect(PETAL_CORE_RATIO).toBeGreaterThanOrEqual(1 - PETAL_LENGTH_RATIO)
+  })
+
+  it('只有约三分之一的节点长出梅花，取舍稳定且互不相关', () => {
+    let count = 0
+    const total = 60 * 60
+    for (let column = 0; column < 60; column++) {
+      for (let row = 0; row < 60; row++) {
+        const visible = blossomVisible(column, row)
+        expect(blossomVisible(column, row)).toBe(visible)
+        if (visible) count++
+      }
+    }
+    expect(count / total).toBeGreaterThan(BLOSSOM_DENSITY - 0.06)
+    expect(count / total).toBeLessThan(BLOSSOM_DENSITY + 0.06)
+    expect(blossomVisible(3, 4)).toBe(true)
+    expect(blossomVisible(7, 7)).toBe(false)
+  })
+
+  it('相邻花瓣在切向上留缝，不会填成一整块', () => {
+    const petals = plumPetals(10, 0)
+    const chord = 2 * 10 * Math.sin(Math.PI / PLUM_PETALS)
+    expect(chord).toBeGreaterThan(2 * 10 * PETAL_WIDTH_RATIO)
+    expect(petals).toHaveLength(PLUM_PETALS)
   })
 
   it('整朵旋转同样旋转全部花瓣', () => {
