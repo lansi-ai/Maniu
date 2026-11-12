@@ -877,6 +877,33 @@ describe('顶栏项目控件与项目信息抽屉', () => {
     expect(within(header as HTMLElement).getByRole('button', { name: 'other' })).toBeTruthy()
   })
 
+  it('抽屉四个小节默认折叠，切换项目只露小节标题与当前项目名', async () => {
+    const { container } = renderShell({
+      spec: {},
+      sessions: [
+        sessionRow('s-1', REPO, false),
+        sessionRow('s-2', OTHER, false),
+      ],
+      workspaces: [
+        workspaceItem('w-1', 'demo', REPO, [SessionId('s-1')]),
+        workspaceItem('w-2', 'other', OTHER, [SessionId('s-2')]),
+      ],
+    })
+
+    fireEvent.click(await screen.findByRole('button', { name: 'demo' }))
+    const heading = await screen.findByRole('heading', { name: zh['shell.projectInfo'] })
+    const drawer = heading.closest('aside') as HTMLElement
+    const sections = [...drawer.querySelectorAll<HTMLDetailsElement>('details')]
+    expect(sections).toHaveLength(4)
+    expect(sections.every(section => !section.open)).toBe(true)
+
+    const switchSummary = screen.getByText(zh['shell.switchProject']).closest('summary') as HTMLElement
+    expect(switchSummary.textContent).toContain('demo')
+    fireEvent.click(switchSummary)
+    expect(sections[0]?.open).toBe(true)
+    expect(container.ownerDocument.body.textContent).toContain('other')
+  })
+
   it('没有工作区时顶栏显示选择项目，抽屉给出空态与打开仓库', async () => {
     renderShell({ spec: {}, sessions: [], workspaces: [] })
     fireEvent.click(await screen.findByRole('button', { name: zh['shell.chooseProject'] }))
