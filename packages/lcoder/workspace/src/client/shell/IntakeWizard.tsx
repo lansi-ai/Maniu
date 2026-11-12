@@ -3,6 +3,7 @@
  *
  * 组件只画传入的阶段与事实：阶段由 {@link intakeWizardPhase} 从会话事实算出，
  * 提问卡的结算仍交给上游 `pending.answer()`，采纳方案仍由外壳派 `/proposal_approve`。
+ * 右栏活动区只在提问与结果阶段挂载；思考阶段把它收进左栏，弹窗同时收敛成单栏。
  * 这里不新建会话、不发提示、也不记阶段。
  */
 import { useState } from 'react'
@@ -14,6 +15,7 @@ import type { ShellQuestionPending } from './pending.ts'
 import type { IntakeModelOption, IntakeWizardPhase } from './intake-wizard.ts'
 import { PROPOSAL_DECISION } from './intake.ts'
 import { ProcessList, QuestionCard } from './ChatPanel.tsx'
+import bullMark from '../assets/bull-mark.png'
 import css from './Shell.module.css'
 
 /** 本包词典的翻译函数。 */
@@ -86,7 +88,13 @@ export function IntakeWizard({
         if (!quiet && event.target === event.currentTarget) onCancel()
       }}
     >
-      <div className={css.wizard} role="dialog" aria-modal={quiet ? undefined : true} aria-label={t('shell.wizardDialogLabel')}>
+      <div
+        className={css.wizard}
+        role="dialog"
+        aria-modal={quiet ? undefined : true}
+        aria-label={t('shell.wizardDialogLabel')}
+        data-layout={phase === 'thinking' ? 'solo' : 'split'}
+      >
         <div className={css.wizardHead}>
           <div className={css.grow}>
             <h2 className={css.wizardTitle} data-wizard-title>
@@ -150,15 +158,27 @@ export function IntakeWizard({
             </div>
           </>
         ) : (
-          <div className={css.wizardColumns}>
+          <div
+            className={`${css.wizardColumns} ${phase === 'thinking' ? css.wizardColumnsSolo : ''}`}
+            data-wizard-layout={phase === 'thinking' ? 'solo' : 'split'}
+          >
             <aside className={css.wizardAside}>
               <div className={css.wizardAnalyst}>
-                <span className={css.wizardAvatar} aria-hidden />
+                <img className={css.wizardAvatar} src={bullMark} alt="" aria-hidden />
                 <div className={css.wizardAnalystText}>
                   <b>{t('shell.wizardAnalystName')}</b>
                   <span>{t('shell.wizardAnalystRole')}</span>
                 </div>
               </div>
+              {phase === 'thinking' ? (
+                <ThinkingPanel
+                  t={t}
+                  items={processItems}
+                  running={running}
+                  restartBusy={restartBusy}
+                  onRestart={onRestart}
+                />
+              ) : null}
               <WizardSections
                 t={t}
                 compact
@@ -171,41 +191,34 @@ export function IntakeWizard({
                 onOpenSettings={onOpenSettings}
               />
             </aside>
-            <section className={css.wizardStage} data-phase={phase} key={phase}>
-              {phase === 'questions' ? (
-                question === null ? null : (
-                  <div className={css.wizardQuestion} key={question.key} data-wizard-question>
-                    <p className={css.wizardStageHint}>{t('shell.wizardQuestionHint')}</p>
-                    <QuestionCard pending={question} t={t} embedded />
-                  </div>
-                )
-              ) : null}
-              {phase === 'thinking' ? (
-                <ThinkingPanel
-                  t={t}
-                  items={processItems}
-                  running={running}
-                  restartBusy={restartBusy}
-                  onRestart={onRestart}
-                />
-              ) : null}
-              {phase === 'result' ? (
-                <ResultPanel
-                  t={t}
-                  proposal={proposal}
-                  tasks={tasks}
-                  error={error}
-                  approving={approving}
-                  approveResult={approveResult}
-                  canApprove={canApprove}
-                  restartBusy={restartBusy}
-                  moreOpen={moreOpen}
-                  onToggleMore={() => { setMoreOpen(value => !value) }}
-                  onApprove={onApprove}
-                  onRestart={onRestart}
-                />
-              ) : null}
-            </section>
+            {phase === 'thinking' ? null : (
+              <section className={css.wizardStage} data-phase={phase} data-wizard-stage key={phase}>
+                {phase === 'questions' ? (
+                  question === null ? null : (
+                    <div className={css.wizardQuestion} key={question.key} data-wizard-question>
+                      <p className={css.wizardStageHint}>{t('shell.wizardQuestionHint')}</p>
+                      <QuestionCard pending={question} t={t} embedded />
+                    </div>
+                  )
+                ) : null}
+                {phase === 'result' ? (
+                  <ResultPanel
+                    t={t}
+                    proposal={proposal}
+                    tasks={tasks}
+                    error={error}
+                    approving={approving}
+                    approveResult={approveResult}
+                    canApprove={canApprove}
+                    restartBusy={restartBusy}
+                    moreOpen={moreOpen}
+                    onToggleMore={() => { setMoreOpen(value => !value) }}
+                    onApprove={onApprove}
+                    onRestart={onRestart}
+                  />
+                ) : null}
+              </section>
+            )}
           </div>
         )}
       </div>

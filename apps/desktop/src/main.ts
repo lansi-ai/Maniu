@@ -17,12 +17,14 @@ import {
   nativeTheme,
   net,
   protocol,
+  screen,
   session,
   shell,
   type IpcMainInvokeEvent,
   type MenuItemConstructorOptions,
 } from 'electron'
 import { resolveDesktopPaths } from './paths.ts'
+import { primaryWindowSize } from './window-size.ts'
 import { DesktopProjectManager } from './project-manager.ts'
 import { DesktopHostFatalError, DesktopHostProcess, DesktopHostUncleanExitError } from './host-process.ts'
 import { DesktopPlatformView, PLATFORM_IPC, platformBounds } from './platform-view.ts'
@@ -270,9 +272,11 @@ function applicationIconPath(): string {
 }
 
 function createWindow(preload: string, show = false, primary = false): BrowserWindow {
+  // lcoder: 主屏工作区决定初始尺寸；1440×900 的首选值在小屏上收敛，不伸出工作区。
+  const size = primaryWindowSize(screen.getPrimaryDisplay().workAreaSize)
   const window = new BrowserWindow({
-    width: 1280,
-    height: 820,
+    width: size.width,
+    height: size.height,
     minWidth: 520,
     minHeight: 600,
     show,

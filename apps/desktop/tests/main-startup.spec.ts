@@ -42,6 +42,8 @@ const harness = await vi.hoisted(async () => {
   const windows: FakeWindow[] = []
   let windowFailure: Error | undefined
   const powerMonitor = new EventEmitter()
+  let workAreaSize = { width: 1920, height: 1080 }
+  const screen = { getPrimaryDisplay: () => ({ workAreaSize }) }
   const hosts: FakeHost[] = []
   const handlers = new Map<string, InvokeHandler>()
   let pluginsEnabled = false
@@ -110,7 +112,14 @@ const harness = await vi.hoisted(async () => {
     readonly setTitleBarOverlay = vi.fn()
     readonly setVibrancy = vi.fn()
     readonly setBackgroundColor = vi.fn()
-    constructor(readonly options: { show: boolean; modal?: boolean }) {
+    constructor(readonly options: {
+      show: boolean
+      modal?: boolean
+      width?: number
+      height?: number
+      minWidth?: number
+      minHeight?: number
+    }) {
       super(); if (windowFailure !== undefined) throw windowFailure; windows.push(this)
     }
     isDestroyed() { return this.destroyed }
@@ -222,7 +231,7 @@ const harness = await vi.hoisted(async () => {
   const shellDialog = { isOpen: false, focus: vi.fn() }
   return {
     failWindow(error: Error) { windowFailure = error },
-    windows, views, hosts, handlers, app, FakeWindow, FakeView, FakeHost, powerMonitor, nativeTheme, analytics,
+    windows, views, hosts, handlers, app, FakeWindow, FakeView, FakeHost, powerMonitor, screen, nativeTheme, analytics,
     trays, FakeTray, backgroundNotice, shellDialog,
     menu, popup, socketHeaders: vi.fn(), loginShell, readLoginShell, updateCheck, updateDownload, updateInstall,
     platformDispose,
@@ -242,6 +251,7 @@ const harness = await vi.hoisted(async () => {
     ipcOn: vi.fn<(channel: string, listener: (event: { sender: unknown; senderFrame: unknown }, ...args: unknown[]) => void) => void>(),
     get updateState() { return updateState },
     set updateState(value: DesktopUpdateState) { updateState = value },
+    set workAreaSize(value: { width: number; height: number }) { workAreaSize = value },
     get prepareUpdate() { return prepareUpdate! },
     set prepareUpdate(value: () => Promise<boolean>) { prepareUpdate = value },
     get publishUpdate() { return publishUpdate! },
@@ -275,6 +285,7 @@ const harness = await vi.hoisted(async () => {
       backgroundNotice.markerPath = undefined
       shellDialog.isOpen = false
       powerMonitor.removeAllListeners()
+      workAreaSize = { width: 1920, height: 1080 }
       app.isPackaged = true
       windowFailure = undefined
       pluginsEnabled = false
@@ -331,6 +342,7 @@ vi.mock('electron', () => ({
   } },
   protocol: { registerSchemesAsPrivileged: vi.fn(), handle: harness.protocolHandle },
   powerMonitor: harness.powerMonitor,
+  screen: harness.screen,
   Tray: harness.FakeTray,
   nativeImage: { createFromPath: (path: string) => ({ path }) },
 }))
@@ -493,6 +505,14 @@ describe('desktop main startup', () => {
         ? join('desktop-test-resources', 'runtime', 'primary-runtime', 'dependencies', 'pnpm', 'bin', 'pnpm.mjs')
         : 'test-pnpm',
       nodeBin: packaged ? join('desktop-test-resources', 'runtime', 'bin') : join('desktop-test-app', 'scripts', 'node-bin'),
+    })
+  })
+
+  it('opens the main window at the preferred size and fits it inside a smaller work area', async () => {
+    harness.workAreaSize = { width: 1280, height: 720 }
+    await readyForUpdate()
+    expect(harness.windows[0]!.options).toMatchObject({
+      width: 1232, height: 672, minWidth: 520, minHeight: 600,
     })
   })
 
