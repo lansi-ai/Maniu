@@ -1514,6 +1514,18 @@ tracks:
       inferred: false
       note: "B 级界面重构，来源是用户 2026-11-12 截图与说明。需求确认列里的任务卡点开后现在是普通任务详情，要改成需求卡片。一、标题为 需求编号（T-01）：任务标题；二、创建人显示 LCoder 团队需求分析师，走词典；三、创建时间读 .spec/tasks 下该任务 YAML 的 opened_at，投影给 ShellTask 补 openedAt 字段，缺失显示破折号，不用文件时间冒充；四、需求内容默认折叠，只留标题与一行摘要，点击查看更多展开正文，展开后保留规则与等级等现有信息；五、底部主按钮为拆分任务，次按钮为关闭，确认需求不再出现在这张卡上；拆分沿用当前会话，有任务会话则用任务会话，发送一条中文拆分指令，让分析师把该需求拆成 drafting 任务写入 .spec/tasks，包含标题与范围与验收与依赖与规则，不改需求本身不开始实现，发送在途禁用，失败原文就地显示，成功后关卡片并刷新看板。只有 drafting 且带 proposal 回指的需求任务用这张卡，其它状态仍走现有任务详情。约束是不改宿主契约、不新增页面、文案走词典、四套皮肤与窄窗可用。验收 typecheck 与 packages/lcoder vitest 与 oxlint 与 test:docs 与 i18n；单测覆盖标题格式与创建人时间渲染、内容默认折叠、拆分只发一次且不建会话、非需求任务不换卡；真窗口最多一次定向断言，不做截图。依赖 T-132 之后开工，工作树用届时空出的槽位。2026-11-12 17:55 监督窗口收口。因 MCP 委派通道中断，监督窗口在 pool-slot-1 直接完成实现并提交；新增 requirement.ts 与 RequirementCard.tsx，投影补 openedAt，drafting 且带方案回指的任务改为需求卡片，内容默认折叠，底部为拆分任务；拆分向需求会话发中文指令，不改需求不开始实现。单独复跑 typecheck 五项、vitest 七十六文件八百三十二例、i18n、test:docs、oxlint 全过；主检出统一复跑同组门禁与 build 全过；确认命令常量改名避开 UI 文案门禁。未验项是需求卡片真窗口创建时间与拆分后的实际落盘。已合入 lcoder/main、release pool-slot-1。"
 
+    - id: T-135
+      title: 需求卡片显示需求文档与立项问答
+      status: doing
+      face: 用户端
+      type: 修复
+      owner: lance
+      created: '2026-11-12'
+      date: '2026-11-12'
+      dep: [T-134]
+      inferred: false
+      note: "B 级修正，来源是用户 2026-11-12 截图与两条。一、需求卡片的需求内容现在取任务 description，应改为之前生成的需求文档，也就是任务回指的方案 .spec/proposals 文件，展示方案的问题与需求基线正文、候选与推荐，Markdown 渲染；没有方案文件时才退回任务 description。二、卡片还要显示用户在立项分析时的提问与回答。数据面：工具调用结果目前只保留成败，给 ShellProcessItem 的 tool 补 result 文本（至少 ask_user_question），新增纯函数从消息里解析问与答（问题 header 与正文、用户选择或自定义回答），按题号去重；Shell 在打开需求卡片时按任务会话（没有则当前会话）读取消息并解析，传给卡片。界面：需求卡片分两个默认折叠区，需求内容（方案文档）与立项问答（逐题问题加回答，空则说明没有记录）；创建人、创建时间、标题与底部拆分任务不变。约束是不改宿主契约、不新增页面、文案走词典、四套皮肤与窄窗可用、长文限高滚动。验收 typecheck 与 packages/lcoder vitest 与 oxlint 与 test:docs 与 i18n；单测覆盖问答解析与组件渲染、无方案回退；真窗口最多一次定向断言，不做截图。工作树用 pool-slot-1 claim 到 lcoder/t135-requirement-detail，端口 9822 与 9829 与 9830。2026-11-12 18:15 监督窗口派工，实现线会话 b7828a7d；claim pool-slot-1 到分支 lcoder/t135-requirement-detail。"
+
 milestones:
 - name: MVP-0 工作台本地跑通
   track: lcoder
