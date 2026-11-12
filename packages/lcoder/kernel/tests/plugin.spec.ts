@@ -190,6 +190,7 @@ describe('插件装配', () => {
         'lcoder.command(task_bind)',
         'lcoder.command(task_assign)',
         'lcoder.command(task_contract)',
+        'lcoder.command(task_split_ready)',
         'lcoder.command(task_schedule)',
         'lcoder.command(flow_status)',
         'lcoder.command(flow_log)',
@@ -201,7 +202,7 @@ describe('插件装配', () => {
     harness.runEffects()
     expect(harness.registrations.map(r => r.name).sort()).toEqual(TOOL_NAMES)
     expect(harness.commands.map(c => c.name)).toEqual([
-      'contract_sign', 'task_bind', 'task_assign', 'task_contract', 'task_schedule',
+      'contract_sign', 'task_bind', 'task_assign', 'task_contract', 'task_split_ready', 'task_schedule',
       'flow_status', 'flow_log', 'agent_bind', 'proposal_approve', 'deploy',
     ])
   })
@@ -224,6 +225,16 @@ describe('插件装配', () => {
 
     expect(harness.registrations.map(r => r.name)).not.toContain('task_assign')
     expect(harness.commands.map(c => c.name)).toContain('task_assign')
+  })
+
+  it('进入待开发不是工具：task_split_ready 只进命令面，模型不能自己推进状态', () => {
+    const { spec } = makeRepo()
+    const harness = makeHarness()
+    apply(harness.ctx, { root: spec, selfCheck: false })
+    harness.runEffects()
+
+    expect(harness.registrations.map(r => r.name)).not.toContain('task_split_ready')
+    expect(harness.commands.map(c => c.name)).toContain('task_split_ready')
   })
 
   it('角色装配：评审在已签契约状态下仍动不了代码', () => {

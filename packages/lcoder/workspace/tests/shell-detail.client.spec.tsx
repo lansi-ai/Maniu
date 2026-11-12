@@ -112,6 +112,8 @@ interface ShellScenario {
   readonly running?: ReadonlySet<string>
   /** 分配命令替身；缺省给一个成功回执，不写投影。 */
   readonly assignTask?: ShellProps['assignTask']
+  /** 推进到待开发的命令替身；缺省给成功回执，不写投影。 */
+  readonly splitReady?: ShellProps['splitReady']
   /** 按 `.spec` 相对路径给出的附件字节；缺的路径按读不到处理。 */
   readonly attachments?: Readonly<Record<string, Uint8Array>>
   /** 界面词典；缺省中文，英文用例显式传入。 */
@@ -222,6 +224,7 @@ function renderShell(scenario: ShellScenario) {
     createSession: scenario.createSession ?? (async () => SessionId('s-9')),
     signContract: async () => ({ ok: true, text: '已签署' }),
     assignTask: scenario.assignTask ?? vi.fn(async () => ({ ok: true, text: '已分配' })),
+    splitReady: scenario.splitReady ?? vi.fn(async () => ({ ok: true, text: '已进入待开发' })),
     logSchedule,
     ...(scenario.readMessages === undefined ? {} : { readMessages: scenario.readMessages }),
     ...(scenario.subscribeSession === undefined ? {} : { subscribeSession: scenario.subscribeSession }),
@@ -713,11 +716,18 @@ describe('需求卡片的拆分接线', () => {
       }])
     }
     const assignTask: NonNullable<ShellProps['assignTask']> = vi.fn(async () => ({ ok: true, text: '已分配' }))
+    const splitReady: NonNullable<ShellProps['splitReady']> = vi.fn(async (_sessionId, taskId) => {
+      const key = `${taskId}.yaml`
+      const text = spec.tasks[key]
+      if (text !== undefined) spec.tasks[key] = text.replace('state: drafting', 'state: contracted')
+      return { ok: true, text: '已进入待开发' }
+    })
     renderShell({
       spec,
       createSession,
       sendPrompt,
       assignTask,
+      splitReady,
       readMessages: id => messages.get(String(id)) ?? [],
       holdSession: () => () => {},
     })
@@ -727,14 +737,15 @@ describe('需求卡片的拆分接线', () => {
     await waitFor(() => {
       expect(assignTask).toHaveBeenCalledWith(SessionId('s-10'), 'T-02', 'architect')
     })
+    expect(splitReady).toHaveBeenCalledWith(SessionId('s-1'), 'T-02')
     expect(createSession).toHaveBeenNthCalledWith(1, REPO, 'lcoder-pm')
     expect(createSession).toHaveBeenNthCalledWith(2, REPO, 'lcoder-manager')
-    expect(await screen.findByText(t('shell.splitResult', { tasks: '1', assigned: '1' }))).toBeTruthy()
+    expect(await screen.findByText(t('shell.splitResult', { tasks: '1', assigned: '1', ready: '1' }))).toBeTruthy()
     expect(screen.getByRole('button', { name: zh['shell.splitViewBoard'] })).toBeTruthy()
 
     fireEvent.click(screen.getByRole('button', { name: zh['shell.close'] }))
     await openTask('随手记账')
-    expect(await screen.findByText(t('shell.splitResult', { tasks: '1', assigned: '1' }))).toBeTruthy()
+    expect(await screen.findByText(t('shell.splitResult', { tasks: '1', assigned: '1', ready: '1' }))).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: zh['shell.splitTasks'] }))
     expect(createSession).toHaveBeenCalledTimes(2)
   })

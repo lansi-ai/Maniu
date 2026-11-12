@@ -5,9 +5,12 @@
  * 研发经理再按领域给这批新任务定岗位。分配仍是人机命令 `/task_assign`，
  * 外壳只负责在研发经理会话里逐条发起，模型没有分配入口。
  *
+ * 分配完成后，外壳再用 `/task_split_ready` 把整批推进到待开发：需求文档就是这批
+ * 任务的契约依据，不再逐任务签契约。两条命令都只有人机入口。
+ *
  * 等待靠会话事实：宿主推流的 running 与消息窗口里的助手答复。超时或没拆出任务
  * 都如实报失败，不把「发了指令」当成「已拆完」。流程本身不碰 React，
- * 建会话、发送、分配与轮询都从 {@link RequirementSplitPorts} 注入，便于单测。
+ * 建会话、发送、分配、推进与轮询都从 {@link RequirementSplitPorts} 注入，便于单测。
  */
 import type { ShellSessionNotice } from '../model-status.ts'
 import type { JobRoleRow } from '../projection.ts'
@@ -27,10 +30,27 @@ export const REQUIREMENT_SPLIT_TIMEOUT_MS = 180_000
 export const REQUIREMENT_SPLIT_POLL_MS = 1_000
 
 /**
- * 需求方案下、除需求本体以外的 drafting 任务。
+ * 同一需求方案下、除需求本体以外的全部拆分任务，不限状态。
  *
- * 这是「已经拆过」的持久判据：刷新页面或关掉卡片后仍能从 `.spec` 读回来，
- * 所以重开卡片不会再建一条项目经理会话。
+ * 这是「已经拆过」的持久判据：即使这批任务已经进了待开发，重开卡片也能读回来，
+ * 不会把同一条需求再拆一遍。
+ * @param tasks - 当前投影里的任务。
+ * @param requirement - 被拆分的需求任务。
+ * @returns 同方案、非本体的任务，保持投影顺序；方案缺失时为空。
+ */
+export function splitTasksOf(
+  tasks: readonly ShellTask[],
+  requirement: ShellTask,
+): readonly ShellTask[] {
+  if (requirement.proposal === undefined) return []
+  return tasks.filter(task => task.id !== requirement.id && task.proposal === requirement.proposal)
+}
+
+/**
+ * 需求方案下仍为 drafting 的拆分任务。
+ *
+ * 重试与补分配只看这一批：已进待开发或更后状态的由 {@link splitTasksOf} 兜住，
+ * 不再进流程。
  * @param tasks - 当前投影里的任务。
  * @param requirement - 被拆分的需求任务。
  * @returns 同方案、非本体的 drafting 任务，保持投影顺序。
@@ -39,11 +59,7 @@ export function existingSplitTasks(
   tasks: readonly ShellTask[],
   requirement: ShellTask,
 ): readonly ShellTask[] {
-  if (requirement.proposal === undefined) return []
-  return tasks.filter(task =>
-    task.id !== requirement.id
-    && task.proposal === requirement.proposal
-    && task.state === 'drafting')
+  return splitTasksOf(tasks, requirement).filter(task => task.state === 'drafting')
 }
 
 /**
@@ -194,11 +210,23 @@ export interface AssignmentAttempt {
   readonly detail: string
 }
 
-/** 拆分与分配的汇总：卡片按它画「拆了几条、成功几条、失败明细」。 */
+/** 一次「进入待开发」命令的结果。 */
+export interface AdvanceAttempt {
+  readonly taskId: string
+  readonly ok: boolean
+  /** 命令回执原文；调用本身抛错时是错误文本。 */
+  readonly detail: string
+}
+
+/** 拆分与分配的汇总：卡片按它画「拆了几条、分配几条、进入待开发几条、失败明细」。 */
 export interface RequirementSplitSummary {
   readonly taskCount: number
   readonly assignedCount: number
+  /** 成功推到待开发（contracted）的条数。 */
+  readonly advancedCount: number
   readonly assignments: readonly AssignmentAttempt[]
+  /** 逐条「进入待开发」的结果；非起草态的任务不在这里。 */
+  readonly advances: readonly AdvanceAttempt[]
   readonly rejected: readonly RejectedAssignment[]
   /** 最终仍没有岗位的任务编号。 */
   readonly unassigned: readonly string[]
@@ -206,15 +234,17 @@ export interface RequirementSplitSummary {
 
 /**
  * 汇总一次流程的最终状态。
- * @param newTasks - 这次拆出的任务（可能已带有岗位）。
+ * @param newTasks - 这次处理的任务（可能已带有岗位）。
  * @param attempts - 逐条分配命令的结果。
  * @param rejected - 映射里被拒的条目。
+ * @param advances - 逐条「进入待开发」命令的结果。
  * @returns 计数、逐条结果与未分配任务。
  */
 export function summarizeSplit(
   newTasks: readonly ShellTask[],
   attempts: readonly AssignmentAttempt[],
   rejected: readonly RejectedAssignment[],
+  advances: readonly AdvanceAttempt[],
 ): RequirementSplitSummary {
   const succeeded = new Set(attempts.filter(attempt => attempt.ok).map(attempt => attempt.taskId))
   // 被拒条目已经在明细里说明过；同一任务不再重复画一条「仍未分配」。
@@ -228,7 +258,9 @@ export function summarizeSplit(
   return {
     taskCount: newTasks.length,
     assignedCount,
+    advancedCount: advances.filter(attempt => attempt.ok).length,
     assignments: attempts,
+    advances,
     rejected,
     unassigned,
   }
@@ -340,7 +372,7 @@ export function buildManagerAssignPrompt(input: ManagerAssignInput): string {
 }
 
 /** 流程当前走到哪一段；卡片按它显示「项目经理拆分中」一类的状态。 */
-export type RequirementSplitStage = 'pm' | 'manager' | 'assigning'
+export type RequirementSplitStage = 'pm' | 'manager' | 'assigning' | 'readying'
 
 /** 一次进度通知；`newTasks` 只在已知拆分结果时出现。 */
 export interface RequirementSplitProgress {
@@ -376,7 +408,8 @@ export type RequirementSplitOutcome =
     readonly kind: 'done'
     /** 项目经理会话；重试直接进研发经理时没有。 */
     readonly pmSession?: string
-    readonly managerSession: string
+    /** 研发经理会话；这批任务都已分配岗位时没有。 */
+    readonly managerSession?: string
     readonly newTasks: readonly ShellTask[]
     readonly summary: RequirementSplitSummary
   }
@@ -389,7 +422,10 @@ export interface RequirementSplitPlan {
   readonly source: RequirementSplitSource
   /** `.spec/roles.yaml` 的当前名册；进研发经理前会再读一次。 */
   readonly roster: readonly JobRoleRow[]
-  /** 已拆出的任务；非空时跳过项目经理，直接分配（失败重试走这条）。 */
+  /**
+   * 已拆出的任务；非空时跳过项目经理，只补分配并推进到待开发。
+   * 其中已带岗位的任务不再进研发经理的清单。
+   */
   readonly existingTasks?: readonly ShellTask[]
   /** 拆分前投影里的全部任务编号，用来过滤新任务。 */
   readonly beforeTaskIds: readonly string[]
@@ -409,6 +445,11 @@ export interface RequirementSplitPorts {
   /** 宿主推流的运行位；读不到时为 undefined。 */
   isRunning(sessionId: string): boolean | undefined
   assignTask(sessionId: string, taskId: string, roleId: string): Promise<ShellSignResult>
+  /**
+   * 把一条拆分任务推到待开发。人机命令由调用方指定的会话发起；
+   * 流程只关心成功与否，不自己挑会话。
+   */
+  splitReady(taskId: string): Promise<ShellSignResult>
   loadTasks(): Promise<readonly ShellTask[]>
   loadRoster(): Promise<readonly JobRoleRow[]>
   now(): number
@@ -535,62 +576,85 @@ export async function runRequirementSplit(
       if (newTasks.length === 0) return failure('pm', 'empty', [])
     }
 
-    options.onProgress?.({ stage: 'manager', newTasks })
-    let roster = plan.roster
-    try {
-      roster = await ports.loadRoster()
-    } catch (error: unknown) {
-      // 名册读不出来就沿用打开卡片时的投影；不让一次读盘失败挡住分配。
-      void error
-    }
-    let managerSession: string
-    try {
-      managerSession = await open(REQUIREMENT_SPLIT_MANAGER_PRESET)
-    } catch (error: unknown) {
-      return failure('manager', 'create', newTasks, String(error))
-    }
-    try {
-      await ports.sendPrompt(managerSession, buildManagerAssignPrompt({
-        task: plan.task, source: plan.source, newTasks, roster,
-      }))
-    } catch (error: unknown) {
-      return failure('manager', 'send', newTasks, String(error))
-    }
-    const waited = await waitForTurn({
-      ports,
-      sessionId: managerSession,
-      timeoutMs,
-      pollMs,
-      ...(options.signal === undefined ? {} : { signal: options.signal }),
-    })
-    if (waited.kind === 'cancelled') return { kind: 'cancelled' }
-    if (waited.kind === 'timeout') return failure('manager', 'timeout', newTasks)
-    if (waited.kind === 'failed') return failure('manager', 'session-failed', newTasks, waited.detail)
-
-    const parsed = parseAssignmentMapping(lastAssistantText(waited.messages))
-    if (parsed.kind === 'missing') return failure('manager', 'missing-mapping', newTasks)
-    if (parsed.kind === 'bad') return failure('manager', 'bad-mapping', newTasks)
-    const validated = validateAssignments(parsed.pairs, new Set(newTasks.map(task => task.id)))
-    if (validated.accepted.length === 0) {
-      return failure('manager', 'no-valid-assignment', newTasks)
-    }
-
-    options.onProgress?.({ stage: 'assigning', newTasks })
-    const attempts: AssignmentAttempt[] = []
-    for (const pair of validated.accepted) {
+    // 分配只补没有岗位的任务：重试时已经分配过的任务不再进研发经理的清单。
+    const toAssign = newTasks.filter(task => task.role === undefined && task.state === 'drafting')
+    let managerSession: string | undefined
+    let attempts: readonly AssignmentAttempt[] = []
+    let rejected: readonly RejectedAssignment[] = []
+    if (toAssign.length > 0) {
+      options.onProgress?.({ stage: 'manager', newTasks })
+      let roster = plan.roster
       try {
-        const result = await ports.assignTask(managerSession, pair.task, pair.role)
-        attempts.push({ taskId: pair.task, roleId: pair.role, ok: result.ok, detail: result.text })
+        roster = await ports.loadRoster()
       } catch (error: unknown) {
-        attempts.push({ taskId: pair.task, roleId: pair.role, ok: false, detail: String(error) })
+        // 名册读不出来就沿用打开卡片时的投影；不让一次读盘失败挡住分配。
+        void error
+      }
+      try {
+        managerSession = await open(REQUIREMENT_SPLIT_MANAGER_PRESET)
+      } catch (error: unknown) {
+        return failure('manager', 'create', newTasks, String(error))
+      }
+      try {
+        await ports.sendPrompt(managerSession, buildManagerAssignPrompt({
+          task: plan.task, source: plan.source, newTasks: toAssign, roster,
+        }))
+      } catch (error: unknown) {
+        return failure('manager', 'send', newTasks, String(error))
+      }
+      const waited = await waitForTurn({
+        ports,
+        sessionId: managerSession,
+        timeoutMs,
+        pollMs,
+        ...(options.signal === undefined ? {} : { signal: options.signal }),
+      })
+      if (waited.kind === 'cancelled') return { kind: 'cancelled' }
+      if (waited.kind === 'timeout') return failure('manager', 'timeout', newTasks)
+      if (waited.kind === 'failed') return failure('manager', 'session-failed', newTasks, waited.detail)
+
+      const parsed = parseAssignmentMapping(lastAssistantText(waited.messages))
+      if (parsed.kind === 'missing') return failure('manager', 'missing-mapping', newTasks)
+      if (parsed.kind === 'bad') return failure('manager', 'bad-mapping', newTasks)
+      const validated = validateAssignments(parsed.pairs, new Set(toAssign.map(task => task.id)))
+      if (validated.accepted.length === 0) {
+        return failure('manager', 'no-valid-assignment', newTasks)
+      }
+
+      options.onProgress?.({ stage: 'assigning', newTasks })
+      const assigned: AssignmentAttempt[] = []
+      for (const pair of validated.accepted) {
+        try {
+          const result = await ports.assignTask(managerSession, pair.task, pair.role)
+          assigned.push({ taskId: pair.task, roleId: pair.role, ok: result.ok, detail: result.text })
+        } catch (error: unknown) {
+          assigned.push({ taskId: pair.task, roleId: pair.role, ok: false, detail: String(error) })
+        }
+      }
+      attempts = assigned
+      rejected = validated.rejected
+    }
+
+    // 分配完成后逐条推进到待开发：需求文档就是这批任务的契约依据。
+    // 已不是起草态的任务（并行推进过）跳过，不当失败报。
+    options.onProgress?.({ stage: 'readying', newTasks })
+    const advances: AdvanceAttempt[] = []
+    for (const task of newTasks) {
+      if (task.state !== 'drafting') continue
+      try {
+        const result = await ports.splitReady(task.id)
+        advances.push({ taskId: task.id, ok: result.ok, detail: result.text })
+      } catch (error: unknown) {
+        advances.push({ taskId: task.id, ok: false, detail: String(error) })
       }
     }
+
     return {
       kind: 'done',
       ...(pmSession === undefined ? {} : { pmSession }),
-      managerSession,
+      ...(managerSession === undefined ? {} : { managerSession }),
       newTasks,
-      summary: summarizeSplit(newTasks, attempts, validated.rejected),
+      summary: summarizeSplit(newTasks, attempts, rejected, advances),
     }
   } finally {
     for (const release of releases) release()

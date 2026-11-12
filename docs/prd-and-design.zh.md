@@ -53,7 +53,7 @@ LCoder 是 DeepSeek Harness 的二开，不 fork 业务实现，也不直接 imp
 
 ## 6. 工具面
 
-模型工具与每个角色的天花板只在 `packages/lcoder/kernel/src/kernel/surface.ts` 里定义（`SURFACE`、`UNSCOPEED_SURFACE` 与 `ROLE_TOOLS`），本文不再复述名字与数量。工具面按任务状态收放，采用 allow 列表（fail-closed）；未配置的工具默认不可见，漏配的后果是「用不了」而不是「越权能用」。读不到任务状态的仓库（没有 `.spec`，或 `tasks/` 为空）拿的是 `UNSCOPEED_SURFACE`：能调研、能落项目信息与规格条目、能立任务，拿不到本包的编辑与命令能力。工具面还有第二维：角色就是一个 Agent preset，在创建会话时选定、首个回合之后锁定，可见工具是 `SURFACE[状态]` 与角色天花板求交，所以角色只能减能力、不能越状态。`dev` 一行刻意不设天花板，但它必须等于注册全集，这条等式由测试钉住，防止新增工具静默地对实施角色隐身。五条命令永远不进模型工具面，任何状态表与角色表里都没有：`contract_sign`、`task_bind`、`task_contract`、`task_assign`、`proposal_approve`。它们只做人机命令入口；`contract_sign` 尤其不能是模型工具——模型能调用签署工具，就等于模型能给自己签字。`/contract_sign <任务编号>` 不经过模型回合，宿主复算契约正文哈希后写 `sig`，调用与回执都记进会话日志。注册时用 `when` 在每次 model step 求值，而不是 `restrict`；`restrict` 只对全局注册生效，作用域注册盖不住。`when` 也因此只覆盖本包的注册：bundle 全局注册的工具（`read`、`write`、`edit`、`glob`、`grep`、`bash`、`pwsh`）对该 profile 的每个 Agent 仍可见，要收住它们需要 Agent 作用域的 `restrict`（见 §11）。
+模型工具与每个角色的天花板只在 `packages/lcoder/kernel/src/kernel/surface.ts` 里定义（`SURFACE`、`UNSCOPEED_SURFACE` 与 `ROLE_TOOLS`），本文不再复述名字与数量。工具面按任务状态收放，采用 allow 列表（fail-closed）；未配置的工具默认不可见，漏配的后果是「用不了」而不是「越权能用」。读不到任务状态的仓库（没有 `.spec`，或 `tasks/` 为空）拿的是 `UNSCOPEED_SURFACE`：能调研、能落项目信息与规格条目、能立任务，拿不到本包的编辑与命令能力。工具面还有第二维：角色就是一个 Agent preset，在创建会话时选定、首个回合之后锁定，可见工具是 `SURFACE[状态]` 与角色天花板求交，所以角色只能减能力、不能越状态。`dev` 一行刻意不设天花板，但它必须等于注册全集，这条等式由测试钉住，防止新增工具静默地对实施角色隐身。六条命令永远不进模型工具面，任何状态表与角色表里都没有：`contract_sign`、`task_bind`、`task_contract`、`task_assign`、`task_split_ready`、`proposal_approve`。它们只做人机命令入口；`contract_sign` 尤其不能是模型工具——模型能调用签署工具，就等于模型能给自己签字。`/contract_sign <任务编号>` 不经过模型回合，宿主复算契约正文哈希后写 `sig`，调用与回执都记进会话日志。注册时用 `when` 在每次 model step 求值，而不是 `restrict`；`restrict` 只对全局注册生效，作用域注册盖不住。`when` 也因此只覆盖本包的注册：bundle 全局注册的工具（`read`、`write`、`edit`、`glob`、`grep`、`bash`、`pwsh`）对该 profile 的每个 Agent 仍可见，要收住它们需要 Agent 作用域的 `restrict`（见 §11）。
 
 ## 7. 数据面
 
@@ -104,7 +104,7 @@ kernel 的规格根跟随会话工作区：一次工具调用取 `session.header
 
 ## 11. 风险与技术债
 
-- 签署已接通：人机命令 `/contract_sign` 由宿主写签名，工作台的任务详情展示契约正文并给出签署动作。浏览器不写 `.spec`；签名哈希不再覆盖正文时 P3 判签名作废。人签或三闸成立的 AI 自签都算有效；契约记下 `actor` preset 与策略路径、哈希、判定时刻，投影把 AI 自签单独带出。签名验过后，人经 `/task_contract` 把起草态推到已签约；更往后的流转仍是手写 YAML。
+- 签署已接通：人机命令 `/contract_sign` 由宿主写签名，工作台的任务详情展示契约正文并给出签署动作。浏览器不写 `.spec`；签名哈希不再覆盖正文时 P3 判签名作废。人签或三闸成立的 AI 自签都算有效；契约记下 `actor` preset 与策略路径、哈希、判定时刻，投影把 AI 自签单独带出。签名验过后，人经 `/task_contract` 把起草态推到已签约；需求拆出的任务在分配岗位后直接经 `/task_split_ready` 进入已签约，以需求文档作为契约依据。更往后的流转仍是手写 YAML。
 - 流程引擎、策略读取与 AI 自签已实现，并有单测与真实文件覆盖。「开工」入口、流程面板与逐任务动作流水已通过人机命令 `/flow_status` 与 `/flow_log` 接通；`selfSignContract` 在测试之外仍没有调用方，所以面板只标出「可自签」，不替人执行。没有 `.spec/automation.yaml` 的仓库仍按全手动运行。
 - 没有可用模型时发消息曾经静默失败：准入把消息收进入队就返回接受，回合在宿主侧才失败，事件流里不会出现 `user/message`。`client/model-status.ts` 把 `session/modelCatalog` 折成 ready、empty、unknown 三态；empty 时拦住发送并说清凭据该放哪，会话快照的 `promptError` 与 `lastAgentError` 在浮层就地显示。仓内隔离 home 不带 provider 凭据，全新检出要先有 `DEEPSEEK_API_KEY` 才能跑对话。
 - `implementing → verifying` 没有工具入口，状态推进需要人工改任务文件。
