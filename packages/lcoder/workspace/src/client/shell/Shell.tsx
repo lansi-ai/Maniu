@@ -79,6 +79,7 @@ import { ModelSettings } from './ModelSettings.tsx'
 import type { ModelSettingsFace } from './model-settings.ts'
 import { desktopWindowBridge } from './window-chrome.ts'
 import type { DesktopWindowCommand, DesktopWindowState } from './window-chrome.ts'
+import { useBoardRefresh } from './board-refresh.ts'
 import { useWindowDrag } from './window-drag.ts'
 import { runningCardClass } from './task-card-visual.ts'
 import { projectDirectoryPicker } from './project-directory.ts'
@@ -507,6 +508,8 @@ export function Shell({
   const [contracts, setContracts] = useState<readonly ContractRow[]>([])
   /** 签完一次就把投影重读一遍：`contracts` 里的签名状态是文件的事实，不是界面的记忆。 */
   const [reload, setReload] = useState(0)
+  /** 上一次读投影的目标（项目 + 会话）；只有换目标才挡板，定时重读不闪「加载中」。 */
+  const projectionTarget = useRef<string | null>(null)
   const [signing, setSigning] = useState(false)
   const [signResult, setSignResult] = useState<ShellSignResult | null>(null)
   /** 推进到已签约：与签署分开两步，各自可重试、失败也分得清。 */
@@ -1032,6 +1035,7 @@ export function Shell({
 
   useEffect(() => {
     if (files === undefined || workspace === undefined || sessionId === undefined) {
+      projectionTarget.current = null
       setTasks([])
       setRules([])
       setGroups([])
@@ -1047,8 +1051,11 @@ export function Shell({
       setLoading(false)
       return
     }
+    const target = `${activeWorkspaceId ?? ''}|${String(sessionId)}`
+    const firstRead = projectionTarget.current !== target
+    projectionTarget.current = target
     const controller = new AbortController()
-    setLoading(true)
+    if (firstRead) setLoading(true)
     Promise.all([
       loadWorkspaceProjection(files, sessionId, controller.signal),
       loadProjectInfo(files, sessionId, controller.signal),
@@ -1084,6 +1091,12 @@ export function Shell({
     })
     return () => { controller.abort() }
   }, [files, activeWorkspaceId, sessionId, reload])
+
+  /**
+   * 看板跟外部改动：`.spec` 被别处改过后不等下一次操作，有工作区且页面可见时
+   * 每十秒重读一次；回前台或重新获得焦点时立即补一次。
+   */
+  useBoardRefresh(hasWorkspace, refreshDashboard)
 
   /**
    * 投影重读后把已打开的详情换成同一任务的新快照：分配岗位、状态推进都在弹窗里
