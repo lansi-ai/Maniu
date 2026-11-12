@@ -93,6 +93,7 @@ function propsOf(overrides: Partial<IntakeWizardProps> = {}): IntakeWizardProps 
     confirmed: false,
     confirming: false,
     landed: false,
+    notice: null,
     tasks: [],
     running: true,
     approving: false,
@@ -107,6 +108,7 @@ function propsOf(overrides: Partial<IntakeWizardProps> = {}): IntakeWizardProps 
     onOpenSettings: vi.fn(),
     onApprove: vi.fn(),
     onConfirmNeed: vi.fn(),
+    onRetry: vi.fn(),
     onOpenBoard: vi.fn(),
     onDiscuss: vi.fn(),
     onRestart: vi.fn(),
@@ -533,6 +535,30 @@ describe('结果卡', () => {
     expect(screen.queryByRole('button', { name: zh['shell.confirmRequirement'] })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: zh['shell.backToBoard'] }))
     expect(onOpenBoard).toHaveBeenCalledTimes(1)
+  })
+
+  it('已确认但没落盘且有失败提示时，主按钮改为重试落盘并就地显示原因', () => {
+    const onRetry = vi.fn()
+    const onConfirmNeed = vi.fn()
+    const { container } = render(<IntakeWizard {...propsOf({
+      phase: 'result',
+      result: 'summary',
+      summary: '概要正文',
+      confirmed: true,
+      landed: false,
+      notice: { key: 'shell.turnFailed', detail: '502 upstream', code: 'upstream_unavailable', requestId: 'req_1' },
+      onRetry,
+      onConfirmNeed,
+    })} />)
+
+    expect(container.querySelector('[data-wizard-confirm-notice]')).not.toBeNull()
+    expect(screen.getByText(zh['shell.cloudErrorUpstream'])).toBeTruthy()
+    const button = container.querySelector<HTMLButtonElement>('[data-wizard-approve]')
+    expect(button?.disabled).toBe(false)
+    expect(button?.textContent).toBe(zh['shell.wizardRetryLanding'])
+    if (button !== null) fireEvent.click(button)
+    expect(onRetry).toHaveBeenCalledTimes(1)
+    expect(onConfirmNeed).not.toHaveBeenCalled()
   })
 })
 

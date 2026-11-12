@@ -13,9 +13,11 @@ import { MarkdownText } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ProposalRow } from '../projection.ts'
 import type { ShellProcessItem, ShellSignResult, ShellTask } from './shell-data.ts'
+import type { ShellSessionNotice } from '../model-status.ts'
 import type { ShellQuestionPending } from './pending.ts'
 import type { IntakeModelOption, IntakeResultView, IntakeWizardPhase } from './intake-wizard.ts'
 import { PROPOSAL_DECISION } from './intake.ts'
+import { cloudErrorKey } from '../cloud/errors.ts'
 import { ProcessList, QuestionCard, useMarkdownLabels } from './ChatPanel.tsx'
 import bullMark from '../assets/bull-mark.png'
 import css from './Shell.module.css'
@@ -55,6 +57,8 @@ export interface IntakeWizardProps {
   readonly confirming: boolean
   /** 项目或任务是否已落盘；已确认且落盘时结果卡直接给去看板。 */
   readonly landed: boolean
+  /** 向导会话最近一次失败；确认轮失败时用来显示原因。 */
+  readonly notice: ShellSessionNotice | null
   /** 投影里的全部任务；结果卡按 `proposal` 回指过滤出本轮草案。 */
   readonly tasks: readonly ShellTask[]
   /** 界面展示的这一轮是否还在跑；已含结束态沉降窗口，据此决定 loading 转不转、给不给重开入口。 */
@@ -73,6 +77,8 @@ export interface IntakeWizardProps {
   readonly onApprove: () => void
   /** 概要路径的确认：向同一会话发「确认需求」，不采纳方案。 */
   readonly onConfirmNeed: () => void
+  /** 确认轮失败后的显式重试；不受已确认去重限制。 */
+  readonly onRetry: () => void
   /** 已确认且已落盘时回看板。 */
   readonly onOpenBoard: () => void
   /** 第二轮讨论指令发送在途；菜单项据此禁用。 */
@@ -89,9 +95,9 @@ export interface IntakeWizardProps {
  */
 export function IntakeWizard({
   t, phase, error, question, processItems, modelState, models, selectedModel, modelBlocked, sending,
-  proposal, result, summary, confirmed, confirming, landed, tasks, running, approving, approveResult, canApprove, restartBusy,
-  discussing, onCancel, onConfirm, onSelectModel, onLoadModels, onOpenSettings, onApprove, onConfirmNeed, onOpenBoard,
-  onDiscuss, onRestart,
+  proposal, result, summary, confirmed, confirming, landed, notice, tasks, running, approving, approveResult, canApprove,
+  restartBusy, discussing, onCancel, onConfirm, onSelectModel, onLoadModels, onOpenSettings, onApprove, onConfirmNeed, onRetry,
+  onOpenBoard, onDiscuss, onRestart,
 }: IntakeWizardProps): ReactNode {
   if (phase === 'closed') return null
   const quiet = phase === 'thinking' || phase === 'result'
@@ -233,6 +239,7 @@ export function IntakeWizard({
                     confirmed={confirmed}
                     confirming={confirming}
                     landed={landed}
+                    notice={notice}
                     tasks={tasks}
                     error={error}
                     approving={approving}
@@ -242,6 +249,7 @@ export function IntakeWizard({
                     discussing={discussing}
                     onApprove={onApprove}
                     onConfirmNeed={onConfirmNeed}
+                    onRetry={onRetry}
                     onOpenBoard={onOpenBoard}
                     onDiscuss={onDiscuss}
                     onRestart={onRestart}
@@ -474,8 +482,8 @@ function ThinkingStatus({
  * 采纳与确认失败的原文都就地显示，卡片保持打开。
  */
 function ResultPanel({
-  t, view, proposal, summary, confirmed, confirming, landed, tasks, error, approving, approveResult, canApprove,
-  restartBusy, discussing, onApprove, onConfirmNeed, onOpenBoard, onDiscuss, onRestart,
+  t, view, proposal, summary, confirmed, confirming, landed, notice, tasks, error, approving, approveResult, canApprove,
+  restartBusy, discussing, onApprove, onConfirmNeed, onRetry, onOpenBoard, onDiscuss, onRestart,
 }: {
   readonly t: Translate
   readonly view: IntakeResultView
@@ -484,6 +492,7 @@ function ResultPanel({
   readonly confirmed: boolean
   readonly confirming: boolean
   readonly landed: boolean
+  readonly notice: ShellSessionNotice | null
   readonly tasks: readonly ShellTask[]
   readonly error: string | null
   readonly approving: boolean
@@ -493,6 +502,7 @@ function ResultPanel({
   readonly discussing: boolean
   readonly onApprove: () => void
   readonly onConfirmNeed: () => void
+  readonly onRetry: () => void
   readonly onOpenBoard: () => void
   readonly onDiscuss: () => void
   readonly onRestart: () => void
@@ -527,15 +537,16 @@ function ResultPanel({
     : view === 'proposal'
       ? proposal === null || approving || !canApprove
       : view === 'summary'
-        ? confirming || confirmed
-        : true
+        ? confirming || (confirmed && landed)
+        : confirmed && !landed ? confirming : true
+  const retryNeeded = confirmed && !landed && view !== 'confirmed'
   const primaryLabel = view === 'proposal'
     ? (approving ? t('shell.approving') : t('shell.confirmRequirement'))
     : view === 'summary'
       ? (confirming
         ? t('shell.wizardConfirmSending')
-        : confirmed ? t('shell.wizardConfirmedTitle') : t('shell.confirmRequirement'))
-      : t('shell.confirmRequirement')
+        : retryNeeded ? t('shell.wizardRetryLanding') : confirmed ? t('shell.wizardConfirmedTitle') : t('shell.confirmRequirement'))
+      : retryNeeded ? t('shell.wizardRetryLanding') : t('shell.confirmRequirement')
   return (
     <div className={css.wizardResult} data-wizard-result data-result-view={view}>
       <div className={css.wizardResultHead}>
@@ -601,6 +612,19 @@ function ResultPanel({
         <p className={css.wizardConfirmed} data-wizard-confirmed>{t('shell.wizardConfirmedTitle')}</p>
       ) : null}
       {view === 'pending' ? <p className={css.wizardEmpty}>{t('shell.wizardResultMissing')}</p> : null}
+      {confirmed && !landed && view !== 'confirmed' ? (
+        <div className={css.problem} data-wizard-confirm-notice>
+          <p>{t('shell.wizardConfirmFailed')}</p>
+          {notice === null ? null : (
+            <p className={css.secretRef}>
+              {notice.code === undefined ? notice.detail : t(cloudErrorKey(notice.code))}
+            </p>
+          )}
+          {notice?.requestId === undefined ? null : (
+            <p className={css.secretRef}>{t('shell.cloudRequestId')}: {notice.requestId}</p>
+          )}
+        </div>
+      ) : null}
       <div className={css.wizardResultActions}>
         {view === 'confirmed' ? (
           <button type="button" className={css.primaryBtn} data-wizard-go-board onClick={onOpenBoard}>
@@ -612,7 +636,7 @@ function ResultPanel({
             className={css.primaryBtn}
             data-wizard-approve
             disabled={primaryDisabled}
-            onClick={view === 'proposal' ? onApprove : onConfirmNeed}
+            onClick={view === 'proposal' ? onApprove : retryNeeded ? onRetry : onConfirmNeed}
           >
             {primaryLabel}
           </button>

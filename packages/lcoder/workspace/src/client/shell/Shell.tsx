@@ -51,8 +51,8 @@ import { onboardingAction } from '../onboarding.ts'
 import { intakeArtifactsOf, intakeTierOfMessages, PROPOSAL_DECISION, runIntakeRestart, latestProposal } from './intake.ts'
 import type { IntakeTier } from './intake.ts'
 import {
-  defaultIntakeModel, INTAKE_CONFIRM_COMMAND, INTAKE_MORE_DISCUSSION, intakeConfirmed, intakeModelOptions,
-  intakePromptStarted, intakeResultView, intakeWizardOutput, intakeWizardPhase,
+  defaultIntakeModel, INTAKE_CONFIRM_COMMAND, INTAKE_MORE_DISCUSSION, INTAKE_RETRY_COMMAND, intakeConfirmed,
+  intakeModelOptions, intakePromptStarted, intakeResultView, intakeWizardOutput, intakeWizardPhase,
 } from './intake-wizard.ts'
 import type { IntakeModelOption } from './intake-wizard.ts'
 import { useIntakeRunActive } from './intake-run.ts'
@@ -531,6 +531,8 @@ export function Shell({
   const [wizardOpen, setWizardOpen] = useState(false)
   const [wizardMessages, setWizardMessages] = useState<readonly ShellMessage[]>([])
   const [wizardFlags, setWizardFlags] = useState<{ readonly awaitingFirstTurn: boolean; readonly failed: boolean } | null>(null)
+  /** 向导会话最近一次失败；确认轮失败时用来显示原因并给重试。 */
+  const [wizardNotice, setWizardNotice] = useState<ShellSessionNotice | null>(null)
   const [wizardError, setWizardError] = useState<string | null>(null)
   const [wizardSending, setWizardSending] = useState(false)
   /** 高级配置里选中的模型；null 表示用目录默认。建会话后才在发送前落一次。 */
@@ -1390,12 +1392,14 @@ export function Shell({
     if (!wizardOpen || sessionId === undefined || readMessages === undefined || subscribeSession === undefined) {
       setWizardMessages([])
       setWizardFlags(null)
+      setWizardNotice(null)
       return
     }
     const release = holdSession?.(sessionId)
     const refresh = (): void => {
       setWizardMessages(readMessages(sessionId))
       setWizardFlags(readSessionFlags?.(sessionId) ?? null)
+      setWizardNotice(readSessionNotice?.(sessionId) ?? null)
     }
     refresh()
     const unsubscribe = subscribeSession(sessionId, refresh)
@@ -1403,7 +1407,7 @@ export function Shell({
       unsubscribe()
       release?.()
     }
-  }, [wizardOpen, sessionId, readMessages, subscribeSession, readSessionFlags, holdSession])
+  }, [wizardOpen, sessionId, readMessages, subscribeSession, readSessionFlags, readSessionNotice, holdSession])
 
   /** 一轮跑完就重读投影：结果卡要读的是刚落盘的方案，不等下一次定时刷新。 */
   const wizardRunWasRunning = useRef(false)
@@ -2377,6 +2381,32 @@ export function Shell({
       try {
         if (!await routeSession(sessionId)) return
         await sendPrompt(sessionId, INTAKE_CONFIRM_COMMAND)
+        void cloudSession.refresh()
+      } catch (error: unknown) {
+        setWizardError(fill(t('shell.onboardingSendFailed'), { detail: String(error) }))
+      } finally {
+        setWizardConfirming(false)
+      }
+    })()
+  }
+
+  /**
+   * 确认轮失败后的「重试落盘」：显式再发一条重试指令，不受已确认去重限制。
+   *
+   * 只在用户点了重试时发送；发送在途禁用按钮，失败原文留在向导里。
+   */
+  const retryIntakeRequirement = (): void => {
+    if (wizardConfirming) return
+    if (sessionId === undefined || sendPrompt === undefined) {
+      setWizardError(t('shell.noSession'))
+      return
+    }
+    setWizardError(null)
+    setWizardConfirming(true)
+    void (async () => {
+      try {
+        if (!await routeSession(sessionId)) return
+        await sendPrompt(sessionId, INTAKE_RETRY_COMMAND)
         void cloudSession.refresh()
       } catch (error: unknown) {
         setWizardError(fill(t('shell.onboardingSendFailed'), { detail: String(error) }))
@@ -4011,6 +4041,7 @@ export function Shell({
           confirmed={wizardConfirmed}
           confirming={wizardConfirming}
           landed={wizardLanded}
+          notice={wizardNotice}
           tasks={tasks}
           running={wizardRunFact}
           approving={wizardApproving}
@@ -4025,6 +4056,7 @@ export function Shell({
           onOpenSettings={() => { setSettings(true) }}
           onApprove={approveWizardProposal}
           onConfirmNeed={confirmIntakeRequirement}
+          onRetry={retryIntakeRequirement}
           onOpenBoard={openBoardFromWizard}
           onDiscuss={discussIntakeMore}
           onRestart={requestIntakeRestart}
