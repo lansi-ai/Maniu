@@ -1957,7 +1957,7 @@ export function Shell({
             if (failure !== undefined) throw new Error(failure)
           }
           setSessionRoles(current => ({ ...current, [String(created)]: preset }))
-          if (signedIn) await routeSession(created)
+          // 不切当前会话：切会话会把界面上的模型选择反写到刚建的分会话，盖住刚写好的默认模型。
           return String(created)
         },
         sendPrompt: async (id, text) => sendPrompt(id as SessionId, text),

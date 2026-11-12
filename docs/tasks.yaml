@@ -1634,6 +1634,18 @@ tracks:
       inferred: false
       note: "B 级修复，来源是用户 2026-11-12 反馈切换默认模型没有用。根因：默认模型下拉的 option value 用 NUL 作 provider 与 model 的分隔，DOM 会清洗该字符，change 后取不到候选，界面回落到当前默认，点击设为默认实际仍在写 LCoder Cloud。修法：optionKey 与 currentKey 改用 encodeURIComponent 加竖线的可打印编码。另已用界面把全局默认设为 deepseek-official 与 deepseek-flash，设置页当前默认显示 DeepSeek V4.1-Flash，profile 覆盖已移除，重启后回到 base 的官网默认。vitest 与 i18n 与 test:docs 与 build:artifacts 全过。未验项是重启后重新选择并拆分的真窗口链路。直接在主检出修复。"
 
+    - id: T-145
+      title: 拆分不切当前会话以免反写模型
+      status: done
+      face: 用户端
+      type: 修复
+      owner: lance
+      created: '2026-11-12'
+      date: '2026-11-12'
+      dep: [T-143, T-144]
+      inferred: false
+      note: "B 级修复与探针，来源是用户 2026-11-12 反馈默认模型还是不生效。探针发现新建项目经理会话虽然先写了 deepseek-official，但 createSession 后 routeSession 切到该会话，界面当前模型又把它反写成 lcoder-cloud；请求头仍是 lcoder-cloud 并 502。修法：拆分会话只记角色，不切当前会话。探针结果：新 PM 会话 model/selection 与 request/header 均为 deepseek-official 与 deepseek-flash；PM 按需求文档拆出 T-02 到 T-05；manager 会话同样走官方，起草 desktop-app-engineer 与 local-storage-engineer 两个岗位并输出映射；外壳写入 4 条分配，看板需求确认列出现 T-02 到 T-05，卡片显示拆分完成新增 4 条分配成功 4 条。未验项是四套皮肤下的观感。直接在主检出修复。"
+
 milestones:
 - name: MVP-0 工作台本地跑通
   track: lcoder
