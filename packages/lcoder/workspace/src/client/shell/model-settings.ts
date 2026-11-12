@@ -187,6 +187,33 @@ export function validBaseURL(value: string): boolean {
   }
 }
 
+/** 默认模型候选：provider 与 model 是宿主可路由的标识，两个名称只用于展示。 */
+export interface DefaultModelOption {
+  readonly provider: string
+  readonly model: string
+  readonly providerName: string
+  readonly modelName: string
+}
+
+/**
+ * 把行表摊平成默认模型候选：逐个 provider 取它的模型，按 provider + model 去重。
+ * @param rows - 快照里的服务商行。
+ * @returns 保持行序与模型序的候选列表。
+ */
+export function defaultModelOptions(rows: readonly ModelProviderRow[]): readonly DefaultModelOption[] {
+  const seen = new Set<string>()
+  const options: DefaultModelOption[] = []
+  for (const row of rows) {
+    for (const model of row.models) {
+      const key = `${row.provider}\u0000${model.id}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      options.push({ provider: row.provider, model: model.id, providerName: row.displayName, modelName: model.name })
+    }
+  }
+  return options
+}
+
 /** 把模型 id 文本折成去重后的非空列表。 */
 export function parseModelIds(text: string): string[] {
   const seen = new Set<string>()
