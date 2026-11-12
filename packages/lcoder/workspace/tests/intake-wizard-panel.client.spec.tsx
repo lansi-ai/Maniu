@@ -9,6 +9,7 @@ import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { SessionId } from '@deepseek-ai/dsh-session/types'
 import { zh } from '../src/client/locales.ts'
 import type { ProposalRow } from '../src/client/projection.ts'
+import type { ShellTask } from '../src/client/shell/shell-data.ts'
 import type { ShellQuestionPending } from '../src/client/shell/pending.ts'
 import { IntakeWizard } from '../src/client/shell/IntakeWizard.tsx'
 import type { IntakeWizardProps } from '../src/client/shell/IntakeWizard.tsx'
@@ -30,10 +31,31 @@ function proposalOf(): ProposalRow {
     id: 'P-01',
     title: '图书借阅系统 V0.1',
     problem: '借还书靠手工登记',
-    options: [],
-    recommendation: '先做借还书',
+    options: [
+      { name: '复用现成后台', summary: '一周能上线', cost: '零成本' },
+      { name: '从零开发', summary: '更贴业务', cost: '三周' },
+    ],
+    recommendation: '先做借还书闭环',
     decision: 'draft',
     decidedAt: null,
+  }
+}
+
+/** 一条草案任务；`proposal` 缺省表示不挂任何方案。 */
+function taskOf(id: string, title: string, proposal?: string): ShellTask {
+  return {
+    id,
+    title,
+    description: '',
+    attachments: [],
+    state: 'drafting',
+    grade: 'B',
+    rules: [],
+    evidence: [],
+    surface: '读 / 契约',
+    paths: [],
+    irreversible: [],
+    ...(proposal === undefined ? {} : { proposal }),
   }
 }
 
@@ -66,6 +88,8 @@ function propsOf(overrides: Partial<IntakeWizardProps> = {}): IntakeWizardProps 
     modelBlocked: false,
     sending: false,
     proposal: null,
+    tasks: [],
+    running: true,
     approving: false,
     approveResult: null,
     canApprove: true,
@@ -88,9 +112,7 @@ describe('向导首页', () => {
     expect(container.querySelector('[data-wizard-title-brand]')?.textContent).toBe(zh['shell.wizardTitleBrand'])
     expect(container.querySelector('[data-wizard-title-highlight]')?.textContent).toBe(zh['shell.wizardTitleHighlight'])
     const title = container.querySelector('[data-wizard-title]')
-    expect(title?.textContent).toBe(
-      `${zh['shell.wizardTitlePrefix']}${zh['shell.wizardTitleBrand']}${zh['shell.wizardTitleMiddle']}${zh['shell.wizardTitleHighlight']}${zh['shell.wizardTitleSuffix']}`,
-    )
+    expect(title?.textContent).toBe('现在由LCoder团队需求分析师与您对接需求')
   })
 
   it('三节默认折叠，只露出标题与一行摘要；底部只有取消与确认', () => {
@@ -189,7 +211,7 @@ describe('思考中', () => {
       ],
     })} />)
 
-    expect(container.querySelector('[data-wizard-spinner]')).not.toBeNull()
+    expect(container.querySelector('[data-wizard-spinner]')?.getAttribute('data-spinning')).toBe('true')
     const toggle = screen.getByRole('button', { name: new RegExp(zh['shell.wizardThinking']) })
     expect(toggle.getAttribute('aria-expanded')).toBe('false')
     expect(screen.queryByText('先确认使用场景')).toBeNull()
@@ -201,6 +223,23 @@ describe('思考中', () => {
 
     fireEvent.click(toggle)
     expect(screen.queryByText('先确认使用场景')).toBeNull()
+  })
+
+  it('本轮结束但还没读到方案时 loading 停转，改为结束说明并直接给重新开始', () => {
+    const onRestart = vi.fn()
+    const { container } = render(<IntakeWizard {...propsOf({
+      phase: 'thinking',
+      running: false,
+      onRestart,
+    })} />)
+
+    const spinner = container.querySelector('[data-wizard-spinner]')
+    expect(spinner?.getAttribute('data-spinning')).toBe('false')
+    expect(container.querySelector('[data-wizard-thinking]')?.getAttribute('data-running')).toBe('false')
+    expect(screen.getByText(zh['shell.wizardThinkingEnded'])).toBeTruthy()
+    expect(screen.queryByText(zh['shell.wizardThinking'])).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: zh['shell.restartIntake'] }))
+    expect(onRestart).toHaveBeenCalledTimes(1)
   })
 
   it('思考与结果阶段不再压暗底层，首页与提问层才是模态', () => {
@@ -216,15 +255,53 @@ describe('思考中', () => {
 })
 
 describe('结果卡', () => {
-  it('显示方案与决定态，确认需求走回调', () => {
+  it('显示方案、问题、候选、推荐、决定态与本轮草案任务', () => {
     const onApprove = vi.fn()
-    render(<IntakeWizard {...propsOf({ phase: 'result', proposal: proposalOf(), onApprove })} />)
+    const { container } = render(<IntakeWizard {...propsOf({
+      phase: 'result',
+      proposal: proposalOf(),
+      tasks: [
+        taskOf('T-01', '借书流程', 'P-01'),
+        taskOf('T-02', '还书流程', 'P-01'),
+        taskOf('T-03', '别的方案的任务', 'P-02'),
+        taskOf('T-04', '没有回指的任务'),
+      ],
+      onApprove,
+    })} />)
 
     expect(screen.getByText(zh['shell.wizardResultTitle'])).toBeTruthy()
     expect(screen.getByText('图书借阅系统 V0.1')).toBeTruthy()
+    expect(screen.getByText('借还书靠手工登记')).toBeTruthy()
+    expect(screen.getByText('复用现成后台')).toBeTruthy()
+    expect(screen.getByText('一周能上线')).toBeTruthy()
+    expect(screen.getByText('先做借还书闭环')).toBeTruthy()
     expect(screen.getByText(zh['shell.proposalDraft'])).toBeTruthy()
+    expect(screen.getByText(zh['shell.wizardResultTasks'].replace('{count}', '2'))).toBeTruthy()
+    expect(container.querySelectorAll('[data-wizard-task]')).toHaveLength(2)
+    expect(container.querySelector('[data-wizard-task="T-01"]')).not.toBeNull()
+    expect(container.querySelector('[data-wizard-task="T-02"]')).not.toBeNull()
+    expect(container.querySelector('[data-wizard-task="T-03"]')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: zh['shell.confirmRequirement'] }))
     expect(onApprove).toHaveBeenCalledTimes(1)
+  })
+
+  it('没有回指本方案的任务时计数写 0，且不画编号列表', () => {
+    const { container } = render(<IntakeWizard {...propsOf({
+      phase: 'result',
+      proposal: proposalOf(),
+      tasks: [taskOf('T-04', '没有回指的任务')],
+    })} />)
+
+    expect(screen.getByText(zh['shell.wizardResultTasks'].replace('{count}', '0'))).toBeTruthy()
+    expect(container.querySelectorAll('[data-wizard-task]')).toHaveLength(0)
+  })
+
+  it('候选为空时不画候选小节', () => {
+    const proposal = { ...proposalOf(), options: [] }
+    render(<IntakeWizard {...propsOf({ phase: 'result', proposal })} />)
+
+    expect(screen.queryByText(zh['shell.proposalOptions'])).toBeNull()
+    expect(screen.getByText(zh['shell.proposalProblem'])).toBeTruthy()
   })
 
   it('更多轮次展开后是重新开始，确认框与重开逻辑仍由外壳负责', () => {

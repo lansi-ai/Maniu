@@ -1618,6 +1618,8 @@
   border: 2px solid var(--lc-line-strong); border-top-color: var(--lc-brand);
   animation: lc-wizard-spin 900ms linear infinite;
 }
+.thinkingSpinner[data-spinning="false"] { animation: none; border-top-color: var(--lc-faint); }
+.wizardThinkingMore { display: flex; flex-wrap: wrap; align-items: center; gap: var(--lc-space-2); }
 .wizardProcess {
   max-height: 320px; overflow: auto; padding: 10px 12px;
   border: 1px solid var(--lc-line); border-radius: var(--lc-radius-md); background: var(--lc-surface-2);
@@ -1629,9 +1631,26 @@
   background: var(--lc-surface-2); animation: lc-wizard-stage 200ms ease both;
 }
 .wizardResultHead h4 { margin: 0 0 4px; font: 600 16px / var(--lc-leading-tight) var(--lc-font-display); letter-spacing: var(--lc-tracking-tight); }
-.wizardResultBody { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; }
-.wizardResultName { font-size: var(--lc-text-md); }
-.wizardResultMeta { color: var(--lc-muted); font-size: var(--lc-text-xs); }
+.wizardResultFields { display: grid; gap: var(--lc-space-2); }
+.wizardResultName { font-size: var(--lc-text-md); overflow-wrap: anywhere; }
+.wizardResultField { display: grid; gap: 2px; min-width: 0; }
+.wizardResultKey { color: var(--lc-faint); font-size: var(--lc-text-xs); }
+.wizardResultValue { color: var(--lc-ink); font-size: var(--lc-text-sm); line-height: var(--lc-leading); overflow-wrap: anywhere; }
+.wizardResultOptions { display: grid; gap: 4px; }
+.wizardResultOption {
+  display: grid; gap: 2px; padding: 6px 8px;
+  border: 1px solid var(--lc-line); border-radius: var(--lc-radius-sm); background: var(--lc-surface);
+}
+.wizardResultOptionHead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; }
+.wizardResultOptionName { color: var(--lc-ink); font-size: var(--lc-text-sm); font-weight: 600; }
+.wizardResultOptionCost { color: var(--lc-brand-ink); font-size: var(--lc-text-xs); }
+.wizardResultOptionSummary { color: var(--lc-muted); font-size: var(--lc-text-xs); line-height: var(--lc-leading); }
+.wizardResultTasks { display: flex; flex-wrap: wrap; gap: 4px; }
+.wizardTaskChip {
+  padding: 1px 8px; border-radius: var(--lc-radius-pill);
+  background: var(--lc-brand-soft); color: var(--lc-brand-ink);
+  font: var(--lc-text-xs) / 1.5 var(--lc-font-mono);
+}
 .wizardResultActions { display: flex; flex-wrap: wrap; gap: var(--lc-space-2); }
 .wizardMore { display: grid; gap: var(--lc-space-2); justify-items: start; border-top: 1px solid var(--lc-line); padding-top: var(--lc-space-3); }
 

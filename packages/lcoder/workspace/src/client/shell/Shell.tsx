@@ -1067,6 +1067,8 @@ export function Shell({
   const wizardRunning = sessionId === undefined
     ? false
     : sessionStatus.get(sessionId)?.running ?? sessionRows[sessionId]?.running ?? false
+  /** 把「首条提示已收下、还在等首个回合」也算作在跑，避免思考提示一上来就显示结束。 */
+  const wizardTurnActive = wizardRunning || wizardFlags?.awaitingFirstTurn === true
   const wizardOutput = useMemo(() => intakeWizardOutput(wizardMessages), [wizardMessages])
   const wizardUserMessages = wizardMessages.reduce((count, message) => count + (message.role === 'user' ? 1 : 0), 0)
   /**
@@ -3845,6 +3847,8 @@ export function Shell({
           modelBlocked={modelBlocked}
           sending={wizardSending}
           proposal={wizardProposal ?? null}
+          tasks={tasks}
+          running={wizardTurnActive}
           approving={wizardApproving}
           approveResult={wizardApproveResult}
           canApprove={approveProposal !== undefined && sessionId !== undefined}

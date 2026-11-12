@@ -9,7 +9,7 @@ import { useState } from 'react'
 import type { ReactNode } from 'react'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ProposalRow } from '../projection.ts'
-import type { ShellProcessItem, ShellSignResult } from './shell-data.ts'
+import type { ShellProcessItem, ShellSignResult, ShellTask } from './shell-data.ts'
 import type { ShellQuestionPending } from './pending.ts'
 import type { IntakeModelOption, IntakeWizardPhase } from './intake-wizard.ts'
 import { PROPOSAL_DECISION } from './intake.ts'
@@ -41,6 +41,10 @@ export interface IntakeWizardProps {
   readonly sending: boolean
   /** 结果卡展示的方案；投影还没读到时为 null。 */
   readonly proposal: ProposalRow | null
+  /** 投影里的全部任务；结果卡按 `proposal` 回指过滤出本轮草案。 */
+  readonly tasks: readonly ShellTask[]
+  /** 这一轮是否还在跑；思考中据此决定 loading 转不转、给不给重开入口。 */
+  readonly running: boolean
   readonly approving: boolean
   readonly approveResult: ShellSignResult | null
   /** 宿主提供采纳命令且当前有会话；缺任一项时按钮禁用。 */
@@ -63,7 +67,7 @@ export interface IntakeWizardProps {
  */
 export function IntakeWizard({
   t, phase, error, question, processItems, modelState, models, selectedModel, modelBlocked, sending,
-  proposal, approving, approveResult, canApprove, restartBusy,
+  proposal, tasks, running, approving, approveResult, canApprove, restartBusy,
   onCancel, onConfirm, onSelectModel, onLoadModels, onOpenSettings, onApprove, onRestart,
 }: IntakeWizardProps): ReactNode {
   const [moreOpen, setMoreOpen] = useState(false)
@@ -177,12 +181,19 @@ export function IntakeWizard({
                 )
               ) : null}
               {phase === 'thinking' ? (
-                <ThinkingPanel t={t} items={processItems} />
+                <ThinkingPanel
+                  t={t}
+                  items={processItems}
+                  running={running}
+                  restartBusy={restartBusy}
+                  onRestart={onRestart}
+                />
               ) : null}
               {phase === 'result' ? (
                 <ResultPanel
                   t={t}
                   proposal={proposal}
+                  tasks={tasks}
                   error={error}
                   approving={approving}
                   approveResult={approveResult}
@@ -358,18 +369,23 @@ function ModelPanel({
 }
 
 /**
- * 问题答完后的思考提示：一行小号 loading 与可展开的过程明细。
- * 默认收起，展开后按原顺序画出思考与工具行。
+ * 问题答完后的思考提示：一行 loading 与可展开的过程明细。
+ *
+ * 在跑时图标旋转、文案是「思考中」；本轮已结束但还没读到方案时图标停转、文案改为
+ * 结束说明，并直接给出重新开始入口，避免一直转下去。展开状态不随阶段切换重置。
  */
 function ThinkingPanel({
-  t, items,
+  t, items, running, restartBusy, onRestart,
 }: {
   readonly t: Translate
   readonly items: readonly ShellProcessItem[]
+  readonly running: boolean
+  readonly restartBusy: boolean
+  readonly onRestart: () => void
 }): ReactNode {
   const [open, setOpen] = useState(false)
   return (
-    <div className={css.wizardThinking} data-wizard-thinking>
+    <div className={css.wizardThinking} data-wizard-thinking data-running={running ? 'true' : 'false'}>
       <button
         type="button"
         className={css.thinkingToggle}
@@ -377,9 +393,17 @@ function ThinkingPanel({
         title={t('shell.wizardThinkingExpand')}
         onClick={() => { setOpen(value => !value) }}
       >
-        <span className={css.thinkingSpinner} data-wizard-spinner aria-hidden />
-        <span>{t('shell.wizardThinking')}</span>
+        <span className={css.thinkingSpinner} data-wizard-spinner data-spinning={running ? 'true' : 'false'} aria-hidden />
+        <span>{running ? t('shell.wizardThinking') : t('shell.wizardThinkingEnded')}</span>
       </button>
+      {running ? null : (
+        <div className={css.wizardThinkingMore}>
+          <span className={css.wizardResultKey}>{t('shell.wizardMoreRounds')}</span>
+          <button type="button" className={css.secondaryBtn} data-wizard-thinking-restart disabled={restartBusy} onClick={onRestart}>
+            {restartBusy ? t('shell.restarting') : t('shell.restartIntake')}
+          </button>
+        </div>
+      )}
       {open
         ? items.length === 0
           ? <p className={css.wizardEmpty}>{t('shell.wizardThinkingEmpty')}</p>
@@ -390,14 +414,15 @@ function ThinkingPanel({
 }
 
 /**
- * 分析完成后的结果卡：方案摘要、确认需求与更多轮次。
+ * 分析完成后的结果卡：方案的问题、候选、推荐、决定态与本轮草案，加两个动作。
  * 采纳失败时原文就地显示，卡片保持打开。
  */
 function ResultPanel({
-  t, proposal, error, approving, approveResult, canApprove, restartBusy, moreOpen, onToggleMore, onApprove, onRestart,
+  t, proposal, tasks, error, approving, approveResult, canApprove, restartBusy, moreOpen, onToggleMore, onApprove, onRestart,
 }: {
   readonly t: Translate
   readonly proposal: ProposalRow | null
+  readonly tasks: readonly ShellTask[]
   readonly error: string | null
   readonly approving: boolean
   readonly approveResult: ShellSignResult | null
@@ -408,6 +433,7 @@ function ResultPanel({
   readonly onApprove: () => void
   readonly onRestart: () => void
 }): ReactNode {
+  const draftTasks = proposal === null ? [] : tasks.filter(task => task.proposal === proposal.id)
   return (
     <div className={css.wizardResult} data-wizard-result>
       <div className={css.wizardResultHead}>
@@ -417,9 +443,49 @@ function ResultPanel({
       {proposal === null
         ? <p className={css.wizardEmpty}>{t('shell.wizardResultMissing')}</p>
         : (
-          <div className={css.wizardResultBody}>
+          <div className={css.wizardResultFields}>
             <b className={css.wizardResultName}>{proposal.title}</b>
-            <span className={css.wizardResultMeta}>{t(PROPOSAL_DECISION[proposal.decision])}</span>
+            <div className={css.wizardResultField}>
+              <span className={css.wizardResultKey}>{t('shell.proposalProblem')}</span>
+              <span className={css.wizardResultValue}>{proposal.problem}</span>
+            </div>
+            {proposal.options.length === 0 ? null : (
+              <div className={css.wizardResultField}>
+                <span className={css.wizardResultKey}>{t('shell.proposalOptions')}</span>
+                <div className={css.wizardResultOptions}>
+                  {proposal.options.map(option => (
+                    <div key={`${option.name}-${option.summary}`} className={css.wizardResultOption}>
+                      <div className={css.wizardResultOptionHead}>
+                        <span className={css.wizardResultOptionName}>{option.name}</span>
+                        {option.cost === '' ? null : <span className={css.wizardResultOptionCost}>{option.cost}</span>}
+                      </div>
+                      {option.summary === '' ? null : <span className={css.wizardResultOptionSummary}>{option.summary}</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className={css.wizardResultField}>
+              <span className={css.wizardResultKey}>{t('shell.proposalRecommendation')}</span>
+              <span className={css.wizardResultValue}>{proposal.recommendation}</span>
+            </div>
+            <div className={css.wizardResultField}>
+              <span className={css.wizardResultKey}>{t('shell.resultDecision')}</span>
+              <span className={css.wizardResultValue}>
+                {t(PROPOSAL_DECISION[proposal.decision])}
+                {proposal.decidedAt === null ? '' : ` · ${proposal.decidedAt}`}
+              </span>
+            </div>
+            <div className={css.wizardResultField}>
+              <span className={css.wizardResultKey}>{t('shell.wizardResultTasks', { count: draftTasks.length })}</span>
+              {draftTasks.length === 0 ? null : (
+                <div className={css.wizardResultTasks}>
+                  {draftTasks.map(task => (
+                    <span key={task.id} className={css.wizardTaskChip} data-wizard-task={task.id}>{task.id}</span>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
       <div className={css.wizardResultActions}>
