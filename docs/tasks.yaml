@@ -1540,7 +1540,7 @@ tracks:
 
     - id: T-137
       title: 需求文档落盘到 .spec/requirements 并优先读取
-      status: doing
+      status: done
       face: 用户端
       type: 开发
       owner: lance
@@ -1548,7 +1548,7 @@ tracks:
       date: '2026-11-12'
       dep: [T-136]
       inferred: false
-      note: "B 级落盘与读取，来源是用户 2026-11-12 确认完整需求文档要单独写成 .spec/requirements/P-01.md。现状：完整《项目需求概要》只在会话日志里，方案 YAML 的 problem 是压缩说明；已按用户选择把现有会话里的完整文档迁到目标仓 .spec/requirements/P-01.md。范围：一、projection 新增 requirements 读取，扫 .spec/requirements 下的 .md，行形状为编号与正文，目录缺失不算故障，读不到的文件进 problems；二、需求卡片优先按任务回指的方案编号取 requirements 正文，取不到再退回会话概要与方案与任务描述；三、修正 T-136 的会话概要选择，改为取包含项目需求概要且最长的一条，避免把确认后的回执当成文档；四、立项咒语补一步：用户确认后，把完整《项目需求概要》原样写到 .spec/requirements/<方案编号>.md，目录不存在就创建，写完回读核对；这是立项流程唯一允许直接写的文件，其余仍只用专用工具。约束是不改宿主契约、不新增页面、文案走词典、四套皮肤与窄窗可用。验收 typecheck 与 packages/lcoder vitest 与 oxlint 与 test:docs 与 i18n；单测覆盖 requirements 投影读取、卡片优先级与概要选择；真窗口用目标仓 T-01 定向断言正文来自 P-01.md，不做截图。工作树用 pool-slot-1 claim 到 lcoder/t137-requirement-file，端口 9822 与 9829 与 9830。2026-11-12 19:15 监督窗口派工，实现线会话 d024cf3f；另已把现有会话里的完整需求文档迁到目标仓 .spec/requirements/P-01.md。"
+      note: "B 级落盘与读取，来源是用户 2026-11-12 确认完整需求文档要单独写成 .spec/requirements/P-01.md。现状：完整《项目需求概要》只在会话日志里，方案 YAML 的 problem 是压缩说明；已按用户选择把现有会话里的完整文档迁到目标仓 .spec/requirements/P-01.md。范围：一、projection 新增 requirements 读取，扫 .spec/requirements 下的 .md，行形状为编号与正文，目录缺失不算故障，读不到的文件进 problems；二、需求卡片优先按任务回指的方案编号取 requirements 正文，取不到再退回会话概要与方案与任务描述；三、修正 T-136 的会话概要选择，改为取包含项目需求概要且最长的一条，避免把确认后的回执当成文档；四、立项咒语补一步：用户确认后，把完整《项目需求概要》原样写到 .spec/requirements/<方案编号>.md，目录不存在就创建，写完回读核对；这是立项流程唯一允许直接写的文件，其余仍只用专用工具。约束是不改宿主契约、不新增页面、文案走词典、四套皮肤与窄窗可用。验收 typecheck 与 packages/lcoder vitest 与 oxlint 与 test:docs 与 i18n；单测覆盖 requirements 投影读取、卡片优先级与概要选择；真窗口用目标仓 T-01 定向断言正文来自 P-01.md，不做截图。工作树用 pool-slot-1 claim 到 lcoder/t137-requirement-file，端口 9822 与 9829 与 9830。2026-11-12 19:15 监督窗口派工，实现线会话 d024cf3f；另已把现有会话里的完整需求文档迁到目标仓 .spec/requirements/P-01.md。2026-11-12 19:25 监督窗口核验并收口。独立复跑 typecheck 五项、vitest 七十七文件八百六十二例、i18n 一千三百零八文件、test:docs 二十一项、改动文件 oxlint 全过；主检出复跑同组门禁与 build:artifacts 与 build:check 全过。投影新增 .spec/requirements 读取，卡片优先落盘文档，会话概要改为取最长的一条，立项咒语补确认后写需求文档一步。未验项是重启后的真窗口正文来源，需用户手看。已合入 lcoder/main、release pool-slot-1。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
