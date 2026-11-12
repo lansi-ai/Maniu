@@ -892,6 +892,11 @@
 .requirementAnswerQuestion { margin: 0; font-weight: 600; }
 .requirementAnswerHeader { color: var(--lc-muted); font-weight: 400; margin-right: var(--lc-space-2); }
 .requirementAnswerValue { margin: 0; font-size: var(--lc-text-sm); line-height: var(--lc-leading); }
+.requirementSplitFlow { border-top: 1px solid var(--lc-line); padding-top: var(--lc-space-3); display: grid; gap: 6px; }
+.requirementSplitPhase { margin: 0; font-weight: 600; font-size: var(--lc-text-sm); }
+.requirementSplitTasks { margin: 0; color: var(--lc-muted); font-size: var(--lc-text-sm); line-height: var(--lc-leading); word-break: break-word; }
+.requirementSplitSummary { margin: 0; font-size: var(--lc-text-sm); line-height: var(--lc-leading); }
+.requirementSplitFailures { margin: 0; padding-left: 18px; color: var(--lc-muted); font-size: var(--lc-text-sm); line-height: var(--lc-leading); word-break: break-word; }
 .headAction { padding: 7px 12px; min-height: 34px; font-size: var(--lc-text-sm); white-space: nowrap; }
 .metaGrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
 .meta { background: var(--lc-surface-2); border: 1px solid var(--lc-line); border-radius: var(--lc-radius-md); padding: 10px 12px; }
