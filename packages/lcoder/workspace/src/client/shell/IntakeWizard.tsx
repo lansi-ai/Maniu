@@ -7,7 +7,7 @@
  * 思考与结束状态并进分析师头行，不再单独立一块面板。
  * 这里不新建会话、不发提示、也不记阶段。
  */
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { MarkdownText } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
@@ -75,6 +75,10 @@ export interface IntakeWizardProps {
   readonly onConfirmNeed: () => void
   /** 已确认且已落盘时回看板。 */
   readonly onOpenBoard: () => void
+  /** 第二轮讨论指令发送在途；菜单项据此禁用。 */
+  readonly discussing: boolean
+  /** 结果卡「更多讨论」：同一会话再发一条讨论指令，不重开、不登记。 */
+  readonly onDiscuss: () => void
   readonly onRestart: () => void
 }
 
@@ -86,9 +90,9 @@ export interface IntakeWizardProps {
 export function IntakeWizard({
   t, phase, error, question, processItems, modelState, models, selectedModel, modelBlocked, sending,
   proposal, result, summary, confirmed, confirming, landed, tasks, running, approving, approveResult, canApprove, restartBusy,
-  onCancel, onConfirm, onSelectModel, onLoadModels, onOpenSettings, onApprove, onConfirmNeed, onOpenBoard, onRestart,
+  discussing, onCancel, onConfirm, onSelectModel, onLoadModels, onOpenSettings, onApprove, onConfirmNeed, onOpenBoard,
+  onDiscuss, onRestart,
 }: IntakeWizardProps): ReactNode {
-  const [moreOpen, setMoreOpen] = useState(false)
   if (phase === 'closed') return null
   const quiet = phase === 'thinking' || phase === 'result'
   const modelLabel = modelSummary(modelState, models, selectedModel, t)
@@ -235,11 +239,11 @@ export function IntakeWizard({
                     approveResult={approveResult}
                     canApprove={canApprove}
                     restartBusy={restartBusy}
-                    moreOpen={moreOpen}
-                    onToggleMore={() => { setMoreOpen(value => !value) }}
+                    discussing={discussing}
                     onApprove={onApprove}
                     onConfirmNeed={onConfirmNeed}
                     onOpenBoard={onOpenBoard}
+                    onDiscuss={onDiscuss}
                     onRestart={onRestart}
                   />
                 ) : null}
@@ -466,11 +470,12 @@ function ThinkingStatus({
 /**
  * 分析完成后的结果卡：有方案时是方案的问题、候选、推荐、决定态与本轮草案；
  * 只有聊天概要时用 Markdown 渲染最后一条答复，限高滚动；已确认落盘时只说结果。
+ * 「更多轮次」是锚在按钮下方的小菜单：更多讨论留在本会话继续问，重新开始仍交给外壳的 onRestart。
  * 采纳与确认失败的原文都就地显示，卡片保持打开。
  */
 function ResultPanel({
   t, view, proposal, summary, confirmed, confirming, landed, tasks, error, approving, approveResult, canApprove,
-  restartBusy, moreOpen, onToggleMore, onApprove, onConfirmNeed, onOpenBoard, onRestart,
+  restartBusy, discussing, onApprove, onConfirmNeed, onOpenBoard, onDiscuss, onRestart,
 }: {
   readonly t: Translate
   readonly view: IntakeResultView
@@ -485,14 +490,36 @@ function ResultPanel({
   readonly approveResult: ShellSignResult | null
   readonly canApprove: boolean
   readonly restartBusy: boolean
-  readonly moreOpen: boolean
-  readonly onToggleMore: () => void
+  readonly discussing: boolean
   readonly onApprove: () => void
   readonly onConfirmNeed: () => void
   readonly onOpenBoard: () => void
+  readonly onDiscuss: () => void
   readonly onRestart: () => void
 }): ReactNode {
   const labels = useMarkdownLabels(t)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuWrap = useRef<HTMLDivElement | null>(null)
+  const moreTrigger = useRef<HTMLButtonElement | null>(null)
+  useEffect(() => {
+    if (!menuOpen) return
+    const closeOnOutside = (event: Event): void => {
+      const target = event.target
+      if (target instanceof Node && menuWrap.current?.contains(target)) return
+      setMenuOpen(false)
+    }
+    const closeOnEscape = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape') return
+      setMenuOpen(false)
+      moreTrigger.current?.focus()
+    }
+    document.addEventListener('pointerdown', closeOnOutside)
+    document.addEventListener('keydown', closeOnEscape)
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutside)
+      document.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [menuOpen])
   const draftTasks = proposal === null ? [] : tasks.filter(task => task.proposal === proposal.id)
   const showProposal = view === 'proposal' && proposal !== null
   const primaryDisabled = view === 'confirmed'
@@ -506,8 +533,8 @@ function ResultPanel({
     ? (approving ? t('shell.approving') : t('shell.confirmRequirement'))
     : view === 'summary'
       ? (confirming
-          ? t('shell.wizardConfirmSending')
-          : confirmed ? t('shell.wizardConfirmedTitle') : t('shell.confirmRequirement'))
+        ? t('shell.wizardConfirmSending')
+        : confirmed ? t('shell.wizardConfirmedTitle') : t('shell.confirmRequirement'))
       : t('shell.confirmRequirement')
   return (
     <div className={css.wizardResult} data-wizard-result data-result-view={view}>
@@ -595,24 +622,51 @@ function ResultPanel({
             {t('shell.backToBoard')}
           </button>
         ) : null}
-        <button
-          type="button"
-          className={css.secondaryBtn}
-          data-wizard-more
-          aria-expanded={moreOpen}
-          onClick={onToggleMore}
-        >
-          {t('shell.wizardMoreRounds')}
-        </button>
-      </div>
-      {moreOpen ? (
-        <div className={css.wizardMore}>
-          <p className={css.wizardStageHint}>{t('shell.wizardRestartHint')}</p>
-          <button type="button" className={css.secondaryBtn} data-wizard-restart disabled={restartBusy} onClick={onRestart}>
-            {restartBusy ? t('shell.restarting') : t('shell.restartIntake')}
+        <div className={css.wizardMoreWrap} ref={menuWrap}>
+          <button
+            type="button"
+            ref={moreTrigger}
+            className={css.secondaryBtn}
+            data-wizard-more
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            onClick={() => { setMenuOpen(value => !value) }}
+          >
+            {t('shell.wizardMoreRounds')}
           </button>
+          {menuOpen ? (
+            <div className={css.wizardMenu} role="menu" aria-label={t('shell.wizardMoreRounds')} data-wizard-more-menu>
+              <button
+                type="button"
+                role="menuitem"
+                className={css.wizardMenuItem}
+                data-wizard-discuss
+                disabled={discussing}
+                onClick={() => {
+                  setMenuOpen(false)
+                  onDiscuss()
+                }}
+              >
+                {t('shell.wizardMoreDiscuss')}
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className={css.wizardMenuItem}
+                data-wizard-restart
+                title={t('shell.wizardRestartHint')}
+                disabled={restartBusy}
+                onClick={() => {
+                  setMenuOpen(false)
+                  onRestart()
+                }}
+              >
+                {restartBusy ? t('shell.restarting') : t('shell.restartIntake')}
+              </button>
+            </div>
+          ) : null}
         </div>
-      ) : null}
+      </div>
       {approveResult === null ? null : (
         <p className={approveResult.ok ? css.secretRef : css.problem}>{approveResult.text}</p>
       )}

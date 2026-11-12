@@ -51,8 +51,8 @@ import { onboardingAction } from '../onboarding.ts'
 import { intakeArtifactsOf, intakeTierOfMessages, PROPOSAL_DECISION, runIntakeRestart, latestProposal } from './intake.ts'
 import type { IntakeTier } from './intake.ts'
 import {
-  defaultIntakeModel, INTAKE_CONFIRM_TEXT, intakeConfirmed, intakeModelOptions, intakePromptStarted,
-  intakeResultView, intakeWizardOutput, intakeWizardPhase,
+  defaultIntakeModel, INTAKE_CONFIRM_TEXT, INTAKE_MORE_DISCUSSION, intakeConfirmed, intakeModelOptions,
+  intakePromptStarted, intakeResultView, intakeWizardOutput, intakeWizardPhase,
 } from './intake-wizard.ts'
 import type { IntakeModelOption } from './intake-wizard.ts'
 import { useIntakeRunActive } from './intake-run.ts'
@@ -535,6 +535,8 @@ export function Shell({
   const intakeModelLoading = useRef(false)
   /** 结果卡里的「确认需求」发送在途；在途时按钮禁用并显示正在发送。 */
   const [wizardConfirming, setWizardConfirming] = useState(false)
+  /** 结果卡里的「更多讨论」发送在途；在途时菜单项禁用，阶段当场回到思考。 */
+  const [wizardDiscussing, setWizardDiscussing] = useState(false)
   /** 结果卡里的采纳：成功才关向导，失败原文就地显示。 */
   const [wizardApproving, setWizardApproving] = useState(false)
   const [wizardApproveResult, setWizardApproveResult] = useState<ShellSignResult | null>(null)
@@ -1105,8 +1107,8 @@ export function Shell({
     questionCount: wizardQuestion?.questions.length ?? 0,
     activity: wizardMessages.length,
   })
-  /** 自己发出的确认消息也算在跑：发送在途时不再按上一轮结论画结果卡。 */
-  const wizardRunFact = wizardStatusRunning || wizardConfirming
+  /** 自己发出的确认或更多讨论也算在跑：发送在途时不再按上一轮结论画结果卡。 */
+  const wizardRunFact = wizardStatusRunning || wizardConfirming || wizardDiscussing
   const wizardPhase = intakeWizardPhase({
     open: wizardOpen,
     started: wizardStarted,
@@ -2345,6 +2347,33 @@ export function Shell({
         setWizardError(fill(t('shell.onboardingSendFailed'), { detail: String(error) }))
       } finally {
         setWizardConfirming(false)
+      }
+    })()
+  }
+
+  /**
+   * 结果卡的「更多讨论」：向同一会话再发一条第二轮讨论指令。
+   *
+   * 不新建会话、不重发立项咒语、不登记 .spec；发送在途即算在跑，阶段当场回到思考中。
+   * 这一轮的提问仍走既有提问卡，结束后的新概要仍由 T-131 的结果卡呈现。
+   */
+  const discussIntakeMore = (): void => {
+    if (wizardDiscussing) return
+    if (sessionId === undefined || sendPrompt === undefined) {
+      setWizardError(t('shell.noSession'))
+      return
+    }
+    setWizardError(null)
+    setWizardDiscussing(true)
+    void (async () => {
+      try {
+        if (!await routeSession(sessionId)) return
+        await sendPrompt(sessionId, INTAKE_MORE_DISCUSSION)
+        void cloudSession.refresh()
+      } catch (error: unknown) {
+        setWizardError(fill(t('shell.onboardingSendFailed'), { detail: String(error) }))
+      } finally {
+        setWizardDiscussing(false)
       }
     })()
   }
@@ -3941,6 +3970,7 @@ export function Shell({
           approveResult={wizardApproveResult}
           canApprove={approveProposal !== undefined && sessionId !== undefined}
           restartBusy={restarting}
+          discussing={wizardDiscussing}
           onCancel={closeIntakeWizard}
           onConfirm={confirmIntakeWizard}
           onSelectModel={setWizardModelChoice}
@@ -3949,6 +3979,7 @@ export function Shell({
           onApprove={approveWizardProposal}
           onConfirmNeed={confirmIntakeRequirement}
           onOpenBoard={openBoardFromWizard}
+          onDiscuss={discussIntakeMore}
           onRestart={requestIntakeRestart}
         />
       ) : null}
