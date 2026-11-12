@@ -1444,7 +1444,7 @@ tracks:
 
     - id: T-129
       title: 修整向导状态区与默认模型
-      status: doing
+      status: done
       face: 用户端
       type: 修复
       owner: lance
@@ -1452,11 +1452,11 @@ tracks:
       date: '2026-11-12'
       dep: [T-128]
       inferred: false
-      note: "B 级界面修整，来源是用户 2026-11-12 截图与三条。一、截图里「本轮已结束，还没有读到方案」那块不是独立面板，改成分析师头部的状态行：头像与姓名右侧显示思考中或结束态，结束态只保留一个重新开始动作，去掉多余边框与大块留白。二、结束态不能在两轮之间闪：一轮刚结束到下一轮开始之间 running 可能短暂为 false，现在会立刻显示已结束；加沉降窗口（约二秒）并在有新消息或 running 回升时重置，窗口内仍显示思考中，只有持续无运行且无待答问题才进入结束态。三、默认模型要自动选中：高级配置现在懒加载，折叠时一直显示尚未读取；改为打开向导即读模型目录，按现有 defaultIntakeModel 预选并让折叠摘要显示真实模型名，读取中显示读取中，目录为空或读取失败才显示空态与去设置。四、去掉向导里不必要的卡片边框与大面积留白，简历与工作流程与高级配置改用分隔线与悬停底色，收紧内边距；单栏思考档宽度与内容对齐，不要右侧空一大片。约束是不改会话与契约、不新增页面、文案走词典、三套皮肤与 reduced-motion 兼容，提问与结果与采纳与重开与幂等逻辑不变。验收 typecheck 与 packages/lcoder vitest 与 oxlint 与 test:docs 与 i18n；补单测覆盖结束态沉降与默认模型预选；真窗口最多一次启动做定向断言，不截图。工作树用 pool-slot-1 claim 到 lcoder/t129-wizard-status，端口 9822 与 9829 与 9830。2026-11-12 14:55 监督窗口派工，实现线会话 b46b9905；claim pool-slot-1 到分支 lcoder/t129-wizard-status。"
+      note: "B 级界面修整，来源是用户 2026-11-12 截图与三条。一、截图里「本轮已结束，还没有读到方案」那块不是独立面板，改成分析师头部的状态行：头像与姓名右侧显示思考中或结束态，结束态只保留一个重新开始动作，去掉多余边框与大块留白。二、结束态不能在两轮之间闪：一轮刚结束到下一轮开始之间 running 可能短暂为 false，现在会立刻显示已结束；加沉降窗口（约二秒）并在有新消息或 running 回升时重置，窗口内仍显示思考中，只有持续无运行且无待答问题才进入结束态。三、默认模型要自动选中：高级配置现在懒加载，折叠时一直显示尚未读取；改为打开向导即读模型目录，按现有 defaultIntakeModel 预选并让折叠摘要显示真实模型名，读取中显示读取中，目录为空或读取失败才显示空态与去设置。四、去掉向导里不必要的卡片边框与大面积留白，简历与工作流程与高级配置改用分隔线与悬停底色，收紧内边距；单栏思考档宽度与内容对齐，不要右侧空一大片。约束是不改会话与契约、不新增页面、文案走词典、三套皮肤与 reduced-motion 兼容，提问与结果与采纳与重开与幂等逻辑不变。验收 typecheck 与 packages/lcoder vitest 与 oxlint 与 test:docs 与 i18n；补单测覆盖结束态沉降与默认模型预选；真窗口最多一次启动做定向断言，不截图。工作树用 pool-slot-1 claim 到 lcoder/t129-wizard-status，端口 9822 与 9829 与 9830。2026-11-12 14:55 监督窗口派工，实现线会话 b46b9905；claim pool-slot-1 到分支 lcoder/t129-wizard-status。2026-11-12 15:42 监督窗口核验并收口。独立复跑 typecheck 五项、vitest 七十五文件八百零五例、test:docs 二十一项、i18n 一千三百零六文件全过；主检出复跑同一组门禁并跑 build:artifacts 八项与 build:check 两项全过。实现线新增 intake-run.ts 沉降窗口并单测七例；真窗口断言状态并入分析师头行、思考与结束态、过程展开只留分隔线、结束态紧凑重开且无更多轮次、三皮肤与窄窗与 reduced-motion 正常；模型目录打开即读并预选默认，摘要显示真实模型。未验项是提问层与结果卡右栏的真窗口行为，因 mock 云端不产生提问。已合入 lcoder/main、release pool-slot-1。"
 
     - id: T-130
       title: 新增霜白浅色皮肤
-      status: doing
+      status: done
       face: 用户端
       type: 开发
       owner: lance
@@ -1464,7 +1464,7 @@ tracks:
       date: '2026-11-12'
       dep: [T-123]
       inferred: false
-      note: "B 级视觉扩展，来源是用户 2026-11-12「我想增加一个浅色主题（非粉色）」。现有 neon 是深色霓虹、silver 是深色冷银、rose 是浅粉；新增第四套 frost（霜白晨雾），浅色非粉，冷白底、深蓝灰正文、蓝到青绿的品牌渐变、网格底纹。范围：skin.ts 增加 frost 并纳入 SKINS，顺序 neon 到 silver 到 frost 到 rose 回 neon；Shell.tsx 的 SKIN_LABEL 与 NEXT_SKIN 与 SKIN_ORB 与 SKIN_SWATCH 同步；locales 中英皮肤名与 skinHint 更新；Shell.module.css 增加 data-skin 为 frost 的 token 块与色球色块样式，全部走现有 token，不改组件颜色逻辑；登录页画布与工作台网格读品牌色与底纹 token 应自动生效。配色约束：color-scheme 为 light，正文与次要正文与说明文字对浅底对比度至少 4.5，品牌文字与按钮文字也达标，另外三套皮肤不变；给出实测对比度。与 T-129 并行时只动皮肤 token 与色球色块，不向导样式。验收 typecheck 与 packages/lcoder vitest 与 oxlint 与 test:docs 与 i18n；单测覆盖 frost 是已知皮肤与读写回；真窗口最多一次启动做定向断言（设置页四套可切换、切 frost 后 shell 的 data-skin 与关键 token 生效、刷新保持、切回 neon 正常），不做截图。工作树用 pool-slot-2 claim 到 lcoder/t130-frost-skin，端口 9823 与 9831 与 9832。2026-11-12 15:05 监督窗口派工，实现线会话 c7449da6；claim pool-slot-2 到分支 lcoder/t130-frost-skin。"
+      note: "B 级视觉扩展，来源是用户 2026-11-12「我想增加一个浅色主题（非粉色）」。现有 neon 是深色霓虹、silver 是深色冷银、rose 是浅粉；新增第四套 frost（霜白晨雾），浅色非粉，冷白底、深蓝灰正文、蓝到青绿的品牌渐变、网格底纹。范围：skin.ts 增加 frost 并纳入 SKINS，顺序 neon 到 silver 到 frost 到 rose 回 neon；Shell.tsx 的 SKIN_LABEL 与 NEXT_SKIN 与 SKIN_ORB 与 SKIN_SWATCH 同步；locales 中英皮肤名与 skinHint 更新；Shell.module.css 增加 data-skin 为 frost 的 token 块与色球色块样式，全部走现有 token，不改组件颜色逻辑；登录页画布与工作台网格读品牌色与底纹 token 应自动生效。配色约束：color-scheme 为 light，正文与次要正文与说明文字对浅底对比度至少 4.5，品牌文字与按钮文字也达标，另外三套皮肤不变；给出实测对比度。与 T-129 并行时只动皮肤 token 与色球色块，不向导样式。验收 typecheck 与 packages/lcoder vitest 与 oxlint 与 test:docs 与 i18n；单测覆盖 frost 是已知皮肤与读写回；真窗口最多一次启动做定向断言（设置页四套可切换、切 frost 后 shell 的 data-skin 与关键 token 生效、刷新保持、切回 neon 正常），不做截图。工作树用 pool-slot-2 claim 到 lcoder/t130-frost-skin，端口 9823 与 9831 与 9832。2026-11-12 15:05 监督窗口派工，实现线会话 c7449da6；claim pool-slot-2 到分支 lcoder/t130-frost-skin。2026-11-12 15:42 监督窗口核验并收口。独立复跑 typecheck 五项、vitest 七十四文件七百九十六例、test:docs 二十一项、i18n 一千三百零五文件全过；主检出复跑同一组门禁并跑 build:artifacts 八项与 build:check 两项全过。监督窗口独立复算对比度：正文 16.4、次要 7.13、说明 5.44、品牌 5.56、按钮文字 5.74，最低 4.69。实现线把 faint 加深到 526879、warn 到 92400e、ok 与 closed 到 046c50 以过 4.5。未验项是 frost 在真实工作台各页面的手看。已合入 lcoder/main、release pool-slot-2。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
