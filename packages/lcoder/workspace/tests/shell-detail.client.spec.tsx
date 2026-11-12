@@ -128,6 +128,8 @@ interface ShellScenario {
   readonly holdSession?: ShellProps['holdSession']
   /** 向会话发送提示；需求拆分走这一支。 */
   readonly sendPrompt?: ShellProps['sendPrompt']
+  /** 新建会话；缺省给固定会话号 s-9；需求拆分按角色 preset 建两条会话。 */
+  readonly createSession?: ShellProps['createSession']
 }
 
 /** 已登录的云端替身：门禁放行，详情用例只关心渲染事实；门禁本身有 cloud-login 专测。 */
@@ -217,7 +219,7 @@ function renderShell(scenario: ShellScenario) {
     useResource: vi.fn(),
     listRoles: async () => [{ id: 'lcoder-review', name: '评审' }],
     checkModels: async () => ({ state: 'ready' }),
-    createSession: async () => SessionId('s-9'),
+    createSession: scenario.createSession ?? (async () => SessionId('s-9')),
     signContract: async () => ({ ok: true, text: '已签署' }),
     assignTask: scenario.assignTask ?? vi.fn(async () => ({ ok: true, text: '已分配' })),
     logSchedule,
@@ -642,23 +644,99 @@ describe('需求卡片的拆分接线', () => {
   const REQUIREMENT_DOC = '# 项目需求概要 V1\n\n## 第一版功能清单\n- 记一笔\n- 翻记录\n\n## 暂不开发\n- 云同步\n'
   const TASK_REQUIREMENT = 'id: T-01\ntitle: 随手记账\nstate: drafting\ngrade: B\nproposal: P-01\n'
 
-  it('拆分指令带卡片读到的完整需求文档，发往任务所在会话', async () => {
+  it('拆分先建项目经理会话，并把完整需求文档发给它', async () => {
     const sent: { sessionId: SessionId; content: string }[] = []
     const sendPrompt: NonNullable<ShellProps['sendPrompt']> = async (sessionId, content) => {
       sent.push({ sessionId, content: typeof content === 'string' ? content : '' })
     }
+    const createSession = vi.fn(async () => SessionId('s-9'))
     renderShell({
       spec: { tasks: { 'T-01.yaml': TASK_REQUIREMENT }, requirements: { 'P-01.md': REQUIREMENT_DOC } },
       sendPrompt,
+      createSession,
     })
     await openTask('随手记账')
 
     fireEvent.click(await screen.findByRole('button', { name: zh['shell.splitTasks'] }))
+    await waitFor(() => { expect(createSession).toHaveBeenCalledTimes(1) })
+    expect(createSession).toHaveBeenCalledWith(REPO, 'lcoder-pm')
     await waitFor(() => { expect(sent).toHaveLength(1) })
-    expect(String(sent[0]?.sessionId)).toBe('s-1')
-    expect(sent[0]?.content).toContain('《项目需求概要》（.spec/requirements/P-01.md）')
+    expect(String(sent[0]?.sessionId)).toBe('s-9')
+    expect(sent[0]?.content).toContain('《项目需求概要》正文（.spec/requirements/P-01.md）')
     expect(sent[0]?.content).toContain('- 记一笔\n- 翻记录')
     expect(sent[0]?.content).toContain('暂不开发的范围不要拆成任务')
+    expect(sent[0]?.content).toContain('执行身份：你是这条需求的项目经理')
+    expect(await screen.findByText(zh['shell.splitPmRunning'])).toBeTruthy()
+    expect(document.querySelector<HTMLButtonElement>('[data-requirement-split]')?.disabled).toBe(true)
+  })
+
+  it('没有完整需求文档时不开任何会话，原地说明缺文档', async () => {
+    const createSession = vi.fn(async () => SessionId('s-9'))
+    renderShell({
+      spec: { tasks: { 'T-01.yaml': TASK_REQUIREMENT } },
+      createSession,
+      sendPrompt: async () => {},
+    })
+    await openTask('随手记账')
+
+    fireEvent.click(await screen.findByRole('button', { name: zh['shell.splitTasks'] }))
+    await waitFor(() => {
+      expect(screen.getByText(/没有找到这条需求的完整需求文档/)).toBeTruthy()
+    })
+    expect(createSession).not.toHaveBeenCalled()
+  })
+
+  it('项目经理拆出的任务交给研发经理会话逐条分配，完成后卡片给结果', async () => {
+    const spec: { tasks: Record<string, string>; requirements: Record<string, string> } = {
+      tasks: { 'T-01.yaml': TASK_REQUIREMENT },
+      requirements: { 'P-01.md': REQUIREMENT_DOC },
+    }
+    const messages = new Map<string, readonly ShellMessage[]>()
+    const presets = new Map<string, string>()
+    let next = 9
+    const createSession: NonNullable<ShellProps['createSession']> = vi.fn(async (_path: string, preset?: string) => {
+      const id = SessionId(`s-${next}`)
+      next += 1
+      presets.set(String(id), preset ?? '')
+      return id
+    })
+    const sendPrompt: NonNullable<ShellProps['sendPrompt']> = async (sessionId, content) => {
+      void content
+      if (presets.get(String(sessionId)) === 'lcoder-pm') {
+        messages.set(String(sessionId), [{ role: 'assistant', text: '已拆出 T-02。' }])
+        spec.tasks['T-02.yaml'] = 'id: T-02\ntitle: 记一笔\nstate: drafting\ngrade: B\nproposal: P-01\n'
+        return
+      }
+      messages.set(String(sessionId), [{
+        role: 'assistant',
+        text: '{"assignments":[{"task":"T-02","role":"architect"}]}',
+      }])
+    }
+    const assignTask: NonNullable<ShellProps['assignTask']> = vi.fn(async () => ({ ok: true, text: '已分配' }))
+    renderShell({
+      spec,
+      createSession,
+      sendPrompt,
+      assignTask,
+      readMessages: id => messages.get(String(id)) ?? [],
+      holdSession: () => () => {},
+    })
+    await openTask('随手记账')
+
+    fireEvent.click(await screen.findByRole('button', { name: zh['shell.splitTasks'] }))
+    await waitFor(() => {
+      expect(assignTask).toHaveBeenCalledWith(SessionId('s-10'), 'T-02', 'architect')
+    })
+    expect(createSession).toHaveBeenNthCalledWith(1, REPO, 'lcoder-pm')
+    expect(createSession).toHaveBeenNthCalledWith(2, REPO, 'lcoder-manager')
+    expect(await screen.findByText(t('shell.splitResult', { tasks: '1', assigned: '1' }))).toBeTruthy()
+    expect(screen.getByRole('button', { name: zh['shell.splitViewBoard'] })).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: zh['shell.close'] }))
+    await openTask('随手记账')
+    expect(await screen.findByText(t('shell.splitResult', { tasks: '1', assigned: '1' }))).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: zh['shell.splitTasks'] }))
+    expect(createSession).toHaveBeenCalledTimes(2)
   })
 })
 

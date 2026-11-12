@@ -73,9 +73,16 @@ import { browserSkinStorage, readSkin, SKINS, writeSkin } from './skin.ts'
 import type { Skin } from './skin.ts'
 import { recommendedRoleId } from './role-hint.ts'
 import { ChatTranscript, PendingInteractionCard } from './ChatPanel.tsx'
-import { buildRequirementSplitPrompt, intakeAnswersOf, intakeSummaryOf, isRequirementTask } from './requirement.ts'
+import { intakeAnswersOf, intakeSummaryOf, isRequirementTask } from './requirement.ts'
 import type { RequirementAnswer } from './requirement.ts'
+import {
+  existingSplitTasks, runRequirementSplit,
+} from './requirement-split.ts'
+import type {
+  RequirementSplitFailure, RequirementSplitFailureReason, RequirementSplitSummary,
+} from './requirement-split.ts'
 import { RequirementCard } from './RequirementCard.tsx'
+import type { RequirementSplitFlowView } from './RequirementCard.tsx'
 import { questionOf } from './pending.ts'
 import { ChatAttachButton, ChatAttachmentList, ChatModelChip } from './ChatExtras.tsx'
 import { TaskAttachments } from './TaskAttachments.tsx'
@@ -380,6 +387,77 @@ function fill(text: string, values: Readonly<Record<string, string | number>>): 
   return Object.entries(values).reduce((result, [key, value]) => result.replace(`{${key}}`, String(value)), text)
 }
 
+/** 拆分失败原因到词典键；具体阶段与宿主原文由 `{stage}` / `{detail}` 填。 */
+const SPLIT_FAILURE_KEY: Record<RequirementSplitFailureReason, LcoderWorkspaceKey> = {
+  'no-document': 'shell.splitFailNoDocument',
+  create: 'shell.splitFailCreate',
+  send: 'shell.splitFailSend',
+  timeout: 'shell.splitFailTimeout',
+  empty: 'shell.splitFailEmpty',
+  'session-failed': 'shell.splitFailSession',
+  'missing-mapping': 'shell.splitFailMappingMissing',
+  'bad-mapping': 'shell.splitFailMappingBad',
+  'no-valid-assignment': 'shell.splitFailNoValid',
+}
+
+/** 失败停在谁身上；两段共用一个展示名。 */
+const SPLIT_STAGE_KEY = {
+  pm: 'shell.splitStagePm',
+  manager: 'shell.splitStageManager',
+} as const
+
+/** 失败原文：按原因查词典，再填阶段、宿主原文与需求文档路径。 */
+function splitFailureText(t: ShellProps['t'], outcome: RequirementSplitFailure, path: string): string {
+  return fill(t(SPLIT_FAILURE_KEY[outcome.reason]), {
+    stage: t(SPLIT_STAGE_KEY[outcome.stage]),
+    detail: outcome.detail ?? '',
+    path,
+  })
+}
+
+/** 完成后的逐条明细：被拒的映射、分配失败与最终未分配都各自成行。 */
+function splitSummaryLines(t: ShellProps['t'], summary: RequirementSplitSummary): string[] {
+  const lines: string[] = []
+  for (const rejected of summary.rejected) {
+    if (rejected.reason === 'unknown-task') {
+      lines.push(fill(t('shell.splitRejectedUnknownTask'), { task: rejected.task, role: rejected.role }))
+    } else if (rejected.reason === 'empty-role') {
+      lines.push(fill(t('shell.splitRejectedEmptyRole'), { task: rejected.task }))
+    } else {
+      lines.push(fill(t('shell.splitRejectedDuplicate'), { task: rejected.task }))
+    }
+  }
+  for (const attempt of summary.assignments) {
+    if (attempt.ok) continue
+    lines.push(fill(t('shell.splitAssignFailed'), {
+      task: attempt.taskId, role: attempt.roleId, detail: attempt.detail,
+    }))
+  }
+  for (const taskId of summary.unassigned) {
+    lines.push(fill(t('shell.splitUnassigned'), { task: taskId }))
+  }
+  return lines
+}
+
+/** 可取消的等待：取消信号到达时立即结算，轮询据此退出。 */
+function cancellableSleep(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    if (signal.aborted) {
+      resolve()
+      return
+    }
+    const timer = window.setTimeout(() => {
+      signal.removeEventListener('abort', onAbort)
+      resolve()
+    }, ms)
+    const onAbort = (): void => {
+      window.clearTimeout(timer)
+      resolve()
+    }
+    signal.addEventListener('abort', onAbort, { once: true })
+  })
+}
+
 /** 读一支文件成规范 base64；data URL 前缀去掉，宿主只要字节本身。 */
 async function readFileBase64(file: File): Promise<string> {
   const dataUrl = await new Promise<string>((resolve, reject) => {
@@ -520,9 +598,13 @@ export function Shell({
   /** 新会话的角色选择浮层。 */
   const [rolePicker, setRolePicker] = useState(false)
   const [detail, setDetail] = useState<ShellTask | null>(null)
-  /** 需求卡片的拆分指令发送在途与就地错误。 */
-  const [splitting, setSplitting] = useState(false)
+  /** 需求拆分的就地错误与逐任务流程状态；流程状态按需求任务编号留档，关卡片不清。 */
   const [splitError, setSplitError] = useState<string | null>(null)
+  const [splitFlows, setSplitFlows] = useState<Readonly<Record<string, RequirementSplitFlowView>>>({})
+  /** 同一需求的流程只允许一条在途；连点第二下直接忽略。 */
+  const splitRuns = useRef<Set<string>>(new Set())
+  /** 每条在途流程的取消口：只在卸载时整体取消，关卡片不中断后台流程。 */
+  const splitAborts = useRef<Map<string, AbortController>>(new Map())
   /** 需求卡片正文：该任务会话里分析师当时输出的《项目需求概要》。 */
   const [requirementDocument, setRequirementDocument] = useState<string | null>(null)
   const [chat, setChat] = useState<ShellTask | null>(null)
@@ -575,6 +657,13 @@ export function Shell({
   const [expertPrompts, setExpertPrompts] = useState<Record<string, ExpertPrompt | null>>({})
   const [shownExpert, setShownExpert] = useState<string | null>(null)
   const [tasks, setTasks] = useState<readonly ShellTask[]>([])
+  /** 拆分轮询读的是最新推流与投影，不受流程启动那一刻的渲染快照限制。 */
+  const liveSessionStatus = useRef(sessionStatus)
+  liveSessionStatus.current = sessionStatus
+  const liveSessionRows = useRef(sessionRows)
+  liveSessionRows.current = sessionRows
+  const liveTasks = useRef(tasks)
+  liveTasks.current = tasks
   const [rules, setRules] = useState<readonly RuleRow[]>([])
   const [groups, setGroups] = useState<readonly SchedulingGroupRow[]>([])
   const [contracts, setContracts] = useState<readonly ContractRow[]>([])
@@ -1447,6 +1536,12 @@ export function Shell({
     }
   }, [requirementSessionId, readMessages, subscribeSession, holdSession])
 
+  /** 关闭卡片不中止后台拆分；只有外壳卸载才取消在途轮询。 */
+  useEffect(() => () => {
+    for (const controller of splitAborts.current.values()) controller.abort()
+    splitAborts.current.clear()
+  }, [])
+
   /** 一轮跑完就重读投影：结果卡要读的是刚落盘的方案，不等下一次定时刷新。 */
   const wizardRunWasRunning = useRef(false)
   useEffect(() => {
@@ -1576,7 +1671,6 @@ export function Shell({
     setAssignResult(null)
     setRoleAssignChoice(task.role ?? '')
     setRoleDialogOpen(false)
-    setSplitting(false)
     setSplitError(null)
     // 上一个任务的「没会话」提示不属于这个任务。
     setChatError(null)
@@ -1620,6 +1714,9 @@ export function Shell({
   const detailRequirement = detail?.proposal === undefined
     ? undefined
     : requirements.find(row => row.id === detail.proposal)
+
+  /** 选中需求的拆分流程；关卡片不清，重开仍看到同一次流程。 */
+  const detailSplitFlow = detail === null ? null : splitFlows[detail.id] ?? null
 
   /** 选中任务最近一次调度留档；点过「开始对话」才有。 */
   const detailSchedule = detail === null ? undefined : schedule[detail.id]
@@ -1742,34 +1839,195 @@ export function Shell({
   }
 
   /**
-   * 拆分需求：给需求所属会话发一条拆分指令，把需求拆成 drafting 任务。
+   * 重读拆分要用的两份事实：任务与岗位名册。
    *
-   * 指令以卡片交给的完整需求文档为依据；没有文档时退回任务描述与回指方案的正文，
-   * 并在指令里说明读不到文档。优先任务已认领的会话，没有就用当前会话；不新建会话、
-   * 不改需求本身。发送成功后关卡片并重读投影，新任务在下一轮看板刷新里出现。
+   * 轮询期间不依赖 React 重渲染，直接把 `.spec` 读成外壳任务；读失败时退回
+   * 当前渲染里的那一份，让流程还能按最近一次已知状态继续判断。
+   */
+  const loadSplitSnapshot = async (): Promise<{
+    readonly tasks: readonly ShellTask[]
+    readonly roles: readonly JobRoleRow[]
+  }> => {
+    if (files === undefined || sessionId === undefined) {
+      return { tasks: liveTasks.current, roles: jobRoles }
+    }
+    const controller = new AbortController()
+    try {
+      const [projection, registry] = await Promise.all([
+        loadWorkspaceProjection(files, sessionId, controller.signal),
+        loadRolesRegistry(files, sessionId, controller.signal),
+      ])
+      return { tasks: projection.tasks.map(toShellTask), roles: registry.roles }
+    } catch (error: unknown) {
+      // 读盘失败只让这一次轮询退回旧快照；流程与卡片自己会报结果。
+      void error
+      return { tasks: liveTasks.current, roles: jobRoles }
+    } finally {
+      controller.abort()
+    }
+  }
+
+  /**
+   * 一键拆分：项目经理拆任务，研发经理定岗位，外壳逐条执行 `/task_assign`。
+   *
+   * 以卡片读到的完整需求文档为唯一依据；没有文档就不开任何会话。已经拆过
+   * （`.spec` 里有同方案 drafting 任务）时不再建项目经理会话，只补未分配的岗位，
+   * 所以关卡片重开、刷新页面后重试都不会重复拆。关卡片不中止后台流程；
+   * 只有外壳卸载才统一取消。
    */
   const splitRequirement = async (task: ShellTask, requirementDocument?: RequirementDocRow): Promise<void> => {
-    if (splitting) return
-    const claimed = claimTaskSession(task.session, taskSessionRows)?.sessionId
-    const target = claimed ?? sessionId
-    if (target === undefined || sendPrompt === undefined) {
-      setSplitError(t('shell.noSession'))
+    if (task.proposal === undefined) {
+      setSplitError(fill(t('shell.splitFailNoDocument'), { path: '.spec/requirements/' }))
       return
     }
-    const proposal = task.proposal === undefined ? undefined : proposals.find(row => row.id === task.proposal)
-    setSplitting(true)
+    const flow = splitFlows[task.id]
+    if (flow?.status === 'running' || splitRuns.current.has(task.id)) return
+    if (flow?.status === 'done') {
+      setSplitError(null)
+      return
+    }
+    if (modelStatus?.state === 'empty') {
+      setSplitError(t('shell.splitNoModel'))
+      return
+    }
+    if (createSession === undefined || sendPrompt === undefined || assignTask === undefined) {
+      setSplitError(t('shell.splitNeedSessions'))
+      return
+    }
+    if (projectPath === '') {
+      setSplitError(t('shell.splitNeedWorkspace'))
+      return
+    }
+    const document = requirementDocument?.text ?? ''
+    const path = `.spec/requirements/${task.proposal}.md`
+    if (document.trim() === '') {
+      setSplitError(fill(t('shell.splitFailNoDocument'), { path }))
+      return
+    }
+    if (!requireUser('newSession')) {
+      setSplitError(t('shell.cloudGateUnavailable'))
+      return
+    }
+
+    splitRuns.current.add(task.id)
     setSplitError(null)
+    const controller = new AbortController()
+    splitAborts.current.set(task.id, controller)
+    setSplitFlows(current => ({
+      ...current,
+      [task.id]: { status: 'running', stage: 'pm', newTasks: [] },
+    }))
+
+    const viewTasks = (rows: readonly ShellTask[]): readonly { id: string; title: string }[] =>
+      rows.map(row => ({ id: row.id, title: row.title }))
+
     try {
-      await sendPrompt(target, buildRequirementSplitPrompt(task, {
-        ...(requirementDocument === undefined ? {} : { document: requirementDocument.text }),
-        ...(proposal === undefined ? {} : { proposal: proposal.problem }),
+      const snapshot = await loadSplitSnapshot()
+      const existing = existingSplitTasks(snapshot.tasks, task)
+      const pending = existing.filter(row => row.role === undefined)
+      if (existing.length > 0 && pending.length === 0) {
+        setSplitFlows(current => ({
+          ...current,
+          [task.id]: {
+            status: 'done',
+            newTasks: viewTasks(existing),
+            summary: { taskCount: existing.length, assignedCount: existing.length, lines: [] },
+          },
+        }))
+        setReload(value => value + 1)
+        return
+      }
+
+      const outcome = await runRequirementSplit({
+        task,
+        source: { document },
+        roster: snapshot.roles,
+        ...(pending.length === 0 ? {} : { existingTasks: pending }),
+        beforeTaskIds: snapshot.tasks.map(row => row.id),
+      }, {
+        createSession: async (preset) => {
+          const created = await createSession(projectPath, preset)
+          setSessionRoles(current => ({ ...current, [String(created)]: preset }))
+          if (signedIn) await routeSession(created)
+          return String(created)
+        },
+        sendPrompt: async (id, text) => sendPrompt(id as SessionId, text),
+        holdSession: id => holdSession?.(id as SessionId) ?? (() => {}),
+        readMessages: id => readMessages?.(id as SessionId) ?? [],
+        readNotice: id => readSessionNotice?.(id as SessionId) ?? null,
+        isRunning: id => liveSessionStatus.current.get(id as SessionId)?.running
+          ?? liveSessionRows.current[id as SessionId]?.running,
+        assignTask: (id, taskId, roleId) => assignTask(id as SessionId, taskId, roleId),
+        loadTasks: async () => (await loadSplitSnapshot()).tasks,
+        loadRoster: async () => (await loadSplitSnapshot()).roles,
+        now: () => Date.now(),
+        sleep: ms => cancellableSleep(ms, controller.signal),
+      }, {
+        signal: controller.signal,
+        onProgress: (progress) => {
+          setSplitFlows(current => ({
+            ...current,
+            [task.id]: {
+              status: 'running',
+              stage: progress.stage,
+              newTasks: viewTasks(progress.newTasks ?? []),
+            },
+          }))
+        },
+      })
+      if (outcome.kind === 'cancelled') return
+
+      if (outcome.kind === 'failed') {
+        const detail = splitFailureText(t, outcome, path)
+        const known = existing.length > 0 ? existing : outcome.newTasks
+        setSplitFlows(current => ({
+          ...current,
+          [task.id]: {
+            status: 'failed',
+            newTasks: viewTasks(known),
+            errorText: detail,
+            ...(known.length === 0
+              ? {}
+              : {
+                summary: {
+                  taskCount: known.length,
+                  assignedCount: known.filter(row => row.role !== undefined).length,
+                  lines: [],
+                },
+              }),
+          },
+        }))
+        setSplitError(detail)
+        if (known.length > 0) setReload(value => value + 1)
+        return
+      }
+
+      const known = existing.length > 0 ? existing : outcome.newTasks
+      const preAssigned = known.filter(row => row.role !== undefined).length
+      const lines = splitSummaryLines(t, outcome.summary)
+      setSplitFlows(current => ({
+        ...current,
+        [task.id]: {
+          status: 'done',
+          newTasks: viewTasks(known),
+          summary: {
+            taskCount: known.length,
+            assignedCount: preAssigned + outcome.summary.assignedCount,
+            lines,
+          },
+        },
       }))
-      setDetail(null)
       setReload(value => value + 1)
     } catch (error: unknown) {
-      setSplitError(fill(t('shell.requirementSplitFailed'), { detail: String(error) }))
+      const detail = fill(t('shell.requirementSplitFailed'), { detail: String(error) })
+      setSplitFlows(current => ({
+        ...current,
+        [task.id]: { status: 'failed', newTasks: [], errorText: detail },
+      }))
+      setSplitError(detail)
     } finally {
-      setSplitting(false)
+      splitRuns.current.delete(task.id)
+      splitAborts.current.delete(task.id)
     }
   }
 
@@ -3651,10 +3909,12 @@ export function Shell({
                 document={requirementDocument}
                 proposal={detailProposal}
                 answers={requirementAnswers}
-                splitting={splitting}
-                error={splitError}
+                splitting={detailSplitFlow?.status === 'running'}
+                error={detailSplitFlow?.errorText ?? splitError}
+                flow={detailSplitFlow}
                 onClose={() => { setDetail(null) }}
                 onSplit={(document) => { void splitRequirement(detail, document) }}
+                onViewBoard={() => { setDetail(null) }}
               />
             </div>
           ) : (

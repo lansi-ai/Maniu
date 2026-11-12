@@ -189,12 +189,28 @@ function boundDocument(text: string): { text: string; truncated: boolean } {
 }
 
 /** 需求文档在 `.spec` 里的路径；任务没回指方案时指向目录。 */
-function documentPathOf(task: ShellTask): string {
+export function requirementDocumentPath(task: ShellTask): string {
   return task.proposal === undefined ? '.spec/requirements/' : `.spec/requirements/${task.proposal}.md`
 }
 
+/** 指令里可附上的需求正文；`truncated` 说明是否按边界截断。 */
+export interface RequirementDocumentExcerpt {
+  readonly text: string
+  readonly truncated: boolean
+}
+
 /**
- * 拆分任务时发给分析师的指令。
+ * 把一段需求正文收进指令上限：去首尾空白，超长时在最近的边界处截断。
+ * @param text - 需求正文原文。
+ * @returns 指令内正文与是否截断；空白正文得到空串。
+ */
+export function boundRequirementText(text: string): RequirementDocumentExcerpt {
+  const trimmed = text.trim()
+  return trimmed === '' ? { text: '', truncated: false } : boundDocument(trimmed)
+}
+
+/**
+ * 拆分任务的基础指令；项目经理会话的指令在它后面补执行身份与边界。
  *
  * 带需求文档时以它为唯一范围依据：只拆文档里的第一版功能清单与验收标准，暂不开发的
  * 范围不拆。缺文档时退回任务描述与方案正文，并说明读不到文档。无论哪种来源，都只把
@@ -207,7 +223,7 @@ function documentPathOf(task: ShellTask): string {
 export function buildRequirementSplitPrompt(task: ShellTask, source: RequirementSplitSource = {}): string {
   const document = source.document?.trim() ?? ''
   const proposal = source.proposal?.trim() ?? ''
-  const path = documentPathOf(task)
+  const path = requirementDocumentPath(task)
   const lines = [
     `需求拆分：请把需求 ${task.id}（${task.title}）拆分成可执行的开发任务，写入 .spec/tasks。`,
     '',
@@ -233,7 +249,7 @@ export function buildRequirementSplitPrompt(task: ShellTask, source: Requirement
     )
     return lines.join('\n')
   }
-  const bounded = boundDocument(document)
+  const bounded = boundRequirementText(document)
   lines.push('', `《项目需求概要》正文（${path}）：`, '"""', bounded.text, '"""')
   if (bounded.truncated) {
     lines.push('', `（正文在本指令里按段落截断在上限内；未附上的部分请读取 ${path} 后再拆，不要凭猜测补范围。）`)

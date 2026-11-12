@@ -20,6 +20,26 @@ import css from './Shell.module.css'
 /** 本包词典的翻译函数。 */
 type Translate = PropsLocale<'lcoderWorkspace'>['t']
 
+/** 拆分流程停在的段；与 `requirement-split.ts` 的阶段一一对应。 */
+export type RequirementSplitStageView = 'pm' | 'manager' | 'assigning'
+
+/** 卡片要画的一次拆分流程；文案已由外壳按词典拼好，卡片只排版。 */
+export interface RequirementSplitFlowView {
+  readonly status: 'running' | 'done' | 'failed'
+  readonly stage?: RequirementSplitStageView
+  /** 这次拆出的任务；还没拆完时为空。 */
+  readonly newTasks: readonly { readonly id: string; readonly title: string }[]
+  /** 完成后的计数与失败明细；失败时也可以带已拆出的任务。 */
+  readonly summary?: {
+    readonly taskCount: number
+    readonly assignedCount: number
+    /** 逐条失败或未分配的说明，已本地化。 */
+    readonly lines: readonly string[]
+  }
+  /** 失败原文；完成时为 undefined。 */
+  readonly errorText?: string
+}
+
 /** 需求卡片要的任务、方案、问答与动作。 */
 export interface RequirementCardProps {
   readonly t: Translate
@@ -36,12 +56,16 @@ export interface RequirementCardProps {
   readonly splitting: boolean
   /** 就地错误原文；没有时为 null。 */
   readonly error: string | null
+  /** 拆分与分配流程的当前状态；没有跑过时为 undefined。 */
+  readonly flow?: RequirementSplitFlowView | null
   readonly onClose: () => void
   /**
    * 拆分动作；参数是卡片已读到的完整需求文档，没有落盘文件时为 undefined，
    * 由外壳退回任务与方案文本。
    */
   readonly onSplit: (requirementDocument: RequirementDocRow | undefined) => void
+  /** 完成后回看板；不传时不画这个入口。 */
+  readonly onViewBoard?: () => void
 }
 
 /** 内容折叠时的一行摘要：取正文第一段，过长截断。 */
@@ -76,13 +100,52 @@ function SectionHead({
   )
 }
 
+/** 运行中那一段的文案：没有阶段时按最早的「项目经理拆分中」画。 */
+function runningStageText(t: Translate, stage: RequirementSplitStageView | undefined): string {
+  if (stage === 'manager') return t('shell.splitManagerRunning')
+  if (stage === 'assigning') return t('shell.splitAssigning')
+  return t('shell.splitPmRunning')
+}
+
+/** 拆分流程区：阶段、已拆出的任务、完成后的计数与失败明细。 */
+function SplitFlowSection({ t, flow }: { readonly t: Translate; readonly flow: RequirementSplitFlowView }): ReactNode {
+  const newTaskIds = flow.newTasks.map(task => task.id).join('、')
+  return (
+    <section className={css.requirementSplitFlow} data-requirement-split-flow>
+      {flow.status === 'running' ? (
+        <p className={css.requirementSplitPhase} data-requirement-split-phase>
+          {runningStageText(t, flow.stage)}
+        </p>
+      ) : null}
+      {flow.newTasks.length === 0 ? null : (
+        <p className={css.requirementSplitTasks} data-requirement-split-tasks>
+          {t('shell.splitNewTasks', { count: `${flow.newTasks.length}`, tasks: newTaskIds })}
+        </p>
+      )}
+      {flow.status === 'done' && flow.summary !== undefined ? (
+        <p className={css.requirementSplitSummary} data-requirement-split-summary>
+          {t('shell.splitResult', {
+            tasks: `${flow.summary.taskCount}`,
+            assigned: `${flow.summary.assignedCount}`,
+          })}
+        </p>
+      ) : null}
+      {flow.summary === undefined || flow.summary.lines.length === 0 ? null : (
+        <ul className={css.requirementSplitFailures} data-requirement-split-failures>
+          {flow.summary.lines.map(line => <li key={line}>{line}</li>)}
+        </ul>
+      )}
+    </section>
+  )
+}
+
 /**
  * 画一张需求卡片。
  * @param props - 任务、方案、问答、在途与错误、关闭与拆分动作。
  * @returns 卡片内容；由外壳放在既有模态容器里。
  */
 export function RequirementCard({
-  t, task, requirementDocument, document, proposal, answers, splitting, error, onClose, onSplit,
+  t, task, requirementDocument, document, proposal, answers, splitting, error, flow, onClose, onSplit, onViewBoard,
 }: RequirementCardProps): ReactNode {
   const [open, setOpen] = useState(false)
   const [answersOpen, setAnswersOpen] = useState(false)
@@ -197,10 +260,16 @@ export function RequirementCard({
             </p>
           )}
         </section>
+        {flow === undefined || flow === null ? null : <SplitFlowSection t={t} flow={flow} />}
         {error === null ? null : <p className={css.problem}>{error}</p>}
       </div>
       <div className={css.modalFoot}>
         <div className={css.spacer} />
+        {flow?.status === 'done' && onViewBoard !== undefined ? (
+          <button type="button" className={css.secondaryBtn} data-requirement-board onClick={onViewBoard}>
+            {t('shell.splitViewBoard')}
+          </button>
+        ) : null}
         <button type="button" className={css.secondaryBtn} onClick={onClose}>
           {t('shell.close')}
         </button>

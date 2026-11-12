@@ -501,4 +501,83 @@ describe('需求卡片渲染', () => {
     expect(screen.getByText('session not found')).toBeTruthy()
     expect(screen.queryByRole('button', { name: zh['shell.splitTasks'] })).toBeTruthy()
   })
+
+  it('拆分流程运行中显示阶段，按钮保持禁用', () => {
+    const { container } = render(
+      <RequirementCard
+        t={t}
+        task={taskOf()}
+        answers={[]}
+        splitting
+        error={null}
+        flow={{ status: 'running', stage: 'pm', newTasks: [] }}
+        onClose={vi.fn()}
+        onSplit={vi.fn()}
+      />,
+    )
+    expect(container.querySelector('[data-requirement-split-phase]')?.textContent).toBe(zh['shell.splitPmRunning'])
+    expect(container.querySelector<HTMLButtonElement>('[data-requirement-split]')?.disabled).toBe(true)
+    cleanup()
+
+    const manager = render(
+      <RequirementCard
+        t={t}
+        task={taskOf()}
+        answers={[]}
+        splitting
+        error={null}
+        flow={{ status: 'running', stage: 'manager', newTasks: [{ id: 'T-02', title: '记一笔' }] }}
+        onClose={vi.fn()}
+        onSplit={vi.fn()}
+      />,
+    )
+    expect(manager.container.querySelector('[data-requirement-split-phase]')?.textContent)
+      .toBe(zh['shell.splitManagerRunning'])
+    expect(manager.container.querySelector('[data-requirement-split-tasks]')?.textContent)
+      .toBe(t('shell.splitNewTasks', { count: '1', tasks: 'T-02' }))
+  })
+
+  it('完成后显示拆分与分配计数、失败明细，并给去看板', () => {
+    const onViewBoard = vi.fn()
+    const { container } = render(
+      <RequirementCard
+        t={t}
+        task={taskOf()}
+        answers={[]}
+        splitting={false}
+        error={null}
+        flow={{
+          status: 'done',
+          newTasks: [{ id: 'T-02', title: '记一笔' }, { id: 'T-03', title: '翻记录' }],
+          summary: { taskCount: 2, assignedCount: 1, lines: ['T-03 没有给出岗位，仍未分配。'] },
+        }}
+        onClose={vi.fn()}
+        onSplit={vi.fn()}
+        onViewBoard={onViewBoard}
+      />,
+    )
+    expect(container.querySelector('[data-requirement-split-summary]')?.textContent)
+      .toBe(t('shell.splitResult', { tasks: '2', assigned: '1' }))
+    expect(screen.getByText('T-03 没有给出岗位，仍未分配。')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: zh['shell.splitViewBoard'] }))
+    expect(onViewBoard).toHaveBeenCalledTimes(1)
+  })
+
+  it('流程失败时照实显示错误，不画完成计数', () => {
+    const { container } = render(
+      <RequirementCard
+        t={t}
+        task={taskOf()}
+        answers={[]}
+        splitting={false}
+        error="项目经理超过三分钟仍未结束"
+        flow={{ status: 'failed', newTasks: [], errorText: '项目经理超过三分钟仍未结束' }}
+        onClose={vi.fn()}
+        onSplit={vi.fn()}
+      />,
+    )
+    expect(screen.getByText('项目经理超过三分钟仍未结束')).toBeTruthy()
+    expect(container.querySelector('[data-requirement-split-summary]')).toBeNull()
+    expect(container.querySelector('[data-requirement-split]')).toBeTruthy()
+  })
 })
