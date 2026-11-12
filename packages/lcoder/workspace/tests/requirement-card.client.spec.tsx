@@ -9,7 +9,7 @@ import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { zh } from '../src/client/locales.ts'
 import type { ProposalRow } from '../src/client/projection.ts'
 import type { ShellMessage, ShellTask } from '../src/client/shell/shell-data.ts'
-import { buildRequirementSplitPrompt, formatOpenedAt, intakeAnswersOf, isRequirementTask } from '../src/client/shell/requirement.ts'
+import { buildRequirementSplitPrompt, formatOpenedAt, intakeAnswersOf, intakeSummaryOf, isRequirementTask } from '../src/client/shell/requirement.ts'
 import { RequirementCard } from '../src/client/shell/RequirementCard.tsx'
 
 afterEach(cleanup)
@@ -167,6 +167,39 @@ describe('立项问答解析', () => {
     }]
 
     expect(intakeAnswersOf(messages)).toEqual([])
+  })
+})
+
+describe('需求文档来源', () => {
+  it('优先取会话里的项目需求概要正文；没有时才用方案正文', () => {
+    const messages = [
+      { role: 'assistant', text: '七个问题都问完了，下面是《项目需求概要 V0.1》。\n\n# 项目需求概要' },
+      { role: 'user', text: '确认需求' },
+      { role: 'assistant', text: '已经按需求落盘完成。' },
+    ] as const
+    expect(intakeSummaryOf(messages)).toContain('项目需求概要')
+    expect(intakeSummaryOf([{ role: 'user', text: '项目需求概要' }] as const)).toBeNull()
+    void intakeAnswersOf
+  })
+
+  it('卡片优先渲染需求文档，不展示方案候选', () => {
+    const { container } = render(
+      <RequirementCard
+        t={t}
+        task={taskOf()}
+        document="《项目需求概要 V0.1》正文"
+        proposal={{ id: 'P-01', title: '方案', problem: '方案正文', options: [{ name: 'A', summary: '候选', cost: '' }], recommendation: '推荐 A', decision: 'draft', decidedAt: null }}
+        answers={[]}
+        splitting={false}
+        error={null}
+        onClose={vi.fn()}
+        onSplit={vi.fn()}
+      />,
+    )
+    const toggle = container.querySelector<HTMLButtonElement>('[data-section-toggle="content"]')
+    if (toggle !== null) fireEvent.click(toggle)
+    expect(screen.getByText(/项目需求概要 V0.1/)).toBeTruthy()
+    expect(container.querySelector('[data-requirement-options]')).toBeNull()
   })
 })
 

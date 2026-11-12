@@ -22,6 +22,8 @@ type Translate = PropsLocale<'lcoderWorkspace'>['t']
 export interface RequirementCardProps {
   readonly t: Translate
   readonly task: ShellTask
+  /** 立项会话里分析师输出的《项目需求概要》正文；读不到时为 null。 */
+  readonly document?: string | null
   /** 任务回指的需求方案；文件没读到时为 undefined，正文退回任务 description。 */
   readonly proposal?: ProposalRow | undefined
   /** 从立项会话读出的问答；空数组表示没读到记录。 */
@@ -72,12 +74,14 @@ function SectionHead({
  * @returns 卡片内容；由外壳放在既有模态容器里。
  */
 export function RequirementCard({
-  t, task, proposal, answers, splitting, error, onClose, onSplit,
+  t, task, document, proposal, answers, splitting, error, onClose, onSplit,
 }: RequirementCardProps): ReactNode {
   const [open, setOpen] = useState(false)
   const [answersOpen, setAnswersOpen] = useState(false)
   const labels = useMarkdownLabels(t)
-  const body = proposal === undefined ? task.description : proposal.problem
+  // 优先展示分析师当时输出的需求文档；没有文档时才用方案正文或任务描述。
+  const body = document ?? (proposal === undefined ? task.description : proposal.problem)
+  const usingDocument = document !== null && document !== undefined
   const preview = previewOf(body)
   const createdAt = formatOpenedAt(task.openedAt)
   return (
@@ -113,7 +117,7 @@ export function RequirementCard({
           {open ? (
             <div className={css.requirementBody} data-requirement-body>
               <MarkdownText text={body} labels={labels} />
-              {proposal === undefined || proposal.options.length === 0 ? null : (
+              {usingDocument || proposal === undefined || proposal.options.length === 0 ? null : (
                 <ul className={css.requirementOptions} data-requirement-options>
                   {proposal.options.map(option => (
                     <li key={option.name} className={css.requirementOption} data-requirement-option>
@@ -130,7 +134,7 @@ export function RequirementCard({
                   ))}
                 </ul>
               )}
-              {proposal === undefined || proposal.recommendation === '' ? null : (
+              {usingDocument || proposal === undefined || proposal.recommendation === '' ? null : (
                 <p className={css.requirementRecommendation} data-requirement-recommendation>
                   <span className={css.requirementRecommendationLabel}>{t('shell.requirementRecommendation')}</span>
                   {proposal.recommendation}
