@@ -14,7 +14,7 @@ export type IntakeWizardPhase = 'home' | 'questions' | 'thinking' | 'result' | '
  * 外壳代发的确认消息正文；与立项咒语里「等用户回复确认需求」的说法一致。
  * 会话里出现过这条用户消息就算需求已确认，刷新、关掉重开都不再重发。
  */
-export const INTAKE_CONFIRM_TEXT = '确认需求'
+export const INTAKE_CONFIRM_COMMAND = '确认需求'
 
 /** 阶段判定用到的会话事实。 */
 export interface IntakeWizardFacts {
@@ -144,13 +144,13 @@ export function intakeWizardOutput(messages: readonly ShellMessage[]): IntakeWiz
 /**
  * 这条会话里用户确认过需求没有。
  *
- * 只认去掉首尾空白后与 {@link INTAKE_CONFIRM_TEXT} 完全相等的用户消息；
+ * 只认去掉首尾空白后与 {@link INTAKE_CONFIRM_COMMAND} 完全相等的用户消息；
  * 立项咒语与注入上下文都不匹配，所以判据不依赖组件状态，刷新、关掉重开都读同一份日志。
  * @param messages - 会话事件窗口折成的消息。
  * @returns 已确认时为 true。
  */
 export function intakeConfirmed(messages: readonly ShellMessage[]): boolean {
-  return messages.some(message => message.role === 'user' && message.text.trim() === INTAKE_CONFIRM_TEXT)
+  return messages.some(message => message.role === 'user' && message.text.trim() === INTAKE_CONFIRM_COMMAND)
 }
 
 /** 高级配置里可选的一个模型。 */

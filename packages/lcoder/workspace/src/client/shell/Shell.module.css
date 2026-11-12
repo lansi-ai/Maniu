@@ -862,6 +862,24 @@
 .modalHead p { margin: 0; color: var(--lc-muted); font-size: var(--lc-text-sm); }
 .modalBody { padding: var(--lc-space-5) var(--lc-space-6); display: grid; gap: var(--lc-space-4); }
 .modalFoot { position: sticky; bottom: 0; z-index: 2; display: flex; align-items: center; gap: var(--lc-space-2); padding: 16px var(--lc-space-6) var(--lc-space-5); border-top: 1px solid var(--lc-line); background: var(--lc-surface); border-radius: 0 0 var(--lc-radius-xl) var(--lc-radius-xl); }
+
+/* 需求确认卡片：需求编号、创建人、创建时间、默认折叠的需求内容与拆分任务。 */
+.requirementModal { width: min(760px, 100%); }
+.requirementCard { display: flex; flex-direction: column; min-height: 0; }
+.requirementTitle { margin: 0; font: 600 var(--lc-text-lg) / var(--lc-leading-tight) var(--lc-font-display); letter-spacing: var(--lc-tracking-tight); }
+.requirementMeta { display: flex; flex-wrap: wrap; gap: var(--lc-space-3) var(--lc-space-6); margin: 0; }
+.requirementMetaItem { display: grid; gap: 2px; }
+.requirementContent { border-top: 1px solid var(--lc-line); padding-top: var(--lc-space-3); display: grid; gap: var(--lc-space-2); }
+.requirementContentHead { display: flex; align-items: baseline; gap: var(--lc-space-3); }
+.requirementContentTitle { font-weight: 600; }
+.requirementMore {
+  margin-left: auto; border: 0; background: transparent; color: var(--lc-brand-ink);
+  font-size: var(--lc-text-sm); padding: 2px 4px; border-radius: var(--lc-radius-sm);
+}
+.requirementMore:hover { background: var(--lc-hover); }
+.requirementPreview { margin: 0; color: var(--lc-muted); font-size: var(--lc-text-sm); line-height: var(--lc-leading); }
+.requirementBody { max-height: 340px; overflow: auto; padding-right: var(--lc-space-2); }
+.requirementMetaLine { margin: var(--lc-space-3) 0 0; color: var(--lc-muted); font-size: var(--lc-text-xs); }
 .headAction { padding: 7px 12px; min-height: 34px; font-size: var(--lc-text-sm); white-space: nowrap; }
 .metaGrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
 .meta { background: var(--lc-surface-2); border: 1px solid var(--lc-line); border-radius: var(--lc-radius-md); padding: 10px 12px; }

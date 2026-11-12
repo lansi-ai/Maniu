@@ -46,6 +46,8 @@ export interface TaskRow {
   readonly paths: readonly string[]
   /** 任务声明的不可逆动作（`scope.irreversible`）；非空时本地建议恒转人工。 */
   readonly irreversible: readonly string[]
+  /** 任务开立时间（`opened_at`）；缺省表示文件里没写。 */
+  readonly openedAt?: string
 }
 
 /**
@@ -249,6 +251,7 @@ export function taskTextToRow(fileName: string, text: string): TaskRow | undefin
   const role = asText(fields.role)
   const category = asText(fields.category)
   const changeType = asText(fields.change_type)
+  const openedAt = asText(fields.opened_at)
   const scope = recordOf(fields.scope)
   return {
     id: asText(fields.id) ?? fileName.replace(/\.yaml$/, ''),
@@ -267,6 +270,7 @@ export function taskTextToRow(fileName: string, text: string): TaskRow | undefin
     dependsOn: stringArray(fields.depends_on),
     paths: stringArray(scope?.allowed_paths),
     irreversible: stringArray(scope?.irreversible),
+    ...(openedAt === undefined ? {} : { openedAt }),
   }
 }
 

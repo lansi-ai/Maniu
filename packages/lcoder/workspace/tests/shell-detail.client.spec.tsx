@@ -563,7 +563,8 @@ describe('任务详情', () => {
         tasks: {
           // T-01 已认给 s-1 且同方案：再开 T-02 会判成入队。
           'T-01.yaml': 'id: T-01\ntitle: 正在跑的任务\nstate: implementing\ngrade: B\nproposal: P-01\nsession: s-1\n',
-          'T-02.yaml': TASK_T02,
+          // drafting 且带方案回指会换成需求卡片；这条要验普通详情的调度留档，所以用 implementing。
+          'T-02.yaml': 'id: T-02\ntitle: 与 T-01 同方案的任务\nstate: implementing\ngrade: B\nproposal: P-01\n',
         },
       },
       sessions: [sessionRow('s-1', REPO, true)],
@@ -571,7 +572,7 @@ describe('任务详情', () => {
     })
 
     await openTask('与 T-01 同方案的任务')
-    fireEvent.click(screen.getAllByRole('button', { name: zh['shell.confirmRequirement'] })[0]!)
+    fireEvent.click(screen.getAllByRole('button', { name: zh['shell.submitAcceptance'] })[0]!)
     await waitFor(() => { expect(screen.queryByRole('dialog')).toBeNull() })
 
     // 重新点开详情：判定已留档，日志失败也记在这一条上。
