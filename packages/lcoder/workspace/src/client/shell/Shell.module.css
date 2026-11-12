@@ -880,6 +880,18 @@
 .requirementPreview { margin: 0; color: var(--lc-muted); font-size: var(--lc-text-sm); line-height: var(--lc-leading); }
 .requirementBody { max-height: 340px; overflow: auto; padding-right: var(--lc-space-2); }
 .requirementMetaLine { margin: var(--lc-space-3) 0 0; color: var(--lc-muted); font-size: var(--lc-text-xs); }
+.requirementOptions { display: grid; gap: var(--lc-space-2); margin: var(--lc-space-3) 0 0; padding: 0; list-style: none; }
+.requirementOption { display: grid; gap: 2px; }
+.requirementOptionName { font-weight: 600; }
+.requirementOptionSummary { margin: 0; font-size: var(--lc-text-sm); line-height: var(--lc-leading); }
+.requirementOptionCost { margin: 0; color: var(--lc-muted); font-size: var(--lc-text-xs); line-height: var(--lc-leading); }
+.requirementRecommendation { margin: var(--lc-space-3) 0 0; font-size: var(--lc-text-sm); line-height: var(--lc-leading); }
+.requirementRecommendationLabel { font-weight: 600; margin-right: var(--lc-space-2); }
+.requirementAnswerList { margin: 0; padding: 0; list-style: none; display: grid; gap: var(--lc-space-3); }
+.requirementAnswer { display: grid; gap: 2px; }
+.requirementAnswerQuestion { margin: 0; font-weight: 600; }
+.requirementAnswerHeader { color: var(--lc-muted); font-weight: 400; margin-right: var(--lc-space-2); }
+.requirementAnswerValue { margin: 0; font-size: var(--lc-text-sm); line-height: var(--lc-leading); }
 .headAction { padding: 7px 12px; min-height: 34px; font-size: var(--lc-text-sm); white-space: nowrap; }
 .metaGrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
 .meta { background: var(--lc-surface-2); border: 1px solid var(--lc-line); border-radius: var(--lc-radius-md); padding: 10px 12px; }

@@ -201,8 +201,15 @@ function assistantEntry(
   }
 }
 
-/** 一条 tool/result 事件：按 call id 回填工具条目的成败。 */
-function toolResultEntry(seq: number, callId: string, ok: boolean, turn = 1, step = 1): SessionEventLikeEntry {
+/** 一条 tool/result 事件：按 call id 回填工具条目的成败（与可选的结果文本）。 */
+function toolResultEntry(
+  seq: number,
+  callId: string,
+  ok: boolean,
+  turn = 1,
+  step = 1,
+  text = ok ? 'ok' : 'boom',
+): SessionEventLikeEntry {
   const id = ToolCallId(callId)
   return {
     type: 'event',
@@ -216,7 +223,7 @@ function toolResultEntry(seq: number, callId: string, ok: boolean, turn = 1, ste
         step,
         message: createMessage({
           role: 'tool',
-          content: [{ type: 'text', text: ok ? 'ok' : 'boom' }],
+          content: [{ type: 'text', text }],
           source: { kind: 'tool', callId: id },
           toolCallId: id,
           ...(ok ? {} : { isError: true }),
@@ -329,6 +336,37 @@ describe('会话消息投影', () => {
       },
       { role: 'assistant', text: '## 结论\n\n正文' },
     ])
+  })
+
+  it('立项问答工具留存结果文本，其余工具只记成败', () => {
+    const messages = messagesFromEntries([
+      assistantEntry(0, [
+        { type: 'tool-call', id: ToolCallId('q1'), name: 'ask_user_question', arguments: '{"questions":[{"id":"q1"}]}' },
+        { type: 'tool-call', id: ToolCallId('c1'), name: 'file_read', arguments: '{"path":"a.md"}' },
+      ], 1, 1),
+      toolResultEntry(1, 'q1', true, 1, 1, '{"answers":[{"id":"q1","selected":["A"]}]}'),
+      toolResultEntry(2, 'c1', true, 1, 1, '整篇文件正文'),
+      turnEndEntry(3, 1),
+    ])
+
+    const process = messages[0]
+    expect(process?.role).toBe('process')
+    if (process?.role !== 'process') throw new Error('expected a process segment')
+    expect(process.items[0]).toEqual({
+      kind: 'tool',
+      callId: 'q1',
+      name: 'ask_user_question',
+      args: '{"questions":[{"id":"q1"}]}',
+      ok: true,
+      result: '{"answers":[{"id":"q1","selected":["A"]}]}',
+    })
+    expect(process.items[1]).toEqual({
+      kind: 'tool',
+      callId: 'c1',
+      name: 'file_read',
+      args: '{"path":"a.md"}',
+      ok: true,
+    })
   })
 
   it('两个回合各成一组，用户消息把前后回合分开', () => {

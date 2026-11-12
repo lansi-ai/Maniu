@@ -1,14 +1,15 @@
 // @vitest-environment jsdom
 /**
- * 需求卡片：标题格式、创建人与创建时间、内容默认折叠，以及拆分动作的渲染事实。
- * 纯判定（是否需求卡、时间格式化、拆分指令）同文件覆盖。
+ * 需求卡片：标题格式、创建人与创建时间、需求文档与立项问答两个折叠区、拆分动作的渲染事实。
+ * 纯判定（是否需求卡、时间格式化、拆分指令、立项问答解析）同文件覆盖。
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { zh } from '../src/client/locales.ts'
-import type { ShellTask } from '../src/client/shell/shell-data.ts'
-import { buildRequirementSplitPrompt, formatOpenedAt, isRequirementTask } from '../src/client/shell/requirement.ts'
+import type { ProposalRow } from '../src/client/projection.ts'
+import type { ShellMessage, ShellTask } from '../src/client/shell/shell-data.ts'
+import { buildRequirementSplitPrompt, formatOpenedAt, intakeAnswersOf, isRequirementTask } from '../src/client/shell/requirement.ts'
 import { RequirementCard } from '../src/client/shell/RequirementCard.tsx'
 
 afterEach(cleanup)
@@ -35,6 +36,38 @@ function taskOf(overrides: Partial<ShellTask> = {}): ShellTask {
   }
 }
 
+/** 一份任务回指的需求方案。 */
+const PROPOSAL: ProposalRow = {
+  id: 'P-01',
+  title: '个人本地记账小工具 · 需求基线',
+  problem: '现状：仓库为空目录，项目尚未立项。\n\n要办成的事：记得进、算得对、不丢数据。',
+  options: [
+    { name: 'A. 只做三件事', summary: '记一笔、翻记录、看当月合计。', cost: '范围最小、最快能上手。' },
+    { name: 'B. 三件事 + 分类统计', summary: '增加类别字典与按类别汇总。', cost: '工期长一档。' },
+  ],
+  recommendation: '推荐 A，与已确认的范围一致。',
+  decision: 'draft',
+  decidedAt: null,
+}
+
+/** 一条 ask_user_question 过程项；`result` 缺省表示结果还没出现在窗口里。 */
+function askItem(args: string, result?: string): ShellMessage {
+  return {
+    role: 'process',
+    items: [{ kind: 'tool', callId: 'call-1', name: 'ask_user_question', args, ok: true, ...(result === undefined ? {} : { result }) }],
+  }
+}
+
+/** 题目参数 JSON。 */
+function questionsJson(questions: readonly { id: string; header?: string; question: string }[]): string {
+  return JSON.stringify({ questions })
+}
+
+/** 回答结果 JSON。 */
+function answersJson(answers: readonly { id: string; selected?: readonly string[]; custom?: string }[]): string {
+  return JSON.stringify({ answers })
+}
+
 describe('需求卡片判定', () => {
   it('只有 drafting 且带方案回指的任务才是需求卡', () => {
     expect(isRequirementTask(taskOf())).toBe(true)
@@ -59,10 +92,88 @@ describe('需求卡片判定', () => {
   })
 })
 
+describe('立项问答解析', () => {
+  it('选择项与自定义回答拼成一句，题头保留', () => {
+    const messages = [askItem(
+      questionsJson([{ id: 'q1', header: '用途', question: '主要给谁用？' }]),
+      answersJson([{ id: 'q1', selected: ['个人记账小工具'], custom: '再加导出' }]),
+    )]
+
+    expect(intakeAnswersOf(messages)).toEqual([
+      { id: 'q1', header: '用途', question: '主要给谁用？', answer: '个人记账小工具、再加导出' },
+    ])
+  })
+
+  it('只有自定义回答时也照样输出', () => {
+    const messages = [askItem(
+      questionsJson([{ id: 'q1', question: '第一版做什么？' }]),
+      answersJson([{ id: 'q1', selected: [], custom: '先只做记一笔' }]),
+    )]
+
+    expect(intakeAnswersOf(messages)[0]).toEqual({
+      id: 'q1', question: '第一版做什么？', answer: '先只做记一笔',
+    })
+  })
+
+  it('同一题号只留首次出现，顺序按第一次提问', () => {
+    const messages = [
+      askItem(
+        questionsJson([{ id: 'q1', question: '第一问' }, { id: 'q2', question: '第二问' }]),
+        answersJson([{ id: 'q1', selected: ['早期回答'] }, { id: 'q2', selected: ['第二答'] }]),
+      ),
+      askItem(
+        questionsJson([{ id: 'q2', question: '第二问（重问）' }, { id: 'q1', question: '第一问（重问）' }]),
+        answersJson([{ id: 'q1', selected: ['后来的回答'] }, { id: 'q2', selected: ['后来第二答'] }]),
+      ),
+    ]
+
+    expect(intakeAnswersOf(messages).map(item => [item.id, item.answer])).toEqual([
+      ['q1', '早期回答'],
+      ['q2', '第二答'],
+    ])
+  })
+
+  it('没有结果、结果读不懂或答案为空的那一题跳过，不编造', () => {
+    expect(intakeAnswersOf([
+      askItem(questionsJson([{ id: 'q1', question: '没有结果的题' }])),
+      askItem(questionsJson([{ id: 'q2', question: '坏结果的题' }]), 'not json'),
+      askItem(questionsJson([{ id: 'q3', question: '被跳过的题' }]), answersJson([{ id: 'q3', selected: [] }])),
+      askItem(questionsJson([{ id: 'q4', question: '正常回答' }]), answersJson([{ id: 'q4', selected: ['答案'] }])),
+      askItem('not json', answersJson([{ id: 'q5', selected: ['答'] }])),
+    ])).toEqual([{ id: 'q4', question: '正常回答', answer: '答案' }])
+  })
+
+  it('参数或结果不成形时跳过：坏条目、待定结果、纯空白自定义回答', () => {
+    const messages = [
+      askItem(JSON.stringify({ questions: [{ id: 'q1' }, 'bad'] }), answersJson([{ id: 'q1', selected: ['答'] }])),
+      askItem(JSON.stringify({ questions: [{ id: 'q2', question: '  ' }] }), answersJson([{ id: 'q2', selected: ['答'] }])),
+      askItem(JSON.stringify({ questions: [] }), answersJson([{ id: 'q3', selected: ['答'] }])),
+      askItem(JSON.stringify({ questions: [{ id: 'q4', question: '待定' }] }), JSON.stringify({ pending: true, answers: [] })),
+      askItem(JSON.stringify({ questions: [{ id: 'q5', question: '坏回答' }] }), JSON.stringify({ answers: [{ id: 'q5', selected: 'not-array' }] })),
+      askItem(JSON.stringify({ questions: [{ id: 'q6', question: '数组不是对象' }] }), '[1]'),
+      askItem(
+        JSON.stringify({ questions: [{ id: 'q7', question: '纯空白自定义' }] }),
+        answersJson([{ id: 'q7', selected: ['保留'], custom: '   ' }]),
+      ),
+    ]
+
+    expect(intakeAnswersOf(messages)).toEqual([{ id: 'q7', question: '纯空白自定义', answer: '保留' }])
+  })
+
+  it('别的工具调用不参与立项问答', () => {
+    const messages: ShellMessage[] = [{
+      role: 'process',
+      items: [{ kind: 'tool', callId: 'c1', name: 'file_read', args: questionsJson([{ id: 'q1', question: '文件' }]), ok: true, result: answersJson([{ id: 'q1', selected: ['x'] }]) }],
+    }]
+
+    expect(intakeAnswersOf(messages)).toEqual([])
+  })
+})
+
 describe('需求卡片渲染', () => {
   it('标题显示需求编号与标题，创建人与创建时间都在', () => {
     const { container } = render(
-      <RequirementCard t={t} task={taskOf()} splitting={false} error={null} onClose={vi.fn()} onSplit={vi.fn()} />,
+      <RequirementCard t={t} task={taskOf()} answers={[]} splitting={false} error={null} onClose={vi.fn()} onSplit={vi.fn()} />,
     )
     expect(container.querySelector('[data-requirement-title]')?.textContent).toBe('需求编号（T-01）：随手记账')
     expect(screen.getByText(zh['shell.requirementCreator'])).toBeTruthy()
@@ -71,27 +182,184 @@ describe('需求卡片渲染', () => {
 
   it('内容默认折叠，只露一行摘要；点查看更多展开，再点收起', () => {
     const { container } = render(
-      <RequirementCard t={t} task={taskOf()} splitting={false} error={null} onClose={vi.fn()} onSplit={vi.fn()} />,
+      <RequirementCard t={t} task={taskOf()} answers={[]} splitting={false} error={null} onClose={vi.fn()} onSplit={vi.fn()} />,
     )
     expect(container.querySelector('[data-requirement-preview]')?.textContent).toBe('第一行需求内容')
     expect(container.querySelector('[data-requirement-body]')).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: zh['shell.requirementShowMore'] }))
+    fireEvent.click(container.querySelector('[data-section-toggle="content"]') as HTMLElement)
     expect(container.querySelector('[data-requirement-body]')).not.toBeNull()
     expect(screen.getByText('第二段')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: zh['shell.requirementShowLess'] }))
+    fireEvent.click(container.querySelector('[data-section-toggle="content"]') as HTMLElement)
     expect(container.querySelector('[data-requirement-body]')).toBeNull()
+  })
+
+  it('有方案时正文取方案 problem、选项与推荐，展开后都看得到', () => {
+    const { container } = render(
+      <RequirementCard
+        t={t}
+        task={taskOf()}
+        proposal={PROPOSAL}
+        answers={[]}
+        splitting={false}
+        error={null}
+        onClose={vi.fn()}
+        onSplit={vi.fn()}
+      />,
+    )
+    expect(container.querySelector('[data-requirement-preview]')?.textContent)
+      .toBe('现状：仓库为空目录，项目尚未立项。')
+    fireEvent.click(container.querySelector('[data-section-toggle="content"]') as HTMLElement)
+    expect(screen.getByText('要办成的事：记得进、算得对、不丢数据。')).toBeTruthy()
+    expect(screen.getByText('A. 只做三件事')).toBeTruthy()
+    expect(screen.getByText('记一笔、翻记录、看当月合计。')).toBeTruthy()
+    expect(screen.getByText(`${zh['shell.requirementOptionCost']}范围最小、最快能上手。`)).toBeTruthy()
+    expect(screen.getByText('推荐 A，与已确认的范围一致。')).toBeTruthy()
+  })
+
+  it('方案缺选项、缺推荐或选项字段为空时不画空块', () => {
+    const bare: ProposalRow = {
+      ...PROPOSAL,
+      options: [{ name: 'C. 只删减', summary: '', cost: '' }],
+      recommendation: '',
+    }
+    const { container } = render(
+      <RequirementCard
+        t={t}
+        task={taskOf()}
+        proposal={bare}
+        answers={[]}
+        splitting={false}
+        error={null}
+        onClose={vi.fn()}
+        onSplit={vi.fn()}
+      />,
+    )
+    fireEvent.click(container.querySelector('[data-section-toggle="content"]') as HTMLElement)
+    expect(screen.getByText('C. 只删减')).toBeTruthy()
+    expect(container.querySelector('[data-requirement-option] p')).toBeNull()
+    expect(container.querySelector('[data-requirement-recommendation]')).toBeNull()
+
+    cleanup()
+    const noOptions = render(
+      <RequirementCard
+        t={t}
+        task={taskOf()}
+        proposal={{ ...PROPOSAL, options: [], recommendation: '' }}
+        answers={[]}
+        splitting={false}
+        error={null}
+        onClose={vi.fn()}
+        onSplit={vi.fn()}
+      />,
+    )
+    fireEvent.click(noOptions.container.querySelector('[data-section-toggle="content"]') as HTMLElement)
+    expect(noOptions.container.querySelector('[data-requirement-options]')).toBeNull()
+  })
+
+  it('摘要过长截断，空正文给占位', () => {
+    const long = '一'.repeat(120)
+    const { container } = render(
+      <RequirementCard
+        t={t}
+        task={taskOf({ description: long })}
+        answers={[]}
+        splitting={false}
+        error={null}
+        onClose={vi.fn()}
+        onSplit={vi.fn()}
+      />,
+    )
+    expect(container.querySelector('[data-requirement-preview]')?.textContent).toBe(`${'一'.repeat(90)}…`)
+
+    cleanup()
+    const blank = render(
+      <RequirementCard
+        t={t}
+        task={taskOf({ description: '  ' })}
+        answers={[]}
+        splitting={false}
+        error={null}
+        onClose={vi.fn()}
+        onSplit={vi.fn()}
+      />,
+    )
+    expect(blank.container.querySelector('[data-requirement-preview]')?.textContent).toBe(zh['shell.noDescription'])
+  })
+
+  it('没有方案文件时正文退回任务 description', () => {
+    const { container } = render(
+      <RequirementCard
+        t={t}
+        task={taskOf()}
+        answers={[]}
+        splitting={false}
+        error={null}
+        onClose={vi.fn()}
+        onSplit={vi.fn()}
+      />,
+    )
+    fireEvent.click(container.querySelector('[data-section-toggle="content"]') as HTMLElement)
+    expect(screen.getByText('第二段')).toBeTruthy()
+    expect(container.querySelector('[data-requirement-options]')).toBeNull()
+    expect(container.querySelector('[data-requirement-recommendation]')).toBeNull()
+  })
+
+  it('立项问答独立默认折叠：收起给问数，展开逐题显示问题与回答', () => {
+    const { container } = render(
+      <RequirementCard
+        t={t}
+        task={taskOf()}
+        proposal={PROPOSAL}
+        answers={[
+          { id: 'q1', header: '用途', question: '主要给谁用？', answer: '个人记账小工具' },
+          { id: 'q2', question: '第一版做什么？', answer: '记一笔、翻记录、看合计' },
+        ]}
+        splitting={false}
+        error={null}
+        onClose={vi.fn()}
+        onSplit={vi.fn()}
+      />,
+    )
+    expect(container.querySelector('[data-requirement-answer]')).toBeNull()
+    expect(container.querySelector('[data-requirement-answers-preview]')?.textContent).toBe('共 2 问')
+    fireEvent.click(container.querySelector('[data-section-toggle="answers"]') as HTMLElement)
+    expect(screen.getByText('用途')).toBeTruthy()
+    expect(screen.getByText('主要给谁用？')).toBeTruthy()
+    expect(screen.getByText('个人记账小工具')).toBeTruthy()
+    expect(screen.getByText('第一版做什么？')).toBeTruthy()
+    expect(screen.getByText('记一笔、翻记录、看合计')).toBeTruthy()
+  })
+
+  it('没有问答记录时如实说没读到', () => {
+    const { container } = render(
+      <RequirementCard
+        t={t}
+        task={taskOf()}
+        proposal={PROPOSAL}
+        answers={[]}
+        splitting={false}
+        error={null}
+        onClose={vi.fn()}
+        onSplit={vi.fn()}
+      />,
+    )
+    expect(container.querySelector('[data-requirement-answers-preview]')?.textContent)
+      .toBe(zh['shell.requirementAnswersEmpty'])
+    fireEvent.click(container.querySelector('[data-section-toggle="answers"]') as HTMLElement)
+    expect(container.querySelector('[data-requirement-answers-empty]')?.textContent)
+      .toBe(zh['shell.requirementAnswersEmpty'])
   })
 
   it('拆分任务走回调；在途时按钮禁用并显示正在拆分', () => {
     const onSplit = vi.fn()
     const { container, rerender } = render(
-      <RequirementCard t={t} task={taskOf()} splitting={false} error={null} onClose={vi.fn()} onSplit={onSplit} />,
+      <RequirementCard t={t} task={taskOf()} answers={[]} splitting={false} error={null} onClose={vi.fn()} onSplit={onSplit} />,
     )
     fireEvent.click(screen.getByRole('button', { name: zh['shell.splitTasks'] }))
     expect(onSplit).toHaveBeenCalledTimes(1)
 
     rerender(
-      <RequirementCard t={t} task={taskOf()} splitting error={null} onClose={vi.fn()} onSplit={onSplit} />,
+      <RequirementCard t={t} task={taskOf()} answers={[]} splitting error={null} onClose={vi.fn()} onSplit={onSplit} />,
     )
     const button = container.querySelector<HTMLButtonElement>('[data-requirement-split]')
     expect(button?.disabled).toBe(true)
@@ -100,7 +368,7 @@ describe('需求卡片渲染', () => {
 
   it('拆分失败原文就地显示，卡片不关', () => {
     render(
-      <RequirementCard t={t} task={taskOf()} splitting={false} error="session not found" onClose={vi.fn()} onSplit={vi.fn()} />,
+      <RequirementCard t={t} task={taskOf()} answers={[]} splitting={false} error="session not found" onClose={vi.fn()} onSplit={vi.fn()} />,
     )
     expect(screen.getByText('session not found')).toBeTruthy()
     expect(screen.queryByRole('button', { name: zh['shell.splitTasks'] })).toBeTruthy()

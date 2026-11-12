@@ -135,7 +135,16 @@ export type ShellProcessItem =
     readonly args: string
     /** `true` 成功、`false` 失败、`undefined` 结果尚未出现在事件窗口里。 */
     readonly ok: boolean | undefined
+    /** 结果文本；只给列在 {@link RESULT_TEXT_TOOLS} 里的工具留存，其余不出。 */
+    readonly result?: string
   }
+
+/**
+ * 需要留存结果文本的工具：立项问答要读回用户当时的选择。
+ *
+ * 只收白名单里的工具，避免把每个工具的整段输出都留在消息列表里。
+ */
+const RESULT_TEXT_TOOLS: readonly string[] = ['ask_user_question']
 
 /**
  * 一次签署命令的回执。
@@ -243,21 +252,54 @@ export function messagesFromEntries(entries: readonly SessionEventLikeEntry[]): 
   return out
 }
 
-/** 窗口里每个工具调用的成败；同一 call id 以最后一条结果为准。 */
-function toolResultsOf(entries: readonly SessionEventLikeEntry[]): Map<string, boolean> {
-  const results = new Map<string, boolean>()
+/** 一次工具调用的成败与（白名单工具的）结果文本。 */
+interface ToolOutcome {
+  readonly ok: boolean
+  readonly result?: string
+}
+
+/**
+ * 窗口里每个工具调用的结果；同一 call id 以最后一条结果为准。
+ *
+ * 结果文本只给 {@link RESULT_TEXT_TOOLS} 里的工具留存：先扫一遍助手消息认出这些
+ * call id，其余工具只记成败。
+ */
+function toolResultsOf(entries: readonly SessionEventLikeEntry[]): Map<string, ToolOutcome> {
+  const wanted = resultTextCallIds(entries)
+  const results = new Map<string, ToolOutcome>()
   for (const entry of entries) {
     if (entry.type !== 'event' || entry.event.type !== 'tool/result') continue
     const message = entry.event.data.message
-    results.set(String(message.toolCallId), message.isError !== true)
+    const callId = String(message.toolCallId)
+    const ok = message.isError !== true
+    results.set(callId, wanted.has(callId) ? { ok, result: textOf(message.content) } : { ok })
   }
   return results
+}
+
+/** 需要结果文本的那些工具调用的 call id。 */
+function resultTextCallIds(entries: readonly SessionEventLikeEntry[]): Set<string> {
+  const ids = new Set<string>()
+  for (const entry of entries) {
+    if (entry.type !== 'event' || entry.event.type !== 'assistant/message') continue
+    const content = entry.event.data.message.content
+    if (!Array.isArray(content)) continue
+    for (const value of content) {
+      if (value === null || typeof value !== 'object') continue
+      const record = value as Record<string, unknown>
+      if (record.type === 'tool-call' && typeof record.id === 'string'
+        && typeof record.name === 'string' && RESULT_TEXT_TOOLS.includes(record.name)) {
+        ids.add(record.id)
+      }
+    }
+  }
+  return ids
 }
 
 /** 一条助手消息的内容块：正文进答复，思考与工具调用进过程段。 */
 function collectBlocks(
   content: unknown,
-  results: ReadonlyMap<string, boolean>,
+  results: ReadonlyMap<string, ToolOutcome>,
   items: ShellProcessItem[],
   answers: string[],
 ): void {
@@ -275,12 +317,14 @@ function collectBlocks(
     }
     if (record.type === 'tool-call' && typeof record.id === 'string' && typeof record.name === 'string') {
       const callId = record.id
+      const outcome = results.get(callId)
       items.push({
         kind: 'tool',
         callId,
         name: record.name,
         args: typeof record.arguments === 'string' ? record.arguments : '',
-        ok: results.get(callId),
+        ok: outcome?.ok,
+        ...(outcome?.result === undefined ? {} : { result: outcome.result }),
       })
     }
   }
