@@ -1406,6 +1406,18 @@ tracks:
       inferred: false
       note: "B 级视觉，来源是用户 2026-11-12 认为粉色皮肤用网格底纹不搭，要求换梅花或小花。范围只改 rose 皮肤的底纹，霓虹与冰蓝仍用网格。工作台外壳背景用平铺的浅粉梅花 SVG 或 CSS 图案替代网格线；登录页画布在 rose 下改为在网格节点绘制小朵梅花而不是线段，保留指针隆起与提亮效果，花随位移与亮度变化；新增 token 表达底纹类型（如 --lc-backdrop-motif），画布与 CSS 都读它，不按 data-skin 写死，方便以后扩展。梅花用 5 瓣，尺寸与间距克制，透明度低，不抢正文；对比度与两套旧皮肤不变。不改业务逻辑与文案。验收 typecheck 与 packages/lcoder vitest 与 oxlint 与 test:docs 与 i18n；真窗口冒烟确认 rose 工作台与登录页都是花且无网格线，指针移动仍有隆起，切回霓虹恢复网格；不做截图。工作树用 pool-slot-1 claim 到 lcoder/t125-plum-motif。2026-11-12 11:05 监督窗口派工，实现线会话 067a5caf；claim pool-slot-1 到分支 lcoder/t125-plum-motif。2026-11-12 11:25 监督窗口核验并收口。独立复跑 vitest 七十二文件七百五十四例、test:docs 二十一项全过。实现线采样：rose 外壳 motif=plum、零层 gradient、一层梅花 url、pitch 48px；画布无整行贯穿线，指针 alphaSum 从 4060771 升到 5607056，回弹一致；切回 neon 恢复 grid。未验项是最终视觉手看与窄窗密度。已合入 lcoder/main、release pool-slot-1。"
 
+    - id: T-126
+      title: 粉樱梅花改为实心花瓣
+      status: done
+      face: 用户端
+      type: 修复
+      owner: lance
+      created: '2026-11-12'
+      date: '2026-11-12'
+      dep: [T-125]
+      inferred: false
+      note: "B 级视觉修正，来源是用户 2026-11-12 截图反馈登录页梅花由线条构成太乱。改法：canvas 不再描边花瓣，改用实心半透明花瓣填充，每朵五瓣闭合路径，中心一个小点；去掉花瓣描边与任何线段，减少重叠密度（间距可加大或按行列稀疏），指针位移与亮度保留但只作用于花瓣整体，静止时静态；工作台平铺梅花同样确认是实心填充，若是描边一并换掉。霓虹与冰蓝网格不变。验收 typecheck 与 packages/lcoder vitest 与 oxlint 与 test:docs 与 i18n；真窗口采样 rose 画布无长线段、花瓣区域有实心填充覆盖、指针 alpha 上升，切回霓虹正常；不做截图。工作树用 pool-slot-1 claim 到 lcoder/t126-solid-blossom。2026-11-12 11:40 监督窗口派工，实现线会话 78bf1e98；claim pool-slot-1 到分支 lcoder/t126-solid-blossom。2026-11-12 11:55 监督窗口核验并收口。独立复跑 vitest 七十二文件七百五十六例、test:docs 二十一项全过。实现线采样：rose 静止覆盖 0.80%、最大游程 13px（网格皮肤为 1280 与 820），花瓣实心 alpha 约 0.152；指针后同点 alpha 38.8 到 52.1、峰值 70 到 165，回弹逐值一致；工作台 data URI 无 stroke 只有 fill；切回 neon 恢复网格。未验项是人工视觉、真实登录工作台观感与 DPR2。已合入 lcoder/main、release pool-slot-1。"
+
 milestones:
 - name: MVP-0 工作台本地跑通
   track: lcoder
