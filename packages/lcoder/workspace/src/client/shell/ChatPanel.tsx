@@ -117,6 +117,52 @@ function argsPreview(args: string): string {
 }
 
 /**
+ * 一段过程里的思考与工具明细；组头收起时由 {@link ProcessGroup} 包住，
+ * 需求分析师向导的「思考中」展开后直接复用这一份列表。
+ * @param props - 过程条目与本包词典函数。
+ * @returns 明细列表。
+ */
+export function ProcessList({
+  items, t,
+}: {
+  readonly items: readonly ShellProcessItem[]
+  readonly t: Translate
+}): ReactNode {
+  return (
+    <ol className={css.processList}>
+      {items.map((item, index) => {
+        if (item.kind === 'reasoning') {
+          return (
+            <li key={`reasoning-${String(index)}`} className={css.processRow}>
+              <span className={css.processLabel}>{t('shell.processThought')}</span>
+              <p className={css.processReasoning}>{item.text}</p>
+            </li>
+          )
+        }
+        const label = toolLabel(item, t)
+        const args = argsPreview(item.args)
+        return (
+          <li key={`tool-${String(index)}`} className={css.processRow}>
+            <div className={css.processLine}>
+              <span className={css.processLabel}>{label}</span>
+              <span className={css.processStatus} data-failed={item.ok === false ? 'true' : undefined}>
+                {toolStatus(item, t)}
+              </span>
+            </div>
+            {label === item.name && args === '' ? null : (
+              <div className={css.processDetail}>
+                {label === item.name ? null : <code>{item.name}</code>}
+                {args === '' ? null : <code>{args}</code>}
+              </div>
+            )}
+          </li>
+        )
+      })}
+    </ol>
+  )
+}
+
+/**
  * 一个回合内的思考与工具调用收敛成一行组头；展开后逐条列出细节。
  * 上游 trajectory 的组头/时间线不在包入口导出，这里按最小列表呈现。
  */
@@ -146,36 +192,7 @@ function ProcessGroup({ items, t }: { readonly items: readonly ShellProcessItem[
           </>
         )}
       >
-        <ol className={css.processList}>
-          {items.map((item, index) => {
-            if (item.kind === 'reasoning') {
-              return (
-                <li key={`reasoning-${String(index)}`} className={css.processRow}>
-                  <span className={css.processLabel}>{t('shell.processThought')}</span>
-                  <p className={css.processReasoning}>{item.text}</p>
-                </li>
-              )
-            }
-            const label = toolLabel(item, t)
-            const args = argsPreview(item.args)
-            return (
-              <li key={`tool-${String(index)}`} className={css.processRow}>
-                <div className={css.processLine}>
-                  <span className={css.processLabel}>{label}</span>
-                  <span className={css.processStatus} data-failed={item.ok === false ? 'true' : undefined}>
-                    {toolStatus(item, t)}
-                  </span>
-                </div>
-                {label === item.name && args === '' ? null : (
-                  <div className={css.processDetail}>
-                    {label === item.name ? null : <code>{item.name}</code>}
-                    {args === '' ? null : <code>{args}</code>}
-                  </div>
-                )}
-              </li>
-            )
-          })}
-        </ol>
+        <ProcessList items={items} t={t} />
       </DisclosureRow>
     </div>
   )
@@ -258,8 +275,21 @@ function ApprovalCard({ pending, t }: { readonly pending: ShellApprovalPending; 
   )
 }
 
-/** 一次提问（含计划评审）：逐题选选项或填自定义回答，最后一并提交。 */
-function QuestionCard({ pending, t }: { readonly pending: ShellQuestionPending; readonly t: Translate }): ReactNode {
+/**
+ * 一次提问（含计划评审）：逐题选选项或填自定义回答，最后一并提交。
+ *
+ * `embedded` 为真时不铺整窗遮罩，只画卡片本身；需求分析师向导的提问层用它，
+ * 结算仍走 `pending.answer()`，与悬浮对话里的同一张卡没有第二套逻辑。
+ * @param props - 待答请求、本包词典函数与是否内嵌。
+ * @returns 提问卡。
+ */
+export function QuestionCard({
+  pending, t, embedded = false,
+}: {
+  readonly pending: ShellQuestionPending
+  readonly t: Translate
+  readonly embedded?: boolean
+}): ReactNode {
   const [drafts, setDrafts] = useState<QuestionDrafts>(() => emptyDrafts(pending.questions))
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -274,55 +304,55 @@ function QuestionCard({ pending, t }: { readonly pending: ShellQuestionPending; 
     setError(null)
     void pending.answer(answer).catch((reason: unknown) => { setError(String(reason)) }).finally(() => { setBusy(false) })
   }
-  return (
-    <div className={css.pendingLayer}>
-      <div className={`${css.pendingCard} ${css.pendingQuestionCard}`} role="dialog" aria-label={t('shell.questionTitle')}>
-        <div className={css.pendingHead}><h4>{t('shell.questionTitle')}</h4></div>
-        <div className={css.questionList}>
-          {pending.questions.map((question) => {
-            const draft = drafts[question.id] ?? { selected: [], custom: '' }
-            return (
-              <section key={question.id} className={css.question}>
-                {question.header === undefined ? null : <span className={css.questionHeader}>{question.header}</span>}
-                <p className={css.questionText}>{question.question}</p>
-                {question.detail === undefined ? null : (
-                  <div className={css.questionDetail}>
-                    <MarkdownText text={question.detail} labels={labels} variant="compact" />
-                  </div>
-                )}
-                {question.options === undefined || question.options.length === 0 ? null : (
-                  <div className={css.options}>
-                    {question.options.map(option => (
-                      <button
-                        key={option.label}
-                        type="button"
-                        className={`${css.option} ${draft.selected.includes(option.label) ? css.optionOn : ''}`}
-                        onClick={() => { update(question.id, selectOption(question, draft, option.label)) }}
-                      >
-                        <span>{option.label}</span>
-                        {option.description === undefined ? null : <small>{option.description}</small>}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                <input
-                  className={css.questionCustom}
-                  value={draft.custom}
-                  placeholder={t('shell.customAnswer')}
-                  onChange={(event) => { update(question.id, { ...draft, custom: event.target.value }) }}
-                />
-              </section>
-            )
-          })}
-        </div>
-        <div className={css.pendingActions}>
-          <button type="button" className={css.primaryBtn} disabled={answer === null || busy} onClick={submit}>
-            {busy ? t('shell.answering') : t('shell.submitAnswer')}
-          </button>
-        </div>
-        {answer === null ? <p className={css.secretRef}>{t('shell.answerRequired')}</p> : null}
-        {error === null ? null : <p className={css.problem}>{error}</p>}
+  const card = (
+    <div className={`${css.pendingCard} ${css.pendingQuestionCard}`} role="dialog" aria-label={t('shell.questionTitle')}>
+      <div className={css.pendingHead}><h4>{t('shell.questionTitle')}</h4></div>
+      <div className={css.questionList}>
+        {pending.questions.map((question) => {
+          const draft = drafts[question.id] ?? { selected: [], custom: '' }
+          return (
+            <section key={question.id} className={css.question}>
+              {question.header === undefined ? null : <span className={css.questionHeader}>{question.header}</span>}
+              <p className={css.questionText}>{question.question}</p>
+              {question.detail === undefined ? null : (
+                <div className={css.questionDetail}>
+                  <MarkdownText text={question.detail} labels={labels} variant="compact" />
+                </div>
+              )}
+              {question.options === undefined || question.options.length === 0 ? null : (
+                <div className={css.options}>
+                  {question.options.map(option => (
+                    <button
+                      key={option.label}
+                      type="button"
+                      className={`${css.option} ${draft.selected.includes(option.label) ? css.optionOn : ''}`}
+                      onClick={() => { update(question.id, selectOption(question, draft, option.label)) }}
+                    >
+                      <span>{option.label}</span>
+                      {option.description === undefined ? null : <small>{option.description}</small>}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <input
+                className={css.questionCustom}
+                value={draft.custom}
+                placeholder={t('shell.customAnswer')}
+                onChange={(event) => { update(question.id, { ...draft, custom: event.target.value }) }}
+              />
+            </section>
+          )
+        })}
       </div>
+      <div className={css.pendingActions}>
+        <button type="button" className={css.primaryBtn} disabled={answer === null || busy} onClick={submit}>
+          {busy ? t('shell.answering') : t('shell.submitAnswer')}
+        </button>
+      </div>
+      {answer === null ? <p className={css.secretRef}>{t('shell.answerRequired')}</p> : null}
+      {error === null ? null : <p className={css.problem}>{error}</p>}
     </div>
   )
+  if (embedded) return card
+  return <div className={css.pendingLayer}>{card}</div>
 }
