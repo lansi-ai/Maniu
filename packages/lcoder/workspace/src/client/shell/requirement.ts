@@ -29,6 +29,23 @@ export function formatOpenedAt(value: string | undefined): string {
   return Number.isNaN(at.getTime()) ? '' : at.toLocaleString()
 }
 
+/**
+ * 分析师当时输出的《项目需求概要》正文。
+ *
+ * 在助手消息里找包含「项目需求概要」的最新一条；后面若还有落盘回执等其它答复，
+ * 不会盖掉这份文档。读不到时返回 null，由卡片退回方案或任务描述。
+ * @param messages - 外壳的消息列表。
+ * @returns 需求概要正文；没有时为 null。
+ */
+export function intakeSummaryOf(messages: readonly ShellMessage[]): string | null {
+  let found: string | null = null
+  for (const message of messages) {
+    if (message.role !== 'assistant') continue
+    if (message.text.includes('项目需求概要')) found = message.text.trim()
+  }
+  return found === '' ? null : found
+}
+
 /** 立项问答里的一问一答。 */
 export interface RequirementAnswer {
   readonly id: string

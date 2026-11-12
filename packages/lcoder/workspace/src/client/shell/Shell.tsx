@@ -72,7 +72,7 @@ import { browserSkinStorage, readSkin, SKINS, writeSkin } from './skin.ts'
 import type { Skin } from './skin.ts'
 import { recommendedRoleId } from './role-hint.ts'
 import { ChatTranscript, PendingInteractionCard } from './ChatPanel.tsx'
-import { buildRequirementSplitPrompt, intakeAnswersOf, isRequirementTask } from './requirement.ts'
+import { buildRequirementSplitPrompt, intakeAnswersOf, intakeSummaryOf, isRequirementTask } from './requirement.ts'
 import type { RequirementAnswer } from './requirement.ts'
 import { RequirementCard } from './RequirementCard.tsx'
 import { questionOf } from './pending.ts'
@@ -522,6 +522,8 @@ export function Shell({
   /** 需求卡片的拆分指令发送在途与就地错误。 */
   const [splitting, setSplitting] = useState(false)
   const [splitError, setSplitError] = useState<string | null>(null)
+  /** 需求卡片正文：该任务会话里分析师当时输出的《项目需求概要》。 */
+  const [requirementDocument, setRequirementDocument] = useState<string | null>(null)
   const [chat, setChat] = useState<ShellTask | null>(null)
   /** 普通档与最大化两档；关闭对话时回到普通档。 */
   const [chatMax, setChatMax] = useState(false)
@@ -1422,11 +1424,14 @@ export function Shell({
   useEffect(() => {
     if (requirementSessionId === undefined || readMessages === undefined) {
       setRequirementAnswers([])
+      setRequirementDocument(null)
       return
     }
     const release = holdSession?.(requirementSessionId)
     const refresh = (): void => {
-      setRequirementAnswers(intakeAnswersOf(readMessages(requirementSessionId)))
+      const window = readMessages(requirementSessionId)
+      setRequirementAnswers(intakeAnswersOf(window))
+      setRequirementDocument(intakeSummaryOf(window))
     }
     refresh()
     const unsubscribe = subscribeSession?.(requirementSessionId, refresh)
@@ -3626,6 +3631,7 @@ export function Shell({
               <RequirementCard
                 t={t}
                 task={detail}
+                document={requirementDocument}
                 proposal={detailProposal}
                 answers={requirementAnswers}
                 splitting={splitting}
