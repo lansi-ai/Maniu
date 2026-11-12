@@ -1,14 +1,15 @@
 /**
  * 需求确认卡片：需求编号、创建人、创建时间、默认折叠的需求文档与立项问答，以及拆分任务。
  *
- * 需求文档取任务回指方案（`problem`、`options`、`recommendation`）；方案文件没读到时才
- * 退回任务自己的 description。只画传入的任务、方案与问答；拆分指令由外壳发送。
+ * 需求文档优先取 `.spec/requirements/<方案编号>.md` 的完整正文；没有该文件时退回
+ * 立项会话里的《项目需求概要》，再退回任务回指方案的 `problem`，最后用任务自己的
+ * description。方案候选与推荐只在没有完整需求文档时展示。拆分指令由外壳发送。
  */
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { MarkdownText } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
-import type { ProposalRow } from '../projection.ts'
+import type { ProposalRow, RequirementDocRow } from '../projection.ts'
 import type { ShellTask } from './shell-data.ts'
 import type { RequirementAnswer } from './requirement.ts'
 import { formatOpenedAt } from './requirement.ts'
@@ -22,6 +23,8 @@ type Translate = PropsLocale<'lcoderWorkspace'>['t']
 export interface RequirementCardProps {
   readonly t: Translate
   readonly task: ShellTask
+  /** 任务回指的需求文档（`.spec/requirements/<方案编号>.md`）；没有文件时为 undefined。 */
+  readonly requirementDocument?: RequirementDocRow | undefined
   /** 立项会话里分析师输出的《项目需求概要》正文；读不到时为 null。 */
   readonly document?: string | null
   /** 任务回指的需求方案；文件没读到时为 undefined，正文退回任务 description。 */
@@ -74,14 +77,17 @@ function SectionHead({
  * @returns 卡片内容；由外壳放在既有模态容器里。
  */
 export function RequirementCard({
-  t, task, document, proposal, answers, splitting, error, onClose, onSplit,
+  t, task, requirementDocument, document, proposal, answers, splitting, error, onClose, onSplit,
 }: RequirementCardProps): ReactNode {
   const [open, setOpen] = useState(false)
   const [answersOpen, setAnswersOpen] = useState(false)
   const labels = useMarkdownLabels(t)
-  // 优先展示分析师当时输出的需求文档；没有文档时才用方案正文或任务描述。
-  const body = document ?? (proposal === undefined ? task.description : proposal.problem)
-  const usingDocument = document !== null && document !== undefined
+  // 优先展示落盘的需求文档，其次会话里的需求概要；两者都没有才用方案正文或任务描述。
+  const fileText = requirementDocument?.text ?? ''
+  const summaryText = document ?? ''
+  const fullText = fileText !== '' ? fileText : summaryText !== '' ? summaryText : undefined
+  const body = fullText ?? (proposal === undefined ? task.description : proposal.problem)
+  const usingDocument = fullText !== undefined
   const preview = previewOf(body)
   const createdAt = formatOpenedAt(task.openedAt)
   return (

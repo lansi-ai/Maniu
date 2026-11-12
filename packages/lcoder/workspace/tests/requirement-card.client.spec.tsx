@@ -171,24 +171,49 @@ describe('立项问答解析', () => {
 })
 
 describe('需求文档来源', () => {
-  it('优先取会话里的项目需求概要正文；没有时才用方案正文', () => {
+  it('会话里有多条含「项目需求概要」的答复时取最长的一条，不取回执', () => {
+    const document = `七个问题都问完了，下面是《项目需求概要 V0.1》。\n\n# 项目需求概要\n\n${'需求正文。'.repeat(20)}`
     const messages = [
-      { role: 'assistant', text: '七个问题都问完了，下面是《项目需求概要 V0.1》。\n\n# 项目需求概要' },
+      { role: 'assistant', text: document },
       { role: 'user', text: '确认需求' },
-      { role: 'assistant', text: '已经按需求落盘完成。' },
+      { role: 'assistant', text: '已按《项目需求概要》落盘完成。' },
     ] as const
-    expect(intakeSummaryOf(messages)).toContain('项目需求概要')
+
+    expect(intakeSummaryOf(messages)).toBe(document)
     expect(intakeSummaryOf([{ role: 'user', text: '项目需求概要' }] as const)).toBeNull()
-    void intakeAnswersOf
+    expect(intakeSummaryOf([{ role: 'assistant', text: '  ' }] as const)).toBeNull()
   })
 
-  it('卡片优先渲染需求文档，不展示方案候选', () => {
+  it('卡片优先渲染落盘的需求文档，不展示会话旧稿与方案候选', () => {
+    const { container } = render(
+      <RequirementCard
+        t={t}
+        task={taskOf()}
+        requirementDocument={{ id: 'P-01', text: '项目需求概要 V1\n\n来自 .spec/requirements/P-01.md' }}
+        document="会话里的旧草案"
+        proposal={PROPOSAL}
+        answers={[]}
+        splitting={false}
+        error={null}
+        onClose={vi.fn()}
+        onSplit={vi.fn()}
+      />,
+    )
+    expect(container.querySelector('[data-requirement-preview]')?.textContent).toBe('项目需求概要 V1')
+    fireEvent.click(container.querySelector('[data-section-toggle="content"]') as HTMLElement)
+    expect(screen.getByText('来自 .spec/requirements/P-01.md')).toBeTruthy()
+    expect(screen.queryByText('会话里的旧草案')).toBeNull()
+    expect(container.querySelector('[data-requirement-options]')).toBeNull()
+    expect(container.querySelector('[data-requirement-recommendation]')).toBeNull()
+  })
+
+  it('没有落盘文件时退回会话概要，方案候选仍不展示', () => {
     const { container } = render(
       <RequirementCard
         t={t}
         task={taskOf()}
         document="《项目需求概要 V0.1》正文"
-        proposal={{ id: 'P-01', title: '方案', problem: '方案正文', options: [{ name: 'A', summary: '候选', cost: '' }], recommendation: '推荐 A', decision: 'draft', decidedAt: null }}
+        proposal={PROPOSAL}
         answers={[]}
         splitting={false}
         error={null}
@@ -200,6 +225,7 @@ describe('需求文档来源', () => {
     if (toggle !== null) fireEvent.click(toggle)
     expect(screen.getByText(/项目需求概要 V0.1/)).toBeTruthy()
     expect(container.querySelector('[data-requirement-options]')).toBeNull()
+    expect(container.querySelector('[data-requirement-recommendation]')).toBeNull()
   })
 })
 

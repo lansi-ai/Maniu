@@ -65,6 +65,17 @@ export interface JobRoleRow {
   readonly signals?: RoleSignals
 }
 
+/**
+ * `.spec/requirements/` 下的一份完整需求文档。
+ *
+ * 编号取文件名（去 `.md` 扩展名），与任务回指的方案编号同名。正文就是人确认过的
+ * 《项目需求概要》，是需求卡片的首选正文来源。
+ */
+export interface RequirementDocRow {
+  readonly id: string
+  readonly text: string
+}
+
 /** 中栏一条规格条目。 */
 export interface RuleRow {
   readonly id: string
@@ -176,6 +187,7 @@ export interface WorkspaceProjection {
   readonly rules: readonly RuleRow[]
   readonly contracts: readonly ContractRow[]
   readonly proposals: readonly ProposalRow[]
+  readonly requirements: readonly RequirementDocRow[]
   readonly groups: readonly SchedulingGroupRow[]
   readonly problems: readonly string[]
 }
@@ -204,6 +216,7 @@ export const SPEC_DIR = '.spec'
 export const TASKS_DIR = `${SPEC_DIR}/tasks`
 export const CONTRACTS_DIR = `${SPEC_DIR}/contracts`
 export const PROPOSALS_DIR = `${SPEC_DIR}/proposals`
+export const REQUIREMENTS_DIR = `${SPEC_DIR}/requirements`
 export const RULES_FILE = `${SPEC_DIR}/spec/rules.yaml`
 export const PROJECT_FILE = `${SPEC_DIR}/project.yaml`
 export const LOCAL_FILE = `${SPEC_DIR}/local.yaml`
@@ -472,11 +485,12 @@ export async function loadWorkspaceProjection(
   sessionId: SessionId,
   signal: AbortSignal,
 ): Promise<WorkspaceProjection> {
-  const [tasks, rules, contracts, proposals, groups] = await Promise.all([
+  const [tasks, rules, contracts, proposals, requirements, groups] = await Promise.all([
     loadTasks(files, sessionId, signal),
     loadRules(files, sessionId, signal),
     loadContracts(files, sessionId, signal),
     loadProposals(files, sessionId, signal),
+    loadRequirements(files, sessionId, signal),
     loadGroups(files, sessionId, signal),
   ])
   return {
@@ -484,8 +498,12 @@ export async function loadWorkspaceProjection(
     rules: rules.rows,
     contracts: contracts.rows,
     proposals: proposals.rows,
+    requirements: requirements.rows,
     groups: groups.rows,
-    problems: [...tasks.problems, ...rules.problems, ...contracts.problems, ...proposals.problems, ...groups.problems],
+    problems: [
+      ...tasks.problems, ...rules.problems, ...contracts.problems, ...proposals.problems,
+      ...requirements.problems, ...groups.problems,
+    ],
   }
 }
 
@@ -658,6 +676,48 @@ async function loadProposals(
       return
     }
     rows.push(row)
+  }))
+
+  rows.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+  return { rows, problems }
+}
+
+/**
+ * 读 `.spec/requirements/` 下的完整需求文档。目录不存在是常态（还没落过需求文档），
+ * 不算故障；读不到或正文为空的文件记进 problems，不拿空文档冒充需求。
+ */
+async function loadRequirements(
+  files: ProjectionFilesRemote,
+  sessionId: SessionId,
+  signal: AbortSignal,
+): Promise<{ rows: RequirementDocRow[]; problems: string[] }> {
+  const rows: RequirementDocRow[] = []
+  const problems: string[] = []
+
+  const listed = await files.list(sessionId, REQUIREMENTS_DIR, signal)
+  if (!listed.ok) {
+    if (!isMissing(listed.error, REQUIREMENTS_DIR)) {
+      problems.push(`${REQUIREMENTS_DIR}/: ${messageOf(listed.error)}`)
+    }
+    return { rows, problems }
+  }
+
+  const names = listed.value.entries
+    .filter(entry => entry.type === 'file' && entry.name.endsWith('.md'))
+    .map(entry => entry.name)
+
+  await Promise.all(names.map(async (name) => {
+    const page = await files.readPage(sessionId, `${REQUIREMENTS_DIR}/${name}`, signal)
+    if (!page.ok) {
+      problems.push(`${REQUIREMENTS_DIR}/${name}: ${messageOf(page.error)}`)
+      return
+    }
+    const text = page.value.text.trim() === '' ? '' : page.value.text
+    if (text === '') {
+      problems.push(`${REQUIREMENTS_DIR}/${name}: 正文为空`)
+      return
+    }
+    rows.push({ id: name.replace(/\.md$/, ''), text })
   }))
 
   rows.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))

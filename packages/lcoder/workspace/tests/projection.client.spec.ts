@@ -11,8 +11,8 @@ import type { RemoteFailure, RemoteResult } from '@deepseek-ai/dsh-typert-protoc
 import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 import {
   loadLocalSecrets, loadProjectInfo, loadWorkspaceProjection, AUTOMATION_FILE, CONTRACTS_DIR, LOCAL_FILE, PROJECT_FILE,
-  SCHEDULING_DIR, automationTextToRow, contractTextToRow, groupTextToRow, loadAutomationPolicy, rulesTextToRows,
-  RULES_FILE, SPEC_DIR, TASKS_DIR, taskTextToRow,
+  REQUIREMENTS_DIR, SCHEDULING_DIR, automationTextToRow, contractTextToRow, groupTextToRow, loadAutomationPolicy,
+  rulesTextToRows, RULES_FILE, SPEC_DIR, TASKS_DIR, taskTextToRow,
 } from '../src/client/projection.ts'
 import type { ProjectionFilesRemote } from '../src/client/projection.ts'
 
@@ -376,6 +376,51 @@ describe('契约', () => {
     )
     expect(projection.contracts).toEqual([])
     expect(projection.problems).toEqual([])
+  })
+})
+
+describe('需求文档', () => {
+  it('读 .spec/requirements 下的 md，编号取文件名，正文原样保留', async () => {
+    const text = '# 项目需求概要 V0.1\n\n- 记一笔、翻记录、看合计'
+    const files = fakeFiles(
+      { [REQUIREMENTS_DIR]: ['P-02.md', 'P-01.md', 'notes.txt'] },
+      {
+        [`${REQUIREMENTS_DIR}/P-01.md`]: text,
+        [`${REQUIREMENTS_DIR}/P-02.md`]: '# 另一份需求',
+        [`${REQUIREMENTS_DIR}/notes.txt`]: '不是需求文档',
+      },
+    )
+    const projection = await loadWorkspaceProjection(files, SESSION, new AbortController().signal)
+
+    expect(projection.requirements).toEqual([
+      { id: 'P-01', text },
+      { id: 'P-02', text: '# 另一份需求' },
+    ])
+    expect(projection.problems).toEqual([])
+  })
+
+  it('目录缺失是空集不是故障', async () => {
+    const projection = await loadWorkspaceProjection(
+      fakeFiles({}, {}), SESSION, new AbortController().signal,
+    )
+    expect(projection.requirements).toEqual([])
+    expect(projection.problems).toEqual([])
+  })
+
+  it('读不到或正文为空的文件只记说明，不冒充需求', async () => {
+    const files = fakeFiles(
+      { [REQUIREMENTS_DIR]: ['P-01.md', 'P-02.md', 'P-03.md'] },
+      {
+        [`${REQUIREMENTS_DIR}/P-01.md`]: '  \n\t\n',
+        [`${REQUIREMENTS_DIR}/P-02.md`]: '# 正常的',
+      },
+    )
+    const projection = await loadWorkspaceProjection(files, SESSION, new AbortController().signal)
+
+    expect(projection.requirements).toEqual([{ id: 'P-02', text: '# 正常的' }])
+    expect(projection.problems).toHaveLength(2)
+    expect(projection.problems.join(' ')).toContain('P-01.md')
+    expect(projection.problems.join(' ')).toContain('P-03.md')
   })
 })
 

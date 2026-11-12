@@ -21,7 +21,8 @@ import {
   loadAgentsRegistry, loadLocalSecrets, loadProjectInfo, loadRolesRegistry, loadWorkspaceProjection,
 } from '../projection.ts'
 import type {
-  AgentsRow, ContractRow, JobRoleRow, ProjectionFilesRemote, ProposalRow, RuleRow, SchedulingGroupRow, TaskRow,
+  AgentsRow, ContractRow, JobRoleRow, ProjectionFilesRemote, ProposalRow, RequirementDocRow, RuleRow,
+  SchedulingGroupRow, TaskRow,
 } from '../projection.ts'
 import { parseFlowStatus } from '../flow-status.ts'
 import type {
@@ -587,6 +588,8 @@ export function Shell({
   const [advancing, setAdvancing] = useState(false)
   const [advanceResult, setAdvanceResult] = useState<ShellSignResult | null>(null)
   const [proposals, setProposals] = useState<readonly ProposalRow[]>([])
+  /** `.spec/requirements/` 的完整需求文档；需求卡片优先用它作正文。 */
+  const [requirements, setRequirements] = useState<readonly RequirementDocRow[]>([])
   /** 需求卡片下的立项问答；打开卡片时从任务会话读出，关闭即清空。 */
   const [requirementAnswers, setRequirementAnswers] = useState<readonly RequirementAnswer[]>([])
   /** 采纳方案：出方案是模型的工具，这一步只由人点。 */
@@ -1179,6 +1182,7 @@ export function Shell({
       setGroups([])
       setContracts([])
       setProposals([])
+      setRequirements([])
       setRulesCount(0)
       setInfo(null)
       setAgents(null)
@@ -1207,6 +1211,7 @@ export function Shell({
       setGroups(projection.groups)
       setContracts(projection.contracts)
       setProposals(projection.proposals)
+      setRequirements(projection.requirements)
       setRulesCount(projection.rules.length)
       setProblems([...projection.problems, ...projectInfo.problems, ...agentRegistry.problems, ...roleRegistry.problems])
       setInfo(projectInfo.info === null ? null : resolveSecrets(projectInfo.info, secrets))
@@ -1220,6 +1225,7 @@ export function Shell({
       setGroups([])
       setContracts([])
       setProposals([])
+      setRequirements([])
       setRulesCount(0)
       setInfo(null)
       setAgents(null)
@@ -1609,6 +1615,11 @@ export function Shell({
   const detailProposal = detail?.proposal === undefined
     ? undefined
     : proposals.find(row => row.id === detail.proposal)
+
+  /** 选中任务回指的完整需求文档；没有落盘文件时 undefined，卡片退回会话概要。 */
+  const detailRequirement = detail?.proposal === undefined
+    ? undefined
+    : requirements.find(row => row.id === detail.proposal)
 
   /** 选中任务最近一次调度留档；点过「开始对话」才有。 */
   const detailSchedule = detail === null ? undefined : schedule[detail.id]
@@ -3631,6 +3642,7 @@ export function Shell({
               <RequirementCard
                 t={t}
                 task={detail}
+                requirementDocument={detailRequirement}
                 document={requirementDocument}
                 proposal={detailProposal}
                 answers={requirementAnswers}

@@ -68,7 +68,7 @@ export type { LcoderWorkspaceKey } from './locales.ts'
 export type { ShellProps } from './shell/Shell.tsx'
 export type { WorkspaceBodyProps, WorkspaceInject } from './WorkspaceBody.tsx'
 export type {
-  ContractRow, ProjectionFilesRemote, RuleRow, TaskRow, WorkspaceProjection,
+  ContractRow, ProjectionFilesRemote, RequirementDocRow, RuleRow, TaskRow, WorkspaceProjection,
 } from './projection.ts'
 export type { ModelStatus, ShellSessionNotice } from './model-status.ts'
 
