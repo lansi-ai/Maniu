@@ -1394,6 +1394,18 @@ tracks:
       inferred: false
       note: "B 级修复，来源是用户 2026-11-12 反馈 .spec 文档外部更新时任务看板不及时加载。现状投影只在 files 与 workspace 与 session 与 reload 变化时读取，没有定时与焦点刷新。范围：有工作区且页面可见时每十秒通过现有 setReload 重读投影与项目信息；window focus 与 visibilitychange 回前台立即重读，隐藏时暂停；重读失败不打断看板只记录问题；不新增宿主接口与不改契约。验收：外部改 .spec 任务 YAML 后十秒内看板更新；切回窗口立即更新；单测覆盖定时器启停与焦点刷新；门禁 typecheck 与 packages/lcoder vitest 与 test:docs 与 i18n；不做截图。依赖 T-123，避免同文件冲突，未派工。2026-11-12 09:45 监督窗口派工，实现线会话 e2135fa3；claim pool-slot-2 到分支 lcoder/t124-board-refresh，与 T-123 并行。2026-11-12 10:50 监督窗口核验并收口。独立复跑 vitest 七十二文件七百四十九例、i18n、test:docs；实现线真窗口靶仓：外部改 YAML 8.05 秒更新、focus 211 毫秒、无加载挡板。未验项是隐藏态停表与 9822 端口复验，因 T-123 占用改用 9823 与 9831 与 9832。"
 
+    - id: T-125
+      title: 粉樱皮肤改用梅花底纹
+      status: done
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-12'
+      date: '2026-11-12'
+      dep: [T-123, T-117]
+      inferred: false
+      note: "B 级视觉，来源是用户 2026-11-12 认为粉色皮肤用网格底纹不搭，要求换梅花或小花。范围只改 rose 皮肤的底纹，霓虹与冰蓝仍用网格。工作台外壳背景用平铺的浅粉梅花 SVG 或 CSS 图案替代网格线；登录页画布在 rose 下改为在网格节点绘制小朵梅花而不是线段，保留指针隆起与提亮效果，花随位移与亮度变化；新增 token 表达底纹类型（如 --lc-backdrop-motif），画布与 CSS 都读它，不按 data-skin 写死，方便以后扩展。梅花用 5 瓣，尺寸与间距克制，透明度低，不抢正文；对比度与两套旧皮肤不变。不改业务逻辑与文案。验收 typecheck 与 packages/lcoder vitest 与 oxlint 与 test:docs 与 i18n；真窗口冒烟确认 rose 工作台与登录页都是花且无网格线，指针移动仍有隆起，切回霓虹恢复网格；不做截图。工作树用 pool-slot-1 claim 到 lcoder/t125-plum-motif。2026-11-12 11:05 监督窗口派工，实现线会话 067a5caf；claim pool-slot-1 到分支 lcoder/t125-plum-motif。2026-11-12 11:25 监督窗口核验并收口。独立复跑 vitest 七十二文件七百五十四例、test:docs 二十一项全过。实现线采样：rose 外壳 motif=plum、零层 gradient、一层梅花 url、pitch 48px；画布无整行贯穿线，指针 alphaSum 从 4060771 升到 5607056，回弹一致；切回 neon 恢复 grid。未验项是最终视觉手看与窄窗密度。已合入 lcoder/main、release pool-slot-1。"
+
 milestones:
 - name: MVP-0 工作台本地跑通
   track: lcoder
