@@ -133,6 +133,13 @@ describe('全新项目档的立项咒语', () => {
     expect(text).toContain('不编造架构文档、测试脚本、技术选型或审批意见')
   })
 
+  it('确认后把完整需求文档另存为 .spec/requirements/<方案编号>.md 并回读', () => {
+    expect(text).toContain('.spec/requirements/<方案编号>.md')
+    expect(text).toContain('目录不存在就创建')
+    expect(text).toContain('唯一允许直接写的文件')
+    expect(text).toContain('没有方案编号就不写')
+  })
+
   it('列的是立项面的工具，不承诺改代码与签字', () => {
     expect(text).toContain('project_draft')
     expect(text).toContain('spec_draft')
