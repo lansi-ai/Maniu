@@ -1,7 +1,7 @@
 /**
  * 登录页的背景底纹：静止时与外壳底纹同款，指针附近按高斯影响隆起并提亮。
  *
- * 底纹类型由皮肤 token `--lc-backdrop-motif` 决定：`grid` 画网格线，`plum` 在网格节点画五瓣小梅花。
+ * 底纹类型由皮肤 token `--lc-backdrop-motif` 决定：`grid` 画网格线，`plum` 在稀疏的网格节点画实心五瓣梅花。
  * 颜色每帧从皮肤 CSS 变量读取，切换皮肤由 MutationObserver 触发重绘，无需重建页面。
  * 画布固定覆盖整窗、不接指针事件。指针移动属于用户主动操作，在「减少动态效果」下也响应，
  * 但只画当帧、不跑动画帧循环；指针静止或窗口隐藏后回到静态底纹。
@@ -9,7 +9,8 @@
 import { useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
 import {
-  blossomPose, clamp01, gridOffsets, lineAlpha, parseCssColor, plumPetals, readMotif, rgba, warpVertex,
+  blossomPose, blossomVisible, clamp01, gridOffsets, lineAlpha, parseCssColor, PETAL_CORE_RATIO,
+  plumPetals, readMotif, rgba, warpVertex,
 } from './login-grid.ts'
 import type { BackdropMotif, GridColor, GridWarpSpec } from './login-grid.ts'
 import css from './LoginGridBackdrop.module.css'
@@ -37,10 +38,16 @@ const RELEASE_MS = 320
 const GLOW_BUCKETS = 8
 /** 隆起的光晕半径，相对标准差。 */
 const HALO_SCALE = 2.2
-/** 梅花半径相对节点间距的比例；连同花瓣长度后整朵约为间距的 0.4。 */
-const BLOSSOM_RADIUS = 0.11
+/** 梅花半径相对节点间距的比例；花瓣外沿约为间距的 0.15。 */
+const BLOSSOM_RADIUS = 0.08
+/** 花心填充不透明度相对花瓣的倍数。 */
+const CORE_ALPHA_FACTOR = 1.8
+/** 梅花填充在指针处的峰值透明度。 */
+const BLOSSOM_PEAK_ALPHA = 0.42
 /** 一片花瓣在扁平数组里占的位置数：x、y、rx、ry、旋转角。 */
 const PETAL_STRIDE = 5
+/** 一个花心在扁平数组里占的位置数：x、y、半径。 */
+const CORE_STRIDE = 3
 
 /** 一帧要用的皮肤取色。 */
 interface Palette {
@@ -186,8 +193,47 @@ function strokeLine(
 }
 
 /**
- * 在网格节点画五瓣梅花：姿态由节点行列决定，位移与提亮交给同一套高斯影响。
- * 花瓣按亮度分桶后每桶一次 stroke。
+ * 把扁平数组里的花瓣与花心描成实心填充；每朵花的五瓣一次填色，重叠处不会加深。
+ * @param ctx - 目标画布。
+ * @param petals - 本桶全部花瓣的位置。
+ * @param cores - 本桶全部花心的位置。
+ * @param color - 花瓣填充色。
+ * @param coreColor - 花心填充色。
+ */
+function fillBlossoms(
+  ctx: CanvasRenderingContext2D,
+  petals: readonly number[],
+  cores: readonly number[],
+  color: string,
+  coreColor: string,
+): void {
+  ctx.fillStyle = color
+  ctx.beginPath()
+  for (let index = 0; index < petals.length; index += PETAL_STRIDE) {
+    const x = petals[index] ?? 0
+    const y = petals[index + 1] ?? 0
+    const rx = petals[index + 2] ?? 0
+    const ry = petals[index + 3] ?? 0
+    const rotation = petals[index + 4] ?? 0
+    ctx.moveTo(x + rx * Math.cos(rotation), y + rx * Math.sin(rotation))
+    ctx.ellipse(x, y, rx, ry, rotation, 0, Math.PI * 2)
+  }
+  ctx.fill()
+  ctx.fillStyle = coreColor
+  ctx.beginPath()
+  for (let index = 0; index < cores.length; index += CORE_STRIDE) {
+    const x = cores[index] ?? 0
+    const y = cores[index + 1] ?? 0
+    const radius = cores[index + 2] ?? 0
+    ctx.moveTo(x + radius, y)
+    ctx.arc(x, y, radius, 0, Math.PI * 2)
+  }
+  ctx.fill()
+}
+
+/**
+ * 在稀疏的网格节点画实心五瓣梅花：姿态由节点行列决定，位移与提亮交给同一套高斯影响。
+ * 每朵花只按自己的亮度分桶一次，位移作用于整朵花。
  */
 function paintBlossoms(
   ctx: CanvasRenderingContext2D,
@@ -197,12 +243,14 @@ function paintBlossoms(
   pointerY: number | null,
   strength: number,
 ): void {
-  const buckets = new Map<number, number[]>()
+  const petalBuckets = new Map<number, number[]>()
+  const coreBuckets = new Map<number, number[]>()
   const { spacing } = palette
   const columns = gridOffsets(surface.width, spacing)
   const rows = gridOffsets(surface.height, spacing)
   for (let column = 0; column < columns.length; column++) {
     for (let row = 0; row < rows.length; row++) {
+      if (!blossomVisible(column, row)) continue
       const pose = blossomPose(column, row)
       const vertex = warpVertex(
         (columns[column] ?? 0) + pose.dx * spacing,
@@ -213,38 +261,35 @@ function paintBlossoms(
         strength,
       )
       const bucket = Math.min(GLOW_BUCKETS - 1, Math.round(clamp01(vertex.glow) * (GLOW_BUCKETS - 1)))
-      let petals = buckets.get(bucket)
+      let petals = petalBuckets.get(bucket)
       if (petals === undefined) {
         petals = []
-        buckets.set(bucket, petals)
+        petalBuckets.set(bucket, petals)
       }
-      for (const petal of plumPetals(spacing * BLOSSOM_RADIUS * pose.scale, pose.angle)) {
+      let cores = coreBuckets.get(bucket)
+      if (cores === undefined) {
+        cores = []
+        coreBuckets.set(bucket, cores)
+      }
+      const radius = spacing * BLOSSOM_RADIUS * pose.scale
+      for (const petal of plumPetals(radius, pose.angle)) {
         petals.push(vertex.x + petal.x, vertex.y + petal.y, petal.rx, petal.ry, petal.rotation)
       }
+      cores.push(vertex.x, vertex.y, radius * PETAL_CORE_RATIO)
     }
   }
-  ctx.lineWidth = 1
-  ctx.lineCap = 'round'
   for (let bucket = 0; bucket < GLOW_BUCKETS; bucket++) {
-    const petals = buckets.get(bucket)
-    if (petals === undefined) continue
-    ctx.strokeStyle = rgba(
-      palette.base,
-      lineAlpha(palette.base.alpha, PEAK_ALPHA, bucket / (GLOW_BUCKETS - 1)),
+    const petals = petalBuckets.get(bucket)
+    const cores = coreBuckets.get(bucket)
+    if (petals === undefined || cores === undefined) continue
+    const alpha = lineAlpha(palette.base.alpha, BLOSSOM_PEAK_ALPHA, bucket / (GLOW_BUCKETS - 1))
+    fillBlossoms(
+      ctx,
+      petals,
+      cores,
+      rgba(palette.base, alpha),
+      rgba(palette.base, Math.min(0.9, alpha * CORE_ALPHA_FACTOR)),
     )
-    ctx.beginPath()
-    for (let index = 0; index < petals.length; index += PETAL_STRIDE) {
-      ctx.ellipse(
-        petals[index] ?? 0,
-        petals[index + 1] ?? 0,
-        petals[index + 2] ?? 0,
-        petals[index + 3] ?? 0,
-        petals[index + 4] ?? 0,
-        0,
-        Math.PI * 2,
-      )
-    }
-    ctx.stroke()
   }
 }
 
