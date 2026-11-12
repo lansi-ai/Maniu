@@ -1625,15 +1625,18 @@
 .wizardTitleHighlight { color: var(--lc-brand-2); font-weight: 700; }
 
 .wizardHome { padding: var(--lc-space-6) var(--lc-space-7); display: grid; gap: var(--lc-space-3); }
-.wizardSections { display: grid; gap: var(--lc-space-2); }
-.wizardSectionsCompact { gap: 6px; }
+/* 三节只用分隔线与悬停底色分段，不再一张张套卡片边框。 */
+.wizardSections { display: grid; gap: 0; }
+.wizardSectionsCompact { gap: 0; }
 .wizardSection {
-  border: 1px solid var(--lc-line); border-radius: var(--lc-radius-md);
-  background: var(--lc-surface-2); overflow: hidden;
+  border: 0; border-top: 1px solid var(--lc-line);
+  border-radius: 0; background: transparent; overflow: hidden;
 }
+.wizardSection:first-child { border-top: 0; }
 .wizardSectionSummary {
   display: flex; align-items: baseline; gap: var(--lc-space-3);
-  padding: 12px 14px; cursor: pointer; list-style: none;
+  padding: 9px 8px; margin: 0 -8px; cursor: pointer; list-style: none;
+  border-radius: var(--lc-radius-sm);
 }
 .wizardSectionSummary::-webkit-details-marker { display: none; }
 .wizardSectionSummary::after {
@@ -1648,9 +1651,9 @@
   min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   color: var(--lc-muted); font-size: var(--lc-text-sm);
 }
-.wizardSectionsCompact .wizardSectionSummary { flex-wrap: wrap; gap: 2px 8px; padding: 10px 12px; }
+.wizardSectionsCompact .wizardSectionSummary { flex-wrap: wrap; gap: 2px 8px; padding: 8px 6px; margin: 0 -6px; }
 .wizardSectionsCompact .wizardSectionBrief { flex-basis: 100%; }
-.wizardSectionBody { padding: 0 14px 14px; }
+.wizardSectionBody { padding: 2px 6px 12px; }
 .wizardList {
   margin: 0; padding-left: 18px; display: grid; gap: 6px;
   color: var(--lc-muted); font-size: var(--lc-text-sm); line-height: var(--lc-leading);
@@ -1661,8 +1664,13 @@
   gap: var(--lc-space-5); padding: var(--lc-space-6) var(--lc-space-7);
 }
 .wizardColumnsSolo { grid-template-columns: minmax(0, 1fr); }
-.wizardAside { display: grid; gap: var(--lc-space-3); align-content: start; min-width: 0; }
-.wizardAnalyst { display: flex; align-items: center; gap: var(--lc-space-3); }
+.wizardAside { display: grid; gap: var(--lc-space-3); align-content: start; min-width: 0; width: 100%; }
+.wizardAnalyst {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center; gap: var(--lc-space-2) var(--lc-space-4);
+  padding-bottom: var(--lc-space-3); border-bottom: 1px solid var(--lc-line);
+}
+.wizardAnalystWho { display: flex; align-items: center; gap: var(--lc-space-3); min-width: 0; }
 .wizardAvatar {
   width: 34px; height: 34px; border-radius: 50%; flex: 0 0 auto;
   display: block; object-fit: cover; background: var(--lc-logo-plate);
@@ -1678,24 +1686,33 @@
 .wizardQuestion { display: grid; gap: var(--lc-space-3); animation: lc-wizard-stage 200ms ease both; }
 .wizardQuestion .pendingCard { width: 100%; max-height: none; box-shadow: var(--lc-shadow-card); }
 
-.wizardThinking { display: grid; gap: var(--lc-space-3); align-content: start; }
+/* 状态并进分析师头行：右侧一行说明加紧凑重开，点说明展开过程明细。 */
+.wizardStatus { display: inline-flex; align-items: center; gap: var(--lc-space-2); min-width: 0; justify-self: end; }
 .thinkingToggle {
-  justify-self: start; display: inline-flex; align-items: center; gap: 8px;
-  border: 1px solid var(--lc-line); background: var(--lc-surface-2); color: var(--lc-ink);
-  border-radius: var(--lc-radius-pill); padding: 6px 14px; font-size: var(--lc-text-sm);
+  display: inline-flex; align-items: center; gap: 8px; max-width: 100%;
+  border: 0; background: transparent; color: var(--lc-ink);
+  border-radius: var(--lc-radius-sm); padding: 3px 4px; font-size: var(--lc-text-sm); text-align: left;
 }
-.thinkingToggle:hover { border-color: var(--lc-brand-2); }
+.thinkingToggle:hover { background: var(--lc-hover); }
+.wizardStatus[data-running="false"] .thinkingToggle { color: var(--lc-muted); }
 .thinkingSpinner {
   width: 12px; height: 12px; border-radius: 50%; flex: 0 0 auto;
   border: 2px solid var(--lc-line-strong); border-top-color: var(--lc-brand);
   animation: lc-wizard-spin 900ms linear infinite;
 }
 .thinkingSpinner[data-spinning="false"] { animation: none; border-top-color: var(--lc-faint); }
-.wizardThinkingMore { display: flex; flex-wrap: wrap; align-items: center; gap: var(--lc-space-2); }
-.wizardProcess {
-  max-height: 320px; overflow: auto; padding: 10px 12px;
-  border: 1px solid var(--lc-line); border-radius: var(--lc-radius-md); background: var(--lc-surface-2);
+.wizardStatusRestart {
+  flex: 0 0 auto; border: 1px solid var(--lc-line); border-radius: var(--lc-radius-pill);
+  background: var(--lc-surface-2); color: var(--lc-ink);
+  padding: 2px 10px; font-size: var(--lc-text-xs);
 }
+.wizardStatusRestart:hover:not(:disabled) { border-color: var(--lc-brand-2); }
+.wizardStatusRestart:disabled { color: var(--lc-faint); }
+.wizardExpand {
+  grid-column: 1 / -1; padding-top: var(--lc-space-2);
+  border-top: 1px solid var(--lc-line);
+}
+.wizardProcess { max-height: 320px; overflow: auto; }
 
 .wizardResult {
   display: grid; gap: var(--lc-space-3); padding: var(--lc-space-4);
@@ -1729,12 +1746,17 @@
 .wizardEmpty { margin: 0; color: var(--lc-muted); font-size: var(--lc-text-sm); display: grid; gap: var(--lc-space-2); justify-items: start; }
 .wizardModels { display: grid; gap: 6px; max-height: 220px; overflow: auto; }
 .wizardModel {
+  position: relative;
   display: grid; gap: 2px; text-align: left;
   border: 1px solid var(--lc-line); border-radius: var(--lc-radius-sm);
   padding: 8px 10px; background: var(--lc-surface); color: var(--lc-ink);
 }
 .wizardModel:hover { border-color: var(--lc-brand-2); }
 .wizardModelOn { border-color: var(--lc-brand); background: var(--lc-brand-soft); }
+.wizardModelOn::after {
+  content: '✓'; position: absolute; top: 8px; right: 10px;
+  color: var(--lc-brand-ink); font-size: var(--lc-text-xs);
+}
 .wizardModelName { font-size: var(--lc-text-sm); font-weight: 600; }
 .wizardModelId { font: var(--lc-text-xs) / 1.4 var(--lc-font-mono); color: var(--lc-faint); overflow-wrap: anywhere; }
 .wizardModelTag { color: var(--lc-brand-ink); font-size: var(--lc-text-xs); }
@@ -1753,6 +1775,8 @@
   .wizardHead, .wizardHome, .wizardFoot { padding-left: var(--lc-space-4); padding-right: var(--lc-space-4); }
   .wizardError, .wizardNotice { margin-left: var(--lc-space-4); margin-right: var(--lc-space-4); }
   .wizardStage { min-height: 0; }
+  .wizardAnalyst { grid-template-columns: 1fr; }
+  .wizardStatus { justify-self: start; }
 }
 
 @media (prefers-reduced-motion: reduce) {

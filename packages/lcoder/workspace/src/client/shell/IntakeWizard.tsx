@@ -4,6 +4,7 @@
  * 组件只画传入的阶段与事实：阶段由 {@link intakeWizardPhase} 从会话事实算出，
  * 提问卡的结算仍交给上游 `pending.answer()`，采纳方案仍由外壳派 `/proposal_approve`。
  * 右栏活动区只在提问与结果阶段挂载；思考阶段把它收进左栏，弹窗同时收敛成单栏。
+ * 思考与结束状态并进分析师头行，不再单独立一块面板。
  * 这里不新建会话、不发提示、也不记阶段。
  */
 import { useState } from 'react'
@@ -21,7 +22,7 @@ import css from './Shell.module.css'
 /** 本包词典的翻译函数。 */
 type Translate = PropsLocale<'lcoderWorkspace'>['t']
 
-/** 高级配置里模型目录的读取状态。 */
+/** 向导里模型目录的读取状态。 */
 export type IntakeModelState = 'idle' | 'loading' | 'ready' | 'error'
 
 /** 需求分析师向导的 props。 */
@@ -45,7 +46,7 @@ export interface IntakeWizardProps {
   readonly proposal: ProposalRow | null
   /** 投影里的全部任务；结果卡按 `proposal` 回指过滤出本轮草案。 */
   readonly tasks: readonly ShellTask[]
-  /** 这一轮是否还在跑；思考中据此决定 loading 转不转、给不给重开入口。 */
+  /** 界面展示的这一轮是否还在跑；已含结束态沉降窗口，据此决定 loading 转不转、给不给重开入口。 */
   readonly running: boolean
   readonly approving: boolean
   readonly approveResult: ShellSignResult | null
@@ -55,7 +56,7 @@ export interface IntakeWizardProps {
   readonly onCancel: () => void
   readonly onConfirm: () => void
   readonly onSelectModel: (option: IntakeModelOption) => void
-  /** 首次展开高级配置时读模型目录。 */
+  /** 补读或重试模型目录；向导打开时外壳已经读过，展开高级配置不会重复请求。 */
   readonly onLoadModels: () => void
   readonly onOpenSettings: () => void
   readonly onApprove: () => void
@@ -163,22 +164,24 @@ export function IntakeWizard({
             data-wizard-layout={phase === 'thinking' ? 'solo' : 'split'}
           >
             <aside className={css.wizardAside}>
-              <div className={css.wizardAnalyst}>
-                <img className={css.wizardAvatar} src={bullMark} alt="" aria-hidden />
-                <div className={css.wizardAnalystText}>
-                  <b>{t('shell.wizardAnalystName')}</b>
-                  <span>{t('shell.wizardAnalystRole')}</span>
+              <div className={css.wizardAnalyst} data-wizard-analyst>
+                <div className={css.wizardAnalystWho}>
+                  <img className={css.wizardAvatar} src={bullMark} alt="" aria-hidden />
+                  <div className={css.wizardAnalystText}>
+                    <b>{t('shell.wizardAnalystName')}</b>
+                    <span>{t('shell.wizardAnalystRole')}</span>
+                  </div>
                 </div>
+                {phase === 'thinking' ? (
+                  <ThinkingStatus
+                    t={t}
+                    items={processItems}
+                    running={running}
+                    restartBusy={restartBusy}
+                    onRestart={onRestart}
+                  />
+                ) : null}
               </div>
-              {phase === 'thinking' ? (
-                <ThinkingPanel
-                  t={t}
-                  items={processItems}
-                  running={running}
-                  restartBusy={restartBusy}
-                  onRestart={onRestart}
-                />
-              ) : null}
               <WizardSections
                 t={t}
                 compact
@@ -228,7 +231,7 @@ export function IntakeWizard({
 
 /**
  * 首页与侧栏共用的三节：简历、工作流程与模型高级配置。
- * 三节默认都折叠，只露出标题与一行摘要；高级配置第一次展开时才读模型目录。
+ * 三节默认都折叠，只露出标题与一行摘要；摘要里的模型由外壳在打开向导时读好。
  */
 function WizardSections({
   t, modelLabel, modelState, models, selectedModel, onSelectModel, onLoadModels, onOpenSettings, compact = false,
@@ -307,15 +310,14 @@ function fillText(text: string, model: string): string {
   return text.replace('{model}', model)
 }
 
-/** 高级配置摘要里的一句话：只有目录读到时才报真实模型，其余如实说读没读到。 */
+/** 高级配置摘要里的一句话：目录读到时报真实模型，其余如实说读没读到。 */
 function modelSummary(
   state: IntakeModelState,
   models: readonly IntakeModelOption[],
   selected: IntakeModelOption | null,
   t: Translate,
 ): string {
-  if (state === 'idle') return t('shell.wizardModelUnknown')
-  if (state === 'loading') return t('shell.wizardModelLoading')
+  if (state === 'idle' || state === 'loading') return t('shell.wizardModelLoading')
   if (state === 'error') return t('shell.wizardModelFailed')
   if (models.length === 0 || selected === null) return t('shell.wizardNoModels')
   return `${selected.providerName} · ${selected.modelName}`
@@ -382,12 +384,12 @@ function ModelPanel({
 }
 
 /**
- * 问题答完后的思考提示：一行 loading 与可展开的过程明细。
+ * 分析师头行右侧的状态：在跑时是 loading 与「思考中」，稳定结束后换成结束说明与紧凑的重新开始。
  *
- * 在跑时图标旋转、文案是「思考中」；本轮已结束但还没读到方案时图标停转、文案改为
- * 结束说明，并直接给出重新开始入口，避免一直转下去。展开状态不随阶段切换重置。
+ * 两种情况都点得开过程明细，展开区只与状态行之间用一条分隔线分段，不再套一层大边框。
+ * 结束态的「重新开始」仍走外壳的 onRestart，确认框与重开逻辑都不在这里。
  */
-function ThinkingPanel({
+function ThinkingStatus({
   t, items, running, restartBusy, onRestart,
 }: {
   readonly t: Translate
@@ -398,31 +400,38 @@ function ThinkingPanel({
 }): ReactNode {
   const [open, setOpen] = useState(false)
   return (
-    <div className={css.wizardThinking} data-wizard-thinking data-running={running ? 'true' : 'false'}>
-      <button
-        type="button"
-        className={css.thinkingToggle}
-        aria-expanded={open}
-        title={t('shell.wizardThinkingExpand')}
-        onClick={() => { setOpen(value => !value) }}
-      >
-        <span className={css.thinkingSpinner} data-wizard-spinner data-spinning={running ? 'true' : 'false'} aria-hidden />
-        <span>{running ? t('shell.wizardThinking') : t('shell.wizardThinkingEnded')}</span>
-      </button>
-      {running ? null : (
-        <div className={css.wizardThinkingMore}>
-          <span className={css.wizardResultKey}>{t('shell.wizardMoreRounds')}</span>
-          <button type="button" className={css.secondaryBtn} data-wizard-thinking-restart disabled={restartBusy} onClick={onRestart}>
+    <>
+      <div className={css.wizardStatus} data-wizard-thinking data-running={running ? 'true' : 'false'}>
+        <button
+          type="button"
+          className={css.thinkingToggle}
+          aria-expanded={open}
+          title={t('shell.wizardThinkingExpand')}
+          onClick={() => { setOpen(value => !value) }}
+        >
+          <span className={css.thinkingSpinner} data-wizard-spinner data-spinning={running ? 'true' : 'false'} aria-hidden />
+          <span>{running ? t('shell.wizardThinking') : t('shell.wizardThinkingEnded')}</span>
+        </button>
+        {running ? null : (
+          <button
+            type="button"
+            className={css.wizardStatusRestart}
+            data-wizard-thinking-restart
+            disabled={restartBusy}
+            onClick={onRestart}
+          >
             {restartBusy ? t('shell.restarting') : t('shell.restartIntake')}
           </button>
+        )}
+      </div>
+      {open ? (
+        <div className={css.wizardExpand} data-wizard-thinking-body>
+          {items.length === 0
+            ? <p className={css.wizardEmpty}>{t('shell.wizardThinkingEmpty')}</p>
+            : <div className={css.wizardProcess}><ProcessList items={items} t={t} /></div>}
         </div>
-      )}
-      {open
-        ? items.length === 0
-          ? <p className={css.wizardEmpty}>{t('shell.wizardThinkingEmpty')}</p>
-          : <div className={css.wizardProcess}><ProcessList items={items} t={t} /></div>
-        : null}
-    </div>
+      ) : null}
+    </>
   )
 }
 
