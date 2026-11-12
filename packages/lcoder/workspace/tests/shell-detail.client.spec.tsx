@@ -18,6 +18,7 @@ import type { SessionStatusSnapshot } from '@deepseek-ai/dsh-client-ui-session/c
 import type { PanelInfo } from '@deepseek-ai/dsh-client-ui-layout/client'
 import { Shell } from '../src/client/shell/Shell.tsx'
 import type { ShellProps } from '../src/client/shell/Shell.tsx'
+import type { ShellMessage } from '../src/client/shell/shell-data.ts'
 import type { CloudFace } from '../src/client/cloud/face.ts'
 import type { CloudState } from '@lcoder/kernel/src/cloud/types.ts'
 import { zh, en } from '../src/client/locales.ts'
@@ -116,6 +117,10 @@ interface ShellScenario {
   readonly provider?: string
   /** 工作区列表；缺省给一条会话所在的工作区。 */
   readonly workspaces?: WorkspaceSnapshot['items']
+  /** 会话消息读取；需求卡片的立项问答走这一支。 */
+  readonly readMessages?: ShellProps['readMessages']
+  readonly subscribeSession?: ShellProps['subscribeSession']
+  readonly holdSession?: ShellProps['holdSession']
 }
 
 /** 已登录的云端替身：门禁放行，详情用例只关心渲染事实；门禁本身有 cloud-login 专测。 */
@@ -209,6 +214,9 @@ function renderShell(scenario: ShellScenario) {
     signContract: async () => ({ ok: true, text: '已签署' }),
     assignTask: scenario.assignTask ?? vi.fn(async () => ({ ok: true, text: '已分配' })),
     logSchedule,
+    ...(scenario.readMessages === undefined ? {} : { readMessages: scenario.readMessages }),
+    ...(scenario.subscribeSession === undefined ? {} : { subscribeSession: scenario.subscribeSession }),
+    ...(scenario.holdSession === undefined ? {} : { holdSession: scenario.holdSession }),
   }
   const view = render(<Shell {...props} />)
   return { ...view, props, logSchedule }
@@ -304,6 +312,37 @@ describe('任务详情', () => {
     fireEvent.click(screen.getByTitle(zh['shell.newSession']))
     expect(await screen.findByText('评审')).toBeTruthy()
     expect(screen.getByText(zh['shell.role'])).toBeTruthy()
+  })
+
+  it('需求卡片按任务会话读立项问答；没有任务会话就退回当前会话', async () => {
+    const readMessages = vi.fn((): readonly ShellMessage[] => [{
+      role: 'process',
+      items: [{
+        kind: 'tool',
+        callId: 'call-1',
+        name: 'ask_user_question',
+        args: JSON.stringify({ questions: [{ id: 'q1', header: '用途', question: '主要给谁用？' }] }),
+        ok: true,
+        result: JSON.stringify({ answers: [{ id: 'q1', selected: ['个人记账小工具'] }] }),
+      }],
+    }])
+    const holdSession = vi.fn(() => () => {})
+    const subscribeSession = vi.fn(() => () => {})
+    renderShell({
+      spec: { tasks: { 'T-02.yaml': TASK_T02 } },
+      readMessages,
+      holdSession,
+      subscribeSession,
+    })
+
+    const card = await openTask('与 T-01 同方案的任务')
+    expect(readMessages).toHaveBeenCalledWith(SessionId('s-1'))
+    expect(holdSession).toHaveBeenCalledWith(SessionId('s-1'))
+    expect(within(card).getByText('共 1 问')).toBeTruthy()
+
+    fireEvent.click(card.querySelector('[data-section-toggle="answers"]') as HTMLElement)
+    expect(within(card).getByText('主要给谁用？')).toBeTruthy()
+    expect(within(card).getByText('个人记账小工具')).toBeTruthy()
   })
 
   it('任务卡与详情显示已分配岗位；未知 id 与未分配照实画出来', async () => {

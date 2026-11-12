@@ -72,7 +72,8 @@ import { browserSkinStorage, readSkin, SKINS, writeSkin } from './skin.ts'
 import type { Skin } from './skin.ts'
 import { recommendedRoleId } from './role-hint.ts'
 import { ChatTranscript, PendingInteractionCard } from './ChatPanel.tsx'
-import { buildRequirementSplitPrompt, isRequirementTask } from './requirement.ts'
+import { buildRequirementSplitPrompt, intakeAnswersOf, isRequirementTask } from './requirement.ts'
+import type { RequirementAnswer } from './requirement.ts'
 import { RequirementCard } from './RequirementCard.tsx'
 import { questionOf } from './pending.ts'
 import { ChatAttachButton, ChatAttachmentList, ChatModelChip } from './ChatExtras.tsx'
@@ -584,6 +585,8 @@ export function Shell({
   const [advancing, setAdvancing] = useState(false)
   const [advanceResult, setAdvanceResult] = useState<ShellSignResult | null>(null)
   const [proposals, setProposals] = useState<readonly ProposalRow[]>([])
+  /** 需求卡片下的立项问答；打开卡片时从任务会话读出，关闭即清空。 */
+  const [requirementAnswers, setRequirementAnswers] = useState<readonly RequirementAnswer[]>([])
   /** 采纳方案：出方案是模型的工具，这一步只由人点。 */
   const [approving, setApproving] = useState(false)
   const [approveResult, setApproveResult] = useState<ShellSignResult | null>(null)
@@ -1408,6 +1411,30 @@ export function Shell({
       release?.()
     }
   }, [wizardOpen, sessionId, readMessages, subscribeSession, readSessionFlags, readSessionNotice, holdSession])
+
+  /**
+   * 需求卡片的立项问答：按任务会话（没有就当前会话）读消息，卡片打开期间跟着刷新。
+   * 关闭就清空——问答不是缓存，下次打开重读会话事实。
+   */
+  const requirementSessionId = detail !== null && isRequirementTask(detail)
+    ? claimTaskSession(detail.session, taskSessionRows)?.sessionId ?? sessionId
+    : undefined
+  useEffect(() => {
+    if (requirementSessionId === undefined || readMessages === undefined) {
+      setRequirementAnswers([])
+      return
+    }
+    const release = holdSession?.(requirementSessionId)
+    const refresh = (): void => {
+      setRequirementAnswers(intakeAnswersOf(readMessages(requirementSessionId)))
+    }
+    refresh()
+    const unsubscribe = subscribeSession?.(requirementSessionId, refresh)
+    return () => {
+      unsubscribe?.()
+      release?.()
+    }
+  }, [requirementSessionId, readMessages, subscribeSession, holdSession])
 
   /** 一轮跑完就重读投影：结果卡要读的是刚落盘的方案，不等下一次定时刷新。 */
   const wizardRunWasRunning = useRef(false)
@@ -3599,6 +3626,8 @@ export function Shell({
               <RequirementCard
                 t={t}
                 task={detail}
+                proposal={detailProposal}
+                answers={requirementAnswers}
                 splitting={splitting}
                 error={splitError}
                 onClose={() => { setDetail(null) }}
