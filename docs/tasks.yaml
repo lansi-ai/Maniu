@@ -1418,6 +1418,18 @@ tracks:
       inferred: false
       note: "B 级视觉修正，来源是用户 2026-11-12 截图反馈登录页梅花由线条构成太乱。改法：canvas 不再描边花瓣，改用实心半透明花瓣填充，每朵五瓣闭合路径，中心一个小点；去掉花瓣描边与任何线段，减少重叠密度（间距可加大或按行列稀疏），指针位移与亮度保留但只作用于花瓣整体，静止时静态；工作台平铺梅花同样确认是实心填充，若是描边一并换掉。霓虹与冰蓝网格不变。验收 typecheck 与 packages/lcoder vitest 与 oxlint 与 test:docs 与 i18n；真窗口采样 rose 画布无长线段、花瓣区域有实心填充覆盖、指针 alpha 上升，切回霓虹正常；不做截图。工作树用 pool-slot-1 claim 到 lcoder/t126-solid-blossom。2026-11-12 11:40 监督窗口派工，实现线会话 78bf1e98；claim pool-slot-1 到分支 lcoder/t126-solid-blossom。2026-11-12 11:55 监督窗口核验并收口。独立复跑 vitest 七十二文件七百五十六例、test:docs 二十一项全过。实现线采样：rose 静止覆盖 0.80%、最大游程 13px（网格皮肤为 1280 与 820），花瓣实心 alpha 约 0.152；指针后同点 alpha 38.8 到 52.1、峰值 70 到 165，回弹逐值一致；工作台 data URI 无 stroke 只有 fill；切回 neon 恢复网格。未验项是人工视觉、真实登录工作台观感与 DPR2。已合入 lcoder/main、release pool-slot-1。"
 
+    - id: T-127
+      title: 立项分析改为需求分析师向导
+      status: doing
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-12'
+      date: '2026-11-12'
+      dep: []
+      inferred: false
+      note: "B 级界面重构，来源是用户 2026-11-12 截图与五段说明。范围只改「全新项目」这一档的立项入口，「已有资料」暂不变。一、点击全新项目先弹向导首页，标题为「现在由 LCoder 团队需求分析师与您对接需求」，其中 LCoder 用主题色、需求分析师用高亮色；中间三节为需求分析师简历、工作流程、高级配置（模型相关），三节默认折叠只露一行摘要，高级配置复用现有模型目录与选模型能力，不新建凭据界面；底部按钮为取消与确认。二、确认后建会话并发既有立项咒语，同时以过渡动画进入提问层；提问仍用现有 pending 提问卡，逐题选选项或自定义回答，全部回答后关闭提问层。三、提问层关闭后在分析师界面只显示思考中与一个小尺寸行内 loading，不全屏遮挡；点 loading 或思考中可展开查看思考与工具过程。四、分析结束后在同一区域右侧显示需求分析结果，下方两个按钮为确认需求与更多轮次；确认需求在有方案时调既有 proposal_approve 并回看板，更多轮次可展开，展开后是重新开始并走既有重开确认。约束是不复制模型逻辑，会话与发送仍走现有 startOnboarding 且保持幂等，关掉重开不重发；文案走词典，三套皮肤与窄窗可用，过渡动画尊重 reduced-motion。验收 typecheck 与 packages/lcoder vitest 与 oxlint 与 test:docs 与 i18n；纯状态机单测覆盖阶段流转与不重发；真窗口定向断言向导首页三节默认折叠、确认后提问层出现、回答完显示思考中与行内 loading、点击可看过程、结束后右侧出结果与两按钮，不做截图。工作树用 pool-slot-1 claim 到 lcoder/t127-intake-analyst，端口 9822 与 9829 与 9830。2026-11-12 13:10 监督窗口派工，实现线会话 c490f232；claim pool-slot-1 到分支 lcoder/t127-intake-analyst。"
+
 milestones:
 - name: MVP-0 工作台本地跑通
   track: lcoder
