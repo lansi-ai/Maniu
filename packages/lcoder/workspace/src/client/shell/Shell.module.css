@@ -73,7 +73,7 @@
 
   color-scheme: dark;
 
-  /* 默认皮肤：霓虹夜航。data-skin="silver" / "rose" 覆盖下列颜色与表面 token。 */
+  /* 默认皮肤：霓虹夜航。data-skin="silver" / "frost" / "rose" 覆盖下列颜色与表面 token。 */
   --lc-bg: #070b14;
   --lc-bg-glow-a: rgba(34, 211, 238, 0.16);
   --lc-bg-glow-b: rgba(244, 114, 182, 0.12);
@@ -362,6 +362,73 @@
 
   --dsh-scrollbar-thumb: rgba(80, 35, 60, 0.24);
   --dsh-scrollbar-thumb-hover: rgba(80, 35, 60, 0.42);
+}
+
+/* 霜白晨雾：冷白底、蓝到青绿的品牌色、细网格底纹、浅色玻璃；只覆盖颜色与表面 token。
+   正文、次要文字、说明文字、品牌文字与主按钮文字对浅底和玻璃底的对比度均不低于 4.5。 */
+.shell[data-skin="frost"] {
+  color-scheme: light;
+  --lc-bg: #f4f8fb;
+  --lc-bg-glow-a: rgba(2, 132, 199, 0.1);
+  --lc-bg-glow-b: rgba(13, 148, 136, 0.06);
+  --lc-backdrop-motif: grid;
+  --lc-backdrop-ink: rgba(2, 132, 199, 0.12);
+  --lc-backdrop-pitch: 40px;
+
+  --lc-surface: rgba(255, 255, 255, 0.8);
+  --lc-surface-2: #fbfdff;
+  --lc-surface-3: #e8f1f8;
+  --lc-surface-4: #dae9f4;
+  --lc-ink: #0b1b26;
+  --lc-muted: #40566a;
+  --lc-faint: #526879;
+  --lc-line: rgba(2, 132, 199, 0.14);
+  --lc-line-strong: rgba(2, 132, 199, 0.3);
+  --lc-brand: #0369a1;
+  --lc-brand-2: #0f766e;
+  --lc-brand-ink: #075985;
+  --lc-brand-soft: rgba(2, 132, 199, 0.1);
+  --lc-on-brand: #f7fcff;
+  --lc-on-danger: #fff7fa;
+  --lc-switch-knob: #ffffff;
+  --lc-logo-plate: #ffffff;
+  --lc-warn: #92400e;
+  --lc-status-warn: #92400e;
+  --lc-status-danger: #be123c;
+  --lc-status-ok: #046c50;
+  --lc-status-warn-soft: rgba(146, 64, 14, 0.12);
+  --lc-status-danger-soft: rgba(190, 18, 60, 0.1);
+  --lc-status-ok-soft: rgba(4, 108, 80, 0.1);
+  --lc-state-drafting: #526879;
+  --lc-state-contracted: #0369a1;
+  --lc-state-implementing: #0f766e;
+  --lc-state-verifying: #6d28d9;
+  --lc-state-closed: #046c50;
+  --lc-run-accent: rgba(2, 132, 199, 0.4);
+  --lc-wait-accent: rgba(146, 64, 14, 0.32);
+  --lc-run-ring-soft: rgba(13, 148, 136, 0.24);
+  --lc-hover: rgba(2, 132, 199, 0.06);
+  --lc-backdrop: rgba(12, 30, 44, 0.38);
+  --lc-floating-scrim: rgba(12, 30, 44, 0.3);
+  --lc-shadow-xs: 0 1px 2px rgba(12, 30, 44, 0.1);
+  --lc-shadow-card: inset 0 1px 0 rgba(255, 255, 255, 0.7), 0 12px 30px rgba(12, 30, 44, 0.1);
+  --lc-shadow-pop: 0 0 0 1px rgba(2, 132, 199, 0.1), 0 20px 56px rgba(12, 30, 44, 0.14);
+  --lc-shadow-float: 0 0 0 1px rgba(2, 132, 199, 0.1), 0 30px 90px rgba(12, 30, 44, 0.16);
+  --lc-glow-soft: 0 0 0 1px rgba(2, 132, 199, 0.12);
+  --lc-glow-brand: 0 0 18px rgba(2, 132, 199, 0.22);
+  --lc-glow-text: none;
+  --lc-chrome-shadow: 0 1px 0 rgba(2, 132, 199, 0.16), 0 8px 24px rgba(12, 30, 44, 0.08);
+  --lc-focus: 0 0 0 3px rgba(2, 132, 199, 0.28);
+  --lc-display-rest: 0.8;
+
+  --lc-glass-solid: #fbfdff;
+  --lc-glass-bg: rgba(250, 253, 255, 0.72);
+  --lc-glass-border: rgba(2, 132, 199, 0.18);
+  --lc-glass-blur: 14px;
+  --lc-glass-saturate: 1.05;
+
+  --dsh-scrollbar-thumb: rgba(11, 27, 38, 0.24);
+  --dsh-scrollbar-thumb-hover: rgba(11, 27, 38, 0.42);
 }
 
 .shell * { box-sizing: border-box; }
@@ -1120,10 +1187,12 @@
 .skinSwatch { width: 12px; height: 12px; border-radius: 50%; flex: 0 0 auto; border: 1px solid var(--lc-line-strong); }
 .skinSwatchNeon { background: conic-gradient(from 210deg, #22d3ee, #f472b6, #22d3ee); }
 .skinSwatchSilver { background: conic-gradient(from 210deg, #7dd3fc, #a3e635, #7dd3fc); }
+.skinSwatchFrost { background: conic-gradient(from 210deg, #7dd3fc, #2dd4bf, #7dd3fc); }
 .skinSwatchRose { background: conic-gradient(from 210deg, #d21c72, #a21caf, #d21c72); }
 .skinOrb { width: 16px; height: 16px; border-radius: 50%; border: 1px solid var(--lc-line-strong); }
 .skinOrbNeon { background: conic-gradient(from 210deg, #22d3ee, #f472b6, #22d3ee); box-shadow: 0 0 12px rgba(34, 211, 238, 0.45); }
 .skinOrbSilver { background: conic-gradient(from 210deg, #7dd3fc, #a3e635, #7dd3fc); box-shadow: 0 0 10px rgba(125, 211, 252, 0.35); }
+.skinOrbFrost { background: conic-gradient(from 210deg, #7dd3fc, #2dd4bf, #7dd3fc); box-shadow: 0 0 10px rgba(45, 212, 191, 0.35); }
 .skinOrbRose { background: conic-gradient(from 210deg, #d21c72, #a21caf, #d21c72); box-shadow: 0 0 10px rgba(210, 28, 114, 0.35); }
 
 .drawerBackdrop {

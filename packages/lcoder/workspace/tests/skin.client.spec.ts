@@ -32,9 +32,10 @@ describe('皮肤偏好', () => {
     expect(readSkin(memoryStorage())).toBe('neon')
   })
 
-  it('只认三套已知皮肤，未知值回默认', () => {
+  it('只认四套已知皮肤，未知值回默认', () => {
     expect(isSkin('neon')).toBe(true)
     expect(isSkin('silver')).toBe(true)
+    expect(isSkin('frost')).toBe(true)
     expect(isSkin('rose')).toBe(true)
     expect(isSkin('light')).toBe(false)
     expect(readSkin(memoryStorage('light'))).toBe('neon')
@@ -42,7 +43,7 @@ describe('皮肤偏好', () => {
 
   it('写入后重新读取能拿回同一套皮肤，等同刷新恢复', () => {
     const storage = memoryStorage()
-    for (const skin of ['silver', 'rose', 'neon'] as const) {
+    for (const skin of ['silver', 'frost', 'rose', 'neon'] as const) {
       writeSkin(storage, skin)
       expect(readSkin(storage)).toBe(skin)
     }

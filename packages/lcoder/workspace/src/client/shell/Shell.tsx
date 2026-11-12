@@ -254,13 +254,15 @@ const STATE_DOT: Record<ShellTaskState, string | undefined> = {
 const SKIN_LABEL: Record<Skin, LcoderWorkspaceKey> = {
   neon: 'shell.skinNeon',
   silver: 'shell.skinSilver',
+  frost: 'shell.skinFrost',
   rose: 'shell.skinRose',
 }
 
 /** 皮肤到下一套的映射；顶栏色球按这个顺序循环。 */
 const NEXT_SKIN: Record<Skin, Skin> = {
   neon: 'silver',
-  silver: 'rose',
+  silver: 'frost',
+  frost: 'rose',
   rose: 'neon',
 }
 
@@ -268,6 +270,7 @@ const NEXT_SKIN: Record<Skin, Skin> = {
 const SKIN_ORB: Record<Skin, string | undefined> = {
   neon: css.skinOrbNeon,
   silver: css.skinOrbSilver,
+  frost: css.skinOrbFrost,
   rose: css.skinOrbRose,
 }
 
@@ -275,6 +278,7 @@ const SKIN_ORB: Record<Skin, string | undefined> = {
 const SKIN_SWATCH: Record<Skin, string | undefined> = {
   neon: css.skinSwatchNeon,
   silver: css.skinSwatchSilver,
+  frost: css.skinSwatchFrost,
   rose: css.skinSwatchRose,
 }
 
