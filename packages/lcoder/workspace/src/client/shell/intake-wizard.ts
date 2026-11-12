@@ -10,6 +10,12 @@ import type { ShellMessage, ShellProcessItem } from './shell-data.ts'
 /** 向导阶段：首页、提问、思考、结果、关闭。 */
 export type IntakeWizardPhase = 'home' | 'questions' | 'thinking' | 'result' | 'closed'
 
+/**
+ * 外壳代发的确认消息正文；与立项咒语里「等用户回复确认需求」的说法一致。
+ * 会话里出现过这条用户消息就算需求已确认，刷新、关掉重开都不再重发。
+ */
+export const INTAKE_CONFIRM_TEXT = '确认需求'
+
 /** 阶段判定用到的会话事实。 */
 export interface IntakeWizardFacts {
   /** 向导是否打开；关闭后一律是 `closed`。 */
@@ -18,20 +24,26 @@ export interface IntakeWizardFacts {
   readonly started: boolean
   /** 当前待答问题数；审批不算问题。 */
   readonly questionCount: number
-  /** 宿主推流里这一轮是否在跑。 */
+  /** 这一轮是否仍在跑；调用方传沉降后的运行事实，不传瞬时值。 */
   readonly running: boolean
   /** 会话里是否已出现过程或答复；用来区分「刚发出、还没开始跑」与「本轮已结束」。 */
   readonly hasOutput: boolean
   /** 投影里读到的方案数。 */
   readonly proposalCount: number
+  /** 最后一条非空助手答复；没有时为 null。 */
+  readonly summary: string | null
+  /** 会话里是否已经有用户确认过需求。 */
+  readonly confirmed: boolean
+  /** 项目或任务是否已落盘；方案另由 `proposalCount` 算。 */
+  readonly landed: boolean
 }
 
 /**
  * 按会话事实决定向导当前阶段。
  *
- * 待答问题优先于已有方案：模型继续追问时仍停在提问层，不拿旧方案把提问盖掉。
- * 结果只在本轮已结束、且会话里已经有过输出时出现，避免刚发出咒语就把上一轮
- * 遗留的方案当成这一次的结论。
+ * 待答问题优先于已有方案与概要：模型继续追问时仍停在提问层。
+ * 本轮停下后，有方案、有聊天概要，或已有落盘结果的确认轮都进结果卡；
+ * 三者都没有才停在结束态。结果不在两轮之间闪，靠调用方传沉降后的运行事实。
  * @param facts - 会话事实。
  * @returns 当前阶段。
  */
@@ -39,8 +51,36 @@ export function intakeWizardPhase(facts: IntakeWizardFacts): IntakeWizardPhase {
   if (!facts.open) return 'closed'
   if (!facts.started) return 'home'
   if (facts.questionCount > 0) return 'questions'
-  if (facts.proposalCount > 0 && !facts.running && facts.hasOutput) return 'result'
+  if (facts.running || !facts.hasOutput) return 'thinking'
+  if (facts.proposalCount > 0 || facts.summary !== null || (facts.confirmed && facts.landed)) return 'result'
   return 'thinking'
+}
+
+/** 结果卡要画的那一种内容。 */
+export type IntakeResultView = 'proposal' | 'summary' | 'confirmed' | 'pending'
+
+/** 结果卡判定用到的事实。 */
+export interface IntakeResultFacts {
+  /** 投影里读到的方案数。 */
+  readonly proposalCount: number
+  /** 最后一条非空助手答复；没有时为 null。 */
+  readonly summary: string | null
+  /** 会话里是否已经有用户确认过需求。 */
+  readonly confirmed: boolean
+  /** 项目或任务是否已落盘。 */
+  readonly landed: boolean
+}
+
+/**
+ * 结果卡画什么：方案优先，其次本轮聊天概要，再其次已确认且已落盘，最后是方案还没读出来。
+ * @param facts - 方案、概要、确认与落盘事实。
+ * @returns 结果卡的内容种类。
+ */
+export function intakeResultView(facts: IntakeResultFacts): IntakeResultView {
+  if (facts.proposalCount > 0) return 'proposal'
+  if (facts.summary !== null) return 'summary'
+  if (facts.confirmed && facts.landed) return 'confirmed'
+  return 'pending'
 }
 
 /** 判断立项咒语发没发过所需的会话事实。 */
@@ -71,27 +111,46 @@ export interface IntakeWizardOutput {
   readonly hasOutput: boolean
   /** 按消息顺序摊平的全部过程条目。 */
   readonly items: readonly ShellProcessItem[]
+  /** 最后一条非空助手答复的 Markdown 正文；没有时为 null。 */
+  readonly summary: string | null
 }
 
 /**
- * 从消息窗口折出思考与工具过程。
+ * 从消息窗口折出思考与工具过程，以及聊天气泡里的最后一条答复。
  *
- * 只收过程段与助手答复的存在性；用户消息、注入上下文与压缩标记不算输出，
- * 因此刚发出咒语、模型还没动手时不会误判成「本轮已结束」。
+ * 只收过程段与助手答复；用户消息、注入上下文与压缩标记不算输出，
+ * 因此刚发出咒语、模型还没动手时不会误判成「本轮已结束」。概要只认助手正文，
+ * 过程段（思考与工具调用）不算概要，空答复也不覆盖前一条。
  * @param messages - 会话事件窗口折成的消息。
- * @returns 是否已有输出，以及摊平后的过程条目。
+ * @returns 是否已有输出、摊平后的过程条目，以及最后一条非空助手答复。
  */
 export function intakeWizardOutput(messages: readonly ShellMessage[]): IntakeWizardOutput {
   const items: ShellProcessItem[] = []
   let hasOutput = false
+  let summary: string | null = null
   for (const message of messages) {
-    if (message.role === 'assistant') hasOutput = true
-    else if (message.role === 'process') {
+    if (message.role === 'assistant') {
+      hasOutput = true
+      const text = message.text.trim()
+      if (text !== '') summary = text
+    } else if (message.role === 'process') {
       hasOutput = true
       items.push(...message.items)
     }
   }
-  return { hasOutput, items }
+  return { hasOutput, items, summary }
+}
+
+/**
+ * 这条会话里用户确认过需求没有。
+ *
+ * 只认去掉首尾空白后与 {@link INTAKE_CONFIRM_TEXT} 完全相等的用户消息；
+ * 立项咒语与注入上下文都不匹配，所以判据不依赖组件状态，刷新、关掉重开都读同一份日志。
+ * @param messages - 会话事件窗口折成的消息。
+ * @returns 已确认时为 true。
+ */
+export function intakeConfirmed(messages: readonly ShellMessage[]): boolean {
+  return messages.some(message => message.role === 'user' && message.text.trim() === INTAKE_CONFIRM_TEXT)
 }
 
 /** 高级配置里可选的一个模型。 */

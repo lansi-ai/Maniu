@@ -88,6 +88,11 @@ function propsOf(overrides: Partial<IntakeWizardProps> = {}): IntakeWizardProps 
     modelBlocked: false,
     sending: false,
     proposal: null,
+    result: 'pending',
+    summary: null,
+    confirmed: false,
+    confirming: false,
+    landed: false,
     tasks: [],
     running: true,
     approving: false,
@@ -100,6 +105,8 @@ function propsOf(overrides: Partial<IntakeWizardProps> = {}): IntakeWizardProps 
     onLoadModels: vi.fn(),
     onOpenSettings: vi.fn(),
     onApprove: vi.fn(),
+    onConfirmNeed: vi.fn(),
+    onOpenBoard: vi.fn(),
     onRestart: vi.fn(),
     ...overrides,
   }
@@ -301,7 +308,7 @@ describe('思考中', () => {
     rerender(<IntakeWizard {...propsOf({ phase: 'thinking' })} />)
     expect(container.querySelector('[data-lcoder-intake-wizard]')?.getAttribute('data-quiet')).toBe('true')
 
-    rerender(<IntakeWizard {...propsOf({ phase: 'result', proposal: proposalOf() })} />)
+    rerender(<IntakeWizard {...propsOf({ phase: 'result', result: 'proposal', proposal: proposalOf() })} />)
     expect(container.querySelector('[data-lcoder-intake-wizard]')?.getAttribute('data-quiet')).toBe('true')
   })
 })
@@ -311,6 +318,7 @@ describe('结果卡', () => {
     const onApprove = vi.fn()
     const { container } = render(<IntakeWizard {...propsOf({
       phase: 'result',
+      result: 'proposal',
       proposal: proposalOf(),
       tasks: [
         taskOf('T-01', '借书流程', 'P-01'),
@@ -342,6 +350,7 @@ describe('结果卡', () => {
   it('没有回指本方案的任务时计数写 0，且不画编号列表', () => {
     const { container } = render(<IntakeWizard {...propsOf({
       phase: 'result',
+      result: 'proposal',
       proposal: proposalOf(),
       tasks: [taskOf('T-04', '没有回指的任务')],
     })} />)
@@ -352,7 +361,7 @@ describe('结果卡', () => {
 
   it('候选为空时不画候选小节', () => {
     const proposal = { ...proposalOf(), options: [] }
-    render(<IntakeWizard {...propsOf({ phase: 'result', proposal })} />)
+    render(<IntakeWizard {...propsOf({ phase: 'result', result: 'proposal', proposal })} />)
 
     expect(screen.queryByText(zh['shell.proposalOptions'])).toBeNull()
     expect(screen.getByText(zh['shell.proposalProblem'])).toBeTruthy()
@@ -360,7 +369,9 @@ describe('结果卡', () => {
 
   it('更多轮次展开后是重新开始，确认框与重开逻辑仍由外壳负责', () => {
     const onRestart = vi.fn()
-    render(<IntakeWizard {...propsOf({ phase: 'result', proposal: proposalOf(), onRestart })} />)
+    render(<IntakeWizard {...propsOf({
+      phase: 'result', result: 'proposal', proposal: proposalOf(), onRestart,
+    })} />)
 
     const more = screen.getByRole('button', { name: zh['shell.wizardMoreRounds'] })
     expect(more.getAttribute('aria-expanded')).toBe('false')
@@ -373,12 +384,13 @@ describe('结果卡', () => {
 
   it('采纳失败原文就地显示，卡片不关；在途时确认按钮禁用', () => {
     const { rerender } = render(<IntakeWizard {...propsOf({
-      phase: 'result', proposal: proposalOf(), approving: true,
+      phase: 'result', result: 'proposal', proposal: proposalOf(), approving: true,
     })} />)
     expect(screen.getByRole('button', { name: zh['shell.approving'] }).hasAttribute('disabled')).toBe(true)
 
     rerender(<IntakeWizard {...propsOf({
       phase: 'result',
+      result: 'proposal',
       proposal: proposalOf(),
       approveResult: { ok: false, text: 'proposal/not-found: P-01' },
     })} />)
@@ -391,6 +403,91 @@ describe('结果卡', () => {
 
     expect(screen.getByText(zh['shell.wizardResultMissing'])).toBeTruthy()
     expect(container.querySelector<HTMLButtonElement>('[data-wizard-approve]')?.disabled).toBe(true)
+  })
+
+  it('只有聊天概要时用 Markdown 画出最后答复，保留确认需求与更多轮次', () => {
+    const onConfirmNeed = vi.fn()
+    const onApprove = vi.fn()
+    const { container } = render(<IntakeWizard {...propsOf({
+      phase: 'result',
+      result: 'summary',
+      summary: '## 项目需求概要 V0.1\n\n- 业务目标：图书借阅\n\n**范围**：借还书\n\n<script>alert(1)</script>',
+      onConfirmNeed,
+      onApprove,
+    })} />)
+
+    expect(screen.getByText(zh['shell.wizardResultTitle'])).toBeTruthy()
+    expect(screen.getByText(zh['shell.wizardSummaryHint'])).toBeTruthy()
+    const summary = container.querySelector('[data-wizard-summary]')
+    expect(summary).not.toBeNull()
+    expect(summary?.querySelector('h2')?.textContent).toBe('项目需求概要 V0.1')
+    expect(summary?.querySelector('strong')?.textContent).toBe('范围')
+    // 原始 HTML 不执行：脚本标签既没有成为元素，也不会跑出可见文本。
+    expect(summary?.querySelector('script')).toBeNull()
+    expect(screen.getByRole('button', { name: zh['shell.wizardMoreRounds'] })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: zh['shell.confirmRequirement'] }))
+    expect(onConfirmNeed).toHaveBeenCalledTimes(1)
+    expect(onApprove).not.toHaveBeenCalled()
+  })
+
+  it('确认在途时按钮禁用并显示正在发送', () => {
+    const { container } = render(<IntakeWizard {...propsOf({
+      phase: 'result', result: 'summary', summary: '概要正文', confirming: true,
+    })} />)
+
+    const button = container.querySelector<HTMLButtonElement>('[data-wizard-approve]')
+    expect(button?.disabled).toBe(true)
+    expect(button?.textContent).toBe(zh['shell.wizardConfirmSending'])
+  })
+
+  it('已确认后按钮置为已确认且不再发送；落盘后可直接去看板', () => {
+    const onConfirmNeed = vi.fn()
+    const onOpenBoard = vi.fn()
+    const { container } = render(<IntakeWizard {...propsOf({
+      phase: 'result', result: 'summary', summary: '概要正文', confirmed: true, landed: true,
+      onConfirmNeed, onOpenBoard,
+    })} />)
+
+    const button = container.querySelector<HTMLButtonElement>('[data-wizard-approve]')
+    expect(button?.disabled).toBe(true)
+    expect(button?.textContent).toBe(zh['shell.wizardConfirmedTitle'])
+    if (button !== null) fireEvent.click(button)
+    expect(onConfirmNeed).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: zh['shell.backToBoard'] }))
+    expect(onOpenBoard).toHaveBeenCalledTimes(1)
+  })
+
+  it('已确认且落盘但没读到方案时只说已确认，给去看板', () => {
+    const onOpenBoard = vi.fn()
+    const { container } = render(<IntakeWizard {...propsOf({
+      phase: 'result', result: 'confirmed', confirmed: true, landed: true, onOpenBoard,
+    })} />)
+
+    expect(screen.getByText(zh['shell.wizardConfirmedHint'])).toBeTruthy()
+    expect(container.querySelector('[data-wizard-confirmed]')?.textContent).toBe(zh['shell.wizardConfirmedTitle'])
+    expect(screen.queryByRole('button', { name: zh['shell.confirmRequirement'] })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: zh['shell.backToBoard'] }))
+    expect(onOpenBoard).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('确认后的失败态', () => {
+  it('已确认但这一轮什么都没落盘时，结束说明下补一句失败提示，并保留重新开始', () => {
+    const onRestart = vi.fn()
+    render(<IntakeWizard {...propsOf({
+      phase: 'thinking', running: false, confirmed: true, onRestart,
+    })} />)
+
+    expect(screen.getByText(zh['shell.wizardThinkingEnded'])).toBeTruthy()
+    expect(screen.getByText(zh['shell.wizardConfirmFailed'])).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: zh['shell.restartIntake'] }))
+    expect(onRestart).toHaveBeenCalledTimes(1)
+  })
+
+  it('还没确认过的结束态不显示失败提示', () => {
+    const { container } = render(<IntakeWizard {...propsOf({ phase: 'thinking', running: false })} />)
+
+    expect(container.querySelector('[data-wizard-confirm-failed]')).toBeNull()
   })
 })
 

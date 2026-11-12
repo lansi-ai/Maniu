@@ -5,7 +5,8 @@
 import { describe, expect, it } from 'vitest'
 import type { ShellMessage } from '../src/client/shell/shell-data.ts'
 import {
-  defaultIntakeModel, intakeModelOptions, intakePromptStarted, intakeWizardOutput, intakeWizardPhase,
+  defaultIntakeModel, INTAKE_CONFIRM_TEXT, intakeConfirmed, intakeModelOptions, intakePromptStarted,
+  intakeResultView, intakeWizardOutput, intakeWizardPhase,
 } from '../src/client/shell/intake-wizard.ts'
 import type { IntakeModelCatalog, IntakeWizardFacts } from '../src/client/shell/intake-wizard.ts'
 
@@ -17,6 +18,9 @@ const home: IntakeWizardFacts = {
   running: false,
   hasOutput: false,
   proposalCount: 0,
+  summary: null,
+  confirmed: false,
+  landed: false,
 }
 
 describe('向导阶段', () => {
@@ -54,7 +58,7 @@ describe('向导阶段', () => {
     })).toBe('result')
   })
 
-  it('本轮结束但投影里没有方案时继续停在思考中', () => {
+  it('本轮结束但既没有方案也没有概要时继续停在结束态', () => {
     expect(intakeWizardPhase({
       ...home, started: true, running: false, hasOutput: true, proposalCount: 0,
     })).toBe('thinking')
@@ -64,6 +68,54 @@ describe('向导阶段', () => {
     expect(intakeWizardPhase({
       ...home, started: true, running: true, hasOutput: true, proposalCount: 1,
     })).toBe('thinking')
+  })
+
+  it('有聊天概要、没有方案也算结果：概要就是这一轮的结论', () => {
+    expect(intakeWizardPhase({
+      ...home, started: true, running: false, hasOutput: true, summary: '## 项目需求概要',
+    })).toBe('result')
+  })
+
+  it('有概要但这一轮还在沉降里时仍是思考中，结果卡不提前闪出来', () => {
+    expect(intakeWizardPhase({
+      ...home, started: true, running: true, hasOutput: true, summary: '## 项目需求概要',
+    })).toBe('thinking')
+  })
+
+  it('有待答问题时概要也让位给提问', () => {
+    expect(intakeWizardPhase({
+      ...home, started: true, questionCount: 1, hasOutput: true, summary: '## 项目需求概要',
+    })).toBe('questions')
+  })
+
+  it('已确认且已落盘、但没有方案与概要时进结果卡说已确认', () => {
+    expect(intakeWizardPhase({
+      ...home, started: true, running: false, hasOutput: true, confirmed: true, landed: true,
+    })).toBe('result')
+  })
+
+  it('已确认但什么都没落盘、也没有新概要时仍是结束态', () => {
+    expect(intakeWizardPhase({
+      ...home, started: true, running: false, hasOutput: true, confirmed: true, landed: false,
+    })).toBe('thinking')
+  })
+})
+
+describe('结果卡内容', () => {
+  it('方案优先：有方案时不拿概要顶替', () => {
+    expect(intakeResultView({ proposalCount: 1, summary: '概要', confirmed: false, landed: false })).toBe('proposal')
+  })
+
+  it('没有方案时有概要用概要', () => {
+    expect(intakeResultView({ proposalCount: 0, summary: '概要', confirmed: false, landed: false })).toBe('summary')
+  })
+
+  it('已确认且已落盘但没有方案与概要时只说已确认', () => {
+    expect(intakeResultView({ proposalCount: 0, summary: null, confirmed: true, landed: true })).toBe('confirmed')
+  })
+
+  it('什么都没读到时保留方案还没读出来的说明', () => {
+    expect(intakeResultView({ proposalCount: 0, summary: null, confirmed: false, landed: false })).toBe('pending')
   })
 })
 
@@ -107,16 +159,65 @@ describe('思考过程汇总', () => {
       { kind: 'reasoning', text: '先问清目标' },
       { kind: 'tool', callId: 'c1', name: 'file_read', args: '{}', ok: true },
     ])
+    expect(output.summary).toBe('## 需求概要')
   })
 
-  it('只有用户消息、注入上下文与压缩标记时不算有输出', () => {
+  it('只有用户消息、注入上下文与压缩标记时不算有输出，也没有概要', () => {
     const messages: readonly ShellMessage[] = [
       { role: 'user', text: '全新项目立项：demo', hidden: true },
       { role: 'context', text: 'runtime context', label: 'runtime-context' },
       { role: 'compaction', items: 2, tokens: 100 },
     ]
 
-    expect(intakeWizardOutput(messages)).toEqual({ hasOutput: false, items: [] })
+    expect(intakeWizardOutput(messages)).toEqual({ hasOutput: false, items: [], summary: null })
+  })
+
+  it('概要取最后一条非空助手答复，过程段不算概要', () => {
+    const messages: readonly ShellMessage[] = [
+      { role: 'user', text: '确认需求' },
+      { role: 'assistant', text: '## 项目需求概要 V0.1\n\n第一版范围' },
+      { role: 'process', items: [{ kind: 'reasoning', text: '接下来写文件' }] },
+      { role: 'assistant', text: '   ' },
+      { role: 'assistant', text: '已按顺序落盘 project.yaml 与任务草稿' },
+      { role: 'process', items: [{ kind: 'tool', callId: 'c2', name: 'task_draft', args: '{}', ok: true }] },
+    ]
+
+    const output = intakeWizardOutput(messages)
+
+    expect(output.summary).toBe('已按顺序落盘 project.yaml 与任务草稿')
+    expect(output.items).toHaveLength(2)
+  })
+
+  it('只有过程段与空答复时没有概要，但有输出', () => {
+    const messages: readonly ShellMessage[] = [
+      { role: 'process', items: [{ kind: 'reasoning', text: '先问清目标' }] },
+      { role: 'assistant', text: '\n  \n' },
+    ]
+
+    expect(intakeWizardOutput(messages)).toEqual({
+      hasOutput: true,
+      items: [{ kind: 'reasoning', text: '先问清目标' }],
+      summary: null,
+    })
+  })
+})
+
+describe('需求是否已确认', () => {
+  it('用户消息去掉首尾空白后完全等于确认需求才算已确认', () => {
+    expect(intakeConfirmed([{ role: 'user', text: `  ${INTAKE_CONFIRM_TEXT}\n` }])).toBe(true)
+  })
+
+  it('立项咒语、注入上下文、助手答复与近似说法都不算确认', () => {
+    expect(intakeConfirmed([
+      { role: 'user', text: '全新项目立项：demo', hidden: true },
+      { role: 'context', text: '确认需求', label: 'runtime-context' },
+      { role: 'assistant', text: '确认需求' },
+      { role: 'user', text: '确认需求，另外再改一下第一版范围' },
+    ])).toBe(false)
+  })
+
+  it('空会话不算已确认', () => {
+    expect(intakeConfirmed([])).toBe(false)
   })
 })
 
