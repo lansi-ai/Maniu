@@ -1648,7 +1648,7 @@ tracks:
 
     - id: T-146
       title: 拆分任务分配后直接进待开发
-      status: doing
+      status: done
       face: 用户端
       type: 开发
       owner: lance
@@ -1656,7 +1656,7 @@ tracks:
       date: '2026-11-12'
       dep: [T-139, T-145]
       inferred: false
-      note: "A 级流程改动，来源是用户 2026-11-12 明确拆分出的任务应直接进入待开发列。现状 PM 只能建 drafting 任务，drafting 到 contracted 必须逐条签契约，所以拆分任务和需求 T-01 一起停在需求确认。用户拍板：以需求文档作为契约依据，拆分任务分配后直接推进到待开发，跳过逐任务契约。实现：一、kernel 新增人机命令 task_split_ready，只接受 drafting 且带 proposal 回指与 role 的任务，transition 到 contracted 并写备注；不进任何角色工具面，模型不能调用；二、客户端新增 splitReady 映射并接入拆分流程：分配完成后对每条新任务调用该命令，逐条记录成功失败，失败不静默；三、看板刷新后任务进入待开发，需求 T-01 留在需求确认；四、卡片结果显示拆了几条、分配几条、进待开发几条与失败明细；五、现有 /task_contract 不变，有契约的任务仍走原路径。约束是不改其它状态机边、不新增页面、文案走词典、四套皮肤与窄窗可用。验收 kernel 单测；typecheck 与 packages/lcoder vitest 与 oxlint 与 test:docs 与 i18n；真窗口用现有 T-02 到 T-05 定向断言进入待开发，不做截图。工作树用 pool-slot-1 claim 到 lcoder/t146-split-ready，端口 9822 与 9829 与 9830。2026-11-12 22:10 监督窗口派工，实现线会话 39bfb1ca；用户选定拆分任务直接进待开发。"
+      note: "A 级流程改动，来源是用户 2026-11-12 明确拆分出的任务应直接进入待开发列。现状 PM 只能建 drafting 任务，drafting 到 contracted 必须逐条签契约，所以拆分任务和需求 T-01 一起停在需求确认。用户拍板：以需求文档作为契约依据，拆分任务分配后直接推进到待开发，跳过逐任务契约。实现：一、kernel 新增人机命令 task_split_ready，只接受 drafting 且带 proposal 回指与 role 的任务，transition 到 contracted 并写备注；不进任何角色工具面，模型不能调用；二、客户端新增 splitReady 映射并接入拆分流程：分配完成后对每条新任务调用该命令，逐条记录成功失败，失败不静默；三、看板刷新后任务进入待开发，需求 T-01 留在需求确认；四、卡片结果显示拆了几条、分配几条、进待开发几条与失败明细；五、现有 /task_contract 不变，有契约的任务仍走原路径。约束是不改其它状态机边、不新增页面、文案走词典、四套皮肤与窄窗可用。验收 kernel 单测；typecheck 与 packages/lcoder vitest 与 oxlint 与 test:docs 与 i18n；真窗口用现有 T-02 到 T-05 定向断言进入待开发，不做截图。工作树用 pool-slot-1 claim 到 lcoder/t146-split-ready，端口 9822 与 9829 与 9830。2026-11-12 22:10 监督窗口派工，实现线会话 39bfb1ca；用户选定拆分任务直接进待开发。2026-11-12 22:30 监督窗口核验并收口。独立复跑 kernel 三十四文件三百六十二例、客户端八十文件九百一十二例、typecheck 五项、i18n 一千三百零九文件、test:docs 二十一项、改动文件 oxlint 全过；主检出复跑同组门禁与 build:artifacts 与 build:check 全过。真机探针：对现有 T-02 到 T-05 重试拆分，PM 跳过、补分配并逐条执行 task_split_ready，四条全部 contracted；看板需求确认仅 T-01，待开发四条带岗位与依赖，下一步为实施 T-02。未验项是四套皮肤观感。已合入 lcoder/main、release pool-slot-1。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
