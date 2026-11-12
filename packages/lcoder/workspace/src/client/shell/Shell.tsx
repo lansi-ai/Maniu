@@ -48,8 +48,14 @@ import type { TaskCardStatus, TaskQueueMark, TaskSessionRow } from '../task-sess
 import { EMPTY_TASK_FILTER, filterTasks, isFilterActive, TASK_GRADE_CHOICES } from '../task-filter.ts'
 import type { SessionFilter, TaskFilter } from '../task-filter.ts'
 import { onboardingAction } from '../onboarding.ts'
-import { intakeArtifactsOf, intakeTierOfMessages, PROPOSAL_DECISION, runIntakeRestart } from './intake.ts'
+import { intakeArtifactsOf, intakeTierOfMessages, PROPOSAL_DECISION, runIntakeRestart, latestProposal } from './intake.ts'
 import type { IntakeTier } from './intake.ts'
+import {
+  defaultIntakeModel, intakeModelOptions, intakePromptStarted, intakeWizardOutput, intakeWizardPhase,
+} from './intake-wizard.ts'
+import type { IntakeModelOption } from './intake-wizard.ts'
+import { IntakeWizard } from './IntakeWizard.tsx'
+import type { IntakeModelState } from './IntakeWizard.tsx'
 import { IntakeResultPage, IntakeRestartDialog } from './IntakeResultPage.tsx'
 import { CloudAccountButton, CloudDialog, CloudLoginScreen } from '../cloud/CloudAccount.tsx'
 import { PersonalCenter } from '../cloud/PersonalCenter.tsx'
@@ -64,6 +70,7 @@ import { browserSkinStorage, readSkin, SKINS, writeSkin } from './skin.ts'
 import type { Skin } from './skin.ts'
 import { recommendedRoleId } from './role-hint.ts'
 import { ChatTranscript, PendingInteractionCard } from './ChatPanel.tsx'
+import { questionOf } from './pending.ts'
 import { ChatAttachButton, ChatAttachmentList, ChatModelChip } from './ChatExtras.tsx'
 import { TaskAttachments } from './TaskAttachments.tsx'
 import type { TaskAttachmentReader } from './TaskAttachments.tsx'
@@ -76,7 +83,7 @@ import type {
   ChatUploadResult,
 } from './chat-composer.ts'
 import { ModelSettings } from './ModelSettings.tsx'
-import type { ModelSettingsFace } from './model-settings.ts'
+import type { ModelSettingsFace, ModelSettingsSnapshot } from './model-settings.ts'
 import { desktopWindowBridge } from './window-chrome.ts'
 import type { DesktopWindowCommand, DesktopWindowState } from './window-chrome.ts'
 import { useBoardRefresh } from './board-refresh.ts'
@@ -508,6 +515,19 @@ export function Shell({
   const [settings, setSettings] = useState(false)
   /** 立项结果页：独立整页，打开时看板让位，不复用弹窗。 */
   const [resultPage, setResultPage] = useState(false)
+  /** 「全新项目」需求分析师向导：阶段由会话事实算出，这里只记开没开。 */
+  const [wizardOpen, setWizardOpen] = useState(false)
+  const [wizardMessages, setWizardMessages] = useState<readonly ShellMessage[]>([])
+  const [wizardFlags, setWizardFlags] = useState<{ readonly awaitingFirstTurn: boolean; readonly failed: boolean } | null>(null)
+  const [wizardError, setWizardError] = useState<string | null>(null)
+  const [wizardSending, setWizardSending] = useState(false)
+  /** 高级配置里选中的模型；null 表示用目录默认。建会话后才在发送前落一次。 */
+  const [wizardModelChoice, setWizardModelChoice] = useState<IntakeModelOption | null>(null)
+  const [intakeModelSnapshot, setIntakeModelSnapshot] = useState<ModelSettingsSnapshot | null>(null)
+  const [intakeModelState, setIntakeModelState] = useState<IntakeModelState>('idle')
+  /** 结果卡里的采纳：成功才关向导，失败原文就地显示。 */
+  const [wizardApproving, setWizardApproving] = useState(false)
+  const [wizardApproveResult, setWizardApproveResult] = useState<ShellSignResult | null>(null)
   /** 个人中心：独立整页，与结果页同级；打开时看板让位。 */
   const [personalPage, setPersonalPage] = useState(false)
   /** Agent 状态大盘：独立整页，顶栏一级入口；打开时看板让位。 */
@@ -1016,8 +1036,15 @@ export function Shell({
     if (chatSessionId === undefined || chatIntakeTier === null) return
     setIntakeTierHint({ sessionId: String(chatSessionId), tier: chatIntakeTier })
   }, [chatSessionId, chatIntakeTier])
+  /** 向导持有会话时也记住档位：关掉再打开仍能走「重新开始」。 */
+  const wizardIntakeTier = wizardOpen ? intakeTierOfMessages(wizardMessages) : null
+  useEffect(() => {
+    if (sessionId === undefined || wizardIntakeTier === null) return
+    setIntakeTierHint({ sessionId: String(sessionId), tier: wizardIntakeTier })
+  }, [sessionId, wizardIntakeTier])
   /** 结果页与确认框读当前会话的档位；消息窗口读不到时用开过浮层的那次事实。 */
   const currentIntakeTier = useMemo(() => {
+    if (wizardIntakeTier !== null) return wizardIntakeTier
     const fromWindow = sessionId === undefined || readMessages === undefined
       ? null
       : intakeTierOfMessages(readMessages(sessionId))
@@ -1025,7 +1052,7 @@ export function Shell({
     return sessionId !== undefined && intakeTierHint?.sessionId === String(sessionId)
       ? intakeTierHint.tier
       : null
-  }, [sessionId, readMessages, messages, reload, intakeTierHint])
+  }, [sessionId, readMessages, messages, reload, intakeTierHint, wizardIntakeTier])
   /** 重开确认框列的已有产物；零也照实显示。 */
   const restartArtifacts = useMemo(
     () => intakeArtifactsOf({ info, rules: rulesCount, tasks, proposals: proposals.length }),
@@ -1033,6 +1060,35 @@ export function Shell({
   )
   /** 这条会话当前等人处理的那一条审批或提问；上游插件发布，外壳只负责画与转交答案。 */
   const chatPending = chatSessionId === undefined ? undefined : sessionStatus.get(chatSessionId)?.pendingInteraction
+  /** 向导所在的会话就是当前会话；提问只认待答请求，审批不算提问。 */
+  const wizardQuestion = sessionId === undefined
+    ? null
+    : questionOf(sessionStatus.get(sessionId)?.pendingInteraction)
+  const wizardRunning = sessionId === undefined
+    ? false
+    : sessionStatus.get(sessionId)?.running ?? sessionRows[sessionId]?.running ?? false
+  const wizardOutput = useMemo(() => intakeWizardOutput(wizardMessages), [wizardMessages])
+  const wizardUserMessages = wizardMessages.reduce((count, message) => count + (message.role === 'user' ? 1 : 0), 0)
+  /**
+   * 立项咒语发过没有只看会话事实；关掉向导再打开、刷新页面后都读同一份记录，
+   * 所以确认按钮不会把同一份咒语发第二遍。
+   */
+  const wizardStarted = intakePromptStarted({
+    blank: session?.blank,
+    userMessages: wizardUserMessages,
+    awaitingFirstTurn: wizardFlags?.awaitingFirstTurn,
+  })
+  const wizardPhase = intakeWizardPhase({
+    open: wizardOpen,
+    started: wizardStarted,
+    questionCount: wizardQuestion?.questions.length ?? 0,
+    running: wizardRunning,
+    hasOutput: wizardOutput.hasOutput,
+    proposalCount: proposals.length,
+  })
+  const wizardProposal = latestProposal(proposals)
+  const intakeModels = intakeModelOptions(intakeModelSnapshot)
+  const intakeModelSelected = wizardModelChoice ?? defaultIntakeModel(intakeModels)
   const resolvedChatSize = chatSize ?? DEFAULT_CHAT_SIZE
   /** 普通档尺寸走配置；最大化档由 CSS 的 data-max 接管。 */
   const chatStyle = {
@@ -1278,6 +1334,43 @@ export function Shell({
       release?.()
     }
   }, [chat, chatSessionId, readMessages, subscribeSession, readSessionNotice, holdSession, readContextPressure])
+
+  /**
+   * 向导同样先持有再订阅：立项会话可能是刚建的，没有本地引用时读不到消息与首回合标记。
+   * 关闭向导就释放引用；会话本身继续在宿主侧跑。
+   */
+  useEffect(() => {
+    if (!wizardOpen || sessionId === undefined || readMessages === undefined || subscribeSession === undefined) {
+      setWizardMessages([])
+      setWizardFlags(null)
+      return
+    }
+    const release = holdSession?.(sessionId)
+    const refresh = (): void => {
+      setWizardMessages(readMessages(sessionId))
+      setWizardFlags(readSessionFlags?.(sessionId) ?? null)
+    }
+    refresh()
+    const unsubscribe = subscribeSession(sessionId, refresh)
+    return () => {
+      unsubscribe()
+      release?.()
+    }
+  }, [wizardOpen, sessionId, readMessages, subscribeSession, readSessionFlags, holdSession])
+
+  /** 一轮跑完就重读投影：结果卡要读的是刚落盘的方案，不等下一次定时刷新。 */
+  const wizardRunWasRunning = useRef(false)
+  useEffect(() => {
+    if (wizardOpen && wizardRunWasRunning.current && !wizardRunning) setReload(value => value + 1)
+    wizardRunWasRunning.current = wizardRunning
+  }, [wizardOpen, wizardRunning])
+
+  /** 从设置页回来后重读模型目录：刚配好的路线不必关掉向导再打开。 */
+  const settingsWasOpen = useRef(false)
+  useEffect(() => {
+    if (settingsWasOpen.current && !settings && wizardOpen) setIntakeModelState('idle')
+    settingsWasOpen.current = settings
+  }, [settings, wizardOpen])
 
   /**
    * 输出跟随：只在你本来就贴着底部时自动滚，向上翻历史时不要抢。
@@ -2007,17 +2100,84 @@ export function Shell({
   }
 
   /**
-   * 零任务仓库的立项入口，两档咒语走同一个会话：
-   * - `new` 是「全新项目」，发 7 问引导咒语，先问项目身份与文档位置再落盘；
+   * 打开需求分析师向导。阶段不在这里决定：会话受理过咒语就按消息与待答问题落位，
+   * 没受理过就停在首页；关闭再打开也只重算，不重发。
+   */
+  const openIntakeWizard = (): void => {
+    setDetail(null)
+    setResultPage(false)
+    setChat(null)
+    setChatError(null)
+    setWizardError(null)
+    setWizardApproveResult(null)
+    setIntakeModelState('idle')
+    setIntakeModelSnapshot(null)
+    setWizardOpen(true)
+  }
+
+  /** 关闭向导只收起界面；宿主那边的回合继续跑。 */
+  const closeIntakeWizard = (): void => {
+    setWizardOpen(false)
+    setWizardError(null)
+    setWizardApproveResult(null)
+  }
+
+  /** 第一次展开高级配置时读模型目录；读不到给去设置的入口。 */
+  const loadIntakeModels = (): void => {
+    if (intakeModelState === 'loading' || intakeModelState === 'ready') return
+    if (modelSettings === undefined) {
+      setIntakeModelState('error')
+      return
+    }
+    setIntakeModelState('loading')
+    void modelSettings.load().then((snapshot) => {
+      setIntakeModelSnapshot(snapshot)
+      setIntakeModelState(snapshot.status === 'error' ? 'error' : 'ready')
+    }, () => {
+      setIntakeModelState('error')
+    })
+  }
+
+  /**
+   * 把一档立项咒语发到指定会话。
+   *
+   * 调用面在宿主侧；模型选择只在真正选过时、建会话之后发送之前落一次。
+   * 返回就地错误原文；路由失败已经把原因写进 `chatError`，这里返回 null。
+   */
+  const dispatchIntakePrompt = async (
+    kind: 'new' | 'docs',
+    target: SessionId,
+    modelChoice: IntakeModelOption | null,
+  ): Promise<string | null> => {
+    if (sendPrompt === undefined) return t('shell.noSession')
+    if (!await routeSession(target)) return null
+    if (modelChoice !== null && modelSettings !== undefined) {
+      const failure = await modelSettings.setDefault(target, modelChoice.provider, modelChoice.model)
+      if (failure !== undefined) return failure
+    }
+    const project = { name: projectName, path: projectPath, branch: projectBranch }
+    const text = kind === 'new'
+      ? buildIntakePrompt(project)
+      : buildOnboardingPrompt(project, info?.docs ?? { product: '', architecture: '', tests: '' })
+    await sendPrompt(target, text)
+    void cloudSession.refresh()
+    return null
+  }
+
+  /**
+   * 零任务仓库的立项入口：
+   * - `new` 是「全新项目」，先开需求分析师向导，确认后才发 7 问咒语；
    * - `docs` 是「已有资料」，发立项分析咒语，让 agent 先 file_list / file_read 看仓库
    *   与已声明文档再立任务；没声明文档时咒语会要求它先问。
-   * 外壳只读文件、不判断状态机。
    *
-   * 两档共用一条判定：这条会话受理过提示词（会话行的 `blank` 已落、窗口里已有消息，
-   * 或提示正等首个回合）就只开浮层。判据跟着会话事实走，所以关掉浮层、刷新页面、
-   * 重开窗口之后再点任一按钮都不会再发一遍。
+   * 两档共用同一条会话事实判定：受理过提示词（`blank` 已落、窗口里已有消息，
+   * 或提示正等首个回合）就只打开界面，所以关掉、刷新、重开窗口之后再点都不会再发。
    */
   const startOnboarding = (kind: 'new' | 'docs'): void => {
+    if (kind === 'new') {
+      openIntakeWizard()
+      return
+    }
     const gate = gateEntry('onboarding', cloudFacts)
     if (gate.kind !== 'allow') {
       setChatError(gate.kind === 'blocked' && gate.reason === 'loading'
@@ -2025,10 +2185,6 @@ export function Shell({
         : t('shell.cloudGateUnavailable'))
       return
     }
-    const project = { name: projectName, path: projectPath, branch: projectBranch }
-    const text = kind === 'new'
-      ? buildIntakePrompt(project)
-      : buildOnboardingPrompt(project, info?.docs ?? { product: '', architecture: '', tests: '' })
     setDetail(null)
     setChatError(null)
     setChat({ id: '', title: t('shell.onboardingChat'), description: '', attachments: [], state: 'drafting', grade: '-', rules: [], evidence: [], surface: '', paths: [], irreversible: [] })
@@ -2050,16 +2206,91 @@ export function Shell({
     onboardingSending.current = true
     void (async () => {
       try {
-        if (!await routeSession(sessionId)) return
-        setChatError(null)
-        await sendPrompt(sessionId, text)
-        void cloudSession.refresh()
+        const failure = await dispatchIntakePrompt(kind, sessionId, null)
+        if (failure !== null) setChatError(failure)
       } catch (error: unknown) {
         setChatError(fill(t('shell.onboardingSendFailed'), { detail: String(error) }))
       } finally {
         onboardingSending.current = false
       }
     })()
+  }
+
+  /**
+   * 向导的「确认」：没会话就先建一条，再按同一套会话事实判定发不发咒语。
+   *
+   * 已经发过（`blank` 已落、消息窗口里有用户消息、或首条提示正等首个回合）就只进阶段，
+   * 不重发；选过模型则在发送前落一次 `selectModel`，失败就停住并就地显示原文。
+   */
+  const confirmIntakeWizard = (): void => {
+    if (wizardSending || onboardingSending.current) return
+    const gate = gateEntry('onboarding', cloudFacts)
+    if (gate.kind !== 'allow') {
+      setWizardError(gate.kind === 'blocked' && gate.reason === 'loading'
+        ? t('shell.cloudGateLoading')
+        : t('shell.cloudGateUnavailable'))
+      return
+    }
+    setWizardError(null)
+    setWizardOpen(true)
+    const historyMessages = sessionId === undefined ? 0
+      : readMessages?.(sessionId).filter(message => message.role === 'user').length ?? 0
+    const action = onboardingAction({
+      hasSession: (sessionId !== undefined || createSession !== undefined) && sendPrompt !== undefined,
+      hasModel: !modelBlocked,
+      sending: onboardingSending.current,
+      blank: session?.blank,
+      userMessages: Math.max(wizardUserMessages, historyMessages),
+      awaitingFirstTurn: wizardFlags?.awaitingFirstTurn
+        ?? (sessionId === undefined ? undefined : readSessionFlags?.(sessionId)?.awaitingFirstTurn),
+    })
+    if (action.kind === 'block') {
+      setWizardError(t(action.reason === 'no-session' ? 'shell.noSession' : 'shell.noModels'))
+      return
+    }
+    if (action.kind === 'open' || sendPrompt === undefined) return
+    onboardingSending.current = true
+    setWizardSending(true)
+    void (async () => {
+      try {
+        let target = sessionId
+        if (target === undefined) {
+          if (createSession === undefined || projectPath === '') throw new Error(t('shell.noSession'))
+          target = await createSession(projectPath)
+          setSessionOverride(target)
+          setReload(value => value + 1)
+        }
+        const failure = await dispatchIntakePrompt('new', target, wizardModelChoice)
+        if (failure !== null) setWizardError(failure)
+      } catch (error: unknown) {
+        setWizardError(fill(t('shell.onboardingSendFailed'), { detail: String(error) }))
+      } finally {
+        onboardingSending.current = false
+        setWizardSending(false)
+      }
+    })()
+  }
+
+  /** 结果卡采纳方案：成功才关向导并重读投影；失败原文留在卡上，不关。 */
+  const approveWizardProposal = (): void => {
+    if (wizardProposal === undefined || sessionId === undefined || approveProposal === undefined) return
+    if (!requireUser('proposalApprove')) {
+      setWizardApproveResult({ ok: false, text: fill(t('shell.cloudGateNotice'), { entry: t(CLOUD_ENTRY_LABEL.proposalApprove) }) })
+      return
+    }
+    setWizardApproving(true)
+    setWizardApproveResult(null)
+    void approveProposal(sessionId, wizardProposal.id).then((outcome) => {
+      setWizardApproveResult(outcome)
+      if (!outcome.ok) return
+      setWizardOpen(false)
+      setResultPage(false)
+      setReload(value => value + 1)
+    }, (error: unknown) => {
+      setWizardApproveResult({ ok: false, text: String(error) })
+    }).finally(() => {
+      setWizardApproving(false)
+    })
   }
 
   /** 重开前的确认：计数是当前投影的事实，零也照实列出来。 */
@@ -2072,23 +2303,27 @@ export function Shell({
    * 确认后按原档位新建会话并重发咒语。
    *
    * 旧会话与已落盘内容一概不动；建会话失败只报原文，发送失败则新会话已经存在，
-   * 照实切过去并把错误留在浮层里。
+   * 照实切过去。向导开着时继续留在向导里等新一轮的提问或结果，不再叠开浮层。
    */
   const confirmIntakeRestart = (): void => {
     const tier = currentIntakeTier
+    const fromWizard = wizardOpen
     setRestartOpen(false)
     if (tier === null) {
-      setChatError(t('shell.restartIntakeUnknown'))
+      if (fromWizard) setWizardError(t('shell.restartIntakeUnknown'))
+      else setChatError(t('shell.restartIntakeUnknown'))
       return
     }
     if (projectPath === '' || createSession === undefined || sendPrompt === undefined) {
-      setChatError(t('shell.noSession'))
+      if (fromWizard) setWizardError(t('shell.noSession'))
+      else setChatError(t('shell.noSession'))
       return
     }
     if (onboardingSending.current) return
     onboardingSending.current = true
     setRestarting(true)
     setChatError(null)
+    setWizardError(null)
     void runIntakeRestart({
       tier,
       project: { name: projectName, path: projectPath, branch: projectBranch },
@@ -2098,16 +2333,24 @@ export function Shell({
       sendPrompt,
     }).then((outcome) => {
       if (outcome.kind === 'create-failed') {
-        setChatError(outcome.error)
+        if (fromWizard) setWizardError(outcome.error)
+        else setChatError(outcome.error)
         return
       }
       setSessionOverride(outcome.sessionId)
       setReload(value => value + 1)
+      if (fromWizard) {
+        setWizardApproveResult(null)
+        setWizardOpen(true)
+        if (outcome.kind === 'send-failed') setWizardError(outcome.error)
+        return
+      }
       setResultPage(false)
       setChat(pseudoChat(t('shell.onboardingChat')))
       if (outcome.kind === 'send-failed') setChatError(outcome.error)
     }, (error: unknown) => {
-      setChatError(String(error))
+      if (fromWizard) setWizardError(String(error))
+      else setChatError(String(error))
     }).finally(() => {
       onboardingSending.current = false
       setRestarting(false)
@@ -3587,6 +3830,33 @@ export function Shell({
             </div>
           </div>
         </div>
+      ) : null}
+
+      {wizardOpen ? (
+        <IntakeWizard
+          t={t}
+          phase={wizardPhase}
+          error={wizardError ?? chatError}
+          question={wizardQuestion}
+          processItems={wizardOutput.items}
+          modelState={intakeModelState}
+          models={intakeModels}
+          selectedModel={intakeModelSelected}
+          modelBlocked={modelBlocked}
+          sending={wizardSending}
+          proposal={wizardProposal ?? null}
+          approving={wizardApproving}
+          approveResult={wizardApproveResult}
+          canApprove={approveProposal !== undefined && sessionId !== undefined}
+          restartBusy={restarting}
+          onCancel={closeIntakeWizard}
+          onConfirm={confirmIntakeWizard}
+          onSelectModel={setWizardModelChoice}
+          onLoadModels={loadIntakeModels}
+          onOpenSettings={() => { setSettings(true) }}
+          onApprove={approveWizardProposal}
+          onRestart={requestIntakeRestart}
+        />
       ) : null}
 
       {restartOpen ? (
