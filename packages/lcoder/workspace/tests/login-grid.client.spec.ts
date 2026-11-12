@@ -1,12 +1,13 @@
 /**
- * 登录页背景网格的纯几何：高斯权重、透视外扩与抬升、亮度混合、网格相位与颜色解析。
+ * 登录页背景底纹的纯几何：高斯权重、透视外扩与抬升、亮度混合、网格相位、梅花姿态与颜色解析。
  *
  * 只测不碰 DOM 的函数；画布绘制与帧调度由真窗口冒烟覆盖。
  */
 import { describe, expect, it } from 'vitest'
 
 import {
-  clamp01, gridInfluence, gridOffsets, lineAlpha, parseCssColor, rgba, warpVertex,
+  blossomPose, clamp01, gridInfluence, gridOffsets, lineAlpha, parseCssColor, PLUM_PETALS, plumPetals,
+  readMotif, rgba, warpVertex,
 } from '../src/client/cloud/login-grid.ts'
 import type { GridWarpSpec } from '../src/client/cloud/login-grid.ts'
 
@@ -89,6 +90,68 @@ describe('亮度与网格相位', () => {
     expect(clamp01(0.4)).toBe(0.4)
     expect(clamp01(9)).toBe(1)
     expect(clamp01(Number.NaN)).toBe(0)
+  })
+})
+
+describe('底纹类型与梅花', () => {
+  it('只认 plum，其余值一律回网格', () => {
+    expect(readMotif('plum')).toBe('plum')
+    expect(readMotif(' plum ')).toBe('plum')
+    expect(readMotif('grid')).toBe('grid')
+    expect(readMotif('')).toBe('grid')
+    expect(readMotif('PLUM')).toBe('grid')
+  })
+
+  it('同一节点姿态稳定，相邻节点错开', () => {
+    const first = blossomPose(3, 4)
+    expect(blossomPose(3, 4)).toEqual(first)
+    expect(blossomPose(4, 4)).not.toEqual(first)
+    expect(blossomPose(3, 5)).not.toEqual(first)
+  })
+
+  it('偏移不超过半格、缩放落在 0.7–1、旋转覆盖整周', () => {
+    const angles: number[] = []
+    for (let column = 0; column < 40; column++) {
+      for (let row = 0; row < 40; row++) {
+        const pose = blossomPose(column, row)
+        expect(Math.abs(pose.dx)).toBeLessThanOrEqual(0.25)
+        expect(Math.abs(pose.dy)).toBeLessThanOrEqual(0.25)
+        expect(pose.scale).toBeGreaterThanOrEqual(0.7)
+        expect(pose.scale).toBeLessThanOrEqual(1)
+        expect(pose.angle).toBeGreaterThanOrEqual(0)
+        expect(pose.angle).toBeLessThan(Math.PI * 2)
+        angles.push(pose.angle)
+      }
+    }
+    expect(Math.max(...angles) - Math.min(...angles)).toBeGreaterThan(Math.PI)
+  })
+
+  it('五瓣等角分布、长轴沿径向、整体绕中心对称', () => {
+    const petals = plumPetals(10, 0)
+    expect(petals).toHaveLength(PLUM_PETALS)
+    const sumX = petals.reduce((total, petal) => total + petal.x, 0)
+    const sumY = petals.reduce((total, petal) => total + petal.y, 0)
+    expect(sumX).toBeCloseTo(0)
+    expect(sumY).toBeCloseTo(0)
+    const first = petals[0]
+    expect(first?.x).toBeCloseTo(10)
+    expect(first?.y).toBeCloseTo(0)
+    expect(first?.rx).toBeCloseTo(4.4)
+    expect(first?.ry).toBeCloseTo(9.2)
+    expect(first?.rotation).toBeCloseTo(-Math.PI / 2)
+    for (const petal of petals) {
+      expect(Math.hypot(petal.x, petal.y)).toBeCloseTo(10)
+    }
+  })
+
+  it('整朵旋转同样旋转全部花瓣', () => {
+    const upright = plumPetals(8, 0)
+    const turned = plumPetals(8, Math.PI / 2)
+    expect(turned[0]?.x).toBeCloseTo(0)
+    expect(turned[0]?.y).toBeCloseTo(8)
+    expect(turned[0]?.rotation).toBeCloseTo(0)
+    expect(Math.hypot(turned[2]?.x ?? 0, turned[2]?.y ?? 0)).toBeCloseTo(8)
+    expect(upright[0]?.rx).toBeCloseTo(turned[0]?.rx ?? Number.NaN)
   })
 })
 

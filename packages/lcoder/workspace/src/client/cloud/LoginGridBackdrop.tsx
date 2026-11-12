@@ -1,16 +1,17 @@
 /**
- * 登录页的背景网格：静止时与外壳原网格同款，指针附近按高斯影响隆起并提亮。
+ * 登录页的背景底纹：静止时与外壳底纹同款，指针附近按高斯影响隆起并提亮。
  *
+ * 底纹类型由皮肤 token `--lc-backdrop-motif` 决定：`grid` 画网格线，`plum` 在网格节点画五瓣小梅花。
  * 颜色每帧从皮肤 CSS 变量读取，切换皮肤由 MutationObserver 触发重绘，无需重建页面。
  * 画布固定覆盖整窗、不接指针事件。指针移动属于用户主动操作，在「减少动态效果」下也响应，
- * 但只画当帧、不跑动画帧循环；指针静止或窗口隐藏后回到静态网格。
+ * 但只画当帧、不跑动画帧循环；指针静止或窗口隐藏后回到静态底纹。
  */
 import { useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
 import {
-  clamp01, gridOffsets, lineAlpha, parseCssColor, rgba, warpVertex,
+  blossomPose, clamp01, gridOffsets, lineAlpha, parseCssColor, plumPetals, readMotif, rgba, warpVertex,
 } from './login-grid.ts'
-import type { GridColor, GridWarpSpec } from './login-grid.ts'
+import type { BackdropMotif, GridColor, GridWarpSpec } from './login-grid.ts'
 import css from './LoginGridBackdrop.module.css'
 
 /** 缓冲区像素比的封顶，避免高分屏上每帧涂太多像素。 */
@@ -36,12 +37,17 @@ const RELEASE_MS = 320
 const GLOW_BUCKETS = 8
 /** 隆起的光晕半径，相对标准差。 */
 const HALO_SCALE = 2.2
+/** 梅花半径相对节点间距的比例；连同花瓣长度后整朵约为间距的 0.4。 */
+const BLOSSOM_RADIUS = 0.11
+/** 一片花瓣在扁平数组里占的位置数：x、y、rx、ry、旋转角。 */
+const PETAL_STRIDE = 5
 
 /** 一帧要用的皮肤取色。 */
 interface Palette {
   readonly base: GridColor
   readonly peak: GridColor
   readonly spacing: number
+  readonly motif: BackdropMotif
 }
 
 /** 已就绪的绘制表面，尺寸按 CSS 像素计。 */
@@ -51,14 +57,15 @@ interface Surface {
   readonly height: number
 }
 
-/** 从当前皮肤读网格间距与底色/高亮色；变量缺失时用兜底值。 */
+/** 从当前皮肤读网格间距、底纹类型与底色/高亮色；变量缺失时用兜底值。 */
 function readPalette(element: Element): Palette {
   const style = getComputedStyle(element)
-  const spacing = Number.parseFloat(style.getPropertyValue('--lc-grid-size'))
+  const spacing = Number.parseFloat(style.getPropertyValue('--lc-backdrop-pitch'))
   return {
-    base: parseCssColor(style.getPropertyValue('--lc-grid-line')) ?? FALLBACK_BASE,
+    base: parseCssColor(style.getPropertyValue('--lc-backdrop-ink')) ?? FALLBACK_BASE,
     peak: parseCssColor(style.getPropertyValue('--lc-brand')) ?? FALLBACK_PEAK,
     spacing: Number.isFinite(spacing) ? Math.min(96, Math.max(16, spacing)) : FALLBACK_SPACING,
+    motif: readMotif(style.getPropertyValue('--lc-backdrop-motif')),
   }
 }
 
@@ -178,7 +185,70 @@ function strokeLine(
   strokeWarped(ctx, palette, vertical, fixed, lo, hi, pointerX, pointerY, strength)
 }
 
-/** 画一帧：可选光晕、全部网格线；指针不在或强度为 0 时就是静态网格。 */
+/**
+ * 在网格节点画五瓣梅花：姿态由节点行列决定，位移与提亮交给同一套高斯影响。
+ * 花瓣按亮度分桶后每桶一次 stroke。
+ */
+function paintBlossoms(
+  ctx: CanvasRenderingContext2D,
+  palette: Palette,
+  surface: Surface,
+  pointerX: number | null,
+  pointerY: number | null,
+  strength: number,
+): void {
+  const buckets = new Map<number, number[]>()
+  const { spacing } = palette
+  const columns = gridOffsets(surface.width, spacing)
+  const rows = gridOffsets(surface.height, spacing)
+  for (let column = 0; column < columns.length; column++) {
+    for (let row = 0; row < rows.length; row++) {
+      const pose = blossomPose(column, row)
+      const vertex = warpVertex(
+        (columns[column] ?? 0) + pose.dx * spacing,
+        (rows[row] ?? 0) + pose.dy * spacing,
+        pointerX,
+        pointerY,
+        WARP,
+        strength,
+      )
+      const bucket = Math.min(GLOW_BUCKETS - 1, Math.round(clamp01(vertex.glow) * (GLOW_BUCKETS - 1)))
+      let petals = buckets.get(bucket)
+      if (petals === undefined) {
+        petals = []
+        buckets.set(bucket, petals)
+      }
+      for (const petal of plumPetals(spacing * BLOSSOM_RADIUS * pose.scale, pose.angle)) {
+        petals.push(vertex.x + petal.x, vertex.y + petal.y, petal.rx, petal.ry, petal.rotation)
+      }
+    }
+  }
+  ctx.lineWidth = 1
+  ctx.lineCap = 'round'
+  for (let bucket = 0; bucket < GLOW_BUCKETS; bucket++) {
+    const petals = buckets.get(bucket)
+    if (petals === undefined) continue
+    ctx.strokeStyle = rgba(
+      palette.base,
+      lineAlpha(palette.base.alpha, PEAK_ALPHA, bucket / (GLOW_BUCKETS - 1)),
+    )
+    ctx.beginPath()
+    for (let index = 0; index < petals.length; index += PETAL_STRIDE) {
+      ctx.ellipse(
+        petals[index] ?? 0,
+        petals[index + 1] ?? 0,
+        petals[index + 2] ?? 0,
+        petals[index + 3] ?? 0,
+        petals[index + 4] ?? 0,
+        0,
+        Math.PI * 2,
+      )
+    }
+    ctx.stroke()
+  }
+}
+
+/** 画一帧：可选光晕、全部网格线或梅花；指针不在或强度为 0 时就是静态底纹。 */
 function paint(
   canvas: HTMLCanvasElement,
   palette: Palette,
@@ -198,6 +268,10 @@ function paint(
     halo.addColorStop(1, rgba(palette.peak, 0))
     ctx.fillStyle = halo
     ctx.fillRect(0, 0, width, height)
+  }
+  if (palette.motif === 'plum') {
+    paintBlossoms(ctx, palette, surface, pointerX, pointerY, strength)
+    return true
   }
   ctx.lineWidth = 1
   ctx.lineCap = 'butt'
