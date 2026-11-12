@@ -242,6 +242,34 @@ const STATE_DOT: Record<ShellTaskState, string | undefined> = {
   closed: css.stateClosed,
 }
 
+/** 皮肤到词典键；设置页与顶栏按钮共用这一份。 */
+const SKIN_LABEL: Record<Skin, LcoderWorkspaceKey> = {
+  neon: 'shell.skinNeon',
+  silver: 'shell.skinSilver',
+  rose: 'shell.skinRose',
+}
+
+/** 皮肤到下一套的映射；顶栏色球按这个顺序循环。 */
+const NEXT_SKIN: Record<Skin, Skin> = {
+  neon: 'silver',
+  silver: 'rose',
+  rose: 'neon',
+}
+
+/** 皮肤到顶栏色球的配色。 */
+const SKIN_ORB: Record<Skin, string | undefined> = {
+  neon: css.skinOrbNeon,
+  silver: css.skinOrbSilver,
+  rose: css.skinOrbRose,
+}
+
+/** 皮肤到设置页色块的配色。 */
+const SKIN_SWATCH: Record<Skin, string | undefined> = {
+  neon: css.skinSwatchNeon,
+  silver: css.skinSwatchSilver,
+  rose: css.skinSwatchRose,
+}
+
 /** 状态到工具面的展示文案；与 kernel 的 SURFACE 同义。 */
 const SURFACE: Record<ShellTaskState, string> = {
   drafting: '读 / 契约',
@@ -2382,10 +2410,10 @@ export function Shell({
     ? null
     : <div className={css.windowControls}>{closeWindowButton}</div>
 
-  /** 顶栏只给两档快速切换；设置弹窗里按名字明确选择。 */
-  const skinLabel = t(skin === 'neon' ? 'shell.skinNeon' : 'shell.skinSilver')
+  /** 顶栏只给逐套快速切换；设置弹窗里按名字明确选择。 */
+  const skinLabel = t(SKIN_LABEL[skin])
   const cycleSkin = (): void => {
-    setSkin(current => (current === 'neon' ? 'silver' : 'neon'))
+    setSkin(current => NEXT_SKIN[current])
   }
 
   /** 未登录（或登录状态读不出来）时只渲染全屏登录页；工作台不进入 DOM。 */
@@ -2409,7 +2437,7 @@ export function Shell({
             aria-label={`${t('shell.skin')} · ${skinLabel}`}
             onClick={cycleSkin}
           >
-            <span className={`${css.skinOrb} ${skin === 'neon' ? css.skinOrbNeon : css.skinOrbSilver}`} aria-hidden="true" />
+            <span className={`${css.skinOrb} ${SKIN_ORB[skin] ?? ''}`} aria-hidden="true" />
           </button>
           {loginWindowControls}
         </header>
@@ -2530,7 +2558,7 @@ export function Shell({
           aria-label={`${t('shell.skin')} · ${skinLabel}`}
           onClick={cycleSkin}
         >
-          <span className={`${css.skinOrb} ${skin === 'neon' ? css.skinOrbNeon : css.skinOrbSilver}`} aria-hidden="true" />
+          <span className={`${css.skinOrb} ${SKIN_ORB[skin] ?? ''}`} aria-hidden="true" />
         </button>
         <button type="button" className={css.iconBtn} title={t('shell.settings')} onClick={() => { setSettings(true) }}>⚙</button>
         {windowControls}
@@ -3586,7 +3614,7 @@ export function Shell({
                   </div>
                   <div className={css.skinPresets} role="group" aria-label={t('shell.skin')}>
                     {SKINS.map((value) => {
-                      const label = t(value === 'neon' ? 'shell.skinNeon' : 'shell.skinSilver')
+                      const label = t(SKIN_LABEL[value])
                       return (
                         <button
                           type="button"
@@ -3596,7 +3624,7 @@ export function Shell({
                           onClick={() => { setSkin(value) }}
                         >
                           <span
-                            className={`${css.skinSwatch} ${value === 'neon' ? css.skinSwatchNeon : css.skinSwatchSilver}`}
+                            className={`${css.skinSwatch} ${SKIN_SWATCH[value] ?? ''}`}
                             aria-hidden="true"
                           />
                           {label}

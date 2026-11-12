@@ -1,14 +1,14 @@
 /**
  * 外壳皮肤选择与本地持久化。
  *
- * 两套皮肤只决定 `Shell.module.css` 里的颜色与表面 token；这里只负责选择值与
+ * 三套皮肤只决定 `Shell.module.css` 里的颜色与表面 token；这里只负责选择值与
  * 刷新后的恢复。读不到或读到未知值时回默认皮肤，不阻塞整壳渲染。
  */
 
 /** 可用皮肤。 */
-export const SKINS = ['neon', 'silver'] as const
+export const SKINS = ['neon', 'silver', 'rose'] as const
 
-/** 皮肤标识；`neon` 是霓虹夜航，`silver` 是冷银冰蓝。 */
+/** 皮肤标识；`neon` 是霓虹夜航，`silver` 是冷银冰蓝，`rose` 是粉樱霓虹。 */
 export type Skin = (typeof SKINS)[number]
 
 /** 默认皮肤：霓虹夜航。 */
