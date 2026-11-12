@@ -1358,6 +1358,18 @@ tracks:
       inferred: false
       note: "B 级交互重构，来源是用户 2026-11-11 认为项目切换频率不高，顶栏不该同时有项目卡片与项目信息按钮。方案：两者合并成顶栏一个低调的项目名加下拉箭头控件，无底色无方块无路径，悬停才显底色；点击打开现有项目信息抽屉，抽屉顶部新增切换项目区，含工作区列表与打开仓库输入，下面保留基本信息与文档与环境；删除独立切换弹窗与项目信息按钮。路径与分支与规格根只留在抽屉里；无工作区时控件显示选择项目。窄窗与空态要处理，切换后仍清空会话覆盖并关闭抽屉。不改业务逻辑与契约。验收 typecheck 与 packages/lcoder vitest 与 oxlint 与 test:docs 与 i18n；真窗口冒烟确认只剩一个控件、抽屉内可切换与打开仓库、无独立弹窗；不做截图。工作树用 pool-slot-1 claim 到 lcoder/t121-project-merge，端口 9822 与 9829 与 9830。2026-11-11 15:05 监督窗口派工，实现线会话 34487165；claim pool-slot-1 到分支 lcoder/t121-project-merge。2026-11-11 15:25 监督窗口核验并收口。独立复跑 vitest 七十文件七百三十八例、i18n 一千三百零二文件、test:docs 二十一项全过；实现线报 typecheck 五项、build 八项、build:check 二项。oxlint 新增零错，Shell.tsx 四条 unbound-method 为 T-120 基线。真窗口七项全过：顶栏仅一个项目控件、无项目信息按钮与独立弹窗；抽屉内可切换与打开仓库，切换后关闭并清空会话覆盖；空态与 760px 窄窗正常。未验项是窄窗仅视口模拟、未复核原生目录对话框。已合入 lcoder/main、release pool-slot-1。"
 
+    - id: T-122
+      title: 抽屉分区折叠与右下角小字清理
+      status: done
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-11'
+      date: '2026-11-11'
+      dep: [T-121]
+      inferred: false
+      note: "B 级交互微调，来源是用户 2026-11-11 截图三条。一、工作台右下角 LCoder 真实 spec 小字去掉，连带未被引用的文案键与样式清理。二、项目信息抽屉里切换项目默认折叠，不默认展开长列表。三、基本信息与交付与文档与环境各按类型可折叠，默认全折叠，只显示小节标题与一行摘要；展开后保留现有内容与交互。用 details 与 summary 实现并复用现有折叠样式，不引第三方库；默认闭合不影响切换与打开仓库功能。顺手修 Shell.tsx 四条 unbound-method 基线 lint（T-120 拖拽处理器），不改变行为。验收 typecheck 与 packages/lcoder vitest 与 oxlint 与 test:docs 与 i18n；真窗口冒烟确认右下角无小字、抽屉打开时各节均为折叠态、展开后内容与操作正常；不做截图。工作树用 pool-slot-2 claim 到 lcoder/t122-drawer-fold。2026-11-11 15:35 监督窗口派工，实现线会话 e3a01cb5；claim pool-slot-2 到分支 lcoder/t122-drawer-fold。2026-11-11 17:00 监督窗口核验并收口。独立复跑 vitest 七十文件七百三十九例、test:docs 二十一项全过；实现线报 typecheck 五项、i18n 一千三百零二文件、oxlint 零错，T-120 四条基线已清。真窗口十一项：右下角无小字；抽屉四节默认折叠且摘要显示当前项目；展开后切换与打开仓库与密码显隐正常；切换后仍关闭。未验项是原生目录对话框未点开、真实 secret 显示路径、两套皮肤手看。已合入 lcoder/main、release pool-slot-2。"
+
 milestones:
 - name: MVP-0 工作台本地跑通
   track: lcoder
