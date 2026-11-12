@@ -98,6 +98,24 @@ export const SHELL_STATES: readonly { readonly id: ShellTaskState; readonly labe
   { id: 'closed', labelKey: 'shell.closed' },
 ]
 
+/** 看板列 id：真实状态之外，多了拆分后、待开发前的「方案讨论」。 */
+export type ShellBoardColumnId = ShellTaskState | 'discussion'
+
+/**
+ * 看板列（含方案讨论），顺序即视觉顺序。
+ *
+ * 「方案讨论」不是内核状态：它由 drafting 任务的岗位与契约投影派生，任务文件仍是
+ * drafting。`SHELL_STATES` 仍只列真实状态，状态文案与工具面判断继续用它。
+ */
+export const SHELL_BOARD_COLUMNS: readonly { readonly id: ShellBoardColumnId; readonly labelKey: LcoderWorkspaceKey }[] = [
+  { id: 'drafting', labelKey: 'shell.drafting' },
+  { id: 'discussion', labelKey: 'shell.discussing' },
+  { id: 'contracted', labelKey: 'shell.contracted' },
+  { id: 'implementing', labelKey: 'shell.implementing' },
+  { id: 'verifying', labelKey: 'shell.verifying' },
+  { id: 'closed', labelKey: 'shell.closed' },
+]
+
 /** 悬浮对话里的一条消息：用户、答复、注入上下文、一段收敛后的过程，或一次压缩标记。 */
 export type ShellMessage =
   /** `hidden` 是外壳自动发出的内置咒语；对话正文不画，会话事件与入口计数仍保留。 */

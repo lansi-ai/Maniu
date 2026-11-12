@@ -68,7 +68,7 @@ import type { CloudGateEntry } from '../cloud/gate.ts'
 import type { CloudFace } from '../cloud/face.ts'
 import { useCloudSession } from '../cloud/use-cloud.ts'
 import { CLOUD_LEGACY_GUEST_ROUTE } from '../cloud/routes.ts'
-import { buildIntakePrompt, buildOnboardingPrompt, buildShellPrompt, SHELL_STATES } from './shell-data.ts'
+import { buildIntakePrompt, buildOnboardingPrompt, buildShellPrompt, SHELL_BOARD_COLUMNS, SHELL_STATES } from './shell-data.ts'
 import { browserSkinStorage, readSkin, SKINS, writeSkin } from './skin.ts'
 import type { Skin } from './skin.ts'
 import { recommendedRoleId } from './role-hint.ts'
@@ -81,6 +81,14 @@ import {
 import type {
   RequirementSplitFailure, RequirementSplitFailureReason, RequirementSplitSummary,
 } from './requirement-split.ts'
+import {
+  boardColumnOf, confirmPlan, contractComplete, contractOf, contractSigned, discussionNeeded, discussionTasksOf,
+  planDiscussionGroups, runPlanDiscussion,
+} from './plan-discussion.ts'
+import type {
+  DiscussionGroup, PlanConfirmFailureReason, PlanConfirmSummary, PlanDiscussionFailure,
+  PlanDiscussionFailureReason,
+} from './plan-discussion.ts'
 import { RequirementCard } from './RequirementCard.tsx'
 import type { RequirementSplitFlowView } from './RequirementCard.tsx'
 import { questionOf } from './pending.ts'
@@ -142,8 +150,6 @@ export type ShellProps =
     readonly bindTask?: (sessionId: SessionId, taskId: string) => Promise<ShellSignResult>
     /** 派 `/task_assign <编号> <岗位>` 把任务分配给岗位；分配是调度硬约束，只有人机命令写。 */
     readonly assignTask?: (sessionId: SessionId, taskId: string, roleId: string) => Promise<ShellSignResult>
-    /** 派 `/task_split_ready <编号>` 把拆分任务从起草直接推到待开发；需求文档为契约依据。 */
-    readonly splitReady?: (sessionId: SessionId, taskId: string) => Promise<ShellSignResult>
     /** 派 `/task_schedule <编号> <JSON>` 把这次判定追加到任务证据目录，供事后审计。 */
     readonly logSchedule?: (sessionId: SessionId, taskId: string, json: string) => Promise<ShellSignResult>
     /** 派 `/flow_status` 求流程判定；返回一行 JSON，由外壳解析展示。 */
@@ -356,6 +362,19 @@ interface FlowRunResult {
   readonly text: string
 }
 
+/** 方案讨论的就地状态：阶段、参与岗位、本批任务与失败明细。 */
+interface DiscussionFlowView {
+  readonly status: 'running' | 'confirming' | 'done' | 'failed'
+  readonly stage?: 'meeting' | 'drafting'
+  /** 参与岗位显示名，按讨论计划去重。 */
+  readonly participants: readonly string[]
+  readonly taskIds: readonly string[]
+  /** 已完成或失败时的一句人话。 */
+  readonly text?: string
+  /** 失败时的逐条说明。 */
+  readonly lines?: readonly string[]
+}
+
 /** 流程动作到词典键。 */
 const FLOW_ACTION_LABEL: Record<FlowActionView, LcoderWorkspaceKey> = {
   draft: 'shell.flowActionDraft',
@@ -417,6 +436,47 @@ function splitFailureText(t: ShellProps['t'], outcome: RequirementSplitFailure, 
   })
 }
 
+/** 方案讨论失败原因到词典键；任务、宿主原文与路径由占位符填。 */
+const DISCUSSION_FAILURE_KEY: Record<PlanDiscussionFailureReason, LcoderWorkspaceKey> = {
+  'no-document': 'shell.discussionNoDocument',
+  'no-tasks': 'shell.discussionNoTasks',
+  'unknown-role': 'shell.discussionNoRoles',
+  create: 'shell.discussionCreateFailed',
+  send: 'shell.discussionSendFailed',
+  timeout: 'shell.discussionTimeout',
+  'session-failed': 'shell.discussionSessionFailed',
+  'missing-contract': 'shell.discussionMissingContract',
+  'incomplete-contract': 'shell.discussionIncompleteContract',
+  'unreadable-contracts': 'shell.discussionUnreadableContracts',
+}
+
+/** 讨论失败的一句话：原因、宿主原文、无法映射的岗位与缺契约的任务都按需填入。 */
+function discussionFailureText(t: ShellProps['t'], outcome: PlanDiscussionFailure, path: string): string {
+  const roles = outcome.unresolved?.map(item => item.role || item.taskId).join('、') ?? ''
+  return fill(t(DISCUSSION_FAILURE_KEY[outcome.reason]), {
+    detail: outcome.detail ?? '',
+    path,
+    roles,
+    tasks: outcome.taskIds?.join('、') ?? '',
+  })
+}
+
+/** 确认失败原因到词典键；任务与宿主原文由占位符填。 */
+const CONFIRM_FAILURE_KEY: Record<PlanConfirmFailureReason, LcoderWorkspaceKey> = {
+  'missing-task': 'shell.discussionConfirmMissingTask',
+  'not-drafting': 'shell.discussionConfirmNotDrafting',
+  'missing-contract': 'shell.discussionConfirmMissingContract',
+  'sign-failed': 'shell.discussionConfirmSignFailed',
+  'advance-failed': 'shell.discussionConfirmAdvanceFailed',
+}
+
+/** 确认结果里的一行：成功的跳过不画，失败按原因说明。 */
+function confirmLine(t: ShellProps['t'], attempt: PlanConfirmSummary['attempts'][number]): string | null {
+  if (attempt.ok) return null
+  const reason = attempt.reason === undefined ? 'advance-failed' : attempt.reason
+  return fill(t(CONFIRM_FAILURE_KEY[reason]), { task: attempt.taskId, detail: attempt.detail ?? '' })
+}
+
 /** 完成后的逐条明细：被拒的映射、分配失败与最终未分配都各自成行。 */
 function splitSummaryLines(t: ShellProps['t'], summary: RequirementSplitSummary): string[] {
   const lines: string[] = []
@@ -434,10 +494,6 @@ function splitSummaryLines(t: ShellProps['t'], summary: RequirementSplitSummary)
     lines.push(fill(t('shell.splitAssignFailed'), {
       task: attempt.taskId, role: attempt.roleId, detail: attempt.detail,
     }))
-  }
-  for (const attempt of summary.advances) {
-    if (attempt.ok) continue
-    lines.push(fill(t('shell.splitAdvanceFailed'), { task: attempt.taskId, detail: attempt.detail }))
   }
   for (const taskId of summary.unassigned) {
     lines.push(fill(t('shell.splitUnassigned'), { task: taskId }))
@@ -578,7 +634,7 @@ function providerOfSelection(projected: unknown): string | undefined {
  */
 export function Shell({
   t, files, readAttachment, openRepository, sendPrompt, uploadAttachment, readDefaultModel, signContract, advanceContract,
-  approveProposal, bindTask, assignTask, splitReady, logSchedule,
+  approveProposal, bindTask, assignTask, logSchedule,
   readFlowStatus, logFlow, bindAgentSession, renameSession, readContextPressure,
   createSession, listRoles, listExperts, readExpert,
   readMessages, subscribeSession, holdSession, checkModels, subscribeModels, readSessionNotice, readSessionFlags, modelSettings,
@@ -611,6 +667,14 @@ export function Shell({
   const splitRuns = useRef<Set<string>>(new Set())
   /** 每条在途流程的取消口：只在卸载时整体取消，关卡片不中断后台流程。 */
   const splitAborts = useRef<Map<string, AbortController>>(new Map())
+  /** 方案讨论的就地状态；按方案编号留档，同一批任务共用一个讨论。 */
+  const [discussFlows, setDiscussFlows] = useState<Readonly<Record<string, DiscussionFlowView>>>({})
+  const [discussError, setDiscussError] = useState<string | null>(null)
+  /** 同一条需求的讨论只允许一条在途。 */
+  const discussRuns = useRef<Set<string>>(new Set())
+  const discussAborts = useRef<Map<string, AbortController>>(new Map())
+  /** 用户确认方案后的逐条签署/推进结果；按方案编号留档，失败行留在详情里。 */
+  const [confirmResults, setConfirmResults] = useState<Readonly<Record<string, PlanConfirmSummary>>>({})
   /** 需求卡片正文：该任务会话里分析师当时输出的《项目需求概要》。 */
   const [requirementDocument, setRequirementDocument] = useState<string | null>(null)
   const [chat, setChat] = useState<ShellTask | null>(null)
@@ -1546,6 +1610,8 @@ export function Shell({
   useEffect(() => () => {
     for (const controller of splitAborts.current.values()) controller.abort()
     splitAborts.current.clear()
+    for (const controller of discussAborts.current.values()) controller.abort()
+    discussAborts.current.clear()
   }, [])
 
   /** 一轮跑完就重读投影：结果卡要读的是刚落盘的方案，不等下一次定时刷新。 */
@@ -1678,6 +1744,7 @@ export function Shell({
     setRoleAssignChoice(task.role ?? '')
     setRoleDialogOpen(false)
     setSplitError(null)
+    setDiscussError(null)
     // 上一个任务的「没会话」提示不属于这个任务。
     setChatError(null)
   }
@@ -1723,6 +1790,26 @@ export function Shell({
 
   /** 选中需求的拆分流程；关卡片不清，重开仍看到同一次流程。 */
   const detailSplitFlow = detail === null ? null : splitFlows[detail.id] ?? null
+  /** 同需求下仍待在方案讨论的任务；需求本体没有岗位，不会进这批。 */
+  const detailDiscussionTasks = useMemo(
+    () => (detail === null ? [] : discussionTasksOf(tasks, detail)),
+    [detail, tasks],
+  )
+  const detailDiscussionPlan = useMemo(
+    () => planDiscussionGroups(detailDiscussionTasks, jobRoles),
+    [detailDiscussionTasks, jobRoles],
+  )
+  const detailDiscussFlow = detail?.proposal === undefined ? undefined : discussFlows[detail.proposal]
+  const detailConfirm = detail?.proposal === undefined ? undefined : confirmResults[detail.proposal]
+  const detailConfirmLines = useMemo(
+    () => (detailConfirm === undefined
+      ? []
+      : detailConfirm.attempts.flatMap((attempt) => {
+        const line = confirmLine(t, attempt)
+        return line === null ? [] : [line]
+      })),
+    [detailConfirm, t],
+  )
 
   /** 选中任务最近一次调度留档；点过「开始对话」才有。 */
   const detailSchedule = detail === null ? undefined : schedule[detail.id]
@@ -1853,9 +1940,10 @@ export function Shell({
   const loadSplitSnapshot = async (): Promise<{
     readonly tasks: readonly ShellTask[]
     readonly roles: readonly JobRoleRow[]
+    readonly contracts: readonly ContractRow[]
   }> => {
     if (files === undefined || sessionId === undefined) {
-      return { tasks: liveTasks.current, roles: jobRoles }
+      return { tasks: liveTasks.current, roles: jobRoles, contracts }
     }
     const controller = new AbortController()
     try {
@@ -1863,14 +1951,38 @@ export function Shell({
         loadWorkspaceProjection(files, sessionId, controller.signal),
         loadRolesRegistry(files, sessionId, controller.signal),
       ])
-      return { tasks: projection.tasks.map(toShellTask), roles: registry.roles }
+      return { tasks: projection.tasks.map(toShellTask), roles: registry.roles, contracts: projection.contracts }
     } catch (error: unknown) {
       // 读盘失败只让这一次轮询退回旧快照；流程与卡片自己会报结果。
       void error
-      return { tasks: liveTasks.current, roles: jobRoles }
+      return { tasks: liveTasks.current, roles: jobRoles, contracts }
     } finally {
       controller.abort()
     }
+  }
+
+  /**
+   * 建一条跟随设置里默认模型的会话，并把角色记进本窗口的角色表。
+   *
+   * 读者可能是拆分内的项目经理/研发经理，也可能是方案讨论里的岗位；后者传岗位 id 而不是
+   * preset。模型只在创建之后、首回合之前写一次默认，不切当前会话，避免界面上的旧选择
+   * 反写到新会话。
+   */
+  const createDefaultedSession = async (
+    create: (path: string, preset?: string) => Promise<SessionId>,
+    preset: string,
+    roleId: string,
+  ): Promise<string> => {
+    const created = await create(projectPath, preset)
+    const defaultSelection = modelSettings === undefined
+      ? undefined
+      : (await modelSettings.load()).defaultSelection
+    if (defaultSelection !== undefined && modelSettings !== undefined) {
+      const failure = await modelSettings.setDefault(created, defaultSelection.provider, defaultSelection.model)
+      if (failure !== undefined) throw new Error(failure)
+    }
+    setSessionRoles(current => ({ ...current, [String(created)]: roleId }))
+    return String(created)
   }
 
   /**
@@ -1893,7 +2005,7 @@ export function Shell({
       return
     }
     if (createSession === undefined || sendPrompt === undefined || assignTask === undefined
-      || splitReady === undefined || sessionId === undefined) {
+      || sessionId === undefined) {
       setSplitError(t('shell.splitNeedSessions'))
       return
     }
@@ -1939,7 +2051,6 @@ export function Shell({
             summary: {
               taskCount: split.length,
               assignedCount: split.filter(row => row.role !== undefined).length,
-              readyCount: split.filter(row => row.state !== 'drafting').length,
               lines: [],
             },
           },
@@ -1948,14 +2059,11 @@ export function Shell({
         setReload(value => value + 1)
         return
       }
-      // 还有起草态任务时走重试路径：不再建项目经理会话，只补未分配岗位，
-      // 再把整批推进到待开发。
+      // 还有起草态任务时走重试路径：不再建项目经理会话，只补未分配岗位；
+      // 分配完停在方案讨论列，契约与确认由详情里的门禁接手。
 
-      // 拆分会话跟随设置里的默认模型：用户在设置页改完默认后，项目经理与研发经理
-      // 立刻用新默认，不再被需求会话里的旧模型选择盖住。读不到快照就交给宿主默认。
-      const splitModel = modelSettings === undefined
-        ? undefined
-        : (await modelSettings.load()).defaultSelection
+      // 拆分会话跟随设置里的默认模型：`createDefaultedSession` 在创建后写入当前默认，
+      // 不再被需求会话里的旧模型选择盖住。读不到快照就交给宿主默认。
       const outcome = await runRequirementSplit({
         task,
         source: { document },
@@ -1963,16 +2071,7 @@ export function Shell({
         ...(existing.length === 0 ? {} : { existingTasks: existing }),
         beforeTaskIds: snapshot.tasks.map(row => row.id),
       }, {
-        createSession: async (preset) => {
-          const created = await createSession(projectPath, preset)
-          if (splitModel !== undefined && modelSettings !== undefined) {
-            const failure = await modelSettings.setDefault(created, splitModel.provider, splitModel.model)
-            if (failure !== undefined) throw new Error(failure)
-          }
-          setSessionRoles(current => ({ ...current, [String(created)]: preset }))
-          // 不切当前会话：切会话会把界面上的模型选择反写到刚建的分会话，盖住刚写好的默认模型。
-          return String(created)
-        },
+        createSession: preset => createDefaultedSession(createSession, preset, preset),
         sendPrompt: async (id, text) => sendPrompt(id as SessionId, text),
         holdSession: id => holdSession?.(id as SessionId) ?? (() => {}),
         readMessages: id => readMessages?.(id as SessionId) ?? [],
@@ -1980,8 +2079,6 @@ export function Shell({
         isRunning: id => liveSessionStatus.current.get(id as SessionId)?.running
           ?? liveSessionRows.current[id as SessionId]?.running,
         assignTask: (id, taskId, roleId) => assignTask(id as SessionId, taskId, roleId),
-        // 推进命令由当前主会话发起：它是这个仓库里已持有的会话，命令只写 `.spec`。
-        splitReady: taskId => splitReady(sessionId, taskId),
         loadTasks: async () => (await loadSplitSnapshot()).tasks,
         loadRoster: async () => (await loadSplitSnapshot()).roles,
         now: () => Date.now(),
@@ -2016,7 +2113,6 @@ export function Shell({
                 summary: {
                   taskCount: known.length,
                   assignedCount: known.filter(row => row.role !== undefined).length,
-                  readyCount: 0,
                   lines: [],
                 },
               }),
@@ -2037,7 +2133,6 @@ export function Shell({
           summary: {
             taskCount: outcome.summary.taskCount,
             assignedCount: outcome.summary.assignedCount,
-            readyCount: outcome.summary.advancedCount,
             lines,
           },
         },
@@ -2053,6 +2148,204 @@ export function Shell({
     } finally {
       splitRuns.current.delete(task.id)
       splitAborts.current.delete(task.id)
+    }
+  }
+
+  /** 参与岗位显示名：按讨论计划的分组去重；岗位映射不了时退回原始岗位 id。 */
+  const participantsOf = (groups: readonly DiscussionGroup[], fallback: readonly string[]): string[] => {
+    const names = groups.flatMap(group => group.roles.map(role => role.name))
+    return names.length === 0 ? [...fallback] : [...new Set(names)]
+  }
+
+  /**
+   * 跑一次方案讨论：同需求下仍待讨论的任务一起开会，架构师汇总并逐任务起草契约。
+   *
+   * 判据是契约投影：已有完整契约时除非用户点「重新讨论」，否则不重复建会话，
+   * 只把已有结果与确认入口摆出来。失败逐条说明，任务留在方案讨论列。
+   */
+  const discussPlan = async (task: ShellTask, force: boolean): Promise<void> => {
+    if (task.proposal === undefined) {
+      setDiscussError(fill(t('shell.discussionNoDocument'), { path: '.spec/requirements/' }))
+      return
+    }
+    const key = task.proposal
+    if (discussRuns.current.has(key)) return
+    if (modelStatus?.state === 'empty') {
+      setDiscussError(t('shell.discussionNoModel'))
+      return
+    }
+    if (createSession === undefined || sendPrompt === undefined || signContract === undefined
+      || advanceContract === undefined || sessionId === undefined) {
+      setDiscussError(t('shell.discussionNeedSessions'))
+      return
+    }
+    if (projectPath === '') {
+      setDiscussError(t('shell.discussionNoWorkspace'))
+      return
+    }
+    const batch = discussionTasksOf(tasks, task)
+    if (batch.length === 0) {
+      setDiscussError(t('shell.discussionNoTasks'))
+      return
+    }
+    const document = requirements.find(row => row.id === key)?.text ?? ''
+    const path = `.spec/requirements/${key}.md`
+    if (document.trim() === '') {
+      setDiscussError(fill(t('shell.discussionNoDocument'), { path }))
+      return
+    }
+    if (!force && !discussionNeeded(batch, contracts)) {
+      setDiscussFlows(current => ({
+        ...current,
+        [key]: {
+          status: 'done',
+          participants: participantsOf(planDiscussionGroups(batch, jobRoles).groups, batch.flatMap(row => row.role ?? [])),
+          taskIds: batch.map(row => row.id),
+          text: t('shell.discussionAlready'),
+        },
+      }))
+      setDiscussError(null)
+      return
+    }
+
+    discussRuns.current.add(key)
+    setDiscussError(null)
+    const controller = new AbortController()
+    discussAborts.current.set(key, controller)
+    const view = planDiscussionGroups(batch, jobRoles)
+    setDiscussFlows(current => ({
+      ...current,
+      [key]: {
+        status: 'running',
+        stage: 'meeting',
+        participants: participantsOf(view.groups, batch.flatMap(row => row.role ?? [])),
+        taskIds: batch.map(row => row.id),
+      },
+    }))
+    try {
+      const snapshot = await loadSplitSnapshot()
+      const outcome = await runPlanDiscussion({
+        tasks: batch,
+        roster: snapshot.roles,
+        document,
+        proposal: key,
+      }, {
+        createSession: role => createDefaultedSession(createSession, role.preset, role.id),
+        sendPrompt: async (id, text) => sendPrompt(id as SessionId, text),
+        holdSession: id => holdSession?.(id as SessionId) ?? (() => {}),
+        readMessages: id => readMessages?.(id as SessionId) ?? [],
+        readNotice: id => readSessionNotice?.(id as SessionId) ?? null,
+        isRunning: id => liveSessionStatus.current.get(id as SessionId)?.running
+          ?? liveSessionRows.current[id as SessionId]?.running,
+        loadContracts: async () => (await loadSplitSnapshot()).contracts,
+        now: () => Date.now(),
+        sleep: ms => cancellableSleep(ms, controller.signal),
+      }, {
+        signal: controller.signal,
+        onProgress: (progress) => {
+          const plan = planDiscussionGroups(batch, jobRoles)
+          setDiscussFlows(current => ({
+            ...current,
+            [key]: {
+              status: 'running',
+              stage: progress.stage,
+              participants: participantsOf(plan.groups, batch.flatMap(row => row.role ?? [])),
+              taskIds: progress.taskIds,
+            },
+          }))
+        },
+      })
+      if (outcome.kind === 'cancelled') return
+      if (outcome.kind === 'failed') {
+        const text = discussionFailureText(t, outcome, path)
+        setDiscussFlows(current => ({
+          ...current,
+          [key]: {
+            status: 'failed',
+            participants: participantsOf(outcome.plan.groups, batch.flatMap(row => row.role ?? [])),
+            taskIds: batch.map(row => row.id),
+            text,
+            lines: outcome.taskIds === undefined ? [] : [text],
+          },
+        }))
+        setDiscussError(text)
+        setReload(value => value + 1)
+        return
+      }
+      setDiscussFlows(current => ({
+        ...current,
+        [key]: {
+          status: 'done',
+          participants: participantsOf(outcome.plan.groups, batch.flatMap(row => row.role ?? [])),
+          taskIds: batch.map(row => row.id),
+          text: fill(t('shell.discussionDone'), { tasks: `${batch.length}` }),
+        },
+      }))
+      setDiscussError(null)
+      setReload(value => value + 1)
+    } catch (error: unknown) {
+      const text = fill(t('shell.discussionSessionFailed'), { detail: String(error) })
+      setDiscussFlows(current => ({
+        ...current,
+        [key]: {
+          status: 'failed',
+          participants: [],
+          taskIds: batch.map(row => row.id),
+          text,
+        },
+      }))
+      setDiscussError(text)
+    } finally {
+      discussRuns.current.delete(key)
+      discussAborts.current.delete(key)
+    }
+  }
+
+  /**
+   * 用户确认方案：逐条签署并推进这批任务。失败逐条留下，任务因状态未动而留在方案讨论列。
+   */
+  const confirmDiscussion = async (task: ShellTask): Promise<void> => {
+    if (task.proposal === undefined) return
+    const key = task.proposal
+    if (discussRuns.current.has(key)) return
+    if (signContract === undefined || advanceContract === undefined || sessionId === undefined) {
+      setDiscussError(t('shell.discussionNeedSessions'))
+      return
+    }
+    const batch = discussionTasksOf(tasks, task)
+    if (batch.length === 0) {
+      setDiscussError(t('shell.discussionNoTasks'))
+      return
+    }
+    discussRuns.current.add(key)
+    setDiscussError(null)
+    setDiscussFlows(current => ({
+      ...current,
+      [key]: { ...(current[key] ?? { participants: [], taskIds: batch.map(row => row.id) }), status: 'confirming' },
+    }))
+    try {
+      const summary = await confirmPlan(batch.map(row => row.id), {
+        loadTasks: async () => (await loadSplitSnapshot()).tasks,
+        loadContracts: async () => (await loadSplitSnapshot()).contracts,
+        signContract: taskId => signContract(sessionId, taskId),
+        advanceContract: taskId => advanceContract(sessionId, taskId),
+      })
+      setConfirmResults(current => ({ ...current, [key]: summary }))
+      const failed = summary.attempts.some(attempt => !attempt.ok)
+      setDiscussFlows(current => ({
+        ...current,
+        [key]: {
+          ...(current[key] ?? { participants: [], taskIds: batch.map(row => row.id) }),
+          status: failed ? 'failed' : 'done',
+          text: fill(t('shell.discussionConfirmProgress'), { confirmed: `${summary.confirmedCount}` }),
+        },
+      }))
+      setReload(value => value + 1)
+    } catch (error: unknown) {
+      const text = fill(t('shell.discussionConfirmAdvanceFailed'), { task: task.id, detail: String(error) })
+      setDiscussError(text)
+    } finally {
+      discussRuns.current.delete(key)
     }
   }
 
@@ -3048,14 +3341,14 @@ export function Shell({
     }
   }
 
-  const renderColumn = (state: (typeof SHELL_STATES)[number]): ReactNode => {
-    const columnTasks = filterTasks(tasks.filter(task => task.state === state.id), filter, statusOfTask)
+  const renderColumn = (column: (typeof SHELL_BOARD_COLUMNS)[number]): ReactNode => {
+    const columnTasks = filterTasks(tasks.filter(task => boardColumnOf(task) === column.id), filter, statusOfTask)
     return (
-      <div key={state.id} className={css.column}>
+      <div key={column.id} className={css.column}>
         <div className={css.columnHead}>
           <span className={css.columnName}>
-            <span className={`${css.stateDot ?? ''} ${STATE_DOT[state.id] ?? ''}`} />
-            {t(state.labelKey)}
+            <span className={`${css.stateDot ?? ''} ${column.id === 'discussion' ? css.stateDiscussing : STATE_DOT[column.id] ?? ''}`} />
+            {t(column.labelKey)}
           </span>
           <span className={css.count}>{columnTasks.length}</span>
         </div>
@@ -3070,6 +3363,7 @@ export function Shell({
               ? fill(t('shell.taskGrouped'), { session: sessionLabel(joint.sessionId), members: peers.join('、') })
               : t(TASK_STATUS[status].labelKey)
             const waitingOn = (task.dependsOn ?? []).filter(id => knownStates[id] !== 'closed')
+            const contract = contractOf(contracts, task.id)
             return (
               <button type="button" key={task.id} className={`${css.taskCard} ${runningCardClass(status) ?? ''}`} onClick={() => { openTask(task) }}>
                 <div className={css.taskId}><span>{task.id}</span><span>{task.grade}</span></div>
@@ -3086,7 +3380,14 @@ export function Shell({
                     : <span className={`${css.tag} ${css.tagQueued}`}>{fill(t('shell.queuePosition'), { n: queueMark.position })}</span>}
                   {task.rules.map(rule => <span key={rule} className={css.tag}>{rule}</span>)}
                   <span className={`${css.tag} ${task.state === 'closed' ? css.tagOk : ''}`}>{t(SURFACE_LABEL[task.state])}</span>
-                  {!contracts.some(row => row.id === task.id && row.signedBy === 'human')
+                  {column.id !== 'discussion'
+                    ? null
+                    : contract === undefined
+                      ? <span className={`${css.tag} ${css.tagWarn}`}>{t('shell.discussionWaiting')}</span>
+                      : contractComplete(contract) && !contractSigned(contract)
+                        ? <span className={`${css.tag} ${css.tagWarn}`}>{t('shell.discussionContractDraftedTag')}</span>
+                        : null}
+                  {!contractSigned(contract)
                     ? null
                     : <span className={`${css.tag} ${css.tagOk}`}>{t('shell.contractSigned')}</span>}
                 </div>
@@ -3467,7 +3768,7 @@ export function Shell({
                       </div>
                     )}
                     <div className={css.board}>
-                      {SHELL_STATES.map(state => renderColumn(state))}
+                      {SHELL_BOARD_COLUMNS.map(column => renderColumn(column))}
                     </div>
                     {isFilterActive(filter) && visibleTasks.length === 0
                       ? <p className={css.filterEmpty}>{t('shell.filterEmpty')}</p>
@@ -4049,6 +4350,88 @@ export function Shell({
                 {detailSchedule === undefined || scheduleErrors[detail.id] === undefined
                   ? null
                   : <p className={css.problem}>{fill(t('shell.scheduleLogFailed'), { detail: scheduleErrors[detail.id] ?? '' })}</p>}
+                {detailDiscussionTasks.length === 0 ? null : (
+                  <section className={css.flowSection} data-plan-discussion>
+                    <h4>{t('shell.discussionTitle')}</h4>
+                    <dl className={css.metaStrip}>
+                      <div className={css.metaItem}>
+                        <dt className={css.metaK}>{t('shell.discussionParticipants')}</dt>
+                        <dd className={css.metaV}>
+                          {[...new Set(detailDiscussionPlan.groups.flatMap(group => group.roles.map(role => role.name)))].join('、') || '—'}
+                        </dd>
+                      </div>
+                      <div className={css.metaItem}>
+                        <dt className={css.metaK}>{t('shell.discussionBatchLabel')}</dt>
+                        <dd className={css.metaV}>{detailDiscussionTasks.map(row => row.id).join('、')}</dd>
+                      </div>
+                    </dl>
+                    <div className={css.flowTaskList}>
+                      {detailDiscussionTasks.map((row) => {
+                        const rowContract = contractOf(contracts, row.id)
+                        const label = rowContract === undefined
+                          ? t('shell.discussionMissing', { task: row.id })
+                          : contractSigned(rowContract)
+                            ? t('shell.discussionSigned', { task: row.id })
+                            : t('shell.discussionDrafted', { task: row.id })
+                        return (
+                          <div key={row.id} className={css.flowTaskRow} data-plan-discussion-task={row.id}>
+                            <span className={css.flowTaskId}>{row.id}</span>
+                            <span className={css.flowTaskReason}>
+                              {label}
+                              {rowContract === undefined
+                                ? ''
+                                : ` · ${t('shell.discussionContractChange')}${rowContract.change[0] ?? ''}`}
+                            </span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                    {detailDiscussFlow?.status === 'running' ? (
+                      <p className={css.flowReason} data-plan-discussion-progress>
+                        {fill(
+                          t(detailDiscussFlow.stage === 'drafting' ? 'shell.discussionDrafting' : 'shell.discussionRunning'),
+                          { roles: detailDiscussFlow.participants.join('、') },
+                        )}
+                      </p>
+                    ) : null}
+                    {detailDiscussFlow?.status === 'confirming' ? (
+                      <p className={css.flowReason}>{t('shell.discussionConfirming')}</p>
+                    ) : null}
+                    {detailDiscussFlow?.text === undefined || detailDiscussFlow.status === 'confirming'
+                      ? null
+                      : <p className={detailDiscussFlow.status === 'failed' ? css.problem : css.flowReason}>{detailDiscussFlow.text}</p>}
+                    {detailConfirmLines.length === 0 ? null : (
+                      <ul className={css.flowBlockers}>
+                        {detailConfirmLines.map(line => <li key={line} className={css.problem}>{line}</li>)}
+                      </ul>
+                    )}
+                    {discussError === null ? null : <p className={css.problem}>{discussError}</p>}
+                    <div className={css.flowToolbar}>
+                      <button
+                        type="button"
+                        className={css.primaryBtn}
+                        disabled={detailDiscussFlow?.status === 'running' || detailDiscussFlow?.status === 'confirming'
+                          || !hasSession || signContract === undefined || advanceContract === undefined
+                          || !detailDiscussionTasks.every(row => contractComplete(contractOf(contracts, row.id)))}
+                        onClick={() => { void confirmDiscussion(detail) }}
+                      >
+                        {detailDiscussFlow?.status === 'confirming' ? t('shell.discussionConfirming') : t('shell.discussionConfirm')}
+                      </button>
+                      <button
+                        type="button"
+                        className={css.secondaryBtn}
+                        disabled={modelBlocked || detailDiscussFlow?.status === 'running' || detailDiscussFlow?.status === 'confirming'
+                          || !hasSession || createSession === undefined}
+                        title={modelBlocked ? t('shell.noModels') : undefined}
+                        onClick={() => { void discussPlan(detail, true) }}
+                      >
+                        {detailDiscussionTasks.some(row => contractOf(contracts, row.id) !== undefined)
+                          ? t('shell.discussionReconfirm')
+                          : t('shell.discussionStart')}
+                      </button>
+                    </div>
+                  </section>
+                )}
                 <div className={css.field}>
                   <label>
                     {t('shell.contract')}

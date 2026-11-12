@@ -537,7 +537,7 @@ describe('需求卡片渲染', () => {
       .toBe(t('shell.splitNewTasks', { count: '1', tasks: 'T-02' }))
   })
 
-  it('完成后显示拆分、分配与进入待开发的计数、失败明细，并给去看板', () => {
+  it('完成后显示拆分与分配的计数、失败明细，并给去看板', () => {
     const onViewBoard = vi.fn()
     const { container } = render(
       <RequirementCard
@@ -550,8 +550,8 @@ describe('需求卡片渲染', () => {
           status: 'done',
           newTasks: [{ id: 'T-02', title: '记一笔' }, { id: 'T-03', title: '翻记录' }],
           summary: {
-            taskCount: 2, assignedCount: 2, readyCount: 1,
-            lines: ['T-03 没有进入待开发：还没分配岗位'],
+            taskCount: 2, assignedCount: 2,
+            lines: ['T-03 没有给出岗位，仍未分配'],
           },
         }}
         onClose={vi.fn()}
@@ -560,8 +560,8 @@ describe('需求卡片渲染', () => {
       />,
     )
     expect(container.querySelector('[data-requirement-split-summary]')?.textContent)
-      .toBe(t('shell.splitResult', { tasks: '2', assigned: '2', ready: '1' }))
-    expect(screen.getByText('T-03 没有进入待开发：还没分配岗位')).toBeTruthy()
+      .toBe(t('shell.splitResult', { tasks: '2', assigned: '2' }))
+    expect(screen.getByText('T-03 没有给出岗位，仍未分配')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: zh['shell.splitViewBoard'] }))
     expect(onViewBoard).toHaveBeenCalledTimes(1)
   })

@@ -338,13 +338,6 @@ export async function apply(ctx: ClientContext, config: Config = {}): Promise<vo
     const assignTask = (sessionId: SessionId, taskId: string, roleId: string): Promise<ShellSignResult> =>
       runHumanCommand(sessionId, `/task_assign ${taskId} ${roleId}`)
     /**
-     * 需求拆出、已分配岗位的任务直接推进到待开发（contracted）。
-     * 用户已拍板以需求文档作为这批任务的契约依据，跳过逐任务契约；
-     * 与分配同档，只由人在命令面发起。
-     */
-    const splitReady = (sessionId: SessionId, taskId: string): Promise<ShellSignResult> =>
-      runHumanCommand(sessionId, `/task_split_ready ${taskId}`)
-    /**
      * 调度判定由浏览器算出，落盘仍归 kernel：这条命令把判定追加到任务证据目录，
      * 命令本身也进会话日志，事后能对上「哪条会话、什么时候、为什么这么排」。
      */
@@ -522,7 +515,7 @@ export async function apply(ctx: ClientContext, config: Config = {}): Promise<vo
           locale: NS,
           inject: () => ({
             files, readAttachment, openRepository, sendPrompt, uploadAttachment, signContract, bindTask, assignTask,
-            splitReady, logSchedule, advanceContract, approveProposal,
+            logSchedule, advanceContract, approveProposal,
             createSession, listRoles, listExperts, readExpert,
             readMessages, subscribeSession, holdSession, checkModels, subscribeModels,
             readSessionNotice, readSessionFlags, modelSettings, readDefaultModel,

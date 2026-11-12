@@ -8,11 +8,14 @@ import type { ShellMessage, ShellTask } from './shell-data.ts'
 
 /**
  * 任务是否是需求卡片要看的那一条。
+ *
+ * 需求本体没有岗位；拆分后进了方案讨论的任务同样带方案回指，但它们由任务详情展示
+ * 讨论与契约，不该再打开需求卡片。
  * @param task - 看板任务。
- * @returns 状态为 drafting 且带方案回指时为 true。
+ * @returns 状态为 drafting、带方案回指且没有岗位时为 true。
  */
 export function isRequirementTask(task: ShellTask): boolean {
-  return task.state === 'drafting' && task.proposal !== undefined
+  return task.state === 'drafting' && task.proposal !== undefined && task.role === undefined
 }
 
 /**
@@ -153,6 +156,19 @@ function jsonRecord(text: string): Record<string, unknown> | null {
 /** 只接受普通对象；数组与 null 不算。 */
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/**
+ * 任务描述摘要：压成一行并截断。
+ *
+ * 只给拆分与方案讨论的指令判断范围，不替代原文；空描述如实写成一句话。
+ * @param task - 看板任务。
+ * @returns 单行摘要，最长 240 字。
+ */
+export function taskDigest(task: ShellTask): string {
+  const text = task.description.replace(/\s+/gu, ' ').trim()
+  if (text === '') return '（任务没有描述）'
+  return text.length > 240 ? `${text.slice(0, 240)}…` : text
 }
 
 /** 拆分指令附带需求正文的上限；超出时按段落边界截断，不切半句。 */

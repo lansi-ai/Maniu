@@ -734,13 +734,14 @@
 .expertDoc { margin-top: 8px; }
 .expertDoc > summary { cursor: pointer; font-size: var(--lc-text-xs); color: var(--lc-brand); }
 .expertDocBody { margin: 8px 0 0; padding: 8px 10px; border: 1px solid var(--lc-line); border-radius: var(--lc-radius-sm); background: var(--lc-surface-2); font: 400 var(--lc-text-xs) / var(--lc-leading) var(--lc-font-mono); white-space: pre; overflow-x: auto; color: var(--lc-muted); }
-.board { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; align-items: start; }
+.board { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 14px; align-items: start; }
 .column { background: var(--lc-surface-2); border: 1px solid var(--lc-line); border-radius: var(--lc-radius-lg); padding: var(--lc-space-3); min-height: 160px; min-width: 0; box-shadow: var(--lc-shadow-xs); }
 .columnHead { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--lc-space-3); padding: 0 4px; }
 .columnName { font-size: 13.5px; font-weight: 600; display: flex; align-items: center; gap: var(--lc-space-2); }
 .count { font-size: var(--lc-text-xs); color: var(--lc-muted); background: var(--lc-surface-3); border-radius: var(--lc-radius-pill); padding: 2px 8px; }
 .stateDot { width: 8px; height: 8px; border-radius: 50%; }
 .stateDrafting { background: var(--lc-state-drafting); }
+.stateDiscussing { background: var(--lc-brand); }
 .stateContracted { background: var(--lc-state-contracted); }
 .stateImplementing { background: var(--lc-state-implementing); }
 .stateVerifying { background: var(--lc-state-verifying); }
