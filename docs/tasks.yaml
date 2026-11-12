@@ -1574,6 +1574,18 @@ tracks:
       inferred: false
       note: "A 级流程重构，来源是用户 2026-11-12 确认：拆分必须由项目经理与研发经理完成，依据已生成的完整需求文档，分配按领域（架构给架构师、前端给前端等），采用一键拆并自动分配。现状拆分指令发在立项分析师会话里。目标流程：一、点拆分任务后新建 role 为 pm 的项目经理会话，把完整需求文档与新任务要求交给它，只产 drafting 任务，卡片保持打开显示拆分中；二、监听 pm 会话与投影，pm 结束后取同方案回指的新 drafting 任务，没有则报失败并可重试；三、新建 role 为 manager 的研发经理会话，给需求文档、新任务清单与现有岗位名册，缺岗位先用 role_draft 建并写 signals，最后输出可解析的任务到岗位映射 JSON，不改任务状态不实现；四、外壳解析映射并用现有 /task_assign 人机命令批量分配，失败逐条报告，完成后刷新看板并在卡片显示结果与去看板；五、两个新会话的角色记进本窗口会话角色表，不重发立项咒语、不改需求与方案。约束是不改宿主契约（分配仍走 /task_assign）、不新增页面、文案走词典、四套皮肤与窄窗可用、流程可重试。验收 typecheck 与 packages/lcoder vitest 与 oxlint 与 test:docs 与 i18n；单测覆盖映射解析、会话创建与角色、任务过滤、失败与重试；真窗口最多一次定向断言，不做截图。工作树用 pool-slot-1 claim 到 lcoder/t139-manager-split，端口 9822 与 9829 与 9830。2026-11-12 19:50 监督窗口派工，实现线会话 e517f71f；用户选定一键拆并自动分配。"
 
+    - id: T-140
+      title: 项目经理角色显示名改口
+      status: doing
+      face: 用户端
+      type: 修复
+      owner: lance
+      created: '2026-11-12'
+      date: '2026-11-12'
+      dep: [T-139]
+      inferred: false
+      note: "C 级角色命名，来源是用户 2026-11-12 明确拆分由项目经理执行。内核 pm 角色与 preset lcoder-pm 现在显示为「LCoder 产品」，与产品口径不符。只改 lcoder/desktop-profile.patch.yml 里 preset 的显示名、描述与 persona 首句为项目经理，id 与工具面不变，调度反推仍按 lcoder-pm 到 pm；同步开发 profile 副本。验收 test:docs 与 i18n 与 cordis 配置校验，不做截图。直接在主检出改配置并重出 profile，无需工作树。"
+
 milestones:
 - name: MVP-0 工作台本地跑通
   track: lcoder

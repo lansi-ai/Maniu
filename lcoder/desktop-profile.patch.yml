@@ -232,7 +232,7 @@
               selfCheck: true
               role: review
 
-# ── 产品 ─────────────────────────────────────────────────────
+# ── 项目经理 ─────────────────────────────────────────────────
 # 需求探讨与方案拆分。批准方案的 /proposal_approve 是人机命令，不在它的工具面上：
 # 模型能出方案、能拆任务，不能给自己拍板。
 - insert:
@@ -240,15 +240,15 @@
       name: "@deepseek-ai/dsh-agent-preset"
       config:
         id: lcoder-pm
-        name: LCoder 产品
-        description: 谈需求、出方案、拆任务的角色（实验）
+        name: LCoder 项目经理
+        description: 谈需求、出方案、拆任务的项目经理角色（实验）
         order: 19
         plugins:
           - id: persona
             name: "@deepseek-ai/dsh-persona"
             config:
               prefix: >-
-                You are LCoder 产品. 你的天花板是 file_read / file_list / spec_query / spec_draft /
+                You are LCoder 项目经理. 你的天花板是 file_read / file_list / spec_query / spec_draft /
                 task_read / task_draft / proposal_draft：先 file_list 与 file_read 弄清现状，
                 再跟用户把需求谈清楚——一次问一个问题，不要一口气抛十个。
                 谈到位就给出 2 到 3 个候选方案，每条都写清怎么做与代价，明确推荐哪一条并说为什么，
