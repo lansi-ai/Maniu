@@ -1938,6 +1938,12 @@ export function Shell({
         return
       }
 
+      // 新拆分会话沿用需求所在会话当前选的模型：默认模型指向不可用网关时，
+      // 用户只要在本会话切到可用模型，项目经理与研发经理就不会再撞同一个 502。
+      const splitModelSession = claimTaskSession(task.session, taskSessionRows)?.sessionId ?? sessionId
+      const splitModel = (splitModelSession === undefined
+        ? undefined
+        : sessionProjections[splitModelSession]?.values.modelSelection?.next) ?? undefined
       const outcome = await runRequirementSplit({
         task,
         source: { document },
@@ -1947,6 +1953,10 @@ export function Shell({
       }, {
         createSession: async (preset) => {
           const created = await createSession(projectPath, preset)
+          if (splitModel !== undefined && modelSettings !== undefined) {
+            const failure = await modelSettings.setDefault(created, splitModel.provider, splitModel.model)
+            if (failure !== undefined) throw new Error(failure)
+          }
           setSessionRoles(current => ({ ...current, [String(created)]: preset }))
           if (signedIn) await routeSession(created)
           return String(created)
