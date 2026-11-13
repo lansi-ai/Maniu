@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import { checkP1, checkP3, checkP4 } from '../src/checkers/index.js'
+import { checkDeliverable, checkP1, checkP3, checkP4 } from '../src/checkers/index.js'
 import { contractHash } from '../src/kernel/contract.js'
 import type { ContractFact } from '../src/kernel/contract.js'
 import { textCodeIndex } from '../src/kernel/spec-store.js'
 import type { SpecSnapshot } from '../src/kernel/spec-store.js'
 import { AutomationPolicy, Contract, RuleEntry, Task } from '../src/schema/spec.js'
+import { Deliverable } from '../src/schema/deliverable.js'
 
 const AT = '2026-11-02T15:00:00+08:00'
 
@@ -184,5 +185,43 @@ describe('P4 条目有证据', () => {
 
   it('没有任何必需证据的任务直接通过', () => {
     expect(checkP4(task(), {}).ok).toBe(true)
+  })
+})
+
+describe('D1 必须交付的任务有交付索引', () => {
+  const deliverable = (over: Record<string, unknown> = {}): Deliverable => Deliverable.parse({
+    task: 'T-014',
+    summary: '补齐基础框架说明',
+    docs: ['README.md'],
+    created_at: AT,
+    updated_at: AT,
+    ...over,
+  })
+
+  it('A 级任务缺索引 → 违规并给出目标路径', () => {
+    const r = checkDeliverable(task({ grade: 'A' }), { kind: 'missing' })
+    expect(r.ok).toBe(false)
+    expect(r.violations[0]).toMatchObject({ checker: 'D1', subject: 'T-014' })
+    expect(r.violations[0]?.detail).toContain('还没有交付索引')
+    expect(r.violations[0]?.hint).toContain('.spec/deliverables/T-014.yaml')
+    expect(r.violations[0]?.hint).toContain('deliverable_draft')
+  })
+
+  it('通用轨与基础/架构关键词同样触发', () => {
+    expect(checkDeliverable(task({ track: 'general' }), { kind: 'missing' }).ok).toBe(false)
+    expect(checkDeliverable(task({ title: '搭建基础框架' }), { kind: 'missing' }).ok).toBe(false)
+    expect(checkDeliverable(task({ description: '这次做架构调整' }), { kind: 'missing' }).ok).toBe(false)
+  })
+
+  it('完整索引 → 通过；读不懂 → 违规带原文', () => {
+    expect(checkDeliverable(task({ grade: 'A' }), { kind: 'ok', value: deliverable() }).ok).toBe(true)
+
+    const broken = checkDeliverable(task({ grade: 'A' }), { kind: 'invalid', problem: 'summary 不能为空' })
+    expect(broken.ok).toBe(false)
+    expect(broken.violations[0]?.detail).toContain('summary 不能为空')
+  })
+
+  it('普通 B 级非通用轨任务不看交付索引', () => {
+    expect(checkDeliverable(task({ grade: 'B', title: '导出结算记录' }), { kind: 'missing' }).ok).toBe(true)
   })
 })

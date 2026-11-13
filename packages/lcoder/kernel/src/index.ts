@@ -11,6 +11,7 @@
  * 依赖上游（`@deepseek-ai/dsh-tools`），业务代码不直接 import 上游内部路径。
  */
 export * from './schema/spec.js'
+export * from './schema/deliverable.js'
 export * from './schema/roles.js'
 export * from './schema/tracks.js'
 export * from './schema/validate.js'
@@ -20,6 +21,7 @@ export * from './kernel/spec-store.js'
 export * from './kernel/project-store.js'
 export * from './kernel/spec-root.js'
 export * from './kernel/task-store.js'
+export * from './kernel/deliverable-store.js'
 export * from './kernel/requirement-store.js'
 export * from './kernel/role-store.js'
 export * from './kernel/surface.js'
@@ -38,6 +40,7 @@ export * from './tools/project-tools.js'
 export * from './tools/spec-tools.js'
 export * from './tools/edit-tools.js'
 export * from './tools/task-tools.js'
+export * from './tools/deliverable-tools.js'
 export * from './tools/requirement-tools.js'
 export * from './tools/role-tools.js'
 

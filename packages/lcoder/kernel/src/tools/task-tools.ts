@@ -1,7 +1,7 @@
 /**
  * 任务侧工具：读任务、立项、申请收口。
  *
- * `task_close` 是"凭什么算做完"的落点：它把 P1/P3/P4 三条检查器串起来，
+ * `task_close` 是"凭什么算做完"的落点：它把 P1/P3/P4 与 D1 四条检查器串起来，
  * **全部通过才允许转移状态**。不通过就把违规清单原样交出来，一条也不吞。
  *
  * 状态图本身也会拦：`implementing` 不能直接到 `closed`，必须先过 `verifying`。
@@ -14,10 +14,11 @@ import { isAbsolute, relative, resolve, sep } from 'node:path'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 
-import { checkP1, checkP3, checkP4 } from '../checkers/index.js'
+import { checkDeliverable, checkP1, checkP3, checkP4 } from '../checkers/index.js'
 import type { Violation } from '../checkers/index.js'
 import { loadAutomationPolicy } from '../kernel/automation.js'
 import { loadContractFact } from '../kernel/contract.js'
+import { readDeliverable } from '../kernel/deliverable-store.js'
 import { loadEvidence } from '../kernel/evidence-store.js'
 import { hasProject, loadProject } from '../kernel/project-store.js'
 import { assertProposalId, listProposals } from '../kernel/proposal-store.js'
@@ -26,6 +27,7 @@ import { loadSpec, textCodeIndexFromDir } from '../kernel/spec-store.js'
 import { hasSpecRoot, resolveRoot } from '../kernel/spec-root.js'
 import type { RootInput } from '../kernel/spec-root.js'
 import { assertTaskId, dependencyCycle, findByTitle, listTasks, loadTask, nextTaskId, openTask, saveTask, taskPath, transition, unknownDependencies } from '../kernel/task-store.js'
+import { mustDeliver } from '../schema/deliverable.js'
 import { BUILTIN_TRACKS } from '../schema/tracks.js'
 import type { TrackDescriptor } from '../schema/tracks.js'
 
@@ -308,7 +310,7 @@ export function createTaskTools(specRootInput: RootInput): ToolDefinition[] {
     defineTool({
       name: 'task_close',
       description:
-        '申请收口。依次跑 P1（条目有落点）、P3（不可逆项需合法签署，且签名覆盖当前正文）、P4（条目有证据），全部通过才把任务转为 closed。任一不过则返回违规清单，状态不变。',
+        '申请收口。依次跑 P1（条目有落点）、P3（不可逆项需合法签署，且签名覆盖当前正文）、P4（条目有证据）、D1（A 级、通用轨或基础/架构类任务必须登记交付索引），全部通过才把任务转为 closed。任一不过则返回违规清单，状态不变。',
       parameters: {
         task_id: { type: 'string', required: true, description: '任务编号' },
       },
@@ -321,6 +323,10 @@ export function createTaskTools(specRootInput: RootInput): ToolDefinition[] {
         const task = loadTask(specRoot, args.task_id)
 
         const evidence = loadEvidence(specRoot, task.id)
+        // 普通任务不读交付索引：一条手写坏的索引不该影响小修收口。
+        const deliverable = mustDeliver(task)
+          ? readDeliverable(specRoot, task.id)
+          : ({ kind: 'missing' } as const)
         const violations: Violation[] = [
           ...checkP1(loadSpec(specRoot), textCodeIndexFromDir(repoRoot)).violations,
           ...checkP3(task, loadContractFact(specRoot, task.id), {
@@ -328,6 +334,7 @@ export function createTaskTools(specRootInput: RootInput): ToolDefinition[] {
             evidence,
           }).violations,
           ...checkP4(task, evidence).violations,
+          ...checkDeliverable(task, deliverable).violations,
         ]
 
         if (violations.length > 0) {

@@ -26,7 +26,7 @@ import type { CloudState } from '@lcoder/kernel/src/cloud/types.ts'
 import type { ModelSettingsFace, ModelSettingsSnapshot } from '../src/client/shell/model-settings.ts'
 import { zh, en } from '../src/client/locales.ts'
 import {
-  CONTRACTS_DIR, PROPOSALS_DIR, REQUIREMENTS_DIR, ROLES_FILE, SCHEDULING_DIR, TASKS_DIR,
+  CONTRACTS_DIR, DELIVERABLES_DIR, PROPOSALS_DIR, REQUIREMENTS_DIR, ROLES_FILE, SCHEDULING_DIR, TASKS_DIR,
 } from '../src/client/projection.ts'
 import type { ProjectionFilesRemote } from '../src/client/projection.ts'
 
@@ -46,6 +46,10 @@ interface SpecFiles {
   readonly proposals?: Readonly<Record<string, string>>
   /** `.spec/roles.yaml` 的正文；缺省按文件不存在处理。 */
   readonly roles?: string
+  /** `.spec/deliverables/` 下的交付索引。 */
+  readonly deliverables?: Readonly<Record<string, string>>
+  /** 仓库根下的文档正文（如 README.md、docs/architecture.md）；预览走这一支。 */
+  readonly docs?: Readonly<Record<string, string>>
 }
 
 /** 目录缺失的远程失败；`isMissing` 按 code 认这种。 */
@@ -60,6 +64,7 @@ function fakeFiles(spec: SpecFiles): ProjectionFilesRemote {
     [PROPOSALS_DIR]: spec.proposals ?? {},
     [REQUIREMENTS_DIR]: spec.requirements ?? {},
     [SCHEDULING_DIR]: {},
+    [DELIVERABLES_DIR]: spec.deliverables ?? {},
   }
   return {
     list: async (_sessionId, path) => {
@@ -75,6 +80,13 @@ function fakeFiles(spec: SpecFiles): ProjectionFilesRemote {
       }
     },
     readPage: async (_sessionId, path) => {
+      const doc = spec.docs?.[path]
+      if (doc !== undefined) {
+        return {
+          ok: true,
+          value: { absolutePath: `${REPO}/${path}`, version: 'v1', offset: 1, text: doc, lines: doc.split('\n').length, eof: true },
+        }
+      }
       if (path === ROLES_FILE) {
         return spec.roles === undefined
           ? missing(path)
@@ -1658,5 +1670,58 @@ describe('方案讨论列与确认门禁', () => {
     fireEvent.click(within(detail).getByRole('button', { name: zh['shell.discussionConfirm'] }))
     expect(await screen.findByText('T-02 契约签署失败：签名被拒')).toBeTruthy()
     expect(advanceContract).not.toHaveBeenCalled()
+  })
+})
+
+describe('任务详情的交付物', () => {
+  const FOUNDATION_TASK = 'id: T-01\ntitle: 搭建基础框架\nstate: verifying\ngrade: A\n\ntrack: general\n'
+  const PLAIN_TASK = 'id: T-02\ntitle: 导出结算记录\nstate: drafting\ngrade: B\n\ntrack: h5\n'
+  const DELIVERABLE = [
+    'task: T-01',
+    'summary: 交付基础框架说明',
+    'docs:',
+    '  - README.md',
+    '  - docs/architecture.md',
+    'commands:',
+    '  - pnpm typecheck',
+  ].join('\n')
+
+  it('展示摘要、文档路径与命令；点文档打开只读预览', async () => {
+    const { container } = renderShell({
+      spec: {
+        tasks: { 'T-01.yaml': FOUNDATION_TASK },
+        deliverables: { 'T-01.yaml': DELIVERABLE },
+        docs: { 'README.md': '# 项目说明\n这是基础框架。' },
+      },
+    })
+    const dialog = await openTask('搭建基础框架')
+
+    expect(dialog.querySelector('[data-deliverable-summary]')?.textContent).toBe('交付基础框架说明')
+    expect(within(dialog).getByText('README.md')).toBeTruthy()
+    expect(within(dialog).getByText('docs/architecture.md')).toBeTruthy()
+    expect(dialog.querySelector('[data-deliverable-commands]')?.textContent).toContain('pnpm typecheck')
+    expect(dialog.querySelector('[data-deliverable-missing]')).toBeNull()
+
+    fireEvent.click(dialog.querySelector('[data-deliverable-doc="README.md"]') as HTMLElement)
+    await waitFor(() => {
+      expect(document.querySelector('[data-deliverable-preview-body]')?.textContent).toContain('项目说明')
+    })
+    expect(container).toBeTruthy()
+  })
+
+  it('必须交付但缺索引 → 就地提示目标路径与下一步', async () => {
+    renderShell({ spec: { tasks: { 'T-01.yaml': FOUNDATION_TASK } } })
+    const dialog = await openTask('搭建基础框架')
+
+    const missing = dialog.querySelector('[data-deliverable-missing]')
+    expect(missing?.textContent).toContain('.spec/deliverables/T-01.yaml')
+    expect(missing?.textContent).toContain('deliverable_draft')
+  })
+
+  it('普通任务没有索引时不画交付物区', async () => {
+    renderShell({ spec: { tasks: { 'T-02.yaml': PLAIN_TASK } } })
+    const dialog = await openTask('导出结算记录')
+
+    expect(dialog.querySelector('[data-deliverable-section]')).toBeNull()
   })
 })

@@ -13,6 +13,7 @@ import type { ShellSignResult, ShellTask } from './shell-data.ts'
 import type { RequirementAnswer } from './requirement.ts'
 import type { RequirementProgressId } from './requirement-page.ts'
 import { REQUIREMENT_PROGRESS_LABEL, isRequirementId } from './requirement-page.ts'
+import { DeliverableView } from './DeliverableView.tsx'
 import { useMarkdownLabels } from './ChatPanel.tsx'
 import css from './Shell.module.css'
 
@@ -76,6 +77,8 @@ export interface RequirementDetailProps {
   readonly onRelease: () => void
   readonly onCancel: () => void
   readonly onOpenTask: (taskId: string) => void
+  /** 点交付文档路径时打开预览；不传时只显示路径。 */
+  readonly onOpenDoc?: (doc: string) => void
   /** 讨论历史抽屉是否打开与它的数据；不传时入口仍可点，抽屉不画。 */
   readonly historyOpen: boolean
   readonly history: DiscussionHistoryView
@@ -146,11 +149,12 @@ function SplitFlowSection({ t, flow }: { readonly t: Translate; readonly flow: R
 export function RequirementDetail({
   t, row, progress, tasks, answers, splitting, splitFlow, error, actionBusy, actionResult,
   taskStateLabel, trackLabel, onClose, onApprove, onSplit, onRelease, onCancel, onOpenTask,
-  historyOpen, history, onOpenHistory, onCloseHistory,
+  onOpenDoc, historyOpen, history, onOpenHistory, onCloseHistory,
 }: RequirementDetailProps): ReactNode {
   const labels = useMarkdownLabels(t)
   const actions = actionsOf(progress, row.id)
   const body = row.text.trim()
+  const delivered = tasks.filter(task => task.deliverable !== undefined)
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
       if (event.key !== 'Escape') return
@@ -257,6 +261,29 @@ export function RequirementDetail({
               </ul>
             )}
         </section>
+
+        {delivered.length === 0 ? null : (
+          <section className={css.requirementContent} data-requirement-deliverables>
+            <div className={css.requirementContentHead}>
+              <span className={css.requirementContentTitle}>{t('shell.requirementDeliverables')}</span>
+              <span className={css.requirementMetaLine}>{t('shell.requirementTaskCount', { count: `${delivered.length}` })}</span>
+            </div>
+            <div className={css.deliverableStack}>
+              {delivered.map(task => (
+                <DeliverableView
+                  key={task.id}
+                  t={t}
+                  taskId={task.id}
+                  {...(task.deliverable === undefined ? {} : { deliverable: task.deliverable })}
+                  required={false}
+                  showHeading={false}
+                  onOpenTask={onOpenTask}
+                  {...(onOpenDoc === undefined ? {} : { onOpenDoc })}
+                />
+              ))}
+            </div>
+          </section>
+        )}
 
         {splitFlow === undefined || splitFlow === null ? null : <SplitFlowSection t={t} flow={splitFlow} />}
         {error === null ? null : <p className={css.problem} data-requirement-detail-error>{error}</p>}

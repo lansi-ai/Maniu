@@ -1420,6 +1420,36 @@
 .flowTaskRowHeld { opacity: .82; }
 .flowTaskRow input { align-self: center; }
 .flowTaskId { font-family: var(--lc-font-mono); font-size: var(--lc-text-xs); color: var(--lc-ink); }
+
+/* 交付物：摘要 + 文档路径 + 验收命令；窄窗下逐行折行。 */
+.deliverableSection { display: grid; gap: 6px; }
+.deliverableHead {
+  display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px;
+}
+.deliverableHead h4 { margin: 0; font: 600 var(--lc-text-md) / var(--lc-leading-tight) var(--lc-font-ui); color: var(--lc-ink); }
+.deliverableStack { display: grid; gap: 12px; margin-top: 8px; }
+.deliverableSummary {
+  margin: 0; color: var(--lc-ink); font-size: var(--lc-text-sm); line-height: var(--lc-leading);
+  overflow-wrap: anywhere;
+}
+.deliverableList { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.deliverableRow { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
+.deliverableLabel { color: var(--lc-faint); font-size: var(--lc-text-xs); }
+.deliverablePath {
+  font-family: var(--lc-font-mono); font-size: var(--lc-text-xs); color: var(--lc-ink);
+  overflow-wrap: anywhere;
+}
+.deliverableDoc {
+  padding: 0; border: 0; background: none; cursor: pointer; text-align: left;
+  color: var(--lc-brand); font-family: var(--lc-font-mono); font-size: var(--lc-text-xs);
+  overflow-wrap: anywhere;
+}
+.deliverableDoc:hover { text-decoration: underline; }
+.docPreview {
+  margin: 0; white-space: pre-wrap; overflow-wrap: anywhere;
+  font-family: var(--lc-font-mono); font-size: var(--lc-text-xs); color: var(--lc-ink);
+  max-height: 55vh; overflow: auto;
+}
 .flowTaskAction { font-weight: 600; color: var(--lc-ink); white-space: nowrap; }
 .flowTaskReason { color: var(--lc-muted); overflow-wrap: anywhere; }
 .flowHistory { display: grid; gap: 4px; max-height: 260px; overflow: auto; }

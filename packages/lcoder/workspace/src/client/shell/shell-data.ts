@@ -51,6 +51,17 @@ export interface ShellTask {
   readonly irreversible: readonly string[]
   /** 任务开立时间（`opened_at`）；缺省表示文件里没写。 */
   readonly openedAt?: string
+  /** 交付索引；普通任务没登记时缺省。 */
+  readonly deliverable?: ShellDeliverable
+}
+
+/** 任务详情展示的交付索引：摘要、工程文档路径与验收命令。 */
+export interface ShellDeliverable {
+  readonly summary: string
+  readonly docs: readonly string[]
+  readonly commands: readonly string[]
+  /** 最近一次登记时刻；文件里没写时缺省。 */
+  readonly updatedAt?: string
 }
 
 /** 装配层声明的一个角色（Agent preset）；外壳的新会话按它指名。 */

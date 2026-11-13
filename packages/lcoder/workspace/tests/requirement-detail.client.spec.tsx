@@ -31,7 +31,12 @@ function requirementOf(overrides: Partial<RequirementDocRow> = {}): RequirementD
   }
 }
 
-function taskOf(id: string, title: string, state: ShellTask['state'] = 'drafting'): ShellTask {
+function taskOf(
+  id: string,
+  title: string,
+  state: ShellTask['state'] = 'drafting',
+  overrides: Partial<ShellTask> = {},
+): ShellTask {
   return {
     id,
     title,
@@ -46,6 +51,7 @@ function taskOf(id: string, title: string, state: ShellTask['state'] = 'drafting
     irreversible: [],
     requirement: 'REQ-01',
     track: 'h5',
+    ...overrides,
   }
 }
 
@@ -69,6 +75,7 @@ function propsOf(overrides: Partial<RequirementDetailProps> = {}): RequirementDe
     onRelease: vi.fn(),
     onCancel: vi.fn(),
     onOpenTask: vi.fn(),
+    onOpenDoc: vi.fn(),
     historyOpen: false,
     history: { status: 'idle', groups: [] },
     onOpenHistory: vi.fn(),
@@ -213,5 +220,47 @@ describe('Esc 关闭', () => {
     fireEvent.keyDown(window, { key: 'Escape' })
     expect(onCloseHistory).toHaveBeenCalledTimes(1)
     expect(onClose).not.toHaveBeenCalled()
+  })
+})
+
+describe('需求详情的交付物汇总', () => {
+  const deliverable = {
+    summary: '交付基础框架说明',
+    docs: ['README.md', 'docs/architecture.md'],
+    commands: ['pnpm typecheck'],
+    updatedAt: '2026-11-13T11:00:00.000Z',
+  }
+
+  it('按关联任务汇总摘要与文档，任务编号可跳转、文档可预览', () => {
+    const onOpenTask = vi.fn()
+    const onOpenDoc = vi.fn()
+    const { container } = render(
+      <RequirementDetail {...propsOf({
+        tasks: [
+          taskOf('T-01', '记一笔', 'implementing', { deliverable }),
+          taskOf('T-02', '翻记录', 'implementing'),
+        ],
+        onOpenTask,
+        onOpenDoc,
+      })} />,
+    )
+
+    const section = container.querySelector('[data-requirement-deliverables]')
+    expect(section).not.toBeNull()
+    expect(section?.textContent).toContain('交付基础框架说明')
+    expect(section?.textContent).toContain('README.md')
+    expect(section?.textContent).toContain('pnpm typecheck')
+    expect(section?.textContent).not.toContain('翻记录')
+
+    fireEvent.click(container.querySelector('[data-deliverable-task-link="T-01"]') as HTMLElement)
+    expect(onOpenTask).toHaveBeenCalledWith('T-01')
+
+    fireEvent.click(container.querySelector('[data-deliverable-doc="docs/architecture.md"]') as HTMLElement)
+    expect(onOpenDoc).toHaveBeenCalledWith('docs/architecture.md')
+  })
+
+  it('没有任务登记交付物时不画汇总区', () => {
+    const { container } = render(<RequirementDetail {...propsOf()} />)
+    expect(container.querySelector('[data-requirement-deliverables]')).toBeNull()
   })
 })

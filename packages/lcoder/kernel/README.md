@@ -54,6 +54,8 @@ The plugin mounts as a row through the patch layer; it has no `dsh plugin add` i
 
 `requirement_draft` writes `.spec/requirements/REQ-<number>.yaml` plus the same-named Markdown body from a required title and content, an optional `options` array (`name` and `summary` required per entry, `cost` optional), and an optional `recommendation`. It takes the next free `REQ-` number, refuses to overwrite an existing pair, and writes the body first; a failed metadata write removes the body it just wrote. It writes `state: draft` only. `/requirement_approve` moves a draft with a non-empty body to `confirmed`; `/requirement_release` moves a confirmed requirement to `released` only when at least one task points back through `Task.requirement` and every such task is `closed`, and otherwise reports the unclosed task ids; `/requirement_close` closes a draft or confirmed requirement and refuses a released one, which is final. `Task.requirement` is optional and coexists with `Task.proposal`; readers prefer `requirement`. The same requirement directory feeds the workspace projection, which composes each YAML with its Markdown body.
 
+`deliverable_draft` records a task's deliverables in `.spec/deliverables/<task id>.yaml` from a required `summary`, a non-empty `docs` array of repository-relative paths, and an optional `commands` array. Every `docs` entry must resolve to an existing file under the repository root; absolute paths, `..` segments, and missing files are rejected. The tool overwrites the index per task, keeps the first `created_at`, and refreshes `updated_at`; it records the index only, and the engineering documents themselves are still written with `file_edit`. `task_close` runs D1 after P1, P3, and P4: a task graded A, assigned to the `general` track, or whose title or description mentions 基础框架, 脚手架, 架构, or 技术选型 must have a readable index with a non-empty summary and at least one document, and closure otherwise reports `.spec/deliverables/<task id>.yaml` as the next step. Ordinary tasks are unaffected. Only `dev`, `architect`, and `ops` see the tool, and only from `contracted` onward.
+
 -----
 
 <a id="understand-the-implementation"></a>
@@ -75,13 +77,15 @@ Every tool factory accepts either a fixed root or a resolver. The resolver reads
 | `src/kernel/requirement-store.ts` | Requirement objects, numbering, and the two-file write |
 | `src/tools/spec-tools.ts`, `src/tools/task-tools.ts`, `src/tools/edit-tools.ts` | The model tools |
 | `src/tools/requirement-tools.ts` | The model-facing `requirement_draft` tool |
+| `src/tools/deliverable-tools.ts` | The model-facing `deliverable_draft` tool |
+| `src/kernel/deliverable-store.ts`, `src/schema/deliverable.ts` | Delivery index reads and writes, plus the must-deliver rule |
 | `src/commands/requirement-approve.ts`, `src/commands/requirement-release.ts`, `src/commands/requirement-close.ts` | The three human-only requirement state commands |
 | `src/schema/requirement-progress.ts` | The pure nine-state requirement progress derivation |
 | `src/tools/role-tools.ts` | The model-facing `role_draft` tool |
 | `src/kernel/role-store.ts`, `src/schema/roles.ts` | `.spec/roles.yaml` reads and writes, plus the shared built-in role ids |
 | `src/commands/task-assign.ts` | The human-only `task_assign` command writing `Task.role` |
 | `src/commands/task-split-ready.ts` | The human-only `task_split_ready` command moving split tasks to `contracted` |
-| `src/checkers/index.ts` | The P1, P3, and P4 closure checkers |
+| `src/checkers/index.ts` | The P1, P3, P4, and D1 closure checkers |
 | `src/kernel/automation.ts` | `.spec/automation.yaml` loading, defaults, and policy hashing |
 | `src/kernel/flow.ts`, `src/kernel/flow-store.ts` | Pure next-action decision and the `.spec` fact assembly |
 | `src/kernel/sign-gate.ts` | The three compensating gates for AI self-signing |

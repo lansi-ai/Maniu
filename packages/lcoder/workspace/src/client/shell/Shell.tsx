@@ -18,7 +18,7 @@ import type { PromptContentPart } from '@deepseek-ai/dsh-api-session-controller/
 // Type-only: pulls the `agentPreset` Session projection value into this program.
 import type {} from '@deepseek-ai/dsh-agent-preset-registry/types'
 import {
-  loadAgentsRegistry, loadLocalSecrets, loadProjectInfo, loadRolesRegistry, loadWorkspaceProjection,
+  loadAgentsRegistry, loadLocalSecrets, loadProjectInfo, loadRolesRegistry, loadWorkspaceProjection, messageOf,
 } from '../projection.ts'
 import type {
   AgentsRow, ContractRow, JobRoleRow, ProjectionFilesRemote, ProposalRow, RequirementDocRow, RuleRow,
@@ -130,6 +130,8 @@ import type {
 } from './shell-data.ts'
 import { BUILTIN_ROLE_IDS } from './shell-data.ts'
 import { BUILTIN_TRACKS } from '@lcoder/kernel/src/schema/tracks.ts'
+import { mustDeliver } from '@lcoder/kernel/src/schema/deliverable.ts'
+import { DeliverableView } from './DeliverableView.tsx'
 import bullMark from '../assets/bull-mark.png'
 import css from './Shell.module.css'
 
@@ -595,6 +597,16 @@ function shellState(value: string): ShellTaskState {
 }
 
 /**
+ * 交付文档预览状态：`loading` 时正文为空，`failed` 时正文是读盘原话。
+ * 路径是仓库相对路径，与交付索引里登记的一致。
+ */
+interface DocPreview {
+  readonly path: string
+  readonly status: 'loading' | 'ready' | 'failed'
+  readonly text: string
+}
+
+/**
  * 文件投影的一行 → 外壳任务：展示字段原样透传，状态收敛到五态。
  * @param row - 投影读到的任务行。
  * @returns 看板与详情使用的外壳任务。
@@ -622,6 +634,7 @@ export function toShellTask(row: TaskRow): ShellTask {
     paths: row.paths,
     irreversible: row.irreversible,
     ...(row.openedAt === undefined ? {} : { openedAt: row.openedAt }),
+    ...(row.deliverable === undefined ? {} : { deliverable: row.deliverable }),
   }
 }
 
@@ -693,6 +706,8 @@ export function Shell({
   /** 新会话的角色选择浮层。 */
   const [rolePicker, setRolePicker] = useState(false)
   const [detail, setDetail] = useState<ShellTask | null>(null)
+  /** 交付文档预览：路径、读取状态与正文；null 表示没打开。 */
+  const [docPreview, setDocPreview] = useState<DocPreview | null>(null)
   /** 左侧菜单：需求页与任务页。两页各自记住自己的视图与筛选，切回来不变。 */
   const [nav, setNav] = useState<'requirements' | 'tasks'>('tasks')
   const [requirementView, setRequirementView] = useState<RequirementView>('table')
@@ -2219,6 +2234,26 @@ export function Shell({
       splitRuns.current.delete(key)
       splitAborts.current.delete(key)
     }
+  }
+
+  /**
+   * 打开一份交付文档的预览。
+   *
+   * 路径按仓库相对路径读；没有会话或读不到时把原因留在预览里，
+   * 不把「读不到」画成空文档。
+   * @param doc - 交付索引里登记的仓库相对路径。
+   */
+  const openDeliverableDoc = (doc: string): void => {
+    if (files === undefined || sessionId === undefined) {
+      setDocPreview({ path: doc, status: 'failed', text: t('shell.deliverableDocUnavailable') })
+      return
+    }
+    setDocPreview({ path: doc, status: 'loading', text: '' })
+    void files.readPage(sessionId, doc, new AbortController().signal).then((page) => {
+      setDocPreview(page.ok
+        ? { path: doc, status: 'ready', text: page.value.text }
+        : { path: doc, status: 'failed', text: messageOf(page.error) })
+    })
   }
 
   /** 打开一条需求的详情抽屉；关闭另一条时就地状态由 effect 清掉。 */
@@ -4622,7 +4657,35 @@ export function Shell({
               history={historyView}
               onOpenHistory={() => { void openDiscussionHistory(openRequirement.row.id) }}
               onCloseHistory={closeDiscussionHistory}
+              onOpenDoc={openDeliverableDoc}
             />
+          </div>
+        </div>
+      )}
+
+      {docPreview === null ? null : (
+        <div
+          className={`${css.modalBackdrop} ${css.modalNested}`}
+          data-deliverable-preview
+          onClick={(event) => { if (event.target === event.currentTarget) setDocPreview(null) }}
+        >
+          <div className={css.modal} role="dialog" aria-modal="true" aria-label={docPreview.path}>
+            <div className={css.modalHead}>
+              <div className={css.grow}>
+                <h3>{docPreview.path}</h3>
+                <p className={css.detailDescription}>{t('shell.deliverableDocHint')}</p>
+              </div>
+              <button type="button" className={css.iconBtn} aria-label={t('shell.close')} onClick={() => { setDocPreview(null) }}>✕</button>
+            </div>
+            <div className={css.modalBody}>
+              {docPreview.status === 'loading' ? <p className={css.empty}>{t('shell.deliverableDocLoading')}</p> : null}
+              {docPreview.status === 'failed' ? <p className={css.problem}>{docPreview.text}</p> : null}
+              {docPreview.status === 'ready' ? <pre className={css.docPreview} data-deliverable-preview-body>{docPreview.text}</pre> : null}
+            </div>
+            <div className={css.modalFoot}>
+              <div className={css.spacer} />
+              <button type="button" className={css.secondaryBtn} onClick={() => { setDocPreview(null) }}>{t('shell.close')}</button>
+            </div>
           </div>
         </div>
       )}
@@ -4745,6 +4808,13 @@ export function Shell({
                     </div>
                   )}
               </dl>
+              <DeliverableView
+                t={t}
+                taskId={detail.id}
+                {...(detail.deliverable === undefined ? {} : { deliverable: detail.deliverable })}
+                required={mustDeliver(detail)}
+                onOpenDoc={openDeliverableDoc}
+              />
               <details className={css.metaMore}>
                 <summary className={css.metaMoreSummary}>{t('shell.more')}</summary>
                 <dl className={css.metaMoreList}>

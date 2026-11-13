@@ -6,17 +6,19 @@
  *   2. **纯函数。** 不读盘、不调模型、不看时间。同样的输入永远给同样的结论。
  *   3. **每条违规都要说下一步。** 只说"不通过"等于把问题退回到人身上。
  *
- * P1 判「有没有落点」，P3 判「不可逆项有没有合法签署、签的是不是当前正文」，P4 判「有没有证据」。
- * 三条合起来回答一个问句：**这个任务凭什么算做完了。**
+ * P1 判「有没有落点」，P3 判「不可逆项有没有合法签署、签的是不是当前正文」，P4 判「有没有证据」，
+ * D1 判「必须交付的任务有没有完整交付索引」。四条合起来回答一个问句：**这个任务凭什么算做完了。**
  */
 import type { CodeIndex, SpecSnapshot } from '../kernel/spec-store.js'
 import { findBindingIssues } from '../kernel/spec-store.js'
 import type { ContractFact } from '../kernel/contract.js'
+import type { DeliverableRead } from '../kernel/deliverable-store.js'
+import { mustDeliver } from '../schema/deliverable.js'
 import { hasReviewEvidence } from '../kernel/evidence-store.js'
 import { describeSelfSignFailure, evaluateSelfSignGate } from '../kernel/sign-gate.js'
 import type { AutomationPolicy, Task } from '../schema/spec.js'
 
-export type CheckerId = 'P1' | 'P3' | 'P4'
+export type CheckerId = 'P1' | 'P3' | 'P4' | 'D1'
 
 export interface Violation {
   checker: CheckerId
@@ -182,4 +184,53 @@ export function checkP4(task: Task, evidence: Readonly<Record<string, number>>):
   }
 
   return summarize(violations)
+}
+
+// ── D1 必须交付的任务有交付索引 ─────────────────────────────
+
+/**
+ * 必须交付的任务（A 级、通用轨、或命中基础/架构关键词）在收口时必须有一份完整索引。
+ *
+ * 索引只登记「文档在哪里、摘要是什么、怎么验收」；工程文档本身仍由实施线写进仓库。
+ * 普通任务不看这一项——给每条小修都要求一份交付说明只会制造空文件。
+ * 判据是纯函数：文件存在性在写盘工具里查，这里只看已读出的索引事实。
+ * @param task - 准备收口的任务。
+ * @param read - 该任务的交付索引读取结果。
+ * @returns 违规清单；不必交付或索引完整时为空。
+ */
+export function checkDeliverable(task: Task, read: DeliverableRead): CheckResult {
+  if (!mustDeliver(task)) return summarize([])
+
+  const target = `.spec/deliverables/${task.id}.yaml`
+  const hint = `先把工程文档写进仓库（README 或 docs/），再用 deliverable_draft 登记 ${target}`
+
+  if (read.kind === 'missing') {
+    return summarize([{
+      checker: 'D1',
+      subject: task.id,
+      detail: '必须交付的任务还没有交付索引',
+      hint,
+    }])
+  }
+  if (read.kind === 'invalid') {
+    return summarize([{
+      checker: 'D1',
+      subject: task.id,
+      detail: `交付索引读不懂：${read.problem}`,
+      hint: `修好 ${target}，或用 deliverable_draft 覆盖写一份完整的索引`,
+    }])
+  }
+
+  const problems: string[] = []
+  if (read.value.summary.trim() === '') problems.push('summary 为空')
+  if (read.value.docs.length === 0) problems.push('docs 没有登记任何文档')
+  if (read.value.docs.some(doc => doc.trim() === '')) problems.push('docs 里有空路径')
+  if (problems.length === 0) return summarize([])
+
+  return summarize([{
+    checker: 'D1',
+    subject: task.id,
+    detail: `必须交付的任务交付索引不完整：${problems.join('；')}`,
+    hint,
+  }])
 }

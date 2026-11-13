@@ -47,6 +47,7 @@ export const SURFACE: Readonly<Record<TaskState, readonly string[]>> = {
     'file_edit',
     'cmd_run',
     'evidence_attach',
+    'deliverable_draft',
     'role_draft',
   ],
   implementing: [
@@ -67,6 +68,7 @@ export const SURFACE: Readonly<Record<TaskState, readonly string[]>> = {
     'file_edit',
     'cmd_run',
     'evidence_attach',
+    'deliverable_draft',
     'role_draft',
   ],
   verifying: [
@@ -87,6 +89,7 @@ export const SURFACE: Readonly<Record<TaskState, readonly string[]>> = {
     'file_edit',
     'cmd_run',
     'evidence_attach',
+    'deliverable_draft',
     'task_close',
     'role_draft',
   ],
@@ -149,7 +152,7 @@ export const ROLE_TOOLS: Readonly<Record<RoleId, readonly string[]>> = {
   /** 立项/产品：读产品文档、列目录、读规格、读任务，把调研结论落成项目信息、起草态条目、需求与任务。 */
   intake: ['file_read', 'file_list', 'project_draft', 'spec_query', 'spec_draft', 'task_read', 'task_draft', 'requirement_draft'],
   /** 架构/契约：加上给规格条目绑落点和起草契约，仍然动不了代码。 */
-  architect: ['file_read', 'file_list', 'spec_query', 'spec_bind', 'task_read', 'task_draft', 'contract_draft'],
+  architect: ['file_read', 'file_list', 'spec_query', 'spec_bind', 'task_read', 'task_draft', 'contract_draft', 'deliverable_draft'],
   /** 产品：谈需求、出方案、拆任务；不给落点绑定、不给契约、不给改代码。 */
   pm: ['file_read', 'file_list', 'spec_query', 'spec_draft', 'task_read', 'task_draft', 'proposal_draft'],
   /** 实施：不设天花板，状态说了算。 */
@@ -170,12 +173,13 @@ export const ROLE_TOOLS: Readonly<Record<RoleId, readonly string[]>> = {
     'file_edit',
     'cmd_run',
     'evidence_attach',
+    'deliverable_draft',
     'task_close',
   ],
   /** Git：看状态与差异，把指定路径提交到本地仓库；没有编辑能力，也没有 push。 */
   git: ['file_read', 'file_list', 'spec_query', 'task_read', 'git_status', 'git_diff', 'git_commit'],
   /** 运维：写与维护部署脚本、跑登记过的命令、挂证据；收口与提交不归它。 */
-  ops: ['file_read', 'file_list', 'spec_query', 'spec_bind', 'task_read', 'task_draft', 'contract_draft', 'file_edit', 'cmd_run', 'evidence_attach'],
+  ops: ['file_read', 'file_list', 'spec_query', 'spec_bind', 'task_read', 'task_draft', 'contract_draft', 'file_edit', 'cmd_run', 'evidence_attach', 'deliverable_draft'],
   /** 评审：只读复核，外加挂证据与收口；永远不给改代码与跑命令。 */
   review: ['file_read', 'file_list', 'spec_query', 'task_read', 'evidence_attach', 'task_close'],
   /**

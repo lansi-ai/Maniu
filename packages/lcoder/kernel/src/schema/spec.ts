@@ -9,6 +9,7 @@
  */
 import { z } from 'zod'
 
+import { Deliverable } from './deliverable.js'
 import { BUILTIN_ROLES, ROLE_ID_PATTERN } from './roles.js'
 import { BUILTIN_TRACK_IDS, TRACK_ID_PATTERN } from './tracks.js'
 
@@ -668,6 +669,7 @@ export const SpecLayout = [
   { glob: 'tasks/*.yaml', schema: Task, many: true },
   { glob: 'proposals/*.yaml', schema: Proposal, many: true },
   { glob: 'requirements/*.yaml', schema: Requirement, many: true },
+  { glob: 'deliverables/*.yaml', schema: Deliverable, many: true },
   { glob: 'contracts/*.contract.yaml', schema: Contract, many: true },
   { glob: 'automation.yaml', schema: AutomationPolicy, many: false },
   { glob: 'agents.yaml', schema: AgentsRegistry, many: false },
