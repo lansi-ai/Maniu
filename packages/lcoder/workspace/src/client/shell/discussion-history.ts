@@ -215,7 +215,8 @@ export async function readDiscussionHistory(
  * 按角色合并轮次，保持角色与会话首次出现的顺序。
  * @param rounds - 定位到的发言轮次。
  * @returns 每个角色一组的历史。
- */export function groupDiscussionHistory(rounds: readonly DiscussionHistoryRound[]): DiscussionHistoryGroup[] {
+ */
+export function groupDiscussionHistory(rounds: readonly DiscussionHistoryRound[]): DiscussionHistoryGroup[] {
   const groups = new Map<string, { roleName: string; sessionIds: string[]; statements: string[] }>()
   for (const round of rounds) {
     const current = groups.get(round.roleId)
