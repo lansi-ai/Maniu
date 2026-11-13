@@ -1704,7 +1704,7 @@ tracks:
       date: '2026-11-13'
       dep: [T-149]
       inferred: false
-      note: "B 级真机验收，来源是 T-149 收口后留下的未验项。靶仓用全新空目录 E:\\Projects\\LCoder-e2e-20261113（2026-11-13 新建，无 .git、无 .spec），不改 LCoder-First-Demo，也不动旧会话与产品数据。流程：切换到该目录，走全新项目，七问逐题作答，确认需求，拆分任务（项目经理只标轨），方案讨论（需求分析师、项目经理、研发经理、按轨技术岗位、架构师），确认方案，逐条 contract_sign 与 task_contract，进入待开发。核验点：.spec/tasks 下新任务带 track 且无 role；拆分过程没有调用 /task_assign；讨论会话数与角色齐全；契约四段非空且签后进 contracted；看板六列流转正确；需求卡的讨论历史抽屉能按角色看到发言。不用截图，用会话日志、.spec 落盘与 CDP DOM 断言。不新建工作树，直接对主检出实例做验收；需要重启时用 start-all -Fast。2026-11-13 11:32 监督窗口登记。2026-11-13 11:45 真机验收阻塞：七问完成并出需求概要后点确认需求，会话模型被切成 lcoder-cloud 并连续 502；已登记 T-152，修复合入并重启后再继续。"
+      note: "B 级真机验收，来源是 T-149 收口后留下的未验项。靶仓用全新空目录 E:\\Projects\\LCoder-e2e-20261113（2026-11-13 新建，无 .git、无 .spec），不改 LCoder-First-Demo，也不动旧会话与产品数据。流程：切换到该目录，走全新项目，七问逐题作答，确认需求，拆分任务（项目经理只标轨），方案讨论（需求分析师、项目经理、研发经理、按轨技术岗位、架构师），确认方案，逐条 contract_sign 与 task_contract，进入待开发。核验点：.spec/tasks 下新任务带 track 且无 role；拆分过程没有调用 /task_assign；讨论会话数与角色齐全；契约四段非空且签后进 contracted；看板六列流转正确；需求卡的讨论历史抽屉能按角色看到发言。不用截图，用会话日志、.spec 落盘与 CDP DOM 断言。不新建工作树，直接对主检出实例做验收；需要重启时用 start-all -Fast。2026-11-13 11:32 监督窗口登记。2026-11-13 11:45 真机验收阻塞：七问完成并出需求概要后点确认需求，会话模型被切成 lcoder-cloud 并连续 502；已登记 T-152，修复合入并重启后再继续。2026-11-13 12:30 修复后跑通主链路：七问与确认落盘得到 P-01 与 T-01，拆分出 T-02 到 T-06（全部标轨、无 role，基础框架 T-02 在前且功能任务依赖它），三方加按轨技术岗讨论后架构师起草五份四段契约，人签后五条进待开发，T-01 留需求确认。验收中发现三个缺陷并登记 T-153、T-154、T-155；为继续验收，手工去掉 T-01 的 track 并按会话里的项目需求概要补写 .spec/requirements/P-01.md。主链路判过，讨论历史抽屉未过，等 T-155 修复后复验。"
     - id: T-151
       title: 空目录给出显式重新开始入口
       status: todo
@@ -1728,6 +1728,39 @@ tracks:
       inferred: false
       note: "B 级修复，来源是 T-150 真机验收在确认需求这一步被阻塞。证据取自语料：靶仓会话日志里第 1 轮请求头是 deepseek-official 与 deepseek-flash，第 1 轮结束 33 秒后出现 model/selection 到 lcoder-cloud 与 deepseek-flash，第 2 轮请求头变云端，回合以 502 upstream_unavailable 结束；点重试落盘后同一模式再次出现，说明不是网关单次抖动。根因：cloud/face.ts 的 selectRoute 实现就是调 selectModel 写死在 lcoder-cloud 与 deepseek-flash；Shell 的确认需求、重试落盘、更多讨论三个入口无条件先调 routeSession，于是把用户已选的官网模型覆盖成云端。聊天发送与任务绑定两处已有正确守卫，只在 provider 为空或等于旧的匿名访客路由时才切路由。修法：把这三个入口改成同一守卫（抽成一个局部 helper 复用），保留登录后旧匿名会话切回用户路由的能力；不改 selectRoute 本身，不改新建会话与其它入口的路由调用。约束是不改产品数据格式、不新增页面、文案不变。验收 typecheck 与 packages/lcoder vitest 与改动文件 oxlint；补组件或流程单测覆盖官网模型下确认与重试不调用 selectRoute、旧匿名路由仍会路由。工作树用 pool-slot-2 claim 到 lcoder/t152-intake-keep-model，端口 9823 与 9831 与 9832。2026-11-13 11:46 监督窗口登记并派工。2026-11-13 12:05 监督窗口核验并收口。实现线一笔提交，新增 routeLegacySession，确认需求、重试落盘、更多讨论与聊天发送四处统一按 provider 守卫，只在 provider 为空或旧匿名访客路由时才切；补了三条路径乘两种 provider 的用例。独立复跑 typecheck 五项、workspace vitest 四十八文件、改动两文件 oxlint 零错零警全过；主检出复跑 typecheck 与 packages/lcoder vitest 八十二文件、build:artifacts 八项与 build:check 两项全过。未验项是真机上确认需求后不再切云端并成功落盘，需重启实例后继续 T-150。已合入 lcoder/main、release pool-slot-2。"
 
+    - id: T-153
+      title: 立项确认后需求文档要能落盘
+      status: todo
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-13'
+      date: '2026-11-13'
+      dep: [T-150]
+      inferred: false
+      note: "B 级功能缺口，来源是 T-150 真机验收。确认轮模型明确回复「这一阶段的工具里没有写文件能力」，工具面只有 project_draft、proposal_draft、spec_draft、task_draft、file_read、file_list，没有 file_edit 与 cmd_run；因此 .spec/requirements/P-01.md 没有写成，拆分只能退回任务描述与方案正文，需求卡正文也可能取到确认回执。现状与 T-137 的立项咒语要求冲突，属于设计不可实现而不是模型偷懒。候选做法：一、新增内核工具 requirement_draft，只写 .spec/requirements/<方案编号>.md，校验方案存在、正文非空、不覆盖已有文件，并加进 intake 角色的工具面；二、只给人机命令，由外壳在需求卡上提供写入动作；三、给 intake 角色开放 file_edit，范围过大不建议。同时要修需求卡取文优先级，避免把确认回执当需求概要。待用户拍板后派工。"
+    - id: T-154
+      title: 需求本体任务不得带轨
+      status: doing
+      face: 用户端
+      type: 修复
+      owner: lance
+      created: '2026-11-13'
+      date: '2026-11-13'
+      dep: [T-149, T-150]
+      inferred: false
+      note: "B 级修复，来源是 T-150 真机验收。立项确认后 task_draft 建出的需求本体 T-01 被模型顺手标了 track h5；T-149 改过的看板列判定按 track 进方案讨论，于是需求本体被放进方案讨论列、点开是任务详情而不是需求卡片，下一步提示变成起草契约。已确认口径：需求本体不参与交付面划分，不得写 track 与 role；track 只给拆分出来的开发任务。修法：立项咒语在 task_draft 那一步明确禁止传 track 与 role，并说明违规会导致看板错列；补单测断言立项指令包含该约束。验收 typecheck 与 packages/lcoder vitest 与改动文件 oxlint。与 T-155 合并到一条工作树、分开提交。"
+    - id: T-155
+      title: 讨论历史抽屉被投影刷新关闭
+      status: doing
+      face: 用户端
+      type: 修复
+      owner: lance
+      created: '2026-11-13'
+      date: '2026-11-13'
+      dep: [T-149, T-150]
+      inferred: false
+      note: "B 级修复，来源是 T-150 真机验收。需求卡片点讨论历史后抽屉只出现一瞬间就消失，读不到任何角色分组。已核原因：Shell 里收起抽屉的 effect 依赖 detail 对象本身，而看板每十秒重读投影后会把 detail 换成同一任务的新快照，对象身份变化触发 effect，抽屉被关掉；抽屉的异步读取还没完成就被丢弃。修法：抽屉收起只在任务真的换了时发生，依赖改成 detail 的编号而不是对象；补一条组件或流程测试，模拟抽屉打开后 tasks 刷新一次，抽屉仍保持打开并能从 loading 落到 ready；读取失败与定位不到两种提示保持现状。验收 typecheck 与 packages/lcoder vitest 与改动文件 oxlint。与 T-154 合并到一条工作树、分开提交。"
 milestones:
 - name: MVP-0 工作台本地跑通
   track: lcoder
