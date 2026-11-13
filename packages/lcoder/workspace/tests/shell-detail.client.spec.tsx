@@ -23,6 +23,7 @@ import type { ShellProps } from '../src/client/shell/Shell.tsx'
 import type { ShellMessage } from '../src/client/shell/shell-data.ts'
 import type { CloudFace } from '../src/client/cloud/face.ts'
 import type { CloudState } from '@lcoder/kernel/src/cloud/types.ts'
+import type { ModelSettingsFace, ModelSettingsSnapshot } from '../src/client/shell/model-settings.ts'
 import { zh, en } from '../src/client/locales.ts'
 import {
   CONTRACTS_DIR, PROPOSALS_DIR, REQUIREMENTS_DIR, ROLES_FILE, SCHEDULING_DIR, TASKS_DIR,
@@ -141,6 +142,10 @@ interface ShellScenario {
   readonly sendPrompt?: ShellProps['sendPrompt']
   /** 新建会话；缺省给固定会话号 s-9；需求拆分按角色 preset 建两条会话。 */
   readonly createSession?: ShellProps['createSession']
+  /** 模型设置面替身；缺省不注入，新建会话交给宿主默认模型。 */
+  readonly modelSettings?: ShellProps['modelSettings']
+  /** 任务认领命令替身；缺省不注入，任务对话只走复用分支。 */
+  readonly bindTask?: ShellProps['bindTask']
   /** 需求人机命令替身：确认、发布、关闭。 */
   readonly approveRequirement?: ShellProps['approveRequirement']
   readonly releaseRequirement?: ShellProps['releaseRequirement']
@@ -169,6 +174,31 @@ function signedInCloud(): CloudFace {
     usage: vi.fn(),
     selectRoute: async () => ({ ok: true, value: { provider: 'lcoder-cloud', model: 'deepseek-flash' } }),
   }
+}
+
+/** 模型设置面替身：只记录 load 与 setDefault，其余写入面不在新建会话里触发。 */
+function fakeModelSettings(defaultSelection?: { provider: string; model: string }) {
+  const load = vi.fn(async (): Promise<ModelSettingsSnapshot> => ({
+    status: 'ready',
+    error: null,
+    credentialError: null,
+    writable: true,
+    rows: [],
+    protocols: [],
+    ...(defaultSelection === undefined ? {} : { defaultSelection }),
+  }))
+  const setDefault = vi.fn(async () => undefined)
+  const face: ModelSettingsFace = {
+    load,
+    setDefault,
+    saveKey: vi.fn().mockResolvedValue(undefined),
+    removeKey: vi.fn().mockResolvedValue(undefined),
+    saveProfile: vi.fn().mockResolvedValue(undefined),
+    createProvider: vi.fn().mockResolvedValue(undefined),
+    removeProvider: vi.fn().mockResolvedValue(undefined),
+    discover: vi.fn().mockResolvedValue({ kind: 'found', models: [] }),
+  }
+  return { face, setDefault }
 }
 
 /** 组装外壳 props：真实词典、内存投影、可直接断言的窄接口替身。 */
@@ -245,6 +275,8 @@ function renderShell(scenario: ShellScenario) {
     listRoles: async () => [{ id: 'lcoder-review', name: '评审' }],
     checkModels: async () => ({ state: 'ready' }),
     createSession: scenario.createSession ?? (async () => SessionId('s-9')),
+    ...(scenario.modelSettings === undefined ? {} : { modelSettings: scenario.modelSettings }),
+    ...(scenario.bindTask === undefined ? {} : { bindTask: scenario.bindTask }),
     signContract: scenario.signContract ?? (async () => ({ ok: true, text: '已签署' })),
     advanceContract: scenario.advanceContract ?? (async () => ({ ok: true, text: '已进入已签约' })),
     assignTask: scenario.assignTask ?? vi.fn(async () => ({ ok: true, text: '已分配' })),
@@ -1319,6 +1351,96 @@ describe('旧匿名会话', () => {
     await waitFor(() => { expect(selectRoute).toHaveBeenCalledWith(SessionId('s-1')) })
     expect(selectRoute).toHaveBeenCalledTimes(1)
   })
+})
+
+/** 一条新建会话路径：任务对话、常驻角色会话或普通新会话。 */
+interface NewSessionPath {
+  readonly title: string
+  readonly spec: SpecFiles
+  /** 这条路径除云端与设置面之外还要注入的 props。 */
+  readonly props?: Partial<ShellScenario>
+  /** 在外壳渲染之后触发这条路径的新建分支。 */
+  readonly enter: () => Promise<void>
+}
+
+const NEW_SESSION_PATHS: readonly NewSessionPath[] = [
+  {
+    title: '任务对话',
+    spec: { tasks: { 'T-01.yaml': TASK_T01 } },
+    props: {
+      bindTask: async () => ({ ok: true, text: '已绑定' }),
+      sendPrompt: async () => {},
+    },
+    enter: async () => {
+      const detail = await openTask('起草中的任务')
+      const actions = within(detail).getAllByRole('button', { name: zh['shell.confirmRequirement'] })
+      fireEvent.click(actions[actions.length - 1] as HTMLElement)
+    },
+  },
+  {
+    title: '常驻角色会话',
+    spec: {},
+    enter: async () => {
+      fireEvent.click(await screen.findByTitle(zh['shell.openScheduler']))
+    },
+  },
+  {
+    title: '普通新会话',
+    spec: {},
+    enter: async () => {
+      fireEvent.click(await screen.findByTitle(zh['shell.newSession']))
+      fireEvent.click(await screen.findByRole('button', { name: zh['shell.newSessionGo'] }))
+    },
+  },
+]
+
+describe('新建会话跟随设置默认模型', () => {
+  const OFFICIAL = { provider: 'deepseek-official', model: 'deepseek-chat' } as const
+
+  /** 云端面加上路由调用的记录器，用来断言新建路径不再切云端。 */
+  function cloudWithRouteSpy(): { cloud: CloudFace; selectRoute: ReturnType<typeof vi.fn> } {
+    const cloud = signedInCloud()
+    const selectRoute = vi.fn(async () => ({
+      ok: true as const,
+      value: { provider: 'lcoder-cloud', model: 'deepseek-flash' },
+    }))
+    cloud.selectRoute = selectRoute
+    return { cloud, selectRoute }
+  }
+
+  /** 把微任务与零延迟定时器跑空：负向断言前等新建会话的后续步骤落定。 */
+  async function settle(): Promise<void> {
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 0)) })
+  }
+
+  for (const path of NEW_SESSION_PATHS) {
+    it(`${path.title}写入官网默认模型，不切云端路由`, async () => {
+      const { cloud, selectRoute } = cloudWithRouteSpy()
+      const { face, setDefault } = fakeModelSettings({ ...OFFICIAL })
+      const createSession = vi.fn(async () => SessionId('s-9'))
+      renderShell({ spec: path.spec, cloud, modelSettings: face, createSession, ...path.props })
+      await path.enter()
+
+      await waitFor(() => {
+        expect(setDefault).toHaveBeenCalledWith(SessionId('s-9'), OFFICIAL.provider, OFFICIAL.model)
+      })
+      expect(createSession).toHaveBeenCalledTimes(1)
+      expect(selectRoute).not.toHaveBeenCalled()
+    })
+
+    it(`${path.title}没有默认模型时交给宿主默认，不切云端路由`, async () => {
+      const { cloud, selectRoute } = cloudWithRouteSpy()
+      const { face, setDefault } = fakeModelSettings()
+      const createSession = vi.fn(async () => SessionId('s-9'))
+      renderShell({ spec: path.spec, cloud, modelSettings: face, createSession, ...path.props })
+      await path.enter()
+      await settle()
+
+      expect(createSession).toHaveBeenCalledTimes(1)
+      expect(setDefault).not.toHaveBeenCalled()
+      expect(selectRoute).not.toHaveBeenCalled()
+    })
+  }
 })
 
 describe('顶栏项目控件与项目信息抽屉', () => {
