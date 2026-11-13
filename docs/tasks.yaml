@@ -1738,7 +1738,7 @@ tracks:
       date: '2026-11-13'
       dep: [T-150]
       inferred: false
-      note: "B 级功能缺口，来源是 T-150 真机验收。确认轮模型明确回复「这一阶段的工具里没有写文件能力」，工具面只有 project_draft、proposal_draft、spec_draft、task_draft、file_read、file_list，没有 file_edit 与 cmd_run；因此 .spec/requirements/P-01.md 没有写成，拆分只能退回任务描述与方案正文，需求卡正文也可能取到确认回执。现状与 T-137 的立项咒语要求冲突，属于设计不可实现而不是模型偷懒。候选做法：一、新增内核工具 requirement_draft，只写 .spec/requirements/<方案编号>.md，校验方案存在、正文非空、不覆盖已有文件，并加进 intake 角色的工具面；二、只给人机命令，由外壳在需求卡上提供写入动作；三、给 intake 角色开放 file_edit，范围过大不建议。同时要修需求卡取文优先级，避免把确认回执当需求概要。待用户拍板后派工。"
+      note: "B 级功能缺口，来源是 T-150 真机验收。确认轮模型明确回复「这一阶段的工具里没有写文件能力」，工具面只有 project_draft、proposal_draft、spec_draft、task_draft、file_read、file_list，没有 file_edit 与 cmd_run；因此 .spec/requirements/P-01.md 没有写成，拆分只能退回任务描述与方案正文，需求卡正文也可能取到确认回执。现状与 T-137 的立项咒语要求冲突，属于设计不可实现而不是模型偷懒。候选做法：一、新增内核工具 requirement_draft，只写 .spec/requirements/<方案编号>.md，校验方案存在、正文非空、不覆盖已有文件，并加进 intake 角色的工具面；二、只给人机命令，由外壳在需求卡上提供写入动作；三、给 intake 角色开放 file_edit，范围过大不建议。同时要修需求卡取文优先级，避免把确认回执当需求概要。2026-11-13 12:35 用户拍板采用第一条：新增 requirement_draft 工具，只写 .spec/requirements/<方案编号>.md，校验方案存在、正文非空、不覆盖已有文件，只加进 intake 角色工具面；立项咒语在确认后调用它写入完整概要。因要改立项提示词，等 T-154 与 T-155 合入后再派工。"
     - id: T-154
       title: 需求本体任务不得带轨
       status: doing
