@@ -1,8 +1,8 @@
 /**
  * 讨论历史：把方案讨论会话里的发言按角色分组，供需求卡片的「讨论历史」抽屉展示。
  *
- * 定位会话有两条路：本窗口记下的讨论会话号优先；重启后没有记录时，按同项目会话的
- * agentPreset 与消息里出现的方案编号（P-xx）恢复。两条都找不到就如实说定位不到，
+ * 定位会话有两条路：本窗口记下的讨论会话号优先；重启后没有记录时，只认带参会身份
+ * 标记、且消息里出现方案编号（P-xx）的同项目会话。两条都找不到就如实说定位不到，
  * 不拿别的需求的会话顶上。这里只做纯函数，不读宿主状态，便于单测。
  */
 import type { ShellMessage } from './shell-data.ts'
@@ -17,10 +17,17 @@ export const DISCUSSION_SESSION_PRESETS: readonly string[] = [
   'lcoder',
 ]
 
-/** 一条候选会话：会话号、preset 与已读到的消息。 */
+/** 一条候选会话：会话号、preset、是否本窗口记录过，与已读到的消息。 */
 export interface DiscussionHistoryCandidate {
   readonly sessionId: string
   readonly preset?: string
+  /**
+   * 是否本窗口记下的讨论会话。
+   *
+   * 为 true 时按记录信任，允许 preset 兜底认角色；为 false 表示重启后扫描回来的
+   * 候选，必须带参会身份标记才认——同项目的立项与拆分会话也会提到方案编号。
+   */
+  readonly recorded: boolean
   readonly messages: readonly ShellMessage[]
 }
 
@@ -120,8 +127,10 @@ export function roleOfPreset(preset: string | undefined): { readonly roleId: str
 /**
  * 从候选会话里挑出这次需求的讨论。
  *
- * 只认提到方案编号的会话；角色优先读会议指令里的身份标记，读不到才退回 preset。
- * 没提到方案的会话一律不进结果——宁可显示「定位不到」，也不混进别的需求。
+ * 扫描回来的候选必须带参会身份标记才进历史：立项与拆分会话同样会提到方案编号，
+ * 只凭 preset 与编号会把它们当成讨论角色。本窗口记录过的会话按记录信任，
+ * 读不到标记时仍可按 preset 兜底。没提到方案的会话一律不进结果——宁可显示
+ * 「定位不到」，也不混进别的需求。
  * @param candidates - 候选会话，按建议顺序排列。
  * @param proposal - 方案编号。
  * @returns 命中的发言轮次与是否找到任何候选会话。
@@ -133,9 +142,10 @@ export function selectDiscussionHistory(
   const rounds: DiscussionHistoryRound[] = []
   let found = false
   for (const candidate of candidates) {
+    const marker = parseMeetingRole(candidate.messages)
+    if (!candidate.recorded && marker === null) continue
     if (!mentionsProposal(candidate.messages, proposal)) continue
     found = true
-    const marker = parseMeetingRole(candidate.messages)
     const role = marker ?? roleOfPreset(candidate.preset)
     if (role === undefined) continue
     const statements = statementsOf(candidate.messages)
@@ -150,10 +160,12 @@ export function selectDiscussionHistory(
   return { rounds, found }
 }
 
-/** 一条待读的候选会话：会话号与 preset，按优先顺序排好。 */
+/** 一条待读的候选会话：会话号、preset 与是否本窗口记录过，按优先顺序排好。 */
 export interface DiscussionHistorySession {
   readonly sessionId: string
   readonly preset?: string
+  /** 是否本窗口记下的讨论会话；重启后扫描的候选为 false。 */
+  readonly recorded: boolean
 }
 
 /** 一次异步读取的结果：命中情况与读不出来的条数。 */
@@ -174,9 +186,10 @@ export type DiscussionHistoryReader = (sessionId: string) => Promise<readonly Sh
 /**
  * 依次读取候选会话，再按方案编号挑出讨论。
  *
- * `sessions` 的先后就是优先顺序：本窗口记录过的会话排在前面，重启后才补的候选在后。
- * 某条会话读不出来只计一条 `unreadable`，不抛到界面；全部没有命中时由调用方
- * 按 `unreadable > 0` 区分「读取失败」与「定位不到」。
+ * `sessions` 的先后就是优先顺序：本窗口记录过的会话排在前面，重启后才补的候选在后；
+ * `recorded` 决定这条会话能不能在没有参会身份标记时按 preset 兜底。某条会话读不出来
+ * 只计一条 `unreadable`，不抛到界面；全部没有命中时由调用方按 `unreadable > 0`
+ * 区分「读取失败」与「定位不到」。
  * @param sessions - 候选会话，已按优先顺序去重。
  * @param proposal - 方案编号。
  * @param read - 异步读取端口；返回 null 表示这条会话暂时读不出来。
@@ -205,6 +218,7 @@ export async function readDiscussionHistory(
     candidates.push({
       sessionId: session.sessionId,
       ...(session.preset === undefined ? {} : { preset: session.preset }),
+      recorded: session.recorded,
       messages,
     })
   }

@@ -63,26 +63,31 @@ describe('历史定位与分组', () => {
   const candidates: readonly DiscussionHistoryCandidate[] = [
     {
       sessionId: 's-1',
+      recorded: false,
       preset: 'lcoder-intake',
       messages: [meetingPrompt('需求分析师', 'analyst'), assistant('功能清单已覆盖。')],
     },
     {
       sessionId: 's-2',
+      recorded: false,
       preset: 'lcoder-pm',
       messages: [meetingPrompt('项目经理', 'pm'), assistant('按三条任务拆分。')],
     },
     {
       sessionId: 's-3',
+      recorded: false,
       preset: 'lcoder-architect',
       messages: [meetingPrompt('架构师', 'architect'), assistant('契约要点如下。')],
     },
     {
       sessionId: 's-9',
+      recorded: false,
       preset: 'lcoder-pm',
       messages: [meetingPrompt('项目经理', 'pm', 'P-02'), assistant('别的需求。')],
     },
     {
       sessionId: 's-10',
+      recorded: false,
       preset: 'lcoder-review',
       messages: [assistant('无关会话。')],
     },
@@ -109,21 +114,107 @@ describe('历史定位与分组', () => {
     expect(groups[0]?.sessionIds).toEqual(['s-1', 's-3'])
   })
 
-  it('有标记时以标记为准，没有标记才退回 preset', () => {
+  it('有标记时以标记为准；本窗口记录的会话没有标记才退回 preset', () => {
     const selection = selectDiscussionHistory([
       {
         sessionId: 's-1',
         preset: 'lcoder', // preset 兜底只会得到「技术岗位」
+        recorded: false,
         messages: [meetingPrompt('H5 前端工程师', 'track-h5'), assistant('表单先定字段。')],
       },
       {
         sessionId: 's-2',
         preset: 'lcoder-architect',
+        recorded: true,
         messages: [{ role: 'user', text: '需求 P-01 的讨论' }, assistant('契约要点。')],
       },
     ], 'P-01')
     expect(selection.rounds[0]).toMatchObject({ roleId: 'track-h5', roleName: 'H5 前端工程师' })
     expect(selection.rounds[1]).toMatchObject({ roleId: 'architect', roleName: '架构师' })
+  })
+})
+
+describe('重启扫描与记录信任', () => {
+  it('扫描回来的立项与拆分会话提到方案，没有参会标记就不进历史', () => {
+    const selection = selectDiscussionHistory([
+      {
+        sessionId: 's-intake',
+        preset: 'lcoder',
+        recorded: false,
+        messages: [
+          { role: 'user', text: '立项：按 .spec/requirements/P-01.md 落需求。' },
+          assistant('需求已立项。'),
+        ],
+      },
+      {
+        sessionId: 's-split',
+        preset: 'lcoder-pm',
+        recorded: false,
+        messages: [
+          { role: 'user', text: '拆分完成：P-01 已拆出 T-01、T-02。' },
+          assistant('拆分完成汇报。'),
+        ],
+      },
+      {
+        sessionId: 's-meeting',
+        preset: 'lcoder-architect',
+        recorded: false,
+        messages: [meetingPrompt('架构师', 'architect'), assistant('契约要点如下。')],
+      },
+    ], 'P-01')
+    expect(selection.found).toBe(true)
+    expect(selection.rounds.map(round => round.sessionId)).toEqual(['s-meeting'])
+  })
+
+  it('只有立项与拆分会话提到方案时按定位不到处理，不拿它们凑历史', () => {
+    const selection = selectDiscussionHistory([
+      {
+        sessionId: 's-intake',
+        preset: 'lcoder',
+        recorded: false,
+        messages: [{ role: 'user', text: '立项：P-01' }, assistant('需求已立项。')],
+      },
+      {
+        sessionId: 's-split',
+        preset: 'lcoder-pm',
+        recorded: false,
+        messages: [{ role: 'user', text: '拆分完成：P-01 已拆出 T-02。' }, assistant('拆分完成汇报。')],
+      },
+    ], 'P-01')
+    expect(selection).toEqual({ rounds: [], found: false })
+  })
+
+  it('本窗口记录过的讨论会话按记录信任，没有标记仍按 preset 展示', () => {
+    const selection = selectDiscussionHistory([
+      {
+        sessionId: 's-recorded',
+        preset: 'lcoder-pm',
+        recorded: true,
+        messages: [{ role: 'user', text: '需求 P-01 的讨论' }, assistant('按三条任务拆分。')],
+      },
+    ], 'P-01')
+    expect(selection.found).toBe(true)
+    expect(selection.rounds[0]).toMatchObject({ sessionId: 's-recorded', roleId: 'pm', statements: ['按三条任务拆分。'] })
+  })
+
+  it('记录里也读不到角色的未知会话不进分组', () => {
+    const selection = selectDiscussionHistory([
+      {
+        sessionId: 's-unknown',
+        preset: 'lcoder-review',
+        recorded: true,
+        messages: [{ role: 'user', text: '需求 P-01 的讨论' }, assistant('无关结论。')],
+      },
+      {
+        sessionId: 's-unknown-scan',
+        preset: 'lcoder-review',
+        recorded: false,
+        messages: [{ role: 'user', text: '需求 P-01 的讨论' }, assistant('无关结论。')],
+      },
+    ], 'P-01')
+    expect(selection.rounds).toEqual([])
+    // 记录里的未知会话仍算「提到了方案」，扫描回来的则整条不算讨论。
+    expect(selection.found).toBe(true)
   })
 })
 
@@ -136,7 +227,7 @@ describe('异步读取候选会话', () => {
         : []
     }
     const result = await readDiscussionHistory(
-      [{ sessionId: 's-1', preset: 'lcoder-pm' }],
+      [{ sessionId: 's-1', preset: 'lcoder-pm', recorded: true }],
       'P-01',
       read,
     )
@@ -147,7 +238,7 @@ describe('异步读取候选会话', () => {
 
   it('打开失败返回 null 时计入 unreadable，不误报命中', async () => {
     const result = await readDiscussionHistory(
-      [{ sessionId: 's-1' }, { sessionId: 's-2' }],
+      [{ sessionId: 's-1', recorded: false }, { sessionId: 's-2', recorded: false }],
       'P-01',
       async () => null,
     )
@@ -161,7 +252,7 @@ describe('异步读取候选会话', () => {
       return [meetingPrompt('项目经理', 'pm'), assistant('其余候选照常读。')]
     }
     const result = await readDiscussionHistory(
-      [{ sessionId: 's-bad' }, { sessionId: 's-ok', preset: 'lcoder-pm' }],
+      [{ sessionId: 's-bad', recorded: false }, { sessionId: 's-ok', preset: 'lcoder-pm', recorded: false }],
       'P-01',
       read,
     )

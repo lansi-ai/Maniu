@@ -127,6 +127,8 @@ interface ShellScenario {
   readonly provider?: string
   /** 首条会话投影里的 agentPreset；讨论历史重启后按它找候选。 */
   readonly preset?: string
+  /** 按会话号给出的 agentPreset；多会话扫描讨论历史时用。 */
+  readonly presets?: Readonly<Record<string, string>>
   /** 工作区列表；缺省给一条会话所在的工作区。 */
   readonly workspaces?: WorkspaceSnapshot['items']
   /** 会话消息读取；需求卡片的立项问答走这一支。 */
@@ -178,10 +180,12 @@ function renderShell(scenario: ShellScenario) {
       error: null,
     }
   }
-  if (scenario.preset !== undefined && rows[0] !== undefined) {
-    const current = initialProjections[rows[0].id]
-    initialProjections[rows[0].id] = {
-      values: { ...current?.values, agentPreset: scenario.preset },
+  for (const row of rows) {
+    const preset = scenario.presets?.[String(row.id)] ?? (row === rows[0] ? scenario.preset : undefined)
+    if (preset === undefined) continue
+    const current = initialProjections[row.id]
+    initialProjections[row.id] = {
+      values: { ...current?.values, agentPreset: preset },
       state: 'ready',
       error: null,
     }
@@ -775,6 +779,42 @@ describe('需求卡片的拆分接线', () => {
     expect(await screen.findByText('按三条任务拆分，基础框架排第一。')).toBeTruthy()
     expect(readSessionMessages).toHaveBeenCalledWith(SessionId('s-1'))
     expect(document.querySelector('[data-discussion-history-group="pm"]')).not.toBeNull()
+  })
+
+  it('重启扫描只认参会身份标记：立项与拆分会话提到方案也不进历史', async () => {
+    const messages: Readonly<Record<string, readonly ShellMessage[]>> = {
+      's-intake': [
+        { role: 'user', text: '立项：按 .spec/requirements/P-01.md 落需求。' },
+        { role: 'assistant', text: '需求已立项。' },
+      ],
+      's-split': [
+        { role: 'user', text: '拆分完成：P-01 已拆出 T-02。' },
+        { role: 'assistant', text: '拆分完成汇报。' },
+      ],
+      's-meet': [
+        { role: 'user', text: '方案讨论：需求 P-01 已按轨拆分。\n参会身份：架构师（architect）' },
+        { role: 'assistant', text: '契约要点如下。' },
+      ],
+    }
+    const readSessionMessages: NonNullable<ShellProps['readSessionMessages']> =
+      async sessionId => messages[String(sessionId)] ?? null
+    renderShell({
+      spec: { tasks: { 'T-01.yaml': TASK_REQUIREMENT } },
+      sessions: [
+        sessionRow('s-intake', REPO, false),
+        sessionRow('s-split', REPO, false),
+        sessionRow('s-meet', REPO, false),
+      ],
+      presets: { 's-intake': 'lcoder', 's-split': 'lcoder-pm', 's-meet': 'lcoder-architect' },
+      readSessionMessages,
+    })
+    await openTask('随手记账')
+
+    fireEvent.click(screen.getByRole('button', { name: zh['shell.discussionHistory'] }))
+    expect(await screen.findByText('契约要点如下。')).toBeTruthy()
+    expect(document.querySelector('[data-discussion-history-group="architect"]')).not.toBeNull()
+    expect(document.querySelector('[data-discussion-history-group="track"]')).toBeNull()
+    expect(document.querySelector('[data-discussion-history-group="pm"]')).toBeNull()
   })
 
   it('看板刷新投影不关掉已打开的讨论历史，读取结果照常落位', async () => {

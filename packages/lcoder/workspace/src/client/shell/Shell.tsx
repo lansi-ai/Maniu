@@ -2195,8 +2195,10 @@ export function Shell({
    * 打开需求卡片的讨论历史。
    *
    * 候选会话按优先顺序排好：本窗口记录过的在前，重启后按同项目会话的 preset 补在后。
-   * 读取走异步端口，等宿主把会话打开后再读事件窗口；读不出来的候选跳过，全部候选都
-   * 没读到时按「读取失败」提示，只有确实没有会话提到这个方案才说定位不到。
+   * 记录过的会话按记录信任，允许 preset 兜底认角色；扫描回来的候选还要带参会身份
+   * 标记才进历史，否则立项与拆分会话会被当成讨论。读取走异步端口，等宿主把会话打开后
+   * 再读事件窗口；读不出来的候选跳过，全部候选都没读到时按「读取失败」提示，
+   * 只有确实没有会话提到这个方案才说定位不到。
    */
   const openDiscussionHistory = async (task: ShellTask): Promise<void> => {
     const request = historyRequest.current + 1
@@ -2211,18 +2213,18 @@ export function Shell({
     try {
       const sessions: DiscussionHistorySession[] = []
       const seen = new Set<string>()
-      const consider = (sessionId: string, preset: string | undefined): void => {
+      const consider = (sessionId: string, preset: string | undefined, recorded: boolean): void => {
         if (seen.has(sessionId)) return
         seen.add(sessionId)
-        sessions.push({ sessionId, ...(preset === undefined ? {} : { preset }) })
+        sessions.push({ sessionId, ...(preset === undefined ? {} : { preset }), recorded })
       }
       for (const item of discussionSessions.current[proposal] ?? []) {
-        consider(item.sessionId, item.role.preset)
+        consider(item.sessionId, item.role.preset, true)
       }
       for (const id of workspaceSessions) {
         const preset = agentPresetOf(id)
         if (!isDiscussionPreset(preset)) continue
-        consider(String(id), preset)
+        consider(String(id), preset, false)
       }
       const read = readSessionMessages === undefined
         ? (sessionId: string): Promise<readonly ShellMessage[] | null> => {
