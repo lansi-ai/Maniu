@@ -21,6 +21,7 @@ import { loadContractFact } from '../kernel/contract.js'
 import { loadEvidence } from '../kernel/evidence-store.js'
 import { hasProject, loadProject } from '../kernel/project-store.js'
 import { assertProposalId, listProposals } from '../kernel/proposal-store.js'
+import { assertRequirementId, listRequirementIds } from '../kernel/requirement-store.js'
 import { loadSpec, textCodeIndexFromDir } from '../kernel/spec-store.js'
 import { hasSpecRoot, resolveRoot } from '../kernel/spec-root.js'
 import type { RootInput } from '../kernel/spec-root.js'
@@ -85,6 +86,25 @@ function taskDraftProposal(specRoot: string, raw: string | undefined): string | 
 }
 
 /**
+ * 校验 task_draft 给出的需求编号。
+ *
+ * 与方案编号同一口径：填了就必须在 `.spec/requirements/` 里查得到，否则看板上就是断链。
+ * @param specRoot - 规格根。
+ * @param raw - 模型给的 requirement，可能缺省或空白。
+ * @returns 校验过的编号；缺省时 undefined。
+ */
+function taskDraftRequirement(specRoot: string, raw: string | undefined): string | undefined {
+  const text = raw?.trim()
+  if (text === undefined || text === '') return undefined
+  assertRequirementId(text)
+  const known = listRequirementIds(specRoot)
+  if (!known.includes(text)) {
+    throw new Error(`requirement 里的需求不存在：${text}；${known.length === 0 ? '这个规格里还没有需求，可省略该字段，或先用 requirement_draft 起草' : `已有需求 ${known.join(', ')}`}`)
+  }
+  return text
+}
+
+/**
  * 附件路径写盘前复核：解析后的目标必须仍在规格根内。
  *
  * schema 已拒绝绝对路径与 `..`；这里按实际解析结果再查一次，
@@ -134,6 +154,8 @@ export function createTaskTools(specRootInput: RootInput): ToolDefinition[] {
             evidence_required: t.evidence_required,
             ...(t.role === undefined ? {} : { role: t.role }),
             ...(t.track === undefined ? {} : { track: t.track }),
+            ...(t.proposal === undefined ? {} : { proposal: t.proposal }),
+            ...(t.requirement === undefined ? {} : { requirement: t.requirement }),
           }
         }
         return {
@@ -143,6 +165,8 @@ export function createTaskTools(specRootInput: RootInput): ToolDefinition[] {
             state: t.state,
             grade: t.grade,
             ...(t.track === undefined ? {} : { track: t.track }),
+            ...(t.proposal === undefined ? {} : { proposal: t.proposal }),
+            ...(t.requirement === undefined ? {} : { requirement: t.requirement }),
           })),
         }
       },
@@ -151,7 +175,7 @@ export function createTaskTools(specRootInput: RootInput): ToolDefinition[] {
     defineTool({
       name: 'task_draft',
       description:
-        '新建一个起草态（drafting）任务，把调研结论落成 .spec/tasks/<编号>.yaml。任务可标一条归属轨（内置轨或项目追加轨），方案讨论按轨邀请技术岗位；状态由本工具写死为 drafting，时间戳取执行时刻：本工具不能改任务状态、不能签契约、不能改代码。同标题已存在任务时返回那个任务，不重复建。',
+        '新建一个起草态（drafting）任务，把调研结论落成 .spec/tasks/<编号>.yaml。任务可标一条归属轨（内置轨或项目追加轨），方案讨论按轨邀请技术岗位；可回指一条需求（requirement）或旧流程的方案（proposal），两者可以并存。状态由本工具写死为 drafting，时间戳取执行时刻：本工具不能改任务状态、不能签契约、不能改代码。同标题已存在任务时返回那个任务，不重复建。',
       parameters: {
         title: { type: 'string', required: true, description: '任务标题，一句话说清要办成什么' },
         description: { type: 'string', description: '需求描述：具体要做什么、为什么，允许换行，最多 4000 个字符' },
@@ -168,6 +192,7 @@ export function createTaskTools(specRootInput: RootInput): ToolDefinition[] {
         irreversible: { type: 'array', items: { type: 'string' }, description: '不可逆对象名；填了就必须有人签署的契约才能收口（P3）' },
         evidence_required: { type: 'array', items: { type: 'string' }, description: '收口必备的证据项，对应 env.yaml 里登记的命令 id' },
         proposal: { type: 'string', description: '这条任务出自哪个方案（如 P-01），必须已存在于 proposals/；省略表示不是拆出来的' },
+        requirement: { type: 'string', description: '这条任务出自哪条需求（如 REQ-01），必须已存在于 requirements/；与 proposal 可以并存，读侧优先 requirement' },
         track: { type: 'string', description: '这条任务归属的轨：内置轨 h5 / admin / api / desktop / host / general，或 .spec/project.yaml 的 tracks 里项目追加的轨 id；一任务一轨，未知轨会被拒绝' },
         depends_on: { type: 'array', items: { type: 'string' }, description: '前置任务编号；这些任务收口之前本条不会开始' },
         task_id: { type: 'string', description: '指定编号，形如 T-014；省略则取现有 T- 编号之后的下一个空号' },
@@ -198,6 +223,8 @@ export function createTaskTools(specRootInput: RootInput): ToolDefinition[] {
             ...(duplicate.category === undefined ? {} : { category: duplicate.category }),
             ...(duplicate.change_type === undefined ? {} : { change_type: duplicate.change_type }),
             ...(duplicate.track === undefined ? {} : { track: duplicate.track }),
+            ...(duplicate.proposal === undefined ? {} : { proposal: duplicate.proposal }),
+            ...(duplicate.requirement === undefined ? {} : { requirement: duplicate.requirement }),
             attachments: duplicate.attachments,
             created: false,
             note: `已有一个同标题任务 ${duplicate.id}（${duplicate.state}），没有重复新建。要继续就基于它起草契约。`,
@@ -225,6 +252,7 @@ export function createTaskTools(specRootInput: RootInput): ToolDefinition[] {
         }
 
         const proposalId = taskDraftProposal(specRoot, args.proposal)
+        const requirementId = taskDraftRequirement(specRoot, args.requirement)
         const track = taskDraftTrack(specRoot, args.track)
         const dependsOn = args.depends_on ?? []
         if (dependsOn.length > 0) {
@@ -249,6 +277,7 @@ export function createTaskTools(specRootInput: RootInput): ToolDefinition[] {
           scope: { irreversible: args.irreversible ?? [], allowed_paths: args.allowed_paths ?? [] },
           evidence_required: args.evidence_required ?? [],
           ...(proposalId === undefined ? {} : { proposal: proposalId }),
+          ...(requirementId === undefined ? {} : { requirement: requirementId }),
           ...(track === undefined ? {} : { track }),
           ...(dependsOn.length === 0 ? {} : { depends_on: dependsOn }),
           opened_at: new Date().toISOString(),
@@ -266,6 +295,8 @@ export function createTaskTools(specRootInput: RootInput): ToolDefinition[] {
           ...(task.category === undefined ? {} : { category: task.category }),
           ...(task.change_type === undefined ? {} : { change_type: task.change_type }),
           ...(task.track === undefined ? {} : { track: task.track }),
+          ...(task.proposal === undefined ? {} : { proposal: task.proposal }),
+          ...(task.requirement === undefined ? {} : { requirement: task.requirement }),
           attachments: task.attachments,
           depends_on: task.depends_on,
           created: true,

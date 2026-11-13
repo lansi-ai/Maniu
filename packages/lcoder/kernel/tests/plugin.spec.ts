@@ -36,6 +36,7 @@ const TOOL_NAMES = [
   'git_status',
   'project_draft',
   'proposal_draft',
+  'requirement_draft',
   'role_draft',
   'spec_bind',
   'spec_draft',
@@ -178,7 +179,7 @@ function setSession(repo: string, id: string, sessionId: string): void {
 }
 
 describe('插件装配', () => {
-  it('注册十八个工具，其中包含 task_draft、proposal_draft、role_draft 与 git_commit', () => {
+  it('注册十九个工具，其中包含 task_draft、proposal_draft、requirement_draft、role_draft 与 git_commit', () => {
     const { spec } = makeRepo()
     const harness = makeHarness()
     apply(harness.ctx, { root: spec, selfCheck: false })
@@ -196,6 +197,9 @@ describe('插件装配', () => {
         'lcoder.command(flow_log)',
         'lcoder.command(agent_bind)',
         'lcoder.command(proposal_approve)',
+        'lcoder.command(requirement_approve)',
+        'lcoder.command(requirement_release)',
+        'lcoder.command(requirement_close)',
         'lcoder.command(deploy)',
       ].sort(),
     )
@@ -203,7 +207,8 @@ describe('插件装配', () => {
     expect(harness.registrations.map(r => r.name).sort()).toEqual(TOOL_NAMES)
     expect(harness.commands.map(c => c.name)).toEqual([
       'contract_sign', 'task_bind', 'task_assign', 'task_contract', 'task_split_ready', 'task_schedule',
-      'flow_status', 'flow_log', 'agent_bind', 'proposal_approve', 'deploy',
+      'flow_status', 'flow_log', 'agent_bind', 'proposal_approve',
+      'requirement_approve', 'requirement_release', 'requirement_close', 'deploy',
     ])
   })
 
@@ -362,7 +367,7 @@ describe('插件装配', () => {
     expect(logged.mock.calls.map(call => String(call[0])).join('\n')).toContain('读任务状态失败')
   })
 
-  it('启动自检报出注册的十七个工具，且没有掩码缺口', () => {
+  it('启动自检报出注册的十九个工具，且没有掩码缺口', () => {
     const { spec } = makeRepo()
     const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
     const harness = makeHarness()
@@ -370,7 +375,7 @@ describe('插件装配', () => {
     harness.runEffects()
 
     const text = logged.mock.calls.map(call => String(call[0])).join('\n')
-    expect(text).toContain('已注册 18 个工具')
+    expect(text).toContain('已注册 19 个工具')
     expect(text).not.toContain('掩码声明了但未注册')
     expect(text).not.toContain('任何状态都看不到')
   })

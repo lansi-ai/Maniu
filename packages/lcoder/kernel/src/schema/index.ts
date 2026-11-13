@@ -12,6 +12,9 @@ export {
   JobRoleId,
   ProjectInfo,
   ProjectTrack,
+  Requirement,
+  RequirementOption,
+  RequirementState,
   RolesFile,
   RuleEntry,
   RuleKind,
@@ -34,3 +37,6 @@ export type { BuiltinTrackId, TrackDescriptor } from './tracks.js'
 
 export { formatIssues, validateSpec } from './validate.js'
 export type { LoadedFile, Severity, ValidationIssue, ValidationResult } from './validate.js'
+
+export { requirementProgress } from './requirement-progress.js'
+export type { RequirementProgressId, RequirementProgressInput } from './requirement-progress.js'
