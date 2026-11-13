@@ -1850,10 +1850,10 @@ tracks:
       date: '2026-11-13'
       dep: [T-159, T-160]
       inferred: false
-      note: "B 级界面增强，来源是用户 2026-11-13 要求任务也增加列表显示方式。范围：一、任务页头部加看板与列表切换，默认看板，与需求页一致；二、列表列显示编号、标题、状态（用看板列的中文名，含方案讨论）、所属需求（requirement，旧数据回退 proposal）、轨与更新时间；按编号排序，点击行打开任务详情；三、复用现有关键字、状态与等级筛选，旧需求本体任务继续隐藏；四、空态与窄窗可用，四套皮肤与 reduced-motion 不变，文案走中英词典。验收 typecheck、packages/lcoder vitest、verify-client-ui-i18n、改动文件 oxlint；组件测试覆盖切换、列内容、行点击与筛选。工作树 pool-slot-1 到 lcoder/t165-task-list，端口 9822 与 9829 与 9830。2026-11-13 19:00 监督窗口派工，实现线会话 ffb93f69。"
+      note: "B 级界面增强，来源是用户 2026-11-13 要求任务也增加列表显示方式。范围：一、任务页头部加看板与列表切换，默认看板，与需求页一致；二、列表列显示编号、标题、状态（用看板列的中文名，含方案讨论）、所属需求（requirement，旧数据回退 proposal）、轨与更新时间；按编号排序，点击行打开任务详情；三、复用现有关键字、状态与等级筛选，旧需求本体任务继续隐藏；四、空态与窄窗可用，四套皮肤与 reduced-motion 不变，文案走中英词典。验收 typecheck、packages/lcoder vitest、verify-client-ui-i18n、改动文件 oxlint；组件测试覆盖切换、列内容、行点击与筛选。工作树 pool-slot-1 到 lcoder/t165-task-list，端口 9822 与 9829 与 9830。2026-11-13 19:00 监督窗口派工，实现线会话 ffb93f69。2026-11-13 20:00 监督窗口核验并收口。实现线一笔提交，新增 applyDefaultModel 并替换三处新建会话的 routeSession，createDefaultedSession 复用同一 helper；补了三条路径乘有无默认六例。独立复跑 typecheck、packages/lcoder vitest 八十九文件一千零三十八例、改动两文件 oxlint 全过；主检复跑同组与 build:artifacts 与 build:check 全过。真机复验在重启后新建会话看模型芯片与请求头。已合入 lcoder/main、release pool-slot-1。"
     - id: T-166
       title: 新会话默认模型不再被云端路由覆盖
-      status: doing
+      status: done
       face: 用户端
       type: 修复
       owner: lance
