@@ -49,6 +49,9 @@ export function loadFlowSnapshot(root: string, runtime: FlowRuntimeFacts = {}): 
     return {
       id: task.id,
       state: task.state,
+      proposal: task.proposal ?? null,
+      track: task.track ?? null,
+      role: task.role ?? null,
       dependsOn: task.depends_on,
       irreversible: task.scope.irreversible,
       contractExists: contract !== null,
