@@ -1839,7 +1839,7 @@ tracks:
       date: '2026-11-13'
       dep: [T-159]
       inferred: false
-      note: "B 级缺陷，来源是 T-160 验收过程中桌面实例反复无法启动。症状：start-all 或 start-desktop 报桌面就绪并打印宿主 Web URL，但该端口不监听，欢迎窗鉴权 GET 返回非 2xx，日志反复报 desktop welcome: Web authentication failed，页面停在 Loading plugins。已排除：云端 5081 健康 200；主检产物已重建；移走开发态 Electron Cookies 后仍复现；没有残留宿主进程，9230 与宿主端口均未监听。影响：桌面入口不可用，Web 3080 仍可启动；验收数据 REQ-01 与 8 条任务与 8 份已签契约都完好。待查方向：DesktopHostProcess 捕获的宿主 stderr、authenticateWebHost 的 303 与 set-cookie、connectDesktopWelcome 的 net.fetch 是否带上宿主 cookie、是否与云账号令牌或欢迎窗跳过逻辑相关。禁止跳过欢迎窗或改上游逻辑绕过，先取证。"
+      note: "B 级缺陷，来源是 T-160 验收过程中桌面实例反复无法启动。症状：start-all 或 start-desktop 报桌面就绪并打印宿主 Web URL，但该端口不监听，欢迎窗鉴权 GET 返回非 2xx，日志反复报 desktop welcome: Web authentication failed，页面停在 Loading plugins。已排除：云端 5081 健康 200；主检产物已重建；移走开发态 Electron Cookies 后仍复现；没有残留宿主进程，9230 与宿主端口均未监听。影响：桌面入口不可用，Web 3080 仍可启动；验收数据 REQ-01 与 8 条任务与 8 份已签契约都完好。待查方向：DesktopHostProcess 捕获的宿主 stderr、authenticateWebHost 的 303 与 set-cookie、connectDesktopWelcome 的 net.fetch 是否带上宿主 cookie、是否与云账号令牌或欢迎窗跳过逻辑相关。禁止跳过欢迎窗或改上游逻辑绕过，先取证。2026-11-13 16:50 监督窗口派工，工作树 pool-slot-2 到 lcoder/t164-desktop-welcome-auth，实现线会话 a7a1815f。"
     - id: T-161
       title: 需求与任务的云同步层
       status: todo
