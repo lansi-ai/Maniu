@@ -704,13 +704,13 @@ describe('任务详情', () => {
     expect(within(detail).getAllByText(/^约定/).length).toBeGreaterThan(0)
     expect(within(detail).getByRole('button', { name: '签署约定' })).toBeTruthy()
 
-    // 默认视图只有要点：冒号前主旨、首句；人话条目排技术条目前面。
+    // 默认视图只有要点：冒号前主旨、首句；技术骨架条目整条不进要点。
     const highlights = detail.querySelector('[data-contract-highlights]') as HTMLElement
     expect(highlights).not.toBeNull()
     expect(highlights.textContent).toContain('加登录限流')
     expect(highlights.textContent).toContain('记录审计日志')
     expect(highlights.textContent).toContain('五次失败锁定十分钟')
-    expect(highlights.textContent.indexOf('五次失败锁定十分钟')).toBeLessThan(highlights.textContent.indexOf('UNIQUE'))
+    expect(highlights.textContent).not.toContain('UNIQUE')
     expect(within(highlights).getAllByText(zh['shell.contractChange']).length).toBeGreaterThan(0)
     expect(within(highlights).getAllByText(zh['shell.contractAcceptance']).length).toBeGreaterThan(0)
 
@@ -741,6 +741,27 @@ describe('任务详情', () => {
     fireEvent.click(within(detail).getByRole('button', { name: zh['shell.sign'] }))
     await waitFor(() => { expect(signContract).toHaveBeenCalledWith(SessionId('s-1'), 'T-01') })
     expect(await within(detail).findByText('已签署')).toBeTruthy()
+  })
+
+  it('整组约定都是技术骨架时只给一句提示，完整四栏仍可查', async () => {
+    const contract = [
+      'id: T-01',
+      'change:',
+      '  - src/shared/identity.ts 作为唯一身份源',
+      '  - 执行 pnpm typecheck',
+      'acceptance:',
+      '  - 按 README 在空仓库执行 install→dev',
+      '',
+    ].join('\n')
+    renderShell({
+      spec: { tasks: { 'T-01.yaml': TASK_T01 }, contracts: { 'T-01.contract.yaml': contract } },
+    })
+    const detail = await openTask('起草中的任务')
+
+    expect(detail.querySelector('[data-contract-highlights]')).toBeNull()
+    expect(within(detail).getByText(zh['shell.contractTechnicalHint'])).toBeTruthy()
+    const change = detail.querySelector('[data-contract-change]') as HTMLElement
+    expect(within(change).getByText('执行 pnpm typecheck')).toBeTruthy()
   })
 
   it('窄窗下详情照常渲染摘要、约定要点与完整约定折叠区', async () => {

@@ -7,6 +7,8 @@
  * 标题、清单与引用行不构成摘要，提到路径、台账编号或规格措辞的句子也整句跳过。
  *
  * 约定要点同样只读投影：默认视图只给几条人话主旨，完整四栏仍由折叠区原样展示。
+ * 技术骨架条目（路径、命令、框架名、规格编号）不进要点，也不回退补齐；整组都是技术
+ * 条目时由界面给一句提示，指向下方的完整约定。
  */
 
 /** 摘要的字数上限；按 Unicode 码点计数，不拆代理对。 */
@@ -173,11 +175,11 @@ export function taskDescriptionSummary(description: string): string {
   return headingFallback === '' ? '' : truncate(headingFallback)
 }
 
-/** 每栏最多取几条约定要点。 */
+/** 每栏最多取几条约定要点；宁缺毋滥，不靠技术条目凑数。 */
 export const CONTRACT_HIGHLIGHT_LIMIT = 3
 
-/** 要点正文的码点上限；比摘要短，保证一首屏能看完。 */
-export const CONTRACT_HIGHLIGHT_TEXT_LIMIT = 90
+/** 要点正文的码点上限；比摘要短，保证一眼看完。 */
+export const CONTRACT_HIGHLIGHT_TEXT_LIMIT = 60
 
 /** 约定要点里冒号前的标签至少要有这么多码点，否则退回整句。 */
 const MIN_COLON_HEAD = 4
@@ -191,16 +193,29 @@ const HIGHLIGHT_COLON = /[:：]/
 /** 句尾标点与空白；要点末尾不保留，读起来更整齐。 */
 const HIGHLIGHT_TAIL = /[。；;.!?！？、\s]+$/
 
-/** 技术词特征：命中的条目不做首屏要点，技术条目不够时才回退。 */
+/**
+ * 技术特征：文件路径与扩展名、安装启动命令、数据库与框架名、规格编号。
+ * 命中任一的条目整条不进要点；完整原文仍留在折叠区。
+ */
 const CONTRACT_TECHNICAL_TERM = [
+  /\bsrc\//i,
+  /[\w.-]*[A-Za-z][\w.-]*\/[\w.-]+/,
+  /\.(?:tsx?|jsx?|json|ya?ml|md)\b/i,
+  /\bREADME\b/i,
+  /\b(?:install|dev|build|start)\b/i,
   /\bSQL\b/i,
   /\bUNIQUE\b/i,
   /schema/i,
   /fastify/i,
   /better-sqlite3/i,
-  /\btsx\b/i,
+  /\bVite\b/,
+  /\bReact\b/,
   /\bpnpm\b/i,
+  /\bnpm\b/i,
+  /\/api\b/i,
   /\.spec\b/i,
+  /\bREQ-\d+/i,
+  /\bR-\d+/,
 ] as const
 
 /** 一条约定要点：`label` 是栏名，`text` 是清理后的主旨。 */
@@ -241,25 +256,31 @@ function trimTail(text: string): string {
 }
 
 /**
- * 一栏约定取至多 {@link CONTRACT_HIGHLIGHT_LIMIT} 条要点：先取不含技术词的条目，
- * 不够时再按原顺序回退到技术条目；同一栏里重复的主旨只留第一条。
+ * 判断一条约定是不是只在交代技术骨架。
+ * @param item - 约定数组里的一条原文。
+ * @returns 命中路径、命令、框架或编号特征时为 `true`，该条不进要点。
+ */
+function isTechnicalContractItem(item: string): boolean {
+  return CONTRACT_TECHNICAL_TERM.some(term => term.test(item))
+}
+
+/**
+ * 一栏约定取至多 {@link CONTRACT_HIGHLIGHT_LIMIT} 条要点：技术条目整条跳过，
+ * 同一栏里重复的主旨只留第一条；人话条目不够就少给，不拿技术条目补齐。
  * @param items - 一栏约定原文。
  * @param label - 这一栏的本地化名称。
- * @returns 该栏的要点；没有可读条目时为空数组。
+ * @returns 该栏的要点；没有可读的人话条目时为空数组。
  */
 function highlightSection(items: readonly string[], label: string): readonly ContractHighlight[] {
-  const rows = items
-    .map(item => ({ text: highlightText(item), technical: CONTRACT_TECHNICAL_TERM.some(term => term.test(item)) }))
-    .filter(row => row.text !== '')
   const seen = new Set<string>()
   const picked: ContractHighlight[] = []
-  for (const technical of [false, true]) {
-    for (const row of rows) {
-      if (row.technical !== technical || seen.has(row.text)) continue
-      seen.add(row.text)
-      picked.push({ label, text: row.text })
-      if (picked.length === CONTRACT_HIGHLIGHT_LIMIT) return picked
-    }
+  for (const item of items) {
+    if (isTechnicalContractItem(item)) continue
+    const text = highlightText(item)
+    if (text === '' || seen.has(text)) continue
+    seen.add(text)
+    picked.push({ label, text })
+    if (picked.length === CONTRACT_HIGHLIGHT_LIMIT) break
   }
   return picked
 }
@@ -268,7 +289,7 @@ function highlightSection(items: readonly string[], label: string): readonly Con
  * 从一份约定派生人话要点：要交付什么与怎么验收各最多三条。
  *
  * 默认视图只显示这些要点，完整四栏由界面折叠区原样展示；这里不改投影，
- * 也不替模型补充内容。
+ * 也不替模型补充内容。两栏都提不出人话条目时返回空数组，由界面给一句提示。
  * @param contract - 约定投影，只读 `change` 与 `acceptance` 两栏。
  * @param labels - 两栏的本地化名称。
  * @returns 先「要交付什么」后「怎么验收」的要点；没有可读条目时为空数组。

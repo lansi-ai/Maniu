@@ -1012,6 +1012,7 @@
   color: var(--lc-ink); font-size: 13.5px; line-height: var(--lc-leading); word-break: break-word;
 }
 .contractHighlightLabel { flex: none; color: var(--lc-muted); font-size: var(--lc-text-xs); font-weight: 600; }
+.contractTechnicalHint { margin: 0; color: var(--lc-muted); font-size: var(--lc-text-sm); }
 .contractFold > .contractList, .contractFold > .contractEmpty { margin-top: var(--lc-space-2); }
 .metaMore { border-top: 1px solid var(--lc-line); padding-top: var(--lc-space-3); }
 .metaMoreSummary { cursor: pointer; color: var(--lc-muted); font-size: var(--lc-text-sm); }
