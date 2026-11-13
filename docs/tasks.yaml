@@ -1818,6 +1818,17 @@ tracks:
       inferred: false
       note: "A 级真机验收，依赖 T-159。用户已同意清空当前验收靶仓 .spec 后按新模型重走。流程：清空靶仓，打开需求页新建需求，七问与提纲落成 REQ-01 与 REQ-01.md，人工确认需求，拆分任务并标轨，方案讨论与契约，确认方案进待开发，然后逐条把任务推进到验收与关闭，核对需求九态从待确认到已拆分到开发中到测试中到待上线到已上线，以及取消路径。核验点：需求页表格与看板两种显示、任务页五列、任务卡所属需求、详情抽屉四块内容、状态派生与优先级、人工命令回执与失败路径。不用截图，用落盘、会话日志与 CDP DOM 断言。工作树待 T-159 合入后按需 claim。2026-11-13 15:35 监督窗口自驱验收：清空靶仓 .spec，复用上次七问答案，逐步核 REQ 九态、需求页两种显示、任务页五列与三条人工命令。"
 
+    - id: T-163
+      title: 确认方案对需求回指任务无反应
+      status: doing
+      face: 用户端
+      type: 修复
+      owner: lance
+      created: '2026-11-13'
+      date: '2026-11-13'
+      dep: [T-159, T-160]
+      inferred: false
+      note: "B 级修复，来源是 T-160 真机验收。方案讨论能跑完、8 份契约已起草，但点「确认方案并进入待开发」无反应，任务仍是 drafting、契约没有 human 签名。已核 Shell.tsx 的 confirmDiscussion 仍按 task.proposal 取键，新任务只有 requirement，proposal 为空时函数第一行直接 return；同文件的 discussPlan 与 detailDiscussFlow 已改成 requirement 优先 proposal，只有确认动作漏改。修法：confirmDiscussion 的键统一改成 requirement 优先 proposal，与讨论流程保持一致；补一条按需求回指任务的确认用例。监督窗口救火，工作树 pool-slot-2 到 lcoder/t163-confirm-key。"
     - id: T-161
       title: 需求与任务的云同步层
       status: todo
