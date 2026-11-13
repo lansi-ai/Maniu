@@ -2,8 +2,8 @@
  * 任务详情的展示派生：把写给模型的原始 `description` 压成一句人话。
  *
  * 这里只做文本整形，不改投影数据；原文由详情页的「完整说明」折叠区原样呈现，
- * 所以清理与截断可以放心丢掉 Markdown 噪声。解析只认第一段有效文字：
- * 标题、清单、引用与「需求依据：」一类前缀行不构成摘要。
+ * 所以清理与截断可以放心丢掉 Markdown 噪声。解析只认第一段含人话的文字：
+ * 标题、清单与引用行不构成摘要，提到路径、台账编号或规格措辞的句子也整句跳过。
  */
 
 /** 摘要的字数上限；按 Unicode 码点计数，不拆代理对。 */
@@ -25,6 +25,30 @@ const CITATION = /^(?:[A-Za-z]{1,8}-\d{1,4}|[A-Za-z0-9_./-]+\.(?:md|yaml|yml|jso
 
 /** 判断一整段是不是只有标题行；这类段落是导航标签，不构成摘要正文。 */
 const HEADING_LINE = /^#{1,6}\s*/
+
+/** 句末标点；切句时留在句尾，拼回去仍是原句。 */
+const SENTENCE_END = /(?<=[。；;!?！？])/
+
+/** 技术引用特征：路径、台账编号、规格措辞。命中的句子整句不进摘要。 */
+const TECHNICAL_REFERENCE = [
+  /\.spec\b/i,
+  /\.ya?ml\b/i,
+  /\bREQ-\d+/i,
+  /\bR-\d+/,
+  /README/i,
+  /契约/,
+  /规格/,
+  /需求依据/,
+] as const
+
+/**
+ * 判断一句话是不是只在交代技术引用。
+ * @param sentence - 已去掉行首符号的一句原文。
+ * @returns 含路径、编号或规格措辞时为 `true`。
+ */
+function isTechnicalReference(sentence: string): boolean {
+  return TECHNICAL_REFERENCE.some(pattern => pattern.test(sentence))
+}
 
 /** 拼句时两侧任一是中日韩文字或全角标点就不加空格。 */
 const CJK_EDGE = /[\u3000-\u303f\u3400-\u9fff\uf900-\ufaff\uff00-\uffef]/
@@ -79,17 +103,23 @@ function joinPieces(pieces: readonly string[]): string {
 }
 
 /**
- * 清理一段文字；全是符号或引用时返回空串。
+ * 清理一段文字；全是符号、引用或技术说明时返回空串。
+ *
+ * 段落先按行拆，再按句末标点拆句；含技术引用特征的句子整句丢弃，剩下的句子
+ * 拼回一行。整段都被丢光时返回空串，由调用方换下一段。
  * @param paragraph - 原始段落。
  * @returns 可作为摘要的文本，没有有效文字时为空串。
  */
 function paragraphText(paragraph: string): string {
   const pieces: string[] = []
   for (const rawLine of paragraph.split(/\r?\n/)) {
-    const withoutPrefix = stripMarkers(rawLine).replace(TEXT_PREFIX, '').trim()
-    if (withoutPrefix === '' || CITATION.test(withoutPrefix)) continue
-    const line = stripInline(withoutPrefix)
-    if (line !== '') pieces.push(line)
+    for (const rawSentence of stripMarkers(rawLine).split(SENTENCE_END)) {
+      if (isTechnicalReference(rawSentence)) continue
+      const withoutPrefix = rawSentence.replace(TEXT_PREFIX, '').trim()
+      if (withoutPrefix === '' || CITATION.test(withoutPrefix)) continue
+      const sentence = stripInline(withoutPrefix)
+      if (sentence !== '') pieces.push(sentence)
+    }
   }
   return joinPieces(pieces)
 }
@@ -108,8 +138,9 @@ function truncate(text: string): string {
 /**
  * 从任务原始描述派生一句人类可读的摘要。
  *
- * 取第一段有效文字，去掉 Markdown 块级符号与来源前缀，压成单行并截断到
- * {@link TASK_SUMMARY_LIMIT}；描述为空或只有符号时返回空串，由界面给占位文案。
+ * 取第一段落在人话上的文字，去掉 Markdown 块级符号与来源前缀，压成单行并截断到
+ * {@link TASK_SUMMARY_LIMIT}；整段都在交代技术引用就换下一段，全部段落都没有
+ * 可读内容时返回空串，界面只留标题与状态。
  * @param description - 任务 YAML 里的 `description` 原文。
  * @returns 单行摘要；没有有效文字时为空串。
  */
