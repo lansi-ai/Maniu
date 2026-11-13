@@ -1875,7 +1875,7 @@ tracks:
       note: "A 级机制补齐，来源是用户 2026-11-13 指出 T-01 这类任务应把产物落成文档但看不到。已确认口径：工程文档进仓库 README 与 docs，另在 .spec/deliverables/<任务编号>.yaml 写一份索引（路径、摘要、验收命令）；基础框架与架构类任务缺失交付物不得收口，普通小修不强制；任务详情新增交付物区，需求详情汇总其关联任务的交付物。设计：一、新增 deliverables 目录 schema，字段 task、summary、docs（仓库相对路径数组）、commands（验收命令数组）、created_at 与 updated_at，SpecLayout 纳入；二、新增模型工具 deliverable_draft，校验任务存在、摘要非空、docs 路径确实存在且不允许绝对路径与 ..，索引按任务覆盖写，只进实施与架构角色工具面；三、收口闸门：grade 为 A、轨为通用、或标题描述命中基础框架、脚手架、架构、技术选型时视为必须交付，task_close 缺索引或索引空时拒绝并给可操作提示；四、投影读交付索引并挂到任务上，任务详情展示摘要、文档链接与命令，缺失且必须交付时明确标红；需求详情按关联任务汇总交付物；五、文案中英词典，四套皮肤与窄窗可用。约束：不改状态机边、不删证据机制、工程文档仍由实施线用 file_edit 写，索引才是产品数据。验收 typecheck、kernel 与 packages/lcoder vitest、verify-client-ui-i18n、test:docs、改动文件 oxlint；单测覆盖索引校验与路径存在、必须交付判定、缺交付拒收口、投影与两处展示。工作树 pool-slot-1 到 lcoder/t167-deliverables，端口 9822 与 9829 与 9830。"
     - id: T-168
       title: 真实实现 T-01 基础框架并生成交付文档
-      status: todo
+      status: doing
       face: 用户端
       type: 流程
       owner: lance
@@ -1883,7 +1883,7 @@ tracks:
       date: '2026-11-13'
       dep: [T-167]
       inferred: false
-      note: "依赖 T-167。用户要求把 T-01 真实实现一次，看到真实产物。范围：在验收靶仓把 T-01 从人工关闭退回已签约，建实施会话并绑定 T-01，按已签契约实现活动报名与签到系统的网页骨架（三张表与字段、健康检查与两个入口页、install/dev/build/start 命令、断网可用与数据持久化样例），写 README、架构与构建文档，调用 deliverable_draft 生成 .spec/deliverables/T-01.yaml，跑契约验收并 task_close；最后在任务详情与需求详情看到交付物。约束：只改一次性靶仓，不动 LCoder 源码；不伪造证据；真实命令失败如实报。验收看真窗口与落盘。"
+      note: "依赖 T-167。用户要求把 T-01 真实实现一次，看到真实产物。范围：在验收靶仓把 T-01 从人工关闭退回已签约，建实施会话并绑定 T-01，按已签契约实现活动报名与签到系统的网页骨架（三张表与字段、健康检查与两个入口页、install/dev/build/start 命令、断网可用与数据持久化样例），写 README、架构与构建文档，调用 deliverable_draft 生成 .spec/deliverables/T-01.yaml，跑契约验收并 task_close；最后在任务详情与需求详情看到交付物。约束：只改一次性靶仓，不动 LCoder 源码；不伪造证据；真实命令失败如实报。验收看真窗口与落盘。2026-11-13 21:15 监督窗口把靶仓 T-01 从关闭退回已签约，派工实现线会话 ef381f30 在靶仓真实实现并写 README 与 docs；完成后由 LCoder 会话调用 deliverable_draft 与 task_close。"
     - id: T-161
       title: 需求与任务的云同步层
       status: todo
