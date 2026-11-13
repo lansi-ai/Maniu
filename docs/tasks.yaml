@@ -1763,7 +1763,7 @@ tracks:
       note: "B 级修复，来源是 T-150 真机验收。需求卡片点讨论历史后抽屉只出现一瞬间就消失，读不到任何角色分组。已核原因：Shell 里收起抽屉的 effect 依赖 detail 对象本身，而看板每十秒重读投影后会把 detail 换成同一任务的新快照，对象身份变化触发 effect，抽屉被关掉；抽屉的异步读取还没完成就被丢弃。修法：抽屉收起只在任务真的换了时发生，依赖改成 detail 的编号而不是对象；补一条组件或流程测试，模拟抽屉打开后 tasks 刷新一次，抽屉仍保持打开并能从 loading 落到 ready；读取失败与定位不到两种提示保持现状。验收 typecheck 与 packages/lcoder vitest 与改动文件 oxlint。与 T-154 合并到一条工作树、分开提交。2026-11-13 12:45 监督窗口核验并收口。抽屉收起改为依赖 detail 编号，投影刷新不再打断已打开的抽屉；补了「刷新不关」与「换任务收起」两条用例。独立与主检均复跑 typecheck、vitest 与改动文件 oxlint 全过；主检 build:artifacts 与 build:check 全过。未验项是真机上抽屉稳定打开并显示角色分组，需重启实例后复验。已合入 lcoder/main、release pool-slot-1。"
     - id: T-156
       title: 讨论历史不把立项与拆分会话算进讨论
-      status: doing
+      status: done
       face: 用户端
       type: 修复
       owner: lance
@@ -1771,10 +1771,10 @@ tracks:
       date: '2026-11-13'
       dep: [T-155, T-150]
       inferred: false
-      note: "B 级修复，来源是 T-150 真机复验。重启后打开讨论历史，抽屉能稳定显示，但分组里多出两个不该出现的会话：立项会话被当成技术岗位，展开了七问问答；项目经理分组混进拆分会话的拆分完成汇报。原因：重启后的候选筛选只按 agentPreset 加消息里是否出现方案编号，立项会话是默认 lcoder 预设、拆分会话是 lcoder-pm，二者都提到 P-01，于是被当成讨论会话；角色标记解析失败时又按 preset 兜底成技术岗位。修法：重启扫描的候选必须带参会身份标记才进历史；本窗口记录过的会话可以按记录信任并保留 preset 兜底。补测试：提到方案编号但没有参会标记的立项与拆分会话被排除；本窗口记录的讨论会话仍展示。验收 typecheck 与 packages/lcoder vitest 与改动文件 oxlint。与 T-157 合并到一条工作树、分开提交。"
+      note: "B 级修复，来源是 T-150 真机复验。重启后打开讨论历史，抽屉能稳定显示，但分组里多出两个不该出现的会话：立项会话被当成技术岗位，展开了七问问答；项目经理分组混进拆分会话的拆分完成汇报。原因：重启后的候选筛选只按 agentPreset 加消息里是否出现方案编号，立项会话是默认 lcoder 预设、拆分会话是 lcoder-pm，二者都提到 P-01，于是被当成讨论会话；角色标记解析失败时又按 preset 兜底成技术岗位。修法：重启扫描的候选必须带参会身份标记才进历史；本窗口记录过的会话可以按记录信任并保留 preset 兜底。补测试：提到方案编号但没有参会标记的立项与拆分会话被排除；本窗口记录的讨论会话仍展示。验收 typecheck 与 packages/lcoder vitest 与改动文件 oxlint。与 T-157 合并到一条工作树、分开提交。2026-11-13 13:05 监督窗口核验并收口。扫描候选必须带参会身份标记，本窗口记录的会话才允许 preset 兜底；补了扫描排除、记录信任与只剩立项时按定位不到处理等用例。独立与主检复跑 typecheck、kernel 与 workspace vitest 八十二文件、改动八文件 oxlint 全过；主检 build:artifacts 与 build:check 全过。未验项是真机重启后抽屉只剩五个讨论角色，需重启复验。已合入 lcoder/main、release pool-slot-2。"
     - id: T-157
       title: 流程下一步不把需求本体当实施任务
-      status: doing
+      status: done
       face: 用户端
       type: 修复
       owner: lance
@@ -1782,7 +1782,7 @@ tracks:
       date: '2026-11-13'
       dep: [T-154, T-150]
       inferred: false
-      note: "B 级修复，来源是 T-150 真机验收。看板顶部一直提示「下一步 起草契约 T-01」，把需求本体当成待实施任务。原因：packages/lcoder/kernel/src/kernel/flow.ts 在挑选下一步时只看 drafting 且没有契约，没有排除需求本体；需求本体是 drafting、带方案回指、没有轨也没有岗位。修法：流程挑选实施任务时跳过需求本体（drafting 且有方案回指且既无 track 也无 role），需求本体留给拆分入口；补 flow 单测：只有需求本体时不提示起草契约，同一方案拆出带轨任务后才进入契约步骤。约束是不改状态机边、不改看板列判定。验收 kernel 单测与 typecheck 与改动文件 oxlint。与 T-156 合并到一条工作树、分开提交。"
+      note: "B 级修复，来源是 T-150 真机验收。看板顶部一直提示「下一步 起草契约 T-01」，把需求本体当成待实施任务。原因：packages/lcoder/kernel/src/kernel/flow.ts 在挑选下一步时只看 drafting 且没有契约，没有排除需求本体；需求本体是 drafting、带方案回指、没有轨也没有岗位。修法：流程挑选实施任务时跳过需求本体（drafting 且有方案回指且既无 track 也无 role），需求本体留给拆分入口；补 flow 单测：只有需求本体时不提示起草契约，同一方案拆出带轨任务后才进入契约步骤。约束是不改状态机边、不改看板列判定。验收 kernel 单测与 typecheck 与改动文件 oxlint。与 T-156 合并到一条工作树、分开提交。2026-11-13 13:05 监督窗口核验并收口。flow.ts 新增需求本体判定并跳过，flow-store 补了方案回指、轨与岗位三项事实；补了只有需求本体、拆出带轨任务后、无方案回指三条用例。独立与主检复跑 typecheck、kernel 与 workspace vitest 八十二文件、改动八文件 oxlint 全过；主检 build:artifacts 与 build:check 全过。未验项是真机看板下一步不再指向 T-01，需重启复验。已合入 lcoder/main、release pool-slot-2。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
