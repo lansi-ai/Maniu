@@ -1694,6 +1694,29 @@ tracks:
       inferred: false
       note: "A 级流程重构，来源是用户 2026-11-13 明确拆分任务不再直接分配岗位，只标记对应的轨（h5、管理端、api、桌面、host 等）；并指出项目经理、研发经理与做调研的需求分析师应组成讨论，用户要能看到讨论历史。已核现状：拆分是 PM 拆、manager 输出映射、外壳逐条执行 /task_assign 的串行交接，没有互审；分析师只存在于立项会话且没有独立 preset；方案讨论只邀任务岗位加架构师；看板方案讨论列的判据是 drafting 且 role 非空；界面只有参与岗位名与契约摘要，没有讨论历史入口。已确认口径：一、内置六轨 h5、admin、api、desktop、host、general，项目可在 .spec/project.yaml 追加轨道，task_draft 写盘前校验；二、拆分只标轨不写 role，取消研发经理分配回合与 /task_assign 调用，task.role 留给实施阶段手动指派；三、方案讨论固定三方入会，需求分析师先给需求覆盖与调研结论，项目经理给拆分依据与范围，研发经理给落地风险与验收，技术岗位按轨自动加入，架构师汇总并逐任务 contract_draft；四、讨论历史在需求卡内新增抽屉，按角色分组读各会话消息原文，不新增产品数据落盘格式。范围：kernel schema 增 track 与项目轨道、task_draft 增参数并校验、projection 与 ShellTask 增 track、拆分流程删分配段、PM 拆分指令补调研与按轨、方案讨论参与人与提示词改造、看板列改按轨、需求卡与任务详情显示轨并加讨论历史入口、新增 lcoder-analyst 预设、文案词典与单测。约束：不改契约工具与状态机边、不新增页面、模型仍不能分配或签契约、四套皮肤与窄窗可用、reduced-motion 不变。验收 typecheck 五项、kernel 与 packages/lcoder vitest、改动文件 oxlint、test:docs、i18n；单测覆盖轨道校验与项目追加、拆分不再调用分配、提示词含调研与轨、按轨会议参与人与三方固定、历史分组与看板列判定。工作树 pool-slot-1 到 lcoder/t149-track-discussion，端口 9822 与 9829 与 9830。2026-11-13 09:52 监督窗口登记并派工，实现线会话 0349a003。2026-11-13 11:15 监督窗口核验并收口。实现线三轮共三笔提交；复审退回一轮，修了重启后历史读取实际读空的问题（新增异步端口 readSessionMessages，retain 后等 ready 再读事件窗口，十秒超时并释放引用，读取失败与定位不到分开提示），并清理了两处过期注释与一处注释换行残留。独立复跑 typecheck 五项、kernel 与 workspace vitest 八十二文件九百六十例、verify-client-ui-i18n 一千三百一十二文件、test:docs 二十一项、改动二十九文件 oxlint 零错零警全过；主检出复跑同组门禁并跑 build:artifacts 八项与 build:check 两项全过。check:i18n 两项失败在主检出处同样复现，确认是基线旧问题。未验项是重启后真实多会话历史读取、四套皮肤与窄窗抽屉观感、真实模型跑通拆分到三方讨论到契约落盘。已合入 lcoder/main、release pool-slot-1。"
 
+    - id: T-150
+      title: 空仓全流程真机验收
+      status: doing
+      face: 用户端
+      type: 流程
+      owner: lance
+      created: '2026-11-13'
+      date: '2026-11-13'
+      dep: [T-149]
+      inferred: false
+      note: "B 级真机验收，来源是 T-149 收口后留下的未验项。靶仓用全新空目录 E:\\Projects\\LCoder-e2e-20261113（2026-11-13 新建，无 .git、无 .spec），不改 LCoder-First-Demo，也不动旧会话与产品数据。流程：切换到该目录，走全新项目，七问逐题作答，确认需求，拆分任务（项目经理只标轨），方案讨论（需求分析师、项目经理、研发经理、按轨技术岗位、架构师），确认方案，逐条 contract_sign 与 task_contract，进入待开发。核验点：.spec/tasks 下新任务带 track 且无 role；拆分过程没有调用 /task_assign；讨论会话数与角色齐全；契约四段非空且签后进 contracted；看板六列流转正确；需求卡的讨论历史抽屉能按角色看到发言。不用截图，用会话日志、.spec 落盘与 CDP DOM 断言。不新建工作树，直接对主检出实例做验收；需要重启时用 start-all -Fast。2026-11-13 11:32 监督窗口登记。"
+    - id: T-151
+      title: 空目录给出显式重新开始入口
+      status: todo
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-13'
+      date: '2026-11-13'
+      dep: [T-149]
+      inferred: false
+      note: "B 级行为修复，来源是用户 2026-11-13 反馈把 LCoder-empty-demo 的目录内容删空后仍显示 5 个会话且没有重新开始。已核原因：工作区是宿主登记的实体，会话按会话头 cwd 归属路径，删文件不改变归属；开发 home 的 workspace.json 里该路径仍登记 5 个会话号，home 的 sessions 下也确有 5 个目录；界面的空项目判定只看任务与规格，不看目录是否为空。已确认口径：空目录时给显式「重新开始」入口，点击后归档本工作区旧会话（可恢复、不删会话文件）并打开需求分析师，同时保留「继续用旧会话」与「换个目录」；不自动归档，避免网络盘或外接盘暂时不可达被误判。实现要点：判定工作区根是否没有任何条目，并在看板空态展示旧会话数；归档走宿主 workspace.archiveSession 远程命令，逐条结果如实显示，失败不静默；文案走中英词典，四套皮肤与窄窗可用，reduced-motion 不变。验收 typecheck、packages/lcoder vitest、oxlint、verify-client-ui-i18n、test:docs；单测覆盖空目录判定、归档调用与失败路径、保留旧会话分支。2026-11-13 11:32 监督窗口登记，待 T-150 验收后派工。"
+
 milestones:
 - name: MVP-0 工作台本地跑通
   track: lcoder
