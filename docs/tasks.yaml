@@ -1797,7 +1797,7 @@ tracks:
       note: "A 级数据模型与内核工具，来源是用户 2026-11-13 决定把需求与任务分成两个维度。已确认口径：需求用独立 REQ-xx 实体，需求吸收方案，任务页去掉需求确认列，需求页支持表格与状态看板，九态需求状态按任务数据派生。本轮只做数据面，不动界面与立项提示词，保证旧方案与旧任务路径继续可用。设计：一、`.spec/requirements/REQ-xx.yaml` 存 id、title、state（draft、confirmed、released、closed）、options、recommendation、opened_at、confirmed_at、released_at、closed_at；正文写 `.spec/requirements/REQ-xx.md`；二、新增模型工具 requirement_draft，只进 intake 角色，一次写入 YAML 与 Markdown，校验标题与正文非空、编号不覆盖，任何一半失败都不留半截；三、新增人机命令 requirement_approve、requirement_release、requirement_close，模型不可调用；approve 要求文档存在且只从 draft 推进，release 要求全部关联任务已关闭，close 可关闭未关闭的需求；四、Task 增可选 requirement 回指，task_draft 校验 REQ 存在；旧 proposal 字段与 proposals 目录继续可读；五、状态派生纯函数按优先级：closed 为已取消、released 为已上线、文档缺失为待补全、draft 为待确认、无任务为已确认、任一任务开发中为开发中、无开发中且任一验收中为测试中、全部关闭为待上线、其余为已拆分；六、投影读 REQ 与文档并把它作为需求行，任务按 requirement 分组。约束：不改状态机边、不动界面、不切立项提示词、不删方案工具与旧命令。验收 kernel 与 workspace 单测、typecheck、改动文件 oxlint、test:docs；单测覆盖 REQ 校验与拒绝、三个命令的合法与非法流转、九态派生与优先级、task.requirement 校验、投影读取。工作树 pool-slot-1 到 lcoder/t158-requirement-entity，端口 9822 与 9829 与 9830。2026-11-13 13:50 监督窗口派工，实现线会话 3c39b961。2026-11-13 14:10 监督窗口核验并收口。实现线三笔提交，REQ schema、两文件原子起草、三条人机命令、task.requirement、九态纯函数与投影全部落地，旧 proposal 路径未动。独立复跑 typecheck 五项、kernel 与 workspace vitest 八十七文件一千零二十二例、改动二十四文件 oxlint 零错零警、test:docs 二十一项全过；主检出复跑同组门禁与 build:artifacts 与 build:check 全过。未验项是需求行与三条命令在真实界面的呈现，留给 T-159 与 T-160。已合入 lcoder/main、release pool-slot-1。"
     - id: T-159
       title: 左侧菜单与需求页任务页分家
-      status: doing
+      status: done
       face: 用户端
       type: 开发
       owner: lance
@@ -1805,7 +1805,7 @@ tracks:
       date: '2026-11-13'
       dep: [T-158]
       inferred: false
-      note: "A 级界面与流程切换，依赖 T-158。来源是用户 2026-11-13 决定增加左侧菜单栏，需求与任务分开管理，需求页支持表格与状态看板两种显示。范围：一、左侧菜单栏放需求与任务，底部设置；顶栏保留项目、会话与智能调度等入口；二、需求页有新建需求入口，表格视图显示编号、标题、状态、任务数与更新时间，状态看板按待补全、待确认、已确认、已拆分、开发中、测试中、待上线、已上线分列，已取消默认隐藏，支持关键字与状态筛选；详情抽屉展示完整需求文档、立项问答、拆分结果、关联任务与讨论历史，按状态给确认、拆分、发布、关闭动作；三、任务页看板改为方案讨论、待开发、开发中、验收中、已完成五列，去掉需求确认列，旧需求本体任务隐藏，任务卡显示所属需求编号；四、立项流程切到新模型，提示词用 requirement_draft 落 REQ 与 REQ-xx.md，不再建需求本体任务与方案，确认需求走 requirement_approve，拆分以需求为输入，讨论历史按需求编号定位；五、需求状态按 T-158 的派生函数展示与分列；六、文案中英词典，四套皮肤与窄窗可用，reduced-motion 不变。约束：不改状态机边、模型仍不能确认或发布、旧方案与旧任务可读但不在新页面出现。验收 typecheck、packages/lcoder vitest、verify-client-ui-i18n、test:docs、改动文件 oxlint；组件与流程测试覆盖九态分组、表格与看板切换、详情动作、任务页五列与旧任务隐藏。工作树待 T-158 合入后 claim。2026-11-13 14:15 T-158 已合入，监督窗口 claim pool-slot-1 到 lcoder/t159-requirement-ui，实现线会话 16da65ab。"
+      note: "A 级界面与流程切换，依赖 T-158。来源是用户 2026-11-13 决定增加左侧菜单栏，需求与任务分开管理，需求页支持表格与状态看板两种显示。范围：一、左侧菜单栏放需求与任务，底部设置；顶栏保留项目、会话与智能调度等入口；二、需求页有新建需求入口，表格视图显示编号、标题、状态、任务数与更新时间，状态看板按待补全、待确认、已确认、已拆分、开发中、测试中、待上线、已上线分列，已取消默认隐藏，支持关键字与状态筛选；详情抽屉展示完整需求文档、立项问答、拆分结果、关联任务与讨论历史，按状态给确认、拆分、发布、关闭动作；三、任务页看板改为方案讨论、待开发、开发中、验收中、已完成五列，去掉需求确认列，旧需求本体任务隐藏，任务卡显示所属需求编号；四、立项流程切到新模型，提示词用 requirement_draft 落 REQ 与 REQ-xx.md，不再建需求本体任务与方案，确认需求走 requirement_approve，拆分以需求为输入，讨论历史按需求编号定位；五、需求状态按 T-158 的派生函数展示与分列；六、文案中英词典，四套皮肤与窄窗可用，reduced-motion 不变。约束：不改状态机边、模型仍不能确认或发布、旧方案与旧任务可读但不在新页面出现。验收 typecheck、packages/lcoder vitest、verify-client-ui-i18n、test:docs、改动文件 oxlint；组件与流程测试覆盖九态分组、表格与看板切换、详情动作、任务页五列与旧任务隐藏。工作树待 T-158 合入后 claim。2026-11-13 14:15 T-158 已合入，监督窗口 claim pool-slot-1 到 lcoder/t159-requirement-ui，实现线会话 16da65ab。2026-11-13 15:25 监督窗口核验并收口。实现线三笔提交（源码、测试、文档），五段全部完成；独立复跑 typecheck 五项、packages/lcoder vitest 八十九文件一千零二十六例、verify-client-ui-i18n 一千三百一十四文件、test:docs 二十一项、改动二十八文件 oxlint 零错零警全过；主检出复跑同组门禁与 build:artifacts 与 build:check 全过。未验项是真实模型整链、四套皮肤与窄窗观感、两条人工命令的真实回执，由 T-160 覆盖。已合入 lcoder/main、release pool-slot-1。"
     - id: T-160
       title: 新需求模型空仓验收
       status: todo
