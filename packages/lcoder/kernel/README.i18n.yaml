@@ -3,14 +3,14 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/lcoder/kernel/README.md
 /:
-  en: 8f7b29737105df73
-  zh: ff39a20ddf53b7b1
+  en: acb6f2b35b4985af
+  zh: 81344e09f4e9ebb9
 /lcoder-kernel:
   en: a95393a6e4ffca62
   zh: e7af040009df6a9e
 /lcoder-kernel/summary:
-  en: ef4682fac3a3d803
-  zh: 202779d64b2c16c8
+  en: 559987d3667372bd
+  zh: ab32864d3883efc4
 /lcoder-kernel/table-of-contents:
   en: d152484eb41ac6b4
   zh: ce40cab8e7534137
@@ -21,11 +21,11 @@
   en: 0116022a4a852132
   zh: afab15ff1a52da7e
 /lcoder-kernel/use-this-package/minimal-configuration:
-  en: c519a502e5455722
-  zh: c6ddcc51282d4426
+  en: 70c2de57ae37373f
+  zh: a264c4784fe8ca97
 /lcoder-kernel/understand-the-implementation:
-  en: e09f9fcfcd68595a
-  zh: a8d0c2ec10abc651
+  en: f0ad8b405b8840e5
+  zh: 8327f0e6557e397b
 /lcoder-kernel/further-exploration:
   en: b44de98f05ca06ec
   zh: 78166b63b55c8174

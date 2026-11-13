@@ -1,5 +1,5 @@
 ---
-description: "LCoder 的宿主插件：十个规格、任务与编辑工具的可见性随任务状态收放；仓库没有可读任务时退回四工具立项面，规格根按会话工作区解析。"
+description: "LCoder 的宿主插件：规格、任务、需求与编辑工具的可见性随任务状态收放；仓库没有可读任务时退回四工具立项面，规格根按会话工作区解析。"
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`@lcoder/kernel` 向 DeepSeek Harness 宿主注册 LCoder 的规格与任务工具。工具面随当前任务状态收放：`drafting` 给读取、契约与立项工具，`contracted` 增加编辑、命令执行与证据，`closed` 只读。取不到任务状态的仓库不再拿到全量能力，而是拿到立项面 `file_read`、`spec_query`、`task_read`、`task_draft`。规格根跟随会话工作区，因此桌面端宿主读目标仓库的 `.spec`，而不是它的 profile 目录。宿主提供 `tools` 服务后，通过 LCoder patch 层挂载本包。`contract_sign` 刻意不存在。
+`@lcoder/kernel` 向 DeepSeek Harness 宿主注册 LCoder 的规格、任务与需求工具。工具面随当前任务状态收放：`drafting` 给读取、契约与立项工具，`contracted` 增加编辑、命令执行与证据，`closed` 只读。取不到任务状态的仓库不再拿到全量能力，而是拿到立项面 `file_read`、`spec_query`、`task_read`、`task_draft`。规格根跟随会话工作区，因此桌面端宿主读目标仓库的 `.spec`，而不是它的 profile 目录。宿主提供 `tools` 服务后，通过 LCoder patch 层挂载本包。`contract_sign` 刻意不存在。
 
 ## 目录
 
@@ -48,9 +48,11 @@ kind: "package-reference"
 | `taskId` | 第一个任务 | 没有会话认领时，用哪个任务的状态选择工具面；某条会话被任务的 `session` 字段认领时，该会话改按那条任务取状态，并行的两条会话各读各的。读不到任何任务时按立项面收 |
 | `role` | 未设 | 角色天花板，取值 `intake`、`architect`、`pm`、`dev`、`git`、`ops`、`review`、`scheduler`、`flow`、`manager`；工具面取状态掩码与该角色工具表的交集，角色只会减去能力，`scheduler` 与 `flow` 只有 `file_read`、`file_list`、`spec_query`、`task_read`，`role_draft` 只有 `manager` 看得见。配错角色名在装载时即失败 |
 
-本插件通过 patch 层作为插件行挂载，没有 `dsh plugin add` 安装路径。一次工具调用从 `session.header.cwd/.spec` 解析规格根；没有会话 cwd 时用 `root`，没有 `root` 时用 `process.cwd()/.spec`。除工具外它注册若干人机命令：`contract_sign` 由人签署任务的契约，`task_bind` 把任务认给当前会话，`task_assign` 把任务分配给岗位，`task_contract` 推进到已签约，`task_split_ready` 把需求拆出且已分配岗位的起草任务直接推进到待开发，`proposal_approve` 采纳方案，`deploy` 执行部署，`task_schedule` 把一次调度判定追加到 `.spec/evidence/<任务>/schedule.jsonl`，入队判定还会在 `.spec/evidence/scheduling/` 下写联调组记录；`flow_status` 只读求值，返回策略、下一步与逐任务计划的一行 JSON；`flow_log` 把一次开工或流程结果追加到 `.spec/evidence/<任务>/flow.jsonl`；`agent_bind` 把智能调度或流程控制的单例会话号写进 `.spec/agents.yaml`。工作台外壳调用后三条，它们都不进模型工具面。它们都由宿主写 `.spec`，都留在命令面而不是工具面——注册成工具就等于模型能给自己签字、能自己挑工具面，也能自己写审计记录。`task_assign <任务编号> <岗位 id>` 先查 `.spec/roles.yaml`、再查内置角色，写回 `Task.role`，不改任务状态。`task_split_ready <任务编号>` 只接受需求拆出、已分配岗位的 drafting 任务，直接写入 contracted，以需求文档作为契约依据；没有方案回指或没有岗位的会被拒绝。`role_draft` 是模型唯一的岗位写入口：它只能追加或更新一项、不能删除，继承不合法当场拒绝，并且只有 `manager` 角色看得见；分配始终只由人做。它还接受可选的 `signals`，是三组字符串数组——`strong` 技术栈强特征词、`medium` 弱语义词、`preferredPaths` 文件落点前缀——每组最多 32 条、每条最多 64 个字符，忽略大小写去重；名册只把它们存给本地建议层，调度硬闸从不读取。AI 自签是 kernel 函数而不是命令或工具：`selfSignContract` 只在 `.spec/automation.yaml` 的 `sign` 为 `auto`、任务没有 `scope.irreversible`、契约有非空 `review*.log` 证据时写 `by: agent`，并记下 `actor` preset 与策略路径、哈希、文件修改时刻。P3 用同一套三闸复核，收口时任何一道不成立的 agent 签名都无效。
+本插件通过 patch 层作为插件行挂载，没有 `dsh plugin add` 安装路径。一次工具调用从 `session.header.cwd/.spec` 解析规格根；没有会话 cwd 时用 `root`，没有 `root` 时用 `process.cwd()/.spec`。除工具外它注册若干人机命令：`contract_sign` 由人签署任务的契约，`task_bind` 把任务认给当前会话，`task_assign` 把任务分配给岗位，`task_contract` 推进到已签约，`task_split_ready` 把需求拆出且已分配岗位的起草任务直接推进到待开发，`proposal_approve` 采纳方案，`requirement_approve` 确认需求，`requirement_release` 把已确认需求标为已上线，`requirement_close` 取消未上线需求，`deploy` 执行部署，`task_schedule` 把一次调度判定追加到 `.spec/evidence/<任务>/schedule.jsonl`，入队判定还会在 `.spec/evidence/scheduling/` 下写联调组记录；`flow_status` 只读求值，返回策略、下一步与逐任务计划的一行 JSON；`flow_log` 把一次开工或流程结果追加到 `.spec/evidence/<任务>/flow.jsonl`；`agent_bind` 把智能调度或流程控制的单例会话号写进 `.spec/agents.yaml`。工作台外壳调用后三条，它们都不进模型工具面。它们都由宿主写 `.spec`，都留在命令面而不是工具面——注册成工具就等于模型能给自己签字、能自己挑工具面，也能自己写审计记录。`task_assign <任务编号> <岗位 id>` 先查 `.spec/roles.yaml`、再查内置角色，写回 `Task.role`，不改任务状态。`task_split_ready <任务编号>` 只接受需求拆出、已分配岗位的 drafting 任务，直接写入 contracted，以需求文档作为契约依据；没有方案回指或没有岗位的会被拒绝。`role_draft` 是模型唯一的岗位写入口：它只能追加或更新一项、不能删除，继承不合法当场拒绝，并且只有 `manager` 角色看得见；分配始终只由人做。它还接受可选的 `signals`，是三组字符串数组——`strong` 技术栈强特征词、`medium` 弱语义词、`preferredPaths` 文件落点前缀——每组最多 32 条、每条最多 64 个字符，忽略大小写去重；名册只把它们存给本地建议层，调度硬闸从不读取。AI 自签是 kernel 函数而不是命令或工具：`selfSignContract` 只在 `.spec/automation.yaml` 的 `sign` 为 `auto`、任务没有 `scope.irreversible`、契约有非空 `review*.log` 证据时写 `by: agent`，并记下 `actor` preset 与策略路径、哈希、文件修改时刻。P3 用同一套三闸复核，收口时任何一道不成立的 agent 签名都无效。
 
-`task_draft` 除标题与分级外还接受四个可选的任务元信息字段：`description`（允许换行，最多 4000 个字符）、`category`（`page`、`api`、`data`、`other`）、`change_type`（`bug`、`feature`、`improvement`、`style`）与 `attachments`（最多 8 张图片，路径相对 `.spec` 根目录，扩展名限 `png`、`jpg`、`jpeg`、`webp`、`gif`；绝对路径、`..`、空串与其他扩展名都被拒）。它的回显包含这四项，`task_read` 读任务详情时也一并返回。
+`task_draft` 除标题与分级外还接受可选的任务元信息字段：`description`（允许换行，最多 4000 个字符）、`category`（`page`、`api`、`data`、`other`）、`change_type`（`bug`、`feature`、`improvement`、`style`）、`attachments`（最多 8 张图片，路径相对 `.spec` 根目录，扩展名限 `png`、`jpg`、`jpeg`、`webp`、`gif`；绝对路径、`..`、空串与其他扩展名都被拒）、`track`（内置轨或 `.spec/project.yaml` 追加的轨，未知轨连同可用清单一起拒绝）、`proposal` 与 `requirement`（分别回指方案与需求，写前查存在，两者可以并存，读侧优先 `requirement`）。它的回显包含这些字段，`task_read` 读任务详情时也一并返回。
+
+`requirement_draft` 用必填的标题与 Markdown 正文、可选的 `options`（每项 `name` 与 `summary` 必填、`cost` 可省）与 `recommendation`，写 `.spec/requirements/REQ-<编号>.yaml` 与同名正文文件。它取现有 `REQ-` 编号之后的下一个空号，不覆盖已有文件对；先写正文再写元数据，元数据写失败会删掉刚写的正文。状态固定写 `draft`。`/requirement_approve` 把正文非空的起草态需求推到 `confirmed`；`/requirement_release` 只在至少一条任务通过 `Task.requirement` 回指且这些任务全部 `closed` 时推到 `released`，否则报出未关闭的任务编号；`/requirement_close` 关闭起草或已确认的需求，并拒绝已上线的需求——它是终态。工作台投影按同一目录把每份 YAML 与同名正文合成一行。
 
 -----
 
@@ -62,7 +64,7 @@ kind: "package-reference"
 
 插件具名导出 `name`、`inject` 与 `apply`，与上游函数插件形态一致。它注入 `tools`，为每个定义注册一个 `when` 条件，每个 model step 求值一次。条件每次都从磁盘读取任务状态，因此签契约或推进任务会立刻改变可见工具。
 
-每个工具工厂接受固定根或解析函数。解析函数只读窄会话事实 `agent.session.header.cwd`；插件把同一个解析函数交给十个工具，因此同一会话在规格与任务操作上看到同一个规格根。文件工具收到仓库根（规格根的上一级），而 `cmd_run`、`env.yaml` 与证据仍留在规格根下。
+每个工具工厂接受固定根或解析函数。解析函数只读窄会话事实 `agent.session.header.cwd`；插件把同一个解析函数交给全部工具，因此同一会话在规格与任务操作上看到同一个规格根。文件工具收到仓库根（规格根的上一级），而 `cmd_run`、`env.yaml` 与证据仍留在规格根下。
 
 | 文件 | 职责 |
 |---|---|
@@ -70,7 +72,11 @@ kind: "package-reference"
 | `src/kernel/spec-root.ts` | 会话优先的规格根解析 |
 | `src/kernel/spec-store.ts` | 规则与状态机的读写 |
 | `src/kernel/task-store.ts` | 任务对象、迁移与落盘 |
-| `src/tools/spec-tools.ts`、`src/tools/task-tools.ts`、`src/tools/edit-tools.ts` | 十个模型工具 |
+| `src/kernel/requirement-store.ts` | 需求对象、编号分配与两文件写入 |
+| `src/tools/spec-tools.ts`、`src/tools/task-tools.ts`、`src/tools/edit-tools.ts` | 模型工具 |
+| `src/tools/requirement-tools.ts` | 模型可调用的 `requirement_draft` |
+| `src/commands/requirement-approve.ts`、`src/commands/requirement-release.ts`、`src/commands/requirement-close.ts` | 三条只进命令面的需求状态命令 |
+| `src/schema/requirement-progress.ts` | 需求九态进度的纯函数推导 |
 | `src/checkers/index.ts` | P1、P3、P4 收口检查器 |
 | `src/kernel/automation.ts` | `.spec/automation.yaml` 的读取、默认值与策略哈希 |
 | `src/kernel/flow.ts`、`src/kernel/flow-store.ts` | 纯函数下一步判定与 `.spec` 事实装配 |
