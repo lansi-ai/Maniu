@@ -5,11 +5,11 @@
  */
 import { describe, expect, it, vi } from 'vitest'
 import { SessionId } from '@deepseek-ai/dsh-session/types'
-import type { ProposalRow } from '../src/client/projection.ts'
+import type { RequirementDocRow } from '../src/client/projection.ts'
 import type { ShellMessage } from '../src/client/shell/shell-data.ts'
 import { INTAKE_PROMPT_HEAD, ONBOARDING_PROMPT_HEAD } from '../src/client/shell/shell-data.ts'
 import {
-  intakeArtifactsOf, intakeTierOfMessages, latestProposal, runIntakeRestart,
+  intakeArtifactsOf, intakeTierOfMessages, latestRequirement, runIntakeRestart,
 } from '../src/client/shell/intake.ts'
 
 /** 一条用户消息；`hidden` 是外壳自动发出的咒语在窗口里的样子。 */
@@ -17,16 +17,14 @@ function userMessage(text: string, hidden = false): ShellMessage {
   return hidden ? { role: 'user', text, hidden: true } : { role: 'user', text }
 }
 
-/** 一份最小方案；只填结果页与排序用到的字段。 */
-function proposalOf(id: string, title: string): ProposalRow {
+/** 一条最小需求；只填排序用到的字段。 */
+function requirementOf(id: string, title: string): RequirementDocRow {
   return {
     id,
     title,
-    problem: `${title}的问题`,
+    text: `${title}的正文`,
     options: [],
-    recommendation: `${title}的推荐`,
-    decision: 'draft',
-    decidedAt: null,
+    state: 'draft',
   }
 }
 
@@ -93,14 +91,18 @@ describe('重开确认框的计数', () => {
   })
 })
 
-describe('默认方案', () => {
-  it('编号按数字比较，P-02 大于 P-01，P-10 大于 P-09', () => {
-    expect(latestProposal([proposalOf('P-01', '一'), proposalOf('P-02', '二')])?.id).toBe('P-02')
-    expect(latestProposal([proposalOf('P-09', '九'), proposalOf('P-10', '十')])?.id).toBe('P-10')
+describe('默认需求', () => {
+  it('编号按数字比较，REQ-02 大于 REQ-01，REQ-10 大于 REQ-09', () => {
+    expect(latestRequirement([requirementOf('REQ-01', '一'), requirementOf('REQ-02', '二')])?.id).toBe('REQ-02')
+    expect(latestRequirement([requirementOf('REQ-09', '九'), requirementOf('REQ-10', '十')])?.id).toBe('REQ-10')
   })
 
-  it('没有方案时返回 undefined', () => {
-    expect(latestProposal([])).toBeUndefined()
+  it('没有需求时返回 undefined', () => {
+    expect(latestRequirement([])).toBeUndefined()
+  })
+
+  it('旧流程纯文档需求不参与「最新」比较', () => {
+    expect(latestRequirement([requirementOf('REQ-01', '一'), requirementOf('P-09', '旧方案')])?.id).toBe('REQ-01')
   })
 })
 

@@ -8,7 +8,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { SessionId } from '@deepseek-ai/dsh-session/types'
 import { zh } from '../src/client/locales.ts'
-import type { ProposalRow } from '../src/client/projection.ts'
+import type { RequirementDocRow } from '../src/client/projection.ts'
 import type { ShellTask } from '../src/client/shell/shell-data.ts'
 import type { ShellQuestionPending } from '../src/client/shell/pending.ts'
 import { IntakeWizard } from '../src/client/shell/IntakeWizard.tsx'
@@ -25,24 +25,23 @@ const MODEL_B = {
   provider: 'minimax-cn', providerName: 'MiniMax', model: 'abab', modelName: 'ABAB', isDefault: false,
 }
 
-/** 一份结果卡用的方案。 */
-function proposalOf(): ProposalRow {
+/** 一份结果卡用的需求。 */
+function requirementOf(): RequirementDocRow {
   return {
-    id: 'P-01',
+    id: 'REQ-01',
     title: '图书借阅系统 V0.1',
-    problem: '借还书靠手工登记',
+    text: '# 项目需求概要 V1\n\n借还书靠手工登记，第一版先做借还闭环。',
     options: [
       { name: '复用现成后台', summary: '一周能上线', cost: '零成本' },
       { name: '从零开发', summary: '更贴业务', cost: '三周' },
     ],
     recommendation: '先做借还书闭环',
-    decision: 'draft',
-    decidedAt: null,
+    state: 'draft',
   }
 }
 
-/** 一条草案任务；`proposal` 缺省表示不挂任何方案。 */
-function taskOf(id: string, title: string, proposal?: string): ShellTask {
+/** 一条草案任务；`requirement` 缺省表示不挂任何需求。 */
+function taskOf(id: string, title: string, requirement?: string): ShellTask {
   return {
     id,
     title,
@@ -55,7 +54,7 @@ function taskOf(id: string, title: string, proposal?: string): ShellTask {
     surface: '读 / 契约',
     paths: [],
     irreversible: [],
-    ...(proposal === undefined ? {} : { proposal }),
+    ...(requirement === undefined ? {} : { requirement }),
   }
 }
 
@@ -87,7 +86,7 @@ function propsOf(overrides: Partial<IntakeWizardProps> = {}): IntakeWizardProps 
     selectedModel: null,
     modelBlocked: false,
     sending: false,
-    proposal: null,
+    requirement: null,
     result: 'pending',
     summary: null,
     confirmed: false,
@@ -312,22 +311,22 @@ describe('思考中', () => {
     rerender(<IntakeWizard {...propsOf({ phase: 'thinking' })} />)
     expect(container.querySelector('[data-lcoder-intake-wizard]')?.getAttribute('data-quiet')).toBe('true')
 
-    rerender(<IntakeWizard {...propsOf({ phase: 'result', result: 'proposal', proposal: proposalOf() })} />)
+    rerender(<IntakeWizard {...propsOf({ phase: 'result', result: 'requirement', requirement: requirementOf() })} />)
     expect(container.querySelector('[data-lcoder-intake-wizard]')?.getAttribute('data-quiet')).toBe('true')
   })
 })
 
 describe('结果卡', () => {
-  it('显示方案、问题、候选、推荐、决定态与本轮草案任务', () => {
+  it('显示需求、正文、候选、推荐、状态与本轮草案任务', () => {
     const onApprove = vi.fn()
     const { container } = render(<IntakeWizard {...propsOf({
       phase: 'result',
-      result: 'proposal',
-      proposal: proposalOf(),
+      result: 'requirement',
+      requirement: requirementOf(),
       tasks: [
-        taskOf('T-01', '借书流程', 'P-01'),
-        taskOf('T-02', '还书流程', 'P-01'),
-        taskOf('T-03', '别的方案的任务', 'P-02'),
+        taskOf('T-01', '借书流程', 'REQ-01'),
+        taskOf('T-02', '还书流程', 'REQ-01'),
+        taskOf('T-03', '别的需求的任务', 'REQ-02'),
         taskOf('T-04', '没有回指的任务'),
       ],
       onApprove,
@@ -335,11 +334,11 @@ describe('结果卡', () => {
 
     expect(screen.getByText(zh['shell.wizardResultTitle'])).toBeTruthy()
     expect(screen.getByText('图书借阅系统 V0.1')).toBeTruthy()
-    expect(screen.getByText('借还书靠手工登记')).toBeTruthy()
+    expect(screen.getByText(/借还书靠手工登记/)).toBeTruthy()
     expect(screen.getByText('复用现成后台')).toBeTruthy()
     expect(screen.getByText('一周能上线')).toBeTruthy()
     expect(screen.getByText('先做借还书闭环')).toBeTruthy()
-    expect(screen.getByText(zh['shell.proposalDraft'])).toBeTruthy()
+    expect(screen.getByText(zh['shell.requirementStatePending'])).toBeTruthy()
     expect(screen.getByText(zh['shell.wizardResultTasks'].replace('{count}', '2'))).toBeTruthy()
     expect(container.querySelector('[data-wizard-layout="split"]')).not.toBeNull()
     expect(container.querySelector('[data-wizard-stage]')?.getAttribute('data-phase')).toBe('result')
@@ -351,11 +350,11 @@ describe('结果卡', () => {
     expect(onApprove).toHaveBeenCalledTimes(1)
   })
 
-  it('没有回指本方案的任务时计数写 0，且不画编号列表', () => {
+  it('没有回指本需求的任务时计数写 0，且不画编号列表', () => {
     const { container } = render(<IntakeWizard {...propsOf({
       phase: 'result',
-      result: 'proposal',
-      proposal: proposalOf(),
+      result: 'requirement',
+      requirement: requirementOf(),
       tasks: [taskOf('T-04', '没有回指的任务')],
     })} />)
 
@@ -363,19 +362,19 @@ describe('结果卡', () => {
     expect(container.querySelectorAll('[data-wizard-task]')).toHaveLength(0)
   })
 
-  it('候选为空时不画候选小节', () => {
-    const proposal = { ...proposalOf(), options: [] }
-    render(<IntakeWizard {...propsOf({ phase: 'result', result: 'proposal', proposal })} />)
+  it('候选为空时不画候选小节，正文仍照常显示', () => {
+    const requirement = { ...requirementOf(), options: [] }
+    render(<IntakeWizard {...propsOf({ phase: 'result', result: 'requirement', requirement })} />)
 
     expect(screen.queryByText(zh['shell.proposalOptions'])).toBeNull()
-    expect(screen.getByText(zh['shell.proposalProblem'])).toBeTruthy()
+    expect(screen.getByText(/借还书靠手工登记/)).toBeTruthy()
   })
 
   it('更多轮次弹出菜单，两项分别是更多讨论与重新开始；重开仍是外壳的 onRestart', () => {
     const onDiscuss = vi.fn()
     const onRestart = vi.fn()
     render(<IntakeWizard {...propsOf({
-      phase: 'result', result: 'proposal', proposal: proposalOf(), onDiscuss, onRestart,
+      phase: 'result', result: 'requirement', requirement: requirementOf(), onDiscuss, onRestart,
     })} />)
 
     const more = screen.getByRole('button', { name: zh['shell.wizardMoreRounds'] })
@@ -398,7 +397,7 @@ describe('结果卡', () => {
   it('点更多讨论只调用外壳回调并收起菜单', () => {
     const onDiscuss = vi.fn()
     render(<IntakeWizard {...propsOf({
-      phase: 'result', result: 'proposal', proposal: proposalOf(), onDiscuss,
+      phase: 'result', result: 'requirement', requirement: requirementOf(), onDiscuss,
     })} />)
 
     fireEvent.click(screen.getByRole('button', { name: zh['shell.wizardMoreRounds'] }))
@@ -410,7 +409,7 @@ describe('结果卡', () => {
   it('发送在途时更多讨论菜单项禁用，再点不发第二次', () => {
     const onDiscuss = vi.fn()
     render(<IntakeWizard {...propsOf({
-      phase: 'result', result: 'proposal', proposal: proposalOf(), discussing: true, onDiscuss,
+      phase: 'result', result: 'requirement', requirement: requirementOf(), discussing: true, onDiscuss,
     })} />)
 
     fireEvent.click(screen.getByRole('button', { name: zh['shell.wizardMoreRounds'] }))
@@ -422,7 +421,7 @@ describe('结果卡', () => {
 
   it('Esc 或点菜单外都收起菜单', () => {
     render(<IntakeWizard {...propsOf({
-      phase: 'result', result: 'proposal', proposal: proposalOf(),
+      phase: 'result', result: 'requirement', requirement: requirementOf(),
     })} />)
 
     const more = screen.getByRole('button', { name: zh['shell.wizardMoreRounds'] })
@@ -439,7 +438,7 @@ describe('结果卡', () => {
 
   it('菜单挂在触发按钮旁的锚点上，菜单外不再重复显示重新开始', () => {
     const { container } = render(<IntakeWizard {...propsOf({
-      phase: 'result', result: 'proposal', proposal: proposalOf(),
+      phase: 'result', result: 'requirement', requirement: requirementOf(),
     })} />)
 
     expect(screen.queryByRole('menuitem', { name: zh['shell.restartIntake'] })).toBeNull()
@@ -451,17 +450,17 @@ describe('结果卡', () => {
 
   it('采纳失败原文就地显示，卡片不关；在途时确认按钮禁用', () => {
     const { rerender } = render(<IntakeWizard {...propsOf({
-      phase: 'result', result: 'proposal', proposal: proposalOf(), approving: true,
+      phase: 'result', result: 'requirement', requirement: requirementOf(), approving: true,
     })} />)
     expect(screen.getByRole('button', { name: zh['shell.approving'] }).hasAttribute('disabled')).toBe(true)
 
     rerender(<IntakeWizard {...propsOf({
       phase: 'result',
-      result: 'proposal',
-      proposal: proposalOf(),
-      approveResult: { ok: false, text: 'proposal/not-found: P-01' },
+      result: 'requirement',
+      requirement: requirementOf(),
+      approveResult: { ok: false, text: 'requirement/not-found: REQ-01' },
     })} />)
-    expect(screen.getByText('proposal/not-found: P-01')).toBeTruthy()
+    expect(screen.getByText('requirement/not-found: REQ-01')).toBeTruthy()
     expect(screen.getByText(zh['shell.wizardResultTitle'])).toBeTruthy()
   })
 

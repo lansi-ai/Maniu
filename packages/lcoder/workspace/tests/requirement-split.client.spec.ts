@@ -15,12 +15,22 @@ import {
 } from '../src/client/shell/requirement-split.ts'
 import type { RequirementSplitPorts } from '../src/client/shell/requirement-split.ts'
 
-/** 被拆分的需求本体。 */
-function requirementTask(overrides: Partial<ShellTask> = {}): ShellTask {
+/** 被拆分的需求：REQ 编号与标题。 */
+const REQUIREMENT = { id: 'REQ-01', title: '随手记账' }
+
+/** 旧流程拆出的任务：只有方案回指，没有需求编号。 */
+function proposalTask(id: string): ShellTask {
+  const { requirement: _requirement, ...rest } = splitTask(id)
+  void _requirement
+  return { ...rest, proposal: 'P-01' }
+}
+
+/** 拆分后的一条开发任务；默认标 H5 轨并回指需求。 */
+function splitTask(id: string, overrides: Partial<ShellTask> = {}): ShellTask {
   return {
-    id: 'T-01',
-    title: '随手记账',
-    description: '第一版只做记一笔与翻记录。',
+    id,
+    title: `${id} 的开发任务`,
+    description: '按需求第一版清单实现。',
     attachments: [],
     state: 'drafting',
     grade: 'B',
@@ -29,20 +39,9 @@ function requirementTask(overrides: Partial<ShellTask> = {}): ShellTask {
     surface: '读 / 契约',
     paths: [],
     irreversible: [],
-    proposal: 'P-01',
-    openedAt: '2026-11-12T09:00:02.084Z',
-    ...overrides,
-  }
-}
-
-/** 拆分后的一条开发任务；默认标 H5 轨。 */
-function splitTask(id: string, overrides: Partial<ShellTask> = {}): ShellTask {
-  return {
-    ...requirementTask(),
-    id,
-    title: `${id} 的开发任务`,
-    description: '按需求第一版清单实现。',
+    requirement: 'REQ-01',
     track: 'h5',
+    openedAt: '2026-11-12T09:00:02.084Z',
     ...overrides,
   }
 }
@@ -60,36 +59,31 @@ const TRACKS: readonly TrackDescriptor[] = [
 ]
 
 describe('新任务过滤', () => {
-  it('只留同方案、拆分前不存在且仍为 drafting 的任务', () => {
+  it('只留回指同需求、拆分前不存在且仍为 drafting 的任务', () => {
     const after = [
-      requirementTask(),
       splitTask('T-02'),
-      splitTask('T-03', { proposal: 'P-02' }),
+      splitTask('T-03', { requirement: 'REQ-02' }),
       splitTask('T-04', { state: 'contracted' }),
+      proposalTask('T-05'),
     ]
-    expect(newDraftingTasks(['T-01'], after, 'P-01').map(task => task.id)).toEqual(['T-02'])
-    expect(newDraftingTasks(['T-01', 'T-02'], after, 'P-01')).toEqual([])
-    expect(newDraftingTasks(['T-01'], after, undefined)).toEqual([])
+    expect(newDraftingTasks(['T-01'], after, 'REQ-01').map(task => task.id)).toEqual(['T-02'])
+    expect(newDraftingTasks(['T-01', 'T-02'], after, 'REQ-01')).toEqual([])
   })
 
-  it('已拆任务排除需求本体，只返回同方案的 drafting 任务', () => {
-    const tasks = [requirementTask(), splitTask('T-02'), splitTask('T-03', { state: 'implementing' })]
-    expect(existingSplitTasks(tasks, requirementTask()).map(task => task.id)).toEqual(['T-02'])
-    expect(existingSplitTasks([requirementTask()], requirementTask())).toEqual([])
-    const { proposal: withoutProposal, ...rest } = requirementTask()
-    void withoutProposal
-    expect(existingSplitTasks(tasks, rest)).toEqual([])
+  it('只返回回指该需求的 drafting 任务', () => {
+    const tasks = [splitTask('T-02'), splitTask('T-03', { state: 'implementing' })]
+    expect(existingSplitTasks(tasks, 'REQ-01').map(task => task.id)).toEqual(['T-02'])
+    expect(existingSplitTasks([splitTask('T-02', { requirement: 'REQ-02' })], 'REQ-01')).toEqual([])
   })
 
   it('持久判据不限状态：已进待开发或更后的拆分任务仍算拆过', () => {
     const tasks = [
-      requirementTask(),
       splitTask('T-02', { state: 'contracted' }),
       splitTask('T-03', { state: 'implementing' }),
-      splitTask('T-04', { proposal: 'P-02' }),
+      splitTask('T-04', { requirement: 'REQ-02' }),
     ]
-    expect(splitTasksOf(tasks, requirementTask()).map(task => task.id)).toEqual(['T-02', 'T-03'])
-    expect(splitTasksOf([requirementTask()], requirementTask())).toEqual([])
+    expect(splitTasksOf(tasks, 'REQ-01').map(task => task.id)).toEqual(['T-02', 'T-03'])
+    expect(splitTasksOf(tasks, 'REQ-02')).toEqual([tasks[2]])
   })
 })
 
@@ -118,18 +112,20 @@ describe('按轨汇总', () => {
 
 describe('中文指令', () => {
   it('项目经理指令带完整需求文档，只写 drafting 任务且不改需求与方案', () => {
-    const prompt = buildPmSplitPrompt(requirementTask(), { document: DOCUMENT }, TRACKS)
-    expect(prompt).toContain('《项目需求概要》正文（.spec/requirements/P-01.md）')
+    const prompt = buildPmSplitPrompt(REQUIREMENT, { document: DOCUMENT }, TRACKS)
+    expect(prompt).toContain('《项目需求概要》正文（.spec/requirements/REQ-01.md）')
     expect(prompt).toContain('- 记一笔\n- 翻记录')
     expect(prompt).toContain('暂不开发的范围不要拆成任务')
     expect(prompt).toContain('执行身份：你是这条需求的项目经理')
     expect(prompt).toContain('明确的拆分授权')
     expect(prompt).toContain('只产出 .spec/tasks 下的任务文件，state 一律 drafting')
     expect(prompt).toContain('不改需求文档、.spec/project.yaml、已有方案与规格条目')
+    expect(prompt).toContain('requirement: REQ-01')
+    expect(prompt).toContain('不要写 proposal')
   })
 
   it('拆分前先调研仓库，并把结论写进回复', () => {
-    const prompt = buildPmSplitPrompt(requirementTask(), { document: DOCUMENT }, TRACKS)
+    const prompt = buildPmSplitPrompt(REQUIREMENT, { document: DOCUMENT }, TRACKS)
     expect(prompt).toContain('先用 file_list 查看仓库根目录与关键目录')
     expect(prompt).toContain('再读 README 与构建清单')
     expect(prompt).toContain('判断这是空仓、只有需求文档，还是已有可运行框架以及它用的技术栈')
@@ -137,7 +133,7 @@ describe('中文指令', () => {
   })
 
   it('每条任务必须从给定集合里标一条轨，禁写 role 与分配', () => {
-    const prompt = buildPmSplitPrompt(requirementTask(), { document: DOCUMENT }, TRACKS)
+    const prompt = buildPmSplitPrompt(REQUIREMENT, { document: DOCUMENT }, TRACKS)
     expect(prompt).toContain('track 只能取：h5（H5 前端）、admin（管理端）、api（接口）、desktop（桌面端）、host（宿主端）、general（通用）、payment（支付端）')
     expect(prompt).toContain('一任务一轨')
     expect(prompt).toContain('基础框架任务按项目主技术栈定轨')
@@ -146,7 +142,7 @@ describe('中文指令', () => {
   })
 
   it('空仓时第一条仍是基础框架任务，功能任务都依赖它', () => {
-    const prompt = buildPmSplitPrompt(requirementTask(), { document: DOCUMENT }, TRACKS)
+    const prompt = buildPmSplitPrompt(REQUIREMENT, { document: DOCUMENT }, TRACKS)
     expect(prompt).toContain('第一条任务必须是「项目基础框架与脚手架」')
     expect(prompt).toContain('技术选型落地（语言、桌面外壳、本地存储形式）')
     expect(prompt).toContain('所有功能任务都在 depends_on 里依赖这条基础任务')
@@ -176,7 +172,7 @@ function splitWorld(overrides: Partial<SplitWorld> = {}): { world: SplitWorld; p
     messages: new Map(),
     running: new Map(),
     notices: new Map(),
-    tasks: [requirementTask()],
+    tasks: [],
     released: 0,
     ...overrides,
   }
@@ -212,7 +208,7 @@ function finishSession(world: SplitWorld, sessionId: string, text: string): void
 /** 默认流程输入。 */
 function planOf(overrides: Partial<Parameters<typeof runRequirementSplit>[0]> = {}) {
   return {
-    task: requirementTask(),
+    requirement: REQUIREMENT,
     source: { document: DOCUMENT },
     tracks: TRACKS,
     beforeTaskIds: ['T-01'],

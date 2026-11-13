@@ -2,14 +2,14 @@
 /**
  * 立项结果页与重开确认框的渲染。
  *
- * 结果页三态各画一次：有方案画方案、任务与项目信息；没有方案给立项入口；
+ * 结果页三态各画一次：有需求画需求、任务与项目信息；没有需求给立项入口；
  * 投影读不到时显示 problems 原话。确认框的计数一律来自 props，零也要看得见。
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { zh } from '../src/client/locales.ts'
-import type { ProposalRow } from '../src/client/projection.ts'
+import type { RequirementDocRow } from '../src/client/projection.ts'
 import type { ShellProjectInfo, ShellTask } from '../src/client/shell/shell-data.ts'
 import {
   IntakeRestartDialog, IntakeResultPage, type IntakeResultPageProps,
@@ -19,21 +19,26 @@ afterEach(cleanup)
 
 const t = makeTranslate(zh)
 
-/** 一份结果页用的方案。 */
-function proposalOf(id: string, title: string, decision: ProposalRow['decision'] = 'draft'): ProposalRow {
+/** 一份结果页用的需求。 */
+function requirementOf(
+  id: string,
+  title: string,
+  state: RequirementDocRow['state'] = 'draft',
+): RequirementDocRow {
   return {
     id,
     title,
-    problem: `${title}要解决的问题`,
+    text: `# ${title}
+
+${title}要解决的问题。`,
     options: [{ name: 'A 方案', summary: '快', cost: '零成本' }],
     recommendation: `推荐 ${id}`,
-    decision,
-    decidedAt: decision === 'draft' ? null : '2026-11-06T02:00:00.000Z',
+    state,
   }
 }
 
-/** 一条任务；`proposal` 缺省时与靶仓 T-01 一样没有回指。 */
-function taskOf(id: string, title: string, proposal?: string): ShellTask {
+/** 一条任务；`requirement` 缺省时与靶仓 T-01 一样没有回指。 */
+function taskOf(id: string, title: string, requirement?: string): ShellTask {
   return {
     id,
     title,
@@ -46,7 +51,7 @@ function taskOf(id: string, title: string, proposal?: string): ShellTask {
     surface: '读 / 契约',
     paths: [],
     irreversible: [],
-    ...(proposal === undefined ? {} : { proposal }),
+    ...(requirement === undefined ? {} : { requirement }),
   }
 }
 
@@ -63,7 +68,7 @@ const INFO: ShellProjectInfo = {
 function propsOf(overrides: Partial<IntakeResultPageProps> = {}): IntakeResultPageProps {
   return {
     t,
-    proposals: [],
+    requirements: [],
     tasks: [],
     info: null,
     problems: [],
@@ -77,47 +82,46 @@ function propsOf(overrides: Partial<IntakeResultPageProps> = {}): IntakeResultPa
 }
 
 describe('立项结果页', () => {
-  it('默认展示编号最大的方案，可切到其它方案并显示总数', () => {
+  it('默认展示编号最大的需求，可切到其它需求并显示总数', () => {
     const { container } = render(<IntakeResultPage {...propsOf({
-      proposals: [proposalOf('P-01', '旧方案'), proposalOf('P-02', '新方案')],
+      requirements: [requirementOf('REQ-01', '旧需求'), requirementOf('REQ-02', '新需求')],
     })} />)
 
-    expect(screen.getByText('新方案')).toBeTruthy()
-    expect(screen.queryByText('旧方案')).toBeNull()
-    expect(container.textContent).toContain(zh['shell.resultProposalCount'].replace('{count}', '2'))
+    expect(screen.getByText(/新需求/, { selector: '[data-intake-requirement-title]' })).toBeTruthy()
+    expect(screen.queryByText(/^旧需求$/)).toBeNull()
+    expect(container.textContent).toContain(zh['shell.resultRequirementCount'].replace('{count}', '2'))
 
-    fireEvent.click(screen.getByRole('button', { name: 'P-01' }))
-    expect(screen.getByText('旧方案')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'REQ-01' }))
+    expect(screen.getByText(/旧需求/, { selector: '[data-intake-requirement-title]' })).toBeTruthy()
   })
 
-  it('画出问题、候选、推荐与决定态', () => {
+  it('画出正文、候选、推荐与状态', () => {
     render(<IntakeResultPage {...propsOf({
-      proposals: [proposalOf('P-01', '新方案', 'approved')],
+      requirements: [requirementOf('REQ-01', '新需求', 'confirmed')],
     })} />)
 
-    expect(screen.getByText('新方案要解决的问题')).toBeTruthy()
+    expect(screen.getByText(/新需求要解决的问题/)).toBeTruthy()
     expect(screen.getByText('A 方案')).toBeTruthy()
-    expect(screen.getByText('推荐 P-01')).toBeTruthy()
-    expect(screen.getByText(new RegExp(zh['shell.proposalApproved']))).toBeTruthy()
-    expect(screen.getByText(/2026-11-06T02:00:00\.000Z/)).toBeTruthy()
+    expect(screen.getByText('推荐 REQ-01')).toBeTruthy()
+    expect(screen.getByText(new RegExp(zh['shell.requirementStateConfirmed']))).toBeTruthy()
   })
 
-  it('靶仓 T-01 没有 proposal 字段也照样列出，只有回指当前方案的才标注', () => {
+  it('靶仓 T-01 没有 requirement 字段也照样列出，只有回指当前需求的才标注', () => {
     const { container } = render(<IntakeResultPage {...propsOf({
-      proposals: [proposalOf('P-01', '新方案')],
-      tasks: [taskOf('T-01', '记一条待办'), taskOf('T-02', '拆出来的任务', 'P-01')],
+      requirements: [requirementOf('REQ-01', '新需求')],
+      tasks: [taskOf('T-01', '记一条待办'), taskOf('T-02', '拆出来的任务', 'REQ-01')],
     })} />)
 
     expect(container.querySelector('[data-intake-task="T-01"]')).not.toBeNull()
     expect(container.querySelector('[data-intake-task="T-01"]')?.textContent).toContain('记一条待办')
-    expect(container.querySelector('[data-intake-task="T-02"]')?.textContent).toContain(zh['shell.resultTaskOfProposal'])
+    expect(container.querySelector('[data-intake-task="T-02"]')?.textContent).toContain(zh['shell.resultTaskOfRequirement'])
     expect(container.querySelector('[data-intake-task="T-01"]')?.textContent)
-      .not.toContain(zh['shell.resultTaskOfProposal'])
+      .not.toContain(zh['shell.resultTaskOfRequirement'])
   })
 
   it('项目信息摘要画类型、地址、分支与三份文档路径', () => {
     const { container } = render(<IntakeResultPage {...propsOf({
-      proposals: [proposalOf('P-01', '新方案')],
+      requirements: [requirementOf('REQ-01', '新需求')],
       info: INFO,
     })} />)
 
@@ -131,25 +135,25 @@ describe('立项结果页', () => {
 
   it('项目信息为 null 时写未登记或读不到', () => {
     const { container } = render(<IntakeResultPage {...propsOf({
-      proposals: [proposalOf('P-01', '新方案')],
+      requirements: [requirementOf('REQ-01', '新需求')],
     })} />)
     expect(container.textContent).toContain(zh['shell.resultProjectMissing'])
   })
 
-  it('还没有方案时给出两档立项入口', () => {
+  it('还没有需求时给出两档立项入口', () => {
     const onStartOnboarding = vi.fn()
     render(<IntakeResultPage {...propsOf({ onStartOnboarding })} />)
 
-    expect(screen.getByText(zh['shell.resultNoProposal'])).toBeTruthy()
+    expect(screen.getByText(zh['shell.resultNoRequirement'])).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: zh['shell.onboardingExistingDocs'] }))
     fireEvent.click(screen.getByRole('button', { name: zh['shell.onboardingNewProject'] }))
     expect(onStartOnboarding.mock.calls).toEqual([['docs'], ['new']])
   })
 
-  it('方案投影读不到时显示 problems 原话，不再给立项入口', () => {
-    render(<IntakeResultPage {...propsOf({ problems: ['.spec/proposals/P-01.yaml: 不是能读的方案文件'] })} />)
+  it('需求投影读不到时显示 problems 原话，不再给立项入口', () => {
+    render(<IntakeResultPage {...propsOf({ problems: ['.spec/requirements/REQ-01.yaml: 不是能读的需求文件'] })} />)
 
-    expect(screen.getByText('.spec/proposals/P-01.yaml: 不是能读的方案文件')).toBeTruthy()
+    expect(screen.getByText('.spec/requirements/REQ-01.yaml: 不是能读的需求文件')).toBeTruthy()
     expect(screen.queryByRole('button', { name: zh['shell.onboardingNewProject'] })).toBeNull()
   })
 
@@ -157,7 +161,7 @@ describe('立项结果页', () => {
     const onBack = vi.fn()
     const onRestart = vi.fn()
     render(<IntakeResultPage {...propsOf({
-      proposals: [proposalOf('P-01', '新方案')],
+      requirements: [requirementOf('REQ-01', '新需求')],
       onBack,
       onRestart,
     })} />)

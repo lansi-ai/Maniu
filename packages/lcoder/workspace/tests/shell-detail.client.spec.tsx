@@ -141,6 +141,10 @@ interface ShellScenario {
   readonly sendPrompt?: ShellProps['sendPrompt']
   /** 新建会话；缺省给固定会话号 s-9；需求拆分按角色 preset 建两条会话。 */
   readonly createSession?: ShellProps['createSession']
+  /** 需求人机命令替身：确认、发布、关闭。 */
+  readonly approveRequirement?: ShellProps['approveRequirement']
+  readonly releaseRequirement?: ShellProps['releaseRequirement']
+  readonly closeRequirement?: ShellProps['closeRequirement']
 }
 
 /** 已登录的云端替身：门禁放行，详情用例只关心渲染事实；门禁本身有 cloud-login 专测。 */
@@ -250,6 +254,9 @@ function renderShell(scenario: ShellScenario) {
     ...(scenario.subscribeSession === undefined ? {} : { subscribeSession: scenario.subscribeSession }),
     ...(scenario.holdSession === undefined ? {} : { holdSession: scenario.holdSession }),
     ...(scenario.sendPrompt === undefined ? {} : { sendPrompt: scenario.sendPrompt }),
+    approveRequirement: scenario.approveRequirement ?? (async () => ({ ok: true, text: '已确认' })),
+    releaseRequirement: scenario.releaseRequirement ?? (async () => ({ ok: true, text: '已发布' })),
+    closeRequirement: scenario.closeRequirement ?? (async () => ({ ok: true, text: '已关闭' })),
   }
   const view = render(<Shell {...props} />)
   return { ...view, props, logSchedule }
@@ -262,24 +269,33 @@ async function openTask(title: string): Promise<HTMLElement> {
   return screen.findByRole('dialog')
 }
 
-const TASK_T01 = 'id: T-01\ntitle: 起草中的任务\nstate: drafting\ngrade: B\n'
-const TASK_T02 = 'id: T-02\ntitle: 与 T-01 同方案的任务\nstate: drafting\ngrade: B\nproposal: P-01\n'
+/** 切到需求页并打开一条需求的详情抽屉。 */
+async function openRequirement(id: string): Promise<HTMLElement> {
+  await waitFor(() => { expect(document.querySelector('[data-nav="requirements"]')).not.toBeNull() })
+  fireEvent.click(document.querySelector('[data-nav="requirements"]') as HTMLElement)
+  const row = await screen.findByText(id, { selector: 'td' })
+  fireEvent.click(row)
+  return screen.findByRole('dialog', { name: new RegExp(id) })
+}
+
+const TASK_T01 = 'id: T-01\ntitle: 起草中的任务\nstate: drafting\ngrade: B\n\ntrack: h5\n'
+const TASK_T02 = 'id: T-02\ntitle: 与 T-01 同方案的任务\nstate: drafting\ngrade: B\nproposal: P-01\n\ntrack: h5\n'
 const CONTRACT_T01 = 'id: T-01\nchange:\n  - 加登录限流\nacceptance:\n  - 五次失败锁定十分钟\n'
 
 /** 命中 vue 信号的任务：标题里的强特征与弱语义都算分。 */
-const TASK_VUE = 'id: T-01\ntitle: 修复 vue 页面组件\nstate: drafting\ngrade: B\n'
+const TASK_VUE = 'id: T-01\ntitle: 修复 vue 页面组件\nstate: drafting\ngrade: B\n\ntrack: h5\n'
 /** 同样的标题，但声明了不可逆动作：建议层恒转人工。 */
 const TASK_VUE_IRREVERSIBLE = `${TASK_VUE}scope:\n  irreversible: [settlement_formula]\n`
 /** 没有任何信号命中的任务：建议层回内置 dev 兜底。 */
-const TASK_PLAIN = 'id: T-03\ntitle: 整理佣金规则\nstate: drafting\ngrade: B\n'
+const TASK_PLAIN = 'id: T-03\ntitle: 整理佣金规则\nstate: drafting\ngrade: B\n\ntrack: h5\n'
 /** 五项元信息都有值的任务：用来断言紧凑列表没有漏字段。 */
-const TASK_META = 'id: T-01\ntitle: 元信息齐全的任务\nstate: drafting\ngrade: B\nrules:\n  - R-1\nevidence_required:\n  - E-1\n'
+const TASK_META = 'id: T-01\ntitle: 元信息齐全的任务\nstate: drafting\ngrade: B\nrules:\n  - R-1\nevidence_required:\n  - E-1\n\ntrack: h5\n'
 
 /** 一张能过 base64 的最小 PNG 头；渲染端不真的解码图片。 */
 const PNG_BYTES = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3])
 
 /** 两张附件：一张有字节，一张缺失。 */
-const TASK_ATTACHED = 'id: T-01\ntitle: 带图的任务\nstate: drafting\ngrade: B\nattachments:\n  - attachments/T-01/shot.png\n  - attachments/T-01/gone.png\n'
+const TASK_ATTACHED = 'id: T-01\ntitle: 带图的任务\nstate: drafting\ngrade: B\nattachments:\n  - attachments/T-01/shot.png\n  - attachments/T-01/gone.png\n\ntrack: h5\n'
 
 /** 五条任务覆盖五个阶段：显示名与会话动作文案各一条。 */
 const STAGE_CASES = [
@@ -294,7 +310,7 @@ const STAGE_CASES = [
 function stageTasks(): Readonly<Record<string, string>> {
   return Object.fromEntries(STAGE_CASES.map(item => [
     `${item.id}.yaml`,
-    `id: ${item.id}\ntitle: ${item.title}\nstate: ${item.state}\ngrade: B\n`,
+    `id: ${item.id}\ntitle: ${item.title}\nstate: ${item.state}\ngrade: B\n${item.state === 'drafting' ? 'track: h5\n' : ''}`,
   ]))
 }
 
@@ -347,44 +363,13 @@ describe('任务详情', () => {
     expect(screen.getByText(zh['shell.role'])).toBeTruthy()
   })
 
-  it('需求卡片按任务会话读立项问答；没有任务会话就退回当前会话', async () => {
-    const readMessages = vi.fn((): readonly ShellMessage[] => [{
-      role: 'process',
-      items: [{
-        kind: 'tool',
-        callId: 'call-1',
-        name: 'ask_user_question',
-        args: JSON.stringify({ questions: [{ id: 'q1', header: '用途', question: '主要给谁用？' }] }),
-        ok: true,
-        result: JSON.stringify({ answers: [{ id: 'q1', selected: ['个人记账小工具'] }] }),
-      }],
-    }])
-    const holdSession = vi.fn(() => () => {})
-    const subscribeSession = vi.fn(() => () => {})
-    renderShell({
-      spec: { tasks: { 'T-02.yaml': TASK_T02 } },
-      readMessages,
-      holdSession,
-      subscribeSession,
-    })
-
-    const card = await openTask('与 T-01 同方案的任务')
-    expect(readMessages).toHaveBeenCalledWith(SessionId('s-1'))
-    expect(holdSession).toHaveBeenCalledWith(SessionId('s-1'))
-    expect(within(card).getByText('共 1 问')).toBeTruthy()
-
-    fireEvent.click(card.querySelector('[data-section-toggle="answers"]') as HTMLElement)
-    expect(within(card).getByText('主要给谁用？')).toBeTruthy()
-    expect(within(card).getByText('个人记账小工具')).toBeTruthy()
-  })
-
   it('任务卡与详情显示已分配岗位；未知 id 与未分配照实画出来', async () => {
     renderShell({
       spec: {
         tasks: {
           'T-01.yaml': `${TASK_T01}role: vue-engineer\n`,
           'T-02.yaml': `${TASK_T02}role: ghost-role\n`,
-          'T-03.yaml': 'id: T-03\ntitle: 还没分配的任务\nstate: drafting\ngrade: C\n',
+          'T-03.yaml': 'id: T-03\ntitle: 还没分配的任务\nstate: drafting\ngrade: C\ntrack: h5\n',
         },
         roles: 'roles:\n  - id: vue-engineer\n    name: Vue 工程师\n    inherits: dev\n',
       },
@@ -565,7 +550,7 @@ describe('任务详情', () => {
   })
 
   it('英文界面给出描述、分类标签、难度、更多与附件区', async () => {
-    const task = 'id: T-01\ntitle: Attached task\nstate: drafting\ngrade: B\n'
+    const task = 'id: T-01\ntitle: Attached task\nstate: drafting\ngrade: B\ntrack: h5\n'
       + 'description: |\n  First line\n  Second line\ncategory: api\nchange_type: bug\n'
       + 'attachments:\n  - attachments/T-01/shot.png\n'
     renderShell({
@@ -663,71 +648,116 @@ describe('任务详情', () => {
   })
 })
 
-describe('需求卡片的拆分接线', () => {
+describe('需求详情的动作、拆分与讨论历史', () => {
   const REQUIREMENT_DOC = '# 项目需求概要 V1\n\n## 第一版功能清单\n- 记一笔\n- 翻记录\n\n## 暂不开发\n- 云同步\n'
-  const TASK_REQUIREMENT = 'id: T-01\ntitle: 随手记账\nstate: drafting\ngrade: B\nproposal: P-01\n'
+  const REQ_CONFIRMED = 'id: REQ-01\ntitle: 随手记账\nstate: confirmed\nopened_at: 2026-11-12T09:00:00.000Z\n'
+  const REQ_DRAFT = 'id: REQ-01\ntitle: 随手记账\nstate: draft\nopened_at: 2026-11-12T09:00:00.000Z\n'
 
-  it('拆分先建项目经理会话，并把完整需求文档发给它', async () => {
+  it('确认需求派 requirement_approve，回执原样留在抽屉里', async () => {
+    const approveRequirement = vi.fn(async () => ({ ok: true, text: '已确认 REQ-01' }))
+    renderShell({
+      spec: { requirements: { 'REQ-01.yaml': REQ_DRAFT, 'REQ-01.md': REQUIREMENT_DOC } },
+      approveRequirement,
+    })
+    const drawer = await openRequirement('REQ-01')
+
+    fireEvent.click(within(drawer).getByRole('button', { name: zh['shell.confirmRequirement'] }))
+    await waitFor(() => { expect(approveRequirement).toHaveBeenCalledWith(SessionId('s-1'), 'REQ-01') })
+    expect(await within(drawer).findByText('已确认 REQ-01')).toBeTruthy()
+  })
+
+  it('命令失败时原文就地显示，不伪造成功', async () => {
+    const closeRequirement = vi.fn(async () => ({ ok: false, text: 'REQ-01 已上线，是终态' }))
+    renderShell({
+      spec: { requirements: { 'REQ-01.yaml': REQ_CONFIRMED, 'REQ-01.md': REQUIREMENT_DOC } },
+      closeRequirement,
+    })
+    const drawer = await openRequirement('REQ-01')
+
+    fireEvent.click(within(drawer).getByRole('button', { name: zh['shell.requirementClose'] }))
+    expect(await within(drawer).findByText('REQ-01 已上线，是终态')).toBeTruthy()
+  })
+
+  it('已确认给拆分、发布与关闭；已上线不再给动作', async () => {
+    renderShell({ spec: { requirements: { 'REQ-01.yaml': REQ_CONFIRMED, 'REQ-01.md': REQUIREMENT_DOC } } })
+    let drawer = await openRequirement('REQ-01')
+    for (const key of ['shell.splitTasks', 'shell.requirementRelease', 'shell.requirementClose'] as const) {
+      expect(within(drawer).getByRole('button', { name: zh[key] })).toBeTruthy()
+    }
+    fireEvent.click(drawer.querySelector('[data-requirement-drawer-close]') as HTMLElement)
+
+    cleanup()
+    renderShell({
+      spec: {
+        requirements: {
+          'REQ-01.yaml': 'id: REQ-01\ntitle: 随手记账\nstate: released\nopened_at: 2026-11-12T09:00:00.000Z\n',
+          'REQ-01.md': REQUIREMENT_DOC,
+        },
+      },
+    })
+    drawer = await openRequirement('REQ-01')
+    for (const key of ['shell.splitTasks', 'shell.requirementRelease', 'shell.requirementClose', 'shell.confirmRequirement'] as const) {
+      expect(within(drawer).queryByRole('button', { name: zh[key] })).toBeNull()
+    }
+  })
+
+  it('拆分先建项目经理会话，并把 REQ 编号写成任务回指', async () => {
     const sent: { sessionId: SessionId; content: string }[] = []
     const sendPrompt: NonNullable<ShellProps['sendPrompt']> = async (sessionId, content) => {
       sent.push({ sessionId, content: typeof content === 'string' ? content : '' })
     }
     const createSession = vi.fn(async () => SessionId('s-9'))
     renderShell({
-      spec: { tasks: { 'T-01.yaml': TASK_REQUIREMENT }, requirements: { 'P-01.md': REQUIREMENT_DOC } },
+      spec: { requirements: { 'REQ-01.yaml': REQ_CONFIRMED, 'REQ-01.md': REQUIREMENT_DOC } },
       sendPrompt,
       createSession,
     })
-    await openTask('随手记账')
+    const drawer = await openRequirement('REQ-01')
 
-    fireEvent.click(await screen.findByRole('button', { name: zh['shell.splitTasks'] }))
+    fireEvent.click(within(drawer).getByRole('button', { name: zh['shell.splitTasks'] }))
     await waitFor(() => { expect(createSession).toHaveBeenCalledTimes(1) })
     expect(createSession).toHaveBeenCalledWith(REPO, 'lcoder-pm')
     await waitFor(() => { expect(sent).toHaveLength(1) })
     expect(String(sent[0]?.sessionId)).toBe('s-9')
-    expect(sent[0]?.content).toContain('《项目需求概要》正文（.spec/requirements/P-01.md）')
+    expect(sent[0]?.content).toContain('《项目需求概要》正文（.spec/requirements/REQ-01.md）')
     expect(sent[0]?.content).toContain('- 记一笔\n- 翻记录')
-    expect(sent[0]?.content).toContain('暂不开发的范围不要拆成任务')
-    expect(sent[0]?.content).toContain('执行身份：你是这条需求的项目经理')
-    expect(await screen.findByText(zh['shell.splitPmRunning'])).toBeTruthy()
+    expect(sent[0]?.content).toContain('requirement: REQ-01')
+    expect(sent[0]?.content).toContain('不要写 proposal')
+    expect(await within(drawer).findByText(zh['shell.splitPmRunning'])).toBeTruthy()
     expect(document.querySelector<HTMLButtonElement>('[data-requirement-split]')?.disabled).toBe(true)
   })
 
-  it('没有完整需求文档时不开任何会话，原地说明缺文档', async () => {
+  it('没有正文时不给拆分入口，也不开任何会话', async () => {
     const createSession = vi.fn(async () => SessionId('s-9'))
     renderShell({
-      spec: { tasks: { 'T-01.yaml': TASK_REQUIREMENT } },
+      spec: { requirements: { 'REQ-01.yaml': REQ_CONFIRMED } },
       createSession,
       sendPrompt: async () => {},
     })
-    await openTask('随手记账')
+    const drawer = await openRequirement('REQ-01')
 
-    fireEvent.click(await screen.findByRole('button', { name: zh['shell.splitTasks'] }))
-    await waitFor(() => {
-      expect(screen.getByText(/没有找到这条需求的完整需求文档/)).toBeTruthy()
-    })
+    expect(within(drawer).getByText(zh['shell.requirementDocumentMissing'])).toBeTruthy()
+    expect(within(drawer).queryByRole('button', { name: zh['shell.splitTasks'] })).toBeNull()
     expect(createSession).not.toHaveBeenCalled()
   })
 
   it('项目经理拆出的任务只标轨，不再建研发经理会话或逐条分配', async () => {
-    const spec: { tasks: Record<string, string>; requirements: Record<string, string> } = {
-      tasks: { 'T-01.yaml': TASK_REQUIREMENT },
-      requirements: { 'P-01.md': REQUIREMENT_DOC },
+    const spec: { requirements: Record<string, string>; tasks: Record<string, string> } = {
+      requirements: { 'REQ-01.yaml': REQ_CONFIRMED, 'REQ-01.md': REQUIREMENT_DOC },
+      tasks: {},
     }
     const messages = new Map<string, readonly ShellMessage[]>()
-    const presets = new Map<string, string>()
     let next = 9
-    const createSession: NonNullable<ShellProps['createSession']> = vi.fn(async (_path: string, preset?: string) => {
+    const createSession: NonNullable<ShellProps['createSession']> = vi.fn(async (_path: string) => {
       const id = SessionId(`s-${next}`)
       next += 1
-      presets.set(String(id), preset ?? '')
       return id
     })
     const sendPrompt: NonNullable<ShellProps['sendPrompt']> = async (sessionId, content) => {
       void content
-      if (presets.get(String(sessionId)) === 'lcoder-pm') {
+      if (String(sessionId) === 's-9') {
         messages.set(String(sessionId), [{ role: 'assistant', text: '已拆出 T-02。' }])
-        spec.tasks['T-02.yaml'] = 'id: T-02\ntitle: 记一笔\nstate: drafting\ngrade: B\nproposal: P-01\ntrack: h5\n'
+        spec.tasks['T-02.yaml'] = 'id: T-02\ntitle: 记一笔\nstate: drafting\ngrade: B\nrequirement: REQ-01\ntrack: h5\n'
       }
     }
     const assignTask: NonNullable<ShellProps['assignTask']> = vi.fn(async () => ({ ok: true, text: '已分配' }))
@@ -739,20 +769,20 @@ describe('需求卡片的拆分接线', () => {
       readMessages: id => messages.get(String(id)) ?? [],
       holdSession: () => () => {},
     })
-    await openTask('随手记账')
+    const drawer = await openRequirement('REQ-01')
 
-    fireEvent.click(await screen.findByRole('button', { name: zh['shell.splitTasks'] }))
-    expect(await screen.findByText(t('shell.splitResult', { tasks: '1' }))).toBeTruthy()
+    fireEvent.click(within(drawer).getByRole('button', { name: zh['shell.splitTasks'] }))
+    expect(await within(drawer).findByText(t('shell.splitResult', { tasks: '1' }))).toBeTruthy()
     expect(assignTask).not.toHaveBeenCalled()
     expect(createSession).toHaveBeenCalledTimes(1)
     expect(createSession).toHaveBeenNthCalledWith(1, REPO, 'lcoder-pm')
-    expect(await screen.findByText(t('shell.splitTracks', { tracks: 'H5 前端 1' }))).toBeTruthy()
-    expect(screen.getByRole('button', { name: zh['shell.splitViewBoard'] })).toBeTruthy()
+    expect(await within(drawer).findByText(t('shell.splitTracks', { tracks: 'H5 前端 1' }))).toBeTruthy()
 
-    fireEvent.click(screen.getByRole('button', { name: zh['shell.close'] }))
-    await openTask('随手记账')
-    expect(await screen.findByText(t('shell.splitResult', { tasks: '1' }))).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: zh['shell.splitTasks'] }))
+    fireEvent.click(drawer.querySelector('[data-requirement-drawer-close]') as HTMLElement)
+    const reopened = await openRequirement('REQ-01')
+    expect(await within(reopened).findByText(t('shell.splitResult', { tasks: '1' }))).toBeTruthy()
+    // 已有回指任务时进度进入「已拆分」，拆放入口不再出现，重复拆不可能发生。
+    expect(within(reopened).queryByRole('button', { name: zh['shell.splitTasks'] })).toBeNull()
     expect(createSession).toHaveBeenCalledTimes(1)
   })
 
@@ -760,7 +790,7 @@ describe('需求卡片的拆分接线', () => {
     const messages: readonly ShellMessage[] = [
       {
         role: 'user',
-        text: '方案讨论：需求 P-01 已按轨拆分。\n参会身份：项目经理（pm）',
+        text: '方案讨论：需求 REQ-01 已按轨拆分。\n参会身份：项目经理（pm）',
       },
       { role: 'assistant', text: '按三条任务拆分，基础框架排第一。' },
     ]
@@ -769,37 +799,37 @@ describe('需求卡片的拆分接线', () => {
       return sessionId === SessionId('s-1') ? messages : null
     })
     renderShell({
-      spec: { tasks: { 'T-01.yaml': TASK_REQUIREMENT } },
+      spec: { requirements: { 'REQ-01.yaml': REQ_CONFIRMED, 'REQ-01.md': REQUIREMENT_DOC } },
       preset: 'lcoder-pm',
       readSessionMessages,
     })
-    await openTask('随手记账')
+    const drawer = await openRequirement('REQ-01')
 
-    fireEvent.click(screen.getByRole('button', { name: zh['shell.discussionHistory'] }))
+    fireEvent.click(within(drawer).getByRole('button', { name: zh['shell.discussionHistory'] }))
     expect(await screen.findByText('按三条任务拆分，基础框架排第一。')).toBeTruthy()
     expect(readSessionMessages).toHaveBeenCalledWith(SessionId('s-1'))
     expect(document.querySelector('[data-discussion-history-group="pm"]')).not.toBeNull()
   })
 
-  it('重启扫描只认参会身份标记：立项与拆分会话提到方案也不进历史', async () => {
+  it('重启扫描只认参会身份标记：立项与拆分会话提到需求也不进历史', async () => {
     const messages: Readonly<Record<string, readonly ShellMessage[]>> = {
       's-intake': [
-        { role: 'user', text: '立项：按 .spec/requirements/P-01.md 落需求。' },
+        { role: 'user', text: '立项：按 .spec/requirements/REQ-01.md 落需求。' },
         { role: 'assistant', text: '需求已立项。' },
       ],
       's-split': [
-        { role: 'user', text: '拆分完成：P-01 已拆出 T-02。' },
+        { role: 'user', text: '拆分完成：REQ-01 已拆出 T-02。' },
         { role: 'assistant', text: '拆分完成汇报。' },
       ],
       's-meet': [
-        { role: 'user', text: '方案讨论：需求 P-01 已按轨拆分。\n参会身份：架构师（architect）' },
+        { role: 'user', text: '方案讨论：需求 REQ-01 已按轨拆分。\n参会身份：架构师（architect）' },
         { role: 'assistant', text: '契约要点如下。' },
       ],
     }
     const readSessionMessages: NonNullable<ShellProps['readSessionMessages']> =
       async sessionId => messages[String(sessionId)] ?? null
     renderShell({
-      spec: { tasks: { 'T-01.yaml': TASK_REQUIREMENT } },
+      spec: { requirements: { 'REQ-01.yaml': REQ_CONFIRMED, 'REQ-01.md': REQUIREMENT_DOC } },
       sessions: [
         sessionRow('s-intake', REPO, false),
         sessionRow('s-split', REPO, false),
@@ -808,9 +838,9 @@ describe('需求卡片的拆分接线', () => {
       presets: { 's-intake': 'lcoder', 's-split': 'lcoder-pm', 's-meet': 'lcoder-architect' },
       readSessionMessages,
     })
-    await openTask('随手记账')
+    const drawer = await openRequirement('REQ-01')
 
-    fireEvent.click(screen.getByRole('button', { name: zh['shell.discussionHistory'] }))
+    fireEvent.click(within(drawer).getByRole('button', { name: zh['shell.discussionHistory'] }))
     expect(await screen.findByText('契约要点如下。')).toBeTruthy()
     expect(document.querySelector('[data-discussion-history-group="architect"]')).not.toBeNull()
     expect(document.querySelector('[data-discussion-history-group="track"]')).toBeNull()
@@ -821,25 +851,25 @@ describe('需求卡片的拆分接线', () => {
     const messages: readonly ShellMessage[] = [
       {
         role: 'user',
-        text: '方案讨论：需求 P-01 已按轨拆分。\n参会身份：项目经理（pm）',
+        text: '方案讨论：需求 REQ-01 已按轨拆分。\n参会身份：项目经理（pm）',
       },
       { role: 'assistant', text: '按三条任务拆分，基础框架排第一。' },
     ]
     let releaseHistory: ((value: readonly ShellMessage[] | null) => void) | undefined
     const readSessionMessages: NonNullable<ShellProps['readSessionMessages']> = () =>
       new Promise<readonly ShellMessage[] | null>((resolve) => { releaseHistory = resolve })
-    const tasks: Record<string, string> = { 'T-01.yaml': TASK_REQUIREMENT }
-    renderShell({ spec: { tasks }, preset: 'lcoder-pm', readSessionMessages })
-    await openTask('随手记账')
+    const requirements: Record<string, string> = { 'REQ-01.yaml': REQ_CONFIRMED, 'REQ-01.md': REQUIREMENT_DOC }
+    renderShell({ spec: { requirements }, preset: 'lcoder-pm', readSessionMessages })
+    const drawer = await openRequirement('REQ-01')
 
-    fireEvent.click(screen.getByRole('button', { name: zh['shell.discussionHistory'] }))
+    fireEvent.click(within(drawer).getByRole('button', { name: zh['shell.discussionHistory'] }))
     expect(screen.getByText(zh['shell.historyLoading'])).toBeTruthy()
     expect(document.querySelector('[data-discussion-history]')).not.toBeNull()
 
-    // 模拟十秒一次的看板重读：同一任务被换成新快照，标题变了才算重读真的落地。
-    tasks['T-01.yaml'] = TASK_REQUIREMENT.replace('title: 随手记账', 'title: 随手记账（刷新后）')
+    // 模拟十秒一次的看板重读：同一条需求被换成新快照，标题变了才算重读真的落地。
+    requirements['REQ-01.yaml'] = REQ_CONFIRMED.replace('title: 随手记账', 'title: 随手记账（刷新后）')
     fireEvent.focus(window)
-    expect(await screen.findByRole('dialog', { name: 'T-01 随手记账（刷新后）' })).toBeTruthy()
+    expect(await screen.findByRole('dialog', { name: /REQ-01 随手记账（刷新后）/ })).toBeTruthy()
     expect(document.querySelector('[data-discussion-history]')).not.toBeNull()
     expect(screen.getByText(zh['shell.historyLoading'])).toBeTruthy()
 
@@ -848,42 +878,97 @@ describe('需求卡片的拆分接线', () => {
     expect(document.querySelector('[data-discussion-history-group="pm"]')).not.toBeNull()
   })
 
-  it('换到另一条任务时收起讨论历史', async () => {
+  it('换到另一条需求时收起讨论历史', async () => {
     const readSessionMessages: NonNullable<ShellProps['readSessionMessages']> = async () => [
-      { role: 'user', text: '方案讨论：需求 P-01 已按轨拆分。\n参会身份：项目经理（pm）' },
+      { role: 'user', text: '方案讨论：需求 REQ-01 已按轨拆分。\n参会身份：项目经理（pm）' },
       { role: 'assistant', text: '按三条任务拆分，基础框架排第一。' },
     ]
     renderShell({
       spec: {
-        tasks: {
-          'T-01.yaml': TASK_REQUIREMENT,
-          'T-02.yaml': 'id: T-02\ntitle: 会员积分\nstate: drafting\ngrade: B\nproposal: P-01\n',
+        requirements: {
+          'REQ-01.yaml': REQ_CONFIRMED,
+          'REQ-01.md': REQUIREMENT_DOC,
+          'REQ-02.yaml': 'id: REQ-02\ntitle: 会员积分\nstate: confirmed\nopened_at: 2026-11-12T10:00:00.000Z\n',
+          'REQ-02.md': '# 会员积分\n\n## 第一版功能清单\n- 积分累计\n',
         },
       },
       preset: 'lcoder-pm',
       readSessionMessages,
     })
-    await openTask('随手记账')
+    const drawer = await openRequirement('REQ-01')
 
-    fireEvent.click(screen.getByRole('button', { name: zh['shell.discussionHistory'] }))
+    fireEvent.click(within(drawer).getByRole('button', { name: zh['shell.discussionHistory'] }))
     expect(await screen.findByText('按三条任务拆分，基础框架排第一。')).toBeTruthy()
 
-    fireEvent.click(screen.getByText('会员积分'))
-    expect(await screen.findByRole('dialog', { name: 'T-02 会员积分' })).toBeTruthy()
+    fireEvent.click(screen.getByText('REQ-02', { selector: 'td' }))
+    expect(await screen.findByRole('dialog', { name: /REQ-02 会员积分/ })).toBeTruthy()
     expect(document.querySelector('[data-discussion-history]')).toBeNull()
   })
 
   it('候选会话读不出来时提示读取失败，而不是定位不到', async () => {
     renderShell({
-      spec: { tasks: { 'T-01.yaml': TASK_REQUIREMENT } },
+      spec: { requirements: { 'REQ-01.yaml': REQ_CONFIRMED, 'REQ-01.md': REQUIREMENT_DOC } },
       preset: 'lcoder-pm',
       readSessionMessages: async () => null,
     })
-    await openTask('随手记账')
+    const drawer = await openRequirement('REQ-01')
 
-    fireEvent.click(screen.getByRole('button', { name: zh['shell.discussionHistory'] }))
+    fireEvent.click(within(drawer).getByRole('button', { name: zh['shell.discussionHistory'] }))
     expect(await screen.findByText(zh['shell.historyUnavailable'])).toBeTruthy()
-    expect(screen.queryByText(t('shell.historyNotFound', { proposal: 'P-01' }))).toBeNull()
+    expect(screen.queryByText(t('shell.historyNotFound', { requirement: 'REQ-01' }))).toBeNull()
+  })
+})
+
+describe('左侧菜单与任务页的归属需求', () => {
+  const REQ_ROW = 'id: REQ-01\ntitle: 随手记账\nstate: confirmed\nopened_at: 2026-11-12T09:00:00.000Z\n'
+  const REQ_DOC = '# 项目需求概要 V1\n\n## 第一版功能清单\n- 记一笔\n'
+
+  it('旧需求本体任务从任务页隐藏，其余卡片显示所属需求编号', async () => {
+    const { container } = renderShell({
+      spec: {
+        tasks: {
+          'T-01.yaml': 'id: T-01\ntitle: 需求本体任务\nstate: drafting\ngrade: B\nproposal: P-01\n',
+          'T-02.yaml': 'id: T-02\ntitle: 拆出来的任务\nstate: drafting\ngrade: B\nrequirement: REQ-01\ntrack: h5\n',
+          'T-03.yaml': 'id: T-03\ntitle: 旧方案任务\nstate: drafting\ngrade: B\nproposal: P-09\ntrack: h5\n',
+        },
+      },
+    })
+
+    expect(await screen.findByText('拆出来的任务')).toBeTruthy()
+    expect(screen.queryByText('需求本体任务')).toBeNull()
+    expect(screen.getByText('旧方案任务')).toBeTruthy()
+    expect(container.querySelector('[data-task-requirement="REQ-01"]')).not.toBeNull()
+    // 旧数据只有 proposal：仍把方案编号挂回卡片，不丢线索。
+    expect(container.querySelector('[data-task-requirement="P-09"]')).not.toBeNull()
+  })
+
+  it('详情里的所属需求跳到需求页并打开同一条需求', async () => {
+    renderShell({
+      spec: {
+        tasks: { 'T-02.yaml': 'id: T-02\ntitle: 拆出来的任务\nstate: drafting\ngrade: B\nrequirement: REQ-01\ntrack: h5\n' },
+        requirements: { 'REQ-01.yaml': REQ_ROW, 'REQ-01.md': REQ_DOC },
+      },
+    })
+    const detail = await openTask('拆出来的任务')
+    fireEvent.click(within(detail).getByText('REQ-01'))
+
+    expect(await screen.findByRole('dialog', { name: /REQ-01 随手记账/ })).toBeTruthy()
+    expect(document.querySelector('[data-lcoder-requirements]')).not.toBeNull()
+  })
+
+  it('需求页记住表格/看板视图，切到任务再切回来仍是看板', async () => {
+    const { container } = renderShell({
+      spec: { requirements: { 'REQ-01.yaml': REQ_ROW, 'REQ-01.md': REQ_DOC } },
+    })
+    await waitFor(() => { expect(document.querySelector('[data-nav="requirements"]')).not.toBeNull() })
+    fireEvent.click(document.querySelector('[data-nav="requirements"]') as HTMLElement)
+    fireEvent.click(await screen.findByRole('button', { name: zh['shell.requirementViewBoard'] }))
+    expect(container.querySelector('[data-requirement-board]')).not.toBeNull()
+
+    fireEvent.click(document.querySelector('[data-nav="tasks"]') as HTMLElement)
+    expect(container.querySelector('[data-requirement-board]')).toBeNull()
+    fireEvent.click(document.querySelector('[data-nav="requirements"]') as HTMLElement)
+    expect(container.querySelector('[data-requirement-board]')).not.toBeNull()
   })
 })
 
@@ -1013,14 +1098,14 @@ describe('任务详情的阶段文案', () => {
     }
   })
 
-  it('看板列名与任务卡所在列用新阶段名，旧名不再出现', async () => {
+  it('看板只有方案讨论、待开发、开发中、验收中、已完成五列', async () => {
     renderShell({ spec: { tasks: stageTasks() } })
 
-    for (const item of STAGE_CASES) {
-      expect(await screen.findByText(zh[item.label])).toBeTruthy()
-      const card = screen.getByText(item.title).closest('button')
-      expect(card?.parentElement?.textContent).toContain(zh[item.label])
+    for (const key of ['shell.discussing', 'shell.contracted', 'shell.implementing', 'shell.verifying', 'shell.closed'] as const) {
+      expect(await screen.findByText(zh[key])).toBeTruthy()
     }
+    // 需求确认列已去掉：需求本体在需求页管理，任务页不再出现这一列。
+    expect(screen.queryByText(zh['shell.drafting'])).toBeNull()
     for (const old of ['起草', '已签契约', '实施中', '验证中', '已收口']) {
       expect(screen.queryByText(old)).toBeNull()
     }

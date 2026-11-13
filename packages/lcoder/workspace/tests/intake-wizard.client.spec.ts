@@ -18,7 +18,7 @@ const home: IntakeWizardFacts = {
   questionCount: 0,
   running: false,
   hasOutput: false,
-  proposalCount: 0,
+  requirementCount: 0,
   summary: null,
   confirmed: false,
   landed: false,
@@ -26,7 +26,7 @@ const home: IntakeWizardFacts = {
 
 describe('向导阶段', () => {
   it('没打开就是关闭态，即便会话里已经有方案', () => {
-    expect(intakeWizardPhase({ ...home, open: false, started: true, proposalCount: 2 })).toBe('closed')
+    expect(intakeWizardPhase({ ...home, open: false, started: true, requirementCount: 2 })).toBe('closed')
   })
 
   it('打开但咒语还没发出时停在首页', () => {
@@ -39,7 +39,7 @@ describe('向导阶段', () => {
 
   it('提问优先于旧方案：模型继续追问时不拿上一轮方案盖掉提问', () => {
     expect(intakeWizardPhase({
-      ...home, started: true, questionCount: 1, proposalCount: 1, hasOutput: true,
+      ...home, started: true, questionCount: 1, requirementCount: 1, hasOutput: true,
     })).toBe('questions')
   })
 
@@ -49,25 +49,25 @@ describe('向导阶段', () => {
 
   it('刚发出、还没有任何输出时也是思考中，不误判为结果', () => {
     expect(intakeWizardPhase({
-      ...home, started: true, running: true, hasOutput: false, proposalCount: 1,
+      ...home, started: true, running: true, hasOutput: false, requirementCount: 1,
     })).toBe('thinking')
   })
 
   it('本轮结束且有方案时进结果卡', () => {
     expect(intakeWizardPhase({
-      ...home, started: true, running: false, hasOutput: true, proposalCount: 1,
+      ...home, started: true, running: false, hasOutput: true, requirementCount: 1,
     })).toBe('result')
   })
 
   it('本轮结束但既没有方案也没有概要时继续停在结束态', () => {
     expect(intakeWizardPhase({
-      ...home, started: true, running: false, hasOutput: true, proposalCount: 0,
+      ...home, started: true, running: false, hasOutput: true, requirementCount: 0,
     })).toBe('thinking')
   })
 
   it('方案存在但本轮还在跑时不算结果', () => {
     expect(intakeWizardPhase({
-      ...home, started: true, running: true, hasOutput: true, proposalCount: 1,
+      ...home, started: true, running: true, hasOutput: true, requirementCount: 1,
     })).toBe('thinking')
   })
 
@@ -104,19 +104,19 @@ describe('向导阶段', () => {
 
 describe('结果卡内容', () => {
   it('方案优先：有方案时不拿概要顶替', () => {
-    expect(intakeResultView({ proposalCount: 1, summary: '概要', confirmed: false, landed: false })).toBe('proposal')
+    expect(intakeResultView({ requirementCount: 1, summary: '概要', confirmed: false, landed: false })).toBe('requirement')
   })
 
   it('没有方案时有概要用概要', () => {
-    expect(intakeResultView({ proposalCount: 0, summary: '概要', confirmed: false, landed: false })).toBe('summary')
+    expect(intakeResultView({ requirementCount: 0, summary: '概要', confirmed: false, landed: false })).toBe('summary')
   })
 
   it('已确认且已落盘但没有方案与概要时只说已确认', () => {
-    expect(intakeResultView({ proposalCount: 0, summary: null, confirmed: true, landed: true })).toBe('confirmed')
+    expect(intakeResultView({ requirementCount: 0, summary: null, confirmed: true, landed: true })).toBe('confirmed')
   })
 
   it('什么都没读到时保留方案还没读出来的说明', () => {
-    expect(intakeResultView({ proposalCount: 0, summary: null, confirmed: false, landed: false })).toBe('pending')
+    expect(intakeResultView({ requirementCount: 0, summary: null, confirmed: false, landed: false })).toBe('pending')
   })
 })
 
