@@ -1,6 +1,6 @@
 /**
- * 任务详情摘要派生的纯函数测：只取第一段有效文字，剥掉 Markdown 与来源前缀，
- * 压成单行并按码点截断；没有正文时交回空串由界面给占位。
+ * 任务详情摘要派生的纯函数测：只取第一段人话，剥掉 Markdown 与来源前缀，跳过
+ * 交代技术引用的句子，压成单行并按码点截断；没有正文时交回空串由界面给占位。
  */
 import { describe, expect, it } from 'vitest'
 import { TASK_SUMMARY_LIMIT, taskDescriptionSummary } from '../src/client/shell/task-detail-view.ts'
@@ -61,6 +61,26 @@ describe('任务描述摘要', () => {
   it('上限之内原样保留，不加省略号', () => {
     const description = '限'.repeat(TASK_SUMMARY_LIMIT)
     expect(taskDescriptionSummary(description)).toBe(description)
+  })
+
+  it('跳过只在交代技术引用的段落，取下一段人话', () => {
+    const description = '需求依据：.spec/requirements/REQ-01.md 第四节【已确认】\n\n给登录接口加限流，防止撞库。'
+    expect(taskDescriptionSummary(description)).toBe('给登录接口加限流，防止撞库。')
+  })
+
+  it('同一段里按句丢弃技术引用，保留人话', () => {
+    const description = '.spec/requirements/REQ-01.md 第四节【已确认】；给登录加限流。'
+    expect(taskDescriptionSummary(description)).toBe('给登录加限流。')
+  })
+
+  it('全部段落都在交代技术引用时返回空串', () => {
+    const description = [
+      '.spec/requirements/REQ-01.md 第四节【已确认】',
+      '需求依据：.spec/requirements/REQ-02.md',
+      '契约与规格见 docs/tasks.yaml，README 有登记',
+      'R-12 为已确认条目',
+    ].join('\n\n')
+    expect(taskDescriptionSummary(description)).toBe('')
   })
 
   it('空描述、纯空白与只有符号时返回空串', () => {
