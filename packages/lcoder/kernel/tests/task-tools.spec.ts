@@ -6,8 +6,10 @@ import { fileURLToPath } from 'node:url'
 import { afterAll, describe, expect, it } from 'vitest'
 
 import { createTaskTools } from '../src/tools/task-tools.js'
+import { saveDeliverable } from '../src/kernel/deliverable-store.js'
 import { contractHash, saveContract } from '../src/kernel/contract.js'
 import { Contract } from '../src/schema/spec.js'
+import { Deliverable } from '../src/schema/deliverable.js'
 
 const dirs: string[] = []
 afterAll(() => {
@@ -467,5 +469,106 @@ describe('任务依赖', () => {
 
     await expect(call(spec, 'task_draft', { title: '依赖自己', grade: 'B', task_id: 'T-77', depends_on: ['T-77'] }))
       .rejects.toThrow(/不能依赖自己：T-77/)
+  })
+})
+
+describe('task_close 的交付索引闸门', () => {
+  /** 把 T-01 准备到「检查器全过」：verifying、证据齐备、人签契约。 */
+  function readyToClose(repo: string, spec: string): void {
+    setState(repo, 'verifying')
+    mkdirSync(join(spec, 'evidence', 'T-01'), { recursive: true })
+    writeFileSync(join(spec, 'evidence', 'T-01', 'build.log'), 'ok', 'utf8')
+    writeFileSync(join(spec, 'evidence', 'T-01', 'test.log'), 'ok', 'utf8')
+    writeHumanContract(spec, { id: 'T-01', change: ['x'], acceptance: ['y'] })
+  }
+
+  /** 改任务的一个顶层字段：只用于把分级、轨与标题调整成必须交付的组合。 */
+  function setField(repo: string, field: string, value: string): void {
+    const path = join(repo, '.spec', 'tasks', 'T-01.yaml')
+    const raw = readFileSync(path, 'utf8')
+    const pattern = new RegExp(`^${field}: .*$`, 'm')
+    const text = pattern.test(raw)
+      ? raw.replace(pattern, `${field}: ${value}`)
+      : `${raw.trimEnd()}\n${field}: ${value}\n`
+    writeFileSync(path, text, 'utf8')
+  }
+
+  function writeDeliverable(spec: string, over: Record<string, unknown> = {}): void {
+    saveDeliverable(spec, Deliverable.parse({
+      task: 'T-01',
+      summary: '补齐基础框架说明',
+      docs: ['README.md'],
+      commands: [],
+      created_at: '2026-11-13T10:00:00.000Z',
+      updated_at: '2026-11-13T10:00:00.000Z',
+      ...over,
+    }))
+  }
+
+  it('A 级任务缺交付索引 → D1 拦下并给出文档与索引路径', async () => {
+    const { repo, spec } = makeRepo()
+    readyToClose(repo, spec)
+    setField(repo, 'grade', 'A')
+
+    const r = await call(spec, 'task_close', { task_id: 'T-01' })
+    expect(r.ok).toBe(false)
+    expect(r.state).toBe('verifying')
+    const d1 = (r.violations as { checker: string; detail: string; hint: string }[]).filter(v => v.checker === 'D1')
+    expect(d1).toHaveLength(1)
+    expect(d1[0]?.hint).toContain('.spec/deliverables/T-01.yaml')
+    expect(d1[0]?.hint).toContain('deliverable_draft')
+  })
+
+  it('A 级任务有完整索引 → 照常收口', async () => {
+    const { repo, spec } = makeRepo()
+    readyToClose(repo, spec)
+    setField(repo, 'grade', 'A')
+    writeFileSync(join(repo, 'README.md'), '# 佣金\n', 'utf8')
+    writeDeliverable(spec)
+
+    const r = await call(spec, 'task_close', { task_id: 'T-01' })
+    expect(r.ok).toBe(true)
+    expect(r.state).toBe('closed')
+  })
+
+  it('通用轨与基础关键词同样触发闸门', async () => {
+    const first = makeRepo()
+    readyToClose(first.repo, first.spec)
+    setField(first.repo, 'track', 'general')
+    expect((await call(first.spec, 'task_close', { task_id: 'T-01' })).ok).toBe(false)
+
+    const second = makeRepo()
+    readyToClose(second.repo, second.spec)
+    setField(second.repo, 'title', '搭建基础框架')
+    expect((await call(second.spec, 'task_close', { task_id: 'T-01' })).ok).toBe(false)
+  })
+
+  it('索引读不懂（summary 为空）→ D1 拦下并带原文', async () => {
+    const { repo, spec } = makeRepo()
+    readyToClose(repo, spec)
+    setField(repo, 'grade', 'A')
+    mkdirSync(join(spec, 'deliverables'), { recursive: true })
+    writeFileSync(join(spec, 'deliverables', 'T-01.yaml'), [
+      'task: T-01',
+      'summary: ""',
+      'docs: [README.md]',
+      'created_at: 2026-11-13T10:00:00.000Z',
+      'updated_at: 2026-11-13T10:00:00.000Z',
+      '',
+    ].join('\n'), 'utf8')
+
+    const r = await call(spec, 'task_close', { task_id: 'T-01' })
+    expect(r.ok).toBe(false)
+    const d1 = (r.violations as { checker: string; detail: string }[]).filter(v => v.checker === 'D1')
+    expect(d1[0]?.detail).toContain('读不懂')
+  })
+
+  it('普通 B 级任务没有索引也照常收口', async () => {
+    const { repo, spec } = makeRepo()
+    readyToClose(repo, spec)
+
+    const r = await call(spec, 'task_close', { task_id: 'T-01' })
+    expect(r.ok).toBe(true)
+    expect(r.state).toBe('closed')
   })
 })

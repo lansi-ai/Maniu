@@ -287,3 +287,28 @@ describe('角色天花板', () => {
     expect(() => parseRole(7)).toThrow('未知角色')
   })
 })
+
+describe('交付索引工具面', () => {
+  it('deliverable_draft 在签约后到验证态可见，起草态与终态不可见', () => {
+    expect(SURFACE.drafting).not.toContain('deliverable_draft')
+    for (const state of ['contracted', 'implementing', 'verifying'] as TaskState[]) {
+      expect(SURFACE[state]).toContain('deliverable_draft')
+    }
+    expect(SURFACE.closed).not.toContain('deliverable_draft')
+    expect(UNSCOPEED_SURFACE).not.toContain('deliverable_draft')
+  })
+
+  it('只有实施、架构与运维角色能登记交付索引', () => {
+    for (const role of ['dev', 'architect', 'ops'] as const) {
+      expect(ROLE_TOOLS[role]).toContain('deliverable_draft')
+    }
+    for (const role of ['intake', 'pm', 'git', 'review', 'scheduler', 'flow', 'manager'] as const) {
+      expect(ROLE_TOOLS[role]).not.toContain('deliverable_draft')
+    }
+    expect(allowedTools('implementing', 'dev')).toContain('deliverable_draft')
+    expect(allowedTools('implementing', 'architect')).toContain('deliverable_draft')
+    expect(allowedTools('implementing', 'ops')).toContain('deliverable_draft')
+    expect(allowedTools('verifying', 'review')).not.toContain('deliverable_draft')
+    expect(allowedTools('drafting', 'architect')).not.toContain('deliverable_draft')
+  })
+})

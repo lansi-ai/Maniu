@@ -54,6 +54,8 @@ kind: "package-reference"
 
 `requirement_draft` 用必填的标题与 Markdown 正文、可选的 `options`（每项 `name` 与 `summary` 必填、`cost` 可省）与 `recommendation`，写 `.spec/requirements/REQ-<编号>.yaml` 与同名正文文件。它取现有 `REQ-` 编号之后的下一个空号，不覆盖已有文件对；先写正文再写元数据，元数据写失败会删掉刚写的正文。状态固定写 `draft`。`/requirement_approve` 把正文非空的起草态需求推到 `confirmed`；`/requirement_release` 只在至少一条任务通过 `Task.requirement` 回指且这些任务全部 `closed` 时推到 `released`，否则报出未关闭的任务编号；`/requirement_close` 关闭起草或已确认的需求，并拒绝已上线的需求——它是终态。工作台投影按同一目录把每份 YAML 与同名正文合成一行。
 
+`deliverable_draft` 用必填的 `summary`、至少一条仓库相对路径的 `docs` 与可空的 `commands`，把一条任务的交付物登记成 `.spec/deliverables/<任务编号>.yaml`。每条 `docs` 必须在仓库根下解析成真实文件；绝对路径、`..` 与不存在的文件都被拒。工具按任务覆盖写，保留首次 `created_at` 并刷新 `updated_at`；它只登记索引，工程文档本身仍用 `file_edit` 写。`task_close` 在 P1、P3、P4 之后跑 D1：A 级、通用轨、或标题描述命中基础框架、脚手架、架构、技术选型的任务，必须有一份摘要非空、至少一条文档的可读索引，否则收口把 `.spec/deliverables/<任务编号>.yaml` 作为下一步报出来。普通任务不受影响。只有 `dev`、`architect` 与 `ops` 看得见这个工具，且从 `contracted` 起才可见。
+
 -----
 
 <a id="understand-the-implementation"></a>
@@ -75,9 +77,11 @@ kind: "package-reference"
 | `src/kernel/requirement-store.ts` | 需求对象、编号分配与两文件写入 |
 | `src/tools/spec-tools.ts`、`src/tools/task-tools.ts`、`src/tools/edit-tools.ts` | 模型工具 |
 | `src/tools/requirement-tools.ts` | 模型可调用的 `requirement_draft` |
+| `src/tools/deliverable-tools.ts` | 模型可调用的 `deliverable_draft` |
+| `src/kernel/deliverable-store.ts`, `src/schema/deliverable.ts` | 交付索引的读写与必须交付判定 |
 | `src/commands/requirement-approve.ts`、`src/commands/requirement-release.ts`、`src/commands/requirement-close.ts` | 三条只进命令面的需求状态命令 |
 | `src/schema/requirement-progress.ts` | 需求九态进度的纯函数推导 |
-| `src/checkers/index.ts` | P1、P3、P4 收口检查器 |
+| `src/checkers/index.ts` | P1、P3、P4、D1 收口检查器 |
 | `src/kernel/automation.ts` | `.spec/automation.yaml` 的读取、默认值与策略哈希 |
 | `src/kernel/flow.ts`、`src/kernel/flow-store.ts` | 纯函数下一步判定与 `.spec` 事实装配 |
 | `src/kernel/sign-gate.ts` | AI 自签的三道补偿闸 |

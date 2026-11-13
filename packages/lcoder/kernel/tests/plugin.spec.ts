@@ -27,6 +27,7 @@ afterEach(() => {
 const TOOL_NAMES = [
   'cmd_run',
   'contract_draft',
+  'deliverable_draft',
   'evidence_attach',
   'file_edit',
   'file_list',
@@ -179,7 +180,7 @@ function setSession(repo: string, id: string, sessionId: string): void {
 }
 
 describe('插件装配', () => {
-  it('注册十九个工具，其中包含 task_draft、proposal_draft、requirement_draft、role_draft 与 git_commit', () => {
+  it('注册二十个工具，其中包含 task_draft、proposal_draft、requirement_draft、role_draft 与 git_commit', () => {
     const { spec } = makeRepo()
     const harness = makeHarness()
     apply(harness.ctx, { root: spec, selfCheck: false })
@@ -367,7 +368,7 @@ describe('插件装配', () => {
     expect(logged.mock.calls.map(call => String(call[0])).join('\n')).toContain('读任务状态失败')
   })
 
-  it('启动自检报出注册的十九个工具，且没有掩码缺口', () => {
+  it('启动自检报出注册的二十个工具，且没有掩码缺口', () => {
     const { spec } = makeRepo()
     const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
     const harness = makeHarness()
@@ -375,7 +376,7 @@ describe('插件装配', () => {
     harness.runEffects()
 
     const text = logged.mock.calls.map(call => String(call[0])).join('\n')
-    expect(text).toContain('已注册 19 个工具')
+    expect(text).toContain('已注册 20 个工具')
     expect(text).not.toContain('掩码声明了但未注册')
     expect(text).not.toContain('任何状态都看不到')
   })

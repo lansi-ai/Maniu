@@ -25,6 +25,7 @@ import { createTaskContractCommand } from './commands/task-contract.js'
 import { createTaskScheduleCommand } from './commands/task-schedule.js'
 import { createTaskSplitReadyCommand } from './commands/task-split-ready.js'
 import { createEditTools, spawnRunner } from './tools/edit-tools.js'
+import { createDeliverableTools } from './tools/deliverable-tools.js'
 import { createGitTools } from './tools/git-tools.js'
 import { createProjectTools } from './tools/project-tools.js'
 import { createProposalTools } from './tools/proposal-tools.js'
@@ -147,6 +148,7 @@ export function apply(ctx: PluginContext, config: LcoderConfig = {}): void {
     ...createProjectTools(rootInput),
     ...createSpecTools(rootInput),
     ...createTaskTools(rootInput),
+    ...createDeliverableTools(rootInput),
     ...createRoleTools(rootInput),
     ...createProposalTools(rootInput),
     ...createRequirementTools(rootInput),
