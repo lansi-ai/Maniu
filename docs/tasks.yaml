@@ -1831,7 +1831,7 @@ tracks:
       note: "B 级修复，来源是 T-160 真机验收。方案讨论能跑完、8 份契约已起草，但点「确认方案并进入待开发」无反应，任务仍是 drafting、契约没有 human 签名。已核 Shell.tsx 的 confirmDiscussion 仍按 task.proposal 取键，新任务只有 requirement，proposal 为空时函数第一行直接 return；同文件的 discussPlan 与 detailDiscussFlow 已改成 requirement 优先 proposal，只有确认动作漏改。修法：confirmDiscussion 的键统一改成 requirement 优先 proposal，与讨论流程保持一致；补一条按需求回指任务的确认用例。监督窗口救火，工作树 pool-slot-2 到 lcoder/t163-confirm-key。2026-11-13 16:20 监督窗口救火并收口。confirmDiscussion 的键改成 requirement 优先 proposal，与 discussPlan 一致；补了按需求回指任务的确认用例。工作树与主检 typecheck、packages/lcoder vitest、改动两文件 oxlint、build:artifacts 与 build:check 全过。真机复验在 T-160 继续。已合入 lcoder/main、release pool-slot-2。"
     - id: T-164
       title: 桌面实例启动卡在欢迎窗鉴权
-      status: doing
+      status: done
       face: 工程
       type: 缺陷
       owner: lance
@@ -1839,7 +1839,7 @@ tracks:
       date: '2026-11-13'
       dep: [T-159]
       inferred: false
-      note: "B 级缺陷，来源是 T-160 验收过程中桌面实例反复无法启动。症状：start-all 或 start-desktop 报桌面就绪并打印宿主 Web URL，但该端口不监听，欢迎窗鉴权 GET 返回非 2xx，日志反复报 desktop welcome: Web authentication failed，页面停在 Loading plugins。已排除：云端 5081 健康 200；主检产物已重建；移走开发态 Electron Cookies 后仍复现；没有残留宿主进程，9230 与宿主端口均未监听。影响：桌面入口不可用，Web 3080 仍可启动；验收数据 REQ-01 与 8 条任务与 8 份已签契约都完好。待查方向：DesktopHostProcess 捕获的宿主 stderr、authenticateWebHost 的 303 与 set-cookie、connectDesktopWelcome 的 net.fetch 是否带上宿主 cookie、是否与云账号令牌或欢迎窗跳过逻辑相关。禁止跳过欢迎窗或改上游逻辑绕过，先取证。2026-11-13 16:50 监督窗口派工，工作树 pool-slot-2 到 lcoder/t164-desktop-welcome-auth，实现线会话 a7a1815f。"
+      note: "B 级缺陷，来源是 T-160 验收过程中桌面实例反复无法启动。症状：start-all 或 start-desktop 报桌面就绪并打印宿主 Web URL，但该端口不监听，欢迎窗鉴权 GET 返回非 2xx，日志反复报 desktop welcome: Web authentication failed，页面停在 Loading plugins。已排除：云端 5081 健康 200；主检产物已重建；移走开发态 Electron Cookies 后仍复现；没有残留宿主进程，9230 与宿主端口均未监听。影响：桌面入口不可用，Web 3080 仍可启动；验收数据 REQ-01 与 8 条任务与 8 份已签契约都完好。待查方向：DesktopHostProcess 捕获的宿主 stderr、authenticateWebHost 的 303 与 set-cookie、connectDesktopWelcome 的 net.fetch 是否带上宿主 cookie、是否与云账号令牌或欢迎窗跳过逻辑相关。禁止跳过欢迎窗或改上游逻辑绕过，先取证。2026-11-13 16:50 监督窗口派工，工作树 pool-slot-2 到 lcoder/t164-desktop-welcome-auth，实现线会话 a7a1815f。2026-11-13 17:10 监督窗口核验并收口。根因是宿主每次随机端口签发一个 dsh-auth-* cookie，Chromium 只按主机归并，累计七十一个后 Cookie 头 16.2 KB 超过 Node 16 KB 上限，宿主回 431，欢迎窗鉴权失败；修复为宿主就绪后、鉴权前清掉该 URL 下所有 dsh-auth-*，实测同一 71-cookie profile 从 16,188 B 降到 228 B 并能启动。独立复跑 typecheck、两个桌面测试 164 例、改动文件 oxlint 全过；主检复跑同组与 build:artifacts 与 build:check 全过。主检出已备份 Cookies 并重启复验。未验项是登录后的工作区与打包态。"
     - id: T-161
       title: 需求与任务的云同步层
       status: todo
