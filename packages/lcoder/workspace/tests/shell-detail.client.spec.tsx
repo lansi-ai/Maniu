@@ -1383,6 +1383,26 @@ describe('方案讨论列与确认门禁', () => {
     })
   })
 
+  it('需求回指的任务确认方案也走签署与推进', async () => {
+    const signContract = vi.fn(async () => ({ ok: true, text: '已签署' }))
+    const advanceContract = vi.fn(async () => ({ ok: true, text: '已进入已签约' }))
+    renderShell({
+      spec: {
+        tasks: { 'T-02.yaml': 'id: T-02\ntitle: 记一笔\nstate: drafting\ngrade: B\nrequirement: REQ-01\ntrack: h5\n' },
+        contracts: { 'T-02.contract.yaml': UNSIGNED_CONTRACT },
+        requirements: { 'REQ-01.md': '# 活动报名\n' },
+      },
+      signContract,
+      advanceContract,
+    })
+    const detail = await openTask('记一笔')
+    fireEvent.click(within(detail).getByRole('button', { name: zh['shell.discussionConfirm'] }))
+    await waitFor(() => {
+      expect(signContract).toHaveBeenCalledWith(SessionId('s-1'), 'T-02')
+      expect(advanceContract).toHaveBeenCalledWith(SessionId('s-1'), 'T-02')
+    })
+  })
+
   it('签署失败不推进，失败原因留在详情里', async () => {
     const signContract = vi.fn(async () => ({ ok: false, text: '签名被拒' }))
     const advanceContract = vi.fn(async () => ({ ok: true, text: '已进入已签约' }))
