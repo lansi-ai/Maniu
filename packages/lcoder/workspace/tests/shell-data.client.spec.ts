@@ -121,6 +121,17 @@ describe('全新项目档的立项咒语', () => {
     expect(text).toContain('回读核对')
   })
 
+  it('需求本体任务不传 track 与 role，标了会被看板错放进方案讨论列', () => {
+    const taskLine = text.slice(
+      text.indexOf('task_draft 立一条 drafting 任务'),
+      text.indexOf('4. 每一步做完都回读核对'),
+    )
+    expect(taskLine).toContain('不要传 track 与 role')
+    expect(taskLine).toContain('需求本体不参与交付面划分')
+    expect(taskLine).toContain('track 只给拆分出来的开发任务')
+    expect(taskLine).toContain('错放进方案讨论列')
+  })
+
   it('出处允许引 project.yaml 或用户原话，空项目不再被判成死路', () => {
     expect(text).toContain('出处可以是 .spec/project.yaml 的字段')
     expect(text).toContain('来自第 N 问')
