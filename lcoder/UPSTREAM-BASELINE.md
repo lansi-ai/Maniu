@@ -78,6 +78,15 @@ upstream = deepseek-ai/deepseek-harness
 | `apps/desktop/scripts/render-tray-icon.ts` | 只改措辞：文件头与一行注释里的 whale 改为 LCoder mark；管线、`TRAY_ICON_SIZES`、`tray-glyph` 注入与 1.2 倍放大全部不变 | 美术换掉后原措辞会误导下一次改图标的人去找鲸标 |
 规矩：改动写在文件里的 `lcoder:` 前缀注释下，方便 grep 定位，也方便升级时用 `git diff upstream/master...HEAD -- <文件>` 一眼看清。
 
+### T-164 桌面欢迎鉴权清理旧 cookie（扩展 1 个已登记文件与其测试）
+
+开发启动每次让宿主监听随机端口（`--port 0`），宿主按 `host:port` 命名签发 `dsh-auth-*` cookie；Chromium 的 cookie 库只按主机（`127.0.0.1`）归并，不按端口，因此每次启动都留下一个永不过期的新名字。累计约 70 次启动后 `Cookie` 头实测 16,188 字节，加上其余请求头超过 Node 默认 16 KiB 上限，宿主直接回 `431`；欢迎后端 `net.fetch` 的首个 GET 因此不是 2xx，桌面报 `desktop welcome: Web authentication failed` 并以失败退出。旧 authority 的 cookie 永远过不了校验（签名载荷绑定签发时的端口），只是死重。实测同一 profile 修前 71 个 cookie 必失败，修后降到 1 个、正常进页面。
+
+| 文件 | 改什么 | 为什么必须改 |
+|---|---|---|
+| `apps/desktop/src/main.ts` | 宿主就绪后、`authenticateWebHost` 之前，清掉该 URL 下所有 `dsh-auth-*` cookie（`forgetPreviousHostCookies`）；随后的 token 交换会重新签发本次 authority 的 cookie | Chromium 会话罐由主进程持有（`web-document.ts` 头注写明 the shell owns it），装配层拿不到 `session.cookies`；真正需要的只有本次 authority 的 cookie，历史 cookie 既不能鉴权又只会把请求头顶过 16 KiB |
+| `apps/desktop/tests/main-startup.spec.ts` | electron mock 的 `defaultSession.cookies` 接上可观测的 `get`/`remove`；新增用例断言鉴权前读取该 URL，并只按 `dsh-auth-` 前缀删除 | 清理必须钉住「只删自家前缀、且在鉴权前发生」，否则以后放宽前缀会误删同主机的其他本地服务 cookie |
+
 ### T-105 开发启动复用（修改 2 个、新增 6 个）
 
 预热态 `start-desktop -NoBuild` 实测 37.4 秒，其中约 35 秒重复做三件与产品无关的事：重建 1572 个 junction 的开发项目目录（2.1–2.9 秒）、重装 254MB 运行时 payload（26–33 秒）、同步拉起 Electron 只问一句 Node 版本（48–395 毫秒）。三处都在 dev 脚本里，装配层与 profile 都在 Electron 起来之后才生效，够不到；运行时侧也没有可挂的插件位。复用判据必须与建链/装配逻辑同源，因此改动只能在脚本内部，不能靠外部开关。输入未变时启动降到 5.9 秒。
