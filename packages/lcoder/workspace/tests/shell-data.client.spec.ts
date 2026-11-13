@@ -1,5 +1,5 @@
 /**
- * 立项咒语的纯模板测：文档来源声明与缺失两种写法都要有下一步。
+ * 立项咒语的纯模板测：文档来源声明与缺失两种写法都要有下一步；落盘只走 REQ。
  *
  * 外壳按钮的行为证据走桌面端启动（`lcoder/RUN.md`）；这里钉住进模型的那段文本，
  * 因为它是模型可见输入，措辞变化会直接改变 agent 的调研路径。
@@ -107,29 +107,27 @@ describe('全新项目档的立项咒语', () => {
     expect(text).not.toContain('8. ')
   })
 
-  it('按 project_draft、spec_draft、task_draft 的顺序落盘，并给清三个必填的填法', () => {
+  it('按 project_draft、spec_draft、requirement_draft 的顺序落盘，并给清必填的填法', () => {
     const project = text.indexOf('project_draft 登记 .spec/project.yaml')
     const rule = text.indexOf('spec_draft 登记一条 status 为 draft')
-    const task = text.indexOf('task_draft 立一条 drafting 任务')
+    const requirement = text.indexOf('requirement_draft 登记需求')
     expect(project).toBeGreaterThanOrEqual(0)
     expect(project).toBeLessThan(rule)
-    expect(rule).toBeLessThan(task)
+    expect(rule).toBeLessThan(requirement)
     expect(text).toContain('没有远端时填本仓库目录与 main')
     expect(text).toContain('文件已存在就只回读现值，不覆盖')
     expect(text).toContain('不改已有条目')
-    expect(text).toContain('rules 只能填第 2 步真正落盘成功的编号')
+    expect(text).toContain('content 传刚才输出并经用户确认的《项目需求概要》完整 Markdown 正文')
+    expect(text).toContain('原样保留标题、清单与四类结论，不要压缩成摘要')
+    expect(text).toContain('options 逐条传概要里的候选做法')
+    expect(text).toContain('recommendation 传概要里的推荐及理由')
     expect(text).toContain('回读核对')
   })
 
-  it('需求本体任务不传 track 与 role，标了会被看板错放进方案讨论列', () => {
-    const taskLine = text.slice(
-      text.indexOf('task_draft 立一条 drafting 任务'),
-      text.indexOf('4. 每一步做完都回读核对'),
-    )
-    expect(taskLine).toContain('不要传 track 与 role')
-    expect(taskLine).toContain('需求本体不参与交付面划分')
-    expect(taskLine).toContain('track 只给拆分出来的开发任务')
-    expect(taskLine).toContain('错放进方案讨论列')
+  it('不建需求本体任务，也不建方案：需求就是 REQ', () => {
+    expect(text).toContain('不要建需求本体任务：不调用 task_draft，也不调用 proposal_draft。')
+    expect(text).toContain('需求就是 REQ，拆分任务由人在需求页触发')
+    expect(text).not.toContain('task_draft 立一条 drafting 任务')
   })
 
   it('出处允许引 project.yaml 或用户原话，空项目不再被判成死路', () => {
@@ -138,23 +136,17 @@ describe('全新项目档的立项咒语', () => {
     expect(text).toContain('没有仓库内文档时不要编造路径')
   })
 
-  it('需求基线有落盘出口，缺工具就如实说未写入', () => {
-    expect(text).toContain('若你的工具面里有 proposal_draft')
-    expect(text).toContain('尚未写入仓库')
-    expect(text).toContain('不编造架构文档、测试脚本、技术选型或审批意见')
-  })
-
-  it('确认后把完整需求文档另存为 .spec/requirements/<方案编号>.md 并回读', () => {
-    expect(text).toContain('.spec/requirements/<方案编号>.md')
-    expect(text).toContain('目录不存在就创建')
-    expect(text).toContain('唯一允许直接写的文件')
-    expect(text).toContain('没有方案编号就不写')
+  it('不再有 proposal 出口，需求正文由 requirement_draft 一起落盘', () => {
+    expect(text).not.toContain('proposal_draft，用它把《项目需求概要》落成方案')
+    expect(text).not.toContain('需求基线的出口')
+    expect(text).toContain('工具会写 .spec/requirements/REQ-<编号>.yaml 与同名 .md，返回需求编号')
+    expect(text).toContain('需求编号或未落盘原因')
   })
 
   it('列的是立项面的工具，不承诺改代码与签字', () => {
     expect(text).toContain('project_draft')
     expect(text).toContain('spec_draft')
-    expect(text).toContain('task_draft')
+    expect(text).toContain('requirement_draft')
     expect(text).not.toContain('file_edit')
     expect(text).not.toContain('cmd_run')
   })

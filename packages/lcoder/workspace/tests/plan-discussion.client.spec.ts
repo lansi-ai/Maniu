@@ -44,7 +44,7 @@ function taskOf(id: string, overrides: Partial<ShellTask> = {}): ShellTask {
     surface: '读 / 契约',
     paths: [],
     irreversible: [],
-    proposal: 'P-01',
+    requirement: 'REQ-01',
     track: 'h5',
     openedAt: '2026-11-12T09:00:02.084Z',
     ...overrides,
@@ -175,12 +175,12 @@ describe('看板列与契约判据', () => {
     expect(contractOf([contractOfTask('T-02')], 'T-03')).toBeUndefined()
   })
 
-  it('同需求下仍待讨论的任务按方案取，需求本体与已推进任务不进这批', () => {
+  it('同需求下仍待讨论的任务按需求取，需求本体与已推进任务不进这批', () => {
     const tasks = [
       requirementOf('T-01'),
       taskOf('T-02'),
       taskOf('T-03', { state: 'contracted' }),
-      taskOf('T-04', { proposal: 'P-02' }),
+      taskOf('T-04', { requirement: 'REQ-02' }),
     ]
     expect(discussionTasksOf(tasks, taskOf('T-02')).map(row => row.id)).toEqual(['T-02'])
     expect(discussionTasksOf(tasks, requirementOf('T-01')).map(row => row.id)).toEqual(['T-02'])
@@ -194,17 +194,17 @@ describe('讨论与起草指令', () => {
   it('会议指令带身份标记、需求、任务与轨', () => {
     const analyst = roles.find(role => role.kind === 'analyst') as MeetingRole
     const prompt = buildMeetingPrompt({
-      document: DOCUMENT, proposal: 'P-01', tasks: [taskOf('T-02')], roles, tracks: TRACKS,
+      document: DOCUMENT, requirement: 'REQ-01', tasks: [taskOf('T-02')], roles, tracks: TRACKS,
     }, analyst)
     expect(prompt).toContain(`${MEETING_ROLE_MARKER}需求分析师（analyst）`)
-    expect(prompt).toContain('《项目需求概要》（.spec/requirements/P-01.md）')
+    expect(prompt).toContain('《项目需求概要》（.spec/requirements/REQ-01.md）')
     expect(prompt).toContain('- T-02：T-02 的开发任务')
     expect(prompt).toContain('轨：H5 前端；分级：B；规则：R-01')
     expect(prompt).toContain('不写代码、不改任务与需求、不签契约、不推进任务状态')
   })
 
   it('三方各有固定职责：分析师核覆盖、项目经理讲拆分、研发经理评风险', () => {
-    const context = { document: DOCUMENT, proposal: 'P-01', tasks: [taskOf('T-02')], roles, tracks: TRACKS }
+    const context = { document: DOCUMENT, requirement: 'REQ-01', tasks: [taskOf('T-02')], roles, tracks: TRACKS }
     const analyst = roles.find(role => role.kind === 'analyst') as MeetingRole
     const pm = roles.find(role => role.kind === 'pm') as MeetingRole
     const manager = roles.find(role => role.kind === 'manager') as MeetingRole
@@ -217,7 +217,7 @@ describe('讨论与起草指令', () => {
   })
 
   it('技术岗只谈自己那条轨，架构师负责汇总与契约要点', () => {
-    const context = { document: DOCUMENT, proposal: 'P-01', tasks: [taskOf('T-02')], roles, tracks: TRACKS }
+    const context = { document: DOCUMENT, requirement: 'REQ-01', tasks: [taskOf('T-02')], roles, tracks: TRACKS }
     const tech = roles.find(role => role.id === 'track-h5') as MeetingRole
     expect(buildMeetingPrompt(context, tech)).toContain('你代表「H5 前端工程师」这条轨')
     expect(buildMeetingPrompt(context, ARCHITECT_ROLE)).toContain('汇总三方与技术岗位的意见')
@@ -225,7 +225,7 @@ describe('讨论与起草指令', () => {
 
   it('起草指令要求四项必填并附会议记录', () => {
     const prompt = buildContractDraftPrompt({
-      document: DOCUMENT, proposal: 'P-01', tasks: [taskOf('T-02')], roles, tracks: TRACKS,
+      document: DOCUMENT, requirement: 'REQ-01', tasks: [taskOf('T-02')], roles, tracks: TRACKS,
     }, [{ role: 'H5 前端工程师', text: '先定表单与列表边界。' }])
     expect(prompt).toContain('contract_draft')
     expect(prompt).toContain('change（要改什么')
@@ -308,7 +308,7 @@ function inputOf(overrides: Partial<Parameters<typeof runPlanDiscussion>[0]> = {
     tasks: [taskOf('T-02'), taskOf('T-03')],
     tracks: TRACKS,
     document: DOCUMENT,
-    proposal: 'P-01',
+    requirement: 'REQ-01',
     timeoutMs: 5_000,
     pollMs: 1_000,
     ...overrides,

@@ -51,21 +51,21 @@ export interface IntakeWizardFacts {
   readonly running: boolean
   /** 会话里是否已出现过程或答复；用来区分「刚发出、还没开始跑」与「本轮已结束」。 */
   readonly hasOutput: boolean
-  /** 投影里读到的方案数。 */
-  readonly proposalCount: number
+  /** 投影里读到的需求数。 */
+  readonly requirementCount: number
   /** 最后一条非空助手答复；没有时为 null。 */
   readonly summary: string | null
   /** 会话里是否已经有用户确认过需求。 */
   readonly confirmed: boolean
-  /** 项目或任务是否已落盘；方案另由 `proposalCount` 算。 */
+  /** 项目或任务是否已落盘；需求另由 `requirementCount` 算。 */
   readonly landed: boolean
 }
 
 /**
  * 按会话事实决定向导当前阶段。
  *
- * 待答问题优先于已有方案与概要：模型继续追问时仍停在提问层。
- * 本轮停下后，有方案、有聊天概要，或已有落盘结果的确认轮都进结果卡；
+ * 待答问题优先于已有需求与概要：模型继续追问时仍停在提问层。
+ * 本轮停下后，有需求、有聊天概要，或已有落盘结果的确认轮都进结果卡；
  * 三者都没有才停在结束态。结果不在两轮之间闪，靠调用方传沉降后的运行事实。
  * @param facts - 会话事实。
  * @returns 当前阶段。
@@ -75,17 +75,17 @@ export function intakeWizardPhase(facts: IntakeWizardFacts): IntakeWizardPhase {
   if (!facts.started) return 'home'
   if (facts.questionCount > 0) return 'questions'
   if (facts.running || !facts.hasOutput) return 'thinking'
-  if (facts.proposalCount > 0 || facts.summary !== null || (facts.confirmed && facts.landed)) return 'result'
+  if (facts.requirementCount > 0 || facts.summary !== null || (facts.confirmed && facts.landed)) return 'result'
   return 'thinking'
 }
 
 /** 结果卡要画的那一种内容。 */
-export type IntakeResultView = 'proposal' | 'summary' | 'confirmed' | 'pending'
+export type IntakeResultView = 'requirement' | 'summary' | 'confirmed' | 'pending'
 
 /** 结果卡判定用到的事实。 */
 export interface IntakeResultFacts {
-  /** 投影里读到的方案数。 */
-  readonly proposalCount: number
+  /** 投影里读到的需求数。 */
+  readonly requirementCount: number
   /** 最后一条非空助手答复；没有时为 null。 */
   readonly summary: string | null
   /** 会话里是否已经有用户确认过需求。 */
@@ -95,12 +95,12 @@ export interface IntakeResultFacts {
 }
 
 /**
- * 结果卡画什么：方案优先，其次本轮聊天概要，再其次已确认且已落盘，最后是方案还没读出来。
- * @param facts - 方案、概要、确认与落盘事实。
+ * 结果卡画什么：需求优先，其次本轮聊天概要，再其次已确认且已落盘，最后是需求还没读出来。
+ * @param facts - 需求、概要、确认与落盘事实。
  * @returns 结果卡的内容种类。
  */
 export function intakeResultView(facts: IntakeResultFacts): IntakeResultView {
-  if (facts.proposalCount > 0) return 'proposal'
+  if (facts.requirementCount > 0) return 'requirement'
   if (facts.summary !== null) return 'summary'
   if (facts.confirmed && facts.landed) return 'confirmed'
   return 'pending'

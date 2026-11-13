@@ -49,7 +49,7 @@ import type { TaskCardStatus, TaskQueueMark, TaskSessionRow } from '../task-sess
 import { EMPTY_TASK_FILTER, filterTasks, isFilterActive, TASK_GRADE_CHOICES } from '../task-filter.ts'
 import type { SessionFilter, TaskFilter } from '../task-filter.ts'
 import { onboardingAction } from '../onboarding.ts'
-import { intakeArtifactsOf, intakeTierOfMessages, PROPOSAL_DECISION, runIntakeRestart, latestProposal } from './intake.ts'
+import { intakeArtifactsOf, intakeTierOfMessages, latestRequirement, runIntakeRestart } from './intake.ts'
 import type { IntakeTier } from './intake.ts'
 import {
   defaultIntakeModel, INTAKE_CONFIRM_COMMAND, INTAKE_MORE_DISCUSSION, INTAKE_RETRY_COMMAND, intakeConfirmed,
@@ -68,12 +68,23 @@ import type { CloudGateEntry } from '../cloud/gate.ts'
 import type { CloudFace } from '../cloud/face.ts'
 import { useCloudSession } from '../cloud/use-cloud.ts'
 import { CLOUD_LEGACY_GUEST_ROUTE } from '../cloud/routes.ts'
-import { buildIntakePrompt, buildOnboardingPrompt, buildShellPrompt, SHELL_BOARD_COLUMNS, SHELL_STATES } from './shell-data.ts'
+import {
+  buildIntakePrompt, buildOnboardingPrompt, buildShellPrompt, isRequirementBodyTask, SHELL_BOARD_COLUMNS, SHELL_STATES,
+} from './shell-data.ts'
 import { browserSkinStorage, readSkin, SKINS, writeSkin } from './skin.ts'
 import type { Skin } from './skin.ts'
 import { recommendedRoleId } from './role-hint.ts'
 import { ChatTranscript, PendingInteractionCard } from './ChatPanel.tsx'
-import { intakeAnswersOf, intakeSummaryOf, isRequirementTask } from './requirement.ts'
+import { intakeAnswersOf } from './requirement.ts'
+import type { RequirementRef } from './requirement.ts'
+import {
+  EMPTY_REQUIREMENT_FILTER, filterRequirementViews, isRequirementId, requirementViewRows,
+} from './requirement-page.ts'
+import type { RequirementFilter } from './requirement-page.ts'
+import { RequirementsPage } from './RequirementsPage.tsx'
+import type { RequirementView } from './RequirementsPage.tsx'
+import { RequirementDetail } from './RequirementDetail.tsx'
+import type { DiscussionHistoryView, RequirementAction, RequirementSplitFlowView } from './RequirementDetail.tsx'
 import type { RequirementAnswer } from './requirement.ts'
 import {
   existingSplitTasks, runRequirementSplit, splitTasksOf, summarizeSplit,
@@ -89,8 +100,6 @@ import type {
   DiscussionGroup, MeetingRole, PlanConfirmFailureReason, PlanConfirmSummary, PlanDiscussionFailure,
   PlanDiscussionFailureReason,
 } from './plan-discussion.ts'
-import { RequirementCard } from './RequirementCard.tsx'
-import type { DiscussionHistoryView, RequirementSplitFlowView } from './RequirementCard.tsx'
 import {
   groupDiscussionHistory, isDiscussionPreset, readDiscussionHistory,
 } from './discussion-history.ts'
@@ -149,8 +158,12 @@ export type ShellProps =
     readonly signContract?: (sessionId: SessionId, taskId: string) => Promise<ShellSignResult>
     /** 人确认契约已签后，把任务从起草推到已签约；只推这一条边。 */
     readonly advanceContract?: (sessionId: SessionId, taskId: string) => Promise<ShellSignResult>
-    /** 派 `/proposal_approve <编号>` 让人采纳方案；出方案是模型的工具，批准不是。 */
-    readonly approveProposal?: (sessionId: SessionId, proposalId: string) => Promise<ShellSignResult>
+    /** 派 `/requirement_approve <REQ 编号>` 让人确认需求；起草由模型做，确认不是。 */
+    readonly approveRequirement?: (sessionId: SessionId, requirementId: string) => Promise<ShellSignResult>
+    /** 派 `/requirement_release <REQ 编号>` 把已确认且全部收口的需求标为已上线。 */
+    readonly releaseRequirement?: (sessionId: SessionId, requirementId: string) => Promise<ShellSignResult>
+    /** 派 `/requirement_close <REQ 编号>` 取消一条还没上线的需求。 */
+    readonly closeRequirement?: (sessionId: SessionId, requirementId: string) => Promise<ShellSignResult>
     /** 派 `/task_bind <编号>` 把任务认给这条会话；认领关系由宿主写盘。 */
     readonly bindTask?: (sessionId: SessionId, taskId: string) => Promise<ShellSignResult>
     /** 派 `/task_assign <编号> <岗位>` 把任务分配给岗位；分配是调度硬约束，只有人机命令写。 */
@@ -286,6 +299,7 @@ const CLOUD_ENTRY_LABEL: Record<CloudGateEntry, LcoderWorkspaceKey> = {
   taskConversation: 'shell.startChat',
   contractSign: 'shell.sign',
   proposalApprove: 'shell.approveProposal',
+  requirementApprove: 'shell.confirmRequirement',
   flowBatch: 'shell.startWork',
   modelSettings: 'shell.modelServices',
 }
@@ -587,6 +601,7 @@ export function toShellTask(row: TaskRow): ShellTask {
     surface: SURFACE[state],
     ...(row.session === undefined ? {} : { session: row.session }),
     ...(row.proposal === undefined ? {} : { proposal: row.proposal }),
+    ...(row.requirement === undefined ? {} : { requirement: row.requirement }),
     ...(row.role === undefined ? {} : { role: row.role }),
     ...(row.track === undefined ? {} : { track: row.track }),
     ...(row.dependsOn.length === 0 ? {} : { dependsOn: row.dependsOn }),
@@ -637,7 +652,7 @@ function providerOfSelection(projected: unknown): string | undefined {
  */
 export function Shell({
   t, files, readAttachment, openRepository, sendPrompt, uploadAttachment, readDefaultModel, signContract, advanceContract,
-  approveProposal, bindTask, assignTask, logSchedule,
+  approveRequirement, releaseRequirement, closeRequirement, bindTask, assignTask, logSchedule,
   readFlowStatus, logFlow, bindAgentSession, renameSession, readContextPressure,
   createSession, listRoles, listExperts, readExpert,
   readMessages, readSessionMessages, subscribeSession, holdSession, checkModels, subscribeModels,
@@ -664,6 +679,16 @@ export function Shell({
   /** 新会话的角色选择浮层。 */
   const [rolePicker, setRolePicker] = useState(false)
   const [detail, setDetail] = useState<ShellTask | null>(null)
+  /** 左侧菜单：需求页与任务页。两页各自记住自己的视图与筛选，切回来不变。 */
+  const [nav, setNav] = useState<'requirements' | 'tasks'>('tasks')
+  const [requirementView, setRequirementView] = useState<RequirementView>('table')
+  const [requirementFilter, setRequirementFilter] = useState<RequirementFilter>(EMPTY_REQUIREMENT_FILTER)
+  const [showCancelledRequirements, setShowCancelledRequirements] = useState(false)
+  /** 打开中的需求详情；null 表示抽屉没开。 */
+  const [openRequirementId, setOpenRequirementId] = useState<string | null>(null)
+  /** 需求详情里的人机动作：在途种类与最近一次回执。 */
+  const [requirementAction, setRequirementAction] = useState<RequirementAction | null>(null)
+  const [requirementActionResult, setRequirementActionResult] = useState<ShellSignResult | null>(null)
   /** 需求拆分的就地错误与逐任务流程状态；流程状态按需求任务编号留档，关卡片不清。 */
   const [splitError, setSplitError] = useState<string | null>(null)
   const [splitFlows, setSplitFlows] = useState<Readonly<Record<string, RequirementSplitFlowView>>>({})
@@ -686,8 +711,6 @@ export function Shell({
   const discussionSessions = useRef<Record<string, { readonly role: MeetingRole; readonly sessionId: string }[]>>({})
   /** 打开历史的请求序号：换任务、关抽屉或再次打开时作废在途读取。 */
   const historyRequest = useRef(0)
-  /** 需求卡片正文：该任务会话里分析师当时输出的《项目需求概要》。 */
-  const [requirementDocument, setRequirementDocument] = useState<string | null>(null)
   const [chat, setChat] = useState<ShellTask | null>(null)
   /** 普通档与最大化两档；关闭对话时回到普通档。 */
   const [chatMax, setChatMax] = useState(false)
@@ -762,9 +785,6 @@ export function Shell({
   const [requirements, setRequirements] = useState<readonly RequirementDocRow[]>([])
   /** 需求卡片下的立项问答；打开卡片时从任务会话读出，关闭即清空。 */
   const [requirementAnswers, setRequirementAnswers] = useState<readonly RequirementAnswer[]>([])
-  /** 采纳方案：出方案是模型的工具，这一步只由人点。 */
-  const [approving, setApproving] = useState(false)
-  const [approveResult, setApproveResult] = useState<ShellSignResult | null>(null)
   const [rulesCount, setRulesCount] = useState(0)
   const [info, setInfo] = useState<ShellProjectInfo | null>(null)
   const [problems, setProblems] = useState<readonly string[]>([])
@@ -1322,25 +1342,27 @@ export function Shell({
   })
   /** 自己发出的确认或更多讨论也算在跑：发送在途时不再按上一轮结论画结果卡。 */
   const wizardRunFact = wizardStatusRunning || wizardConfirming || wizardDiscussing
+  /** 向导结果卡只看新流程的需求；旧流程纯文档行没有可推进的状态。 */
+  const intakeRequirements = useMemo(() => requirements.filter(row => isRequirementId(row.id)), [requirements])
   const wizardPhase = intakeWizardPhase({
     open: wizardOpen,
     started: wizardStarted,
     questionCount: wizardQuestion?.questions.length ?? 0,
     running: wizardRunFact,
     hasOutput: wizardOutput.hasOutput,
-    proposalCount: proposals.length,
+    requirementCount: intakeRequirements.length,
     summary: wizardOutput.summary,
     confirmed: wizardConfirmed,
     landed: wizardLanded,
   })
   /** 结果卡的内容种类：方案优先，其次本轮聊天概要，再其次已确认落盘。 */
   const wizardResultView = intakeResultView({
-    proposalCount: proposals.length,
+    requirementCount: intakeRequirements.length,
     summary: wizardOutput.summary,
     confirmed: wizardConfirmed,
     landed: wizardLanded,
   })
-  const wizardProposal = latestProposal(proposals)
+  const wizardRequirement = latestRequirement(intakeRequirements)
   const intakeModels = intakeModelOptions(intakeModelSnapshot)
   const intakeModelSelected = wizardModelChoice ?? defaultIntakeModel(intakeModels)
   const resolvedChatSize = chatSize ?? DEFAULT_CHAT_SIZE
@@ -1618,23 +1640,20 @@ export function Shell({
   }, [wizardOpen, sessionId, readMessages, subscribeSession, readSessionFlags, readSessionNotice, holdSession])
 
   /**
-   * 需求卡片的立项问答：按任务会话（没有就当前会话）读消息，卡片打开期间跟着刷新。
+   * 需求详情的立项问答：读当前会话的消息，抽屉打开期间跟着刷新。
+   *
+   * 需求文件本身不记会话，问答只能取当前会话；读不到就如实显示没有记录。
    * 关闭就清空——问答不是缓存，下次打开重读会话事实。
    */
-  const requirementSessionId = detail !== null && isRequirementTask(detail)
-    ? claimTaskSession(detail.session, taskSessionRows)?.sessionId ?? sessionId
-    : undefined
+  const requirementSessionId = openRequirementId === null ? undefined : sessionId
   useEffect(() => {
     if (requirementSessionId === undefined || readMessages === undefined) {
       setRequirementAnswers([])
-      setRequirementDocument(null)
       return
     }
     const release = holdSession?.(requirementSessionId)
     const refresh = (): void => {
-      const window = readMessages(requirementSessionId)
-      setRequirementAnswers(intakeAnswersOf(window))
-      setRequirementDocument(intakeSummaryOf(window))
+      setRequirementAnswers(intakeAnswersOf(readMessages(requirementSessionId)))
     }
     refresh()
     const unsubscribe = subscribeSession?.(requirementSessionId, refresh)
@@ -1643,6 +1662,13 @@ export function Shell({
       release?.()
     }
   }, [requirementSessionId, readMessages, subscribeSession, holdSession])
+
+  /** 打开另一条需求或关掉抽屉时清掉上一次的就地错误与回执。 */
+  useEffect(() => {
+    setSplitError(null)
+    setRequirementAction(null)
+    setRequirementActionResult(null)
+  }, [openRequirementId])
 
   /** 关闭卡片不中止后台拆分；只有外壳卸载才取消在途轮询。 */
   useEffect(() => () => {
@@ -1737,8 +1763,17 @@ export function Shell({
     })
   }
 
+  /** 任务页只画交付任务：旧流程的需求本体任务不进任何一列。 */
+  const boardTasks = useMemo(() => tasks.filter(task => !isRequirementBodyTask(task)), [tasks])
   /** 判据下的可见任务；筛选入口上的计数就是它。 */
-  const visibleTasks = filterTasks(tasks, filter, statusOfTask)
+  const visibleTasks = filterTasks(boardTasks, filter, statusOfTask)
+
+  /** 需求页的展示行与筛选结果；九态由 kernel 的派生函数折出。 */
+  const requirementRows = useMemo(() => requirementViewRows(requirements, tasks), [requirements, tasks])
+  const visibleRequirements = filterRequirementViews(requirementRows, requirementFilter, showCancelledRequirements)
+  const openRequirement = openRequirementId === null
+    ? undefined
+    : requirementRows.find(view => view.row.id === openRequirementId)
 
   /**
    * 本工作区里有几条会话在等人（审批或提问）。
@@ -1816,18 +1851,11 @@ export function Shell({
     ? undefined
     : contracts.find(row => row.id === detail.id)
 
-  /** 选中任务出自哪个方案；任务没回指就是 undefined，回指了但文件读不到时给 unknownProposal。 */
-  const detailProposal = detail?.proposal === undefined
-    ? undefined
-    : proposals.find(row => row.id === detail.proposal)
+  /** 选中任务回指的需求编号；新流程读 `requirement`，旧数据退回 `proposal`。 */
+  const detailRequirementId = detail === null ? undefined : detail.requirement ?? detail.proposal
 
-  /** 选中任务回指的完整需求文档；没有落盘文件时 undefined，卡片退回会话概要。 */
-  const detailRequirement = detail?.proposal === undefined
-    ? undefined
-    : requirements.find(row => row.id === detail.proposal)
-
-  /** 选中需求的拆分流程；关卡片不清，重开仍看到同一次流程。 */
-  const detailSplitFlow = detail === null ? null : splitFlows[detail.id] ?? null
+  /** 打开中的需求拆分流程；关抽屉不清，重开仍看到同一次流程。 */
+  const detailSplitFlow = openRequirement === undefined ? null : splitFlows[openRequirement.row.id] ?? null
   /** 同需求下仍待在方案讨论的任务；需求本体没有岗位，不会进这批。 */
   const detailDiscussionTasks = useMemo(
     () => (detail === null ? [] : discussionTasksOf(tasks, detail)),
@@ -1837,8 +1865,8 @@ export function Shell({
     () => planDiscussionGroups(detailDiscussionTasks, trackOptions()),
     [detailDiscussionTasks, info],
   )
-  const detailDiscussFlow = detail?.proposal === undefined ? undefined : discussFlows[detail.proposal]
-  const detailConfirm = detail?.proposal === undefined ? undefined : confirmResults[detail.proposal]
+  const detailDiscussFlow = detailRequirementId === undefined ? undefined : discussFlows[detailRequirementId]
+  const detailConfirm = detailRequirementId === undefined ? undefined : confirmResults[detailRequirementId]
   const detailConfirmLines = useMemo(
     () => (detailConfirm === undefined
       ? []
@@ -1949,26 +1977,6 @@ export function Shell({
     }
   }
 
-  /** 采纳选中任务的方案：正文一个字都不动，只把决定态与结论时刻写下。 */
-  const approveSelected = async (): Promise<void> => {
-    if (detail?.proposal === undefined || sessionId === undefined || approveProposal === undefined) return
-    if (!requireUser('proposalApprove')) {
-      setApproveResult({ ok: false, text: fill(t('shell.cloudGateNotice'), { entry: t(CLOUD_ENTRY_LABEL.proposalApprove) }) })
-      return
-    }
-    setApproving(true)
-    setApproveResult(null)
-    try {
-      setApproveResult(await approveProposal(sessionId, detail.proposal))
-      setReload(value => value + 1)
-    } catch (error: unknown) {
-      // 远程调用本身失败；命令的失败回执照旧走 approveResult。
-      setApproveResult({ ok: false, text: String(error) })
-    } finally {
-      setApproving(false)
-    }
-  }
-
   /**
    * 重读拆分与讨论要用的两份事实：任务与契约。
    *
@@ -2022,19 +2030,20 @@ export function Shell({
   /**
    * 一键拆分：项目经理把已确认的需求拆成 drafting 任务并逐条标轨。
    *
-   * 以卡片读到的完整需求文档为唯一依据；没有文档就不开任何会话。已经拆过
-   * （`.spec` 里有同方案 drafting 任务）时不再建项目经理会话、不再拆第二遍，
-   * 直接按已有任务汇总，所以关卡片重开、刷新页面后重试都不会重复拆。
-   * 新任务有未标轨的就按失败报出编号，留给用户补齐或重新拆分。关卡片不中止后台流程；
-   * 只有外壳卸载才统一取消。
+   * 以需求详情读到的完整正文为唯一依据；没有文档、或不是 REQ 编号（旧流程纯文档需求）
+   * 就不开任何会话。已经拆过（`.spec` 里有回指同一需求的 drafting 任务）时不再建项目
+   * 经理会话、不再拆第二遍，直接按已有任务汇总，所以关抽屉重开、刷新页面后重试都不会
+   * 重复拆。新任务有未标轨的就按失败报出编号，留给用户补齐或重新拆分。关抽屉不中止
+   * 后台流程；只有外壳卸载才统一取消。
    */
-  const splitRequirement = async (task: ShellTask, requirementDocument?: RequirementDocRow): Promise<void> => {
-    if (task.proposal === undefined) {
-      setSplitError(fill(t('shell.splitFailNoDocument'), { path: '.spec/requirements/' }))
+  const splitRequirement = async (row: RequirementDocRow): Promise<void> => {
+    const key = row.id
+    if (!isRequirementId(key)) {
+      setSplitError(t('shell.splitLegacyNotSupported'))
       return
     }
-    const flow = splitFlows[task.id]
-    if (flow?.status === 'running' || splitRuns.current.has(task.id)) return
+    const flow = splitFlows[key]
+    if (flow?.status === 'running' || splitRuns.current.has(key)) return
     if (modelStatus?.state === 'empty') {
       setSplitError(t('shell.splitNoModel'))
       return
@@ -2047,8 +2056,8 @@ export function Shell({
       setSplitError(t('shell.splitNeedWorkspace'))
       return
     }
-    const document = requirementDocument?.text ?? ''
-    const path = `.spec/requirements/${task.proposal}.md`
+    const document = row.text
+    const path = `.spec/requirements/${key}.md`
     if (document.trim() === '') {
       setSplitError(fill(t('shell.splitFailNoDocument'), { path }))
       return
@@ -2058,18 +2067,19 @@ export function Shell({
       return
     }
 
-    splitRuns.current.add(task.id)
+    const requirement: RequirementRef = { id: key, title: row.title ?? key }
+    splitRuns.current.add(key)
     setSplitError(null)
     const controller = new AbortController()
-    splitAborts.current.set(task.id, controller)
+    splitAborts.current.set(key, controller)
     setSplitFlows(current => ({
       ...current,
-      [task.id]: { status: 'running', stage: 'pm', newTasks: [] },
+      [key]: { status: 'running', stage: 'pm', newTasks: [] },
     }))
 
     const viewTasks = (rows: readonly ShellTask[]): readonly { id: string; title: string }[] =>
-      rows.map(row => ({ id: row.id, title: row.title }))
-    /** 卡片要的汇总：拆出条数与按轨分布；轨名按当前项目解析。 */
+      rows.map(item => ({ id: item.id, title: item.title }))
+    /** 详情要的汇总：拆出条数与按轨分布；轨名按当前项目解析。 */
     const splitSummaryView = (summary: RequirementSplitSummary): NonNullable<RequirementSplitFlowView['summary']> => ({
       taskCount: summary.taskCount,
       tracks: summary.tracks.map(item => ({ name: trackLabelOf(item.track), count: item.count })),
@@ -2077,14 +2087,14 @@ export function Shell({
 
     try {
       const snapshot = await loadSplitSnapshot()
-      const split = splitTasksOf(snapshot.tasks, task)
-      const existing = existingSplitTasks(snapshot.tasks, task)
-      // 没有还在起草的拆分任务、但同方案已有拆出任务：这批已经全部进了待开发或更后，
+      const split = splitTasksOf(snapshot.tasks, key)
+      const existing = existingSplitTasks(snapshot.tasks, key)
+      // 没有还在起草的拆分任务、但同需求已有拆出任务：这批已经全部进了待开发或更后，
       // 按持久事实给完成结果，不再重拆。重启后 flow 状态丢失也走这条。
       if (existing.length === 0 && split.length > 0) {
         setSplitFlows(current => ({
           ...current,
-          [task.id]: {
+          [key]: {
             status: 'done',
             newTasks: viewTasks(split),
             summary: splitSummaryView(summarizeSplit(split)),
@@ -2095,16 +2105,16 @@ export function Shell({
         return
       }
       // 还有起草态任务时走重试路径：不再建项目经理会话、不再拆第二遍，
-      // 直接按已有任务检查轨；停在方案讨论列，契约与确认由详情里的门禁接手。
+      // 直接按已有任务检查轨；停在方案讨论列，契约与确认由任务详情里的门禁接手。
 
       // 拆分会话跟随设置里的默认模型：`createDefaultedSession` 在创建后写入当前默认，
       // 不再被需求会话里的旧模型选择盖住。读不到快照就交给宿主默认。
       const outcome = await runRequirementSplit({
-        task,
+        requirement,
         source: { document },
         tracks: trackOptions(),
         ...(existing.length === 0 ? {} : { existingTasks: existing }),
-        beforeTaskIds: snapshot.tasks.map(row => row.id),
+        beforeTaskIds: snapshot.tasks.map(item => item.id),
       }, {
         createSession: preset => createDefaultedSession(createSession, preset, preset),
         sendPrompt: async (id, text) => sendPrompt(id as SessionId, text),
@@ -2121,7 +2131,7 @@ export function Shell({
         onProgress: (progress) => {
           setSplitFlows(current => ({
             ...current,
-            [task.id]: {
+            [key]: {
               status: 'running',
               stage: progress.stage,
               newTasks: viewTasks(progress.newTasks ?? []),
@@ -2136,7 +2146,7 @@ export function Shell({
         const known = existing.length > 0 ? existing : outcome.newTasks
         setSplitFlows(current => ({
           ...current,
-          [task.id]: {
+          [key]: {
             status: 'failed',
             newTasks: viewTasks(known),
             errorText: detail,
@@ -2153,7 +2163,7 @@ export function Shell({
       const known = existing.length > 0 ? existing : outcome.newTasks
       setSplitFlows(current => ({
         ...current,
-        [task.id]: {
+        [key]: {
           status: 'done',
           newTasks: viewTasks(known),
           summary: splitSummaryView(outcome.summary),
@@ -2164,12 +2174,54 @@ export function Shell({
       const detail = fill(t('shell.requirementSplitFailed'), { detail: String(error) })
       setSplitFlows(current => ({
         ...current,
-        [task.id]: { status: 'failed', newTasks: [], errorText: detail },
+        [key]: { status: 'failed', newTasks: [], errorText: detail },
       }))
       setSplitError(detail)
     } finally {
-      splitRuns.current.delete(task.id)
-      splitAborts.current.delete(task.id)
+      splitRuns.current.delete(key)
+      splitAborts.current.delete(key)
+    }
+  }
+
+  /** 打开一条需求的详情抽屉；关闭另一条时就地状态由 effect 清掉。 */
+  const openRequirementDetail = (id: string): void => {
+    setNav('requirements')
+    setOpenRequirementId(id)
+    setSplitError(null)
+    setDiscussError(null)
+    setChatError(null)
+  }
+
+  /**
+   * 派一条需求人机命令：确认、发布或关闭。
+   *
+   * 三条命令都只由人触发；失败原文原样留在抽屉里，不重试也不改写成成功。
+   * 成功后重读投影，状态与卡片按文件事实刷新。
+   */
+  const runRequirementAction = async (action: RequirementAction, row: RequirementDocRow): Promise<void> => {
+    if (sessionId === undefined) return
+    const command = action === 'approve'
+      ? approveRequirement
+      : action === 'release' ? releaseRequirement : closeRequirement
+    if (command === undefined) return
+    if (!requireUser('requirementApprove')) {
+      setRequirementActionResult({
+        ok: false,
+        text: fill(t('shell.cloudGateNotice'), { entry: t(CLOUD_ENTRY_LABEL.requirementApprove) }),
+      })
+      return
+    }
+    setRequirementAction(action)
+    setRequirementActionResult(null)
+    try {
+      const result = await command(sessionId, row.id)
+      setRequirementActionResult(result)
+      if (result.ok) setReload(value => value + 1)
+    } catch (error: unknown) {
+      // 远程调用本身失败；命令回执照旧走 requirementActionResult。
+      setRequirementActionResult({ ok: false, text: String(error) })
+    } finally {
+      setRequirementAction(null)
     }
   }
 
@@ -2192,23 +2244,23 @@ export function Shell({
   }
 
   /**
-   * 打开需求卡片的讨论历史。
+   * 打开需求详情的讨论历史。
    *
    * 候选会话按优先顺序排好：本窗口记录过的在前，重启后按同项目会话的 preset 补在后。
    * 记录过的会话按记录信任，允许 preset 兜底认角色；扫描回来的候选还要带参会身份
    * 标记才进历史，否则立项与拆分会话会被当成讨论。读取走异步端口，等宿主把会话打开后
    * 再读事件窗口；读不出来的候选跳过，全部候选都没读到时按「读取失败」提示，
-   * 只有确实没有会话提到这个方案才说定位不到。
+   * 只有确实没有会话提到这条需求才说定位不到。
    */
-  const openDiscussionHistory = async (task: ShellTask): Promise<void> => {
+  const openDiscussionHistory = async (requirementId: string): Promise<void> => {
     const request = historyRequest.current + 1
     historyRequest.current = request
     setHistoryOpen(true)
-    if (task.proposal === undefined) {
-      setHistoryView({ status: 'failed', groups: [], error: t('shell.historyNoProposal') })
+    if (!isRequirementId(requirementId)) {
+      setHistoryView({ status: 'failed', groups: [], error: t('shell.historyNoRequirement') })
       return
     }
-    const proposal = task.proposal
+    const requirement = requirementId
     setHistoryView({ status: 'loading', groups: [] })
     try {
       const sessions: DiscussionHistorySession[] = []
@@ -2218,7 +2270,7 @@ export function Shell({
         seen.add(sessionId)
         sessions.push({ sessionId, ...(preset === undefined ? {} : { preset }), recorded })
       }
-      for (const item of discussionSessions.current[proposal] ?? []) {
+      for (const item of discussionSessions.current[requirement] ?? []) {
         consider(item.sessionId, item.role.preset, true)
       }
       for (const id of workspaceSessions) {
@@ -2238,7 +2290,7 @@ export function Shell({
           }
         }
         : (sessionId: string) => readSessionMessages(sessionId as SessionId)
-      const result = await readDiscussionHistory(sessions, proposal, read)
+      const result = await readDiscussionHistory(sessions, requirement, read)
       if (historyRequest.current !== request) return
       if (result.selection.found) {
         setHistoryView({ status: 'ready', groups: groupDiscussionHistory(result.selection.rounds) })
@@ -2247,7 +2299,7 @@ export function Shell({
       setHistoryView({
         status: 'failed',
         groups: [],
-        error: result.unreadable > 0 ? t('shell.historyUnavailable') : fill(t('shell.historyNotFound'), { proposal }),
+        error: result.unreadable > 0 ? t('shell.historyUnavailable') : fill(t('shell.historyNotFound'), { requirement }),
       })
     } catch (error: unknown) {
       if (historyRequest.current !== request) return
@@ -2266,17 +2318,16 @@ export function Shell({
   }
 
   /**
-   * 换任务或关卡片就收起历史抽屉；历史结果不是缓存，下次打开重读。
+   * 换需求或关抽屉就收起历史抽屉；历史结果不是缓存，下次打开重读。
    *
-   * 只认任务编号：看板每十秒重读投影，同一任务会被换成新快照，按对象收起会打断
+   * 只认需求编号：看板每十秒重读投影，同一条需求会被换成新快照，按对象收起会打断
    * 还在读的那一次，抽屉一闪就没。
    */
-  const detailTaskId = detail?.id
   useEffect(() => {
     historyRequest.current += 1
     setHistoryOpen(false)
     setHistoryView({ status: 'idle', groups: [] })
-  }, [detailTaskId])
+  }, [openRequirementId])
 
   /**
    * 跑一次方案讨论：同需求下仍待讨论的任务一起开会，架构师汇总并逐任务起草契约。
@@ -2285,11 +2336,11 @@ export function Shell({
    * 只把已有结果与确认入口摆出来。失败逐条说明，任务留在方案讨论列。
    */
   const discussPlan = async (task: ShellTask, force: boolean): Promise<void> => {
-    if (task.proposal === undefined) {
+    const key = task.requirement ?? task.proposal
+    if (key === undefined) {
       setDiscussError(fill(t('shell.discussionNoDocument'), { path: '.spec/requirements/' }))
       return
     }
-    const key = task.proposal
     if (discussRuns.current.has(key)) return
     if (modelStatus?.state === 'empty') {
       setDiscussError(t('shell.discussionNoModel'))
@@ -2350,7 +2401,7 @@ export function Shell({
         tasks: batch,
         tracks: trackOptions(),
         document,
-        proposal: key,
+        requirement: key,
       }, {
         createSession: async (role) => {
           const created = await createDefaultedSession(createSession, role.preset, role.id)
@@ -3203,16 +3254,16 @@ export function Shell({
     setReload(value => value + 1)
   }
 
-  /** 结果卡采纳方案：成功才关向导并重读投影；失败原文留在卡上，不关。 */
-  const approveWizardProposal = (): void => {
-    if (wizardProposal === undefined || sessionId === undefined || approveProposal === undefined) return
-    if (!requireUser('proposalApprove')) {
-      setWizardApproveResult({ ok: false, text: fill(t('shell.cloudGateNotice'), { entry: t(CLOUD_ENTRY_LABEL.proposalApprove) }) })
+  /** 结果卡确认需求：成功才关向导并重读投影；失败原文留在卡上，不关。 */
+  const approveWizardRequirement = (): void => {
+    if (wizardRequirement === undefined || sessionId === undefined || approveRequirement === undefined) return
+    if (!requireUser('requirementApprove')) {
+      setWizardApproveResult({ ok: false, text: fill(t('shell.cloudGateNotice'), { entry: t(CLOUD_ENTRY_LABEL.requirementApprove) }) })
       return
     }
     setWizardApproving(true)
     setWizardApproveResult(null)
-    void approveProposal(sessionId, wizardProposal.id).then((outcome) => {
+    void approveRequirement(sessionId, wizardRequirement.id).then((outcome) => {
       setWizardApproveResult(outcome)
       if (!outcome.ok) return
       setWizardOpen(false)
@@ -3469,7 +3520,7 @@ export function Shell({
   }
 
   const renderColumn = (column: (typeof SHELL_BOARD_COLUMNS)[number]): ReactNode => {
-    const columnTasks = filterTasks(tasks.filter(task => boardColumnOf(task) === column.id), filter, statusOfTask)
+    const columnTasks = filterTasks(boardTasks.filter(task => boardColumnOf(task) === column.id), filter, statusOfTask)
     return (
       <div key={column.id} className={css.column}>
         <div className={css.columnHead}>
@@ -3497,7 +3548,13 @@ export function Shell({
                 <div className={css.taskTitle}>{task.title}</div>
                 <div className={css.tags}>
                   <span className={`${css.tag} ${TASK_STATUS[status].className ?? ''}`}>{statusLabel}</span>
-                  {task.proposal === undefined ? null : <span className={css.tag}>{task.proposal}</span>}
+                  {task.requirement === undefined && task.proposal === undefined
+                    ? null
+                    : (
+                      <span className={css.tag} data-task-requirement={task.requirement ?? task.proposal}>
+                        {task.requirement ?? task.proposal}
+                      </span>
+                    )}
                   <span className={css.tag}>{t('shell.jobRole')} {roleLabelOf(task.role)}</span>
                   {task.track === undefined
                     ? null
@@ -3757,184 +3814,234 @@ export function Shell({
         >
           <span className={`${css.skinOrb} ${SKIN_ORB[skin] ?? ''}`} aria-hidden="true" />
         </button>
-        <button type="button" className={css.iconBtn} title={t('shell.settings')} onClick={() => { setSettings(true) }}>⚙</button>
         {windowControls}
       </header>
 
-      <main className={css.main}>
-        {personalPage ? (
-          <PersonalCenter
-            face={cloud}
-            state={cloudSession.state}
-            t={t}
-            onBack={() => { setPersonalPage(false) }}
-          />
-        ) : null}
-        {dashboardPage && !personalPage ? (
-          <AgentDashboardPage
-            t={t}
-            sessions={dashboardRows}
-            summary={dashboardSummary}
-            events={dashboardEvents}
-            eventProblems={dashboardEventProblems}
-            loading={dashboardLoading}
-            error={dashboardEventError}
-            graph={dashboardGraph()}
-            onOpenTask={(taskId) => {
-              const task = tasks.find(row => row.id === taskId)
-              if (task !== undefined) openTask(task)
-            }}
-            onBack={() => { setDashboardPage(false) }}
-            onRefresh={refreshDashboard}
-          />
-        ) : null}
-        {resultPage && !personalPage && !dashboardPage ? (
-          <IntakeResultPage
-            t={t}
-            proposals={proposals}
-            tasks={tasks}
-            info={info}
-            problems={problems}
-            modelBlocked={modelBlocked}
-            canRestart={currentIntakeTier !== null}
-            onBack={() => { setResultPage(false) }}
-            onRestart={requestIntakeRestart}
-            onStartOnboarding={(kind) => { setResultPage(false); startOnboarding(kind) }}
-          />
-        ) : null}
-        {resultPage || personalPage || dashboardPage ? null : <div className={css.boardWrap}>
-          <div className={css.boardHead}>
-            <h3>{t('shell.board')}</h3>
-            <span className={css.boardHint}>{t('shell.boardHint')}</span>
-            {flow === null ? null : (
-              <button type="button" className={css.flowBar} onClick={() => { setFlowOpen(true) }}>
-                <span className={css.flowBarLabel}>{t('shell.flowNext')}</span>
-                <span className={css.flowBarAction}>
-                  {flowActionText(flow.decision.action)}
-                  {flow.decision.taskId === null ? '' : ` ${flow.decision.taskId}`}
-                </span>
-                <span className={css.flowBarReason}>{flow.decision.reason}</span>
-                {flow.decision.blockers.length === 0
-                  ? null
-                  : <span className={css.flowBarBlocked}>{flow.decision.blockers.map(blocker => t(FLOW_BLOCKER_LABEL[blocker.kind])).join(' / ')}</span>}
-              </button>
-            )}
-            <div className={css.boardActions}>
-              {!hasWorkspace || !hasSession ? null : (
-                <button type="button" className={css.pillBtn} onClick={() => { setResultPage(true) }}>
-                  {t('shell.intakeResult')}
-                </button>
-              )}
-              {tasks.length === 0 ? null : (
-                <button
-                  type="button"
-                  className={`${css.filterToggle} ${isFilterActive(filter) ? css.filterToggleOn : ''}`}
-                  onClick={() => { setFilterOpen(open => !open) }}
-                >
-                  {t('shell.filter')}
-                  {isFilterActive(filter) ? <span className={css.filterCount}>{String(visibleTasks.length)}</span> : null}
-                </button>
-              )}
-            </div>
+      <div className={css.workArea}>
+        <aside className={css.navRail} aria-label={t('shell.navigation')} data-lcoder-nav>
+          <div className={css.navGroup}>
+            <button
+              type="button"
+              className={`${css.navItem} ${nav === 'requirements' ? css.navItemActive : ''}`}
+              data-nav="requirements"
+              aria-current={nav === 'requirements' ? 'page' : undefined}
+              onClick={() => { setNav('requirements') }}
+            >
+              <span className={css.navIcon} aria-hidden="true">◇</span>
+              {t('shell.requirements')}
+            </button>
+            <button
+              type="button"
+              className={`${css.navItem} ${nav === 'tasks' ? css.navItemActive : ''}`}
+              data-nav="tasks"
+              aria-current={nav === 'tasks' ? 'page' : undefined}
+              onClick={() => { setNav('tasks') }}
+            >
+              <span className={css.navIcon} aria-hidden="true">▤</span>
+              {t('shell.tasks')}
+            </button>
           </div>
-          {filterOpen && tasks.length > 0 ? (
-            <div className={css.filterPanel}>
-              <span className={css.filterLabel}>{t('shell.filterGrade')}</span>
-              {TASK_GRADE_CHOICES.map(grade => (
-                <button
-                  type="button"
-                  key={grade}
-                  className={`${css.filterChip} ${filter.grades.includes(grade) ? css.filterChipActive : ''}`}
-                  onClick={() => {
-                    setFilter(current => ({
-                      ...current,
-                      grades: current.grades.includes(grade)
-                        ? current.grades.filter(item => item !== grade)
-                        : [...current.grades, grade],
-                    }))
-                  }}
-                >
-                  {mappedLabel(DIFFICULTY_LABEL, grade, t)}
-                </button>
-              ))}
-              <span className={css.filterLabel}>{t('shell.filterSession')}</span>
-              {SESSION_FILTER_CHOICES.map(choice => (
-                <button
-                  type="button"
-                  key={choice}
-                  className={`${css.filterChip} ${filter.session === choice ? css.filterChipActive : ''}`}
-                  onClick={() => { setFilter(current => ({ ...current, session: choice })) }}
-                >
-                  {t(SESSION_FILTER_LABELS[choice])}
-                </button>
-              ))}
-              <input
-                className={css.filterSearch}
-                type="search"
-                value={filter.text}
-                placeholder={t('shell.filterSearch')}
-                onChange={(event): void => { setFilter(current => ({ ...current, text: event.target.value })) }}
-              />
-              {isFilterActive(filter)
-                ? <button type="button" className={css.filterClear} onClick={() => { setFilter(EMPTY_TASK_FILTER) }}>{t('shell.filterClear')}</button>
-                : null}
-            </div>
+          <div className={css.navFoot}>
+            <button type="button" className={css.navItem} data-nav="settings" onClick={() => { setSettings(true) }}>
+              <span className={css.navIcon} aria-hidden="true">⚙</span>
+              {t('shell.settings')}
+            </button>
+          </div>
+        </aside>
+        <main className={css.main}>
+          {personalPage ? (
+            <PersonalCenter
+              face={cloud}
+              state={cloudSession.state}
+              t={t}
+              onBack={() => { setPersonalPage(false) }}
+            />
           ) : null}
-          {!hasWorkspace
-            ? <p className={css.empty}>{t('shell.noWorkspace')}</p>
-            : loading
-              ? <p className={css.empty}>{t('shell.loading')}</p>
-              : !hasSession
-                ? <p className={css.empty}>{t('shell.noSession')}</p>
-                : (
-                  <>
-                    {modelStatus === null || modelStatus.state === 'ready' ? null : (
-                      <div className={css.problems}>
-                        <p className={css.problemsTitle}>
-                          {t(modelStatus.state === 'empty' ? 'shell.noModels' : 'shell.unknownModels')}
-                        </p>
-                        {modelStatus.detail === '' ? null : <p className={css.problem}>{modelStatus.detail}</p>}
-                        {modelStatus.state === 'empty' ? <p className={css.secretRef}>{t('shell.howToConfigure')}</p> : null}
-                      </div>
+          {dashboardPage && !personalPage ? (
+            <AgentDashboardPage
+              t={t}
+              sessions={dashboardRows}
+              summary={dashboardSummary}
+              events={dashboardEvents}
+              eventProblems={dashboardEventProblems}
+              loading={dashboardLoading}
+              error={dashboardEventError}
+              graph={dashboardGraph()}
+              onOpenTask={(taskId) => {
+                const task = tasks.find(row => row.id === taskId)
+                if (task !== undefined) openTask(task)
+              }}
+              onBack={() => { setDashboardPage(false) }}
+              onRefresh={refreshDashboard}
+            />
+          ) : null}
+          {resultPage && !personalPage && !dashboardPage ? (
+            <IntakeResultPage
+              t={t}
+              requirements={requirements}
+              tasks={tasks}
+              info={info}
+              problems={problems}
+              modelBlocked={modelBlocked}
+              canRestart={currentIntakeTier !== null}
+              onBack={() => { setResultPage(false) }}
+              onRestart={requestIntakeRestart}
+              onStartOnboarding={(kind) => { setResultPage(false); startOnboarding(kind) }}
+            />
+          ) : null}
+          {resultPage || personalPage || dashboardPage
+            ? null
+            : nav === 'requirements'
+              ? (
+                <RequirementsPage
+                  t={t}
+                  views={visibleRequirements}
+                  view={requirementView}
+                  filter={requirementFilter}
+                  showCancelled={showCancelledRequirements}
+                  workspaceReady={hasWorkspace && hasSession}
+                  loading={loading}
+                  onViewChange={setRequirementView}
+                  onFilterChange={setRequirementFilter}
+                  onToggleCancelled={() => { setShowCancelledRequirements(value => !value) }}
+                  onCreate={() => { startOnboarding('new') }}
+                  onOpen={openRequirementDetail}
+                />
+              )
+              : <div className={css.boardWrap}>
+                <div className={css.boardHead}>
+                  <h3>{t('shell.board')}</h3>
+                  <span className={css.boardHint}>{t('shell.boardHint')}</span>
+                  {flow === null ? null : (
+                    <button type="button" className={css.flowBar} onClick={() => { setFlowOpen(true) }}>
+                      <span className={css.flowBarLabel}>{t('shell.flowNext')}</span>
+                      <span className={css.flowBarAction}>
+                        {flowActionText(flow.decision.action)}
+                        {flow.decision.taskId === null ? '' : ` ${flow.decision.taskId}`}
+                      </span>
+                      <span className={css.flowBarReason}>{flow.decision.reason}</span>
+                      {flow.decision.blockers.length === 0
+                        ? null
+                        : <span className={css.flowBarBlocked}>{flow.decision.blockers.map(blocker => t(FLOW_BLOCKER_LABEL[blocker.kind])).join(' / ')}</span>}
+                    </button>
+                  )}
+                  <div className={css.boardActions}>
+                    {!hasWorkspace || !hasSession ? null : (
+                      <button type="button" className={css.pillBtn} onClick={() => { setResultPage(true) }}>
+                        {t('shell.intakeResult')}
+                      </button>
                     )}
-                    <div className={css.board}>
-                      {SHELL_BOARD_COLUMNS.map(column => renderColumn(column))}
-                    </div>
-                    {isFilterActive(filter) && visibleTasks.length === 0
-                      ? <p className={css.filterEmpty}>{t('shell.filterEmpty')}</p>
+                    {boardTasks.length === 0 ? null : (
+                      <button
+                        type="button"
+                        className={`${css.filterToggle} ${isFilterActive(filter) ? css.filterToggleOn : ''}`}
+                        onClick={() => { setFilterOpen(open => !open) }}
+                      >
+                        {t('shell.filter')}
+                        {isFilterActive(filter) ? <span className={css.filterCount}>{String(visibleTasks.length)}</span> : null}
+                      </button>
+                    )}
+                  </div>
+                </div>
+                {filterOpen && tasks.length > 0 ? (
+                  <div className={css.filterPanel}>
+                    <span className={css.filterLabel}>{t('shell.filterGrade')}</span>
+                    {TASK_GRADE_CHOICES.map(grade => (
+                      <button
+                        type="button"
+                        key={grade}
+                        className={`${css.filterChip} ${filter.grades.includes(grade) ? css.filterChipActive : ''}`}
+                        onClick={() => {
+                          setFilter(current => ({
+                            ...current,
+                            grades: current.grades.includes(grade)
+                              ? current.grades.filter(item => item !== grade)
+                              : [...current.grades, grade],
+                          }))
+                        }}
+                      >
+                        {mappedLabel(DIFFICULTY_LABEL, grade, t)}
+                      </button>
+                    ))}
+                    <span className={css.filterLabel}>{t('shell.filterSession')}</span>
+                    {SESSION_FILTER_CHOICES.map(choice => (
+                      <button
+                        type="button"
+                        key={choice}
+                        className={`${css.filterChip} ${filter.session === choice ? css.filterChipActive : ''}`}
+                        onClick={() => { setFilter(current => ({ ...current, session: choice })) }}
+                      >
+                        {t(SESSION_FILTER_LABELS[choice])}
+                      </button>
+                    ))}
+                    <input
+                      className={css.filterSearch}
+                      type="search"
+                      value={filter.text}
+                      placeholder={t('shell.filterSearch')}
+                      onChange={(event): void => { setFilter(current => ({ ...current, text: event.target.value })) }}
+                    />
+                    {isFilterActive(filter)
+                      ? <button type="button" className={css.filterClear} onClick={() => { setFilter(EMPTY_TASK_FILTER) }}>{t('shell.filterClear')}</button>
                       : null}
-                    {tasks.length === 0 ? (
-                      <div className={css.onboardingBar}>
-                        <button
-                          type="button"
-                          className={css.secondaryBtn}
-                          disabled={modelBlocked}
-                          title={modelBlocked ? t('shell.noModels') : undefined}
-                          onClick={() => { startOnboarding('docs') }}
-                        >
-                          {t('shell.onboardingExistingDocs')}
-                        </button>
-                        <button
-                          type="button"
-                          className={css.primaryBtn}
-                          disabled={modelBlocked}
-                          title={modelBlocked ? t('shell.noModels') : undefined}
-                          onClick={() => { startOnboarding('new') }}
-                        >
-                          {t('shell.onboardingNewProject')}
-                        </button>
-                      </div>
-                    ) : null}
-                    {problems.length > 0 ? (
-                      <div className={css.problems}>
-                        <p className={css.problemsTitle}>{t('shell.problems')}</p>
-                        {problems.map(problem => <p key={problem} className={css.problem}>{problem}</p>)}
-                      </div>
-                    ) : null}
-                  </>
-                )}
-        </div>}
-      </main>
+                  </div>
+                ) : null}
+                {!hasWorkspace
+                  ? <p className={css.empty}>{t('shell.noWorkspace')}</p>
+                  : loading
+                    ? <p className={css.empty}>{t('shell.loading')}</p>
+                    : !hasSession
+                      ? <p className={css.empty}>{t('shell.noSession')}</p>
+                      : (
+                        <>
+                          {modelStatus === null || modelStatus.state === 'ready' ? null : (
+                            <div className={css.problems}>
+                              <p className={css.problemsTitle}>
+                                {t(modelStatus.state === 'empty' ? 'shell.noModels' : 'shell.unknownModels')}
+                              </p>
+                              {modelStatus.detail === '' ? null : <p className={css.problem}>{modelStatus.detail}</p>}
+                              {modelStatus.state === 'empty' ? <p className={css.secretRef}>{t('shell.howToConfigure')}</p> : null}
+                            </div>
+                          )}
+                          <div className={css.board}>
+                            {SHELL_BOARD_COLUMNS.map(column => renderColumn(column))}
+                          </div>
+                          {isFilterActive(filter) && visibleTasks.length === 0
+                            ? <p className={css.filterEmpty}>{t('shell.filterEmpty')}</p>
+                            : null}
+                          {boardTasks.length === 0 ? (
+                            <div className={css.onboardingBar}>
+                              <button
+                                type="button"
+                                className={css.secondaryBtn}
+                                disabled={modelBlocked}
+                                title={modelBlocked ? t('shell.noModels') : undefined}
+                                onClick={() => { startOnboarding('docs') }}
+                              >
+                                {t('shell.onboardingExistingDocs')}
+                              </button>
+                              <button
+                                type="button"
+                                className={css.primaryBtn}
+                                disabled={modelBlocked}
+                                title={modelBlocked ? t('shell.noModels') : undefined}
+                                onClick={() => { startOnboarding('new') }}
+                              >
+                                {t('shell.onboardingNewProject')}
+                              </button>
+                            </div>
+                          ) : null}
+                          {problems.length > 0 ? (
+                            <div className={css.problems}>
+                              <p className={css.problemsTitle}>{t('shell.problems')}</p>
+                              {problems.map(problem => <p key={problem} className={css.problem}>{problem}</p>)}
+                            </div>
+                          ) : null}
+                        </>
+                      )}
+              </div>}
+        </main>
+      </div>
 
       {drawer ? (
         <div className={css.drawerBackdrop} onClick={(event) => { if (event.target === event.currentTarget) setDrawer(false) }}>
@@ -4354,341 +4461,354 @@ export function Shell({
         </div>
       ) : null}
 
+      {openRequirement === undefined ? null : (
+        <div
+          className={css.modalBackdrop}
+          data-lcoder-requirement-drawer
+          onClick={(event) => { if (event.target === event.currentTarget) setOpenRequirementId(null) }}
+        >
+          <div
+            className={`${css.modal} ${css.requirementModal}`}
+            role="dialog"
+            aria-modal="true"
+            aria-label={`${openRequirement.row.id} ${openRequirement.row.title ?? ''}`}
+          >
+            <RequirementDetail
+              t={t}
+              row={openRequirement.row}
+              progress={openRequirement.progress}
+              tasks={openRequirement.tasks}
+              answers={requirementAnswers}
+              splitting={detailSplitFlow?.status === 'running'}
+              splitFlow={detailSplitFlow}
+              error={detailSplitFlow?.errorText ?? splitError}
+              actionBusy={requirementAction}
+              actionResult={requirementActionResult}
+              taskStateLabel={(task) => {
+                const state = SHELL_STATES.find(item => item.id === task.state)
+                return state === undefined ? task.state : t(state.labelKey)
+              }}
+              trackLabel={trackLabelOf}
+              onClose={() => { setOpenRequirementId(null) }}
+              onApprove={() => { void runRequirementAction('approve', openRequirement.row) }}
+              onSplit={() => { void splitRequirement(openRequirement.row) }}
+              onRelease={() => { void runRequirementAction('release', openRequirement.row) }}
+              onCancel={() => { void runRequirementAction('cancel', openRequirement.row) }}
+              onOpenTask={(taskId) => {
+                const task = tasks.find(item => item.id === taskId)
+                if (task === undefined) return
+                setOpenRequirementId(null)
+                openTask(task)
+              }}
+              historyOpen={historyOpen}
+              history={historyView}
+              onOpenHistory={() => { void openDiscussionHistory(openRequirement.row.id) }}
+              onCloseHistory={closeDiscussionHistory}
+            />
+          </div>
+        </div>
+      )}
+
       {detail !== null ? (
         <div className={css.modalBackdrop} onClick={(event) => { if (event.target === event.currentTarget) setDetail(null) }}>
-          {isRequirementTask(detail) ? (
-            <div className={`${css.modal} ${css.requirementModal}`} role="dialog" aria-modal="true" aria-label={`${detail.id} ${detail.title}`}>
-              <RequirementCard
-                t={t}
-                task={detail}
-                requirementDocument={detailRequirement}
-                document={requirementDocument}
-                proposal={detailProposal}
-                answers={requirementAnswers}
-                trackName={detail.track === undefined ? undefined : trackLabelOf(detail.track)}
-                splitting={detailSplitFlow?.status === 'running'}
-                error={detailSplitFlow?.errorText ?? splitError}
-                flow={detailSplitFlow}
-                onClose={() => { setDetail(null) }}
-                onSplit={(document) => { void splitRequirement(detail, document) }}
-                onViewBoard={() => { setDetail(null) }}
-                historyOpen={historyOpen}
-                history={historyView}
-                onOpenHistory={() => { void openDiscussionHistory(detail) }}
-                onCloseHistory={closeDiscussionHistory}
-              />
+          <div className={css.modal} role="dialog" aria-modal="true" aria-label={`${detail.id} ${detail.title}`}>
+            <div className={css.modalHead}>
+              <div className={css.grow}>
+                <h3>{detail.id} · {detail.title}</h3>
+                <p className={css.detailDescription}>{detail.description.trim() || t('shell.noDescription')}</p>
+                {detail.category === undefined && detail.changeType === undefined ? null : (
+                  <div className={css.detailTags}>
+                    {detail.category === undefined
+                      ? null
+                      : <span className={css.detailTag}>{mappedLabel(CATEGORY_LABEL, detail.category, t)}</span>}
+                    {detail.changeType === undefined
+                      ? null
+                      : <span className={css.detailTag}>{mappedLabel(CHANGE_TYPE_LABEL, detail.changeType, t)}</span>}
+                  </div>
+                )}
+              </div>
+              <span className={css.pill}>{t(STATE_LABEL[detail.state])}</span>
+              <button
+                type="button"
+                className={`${css.secondaryBtn} ${css.headAction}`}
+                disabled={modelBlocked || claiming}
+                title={modelBlocked ? t('shell.noModels') : undefined}
+                onClick={() => { startConversation(detail) }}
+              >
+                {conversationLabel(detail)}
+              </button>
+              <button type="button" className={css.iconBtn} onClick={() => { setDetail(null) }}>✕</button>
             </div>
-          ) : (
-            <div className={css.modal} role="dialog" aria-modal="true" aria-label={`${detail.id} ${detail.title}`}>
-              <div className={css.modalHead}>
-                <div className={css.grow}>
-                  <h3>{detail.id} · {detail.title}</h3>
-                  <p className={css.detailDescription}>{detail.description.trim() || t('shell.noDescription')}</p>
-                  {detail.category === undefined && detail.changeType === undefined ? null : (
-                    <div className={css.detailTags}>
-                      {detail.category === undefined
-                        ? null
-                        : <span className={css.detailTag}>{mappedLabel(CATEGORY_LABEL, detail.category, t)}</span>}
-                      {detail.changeType === undefined
-                        ? null
-                        : <span className={css.detailTag}>{mappedLabel(CHANGE_TYPE_LABEL, detail.changeType, t)}</span>}
+            <div className={css.modalBody}>
+              {detail.attachments.length === 0 ? null : (
+                <TaskAttachments t={t} sessionId={sessionId} paths={detail.attachments} read={readAttachment} />
+              )}
+              <dl className={css.metaStrip}>
+                <div className={css.metaItem}>
+                  <dt className={css.metaK}>{t('shell.difficulty')}</dt>
+                  <dd className={css.metaV}>{mappedLabel(DIFFICULTY_LABEL, detail.grade, t)}</dd>
+                </div>
+                {detail.track === undefined
+                  ? null
+                  : (
+                    <div className={css.metaItem}>
+                      <dt className={css.metaK}>{t('shell.track')}</dt>
+                      <dd className={css.metaV}>{trackLabelOf(detail.track)}</dd>
                     </div>
                   )}
+                <div className={css.metaItem}>
+                  <dt className={css.metaK}>{t('shell.jobRole')}</dt>
+                  <dd className={css.metaV}>
+                    {roleLabelOf(detail.role)}
+                    <button
+                      type="button"
+                      className={css.metaHelp}
+                      aria-label={t('shell.roleDialogTitle')}
+                      onClick={openRoleDialog}
+                    >
+                      ?
+                    </button>
+                  </dd>
                 </div>
-                <span className={css.pill}>{t(STATE_LABEL[detail.state])}</span>
-                <button
-                  type="button"
-                  className={`${css.secondaryBtn} ${css.headAction}`}
-                  disabled={modelBlocked || claiming}
-                  title={modelBlocked ? t('shell.noModels') : undefined}
-                  onClick={() => { startConversation(detail) }}
-                >
-                  {conversationLabel(detail)}
-                </button>
-                <button type="button" className={css.iconBtn} onClick={() => { setDetail(null) }}>✕</button>
-              </div>
-              <div className={css.modalBody}>
-                {detail.attachments.length === 0 ? null : (
-                  <TaskAttachments t={t} sessionId={sessionId} paths={detail.attachments} read={readAttachment} />
-                )}
-                <dl className={css.metaStrip}>
-                  <div className={css.metaItem}>
-                    <dt className={css.metaK}>{t('shell.difficulty')}</dt>
-                    <dd className={css.metaV}>{mappedLabel(DIFFICULTY_LABEL, detail.grade, t)}</dd>
+                {detail.dependsOn === undefined
+                  ? null
+                  : (
+                    <div className={css.metaItem}>
+                      <dt className={css.metaK}>{t('shell.dependsOn')}</dt>
+                      <dd className={css.metaV}>{detail.dependsOn.join('、')}</dd>
+                    </div>
+                  )}
+                {detailRequirementId === undefined
+                  ? null
+                  : (
+                    <div className={css.metaItem}>
+                      <dt className={css.metaK}>{t('shell.requirement')}</dt>
+                      <dd className={css.metaV}>
+                        <button
+                          type="button"
+                          className={css.requirementJump}
+                          data-task-requirement-jump
+                          onClick={() => {
+                            const id = detailRequirementId
+                            setDetail(null)
+                            openRequirementDetail(id)
+                          }}
+                        >
+                          {detailRequirementId}
+                        </button>
+                      </dd>
+                    </div>
+                  )}
+                {detailSchedule?.queue === undefined
+                  ? null
+                  : (
+                    <div className={css.metaItem}>
+                      <dt className={css.metaK}>{t('shell.queuedIn')}</dt>
+                      <dd className={css.metaV}>
+                        {sessionLabel(detailSchedule.queue.sessionId)}
+                        {' · '}
+                        {fill(t('shell.queuePosition'), { n: detailSchedule.queue.position })}
+                      </dd>
+                    </div>
+                  )}
+                {detailJoint === undefined
+                  ? null
+                  : (
+                    <div className={css.metaItem}>
+                      <dt className={css.metaK}>{t('shell.jointGroup')}</dt>
+                      <dd className={css.metaV}>
+                        {t('shell.jointMembers')}：{detailJoint.members.join('、')}
+                        {' · '}
+                        {t('shell.jointAcceptance')}
+                        {detailJoint.createdAt === undefined
+                          ? ''
+                          : ` · ${fill(t('shell.jointCreatedAt'), { at: detailJoint.createdAt })}`}
+                      </dd>
+                    </div>
+                  )}
+              </dl>
+              <details className={css.metaMore}>
+                <summary className={css.metaMoreSummary}>{t('shell.more')}</summary>
+                <dl className={css.metaMoreList}>
+                  <div className={css.metaMoreItem}>
+                    <dt><span className={css.metaMoreLabel}>{t('shell.rules')}</span><span className={css.metaHint}>{t('shell.rulesHint')}</span></dt>
+                    <dd>{detail.rules.join('、') || '—'}</dd>
                   </div>
-                  {detail.track === undefined
-                    ? null
-                    : (
-                      <div className={css.metaItem}>
-                        <dt className={css.metaK}>{t('shell.track')}</dt>
-                        <dd className={css.metaV}>{trackLabelOf(detail.track)}</dd>
-                      </div>
-                    )}
-                  <div className={css.metaItem}>
-                    <dt className={css.metaK}>{t('shell.jobRole')}</dt>
-                    <dd className={css.metaV}>
-                      {roleLabelOf(detail.role)}
-                      <button
-                        type="button"
-                        className={css.metaHelp}
-                        aria-label={t('shell.roleDialogTitle')}
-                        onClick={openRoleDialog}>
-                        ?
-                      </button>
-                    </dd>
+                  <div className={css.metaMoreItem}>
+                    <dt><span className={css.metaMoreLabel}>{t('shell.evidence')}</span><span className={css.metaHint}>{t('shell.evidenceHint')}</span></dt>
+                    <dd>{detail.evidence.join('、') || '—'}</dd>
                   </div>
-                  {detail.dependsOn === undefined
-                    ? null
-                    : (
-                      <div className={css.metaItem}>
-                        <dt className={css.metaK}>{t('shell.dependsOn')}</dt>
-                        <dd className={css.metaV}>{detail.dependsOn.join('、')}</dd>
-                      </div>
-                    )}
-                  {detailSchedule?.queue === undefined
-                    ? null
-                    : (
-                      <div className={css.metaItem}>
-                        <dt className={css.metaK}>{t('shell.queuedIn')}</dt>
-                        <dd className={css.metaV}>
-                          {sessionLabel(detailSchedule.queue.sessionId)}
-                          {' · '}
-                          {fill(t('shell.queuePosition'), { n: detailSchedule.queue.position })}
-                        </dd>
-                      </div>
-                    )}
-                  {detailJoint === undefined
-                    ? null
-                    : (
-                      <div className={css.metaItem}>
-                        <dt className={css.metaK}>{t('shell.jointGroup')}</dt>
-                        <dd className={css.metaV}>
-                          {t('shell.jointMembers')}：{detailJoint.members.join('、')}
-                          {' · '}
-                          {t('shell.jointAcceptance')}
-                          {detailJoint.createdAt === undefined
-                            ? ''
-                            : ` · ${fill(t('shell.jointCreatedAt'), { at: detailJoint.createdAt })}`}
-                        </dd>
-                      </div>
-                    )}
+                  <div className={css.metaMoreItem}>
+                    <dt><span className={css.metaMoreLabel}>{t('shell.surface')}</span><span className={css.metaHint}>{t('shell.surfaceHint')}</span></dt>
+                    <dd>{t(SURFACE_LABEL[detail.state])}</dd>
+                  </div>
                 </dl>
-                <details className={css.metaMore}>
-                  <summary className={css.metaMoreSummary}>{t('shell.more')}</summary>
-                  <dl className={css.metaMoreList}>
-                    <div className={css.metaMoreItem}>
-                      <dt><span className={css.metaMoreLabel}>{t('shell.rules')}</span><span className={css.metaHint}>{t('shell.rulesHint')}</span></dt>
-                      <dd>{detail.rules.join('、') || '—'}</dd>
+              </details>
+              {detailSchedule === undefined || scheduleErrors[detail.id] === undefined
+                ? null
+                : <p className={css.problem}>{fill(t('shell.scheduleLogFailed'), { detail: scheduleErrors[detail.id] ?? '' })}</p>}
+              {detailDiscussionTasks.length === 0 ? null : (
+                <section className={css.flowSection} data-plan-discussion>
+                  <h4>{t('shell.discussionTitle')}</h4>
+                  <dl className={css.metaStrip}>
+                    <div className={css.metaItem}>
+                      <dt className={css.metaK}>{t('shell.discussionParticipants')}</dt>
+                      <dd className={css.metaV}>
+                        {[...new Set(detailDiscussionPlan.groups.flatMap(group => group.roles.map(meetingRoleLabel)))].join('、') || '—'}
+                      </dd>
                     </div>
-                    <div className={css.metaMoreItem}>
-                      <dt><span className={css.metaMoreLabel}>{t('shell.evidence')}</span><span className={css.metaHint}>{t('shell.evidenceHint')}</span></dt>
-                      <dd>{detail.evidence.join('、') || '—'}</dd>
-                    </div>
-                    <div className={css.metaMoreItem}>
-                      <dt><span className={css.metaMoreLabel}>{t('shell.surface')}</span><span className={css.metaHint}>{t('shell.surfaceHint')}</span></dt>
-                      <dd>{t(SURFACE_LABEL[detail.state])}</dd>
+                    <div className={css.metaItem}>
+                      <dt className={css.metaK}>{t('shell.discussionBatchLabel')}</dt>
+                      <dd className={css.metaV}>{detailDiscussionTasks.map(row => row.id).join('、')}</dd>
                     </div>
                   </dl>
-                </details>
-                {detailSchedule === undefined || scheduleErrors[detail.id] === undefined
-                  ? null
-                  : <p className={css.problem}>{fill(t('shell.scheduleLogFailed'), { detail: scheduleErrors[detail.id] ?? '' })}</p>}
-                {detailDiscussionTasks.length === 0 ? null : (
-                  <section className={css.flowSection} data-plan-discussion>
-                    <h4>{t('shell.discussionTitle')}</h4>
-                    <dl className={css.metaStrip}>
-                      <div className={css.metaItem}>
-                        <dt className={css.metaK}>{t('shell.discussionParticipants')}</dt>
-                        <dd className={css.metaV}>
-                          {[...new Set(detailDiscussionPlan.groups.flatMap(group => group.roles.map(meetingRoleLabel)))].join('、') || '—'}
-                        </dd>
+                  <div className={css.flowTaskList}>
+                    {detailDiscussionTasks.map((row) => {
+                      const rowContract = contractOf(contracts, row.id)
+                      const label = rowContract === undefined
+                        ? t('shell.discussionMissing', { task: row.id })
+                        : contractSigned(rowContract)
+                          ? t('shell.discussionSigned', { task: row.id })
+                          : t('shell.discussionDrafted', { task: row.id })
+                      return (
+                        <div key={row.id} className={css.flowTaskRow} data-plan-discussion-task={row.id}>
+                          <span className={css.flowTaskId}>{row.id}</span>
+                          <span className={css.flowTaskReason}>
+                            {label}
+                            {rowContract === undefined
+                              ? ''
+                              : ` · ${t('shell.discussionContractChange')}${rowContract.change[0] ?? ''}`}
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                  {detailDiscussFlow?.status === 'running' ? (
+                    <p className={css.flowReason} data-plan-discussion-progress>
+                      {fill(
+                        t(detailDiscussFlow.stage === 'drafting' ? 'shell.discussionDrafting' : 'shell.discussionRunning'),
+                        { roles: detailDiscussFlow.participants.join('、') },
+                      )}
+                    </p>
+                  ) : null}
+                  {detailDiscussFlow?.status === 'confirming' ? (
+                    <p className={css.flowReason}>{t('shell.discussionConfirming')}</p>
+                  ) : null}
+                  {detailDiscussFlow?.text === undefined || detailDiscussFlow.status === 'confirming'
+                    ? null
+                    : <p className={detailDiscussFlow.status === 'failed' ? css.problem : css.flowReason}>{detailDiscussFlow.text}</p>}
+                  {detailConfirmLines.length === 0 ? null : (
+                    <ul className={css.flowBlockers}>
+                      {detailConfirmLines.map(line => <li key={line} className={css.problem}>{line}</li>)}
+                    </ul>
+                  )}
+                  {discussError === null ? null : <p className={css.problem}>{discussError}</p>}
+                  <div className={css.flowToolbar}>
+                    <button
+                      type="button"
+                      className={css.primaryBtn}
+                      disabled={detailDiscussFlow?.status === 'running' || detailDiscussFlow?.status === 'confirming'
+                          || !hasSession || signContract === undefined || advanceContract === undefined
+                          || !detailDiscussionTasks.every(row => contractComplete(contractOf(contracts, row.id)))}
+                      onClick={() => { void confirmDiscussion(detail) }}
+                    >
+                      {detailDiscussFlow?.status === 'confirming' ? t('shell.discussionConfirming') : t('shell.discussionConfirm')}
+                    </button>
+                    <button
+                      type="button"
+                      className={css.secondaryBtn}
+                      disabled={modelBlocked || detailDiscussFlow?.status === 'running' || detailDiscussFlow?.status === 'confirming'
+                          || !hasSession || createSession === undefined}
+                      title={modelBlocked ? t('shell.noModels') : undefined}
+                      onClick={() => { void discussPlan(detail, true) }}
+                    >
+                      {detailDiscussionTasks.some(row => contractOf(contracts, row.id) !== undefined)
+                        ? t('shell.discussionReconfirm')
+                        : t('shell.discussionStart')}
+                    </button>
+                  </div>
+                </section>
+              )}
+              <div className={css.field}>
+                <label>
+                  {t('shell.contract')}
+                  {detailContract === undefined ? null : <span className={css.labelHint}> {t('shell.contractHint')}</span>}
+                </label>
+                {detailContract === undefined ? (
+                  <p className={css.empty}>{t('shell.contractMissing')}</p>
+                ) : (
+                  <>
+                    <div className={css.metaGrid}>
+                      <div className={css.meta}>
+                        <div className={css.metaK}>{t('shell.contractChange')}</div>
+                        <div className={css.metaV}>{detailContract.change.join('；')}</div>
                       </div>
-                      <div className={css.metaItem}>
-                        <dt className={css.metaK}>{t('shell.discussionBatchLabel')}</dt>
-                        <dd className={css.metaV}>{detailDiscussionTasks.map(row => row.id).join('、')}</dd>
+                      <div className={css.meta}>
+                        <div className={css.metaK}>{t('shell.contractNotChange')}</div>
+                        <div className={css.metaV}>{detailContract.notChange.join('；') || '—'}</div>
                       </div>
-                    </dl>
-                    <div className={css.flowTaskList}>
-                      {detailDiscussionTasks.map((row) => {
-                        const rowContract = contractOf(contracts, row.id)
-                        const label = rowContract === undefined
-                          ? t('shell.discussionMissing', { task: row.id })
-                          : contractSigned(rowContract)
-                            ? t('shell.discussionSigned', { task: row.id })
-                            : t('shell.discussionDrafted', { task: row.id })
-                        return (
-                          <div key={row.id} className={css.flowTaskRow} data-plan-discussion-task={row.id}>
-                            <span className={css.flowTaskId}>{row.id}</span>
-                            <span className={css.flowTaskReason}>
-                              {label}
-                              {rowContract === undefined
-                                ? ''
-                                : ` · ${t('shell.discussionContractChange')}${rowContract.change[0] ?? ''}`}
-                            </span>
-                          </div>
-                        )
-                      })}
+                      <div className={css.meta}>
+                        <div className={css.metaK}>{t('shell.contractAcceptance')}</div>
+                        <div className={css.metaV}>{detailContract.acceptance.join('；')}</div>
+                      </div>
+                      <div className={css.meta}>
+                        <div className={css.metaK}>{t('shell.contractFailIf')}</div>
+                        <div className={css.metaV}>{detailContract.failIf.join('；') || '—'}</div>
+                      </div>
                     </div>
-                    {detailDiscussFlow?.status === 'running' ? (
-                      <p className={css.flowReason} data-plan-discussion-progress>
-                        {fill(
-                          t(detailDiscussFlow.stage === 'drafting' ? 'shell.discussionDrafting' : 'shell.discussionRunning'),
-                          { roles: detailDiscussFlow.participants.join('、') },
-                        )}
-                      </p>
-                    ) : null}
-                    {detailDiscussFlow?.status === 'confirming' ? (
-                      <p className={css.flowReason}>{t('shell.discussionConfirming')}</p>
-                    ) : null}
-                    {detailDiscussFlow?.text === undefined || detailDiscussFlow.status === 'confirming'
-                      ? null
-                      : <p className={detailDiscussFlow.status === 'failed' ? css.problem : css.flowReason}>{detailDiscussFlow.text}</p>}
-                    {detailConfirmLines.length === 0 ? null : (
-                      <ul className={css.flowBlockers}>
-                        {detailConfirmLines.map(line => <li key={line} className={css.problem}>{line}</li>)}
-                      </ul>
-                    )}
-                    {discussError === null ? null : <p className={css.problem}>{discussError}</p>}
-                    <div className={css.flowToolbar}>
+                    <p className={css.secretRef}>
+                      {detailContract.signedBy === 'human'
+                        ? `${t('shell.signedAt')} ${detailContract.signedAt ?? '—'}`
+                        : detailContract.signedBy === 'agent'
+                          ? t('shell.signedByAgent')
+                          : t('shell.unsigned')}
+                    </p>
+                    {detailContract.signedBy !== 'human' || detail.state !== 'drafting' ? null : (
                       <button
                         type="button"
                         className={css.primaryBtn}
-                        disabled={detailDiscussFlow?.status === 'running' || detailDiscussFlow?.status === 'confirming'
-                          || !hasSession || signContract === undefined || advanceContract === undefined
-                          || !detailDiscussionTasks.every(row => contractComplete(contractOf(contracts, row.id)))}
-                        onClick={() => { void confirmDiscussion(detail) }}
+                        disabled={advancing || advanceContract === undefined || !hasSession}
+                        onClick={() => { void advanceSelected() }}
                       >
-                        {detailDiscussFlow?.status === 'confirming' ? t('shell.discussionConfirming') : t('shell.discussionConfirm')}
+                        {advancing ? t('shell.advancing') : t('shell.advanceContracted')}
                       </button>
+                    )}
+                    {advanceResult === null ? null : (
+                      <p className={advanceResult.ok ? css.secretRef : css.problem}>{advanceResult.text}</p>
+                    )}
+                    {detailContract.signedBy === 'human' ? null : (
                       <button
                         type="button"
-                        className={css.secondaryBtn}
-                        disabled={modelBlocked || detailDiscussFlow?.status === 'running' || detailDiscussFlow?.status === 'confirming'
-                          || !hasSession || createSession === undefined}
-                        title={modelBlocked ? t('shell.noModels') : undefined}
-                        onClick={() => { void discussPlan(detail, true) }}
+                        className={css.primaryBtn}
+                        disabled={signing || signContract === undefined || !hasSession}
+                        onClick={() => { void signSelected() }}
                       >
-                        {detailDiscussionTasks.some(row => contractOf(contracts, row.id) !== undefined)
-                          ? t('shell.discussionReconfirm')
-                          : t('shell.discussionStart')}
+                        {signing ? t('shell.signing') : t('shell.sign')}
                       </button>
-                    </div>
-                  </section>
-                )}
-                <div className={css.field}>
-                  <label>
-                    {t('shell.contract')}
-                    {detailContract === undefined ? null : <span className={css.labelHint}> {t('shell.contractHint')}</span>}
-                  </label>
-                  {detailContract === undefined ? (
-                    <p className={css.empty}>{t('shell.contractMissing')}</p>
-                  ) : (
-                    <>
-                      <div className={css.metaGrid}>
-                        <div className={css.meta}>
-                          <div className={css.metaK}>{t('shell.contractChange')}</div>
-                          <div className={css.metaV}>{detailContract.change.join('；')}</div>
-                        </div>
-                        <div className={css.meta}>
-                          <div className={css.metaK}>{t('shell.contractNotChange')}</div>
-                          <div className={css.metaV}>{detailContract.notChange.join('；') || '—'}</div>
-                        </div>
-                        <div className={css.meta}>
-                          <div className={css.metaK}>{t('shell.contractAcceptance')}</div>
-                          <div className={css.metaV}>{detailContract.acceptance.join('；')}</div>
-                        </div>
-                        <div className={css.meta}>
-                          <div className={css.metaK}>{t('shell.contractFailIf')}</div>
-                          <div className={css.metaV}>{detailContract.failIf.join('；') || '—'}</div>
-                        </div>
-                      </div>
-                      <p className={css.secretRef}>
-                        {detailContract.signedBy === 'human'
-                          ? `${t('shell.signedAt')} ${detailContract.signedAt ?? '—'}`
-                          : detailContract.signedBy === 'agent'
-                            ? t('shell.signedByAgent')
-                            : t('shell.unsigned')}
-                      </p>
-                      {detailContract.signedBy !== 'human' || detail.state !== 'drafting' ? null : (
-                        <button
-                          type="button"
-                          className={css.primaryBtn}
-                          disabled={advancing || advanceContract === undefined || !hasSession}
-                          onClick={() => { void advanceSelected() }}
-                        >
-                          {advancing ? t('shell.advancing') : t('shell.advanceContracted')}
-                        </button>
-                      )}
-                      {advanceResult === null ? null : (
-                        <p className={advanceResult.ok ? css.secretRef : css.problem}>{advanceResult.text}</p>
-                      )}
-                      {detailContract.signedBy === 'human' ? null : (
-                        <button
-                          type="button"
-                          className={css.primaryBtn}
-                          disabled={signing || signContract === undefined || !hasSession}
-                          onClick={() => { void signSelected() }}
-                        >
-                          {signing ? t('shell.signing') : t('shell.sign')}
-                        </button>
-                      )}
-                      {signResult === null ? null : (
-                        <p className={signResult.ok ? css.secretRef : css.problem}>{signResult.text}</p>
-                      )}
-                    </>
-                  )}
-                </div>
-                {detail.proposal === undefined ? null : (
-                  <div className={css.field}>
-                    <label>{t('shell.proposal')} <span className={css.labelHint}>{detail.proposal}</span></label>
-                    {detailProposal === undefined ? (
-                      <p className={css.problem}>{t('shell.proposalMissing')}</p>
-                    ) : (
-                      <>
-                        <div className={css.meta}>
-                          <div className={css.metaK}>{t('shell.proposalProblem')}</div>
-                          <div className={css.metaV}>{detailProposal.problem}</div>
-                          <div className={css.metaK}>{t('shell.proposalOptions')}</div>
-                          <div className={css.metaV}>
-                            {detailProposal.options.map(option => `${option.name}：${option.summary}（${option.cost}）`).join('；')}
-                          </div>
-                          <div className={css.metaK}>{t('shell.proposalRecommendation')}</div>
-                          <div className={css.metaV}>{detailProposal.recommendation}</div>
-                        </div>
-                        <p className={css.secretRef}>
-                          {t(PROPOSAL_DECISION[detailProposal.decision])}
-                          {detailProposal.decidedAt === null ? '' : ` ${detailProposal.decidedAt}`}
-                        </p>
-                        {detailProposal.decision === 'draft' && approveProposal !== undefined && hasSession ? (
-                          <button type="button" className={css.primaryBtn} disabled={approving} onClick={() => { void approveSelected() }}>
-                            {approving ? t('shell.approving') : t('shell.approveProposal')}
-                          </button>
-                        ) : null}
-                        {approveResult === null ? null : (
-                          <p className={approveResult.ok ? css.secretRef : css.problem}>{approveResult.text}</p>
-                        )}
-                      </>
                     )}
-                  </div>
+                    {signResult === null ? null : (
+                      <p className={signResult.ok ? css.secretRef : css.problem}>{signResult.text}</p>
+                    )}
+                  </>
                 )}
-                {/* 「打开对话」没打开浮层时，原因就地显示在这里——浮层本身还没被切出来。 */}
-                {chatError === null ? null : <p className={css.problem}>{chatError}</p>}
               </div>
-              <div className={css.modalFoot}>
-                <div className={css.spacer} />
-                <button type="button" className={css.secondaryBtn} onClick={() => { setDetail(null) }}>{t('shell.cancel')}</button>
-                <button
-                  type="button"
-                  className={css.primaryBtn}
-                  disabled={modelBlocked || claiming}
-                  title={modelBlocked ? t('shell.noModels') : undefined}
-                  onClick={() => { startConversation(detail) }}
-                >
-                  {conversationLabel(detail)}
-                </button>
-              </div>
+              {/* 「打开对话」没打开浮层时，原因就地显示在这里——浮层本身还没被切出来。 */}
+              {chatError === null ? null : <p className={css.problem}>{chatError}</p>}
             </div>
-          )}
+            <div className={css.modalFoot}>
+              <div className={css.spacer} />
+              <button type="button" className={css.secondaryBtn} onClick={() => { setDetail(null) }}>{t('shell.cancel')}</button>
+              <button
+                type="button"
+                className={css.primaryBtn}
+                disabled={modelBlocked || claiming}
+                title={modelBlocked ? t('shell.noModels') : undefined}
+                onClick={() => { startConversation(detail) }}
+              >
+                {conversationLabel(detail)}
+              </button>
+            </div>
+          </div>
         </div>
       ) : null}
 
@@ -4898,7 +5018,7 @@ export function Shell({
           selectedModel={intakeModelSelected}
           modelBlocked={modelBlocked}
           sending={wizardSending}
-          proposal={wizardProposal ?? null}
+          requirement={wizardRequirement ?? null}
           result={wizardResultView}
           summary={wizardOutput.summary}
           confirmed={wizardConfirmed}
@@ -4909,7 +5029,7 @@ export function Shell({
           running={wizardRunFact}
           approving={wizardApproving}
           approveResult={wizardApproveResult}
-          canApprove={approveProposal !== undefined && sessionId !== undefined}
+          canApprove={approveRequirement !== undefined && sessionId !== undefined}
           restartBusy={restarting}
           discussing={wizardDiscussing}
           onCancel={closeIntakeWizard}
@@ -4917,7 +5037,7 @@ export function Shell({
           onSelectModel={setWizardModelChoice}
           onLoadModels={loadIntakeModels}
           onOpenSettings={() => { setSettings(true) }}
-          onApprove={approveWizardProposal}
+          onApprove={approveWizardRequirement}
           onConfirmNeed={confirmIntakeRequirement}
           onRetry={retryIntakeRequirement}
           onOpenBoard={openBoardFromWizard}

@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ShellMessage } from '../src/client/shell/shell-data.ts'
 import {
-  DISCUSSION_SESSION_PRESETS, groupDiscussionHistory, isDiscussionPreset, mentionsProposal,
+  DISCUSSION_SESSION_PRESETS, groupDiscussionHistory, isDiscussionPreset, mentionsRequirement,
   parseMeetingRole, readDiscussionHistory, roleOfPreset, selectDiscussionHistory, statementsOf,
 } from '../src/client/shell/discussion-history.ts'
 import type { DiscussionHistoryCandidate } from '../src/client/shell/discussion-history.ts'
@@ -25,9 +25,9 @@ function assistant(text: string): ShellMessage {
 
 describe('方案编号与角色识别', () => {
   it('方案编号按边界匹配，P-01 不命中 P-010', () => {
-    expect(mentionsProposal([meetingPrompt('项目经理', 'pm')], 'P-01')).toBe(true)
-    expect(mentionsProposal([assistant('见 .spec/requirements/P-010.md')], 'P-01')).toBe(false)
-    expect(mentionsProposal([assistant('需求 P-2 已拆')], 'P-01')).toBe(false)
+    expect(mentionsRequirement([meetingPrompt('项目经理', 'pm')], 'P-01')).toBe(true)
+    expect(mentionsRequirement([assistant('见 .spec/requirements/P-010.md')], 'P-01')).toBe(false)
+    expect(mentionsRequirement([assistant('需求 P-2 已拆')], 'P-01')).toBe(false)
   })
 
   it('从会议指令里读回身份标记；读不到时返回 null', () => {

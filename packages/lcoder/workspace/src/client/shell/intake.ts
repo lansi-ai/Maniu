@@ -1,13 +1,12 @@
 /**
  * 立项会话的识别、重开与结果页取数。
  *
- * 立项分析跑完以后，方案与任务都落在 `.spec`，会话本身留作回看；「重新开始」只是
- * 新建一条会话并重发同一档咒语，不碰任何已落盘内容。本模块只做纯判断与一次
+ * 立项分析跑完以后，需求落在 `.spec/requirements/`，会话本身留作回看；「重新开始」
+ * 只是新建一条会话并重发同一档咒语，不碰任何已落盘内容。本模块只做纯判断与一次
  * 建会话加发送的组合，UI 负责把结果画出来。
  */
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import type { ProposalRow } from '../projection.ts'
-import type { LcoderWorkspaceKey } from '../locales.ts'
+import type { RequirementDocRow } from '../projection.ts'
 import type { ShellMessage, ShellProjectInfo } from './shell-data.ts'
 import {
   buildIntakePrompt, buildOnboardingPrompt, INTAKE_PROMPT_HEAD, ONBOARDING_PROMPT_HEAD,
@@ -32,14 +31,6 @@ export function intakeTierOfMessages(messages: readonly ShellMessage[]): IntakeT
     if (message.text.startsWith(ONBOARDING_PROMPT_HEAD)) return 'docs'
   }
   return null
-}
-
-/** 方案决定态的文案键；`unknown` 表示文件里写着认识不了的值。 */
-export const PROPOSAL_DECISION: Record<ProposalRow['decision'], LcoderWorkspaceKey> = {
-  draft: 'shell.proposalDraft',
-  approved: 'shell.proposalApproved',
-  rejected: 'shell.proposalRejected',
-  unknown: 'shell.proposalDecisionUnknown',
 }
 
 /** 「重新开始」确认框要列的已有产物。 */
@@ -72,20 +63,20 @@ export function intakeArtifactsOf(input: {
   }
 }
 
-/** 方案编号里的数字；认不出编号时按 -1 排，不跟真实编号抢「最新」。 */
-function proposalRank(id: string): number {
-  const matched = /^P-(\d+)$/i.exec(id)
+/** 需求编号里的数字；认不出编号时按 -1 排，不与真实编号抢「最新」。 */
+function requirementRank(id: string): number {
+  const matched = /^REQ-(\d+)$/i.exec(id)
   return matched === null ? -1 : Number.parseInt(matched[1] ?? '', 10)
 }
 
 /**
- * 编号最大的方案；结果页默认展示它。
- * @param proposals - 读到的方案行。
- * @returns 编号最大的那份；没有方案时为 undefined。
+ * 编号最大的需求；向导结果卡与结果页默认展示它。
+ * @param requirements - 读到的需求行。
+ * @returns 编号最大的那条；没有需求时为 undefined。
  */
-export function latestProposal(proposals: readonly ProposalRow[]): ProposalRow | undefined {
-  return proposals.reduce<ProposalRow | undefined>(
-    (latest, row) => latest === undefined || proposalRank(row.id) > proposalRank(latest.id) ? row : latest,
+export function latestRequirement(requirements: readonly RequirementDocRow[]): RequirementDocRow | undefined {
+  return requirements.reduce<RequirementDocRow | undefined>(
+    (latest, row) => latest === undefined || requirementRank(row.id) > requirementRank(latest.id) ? row : latest,
     undefined,
   )
 }

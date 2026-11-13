@@ -2,7 +2,7 @@
  * 「全新项目」的需求分析师向导：首页、提问层、思考提示与结果卡。
  *
  * 组件只画传入的阶段与事实：阶段由 {@link intakeWizardPhase} 从会话事实算出，
- * 提问卡的结算仍交给上游 `pending.answer()`，采纳方案仍由外壳派 `/proposal_approve`。
+ * 提问卡的结算仍交给上游 `pending.answer()`，确认需求仍由外壳派 `/requirement_approve`。
  * 右栏活动区只在提问与结果阶段挂载；思考阶段把它收进左栏，弹窗同时收敛成单栏。
  * 思考与结束状态并进分析师头行，不再单独立一块面板。
  * 这里不新建会话、不发提示、也不记阶段。
@@ -11,12 +11,12 @@ import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { MarkdownText } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
-import type { ProposalRow } from '../projection.ts'
+import type { RequirementDocRow } from '../projection.ts'
+import { REQUIREMENT_PROGRESS_LABEL } from './requirement-page.ts'
 import type { ShellProcessItem, ShellSignResult, ShellTask } from './shell-data.ts'
 import type { ShellSessionNotice } from '../model-status.ts'
 import type { ShellQuestionPending } from './pending.ts'
 import type { IntakeModelOption, IntakeResultView, IntakeWizardPhase } from './intake-wizard.ts'
-import { PROPOSAL_DECISION } from './intake.ts'
 import { cloudErrorKey } from '../cloud/errors.ts'
 import { ProcessList, QuestionCard, useMarkdownLabels } from './ChatPanel.tsx'
 import bullMark from '../assets/bull-mark.png'
@@ -45,9 +45,9 @@ export interface IntakeWizardProps {
   readonly modelBlocked: boolean
   /** 立项咒语发送在途。 */
   readonly sending: boolean
-  /** 结果卡展示的方案；投影还没读到时为 null。 */
-  readonly proposal: ProposalRow | null
-  /** 结果卡画哪一种内容：方案、本轮聊天概要、已确认落盘，或方案还没读出来。 */
+  /** 结果卡展示的需求；投影还没读到时为 null。 */
+  readonly requirement: RequirementDocRow | null
+  /** 结果卡画哪一种内容：需求、本轮聊天概要、已确认落盘，或需求还没读出来。 */
   readonly result: IntakeResultView
   /** 最后一条非空助手答复；只在本轮没有方案时当概要展示。 */
   readonly summary: string | null
@@ -59,7 +59,7 @@ export interface IntakeWizardProps {
   readonly landed: boolean
   /** 向导会话最近一次失败；确认轮失败时用来显示原因。 */
   readonly notice: ShellSessionNotice | null
-  /** 投影里的全部任务；结果卡按 `proposal` 回指过滤出本轮草案。 */
+  /** 投影里的全部任务；结果卡按 `requirement` 回指过滤出本轮草案。 */
   readonly tasks: readonly ShellTask[]
   /** 界面展示的这一轮是否还在跑；已含结束态沉降窗口，据此决定 loading 转不转、给不给重开入口。 */
   readonly running: boolean
@@ -95,7 +95,7 @@ export interface IntakeWizardProps {
  */
 export function IntakeWizard({
   t, phase, error, question, processItems, modelState, models, selectedModel, modelBlocked, sending,
-  proposal, result, summary, confirmed, confirming, landed, notice, tasks, running, approving, approveResult, canApprove,
+  requirement, result, summary, confirmed, confirming, landed, notice, tasks, running, approving, approveResult, canApprove,
   restartBusy, discussing, onCancel, onConfirm, onSelectModel, onLoadModels, onOpenSettings, onApprove, onConfirmNeed, onRetry,
   onOpenBoard, onDiscuss, onRestart,
 }: IntakeWizardProps): ReactNode {
@@ -234,7 +234,7 @@ export function IntakeWizard({
                   <ResultPanel
                     t={t}
                     view={result}
-                    proposal={proposal}
+                    requirement={requirement}
                     summary={summary}
                     confirmed={confirmed}
                     confirming={confirming}
@@ -482,12 +482,12 @@ function ThinkingStatus({
  * 采纳与确认失败的原文都就地显示，卡片保持打开。
  */
 function ResultPanel({
-  t, view, proposal, summary, confirmed, confirming, landed, notice, tasks, error, approving, approveResult, canApprove,
+  t, view, requirement, summary, confirmed, confirming, landed, notice, tasks, error, approving, approveResult, canApprove,
   restartBusy, discussing, onApprove, onConfirmNeed, onRetry, onOpenBoard, onDiscuss, onRestart,
 }: {
   readonly t: Translate
   readonly view: IntakeResultView
-  readonly proposal: ProposalRow | null
+  readonly requirement: RequirementDocRow | null
   readonly summary: string | null
   readonly confirmed: boolean
   readonly confirming: boolean
@@ -530,17 +530,17 @@ function ResultPanel({
       document.removeEventListener('keydown', closeOnEscape)
     }
   }, [menuOpen])
-  const draftTasks = proposal === null ? [] : tasks.filter(task => task.proposal === proposal.id)
-  const showProposal = view === 'proposal' && proposal !== null
+  const draftTasks = requirement === null ? [] : tasks.filter(task => task.requirement === requirement.id)
+  const showRequirement = view === 'requirement' && requirement !== null
   const primaryDisabled = view === 'confirmed'
     ? false
-    : view === 'proposal'
-      ? proposal === null || approving || !canApprove
+    : view === 'requirement'
+      ? requirement === null || approving || !canApprove
       : view === 'summary'
         ? confirming || (confirmed && landed)
         : confirmed && !landed ? confirming : true
   const retryNeeded = confirmed && !landed && view !== 'confirmed'
-  const primaryLabel = view === 'proposal'
+  const primaryLabel = view === 'requirement'
     ? (approving ? t('shell.approving') : t('shell.confirmRequirement'))
     : view === 'summary'
       ? (confirming
@@ -557,22 +557,23 @@ function ResultPanel({
             : view === 'confirmed' ? t('shell.wizardConfirmedHint') : t('shell.wizardResultHint')}
         </p>
       </div>
-      {showProposal ? (
+      {showRequirement ? (
         <div className={css.wizardResultFields}>
-          <b className={css.wizardResultName}>{proposal.title}</b>
-          <div className={css.wizardResultField}>
-            <span className={css.wizardResultKey}>{t('shell.proposalProblem')}</span>
-            <span className={css.wizardResultValue}>{proposal.problem}</span>
-          </div>
-          {proposal.options.length === 0 ? null : (
+          <b className={css.wizardResultName}>{requirement.title ?? t('shell.requirementUntitled')}</b>
+          {requirement.text.trim() === '' ? null : (
+            <div className={css.wizardRequirementBody} data-wizard-requirement-body>
+              <MarkdownText text={requirement.text} labels={labels} />
+            </div>
+          )}
+          {requirement.options.length === 0 ? null : (
             <div className={css.wizardResultField}>
               <span className={css.wizardResultKey}>{t('shell.proposalOptions')}</span>
               <div className={css.wizardResultOptions}>
-                {proposal.options.map(option => (
+                {requirement.options.map(option => (
                   <div key={`${option.name}-${option.summary}`} className={css.wizardResultOption}>
                     <div className={css.wizardResultOptionHead}>
                       <span className={css.wizardResultOptionName}>{option.name}</span>
-                      {option.cost === '' ? null : <span className={css.wizardResultOptionCost}>{option.cost}</span>}
+                      {option.cost === undefined || option.cost === '' ? null : <span className={css.wizardResultOptionCost}>{option.cost}</span>}
                     </div>
                     {option.summary === '' ? null : <span className={css.wizardResultOptionSummary}>{option.summary}</span>}
                   </div>
@@ -581,14 +582,23 @@ function ResultPanel({
             </div>
           )}
           <div className={css.wizardResultField}>
-            <span className={css.wizardResultKey}>{t('shell.proposalRecommendation')}</span>
-            <span className={css.wizardResultValue}>{proposal.recommendation}</span>
+            <span className={css.wizardResultKey}>{t('shell.requirementRecommendation')}</span>
+            <span className={css.wizardResultValue}>
+              {requirement.recommendation === undefined || requirement.recommendation === ''
+                ? t('shell.resultNoRecommendation')
+                : requirement.recommendation}
+            </span>
           </div>
           <div className={css.wizardResultField}>
-            <span className={css.wizardResultKey}>{t('shell.resultDecision')}</span>
+            <span className={css.wizardResultKey}>{t('shell.requirementState')}</span>
             <span className={css.wizardResultValue}>
-              {t(PROPOSAL_DECISION[proposal.decision])}
-              {proposal.decidedAt === null ? '' : ` · ${proposal.decidedAt}`}
+              {t(requirement.state === 'confirmed' || requirement.state === 'released' || requirement.state === 'closed'
+                ? requirement.state === 'confirmed'
+                  ? REQUIREMENT_PROGRESS_LABEL.confirmed
+                  : requirement.state === 'released'
+                    ? REQUIREMENT_PROGRESS_LABEL.released
+                    : REQUIREMENT_PROGRESS_LABEL.cancelled
+                : REQUIREMENT_PROGRESS_LABEL.pending)}
             </span>
           </div>
           <div className={css.wizardResultField}>
@@ -636,7 +646,7 @@ function ResultPanel({
             className={css.primaryBtn}
             data-wizard-approve
             disabled={primaryDisabled}
-            onClick={view === 'proposal' ? onApprove : retryNeeded ? onRetry : onConfirmNeed}
+            onClick={view === 'requirement' ? onApprove : retryNeeded ? onRetry : onConfirmNeed}
           >
             {primaryLabel}
           </button>

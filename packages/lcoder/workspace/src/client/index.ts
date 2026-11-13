@@ -401,9 +401,15 @@ export async function apply(ctx: ClientContext, config: Config = {}): Promise<vo
     /** 人确认契约已签，把任务从起草推到已签约；只推这一条边，更往后的仍人手写 YAML。 */
     const advanceContract = (sessionId: SessionId, taskId: string): Promise<ShellSignResult> =>
       runHumanCommand(sessionId, `/task_contract ${taskId}`)
-    /** 人拍板采纳某个方案；出方案是模型的工具，批准只在这条命令面上。 */
-    const approveProposal = (sessionId: SessionId, proposalId: string): Promise<ShellSignResult> =>
-      runHumanCommand(sessionId, `/proposal_approve ${proposalId}`)
+    /** 人确认需求；起草由模型做，确认、发布与关闭都只在这条命令面上。 */
+    const approveRequirement = (sessionId: SessionId, requirementId: string): Promise<ShellSignResult> =>
+      runHumanCommand(sessionId, `/requirement_approve ${requirementId}`)
+    /** 人确认需求已上线；命令自己校验关联任务是否全部收口。 */
+    const releaseRequirement = (sessionId: SessionId, requirementId: string): Promise<ShellSignResult> =>
+      runHumanCommand(sessionId, `/requirement_release ${requirementId}`)
+    /** 人取消一条还没上线的需求。 */
+    const closeRequirement = (sessionId: SessionId, requirementId: string): Promise<ShellSignResult> =>
+      runHumanCommand(sessionId, `/requirement_close ${requirementId}`)
     /**
      * 在同一个仓库里新开会话，并按需指名角色。角色必须在首个回合之前定（之后命令面
      * 抛 `agent-preset/locked`），所以只能在创建这一步给。
@@ -547,7 +553,7 @@ export async function apply(ctx: ClientContext, config: Config = {}): Promise<vo
           locale: NS,
           inject: () => ({
             files, readAttachment, openRepository, sendPrompt, uploadAttachment, signContract, bindTask, assignTask,
-            logSchedule, advanceContract, approveProposal,
+            logSchedule, advanceContract, approveRequirement, releaseRequirement, closeRequirement,
             createSession, listRoles, listExperts, readExpert,
             readMessages, readSessionMessages, subscribeSession, holdSession, checkModels, subscribeModels,
             readSessionNotice, readSessionFlags, modelSettings, readDefaultModel,

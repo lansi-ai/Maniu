@@ -2,7 +2,7 @@
  * 讨论历史：把方案讨论会话里的发言按角色分组，供需求卡片的「讨论历史」抽屉展示。
  *
  * 定位会话有两条路：本窗口记下的讨论会话号优先；重启后没有记录时，只认带参会身份
- * 标记、且消息里出现方案编号（P-xx）的同项目会话。两条都找不到就如实说定位不到，
+ * 标记、且消息里出现需求编号（REQ-xx）的同项目会话。两条都找不到就如实说定位不到，
  * 不拿别的需求的会话顶上。这里只做纯函数，不读宿主状态，便于单测。
  */
 import type { ShellMessage } from './shell-data.ts'
@@ -76,16 +76,16 @@ export function statementsOf(messages: readonly ShellMessage[]): readonly string
 }
 
 /**
- * 消息里是否提到这个方案编号。
+ * 消息里是否提到这个需求编号。
  *
- * 用编号边界而不是简单包含：P-01 不能命中 P-010。讨论提示词里总带着
- * `.spec/requirements/P-xx.md`，所以这条判据在重启后仍可用。
+ * 用编号边界而不是简单包含：REQ-01 不能命中 REQ-010。讨论提示词里总带着
+ * `.spec/requirements/REQ-xx.md`，所以这条判据在重启后仍可用。
  * @param messages - 候选会话的消息。
- * @param proposal - 方案编号，如 P-01。
+ * @param requirement - 需求编号，如 REQ-01。
  * @returns 至少一条消息提到它时为 true。
  */
-export function mentionsProposal(messages: readonly ShellMessage[], proposal: string): boolean {
-  const escaped = proposal.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')
+export function mentionsRequirement(messages: readonly ShellMessage[], requirement: string): boolean {
+  const escaped = requirement.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')
   const pattern = new RegExp(`(?:^|[^A-Za-z0-9-])${escaped}(?![0-9])`, 'u')
   return textsOf(messages).some(text => pattern.test(text))
 }
@@ -132,19 +132,19 @@ export function roleOfPreset(preset: string | undefined): { readonly roleId: str
  * 读不到标记时仍可按 preset 兜底。没提到方案的会话一律不进结果——宁可显示
  * 「定位不到」，也不混进别的需求。
  * @param candidates - 候选会话，按建议顺序排列。
- * @param proposal - 方案编号。
+ * @param requirement - 需求编号。
  * @returns 命中的发言轮次与是否找到任何候选会话。
  */
 export function selectDiscussionHistory(
   candidates: readonly DiscussionHistoryCandidate[],
-  proposal: string,
+  requirement: string,
 ): DiscussionHistorySelection {
   const rounds: DiscussionHistoryRound[] = []
   let found = false
   for (const candidate of candidates) {
     const marker = parseMeetingRole(candidate.messages)
     if (!candidate.recorded && marker === null) continue
-    if (!mentionsProposal(candidate.messages, proposal)) continue
+    if (!mentionsRequirement(candidate.messages, requirement)) continue
     found = true
     const role = marker ?? roleOfPreset(candidate.preset)
     if (role === undefined) continue
@@ -191,13 +191,13 @@ export type DiscussionHistoryReader = (sessionId: string) => Promise<readonly Sh
  * 只计一条 `unreadable`，不抛到界面；全部没有命中时由调用方按 `unreadable > 0`
  * 区分「读取失败」与「定位不到」。
  * @param sessions - 候选会话，已按优先顺序去重。
- * @param proposal - 方案编号。
+ * @param requirement - 需求编号。
  * @param read - 异步读取端口；返回 null 表示这条会话暂时读不出来。
  * @returns 选择结果与读不出来的条数。
  */
 export async function readDiscussionHistory(
   sessions: readonly DiscussionHistorySession[],
-  proposal: string,
+  requirement: string,
   read: DiscussionHistoryReader,
 ): Promise<DiscussionHistoryRead> {
   const candidates: DiscussionHistoryCandidate[] = []
@@ -222,7 +222,7 @@ export async function readDiscussionHistory(
       messages,
     })
   }
-  return { selection: selectDiscussionHistory(candidates, proposal), unreadable }
+  return { selection: selectDiscussionHistory(candidates, requirement), unreadable }
 }
 
 /**

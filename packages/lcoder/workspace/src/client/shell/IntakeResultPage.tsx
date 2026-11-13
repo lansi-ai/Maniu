@@ -1,17 +1,20 @@
 /**
- * 立项结果页：立项分析落在 `.spec` 里的方案、任务与项目信息。
+ * 立项结果页：立项分析落在 `.spec` 里的需求、任务与项目信息。
  *
- * 这是一张独立页，不是弹窗——看板选中它以后整块让位，页头只留「返回看板」与
- * 「重新开始」。方案默认展示编号最大的那份，其余可切换；任务按文件事实全量列出，
- * 指回当前方案的标注出来，缺 `proposal` 字段的任务不因此被藏掉。
+ * 这是一张独立页，不是弹窗——工作台选中它以后整块让位，页头只留「返回」与
+ * 「重新开始」。需求默认展示编号最大的那条，其余可切换；任务按文件事实全量列出，
+ * 回指当前需求的任务标注出来，缺 `requirement` 的旧任务不因此被藏掉。
  */
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
-import type { ProposalRow } from '../projection.ts'
+import type { RequirementDocRow } from '../projection.ts'
+import { MarkdownText } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ShellProjectInfo, ShellTask } from './shell-data.ts'
 import { SHELL_STATES } from './shell-data.ts'
-import { latestProposal, PROPOSAL_DECISION } from './intake.ts'
+import { latestRequirement } from './intake.ts'
+import { REQUIREMENT_PROGRESS_LABEL } from './requirement-page.ts'
+import { useMarkdownLabels } from './ChatPanel.tsx'
 import type { IntakeArtifacts } from './intake.ts'
 import css from './Shell.module.css'
 
@@ -21,7 +24,7 @@ type Translate = PropsLocale<'lcoderWorkspace'>['t']
 /** 结果页的动作：返回看板、重新开始、走两档立项入口。 */
 export interface IntakeResultPageProps {
   readonly t: Translate
-  readonly proposals: readonly ProposalRow[]
+  readonly requirements: readonly RequirementDocRow[]
   readonly tasks: readonly ShellTask[]
   readonly info: ShellProjectInfo | null
   readonly problems: readonly string[]
@@ -33,6 +36,20 @@ export interface IntakeResultPageProps {
   readonly onStartOnboarding: (kind: 'new' | 'docs') => void
 }
 
+/** 需求 YAML 的四态折到九态词典里最接近的一格；旧流程纯文档需求按待确认显示。 */
+function requirementStateLabel(row: RequirementDocRow, t: Translate): string {
+  switch (row.state) {
+    case 'confirmed':
+      return t(REQUIREMENT_PROGRESS_LABEL.confirmed)
+    case 'released':
+      return t(REQUIREMENT_PROGRESS_LABEL.released)
+    case 'closed':
+      return t(REQUIREMENT_PROGRESS_LABEL.cancelled)
+    default:
+      return t(REQUIREMENT_PROGRESS_LABEL.pending)
+  }
+}
+
 /** 任务状态的中文/英文标签；越出五态时原样显示文件里的值。 */
 function stateLabel(task: ShellTask, t: Translate): string {
   const state = SHELL_STATES.find(row => row.id === task.state)
@@ -42,13 +59,14 @@ function stateLabel(task: ShellTask, t: Translate): string {
 /**
  * 画一张独立的结果页。
  * @param props - 投影结果、项目信息与页面动作。
- * @returns 结果页；没有方案时按空态或投影问题渲染。
+ * @returns 结果页；没有需求时按空态或投影问题渲染。
  */
 export function IntakeResultPage({
-  t, proposals, tasks, info, problems, modelBlocked, canRestart, onBack, onRestart, onStartOnboarding,
+  t, requirements, tasks, info, problems, modelBlocked, canRestart, onBack, onRestart, onStartOnboarding,
 }: IntakeResultPageProps): ReactNode {
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const selected = proposals.find(row => row.id === selectedId) ?? latestProposal(proposals)
+  const labels = useMarkdownLabels(t)
+  const selected = requirements.find(row => row.id === selectedId) ?? latestRequirement(requirements)
 
   return (
     <div className={css.intakePage} data-lcoder-intake-result>
@@ -71,12 +89,12 @@ export function IntakeResultPage({
         </button>
       </div>
 
-      {proposals.length === 0
+      {requirements.length === 0
         ? (problems.length === 0
           ? (
             <section className={css.intakeSection}>
-              <h3>{t('shell.resultNoProposal')}</h3>
-              <p className={css.intakeMuted}>{t('shell.resultNoProposalHint')}</p>
+              <h3>{t('shell.resultNoRequirement')}</h3>
+              <p className={css.intakeMuted}>{t('shell.resultNoRequirementHint')}</p>
               <div className={css.onboardingBar}>
                 <button
                   type="button"
@@ -101,7 +119,7 @@ export function IntakeResultPage({
           )
           : (
             <section className={css.intakeSection}>
-              <h3>{t('shell.resultProposalReadFailed')}</h3>
+              <h3>{t('shell.resultRequirementReadFailed')}</h3>
               {problems.map(problem => <p key={problem} className={css.problem}>{problem}</p>)}
             </section>
           ))
@@ -111,14 +129,14 @@ export function IntakeResultPage({
             <>
               <section className={css.intakeSection}>
                 <div className={css.intakeProposalBar}>
-                  {proposals.map((row) => {
+                  {requirements.map((row) => {
                     const active = row.id === selected.id
                     return (
                       <button
                         type="button"
                         key={row.id}
                         className={`${css.filterChip} ${active ? css.filterChipActive : ''}`}
-                        data-intake-proposal={row.id}
+                        data-intake-requirement={row.id}
                         aria-pressed={active}
                         onClick={() => { setSelectedId(row.id) }}
                       >
@@ -127,14 +145,24 @@ export function IntakeResultPage({
                     )
                   })}
                   <span className={css.intakeMuted}>
-                    {t('shell.resultProposalCount', { count: proposals.length })}
+                    {t('shell.resultRequirementCount', { count: requirements.length })}
                   </span>
                 </div>
-                <h3 className={css.intakeTitle} data-intake-proposal-title>{selected.title}</h3>
-                <div className={css.intakeField}>
-                  <span className={css.intakeFieldK}>{t('shell.proposalProblem')}</span>
-                  <span className={css.intakeFieldV}>{selected.problem}</span>
-                </div>
+                <h3 className={css.intakeTitle} data-intake-requirement-title>
+                  {selected.title ?? t('shell.requirementUntitled')}
+                </h3>
+                {selected.text.trim() === ''
+                  ? (
+                    <div className={css.intakeField}>
+                      <span className={css.intakeFieldK}>{t('shell.requirementContent')}</span>
+                      <span className={css.intakeMuted}>{t('shell.requirementDocumentMissing')}</span>
+                    </div>
+                  )
+                  : (
+                    <div className={css.intakeRequirementBody} data-intake-requirement-body>
+                      <MarkdownText text={selected.text} labels={labels} />
+                    </div>
+                  )}
                 <div className={css.intakeField}>
                   <span className={css.intakeFieldK}>{t('shell.proposalOptions')}</span>
                   {selected.options.length === 0
@@ -145,7 +173,7 @@ export function IntakeResultPage({
                           <div key={`${option.name}-${option.summary}`} className={css.intakeOption}>
                             <div className={css.intakeOptionHead}>
                               <span className={css.intakeOptionName}>{option.name}</span>
-                              {option.cost === '' ? null : <span className={css.intakeOptionCost}>{option.cost}</span>}
+                              {option.cost === undefined || option.cost === '' ? null : <span className={css.intakeOptionCost}>{option.cost}</span>}
                             </div>
                             {option.summary === '' ? null : <span className={css.intakeMuted}>{option.summary}</span>}
                           </div>
@@ -154,15 +182,16 @@ export function IntakeResultPage({
                     )}
                 </div>
                 <div className={css.intakeField}>
-                  <span className={css.intakeFieldK}>{t('shell.proposalRecommendation')}</span>
-                  <span className={css.intakeFieldV}>{selected.recommendation}</span>
+                  <span className={css.intakeFieldK}>{t('shell.requirementRecommendation')}</span>
+                  <span className={css.intakeFieldV}>
+                    {selected.recommendation === undefined || selected.recommendation === ''
+                      ? t('shell.resultNoRecommendation')
+                      : selected.recommendation}
+                  </span>
                 </div>
                 <div className={css.infoRow}>
-                  <span>{t('shell.resultDecision')}</span>
-                  <b>
-                    {t(PROPOSAL_DECISION[selected.decision])}
-                    {selected.decidedAt === null ? '' : ` · ${selected.decidedAt}`}
-                  </b>
+                  <span>{t('shell.requirementState')}</span>
+                  <b>{requirementStateLabel(selected, t)}</b>
                 </div>
               </section>
 
@@ -176,8 +205,8 @@ export function IntakeResultPage({
                         <div key={task.id} className={css.intakeTask} data-intake-task={task.id}>
                           <span className={css.intakeTaskId}>{task.id}</span>
                           <span className={css.intakeTaskTitle}>{task.title}</span>
-                          {task.proposal === selected.id
-                            ? <span className={`${css.tag} ${css.tagOk}`}>{t('shell.resultTaskOfProposal')}</span>
+                          {task.requirement === selected.id
+                            ? <span className={`${css.tag} ${css.tagOk}`}>{t('shell.resultTaskOfRequirement')}</span>
                             : null}
                           <span className={css.tag}>{stateLabel(task, t)}</span>
                         </div>

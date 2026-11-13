@@ -16,7 +16,7 @@ import type { ShellSessionNotice } from '../model-status.ts'
 import type { TrackDescriptor } from '@lcoder/kernel/src/schema/tracks.ts'
 import type { ShellMessage, ShellTask } from './shell-data.ts'
 import { boundRequirementText, buildRequirementSplitPrompt } from './requirement.ts'
-import type { RequirementSplitSource } from './requirement.ts'
+import type { RequirementRef, RequirementSplitSource } from './requirement.ts'
 import { lastAssistantText, waitForTurn } from './session-turn.ts'
 
 export { lastAssistantText }
@@ -28,53 +28,57 @@ export const REQUIREMENT_SPLIT_TIMEOUT_MS = 180_000
 /** 轮询间隔：只看会话与投影事实，不靠 React 重渲染。 */
 export const REQUIREMENT_SPLIT_POLL_MS = 1_000
 
+/** 任务是否回指这条需求；新流程读 `requirement`，旧任务只有 `proposal`。 */
+function belongsTo(task: ShellTask, requirement: string): boolean {
+  return task.requirement === requirement
+    || (task.requirement === undefined && task.proposal === requirement)
+}
+
 /**
- * 同一需求方案下、除需求本体以外的全部拆分任务，不限状态。
+ * 同一需求下的全部拆分任务，不限状态。
  *
- * 这是「已经拆过」的持久判据：即使这批任务已经进了待开发，重开卡片也能读回来，
+ * 这是「已经拆过」的持久判据：即使这批任务已经进了待开发，重开详情也能读回来，
  * 不会把同一条需求再拆一遍。
  * @param tasks - 当前投影里的任务。
- * @param requirement - 被拆分的需求任务。
- * @returns 同方案、非本体的任务，保持投影顺序；方案缺失时为空。
+ * @param requirementId - 被拆分的需求编号。
+ * @returns 回指该需求的任务，保持投影顺序。
  */
 export function splitTasksOf(
   tasks: readonly ShellTask[],
-  requirement: ShellTask,
+  requirementId: string,
 ): readonly ShellTask[] {
-  if (requirement.proposal === undefined) return []
-  return tasks.filter(task => task.id !== requirement.id && task.proposal === requirement.proposal)
+  return tasks.filter(task => task.id !== requirementId && belongsTo(task, requirementId))
 }
 
 /**
- * 需求方案下仍为 drafting 的拆分任务。
+ * 需求下仍为 drafting 的拆分任务。
  *
  * 重试只看这一批：已进待开发或更后状态的由 {@link splitTasksOf} 兜住，不再进流程。
  * @param tasks - 当前投影里的任务。
- * @param requirement - 被拆分的需求任务。
- * @returns 同方案、非本体的 drafting 任务，保持投影顺序。
+ * @param requirementId - 被拆分的需求编号。
+ * @returns 回指该需求的 drafting 任务，保持投影顺序。
  */
 export function existingSplitTasks(
   tasks: readonly ShellTask[],
-  requirement: ShellTask,
+  requirementId: string,
 ): readonly ShellTask[] {
-  return splitTasksOf(tasks, requirement).filter(task => task.state === 'drafting')
+  return splitTasksOf(tasks, requirementId).filter(task => task.state === 'drafting')
 }
 
 /**
- * 拆分后新增的 drafting 任务：同方案、拆分前不存在。
+ * 拆分后新增的 drafting 任务：回指该需求且拆分前不存在。
  * @param beforeIds - 拆分前投影里的全部任务编号。
  * @param after - 拆分后重读的任务。
- * @param proposal - 需求回指的方案编号。
- * @returns 新任务，保持投影顺序；方案缺失时为空。
+ * @param requirementId - 需求编号。
+ * @returns 新任务，保持投影顺序。
  */
 export function newDraftingTasks(
   beforeIds: readonly string[],
   after: readonly ShellTask[],
-  proposal: string | undefined,
+  requirementId: string,
 ): readonly ShellTask[] {
-  if (proposal === undefined) return []
   const before = new Set(beforeIds)
-  return after.filter(task => !before.has(task.id) && task.proposal === proposal && task.state === 'drafting')
+  return after.filter(task => !before.has(task.id) && belongsTo(task, requirementId) && task.state === 'drafting')
 }
 
 /** 一条轨上拆出的任务数。 */
@@ -125,18 +129,18 @@ export function summarizeSplit(tasks: readonly ShellTask[]): RequirementSplitSum
  * drafting 任务、不改需求与方案、不开始实现，并要求先调研仓库现状：
  * 空仓时第一条必须是「项目基础框架与脚手架」，所有功能任务依赖它；已有框架只补缺口。
  * 每条任务必须标一条轨；分配留给实施阶段的人。
- * @param task - 被拆分的需求任务。
- * @param source - 卡片读到的完整需求文档。
+ * @param requirement - 被拆分的需求：REQ 编号与标题。
+ * @param source - 详情读到的完整需求文档。
  * @param tracks - 这次可用的轨；缺省为内置六轨。
  * @returns 中文指令正文。
  */
 export function buildPmSplitPrompt(
-  task: ShellTask,
+  requirement: RequirementRef,
   source: RequirementSplitSource,
   tracks?: readonly TrackDescriptor[],
 ): string {
   return [
-    buildRequirementSplitPrompt(task, source, tracks),
+    buildRequirementSplitPrompt(requirement, source, tracks),
     '',
     '执行身份：你是这条需求的项目经理，负责把已确认的需求拆成开发任务。',
     '- 用户已在界面上确认这份需求并亲自点击「拆分任务」，这就是明确的拆分授权；不要再要求批准方案或重复追问。',
@@ -201,7 +205,7 @@ export type RequirementSplitOutcome =
 
 /** 流程输入：需求、可用轨与拆前快照。 */
 export interface RequirementSplitPlan {
-  readonly task: ShellTask
+  readonly requirement: RequirementRef
   readonly source: RequirementSplitSource
   /** 这次可用的轨：内置六轨加项目追加轨。 */
   readonly tracks: readonly TrackDescriptor[]
@@ -293,7 +297,7 @@ export async function runRequirementSplit(
         return failure('create', [], String(error))
       }
       try {
-        await ports.sendPrompt(pmSession, buildPmSplitPrompt(plan.task, plan.source, plan.tracks))
+        await ports.sendPrompt(pmSession, buildPmSplitPrompt(plan.requirement, plan.source, plan.tracks))
       } catch (error: unknown) {
         return failure('send', [], String(error))
       }
@@ -308,7 +312,7 @@ export async function runRequirementSplit(
       if (waited.kind === 'timeout') return failure('timeout', [])
       if (waited.kind === 'failed') return failure('session-failed', [], waited.detail)
       const after = await ports.loadTasks()
-      newTasks = newDraftingTasks(plan.beforeTaskIds, after, plan.task.proposal)
+      newTasks = newDraftingTasks(plan.beforeTaskIds, after, plan.requirement.id)
       if (newTasks.length === 0) return failure('empty', [])
     }
 

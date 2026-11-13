@@ -324,11 +324,11 @@ export function discussionNeeded(
 }
 
 /**
- * 看板列：需求确认、方案讨论与真实状态。
+ * 看板列：方案讨论与真实状态。
  *
  * drafting 且已标轨（或旧数据已分配岗位）的任务进方案讨论；契约签了也先留在这里，
- * 直到 `task_contract` 把状态推到 contracted。需求本体（既没有轨也没有岗位）留在需求确认。
- * 其它状态原样。
+ * 直到 `task_contract` 把状态推到 contracted。旧需求本体（既没有轨也没有岗位）返回
+ * `drafting`，任务页没有这一列，因此不会画出来。其它状态原样。
  * @param task - 看板任务。
  * @returns 看板列 id。
  */
@@ -338,14 +338,17 @@ export function boardColumnOf(task: ShellTask): ShellBoardColumnId {
 }
 
 /**
- * 同一条需求下仍待在方案讨论的任务：同方案、已标轨或旧数据已分配岗位、仍为 drafting。
+ * 同一条需求下仍待在方案讨论的任务：回指同一需求、已标轨或旧数据已分配岗位、仍为 drafting。
+ *
+ * 需求编号优先读 `requirement`，旧任务退回 `proposal`；两者都没有时为空。
  * @param tasks - 当前投影里的全部任务。
  * @param task - 用户打开的那条任务。
- * @returns 这批任务，按投影顺序；任务没有方案时为空。
+ * @returns 这批任务，按投影顺序。
  */
 export function discussionTasksOf(tasks: readonly ShellTask[], task: ShellTask): readonly ShellTask[] {
-  if (task.proposal === undefined) return []
-  return tasks.filter(row => row.proposal === task.proposal
+  const requirement = task.requirement ?? task.proposal
+  if (requirement === undefined) return []
+  return tasks.filter(row => (row.requirement ?? row.proposal) === requirement
     && row.state === 'drafting'
     && (row.track !== undefined || row.role !== undefined))
 }
@@ -389,10 +392,10 @@ function boundMinutes(text: string): string {
 
 /** 讨论会与起草会共用的输入：需求文档、任务、参与角色与可用轨。 */
 export interface MeetingContext {
-  /** `.spec/requirements/<方案编号>.md` 的完整正文。 */
+  /** `.spec/requirements/<需求编号>.md` 的完整正文。 */
   readonly document: string
-  /** 方案编号；契约与需求文档同号。 */
-  readonly proposal: string
+  /** 需求编号（REQ-xx）；契约与需求文档同号。 */
+  readonly requirement: string
   /** 这批任务。 */
   readonly tasks: readonly ShellTask[]
   /** 本批参与角色，按入会顺序去重。 */
@@ -452,9 +455,9 @@ function dutyLines(role: MeetingRole): readonly string[] {
  */
 export function buildMeetingPrompt(context: MeetingContext, role: MeetingRole): string {
   const excerpt = boundRequirementText(context.document)
-  const path = `.spec/requirements/${context.proposal}.md`
+  const path = `.spec/requirements/${context.requirement}.md`
   return [
-    `方案讨论：需求 ${context.proposal} 已按轨拆分，请参加落地方案讨论。`,
+    `方案讨论：需求 ${context.requirement} 已按轨拆分，请参加落地方案讨论。`,
     `${MEETING_ROLE_MARKER}${role.name}（${role.id}）`,
     '',
     `依据：以末尾附上的《项目需求概要》（${path}）为准；文档里暂不开发的范围不要讨论。`,
@@ -495,9 +498,9 @@ export function buildContractDraftPrompt(
   minutes: readonly { readonly role: string; readonly text: string }[],
 ): string {
   const excerpt = boundRequirementText(context.document)
-  const path = `.spec/requirements/${context.proposal}.md`
+  const path = `.spec/requirements/${context.requirement}.md`
   return [
-    `契约起草：需求 ${context.proposal} 的方案讨论已完成，请逐条任务用 contract_draft 起草契约。`,
+    `契约起草：需求 ${context.requirement} 的方案讨论已完成，请逐条任务用 contract_draft 起草契约。`,
     '',
     `依据：以末尾附上的《项目需求概要》（${path}）与下面的会议记录为准；两者冲突时以需求文档为准。`,
     '',
@@ -585,7 +588,7 @@ export interface PlanDiscussionInput {
   readonly tasks: readonly ShellTask[]
   readonly tracks: readonly TrackDescriptor[]
   readonly document: string
-  readonly proposal: string
+  readonly requirement: string
   readonly timeoutMs?: number
   readonly pollMs?: number
 }
@@ -695,7 +698,7 @@ export async function runPlanDiscussion(
   const allRoles = dedupeRoles(plan.groups.flatMap(group => [...group.roles]))
   const context: MeetingContext = {
     document: input.document,
-    proposal: input.proposal,
+    requirement: input.requirement,
     tasks: input.tasks,
     roles: allRoles,
     tracks: input.tracks,
