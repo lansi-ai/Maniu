@@ -677,4 +677,59 @@ describe('讨论历史抽屉', () => {
     )
     expect(empty.getByText(zh['shell.historyEmpty'])).toBeTruthy()
   })
+
+  it('加载态会落到 ready 或 failed，不空转', () => {
+    const { rerender, getByText, queryByText } = render(
+      <RequirementCard
+        t={t}
+        task={taskOf()}
+        answers={[]}
+        splitting={false}
+        error={null}
+        onClose={vi.fn()}
+        onSplit={vi.fn()}
+        historyOpen
+        history={{ status: 'loading', groups: [] }}
+        onOpenHistory={vi.fn()}
+        onCloseHistory={vi.fn()}
+      />,
+    )
+    expect(getByText(zh['shell.historyLoading'])).toBeTruthy()
+
+    rerender(
+      <RequirementCard
+        t={t}
+        task={taskOf()}
+        answers={[]}
+        splitting={false}
+        error={null}
+        onClose={vi.fn()}
+        onSplit={vi.fn()}
+        historyOpen
+        history={{ status: 'ready', groups: [{ roleId: 'pm', roleName: '项目经理', statements: ['三条任务。'] }] }}
+        onOpenHistory={vi.fn()}
+        onCloseHistory={vi.fn()}
+      />,
+    )
+    expect(queryByText(zh['shell.historyLoading'])).toBeNull()
+    expect(getByText('三条任务。')).toBeTruthy()
+
+    rerender(
+      <RequirementCard
+        t={t}
+        task={taskOf()}
+        answers={[]}
+        splitting={false}
+        error={null}
+        onClose={vi.fn()}
+        onSplit={vi.fn()}
+        historyOpen
+        history={{ status: 'failed', groups: [], error: zh['shell.historyUnavailable'] }}
+        onOpenHistory={vi.fn()}
+        onCloseHistory={vi.fn()}
+      />,
+    )
+    expect(document.querySelector('[data-discussion-history-error]')?.textContent)
+      .toBe(zh['shell.historyUnavailable'])
+  })
 })

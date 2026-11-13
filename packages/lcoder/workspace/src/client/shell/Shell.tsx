@@ -92,9 +92,9 @@ import type {
 import { RequirementCard } from './RequirementCard.tsx'
 import type { DiscussionHistoryView, RequirementSplitFlowView } from './RequirementCard.tsx'
 import {
-  groupDiscussionHistory, isDiscussionPreset, selectDiscussionHistory,
+  groupDiscussionHistory, isDiscussionPreset, readDiscussionHistory,
 } from './discussion-history.ts'
-import type { DiscussionHistoryCandidate } from './discussion-history.ts'
+import type { DiscussionHistorySession } from './discussion-history.ts'
 import { questionOf } from './pending.ts'
 import { ChatAttachButton, ChatAttachmentList, ChatModelChip } from './ChatExtras.tsx'
 import { TaskAttachments } from './TaskAttachments.tsx'
@@ -184,6 +184,11 @@ export type ShellProps =
     readonly readSessionNotice?: (sessionId: SessionId) => ShellSessionNotice | null
     /** 读真实会话的消息窗口。 */
     readonly readMessages?: (sessionId: SessionId) => readonly ShellMessage[]
+    /**
+     * 异步读取一条会话的消息窗口：重启后候选会话需要等宿主打开（ready）才读得到。
+     * 读不出来返回 null；外壳据此区分「读取失败」与「定位不到」。
+     */
+    readonly readSessionMessages?: (sessionId: SessionId) => Promise<readonly ShellMessage[] | null>
     /** 订阅会话事件窗口变化。 */
     readonly subscribeSession?: (sessionId: SessionId, listener: () => void) => () => void
     /** 浮层期间持有会话引用；没人 retain 的会话读不到消息。返回释放函数。 */
@@ -635,7 +640,8 @@ export function Shell({
   approveProposal, bindTask, assignTask, logSchedule,
   readFlowStatus, logFlow, bindAgentSession, renameSession, readContextPressure,
   createSession, listRoles, listExperts, readExpert,
-  readMessages, subscribeSession, holdSession, checkModels, subscribeModels, readSessionNotice, readSessionFlags, modelSettings,
+  readMessages, readSessionMessages, subscribeSession, holdSession, checkModels, subscribeModels,
+  readSessionNotice, readSessionFlags, modelSettings,
   useSessions, useSessionStatus, useWorkspaces, chatSize, cloud,
 }: ShellProps): ReactNode {
   const workspaces = useWorkspaces(state => state.items)
@@ -673,11 +679,13 @@ export function Shell({
   const discussAborts = useRef<Map<string, AbortController>>(new Map())
   /** 用户确认方案后的逐条签署/推进结果；按方案编号留档，失败行留在详情里。 */
   const [confirmResults, setConfirmResults] = useState<Readonly<Record<string, PlanConfirmSummary>>>({})
-  /** 需求卡片的讨论历史抽屉；打开时才读会话，关闭即丢展示结果。 */
+  /** 打开需求卡片的讨论历史。 */
   const [historyOpen, setHistoryOpen] = useState(false)
   const [historyView, setHistoryView] = useState<DiscussionHistoryView>({ status: 'idle', groups: [] })
   /** 本窗口为每个方案建过的讨论会话；重启后为空，按 preset 与方案编号恢复。 */
   const discussionSessions = useRef<Record<string, { readonly role: MeetingRole; readonly sessionId: string }[]>>({})
+  /** 打开历史的请求序号：换任务、关抽屉或再次打开时作废在途读取。 */
+  const historyRequest = useRef(0)
   /** 需求卡片正文：该任务会话里分析师当时输出的《项目需求概要》。 */
   const [requirementDocument, setRequirementDocument] = useState<string | null>(null)
   const [chat, setChat] = useState<ShellTask | null>(null)
@@ -2003,11 +2011,12 @@ export function Shell({
   }
 
   /**
-   * 一键拆分：项目经理拆任务，研发经理定岗位，外壳逐条执行 `/task_assign`。
+   * 一键拆分：项目经理把已确认的需求拆成 drafting 任务并逐条标轨。
    *
    * 以卡片读到的完整需求文档为唯一依据；没有文档就不开任何会话。已经拆过
-   * （`.spec` 里有同方案 drafting 任务）时不再建项目经理会话，只补未分配的岗位，
-   * 所以关卡片重开、刷新页面后重试都不会重复拆。关卡片不中止后台流程；
+   * （`.spec` 里有同方案 drafting 任务）时不再建项目经理会话、不再拆第二遍，
+   * 直接按已有任务汇总，所以关卡片重开、刷新页面后重试都不会重复拆。
+   * 新任务有未标轨的就按失败报出编号，留给用户补齐或重新拆分。关卡片不中止后台流程；
    * 只有外壳卸载才统一取消。
    */
   const splitRequirement = async (task: ShellTask, requirementDocument?: RequirementDocRow): Promise<void> => {
@@ -2076,8 +2085,8 @@ export function Shell({
         setReload(value => value + 1)
         return
       }
-      // 还有起草态任务时走重试路径：不再建项目经理会话，只补未分配岗位；
-      // 分配完停在方案讨论列，契约与确认由详情里的门禁接手。
+      // 还有起草态任务时走重试路径：不再建项目经理会话、不再拆第二遍，
+      // 直接按已有任务检查轨；停在方案讨论列，契约与确认由详情里的门禁接手。
 
       // 拆分会话跟随设置里的默认模型：`createDefaultedSession` 在创建后写入当前默认，
       // 不再被需求会话里的旧模型选择盖住。读不到快照就交给宿主默认。
@@ -2176,10 +2185,13 @@ export function Shell({
   /**
    * 打开需求卡片的讨论历史。
    *
-   * 先读本窗口记下的讨论会话；没有记录（重启、换窗口）再按同项目会话的 preset
-   * 与消息里出现的方案编号恢复。两条都找不到就如实说定位不到，不拿别的需求顶替。
+   * 候选会话按优先顺序排好：本窗口记录过的在前，重启后按同项目会话的 preset 补在后。
+   * 读取走异步端口，等宿主把会话打开后再读事件窗口；读不出来的候选跳过，全部候选都
+   * 没读到时按「读取失败」提示，只有确实没有会话提到这个方案才说定位不到。
    */
-  const openDiscussionHistory = (task: ShellTask): void => {
+  const openDiscussionHistory = async (task: ShellTask): Promise<void> => {
+    const request = historyRequest.current + 1
+    historyRequest.current = request
     setHistoryOpen(true)
     if (task.proposal === undefined) {
       setHistoryView({ status: 'failed', groups: [], error: t('shell.historyNoProposal') })
@@ -2188,43 +2200,46 @@ export function Shell({
     const proposal = task.proposal
     setHistoryView({ status: 'loading', groups: [] })
     try {
-      const candidates: DiscussionHistoryCandidate[] = []
+      const sessions: DiscussionHistorySession[] = []
       const seen = new Set<string>()
-      const read = (sessionId: string, preset: string | undefined): void => {
-        const id = sessionId as SessionId
-        const release = holdSession?.(id)
-        try {
-          candidates.push({
-            sessionId,
-            ...(preset === undefined ? {} : { preset }),
-            messages: readMessages?.(id) ?? [],
-          })
-        } finally {
-          release?.()
-        }
+      const consider = (sessionId: string, preset: string | undefined): void => {
+        if (seen.has(sessionId)) return
+        seen.add(sessionId)
+        sessions.push({ sessionId, ...(preset === undefined ? {} : { preset }) })
       }
       for (const item of discussionSessions.current[proposal] ?? []) {
-        if (seen.has(item.sessionId)) continue
-        seen.add(item.sessionId)
-        read(item.sessionId, item.role.preset)
+        consider(item.sessionId, item.role.preset)
       }
       for (const id of workspaceSessions) {
-        if (seen.has(String(id))) continue
         const preset = agentPresetOf(id)
         if (!isDiscussionPreset(preset)) continue
-        read(String(id), preset)
+        consider(String(id), preset)
       }
-      const selection = selectDiscussionHistory(candidates, proposal)
-      if (!selection.found) {
-        setHistoryView({
-          status: 'failed',
-          groups: [],
-          error: fill(t('shell.historyNotFound'), { proposal }),
-        })
+      const read = readSessionMessages === undefined
+        ? (sessionId: string): Promise<readonly ShellMessage[] | null> => {
+          if (readMessages === undefined) return Promise.resolve(null)
+          const id = sessionId as SessionId
+          const release = holdSession?.(id)
+          try {
+            return Promise.resolve(readMessages(id))
+          } finally {
+            release?.()
+          }
+        }
+        : (sessionId: string) => readSessionMessages(sessionId as SessionId)
+      const result = await readDiscussionHistory(sessions, proposal, read)
+      if (historyRequest.current !== request) return
+      if (result.selection.found) {
+        setHistoryView({ status: 'ready', groups: groupDiscussionHistory(result.selection.rounds) })
         return
       }
-      setHistoryView({ status: 'ready', groups: groupDiscussionHistory(selection.rounds) })
+      setHistoryView({
+        status: 'failed',
+        groups: [],
+        error: result.unreadable > 0 ? t('shell.historyUnavailable') : fill(t('shell.historyNotFound'), { proposal }),
+      })
     } catch (error: unknown) {
+      if (historyRequest.current !== request) return
       setHistoryView({
         status: 'failed',
         groups: [],
@@ -2234,12 +2249,14 @@ export function Shell({
   }
 
   const closeDiscussionHistory = (): void => {
+    historyRequest.current += 1
     setHistoryOpen(false)
     setHistoryView({ status: 'idle', groups: [] })
   }
 
   /** 换任务或关卡片就收起历史抽屉；历史结果不是缓存，下次打开重读。 */
   useEffect(() => {
+    historyRequest.current += 1
     setHistoryOpen(false)
     setHistoryView({ status: 'idle', groups: [] })
   }, [detail])
@@ -4342,7 +4359,7 @@ export function Shell({
                 onViewBoard={() => { setDetail(null) }}
                 historyOpen={historyOpen}
                 history={historyView}
-                onOpenHistory={() => { openDiscussionHistory(detail) }}
+                onOpenHistory={() => { void openDiscussionHistory(detail) }}
                 onCloseHistory={closeDiscussionHistory}
               />
             </div>

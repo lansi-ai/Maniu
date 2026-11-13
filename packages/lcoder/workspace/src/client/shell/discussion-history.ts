@@ -150,12 +150,72 @@ export function selectDiscussionHistory(
   return { rounds, found }
 }
 
+/** 一条待读的候选会话：会话号与 preset，按优先顺序排好。 */
+export interface DiscussionHistorySession {
+  readonly sessionId: string
+  readonly preset?: string
+}
+
+/** 一次异步读取的结果：命中情况与读不出来的条数。 */
+export interface DiscussionHistoryRead {
+  readonly selection: DiscussionHistorySelection
+  /** 打开失败或超时、读不到消息窗口的候选数。 */
+  readonly unreadable: number
+}
+
+/**
+ * 异步读取一条会话消息的端口；读不出来返回 null，不抛到界面。
+ *
+ * 重启后候选会话需要先等宿主把会话打开（`reference.ready`）才读得到事件窗口，
+ * 同步读只会拿到空消息，所以历史定位必须走这条异步路径。
+ */
+export type DiscussionHistoryReader = (sessionId: string) => Promise<readonly ShellMessage[] | null>
+
+/**
+ * 依次读取候选会话，再按方案编号挑出讨论。
+ *
+ * `sessions` 的先后就是优先顺序：本窗口记录过的会话排在前面，重启后才补的候选在后。
+ * 某条会话读不出来只计一条 `unreadable`，不抛到界面；全部没有命中时由调用方
+ * 按 `unreadable > 0` 区分「读取失败」与「定位不到」。
+ * @param sessions - 候选会话，已按优先顺序去重。
+ * @param proposal - 方案编号。
+ * @param read - 异步读取端口；返回 null 表示这条会话暂时读不出来。
+ * @returns 选择结果与读不出来的条数。
+ */
+export async function readDiscussionHistory(
+  sessions: readonly DiscussionHistorySession[],
+  proposal: string,
+  read: DiscussionHistoryReader,
+): Promise<DiscussionHistoryRead> {
+  const candidates: DiscussionHistoryCandidate[] = []
+  let unreadable = 0
+  for (const session of sessions) {
+    let messages: readonly ShellMessage[] | null
+    try {
+      messages = await read(session.sessionId)
+    } catch (error: unknown) {
+      // 端口契约是不抛；真抛了也只算这一条读不出来，不打断其余候选。
+      void error
+      messages = null
+    }
+    if (messages === null) {
+      unreadable += 1
+      continue
+    }
+    candidates.push({
+      sessionId: session.sessionId,
+      ...(session.preset === undefined ? {} : { preset: session.preset }),
+      messages,
+    })
+  }
+  return { selection: selectDiscussionHistory(candidates, proposal), unreadable }
+}
+
 /**
  * 按角色合并轮次，保持角色与会话首次出现的顺序。
  * @param rounds - 定位到的发言轮次。
  * @returns 每个角色一组的历史。
- */
-export function groupDiscussionHistory(rounds: readonly DiscussionHistoryRound[]): DiscussionHistoryGroup[] {
+ */export function groupDiscussionHistory(rounds: readonly DiscussionHistoryRound[]): DiscussionHistoryGroup[] {
   const groups = new Map<string, { roleName: string; sessionIds: string[]; statements: string[] }>()
   for (const round of rounds) {
     const current = groups.get(round.roleId)

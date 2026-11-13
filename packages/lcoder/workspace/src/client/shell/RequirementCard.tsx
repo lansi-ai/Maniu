@@ -69,7 +69,7 @@ export interface RequirementCardProps {
   readonly splitting: boolean
   /** 就地错误原文；没有时为 null。 */
   readonly error: string | null
-  /** 拆分与分配流程的当前状态；没有跑过时为 undefined。 */
+  /** 拆分流程的当前状态；没有跑过时为 undefined。 */
   readonly flow?: RequirementSplitFlowView | null
   readonly onClose: () => void
   /**

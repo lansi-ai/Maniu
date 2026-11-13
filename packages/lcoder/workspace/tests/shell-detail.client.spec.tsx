@@ -15,6 +15,8 @@ import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 import type { SessionListState, SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { WorkspaceSnapshot } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type { SessionStatusSnapshot } from '@deepseek-ai/dsh-client-ui-session/client'
+// Type-only: pulls the `agentPreset` Session projection value into this program.
+import type {} from '@deepseek-ai/dsh-agent-preset-registry/types'
 import type { PanelInfo } from '@deepseek-ai/dsh-client-ui-layout/client'
 import { Shell } from '../src/client/shell/Shell.tsx'
 import type { ShellProps } from '../src/client/shell/Shell.tsx'
@@ -123,10 +125,14 @@ interface ShellScenario {
   readonly cloud?: CloudFace
   /** 首条会话投影里的模型路由；用来模拟旧版本遗留的匿名会话。 */
   readonly provider?: string
+  /** 首条会话投影里的 agentPreset；讨论历史重启后按它找候选。 */
+  readonly preset?: string
   /** 工作区列表；缺省给一条会话所在的工作区。 */
   readonly workspaces?: WorkspaceSnapshot['items']
   /** 会话消息读取；需求卡片的立项问答走这一支。 */
   readonly readMessages?: ShellProps['readMessages']
+  /** 异步读取会话消息；讨论历史重启后的候选走这一支。 */
+  readonly readSessionMessages?: ShellProps['readSessionMessages']
   readonly subscribeSession?: ShellProps['subscribeSession']
   readonly holdSession?: ShellProps['holdSession']
   /** 向会话发送提示；需求拆分走这一支。 */
@@ -168,6 +174,14 @@ function renderShell(scenario: ShellScenario) {
     const selection = { provider: scenario.provider, model: 'deepseek-flash' }
     initialProjections[rows[0].id] = {
       values: { modelSelection: { lastUsed: selection, next: selection } },
+      state: 'ready',
+      error: null,
+    }
+  }
+  if (scenario.preset !== undefined && rows[0] !== undefined) {
+    const current = initialProjections[rows[0].id]
+    initialProjections[rows[0].id] = {
+      values: { ...current?.values, agentPreset: scenario.preset },
       state: 'ready',
       error: null,
     }
@@ -228,6 +242,7 @@ function renderShell(scenario: ShellScenario) {
     assignTask: scenario.assignTask ?? vi.fn(async () => ({ ok: true, text: '已分配' })),
     logSchedule,
     ...(scenario.readMessages === undefined ? {} : { readMessages: scenario.readMessages }),
+    ...(scenario.readSessionMessages === undefined ? {} : { readSessionMessages: scenario.readSessionMessages }),
     ...(scenario.subscribeSession === undefined ? {} : { subscribeSession: scenario.subscribeSession }),
     ...(scenario.holdSession === undefined ? {} : { holdSession: scenario.holdSession }),
     ...(scenario.sendPrompt === undefined ? {} : { sendPrompt: scenario.sendPrompt }),
@@ -735,6 +750,44 @@ describe('需求卡片的拆分接线', () => {
     expect(await screen.findByText(t('shell.splitResult', { tasks: '1' }))).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: zh['shell.splitTasks'] }))
     expect(createSession).toHaveBeenCalledTimes(1)
+  })
+
+  it('重启后讨论历史走异步端口：ready 后读到的消息按角色展示', async () => {
+    const messages: readonly ShellMessage[] = [
+      {
+        role: 'user',
+        text: '方案讨论：需求 P-01 已按轨拆分。\n参会身份：项目经理（pm）',
+      },
+      { role: 'assistant', text: '按三条任务拆分，基础框架排第一。' },
+    ]
+    const readSessionMessages: NonNullable<ShellProps['readSessionMessages']> = vi.fn(async (sessionId) => {
+      await Promise.resolve()
+      return sessionId === SessionId('s-1') ? messages : null
+    })
+    renderShell({
+      spec: { tasks: { 'T-01.yaml': TASK_REQUIREMENT } },
+      preset: 'lcoder-pm',
+      readSessionMessages,
+    })
+    await openTask('随手记账')
+
+    fireEvent.click(screen.getByRole('button', { name: zh['shell.discussionHistory'] }))
+    expect(await screen.findByText('按三条任务拆分，基础框架排第一。')).toBeTruthy()
+    expect(readSessionMessages).toHaveBeenCalledWith(SessionId('s-1'))
+    expect(document.querySelector('[data-discussion-history-group="pm"]')).not.toBeNull()
+  })
+
+  it('候选会话读不出来时提示读取失败，而不是定位不到', async () => {
+    renderShell({
+      spec: { tasks: { 'T-01.yaml': TASK_REQUIREMENT } },
+      preset: 'lcoder-pm',
+      readSessionMessages: async () => null,
+    })
+    await openTask('随手记账')
+
+    fireEvent.click(screen.getByRole('button', { name: zh['shell.discussionHistory'] }))
+    expect(await screen.findByText(zh['shell.historyUnavailable'])).toBeTruthy()
+    expect(screen.queryByText(t('shell.historyNotFound', { proposal: 'P-01' }))).toBeNull()
   })
 })
 

@@ -91,6 +91,9 @@ export interface Config {
 /** 没有配置时的等待上限（毫秒）。 */
 const DEFAULT_OPEN_TIMEOUT_MS = 15_000
 
+/** 异步读一条会话历史的上限（毫秒）；重启后打开会话可能比本窗口内慢。 */
+const SESSION_HISTORY_TIMEOUT_MS = 10_000
+
 /**
  * 解析普通档对话窗尺寸；缺省用内置值，给了非法值就启动即失败。
  * @param config - 插件配置。
@@ -499,6 +502,34 @@ export async function apply(ctx: ClientContext, config: Config = {}): Promise<vo
       const binding = ctx.sessions.binding(sessionId)
       return binding === undefined ? [] : messagesFromEntries(binding.eventSource.getSnapshot().entries)
     }
+    /**
+     * 异步读取一条会话的消息窗口。
+     *
+     * 重启后候选会话还不在本地目录里，同步 `readMessages` 拿不到 binding；这里先 retain
+     * 并等 `reference.ready`，再读事件窗口，最后释放。超时与打开失败都返回 null，
+     * 由外壳按「读取失败」如实提示；超时也会释放引用，不让一条卡住的打开长期占住会话。
+     * @param sessionId - 要读取的会话。
+     * @returns 消息列表；读不出来时为 null。
+     */
+    const readSessionMessages = async (sessionId: SessionId): Promise<readonly ShellMessage[] | null> => {
+      const reference = ctx.sessions.retain(sessionId, { source: 'lcoderShell' })
+      let timer: ReturnType<typeof setTimeout> | undefined
+      try {
+        const timeout = new Promise<null>((resolve) => {
+          timer = setTimeout(() => { resolve(null) }, SESSION_HISTORY_TIMEOUT_MS)
+        })
+        const read = reference.ready.then(binding =>
+          messagesFromEntries(binding.eventSource.getSnapshot().entries))
+        return await Promise.race([read, timeout])
+      } catch (error: unknown) {
+        // 会话已删除或宿主拒绝打开：这一条按读不出来处理，界面不让它假装是空讨论。
+        void error
+        return null
+      } finally {
+        if (timer !== undefined) clearTimeout(timer)
+        reference.release()
+      }
+    }
     const subscribeSession = (sessionId: SessionId, listener: () => void): (() => void) => {
       const binding = ctx.sessions.binding(sessionId)
       if (binding === undefined) return () => {}
@@ -517,7 +548,7 @@ export async function apply(ctx: ClientContext, config: Config = {}): Promise<vo
             files, readAttachment, openRepository, sendPrompt, uploadAttachment, signContract, bindTask, assignTask,
             logSchedule, advanceContract, approveProposal,
             createSession, listRoles, listExperts, readExpert,
-            readMessages, subscribeSession, holdSession, checkModels, subscribeModels,
+            readMessages, readSessionMessages, subscribeSession, holdSession, checkModels, subscribeModels,
             readSessionNotice, readSessionFlags, modelSettings, readDefaultModel,
             readFlowStatus, logFlow, bindAgentSession, renameSession, readContextPressure,
             chatSize, cloud,

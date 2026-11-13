@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest'
 import type { ShellMessage } from '../src/client/shell/shell-data.ts'
 import {
   DISCUSSION_SESSION_PRESETS, groupDiscussionHistory, isDiscussionPreset, mentionsProposal,
-  parseMeetingRole, roleOfPreset, selectDiscussionHistory, statementsOf,
+  parseMeetingRole, readDiscussionHistory, roleOfPreset, selectDiscussionHistory, statementsOf,
 } from '../src/client/shell/discussion-history.ts'
 import type { DiscussionHistoryCandidate } from '../src/client/shell/discussion-history.ts'
 
@@ -124,5 +124,49 @@ describe('历史定位与分组', () => {
     ], 'P-01')
     expect(selection.rounds[0]).toMatchObject({ roleId: 'track-h5', roleName: 'H5 前端工程师' })
     expect(selection.rounds[1]).toMatchObject({ roleId: 'architect', roleName: '架构师' })
+  })
+})
+
+describe('异步读取候选会话', () => {
+  it('会话 ready 之后才拿得到消息时，异步端口仍能定位到讨论', async () => {
+    const read = async (sessionId: string): Promise<readonly ShellMessage[] | null> => {
+      await Promise.resolve()
+      return sessionId === 's-1'
+        ? [meetingPrompt('项目经理', 'pm'), assistant('按三条任务拆分。')]
+        : []
+    }
+    const result = await readDiscussionHistory(
+      [{ sessionId: 's-1', preset: 'lcoder-pm' }],
+      'P-01',
+      read,
+    )
+    expect(result.unreadable).toBe(0)
+    expect(result.selection.found).toBe(true)
+    expect(result.selection.rounds[0]).toMatchObject({ roleId: 'pm', statements: ['按三条任务拆分。'] })
+  })
+
+  it('打开失败返回 null 时计入 unreadable，不误报命中', async () => {
+    const result = await readDiscussionHistory(
+      [{ sessionId: 's-1' }, { sessionId: 's-2' }],
+      'P-01',
+      async () => null,
+    )
+    expect(result.unreadable).toBe(2)
+    expect(result.selection).toEqual({ rounds: [], found: false })
+  })
+
+  it('端口抛错也只算这一条读不出来，其余候选继续读', async () => {
+    const read = async (sessionId: string): Promise<readonly ShellMessage[] | null> => {
+      if (sessionId === 's-bad') throw new Error('boom')
+      return [meetingPrompt('项目经理', 'pm'), assistant('其余候选照常读。')]
+    }
+    const result = await readDiscussionHistory(
+      [{ sessionId: 's-bad' }, { sessionId: 's-ok', preset: 'lcoder-pm' }],
+      'P-01',
+      read,
+    )
+    expect(result.unreadable).toBe(1)
+    expect(result.selection.found).toBe(true)
+    expect(result.selection.rounds[0]?.sessionId).toBe('s-ok')
   })
 })
