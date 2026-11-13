@@ -1895,6 +1895,17 @@ tracks:
       dep: [T-168]
       inferred: false
       note: "B 级流程缺口，来源是 T-168 真实收口。任务从 contracted 到 implementing 再到 verifying 没有任何模型工具或人机命令可推进；task_close 只出现在 verifying 工具面，导致已签约任务无法经产品入口收口。T-168 为完成验收手工把 T-01 置为 verifying。候选修法：一、新增人机命令 /task_start 与 /task_verify，只推相邻边；二、给实施会话新增 task_start 与 task_verify 模型工具，只在任务归属该会话时可见；三、由流程引擎按会话开工与证据自动推进。需用户拍板后再派工；在此之前手工置位不算通过。"
+    - id: T-170
+      title: 任务详情改为人类易读的呈现
+      status: doing
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-13'
+      date: '2026-11-13'
+      dep: [T-159, T-168]
+      inferred: false
+      note: "B 级展示层改造，来源是用户 2026-11-13 要求任务详情内容改为人类易读易懂，同时不能影响模型执行能力。红线：只改任务详情的渲染、样式与词典，不动 .spec 数据、契约字段、立项与拆分提示词、内核工具面与状态机；原始描述与契约数组仍要完整可查。设计：一、头部用一句话摘要替代整段原始描述，摘要从描述首段派生并截断，完整说明收进折叠区；二、契约按人类语言分区呈现：要做的事、怎么算通过、不要碰什么、什么算失败，change 与 acceptance 用列表而不是分号拼接；三、技术细节收进独立折叠：规则编号、证据项、工具面、原始描述、契约原始数组、允许路径与不可逆项；四、讨论区只留参与角色与逐任务状态，原始契约片段收进折叠；五、文案中英词典，四套皮肤与窄窗可用，动作与权限不变。验收 typecheck、packages/lcoder vitest、verify-client-ui-i18n、改动文件 oxlint；组件测试覆盖摘要派生、四个分区、技术细节仍可查、动作按钮与原始数据不变。工作树 pool-slot-1 到 lcoder/t170-readable-detail，端口 9822 与 9829 与 9830。"
     - id: T-161
       title: 需求与任务的云同步层
       status: todo
