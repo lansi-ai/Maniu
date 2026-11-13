@@ -902,6 +902,15 @@ export function Shell({
     return false
   }
   /**
+   * 只给缺路由的会话补切用户路由：provider 为空或仍是旧匿名访客路由时才切，
+   * 用户已经选好的模型一律保留。
+   */
+  const routeLegacySession = async (id: SessionId): Promise<boolean> => {
+    const provider = sessionCloudProvider(id)
+    if (provider !== undefined && provider !== CLOUD_LEGACY_GUEST_ROUTE) return true
+    return routeSession(id)
+  }
+  /**
    * 旧版本匿名立项会话：打开时切回用户路由一次。
    *
    * 桌面端已去匿名，但历史会话可能还记着匿名路由；只在登录后切一次，
@@ -3115,7 +3124,7 @@ export function Shell({
     setWizardConfirming(true)
     void (async () => {
       try {
-        if (!await routeSession(sessionId)) return
+        if (!await routeLegacySession(sessionId)) return
         await sendPrompt(sessionId, INTAKE_CONFIRM_COMMAND)
         void cloudSession.refresh()
       } catch (error: unknown) {
@@ -3141,7 +3150,7 @@ export function Shell({
     setWizardConfirming(true)
     void (async () => {
       try {
-        if (!await routeSession(sessionId)) return
+        if (!await routeLegacySession(sessionId)) return
         await sendPrompt(sessionId, INTAKE_RETRY_COMMAND)
         void cloudSession.refresh()
       } catch (error: unknown) {
@@ -3168,7 +3177,7 @@ export function Shell({
     setWizardDiscussing(true)
     void (async () => {
       try {
-        if (!await routeSession(sessionId)) return
+        if (!await routeLegacySession(sessionId)) return
         await sendPrompt(sessionId, INTAKE_MORE_DISCUSSION)
         void cloudSession.refresh()
       } catch (error: unknown) {
@@ -3388,9 +3397,7 @@ export function Shell({
         : t('shell.cloudGateUnavailable'))
       return
     }
-    const provider = sessionCloudProvider(chatSessionId)
-    if ((provider === undefined || provider === CLOUD_LEGACY_GUEST_ROUTE)
-      && !await routeSession(chatSessionId)) return
+    if (!await routeLegacySession(chatSessionId)) return
     const text = draft.trim()
     setChatError(null)
     setAttachError(null)
