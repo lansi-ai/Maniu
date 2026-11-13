@@ -1668,7 +1668,7 @@ tracks:
       date: '2026-11-12'
       dep: [T-146]
       inferred: false
-      note: "B 级流程修正，来源是用户 2026-11-12 指出拆分任务里缺少项目基础框架搭建。现状 PM 只按需求文档的功能清单拆，空仓项目直接拆出记一笔与列表等功能任务，没有技术选型与骨架、构建与打包、基础窗口与数据模块，导致功能任务无从落地。修法：一、PM 拆分指令增加硬规则——仓库为空或没有可运行项目时，第一条必须是项目基础框架与脚手架任务，覆盖技术选型落地（语言、桌面外壳、本地存储形式）、目录与模块骨架、开发与构建与打包命令、基础窗口、数据读写骨架与双击即用验证；该任务不依赖功能，所有功能任务 depends_on 它；仓库已有框架时只补缺失的基础项，不重复建设；二、研发经理分配指令明确基础框架任务给架构师（缺岗位先 role_draft 建架构或脚手架岗位），打包与本地存储按领域分配；三、提示词要求拆分前先 file_list 判断仓库是否空仓，把判断写进回复。约束是不改宿主契约、不新增页面、文案走词典。验收 typecheck 与 kernel 与客户端 vitest 与 oxlint 与 test:docs 与 i18n；单测断言 PM 指令包含基础框架硬规则与依赖要求、manager 指令包含架构师映射要求；真窗口用空仓重拆定向断言基础任务在功能任务之前。工作树用 pool-slot-1 claim 到 lcoder/t147-foundation-task，端口 9822 与 9829 与 9830。2026-11-13 17:50 监督窗口派工，实现线会话 539fb826。"
+      note: "B 级流程修正，来源是用户 2026-11-12 指出拆分任务里缺少项目基础框架搭建。现状 PM 只按需求文档的功能清单拆，空仓项目直接拆出记一笔与列表等功能任务，没有技术选型与骨架、构建与打包、基础窗口与数据模块，导致功能任务无从落地。修法：一、PM 拆分指令增加硬规则——仓库为空或没有可运行项目时，第一条必须是项目基础框架与脚手架任务，覆盖技术选型落地（语言、桌面外壳、本地存储形式）、目录与模块骨架、开发与构建与打包命令、基础窗口、数据读写骨架与双击即用验证；该任务不依赖功能，所有功能任务 depends_on 它；仓库已有框架时只补缺失的基础项，不重复建设；二、研发经理分配指令明确基础框架任务给架构师（缺岗位先 role_draft 建架构或脚手架岗位），打包与本地存储按领域分配；三、提示词要求拆分前先 file_list 判断仓库是否空仓，把判断写进回复。约束是不改宿主契约、不新增页面、文案走词典。验收 typecheck 与 kernel 与客户端 vitest 与 oxlint 与 test:docs 与 i18n；单测断言 PM 指令包含基础框架硬规则与依赖要求、manager 指令包含架构师映射要求；真窗口用空仓重拆定向断言基础任务在功能任务之前。工作树用 pool-slot-1 claim 到 lcoder/t147-foundation-task，端口 9822 与 9829 与 9830。2026-11-13 17:50 监督窗口派工，实现线会话 539fb826。2026-11-13 18:45 监督窗口核验并收口。实现线一笔提交，任务页新增看板与列表切换，七列表格、行点击与 Enter 开详情、筛选复用、旧需求本体隐藏，窄窗按断点收起更新时间与依赖。独立复跑 typecheck、packages/lcoder vitest 八十九文件一千零三十二例、verify-client-ui-i18n 一千三百一十四文件、改动文件 oxlint 全过；主检复跑同组与 build:artifacts 与 build:check 全过。未验项是真实桌面观感与窄窗量测，重启后复看。已合入 lcoder/main、release pool-slot-1。"
 
     - id: T-148
       title: 待开发前增加方案讨论与契约门禁
@@ -1842,7 +1842,7 @@ tracks:
       note: "B 级缺陷，来源是 T-160 验收过程中桌面实例反复无法启动。症状：start-all 或 start-desktop 报桌面就绪并打印宿主 Web URL，但该端口不监听，欢迎窗鉴权 GET 返回非 2xx，日志反复报 desktop welcome: Web authentication failed，页面停在 Loading plugins。已排除：云端 5081 健康 200；主检产物已重建；移走开发态 Electron Cookies 后仍复现；没有残留宿主进程，9230 与宿主端口均未监听。影响：桌面入口不可用，Web 3080 仍可启动；验收数据 REQ-01 与 8 条任务与 8 份已签契约都完好。待查方向：DesktopHostProcess 捕获的宿主 stderr、authenticateWebHost 的 303 与 set-cookie、connectDesktopWelcome 的 net.fetch 是否带上宿主 cookie、是否与云账号令牌或欢迎窗跳过逻辑相关。禁止跳过欢迎窗或改上游逻辑绕过，先取证。2026-11-13 16:50 监督窗口派工，工作树 pool-slot-2 到 lcoder/t164-desktop-welcome-auth，实现线会话 a7a1815f。2026-11-13 17:10 监督窗口核验并收口。根因是宿主每次随机端口签发一个 dsh-auth-* cookie，Chromium 只按主机归并，累计七十一个后 Cookie 头 16.2 KB 超过 Node 16 KB 上限，宿主回 431，欢迎窗鉴权失败；修复为宿主就绪后、鉴权前清掉该 URL 下所有 dsh-auth-*，实测同一 71-cookie profile 从 16,188 B 降到 228 B 并能启动。独立复跑 typecheck、两个桌面测试 164 例、改动文件 oxlint 全过；主检复跑同组与 build:artifacts 与 build:check 全过。主检出已备份 Cookies 并重启复验。未验项是登录后的工作区与打包态。"
     - id: T-165
       title: 任务页增加列表显示方式
-      status: doing
+      status: done
       face: 用户端
       type: 开发
       owner: lance
