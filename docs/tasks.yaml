@@ -1820,7 +1820,7 @@ tracks:
 
     - id: T-163
       title: 确认方案对需求回指任务无反应
-      status: doing
+      status: done
       face: 用户端
       type: 修复
       owner: lance
@@ -1828,7 +1828,7 @@ tracks:
       date: '2026-11-13'
       dep: [T-159, T-160]
       inferred: false
-      note: "B 级修复，来源是 T-160 真机验收。方案讨论能跑完、8 份契约已起草，但点「确认方案并进入待开发」无反应，任务仍是 drafting、契约没有 human 签名。已核 Shell.tsx 的 confirmDiscussion 仍按 task.proposal 取键，新任务只有 requirement，proposal 为空时函数第一行直接 return；同文件的 discussPlan 与 detailDiscussFlow 已改成 requirement 优先 proposal，只有确认动作漏改。修法：confirmDiscussion 的键统一改成 requirement 优先 proposal，与讨论流程保持一致；补一条按需求回指任务的确认用例。监督窗口救火，工作树 pool-slot-2 到 lcoder/t163-confirm-key。"
+      note: "B 级修复，来源是 T-160 真机验收。方案讨论能跑完、8 份契约已起草，但点「确认方案并进入待开发」无反应，任务仍是 drafting、契约没有 human 签名。已核 Shell.tsx 的 confirmDiscussion 仍按 task.proposal 取键，新任务只有 requirement，proposal 为空时函数第一行直接 return；同文件的 discussPlan 与 detailDiscussFlow 已改成 requirement 优先 proposal，只有确认动作漏改。修法：confirmDiscussion 的键统一改成 requirement 优先 proposal，与讨论流程保持一致；补一条按需求回指任务的确认用例。监督窗口救火，工作树 pool-slot-2 到 lcoder/t163-confirm-key。2026-11-13 16:20 监督窗口救火并收口。confirmDiscussion 的键改成 requirement 优先 proposal，与 discussPlan 一致；补了按需求回指任务的确认用例。工作树与主检 typecheck、packages/lcoder vitest、改动两文件 oxlint、build:artifacts 与 build:check 全过。真机复验在 T-160 继续。已合入 lcoder/main、release pool-slot-2。"
     - id: T-161
       title: 需求与任务的云同步层
       status: todo
