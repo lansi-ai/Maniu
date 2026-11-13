@@ -501,18 +501,28 @@ describe('任务详情', () => {
     expect(head?.textContent).not.toContain('.spec')
   })
 
-  it('标题下显示任务描述并保留换行；没有描述时给出空态', async () => {
-    const described = `${TASK_T01}description: |\n  第一行说明\n  第二行说明\n`
+  it('标题下给一句话摘要；完整原文收进默认折叠的「完整说明」', async () => {
+    const described = `${TASK_T01}description: |\n  第一行说明\n  第二行说明\n\n  第二段不进摘要\n`
     renderShell({ spec: { tasks: { 'T-01.yaml': described } } })
     const detail = await openTask('起草中的任务')
 
-    const text = within(detail).getByText(content => content.includes('第一行说明') && content.includes('第二行说明'))
-    expect(text.textContent).toBe('第一行说明\n第二行说明')
+    const summary = detail.querySelector('[data-task-summary]') as HTMLElement
+    expect(summary.textContent).toBe('第一行说明第二行说明')
+
+    const raw = detail.querySelector('[data-task-raw-description]') as HTMLDetailsElement
+    expect(raw).not.toBeNull()
+    expect(raw.open).toBe(false)
+    expect(within(raw).getByText(zh['shell.fullDescription'])).toBeTruthy()
+    expect(raw.querySelector('pre')?.textContent).toBe('第一行说明\n第二行说明\n\n第二段不进摘要')
+
+    fireEvent.click(within(raw).getByText(zh['shell.fullDescription']))
+    expect(raw.open).toBe(true)
 
     cleanup()
     renderShell({ spec: { tasks: { 'T-01.yaml': TASK_META } } })
     const plain = await openTask('元信息齐全的任务')
     expect(within(plain).getByText(zh['shell.noDescription'])).toBeTruthy()
+    expect(plain.querySelector('[data-task-raw-description]')).toBeNull()
   })
 
   it('标题区显示领域与变更类型两枚标签；缺省不显示', async () => {
@@ -532,7 +542,7 @@ describe('任务详情', () => {
     expect(within(plain).queryByText(zh['shell.changeType'])).toBeNull()
   })
 
-  it('元信息默认只留岗位与难度，其余三项收进「更多」并各带白话解释', async () => {
+  it('元信息默认只留岗位与难度，技术细节默认折叠并各带白话解释', async () => {
     renderShell({ spec: { tasks: { 'T-01.yaml': TASK_META } } })
     await openTask('元信息齐全的任务')
 
@@ -544,8 +554,10 @@ describe('任务详情', () => {
     expect(strip?.textContent).not.toContain(zh['shell.rules'])
     expect(strip?.textContent).not.toContain(zh['shell.evidence'])
     expect(strip?.textContent).not.toContain(zh['shell.surface'])
+    expect(strip?.textContent).not.toContain(zh['shell.allowedPaths'])
+    expect(strip?.textContent).not.toContain(zh['shell.irreversible'])
 
-    const more = within(detail).getByText(zh['shell.more']).closest('details')
+    const more = within(detail).getByText(zh['shell.techDetails']).closest('details')
     expect(more?.open).toBe(false)
     expect(within(more as HTMLElement).getByText(zh['shell.rules'])).toBeTruthy()
     expect(within(more as HTMLElement).getByText(zh['shell.rulesHint'])).toBeTruthy()
@@ -556,8 +568,12 @@ describe('任务详情', () => {
     expect(within(more as HTMLElement).getByText(zh['shell.surface'])).toBeTruthy()
     expect(within(more as HTMLElement).getByText(zh['shell.surfaceHint'])).toBeTruthy()
     expect(within(more as HTMLElement).getByText('读 / 契约')).toBeTruthy()
+    expect(within(more as HTMLElement).getByText(zh['shell.allowedPaths'])).toBeTruthy()
+    expect(within(more as HTMLElement).getByText(zh['shell.allowedPathsHint'])).toBeTruthy()
+    expect(within(more as HTMLElement).getByText(zh['shell.irreversible'])).toBeTruthy()
+    expect(within(more as HTMLElement).getByText(zh['shell.irreversibleHint'])).toBeTruthy()
 
-    fireEvent.click(within(detail).getByText(zh['shell.more']))
+    fireEvent.click(within(detail).getByText(zh['shell.techDetails']))
     expect(more?.open).toBe(true)
 
     // 旧的分配区整块不在：没有分配按钮、没有采用建议、没有硬约束小字。
@@ -593,7 +609,7 @@ describe('任务详情', () => {
     expect(within(detail).queryByText(zh['shell.taskAttachments'])).toBeNull()
   })
 
-  it('英文界面给出描述、分类标签、难度、更多与附件区', async () => {
+  it('英文界面给出摘要、分类标签、难度、技术细节与附件区', async () => {
     const task = 'id: T-01\ntitle: Attached task\nstate: drafting\ngrade: B\ntrack: h5\n'
       + 'description: |\n  First line\n  Second line\ncategory: api\nchange_type: bug\n'
       + 'attachments:\n  - attachments/T-01/shot.png\n'
@@ -604,17 +620,19 @@ describe('任务详情', () => {
     })
     const detail = await openTask('Attached task')
 
-    const text = within(detail).getByText(content => content.includes('First line') && content.includes('Second line'))
-    expect(text.textContent).toBe('First line\nSecond line')
+    expect((detail.querySelector('[data-task-summary]') as HTMLElement).textContent).toBe('First line Second line')
+    const raw = detail.querySelector('[data-task-raw-description]') as HTMLDetailsElement
+    expect(raw.open).toBe(false)
+    expect(raw.querySelector('pre')?.textContent).toBe('First line\nSecond line')
     expect(within(detail).getByText(en['shell.categoryApi'])).toBeTruthy()
     expect(within(detail).getByText(en['shell.changeBug'])).toBeTruthy()
     expect(within(detail).getByText(en['shell.difficulty'])).toBeTruthy()
     expect(within(detail).getByText(en['shell.difficultyMedium'])).toBeTruthy()
-    expect(within(detail).getByText(en['shell.more'])).toBeTruthy()
+    expect(within(detail).getByText(en['shell.techDetails'])).toBeTruthy()
     expect(within(detail).getByText(en['shell.taskAttachments'])).toBeTruthy()
     expect(await within(detail).findByAltText('shot.png')).toBeTruthy()
 
-    fireEvent.click(within(detail).getByText(en['shell.more']))
+    fireEvent.click(within(detail).getByText(en['shell.techDetails']))
     for (const hint of [en['shell.rulesHint'], en['shell.evidenceHint'], en['shell.surfaceHint']]) {
       expect(within(detail).getByText(hint)).toBeTruthy()
     }
@@ -656,6 +674,84 @@ describe('任务详情', () => {
     expect(screen.queryByText(zh['shell.contractMissing'])).toBeNull()
     expect(screen.getByText(zh['shell.contractHint'])).toBeTruthy()
     expect(screen.getByRole('button', { name: zh['shell.sign'] })).toBeTruthy()
+  })
+
+  it('契约区按人话分成四块：要做与算通过先看，边界与失败收在折叠里', async () => {
+    const signContract = vi.fn(async () => ({ ok: true, text: '已签署' }))
+    const contract = [
+      'id: T-01',
+      'change:',
+      '  - 加登录限流',
+      '  - 记录审计日志',
+      'not_change:',
+      '  - 不改注册流程',
+      'acceptance:',
+      '  - 五次失败锁定十分钟',
+      '  - 第六次提示剩余时间',
+      'fail_if:',
+      '  - 锁定后仍能登录',
+      '',
+    ].join('\n')
+    renderShell({
+      spec: { tasks: { 'T-01.yaml': TASK_T01 }, contracts: { 'T-01.contract.yaml': contract } },
+      signContract,
+    })
+    await openTask('起草中的任务')
+
+    const detail = screen.getByRole('dialog', { name: 'T-01 起草中的任务' })
+    const change = detail.querySelector('[data-contract-change]') as HTMLElement
+    const acceptance = detail.querySelector('[data-contract-acceptance]') as HTMLElement
+    expect(change.textContent).toContain(zh['shell.contractChange'])
+    expect(within(change).getByText('加登录限流')).toBeTruthy()
+    expect(within(change).getByText('记录审计日志')).toBeTruthy()
+    expect(acceptance.textContent).toContain(zh['shell.contractAcceptance'])
+    expect(within(acceptance).getByText('五次失败锁定十分钟')).toBeTruthy()
+    expect(within(acceptance).getByText('第六次提示剩余时间')).toBeTruthy()
+
+    const notChange = detail.querySelector('[data-contract-not-change]') as HTMLDetailsElement
+    const failIf = detail.querySelector('[data-contract-fail-if]') as HTMLDetailsElement
+    expect(notChange.open).toBe(false)
+    expect(failIf.open).toBe(false)
+    expect(within(notChange).getByText('不改注册流程')).toBeTruthy()
+    expect(within(failIf).getByText('锁定后仍能登录')).toBeTruthy()
+
+    // 契约原始数组在技术细节里默认折叠，但内容一字不少。
+    const tech = detail.querySelector('[data-task-tech-details]') as HTMLDetailsElement
+    expect(tech.open).toBe(false)
+    const raw = tech.querySelector('[data-task-contract-raw]') as HTMLElement
+    for (const field of ['"change"', '"notChange"', '"acceptance"', '"failIf"']) {
+      expect(raw.textContent).toContain(field)
+    }
+    expect(raw.textContent).toContain('加登录限流')
+    expect(raw.textContent).toContain('不改注册流程')
+
+    // 动作不变：未签仍可签署，回执留在原位。
+    fireEvent.click(within(detail).getByRole('button', { name: zh['shell.sign'] }))
+    await waitFor(() => { expect(signContract).toHaveBeenCalledWith(SessionId('s-1'), 'T-01') })
+    expect(await within(detail).findByText('已签署')).toBeTruthy()
+  })
+
+  it('窄窗下详情照常渲染摘要、契约分区与原文折叠区', async () => {
+    const originalWidth = window.innerWidth
+    window.innerWidth = 360
+    window.dispatchEvent(new Event('resize'))
+    try {
+      const description = `description: |\n  ${'很长的说明'.repeat(40)}\n`
+      renderShell({
+        spec: {
+          tasks: { 'T-01.yaml': `${TASK_T01}${description}` },
+          contracts: { 'T-01.contract.yaml': CONTRACT_T01 },
+        },
+      })
+      const detail = await openTask('起草中的任务')
+      expect(detail.querySelector('[data-task-summary]')?.textContent?.endsWith('…')).toBe(true)
+      expect(detail.querySelector('[data-contract-change]')).not.toBeNull()
+      expect(detail.querySelector('[data-task-raw-description]')).not.toBeNull()
+      expect(within(detail).getByRole('button', { name: zh['shell.sign'] })).toBeTruthy()
+    } finally {
+      window.innerWidth = originalWidth
+      window.dispatchEvent(new Event('resize'))
+    }
   })
 
   it('详情不画调度思考过程，但入队位置与日志写入失败仍在', async () => {
@@ -1610,6 +1706,8 @@ describe('方案讨论列与确认门禁', () => {
     expect(section.textContent).toContain('H5 前端')
     expect(section.textContent).toContain('架构师')
     expect(section.textContent).toContain('T-02 契约已起草，待确认')
+    // 契约正文不再抄进讨论行；完整字段只留在技术细节与契约区。
+    expect(section.textContent).not.toContain('实现记一笔')
     expect(within(section).getByRole('button', { name: zh['shell.discussionConfirm'] })).toBeTruthy()
     expect(within(section).getByRole('button', { name: zh['shell.discussionReconfirm'] })).toBeTruthy()
   })

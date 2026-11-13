@@ -123,6 +123,7 @@ import type { DesktopWindowCommand, DesktopWindowState } from './window-chrome.t
 import { useBoardRefresh } from './board-refresh.ts'
 import { useWindowDrag } from './window-drag.ts'
 import { runningCardClass } from './task-card-visual.ts'
+import { taskDescriptionSummary } from './task-detail-view.ts'
 import { projectDirectoryPicker } from './project-directory.ts'
 import type {
   ShellBoardColumnId, ShellContextPressure, ShellMessage, ShellProjectInfo, ShellRole, ShellSignResult, ShellTask,
@@ -1886,6 +1887,9 @@ export function Shell({
   const detailContract = detail === null
     ? undefined
     : contracts.find(row => row.id === detail.id)
+
+  /** 标题下的一句话摘要；原文另放在「完整说明」里。 */
+  const detailSummary = detail === null ? '' : taskDescriptionSummary(detail.description)
 
   /** 选中任务回指的需求编号；新流程读 `requirement`，旧数据退回 `proposal`。 */
   const detailRequirementId = detail === null ? undefined : detail.requirement ?? detail.proposal
@@ -4696,7 +4700,7 @@ export function Shell({
             <div className={css.modalHead}>
               <div className={css.grow}>
                 <h3>{detail.id} · {detail.title}</h3>
-                <p className={css.detailDescription}>{detail.description.trim() || t('shell.noDescription')}</p>
+                <p className={css.detailSummary} data-task-summary>{detailSummary || t('shell.noDescription')}</p>
                 {detail.category === undefined && detail.changeType === undefined ? null : (
                   <div className={css.detailTags}>
                     {detail.category === undefined
@@ -4808,6 +4812,12 @@ export function Shell({
                     </div>
                   )}
               </dl>
+              {detail.description.trim() === '' ? null : (
+                <details className={css.detailFold} data-task-raw-description>
+                  <summary className={css.detailFoldSummary}>{t('shell.fullDescription')}</summary>
+                  <pre className={css.detailRaw}>{detail.description.trim()}</pre>
+                </details>
+              )}
               <DeliverableView
                 t={t}
                 taskId={detail.id}
@@ -4815,8 +4825,8 @@ export function Shell({
                 required={mustDeliver(detail)}
                 onOpenDoc={openDeliverableDoc}
               />
-              <details className={css.metaMore}>
-                <summary className={css.metaMoreSummary}>{t('shell.more')}</summary>
+              <details className={css.metaMore} data-task-tech-details>
+                <summary className={css.metaMoreSummary}>{t('shell.techDetails')}</summary>
                 <dl className={css.metaMoreList}>
                   <div className={css.metaMoreItem}>
                     <dt><span className={css.metaMoreLabel}>{t('shell.rules')}</span><span className={css.metaHint}>{t('shell.rulesHint')}</span></dt>
@@ -4830,6 +4840,29 @@ export function Shell({
                     <dt><span className={css.metaMoreLabel}>{t('shell.surface')}</span><span className={css.metaHint}>{t('shell.surfaceHint')}</span></dt>
                     <dd>{t(SURFACE_LABEL[detail.state])}</dd>
                   </div>
+                  <div className={css.metaMoreItem}>
+                    <dt><span className={css.metaMoreLabel}>{t('shell.allowedPaths')}</span><span className={css.metaHint}>{t('shell.allowedPathsHint')}</span></dt>
+                    <dd>{detail.paths.join('、') || '—'}</dd>
+                  </div>
+                  <div className={css.metaMoreItem}>
+                    <dt><span className={css.metaMoreLabel}>{t('shell.irreversible')}</span><span className={css.metaHint}>{t('shell.irreversibleHint')}</span></dt>
+                    <dd>{detail.irreversible.join('、') || '—'}</dd>
+                  </div>
+                  {detailContract === undefined ? null : (
+                    <div className={css.metaMoreItem}>
+                      <dt><span className={css.metaMoreLabel}>{t('shell.contractRaw')}</span><span className={css.metaHint}>{t('shell.contractRawHint')}</span></dt>
+                      <dd>
+                        <pre className={css.rawBlock} data-task-contract-raw>
+                          {JSON.stringify({
+                            change: detailContract.change,
+                            notChange: detailContract.notChange,
+                            acceptance: detailContract.acceptance,
+                            failIf: detailContract.failIf,
+                          }, null, 2)}
+                        </pre>
+                      </dd>
+                    </div>
+                  )}
                 </dl>
               </details>
               {detailSchedule === undefined || scheduleErrors[detail.id] === undefined
@@ -4861,12 +4894,7 @@ export function Shell({
                       return (
                         <div key={row.id} className={css.flowTaskRow} data-plan-discussion-task={row.id}>
                           <span className={css.flowTaskId}>{row.id}</span>
-                          <span className={css.flowTaskReason}>
-                            {label}
-                            {rowContract === undefined
-                              ? ''
-                              : ` · ${t('shell.discussionContractChange')}${rowContract.change[0] ?? ''}`}
-                          </span>
+                          <span className={css.flowTaskReason}>{label}</span>
                         </div>
                       )
                     })}
@@ -4926,23 +4954,47 @@ export function Shell({
                   <p className={css.empty}>{t('shell.contractMissing')}</p>
                 ) : (
                   <>
-                    <div className={css.metaGrid}>
-                      <div className={css.meta}>
-                        <div className={css.metaK}>{t('shell.contractChange')}</div>
-                        <div className={css.metaV}>{detailContract.change.join('；')}</div>
-                      </div>
-                      <div className={css.meta}>
-                        <div className={css.metaK}>{t('shell.contractNotChange')}</div>
-                        <div className={css.metaV}>{detailContract.notChange.join('；') || '—'}</div>
-                      </div>
-                      <div className={css.meta}>
-                        <div className={css.metaK}>{t('shell.contractAcceptance')}</div>
-                        <div className={css.metaV}>{detailContract.acceptance.join('；')}</div>
-                      </div>
-                      <div className={css.meta}>
-                        <div className={css.metaK}>{t('shell.contractFailIf')}</div>
-                        <div className={css.metaV}>{detailContract.failIf.join('；') || '—'}</div>
-                      </div>
+                    <div className={css.contractSections}>
+                      <section className={css.contractSection} data-contract-change>
+                        <h5 className={css.contractTitle}>{t('shell.contractChange')}</h5>
+                        {detailContract.change.length === 0
+                          ? <p className={css.contractEmpty}>—</p>
+                          : (
+                            <ul className={css.contractList}>
+                              {detailContract.change.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}
+                            </ul>
+                          )}
+                      </section>
+                      <section className={css.contractSection} data-contract-acceptance>
+                        <h5 className={css.contractTitle}>{t('shell.contractAcceptance')}</h5>
+                        {detailContract.acceptance.length === 0
+                          ? <p className={css.contractEmpty}>—</p>
+                          : (
+                            <ul className={css.contractList}>
+                              {detailContract.acceptance.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}
+                            </ul>
+                          )}
+                      </section>
+                      <details className={css.contractFold} data-contract-not-change>
+                        <summary className={css.contractFoldSummary}>{t('shell.contractNotChange')}</summary>
+                        {detailContract.notChange.length === 0
+                          ? <p className={css.contractEmpty}>—</p>
+                          : (
+                            <ul className={css.contractList}>
+                              {detailContract.notChange.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}
+                            </ul>
+                          )}
+                      </details>
+                      <details className={css.contractFold} data-contract-fail-if>
+                        <summary className={css.contractFoldSummary}>{t('shell.contractFailIf')}</summary>
+                        {detailContract.failIf.length === 0
+                          ? <p className={css.contractEmpty}>—</p>
+                          : (
+                            <ul className={css.contractList}>
+                              {detailContract.failIf.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}
+                            </ul>
+                          )}
+                      </details>
                     </div>
                     <p className={css.secretRef}>
                       {detailContract.signedBy === 'human'

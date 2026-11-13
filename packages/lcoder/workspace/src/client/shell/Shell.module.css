@@ -983,6 +983,35 @@
 .attachmentMissingText { color: var(--lc-faint); font-size: 11px; }
 .attachmentZoomBody { place-items: center; }
 .attachmentZoomImage { display: block; max-width: 100%; max-height: 70vh; object-fit: contain; border-radius: var(--lc-radius-md); }
+.detailSummary {
+  margin: 6px 0 0; color: var(--lc-muted); font-size: var(--lc-text-sm);
+  line-height: var(--lc-leading); word-break: break-word;
+}
+.detailFold, .contractFold {
+  border-top: 1px solid var(--lc-line); padding-top: var(--lc-space-3);
+}
+.detailFoldSummary, .contractFoldSummary {
+  cursor: pointer; color: var(--lc-muted); font-size: var(--lc-text-sm);
+}
+.detailRaw {
+  margin: var(--lc-space-3) 0 0; padding: 10px 12px; max-height: 280px; overflow: auto;
+  background: var(--lc-surface-2); border: 1px solid var(--lc-line); border-radius: var(--lc-radius-md);
+  color: var(--lc-ink); font: 12px / 1.6 var(--lc-font-mono); white-space: pre-wrap; word-break: break-word;
+}
+.contractSections { display: grid; gap: var(--lc-space-3); }
+.contractSection { display: grid; gap: 4px; }
+.contractTitle { margin: 0; color: var(--lc-muted); font-size: var(--lc-text-sm); font-weight: 600; }
+.contractList {
+  margin: 0; padding-left: 18px; display: grid; gap: 4px;
+  color: var(--lc-ink); font-size: 13.5px; line-height: var(--lc-leading); word-break: break-word;
+}
+.contractEmpty { margin: 0; color: var(--lc-faint); font-size: var(--lc-text-sm); }
+.contractFold > .contractList, .contractFold > .contractEmpty { margin-top: var(--lc-space-2); }
+.rawBlock {
+  margin: 0; padding: 8px 10px; max-height: 220px; overflow: auto;
+  background: var(--lc-surface); border: 1px solid var(--lc-line); border-radius: var(--lc-radius-sm);
+  color: var(--lc-ink); font: 400 11.5px / 1.6 var(--lc-font-mono); white-space: pre-wrap; word-break: break-word;
+}
 .metaMore { border-top: 1px solid var(--lc-line); padding-top: var(--lc-space-3); }
 .metaMoreSummary { cursor: pointer; color: var(--lc-muted); font-size: var(--lc-text-sm); }
 .metaMoreList { display: grid; gap: 10px; margin: var(--lc-space-3) 0 0; }
