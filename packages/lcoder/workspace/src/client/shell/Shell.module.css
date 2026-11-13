@@ -1006,12 +1006,13 @@
   color: var(--lc-ink); font-size: 13.5px; line-height: var(--lc-leading); word-break: break-word;
 }
 .contractEmpty { margin: 0; color: var(--lc-faint); font-size: var(--lc-text-sm); }
-.contractFold > .contractList, .contractFold > .contractEmpty { margin-top: var(--lc-space-2); }
-.rawBlock {
-  margin: 0; padding: 8px 10px; max-height: 220px; overflow: auto;
-  background: var(--lc-surface); border: 1px solid var(--lc-line); border-radius: var(--lc-radius-sm);
-  color: var(--lc-ink); font: 400 11.5px / 1.6 var(--lc-font-mono); white-space: pre-wrap; word-break: break-word;
+.contractHighlights { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.contractHighlight {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px;
+  color: var(--lc-ink); font-size: 13.5px; line-height: var(--lc-leading); word-break: break-word;
 }
+.contractHighlightLabel { flex: none; color: var(--lc-muted); font-size: var(--lc-text-xs); font-weight: 600; }
+.contractFold > .contractList, .contractFold > .contractEmpty { margin-top: var(--lc-space-2); }
 .metaMore { border-top: 1px solid var(--lc-line); padding-top: var(--lc-space-3); }
 .metaMoreSummary { cursor: pointer; color: var(--lc-muted); font-size: var(--lc-text-sm); }
 .metaMoreList { display: grid; gap: 10px; margin: var(--lc-space-3) 0 0; }

@@ -567,7 +567,7 @@ describe('任务详情', () => {
     expect(within(more as HTMLElement).getByText('E-1')).toBeTruthy()
     expect(within(more as HTMLElement).getByText(zh['shell.surface'])).toBeTruthy()
     expect(within(more as HTMLElement).getByText(zh['shell.surfaceHint'])).toBeTruthy()
-    expect(within(more as HTMLElement).getByText('读 / 契约')).toBeTruthy()
+    expect(within(more as HTMLElement).getByText(zh['shell.surfaceReadContract'])).toBeTruthy()
     expect(within(more as HTMLElement).getByText(zh['shell.allowedPaths'])).toBeTruthy()
     expect(within(more as HTMLElement).getByText(zh['shell.allowedPathsHint'])).toBeTruthy()
     expect(within(more as HTMLElement).getByText(zh['shell.irreversible'])).toBeTruthy()
@@ -676,18 +676,18 @@ describe('任务详情', () => {
     expect(screen.getByRole('button', { name: zh['shell.sign'] })).toBeTruthy()
   })
 
-  it('契约区按人话分成四块：要做与算通过先看，边界与失败收在折叠里', async () => {
+  it('约定区默认只给人话要点，完整四栏收进折叠但一字不少', async () => {
     const signContract = vi.fn(async () => ({ ok: true, text: '已签署' }))
     const contract = [
       'id: T-01',
       'change:',
-      '  - 加登录限流',
+      '  - 加登录限流：五分钟五次失败锁定',
       '  - 记录审计日志',
       'not_change:',
       '  - 不改注册流程',
       'acceptance:',
-      '  - 五次失败锁定十分钟',
-      '  - 第六次提示剩余时间',
+      '  - 五次失败锁定十分钟。第六次提示剩余时间',
+      '  - 给 login_attempts 加 UNIQUE 索引',
       'fail_if:',
       '  - 锁定后仍能登录',
       '',
@@ -699,31 +699,43 @@ describe('任务详情', () => {
     await openTask('起草中的任务')
 
     const detail = screen.getByRole('dialog', { name: 'T-01 起草中的任务' })
-    const change = detail.querySelector('[data-contract-change]') as HTMLElement
-    const acceptance = detail.querySelector('[data-contract-acceptance]') as HTMLElement
+    // 界面把这份文件叫「约定」，按钮也用同一套词。
+    expect(zh['shell.contract']).toBe('约定')
+    expect(within(detail).getAllByText(/^约定/).length).toBeGreaterThan(0)
+    expect(within(detail).getByRole('button', { name: '签署约定' })).toBeTruthy()
+
+    // 默认视图只有要点：冒号前主旨、首句；人话条目排技术条目前面。
+    const highlights = detail.querySelector('[data-contract-highlights]') as HTMLElement
+    expect(highlights).not.toBeNull()
+    expect(highlights.textContent).toContain('加登录限流')
+    expect(highlights.textContent).toContain('记录审计日志')
+    expect(highlights.textContent).toContain('五次失败锁定十分钟')
+    expect(highlights.textContent.indexOf('五次失败锁定十分钟')).toBeLessThan(highlights.textContent.indexOf('UNIQUE'))
+    expect(within(highlights).getAllByText(zh['shell.contractChange']).length).toBeGreaterThan(0)
+    expect(within(highlights).getAllByText(zh['shell.contractAcceptance']).length).toBeGreaterThan(0)
+
+    // 完整四栏在折叠区里原样可查，默认收起。
+    const full = detail.querySelector('[data-contract-full]') as HTMLDetailsElement
+    expect(full.open).toBe(false)
+    const change = full.querySelector('[data-contract-change]') as HTMLElement
+    const acceptance = full.querySelector('[data-contract-acceptance]') as HTMLElement
     expect(change.textContent).toContain(zh['shell.contractChange'])
-    expect(within(change).getByText('加登录限流')).toBeTruthy()
+    expect(within(change).getByText('加登录限流：五分钟五次失败锁定')).toBeTruthy()
     expect(within(change).getByText('记录审计日志')).toBeTruthy()
     expect(acceptance.textContent).toContain(zh['shell.contractAcceptance'])
-    expect(within(acceptance).getByText('五次失败锁定十分钟')).toBeTruthy()
-    expect(within(acceptance).getByText('第六次提示剩余时间')).toBeTruthy()
+    expect(within(acceptance).getByText('五次失败锁定十分钟。第六次提示剩余时间')).toBeTruthy()
+    expect(within(acceptance).getByText('给 login_attempts 加 UNIQUE 索引')).toBeTruthy()
 
-    const notChange = detail.querySelector('[data-contract-not-change]') as HTMLDetailsElement
-    const failIf = detail.querySelector('[data-contract-fail-if]') as HTMLDetailsElement
+    const notChange = full.querySelector('[data-contract-not-change]') as HTMLDetailsElement
+    const failIf = full.querySelector('[data-contract-fail-if]') as HTMLDetailsElement
     expect(notChange.open).toBe(false)
     expect(failIf.open).toBe(false)
     expect(within(notChange).getByText('不改注册流程')).toBeTruthy()
     expect(within(failIf).getByText('锁定后仍能登录')).toBeTruthy()
 
-    // 契约原始数组在技术细节里默认折叠，但内容一字不少。
+    // 技术细节不再重复原始数组：同一份内容只在家里（约定折叠）出现一次。
     const tech = detail.querySelector('[data-task-tech-details]') as HTMLDetailsElement
-    expect(tech.open).toBe(false)
-    const raw = tech.querySelector('[data-task-contract-raw]') as HTMLElement
-    for (const field of ['"change"', '"notChange"', '"acceptance"', '"failIf"']) {
-      expect(raw.textContent).toContain(field)
-    }
-    expect(raw.textContent).toContain('加登录限流')
-    expect(raw.textContent).toContain('不改注册流程')
+    expect(tech.querySelector('[data-task-contract-raw]')).toBeNull()
 
     // 动作不变：未签仍可签署，回执留在原位。
     fireEvent.click(within(detail).getByRole('button', { name: zh['shell.sign'] }))
@@ -731,7 +743,7 @@ describe('任务详情', () => {
     expect(await within(detail).findByText('已签署')).toBeTruthy()
   })
 
-  it('窄窗下详情照常渲染摘要、契约分区与原文折叠区', async () => {
+  it('窄窗下详情照常渲染摘要、约定要点与完整约定折叠区', async () => {
     const originalWidth = window.innerWidth
     window.innerWidth = 360
     window.dispatchEvent(new Event('resize'))
@@ -745,7 +757,8 @@ describe('任务详情', () => {
       })
       const detail = await openTask('起草中的任务')
       expect(detail.querySelector('[data-task-summary]')?.textContent?.endsWith('…')).toBe(true)
-      expect(detail.querySelector('[data-contract-change]')).not.toBeNull()
+      expect(detail.querySelector('[data-contract-highlights]')).not.toBeNull()
+      expect(detail.querySelector('[data-contract-full]')).not.toBeNull()
       expect(detail.querySelector('[data-task-raw-description]')).not.toBeNull()
       expect(within(detail).getByRole('button', { name: zh['shell.sign'] })).toBeTruthy()
     } finally {
@@ -1705,7 +1718,7 @@ describe('方案讨论列与确认门禁', () => {
     expect(section.textContent).toContain('研发经理')
     expect(section.textContent).toContain('H5 前端')
     expect(section.textContent).toContain('架构师')
-    expect(section.textContent).toContain('T-02 契约已起草，待确认')
+    expect(section.textContent).toContain('T-02 约定已起草，待确认')
     // 契约正文不再抄进讨论行；完整字段只留在技术细节与契约区。
     expect(section.textContent).not.toContain('实现记一笔')
     expect(within(section).getByRole('button', { name: zh['shell.discussionConfirm'] })).toBeTruthy()
@@ -1766,7 +1779,7 @@ describe('方案讨论列与确认门禁', () => {
     })
     const detail = await openTask('记一笔')
     fireEvent.click(within(detail).getByRole('button', { name: zh['shell.discussionConfirm'] }))
-    expect(await screen.findByText('T-02 契约签署失败：签名被拒')).toBeTruthy()
+    expect(await screen.findByText('T-02 约定签署失败：签名被拒')).toBeTruthy()
     expect(advanceContract).not.toHaveBeenCalled()
   })
 })
