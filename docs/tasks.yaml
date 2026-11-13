@@ -1861,7 +1861,7 @@ tracks:
       date: '2026-11-13'
       dep: [T-152, T-165]
       inferred: false
-      note: "B 级修复，来源是用户 2026-11-13 反馈会话默认模型变成 LCoder Cloud。已核根因：cloud/face.ts 的 selectRoute 就是把会话模型 selectModel 到 lcoder-cloud；Shell 里新建任务对话、常驻角色会话与普通会话三处仍无条件 routeSession(created)，覆盖了设置里的官网默认模型。T-152 只修了立项确认、重试与更多讨论三处，新建会话这条链路漏了。修法：抽一个应用设置默认模型的小 helper，读 modelSettings 的 defaultSelection 并写入新会话；三处不再调 routeSession；读不到默认就交给宿主默认，不切云端。旧匿名访客会话仍由既有守卫补切。补测试断言三处新会话不调用 selectRoute 且写入官网默认。验收 typecheck、packages/lcoder vitest、改动文件 oxlint。工作树 pool-slot-1 到 lcoder/t166-new-session-model，端口 9822 与 9829 与 9830。"
+      note: "B 级修复，来源是用户 2026-11-13 反馈会话默认模型变成 LCoder Cloud。已核根因：cloud/face.ts 的 selectRoute 就是把会话模型 selectModel 到 lcoder-cloud；Shell 里新建任务对话、常驻角色会话与普通会话三处仍无条件 routeSession(created)，覆盖了设置里的官网默认模型。T-152 只修了立项确认、重试与更多讨论三处，新建会话这条链路漏了。修法：抽一个应用设置默认模型的小 helper，读 modelSettings 的 defaultSelection 并写入新会话；三处不再调 routeSession；读不到默认就交给宿主默认，不切云端。旧匿名访客会话仍由既有守卫补切。补测试断言三处新会话不调用 selectRoute 且写入官网默认。验收 typecheck、packages/lcoder vitest、改动文件 oxlint。工作树 pool-slot-1 到 lcoder/t166-new-session-model，端口 9822 与 9829 与 9830。2026-11-13 20:20 监督窗口派工，实现线会话 db3cf324。"
     - id: T-167
       title: 任务交付物文档与收口闸门
       status: doing
