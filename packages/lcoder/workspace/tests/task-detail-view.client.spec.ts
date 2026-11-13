@@ -1,9 +1,17 @@
 /**
  * 任务详情摘要派生的纯函数测：只取第一段人话，剥掉 Markdown 与来源前缀，跳过
  * 交代技术引用的句子，压成单行并按码点截断；没有正文时交回空串由界面给占位。
+ *
+ * 约定要点另测：冒号前主旨、首句截断、技术条过滤与回退、空数组。
  */
 import { describe, expect, it } from 'vitest'
-import { TASK_SUMMARY_LIMIT, taskDescriptionSummary } from '../src/client/shell/task-detail-view.ts'
+import {
+  CONTRACT_HIGHLIGHT_LIMIT,
+  CONTRACT_HIGHLIGHT_TEXT_LIMIT,
+  contractHighlights,
+  TASK_SUMMARY_LIMIT,
+  taskDescriptionSummary,
+} from '../src/client/shell/task-detail-view.ts'
 
 describe('任务描述摘要', () => {
   it('取第一段有效文字，后面的段落不进摘要', () => {
@@ -87,5 +95,93 @@ describe('任务描述摘要', () => {
     expect(taskDescriptionSummary('')).toBe('')
     expect(taskDescriptionSummary('  \n\n  ')).toBe('')
     expect(taskDescriptionSummary('## \n\n- \n\n> ')).toBe('')
+  })
+})
+
+describe('约定要点', () => {
+  const LABELS = { change: '要交付什么', acceptance: '怎么验收' }
+
+  it('冒号前主旨优先：去掉冒号后的细节', () => {
+    const highlights = contractHighlights({
+      change: ['加登录限流：五分钟五次失败锁定'],
+      acceptance: [],
+    }, LABELS)
+    expect(highlights).toEqual([{ label: '要交付什么', text: '加登录限流' }])
+  })
+
+  it('没有冒号时取首句，句末标点不进要点', () => {
+    const highlights = contractHighlights({
+      change: ['给登录接口加限流。同时记录审计日志。'],
+      acceptance: ['Limit logins. Record audits.'],
+    }, LABELS)
+    expect(highlights).toEqual([
+      { label: '要交付什么', text: '给登录接口加限流' },
+      { label: '怎么验收', text: 'Limit logins' },
+    ])
+  })
+
+  it('冒号前太短时退回首句，避免只剩标签', () => {
+    const highlights = contractHighlights({ change: ['注意：锁定时间写十分钟'], acceptance: [] }, LABELS)
+    expect(highlights).toEqual([{ label: '要交付什么', text: '注意：锁定时间写十分钟' }])
+  })
+
+  it('剥掉 Markdown、行内代码与清单符号', () => {
+    const highlights = contractHighlights({
+      change: ['- **加登录限流**：把 `lockout` 时间写进配置'],
+      acceptance: [],
+    }, LABELS)
+    expect(highlights).toEqual([{ label: '要交付什么', text: '加登录限流' }])
+  })
+
+  it('技术条目排在后面：人话条目先占要点位', () => {
+    const highlights = contractHighlights({
+      change: ['给 better-sqlite3 加索引', '把登录失败次数写进审计日志', '调整 schema 校验'],
+      acceptance: [],
+    }, LABELS)
+    expect(highlights.map(row => row.text)).toEqual([
+      '把登录失败次数写进审计日志',
+      '给 better-sqlite3 加索引',
+      '调整 schema 校验',
+    ])
+  })
+
+  it('人话条目不够时回退到技术条目，顺序按原文', () => {
+    const highlights = contractHighlights({
+      change: ['执行 pnpm 门禁', 'ALTER TABLE users ADD UNIQUE 索引', '记录审计日志'],
+      acceptance: [],
+    }, LABELS)
+    expect(highlights.map(row => row.text)).toEqual(['记录审计日志', '执行 pnpm 门禁', 'ALTER TABLE users ADD UNIQUE 索引'])
+  })
+
+  it('两栏各最多三条，先要交付后怎么验收', () => {
+    const change = ['一', '二', '三', '四'].map(text => `${text}：细节`)
+    const acceptance = ['甲', '乙', '丙', '丁'].map(text => `${text}：细节`)
+    const highlights = contractHighlights({ change, acceptance }, LABELS)
+    expect(highlights).toHaveLength(CONTRACT_HIGHLIGHT_LIMIT * 2)
+    expect(highlights.slice(0, CONTRACT_HIGHLIGHT_LIMIT).every(row => row.label === '要交付什么')).toBe(true)
+    expect(highlights.slice(CONTRACT_HIGHLIGHT_LIMIT).every(row => row.label === '怎么验收')).toBe(true)
+  })
+
+  it('同一栏重复主旨只留第一条', () => {
+    const highlights = contractHighlights({
+      change: ['加登录限流：第一处', '加登录限流：第二处', '记录审计日志'],
+      acceptance: [],
+    }, LABELS)
+    expect(highlights.map(row => row.text)).toEqual(['加登录限流', '记录审计日志'])
+  })
+
+  it('超长主旨按码点截断到上限并加省略号', () => {
+    const highlights = contractHighlights({
+      change: [`限${'制'.repeat(CONTRACT_HIGHLIGHT_TEXT_LIMIT + 20)}`],
+      acceptance: [],
+    }, LABELS)
+    const text = highlights[0]?.text ?? ''
+    expect(Array.from(text)).toHaveLength(CONTRACT_HIGHLIGHT_TEXT_LIMIT + 1)
+    expect(text.endsWith('…')).toBe(true)
+  })
+
+  it('空数组与空白条目都不产要点', () => {
+    expect(contractHighlights({ change: [], acceptance: [] }, LABELS)).toEqual([])
+    expect(contractHighlights({ change: [' ', '## ', '- '], acceptance: [] }, LABELS)).toEqual([])
   })
 })

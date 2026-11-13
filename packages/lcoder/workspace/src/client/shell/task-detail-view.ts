@@ -1,9 +1,12 @@
 /**
- * 任务详情的展示派生：把写给模型的原始 `description` 压成一句人话。
+ * 任务详情的展示派生：把写给模型的原始 `description` 压成一句人话，并从约定里
+ * 提炼人话要点。
  *
- * 这里只做文本整形，不改投影数据；原文由详情页的「完整说明」折叠区原样呈现，
+ * 摘要只做文本整形，不改投影数据；原文由详情页的「完整说明」折叠区原样呈现，
  * 所以清理与截断可以放心丢掉 Markdown 噪声。解析只认第一段含人话的文字：
  * 标题、清单与引用行不构成摘要，提到路径、台账编号或规格措辞的句子也整句跳过。
+ *
+ * 约定要点同样只读投影：默认视图只给几条人话主旨，完整四栏仍由折叠区原样展示。
  */
 
 /** 摘要的字数上限；按 Unicode 码点计数，不拆代理对。 */
@@ -127,12 +130,22 @@ function paragraphText(paragraph: string): string {
 /**
  * 把任意长度的单行摘要截到上限，超长时以省略号收尾。
  * @param text - 已压成单行的文本。
- * @returns 不超过 {@link TASK_SUMMARY_LIMIT} 个码点加省略号的摘要。
+ * @param limit - 码点上限。
+ * @returns 不超过 `limit` 个码点加省略号的文本。
+ */
+function truncateTo(text: string, limit: number): string {
+  const chars = Array.from(text)
+  if (chars.length <= limit) return text
+  return `${chars.slice(0, limit).join('').trimEnd()}…`
+}
+
+/**
+ * 把任意长度的单行摘要截到 {@link TASK_SUMMARY_LIMIT}。
+ * @param text - 已压成单行的文本。
+ * @returns 不超过上限加省略号的摘要。
  */
 function truncate(text: string): string {
-  const chars = Array.from(text)
-  if (chars.length <= TASK_SUMMARY_LIMIT) return text
-  return `${chars.slice(0, TASK_SUMMARY_LIMIT).join('').trimEnd()}…`
+  return truncateTo(text, TASK_SUMMARY_LIMIT)
 }
 
 /**
@@ -158,4 +171,114 @@ export function taskDescriptionSummary(description: string): string {
     if (text !== '') return truncate(text)
   }
   return headingFallback === '' ? '' : truncate(headingFallback)
+}
+
+/** 每栏最多取几条约定要点。 */
+export const CONTRACT_HIGHLIGHT_LIMIT = 3
+
+/** 要点正文的码点上限；比摘要短，保证一首屏能看完。 */
+export const CONTRACT_HIGHLIGHT_TEXT_LIMIT = 90
+
+/** 约定要点里冒号前的标签至少要有这么多码点，否则退回整句。 */
+const MIN_COLON_HEAD = 4
+
+/** 要点只保留首句：句末标点之后的内容进完整约定折叠。英文句点只在词尾算断句。 */
+const HIGHLIGHT_SENTENCE_END = /[。；;!?！？]|\.(?=\s|$)/
+
+/** 中英文冒号；冒号前通常是主旨，冒号后是细节。 */
+const HIGHLIGHT_COLON = /[:：]/
+
+/** 句尾标点与空白；要点末尾不保留，读起来更整齐。 */
+const HIGHLIGHT_TAIL = /[。；;.!?！？、\s]+$/
+
+/** 技术词特征：命中的条目不做首屏要点，技术条目不够时才回退。 */
+const CONTRACT_TECHNICAL_TERM = [
+  /\bSQL\b/i,
+  /\bUNIQUE\b/i,
+  /schema/i,
+  /fastify/i,
+  /better-sqlite3/i,
+  /\btsx\b/i,
+  /\bpnpm\b/i,
+  /\.spec\b/i,
+] as const
+
+/** 一条约定要点：`label` 是栏名，`text` 是清理后的主旨。 */
+export interface ContractHighlight {
+  readonly label: string
+  readonly text: string
+}
+
+/** 两栏的本地化栏名；纯函数不读词典，由调用方给。 */
+export interface ContractHighlightLabels {
+  readonly change: string
+  readonly acceptance: string
+}
+
+/**
+ * 把一条约定原文收成一句主旨：取首个非空行，剥掉 Markdown 与代码符号，
+ * 依次尝试冒号前主旨与首句，最后截断到 {@link CONTRACT_HIGHLIGHT_TEXT_LIMIT}。
+ * @param item - 约定数组里的一条原文。
+ * @returns 可显示的主旨；清理后为空时为空串。
+ */
+function highlightText(item: string): string {
+  const line = item.split(/\r?\n/).map(stripMarkers).find(text => text !== '') ?? ''
+  const cleaned = stripInline(line)
+  const sentence = trimTail((cleaned.split(HIGHLIGHT_SENTENCE_END)[0] ?? '').trim())
+  const colon = sentence.search(HIGHLIGHT_COLON)
+  const head = colon === -1 ? '' : trimTail(sentence.slice(0, colon).trim())
+  const focus = Array.from(head).length >= MIN_COLON_HEAD ? head : sentence
+  return truncateTo(focus, CONTRACT_HIGHLIGHT_TEXT_LIMIT)
+}
+
+/**
+ * 去掉句尾的标点与空白。
+ * @param text - 已裁剪的文本。
+ * @returns 不以句末标点结尾的文本。
+ */
+function trimTail(text: string): string {
+  return text.replace(HIGHLIGHT_TAIL, '').trim()
+}
+
+/**
+ * 一栏约定取至多 {@link CONTRACT_HIGHLIGHT_LIMIT} 条要点：先取不含技术词的条目，
+ * 不够时再按原顺序回退到技术条目；同一栏里重复的主旨只留第一条。
+ * @param items - 一栏约定原文。
+ * @param label - 这一栏的本地化名称。
+ * @returns 该栏的要点；没有可读条目时为空数组。
+ */
+function highlightSection(items: readonly string[], label: string): readonly ContractHighlight[] {
+  const rows = items
+    .map(item => ({ text: highlightText(item), technical: CONTRACT_TECHNICAL_TERM.some(term => term.test(item)) }))
+    .filter(row => row.text !== '')
+  const seen = new Set<string>()
+  const picked: ContractHighlight[] = []
+  for (const technical of [false, true]) {
+    for (const row of rows) {
+      if (row.technical !== technical || seen.has(row.text)) continue
+      seen.add(row.text)
+      picked.push({ label, text: row.text })
+      if (picked.length === CONTRACT_HIGHLIGHT_LIMIT) return picked
+    }
+  }
+  return picked
+}
+
+/**
+ * 从一份约定派生人话要点：要交付什么与怎么验收各最多三条。
+ *
+ * 默认视图只显示这些要点，完整四栏由界面折叠区原样展示；这里不改投影，
+ * 也不替模型补充内容。
+ * @param contract - 约定投影，只读 `change` 与 `acceptance` 两栏。
+ * @param labels - 两栏的本地化名称。
+ * @returns 先「要交付什么」后「怎么验收」的要点；没有可读条目时为空数组。
+ */
+export function contractHighlights(
+  contract: { readonly change: readonly string[]; readonly acceptance: readonly string[] },
+  labels: ContractHighlightLabels,
+): readonly ContractHighlight[] {
+  return [
+    ...highlightSection(contract.change, labels.change),
+    ...highlightSection(contract.acceptance, labels.acceptance),
+  ]
 }
