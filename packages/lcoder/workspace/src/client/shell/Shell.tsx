@@ -75,7 +75,7 @@ import { browserSkinStorage, readSkin, SKINS, writeSkin } from './skin.ts'
 import type { Skin } from './skin.ts'
 import { recommendedRoleId } from './role-hint.ts'
 import { ChatTranscript, PendingInteractionCard } from './ChatPanel.tsx'
-import { intakeAnswersOf } from './requirement.ts'
+import { intakeAnswersOf, formatOpenedAt } from './requirement.ts'
 import type { RequirementRef } from './requirement.ts'
 import {
   EMPTY_REQUIREMENT_FILTER, filterRequirementViews, isRequirementId, requirementViewRows,
@@ -94,7 +94,7 @@ import type {
 } from './requirement-split.ts'
 import {
   boardColumnOf, confirmPlan, contractComplete, contractOf, contractSigned, discussionNeeded, discussionTasksOf,
-  planDiscussionGroups, runPlanDiscussion,
+  planDiscussionGroups, runPlanDiscussion, trackNameOf,
 } from './plan-discussion.ts'
 import type {
   DiscussionGroup, MeetingRole, PlanConfirmFailureReason, PlanConfirmSummary, PlanDiscussionFailure,
@@ -125,7 +125,8 @@ import { useWindowDrag } from './window-drag.ts'
 import { runningCardClass } from './task-card-visual.ts'
 import { projectDirectoryPicker } from './project-directory.ts'
 import type {
-  ShellContextPressure, ShellMessage, ShellProjectInfo, ShellRole, ShellSignResult, ShellTask, ShellTaskState,
+  ShellBoardColumnId, ShellContextPressure, ShellMessage, ShellProjectInfo, ShellRole, ShellSignResult, ShellTask,
+  ShellTaskState,
 } from './shell-data.ts'
 import { BUILTIN_ROLE_IDS } from './shell-data.ts'
 import { BUILTIN_TRACKS } from '@lcoder/kernel/src/schema/tracks.ts'
@@ -378,6 +379,19 @@ const TASK_STATUS: Record<TaskCardStatus, { readonly labelKey: LcoderWorkspaceKe
   failed: { labelKey: 'shell.taskFailed', className: css.tagDanger },
   waiting: { labelKey: 'shell.taskWaiting', className: css.tagWarn },
   queued: { labelKey: 'shell.taskQueued', className: css.tagQueued },
+}
+
+/**
+ * 列表视图的状态列用看板列名：`discussion` 不是内核状态，行上看不出 drafting。
+ * `drafting` 不是任务页的列，但列表仍按真实状态名显示，免得数据停在哪一步看不出来。
+ */
+const BOARD_COLUMN_LABEL: Record<ShellBoardColumnId, LcoderWorkspaceKey> = {
+  discussion: 'shell.discussing',
+  drafting: 'shell.drafting',
+  contracted: 'shell.contracted',
+  implementing: 'shell.implementing',
+  verifying: 'shell.verifying',
+  closed: 'shell.closed',
 }
 
 /** 合并投影里的联调组与本次判定刚记下的组，交给卡片与详情共用。 */
@@ -682,6 +696,8 @@ export function Shell({
   /** 左侧菜单：需求页与任务页。两页各自记住自己的视图与筛选，切回来不变。 */
   const [nav, setNav] = useState<'requirements' | 'tasks'>('tasks')
   const [requirementView, setRequirementView] = useState<RequirementView>('table')
+  /** 任务页的看板/列表；默认看板，只在内存里记，重启回到看板。 */
+  const [taskView, setTaskView] = useState<'board' | 'list'>('board')
   const [requirementFilter, setRequirementFilter] = useState<RequirementFilter>(EMPTY_REQUIREMENT_FILTER)
   const [showCancelledRequirements, setShowCancelledRequirements] = useState(false)
   /** 打开中的需求详情；null 表示抽屉没开。 */
@@ -1767,6 +1783,11 @@ export function Shell({
   const boardTasks = useMemo(() => tasks.filter(task => !isRequirementBodyTask(task)), [tasks])
   /** 判据下的可见任务；筛选入口上的计数就是它。 */
   const visibleTasks = filterTasks(boardTasks, filter, statusOfTask)
+  /** 列表视图的行：与看板共用筛选结果，按编号升序（数字段按数值比较）。 */
+  const taskRows = useMemo(
+    () => [...visibleTasks].sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true })),
+    [visibleTasks],
+  )
 
   /** 需求页的展示行与筛选结果；九态由 kernel 的派生函数折出。 */
   const requirementRows = useMemo(() => requirementViewRows(requirements, tasks), [requirements, tasks])
@@ -3586,6 +3607,62 @@ export function Shell({
   }
 
   /**
+   * 任务页的列表视图：一行一条任务，点整行（或 Enter）打开既有详情。
+   *
+   * 行来自 `taskRows`，与看板共用同一份筛选结果；不带逐行操作按钮。
+   * @returns 可横向滚动的表格。
+   */
+  const renderTaskList = (): ReactNode => (
+    <div className={css.reqTableWrap} data-task-list>
+      <table className={`${css.reqTable} ${css.taskTable}`}>
+        <thead>
+          <tr>
+            <th scope="col">{t('shell.requirementNo')}</th>
+            <th scope="col">{t('shell.requirementTitle')}</th>
+            <th scope="col">{t('shell.requirementState')}</th>
+            <th scope="col">{t('shell.requirement')}</th>
+            <th scope="col">{t('shell.track')}</th>
+            <th scope="col" data-task-col="deps">{t('shell.taskDependency')}</th>
+            <th scope="col" data-task-col="updated">{t('shell.requirementUpdatedAt')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {taskRows.map((task) => {
+            const updatedAt = formatOpenedAt(task.openedAt)
+            const requirement = task.requirement ?? task.proposal
+            const dependsOn = task.dependsOn ?? []
+            return (
+              <tr
+                key={task.id}
+                className={css.reqRow}
+                data-task-row={task.id}
+                tabIndex={0}
+                role="button"
+                onClick={() => { openTask(task) }}
+                onKeyDown={(event): void => {
+                  if (event.key !== 'Enter' && event.key !== ' ') return
+                  event.preventDefault()
+                  openTask(task)
+                }}
+              >
+                <td className={css.reqNo}>{task.id}</td>
+                <td className={css.reqTitleCell}>{task.title}</td>
+                <td><span className={css.tag}>{t(BOARD_COLUMN_LABEL[boardColumnOf(task)])}</span></td>
+                <td className={css.reqCount}>{requirement ?? '—'}</td>
+                <td className={css.reqCount}>{trackNameOf(task.track, trackOptions())}</td>
+                <td className={css.reqCount} data-task-col="deps">
+                  {dependsOn.length === 0 ? t('shell.taskDependsNone') : dependsOn.join('、')}
+                </td>
+                <td className={css.reqTime} data-task-col="updated">{updatedAt === '' ? '—' : updatedAt}</td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+
+  /**
    * 角色候选（装配层声明的 Agent preset）。名册读不到就不给这一行：新会话照宿主默认
    * 角色开，外壳不编造角色。
    */
@@ -3926,6 +4003,26 @@ export function Shell({
                     </button>
                   )}
                   <div className={css.boardActions}>
+                    <div className={css.viewSwitch} role="group" aria-label={t('shell.taskView')}>
+                      <button
+                        type="button"
+                        className={`${css.filterChip} ${taskView === 'board' ? css.filterChipActive : ''}`}
+                        data-task-view="board"
+                        aria-pressed={taskView === 'board'}
+                        onClick={() => { setTaskView('board') }}
+                      >
+                        {t('shell.taskViewBoard')}
+                      </button>
+                      <button
+                        type="button"
+                        className={`${css.filterChip} ${taskView === 'list' ? css.filterChipActive : ''}`}
+                        data-task-view="list"
+                        aria-pressed={taskView === 'list'}
+                        onClick={() => { setTaskView('list') }}
+                      >
+                        {t('shell.taskViewList')}
+                      </button>
+                    </div>
                     {!hasWorkspace || !hasSession ? null : (
                       <button type="button" className={css.pillBtn} onClick={() => { setResultPage(true) }}>
                         {t('shell.intakeResult')}
@@ -4003,9 +4100,13 @@ export function Shell({
                               {modelStatus.state === 'empty' ? <p className={css.secretRef}>{t('shell.howToConfigure')}</p> : null}
                             </div>
                           )}
-                          <div className={css.board}>
-                            {SHELL_BOARD_COLUMNS.map(column => renderColumn(column))}
-                          </div>
+                          {taskView === 'list'
+                            ? renderTaskList()
+                            : (
+                              <div className={css.board}>
+                                {SHELL_BOARD_COLUMNS.map(column => renderColumn(column))}
+                              </div>
+                            )}
                           {isFilterActive(filter) && visibleTasks.length === 0
                             ? <p className={css.filterEmpty}>{t('shell.filterEmpty')}</p>
                             : null}

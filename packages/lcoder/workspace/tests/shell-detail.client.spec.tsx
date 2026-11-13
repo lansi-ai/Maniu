@@ -972,6 +972,123 @@ describe('左侧菜单与任务页的归属需求', () => {
   })
 })
 
+describe('任务页的看板与列表切换', () => {
+  /** 四条任务：讨论中的、开发中的、旧方案回指的、旧需求本体（应隐藏）。 */
+  const LIST_TASKS = {
+    'T-00.yaml': 'id: T-00\ntitle: 需求本体任务\nstate: drafting\ngrade: B\nproposal: P-01\n',
+    'T-01.yaml': 'id: T-01\ntitle: 讨论中的任务\nstate: drafting\ngrade: A\ntrack: api\nopened_at: 2026-11-11T09:00:00.000Z\n',
+    'T-02.yaml': [
+      'id: T-02',
+      'title: 开发中的任务',
+      'state: implementing',
+      'grade: B',
+      'requirement: REQ-01',
+      'track: h5',
+      'depends_on:',
+      '  - T-01',
+      'opened_at: 2026-11-12T09:00:00.000Z',
+      '',
+    ].join('\n'),
+    'T-03.yaml': 'id: T-03\ntitle: 旧方案任务\nstate: contracted\ngrade: C\nproposal: P-09\n',
+  }
+
+  /** 等看板画出任务，再切到列表。 */
+  async function openTaskList(): Promise<HTMLElement> {
+    const view = renderShell({ spec: { tasks: LIST_TASKS } })
+    await screen.findByText('开发中的任务')
+    fireEvent.click(screen.getByRole('button', { name: zh['shell.taskViewList'] }))
+    return view.container
+  }
+
+  it('默认看板；切到列表后出现七列表头，再切回看板即收起', async () => {
+    const { container } = renderShell({ spec: { tasks: LIST_TASKS } })
+    await screen.findByText('开发中的任务')
+    expect(container.querySelector('[data-task-list]')).toBeNull()
+    expect(screen.getByRole('button', { name: zh['shell.taskViewBoard'] }).getAttribute('aria-pressed')).toBe('true')
+
+    fireEvent.click(screen.getByRole('button', { name: zh['shell.taskViewList'] }))
+    expect(container.querySelector('[data-task-list]')).not.toBeNull()
+    expect(screen.getByRole('button', { name: zh['shell.taskViewList'] }).getAttribute('aria-pressed')).toBe('true')
+
+    for (const key of ['shell.requirementNo', 'shell.requirementTitle', 'shell.requirementState',
+      'shell.requirement', 'shell.track', 'shell.taskDependency', 'shell.requirementUpdatedAt'] as const) {
+      expect(screen.getByRole('columnheader', { name: zh[key] })).toBeTruthy()
+    }
+
+    fireEvent.click(screen.getByRole('button', { name: zh['shell.taskViewBoard'] }))
+    expect(container.querySelector('[data-task-list]')).toBeNull()
+  })
+
+  it('行按编号升序，列出状态、需求回退、轨、依赖与更新时间；旧需求本体不出现', async () => {
+    const container = await openTaskList()
+
+    const rows = [...container.querySelectorAll('[data-task-row]')].map(row => row.getAttribute('data-task-row'))
+    expect(rows).toEqual(['T-01', 'T-02', 'T-03'])
+    expect(screen.queryByText('需求本体任务')).toBeNull()
+
+    const discuss = container.querySelector('[data-task-row="T-01"]') as HTMLElement
+    // drafting + 已标轨 → 方案讨论；不显示原始状态名。
+    expect(discuss.textContent).toContain(zh['shell.discussing'])
+    expect(discuss.textContent).not.toContain(zh['shell.drafting'])
+    expect(discuss.textContent).toContain('接口')
+    expect(discuss.textContent).toContain(zh['shell.taskDependsNone'])
+    expect(discuss.textContent).toContain('2026')
+
+    const developing = container.querySelector('[data-task-row="T-02"]') as HTMLElement
+    expect(developing.textContent).toContain(zh['shell.implementing'])
+    expect(developing.textContent).toContain('REQ-01')
+    expect(developing.textContent).toContain('H5 前端')
+    expect(developing.textContent).toContain('T-01')
+
+    const legacy = container.querySelector('[data-task-row="T-03"]') as HTMLElement
+    expect(legacy.textContent).toContain(zh['shell.contracted'])
+    // 旧数据没有 requirement 时回退方案编号；没写轨按通用；没有依赖写「无」。
+    expect(legacy.textContent).toContain('P-09')
+    expect(legacy.textContent).toContain('通用')
+    expect(legacy.textContent).toContain(zh['shell.taskDependsNone'])
+    // 没有 opened_at：更新时间显示破折号。
+    expect(legacy.textContent).toContain('—')
+  })
+
+  it('点整行或用 Enter 打开任务详情', async () => {
+    const container = await openTaskList()
+
+    fireEvent.click(container.querySelector('[data-task-row="T-02"]') as HTMLElement)
+    const detail = await screen.findByRole('dialog')
+    expect(detail.getAttribute('aria-label')).toBe('T-02 开发中的任务')
+    fireEvent.click(within(detail).getByRole('button', { name: zh['shell.cancel'] }))
+    await waitFor(() => { expect(screen.queryByRole('dialog')).toBeNull() })
+
+    fireEvent.keyDown(container.querySelector('[data-task-row="T-03"]') as HTMLElement, { key: 'Enter' })
+    const byKey = await screen.findByRole('dialog')
+    expect(byKey.getAttribute('aria-label')).toBe('T-03 旧方案任务')
+  })
+
+  it('关键字筛选同时作用于列表；没有命中时给空态', async () => {
+    const container = await openTaskList()
+
+    fireEvent.click(screen.getByRole('button', { name: zh['shell.filter'] }))
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: '旧方案' } })
+    const rows = [...container.querySelectorAll('[data-task-row]')].map(row => row.getAttribute('data-task-row'))
+    expect(rows).toEqual(['T-03'])
+
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: '不存在的任务' } })
+    expect(container.querySelector('[data-task-row]')).toBeNull()
+    expect(screen.getByText(zh['shell.filterEmpty'])).toBeTruthy()
+  })
+
+  it('英文界面给出切换与表头文案', async () => {
+    renderShell({ spec: { tasks: LIST_TASKS }, t: enT })
+    await screen.findByText('开发中的任务')
+    fireEvent.click(screen.getByRole('button', { name: en['shell.taskViewList'] }))
+
+    for (const key of ['shell.requirementNo', 'shell.requirementTitle', 'shell.requirementState',
+      'shell.requirement', 'shell.track', 'shell.taskDependency', 'shell.requirementUpdatedAt'] as const) {
+      expect(screen.getByRole('columnheader', { name: en[key] })).toBeTruthy()
+    }
+  })
+})
+
 describe('任务详情的岗位弹窗与建议徽标', () => {
   it('推荐徽标只出现在弹窗的推荐项，详情里不显示建议理由', async () => {
     renderShell({ spec: { tasks: { 'T-01.yaml': TASK_VUE }, roles: ROLES_VUE } })
