@@ -1741,7 +1741,7 @@ tracks:
       note: "B 级功能缺口，来源是 T-150 真机验收。确认轮模型明确回复「这一阶段的工具里没有写文件能力」，工具面只有 project_draft、proposal_draft、spec_draft、task_draft、file_read、file_list，没有 file_edit 与 cmd_run；因此 .spec/requirements/P-01.md 没有写成，拆分只能退回任务描述与方案正文，需求卡正文也可能取到确认回执。现状与 T-137 的立项咒语要求冲突，属于设计不可实现而不是模型偷懒。候选做法：一、新增内核工具 requirement_draft，只写 .spec/requirements/<方案编号>.md，校验方案存在、正文非空、不覆盖已有文件，并加进 intake 角色的工具面；二、只给人机命令，由外壳在需求卡上提供写入动作；三、给 intake 角色开放 file_edit，范围过大不建议。同时要修需求卡取文优先级，避免把确认回执当需求概要。2026-11-13 12:35 用户拍板采用第一条：新增 requirement_draft 工具，只写 .spec/requirements/<方案编号>.md，校验方案存在、正文非空、不覆盖已有文件，只加进 intake 角色工具面；立项咒语在确认后调用它写入完整概要。因要改立项提示词，等 T-154 与 T-155 合入后再派工。"
     - id: T-154
       title: 需求本体任务不得带轨
-      status: doing
+      status: done
       face: 用户端
       type: 修复
       owner: lance
@@ -1749,10 +1749,10 @@ tracks:
       date: '2026-11-13'
       dep: [T-149, T-150]
       inferred: false
-      note: "B 级修复，来源是 T-150 真机验收。立项确认后 task_draft 建出的需求本体 T-01 被模型顺手标了 track h5；T-149 改过的看板列判定按 track 进方案讨论，于是需求本体被放进方案讨论列、点开是任务详情而不是需求卡片，下一步提示变成起草契约。已确认口径：需求本体不参与交付面划分，不得写 track 与 role；track 只给拆分出来的开发任务。修法：立项咒语在 task_draft 那一步明确禁止传 track 与 role，并说明违规会导致看板错列；补单测断言立项指令包含该约束。验收 typecheck 与 packages/lcoder vitest 与改动文件 oxlint。与 T-155 合并到一条工作树、分开提交。"
+      note: "B 级修复，来源是 T-150 真机验收。立项确认后 task_draft 建出的需求本体 T-01 被模型顺手标了 track h5；T-149 改过的看板列判定按 track 进方案讨论，于是需求本体被放进方案讨论列、点开是任务详情而不是需求卡片，下一步提示变成起草契约。已确认口径：需求本体不参与交付面划分，不得写 track 与 role；track 只给拆分出来的开发任务。修法：立项咒语在 task_draft 那一步明确禁止传 track 与 role，并说明违规会导致看板错列；补单测断言立项指令包含该约束。验收 typecheck 与 packages/lcoder vitest 与改动文件 oxlint。与 T-155 合并到一条工作树、分开提交。2026-11-13 12:45 监督窗口核验并收口。立项咒语在 task_draft 一步明确禁止传 track 与 role 并说明错列后果，补了一条提示词断言。独立与主检均复跑 typecheck、vitest 与改动文件 oxlint 全过；主检 build:artifacts 与 build:check 全过。未验项是真实模型立项时不再标轨，需下一次空仓立项复看。已合入 lcoder/main、release pool-slot-1。"
     - id: T-155
       title: 讨论历史抽屉被投影刷新关闭
-      status: doing
+      status: done
       face: 用户端
       type: 修复
       owner: lance
@@ -1760,7 +1760,7 @@ tracks:
       date: '2026-11-13'
       dep: [T-149, T-150]
       inferred: false
-      note: "B 级修复，来源是 T-150 真机验收。需求卡片点讨论历史后抽屉只出现一瞬间就消失，读不到任何角色分组。已核原因：Shell 里收起抽屉的 effect 依赖 detail 对象本身，而看板每十秒重读投影后会把 detail 换成同一任务的新快照，对象身份变化触发 effect，抽屉被关掉；抽屉的异步读取还没完成就被丢弃。修法：抽屉收起只在任务真的换了时发生，依赖改成 detail 的编号而不是对象；补一条组件或流程测试，模拟抽屉打开后 tasks 刷新一次，抽屉仍保持打开并能从 loading 落到 ready；读取失败与定位不到两种提示保持现状。验收 typecheck 与 packages/lcoder vitest 与改动文件 oxlint。与 T-154 合并到一条工作树、分开提交。"
+      note: "B 级修复，来源是 T-150 真机验收。需求卡片点讨论历史后抽屉只出现一瞬间就消失，读不到任何角色分组。已核原因：Shell 里收起抽屉的 effect 依赖 detail 对象本身，而看板每十秒重读投影后会把 detail 换成同一任务的新快照，对象身份变化触发 effect，抽屉被关掉；抽屉的异步读取还没完成就被丢弃。修法：抽屉收起只在任务真的换了时发生，依赖改成 detail 的编号而不是对象；补一条组件或流程测试，模拟抽屉打开后 tasks 刷新一次，抽屉仍保持打开并能从 loading 落到 ready；读取失败与定位不到两种提示保持现状。验收 typecheck 与 packages/lcoder vitest 与改动文件 oxlint。与 T-154 合并到一条工作树、分开提交。2026-11-13 12:45 监督窗口核验并收口。抽屉收起改为依赖 detail 编号，投影刷新不再打断已打开的抽屉；补了「刷新不关」与「换任务收起」两条用例。独立与主检均复跑 typecheck、vitest 与改动文件 oxlint 全过；主检 build:artifacts 与 build:check 全过。未验项是真机上抽屉稳定打开并显示角色分组，需重启实例后复验。已合入 lcoder/main、release pool-slot-1。"
 milestones:
 - name: MVP-0 工作台本地跑通
   track: lcoder
