@@ -92,6 +92,15 @@ describe('loadFlowSnapshot', () => {
     expect(() => loadFlowSnapshot(root)).toThrow(/push/u)
   })
 
+  it('只有需求本体时不驱动起草契约；拆出带轨任务后才进入契约步骤', () => {
+    const root = makeSpec()
+    writeTask(root, { proposal: 'P-01' })
+    expect(loadFlowSnapshot(root).decision).toMatchObject({ action: 'stop', taskId: null })
+
+    writeTask(root, { id: 'T-02', title: '拆分出来的任务', proposal: 'P-01', track: 'h5' })
+    expect(loadFlowSnapshot(root).decision).toMatchObject({ action: 'contract', taskId: 'T-02' })
+  })
+
   it('依赖与证据进入事实：前置未收口则停，证据齐则收口', () => {
     const root = makeSpec()
     writeTask(root, { depends_on: ['T-00'] })

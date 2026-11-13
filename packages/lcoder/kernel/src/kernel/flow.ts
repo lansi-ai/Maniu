@@ -39,6 +39,12 @@ export interface FlowBlocker {
 export interface FlowTaskFacts {
   readonly id: string
   readonly state: TaskState
+  /** 这条任务回指的方案编号；需求本体与拆分任务都有，人工直立的没有。 */
+  readonly proposal: string | null
+  /** 归属轨；需求本体没有轨。 */
+  readonly track: string | null
+  /** 已分配岗位；需求本体没有岗位。 */
+  readonly role: string | null
   /** 前置任务编号；收口才算满足。 */
   readonly dependsOn: readonly string[]
   /** 任务的 `scope.irreversible`。 */
@@ -142,11 +148,24 @@ export function decideFlow(input: FlowInput): FlowDecision {
 
   let firstBlocked: FlowDecision | undefined
   for (const task of open) {
+    // 需求本体不是实施任务：下一步留给拆分入口，不给它起草契约。
+    if (isRequirementBody(task)) continue
     const decision = decideTask(task, byId, closed, input.policy)
     if (decision.blockers.length === 0) return decision
     firstBlocked ??= decision
   }
   return firstBlocked ?? { action: 'stop', taskId: null, mode: 'none', reason: '没有可推进的任务', blockers: [] }
+}
+
+/**
+ * 需求本体：立项与拆分入口落下的待拆分需求，不是实施任务。
+ *
+ * 它是起草态、回指方案，但既没有轨也没有岗位；拆分出的任务会带轨。
+ * @param task - 一条任务事实。
+ * @returns 这条任务是不是需求本体。
+ */
+function isRequirementBody(task: FlowTaskFacts): boolean {
+  return task.state === 'drafting' && task.proposal !== null && task.track === null && task.role === null
 }
 
 /** 停止条件：按 token、时长、连续失败、并发上限的顺序判，第一条触发就停。 */

@@ -13,6 +13,9 @@ import type { AutomationActionName, AutomationMode } from '../src/schema/spec.js
 const BASE: FlowTaskFacts = {
   id: 'T-01',
   state: 'drafting',
+  proposal: null,
+  track: null,
+  role: null,
   dependsOn: [],
   irreversible: [],
   contractExists: false,
@@ -99,6 +102,24 @@ describe('状态边', () => {
   it('验证中证据未齐 → 继续验证；证据齐 → 收口', () => {
     expect(decide([task({ state: 'verifying', evidenceComplete: false })])).toMatchObject({ action: 'verify' })
     expect(decide([task({ state: 'verifying', evidenceComplete: true })])).toMatchObject({ action: 'close' })
+  })
+})
+
+describe('需求本体不进实施流程', () => {
+  const REQUIREMENT: FlowTaskFacts = task({ proposal: 'P-01', track: null, role: null })
+
+  it('只有需求本体时不提示起草契约', () => {
+    expect(decide([REQUIREMENT])).toMatchObject({ action: 'stop', taskId: null, mode: 'none' })
+  })
+
+  it('同一方案拆出带轨任务后才进入契约步骤', () => {
+    const r = decide([REQUIREMENT, task({ id: 'T-02', proposal: 'P-01', track: 'h5' })])
+    expect(r).toMatchObject({ action: 'contract', taskId: 'T-02' })
+  })
+
+  it('不带方案回指的手工任务照常起草契约', () => {
+    const r = decide([task({ proposal: null, track: null, role: null })])
+    expect(r).toMatchObject({ action: 'contract', taskId: 'T-01' })
   })
 })
 
