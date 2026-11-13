@@ -386,6 +386,22 @@ function createWindow(preload: string, show = false, primary = false): BrowserWi
   return window
 }
 
+/**
+ * lcoder: Discard Host browser-session cookies left by earlier launches. Every
+ * launch binds a random loopback port and names its cookie after that
+ * authority, so a retained cookie can never authenticate the current Host; it
+ * only grows the Cookie header until Node's 16 KiB request limit answers 431
+ * and the welcome exchange reads as a failed login. The exchange that follows
+ * mints this launch's own cookie.
+ * @param url - authenticated URL reported by the running Host.
+ */
+async function forgetPreviousHostCookies(url: string): Promise<void> {
+  const cookies = session.defaultSession.cookies
+  for (const cookie of await cookies.get({ url })) {
+    if (cookie.name.startsWith('dsh-auth-')) await cookies.remove(url, cookie.name)
+  }
+}
+
 async function main(): Promise<void> {
   const desktopSettings = readDesktopSettings(app.getPath('userData'))
   void pruneCrashReports(app.getPath('logs'))
@@ -550,6 +566,8 @@ async function main(): Promise<void> {
     return {
       start: async () => {
         const ready = await host.start()
+        // lcoder: 旧 authority 的 dsh-auth-* 只会把 Cookie 头顶过宿主 16 KiB 上限。
+        await forgetPreviousHostCookies(ready.url)
         hostCookie = await authenticateWebHost(ready.url)
         hostUrl = ready.url
         if (ready.injections === undefined) throw new Error('Desktop Host did not provide boot injections')

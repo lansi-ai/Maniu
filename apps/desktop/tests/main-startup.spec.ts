@@ -229,7 +229,16 @@ const harness = await vi.hoisted(async () => {
   }
   const backgroundNotice = { close: vi.fn((hide: () => void) => { hide() }), dispose: vi.fn(), markerPath: undefined as string | undefined }
   const shellDialog = { isOpen: false, focus: vi.fn() }
+  // The desktop session jar: earlier launches leave their authority-scoped cookies behind.
+  const browserCookies = {
+    get: vi.fn(async (_filter: { url: string }) => [
+      { name: 'unrelated-cookie' },
+      { name: 'dsh-auth-previous-authority' },
+    ]),
+    remove: vi.fn(async (_url: string, _name: string) => {}),
+  }
   return {
+    browserCookies,
     failWindow(error: Error) { windowFailure = error },
     windows, views, hosts, handlers, app, FakeWindow, FakeView, FakeHost, powerMonitor, screen, nativeTheme, analytics,
     trays, FakeTray, backgroundNotice, shellDialog,
@@ -337,7 +346,7 @@ vi.mock('electron', () => ({
   },
   Menu: { setApplicationMenu: harness.menu.setApplicationMenu, buildFromTemplate: harness.menu },
   session: { defaultSession: {
-    on: vi.fn(),
+    on: vi.fn(), cookies: harness.browserCookies,
     setPermissionCheckHandler: vi.fn(), setPermissionRequestHandler: vi.fn(), webRequest: { onBeforeSendHeaders: harness.socketHeaders },
   } },
   protocol: { registerSchemesAsPrivileged: vi.fn(), handle: harness.protocolHandle },
@@ -1466,6 +1475,12 @@ describe('desktop main startup', () => {
     await Promise.resolve(invoke(DESKTOP_IPC.boot))
     return host
   }
+
+  it('forgets Host cookies minted for earlier launch authorities', async () => {
+    const host = await readyWorkspace()
+    expect(harness.browserCookies.get).toHaveBeenCalledExactlyOnceWith({ url: host.url })
+    expect(harness.browserCookies.remove).toHaveBeenCalledExactlyOnceWith(host.url, 'dsh-auth-previous-authority')
+  })
 
   it('hides the workspace before intentional Host shutdown can look like reconnection', async () => {
     const host = await readyWorkspace()
