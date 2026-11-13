@@ -2485,8 +2485,8 @@ export function Shell({
    * 用户确认方案：逐条签署并推进这批任务。失败逐条留下，任务因状态未动而留在方案讨论列。
    */
   const confirmDiscussion = async (task: ShellTask): Promise<void> => {
-    if (task.proposal === undefined) return
-    const key = task.proposal
+    const key = task.requirement ?? task.proposal
+    if (key === undefined) return
     if (discussRuns.current.has(key)) return
     if (signContract === undefined || advanceContract === undefined || sessionId === undefined) {
       setDiscussError(t('shell.discussionNeedSessions'))
