@@ -1840,6 +1840,17 @@ tracks:
       dep: [T-159]
       inferred: false
       note: "B 级缺陷，来源是 T-160 验收过程中桌面实例反复无法启动。症状：start-all 或 start-desktop 报桌面就绪并打印宿主 Web URL，但该端口不监听，欢迎窗鉴权 GET 返回非 2xx，日志反复报 desktop welcome: Web authentication failed，页面停在 Loading plugins。已排除：云端 5081 健康 200；主检产物已重建；移走开发态 Electron Cookies 后仍复现；没有残留宿主进程，9230 与宿主端口均未监听。影响：桌面入口不可用，Web 3080 仍可启动；验收数据 REQ-01 与 8 条任务与 8 份已签契约都完好。待查方向：DesktopHostProcess 捕获的宿主 stderr、authenticateWebHost 的 303 与 set-cookie、connectDesktopWelcome 的 net.fetch 是否带上宿主 cookie、是否与云账号令牌或欢迎窗跳过逻辑相关。禁止跳过欢迎窗或改上游逻辑绕过，先取证。2026-11-13 16:50 监督窗口派工，工作树 pool-slot-2 到 lcoder/t164-desktop-welcome-auth，实现线会话 a7a1815f。2026-11-13 17:10 监督窗口核验并收口。根因是宿主每次随机端口签发一个 dsh-auth-* cookie，Chromium 只按主机归并，累计七十一个后 Cookie 头 16.2 KB 超过 Node 16 KB 上限，宿主回 431，欢迎窗鉴权失败；修复为宿主就绪后、鉴权前清掉该 URL 下所有 dsh-auth-*，实测同一 71-cookie profile 从 16,188 B 降到 228 B 并能启动。独立复跑 typecheck、两个桌面测试 164 例、改动文件 oxlint 全过；主检复跑同组与 build:artifacts 与 build:check 全过。主检出已备份 Cookies 并重启复验。未验项是登录后的工作区与打包态。"
+    - id: T-165
+      title: 任务页增加列表显示方式
+      status: doing
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-13'
+      date: '2026-11-13'
+      dep: [T-159, T-160]
+      inferred: false
+      note: "B 级界面增强，来源是用户 2026-11-13 要求任务也增加列表显示方式。范围：一、任务页头部加看板与列表切换，默认看板，与需求页一致；二、列表列显示编号、标题、状态（用看板列的中文名，含方案讨论）、所属需求（requirement，旧数据回退 proposal）、轨与更新时间；按编号排序，点击行打开任务详情；三、复用现有关键字、状态与等级筛选，旧需求本体任务继续隐藏；四、空态与窄窗可用，四套皮肤与 reduced-motion 不变，文案走中英词典。验收 typecheck、packages/lcoder vitest、verify-client-ui-i18n、改动文件 oxlint；组件测试覆盖切换、列内容、行点击与筛选。工作树 pool-slot-1 到 lcoder/t165-task-list，端口 9822 与 9829 与 9830。"
     - id: T-161
       title: 需求与任务的云同步层
       status: todo
