@@ -38,6 +38,8 @@ export interface TaskRow {
   readonly session?: string
   /** 这条任务出自哪个方案（`P-01`）；缺省表示不是拆出来的。 */
   readonly proposal?: string
+  /** 这条任务出自哪条需求（`REQ-01`）；缺省表示没有需求回指。读侧优先需求。 */
+  readonly requirement?: string
   /** 前置任务编号；空数组表示没有依赖。 */
   readonly dependsOn: readonly string[]
   /** 分配到的岗位 id；`/task_assign` 写过才有，缺省表示未分配。 */
@@ -68,14 +70,36 @@ export interface JobRoleRow {
 }
 
 /**
- * `.spec/requirements/` 下的一份完整需求文档。
+ * `.spec/requirements/REQ-xx.yaml` 里的一条候选做法。
  *
- * 编号取文件名（去 `.md` 扩展名），与任务回指的方案编号同名。正文就是人确认过的
- * 《项目需求概要》，是需求卡片的首选正文来源。
+ * `cost` 缺省表示还没比较过代价；界面按空值处理，不替需求补事实。
+ */
+export interface RequirementOptionRow {
+  readonly name: string
+  readonly summary: string
+  readonly cost?: string
+}
+
+/**
+ * `.spec/requirements/` 下的一条需求：YAML 元数据加同名 `.md` 正文。
+ *
+ * 编号取 YAML 里的 id（旧流程的纯文档取文件名）。只有 `.md` 没有 YAML 的旧需求
+ * 仍然返回一行——标题、状态与候选都是空，正文照旧可读；`state` 为 `unknown`
+ * 说明文件里没有可认识的状态，而不是假装它是草稿。
  */
 export interface RequirementDocRow {
   readonly id: string
+  /** 正文原文；同名 md 缺失或为空时是空串。 */
   readonly text: string
+  /** YAML 里的标题；纯文档旧需求没有这一项。 */
+  readonly title?: string
+  readonly state?: 'draft' | 'confirmed' | 'released' | 'closed' | 'unknown'
+  readonly options: readonly RequirementOptionRow[]
+  readonly recommendation?: string
+  readonly openedAt?: string
+  readonly confirmedAt?: string
+  readonly releasedAt?: string
+  readonly closedAt?: string
 }
 
 /** 中栏一条规格条目。 */
@@ -263,6 +287,7 @@ export function taskTextToRow(fileName: string, text: string): TaskRow | undefin
   if (title === undefined) return undefined
   const session = asText(fields.session)
   const proposal = asText(fields.proposal)
+  const requirement = asText(fields.requirement)
   const role = asText(fields.role)
   const track = asText(fields.track)
   const category = asText(fields.category)
@@ -282,6 +307,7 @@ export function taskTextToRow(fileName: string, text: string): TaskRow | undefin
     evidence: stringArray(fields.evidence_required),
     ...(session === undefined ? {} : { session }),
     ...(proposal === undefined ? {} : { proposal }),
+    ...(requirement === undefined ? {} : { requirement }),
     ...(role === undefined ? {} : { role }),
     ...(track === undefined ? {} : { track }),
     dependsOn: stringArray(fields.depends_on),
@@ -477,6 +503,59 @@ export function proposalTextToRow(fileName: string, text: string): ProposalRow |
     recommendation,
     decision: decision === 'draft' || decision === 'approved' || decision === 'rejected' ? decision : 'unknown',
     decidedAt: asText(fields.decided_at) ?? null,
+  }
+}
+
+/**
+ * 一份需求 YAML 的文本 → 展示行（不含正文；正文由读取侧按同名 `.md` 补上）。
+ * 缺标题就读不懂，返回 undefined 由调用方记进 problems；状态不认识时给 `unknown`，
+ * 文件里没写状态时按 schema 默认给 `draft`。
+ * @param fileName - 文件名，缺 id 时用它兜底。
+ * @param text - 文件正文。
+ * @returns 可展示的需求元数据，读不懂为 undefined。
+ */
+export function requirementTextToRow(fileName: string, text: string): Omit<RequirementDocRow, 'text'> | undefined {
+  let fields: Record<string, unknown> | undefined
+  try {
+    fields = recordOf(parseYaml(text))
+  } catch {
+    return undefined
+  }
+  if (fields === undefined) return undefined
+  const title = asText(fields.title)
+  if (title === undefined) return undefined
+
+  const options = (Array.isArray(fields.options) ? fields.options : []).flatMap((entry) => {
+    const record = recordOf(entry)
+    const name = asText(record?.name)
+    const summary = asText(record?.summary)
+    if (name === undefined || summary === undefined) return []
+    const cost = asText(record?.cost)
+    return [{ name, summary, ...(cost === undefined ? {} : { cost }) }]
+  })
+
+  const rawState = asText(fields.state)
+  const state = rawState === undefined
+    ? 'draft'
+    : rawState === 'draft' || rawState === 'confirmed' || rawState === 'released' || rawState === 'closed'
+      ? rawState
+      : 'unknown'
+  const recommendation = asText(fields.recommendation)
+  const openedAt = asText(fields.opened_at)
+  const confirmedAt = asText(fields.confirmed_at)
+  const releasedAt = asText(fields.released_at)
+  const closedAt = asText(fields.closed_at)
+
+  return {
+    id: asText(fields.id) ?? fileName.replace(/\.yaml$/, ''),
+    title,
+    state,
+    options,
+    ...(recommendation === undefined ? {} : { recommendation }),
+    ...(openedAt === undefined ? {} : { openedAt }),
+    ...(confirmedAt === undefined ? {} : { confirmedAt }),
+    ...(releasedAt === undefined ? {} : { releasedAt }),
+    ...(closedAt === undefined ? {} : { closedAt }),
   }
 }
 
@@ -687,8 +766,11 @@ async function loadProposals(
 }
 
 /**
- * 读 `.spec/requirements/` 下的完整需求文档。目录不存在是常态（还没落过需求文档），
- * 不算故障；读不到或正文为空的文件记进 problems，不拿空文档冒充需求。
+ * 读 `.spec/requirements/` 下的需求：每条 `REQ-xx.yaml` 配同名 `.md` 正文。
+ *
+ * 目录不存在是常态（还没落过需求），不算故障。只有 `.md` 没有 YAML 的旧需求继续返回一行
+ * （标题、状态与候选为空），保证旧立项流程的需求卡片不受影响；读不懂的 YAML 与空正文
+ * 记进 problems，不拿空文档冒充需求。
  */
 async function loadRequirements(
   files: ProjectionFilesRemote,
@@ -707,21 +789,54 @@ async function loadRequirements(
   }
 
   const names = listed.value.entries
-    .filter(entry => entry.type === 'file' && entry.name.endsWith('.md'))
+    .filter(entry => entry.type === 'file')
     .map(entry => entry.name)
+  const documentNames = new Map(
+    names
+      .filter(name => name.endsWith('.md'))
+      .map((name): [string, string] => [name.replace(/\.md$/, ''), name]),
+  )
+  const metaNames = names.filter(name => name.endsWith('.yaml'))
 
-  await Promise.all(names.map(async (name) => {
+  const readDocument = async (name: string): Promise<string> => {
+    const page = await files.readPage(sessionId, `${REQUIREMENTS_DIR}/${name}`, signal)
+    if (!page.ok) {
+      problems.push(`${REQUIREMENTS_DIR}/${name}: ${messageOf(page.error)}`)
+      return ''
+    }
+    if (page.value.text.trim() === '') {
+      problems.push(`${REQUIREMENTS_DIR}/${name}: 正文为空`)
+      return ''
+    }
+    return page.value.text
+  }
+
+  const withMeta = new Set<string>()
+  await Promise.all(metaNames.map(async (name) => {
     const page = await files.readPage(sessionId, `${REQUIREMENTS_DIR}/${name}`, signal)
     if (!page.ok) {
       problems.push(`${REQUIREMENTS_DIR}/${name}: ${messageOf(page.error)}`)
       return
     }
-    const text = page.value.text.trim() === '' ? '' : page.value.text
-    if (text === '') {
-      problems.push(`${REQUIREMENTS_DIR}/${name}: 正文为空`)
+    const meta = requirementTextToRow(name, page.value.text)
+    if (meta === undefined) {
+      problems.push(`${REQUIREMENTS_DIR}/${name}: 不是能读的需求文件`)
       return
     }
-    rows.push({ id: name.replace(/\.md$/, ''), text })
+    withMeta.add(meta.id)
+    const documentName = documentNames.get(meta.id)
+    const text = documentName === undefined ? '' : await readDocument(documentName)
+    rows.push({ ...meta, text })
+  }))
+
+  // 旧流程只写了 `<方案编号>.md`：继续作为纯文档需求返回，不让需求卡片断掉。
+  const legacyNames = [...documentNames.entries()]
+    .filter(([id]) => !withMeta.has(id))
+    .map(([, name]) => name)
+  await Promise.all(legacyNames.map(async (name) => {
+    const text = await readDocument(name)
+    if (text === '') return
+    rows.push({ id: name.replace(/\.md$/, ''), text, options: [] })
   }))
 
   rows.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))

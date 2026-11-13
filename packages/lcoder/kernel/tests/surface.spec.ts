@@ -117,8 +117,8 @@ describe('掩码自检', () => {
 })
 
 describe('空看板工具面', () => {
-  it('只放开立项需要的读取、建任务与立项落盘能力，外加出方案', () => {
-    expect(UNSCOPEED_SURFACE).toEqual(['file_read', 'file_list', 'project_draft', 'spec_query', 'spec_draft', 'task_read', 'task_draft', 'proposal_draft', 'git_status', 'git_diff'])
+  it('只放开立项需要的读取、建任务与立项落盘能力，外加出方案与起草需求', () => {
+    expect(UNSCOPEED_SURFACE).toEqual(['file_read', 'file_list', 'project_draft', 'spec_query', 'spec_draft', 'task_read', 'task_draft', 'proposal_draft', 'requirement_draft', 'git_status', 'git_diff'])
     expect(UNSCOPEED_SURFACE).not.toContain('file_edit')
     expect(UNSCOPEED_SURFACE).not.toContain('cmd_run')
     expect(UNSCOPEED_SURFACE).not.toContain('spec_bind')
@@ -153,8 +153,26 @@ describe('空看板工具面', () => {
 })
 
 describe('角色天花板', () => {
-  it('实施角色等于全集去掉只对研发经理开放的岗位工具', () => {
-    expect([...ROLE_TOOLS.dev].sort()).toEqual(allToolNames().filter(name => name !== 'role_draft'))
+  it('实施角色等于全集去掉只对研发经理与立项角色开放的工具', () => {
+    expect([...ROLE_TOOLS.dev].sort()).toEqual(
+      allToolNames().filter(name => name !== 'role_draft' && name !== 'requirement_draft'),
+    )
+  })
+
+  it('requirement_draft 只进立项角色，终态不可见，三条需求命令永远不在工具面', () => {
+    expect(ROLE_TOOLS.intake).toContain('requirement_draft')
+    for (const role of ROLES) {
+      if (role === 'intake') continue
+      expect(ROLE_TOOLS[role]).not.toContain('requirement_draft')
+    }
+    expect(allowedTools('drafting', 'intake')).toContain('requirement_draft')
+    expect(allowedTools('closed', 'intake')).not.toContain('requirement_draft')
+    for (const state of [...STATES, null] as const) {
+      for (const name of ['requirement_approve', 'requirement_release', 'requirement_close']) {
+        expect(allowedTools(state, null)).not.toContain(name)
+      }
+    }
+    for (const tools of Object.values(ROLE_TOOLS)) expect(tools).not.toContain('requirement_approve')
   })
 
   it('立项、架构、产品、评审四个角色都动不了代码与命令', () => {

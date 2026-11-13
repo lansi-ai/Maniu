@@ -54,7 +54,7 @@ kind: "package-reference"
 <details>
 <summary>实现内幕——点击展开</summary>
 
-本包注册外壳主面板；`shell: false` 时注册旧的页签。外壳通过框架 hooks 读工作区与会话列表，通过 `workspaceFiles` 读 `.spec/tasks`、`.spec/spec/rules.yaml`、`.spec/project.yaml` 与 `.spec/local.yaml`，并通过会话控制器发送提示。项目选择器的「打开仓库」调用 `workspaces.create` 与 `sessions.create`，然后选中新工作区。每一步最多等 `openTimeoutMs`：到点抛 `WorkspaceOpenTimeoutError` 并带上卡住的步骤名，被拒绝则保留对方返回的原因；两种情况用不同词典键，挂住的调用不会被写成「打开失败」。
+本包注册外壳主面板；`shell: false` 时注册旧的页签。外壳通过框架 hooks 读工作区与会话列表，通过 `workspaceFiles` 读 `.spec/tasks`、`.spec/spec/rules.yaml`、`.spec/project.yaml`、`.spec/local.yaml` 与 `.spec/requirements`，并通过会话控制器发送提示。需求投影把每份 `REQ-xx.yaml` 与同名 Markdown 正文合成一行，带标题、状态、候选、推荐与四个时刻；旧立项流程只有 Markdown 的文件仍然返回一行（没有元数据），读不懂的文件如实报出而不是丢掉。项目选择器的「打开仓库」调用 `workspaces.create` 与 `sessions.create`，然后选中新工作区。每一步最多等 `openTimeoutMs`：到点抛 `WorkspaceOpenTimeoutError` 并带上卡住的步骤名，被拒绝则保留对方返回的原因；两种情况用不同词典键，挂住的调用不会被写成「打开失败」。
 
 从任务卡打开对话时，外壳复用该任务已经认领的那条会话（`.spec/tasks/<ID>.yaml` 的 `session` 字段）。没有还在的会话时，外壳在同一个仓库里再开一条，并在创建这一步指名角色——preset 在首回合之后就锁死——再通过人机命令 `/task_bind` 把任务认给这条会话，落盘由 kernel 做。角色来自 `agentPresets.list`，且只给 id 以 `lcoder` 开头的 preset——上游角色不挂本包的工具，根本读不到 `.spec`；名册读失败或是空的，就按宿主默认角色开。顶栏的会话条列出本工作区的会话，按认领它的任务标名，点一下就切过去。任务卡与任务详情都显示任务上的岗位（缺字段显示「未分配」）；显示名来自 `.spec/roles.yaml`，名册与内置角色都不认识的 id 显示为「未知岗位」。详情面板通过人机命令 `/task_assign` 分配；名册为空时提示先去起草岗位。详情显示任务描述并保留换行、领域与变更类型两枚标签，以及经 `workspaceFiles.readBytes` 读出的只读图片缩略图；文件缺失或读不到只显示文件名占位，不让整页失败。元信息只留难度与岗位，规则、证据要求与工具面收进「更多」，各带一句白话解释。
 
@@ -87,7 +87,7 @@ kind: "package-reference"
 | `src/client/flow-history.ts` | `flow.jsonl` / `schedule.jsonl` 的合并动作流水 |
 | `src/client/singleton.ts` | 两个调度角色的常驻会话解析 |
 | `src/client/shell/Shell.module.css` | 外壳布局与浮层样式 |
-| `src/client/projection.ts` | `.spec` 任务/规则、`project.yaml` 与 `local.yaml` 读取 |
+| `src/client/projection.ts` | `.spec` 任务/规则/需求、`project.yaml` 与 `local.yaml` 读取 |
 | `src/client/definition.ts` | 回退模式的页签 kind、id、优先级与引导入口 |
 | `src/client/WorkspaceBody.tsx` | 回退页签的三栏正文 |
 

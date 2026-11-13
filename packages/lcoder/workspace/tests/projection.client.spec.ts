@@ -12,7 +12,7 @@ import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 import {
   loadLocalSecrets, loadProjectInfo, loadWorkspaceProjection, AUTOMATION_FILE, CONTRACTS_DIR, LOCAL_FILE, PROJECT_FILE,
   REQUIREMENTS_DIR, SCHEDULING_DIR, automationTextToRow, contractTextToRow, groupTextToRow, loadAutomationPolicy,
-  rulesTextToRows, RULES_FILE, SPEC_DIR, TASKS_DIR, taskTextToRow,
+  rulesTextToRows, RULES_FILE, SPEC_DIR, TASKS_DIR, requirementTextToRow, taskTextToRow,
 } from '../src/client/projection.ts'
 import type { ProjectionFilesRemote } from '../src/client/projection.ts'
 
@@ -194,6 +194,9 @@ depends_on:
     // 轨是拆分时写下的归属面：写了就透给外壳，没写表示还没标轨。
     expect(taskTextToRow('T-014.yaml', `${TASK_YAML}\ntrack: h5\n`)?.track).toBe('h5')
     expect(taskTextToRow('T-014.yaml', TASK_YAML)?.track).toBeUndefined()
+    // 需求回指是拆任务时写下的事实：写了就透给外壳，没写表示没有需求。
+    expect(taskTextToRow('T-014.yaml', `${TASK_YAML}\nrequirement: REQ-01\n`)?.requirement).toBe('REQ-01')
+    expect(taskTextToRow('T-014.yaml', TASK_YAML)?.requirement).toBeUndefined()
     // 需求卡片要的创建时间只读文件里的 opened_at；没写就不补事实。
     expect(taskTextToRow('T-014.yaml', `${TASK_YAML}\nopened_at: 2026-11-12T09:00:02.084Z\n`)?.openedAt)
       .toBe('2026-11-12T09:00:02.084Z')
@@ -387,7 +390,64 @@ describe('契约', () => {
 })
 
 describe('需求文档', () => {
-  it('读 .spec/requirements 下的 md，编号取文件名，正文原样保留', async () => {
+  const REQUIREMENT_YAML = [
+    'id: REQ-02',
+    'title: 支持自营与代发两种佣金',
+    'state: confirmed',
+    'options:',
+    '  - name: 加参数',
+    '    summary: 增加可选第三参数',
+    '    cost: 调用点要传参',
+    '  - name: 拆函数',
+    '    summary: 自营与代发各一个函数',
+    'recommendation: 推荐加参数',
+    'opened_at: 2026-11-13T09:00:00+08:00',
+    'confirmed_at: 2026-11-13T10:00:00+08:00',
+    'released_at: 2026-11-14T10:00:00+08:00',
+    'closed_at: 2026-11-15T10:00:00+08:00',
+  ].join('\n')
+
+  it('REQ YAML 与同名 md 合成一行：元数据、四个时刻与正文都在', async () => {
+    const text = '# 佣金改造\n\n自营订单不该兜底。'
+    const files = fakeFiles(
+      { [REQUIREMENTS_DIR]: ['REQ-02.yaml', 'REQ-02.md', 'REQ-03.yaml'] },
+      {
+        [`${REQUIREMENTS_DIR}/REQ-02.yaml`]: REQUIREMENT_YAML,
+        [`${REQUIREMENTS_DIR}/REQ-02.md`]: text,
+        [`${REQUIREMENTS_DIR}/REQ-03.yaml`]: 'id: REQ-03\ntitle: 没有正文\n',
+      },
+    )
+    const projection = await loadWorkspaceProjection(files, SESSION, new AbortController().signal)
+
+    expect(projection.requirements).toEqual([
+      {
+        id: 'REQ-02',
+        text,
+        title: '支持自营与代发两种佣金',
+        state: 'confirmed',
+        options: [
+          { name: '加参数', summary: '增加可选第三参数', cost: '调用点要传参' },
+          { name: '拆函数', summary: '自营与代发各一个函数' },
+        ],
+        recommendation: '推荐加参数',
+        openedAt: '2026-11-13T09:00:00+08:00',
+        confirmedAt: '2026-11-13T10:00:00+08:00',
+        releasedAt: '2026-11-14T10:00:00+08:00',
+        closedAt: '2026-11-15T10:00:00+08:00',
+      },
+      // 有元数据没有正文是「待补全」，不是坏文件：行照常返回，正文是空串。
+      {
+        id: 'REQ-03',
+        text: '',
+        title: '没有正文',
+        state: 'draft',
+        options: [],
+      },
+    ])
+    expect(projection.problems).toEqual([])
+  })
+
+  it('旧流程的纯 md 继续返回一行，没有元数据字段', async () => {
     const text = '# 项目需求概要 V0.1\n\n- 记一笔、翻记录、看合计'
     const files = fakeFiles(
       { [REQUIREMENTS_DIR]: ['P-02.md', 'P-01.md', 'notes.txt'] },
@@ -400,8 +460,8 @@ describe('需求文档', () => {
     const projection = await loadWorkspaceProjection(files, SESSION, new AbortController().signal)
 
     expect(projection.requirements).toEqual([
-      { id: 'P-01', text },
-      { id: 'P-02', text: '# 另一份需求' },
+      { id: 'P-01', text, options: [] },
+      { id: 'P-02', text: '# 另一份需求', options: [] },
     ])
     expect(projection.problems).toEqual([])
   })
@@ -414,20 +474,30 @@ describe('需求文档', () => {
     expect(projection.problems).toEqual([])
   })
 
-  it('读不到或正文为空的文件只记说明，不冒充需求', async () => {
+  it('读不懂的 YAML 与空白正文只记说明，不冒充需求', async () => {
     const files = fakeFiles(
-      { [REQUIREMENTS_DIR]: ['P-01.md', 'P-02.md', 'P-03.md'] },
+      { [REQUIREMENTS_DIR]: ['REQ-01.yaml', 'REQ-01.md', 'REQ-02.yaml', 'P-03.md'] },
       {
-        [`${REQUIREMENTS_DIR}/P-01.md`]: '  \n\t\n',
-        [`${REQUIREMENTS_DIR}/P-02.md`]: '# 正常的',
+        [`${REQUIREMENTS_DIR}/REQ-01.yaml`]: 'not: a: requirement',
+        [`${REQUIREMENTS_DIR}/REQ-01.md`]: '  \n\t\n',
+        [`${REQUIREMENTS_DIR}/REQ-02.yaml`]: 'title: 正常的\n',
+        [`${REQUIREMENTS_DIR}/P-03.md`]: '',
       },
     )
     const projection = await loadWorkspaceProjection(files, SESSION, new AbortController().signal)
 
-    expect(projection.requirements).toEqual([{ id: 'P-02', text: '# 正常的' }])
-    expect(projection.problems).toHaveLength(2)
-    expect(projection.problems.join(' ')).toContain('P-01.md')
+    expect(projection.requirements).toEqual([
+      { id: 'REQ-02', text: '', title: '正常的', state: 'draft', options: [] },
+    ])
+    expect(projection.problems.join(' ')).toContain('REQ-01.yaml')
+    expect(projection.problems.join(' ')).toContain('REQ-01.md')
     expect(projection.problems.join(' ')).toContain('P-03.md')
+  })
+
+  it('requirementTextToRow 缺标题就放弃这一行，状态不认识给 unknown', () => {
+    expect(requirementTextToRow('REQ-09.yaml', 'state: draft')).toBeUndefined()
+    expect(requirementTextToRow('REQ-09.yaml', 'title: x\nstate: approved')).toMatchObject({ state: 'unknown' })
+    expect(requirementTextToRow('REQ-09.yaml', 'title: x')).toMatchObject({ id: 'REQ-09', state: 'draft', options: [] })
   })
 })
 

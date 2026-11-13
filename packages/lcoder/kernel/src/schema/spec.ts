@@ -15,6 +15,9 @@ import { BUILTIN_TRACK_IDS, TRACK_ID_PATTERN } from './tracks.js'
 /** 评审纪律里稳定不变的编号形态：R-02 / T-014 / W-01 / Q-03。 */
 const Id = z.string().regex(/^[A-Z]+-\d{2,}$/, '形如 R-02 / T-014 的稳定编号')
 
+/** 需求编号：`REQ-` 加两位以上数字，示例数据与正式编号同一套形态。 */
+const RequirementId = z.string().regex(/^REQ-\d{2,}$/, '形如 REQ-01 的需求编号')
+
 const IsoDateTime = z
   .string()
   .refine(s => !Number.isNaN(Date.parse(s)), '需要可解析的 ISO 8601 时间')
@@ -177,6 +180,14 @@ export const Task = z.object({
    * 由 `task_draft` 在写盘前查；读侧遇到失效编号按「未知方案」显示，不报故障。
    */
   proposal: Id.optional(),
+  /**
+   * 这条任务出自哪条需求（`.spec/requirements/REQ-01.yaml`）。
+   *
+   * 与 `proposal` 并存：旧流程拆出来的任务继续带方案编号，新流程带需求编号，
+   * 读侧优先 `requirement`。编号必须存在，由 `task_draft` 在写盘前查；
+   * 读侧遇到失效编号按「未知需求」显示，不报故障。
+   */
+  requirement: RequirementId.optional(),
   /**
    * 前置任务：这些任务收口之前，本条不许开始。
    *
@@ -377,6 +388,49 @@ export const Proposal = z.object({
   opened_at: IsoDateTime,
 })
 export type Proposal = z.infer<typeof Proposal>
+
+// ── 6.2 需求 ────────────────────────────────────────────────
+
+/**
+ * 需求的生命周期状态。
+ *
+ * `draft` 由 `requirement_draft` 起草；`confirmed`、`released`、`closed` 只由人机命令写，
+ * 与 `/proposal_approve`、`contract_sign` 同一档纪律。schema 只校形态，
+ * 「能不能从这一刻进下一刻」由命令把住。
+ */
+export const RequirementState = z.enum(['draft', 'confirmed', 'released', 'closed'])
+export type RequirementState = z.infer<typeof RequirementState>
+
+/** 需求里的一条候选做法：先写清叫什么、怎么做，代价可省。 */
+export const RequirementOption = z.object({
+  name: z.string().min(1),
+  summary: z.string().min(1),
+  cost: z.string().min(1).optional(),
+})
+export type RequirementOption = z.infer<typeof RequirementOption>
+
+/**
+ * `.spec/requirements/REQ-01.yaml`：一条需求的元数据，正文写在同名 `.md`。
+ *
+ * 正文不塞进 YAML：需求文档是给人读的 Markdown，与任务、方案共用「YAML 记事实、
+ * 同名文件记正文」的约定。四个时刻都可缺省——只有对应状态真的到达过才写。
+ */
+export const Requirement = z
+  .object({
+    id: RequirementId,
+    title: z.string().min(1),
+    state: RequirementState.default('draft'),
+    /** 候选做法；可以为空（还没比较过方案），每项的名字与做法必填。 */
+    options: z.array(RequirementOption).default([]),
+    /** 推荐哪一条以及为什么；缺省表示还没给推荐。 */
+    recommendation: z.string().min(1).optional(),
+    opened_at: IsoDateTime,
+    confirmed_at: IsoDateTime.optional(),
+    released_at: IsoDateTime.optional(),
+    closed_at: IsoDateTime.optional(),
+  })
+  .strict()
+export type Requirement = z.infer<typeof Requirement>
 
 // ── 6.5 常驻会话登记 ────────────────────────────────────────
 
@@ -613,6 +667,7 @@ export const SpecLayout = [
   { glob: 'spec/states/*.yaml', schema: StateMachine, many: true },
   { glob: 'tasks/*.yaml', schema: Task, many: true },
   { glob: 'proposals/*.yaml', schema: Proposal, many: true },
+  { glob: 'requirements/*.yaml', schema: Requirement, many: true },
   { glob: 'contracts/*.contract.yaml', schema: Contract, many: true },
   { glob: 'automation.yaml', schema: AutomationPolicy, many: false },
   { glob: 'agents.yaml', schema: AgentsRegistry, many: false },

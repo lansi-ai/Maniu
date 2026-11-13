@@ -16,6 +16,9 @@ import { createDeployCommand } from './commands/deploy.js'
 import { createFlowLogCommand } from './commands/flow-log.js'
 import { createFlowStatusCommand } from './commands/flow-status.js'
 import { createProposalApproveCommand } from './commands/proposal-approve.js'
+import { createRequirementApproveCommand } from './commands/requirement-approve.js'
+import { createRequirementCloseCommand } from './commands/requirement-close.js'
+import { createRequirementReleaseCommand } from './commands/requirement-release.js'
 import { createTaskAssignCommand } from './commands/task-assign.js'
 import { createTaskBindCommand } from './commands/task-bind.js'
 import { createTaskContractCommand } from './commands/task-contract.js'
@@ -25,6 +28,7 @@ import { createEditTools, spawnRunner } from './tools/edit-tools.js'
 import { createGitTools } from './tools/git-tools.js'
 import { createProjectTools } from './tools/project-tools.js'
 import { createProposalTools } from './tools/proposal-tools.js'
+import { createRequirementTools } from './tools/requirement-tools.js'
 import { createRoleTools } from './tools/role-tools.js'
 import { createSpecTools } from './tools/spec-tools.js'
 import { createTaskTools } from './tools/task-tools.js'
@@ -145,6 +149,7 @@ export function apply(ctx: PluginContext, config: LcoderConfig = {}): void {
     ...createTaskTools(rootInput),
     ...createRoleTools(rootInput),
     ...createProposalTools(rootInput),
+    ...createRequirementTools(rootInput),
     ...createGitTools(repoRootInput),
     ...createEditTools(rootInput, { run: spawnRunner, repoRoot: repoRootInput, scope: allowedPaths }),
   ]
@@ -177,6 +182,9 @@ export function apply(ctx: PluginContext, config: LcoderConfig = {}): void {
     createFlowLogCommand(rootInput),
     createAgentBindCommand(rootInput),
     createProposalApproveCommand(rootInput),
+    createRequirementApproveCommand(rootInput),
+    createRequirementReleaseCommand(rootInput),
+    createRequirementCloseCommand(rootInput),
     createDeployCommand(rootInput),
   ]
   for (const command of commands) {

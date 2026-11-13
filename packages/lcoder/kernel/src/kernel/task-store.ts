@@ -94,6 +94,8 @@ export interface OpenTaskInput {
   evidence_required?: string[]
   /** 出自哪个方案（`P-01`）；省略表示不是拆出来的。 */
   proposal?: string
+  /** 出自哪条需求（`REQ-01`）；省略表示没有需求回指。存在性由 `task_draft` 写前校验。 */
+  requirement?: string
   /** 归属的轨 id；省略表示还没标轨。存在性由 `task_draft` 写前校验。 */
   track?: string
   /** 前置任务编号；省略即没有依赖。 */

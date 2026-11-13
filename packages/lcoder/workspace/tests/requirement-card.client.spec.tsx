@@ -245,7 +245,7 @@ describe('需求文档来源', () => {
       <RequirementCard
         t={t}
         task={taskOf()}
-        requirementDocument={{ id: 'P-01', text: '项目需求概要 V1\n\n来自 .spec/requirements/P-01.md' }}
+        requirementDocument={{ id: 'P-01', text: '项目需求概要 V1\n\n来自 .spec/requirements/P-01.md', options: [] }}
         document="会话里的旧草案"
         proposal={PROPOSAL}
         answers={[]}
@@ -483,7 +483,7 @@ describe('需求卡片渲染', () => {
 
   it('拆分动作收到卡片读到的完整需求文档；没有文档时收到 undefined', () => {
     const onSplit = vi.fn()
-    const requirementDocument = { id: 'P-01', text: '项目需求概要 V1\n\n第一版功能清单' }
+    const requirementDocument = { id: 'P-01', text: '项目需求概要 V1\n\n第一版功能清单', options: [] }
     render(
       <RequirementCard
         t={t}
