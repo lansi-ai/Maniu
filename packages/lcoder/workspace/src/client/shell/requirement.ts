@@ -5,17 +5,20 @@
  * 是从方案里落下的需求本体，不是后续开发任务。其它状态仍走普通任务详情。
  */
 import type { ShellMessage, ShellTask } from './shell-data.ts'
+import { BUILTIN_TRACKS } from '@lcoder/kernel/src/schema/tracks.ts'
+import type { TrackDescriptor } from '@lcoder/kernel/src/schema/tracks.ts'
 
 /**
  * 任务是否是需求卡片要看的那一条。
  *
- * 需求本体没有岗位；拆分后进了方案讨论的任务同样带方案回指，但它们由任务详情展示
- * 讨论与契约，不该再打开需求卡片。
+ * 需求本体没有岗位也没有轨；拆分后进了方案讨论的任务同样带方案回指，但它们由任务详情
+ * 展示讨论与契约，不该再打开需求卡片。
  * @param task - 看板任务。
- * @returns 状态为 drafting、带方案回指且没有岗位时为 true。
+ * @returns 状态为 drafting、带方案回指、且没有岗位与轨时为 true。
  */
 export function isRequirementTask(task: ShellTask): boolean {
-  return task.state === 'drafting' && task.proposal !== undefined && task.role === undefined
+  return task.state === 'drafting' && task.proposal !== undefined
+    && task.role === undefined && task.track === undefined
 }
 
 /**
@@ -234,12 +237,18 @@ export function boundRequirementText(text: string): RequirementDocumentExcerpt {
  * 也不推进状态。
  * @param task - 被拆分的需求任务。
  * @param source - 已读到的需求文档与方案正文；都没有时省略。
+ * @param tracks - 这次可用的轨；缺省为内置六轨。
  * @returns 中文指令正文。
  */
-export function buildRequirementSplitPrompt(task: ShellTask, source: RequirementSplitSource = {}): string {
+export function buildRequirementSplitPrompt(
+  task: ShellTask,
+  source: RequirementSplitSource = {},
+  tracks: readonly TrackDescriptor[] = BUILTIN_TRACKS.map(track => ({ id: track.id, name: track.name })),
+): string {
   const document = source.document?.trim() ?? ''
   const proposal = source.proposal?.trim() ?? ''
   const path = requirementDocumentPath(task)
+  const trackList = tracks.map(track => `${track.id}（${track.name}）`).join('、')
   const lines = [
     `需求拆分：请把需求 ${task.id}（${task.title}）拆分成可执行的开发任务，写入 .spec/tasks。`,
     '',
@@ -249,10 +258,19 @@ export function buildRequirementSplitPrompt(task: ShellTask, source: Requirement
     '',
     '要求：',
     '- 每条任务对应一个可独立验收的业务结果，不按纯技术步骤堆叠。',
-    '- 每条任务 state 为 drafting；写清 description（范围与验收标准）、grade、rules（只引用需求里已确认的规则编号）、depends_on 与 scope.allowed_paths。',
+    '- 每条任务 state 为 drafting；写清 description（范围与验收标准）、grade、rules（只引用需求里已确认的规则编号）、depends_on、scope.allowed_paths 与 track。',
     '- 有先后依赖的用 depends_on 表达。',
     '- 不要修改需求本身、.spec/project.yaml、已有方案与规格条目；不要开始实现、不要签契约、不要推进任务状态。',
-    '- 完成后列出新建的任务编号、标题、对应的需求条目与依赖关系。',
+    '- 完成后列出新建的任务编号、标题、轨与依赖关系。',
+    '',
+    '调研（拆分前先做）：',
+    '- 先用 file_list 查看仓库根目录与关键目录，再读 README 与构建清单（如 package.json、csproj、pyproject.toml、Cargo.toml），判断这是空仓、只有需求文档，还是已有可运行框架以及它用的技术栈。',
+    '- 把判断与依据写进回复；不得只凭需求文档猜技术选型。',
+    '',
+    '轨（每条任务必须标一条）：',
+    `- track 只能取：${trackList}；一任务一轨。`,
+    '- 基础框架任务按项目主技术栈定轨；拿不准时用 general。',
+    '- 不要写 role，也不要调用任何分配命令——具体岗位留到实施阶段由人指派。',
   ]
   if (document === '') {
     lines.push(

@@ -104,6 +104,9 @@ describe('项目信息', () => {
     '      name: app',
     '      user: app',
     '      passwordRef: DB_PASSWORD',
+    'tracks:',
+    '  - id: payment',
+    '    name: 支付端',
   ].join('\n')
 
   it('loadProjectInfo 读仓库、文档与 web 环境；缺失返回 null', async () => {
@@ -129,6 +132,7 @@ describe('项目信息', () => {
             passwordRef: 'DB_PASSWORD',
           },
         }],
+        tracks: [{ id: 'payment', name: '支付端' }],
       },
       problems: [],
     })
@@ -187,6 +191,9 @@ depends_on:
     // 认领会话号原样透给外壳：卡片靠它决定是切到已有会话，还是新开一条再绑。
     expect(taskTextToRow('T-014.yaml', `${TASK_YAML}\nsession: session-8676\n`)?.session).toBe('session-8676')
     expect(taskTextToRow('T-014.yaml', `${TASK_YAML}\nsession: ''\n`)?.session).toBeUndefined()
+    // 轨是拆分时写下的归属面：写了就透给外壳，没写表示还没标轨。
+    expect(taskTextToRow('T-014.yaml', `${TASK_YAML}\ntrack: h5\n`)?.track).toBe('h5')
+    expect(taskTextToRow('T-014.yaml', TASK_YAML)?.track).toBeUndefined()
     // 需求卡片要的创建时间只读文件里的 opened_at；没写就不补事实。
     expect(taskTextToRow('T-014.yaml', `${TASK_YAML}\nopened_at: 2026-11-12T09:00:02.084Z\n`)?.openedAt)
       .toBe('2026-11-12T09:00:02.084Z')

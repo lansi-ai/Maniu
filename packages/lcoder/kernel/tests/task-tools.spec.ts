@@ -351,6 +351,55 @@ describe('task_draft 立项', () => {
     expect(r.change_type).toBeUndefined()
   })
 
+  it('内置轨与项目追加轨都能落盘；重复立项、列表与详情都带轨', async () => {
+    const { spec } = makeRepo()
+    writeFileSync(join(spec, 'project.yaml'), [
+      'kind: web',
+      'repo:',
+      '  url: https://example.invalid/r.git',
+      '  branch: main',
+      'tracks:',
+      '  - id: payment',
+      '    name: 支付端',
+      '',
+    ].join('\n'), 'utf8')
+
+    const builtin = await call(spec, 'task_draft', { title: '前端表单', grade: 'B', track: 'h5' })
+    expect(builtin).toMatchObject({ track: 'h5', created: true })
+
+    const custom = await call(spec, 'task_draft', { title: '支付回调', grade: 'B', track: 'payment' })
+    expect(custom).toMatchObject({ track: 'payment', created: true })
+    expect(readFileSync(join(spec, 'tasks', `${String(custom.task_id)}.yaml`), 'utf8')).toContain('track: payment')
+
+    const again = await call(spec, 'task_draft', { title: '支付回调', grade: 'B' })
+    expect(again).toMatchObject({ created: false, track: 'payment' })
+
+    const list = await call(spec, 'task_read', {})
+    expect((list.tasks as { id: string; track?: string }[]).map(task => [task.id, task.track]))
+      .toContainEqual([custom.task_id, 'payment'])
+
+    const detail = await call(spec, 'task_read', { task_id: custom.task_id })
+    expect(detail).toMatchObject({ track: 'payment' })
+  })
+
+  it('未知轨被拒，并列出内置轨与项目追加轨', async () => {
+    const { spec } = makeRepo()
+    writeFileSync(join(spec, 'project.yaml'), [
+      'kind: web',
+      'repo:',
+      '  url: https://example.invalid/r.git',
+      '  branch: main',
+      'tracks:',
+      '  - id: payment',
+      '    name: 支付端',
+      '',
+    ].join('\n'), 'utf8')
+
+    await expect(call(spec, 'task_draft', { title: '未知轨任务', grade: 'B', track: 'ops' }))
+      .rejects.toThrow(/轨不存在：ops；可用轨：h5（H5 前端）、admin（管理端）、api（接口）、desktop（桌面端）、host（宿主端）、general（通用）、payment（支付端）/)
+    expect(() => readFileSync(join(spec, 'tasks', 'T-02.yaml'), 'utf8')).toThrow()
+  })
+
   it('YAML 用 change_type 能读回；写驼峰 changeType 被 strict 拒', async () => {
     const { spec } = makeRepo()
     const path = join(spec, 'tasks', 'T-01.yaml')

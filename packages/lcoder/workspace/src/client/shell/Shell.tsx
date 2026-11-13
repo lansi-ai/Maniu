@@ -76,7 +76,7 @@ import { ChatTranscript, PendingInteractionCard } from './ChatPanel.tsx'
 import { intakeAnswersOf, intakeSummaryOf, isRequirementTask } from './requirement.ts'
 import type { RequirementAnswer } from './requirement.ts'
 import {
-  existingSplitTasks, runRequirementSplit, splitTasksOf,
+  existingSplitTasks, runRequirementSplit, splitTasksOf, summarizeSplit,
 } from './requirement-split.ts'
 import type {
   RequirementSplitFailure, RequirementSplitFailureReason, RequirementSplitSummary,
@@ -86,11 +86,15 @@ import {
   planDiscussionGroups, runPlanDiscussion,
 } from './plan-discussion.ts'
 import type {
-  DiscussionGroup, PlanConfirmFailureReason, PlanConfirmSummary, PlanDiscussionFailure,
+  DiscussionGroup, MeetingRole, PlanConfirmFailureReason, PlanConfirmSummary, PlanDiscussionFailure,
   PlanDiscussionFailureReason,
 } from './plan-discussion.ts'
 import { RequirementCard } from './RequirementCard.tsx'
-import type { RequirementSplitFlowView } from './RequirementCard.tsx'
+import type { DiscussionHistoryView, RequirementSplitFlowView } from './RequirementCard.tsx'
+import {
+  groupDiscussionHistory, isDiscussionPreset, selectDiscussionHistory,
+} from './discussion-history.ts'
+import type { DiscussionHistoryCandidate } from './discussion-history.ts'
 import { questionOf } from './pending.ts'
 import { ChatAttachButton, ChatAttachmentList, ChatModelChip } from './ChatExtras.tsx'
 import { TaskAttachments } from './TaskAttachments.tsx'
@@ -115,6 +119,7 @@ import type {
   ShellContextPressure, ShellMessage, ShellProjectInfo, ShellRole, ShellSignResult, ShellTask, ShellTaskState,
 } from './shell-data.ts'
 import { BUILTIN_ROLE_IDS } from './shell-data.ts'
+import { BUILTIN_TRACKS } from '@lcoder/kernel/src/schema/tracks.ts'
 import bullMark from '../assets/bull-mark.png'
 import css from './Shell.module.css'
 
@@ -231,6 +236,24 @@ const DIFFICULTY_LABEL: Readonly<Record<string, LcoderWorkspaceKey>> = {
   A: 'shell.difficultyHigh',
   B: 'shell.difficultyMedium',
   C: 'shell.difficultyLow',
+}
+
+/** 内置轨 id 到词典键；项目追加轨用项目里的显示名。 */
+const TRACK_LABEL: Readonly<Record<string, LcoderWorkspaceKey>> = {
+  h5: 'shell.trackH5',
+  admin: 'shell.trackAdmin',
+  api: 'shell.trackApi',
+  desktop: 'shell.trackDesktop',
+  host: 'shell.trackHost',
+  general: 'shell.trackGeneral',
+}
+
+/** 固定讨论角色到词典键；技术岗位按轨名拼，不在这里。 */
+const DISCUSSION_ROLE_LABEL: Readonly<Record<string, LcoderWorkspaceKey>> = {
+  analyst: 'shell.discussionRoleAnalyst',
+  pm: 'shell.discussionRolePm',
+  manager: 'shell.discussionRoleManager',
+  architect: 'shell.discussionRoleArchitect',
 }
 
 /**
@@ -416,23 +439,21 @@ const SPLIT_FAILURE_KEY: Record<RequirementSplitFailureReason, LcoderWorkspaceKe
   timeout: 'shell.splitFailTimeout',
   empty: 'shell.splitFailEmpty',
   'session-failed': 'shell.splitFailSession',
-  'missing-mapping': 'shell.splitFailMappingMissing',
-  'bad-mapping': 'shell.splitFailMappingBad',
-  'no-valid-assignment': 'shell.splitFailNoValid',
+  untracked: 'shell.splitFailUntracked',
 }
 
-/** 失败停在谁身上；两段共用一个展示名。 */
+/** 失败停在谁身上；拆分只有项目经理一段。 */
 const SPLIT_STAGE_KEY = {
   pm: 'shell.splitStagePm',
-  manager: 'shell.splitStageManager',
 } as const
 
-/** 失败原文：按原因查词典，再填阶段、宿主原文与需求文档路径。 */
+/** 失败原文：按原因查词典，再填阶段、宿主原文、未标轨任务与需求文档路径。 */
 function splitFailureText(t: ShellProps['t'], outcome: RequirementSplitFailure, path: string): string {
   return fill(t(SPLIT_FAILURE_KEY[outcome.reason]), {
     stage: t(SPLIT_STAGE_KEY[outcome.stage]),
     detail: outcome.detail ?? '',
     path,
+    tasks: outcome.untracked?.join('、') ?? '',
   })
 }
 
@@ -452,7 +473,7 @@ const DISCUSSION_FAILURE_KEY: Record<PlanDiscussionFailureReason, LcoderWorkspac
 
 /** 讨论失败的一句话：原因、宿主原文、无法映射的岗位与缺契约的任务都按需填入。 */
 function discussionFailureText(t: ShellProps['t'], outcome: PlanDiscussionFailure, path: string): string {
-  const roles = outcome.unresolved?.map(item => item.role || item.taskId).join('、') ?? ''
+  const roles = outcome.unresolved?.map(item => item.track || item.taskId).join('、') ?? ''
   return fill(t(DISCUSSION_FAILURE_KEY[outcome.reason]), {
     detail: outcome.detail ?? '',
     path,
@@ -475,30 +496,6 @@ function confirmLine(t: ShellProps['t'], attempt: PlanConfirmSummary['attempts']
   if (attempt.ok) return null
   const reason = attempt.reason === undefined ? 'advance-failed' : attempt.reason
   return fill(t(CONFIRM_FAILURE_KEY[reason]), { task: attempt.taskId, detail: attempt.detail ?? '' })
-}
-
-/** 完成后的逐条明细：被拒的映射、分配失败与最终未分配都各自成行。 */
-function splitSummaryLines(t: ShellProps['t'], summary: RequirementSplitSummary): string[] {
-  const lines: string[] = []
-  for (const rejected of summary.rejected) {
-    if (rejected.reason === 'unknown-task') {
-      lines.push(fill(t('shell.splitRejectedUnknownTask'), { task: rejected.task, role: rejected.role }))
-    } else if (rejected.reason === 'empty-role') {
-      lines.push(fill(t('shell.splitRejectedEmptyRole'), { task: rejected.task }))
-    } else {
-      lines.push(fill(t('shell.splitRejectedDuplicate'), { task: rejected.task }))
-    }
-  }
-  for (const attempt of summary.assignments) {
-    if (attempt.ok) continue
-    lines.push(fill(t('shell.splitAssignFailed'), {
-      task: attempt.taskId, role: attempt.roleId, detail: attempt.detail,
-    }))
-  }
-  for (const taskId of summary.unassigned) {
-    lines.push(fill(t('shell.splitUnassigned'), { task: taskId }))
-  }
-  return lines
 }
 
 /** 可取消的等待：取消信号到达时立即结算，轮询据此退出。 */
@@ -586,6 +583,7 @@ export function toShellTask(row: TaskRow): ShellTask {
     ...(row.session === undefined ? {} : { session: row.session }),
     ...(row.proposal === undefined ? {} : { proposal: row.proposal }),
     ...(row.role === undefined ? {} : { role: row.role }),
+    ...(row.track === undefined ? {} : { track: row.track }),
     ...(row.dependsOn.length === 0 ? {} : { dependsOn: row.dependsOn }),
     paths: row.paths,
     irreversible: row.irreversible,
@@ -675,6 +673,11 @@ export function Shell({
   const discussAborts = useRef<Map<string, AbortController>>(new Map())
   /** 用户确认方案后的逐条签署/推进结果；按方案编号留档，失败行留在详情里。 */
   const [confirmResults, setConfirmResults] = useState<Readonly<Record<string, PlanConfirmSummary>>>({})
+  /** 需求卡片的讨论历史抽屉；打开时才读会话，关闭即丢展示结果。 */
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [historyView, setHistoryView] = useState<DiscussionHistoryView>({ status: 'idle', groups: [] })
+  /** 本窗口为每个方案建过的讨论会话；重启后为空，按 preset 与方案编号恢复。 */
+  const discussionSessions = useRef<Record<string, { readonly role: MeetingRole; readonly sessionId: string }[]>>({})
   /** 需求卡片正文：该任务会话里分析师当时输出的《项目需求概要》。 */
   const [requirementDocument, setRequirementDocument] = useState<string | null>(null)
   const [chat, setChat] = useState<ShellTask | null>(null)
@@ -1085,6 +1088,24 @@ export function Shell({
     if (job !== undefined) return job.name
     return BUILTIN_ROLE_IDS.includes(role) ? role : t('shell.roleUnknown')
   }
+
+  /**
+   * 任务轨怎么说给人听：项目追加轨用项目里的显示名，内置轨用词典；
+   * 都查不到时如实说未知，不拿 id 冒充显示名。
+   */
+  const trackLabelOf = (track: string | undefined): string => {
+    if (track === undefined) return t('shell.trackUnassigned')
+    const custom = info?.tracks.find(row => row.id === track)
+    if (custom !== undefined) return custom.name
+    const key = TRACK_LABEL[track]
+    return key === undefined ? t('shell.trackUnknown') : t(key)
+  }
+
+  /** 当前可用的轨：内置六轨在前，项目追加轨在后；拆分与讨论都按这一份取名。 */
+  const trackOptions = (): readonly { readonly id: string; readonly name: string }[] => [
+    ...BUILTIN_TRACKS.map(track => ({ id: track.id, name: track.name })),
+    ...(info?.tracks ?? []),
+  ]
 
   /** 本工作区的会话名册；岗位按「认领任务 → 建会话时的选择 → preset」在读取时算出。 */
   const schedulingSessions = (): readonly SchedulingSession[] =>
@@ -1796,8 +1817,8 @@ export function Shell({
     [detail, tasks],
   )
   const detailDiscussionPlan = useMemo(
-    () => planDiscussionGroups(detailDiscussionTasks, jobRoles),
-    [detailDiscussionTasks, jobRoles],
+    () => planDiscussionGroups(detailDiscussionTasks, trackOptions()),
+    [detailDiscussionTasks, info],
   )
   const detailDiscussFlow = detail?.proposal === undefined ? undefined : discussFlows[detail.proposal]
   const detailConfirm = detail?.proposal === undefined ? undefined : confirmResults[detail.proposal]
@@ -1932,30 +1953,26 @@ export function Shell({
   }
 
   /**
-   * 重读拆分要用的两份事实：任务与岗位名册。
+   * 重读拆分与讨论要用的两份事实：任务与契约。
    *
    * 轮询期间不依赖 React 重渲染，直接把 `.spec` 读成外壳任务；读失败时退回
    * 当前渲染里的那一份，让流程还能按最近一次已知状态继续判断。
    */
   const loadSplitSnapshot = async (): Promise<{
     readonly tasks: readonly ShellTask[]
-    readonly roles: readonly JobRoleRow[]
     readonly contracts: readonly ContractRow[]
   }> => {
     if (files === undefined || sessionId === undefined) {
-      return { tasks: liveTasks.current, roles: jobRoles, contracts }
+      return { tasks: liveTasks.current, contracts }
     }
     const controller = new AbortController()
     try {
-      const [projection, registry] = await Promise.all([
-        loadWorkspaceProjection(files, sessionId, controller.signal),
-        loadRolesRegistry(files, sessionId, controller.signal),
-      ])
-      return { tasks: projection.tasks.map(toShellTask), roles: registry.roles, contracts: projection.contracts }
+      const projection = await loadWorkspaceProjection(files, sessionId, controller.signal)
+      return { tasks: projection.tasks.map(toShellTask), contracts: projection.contracts }
     } catch (error: unknown) {
       // 读盘失败只让这一次轮询退回旧快照；流程与卡片自己会报结果。
       void error
-      return { tasks: liveTasks.current, roles: jobRoles, contracts }
+      return { tasks: liveTasks.current, contracts }
     } finally {
       controller.abort()
     }
@@ -2004,8 +2021,7 @@ export function Shell({
       setSplitError(t('shell.splitNoModel'))
       return
     }
-    if (createSession === undefined || sendPrompt === undefined || assignTask === undefined
-      || sessionId === undefined) {
+    if (createSession === undefined || sendPrompt === undefined || sessionId === undefined) {
       setSplitError(t('shell.splitNeedSessions'))
       return
     }
@@ -2035,6 +2051,11 @@ export function Shell({
 
     const viewTasks = (rows: readonly ShellTask[]): readonly { id: string; title: string }[] =>
       rows.map(row => ({ id: row.id, title: row.title }))
+    /** 卡片要的汇总：拆出条数与按轨分布；轨名按当前项目解析。 */
+    const splitSummaryView = (summary: RequirementSplitSummary): NonNullable<RequirementSplitFlowView['summary']> => ({
+      taskCount: summary.taskCount,
+      tracks: summary.tracks.map(item => ({ name: trackLabelOf(item.track), count: item.count })),
+    })
 
     try {
       const snapshot = await loadSplitSnapshot()
@@ -2048,11 +2069,7 @@ export function Shell({
           [task.id]: {
             status: 'done',
             newTasks: viewTasks(split),
-            summary: {
-              taskCount: split.length,
-              assignedCount: split.filter(row => row.role !== undefined).length,
-              lines: [],
-            },
+            summary: splitSummaryView(summarizeSplit(split)),
           },
         }))
         setSplitError(null)
@@ -2067,7 +2084,7 @@ export function Shell({
       const outcome = await runRequirementSplit({
         task,
         source: { document },
-        roster: snapshot.roles,
+        tracks: trackOptions(),
         ...(existing.length === 0 ? {} : { existingTasks: existing }),
         beforeTaskIds: snapshot.tasks.map(row => row.id),
       }, {
@@ -2078,9 +2095,7 @@ export function Shell({
         readNotice: id => readSessionNotice?.(id as SessionId) ?? null,
         isRunning: id => liveSessionStatus.current.get(id as SessionId)?.running
           ?? liveSessionRows.current[id as SessionId]?.running,
-        assignTask: (id, taskId, roleId) => assignTask(id as SessionId, taskId, roleId),
         loadTasks: async () => (await loadSplitSnapshot()).tasks,
-        loadRoster: async () => (await loadSplitSnapshot()).roles,
         now: () => Date.now(),
         sleep: ms => cancellableSleep(ms, controller.signal),
       }, {
@@ -2109,13 +2124,7 @@ export function Shell({
             errorText: detail,
             ...(known.length === 0
               ? {}
-              : {
-                summary: {
-                  taskCount: known.length,
-                  assignedCount: known.filter(row => row.role !== undefined).length,
-                  lines: [],
-                },
-              }),
+              : { summary: splitSummaryView(summarizeSplit(known)) }),
           },
         }))
         setSplitError(detail)
@@ -2124,17 +2133,12 @@ export function Shell({
       }
 
       const known = existing.length > 0 ? existing : outcome.newTasks
-      const lines = splitSummaryLines(t, outcome.summary)
       setSplitFlows(current => ({
         ...current,
         [task.id]: {
           status: 'done',
           newTasks: viewTasks(known),
-          summary: {
-            taskCount: outcome.summary.taskCount,
-            assignedCount: outcome.summary.assignedCount,
-            lines,
-          },
+          summary: splitSummaryView(outcome.summary),
         },
       }))
       setReload(value => value + 1)
@@ -2151,11 +2155,94 @@ export function Shell({
     }
   }
 
-  /** 参与岗位显示名：按讨论计划的分组去重；岗位映射不了时退回原始岗位 id。 */
-  const participantsOf = (groups: readonly DiscussionGroup[], fallback: readonly string[]): string[] => {
-    const names = groups.flatMap(group => group.roles.map(role => role.name))
-    return names.length === 0 ? [...fallback] : [...new Set(names)]
+  /** 这批任务涉及的轨 id，保持首次出现顺序；参与人读不到分组时用它兜底。 */
+  const discussionTracksOf = (rows: readonly ShellTask[]): string[] =>
+    [...new Set(rows.flatMap(row => row.track === undefined ? [] : [row.track]))]
+
+  /** 参与讨论的角色名：固定角色用词典，技术岗位按轨名加「工程师」。 */
+  const meetingRoleLabel = (role: MeetingRole): string => {
+    const key = DISCUSSION_ROLE_LABEL[role.id]
+    if (key !== undefined) return t(key)
+    if (role.id.startsWith('track-')) return `${trackLabelOf(role.id.slice('track-'.length))} ${t('shell.engineer')}`
+    return role.name
   }
+
+  /** 参与角色显示名：按讨论计划的分组去重；分组为空时退回这批任务的轨名。 */
+  const participantsOf = (groups: readonly DiscussionGroup[], fallback: readonly string[]): string[] => {
+    const names = groups.flatMap(group => group.roles.map(meetingRoleLabel))
+    return names.length === 0 ? [...new Set(fallback.map(trackLabelOf))] : [...new Set(names)]
+  }
+
+  /**
+   * 打开需求卡片的讨论历史。
+   *
+   * 先读本窗口记下的讨论会话；没有记录（重启、换窗口）再按同项目会话的 preset
+   * 与消息里出现的方案编号恢复。两条都找不到就如实说定位不到，不拿别的需求顶替。
+   */
+  const openDiscussionHistory = (task: ShellTask): void => {
+    setHistoryOpen(true)
+    if (task.proposal === undefined) {
+      setHistoryView({ status: 'failed', groups: [], error: t('shell.historyNoProposal') })
+      return
+    }
+    const proposal = task.proposal
+    setHistoryView({ status: 'loading', groups: [] })
+    try {
+      const candidates: DiscussionHistoryCandidate[] = []
+      const seen = new Set<string>()
+      const read = (sessionId: string, preset: string | undefined): void => {
+        const id = sessionId as SessionId
+        const release = holdSession?.(id)
+        try {
+          candidates.push({
+            sessionId,
+            ...(preset === undefined ? {} : { preset }),
+            messages: readMessages?.(id) ?? [],
+          })
+        } finally {
+          release?.()
+        }
+      }
+      for (const item of discussionSessions.current[proposal] ?? []) {
+        if (seen.has(item.sessionId)) continue
+        seen.add(item.sessionId)
+        read(item.sessionId, item.role.preset)
+      }
+      for (const id of workspaceSessions) {
+        if (seen.has(String(id))) continue
+        const preset = agentPresetOf(id)
+        if (!isDiscussionPreset(preset)) continue
+        read(String(id), preset)
+      }
+      const selection = selectDiscussionHistory(candidates, proposal)
+      if (!selection.found) {
+        setHistoryView({
+          status: 'failed',
+          groups: [],
+          error: fill(t('shell.historyNotFound'), { proposal }),
+        })
+        return
+      }
+      setHistoryView({ status: 'ready', groups: groupDiscussionHistory(selection.rounds) })
+    } catch (error: unknown) {
+      setHistoryView({
+        status: 'failed',
+        groups: [],
+        error: fill(t('shell.historyReadFailed'), { detail: String(error) }),
+      })
+    }
+  }
+
+  const closeDiscussionHistory = (): void => {
+    setHistoryOpen(false)
+    setHistoryView({ status: 'idle', groups: [] })
+  }
+
+  /** 换任务或关卡片就收起历史抽屉；历史结果不是缓存，下次打开重读。 */
+  useEffect(() => {
+    setHistoryOpen(false)
+    setHistoryView({ status: 'idle', groups: [] })
+  }, [detail])
 
   /**
    * 跑一次方案讨论：同需求下仍待讨论的任务一起开会，架构师汇总并逐任务起草契约。
@@ -2199,7 +2286,7 @@ export function Shell({
         ...current,
         [key]: {
           status: 'done',
-          participants: participantsOf(planDiscussionGroups(batch, jobRoles).groups, batch.flatMap(row => row.role ?? [])),
+          participants: participantsOf(planDiscussionGroups(batch, trackOptions()).groups, discussionTracksOf(batch)),
           taskIds: batch.map(row => row.id),
           text: t('shell.discussionAlready'),
         },
@@ -2209,28 +2296,36 @@ export function Shell({
     }
 
     discussRuns.current.add(key)
+    // 重新讨论会建新会话；历史入口只认这一轮记下的，避免把旧轮次混进来。
+    discussionSessions.current[key] = []
     setDiscussError(null)
     const controller = new AbortController()
     discussAborts.current.set(key, controller)
-    const view = planDiscussionGroups(batch, jobRoles)
+    const view = planDiscussionGroups(batch, trackOptions())
     setDiscussFlows(current => ({
       ...current,
       [key]: {
         status: 'running',
         stage: 'meeting',
-        participants: participantsOf(view.groups, batch.flatMap(row => row.role ?? [])),
+        participants: participantsOf(view.groups, discussionTracksOf(batch)),
         taskIds: batch.map(row => row.id),
       },
     }))
     try {
-      const snapshot = await loadSplitSnapshot()
       const outcome = await runPlanDiscussion({
         tasks: batch,
-        roster: snapshot.roles,
+        tracks: trackOptions(),
         document,
         proposal: key,
       }, {
-        createSession: role => createDefaultedSession(createSession, role.preset, role.id),
+        createSession: async (role) => {
+          const created = await createDefaultedSession(createSession, role.preset, role.id)
+          const known = discussionSessions.current[key] ?? []
+          const next = known.filter(item => item.role.id !== role.id)
+          next.push({ role, sessionId: created })
+          discussionSessions.current[key] = next
+          return created
+        },
         sendPrompt: async (id, text) => sendPrompt(id as SessionId, text),
         holdSession: id => holdSession?.(id as SessionId) ?? (() => {}),
         readMessages: id => readMessages?.(id as SessionId) ?? [],
@@ -2243,13 +2338,13 @@ export function Shell({
       }, {
         signal: controller.signal,
         onProgress: (progress) => {
-          const plan = planDiscussionGroups(batch, jobRoles)
+          const plan = planDiscussionGroups(batch, trackOptions())
           setDiscussFlows(current => ({
             ...current,
             [key]: {
               status: 'running',
               stage: progress.stage,
-              participants: participantsOf(plan.groups, batch.flatMap(row => row.role ?? [])),
+              participants: participantsOf(plan.groups, discussionTracksOf(batch)),
               taskIds: progress.taskIds,
             },
           }))
@@ -2262,7 +2357,7 @@ export function Shell({
           ...current,
           [key]: {
             status: 'failed',
-            participants: participantsOf(outcome.plan.groups, batch.flatMap(row => row.role ?? [])),
+            participants: participantsOf(outcome.plan.groups, discussionTracksOf(batch)),
             taskIds: batch.map(row => row.id),
             text,
             lines: outcome.taskIds === undefined ? [] : [text],
@@ -2276,7 +2371,7 @@ export function Shell({
         ...current,
         [key]: {
           status: 'done',
-          participants: participantsOf(outcome.plan.groups, batch.flatMap(row => row.role ?? [])),
+          participants: participantsOf(outcome.plan.groups, discussionTracksOf(batch)),
           taskIds: batch.map(row => row.id),
           text: fill(t('shell.discussionDone'), { tasks: `${batch.length}` }),
         },
@@ -3372,6 +3467,9 @@ export function Shell({
                   <span className={`${css.tag} ${TASK_STATUS[status].className ?? ''}`}>{statusLabel}</span>
                   {task.proposal === undefined ? null : <span className={css.tag}>{task.proposal}</span>}
                   <span className={css.tag}>{t('shell.jobRole')} {roleLabelOf(task.role)}</span>
+                  {task.track === undefined
+                    ? null
+                    : <span className={css.tag}>{t('shell.track')} {trackLabelOf(task.track)}</span>}
                   {waitingOn.length === 0
                     ? null
                     : <span className={`${css.tag} ${css.tagWarn}`}>{t('shell.dependsOn')} {waitingOn.join('、')}</span>}
@@ -4235,12 +4333,17 @@ export function Shell({
                 document={requirementDocument}
                 proposal={detailProposal}
                 answers={requirementAnswers}
+                trackName={detail.track === undefined ? undefined : trackLabelOf(detail.track)}
                 splitting={detailSplitFlow?.status === 'running'}
                 error={detailSplitFlow?.errorText ?? splitError}
                 flow={detailSplitFlow}
                 onClose={() => { setDetail(null) }}
                 onSplit={(document) => { void splitRequirement(detail, document) }}
                 onViewBoard={() => { setDetail(null) }}
+                historyOpen={historyOpen}
+                history={historyView}
+                onOpenHistory={() => { openDiscussionHistory(detail) }}
+                onCloseHistory={closeDiscussionHistory}
               />
             </div>
           ) : (
@@ -4281,6 +4384,14 @@ export function Shell({
                     <dt className={css.metaK}>{t('shell.difficulty')}</dt>
                     <dd className={css.metaV}>{mappedLabel(DIFFICULTY_LABEL, detail.grade, t)}</dd>
                   </div>
+                  {detail.track === undefined
+                    ? null
+                    : (
+                      <div className={css.metaItem}>
+                        <dt className={css.metaK}>{t('shell.track')}</dt>
+                        <dd className={css.metaV}>{trackLabelOf(detail.track)}</dd>
+                      </div>
+                    )}
                   <div className={css.metaItem}>
                     <dt className={css.metaK}>{t('shell.jobRole')}</dt>
                     <dd className={css.metaV}>
@@ -4357,7 +4468,7 @@ export function Shell({
                       <div className={css.metaItem}>
                         <dt className={css.metaK}>{t('shell.discussionParticipants')}</dt>
                         <dd className={css.metaV}>
-                          {[...new Set(detailDiscussionPlan.groups.flatMap(group => group.roles.map(role => role.name)))].join('、') || '—'}
+                          {[...new Set(detailDiscussionPlan.groups.flatMap(group => group.roles.map(meetingRoleLabel)))].join('、') || '—'}
                         </dd>
                       </div>
                       <div className={css.metaItem}>

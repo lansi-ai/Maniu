@@ -1,19 +1,19 @@
 /**
- * 需求拆分→岗位分配流程：映射解析与校验、新任务过滤、两段会话只建一次、
- * 超时与空结果失败、分配成功/失败汇总，以及两条中文指令的范围约束。
+ * 需求拆分：只标轨、不再分配岗位；新任务过滤、按轨汇总、未标轨失败、
+ * 重试不重拆，以及中文指令里的调研与按轨约束。
  *
  * 流程本身不碰 React；这里用注入端口模拟宿主推流与投影，跑整条链路。
  */
 import { describe, expect, it } from 'vitest'
-import type { JobRoleRow } from '../src/client/projection.ts'
-import type { ShellMessage, ShellSignResult, ShellTask } from '../src/client/shell/shell-data.ts'
+import type { ShellMessage, ShellTask } from '../src/client/shell/shell-data.ts'
 import type { ShellSessionNotice } from '../src/client/model-status.ts'
+import type { TrackDescriptor } from '@lcoder/kernel/src/schema/tracks.ts'
 import {
-  REQUIREMENT_SPLIT_MANAGER_PRESET, REQUIREMENT_SPLIT_PM_PRESET,
-  buildManagerAssignPrompt, buildPmSplitPrompt, existingSplitTasks, lastAssistantText,
-  newDraftingTasks, parseAssignmentMapping, runRequirementSplit, splitTasksOf, summarizeSplit, validateAssignments,
+  REQUIREMENT_SPLIT_PM_PRESET,
+  buildPmSplitPrompt, existingSplitTasks, lastAssistantText, newDraftingTasks,
+  runRequirementSplit, splitTasksOf, summarizeSplit, trackDistribution,
 } from '../src/client/shell/requirement-split.ts'
-import type { AssignmentPair, RequirementSplitPorts } from '../src/client/shell/requirement-split.ts'
+import type { RequirementSplitPorts } from '../src/client/shell/requirement-split.ts'
 
 /** 被拆分的需求本体。 */
 function requirementTask(overrides: Partial<ShellTask> = {}): ShellTask {
@@ -35,27 +35,28 @@ function requirementTask(overrides: Partial<ShellTask> = {}): ShellTask {
   }
 }
 
-/** 拆分后的一条开发任务。 */
+/** 拆分后的一条开发任务；默认标 H5 轨。 */
 function splitTask(id: string, overrides: Partial<ShellTask> = {}): ShellTask {
   return {
     ...requirementTask(),
     id,
     title: `${id} 的开发任务`,
     description: '按需求第一版清单实现。',
+    track: 'h5',
     ...overrides,
   }
 }
 
 const DOCUMENT = '# 项目需求概要 V1\n\n## 第一版功能清单\n- 记一笔\n- 翻记录\n\n## 暂不开发\n- 云同步\n'
 
-const ROSTER: readonly JobRoleRow[] = [
-  { id: 'architect', name: '架构师', inherits: 'architect' },
-  {
-    id: 'vue-engineer',
-    name: 'Vue 工程师',
-    inherits: 'dev',
-    signals: { strong: ['vue'], medium: ['页面'], preferredPaths: ['src/views/'] },
-  },
+const TRACKS: readonly TrackDescriptor[] = [
+  { id: 'h5', name: 'H5 前端' },
+  { id: 'admin', name: '管理端' },
+  { id: 'api', name: '接口' },
+  { id: 'desktop', name: '桌面端' },
+  { id: 'host', name: '宿主端' },
+  { id: 'general', name: '通用' },
+  { id: 'payment', name: '支付端' },
 ]
 
 describe('新任务过滤', () => {
@@ -92,87 +93,32 @@ describe('新任务过滤', () => {
   })
 })
 
-describe('分配映射解析', () => {
-  it('裸 JSON 正常解析，任务与岗位都去首尾空白', () => {
-    expect(parseAssignmentMapping('{"assignments":[{"task":" T-02 ","role":" architect "}]}')).toEqual({
-      kind: 'ok',
-      pairs: [{ task: 'T-02', role: 'architect' }],
-    })
-  })
-
-  it('带说明文字与 json 代码围栏也能解析', () => {
-    const text = '已按领域分配：\n\n```json\n{"assignments":[{"task":"T-02","role":"vue-engineer"}]}\n```\n'
-    expect(parseAssignmentMapping(text)).toEqual({
-      kind: 'ok',
-      pairs: [{ task: 'T-02', role: 'vue-engineer' }],
-    })
-  })
-
-  it('坏 JSON 与结构不对都按读不懂报，不猜分配', () => {
-    expect(parseAssignmentMapping('{"assignments":[{"task":"T-02",')).toEqual({ kind: 'bad' })
-    expect(parseAssignmentMapping('{"items":[]}')).toEqual({ kind: 'bad' })
-    expect(parseAssignmentMapping('{"assignments":[{"task":1,"role":"dev"}]}')).toEqual({ kind: 'bad' })
-  })
-
-  it('没有 JSON 形状的答复按映射缺失处理', () => {
-    expect(parseAssignmentMapping(null)).toEqual({ kind: 'missing' })
-    expect(parseAssignmentMapping('  ')).toEqual({ kind: 'missing' })
-    expect(parseAssignmentMapping('都分配好了，没有映射。')).toEqual({ kind: 'missing' })
-  })
-
-  it('最后一条非空助手答复才是映射来源', () => {
-    const messages: readonly ShellMessage[] = [
-      { role: 'assistant', text: '先看一下任务。' },
-      { role: 'user', text: '继续' },
-      { role: 'assistant', text: '{"assignments":[]}' },
-      { role: 'assistant', text: '  ' },
+describe('按轨汇总', () => {
+  it('统计每条轨的条数，保持投影里的首次出现顺序', () => {
+    const tasks = [
+      splitTask('T-02', { track: 'h5' }),
+      splitTask('T-03', { track: 'api' }),
+      splitTask('T-04', { track: 'h5' }),
     ]
-    expect(lastAssistantText(messages)).toBe('{"assignments":[]}')
-    expect(lastAssistantText([{ role: 'user', text: 'hi' }])).toBeNull()
+    expect(trackDistribution(tasks)).toEqual([
+      { track: 'h5', count: 2 },
+      { track: 'api', count: 1 },
+    ])
+  })
+
+  it('未标轨任务留下编号；没有轨时不进分布', () => {
+    const { track: withoutTrack, ...untracked } = splitTask('T-03')
+    void withoutTrack
+    const summary = summarizeSplit([splitTask('T-02'), untracked])
+    expect(summary.taskCount).toBe(2)
+    expect(summary.tracks).toEqual([{ track: 'h5', count: 1 }])
+    expect(summary.untracked).toEqual(['T-03'])
   })
 })
 
-describe('分配校验与汇总', () => {
-  it('未知任务、空岗位与重复条目被拒，可用条目保持顺序', () => {
-    const pairs: readonly AssignmentPair[] = [
-      { task: 'T-02', role: 'architect' },
-      { task: 'T-09', role: 'architect' },
-      { task: 'T-03', role: '' },
-      { task: 'T-02', role: 'dev' },
-      { task: 'T-03', role: 'vue-engineer' },
-    ]
-    expect(validateAssignments(pairs, new Set(['T-02', 'T-03']))).toEqual({
-      accepted: [
-        { task: 'T-02', role: 'architect' },
-        { task: 'T-03', role: 'vue-engineer' },
-      ],
-      rejected: [
-        { task: 'T-09', role: 'architect', reason: 'unknown-task' },
-        { task: 'T-03', role: '', reason: 'empty-role' },
-        { task: 'T-02', role: 'dev', reason: 'duplicate' },
-      ],
-    })
-  })
-
-  it('汇总把命令失败、被拒条目与最终未分配分别记下', () => {
-    const tasks = [splitTask('T-02'), splitTask('T-03'), splitTask('T-04', { role: 'architect' })]
-    const summary = summarizeSplit(tasks, [
-      { taskId: 'T-02', roleId: 'architect', ok: true, detail: '已分配' },
-      { taskId: 'T-03', roleId: 'dev', ok: false, detail: '岗位不认识' },
-    ], [{ task: 'T-09', role: 'dev', reason: 'unknown-task' }])
-    expect(summary.taskCount).toBe(3)
-    expect(summary.assignedCount).toBe(2)
-    expect(summary.unassigned).toEqual(['T-03'])
-    expect(summary.rejected).toHaveLength(1)
-    expect(summarizeSplit(
-      [splitTask('T-02')], [], [{ task: 'T-02', role: '', reason: 'empty-role' }],
-    )).toMatchObject({ assignedCount: 0, unassigned: [] })
-  })
-})
-
-describe('两段中文指令', () => {
+describe('中文指令', () => {
   it('项目经理指令带完整需求文档，只写 drafting 任务且不改需求与方案', () => {
-    const prompt = buildPmSplitPrompt(requirementTask(), { document: DOCUMENT })
+    const prompt = buildPmSplitPrompt(requirementTask(), { document: DOCUMENT }, TRACKS)
     expect(prompt).toContain('《项目需求概要》正文（.spec/requirements/P-01.md）')
     expect(prompt).toContain('- 记一笔\n- 翻记录')
     expect(prompt).toContain('暂不开发的范围不要拆成任务')
@@ -182,84 +128,43 @@ describe('两段中文指令', () => {
     expect(prompt).toContain('不改需求文档、.spec/project.yaml、已有方案与规格条目')
   })
 
-  it('项目经理先判断仓库现状：空仓时第一条是基础框架，功能任务都依赖它', () => {
-    const prompt = buildPmSplitPrompt(requirementTask(), { document: DOCUMENT })
-    expect(prompt).toContain('先用 file_list 查看仓库根目录与关键文件')
-    expect(prompt).toContain('判断它是空仓、只有需求文档，还是已有可运行的项目框架')
-    expect(prompt).toContain('把这个判断写进回复')
+  it('拆分前先调研仓库，并把结论写进回复', () => {
+    const prompt = buildPmSplitPrompt(requirementTask(), { document: DOCUMENT }, TRACKS)
+    expect(prompt).toContain('先用 file_list 查看仓库根目录与关键目录')
+    expect(prompt).toContain('再读 README 与构建清单')
+    expect(prompt).toContain('判断这是空仓、只有需求文档，还是已有可运行框架以及它用的技术栈')
+    expect(prompt).toContain('不得只凭需求文档猜技术选型')
+  })
+
+  it('每条任务必须从给定集合里标一条轨，禁写 role 与分配', () => {
+    const prompt = buildPmSplitPrompt(requirementTask(), { document: DOCUMENT }, TRACKS)
+    expect(prompt).toContain('track 只能取：h5（H5 前端）、admin（管理端）、api（接口）、desktop（桌面端）、host（宿主端）、general（通用）、payment（支付端）')
+    expect(prompt).toContain('一任务一轨')
+    expect(prompt).toContain('基础框架任务按项目主技术栈定轨')
+    expect(prompt).toContain('不要写 role，也不要调用任何分配命令')
+    expect(prompt).toContain('拆完只回报新建任务的编号、标题、轨与依赖')
+  })
+
+  it('空仓时第一条仍是基础框架任务，功能任务都依赖它', () => {
+    const prompt = buildPmSplitPrompt(requirementTask(), { document: DOCUMENT }, TRACKS)
     expect(prompt).toContain('第一条任务必须是「项目基础框架与脚手架」')
     expect(prompt).toContain('技术选型落地（语言、桌面外壳、本地存储形式）')
-    expect(prompt).toContain('目录与模块骨架、开发与构建与打包命令、基础窗口、数据读写骨架')
-    expect(prompt).toContain('双击即可运行、断网可用的最小验证')
-    expect(prompt).toContain('它不依赖任何功能任务')
     expect(prompt).toContain('所有功能任务都在 depends_on 里依赖这条基础任务')
-    expect(prompt).toContain('description 的范围与验收标准、grade、rules、scope.allowed_paths')
-    expect(prompt).toContain('state 为 drafting')
-  })
-
-  it('仓库已有可运行框架时不重复建设，只补最少的基础缺口', () => {
-    const prompt = buildPmSplitPrompt(requirementTask(), { document: DOCUMENT })
-    expect(prompt).toContain('仓库已有可运行框架时不重复建设')
-    expect(prompt).toContain('只按实际缺口补最少的基础任务')
-    expect(prompt).toContain('缺少打包脚本、缺少数据层骨架')
-    expect(prompt).toContain('没有缺口就不建')
-  })
-
-  it('研发经理把基础框架任务给架构师，缺岗位时按技术特征起草', () => {
-    const prompt = buildManagerAssignPrompt({
-      task: requirementTask(),
-      source: { document: DOCUMENT },
-      newTasks: [splitTask('T-02', { title: '项目基础框架与脚手架' })],
-      roster: [],
-    })
-    expect(prompt).toContain('「项目基础框架与脚手架」任务给架构师')
-    expect(prompt).toContain('名册里没有架构师或脚手架岗位时')
-    expect(prompt).toContain('用 role_draft 起草，继承 architect 或 dev')
-    expect(prompt).toContain('signals 写清技术选型、脚手架、构建、打包特征')
-    expect(prompt).toContain('其余任务里的打包与本地存储、界面与交互仍按领域分配')
-  })
-
-  it('研发经理指令带需求、任务清单、名册与唯一映射契约', () => {
-    const prompt = buildManagerAssignPrompt({
-      task: requirementTask(),
-      source: { document: DOCUMENT },
-      newTasks: [splitTask('T-02'), splitTask('T-03', { description: '  前端页面与交互  ' })],
-      roster: ROSTER,
-    })
-    expect(prompt).toContain('岗位分配')
-    expect(prompt).toContain('- T-02：T-02 的开发任务')
-    expect(prompt).toContain('描述摘要：前端页面与交互')
-    expect(prompt).toContain('- architect（架构师，继承 architect）')
-    expect(prompt).toContain('- vue-engineer（Vue 工程师，继承 dev；强特征：vue；弱语义：页面；落点：src/views/）')
-    expect(prompt).toContain('role_draft')
-    expect(prompt).toContain('{"assignments":[{"task":"T-02","role":"architect"}]}')
-    expect(prompt).toContain('不改任务状态、不写代码、不跑命令')
-    expect(prompt).toContain('《项目需求概要》正文（.spec/requirements/P-01.md）')
-  })
-
-  it('名册为空时如实写出来，并要求先起草岗位', () => {
-    const prompt = buildManagerAssignPrompt({
-      task: requirementTask(), source: { document: DOCUMENT }, newTasks: [splitTask('T-02')], roster: [],
-    })
-    expect(prompt).toContain('名册为空')
-    expect(prompt).toContain('先用 role_draft 起草')
+    expect(prompt).toContain('scope.allowed_paths、track')
   })
 })
 
-/** 一次流程测试用的世界：会话、推流、投影与分配回执都可从外面改。 */
+/** 一次流程测试用的世界：会话、推流与投影都可从外面改。 */
 interface SplitWorld {
   clock: number
   readonly created: { readonly sessionId: string; readonly preset: string }[]
   readonly prompts: { readonly sessionId: string; readonly text: string }[]
-  readonly assignments: { readonly sessionId: string; readonly taskId: string; readonly roleId: string }[]
   readonly messages: Map<string, readonly ShellMessage[]>
   readonly running: Map<string, boolean | undefined>
   readonly notices: Map<string, ShellSessionNotice | null>
   tasks: readonly ShellTask[]
-  roster: readonly JobRoleRow[]
   released: number
   onSleep?: () => void
-  assignResult?: (taskId: string, roleId: string) => ShellSignResult
 }
 
 /** 组装注入面；`createSession` 依次给 s-1、s-2，并把会话置为运行中。 */
@@ -268,12 +173,10 @@ function splitWorld(overrides: Partial<SplitWorld> = {}): { world: SplitWorld; p
     clock: 0,
     created: [],
     prompts: [],
-    assignments: [],
     messages: new Map(),
     running: new Map(),
     notices: new Map(),
     tasks: [requirementTask()],
-    roster: ROSTER,
     released: 0,
     ...overrides,
   }
@@ -290,12 +193,7 @@ function splitWorld(overrides: Partial<SplitWorld> = {}): { world: SplitWorld; p
     readMessages: sessionId => world.messages.get(sessionId) ?? [],
     readNotice: sessionId => world.notices.get(sessionId) ?? null,
     isRunning: sessionId => world.running.get(sessionId),
-    assignTask: async (sessionId, taskId, roleId) => {
-      world.assignments.push({ sessionId, taskId, roleId })
-      return world.assignResult?.(taskId, roleId) ?? { ok: true, text: '已分配' }
-    },
     loadTasks: async () => world.tasks,
-    loadRoster: async () => world.roster,
     now: () => world.clock,
     sleep: async (ms) => {
       world.clock += ms
@@ -316,7 +214,7 @@ function planOf(overrides: Partial<Parameters<typeof runRequirementSplit>[0]> = 
   return {
     task: requirementTask(),
     source: { document: DOCUMENT },
-    roster: ROSTER,
+    tracks: TRACKS,
     beforeTaskIds: ['T-01'],
     timeoutMs: 5_000,
     pollMs: 1_000,
@@ -325,17 +223,13 @@ function planOf(overrides: Partial<Parameters<typeof runRequirementSplit>[0]> = 
 }
 
 describe('一键拆分链路', () => {
-  it('项目经理先拆、研发经理再定岗，外壳按映射逐条分配', async () => {
+  it('只建项目经理会话，拆完按轨汇总，不调用分配', async () => {
     const { world, ports } = splitWorld()
     const progress: string[] = []
     world.onSleep = () => {
-      if (world.created[0] !== undefined && world.running.get('s-1') === true) {
-        finishSession(world, 's-1', '已拆出 T-02。')
-        world.tasks = [...world.tasks, splitTask('T-02')]
-        return
-      }
-      if (world.running.get('s-2') === true) {
-        finishSession(world, 's-2', '{"assignments":[{"task":"T-02","role":"architect"}]}')
+      if (world.running.get('s-1') === true) {
+        finishSession(world, 's-1', '已拆出 T-02、T-03。')
+        world.tasks = [...world.tasks, splitTask('T-02'), splitTask('T-03', { track: 'api' })]
       }
     }
 
@@ -343,23 +237,64 @@ describe('一键拆分链路', () => {
       onProgress: (item) => { progress.push(item.stage) },
     })
 
-    expect(progress).toEqual(['pm', 'manager', 'assigning'])
-    expect(world.created).toEqual([
-      { sessionId: 's-1', preset: REQUIREMENT_SPLIT_PM_PRESET },
-      { sessionId: 's-2', preset: REQUIREMENT_SPLIT_MANAGER_PRESET },
-    ])
-    expect(world.prompts[0]?.sessionId).toBe('s-1')
+    expect(progress).toEqual(['pm'])
+    expect(world.created).toEqual([{ sessionId: 's-1', preset: REQUIREMENT_SPLIT_PM_PRESET }])
+    expect(world.prompts).toHaveLength(1)
     expect(world.prompts[0]?.text).toContain('执行身份：你是这条需求的项目经理')
-    expect(world.prompts[1]?.text).toContain('- T-02：T-02 的开发任务')
-    expect(world.prompts[1]?.text).toContain('当前岗位名册')
-    expect(world.assignments).toEqual([{ sessionId: 's-2', taskId: 'T-02', roleId: 'architect' }])
-    expect(world.released).toBe(2)
+    expect(world.released).toBe(1)
     expect(outcome).toMatchObject({
       kind: 'done',
       pmSession: 's-1',
-      managerSession: 's-2',
-      summary: { taskCount: 1, assignedCount: 1, unassigned: [] },
+      summary: {
+        taskCount: 2,
+        tracks: [{ track: 'h5', count: 1 }, { track: 'api', count: 1 }],
+        untracked: [],
+      },
     })
+  })
+
+  it('有任务没标轨时明确失败，带出未标轨编号', async () => {
+    const { world, ports } = splitWorld()
+    const { track: _track, ...untrackedTask } = splitTask('T-02')
+    void _track
+    world.onSleep = () => {
+      if (world.running.get('s-1') === true) {
+        finishSession(world, 's-1', '已拆出 T-02。')
+        world.tasks = [...world.tasks, untrackedTask]
+      }
+    }
+    const outcome = await runRequirementSplit(planOf(), ports)
+    expect(outcome).toMatchObject({
+      kind: 'failed',
+      stage: 'pm',
+      reason: 'untracked',
+      untracked: ['T-02'],
+    })
+    expect(outcome.kind === 'failed' ? outcome.newTasks.map(task => task.id) : []).toEqual(['T-02'])
+  })
+
+  it('已有拆分结果时不再建会话、不再拆第二遍', async () => {
+    const { world, ports } = splitWorld()
+    const outcome = await runRequirementSplit(planOf({
+      existingTasks: [splitTask('T-02'), splitTask('T-03', { track: 'api' })],
+    }), ports)
+    expect(world.created).toEqual([])
+    expect(world.prompts).toEqual([])
+    expect(outcome).toMatchObject({
+      kind: 'done',
+      summary: { taskCount: 2, untracked: [] },
+    })
+  })
+
+  it('已有任务里有未标轨时按失败报，不建会话', async () => {
+    const { world, ports } = splitWorld()
+    const { track: _track, ...untrackedTask } = splitTask('T-02')
+    void _track
+    const outcome = await runRequirementSplit(planOf({
+      existingTasks: [untrackedTask],
+    }), ports)
+    expect(world.created).toEqual([])
+    expect(outcome).toMatchObject({ kind: 'failed', reason: 'untracked', untracked: ['T-02'] })
   })
 
   it('没有完整需求文档时不建任何会话', async () => {
@@ -369,7 +304,7 @@ describe('一键拆分链路', () => {
     expect(outcome).toMatchObject({ kind: 'failed', stage: 'pm', reason: 'no-document' })
   })
 
-  it('项目经理超时按失败报，不建研发经理会话', async () => {
+  it('项目经理超时按失败报，释放会话', async () => {
     const { world, ports } = splitWorld()
     const outcome = await runRequirementSplit(planOf({ timeoutMs: 3_000 }), ports)
     expect(world.created).toEqual([{ sessionId: 's-1', preset: REQUIREMENT_SPLIT_PM_PRESET }])
@@ -385,7 +320,7 @@ describe('一键拆分链路', () => {
     expect(outcome).toMatchObject({ kind: 'failed', stage: 'pm', reason: 'empty', newTasks: [] })
   })
 
-  it('会话失败时原样带回原因，不继续往下走', async () => {
+  it('会话失败时原样带回原因', async () => {
     const { world, ports } = splitWorld()
     world.notices.set('s-1', { key: 'shell.turnFailed', detail: '模型不可用' })
     const outcome = await runRequirementSplit(planOf(), ports)
@@ -393,165 +328,14 @@ describe('一键拆分链路', () => {
     expect(world.created).toHaveLength(1)
   })
 
-  it('研发经理给不出映射时不猜分配，任务留在失败结果里可重试', async () => {
-    const { world, ports } = splitWorld()
-    world.onSleep = () => {
-      if (world.created[0] !== undefined && world.running.get('s-1') === true) {
-        finishSession(world, 's-1', '已拆出 T-02。')
-        world.tasks = [...world.tasks, splitTask('T-02')]
-        return
-      }
-      if (world.running.get('s-2') === true) finishSession(world, 's-2', '都分配好了。')
-    }
-    const outcome = await runRequirementSplit(planOf(), ports)
-    expect(outcome).toMatchObject({ kind: 'failed', stage: 'manager', reason: 'missing-mapping' })
-    expect(outcome.kind === 'failed' ? outcome.newTasks.map(task => task.id) : []).toEqual(['T-02'])
-    expect(world.assignments).toEqual([])
-  })
-
-  it('映射是坏 JSON 时同样不分配', async () => {
-    const { world, ports } = splitWorld()
-    world.onSleep = () => {
-      if (world.created[0] !== undefined && world.running.get('s-1') === true) {
-        finishSession(world, 's-1', '已拆出 T-02。')
-        world.tasks = [...world.tasks, splitTask('T-02')]
-        return
-      }
-      if (world.running.get('s-2') === true) finishSession(world, 's-2', '{"assignments":[{"task":"T-02",')
-    }
-    const outcome = await runRequirementSplit(planOf(), ports)
-    expect(outcome).toMatchObject({ kind: 'failed', stage: 'manager', reason: 'bad-mapping' })
-    expect(world.assignments).toEqual([])
-  })
-
-  it('映射只含未知任务时按无可用条目失败', async () => {
-    const { world, ports } = splitWorld()
-    world.onSleep = () => {
-      if (world.created[0] !== undefined && world.running.get('s-1') === true) {
-        finishSession(world, 's-1', '已拆出 T-02。')
-        world.tasks = [...world.tasks, splitTask('T-02')]
-        return
-      }
-      if (world.running.get('s-2') === true) {
-        finishSession(world, 's-2', '{"assignments":[{"task":"T-09","role":"dev"}]}')
-      }
-    }
-    const outcome = await runRequirementSplit(planOf(), ports)
-    expect(outcome).toMatchObject({ kind: 'failed', stage: 'manager', reason: 'no-valid-assignment' })
-    expect(world.assignments).toEqual([])
-  })
-
-  it('分配回执成功与失败分开汇总，未分配任务留在明细里', async () => {
-    const { world, ports } = splitWorld()
-    world.assignResult = taskId => taskId === 'T-02'
-      ? { ok: true, text: '已分配' }
-      : { ok: false, text: '岗位不认识' }
-    world.onSleep = () => {
-      if (world.created[0] !== undefined && world.running.get('s-1') === true) {
-        finishSession(world, 's-1', '已拆出 T-02、T-03。')
-        world.tasks = [...world.tasks, splitTask('T-02'), splitTask('T-03')]
-        return
-      }
-      if (world.running.get('s-2') === true) {
-        finishSession(world, 's-2', '{"assignments":[{"task":"T-02","role":"architect"},{"task":"T-03","role":"dev"}]}')
-      }
-    }
-    const outcome = await runRequirementSplit(planOf(), ports)
-    expect(outcome.kind).toBe('done')
-    if (outcome.kind !== 'done') return
-    expect(outcome.summary.assignedCount).toBe(1)
-    expect(outcome.summary.unassigned).toEqual(['T-03'])
-    expect(outcome.summary.assignments.map(item => [item.taskId, item.ok])).toEqual([
-      ['T-02', true], ['T-03', false],
-    ])
-  })
-
-  it('已有拆分结果时跳过项目经理，只为未分配任务建研发经理会话', async () => {
-    const { world, ports } = splitWorld()
-    world.onSleep = () => {
-      if (world.running.get('s-1') === true) {
-        finishSession(world, 's-1', '{"assignments":[{"task":"T-02","role":"architect"}]}')
-      }
-    }
-    const outcome = await runRequirementSplit(planOf({ existingTasks: [splitTask('T-02')] }), ports)
-    expect(world.created).toEqual([{ sessionId: 's-1', preset: REQUIREMENT_SPLIT_MANAGER_PRESET }])
-    expect(world.prompts).toHaveLength(1)
-    expect(world.assignments).toEqual([{ sessionId: 's-1', taskId: 'T-02', roleId: 'architect' }])
-    expect(outcome).toMatchObject({
-      kind: 'done',
-      summary: { taskCount: 1, assignedCount: 1 },
-    })
-  })
-
-  it('重试只补未分配的岗位，已分配任务不再进清单', async () => {
-    const { world, ports } = splitWorld()
-    world.onSleep = () => {
-      if (world.running.get('s-1') === true) {
-        finishSession(world, 's-1', '{"assignments":[{"task":"T-03","role":"dev"}]}')
-      }
-    }
-    const outcome = await runRequirementSplit(planOf({
-      existingTasks: [splitTask('T-02', { role: 'architect' }), splitTask('T-03')],
-    }), ports)
-
-    expect(world.created).toEqual([{ sessionId: 's-1', preset: REQUIREMENT_SPLIT_MANAGER_PRESET }])
-    // 已分配的 T-02 不再进研发经理的清单。
-    expect(world.prompts[0]?.text).not.toContain('- T-02：')
-    expect(world.prompts[0]?.text).toContain('- T-03：')
-    expect(world.assignments).toEqual([{ sessionId: 's-1', taskId: 'T-03', roleId: 'dev' }])
-    expect(outcome).toMatchObject({
-      kind: 'done',
-      summary: { taskCount: 2, assignedCount: 2, unassigned: [] },
-    })
-  })
-
-  it('已分配岗位的任务不再建会话，也不推进状态', async () => {
-    const { world, ports } = splitWorld()
-    const outcome = await runRequirementSplit(planOf({
-      existingTasks: [
-        splitTask('T-02', { role: 'architect', state: 'contracted' }),
-        splitTask('T-03', { role: 'dev' }),
-      ],
-    }), ports)
-
-    expect(world.created).toEqual([])
-    expect(world.prompts).toEqual([])
-    expect(world.assignments).toEqual([])
-    expect(outcome).toMatchObject({
-      kind: 'done',
-      summary: { taskCount: 2, assignedCount: 2, unassigned: [] },
-    })
-  })
-
-  it('分配完成后停在方案讨论，不调用任何推进命令', async () => {
-    const { world, ports } = splitWorld()
-    world.onSleep = () => {
-      if (world.running.get('s-1') === true) {
-        finishSession(world, 's-1', '{"assignments":[{"task":"T-02","role":"architect"},{"task":"T-03","role":"dev"}]}')
-      }
-    }
-    const outcome = await runRequirementSplit(planOf({
-      existingTasks: [splitTask('T-02'), splitTask('T-03')],
-    }), ports)
-
-    expect(outcome.kind).toBe('done')
-    if (outcome.kind !== 'done') return
-    expect(outcome.summary.assignedCount).toBe(2)
-    expect(world.created).toHaveLength(1)
-    expect(world.prompts).toHaveLength(1)
-  })
-
-  it('研发经理超时保留已拆出的任务，重试不必再拆一遍', async () => {
-    const { world, ports } = splitWorld()
-    world.onSleep = () => {
-      if (world.created[0] !== undefined && world.running.get('s-1') === true) {
-        finishSession(world, 's-1', '已拆出 T-02。')
-        world.tasks = [...world.tasks, splitTask('T-02')]
-      }
-    }
-    const outcome = await runRequirementSplit(planOf(), ports)
-    expect(outcome).toMatchObject({ kind: 'failed', stage: 'manager', reason: 'timeout' })
-    const failed = outcome.kind === 'failed' ? outcome : null
-    expect(failed?.newTasks.map(task => task.id)).toEqual(['T-02'])
+  it('最后一条非空助手答复才是读取来源', () => {
+    const messages: readonly ShellMessage[] = [
+      { role: 'assistant', text: '先看一下任务。' },
+      { role: 'user', text: '继续' },
+      { role: 'assistant', text: '已拆出 T-02。' },
+      { role: 'assistant', text: '  ' },
+    ]
+    expect(lastAssistantText(messages)).toBe('已拆出 T-02。')
+    expect(lastAssistantText([{ role: 'user', text: 'hi' }])).toBeNull()
   })
 })

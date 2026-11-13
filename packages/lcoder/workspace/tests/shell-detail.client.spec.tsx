@@ -690,7 +690,7 @@ describe('需求卡片的拆分接线', () => {
     expect(createSession).not.toHaveBeenCalled()
   })
 
-  it('项目经理拆出的任务交给研发经理会话逐条分配，完成后卡片给结果', async () => {
+  it('项目经理拆出的任务只标轨，不再建研发经理会话或逐条分配', async () => {
     const spec: { tasks: Record<string, string>; requirements: Record<string, string> } = {
       tasks: { 'T-01.yaml': TASK_REQUIREMENT },
       requirements: { 'P-01.md': REQUIREMENT_DOC },
@@ -708,20 +708,10 @@ describe('需求卡片的拆分接线', () => {
       void content
       if (presets.get(String(sessionId)) === 'lcoder-pm') {
         messages.set(String(sessionId), [{ role: 'assistant', text: '已拆出 T-02。' }])
-        spec.tasks['T-02.yaml'] = 'id: T-02\ntitle: 记一笔\nstate: drafting\ngrade: B\nproposal: P-01\n'
-        return
+        spec.tasks['T-02.yaml'] = 'id: T-02\ntitle: 记一笔\nstate: drafting\ngrade: B\nproposal: P-01\ntrack: h5\n'
       }
-      messages.set(String(sessionId), [{
-        role: 'assistant',
-        text: '{"assignments":[{"task":"T-02","role":"architect"}]}',
-      }])
     }
-    const assignTask: NonNullable<ShellProps['assignTask']> = vi.fn(async (_sessionId, taskId) => {
-      const key = `${taskId}.yaml`
-      const text = spec.tasks[key]
-      if (text !== undefined) spec.tasks[key] = `${text}role: architect\n`
-      return { ok: true, text: '已分配' }
-    })
+    const assignTask: NonNullable<ShellProps['assignTask']> = vi.fn(async () => ({ ok: true, text: '已分配' }))
     renderShell({
       spec,
       createSession,
@@ -733,19 +723,18 @@ describe('需求卡片的拆分接线', () => {
     await openTask('随手记账')
 
     fireEvent.click(await screen.findByRole('button', { name: zh['shell.splitTasks'] }))
-    await waitFor(() => {
-      expect(assignTask).toHaveBeenCalledWith(SessionId('s-10'), 'T-02', 'architect')
-    })
+    expect(await screen.findByText(t('shell.splitResult', { tasks: '1' }))).toBeTruthy()
+    expect(assignTask).not.toHaveBeenCalled()
+    expect(createSession).toHaveBeenCalledTimes(1)
     expect(createSession).toHaveBeenNthCalledWith(1, REPO, 'lcoder-pm')
-    expect(createSession).toHaveBeenNthCalledWith(2, REPO, 'lcoder-manager')
-    expect(await screen.findByText(t('shell.splitResult', { tasks: '1', assigned: '1' }))).toBeTruthy()
+    expect(await screen.findByText(t('shell.splitTracks', { tracks: 'H5 前端 1' }))).toBeTruthy()
     expect(screen.getByRole('button', { name: zh['shell.splitViewBoard'] })).toBeTruthy()
 
     fireEvent.click(screen.getByRole('button', { name: zh['shell.close'] }))
     await openTask('随手记账')
-    expect(await screen.findByText(t('shell.splitResult', { tasks: '1', assigned: '1' }))).toBeTruthy()
+    expect(await screen.findByText(t('shell.splitResult', { tasks: '1' }))).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: zh['shell.splitTasks'] }))
-    expect(createSession).toHaveBeenCalledTimes(2)
+    expect(createSession).toHaveBeenCalledTimes(1)
   })
 })
 
@@ -1078,8 +1067,8 @@ describe('顶栏项目控件与项目信息抽屉', () => {
 })
 
 describe('方案讨论列与确认门禁', () => {
-  const DISCUSS_TASK = 'id: T-02\ntitle: 记一笔\nstate: drafting\ngrade: B\nproposal: P-01\nrole: vue-engineer\n'
-  const LIGHT_TASK = 'id: T-03\ntitle: 翻记录\nstate: drafting\ngrade: C\nproposal: P-01\nrole: vue-engineer\n'
+  const DISCUSS_TASK = 'id: T-02\ntitle: 记一笔\nstate: drafting\ngrade: B\nproposal: P-01\ntrack: h5\nrole: vue-engineer\n'
+  const LIGHT_TASK = 'id: T-03\ntitle: 翻记录\nstate: drafting\ngrade: C\nproposal: P-01\ntrack: h5\nrole: vue-engineer\n'
   const DISCUSS_ROLES = [
     'roles:',
     '  - id: vue-engineer',
@@ -1130,7 +1119,10 @@ describe('方案讨论列与确认门禁', () => {
     const detail = await openTask('记一笔')
     const section = detail.querySelector('[data-plan-discussion]') as HTMLElement
     expect(section).not.toBeNull()
-    expect(section.textContent).toContain('Vue 工程师')
+    expect(section.textContent).toContain('需求分析师')
+    expect(section.textContent).toContain('项目经理')
+    expect(section.textContent).toContain('研发经理')
+    expect(section.textContent).toContain('H5 前端')
     expect(section.textContent).toContain('架构师')
     expect(section.textContent).toContain('T-02 契约已起草，待确认')
     expect(within(section).getByRole('button', { name: zh['shell.discussionConfirm'] })).toBeTruthy()

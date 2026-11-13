@@ -54,7 +54,7 @@ export function createProjectTools(rootInput: RootInput): ToolDefinition[] {
     defineTool({
       name: 'project_draft',
       description:
-        '把问清的项目信息登记成 `.spec/project.yaml`。只在文件不存在时写；已存在只回读现值、绝不覆盖。kind 只能是 web、desktop、library；仓库还没有远端时就把计划中的地址与分支名如实填进来，不要留空。',
+        '把问清的项目信息登记成 `.spec/project.yaml`。只在文件不存在时写；已存在只回读现值、绝不覆盖。kind 只能是 web、desktop、library；仓库还没有远端时就把计划中的地址与分支名如实填进来，不要留空。可以顺带登记项目追加的轨。',
       parameters: {
         kind: { type: 'string', required: true, description: `项目类型：${KINDS.join('、')}` },
         repo_url: { type: 'string', required: true, description: '仓库地址（还没有远端就填计划地址或仓库目录）' },
@@ -62,6 +62,18 @@ export function createProjectTools(rootInput: RootInput): ToolDefinition[] {
         doc_product: { type: 'string', description: '产品文档的仓库内相对路径' },
         doc_architecture: { type: 'string', description: '架构文档的仓库内相对路径' },
         doc_tests: { type: 'string', description: '测试用例或验收脚本的仓库内相对路径' },
+        tracks: {
+          type: 'array',
+          description: '项目追加的轨；内置 h5 / admin / api / desktop / host / general 已存在，这里只写额外交付面。每项是 { id, name }：id 小写字母开头，不得与内置轨重名或重复',
+          items: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              id: { type: 'string', required: true, description: '轨 id，如 payment' },
+              name: { type: 'string', required: true, description: '显示名，如「支付端」' },
+            },
+          },
+        },
       },
       output: { schema: { type: 'json' }, render: renderJson },
       // oxlint-disable-next-line typescript/require-await -- execute 的契约要求返回 Promise（ToolDefinition.execute），这里是同步实现。
@@ -88,15 +100,18 @@ export function createProjectTools(rootInput: RootInput): ToolDefinition[] {
             repo_url: current.repo.url,
             repo_branch: current.repo.branch,
             docs: docsOf(current.docs.product, current.docs.architecture, current.docs.tests),
-            note: 'project.yaml 已存在，没有覆盖。要改项目信息请人手编辑该文件；要继续引导就只问缺的文档路径。',
+            tracks: current.tracks,
+            note: 'project.yaml 已存在，没有覆盖。要改项目信息（含追加轨）请人手编辑该文件；要继续引导就只问缺的文档路径。',
           }
         }
 
         const docs = docsOf(args.doc_product, args.doc_architecture, args.doc_tests)
+        const tracks = (args.tracks ?? []).map(track => ({ id: track.id.trim(), name: track.name.trim() }))
         const info = ProjectInfo.parse({
           kind: kind.data,
           repo: { url: repoUrl, branch: repoBranch },
           docs,
+          tracks,
         })
         const written = saveProject(root, info)
 
@@ -107,6 +122,7 @@ export function createProjectTools(rootInput: RootInput): ToolDefinition[] {
           repo_url: info.repo.url,
           repo_branch: info.repo.branch,
           docs,
+          tracks: info.tracks,
           note: '项目信息已登记。规格条目用 spec_draft 逐条落，第一条任务用 task_draft；本工具不采集部署环境，需要 env 就人手补 .spec/project.yaml 的 environments。',
         }
       },

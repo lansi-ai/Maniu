@@ -65,8 +65,24 @@ describe('项目信息工具', () => {
     expect(readFileSync(path, 'utf8')).toContain('https://example.invalid/kept')
   })
 
-  it('类型不在三档内 → 当场抛并给出可选值', async () => {
+  it('登记项目追加轨；与内置轨重名或重复被拒', async () => {
     const { spec } = makeEmptyRepo()
+    const r = await call(spec, 'project_draft', {
+      ...ANSWERED,
+      tracks: [{ id: 'payment', name: '支付端' }],
+    })
+    expect(r).toMatchObject({ created: true, tracks: [{ id: 'payment', name: '支付端' }] })
+    expect(readFileSync(join(spec, 'project.yaml'), 'utf8')).toContain('payment')
+
+    const other = makeEmptyRepo()
+    await expect(call(other.spec, 'project_draft', {
+      ...ANSWERED,
+      tracks: [{ id: 'h5', name: '自定前端' }],
+    })).rejects.toThrow(/内置轨重名/)
+    expect(() => readFileSync(join(other.spec, 'project.yaml'), 'utf8')).toThrow()
+  })
+
+  it('类型不在三档内 → 当场抛并给出可选值', async () => {    const { spec } = makeEmptyRepo()
 
     await expect(call(spec, 'project_draft', { ...ANSWERED, kind: 'mobile' })).rejects.toThrow(/web、desktop、library/)
     expect(() => readFileSync(join(spec, 'project.yaml'), 'utf8')).toThrow()

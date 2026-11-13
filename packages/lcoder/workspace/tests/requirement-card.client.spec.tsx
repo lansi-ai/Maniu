@@ -72,6 +72,8 @@ describe('需求卡片判定', () => {
   it('只有 drafting 且带方案回指的任务才是需求卡', () => {
     expect(isRequirementTask(taskOf())).toBe(true)
     expect(isRequirementTask(taskOf({ state: 'contracted' }))).toBe(false)
+    expect(isRequirementTask(taskOf({ track: 'h5' }))).toBe(false)
+    expect(isRequirementTask(taskOf({ role: 'architect' }))).toBe(false)
     const { proposal: withoutProposal, ...rest } = taskOf()
     void withoutProposal
     expect(isRequirementTask(rest)).toBe(false)
@@ -92,6 +94,17 @@ describe('需求卡片判定', () => {
     expect(prompt).toContain('每条任务对应一个可独立验收的业务结果')
   })
 
+  it('拆分指令要求先调研仓库，并按轨标注、禁止写 role 与分配', () => {
+    const prompt = buildRequirementSplitPrompt(taskOf())
+    expect(prompt).toContain('先用 file_list 查看仓库根目录与关键目录')
+    expect(prompt).toContain('再读 README 与构建清单')
+    expect(prompt).toContain('不得只凭需求文档猜技术选型')
+    expect(prompt).toContain('track 只能取：h5（H5 前端）、admin（管理端）、api（接口）、desktop（桌面端）、host（宿主端）、general（通用）')
+    expect(prompt).toContain('一任务一轨')
+    expect(prompt).toContain('不要写 role，也不要调用任何分配命令')
+    expect(prompt).toContain('完成后列出新建的任务编号、标题、轨与依赖关系')
+  })
+
   it('带需求文档时以它为唯一依据，只拆第一版功能清单与验收标准', () => {
     const document = '# 项目需求概要\n\n## 第一版功能清单\n- 记一笔\n- 翻记录\n\n## 暂不开发\n- 云同步\n- 多人共享'
     const prompt = buildRequirementSplitPrompt(taskOf(), { document })
@@ -102,7 +115,7 @@ describe('需求卡片判定', () => {
     expect(prompt).toContain('- 记一笔\n- 翻记录')
     expect(prompt).toContain('drafting')
     expect(prompt).toContain('只引用需求里已确认的规则编号')
-    expect(prompt).toContain('对应的需求条目与依赖关系')
+    expect(prompt).toContain('轨与依赖关系')
     expect(prompt).not.toContain('没有读到这条需求对应的需求文档')
   })
 
@@ -502,7 +515,7 @@ describe('需求卡片渲染', () => {
     expect(screen.queryByRole('button', { name: zh['shell.splitTasks'] })).toBeTruthy()
   })
 
-  it('拆分流程运行中显示阶段，按钮保持禁用', () => {
+  it('拆分流程运行中显示项目经理阶段，按钮保持禁用', () => {
     const { container } = render(
       <RequirementCard
         t={t}
@@ -510,34 +523,18 @@ describe('需求卡片渲染', () => {
         answers={[]}
         splitting
         error={null}
-        flow={{ status: 'running', stage: 'pm', newTasks: [] }}
+        flow={{ status: 'running', stage: 'pm', newTasks: [{ id: 'T-02', title: '记一笔' }] }}
         onClose={vi.fn()}
         onSplit={vi.fn()}
       />,
     )
     expect(container.querySelector('[data-requirement-split-phase]')?.textContent).toBe(zh['shell.splitPmRunning'])
     expect(container.querySelector<HTMLButtonElement>('[data-requirement-split]')?.disabled).toBe(true)
-    cleanup()
-
-    const manager = render(
-      <RequirementCard
-        t={t}
-        task={taskOf()}
-        answers={[]}
-        splitting
-        error={null}
-        flow={{ status: 'running', stage: 'manager', newTasks: [{ id: 'T-02', title: '记一笔' }] }}
-        onClose={vi.fn()}
-        onSplit={vi.fn()}
-      />,
-    )
-    expect(manager.container.querySelector('[data-requirement-split-phase]')?.textContent)
-      .toBe(zh['shell.splitManagerRunning'])
-    expect(manager.container.querySelector('[data-requirement-split-tasks]')?.textContent)
+    expect(container.querySelector('[data-requirement-split-tasks]')?.textContent)
       .toBe(t('shell.splitNewTasks', { count: '1', tasks: 'T-02' }))
   })
 
-  it('完成后显示拆分与分配的计数、失败明细，并给去看板', () => {
+  it('完成后显示新增条数与按轨分布，并给去看板', () => {
     const onViewBoard = vi.fn()
     const { container } = render(
       <RequirementCard
@@ -550,8 +547,8 @@ describe('需求卡片渲染', () => {
           status: 'done',
           newTasks: [{ id: 'T-02', title: '记一笔' }, { id: 'T-03', title: '翻记录' }],
           summary: {
-            taskCount: 2, assignedCount: 2,
-            lines: ['T-03 没有给出岗位，仍未分配'],
+            taskCount: 2,
+            tracks: [{ name: 'H5 前端', count: 1 }, { name: '接口', count: 1 }],
           },
         }}
         onClose={vi.fn()}
@@ -560,8 +557,9 @@ describe('需求卡片渲染', () => {
       />,
     )
     expect(container.querySelector('[data-requirement-split-summary]')?.textContent)
-      .toBe(t('shell.splitResult', { tasks: '2', assigned: '2' }))
-    expect(screen.getByText('T-03 没有给出岗位，仍未分配')).toBeTruthy()
+      .toBe(t('shell.splitResult', { tasks: '2' }))
+    expect(container.querySelector('[data-requirement-split-tracks]')?.textContent)
+      .toBe(t('shell.splitTracks', { tracks: 'H5 前端 1、接口 1' }))
     fireEvent.click(screen.getByRole('button', { name: zh['shell.splitViewBoard'] }))
     expect(onViewBoard).toHaveBeenCalledTimes(1)
   })
@@ -582,5 +580,101 @@ describe('需求卡片渲染', () => {
     expect(screen.getByText('项目经理超过三分钟仍未结束')).toBeTruthy()
     expect(container.querySelector('[data-requirement-split-summary]')).toBeNull()
     expect(container.querySelector('[data-requirement-split]')).toBeTruthy()
+  })
+})
+
+describe('讨论历史抽屉', () => {
+  it('入口打开历史；按角色分组展示每轮发言，Esc 关闭', () => {
+    const onOpenHistory = vi.fn()
+    const onCloseHistory = vi.fn()
+    render(
+      <RequirementCard
+        t={t}
+        task={taskOf()}
+        answers={[]}
+        splitting={false}
+        error={null}
+        onClose={vi.fn()}
+        onSplit={vi.fn()}
+        historyOpen
+        history={{
+          status: 'ready',
+          groups: [
+            { roleId: 'analyst', roleName: '需求分析师', statements: ['第一版功能清单已全部覆盖。'] },
+            { roleId: 'track-h5', roleName: 'H5 前端工程师', statements: ['表单与列表分两个模块。', '接口要先定字段。'] },
+          ],
+        }}
+        onOpenHistory={onOpenHistory}
+        onCloseHistory={onCloseHistory}
+      />,
+    )
+    const drawer = document.querySelector('[data-discussion-history]')
+    expect(drawer).not.toBeNull()
+    expect(screen.getByText('第一版功能清单已全部覆盖。')).toBeTruthy()
+    expect(screen.getByText('接口要先定字段。')).toBeTruthy()
+    expect(document.querySelector('[data-discussion-history-group="track-h5"]')).not.toBeNull()
+
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(onCloseHistory).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(screen.getByRole('button', { name: zh['shell.discussionHistory'] }))
+    expect(onOpenHistory).toHaveBeenCalledTimes(1)
+  })
+
+  it('定位不到讨论会话时如实提示，不画空分组', () => {
+    render(
+      <RequirementCard
+        t={t}
+        task={taskOf()}
+        answers={[]}
+        splitting={false}
+        error={null}
+        onClose={vi.fn()}
+        onSplit={vi.fn()}
+        historyOpen
+        history={{ status: 'failed', groups: [], error: t('shell.historyNotFound', { proposal: 'P-01' }) }}
+        onOpenHistory={vi.fn()}
+        onCloseHistory={vi.fn()}
+      />,
+    )
+    expect(document.querySelector('[data-discussion-history-error]')?.textContent)
+      .toBe(t('shell.historyNotFound', { proposal: 'P-01' }))
+    expect(document.querySelectorAll('[data-discussion-history-group]')).toHaveLength(0)
+  })
+
+  it('读取中画加载提示，读到了但没有发言画空态', () => {
+    const loading = render(
+      <RequirementCard
+        t={t}
+        task={taskOf()}
+        answers={[]}
+        splitting={false}
+        error={null}
+        onClose={vi.fn()}
+        onSplit={vi.fn()}
+        historyOpen
+        history={{ status: 'loading', groups: [] }}
+        onOpenHistory={vi.fn()}
+        onCloseHistory={vi.fn()}
+      />,
+    )
+    expect(loading.getByText(zh['shell.historyLoading'])).toBeTruthy()
+    cleanup()
+    const empty = render(
+      <RequirementCard
+        t={t}
+        task={taskOf()}
+        answers={[]}
+        splitting={false}
+        error={null}
+        onClose={vi.fn()}
+        onSplit={vi.fn()}
+        historyOpen
+        history={{ status: 'ready', groups: [] }}
+        onOpenHistory={vi.fn()}
+        onCloseHistory={vi.fn()}
+      />,
+    )
+    expect(empty.getByText(zh['shell.historyEmpty'])).toBeTruthy()
   })
 })

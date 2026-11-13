@@ -21,6 +21,7 @@ const ROW: TaskRow = {
   dependsOn: [],
   paths: [],
   irreversible: [],
+  track: 'api',
 }
 
 it('描述、分类、变更类型与附件透给外壳任务', () => {
@@ -31,6 +32,7 @@ it('描述、分类、变更类型与附件透给外壳任务', () => {
     category: 'api',
     changeType: 'bug',
     attachments: ['attachments/T-014/shot.png'],
+    track: 'api',
   })
   expect(typeof mapped.surface).toBe('string')
 })

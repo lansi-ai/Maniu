@@ -56,6 +56,7 @@ const INFO: ShellProjectInfo = {
   branch: 'main',
   docs: { product: '', architecture: '', tests: '' },
   environments: [],
+  tracks: [],
 }
 
 /** 结果页 props；各用例只覆盖自己关心的字段。 */

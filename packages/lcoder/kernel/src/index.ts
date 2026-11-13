@@ -12,6 +12,7 @@
  */
 export * from './schema/spec.js'
 export * from './schema/roles.js'
+export * from './schema/tracks.js'
 export * from './schema/validate.js'
 
 export * from './kernel/spec-store.js'
