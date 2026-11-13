@@ -2025,6 +2025,29 @@ export function Shell({
   }
 
   /**
+   * 新建会话后写入设置里的默认模型。
+   *
+   * 新建的会话跟随设置默认，不继承界面上正在看的那条会话的选择。没有设置面或没有默认
+   * 就交给宿主默认，不拦住建会话；读设置失败同样按「没有默认」处理。写入明确失败时
+   * 抛出原因，由调用方既有的错误路径就地报出。
+   * @param id - 刚创建的会话。
+   */
+  const applyDefaultModel = async (id: SessionId): Promise<void> => {
+    if (modelSettings === undefined) return
+    let defaultSelection: ModelSettingsSnapshot['defaultSelection']
+    try {
+      defaultSelection = (await modelSettings.load()).defaultSelection
+    } catch (error: unknown) {
+      // 读设置失败不升级成建会话失败：宿主默认模型仍然可用。
+      void error
+      return
+    }
+    if (defaultSelection === undefined) return
+    const failure = await modelSettings.setDefault(id, defaultSelection.provider, defaultSelection.model)
+    if (failure !== undefined) throw new Error(failure)
+  }
+
+  /**
    * 建一条跟随设置里默认模型的会话，并把角色记进本窗口的角色表。
    *
    * 读者可能是拆分内的项目经理/研发经理，也可能是方案讨论里的岗位；后者传岗位 id 而不是
@@ -2037,13 +2060,7 @@ export function Shell({
     roleId: string,
   ): Promise<string> => {
     const created = await create(projectPath, preset)
-    const defaultSelection = modelSettings === undefined
-      ? undefined
-      : (await modelSettings.load()).defaultSelection
-    if (defaultSelection !== undefined && modelSettings !== undefined) {
-      const failure = await modelSettings.setDefault(created, defaultSelection.provider, defaultSelection.model)
-      if (failure !== undefined) throw new Error(failure)
-    }
+    await applyDefaultModel(created)
     setSessionRoles(current => ({ ...current, [String(created)]: roleId }))
     return String(created)
   }
@@ -2742,7 +2759,7 @@ export function Shell({
       // 任务对话总是按宿主默认角色开会话：角色选择只服务顶栏「＋」弹窗，
       // 这里读 roleChoice 会把上一次弹窗里的选择带进任务。
       const created = await createSession(projectPath)
-      if (signedIn) await routeSession(created)
+      await applyDefaultModel(created)
       const claimed = await bindTask(created, task.id)
       if (!claimed.ok) throw new Error(claimed.text)
       setSessionOverride(created)
@@ -2951,7 +2968,7 @@ export function Shell({
     try {
       if (createSession === undefined) throw new Error(t('shell.noSession'))
       const created = await createSession(projectPath, AGENT_ROLES[role].preset)
-      if (signedIn) await routeSession(created)
+      await applyDefaultModel(created)
       setSessionOverride(created)
       setDetail(null)
       setChat(pseudoChat(title))
@@ -2990,7 +3007,7 @@ export function Shell({
     setClaiming(true)
     void (async () => {
       const created = await createSession(projectPath, roleChoice ?? undefined)
-      if (signedIn) await routeSession(created)
+      await applyDefaultModel(created)
       // 人选的角色要留在本窗口：之后的调度判定按它算这条会话的有效岗位。
       if (roleChoice !== null) setSessionRoles(current => ({ ...current, [String(created)]: roleChoice }))
       setSessionOverride(created)
