@@ -1730,7 +1730,7 @@ tracks:
 
     - id: T-153
       title: 立项确认后需求文档要能落盘
-      status: doing
+      status: done
       face: 用户端
       type: 开发
       owner: lance
@@ -1738,7 +1738,7 @@ tracks:
       date: '2026-11-13'
       dep: [T-150]
       inferred: false
-      note: "B 级功能缺口，来源是 T-150 真机验收。确认轮模型明确回复「这一阶段的工具里没有写文件能力」，工具面只有 project_draft、proposal_draft、spec_draft、task_draft、file_read、file_list，没有 file_edit 与 cmd_run；因此 .spec/requirements/P-01.md 没有写成，拆分只能退回任务描述与方案正文，需求卡正文也可能取到确认回执。现状与 T-137 的立项咒语要求冲突，属于设计不可实现而不是模型偷懒。候选做法：一、新增内核工具 requirement_draft，只写 .spec/requirements/<方案编号>.md，校验方案存在、正文非空、不覆盖已有文件，并加进 intake 角色的工具面；二、只给人机命令，由外壳在需求卡上提供写入动作；三、给 intake 角色开放 file_edit，范围过大不建议。同时要修需求卡取文优先级，避免把确认回执当需求概要。2026-11-13 12:35 用户拍板采用第一条：新增 requirement_draft 工具，只写 .spec/requirements/<方案编号>.md，校验方案存在、正文非空、不覆盖已有文件，只加进 intake 角色工具面；立项咒语在确认后调用它写入完整概要。因要改立项提示词，等 T-154 与 T-155 合入后再派工。2026-11-13 13:18 监督窗口派工，工作树 pool-slot-1 到 lcoder/t153-requirement-draft，实现线会话 8b670be4。"
+      note: "B 级功能缺口，来源是 T-150 真机验收。确认轮模型明确回复「这一阶段的工具里没有写文件能力」，工具面只有 project_draft、proposal_draft、spec_draft、task_draft、file_read、file_list，没有 file_edit 与 cmd_run；因此 .spec/requirements/P-01.md 没有写成，拆分只能退回任务描述与方案正文，需求卡正文也可能取到确认回执。现状与 T-137 的立项咒语要求冲突，属于设计不可实现而不是模型偷懒。候选做法：一、新增内核工具 requirement_draft，只写 .spec/requirements/<方案编号>.md，校验方案存在、正文非空、不覆盖已有文件，并加进 intake 角色的工具面；二、只给人机命令，由外壳在需求卡上提供写入动作；三、给 intake 角色开放 file_edit，范围过大不建议。同时要修需求卡取文优先级，避免把确认回执当需求概要。2026-11-13 12:35 用户拍板采用第一条：新增 requirement_draft 工具，只写 .spec/requirements/<方案编号>.md，校验方案存在、正文非空、不覆盖已有文件，只加进 intake 角色工具面；立项咒语在确认后调用它写入完整概要。因要改立项提示词，等 T-154 与 T-155 合入后再派工。2026-11-13 13:18 监督窗口派工，工作树 pool-slot-1 到 lcoder/t153-requirement-draft，实现线会话 8b670be4。2026-11-13 13:40 T-153 停止并关闭：需求改为独立 REQ 实体（见 T-158），需求文档随 REQ-xx.md 一起由 requirement_draft 写入；实现线已中断，未提交任何代码，分支已删。"
     - id: T-154
       title: 需求本体任务不得带轨
       status: done
@@ -1783,6 +1783,40 @@ tracks:
       dep: [T-154, T-150]
       inferred: false
       note: "B 级修复，来源是 T-150 真机验收。看板顶部一直提示「下一步 起草契约 T-01」，把需求本体当成待实施任务。原因：packages/lcoder/kernel/src/kernel/flow.ts 在挑选下一步时只看 drafting 且没有契约，没有排除需求本体；需求本体是 drafting、带方案回指、没有轨也没有岗位。修法：流程挑选实施任务时跳过需求本体（drafting 且有方案回指且既无 track 也无 role），需求本体留给拆分入口；补 flow 单测：只有需求本体时不提示起草契约，同一方案拆出带轨任务后才进入契约步骤。约束是不改状态机边、不改看板列判定。验收 kernel 单测与 typecheck 与改动文件 oxlint。与 T-156 合并到一条工作树、分开提交。2026-11-13 13:05 监督窗口核验并收口。flow.ts 新增需求本体判定并跳过，flow-store 补了方案回指、轨与岗位三项事实；补了只有需求本体、拆出带轨任务后、无方案回指三条用例。独立与主检复跑 typecheck、kernel 与 workspace vitest 八十二文件、改动八文件 oxlint 全过；主检 build:artifacts 与 build:check 全过。未验项是真机看板下一步不再指向 T-01，需重启复验。已合入 lcoder/main、release pool-slot-2。"
+
+    - id: T-158
+      title: 新增需求实体与内核工具
+      status: doing
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-13'
+      date: '2026-11-13'
+      dep: [T-149, T-150]
+      inferred: false
+      note: "A 级数据模型与内核工具，来源是用户 2026-11-13 决定把需求与任务分成两个维度。已确认口径：需求用独立 REQ-xx 实体，需求吸收方案，任务页去掉需求确认列，需求页支持表格与状态看板，九态需求状态按任务数据派生。本轮只做数据面，不动界面与立项提示词，保证旧方案与旧任务路径继续可用。设计：一、`.spec/requirements/REQ-xx.yaml` 存 id、title、state（draft、confirmed、released、closed）、options、recommendation、opened_at、confirmed_at、released_at、closed_at；正文写 `.spec/requirements/REQ-xx.md`；二、新增模型工具 requirement_draft，只进 intake 角色，一次写入 YAML 与 Markdown，校验标题与正文非空、编号不覆盖，任何一半失败都不留半截；三、新增人机命令 requirement_approve、requirement_release、requirement_close，模型不可调用；approve 要求文档存在且只从 draft 推进，release 要求全部关联任务已关闭，close 可关闭未关闭的需求；四、Task 增可选 requirement 回指，task_draft 校验 REQ 存在；旧 proposal 字段与 proposals 目录继续可读；五、状态派生纯函数按优先级：closed 为已取消、released 为已上线、文档缺失为待补全、draft 为待确认、无任务为已确认、任一任务开发中为开发中、无开发中且任一验收中为测试中、全部关闭为待上线、其余为已拆分；六、投影读 REQ 与文档并把它作为需求行，任务按 requirement 分组。约束：不改状态机边、不动界面、不切立项提示词、不删方案工具与旧命令。验收 kernel 与 workspace 单测、typecheck、改动文件 oxlint、test:docs；单测覆盖 REQ 校验与拒绝、三个命令的合法与非法流转、九态派生与优先级、task.requirement 校验、投影读取。工作树 pool-slot-1 到 lcoder/t158-requirement-entity，端口 9822 与 9829 与 9830。"
+    - id: T-159
+      title: 左侧菜单与需求页任务页分家
+      status: todo
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-13'
+      date: '2026-11-13'
+      dep: [T-158]
+      inferred: false
+      note: "A 级界面与流程切换，依赖 T-158。来源是用户 2026-11-13 决定增加左侧菜单栏，需求与任务分开管理，需求页支持表格与状态看板两种显示。范围：一、左侧菜单栏放需求与任务，底部设置；顶栏保留项目、会话与智能调度等入口；二、需求页有新建需求入口，表格视图显示编号、标题、状态、任务数与更新时间，状态看板按待补全、待确认、已确认、已拆分、开发中、测试中、待上线、已上线分列，已取消默认隐藏，支持关键字与状态筛选；详情抽屉展示完整需求文档、立项问答、拆分结果、关联任务与讨论历史，按状态给确认、拆分、发布、关闭动作；三、任务页看板改为方案讨论、待开发、开发中、验收中、已完成五列，去掉需求确认列，旧需求本体任务隐藏，任务卡显示所属需求编号；四、立项流程切到新模型，提示词用 requirement_draft 落 REQ 与 REQ-xx.md，不再建需求本体任务与方案，确认需求走 requirement_approve，拆分以需求为输入，讨论历史按需求编号定位；五、需求状态按 T-158 的派生函数展示与分列；六、文案中英词典，四套皮肤与窄窗可用，reduced-motion 不变。约束：不改状态机边、模型仍不能确认或发布、旧方案与旧任务可读但不在新页面出现。验收 typecheck、packages/lcoder vitest、verify-client-ui-i18n、test:docs、改动文件 oxlint；组件与流程测试覆盖九态分组、表格与看板切换、详情动作、任务页五列与旧任务隐藏。工作树待 T-158 合入后 claim。"
+    - id: T-160
+      title: 新需求模型空仓验收
+      status: todo
+      face: 用户端
+      type: 流程
+      owner: lance
+      created: '2026-11-13'
+      date: '2026-11-13'
+      dep: [T-159]
+      inferred: false
+      note: "A 级真机验收，依赖 T-159。用户已同意清空当前验收靶仓 .spec 后按新模型重走。流程：清空靶仓，打开需求页新建需求，七问与提纲落成 REQ-01 与 REQ-01.md，人工确认需求，拆分任务并标轨，方案讨论与契约，确认方案进待开发，然后逐条把任务推进到验收与关闭，核对需求九态从待确认到已拆分到开发中到测试中到待上线到已上线，以及取消路径。核验点：需求页表格与看板两种显示、任务页五列、任务卡所属需求、详情抽屉四块内容、状态派生与优先级、人工命令回执与失败路径。不用截图，用落盘、会话日志与 CDP DOM 断言。工作树待 T-159 合入后按需 claim。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
