@@ -7,7 +7,7 @@
  * 角色名册与模型可用性是直接注入的窄接口。
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { SessionId } from '@deepseek-ai/dsh-session/types'
 import { WorkspaceId } from '@deepseek-ai/dsh-workspace'
@@ -775,6 +775,62 @@ describe('需求卡片的拆分接线', () => {
     expect(await screen.findByText('按三条任务拆分，基础框架排第一。')).toBeTruthy()
     expect(readSessionMessages).toHaveBeenCalledWith(SessionId('s-1'))
     expect(document.querySelector('[data-discussion-history-group="pm"]')).not.toBeNull()
+  })
+
+  it('看板刷新投影不关掉已打开的讨论历史，读取结果照常落位', async () => {
+    const messages: readonly ShellMessage[] = [
+      {
+        role: 'user',
+        text: '方案讨论：需求 P-01 已按轨拆分。\n参会身份：项目经理（pm）',
+      },
+      { role: 'assistant', text: '按三条任务拆分，基础框架排第一。' },
+    ]
+    let releaseHistory: ((value: readonly ShellMessage[] | null) => void) | undefined
+    const readSessionMessages: NonNullable<ShellProps['readSessionMessages']> = () =>
+      new Promise<readonly ShellMessage[] | null>((resolve) => { releaseHistory = resolve })
+    const tasks: Record<string, string> = { 'T-01.yaml': TASK_REQUIREMENT }
+    renderShell({ spec: { tasks }, preset: 'lcoder-pm', readSessionMessages })
+    await openTask('随手记账')
+
+    fireEvent.click(screen.getByRole('button', { name: zh['shell.discussionHistory'] }))
+    expect(screen.getByText(zh['shell.historyLoading'])).toBeTruthy()
+    expect(document.querySelector('[data-discussion-history]')).not.toBeNull()
+
+    // 模拟十秒一次的看板重读：同一任务被换成新快照，标题变了才算重读真的落地。
+    tasks['T-01.yaml'] = TASK_REQUIREMENT.replace('title: 随手记账', 'title: 随手记账（刷新后）')
+    fireEvent.focus(window)
+    expect(await screen.findByRole('dialog', { name: 'T-01 随手记账（刷新后）' })).toBeTruthy()
+    expect(document.querySelector('[data-discussion-history]')).not.toBeNull()
+    expect(screen.getByText(zh['shell.historyLoading'])).toBeTruthy()
+
+    await act(async () => { releaseHistory?.(messages) })
+    expect(await screen.findByText('按三条任务拆分，基础框架排第一。')).toBeTruthy()
+    expect(document.querySelector('[data-discussion-history-group="pm"]')).not.toBeNull()
+  })
+
+  it('换到另一条任务时收起讨论历史', async () => {
+    const readSessionMessages: NonNullable<ShellProps['readSessionMessages']> = async () => [
+      { role: 'user', text: '方案讨论：需求 P-01 已按轨拆分。\n参会身份：项目经理（pm）' },
+      { role: 'assistant', text: '按三条任务拆分，基础框架排第一。' },
+    ]
+    renderShell({
+      spec: {
+        tasks: {
+          'T-01.yaml': TASK_REQUIREMENT,
+          'T-02.yaml': 'id: T-02\ntitle: 会员积分\nstate: drafting\ngrade: B\nproposal: P-01\n',
+        },
+      },
+      preset: 'lcoder-pm',
+      readSessionMessages,
+    })
+    await openTask('随手记账')
+
+    fireEvent.click(screen.getByRole('button', { name: zh['shell.discussionHistory'] }))
+    expect(await screen.findByText('按三条任务拆分，基础框架排第一。')).toBeTruthy()
+
+    fireEvent.click(screen.getByText('会员积分'))
+    expect(await screen.findByRole('dialog', { name: 'T-02 会员积分' })).toBeTruthy()
+    expect(document.querySelector('[data-discussion-history]')).toBeNull()
   })
 
   it('候选会话读不出来时提示读取失败，而不是定位不到', async () => {
