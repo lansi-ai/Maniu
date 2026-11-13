@@ -866,7 +866,7 @@
 
 /* 需求确认卡片：需求编号、创建人、创建时间、默认折叠的需求内容与拆分任务。 */
 .requirementModal { width: min(760px, 100%); }
-.requirementCard { display: flex; flex-direction: column; min-height: 0; }
+.requirementCard { display: flex; flex-direction: column; min-height: 0; position: relative; }
 .requirementTitle { margin: 0; font: 600 var(--lc-text-lg) / var(--lc-leading-tight) var(--lc-font-display); letter-spacing: var(--lc-tracking-tight); }
 .requirementMeta { display: flex; flex-wrap: wrap; gap: var(--lc-space-3) var(--lc-space-6); margin: 0; }
 .requirementMetaItem { display: grid; gap: 2px; }
@@ -898,6 +898,44 @@
 .requirementSplitTasks { margin: 0; color: var(--lc-muted); font-size: var(--lc-text-sm); line-height: var(--lc-leading); word-break: break-word; }
 .requirementSplitSummary { margin: 0; font-size: var(--lc-text-sm); line-height: var(--lc-leading); }
 .requirementSplitFailures { margin: 0; padding-left: 18px; color: var(--lc-muted); font-size: var(--lc-text-sm); line-height: var(--lc-leading); word-break: break-word; }
+
+/* 需求卡里的讨论历史抽屉：只盖住卡片，窄窗时铺满整宽。 */
+.requirementHistoryBackdrop {
+  position: absolute; inset: 0; z-index: 6; display: flex; justify-content: flex-end;
+  background: var(--lc-backdrop); border-radius: var(--lc-radius-xl);
+}
+.requirementHistoryPanel {
+  width: min(440px, 100%); height: 100%; display: flex; flex-direction: column;
+  background: var(--lc-surface); border-left: 1px solid var(--lc-line);
+  box-shadow: var(--lc-shadow-pop);
+  border-radius: 0 var(--lc-radius-xl) var(--lc-radius-xl) 0;
+}
+.requirementHistoryHead {
+  display: flex; align-items: center; gap: var(--lc-space-3);
+  padding: 16px 20px; border-bottom: 1px solid var(--lc-line);
+}
+.requirementHistoryTitle {
+  margin: 0; flex: 1; min-width: 0;
+  font: 600 var(--lc-text-lg) / var(--lc-leading-tight) var(--lc-font-display);
+  letter-spacing: var(--lc-tracking-tight);
+}
+.requirementHistoryBody {
+  flex: 1; overflow: auto; padding: 16px 20px;
+  display: grid; gap: var(--lc-space-4); align-content: start;
+}
+.requirementHistoryGroup {
+  display: grid; gap: 6px; border-top: 1px solid var(--lc-line);
+  padding-top: var(--lc-space-3);
+}
+.requirementHistoryGroup:first-child { border-top: 0; padding-top: 0; }
+.requirementHistoryRole {
+  margin: 0; color: var(--lc-brand-ink);
+  font: 600 var(--lc-text-sm) / var(--lc-leading-tight) var(--lc-font-ui);
+}
+.requirementHistoryStatement {
+  margin: 0; font-size: var(--lc-text-sm); line-height: var(--lc-leading);
+  white-space: pre-wrap; word-break: break-word;
+}
 .headAction { padding: 7px 12px; min-height: 34px; font-size: var(--lc-text-sm); white-space: nowrap; }
 .metaGrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
 .meta { background: var(--lc-surface-2); border: 1px solid var(--lc-line); border-radius: var(--lc-radius-md); padding: 10px 12px; }

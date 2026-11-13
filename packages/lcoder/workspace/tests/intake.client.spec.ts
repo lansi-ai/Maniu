@@ -84,7 +84,7 @@ describe('重开确认框的计数', () => {
 
   it('项目信息读到时标为已登记', () => {
     const artifacts = intakeArtifactsOf({
-      info: { kind: 'web', repoUrl: '', branch: 'main', docs: { product: '', architecture: '', tests: '' }, environments: [] },
+      info: { kind: 'web', repoUrl: '', branch: 'main', docs: { product: '', architecture: '', tests: '' }, environments: [], tracks: [] },
       rules: 1,
       tasks: [],
       proposals: 1,

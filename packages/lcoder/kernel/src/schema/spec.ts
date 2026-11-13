@@ -10,6 +10,7 @@
 import { z } from 'zod'
 
 import { BUILTIN_ROLES, ROLE_ID_PATTERN } from './roles.js'
+import { BUILTIN_TRACK_IDS, TRACK_ID_PATTERN } from './tracks.js'
 
 /** 评审纪律里稳定不变的编号形态：R-02 / T-014 / W-01 / Q-03。 */
 const Id = z.string().regex(/^[A-Z]+-\d{2,}$/, '形如 R-02 / T-014 的稳定编号')
@@ -200,6 +201,14 @@ export const Task = z.object({
    * 会话号换机器或删会话后失效，失效按未认领处理，不报故障。
    */
   session: z.string().min(1).optional(),
+  /**
+   * 这条任务归属的轨：内置轨 id，或 `.spec/project.yaml` 里项目追加的轨 id。
+   *
+   * 拆分只标轨，不分配岗位：轨决定方案讨论邀请哪条交付面的技术岗位，
+   * 实施阶段的具体岗位仍由人机命令 `/task_assign` 写进 `role`。
+   * 这里只校形态；「这条轨存不存在」由 `task_draft` 在写盘前查。
+   */
+  track: z.string().regex(TRACK_ID_PATTERN, '轨 id 要小写字母开头，只含小写字母、数字、下划线或连字符').optional(),
   /**
    * 这条任务分配的岗位：`roles.yaml` 里的岗位 id，或一个内置角色 id。
    *
@@ -545,6 +554,21 @@ export const ProjectEnvironment = z.object({
 })
 export type ProjectEnvironment = z.infer<typeof ProjectEnvironment>
 
+/**
+ * 项目追加的一条轨。
+ *
+ * id 形态与内置轨一致；不得与内置轨重名——同一条轨有两个显示名时，
+ * 看板与讨论分组就失去了唯一答案。
+ */
+export const ProjectTrack = z
+  .object({
+    id: z.string().regex(TRACK_ID_PATTERN, '轨 id 要小写字母开头，只含小写字母、数字、下划线或连字符'),
+    /** 显示名，如「支付端」。 */
+    name: z.string().min(1),
+  })
+  .strict()
+export type ProjectTrack = z.infer<typeof ProjectTrack>
+
 /** `.spec/project.yaml`：项目交付、文档与部署环境。 */
 export const ProjectInfo = z.object({
   kind: ProjectKind,
@@ -558,6 +582,23 @@ export const ProjectInfo = z.object({
     tests: z.string().optional(),
   }).default({}),
   environments: z.record(z.string().min(1), ProjectEnvironment).default({}),
+  /** 项目追加的轨；缺省表示只用内置六轨。 */
+  tracks: z.array(ProjectTrack).default([]),
+}).superRefine((info, ctx) => {
+  const seen = new Set<string>()
+  for (const [index, track] of info.tracks.entries()) {
+    if (BUILTIN_TRACK_IDS.includes(track.id)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['tracks', index, 'id'],
+        message: `轨 id ${track.id} 与内置轨重名；内置轨不能被项目覆盖`,
+      })
+    }
+    if (seen.has(track.id)) {
+      ctx.addIssue({ code: 'custom', path: ['tracks', index, 'id'], message: `轨 id 重复：${track.id}` })
+    }
+    seen.add(track.id)
+  }
 })
 export type ProjectInfo = z.infer<typeof ProjectInfo>
 

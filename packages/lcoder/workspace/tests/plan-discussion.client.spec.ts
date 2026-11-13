@@ -1,17 +1,18 @@
 /**
- * 方案讨论与契约门禁：会议规模三档、岗位映射与去重、看板列派生、契约完整性、
- * 多岗位/单岗位会议链路与确认后的逐条签署推进。
+ * 方案讨论与契约门禁：固定三方加按轨技术岗位、会议分组、看板列派生、
+ * 契约完整性、讨论与起草链路，以及确认后的逐条签署推进。
  *
  * 流程不碰 React；这里用注入端口模拟宿主推流、契约投影与两条人机命令。
  */
 import { describe, expect, it, vi } from 'vitest'
-import type { ContractRow, JobRoleRow } from '../src/client/projection.ts'
+import type { ContractRow } from '../src/client/projection.ts'
 import type { ShellMessage, ShellSignResult, ShellTask } from '../src/client/shell/shell-data.ts'
 import type { ShellSessionNotice } from '../src/client/model-status.ts'
+import type { TrackDescriptor } from '@lcoder/kernel/src/schema/tracks.ts'
 import {
-  boardColumnOf, buildContractDraftPrompt, buildMeetingPrompt, confirmPlan, contractComplete, contractOf,
-  contractSigned, discussionNeeded, discussionTasksOf, meetingRoleOf, meetingTierOf, planDiscussionGroups,
-  runPlanDiscussion,
+  ARCHITECT_ROLE, boardColumnOf, buildContractDraftPrompt, buildMeetingPrompt, confirmPlan,
+  contractComplete, contractOf, contractSigned, discussionNeeded, discussionTasksOf, meetingTierOf,
+  MEETING_ROLE_MARKER, planDiscussionGroups, runPlanDiscussion, technicalRoleOf,
 } from '../src/client/shell/plan-discussion.ts'
 import type {
   MeetingRole, PlanConfirmPorts, PlanDiscussionPorts,
@@ -19,20 +20,17 @@ import type {
 
 const DOCUMENT = '# 项目需求概要 V1\n\n## 第一版功能清单\n- 记一笔\n- 翻记录\n'
 
-const ROSTER: readonly JobRoleRow[] = [
-  { id: 'architect', name: '架构师', inherits: 'architect' },
-  {
-    id: 'vue-engineer',
-    name: 'Vue 工程师',
-    inherits: 'dev',
-    persona: '负责页面与交互。',
-    signals: { strong: ['vue'], medium: ['页面'], preferredPaths: ['src/views/'] },
-  },
-  { id: 'ops-engineer', name: '运维工程师', inherits: 'ops' },
-  { id: 'reviewer', name: '评审员', inherits: 'review' },
+const TRACKS: readonly TrackDescriptor[] = [
+  { id: 'h5', name: 'H5 前端' },
+  { id: 'admin', name: '管理端' },
+  { id: 'api', name: '接口' },
+  { id: 'desktop', name: '桌面端' },
+  { id: 'host', name: '宿主端' },
+  { id: 'general', name: '通用' },
+  { id: 'payment', name: '支付端' },
 ]
 
-/** 一条拆分任务；默认 B 级、已分配 Vue 岗位。 */
+/** 一条拆分任务；默认 B 级、标 H5 轨、没有岗位。 */
 function taskOf(id: string, overrides: Partial<ShellTask> = {}): ShellTask {
   return {
     id,
@@ -47,16 +45,17 @@ function taskOf(id: string, overrides: Partial<ShellTask> = {}): ShellTask {
     paths: [],
     irreversible: [],
     proposal: 'P-01',
-    role: 'vue-engineer',
+    track: 'h5',
     openedAt: '2026-11-12T09:00:02.084Z',
     ...overrides,
   }
 }
 
-/** 需求本体：drafting、带方案回指但没有岗位。 */
+/** 需求本体：drafting、带方案回指、没有轨也没有岗位。 */
 function requirementOf(id: string, overrides: Partial<ShellTask> = {}): ShellTask {
-  const { role, ...rest } = taskOf(id, overrides)
-  void role
+  const { track: _track, role: _role, ...rest } = taskOf(id, overrides)
+  void _track
+  void _role
   return rest
 }
 
@@ -74,69 +73,88 @@ function contractOfTask(id: string, overrides: Partial<ContractRow> = {}): Contr
   }
 }
 
-describe('会议规模与岗位映射', () => {
-  it('A 级、有不可逆项、基础框架与架构任务开完整会', () => {
+describe('会议规模与按轨角色', () => {
+  it('A 级、有不可逆项、基础框架与 general 轨开完整会', () => {
     expect(meetingTierOf(taskOf('T-02', { grade: 'A' }))).toBe('full')
     expect(meetingTierOf(taskOf('T-02', { irreversible: ['删库'] }))).toBe('full')
     expect(meetingTierOf(taskOf('T-02', { title: '项目基础框架与脚手架' }))).toBe('full')
-    expect(meetingTierOf(taskOf('T-02'), meetingRoleOf('architect', ROSTER))).toBe('full')
+    expect(meetingTierOf(taskOf('T-02', { track: 'general' }), technicalRoleOf('general', TRACKS))).toBe('full')
   })
 
-  it('涉及三个以上不同岗位时整批开完整会', () => {
+  it('涉及三个以上不同轨时整批开完整会', () => {
     expect(meetingTierOf(taskOf('T-02'), undefined, 3)).toBe('full')
   })
 
-  it('B 级单岗位加架构师，C 级且无不可逆项走单岗位轻量会', () => {
+  it('B 级按配对会，C 级且无不可逆项按轻量会', () => {
     expect(meetingTierOf(taskOf('T-02'))).toBe('paired')
     expect(meetingTierOf(taskOf('T-02', { grade: 'C' }))).toBe('solo')
     expect(meetingTierOf(taskOf('T-02', { grade: 'C', irreversible: ['部署'] }))).toBe('full')
   })
 
-  it('名册岗位按 inherits 映射到预设；内置角色直接用 id；未知岗位返回 undefined', () => {
-    expect(meetingRoleOf('vue-engineer', ROSTER)).toMatchObject({ id: 'vue-engineer', inherits: 'dev', preset: 'lcoder' })
-    expect(meetingRoleOf('ops-engineer', ROSTER)).toMatchObject({ inherits: 'ops', preset: 'lcoder-ops' })
-    expect(meetingRoleOf('reviewer', ROSTER)).toMatchObject({ inherits: 'review', preset: 'lcoder-review' })
-    expect(meetingRoleOf('architect', ROSTER)).toMatchObject({ inherits: 'architect', preset: 'lcoder-architect' })
-    expect(meetingRoleOf('ghost', ROSTER)).toBeUndefined()
+  it('技术岗位按轨映射：内置轨走 dev 面，general 走架构师，项目轨用项目名', () => {
+    expect(technicalRoleOf('h5', TRACKS)).toMatchObject({
+      id: 'track-h5', name: 'H5 前端工程师', kind: 'track', inherits: 'dev', preset: 'lcoder',
+    })
+    expect(technicalRoleOf('api', TRACKS)).toMatchObject({ id: 'track-api', name: '接口工程师' })
+    expect(technicalRoleOf('general', TRACKS)).toEqual(ARCHITECT_ROLE)
+    expect(technicalRoleOf('payment', TRACKS)).toMatchObject({
+      id: 'track-payment', name: '支付端工程师', inherits: 'dev',
+    })
+    expect(technicalRoleOf(undefined, TRACKS)).toEqual(ARCHITECT_ROLE)
+    expect(technicalRoleOf('ghost', TRACKS)).toBeUndefined()
   })
 })
 
 describe('讨论分组', () => {
-  it('同岗位只建一次会：两条 Vue 任务共用一个岗位加架构师的会', () => {
-    const plan = planDiscussionGroups([taskOf('T-02'), taskOf('T-03')], ROSTER)
+  it('同轨只建一次会：两条 H5 任务共用一个会，三方与技术岗、架构师都在场', () => {
+    const plan = planDiscussionGroups([taskOf('T-02'), taskOf('T-03')], TRACKS)
     expect(plan.unresolved).toEqual([])
     expect(plan.groups).toHaveLength(1)
-    expect(plan.groups[0]).toMatchObject({ tier: 'paired', taskIds: ['T-02', 'T-03'] })
-    expect(plan.groups[0]?.roles.map(role => role.id)).toEqual(['vue-engineer', 'architect'])
+    expect(plan.groups[0]).toMatchObject({ tier: 'paired', taskIds: ['T-02', 'T-03'], tracks: ['h5'] })
+    expect(plan.groups[0]?.roles.map(role => role.id))
+      .toEqual(['analyst', 'pm', 'manager', 'track-h5', 'architect'])
   })
 
-  it('C 级小改动只邀请该岗位，不加架构师', () => {
-    const plan = planDiscussionGroups([taskOf('T-02', { grade: 'C' })], ROSTER)
+  it('C 级轻量会也固定三方入会，不因任务小就少人', () => {
+    const plan = planDiscussionGroups([taskOf('T-02', { grade: 'C' })], TRACKS)
     expect(plan.groups[0]).toMatchObject({ tier: 'solo', taskIds: ['T-02'] })
-    expect(plan.groups[0]?.roles.map(role => role.id)).toEqual(['vue-engineer'])
+    expect(plan.groups[0]?.roles.map(role => role.id))
+      .toEqual(['analyst', 'pm', 'manager', 'track-h5', 'architect'])
   })
 
-  it('三个岗位的任务整批进完整会，参与岗位是并集加架构师', () => {
+  it('三条不同轨的任务整批进完整会，技术岗取并集', () => {
     const plan = planDiscussionGroups([
       taskOf('T-02'),
-      taskOf('T-03', { role: 'ops-engineer' }),
-      taskOf('T-04', { role: 'reviewer' }),
-    ], ROSTER)
+      taskOf('T-03', { track: 'api' }),
+      taskOf('T-04', { track: 'payment' }),
+    ], TRACKS)
     expect(plan.groups).toHaveLength(1)
     expect(plan.groups[0]?.tier).toBe('full')
-    expect(plan.groups[0]?.roles.map(role => role.id)).toEqual(['vue-engineer', 'ops-engineer', 'reviewer', 'architect'])
+    expect(plan.groups[0]?.roles.map(role => role.id))
+      .toEqual(['analyst', 'pm', 'manager', 'track-h5', 'track-api', 'track-payment', 'architect'])
+    expect(plan.groups[0]?.tracks).toEqual(['h5', 'api', 'payment'])
   })
 
-  it('岗位映射不了时如实记进 unresolved，不猜预设', () => {
-    const plan = planDiscussionGroups([taskOf('T-02', { role: 'ghost' })], ROSTER)
+  it('旧数据没有轨时按 general 处理，不从 task.role 推导参与者', () => {
+    const { track: _track, ...legacy } = taskOf('T-02', { role: 'vue-engineer' })
+    void _track
+    const plan = planDiscussionGroups([legacy], TRACKS)
+    expect(plan.groups[0]?.roles.map(role => role.id)).toEqual(['analyst', 'pm', 'manager', 'architect'])
+  })
+
+  it('未知轨如实记进 unresolved，不猜一个岗位顶上', () => {
+    const plan = planDiscussionGroups([taskOf('T-02', { track: 'ghost' })], TRACKS)
     expect(plan.groups).toEqual([])
-    expect(plan.unresolved).toEqual([{ taskId: 'T-02', role: 'ghost' }])
+    expect(plan.unresolved).toEqual([{ taskId: 'T-02', track: 'ghost' }])
   })
 })
 
 describe('看板列与契约判据', () => {
-  it('拆分后已分配岗位的 drafting 任务进方案讨论，需求本体留在需求确认', () => {
+  it('有轨或旧数据有岗位的 drafting 任务进方案讨论，需求本体留在需求确认', () => {
+    const { track: _track, ...legacyRole } = taskOf('T-02', { role: 'architect' })
+    void _track
     expect(boardColumnOf(taskOf('T-02'))).toBe('discussion')
+    expect(boardColumnOf(legacyRole)).toBe('discussion')
     expect(boardColumnOf(requirementOf('T-01'))).toBe('drafting')
     expect(boardColumnOf(taskOf('T-02', { state: 'contracted' }))).toBe('contracted')
   })
@@ -157,7 +175,7 @@ describe('看板列与契约判据', () => {
     expect(contractOf([contractOfTask('T-02')], 'T-03')).toBeUndefined()
   })
 
-  it('同需求下仍待讨论的任务按方案取、需求本体与已推进任务不进这批', () => {
+  it('同需求下仍待讨论的任务按方案取，需求本体与已推进任务不进这批', () => {
     const tasks = [
       requirementOf('T-01'),
       taskOf('T-02'),
@@ -165,41 +183,56 @@ describe('看板列与契约判据', () => {
       taskOf('T-04', { proposal: 'P-02' }),
     ]
     expect(discussionTasksOf(tasks, taskOf('T-02')).map(row => row.id)).toEqual(['T-02'])
-    expect(discussionTasksOf(tasks, requirementOf('T-01'))).toEqual([])
+    expect(discussionTasksOf(tasks, requirementOf('T-01')).map(row => row.id)).toEqual(['T-02'])
   })
 })
 
-/** 名册里某个岗位的讨论形态；测试里缺就是名册写错。 */
-function roleOf(id: string): MeetingRole {
-  const role = meetingRoleOf(id, ROSTER)
-  if (role === undefined) throw new Error(`missing meeting role ${id}`)
-  return role
-}
-
 describe('讨论与起草指令', () => {
-  const roles = [roleOf('vue-engineer'), roleOf('architect')]
+  const plan = planDiscussionGroups([taskOf('T-02')], TRACKS)
+  const roles = plan.groups[0]?.roles ?? []
 
-  it('会议指令带需求、任务、岗位职责，并明确不写代码不改任务', () => {
+  it('会议指令带身份标记、需求、任务与轨', () => {
+    const analyst = roles.find(role => role.kind === 'analyst') as MeetingRole
     const prompt = buildMeetingPrompt({
-      document: DOCUMENT, proposal: 'P-01', tasks: [taskOf('T-02')], roles,
-    }, roles[0] as MeetingRole)
+      document: DOCUMENT, proposal: 'P-01', tasks: [taskOf('T-02')], roles, tracks: TRACKS,
+    }, analyst)
+    expect(prompt).toContain(`${MEETING_ROLE_MARKER}需求分析师（analyst）`)
     expect(prompt).toContain('《项目需求概要》（.spec/requirements/P-01.md）')
     expect(prompt).toContain('- T-02：T-02 的开发任务')
-    expect(prompt).toContain('分级：B；规则：R-01；依赖：（无）')
-    expect(prompt).toContain('负责页面与交互。')
+    expect(prompt).toContain('轨：H5 前端；分级：B；规则：R-01')
     expect(prompt).toContain('不写代码、不改任务与需求、不签契约、不推进任务状态')
+  })
+
+  it('三方各有固定职责：分析师核覆盖、项目经理讲拆分、研发经理评风险', () => {
+    const context = { document: DOCUMENT, proposal: 'P-01', tasks: [taskOf('T-02')], roles, tracks: TRACKS }
+    const analyst = roles.find(role => role.kind === 'analyst') as MeetingRole
+    const pm = roles.find(role => role.kind === 'pm') as MeetingRole
+    const manager = roles.find(role => role.kind === 'manager') as MeetingRole
+    expect(buildMeetingPrompt(context, analyst)).toContain('核对需求覆盖')
+    expect(buildMeetingPrompt(context, analyst)).toContain('不写任务、不给技术实现')
+    expect(buildMeetingPrompt(context, pm)).toContain('说明拆分依据')
+    expect(buildMeetingPrompt(context, pm)).toContain('说明轨划分的理由')
+    expect(buildMeetingPrompt(context, manager)).toContain('跨轨依赖与落地风险')
+    expect(buildMeetingPrompt(context, manager)).toContain('不落盘、不调用分配命令')
+  })
+
+  it('技术岗只谈自己那条轨，架构师负责汇总与契约要点', () => {
+    const context = { document: DOCUMENT, proposal: 'P-01', tasks: [taskOf('T-02')], roles, tracks: TRACKS }
+    const tech = roles.find(role => role.id === 'track-h5') as MeetingRole
+    expect(buildMeetingPrompt(context, tech)).toContain('你代表「H5 前端工程师」这条轨')
+    expect(buildMeetingPrompt(context, ARCHITECT_ROLE)).toContain('汇总三方与技术岗位的意见')
   })
 
   it('起草指令要求四项必填并附会议记录', () => {
     const prompt = buildContractDraftPrompt({
-      document: DOCUMENT, proposal: 'P-01', tasks: [taskOf('T-02')], roles,
-    }, [{ role: 'Vue 工程师', text: '先定表单与列表边界。' }])
+      document: DOCUMENT, proposal: 'P-01', tasks: [taskOf('T-02')], roles, tracks: TRACKS,
+    }, [{ role: 'H5 前端工程师', text: '先定表单与列表边界。' }])
     expect(prompt).toContain('contract_draft')
     expect(prompt).toContain('change（要改什么')
     expect(prompt).toContain('not_change')
     expect(prompt).toContain('acceptance')
     expect(prompt).toContain('fail_if')
-    expect(prompt).toContain('【Vue 工程师】')
+    expect(prompt).toContain('【H5 前端工程师】')
     expect(prompt).toContain('先定表单与列表边界。')
     expect(prompt).toContain('不签契约、不推进任务状态')
   })
@@ -269,11 +302,11 @@ function discussionWorld(overrides: Partial<DiscussionWorld> = {}): {
   return { world, ports }
 }
 
-/** 默认输入：两条同岗位 B 级任务。 */
+/** 默认输入：两条同轨 B 级任务。 */
 function inputOf(overrides: Partial<Parameters<typeof runPlanDiscussion>[0]> = {}) {
   return {
     tasks: [taskOf('T-02'), taskOf('T-03')],
-    roster: ROSTER,
+    tracks: TRACKS,
     document: DOCUMENT,
     proposal: 'P-01',
     timeoutMs: 5_000,
@@ -288,7 +321,7 @@ function writeContracts(world: DiscussionWorld, ids: readonly string[]): void {
 }
 
 describe('讨论链路', () => {
-  it('B 级单岗位任务开岗位加架构师两个会话，架构师起草逐任务契约', async () => {
+  it('B 级同轨任务：三方加技术岗加架构师各一次会话，架构师逐任务起草契约', async () => {
     const { world, ports } = discussionWorld()
     world.draft = () => { writeContracts(world, ['T-02', 'T-03']) }
     const progress: string[] = []
@@ -296,46 +329,38 @@ describe('讨论链路', () => {
       onProgress: item => progress.push(`${item.stage}:${item.taskIds.join(',')}`),
     })
 
-    expect(world.created.map(item => item.role.id)).toEqual(['vue-engineer', 'architect'])
-    expect(world.prompts).toHaveLength(3)
-    expect(world.prompts[0]?.text).toContain('方案讨论')
-    expect(world.prompts[2]?.sessionId).toBe('s-2')
-    expect(world.prompts[2]?.text).toContain('契约起草')
+    expect(world.created.map(item => item.role.id))
+      .toEqual(['analyst', 'pm', 'manager', 'track-h5', 'architect'])
+    expect(world.prompts).toHaveLength(6)
+    expect(world.prompts.filter(item => item.text.startsWith('方案讨论'))).toHaveLength(5)
+    expect(world.prompts[5]?.sessionId).toBe('s-5')
+    expect(world.prompts[5]?.text).toContain('契约起草')
     expect(progress).toEqual(['meeting:T-02,T-03', 'drafting:T-02,T-03'])
-    expect(world.released).toBe(2)
+    expect(world.released).toBe(5)
     expect(outcome).toMatchObject({ kind: 'done', drafts: [{ taskId: 'T-02', ok: true }, { taskId: 'T-03', ok: true }] })
   })
 
-  it('C 级单岗位小改动只建一个会话，不建架构师', async () => {
+  it('C 级轻量会同样固定三方入会', async () => {
     const { world, ports } = discussionWorld()
     world.draft = () => { writeContracts(world, ['T-02']) }
     const outcome = await runPlanDiscussion(inputOf({ tasks: [taskOf('T-02', { grade: 'C' })] }), ports)
 
-    expect(world.created.map(item => item.role.id)).toEqual(['vue-engineer'])
-    expect(world.prompts).toHaveLength(2)
-    expect(world.prompts[1]?.text).toContain('契约起草')
+    expect(world.created.map(item => item.role.id))
+      .toEqual(['analyst', 'pm', 'manager', 'track-h5', 'architect'])
+    expect(world.prompts).toHaveLength(6)
     expect(outcome.kind).toBe('done')
   })
 
-  it('评审岗位没有契约工具时，轻量会改由架构师起草', async () => {
+  it('同角色跨组只建一次会话：两条不同轨的配对会复用同一位架构师', async () => {
     const { world, ports } = discussionWorld()
-    world.draft = () => { writeContracts(world, ['T-02']) }
-    const outcome = await runPlanDiscussion(inputOf({
-      tasks: [taskOf('T-02', { grade: 'C', role: 'reviewer' })],
+    world.draft = () => { writeContracts(world, ['T-02', 'T-03']) }
+    await runPlanDiscussion(inputOf({
+      tasks: [taskOf('T-02'), taskOf('T-03', { track: 'api' })],
     }), ports)
-
-    expect(world.created.map(item => item.role.id)).toEqual(['reviewer', 'architect'])
-    expect(world.prompts[1]?.sessionId).toBe('s-2')
-    expect(world.prompts[1]?.text).toContain('契约起草')
-    expect(outcome.kind).toBe('done')
-  })
-
-  it('同岗位跨任务只建一次会话', async () => {
-    const { world, ports } = discussionWorld()
-    world.draft = () => { writeContracts(world, ['T-02', 'T-03', 'T-04']) }
-    await runPlanDiscussion(inputOf({ tasks: [taskOf('T-02'), taskOf('T-03'), taskOf('T-04')] }), ports)
-    expect(world.created).toHaveLength(2)
-    expect(world.prompts.filter(item => item.text.startsWith('方案讨论'))).toHaveLength(2)
+    expect(world.created).toHaveLength(6)
+    expect(world.created.filter(item => item.role.id === 'architect')).toHaveLength(1)
+    expect(world.created.map(item => item.role.id).sort())
+      .toEqual(['analyst', 'architect', 'manager', 'pm', 'track-api', 'track-h5'])
   })
 
   it('契约没起草出来时按失败报，任务编号原样带回', async () => {
@@ -343,7 +368,7 @@ describe('讨论链路', () => {
     world.draft = () => { writeContracts(world, ['T-02']) }
     const outcome = await runPlanDiscussion(inputOf(), ports)
     expect(outcome).toMatchObject({ kind: 'failed', reason: 'missing-contract', taskIds: ['T-03'] })
-    expect(world.released).toBe(2)
+    expect(world.released).toBe(5)
   })
 
   it('契约缺必填项时按不完整报，不把半截契约当完成', async () => {
@@ -360,14 +385,18 @@ describe('讨论链路', () => {
     world.notices.set('s-1', { key: 'shell.turnFailed', detail: '模型不可用' })
     const outcome = await runPlanDiscussion(inputOf(), ports)
     expect(outcome).toMatchObject({ kind: 'failed', stage: 'meeting', reason: 'session-failed', detail: '模型不可用' })
-    expect(world.released).toBe(2)
+    expect(world.released).toBe(5)
   })
 
-  it('岗位映射不了时不建会话', async () => {
+  it('轨映射不了时不建会话，并带回未知轨', async () => {
     const { world, ports } = discussionWorld()
-    const outcome = await runPlanDiscussion(inputOf({ tasks: [taskOf('T-02', { role: 'ghost' })] }), ports)
+    const outcome = await runPlanDiscussion(inputOf({ tasks: [taskOf('T-02', { track: 'ghost' })] }), ports)
     expect(world.created).toEqual([])
-    expect(outcome).toMatchObject({ kind: 'failed', reason: 'unknown-role' })
+    expect(outcome).toMatchObject({
+      kind: 'failed',
+      reason: 'unknown-role',
+      unresolved: [{ taskId: 'T-02', track: 'ghost' }],
+    })
   })
 
   it('没有需求文档时不建会话', async () => {

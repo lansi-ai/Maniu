@@ -42,6 +42,8 @@ export interface TaskRow {
   readonly dependsOn: readonly string[]
   /** 分配到的岗位 id；`/task_assign` 写过才有，缺省表示未分配。 */
   readonly role?: string
+  /** 任务归属的轨 id；拆分时标注，缺省表示还没标轨。 */
+  readonly track?: string
   /** 任务声明的允许路径（`scope.allowed_paths`）；调度按它判落点重叠。 */
   readonly paths: readonly string[]
   /** 任务声明的不可逆动作（`scope.irreversible`）；非空时本地建议恒转人工。 */
@@ -262,6 +264,7 @@ export function taskTextToRow(fileName: string, text: string): TaskRow | undefin
   const session = asText(fields.session)
   const proposal = asText(fields.proposal)
   const role = asText(fields.role)
+  const track = asText(fields.track)
   const category = asText(fields.category)
   const changeType = asText(fields.change_type)
   const openedAt = asText(fields.opened_at)
@@ -280,6 +283,7 @@ export function taskTextToRow(fileName: string, text: string): TaskRow | undefin
     ...(session === undefined ? {} : { session }),
     ...(proposal === undefined ? {} : { proposal }),
     ...(role === undefined ? {} : { role }),
+    ...(track === undefined ? {} : { track }),
     dependsOn: stringArray(fields.depends_on),
     paths: stringArray(scope?.allowed_paths),
     irreversible: stringArray(scope?.irreversible),
@@ -892,6 +896,12 @@ export async function loadProjectInfo(
   const repo = recordOf(doc.repo)
   const docs = recordOf(doc.docs)
   const environmentRecords = recordOf(doc.environments) ?? {}
+  const tracks: ShellProjectInfo['tracks'] = (Array.isArray(doc.tracks) ? doc.tracks : []).flatMap((raw) => {
+    const track = recordOf(raw)
+    const id = asText(track?.id)
+    const name = asText(track?.name)
+    return id === undefined || name === undefined ? [] : [{ id, name }]
+  })
   const environments: ShellEnvironment[] = Object.entries(environmentRecords).flatMap(([id, raw]) => {
     const env = recordOf(raw)
     if (env === undefined) return []
@@ -931,6 +941,7 @@ export async function loadProjectInfo(
         tests: asText(docs?.tests) ?? '',
       },
       environments,
+      tracks,
     },
     problems: [],
   }

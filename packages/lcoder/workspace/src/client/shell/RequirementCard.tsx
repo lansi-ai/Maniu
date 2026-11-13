@@ -6,7 +6,7 @@
  * description。方案候选与推荐只在没有完整需求文档时展示。拆分时把已读到的完整需求
  * 文档交给外壳，指令以它作为拆分依据。
  */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { MarkdownText } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
@@ -21,7 +21,7 @@ import css from './Shell.module.css'
 type Translate = PropsLocale<'lcoderWorkspace'>['t']
 
 /** 拆分流程停在的段；与 `requirement-split.ts` 的阶段一一对应。 */
-export type RequirementSplitStageView = 'pm' | 'manager' | 'assigning'
+export type RequirementSplitStageView = 'pm'
 
 /** 卡片要画的一次拆分流程；文案已由外壳按词典拼好，卡片只排版。 */
 export interface RequirementSplitFlowView {
@@ -29,15 +29,26 @@ export interface RequirementSplitFlowView {
   readonly stage?: RequirementSplitStageView
   /** 这次拆出的任务；还没拆完时为空。 */
   readonly newTasks: readonly { readonly id: string; readonly title: string }[]
-  /** 完成后的计数与失败明细；失败时也可以带已拆出的任务。 */
+  /** 完成后的新增条数与按轨分布；失败时也可以带已拆出的任务。 */
   readonly summary?: {
     readonly taskCount: number
-    readonly assignedCount: number
-    /** 逐条失败或未分配的说明，已本地化。 */
-    readonly lines: readonly string[]
+    /** 轨的显示名与条数。 */
+    readonly tracks: readonly { readonly name: string; readonly count: number }[]
   }
   /** 失败原文；完成时为 undefined。 */
   readonly errorText?: string
+}
+
+/** 讨论历史抽屉的展示数据；发言原文按角色分组。 */
+export interface DiscussionHistoryView {
+  readonly status: 'idle' | 'loading' | 'ready' | 'failed'
+  readonly groups: readonly {
+    readonly roleId: string
+    readonly roleName: string
+    readonly statements: readonly string[]
+  }[]
+  /** 读取或定位失败的原话；成功时为 undefined。 */
+  readonly error?: string
 }
 
 /** 需求卡片要的任务、方案、问答与动作。 */
@@ -52,11 +63,13 @@ export interface RequirementCardProps {
   readonly proposal?: ProposalRow | undefined
   /** 从立项会话读出的问答；空数组表示没读到记录。 */
   readonly answers: readonly RequirementAnswer[]
+  /** 任务归属轨的显示名；没有标轨或读不到时为 undefined。 */
+  readonly trackName?: string | undefined
   /** 拆分指令发送在途；按钮据此禁用。 */
   readonly splitting: boolean
   /** 就地错误原文；没有时为 null。 */
   readonly error: string | null
-  /** 拆分与分配流程的当前状态；没有跑过时为 undefined。 */
+  /** 拆分流程的当前状态；没有跑过时为 undefined。 */
   readonly flow?: RequirementSplitFlowView | null
   readonly onClose: () => void
   /**
@@ -66,6 +79,11 @@ export interface RequirementCardProps {
   readonly onSplit: (requirementDocument: RequirementDocRow | undefined) => void
   /** 完成后回看板；不传时不画这个入口。 */
   readonly onViewBoard?: () => void
+  /** 讨论历史抽屉是否打开与它的数据；不传时抽屉不可用。 */
+  readonly historyOpen?: boolean
+  readonly history?: DiscussionHistoryView
+  readonly onOpenHistory?: () => void
+  readonly onCloseHistory?: () => void
 }
 
 /** 内容折叠时的一行摘要：取正文第一段，过长截断。 */
@@ -100,21 +118,22 @@ function SectionHead({
   )
 }
 
-/** 运行中那一段的文案：没有阶段时按最早的「项目经理拆分中」画。 */
-function runningStageText(t: Translate, stage: RequirementSplitStageView | undefined): string {
-  if (stage === 'manager') return t('shell.splitManagerRunning')
-  if (stage === 'assigning') return t('shell.splitAssigning')
+/** 运行中那一段的文案：拆分只有项目经理一段。 */
+function runningStageText(t: Translate): string {
   return t('shell.splitPmRunning')
 }
 
-/** 拆分流程区：阶段、已拆出的任务、完成后的计数与失败明细。 */
+/** 拆分流程区：阶段、已拆出的任务、完成后的条数与按轨分布。 */
 function SplitFlowSection({ t, flow }: { readonly t: Translate; readonly flow: RequirementSplitFlowView }): ReactNode {
   const newTaskIds = flow.newTasks.map(task => task.id).join('、')
+  const trackText = flow.summary === undefined
+    ? ''
+    : flow.summary.tracks.map(item => `${item.name} ${item.count}`).join('、')
   return (
     <section className={css.requirementSplitFlow} data-requirement-split-flow>
       {flow.status === 'running' ? (
         <p className={css.requirementSplitPhase} data-requirement-split-phase>
-          {runningStageText(t, flow.stage)}
+          {runningStageText(t)}
         </p>
       ) : null}
       {flow.newTasks.length === 0 ? null : (
@@ -124,17 +143,14 @@ function SplitFlowSection({ t, flow }: { readonly t: Translate; readonly flow: R
       )}
       {flow.status === 'done' && flow.summary !== undefined ? (
         <p className={css.requirementSplitSummary} data-requirement-split-summary>
-          {t('shell.splitResult', {
-            tasks: `${flow.summary.taskCount}`,
-            assigned: `${flow.summary.assignedCount}`,
-          })}
+          {t('shell.splitResult', { tasks: `${flow.summary.taskCount}` })}
         </p>
       ) : null}
-      {flow.summary === undefined || flow.summary.lines.length === 0 ? null : (
-        <ul className={css.requirementSplitFailures} data-requirement-split-failures>
-          {flow.summary.lines.map(line => <li key={line}>{line}</li>)}
-        </ul>
-      )}
+      {flow.status === 'done' && trackText !== '' ? (
+        <p className={css.requirementSplitTasks} data-requirement-split-tracks>
+          {t('shell.splitTracks', { tracks: trackText })}
+        </p>
+      ) : null}
     </section>
   )
 }
@@ -145,11 +161,24 @@ function SplitFlowSection({ t, flow }: { readonly t: Translate; readonly flow: R
  * @returns 卡片内容；由外壳放在既有模态容器里。
  */
 export function RequirementCard({
-  t, task, requirementDocument, document, proposal, answers, splitting, error, flow, onClose, onSplit, onViewBoard,
+  t, task, requirementDocument, document, proposal, answers, trackName, splitting, error, flow, onClose, onSplit, onViewBoard,
+  historyOpen = false,
+  history = { status: 'idle', groups: [] },
+  onOpenHistory = () => {},
+  onCloseHistory = () => {},
 }: RequirementCardProps): ReactNode {
   const [open, setOpen] = useState(false)
   const [answersOpen, setAnswersOpen] = useState(false)
   const labels = useMarkdownLabels(t)
+  /** Esc 关闭讨论历史；抽屉只盖住卡片，不抢整页的其它快捷键。 */
+  useEffect(() => {
+    if (!historyOpen) return
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') onCloseHistory()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => { window.removeEventListener('keydown', onKey) }
+  }, [historyOpen, onCloseHistory])
   // 优先展示落盘的需求文档，其次会话里的需求概要；两者都没有才用方案正文或任务描述。
   const fileText = requirementDocument?.text ?? ''
   const summaryText = document ?? ''
@@ -216,6 +245,7 @@ export function RequirementCard({
               )}
               <p className={css.requirementMetaLine}>
                 {t('shell.difficulty')}：{task.grade}
+                {trackName === undefined ? '' : ` · ${t('shell.track')}：${trackName}`}
                 {' · '}
                 {t('shell.rules')}：{task.rules.join('、') || '—'}
               </p>
@@ -273,6 +303,9 @@ export function RequirementCard({
         <button type="button" className={css.secondaryBtn} onClick={onClose}>
           {t('shell.close')}
         </button>
+        <button type="button" className={css.secondaryBtn} data-requirement-history onClick={onOpenHistory}>
+          {t('shell.discussionHistory')}
+        </button>
         <button
           type="button"
           className={css.primaryBtn}
@@ -283,6 +316,51 @@ export function RequirementCard({
           {splitting ? t('shell.splittingTasks') : t('shell.splitTasks')}
         </button>
       </div>
+      {historyOpen ? (
+        <div
+          className={css.requirementHistoryBackdrop}
+          data-discussion-history
+          onClick={(event) => { if (event.target === event.currentTarget) onCloseHistory() }}
+        >
+          <aside
+            className={css.requirementHistoryPanel}
+            role="dialog"
+            aria-modal="true"
+            aria-label={t('shell.historyTitle')}
+          >
+            <div className={css.requirementHistoryHead}>
+              <h4 className={css.requirementHistoryTitle}>{t('shell.historyTitle')}</h4>
+              <button
+                type="button"
+                className={css.iconBtn}
+                aria-label={t('shell.historyClose')}
+                onClick={onCloseHistory}
+              >✕</button>
+            </div>
+            <div className={css.requirementHistoryBody}>
+              {history.status === 'loading' || history.status === 'idle' ? (
+                <p className={css.requirementPreview}>{t('shell.historyLoading')}</p>
+              ) : null}
+              {history.status === 'failed' ? (
+                <p className={css.problem} data-discussion-history-error>{history.error}</p>
+              ) : null}
+              {history.status === 'ready' && history.groups.length === 0 ? (
+                <p className={css.requirementPreview}>{t('shell.historyEmpty')}</p>
+              ) : null}
+              {history.status === 'ready'
+                ? history.groups.map(group => (
+                  <section key={group.roleId} className={css.requirementHistoryGroup} data-discussion-history-group={group.roleId}>
+                    <h5 className={css.requirementHistoryRole}>{group.roleName}</h5>
+                    {group.statements.map((statement, index) => (
+                      <p key={`${group.roleId}-${String(index)}`} className={css.requirementHistoryStatement}>{statement}</p>
+                    ))}
+                  </section>
+                ))
+                : null}
+            </div>
+          </aside>
+        </div>
+      ) : null}
     </div>
   )
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import { Contract, Env, RolesFile, RuleEntry as Rule, Task } from '../src/schema/index.js'
+import { Contract, Env, ProjectInfo, RolesFile, RuleEntry as Rule, Task } from '../src/schema/index.js'
+import { BUILTIN_TRACKS, isBuiltinTrack } from '../src/schema/tracks.js'
 
 /**
  * 这些用例不只是"能不能跑"，它们固定了几条设计边界。
@@ -73,6 +74,37 @@ describe('.spec schema', () => {
     expect(Task.parse(base).session).toBeUndefined()
     expect(Task.parse({ ...base, session: 'session-8676' }).session).toBe('session-8676')
     expect(Task.safeParse({ ...base, session: '' }).success).toBe(false)
+  })
+
+  it('任务轨只校形态：内置轨与项目追加轨都能写，非法形态被拒', () => {
+    const base = {
+      id: 'T-014',
+      title: '佣金支持 0',
+      grade: 'B' as const,
+      state: 'drafting' as const,
+      opened_at: '2026-11-02T09:10:00+08:00',
+    }
+    expect(Task.parse(base).track).toBeUndefined()
+    expect(Task.parse({ ...base, track: 'h5' }).track).toBe('h5')
+    expect(Task.parse({ ...base, track: 'payment' }).track).toBe('payment')
+    expect(Task.safeParse({ ...base, track: 'H5' }).success).toBe(false)
+    expect(Task.safeParse({ ...base, track: '-api' }).success).toBe(false)
+  })
+
+  it('内置六轨固定，项目追加轨不得与内置轨重名或重复', () => {
+    expect(BUILTIN_TRACKS.map(track => track.id)).toEqual(['h5', 'admin', 'api', 'desktop', 'host', 'general'])
+    expect(isBuiltinTrack('general')).toBe(true)
+    expect(isBuiltinTrack('payment')).toBe(false)
+
+    const base = { kind: 'web' as const, repo: { url: 'https://example.invalid/r.git', branch: 'main' } }
+    expect(ProjectInfo.parse(base).tracks).toEqual([])
+    expect(ProjectInfo.parse({ ...base, tracks: [{ id: 'payment', name: '支付端' }] }).tracks)
+      .toEqual([{ id: 'payment', name: '支付端' }])
+    expect(ProjectInfo.safeParse({ ...base, tracks: [{ id: 'h5', name: '自定前端' }] }).success).toBe(false)
+    expect(ProjectInfo.safeParse({
+      ...base,
+      tracks: [{ id: 'payment', name: '支付端' }, { id: 'payment', name: '支付端二' }],
+    }).success).toBe(false)
   })
 
   it('旧任务不填描述、分类、变更类型与附件时，按空串、省略与空数组解析', () => {

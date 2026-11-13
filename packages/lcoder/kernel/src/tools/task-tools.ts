@@ -19,15 +19,50 @@ import type { Violation } from '../checkers/index.js'
 import { loadAutomationPolicy } from '../kernel/automation.js'
 import { loadContractFact } from '../kernel/contract.js'
 import { loadEvidence } from '../kernel/evidence-store.js'
+import { hasProject, loadProject } from '../kernel/project-store.js'
 import { assertProposalId, listProposals } from '../kernel/proposal-store.js'
 import { loadSpec, textCodeIndexFromDir } from '../kernel/spec-store.js'
 import { hasSpecRoot, resolveRoot } from '../kernel/spec-root.js'
 import type { RootInput } from '../kernel/spec-root.js'
 import { assertTaskId, dependencyCycle, findByTitle, listTasks, loadTask, nextTaskId, openTask, saveTask, taskPath, transition, unknownDependencies } from '../kernel/task-store.js'
+import { BUILTIN_TRACKS } from '../schema/tracks.js'
+import type { TrackDescriptor } from '../schema/tracks.js'
 
 const renderJson = (_args: unknown, value: unknown): { type: 'text'; text: string }[] => [
   { type: 'text', text: JSON.stringify(value, null, 2) },
 ]
+
+/**
+ * 当前规格库可用的轨：内置六轨在前，项目追加轨在后。
+ * @param specRoot - 规格根。
+ * @returns 可供任务标注的轨；项目文件缺失时只有内置轨。
+ */
+export function availableTracks(specRoot: string): TrackDescriptor[] {
+  const project = hasProject(specRoot) ? loadProject(specRoot) : null
+  return [
+    ...BUILTIN_TRACKS.map(track => ({ id: track.id, name: track.name })),
+    ...(project?.tracks ?? []),
+  ]
+}
+
+/**
+ * 校验 `task_draft` 给出的轨。
+ *
+ * 填了就必须是内置轨或项目追加轨——任务标一条不存在的轨，看板与讨论分组都找不到
+ * 对应的技术岗位；错误信息直接列出可用轨，让模型一次改对。
+ * @param specRoot - 规格根。
+ * @param raw - 模型给的 track，可能缺省或空白。
+ * @returns 校验过的轨 id；缺省时 undefined。
+ */
+function taskDraftTrack(specRoot: string, raw: string | undefined): string | undefined {
+  const text = raw?.trim()
+  if (text === undefined || text === '') return undefined
+  const tracks = availableTracks(specRoot)
+  if (!tracks.some(track => track.id === text)) {
+    throw new Error(`track 里的轨不存在：${text}；可用轨：${tracks.map(track => `${track.id}（${track.name}）`).join('、')}`)
+  }
+  return text
+}
 
 /**
  * 校验 task_draft 给出的方案编号。
@@ -98,6 +133,7 @@ export function createTaskTools(specRootInput: RootInput): ToolDefinition[] {
             scope: t.scope,
             evidence_required: t.evidence_required,
             ...(t.role === undefined ? {} : { role: t.role }),
+            ...(t.track === undefined ? {} : { track: t.track }),
           }
         }
         return {
@@ -106,6 +142,7 @@ export function createTaskTools(specRootInput: RootInput): ToolDefinition[] {
             title: t.title,
             state: t.state,
             grade: t.grade,
+            ...(t.track === undefined ? {} : { track: t.track }),
           })),
         }
       },
@@ -114,7 +151,7 @@ export function createTaskTools(specRootInput: RootInput): ToolDefinition[] {
     defineTool({
       name: 'task_draft',
       description:
-        '新建一个起草态（drafting）任务，把调研结论落成 .spec/tasks/<编号>.yaml。状态由本工具写死为 drafting，时间戳取执行时刻：本工具不能改任务状态、不能签契约、不能改代码。同标题已存在任务时返回那个任务，不重复建。',
+        '新建一个起草态（drafting）任务，把调研结论落成 .spec/tasks/<编号>.yaml。任务可标一条归属轨（内置轨或项目追加轨），方案讨论按轨邀请技术岗位；状态由本工具写死为 drafting，时间戳取执行时刻：本工具不能改任务状态、不能签契约、不能改代码。同标题已存在任务时返回那个任务，不重复建。',
       parameters: {
         title: { type: 'string', required: true, description: '任务标题，一句话说清要办成什么' },
         description: { type: 'string', description: '需求描述：具体要做什么、为什么，允许换行，最多 4000 个字符' },
@@ -131,6 +168,7 @@ export function createTaskTools(specRootInput: RootInput): ToolDefinition[] {
         irreversible: { type: 'array', items: { type: 'string' }, description: '不可逆对象名；填了就必须有人签署的契约才能收口（P3）' },
         evidence_required: { type: 'array', items: { type: 'string' }, description: '收口必备的证据项，对应 env.yaml 里登记的命令 id' },
         proposal: { type: 'string', description: '这条任务出自哪个方案（如 P-01），必须已存在于 proposals/；省略表示不是拆出来的' },
+        track: { type: 'string', description: '这条任务归属的轨：内置轨 h5 / admin / api / desktop / host / general，或 .spec/project.yaml 的 tracks 里项目追加的轨 id；一任务一轨，未知轨会被拒绝' },
         depends_on: { type: 'array', items: { type: 'string' }, description: '前置任务编号；这些任务收口之前本条不会开始' },
         task_id: { type: 'string', description: '指定编号，形如 T-014；省略则取现有 T- 编号之后的下一个空号' },
       },
@@ -159,6 +197,7 @@ export function createTaskTools(specRootInput: RootInput): ToolDefinition[] {
             description: duplicate.description,
             ...(duplicate.category === undefined ? {} : { category: duplicate.category }),
             ...(duplicate.change_type === undefined ? {} : { change_type: duplicate.change_type }),
+            ...(duplicate.track === undefined ? {} : { track: duplicate.track }),
             attachments: duplicate.attachments,
             created: false,
             note: `已有一个同标题任务 ${duplicate.id}（${duplicate.state}），没有重复新建。要继续就基于它起草契约。`,
@@ -186,6 +225,7 @@ export function createTaskTools(specRootInput: RootInput): ToolDefinition[] {
         }
 
         const proposalId = taskDraftProposal(specRoot, args.proposal)
+        const track = taskDraftTrack(specRoot, args.track)
         const dependsOn = args.depends_on ?? []
         if (dependsOn.length > 0) {
           if (dependsOn.includes(id)) throw new Error(`任务不能依赖自己：${id}`)
@@ -209,6 +249,7 @@ export function createTaskTools(specRootInput: RootInput): ToolDefinition[] {
           scope: { irreversible: args.irreversible ?? [], allowed_paths: args.allowed_paths ?? [] },
           evidence_required: args.evidence_required ?? [],
           ...(proposalId === undefined ? {} : { proposal: proposalId }),
+          ...(track === undefined ? {} : { track }),
           ...(dependsOn.length === 0 ? {} : { depends_on: dependsOn }),
           opened_at: new Date().toISOString(),
         })
@@ -224,6 +265,7 @@ export function createTaskTools(specRootInput: RootInput): ToolDefinition[] {
           description: task.description,
           ...(task.category === undefined ? {} : { category: task.category }),
           ...(task.change_type === undefined ? {} : { change_type: task.change_type }),
+          ...(task.track === undefined ? {} : { track: task.track }),
           attachments: task.attachments,
           depends_on: task.depends_on,
           created: true,

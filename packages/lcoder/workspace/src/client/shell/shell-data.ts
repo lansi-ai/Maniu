@@ -41,6 +41,8 @@ export interface ShellTask {
   readonly dependsOn?: readonly string[]
   /** 分配到的岗位 id；`/task_assign` 写过才有，缺省表示未分配。 */
   readonly role?: string
+  /** 归属的轨 id；拆分时标注，缺省表示还没标轨。 */
+  readonly track?: string
   /** 任务声明的允许路径；调度按它判落点重叠。 */
   readonly paths: readonly string[]
   /** 任务声明的不可逆动作；非空时本地建议只能转人工。 */
@@ -76,6 +78,12 @@ export interface ShellEnvironment {
   readonly note?: string
 }
 
+/** 项目追加的一条轨：id 与显示名。 */
+export interface ShellTrack {
+  readonly id: string
+  readonly name: string
+}
+
 /** 项目信息抽屉的数据，来自 `.spec/project.yaml`。 */
 export interface ShellProjectInfo {
   readonly kind: ShellProjectKind
@@ -87,6 +95,8 @@ export interface ShellProjectInfo {
     readonly tests: string
   }
   readonly environments: readonly ShellEnvironment[]
+  /** 项目追加的轨；内置六轨不在其中。 */
+  readonly tracks: readonly ShellTrack[]
 }
 
 /** 看板列，顺序即视觉顺序。 */
