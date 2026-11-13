@@ -1896,6 +1896,11 @@ export function Shell({
       acceptance: t('shell.contractAcceptance'),
     })
 
+  /** 四栏是否有原文；有原文却提不出人话要点时，界面给一句技术骨架提示。 */
+  const detailContractHasText = detailContract !== undefined
+    && [detailContract.change, detailContract.acceptance, detailContract.notChange, detailContract.failIf]
+      .some(items => items.some(item => item.trim() !== ''))
+
   /** 标题下的一句话摘要；原文另放在「完整说明」里。 */
   const detailSummary = detail === null ? '' : taskDescriptionSummary(detail.description)
 
@@ -4947,16 +4952,20 @@ export function Shell({
                   <p className={css.empty}>{t('shell.contractMissing')}</p>
                 ) : (
                   <>
-                    {detailHighlights.length === 0 ? null : (
-                      <ul className={css.contractHighlights} data-contract-highlights>
-                        {detailHighlights.map(highlight => (
-                          <li key={`${highlight.label}-${highlight.text}`} className={css.contractHighlight}>
-                            <strong className={css.contractHighlightLabel}>{highlight.label}</strong>
-                            <span>{highlight.text}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
+                    {detailHighlights.length > 0
+                      ? (
+                        <ul className={css.contractHighlights} data-contract-highlights>
+                          {detailHighlights.map(highlight => (
+                            <li key={`${highlight.label}-${highlight.text}`} className={css.contractHighlight}>
+                              <strong className={css.contractHighlightLabel}>{highlight.label}</strong>
+                              <span>{highlight.text}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )
+                      : detailContractHasText
+                        ? <p className={css.contractTechnicalHint} data-contract-technical-hint>{t('shell.contractTechnicalHint')}</p>
+                        : null}
                     <details className={css.contractFold} data-contract-full>
                       <summary className={css.contractFoldSummary}>
                         {t('shell.contractFull')}

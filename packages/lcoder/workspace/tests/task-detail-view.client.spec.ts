@@ -2,7 +2,7 @@
  * 任务详情摘要派生的纯函数测：只取第一段人话，剥掉 Markdown 与来源前缀，跳过
  * 交代技术引用的句子，压成单行并按码点截断；没有正文时交回空串由界面给占位。
  *
- * 约定要点另测：冒号前主旨、首句截断、技术条过滤与回退、空数组。
+ * 约定要点另测：冒号前主旨、首句截断、技术骨架条目过滤、空数组与截断上限。
  */
 import { describe, expect, it } from 'vitest'
 import {
@@ -133,24 +133,52 @@ describe('约定要点', () => {
     expect(highlights).toEqual([{ label: '要交付什么', text: '加登录限流' }])
   })
 
-  it('技术条目排在后面：人话条目先占要点位', () => {
+  it('技术骨架条目整条丢掉，不占要点位', () => {
     const highlights = contractHighlights({
       change: ['给 better-sqlite3 加索引', '把登录失败次数写进审计日志', '调整 schema 校验'],
       acceptance: [],
     }, LABELS)
-    expect(highlights.map(row => row.text)).toEqual([
-      '把登录失败次数写进审计日志',
-      '给 better-sqlite3 加索引',
-      '调整 schema 校验',
-    ])
+    expect(highlights).toEqual([{ label: '要交付什么', text: '把登录失败次数写进审计日志' }])
   })
 
-  it('人话条目不够时回退到技术条目，顺序按原文', () => {
+  it('人话条目不够时少给，不拿技术条目补齐', () => {
     const highlights = contractHighlights({
       change: ['执行 pnpm 门禁', 'ALTER TABLE users ADD UNIQUE 索引', '记录审计日志'],
       acceptance: [],
     }, LABELS)
-    expect(highlights.map(row => row.text)).toEqual(['记录审计日志', '执行 pnpm 门禁', 'ALTER TABLE users ADD UNIQUE 索引'])
+    expect(highlights.map(row => row.text)).toEqual(['记录审计日志'])
+  })
+
+  it('文件路径与扩展名不进要点', () => {
+    const highlights = contractHighlights({
+      change: ['`src/shared/identity.ts` 作为身份源', '`docs/tasks.yaml` 登记台账'],
+      acceptance: ['`packages/lcoder/workspace/src` 下新增模块'],
+    }, LABELS)
+    expect(highlights).toEqual([])
+  })
+
+  it('安装与启动命令、规格编号不进要点', () => {
+    const highlights = contractHighlights({
+      change: ['执行 npm run build', '走 /api/tasks 接口'],
+      acceptance: ['按 README 在空仓库执行 install→dev', '见 REQ-12 与 R-3'],
+    }, LABELS)
+    expect(highlights).toEqual([])
+  })
+
+  it('人类验收条目保留：手机与桌面入口页', () => {
+    const highlights = contractHighlights({
+      change: [],
+      acceptance: ['手机与桌面都能打开任务详情', '按 README 在空仓库执行 install→dev'],
+    }, LABELS)
+    expect(highlights).toEqual([{ label: '怎么验收', text: '手机与桌面都能打开任务详情' }])
+  })
+
+  it('整组都是技术条目时不出要点，交给界面提示', () => {
+    const highlights = contractHighlights({
+      change: ['`src/shared/identity.ts` 作为唯一身份源', '执行 pnpm typecheck'],
+      acceptance: ['README 里补安装步骤', 'UNIQUE 约束落在 schema 上'],
+    }, LABELS)
+    expect(highlights).toEqual([])
   })
 
   it('两栏各最多三条，先要交付后怎么验收', () => {
@@ -160,6 +188,11 @@ describe('约定要点', () => {
     expect(highlights).toHaveLength(CONTRACT_HIGHLIGHT_LIMIT * 2)
     expect(highlights.slice(0, CONTRACT_HIGHLIGHT_LIMIT).every(row => row.label === '要交付什么')).toBe(true)
     expect(highlights.slice(CONTRACT_HIGHLIGHT_LIMIT).every(row => row.label === '怎么验收')).toBe(true)
+  })
+
+  it('要点上限是六十个码点，每栏最多三条', () => {
+    expect(CONTRACT_HIGHLIGHT_TEXT_LIMIT).toBe(60)
+    expect(CONTRACT_HIGHLIGHT_LIMIT).toBe(3)
   })
 
   it('同一栏重复主旨只留第一条', () => {
