@@ -2263,12 +2263,18 @@ export function Shell({
     setHistoryView({ status: 'idle', groups: [] })
   }
 
-  /** 换任务或关卡片就收起历史抽屉；历史结果不是缓存，下次打开重读。 */
+  /**
+   * 换任务或关卡片就收起历史抽屉；历史结果不是缓存，下次打开重读。
+   *
+   * 只认任务编号：看板每十秒重读投影，同一任务会被换成新快照，按对象收起会打断
+   * 还在读的那一次，抽屉一闪就没。
+   */
+  const detailTaskId = detail?.id
   useEffect(() => {
     historyRequest.current += 1
     setHistoryOpen(false)
     setHistoryView({ status: 'idle', groups: [] })
-  }, [detail])
+  }, [detailTaskId])
 
   /**
    * 跑一次方案讨论：同需求下仍待讨论的任务一起开会，架构师汇总并逐任务起草契约。
