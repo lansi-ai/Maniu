@@ -1718,7 +1718,7 @@ tracks:
       note: "B 级行为修复，来源是用户 2026-11-13 反馈把 LCoder-empty-demo 的目录内容删空后仍显示 5 个会话且没有重新开始。已核原因：工作区是宿主登记的实体，会话按会话头 cwd 归属路径，删文件不改变归属；开发 home 的 workspace.json 里该路径仍登记 5 个会话号，home 的 sessions 下也确有 5 个目录；界面的空项目判定只看任务与规格，不看目录是否为空。已确认口径：空目录时给显式「重新开始」入口，点击后归档本工作区旧会话（可恢复、不删会话文件）并打开需求分析师，同时保留「继续用旧会话」与「换个目录」；不自动归档，避免网络盘或外接盘暂时不可达被误判。实现要点：判定工作区根是否没有任何条目，并在看板空态展示旧会话数；归档走宿主 workspace.archiveSession 远程命令，逐条结果如实显示，失败不静默；文案走中英词典，四套皮肤与窄窗可用，reduced-motion 不变。验收 typecheck、packages/lcoder vitest、oxlint、verify-client-ui-i18n、test:docs；单测覆盖空目录判定、归档调用与失败路径、保留旧会话分支。2026-11-13 11:32 监督窗口登记，待 T-150 验收后派工。"
     - id: T-152
       title: 确认需求不再把会话模型切成云端
-      status: doing
+      status: done
       face: 用户端
       type: 修复
       owner: lance
@@ -1726,7 +1726,7 @@ tracks:
       date: '2026-11-13'
       dep: [T-149]
       inferred: false
-      note: "B 级修复，来源是 T-150 真机验收在确认需求这一步被阻塞。证据取自语料：靶仓会话日志里第 1 轮请求头是 deepseek-official 与 deepseek-flash，第 1 轮结束 33 秒后出现 model/selection 到 lcoder-cloud 与 deepseek-flash，第 2 轮请求头变云端，回合以 502 upstream_unavailable 结束；点重试落盘后同一模式再次出现，说明不是网关单次抖动。根因：cloud/face.ts 的 selectRoute 实现就是调 selectModel 写死在 lcoder-cloud 与 deepseek-flash；Shell 的确认需求、重试落盘、更多讨论三个入口无条件先调 routeSession，于是把用户已选的官网模型覆盖成云端。聊天发送与任务绑定两处已有正确守卫，只在 provider 为空或等于旧的匿名访客路由时才切路由。修法：把这三个入口改成同一守卫（抽成一个局部 helper 复用），保留登录后旧匿名会话切回用户路由的能力；不改 selectRoute 本身，不改新建会话与其它入口的路由调用。约束是不改产品数据格式、不新增页面、文案不变。验收 typecheck 与 packages/lcoder vitest 与改动文件 oxlint；补组件或流程单测覆盖官网模型下确认与重试不调用 selectRoute、旧匿名路由仍会路由。工作树用 pool-slot-2 claim 到 lcoder/t152-intake-keep-model，端口 9823 与 9831 与 9832。2026-11-13 11:46 监督窗口登记并派工。"
+      note: "B 级修复，来源是 T-150 真机验收在确认需求这一步被阻塞。证据取自语料：靶仓会话日志里第 1 轮请求头是 deepseek-official 与 deepseek-flash，第 1 轮结束 33 秒后出现 model/selection 到 lcoder-cloud 与 deepseek-flash，第 2 轮请求头变云端，回合以 502 upstream_unavailable 结束；点重试落盘后同一模式再次出现，说明不是网关单次抖动。根因：cloud/face.ts 的 selectRoute 实现就是调 selectModel 写死在 lcoder-cloud 与 deepseek-flash；Shell 的确认需求、重试落盘、更多讨论三个入口无条件先调 routeSession，于是把用户已选的官网模型覆盖成云端。聊天发送与任务绑定两处已有正确守卫，只在 provider 为空或等于旧的匿名访客路由时才切路由。修法：把这三个入口改成同一守卫（抽成一个局部 helper 复用），保留登录后旧匿名会话切回用户路由的能力；不改 selectRoute 本身，不改新建会话与其它入口的路由调用。约束是不改产品数据格式、不新增页面、文案不变。验收 typecheck 与 packages/lcoder vitest 与改动文件 oxlint；补组件或流程单测覆盖官网模型下确认与重试不调用 selectRoute、旧匿名路由仍会路由。工作树用 pool-slot-2 claim 到 lcoder/t152-intake-keep-model，端口 9823 与 9831 与 9832。2026-11-13 11:46 监督窗口登记并派工。2026-11-13 12:05 监督窗口核验并收口。实现线一笔提交，新增 routeLegacySession，确认需求、重试落盘、更多讨论与聊天发送四处统一按 provider 守卫，只在 provider 为空或旧匿名访客路由时才切；补了三条路径乘两种 provider 的用例。独立复跑 typecheck 五项、workspace vitest 四十八文件、改动两文件 oxlint 零错零警全过；主检出复跑 typecheck 与 packages/lcoder vitest 八十二文件、build:artifacts 八项与 build:check 两项全过。未验项是真机上确认需求后不再切云端并成功落盘，需重启实例后继续 T-150。已合入 lcoder/main、release pool-slot-2。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
