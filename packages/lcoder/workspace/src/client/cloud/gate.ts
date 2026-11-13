@@ -14,6 +14,7 @@ export type CloudGateEntry =
   | 'taskConversation'
   | 'contractSign'
   | 'proposalApprove'
+  | 'requirementApprove'
   | 'flowBatch'
   | 'modelSettings'
 

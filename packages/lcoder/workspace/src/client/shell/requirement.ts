@@ -1,25 +1,13 @@
 /**
- * 需求卡片的判定、时间展示与拆分指令。
+ * 需求的展示值与拆分指令。
  *
- * 需求卡片只给「已确认、等待拆分」的 drafting 任务：它们带 `proposal` 回指，
- * 是从方案里落下的需求本体，不是后续开发任务。其它状态仍走普通任务详情。
+ * 需求是独立的 REQ 实体：正文在 `.spec/requirements/<编号>.md`，拆分以需求为输入，
+ * 拆出的任务用 `requirement` 回指 REQ 编号。这里只保留时间展示、正文上限与指令模板，
+ * 进度判定见 `requirement-page.ts`（调用 kernel 的派生函数）。
  */
 import type { ShellMessage, ShellTask } from './shell-data.ts'
 import { BUILTIN_TRACKS } from '@lcoder/kernel/src/schema/tracks.ts'
 import type { TrackDescriptor } from '@lcoder/kernel/src/schema/tracks.ts'
-
-/**
- * 任务是否是需求卡片要看的那一条。
- *
- * 需求本体没有岗位也没有轨；拆分后进了方案讨论的任务同样带方案回指，但它们由任务详情
- * 展示讨论与契约，不该再打开需求卡片。
- * @param task - 看板任务。
- * @returns 状态为 drafting、带方案回指、且没有岗位与轨时为 true。
- */
-export function isRequirementTask(task: ShellTask): boolean {
-  return task.state === 'drafting' && task.proposal !== undefined
-    && task.role === undefined && task.track === undefined
-}
 
 /**
  * 任务开立时间的展示值。
@@ -33,26 +21,6 @@ export function formatOpenedAt(value: string | undefined): string {
   if (value === undefined || value.trim() === '') return ''
   const at = new Date(value)
   return Number.isNaN(at.getTime()) ? '' : at.toLocaleString()
-}
-
-/**
- * 分析师当时输出的《项目需求概要》正文。
- *
- * 在助手消息里找包含「项目需求概要」的文本，取最长的一条：完整文档远长于确认后的
- * 落盘回执，按长度能稳定跳过回执。读不到时返回 null，由卡片退回方案或任务描述。
- * @param messages - 外壳的消息列表。
- * @returns 需求概要正文；没有时为 null。
- */
-export function intakeSummaryOf(messages: readonly ShellMessage[]): string | null {
-  let found: string | null = null
-  for (const message of messages) {
-    if (message.role !== 'assistant') continue
-    if (!message.text.includes('项目需求概要')) continue
-    const text = message.text.trim()
-    if (text === '') continue
-    if (found === null || text.length > found.length) found = text
-  }
-  return found
 }
 
 /** 立项问答里的一问一答。 */
@@ -207,9 +175,19 @@ function boundDocument(text: string): { text: string; truncated: boolean } {
   return { text: kept.trimEnd(), truncated: true }
 }
 
-/** 需求文档在 `.spec` 里的路径；任务没回指方案时指向目录。 */
-export function requirementDocumentPath(task: ShellTask): string {
-  return task.proposal === undefined ? '.spec/requirements/' : `.spec/requirements/${task.proposal}.md`
+/** 拆分与讨论用的需求引用：稳定编号与标题。 */
+export interface RequirementRef {
+  readonly id: string
+  readonly title: string
+}
+
+/**
+ * 需求文档在 `.spec` 里的路径。
+ * @param requirement - 需求编号与标题。
+ * @returns 同名 Markdown 的相对路径。
+ */
+export function requirementDocumentPath(requirement: RequirementRef): string {
+  return `.spec/requirements/${requirement.id}.md`
 }
 
 /** 指令里可附上的需求正文；`truncated` 说明是否按边界截断。 */
@@ -235,22 +213,22 @@ export function boundRequirementText(text: string): RequirementDocumentExcerpt {
  * 范围不拆。缺文档时退回任务描述与方案正文，并说明读不到文档。无论哪种来源，都只把
  * 这一条需求拆成 drafting 任务写进 `.spec/tasks`；不改需求、项目与方案，不开始实现，
  * 也不推进状态。
- * @param task - 被拆分的需求任务。
- * @param source - 已读到的需求文档与方案正文；都没有时省略。
+ * @param requirement - 被拆分的需求：REQ 编号与标题。
+ * @param source - 已读到的需求文档与旧方案正文；都没有时省略。
  * @param tracks - 这次可用的轨；缺省为内置六轨。
  * @returns 中文指令正文。
  */
 export function buildRequirementSplitPrompt(
-  task: ShellTask,
+  requirement: RequirementRef,
   source: RequirementSplitSource = {},
   tracks: readonly TrackDescriptor[] = BUILTIN_TRACKS.map(track => ({ id: track.id, name: track.name })),
 ): string {
   const document = source.document?.trim() ?? ''
   const proposal = source.proposal?.trim() ?? ''
-  const path = requirementDocumentPath(task)
+  const path = requirementDocumentPath(requirement)
   const trackList = tracks.map(track => `${track.id}（${track.name}）`).join('、')
   const lines = [
-    `需求拆分：请把需求 ${task.id}（${task.title}）拆分成可执行的开发任务，写入 .spec/tasks。`,
+    `需求拆分：请把需求 ${requirement.id}（${requirement.title}）拆分成可执行的开发任务，写入 .spec/tasks。`,
     '',
     document === ''
       ? `依据：没有读到这条需求对应的需求文档（${path}），只能退回任务描述与方案正文划分范围；两者冲突时以任务描述为准，并在结果里说明缺了需求文档。`
@@ -258,7 +236,8 @@ export function buildRequirementSplitPrompt(
     '',
     '要求：',
     '- 每条任务对应一个可独立验收的业务结果，不按纯技术步骤堆叠。',
-    '- 每条任务 state 为 drafting；写清 description（范围与验收标准）、grade、rules（只引用需求里已确认的规则编号）、depends_on、scope.allowed_paths 与 track。',
+    `- 每条任务 state 为 drafting；写清 description（范围与验收标准）、grade、rules（只引用需求里已确认的规则编号）、depends_on、scope.allowed_paths 与 track，并写 requirement: ${requirement.id}。`,
+    '- 不要写 proposal：需求就是 REQ，旧方案编号不再用于新任务。',
     '- 有先后依赖的用 depends_on 表达。',
     '- 不要修改需求本身、.spec/project.yaml、已有方案与规格条目；不要开始实现、不要签契约、不要推进任务状态。',
     '- 完成后列出新建的任务编号、标题、轨与依赖关系。',
@@ -276,7 +255,7 @@ export function buildRequirementSplitPrompt(
     lines.push(
       '',
       '任务描述：',
-      boundDocument(task.description.trim()).text || '（任务没有描述）',
+      boundDocument(requirement.title.trim()).text || '（需求没有标题）',
       '',
       '方案正文：',
       proposal === '' ? '（读不到方案正文）' : boundDocument(proposal).text,

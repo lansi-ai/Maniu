@@ -35,8 +35,10 @@ export interface ShellTask {
   readonly surface: string
   /** 认领这条任务的会话号；缺省表示还没有会话在跑它。 */
   readonly session?: string
-  /** 这条任务出自哪个方案（`P-01`）；缺省表示不是拆出来的。 */
+  /** 这条任务出自哪个方案（`P-01`）；旧流程的任务才有，缺省表示没有。 */
   readonly proposal?: string
+  /** 这条任务出自哪条需求（`REQ-01`）；新流程的任务才有，读侧优先需求。 */
+  readonly requirement?: string
   /** 前置任务编号；缺省表示没有依赖。 */
   readonly dependsOn?: readonly string[]
   /** 分配到的岗位 id；`/task_assign` 写过才有，缺省表示未分配。 */
@@ -112,19 +114,34 @@ export const SHELL_STATES: readonly { readonly id: ShellTaskState; readonly labe
 export type ShellBoardColumnId = ShellTaskState | 'discussion'
 
 /**
- * 看板列（含方案讨论），顺序即视觉顺序。
+ * 任务看板列，顺序即视觉顺序。
  *
- * 「方案讨论」不是内核状态：它由 drafting 任务的岗位与契约投影派生，任务文件仍是
+ * 「需求确认」不再成列：需求本体由需求页管理，任务页只画拆分后的交付任务。
+ * 「方案讨论」不是内核状态：它由 drafting 任务的轨与契约投影派生，任务文件仍是
  * drafting。`SHELL_STATES` 仍只列真实状态，状态文案与工具面判断继续用它。
  */
 export const SHELL_BOARD_COLUMNS: readonly { readonly id: ShellBoardColumnId; readonly labelKey: LcoderWorkspaceKey }[] = [
-  { id: 'drafting', labelKey: 'shell.drafting' },
   { id: 'discussion', labelKey: 'shell.discussing' },
   { id: 'contracted', labelKey: 'shell.contracted' },
   { id: 'implementing', labelKey: 'shell.implementing' },
   { id: 'verifying', labelKey: 'shell.verifying' },
   { id: 'closed', labelKey: 'shell.closed' },
 ]
+
+/**
+ * 旧流程的需求本体任务：起草态、带方案回指、没有轨也没有岗位。
+ *
+ * 新流程的需求是独立 REQ 实体，这类任务只存在于旧仓库；任务页按本条把它们隐藏，
+ * 旧数据仍由内核与投影读取，不迁移也不删除。
+ * @param task - 看板任务。
+ * @returns 是旧需求本体任务时为 true。
+ */
+export function isRequirementBodyTask(task: ShellTask): boolean {
+  return task.state === 'drafting'
+    && task.proposal !== undefined
+    && task.track === undefined
+    && task.role === undefined
+}
 
 /** 悬浮对话里的一条消息：用户、答复、注入上下文、一段收敛后的过程，或一次压缩标记。 */
 export type ShellMessage =
@@ -470,21 +487,17 @@ const INTAKE_DISCIPLINE = `你的身份：AI 产品经理、需求分析师与�
 - 结论分四类：【已确认】（用户明说或权威文档规定）、【AI 建议】（推荐但未选）、【待确认】（现在定不了）、【暂不开发】（用户明确排除）。未知统一写「—」或「待确认」。
 - 输出完停下，等用户回复「确认需求」或提出修改。这一步只确认业务理解，不代表获准编码、提交或部署。
 
-用户确认后按顺序落盘，只用下面这些专用工具，不用通用写文件能力，也不手写文件（唯一例外是需求文档另存一份 Markdown，见「需求基线的出口」）：
+用户确认后按顺序落盘，只用下面这些专用工具，不用通用写文件能力，也不手写文件：
 1. project_draft 登记 .spec/project.yaml。kind 只能是 web、desktop、library；repo_url 与 repo_branch 必填，没有远端时填本仓库目录与 main，并注明这是计划地址；产品、架构、测试三份文档路径没有就留空，不要编造。文件已存在就只回读现值，不覆盖。
 2. spec_draft 登记一条 status 为 draft 的规格：从已确认的业务规则里挑一条能清晰验证的，写清模块、类型（rule、formula、invariant、enum、state_machine、api）、正文与出处。出处可以是 .spec/project.yaml 的字段（doc 写该文件，quote 写字段内容），也可以是用户的原话（记「来自第 N 问」）；没有仓库内文档时不要编造路径。不改已有条目、不撞编号、不重复正文。
-3. task_draft 立一条 drafting 任务：标题用业务目标；rules 只能填第 2 步真正落盘成功的编号，没有就留空。不要传 track 与 role：需求本体不参与交付面划分，track 只给拆分出来的开发任务，标了会让看板把需求本体错放进方案讨论列。
-4. 每一步做完都回读核对。不能把「准备调用」或「模型输出了 JSON」当成「文件已落盘」。
+3. requirement_draft 登记需求：title 用一句话说清这条需求要解决什么；content 传刚才输出并经用户确认的《项目需求概要》完整 Markdown 正文，原样保留标题、清单与四类结论，不要压缩成摘要；options 逐条传概要里的候选做法（name 与 summary 必填，cost 可省）；recommendation 传概要里的推荐及理由，没有推荐就省略。工具会写 .spec/requirements/REQ-<编号>.yaml 与同名 .md，返回需求编号。
+4. 不要建需求本体任务：不调用 task_draft，也不调用 proposal_draft。需求就是 REQ，拆分任务由人在需求页触发，不在这里做。
+5. 每一步做完都回读核对。不能把「准备调用」或「模型输出了 JSON」当成「文件已落盘」。
 
 失败就照实报四件事：哪一步已落盘、哪一步没落盘、失败原因、安全的下一步。不留半截文件，不用通用写盘绕过专用工具。
 
-需求基线的出口：
-- 若你的工具面里有 proposal_draft，用它把《项目需求概要》落成方案（状态 draft）并回读确认，记下方案编号；没有就在对话里输出完整、可复制的 Markdown，并明确说「尚未写入仓库」，绝不假装已创建。
-- 拿到方案编号后，把完整的《项目需求概要》原样写到 .spec/requirements/<方案编号>.md：目录不存在就创建，文件已存在就更新为本版，写完回读核对正文。这是立项流程唯一允许直接写的文件，其余文件仍只用专用工具；没有方案编号就不写，如实说明文档只在对话里。
-- 不编造架构文档、测试脚本、技术选型或审批意见；技术方案可以提，但要标【AI 建议】。
-
 收尾：先判断是否具备编码条件（业务目标、用户角色、第一版范围、核心流程、关键规则、验收条件、运行平台是否都清楚），再给一段交接摘要：
-项目 / 需求状态（已确认、部分确认、未确认）/ 项目登记（已落盘、未落盘、已存在）/ 规格草稿编号或未落盘原因 / 任务草稿编号或未落盘原因 / 可用开发文档（实际路径或「仅对话内生成」）/ 是否具备编码条件 / 下一步。
+项目 / 需求编号与状态（已确认、部分确认、未确认）/ 项目登记（已落盘、未落盘、已存在）/ 规格草稿编号或未落盘原因 / 需求编号或未落盘原因 / 可用开发文档（实际路径或「仅对话内生成」）/ 是否具备编码条件 / 下一步。
 
 边界：不签契约、不推进任务状态、不改业务代码、不跑命令、不提交、不推送、不部署；这些都要人另行授权。`
 
