@@ -52,6 +52,23 @@ export interface TaskRow {
   readonly irreversible: readonly string[]
   /** 任务开立时间（`opened_at`）；缺省表示文件里没写。 */
   readonly openedAt?: string
+  /** 这条任务的交付索引；没有登记时缺省，旧数据不补空对象。 */
+  readonly deliverable?: DeliverableRow
+}
+
+/**
+ * 一条任务的交付索引（`.spec/deliverables/<任务编号>.yaml`）。
+ *
+ * `docs` 是仓库相对路径，展示侧原样显示；`commands` 可以为空。
+ * 索引不存在是常态（普通任务不要求交付），不是故障。
+ */
+export interface DeliverableRow {
+  readonly task: string
+  readonly summary: string
+  readonly docs: readonly string[]
+  readonly commands: readonly string[]
+  readonly createdAt?: string
+  readonly updatedAt?: string
 }
 
 /**
@@ -243,6 +260,7 @@ export const TASKS_DIR = `${SPEC_DIR}/tasks`
 export const CONTRACTS_DIR = `${SPEC_DIR}/contracts`
 export const PROPOSALS_DIR = `${SPEC_DIR}/proposals`
 export const REQUIREMENTS_DIR = `${SPEC_DIR}/requirements`
+export const DELIVERABLES_DIR = `${SPEC_DIR}/deliverables`
 export const RULES_FILE = `${SPEC_DIR}/spec/rules.yaml`
 export const PROJECT_FILE = `${SPEC_DIR}/project.yaml`
 export const LOCAL_FILE = `${SPEC_DIR}/local.yaml`
@@ -559,6 +577,46 @@ export function requirementTextToRow(fileName: string, text: string): Omit<Requi
   }
 }
 
+/** 展示侧只接受仓库相对路径：绝对路径与 `..` 上跳不画成可点击的文档。 */
+function repoRelativeDocs(value: unknown): string[] {
+  return stringArray(value).filter((doc) => {
+    if (/^(?:[A-Za-z]:|[\\/])/.test(doc)) return false
+    return !doc.split(/[\\/]/).includes('..')
+  })
+}
+
+/**
+ * 一份交付索引 YAML 的文本 → 展示行。
+ *
+ * 缺 task 或 summary 就读不懂，返回 undefined 由调用方记进 problems；
+ * docs 只收仓库相对路径，展示侧不补路径——索引写了什么就画什么。
+ * @param fileName - 文件名，缺 task 时用文件名兜底。
+ * @param text - 文件正文。
+ * @returns 可展示的交付索引，读不懂为 undefined。
+ */
+export function deliverableTextToRow(fileName: string, text: string): DeliverableRow | undefined {
+  let fields: Record<string, unknown> | undefined
+  try {
+    fields = recordOf(parseYaml(text))
+  } catch {
+    return undefined
+  }
+  if (fields === undefined) return undefined
+  const task = asText(fields.task) ?? fileName.replace(/\.yaml$/, '')
+  const summary = asText(fields.summary)
+  if (task === '' || summary === undefined) return undefined
+  const createdAt = asText(fields.created_at)
+  const updatedAt = asText(fields.updated_at)
+  return {
+    task,
+    summary,
+    docs: repoRelativeDocs(fields.docs),
+    commands: stringArray(fields.commands),
+    ...(createdAt === undefined ? {} : { createdAt }),
+    ...(updatedAt === undefined ? {} : { updatedAt }),
+  }
+}
+
 /**
  * 读取一个会话的文件投影。三路读取互不阻塞；任何一路失败只记说明，
  * 不让整份投影落空——三栏宁可缺一角，不要全白。
@@ -568,16 +626,22 @@ export async function loadWorkspaceProjection(
   sessionId: SessionId,
   signal: AbortSignal,
 ): Promise<WorkspaceProjection> {
-  const [tasks, rules, contracts, proposals, requirements, groups] = await Promise.all([
+  const [tasks, rules, contracts, proposals, requirements, groups, deliverables] = await Promise.all([
     loadTasks(files, sessionId, signal),
     loadRules(files, sessionId, signal),
     loadContracts(files, sessionId, signal),
     loadProposals(files, sessionId, signal),
     loadRequirements(files, sessionId, signal),
     loadGroups(files, sessionId, signal),
+    loadDeliverables(files, sessionId, signal),
   ])
+  // 交付索引按任务挂到任务行上：任务详情直接读这一份，不再单独查目录。
+  const deliverableByTask = new Map(deliverables.rows.map(row => [row.task, row]))
   return {
-    tasks: tasks.rows,
+    tasks: tasks.rows.map((row) => {
+      const deliverable = deliverableByTask.get(row.id)
+      return deliverable === undefined ? row : { ...row, deliverable }
+    }),
     rules: rules.rows,
     contracts: contracts.rows,
     proposals: proposals.rows,
@@ -585,9 +649,51 @@ export async function loadWorkspaceProjection(
     groups: groups.rows,
     problems: [
       ...tasks.problems, ...rules.problems, ...contracts.problems, ...proposals.problems,
-      ...requirements.problems, ...groups.problems,
+      ...requirements.problems, ...groups.problems, ...deliverables.problems,
     ],
   }
+}
+
+/**
+ * 读 `.spec/deliverables/` 下的交付索引。目录不存在是常态（还没登记过），不算故障。
+ * 引用了不存在任务的索引照常返回一行，由调用方按任务编号挂载时自然丢弃。
+ */
+async function loadDeliverables(
+  files: ProjectionFilesRemote,
+  sessionId: SessionId,
+  signal: AbortSignal,
+): Promise<{ rows: DeliverableRow[]; problems: string[] }> {
+  const rows: DeliverableRow[] = []
+  const problems: string[] = []
+
+  const listed = await files.list(sessionId, DELIVERABLES_DIR, signal)
+  if (!listed.ok) {
+    if (!isMissing(listed.error, DELIVERABLES_DIR)) {
+      problems.push(`${DELIVERABLES_DIR}/: ${messageOf(listed.error)}`)
+    }
+    return { rows, problems }
+  }
+
+  const names = listed.value.entries
+    .filter(entry => entry.type === 'file' && entry.name.endsWith('.yaml'))
+    .map(entry => entry.name)
+
+  await Promise.all(names.map(async (name) => {
+    const page = await files.readPage(sessionId, `${DELIVERABLES_DIR}/${name}`, signal)
+    if (!page.ok) {
+      problems.push(`${DELIVERABLES_DIR}/${name}: ${messageOf(page.error)}`)
+      return
+    }
+    const row = deliverableTextToRow(name, page.value.text)
+    if (row === undefined) {
+      problems.push(`${DELIVERABLES_DIR}/${name}: 不是能读的交付索引文件`)
+      return
+    }
+    rows.push(row)
+  }))
+
+  rows.sort((a, b) => (a.task < b.task ? -1 : a.task > b.task ? 1 : 0))
+  return { rows, problems }
 }
 
 /**

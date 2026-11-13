@@ -10,9 +10,10 @@ import type { WorkspaceDirectoryListing, WorkspaceFileText } from '@deepseek-ai/
 import type { RemoteFailure, RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 import {
-  loadLocalSecrets, loadProjectInfo, loadWorkspaceProjection, AUTOMATION_FILE, CONTRACTS_DIR, LOCAL_FILE, PROJECT_FILE,
-  REQUIREMENTS_DIR, SCHEDULING_DIR, automationTextToRow, contractTextToRow, groupTextToRow, loadAutomationPolicy,
-  rulesTextToRows, RULES_FILE, SPEC_DIR, TASKS_DIR, requirementTextToRow, taskTextToRow,
+  loadLocalSecrets, loadProjectInfo, loadWorkspaceProjection, AUTOMATION_FILE, CONTRACTS_DIR, DELIVERABLES_DIR, LOCAL_FILE,
+  PROJECT_FILE, REQUIREMENTS_DIR, SCHEDULING_DIR, automationTextToRow, contractTextToRow, deliverableTextToRow,
+  groupTextToRow, loadAutomationPolicy, rulesTextToRows, RULES_FILE, SPEC_DIR, TASKS_DIR, requirementTextToRow,
+  taskTextToRow,
 } from '../src/client/projection.ts'
 import type { ProjectionFilesRemote } from '../src/client/projection.ts'
 
@@ -556,5 +557,84 @@ describe('自动化策略', () => {
     )
     expect(broken.policy).toBeNull()
     expect(broken.problems.join(' ')).toContain(AUTOMATION_FILE)
+  })
+})
+
+describe('交付索引', () => {
+  const DELIVERABLE_YAML = [
+    'task: T-014',
+    'summary: 补齐基础框架说明',
+    'docs:',
+    '  - README.md',
+    '  - docs/architecture.md',
+    'commands:',
+    '  - pnpm typecheck',
+    'created_at: 2026-11-13T10:00:00.000Z',
+    'updated_at: 2026-11-13T11:00:00.000Z',
+  ].join('\n')
+
+  it('deliverableTextToRow 读摘要、文档与命令；缺摘要就放弃这一行', () => {
+    expect(deliverableTextToRow('T-014.yaml', DELIVERABLE_YAML)).toMatchObject({
+      task: 'T-014',
+      summary: '补齐基础框架说明',
+      docs: ['README.md', 'docs/architecture.md'],
+      commands: ['pnpm typecheck'],
+      createdAt: '2026-11-13T10:00:00.000Z',
+      updatedAt: '2026-11-13T11:00:00.000Z',
+    })
+    expect(deliverableTextToRow('T-014.yaml', 'task: T-014\ndocs: [README.md]\n')).toBeUndefined()
+
+    const escaped = deliverableTextToRow('T-014.yaml', [
+      'task: T-014',
+      'summary: 摘要',
+      'docs:',
+      '  - README.md',
+      '  - C:/secret.md',
+      '  - ../outside.md',
+    ].join('\n'))
+    expect(escaped?.docs).toEqual(['README.md'])
+  })
+
+  it('投影把交付索引按任务挂到任务行上；指向不存在任务的索引不冒充', async () => {
+    const files = fakeFiles(
+      { [TASKS_DIR]: ['T-014.yaml'], [DELIVERABLES_DIR]: ['T-014.yaml', 'T-099.yaml'] },
+      {
+        [`${TASKS_DIR}/T-014.yaml`]: TASK_YAML,
+        [`${DELIVERABLES_DIR}/T-014.yaml`]: DELIVERABLE_YAML,
+        [`${DELIVERABLES_DIR}/T-099.yaml`]: DELIVERABLE_YAML.replace('T-014', 'T-099'),
+      },
+    )
+    const projection = await loadWorkspaceProjection(files, SESSION, new AbortController().signal)
+
+    expect(projection.tasks).toHaveLength(1)
+    expect(projection.tasks[0]?.deliverable).toMatchObject({
+      task: 'T-014',
+      summary: '补齐基础框架说明',
+      docs: ['README.md', 'docs/architecture.md'],
+      commands: ['pnpm typecheck'],
+    })
+    expect(projection.problems).toEqual([])
+  })
+
+  it('没有交付索引时任务行不补空对象；坏文件只记说明', async () => {
+    const clean = await loadWorkspaceProjection(
+      fakeFiles({ [TASKS_DIR]: ['T-014.yaml'] }, { [`${TASKS_DIR}/T-014.yaml`]: TASK_YAML }),
+      SESSION,
+      new AbortController().signal,
+    )
+    expect(clean.tasks[0]?.deliverable).toBeUndefined()
+    expect(clean.problems).toEqual([])
+
+    const broken = await loadWorkspaceProjection(
+      fakeFiles(
+        { [TASKS_DIR]: ['T-014.yaml'], [DELIVERABLES_DIR]: ['T-014.yaml'] },
+        { [`${TASKS_DIR}/T-014.yaml`]: TASK_YAML, [`${DELIVERABLES_DIR}/T-014.yaml`]: 'docs: [unclosed' },
+      ),
+      SESSION,
+      new AbortController().signal,
+    )
+    expect(broken.tasks).toHaveLength(1)
+    expect(broken.tasks[0]?.deliverable).toBeUndefined()
+    expect(broken.problems[0]).toContain('T-014.yaml')
   })
 })
