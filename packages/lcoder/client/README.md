@@ -14,6 +14,7 @@ English | [中文](README.zh.md)
 - `src/account/`：验证码/密码登录、注册、退出与令牌刷新、个人中心与用量分页；令牌始终留在宿主凭据里。
 - `src/pages/settings.tsx`、`src/settings/model-settings.ts`：模型服务（provider、路由、钥匙三态、默认模型）、皮肤、字体、语言与更新空态；`src/prefs.ts` 持久化本地偏好。
 - `src/locale-zh.ts` / `src/locale-en.ts`：新壳与 M3 新增文案的双语词典；`src/theme/skins.css` 提供霓虹/冷银/粉樱三套皮肤与自托管 Inter。
+- `src/prefs.ts`：皮肤、字体与语言以主进程 userData 的偏好文件为权威值，localStorage 只作渲染端缓存；启动时先经 `lcoder:preferences-read` 取回落盘值再挂载，点击即经 `lcoder:preferences-write` 同步落盘。
 - `src/store.ts`：`session.follow` 三帧（snapshot / event / assistant-stream）的纯折叠；按 seq 检测缺口并要求重开快照，折叠会话标题、投影水位、按回合收敛的过程组与工具结果摘要；入口 `session.list` + `api-session/*` 事件。
 - `src/chat/`：审批/提问回执编码（`approvalOutcome` / `questionOutcome` 原样发回宿主结果）、模型与上下文用量判定、图片上限与提示词拼装、附件读取与 `session/attachment` 预览、`session/control` 投影流。
 - `src/spec/`：`.spec` 文件投影（任务、规则、契约、方案、需求、交付物、联调组、岗位、项目与本地密钥），全部经宿主 `workspaceFiles` 读取。

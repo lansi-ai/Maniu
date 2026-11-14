@@ -5,7 +5,7 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { IPC_CHANNELS } from './contract.ts'
 import type { DesktopLocaleId } from './contract.ts'
-import { readDesktopLocale, writeDesktopLocale } from './desktop-locale.ts'
+import { readDesktopPreferences } from './desktop-locale.ts'
 import { HostSupervisor } from './host-supervisor.ts'
 import { createStatePublisher, createWindowStatePublisher, registerIpc } from './ipc.ts'
 import { HostLink } from './link.ts'
@@ -74,9 +74,9 @@ function wireMainWindow(window: BrowserWindow): void {
   window.on('closed', () => { mainWindow = undefined })
 }
 
-function installLocale(localeId: DesktopLocaleId): void {
+function applyLocale(localeId: DesktopLocaleId): void {
+  if (locale === localeId) return
   locale = localeId
-  writeDesktopLocale(localeId)
   installMenu({ locale: () => locale, window: () => mainWindow, quit: () => { app.quit() } })
   tray?.relabel()
 }
@@ -131,7 +131,7 @@ if (!app.requestSingleInstanceLock()) {
 } else {
   app.on('second-instance', () => { focusWindow() })
   app.whenReady().then(async () => {
-    locale = readDesktopLocale()
+    locale = readDesktopPreferences().locale
     registerIpc({
       link: () => link,
       appInfo: () => ({ version: app.getVersion(), ...(link === undefined ? {} : { hostUrl: supervisor?.readyUrl ?? '' }) }),
@@ -139,7 +139,7 @@ if (!app.requestSingleInstanceLock()) {
       hostState: () => publisher.current(),
       windowState: () => windowState.current(),
       update: checkUpdate,
-      setLocale: installLocale,
+      applyLocale,
     })
     mainWindow = createMainWindow()
     wireMainWindow(mainWindow)

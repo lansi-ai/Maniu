@@ -3,7 +3,8 @@
 import { app } from 'electron'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import type { DesktopLocaleId } from './contract.ts'
+import type { DesktopLocaleId, DesktopPreferences } from './contract.ts'
+import { DEFAULT_DESKTOP_PREFERENCES, sanitizeDesktopPreferences } from './preferences.ts'
 
 /** 主进程需要本地化的一处文案。 */
 export interface DesktopMessages {
@@ -92,50 +93,44 @@ export const DESKTOP_MESSAGES: Readonly<Record<DesktopLocaleId, DesktopMessages>
   },
 }
 
-/**
- * 判定任意值是界面语言标识。
- * @param value - 来自 IPC 或磁盘的值。
- * @returns value 是 `DesktopLocaleId` 时为 true。
- */
-export function isDesktopLocale(value: unknown): value is DesktopLocaleId {
-  return value === 'zh' || value === 'en'
-}
-
 /** 偏好文件路径；放在 userData 下，跨安装更新保留。 */
 function preferenceFile(): string {
   return join(app.getPath('userData'), 'lcoder-preferences.json')
 }
 
 /**
- * 读最近一次保存的界面语言。
- * @returns 保存值；缺失、损坏或未知时为中文。
+ * 读主进程保存的完整偏好。
+ *
+ * 旧版本文件只有 `locale`；缺失字段回默认值，不把整份文件判坏。
+ * @returns 完整偏好。
  */
-export function readDesktopLocale(): DesktopLocaleId {
+export function readDesktopPreferences(): DesktopPreferences {
   try {
-    const parsed: unknown = JSON.parse(readFileSync(preferenceFile(), 'utf8'))
-    if (typeof parsed === 'object' && parsed !== null && 'locale' in parsed && isDesktopLocale(parsed.locale)) {
-      return parsed.locale
-    }
+    return sanitizeDesktopPreferences(JSON.parse(readFileSync(preferenceFile(), 'utf8')))
   } catch (error: unknown) {
-    // 首次启动没有偏好文件，或文件被外部改坏；用默认语言继续启动。
+    // 首次启动没有偏好文件，或文件被外部改坏；用默认偏好继续启动。
     void error
+    return DEFAULT_DESKTOP_PREFERENCES
   }
-  return 'zh'
 }
 
 /**
- * 保存界面语言；写盘失败不回滚已生效的菜单。
- * @param locale - 本次选择的界面语言。
+ * 合并并同步写入偏好；写盘失败只保留内存里的本次选择。
+ * @param patch - 要改的字段；未知值被忽略。
+ * @returns 合并后的完整偏好。
  */
-export function writeDesktopLocale(locale: DesktopLocaleId): void {
+export function writeDesktopPreferences(patch: Partial<DesktopPreferences>): DesktopPreferences {
+  const current = readDesktopPreferences()
+  const next = sanitizeDesktopPreferences({ ...current, ...patch })
   try {
     const file = preferenceFile()
     mkdirSync(dirname(file), { recursive: true })
-    writeFileSync(file, `${JSON.stringify({ locale }, null, 2)}\n`)
+    writeFileSync(file, `${JSON.stringify(next, null, 2)}\n`)
   } catch (error: unknown) {
-    // 磁盘或权限异常；本次菜单仍按新语言渲染，下次启动回到上次成功写入的值。
+    // 磁盘或权限异常；本次界面仍按新值渲染，下次启动回到上次成功写入的值。
     void error
   }
+  return next
 }
 
 /**

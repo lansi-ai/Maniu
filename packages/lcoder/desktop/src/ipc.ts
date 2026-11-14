@@ -2,8 +2,11 @@
 
 import { ipcMain, type BrowserWindow, type IpcMainInvokeEvent } from 'electron'
 import { IPC_CHANNELS } from './contract.ts'
-import type { EventOutcome, HostState, UpdateCheck, WindowAction, WindowStateInfo } from './contract.ts'
-import { isDesktopLocale } from './desktop-locale.ts'
+import type {
+  DesktopPreferences, EventOutcome, HostState, UpdateCheck, WindowAction, WindowStateInfo,
+} from './contract.ts'
+import { readDesktopPreferences, writeDesktopPreferences } from './desktop-locale.ts'
+import { isDesktopLocale, preferencePatchOf } from './preferences.ts'
 import type { HostLink } from './link.ts'
 
 interface IpcDependencies {
@@ -13,7 +16,8 @@ interface IpcDependencies {
   readonly hostState: () => HostState
   readonly windowState: () => WindowStateInfo
   readonly update: () => UpdateCheck
-  readonly setLocale: (locale: 'zh' | 'en') => void
+  /** 只切换菜单与托盘语言；落盘由调用方先做。 */
+  readonly applyLocale: (locale: DesktopPreferences['locale']) => void
 }
 
 interface CallRequest {
@@ -56,6 +60,7 @@ function outcomeOf(value: unknown): EventOutcome | undefined {
 function windowAction(value: unknown): WindowAction | undefined {
   return value === 'minimize' || value === 'toggle-maximize' || value === 'close' ? value : undefined
 }
+
 
 /**
  * 注册 S1 的 IPC 面。
@@ -105,7 +110,14 @@ export function registerIpc(deps: IpcDependencies): void {
   ipcMain.handle(IPC_CHANNELS.update, () => deps.update())
   ipcMain.handle(IPC_CHANNELS.locale, (_event: IpcMainInvokeEvent, value: unknown) => {
     if (!isDesktopLocale(value)) throw new Error('lcoder: 界面语言不合法')
-    deps.setLocale(value)
+    const next = writeDesktopPreferences({ locale: value })
+    deps.applyLocale(next.locale)
+  })
+  ipcMain.handle(IPC_CHANNELS.preferencesRead, () => readDesktopPreferences())
+  ipcMain.handle(IPC_CHANNELS.preferencesWrite, (_event: IpcMainInvokeEvent, value: unknown) => {
+    const next = writeDesktopPreferences(preferencePatchOf(value))
+    deps.applyLocale(next.locale)
+    return next
   })
 }
 

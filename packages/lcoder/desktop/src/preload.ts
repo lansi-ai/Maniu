@@ -3,8 +3,8 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC_CHANNELS } from './contract.ts'
 import type {
-  DesktopLocaleId, EventOutcome, HostEvent, HostState, HostWaterfall, HostWaterfallCancel, LcoderApi,
-  RemoteResult, StreamFrame, UpdateCheck, WindowStateInfo,
+  DesktopLocaleId, DesktopPreferences, EventOutcome, HostEvent, HostState, HostWaterfall, HostWaterfallCancel,
+  LcoderApi, RemoteResult, StreamFrame, UpdateCheck, WindowStateInfo,
 } from './contract.ts'
 
 function onHostState(listener: (state: HostState) => void): () => void {
@@ -63,6 +63,9 @@ const api: LcoderApi = {
   appInfo: () => ipcRenderer.invoke(IPC_CHANNELS.appInfo) as Promise<{ readonly version: string; readonly hostUrl?: string }>,
   update: () => ipcRenderer.invoke(IPC_CHANNELS.update) as Promise<UpdateCheck>,
   setLocale: (locale: DesktopLocaleId) => ipcRenderer.invoke(IPC_CHANNELS.locale, locale) as Promise<void>,
+  readPreferences: () => ipcRenderer.invoke(IPC_CHANNELS.preferencesRead) as Promise<DesktopPreferences>,
+  writePreferences: (patch: Partial<DesktopPreferences>) =>
+    ipcRenderer.invoke(IPC_CHANNELS.preferencesWrite, patch) as Promise<DesktopPreferences>,
 }
 
 contextBridge.exposeInMainWorld('lcoder', api)
