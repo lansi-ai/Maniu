@@ -95,6 +95,23 @@ describe('抽屉四块内容', () => {
     expect(screen.getByText('先做借还闭环')).toBeTruthy()
   })
 
+  it('需求文档入口交给外壳；没有回调或正文为空时不画入口', () => {
+    const onOpenRequirementDoc = vi.fn()
+    const { container } = render(<RequirementDetail {...propsOf({ onOpenRequirementDoc })} />)
+
+    fireEvent.click(container.querySelector('[data-requirement-document-reader]') as HTMLElement)
+    expect(onOpenRequirementDoc).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('button', { name: zh['shell.requirementOpenReader'] })).toBeTruthy()
+
+    cleanup()
+    render(<RequirementDetail {...propsOf()} />)
+    expect(document.querySelector('[data-requirement-document-reader]')).toBeNull()
+
+    cleanup()
+    render(<RequirementDetail {...propsOf({ row: requirementOf({ text: '' }), onOpenRequirementDoc })} />)
+    expect(document.querySelector('[data-requirement-document-reader]')).toBeNull()
+  })
+
   it('立项问答按题展示；没有记录时如实空态', () => {
     const answers = [{ id: 'q1', header: '用途', question: '主要给谁用？', answer: '个人记账小工具' }]
     render(<RequirementDetail {...propsOf({ answers })} />)

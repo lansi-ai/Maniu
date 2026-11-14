@@ -840,6 +840,19 @@ describe('需求详情的动作、拆分与讨论历史', () => {
     expect(await within(drawer).findByText('已确认 REQ-01')).toBeTruthy()
   })
 
+  it('需求文档在阅读器里打开，Esc 只关阅读器、抽屉留着', async () => {
+    renderShell({ spec: { requirements: { 'REQ-01.yaml': REQ_CONFIRMED, 'REQ-01.md': REQUIREMENT_DOC } } })
+    const drawer = await openRequirement('REQ-01')
+
+    fireEvent.click(drawer.querySelector('[data-requirement-document-reader]') as HTMLElement)
+    const reader = await screen.findByRole('dialog', { name: `${REQUIREMENTS_DIR}/REQ-01.md` })
+    expect(reader.querySelector('[data-reader-doc]')?.textContent).toContain('第一版功能清单')
+
+    fireEvent.keyDown(reader.closest('[data-markdown-reader]') as HTMLElement, { key: 'Escape' })
+    expect(document.querySelector('[data-markdown-reader]')).toBeNull()
+    expect(drawer.isConnected).toBe(true)
+  })
+
   it('命令失败时原文就地显示，不伪造成功', async () => {
     const closeRequirement = vi.fn(async () => ({ ok: false, text: 'REQ-01 已上线，是终态' }))
     renderShell({
@@ -1881,7 +1894,7 @@ describe('任务详情的交付物', () => {
     '  - pnpm typecheck',
   ].join('\n')
 
-  it('展示摘要、文档路径与命令；点文档打开只读预览', async () => {
+  it('展示摘要、文档路径与命令；点文档在阅读器里按 Markdown 打开', async () => {
     const { container } = renderShell({
       spec: {
         tasks: { 'T-01.yaml': FOUNDATION_TASK },
@@ -1899,8 +1912,14 @@ describe('任务详情的交付物', () => {
 
     fireEvent.click(dialog.querySelector('[data-deliverable-doc="README.md"]') as HTMLElement)
     await waitFor(() => {
-      expect(document.querySelector('[data-deliverable-preview-body]')?.textContent).toContain('项目说明')
+      expect(document.querySelector('[data-reader-doc]')?.textContent).toContain('项目说明')
     })
+    const reader = document.querySelector('[data-markdown-reader]') as HTMLElement
+    expect(reader.getAttribute('data-reader-path')).toBe('README.md')
+    expect(reader.querySelector('[data-reader-doc] h1')?.textContent).toBe('项目说明')
+
+    fireEvent.keyDown(reader, { key: 'Escape' })
+    expect(document.querySelector('[data-markdown-reader]')).toBeNull()
     expect(container).toBeTruthy()
   })
 
