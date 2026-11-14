@@ -389,3 +389,71 @@
   width: calc(100% / var(--reader-zoom, 1));
   font-size: 14px;
 }
+
+/* ── 阶段 C：动作、附件、流程与立项 ─────────────────────────────────── */
+
+.action-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0; }
+.action-row .search { width: 140px; }
+
+.prompt-preview {
+  max-height: 320px;
+  overflow: auto;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--lg-line-hair);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.5);
+  color: var(--lg-ink-2);
+  font-size: 11px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.attachment-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.attachment-thumb {
+  width: 104px;
+  height: 104px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--lg-line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.5);
+  cursor: zoom-in;
+}
+.attachment-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.attachment-missing {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  width: 104px;
+  height: 104px;
+  padding: 8px;
+  border: 1px dashed var(--lg-line-hair);
+  border-radius: 14px;
+  font-size: 11px;
+  color: var(--lg-muted);
+  overflow-wrap: anywhere;
+}
+.attachment-missing em { font-style: normal; color: var(--lg-faint); font-size: 10px; }
+
+.attachment-zoom {
+  position: fixed;
+  inset: 0;
+  z-index: 9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(20, 30, 48, 0.55);
+  backdrop-filter: blur(6px);
+}
+.attachment-zoom figure { margin: 0; max-width: 88vw; max-height: 88vh; display: flex; flex-direction: column; gap: 8px; }
+.attachment-zoom img { max-width: 100%; max-height: 80vh; object-fit: contain; border-radius: 16px; }
+.attachment-zoom figcaption { color: #fff; font-size: 12px; text-align: center; }
+
+.tool-line { display: block; margin-top: 6px; font-size: 11px; color: var(--lg-faint); }
+.pending-stack { display: flex; flex-direction: column; gap: 8px; flex: 0 0 auto; }
+.pending-note { padding: 10px 14px; display: flex; flex-direction: column; gap: 6px; }
+.pending-note strong { font-size: 12px; color: var(--lg-muted); }
+.pending-note p { margin: 0; font-size: 13px; color: var(--lg-ink-2); }
+.pending-note .pill { align-self: flex-start; padding: 4px 12px; font-size: 12px; }

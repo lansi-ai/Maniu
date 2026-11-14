@@ -1,17 +1,26 @@
-/** 任务详情：契约、范围、证据、交付物与附件。 */
+/** 任务详情：契约、范围、证据、交付物、附件、调度与命令动作。 */
 
+import { useMemo, useState } from 'react'
 import type { JSX } from 'react'
 import type { SpecProjection } from '../spec/load.ts'
 import type { ContractRow, TaskRow } from '../spec/rows.ts'
+import type { ProjectScope } from '../workspace/use-workspaces.ts'
+import type { SessionSummary } from '../store.ts'
 import { STATE_LABELS } from '../spec/board.ts'
 import { renderMarkdown } from '../markdown/markdown.tsx'
+import { runCommand, type CommandOutcome } from '../commands/run.ts'
+import { scheduleTask } from '../flow/scheduling.ts'
+import { TaskAttachments } from './task-attachments.tsx'
 
 /** 任务详情属性。 */
 export interface TaskDetailProps {
   readonly task: TaskRow
   readonly projection: SpecProjection
+  readonly project: ProjectScope
+  readonly sessions: readonly SessionSummary[]
   readonly onClose: () => void
   readonly onOpenDoc: (path: string) => void
+  readonly onReload: () => void
 }
 
 function contractOf(projection: SpecProjection, taskId: string): ContractRow | undefined {
@@ -31,6 +40,27 @@ function textList(values: readonly string[]): JSX.Element {
 export function TaskDetail(props: TaskDetailProps): JSX.Element {
   const task = props.task
   const contract = contractOf(props.projection, task.id)
+  const [role, setRole] = useState(task.role ?? '')
+  const [busy, setBusy] = useState<string | null>(null)
+  const [result, setResult] = useState<CommandOutcome | null>(null)
+  const schedule = useMemo(() => {
+    const ruleModules: Record<string, string> = {}
+    for (const rule of props.projection.rules) ruleModules[rule.id] = rule.module
+    return scheduleTask(task, props.projection.tasks, props.sessions, props.project.path, ruleModules)
+  }, [props.project.path, props.projection.rules, props.projection.tasks, props.sessions, task])
+
+  const execute = async (kind: string, line: string): Promise<void> => {
+    if (busy !== null) return
+    setBusy(kind)
+    setResult(null)
+    try {
+      const outcome = await runCommand(props.project.scopeSessionId, line)
+      setResult(outcome)
+      if (outcome.ok) props.onReload()
+    } finally {
+      setBusy(null)
+    }
+  }
   return (
     <aside className="detail-drawer lg-glass" data-testid="task-detail" data-task-id={task.id}>
       <div className="detail-drawer-head">
@@ -48,7 +78,7 @@ export function TaskDetail(props: TaskDetailProps): JSX.Element {
         {task.description.trim() === '' ? <p className="empty">（没有描述）</p> : <div className="markdown-body">{renderMarkdown(task.description)}</div>}
       </section>
 
-      <section className="detail-section" data-testid="task-contract">
+      <section className="detail-section" data-testid="task-contract-section">
         <h4>契约</h4>
         {contract === undefined
           ? <p className="empty" data-testid="task-contract-missing">还没有契约（`.spec/contracts/{task.id}.contract.yaml`）。</p>
@@ -113,11 +143,61 @@ export function TaskDetail(props: TaskDetailProps): JSX.Element {
         {task.attachments.length === 0
           ? <p className="empty">没有附件。</p>
           : (
-            <ul className="plain-list compact">
-              {task.attachments.map(path => <li key={path}><code>{path}</code></li>)}
-            </ul>
+            <>
+              <ul className="plain-list compact">
+                {task.attachments.map(path => <li key={path}><code>{path}</code></li>)}
+              </ul>
+              <TaskAttachments scopeSessionId={props.project.scopeSessionId} paths={task.attachments} />
+            </>
           )}
-        <p className="detail-note">图片缩略图与放大在阶段 C 接入（需要二进制读取通道）。</p>
+      </section>
+
+      <section className="detail-section" data-testid="task-schedule">
+        <h4>调度建议</h4>
+        <p className="detail-line" data-testid="schedule-verdict" data-verdict={schedule.verdict}>
+          判定：<strong>{schedule.verdict}</strong>
+          {schedule.chosen === undefined ? '' : ` · ${schedule.chosen.slice(0, 8)}`}
+        </p>
+        <ul className="plain-list compact">
+          {schedule.reasons.map(reason => <li key={reason}>{reason}</li>)}
+          {schedule.candidates.filter(candidate => candidate.rejected !== undefined).slice(0, 4).map(candidate => (
+            <li key={candidate.sessionId}>
+              <strong className="mono">{candidate.sessionId.slice(0, 8)}</strong>
+              <span>{candidate.rejected}</span>
+            </li>
+          ))}
+        </ul>
+        <button
+          type="button"
+          className="pill"
+          data-testid="schedule-record"
+          disabled={busy !== null}
+          onClick={() => {
+            void execute('schedule', `/task_schedule ${task.id} ${JSON.stringify({ verdict: schedule.verdict, reasons: schedule.reasons })}`)
+          }}
+        >
+          记录调度判定
+        </button>
+        <p className="detail-note">待审批/队列信息不在窄 IPC 面内，判定按会话忙闲与认领历史给出。</p>
+      </section>
+
+      <section className="detail-section" data-testid="task-actions">
+        <h4>动作（命令通道）</h4>
+        <div className="action-row">
+          <button type="button" className="pill" data-testid="task-sign" disabled={busy !== null || contract === undefined} onClick={() => { void execute('sign', `/contract_sign ${task.id}`) }}>签署契约</button>
+          <button type="button" className="pill" data-testid="task-bind" disabled={busy !== null} onClick={() => { void execute('bind', `/task_bind ${task.id}`) }}>认领到当前会话</button>
+          <button type="button" className="pill" data-testid="task-contract" disabled={busy !== null || contract === undefined} onClick={() => { void execute('contract', `/task_contract ${task.id}`) }}>确认契约签约</button>
+          <button type="button" className="pill" data-testid="task-split-ready" disabled={busy !== null} onClick={() => { void execute('ready', `/task_split_ready ${task.id}`) }}>推进到待开发</button>
+        </div>
+        <div className="action-row">
+          <input className="search" data-testid="task-role-input" value={role} placeholder="岗位 id" onChange={(event) => { setRole(event.target.value) }} />
+          <button type="button" className="pill" data-testid="task-assign" disabled={busy !== null || role.trim() === ''} onClick={() => { void execute('assign', `/task_assign ${task.id} ${role.trim()}`) }}>分配岗位</button>
+        </div>
+        {result !== null && (
+          <p className={result.ok ? 'detail-line' : 'problem'} data-testid="task-action-result" data-ok={result.ok ? 'true' : 'false'}>
+            {result.text}
+          </p>
+        )}
       </section>
     </aside>
   )

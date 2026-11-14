@@ -3,14 +3,14 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/lcoder/client/README.md
 /:
-  en: c595cb5bef74ae83
-  zh: 7de50b27906412d2
+  en: 3197efe5bd290971
+  zh: e9d0a1f50dff6b52
 /lcoder-client:
   en: 0c917bbcc99f3e10
   zh: f5bba9718459e030
 /lcoder-client/summary:
-  en: 187259891fed6766
-  zh: b75426f023ac5489
+  en: 8c6576c1094009ba
+  zh: 35f50e7be0d6a75e
 /lcoder-client/table-of-contents:
   en: 576c743d341fee99
   zh: a4711f44983301cf
@@ -30,8 +30,8 @@
   en: 1933d6adf6889a50
   zh: b989ebdfd4f795d1
 /lcoder-client/known-limitations-and-deferred-work:
-  en: 38f5688f90dcaf9a
-  zh: d61b39c75f645025
+  en: 9662765eb46286df
+  zh: 945fc04d2c89a5f9
 /lcoder-client/known-limitations-and-deferred-work/dev-note:
   en: d18f72f234b5ebdf
   zh: 4751b5f76221a242

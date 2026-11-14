@@ -106,3 +106,28 @@ export function messageOf(failure: { readonly code?: unknown; readonly message?:
   if (typeof failure.message === 'string' && failure.message !== '') return failure.message
   return typeof failure.code === 'string' ? failure.code : '未知失败'
 }
+
+/**
+ * 读一段较长文本（默认 2000 行），供证据日志与文档使用。
+ * @param scopeSessionId - 提供相对基准的会话。
+ * @param path - 仓库相对路径。
+ * @param limit - 行数上限。
+ * @returns 正文；失败带结构化原因。
+ */
+export async function readWorkspaceText(
+  scopeSessionId: string,
+  path: string,
+  limit = 2000,
+): Promise<SpecText> {
+  const answer = await window.lcoder.call('workspaceFiles', 'read', {
+    workspaceFileScopeId: scopeSessionId,
+    path,
+    range: { offset: 1, limit },
+  })
+  if (!answer.ok) return { ok: false, error: failureOf(answer.error) }
+  const value = answer.value
+  if (!isRecord(value) || typeof value.text !== 'string') {
+    return { ok: false, error: { code: 'lcoder/spec-invalid', message: '文件内容字段不合法' } }
+  }
+  return { ok: true, text: value.text }
+}

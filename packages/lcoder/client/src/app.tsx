@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import type { JSX } from 'react'
-import type { HostEvent, HostState, RemoteFailure } from './contract.ts'
+import type { HostEvent, HostState, HostWaterfall, RemoteFailure } from './contract.ts'
 import {
   actionOfFrame,
   chatReducer,
@@ -15,11 +15,12 @@ import { ProjectsPage } from './pages/projects.tsx'
 import { RequirementsPage } from './pages/requirements.tsx'
 import { SettingsPage } from './pages/settings.tsx'
 import { TasksPage } from './pages/tasks.tsx'
+import { RolesPage } from './pages/roles.tsx'
 import { ensureScopeSession, useWorkspaceList, type ProjectScope, type WorkspaceRow } from './workspace/use-workspaces.ts'
 import { useProjection } from './workspace/use-projection.ts'
 
 /** 工作台页面。 */
-type PageId = 'chat' | 'requirements' | 'tasks' | 'projects' | 'project-info' | 'settings'
+type PageId = 'chat' | 'requirements' | 'tasks' | 'projects' | 'project-info' | 'roles' | 'settings'
 
 /** 新会话默认使用的角色；工作台作用域会话靠它拿到人机命令面。 */
 const WORKBENCH_PRESET = 'lcoder-workbench'
@@ -30,6 +31,7 @@ const NAV_ITEMS: readonly { readonly id: PageId; readonly label: string }[] = [
   { id: 'tasks', label: '任务' },
   { id: 'projects', label: '项目' },
   { id: 'project-info', label: '项目信息' },
+  { id: 'roles', label: '角色' },
   { id: 'settings', label: '设置' },
 ]
 
@@ -112,6 +114,26 @@ function withTimeout<T>(promise: Promise<T>, milliseconds: number, message: stri
   })
 }
 
+function pendingTextOf(event: HostWaterfall): string {
+  const request = event.request
+  if (isRecord(request) && Array.isArray(request.questions)) {
+    const questions = request.questions.flatMap((question) => {
+      if (!isRecord(question)) return []
+      if (typeof question.question === 'string') return [question.question]
+      if (typeof question.header === 'string') return [question.header]
+      return []
+    })
+    if (questions.length > 0) return questions.join('；')
+  }
+  if (isRecord(request)) {
+    const reason = request.displayReason ?? request.reason
+    if (typeof reason === 'string' && reason !== '') return reason
+    const tool = request.toolName
+    if (typeof tool === 'string') return `工具 ${tool} 请求审批`
+  }
+  return event.name === 'approval/request' ? '有一个工具在等待审批' : '模型正在等待回答'
+}
+
 /** 应用根。 */
 export function App(): JSX.Element {
   const [host, setHost] = useState<HostState>({ kind: 'starting' })
@@ -124,6 +146,7 @@ export function App(): JSX.Element {
   const [page, setPage] = useState<PageId>('chat')
   const [project, setProject] = useState<ProjectScope | null>(savedProject)
   const [projectNotice, setProjectNotice] = useState<string | null>(null)
+  const [pending, setPending] = useState<readonly { readonly id: string; readonly kind: string; readonly text: string }[]>([])
 
   const workspaces = useWorkspaceList(gate.kind === 'ready')
   const projection = useProjection(project?.scopeSessionId ?? null)
@@ -283,6 +306,13 @@ export function App(): JSX.Element {
   }, [])
 
   useEffect(() => {
+    const off = window.lcoder.onWaterfall((event: HostWaterfall) => {
+      setPending(current => [...current.slice(-3), { id: event.eventId, kind: event.name, text: pendingTextOf(event) }])
+    })
+    return off
+  }, [])
+
+  useEffect(() => {
     const off = window.lcoder.onStreamFrame((streamId, frame) => {
       if (streamId !== streamRef.current) return
       if (frame.kind === 'item') {
@@ -375,8 +405,7 @@ export function App(): JSX.Element {
 
   const activeSession = sessions.find(item => item.sessionId === active) ?? null
 
-  const chooseWorkspace = useCallback(async (workspace: WorkspaceRow) => {
-    setProjectNotice(null)
+  const chooseWorkspace = useCallback(async (workspace: WorkspaceRow) => {    setProjectNotice(null)
     let scope = await ensureScopeSession(workspace, sessions, WORKBENCH_PRESET)
     if (!scope.ok) scope = await ensureScopeSession(workspace, sessions)
     if (!scope.ok) {
@@ -394,6 +423,32 @@ export function App(): JSX.Element {
     setPage('tasks')
     await loadSessions()
   }, [loadSessions, sessions])
+
+  const startSession = useCallback(async (prompt: string) => {
+    if (project === null) return { ok: false, message: '先选择一个项目' }
+    const created = await window.lcoder.call('session', 'create', {
+      request: { workspaceId: project.workspaceId, agentPreset: WORKBENCH_PRESET },
+    })
+    if (!created.ok) return { ok: false, message: `${created.error.code}: ${created.error.message}` }
+    const value = created.value
+    if (!isRecord(value) || typeof value.sessionId !== 'string') {
+      return { ok: false, message: 'session.create 返回了无法识别的会话' }
+    }
+    const sessionId = value.sessionId
+    const sent = await window.lcoder.call('session', 'prompt', {
+      request: {
+        requestId: newRequestId(),
+        sessionId,
+        mode: 'queue',
+        content: [{ type: 'text', text: prompt }],
+      },
+    })
+    if (!sent.ok) return { ok: false, message: `${sent.error.code}: ${sent.error.message}` }
+    selectSession(sessionId)
+    setPage('chat')
+    await loadSessions()
+    return { ok: true, message: `指令已发送到会话 ${sessionId.slice(0, 8)}；模型会先访谈，确认需求后才落盘。` }
+  }, [loadSessions, project, selectSession])
 
   return (
     <div className="app" {...(gate.kind === 'booting' ? {} : { 'data-lcoder-state': gate.kind })}>
@@ -514,6 +569,9 @@ export function App(): JSX.Element {
                         data-testid={`message-${message.role}`}
                       >
                         {message.text}
+                        {message.tools !== undefined && (
+                          <span className="tool-line" data-testid="message-tools">工具：{message.tools.join('、')}</span>
+                        )}
                       </article>
                     ))}
                     {chat.liveText !== '' && (
@@ -523,6 +581,21 @@ export function App(): JSX.Element {
                     )}
                     {chat.streamError !== null && <p className="notice" data-testid="stream-error">{chat.streamError}</p>}
                   </div>
+                  {pending.length > 0 && (
+                    <div className="pending-stack" data-testid="pending-stack">
+                      {pending.map(item => (
+                        <div
+                          key={item.id}
+                          className="pending-note lg-glass-card"
+                          data-testid={item.kind === 'approval/request' ? 'pending-approval' : 'pending-question'}
+                        >
+                          <strong>{item.kind === 'approval/request' ? '工具审批（纯文本）' : '等待回答（纯文本）'}</strong>
+                          <p>{item.text}</p>
+                          <button type="button" className="pill" onClick={() => { setPending(current => current.filter(entry => entry.id !== item.id)) }}>知道了</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   <div className="composer lg-glass">
                     <textarea
                       ref={composerRef}
@@ -552,6 +625,7 @@ export function App(): JSX.Element {
                 loading={projection.loading}
                 error={projection.error}
                 onReload={projection.reload}
+                onStartSession={startSession}
               />
             )}
 
@@ -587,6 +661,14 @@ export function App(): JSX.Element {
             )}
 
             {page === 'settings' && <SettingsPage />}
+
+            {page === 'roles' && (
+              <RolesPage
+                projection={projection.projection}
+                sessions={sessions}
+                reloadToken={0}
+              />
+            )}
           </div>
         </main>
       )}

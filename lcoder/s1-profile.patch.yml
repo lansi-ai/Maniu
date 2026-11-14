@@ -52,6 +52,8 @@
         description: 只承托工作台人机命令的会话
         order: 30
         plugins:
+          - id: ask-user
+            name: '@deepseek-ai/dsh-tool-ask-user'
           - id: lcoder
             name: '@lcoder/kernel'
             config:

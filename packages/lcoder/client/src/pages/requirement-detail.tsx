@@ -8,7 +8,12 @@ import type { RequirementDocRow } from '../spec/rows.ts'
 import type { SessionSummary } from '../store.ts'
 import { requirementStateLabel } from '../spec/board.ts'
 import { readDiscussionHistory, type DiscussionHistory } from '../discussion/history.ts'
+import { runCommand, type CommandOutcome } from '../commands/run.ts'
+import { buildSplitPrompt } from '../intake/prompts.ts'
 import { renderMarkdown } from '../markdown/markdown.tsx'
+
+/** 内置轨的显示文本；项目追加轨在调用处补上。 */
+const BUILTIN_TRACKS = ['h5（H5 前端）', 'admin（管理端）', 'api（接口）', 'desktop（桌面端）', 'host（宿主端）', 'general（通用）']
 
 /** 需求详情属性。 */
 export interface RequirementDetailProps {
@@ -19,6 +24,8 @@ export interface RequirementDetailProps {
   readonly onClose: () => void
   readonly onOpenTask: (taskId: string) => void
   readonly onOpenReader: (path: string) => void
+  readonly onReload: () => void
+  readonly onStartSession: (prompt: string) => Promise<{ readonly ok: boolean; readonly message: string }>
 }
 
 /**
@@ -30,7 +37,43 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
   const row = props.row
   const [history, setHistory] = useState<DiscussionHistory | null>(null)
   const [historyBusy, setHistoryBusy] = useState(false)
+  const [busy, setBusy] = useState<string | null>(null)
+  const [result, setResult] = useState<CommandOutcome | null>(null)
   const related = props.projection.tasks.filter(task => task.requirement === row.id || task.proposal === row.id)
+
+  const execute = async (kind: string, line: string): Promise<void> => {
+    if (busy !== null) return
+    setBusy(kind)
+    setResult(null)
+    try {
+      const outcome = await runCommand(props.project.scopeSessionId, line)
+      setResult(outcome)
+      if (outcome.ok) props.onReload()
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const split = async (): Promise<void> => {
+    if (busy !== null) return
+    setBusy('split')
+    setResult(null)
+    try {
+      const extra = (props.projection.project?.tracks ?? []).map(track => `${track.id}（${track.name}）`)
+      const answer = await props.onStartSession(buildSplitPrompt(
+        { id: row.id, title: row.title ?? row.id },
+        row.text,
+        [...BUILTIN_TRACKS, ...extra],
+      ))
+      setResult({ ok: answer.ok, text: answer.message })
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const canApprove = row.state === 'draft'
+  const canRelease = row.state === 'confirmed'
+  const canClose = row.state === 'draft' || row.state === 'confirmed'
 
   const loadHistory = useCallback(async () => {
     if (historyBusy) return
@@ -139,6 +182,22 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
             ))}
           </div>
         ))}
+      </section>
+
+      <section className="detail-section" data-testid="requirement-actions">
+        <h4>动作（命令通道）</h4>
+        <div className="action-row">
+          <button type="button" className="pill" data-testid="requirement-approve" disabled={!canApprove || busy !== null} onClick={() => { void execute('approve', `/requirement_approve ${row.id}`) }}>确认需求</button>
+          <button type="button" className="pill" data-testid="requirement-split" disabled={!canRelease || busy !== null} onClick={() => { void split() }}>拆分任务</button>
+          <button type="button" className="pill" data-testid="requirement-release" disabled={!canRelease || busy !== null} onClick={() => { void execute('release', `/requirement_release ${row.id}`) }}>上线</button>
+          <button type="button" className="pill" data-testid="requirement-close" disabled={!canClose || busy !== null} onClick={() => { void execute('close', `/requirement_close ${row.id}`) }}>关闭</button>
+        </div>
+        {result !== null && (
+          <p className={result.ok ? 'detail-line' : 'problem'} data-testid="requirement-action-result" data-ok={result.ok ? 'true' : 'false'}>
+            {result.text}
+          </p>
+        )}
+        <p className="detail-note">拆分通过工作台会话执行项目经理指令；确认、上线、关闭走 kernel 人机命令。</p>
       </section>
     </aside>
   )

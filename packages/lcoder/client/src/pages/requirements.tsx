@@ -9,6 +9,7 @@ import { requirementStateLabel } from '../spec/board.ts'
 import { RequirementDetail } from './requirement-detail.tsx'
 import { TaskDetail } from './task-detail.tsx'
 import { ReaderOverlay } from './reader.tsx'
+import { IntakeWizard } from './intake-wizard.tsx'
 
 /** 需求页属性。 */
 export interface RequirementsPageProps {
@@ -18,6 +19,7 @@ export interface RequirementsPageProps {
   readonly loading: boolean
   readonly error: string | null
   readonly onReload: () => void
+  readonly onStartSession: (prompt: string) => Promise<{ readonly ok: boolean; readonly message: string }>
 }
 
 /**
@@ -31,6 +33,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
   const [selected, setSelected] = useState<string | null>(null)
   const [taskId, setTaskId] = useState<string | null>(null)
   const [readerPath, setReaderPath] = useState<string | null>(null)
+  const [wizard, setWizard] = useState(false)
 
   const rows = useMemo(() => {
     const query = text.trim().toLowerCase()
@@ -74,6 +77,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
           <button type="button" className="pill" data-testid="requirement-reload" onClick={props.onReload}>
             {props.loading ? '读取中…' : '刷新'}
           </button>
+          <button type="button" className="pill pill-accent" data-testid="intake-open" disabled={props.project === null} onClick={() => { setWizard(true) }}>立项向导</button>
         </div>
       </header>
 
@@ -125,17 +129,33 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
               onClose={() => { setSelected(null) }}
               onOpenTask={setTaskId}
               onOpenReader={setReaderPath}
+              onReload={props.onReload}
+              onStartSession={props.onStartSession}
             />
           )}
         </div>
       )}
 
-      {detailTask !== undefined && (
+      {detailTask !== undefined && props.project !== null && (
         <TaskDetail
           task={detailTask}
           projection={props.projection}
+          project={props.project}
+          sessions={props.sessions}
           onClose={() => { setTaskId(null) }}
           onOpenDoc={setReaderPath}
+          onReload={props.onReload}
+        />
+      )}
+
+      {wizard && props.project !== null && (
+        <IntakeWizard
+          project={props.project}
+          projection={props.projection}
+          onClose={() => { setWizard(false) }}
+          onStart={props.onStartSession}
+          onOpenRequirement={(id) => { setWizard(false); setSelected(id) }}
+          onReload={props.onReload}
         />
       )}
 

@@ -8,7 +8,7 @@
  */
 
 import { spawn } from 'node:child_process'
-import { existsSync, mkdirSync, writeFileSync, openSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync, openSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { join, resolve } from 'node:path'
 
@@ -23,7 +23,43 @@ const PHONE = '+8613900000001'
 const PASSWORD = 'lcoder-s1-pass'
 const DEMO_REPO = REPO_ROOT
 const REQUIREMENTS_REPO = 'E:/Projects/LCoder-e2e-20261113'
+const SCRATCH_REPO = join(LOGS, 't189-scratch')
 mkdirSync(LOGS, { recursive: true })
+
+/** 准备一个可写靶仓：复制本仓 `.spec`，再补一条草稿需求与一条可推进任务。 */
+function prepareScratch() {
+  rmSync(SCRATCH_REPO, { recursive: true, force: true })
+  mkdirSync(SCRATCH_REPO, { recursive: true })
+  cpSync(join(REPO_ROOT, '.spec'), join(SCRATCH_REPO, '.spec'), { recursive: true })
+  for (const dir of ['requirements', 'tasks', 'contracts', 'evidence']) {
+    mkdirSync(join(SCRATCH_REPO, '.spec', dir), { recursive: true })
+  }
+  writeFileSync(join(SCRATCH_REPO, '.spec', 'requirements', 'REQ-99.yaml'), [
+    'id: REQ-99',
+    'title: 探针需求：确认与拆分',
+    'state: draft',
+    'options: []',
+    'opened_at: 2026-11-14T00:00:00.000Z',
+    '',
+  ].join('\n'))
+  writeFileSync(join(SCRATCH_REPO, '.spec', 'requirements', 'REQ-99.md'), '# 探针需求\n\n用于验证确认与拆分动作。\n')
+  writeFileSync(join(SCRATCH_REPO, '.spec', 'tasks', 'T-99.yaml'), [
+    'id: T-99',
+    'title: 探针任务：分配岗位后推进到待开发',
+    'description: 只用于验证人机命令。',
+    'grade: C',
+    'state: drafting',
+    'proposal: REQ-99',
+    'rules: []',
+    'scope:',
+    '  allowed_paths: [src/]',
+    '  irreversible: []',
+    'evidence_required: []',
+    'opened_at: 2026-11-14T00:00:00.000Z',
+    '',
+  ].join('\n'))
+  log(`靶仓已准备：${SCRATCH_REPO}`)
+}
 
 let electron = null
 let mockChild = null
@@ -221,7 +257,7 @@ async function run() {
     await page.waitFor("document.querySelector('.app')?.getAttribute('data-lcoder-state') === 'ready'", 30_000, '登录门禁')
 
     const navCount = await page.evaluate("document.querySelectorAll('[data-testid=\"nav\"] .nav-item').length")
-    assert(navCount === 6, `导航项应为 6，实际 ${String(navCount)}`)
+    assert(navCount === 7, `导航项应为 7，实际 ${String(navCount)}`)
 
     await openRepo(page, DEMO_REPO)
     const columns = await page.waitFor("document.querySelectorAll('[data-testid=\"task-column\"]').length", 30_000, '六列看板')
@@ -286,6 +322,92 @@ async function run() {
       30_000, '讨论历史结果')
     log('需求正文、表格、阅读器与讨论历史入口通过')
 
+    await page.evaluate("document.querySelector('[data-testid=\"nav-roles\"]').click()")
+    await page.waitFor("document.querySelectorAll('[data-testid=\"preset-card\"]').length > 0", 20_000, '角色看板')
+    await page.waitFor("document.querySelector('[data-testid=\"preset-card\"][data-preset-id=\"lcoder-workbench\"]') !== null", 10_000, '工作台 preset')
+    log('角色看板通过')
+
+    // 靶仓：命令动作、附件只读、调度与流程日志。
+    await openRepo(page, SCRATCH_REPO)
+    await page.waitFor("document.querySelector('[data-testid=\"task-card\"][data-task-id=\"DEMO-01\"]') !== null", 30_000, '靶仓 DEMO-01')
+    await page.evaluate("document.querySelector('[data-testid=\"task-card\"][data-task-id=\"DEMO-01\"]').click()")
+    await page.waitFor("document.querySelector('[data-testid=\"task-detail\"]')?.dataset.taskId === 'DEMO-01'", 10_000, '靶仓任务详情')
+    await page.waitFor("document.querySelector('[data-testid=\"task-attachment\"] img') !== null", 20_000, '附件缩略图')
+    log('附件只读缩略图通过')
+
+    const runAction = async (testId, expectOk, expectText, label) => {
+      await page.waitFor(`document.querySelector('[data-testid="${testId}"]:not([disabled])') !== null`, 10_000, `${label} 按钮可用`)
+      await page.evaluate(`document.querySelector('[data-testid="${testId}"]').click()`)
+      let result
+      try {
+        result = await page.waitFor(
+          `(() => {
+            const node = document.querySelector('[data-testid="task-action-result"]');
+            if (node === null) return false;
+            const text = node.textContent ?? '';
+            return node.dataset.ok === '${expectOk ? 'true' : 'false'}' && text.includes(${JSON.stringify(expectText)}) ? text : false;
+          })()`,
+          20_000, label)
+      } catch (error) {
+        const current = await page.evaluate("document.querySelector('[data-testid=\"task-action-result\"]')?.textContent ?? '(无回执)'")
+        throw new Error(`${label} 未通过：${String(current)}`)
+      }
+      log(`${label}：${String(result).slice(0, 60)}`)
+      return String(result)
+    }
+    await runAction('task-sign', true, '已由人签署', '签署契约')
+    await runAction('task-contract', true, '已签约', '确认契约签约')
+    await runAction('task-bind', true, '认上', '认领任务')
+    await page.evaluate(`(() => {
+      const input = document.querySelector('[data-testid="task-role-input"]');
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+      setter.call(input, 'dev');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    })()`)
+    await runAction('task-assign', true, '已分配', '分配岗位')
+    await runAction('schedule-record', true, '调度记录', '记录调度判定')
+
+    await page.evaluate("document.querySelector('[data-testid=\"task-detail-close\"]').click()")
+    await page.evaluate("document.querySelector('[data-testid=\"flow-open\"]').click()")
+    await page.waitFor("document.querySelector('[data-testid=\"flow-decision\"]') !== null", 20_000, '流程判定')
+    await page.waitFor("document.querySelector('[data-testid=\"flow-log-entry\"]') !== null", 20_000, '动作日志')
+    log('流程状态与动作日志通过')
+    await page.evaluate("document.querySelector('[data-testid=\"flow-close\"]').click()")
+
+    await page.evaluate("document.querySelector('[data-testid=\"task-card\"][data-task-id=\"T-99\"]').click()")
+    await page.waitFor("document.querySelector('[data-testid=\"task-detail\"]')?.dataset.taskId === 'T-99'", 10_000, 'T-99 详情')
+    await page.evaluate(`(() => {
+      const input = document.querySelector('[data-testid="task-role-input"]');
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+      setter.call(input, 'dev');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    })()`)
+    await runAction('task-assign', true, '已分配', 'T-99 分配岗位')
+    await runAction('task-split-ready', true, '待开发', 'T-99 推进到待开发')
+    await page.evaluate("document.querySelector('[data-testid=\"task-detail-close\"]').click()")
+
+    await page.evaluate("document.querySelector('[data-testid=\"nav-requirements\"]').click()")
+    await page.waitFor("document.querySelector('[data-testid=\"requirement-row\"][data-requirement-id=\"REQ-99\"]') !== null", 20_000, 'REQ-99')
+    await page.evaluate("document.querySelector('[data-testid=\"requirement-row\"][data-requirement-id=\"REQ-99\"]').click()")
+    await page.waitFor("document.querySelector('[data-testid=\"requirement-approve\"]:not([disabled])') !== null", 10_000, '确认需求按钮')
+    await page.evaluate("document.querySelector('[data-testid=\"requirement-approve\"]').click()")
+    await page.waitFor("document.querySelector('[data-testid=\"requirement-action-result\"]')?.dataset.ok === 'true'", 20_000, '确认需求回执')
+    await page.waitFor("document.querySelector('[data-testid=\"requirement-detail\"]')?.innerText.includes('已确认')", 20_000, '需求状态已确认')
+    log('确认需求命令通过')
+
+    await page.waitFor("document.querySelector('[data-testid=\"requirement-split\"]:not([disabled])') !== null", 10_000, '拆分按钮可用')
+    await page.evaluate("document.querySelector('[data-testid=\"requirement-split\"]').click()")
+    await page.waitFor("document.querySelector('[data-testid=\"page-requirements\"]') === null", 30_000, '切到对话页')
+    await page.waitFor("document.querySelector('[data-testid=\"message-user\"]')?.textContent.includes('需求拆分')", 30_000, '拆分提示词进入对话')
+    log('拆分指令已进入工作台会话')
+
+    await page.evaluate("document.querySelector('[data-testid=\"nav-requirements\"]').click()")
+    await page.waitFor("document.querySelector('[data-testid=\"page-requirements\"]') !== null", 10_000, '回到需求页')
+    await page.evaluate("document.querySelector('[data-testid=\"intake-open\"]').click()")
+    await page.waitFor("document.querySelector('[data-testid=\"intake-prompt\"]')?.textContent.includes('项目需求概要')", 10_000, '立项指令预览')
+    await page.evaluate("document.querySelector('[data-testid=\"intake-close\"]').click()")
+    log('立项向导入口与指令预览通过')
+
     await page.evaluate("document.querySelector('[data-testid=\"nav-project-info\"]').click()")
     await page.waitFor("document.querySelector('[data-testid=\"page-project-info\"]')?.innerText.includes('REQ-01') === false", 10_000, '项目信息页')
     const infoText = await page.evaluate("document.querySelector('[data-testid=\"page-project-info\"]')?.innerText ?? ''")
@@ -321,6 +443,7 @@ async function main() {
   electron = resolveElectron()
   await ensureMock()
   await seedCredential()
+  prepareScratch()
   await run()
 }
 

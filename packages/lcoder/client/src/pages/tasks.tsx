@@ -12,6 +12,7 @@ import {
 } from '../spec/board.ts'
 import { TaskDetail } from './task-detail.tsx'
 import { ReaderOverlay } from './reader.tsx'
+import { FlowPanel } from './flow-panel.tsx'
 
 /** 任务页属性。 */
 export interface TasksPageProps {
@@ -33,6 +34,7 @@ export function TasksPage(props: TasksPageProps): JSX.Element {
   const [filter, setFilter] = useState<TaskFilter>(emptyTaskFilter)
   const [selected, setSelected] = useState<string | null>(null)
   const [readerPath, setReaderPath] = useState<string | null>(null)
+  const [flowOpen, setFlowOpen] = useState(false)
 
   const running = useMemo(
     () => new Set(props.sessions.filter(session => session.running).map(session => session.sessionId)),
@@ -84,6 +86,7 @@ export function TasksPage(props: TasksPageProps): JSX.Element {
           <button type="button" className="pill" data-testid="task-reload" onClick={props.onReload}>
             {props.loading ? '读取中…' : '刷新'}
           </button>
+          <button type="button" className="pill" data-testid="flow-open" disabled={props.project === null} onClick={() => { setFlowOpen(true) }}>流程</button>
         </div>
       </header>
 
@@ -152,12 +155,23 @@ export function TasksPage(props: TasksPageProps): JSX.Element {
         </div>
       )}
 
-      {active !== null && (
+      {active !== null && props.project !== null && (
         <TaskDetail
           task={active}
           projection={props.projection}
+          project={props.project}
+          sessions={props.sessions}
           onClose={() => { setSelected(null) }}
           onOpenDoc={setReaderPath}
+          onReload={props.onReload}
+        />
+      )}
+
+      {flowOpen && props.project !== null && (
+        <FlowPanel
+          project={props.project}
+          projection={props.projection}
+          onClose={() => { setFlowOpen(false) }}
         />
       )}
 
