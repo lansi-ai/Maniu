@@ -79,6 +79,8 @@ export interface RequirementDetailProps {
   readonly onOpenTask: (taskId: string) => void
   /** 点交付文档路径时打开预览；不传时只显示路径。 */
   readonly onOpenDoc?: (doc: string) => void
+  /** 在阅读器里打开完整需求文档；不传时只保留内联预览。 */
+  readonly onOpenRequirementDoc?: () => void
   /** 讨论历史抽屉是否打开与它的数据；不传时入口仍可点，抽屉不画。 */
   readonly historyOpen: boolean
   readonly history: DiscussionHistoryView
@@ -149,7 +151,7 @@ function SplitFlowSection({ t, flow }: { readonly t: Translate; readonly flow: R
 export function RequirementDetail({
   t, row, progress, tasks, answers, splitting, splitFlow, error, actionBusy, actionResult,
   taskStateLabel, trackLabel, onClose, onApprove, onSplit, onRelease, onCancel, onOpenTask,
-  onOpenDoc, historyOpen, history, onOpenHistory, onCloseHistory,
+  onOpenDoc, onOpenRequirementDoc, historyOpen, history, onOpenHistory, onCloseHistory,
 }: RequirementDetailProps): ReactNode {
   const labels = useMarkdownLabels(t)
   const actions = actionsOf(progress, row.id)
@@ -180,6 +182,16 @@ export function RequirementDetail({
         <section className={css.requirementContent} data-requirement-document>
           <div className={css.requirementContentHead}>
             <span className={css.requirementContentTitle}>{t('shell.requirementContent')}</span>
+            {body === '' || onOpenRequirementDoc === undefined ? null : (
+              <button
+                type="button"
+                className={css.requirementMore}
+                data-requirement-document-reader
+                onClick={onOpenRequirementDoc}
+              >
+                {t('shell.requirementOpenReader')}
+              </button>
+            )}
           </div>
           {body === '' ? (
             <p className={css.requirementPreview} data-requirement-document-empty>{t('shell.requirementDocumentMissing')}</p>

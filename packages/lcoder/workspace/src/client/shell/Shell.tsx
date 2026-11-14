@@ -18,6 +18,7 @@ import type { PromptContentPart } from '@deepseek-ai/dsh-api-session-controller/
 // Type-only: pulls the `agentPreset` Session projection value into this program.
 import type {} from '@deepseek-ai/dsh-agent-preset-registry/types'
 import {
+  REQUIREMENTS_DIR,
   loadAgentsRegistry, loadLocalSecrets, loadProjectInfo, loadRolesRegistry, loadWorkspaceProjection, messageOf,
 } from '../projection.ts'
 import type {
@@ -77,6 +78,8 @@ import { ProjectInfoPage, SettingsPage, SwitchProjectPage } from './WorkspacePag
 import type { FontPreset } from './WorkspacePages.tsx'
 import { recommendedRoleId } from './role-hint.ts'
 import { ChatTranscript, PendingInteractionCard } from './ChatPanel.tsx'
+import { MarkdownReader } from './MarkdownReader.tsx'
+import type { MarkdownReaderDoc } from './MarkdownReader.tsx'
 import { intakeAnswersOf, formatOpenedAt } from './requirement.ts'
 import type { RequirementRef } from './requirement.ts'
 import {
@@ -586,14 +589,10 @@ function shellState(value: string): ShellTaskState {
 }
 
 /**
- * 交付文档预览状态：`loading` 时正文为空，`failed` 时正文是读盘原话。
- * 路径是仓库相对路径，与交付索引里登记的一致。
+ * 阅读器文档状态：`loading` 时正文为空，`failed` 时正文是失败原话。
+ * 路径是仓库相对路径，交付文档与交付索引里登记的保持一致。
  */
-interface DocPreview {
-  readonly path: string
-  readonly status: 'loading' | 'ready' | 'failed'
-  readonly text: string
-}
+type DocReaderState = MarkdownReaderDoc
 
 /**
  * 文件投影的一行 → 外壳任务：展示字段原样透传，状态收敛到五态。
@@ -695,8 +694,8 @@ export function Shell({
   /** 新会话的角色选择浮层。 */
   const [rolePicker, setRolePicker] = useState(false)
   const [detail, setDetail] = useState<ShellTask | null>(null)
-  /** 交付文档预览：路径、读取状态与正文；null 表示没打开。 */
-  const [docPreview, setDocPreview] = useState<DocPreview | null>(null)
+  /** 阅读器里的文档：路径、读取状态与正文；null 表示没打开。 */
+  const [docReader, setDocReader] = useState<DocReaderState | null>(null)
   /** 左侧菜单：需求页、任务页与三张项目/设置整页。每页各自记住自己的视图与筛选。 */
   const [nav, setNav] = useState<ShellView>('tasks')
   const [requirementView, setRequirementView] = useState<RequirementView>('table')
@@ -2233,23 +2232,31 @@ export function Shell({
   }
 
   /**
-   * 打开一份交付文档的预览。
+   * 在阅读器里打开一份交付文档。
    *
-   * 路径按仓库相对路径读；没有会话或读不到时把原因留在预览里，
+   * 路径按仓库相对路径读；没有会话或读不到时把原因留在阅读器里，
    * 不把「读不到」画成空文档。
    * @param doc - 交付索引里登记的仓库相对路径。
    */
   const openDeliverableDoc = (doc: string): void => {
     if (files === undefined || sessionId === undefined) {
-      setDocPreview({ path: doc, status: 'failed', text: t('shell.deliverableDocUnavailable') })
+      setDocReader({ path: doc, status: 'failed', text: t('shell.deliverableDocUnavailable') })
       return
     }
-    setDocPreview({ path: doc, status: 'loading', text: '' })
+    setDocReader({ path: doc, status: 'loading', text: '' })
     void files.readPage(sessionId, doc, new AbortController().signal).then((page) => {
-      setDocPreview(page.ok
+      setDocReader(page.ok
         ? { path: doc, status: 'ready', text: page.value.text }
         : { path: doc, status: 'failed', text: messageOf(page.error) })
     })
+  }
+
+  /**
+   * 在阅读器里打开需求文档；正文来自投影，不再读盘。
+   * @param row - 已打开的需求行。
+   */
+  const openRequirementDoc = (row: RequirementDocRow): void => {
+    setDocReader({ path: `${REQUIREMENTS_DIR}/${row.id}.md`, status: 'ready', text: row.text })
   }
 
   /** 打开一条需求的详情抽屉；关闭另一条时就地状态由 effect 清掉。 */
@@ -4608,36 +4615,18 @@ export function Shell({
               onOpenHistory={() => { void openDiscussionHistory(openRequirement.row.id) }}
               onCloseHistory={closeDiscussionHistory}
               onOpenDoc={openDeliverableDoc}
+              onOpenRequirementDoc={() => { openRequirementDoc(openRequirement.row) }}
             />
           </div>
         </div>
       )}
 
-      {docPreview === null ? null : (
-        <div
-          className={`${css.modalBackdrop} ${css.modalNested}`}
-          data-deliverable-preview
-          onClick={(event) => { if (event.target === event.currentTarget) setDocPreview(null) }}
-        >
-          <div className={css.modal} role="dialog" aria-modal="true" aria-label={docPreview.path}>
-            <div className={css.modalHead}>
-              <div className={css.grow}>
-                <h3>{docPreview.path}</h3>
-                <p className={css.detailDescription}>{t('shell.deliverableDocHint')}</p>
-              </div>
-              <button type="button" className={css.iconBtn} aria-label={t('shell.close')} onClick={() => { setDocPreview(null) }}>✕</button>
-            </div>
-            <div className={css.modalBody}>
-              {docPreview.status === 'loading' ? <p className={css.empty}>{t('shell.deliverableDocLoading')}</p> : null}
-              {docPreview.status === 'failed' ? <p className={css.problem}>{docPreview.text}</p> : null}
-              {docPreview.status === 'ready' ? <pre className={css.docPreview} data-deliverable-preview-body>{docPreview.text}</pre> : null}
-            </div>
-            <div className={css.modalFoot}>
-              <div className={css.spacer} />
-              <button type="button" className={css.secondaryBtn} onClick={() => { setDocPreview(null) }}>{t('shell.close')}</button>
-            </div>
-          </div>
-        </div>
+      {docReader === null ? null : (
+        <MarkdownReader
+          t={t}
+          doc={docReader}
+          onClose={() => { setDocReader(null) }}
+        />
       )}
 
       {detail !== null ? (
