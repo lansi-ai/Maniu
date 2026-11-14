@@ -2051,7 +2051,7 @@ tracks:
       note: "C 级台账修正，来源是监督窗口 2026-11-14 发现收口证据链式错位。T-165 至 T-176 之间存在 note 末尾装了下一条收口证据的情况，T-176 自己的收口缺失，T-168 自洽。做法：按标题与内容逐条核对，把每段收口搬回对应任务，不改变任何结论与日期；同时把 active-context 的当前焦点从 T-109 时期更新到 T-177 收口与后续队列。验收 YAML 解析通过、看板重生成、test:docs 全绿。2026-11-14 12:05 监督窗口完成。用 26 个收口提交的 diff 反推每条证据的原属任务，定位并搬回 10 段错位，T-176 至 T-165 各自恢复自己的收口，T-168 原本自洽；T-147 当时收口只写在提交说明里，按说明补录一条并标注来源。修复后 25 段证据全部回到对应任务。active-context 的中英两处当前焦点与当前正在处理改为上游减重线。YAML 解析通过，看板已重生成。"
     - id: T-183
       title: Office 与 Python 载荷裁剪
-      status: doing
+      status: done
       face: 工程
       type: 开发
       owner: lance
@@ -2059,7 +2059,7 @@ tracks:
       date: '2026-11-14'
       dep: [T-179]
       inferred: false
-      note: "B 级载荷裁剪，来源是用户 2026-11-14 选择 Office 与 Python 都裁，并确认产品不做 Office 转换与数据分析。依据 T-179，Electron 368 MiB 是地板，LibreOffice 184 MiB 与 Python 157 MiB 两块无 LCoder 消费方，合计约 341 MiB 解包体积。步骤：一、先建立打包称重基线，记录 win-unpacked 总字节与各载荷字节，打包跑不通就用既有 targets 目录并写明差异；二、最小排除实验，去掉 LibreOffice 与 Python 载荷与它们的运行准备、宿主启动检查、依赖边，保留 Node 与 pnpm；三、验证启动、外壳五页、任务详情、会话发一条消息、插件清单不报缺；四、给出前后字节与未验项。红线：运行准备与宿主启动检查允许改，但每处必须先登记 lcoder/contact-surface.txt 并在 lcoder/UPSTREAM-BASELINE.md 第 3 节写改什么与为什么；不改其它上游包与模型工具面，不改 .spec，不 push 不合并。工作树 pool-slot-2 到 lcoder/t183-payload-cut，端口 9823 与 9831 与 9832。2026-11-14 12:30 监督窗口派工，实现线会话 10113767。2026-11-14 13:10 因 T-181 发现立项 P0 缺陷，本任务暂停让出 pool-slot-2，已完成改动保留在 lcoder/t183-payload-cut，未完成项待恢复后继续；恢复时重新派工。2026-11-14 22:15 监督窗口恢复派工，工作树 pool-slot-1，会话 4733f9aa，端口改为 9822 与 9829 与 9830（9823 系列已给 M1）；先并入最新主检，锁冲突用 pnpm install --lockfile-only 重生成后再 frozen 校验。"
+      note: "B 级载荷裁剪，来源是用户 2026-11-14 选择 Office 与 Python 都裁，并确认产品不做 Office 转换与数据分析。依据 T-179，Electron 368 MiB 是地板，LibreOffice 184 MiB 与 Python 157 MiB 两块无 LCoder 消费方，合计约 341 MiB 解包体积。步骤：一、先建立打包称重基线，记录 win-unpacked 总字节与各载荷字节，打包跑不通就用既有 targets 目录并写明差异；二、最小排除实验，去掉 LibreOffice 与 Python 载荷与它们的运行准备、宿主启动检查、依赖边，保留 Node 与 pnpm；三、验证启动、外壳五页、任务详情、会话发一条消息、插件清单不报缺；四、给出前后字节与未验项。红线：运行准备与宿主启动检查允许改，但每处必须先登记 lcoder/contact-surface.txt 并在 lcoder/UPSTREAM-BASELINE.md 第 3 节写改什么与为什么；不改其它上游包与模型工具面，不改 .spec，不 push 不合并。工作树 pool-slot-2 到 lcoder/t183-payload-cut，端口 9823 与 9831 与 9832。2026-11-14 12:30 监督窗口派工，实现线会话 10113767。2026-11-14 13:10 因 T-181 发现立项 P0 缺陷，本任务暂停让出 pool-slot-2，已完成改动保留在 lcoder/t183-payload-cut，未完成项待恢复后继续；恢复时重新派工。2026-11-14 22:15 监督窗口恢复派工，工作树 pool-slot-1，会话 4733f9aa，端口改为 9822 与 9829 与 9830（9823 系列已给 M1）；先并入最新主检，锁冲突用 pnpm install --lockfile-only 重生成后再 frozen 校验。2026-11-15 00:10 监督窗口核验并收口。并入主检无冲突，锁 frozen 校验通过；build:artifacts 八项、build:check、typecheck 全过。裁剪后运行时载荷 115,228,736 字节，只有 node 与 pnpm，无 python 与 office-skills；旧壳实例起窗正常，七条 DOM 断言 7/7，插件清单 211 条 184 active 27 disabled 0 failed；新客户端独立 home 可起且五页与流体玻璃正常。加回路径重跑一次全量铺载演练通过。打包称重与打包态冒烟因本机缺 .env.windows 与签名工具链未跑，macOS 未验，均已在 payload-cut.md 记录。另发现 M3 的皮肤/字体/语言重启保持因自 SIGKILL 跳过 Chromium 存储刷新而失败，与本次载荷裁剪无关，已转 T-193。已合入 lcoder/main、release pool-slot-1。"
     - id: T-184
       title: 客户端自研架构方案
       status: done
@@ -2159,6 +2159,17 @@ tracks:
       dep: [T-189]
       inferred: false
       note: "C 级稳定性跟进，来源是 T-189 收口时 S1 探针重启历史首次超时、二次通过。现象：重启后等待历史重读超时；手动点会话两秒内回历史。排查点：follow snapshot 到达与 UI 选择时机、session/events 订阅与补洞、探针等待条件是否过窄。验收：探针连续三次 PASS；若为探针等待条件问题改探针，若为产品竞态改客户端。2026-11-14 19:10 转 doing；M3 合入后主检 S1 三次仍一红两绿，需按失败日志定位关停、落盘与跟随竞态，修复后要求 S1 连续五次 PASS。T-190 的关窗修复已把探针改为保留 CDP 等 exit，新壳关停加十二秒硬上限与关停日志；本次要保留失败现场日志再定性。2026-11-14 19:15 监督窗口派工，修复会话 410208fb。2026-11-14 21:55 监督窗口核验并收口。根因两层：探针把流式草稿当历史，实测提前约一百二十五毫秒关窗，宿主关停截断在途回合；以及 Electron 原生退出在慢关停后卡死。修法：探针只认已提交消息与新建会话、关窗等窗口目标消失、失败现场采集；新壳清理完成后自 SIGKILL 绕过原生退出；探针 waitExit 再改事件与退出码与 PID 存活三路判定，兜住 Windows 下 SIGKILL 后收不到 exit 事件。主检 S1 五连跑全 PASS，每次两实例均走 SIGKILL 且检测命中 PID 消失；T-190 探针 39/39、M2 PASS；合入后主检 sanity S1 PASS；typecheck 与 build:check 全过。未验：Windows 无 exit 事件的原生原因未定位；宿主慢关停可达八秒；更晚的结束与标题事件持久化未逐项验。已合入 lcoder/main、release pool-slot-1。"
+    - id: T-193
+      title: 退出前刷新渲染端偏好存储
+      status: doing
+      face: 用户端
+      type: 修复
+      owner: lance
+      created: '2026-11-15'
+      date: '2026-11-15'
+      dep: [T-192, T-190]
+      inferred: false
+      note: "C 级修复，来源是 T-183 合入后主检跑 M3 探针，重启后皮肤/字体/语言保持一项失败：状态回到默认 liquid-glass、system、zh-CN。根因是 T-192 的确定性退出改为清理后自 SIGKILL，跳过了 Chromium 的正常退出，渲染端 localStorage 的最后一批写入可能没有落盘。修法优先两选一：一是在自 SIGKILL 前刷 main 进程持有的 session 存储（flushStorageData 或等价），并留出有界等待；二是把皮肤/字体/语言偏好改成经窄 IPC 写主进程的 userData JSON，localStorage 只作渲染端缓存。不得回退确定性退出。验收：M3 探针 39/39，重启后皮肤/字体/语言保持；S1 与 M2 探针仍 PASS；typecheck/build:check/oxlint 全绿。与 T-191 同一工作树执行，不改其它范围。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
