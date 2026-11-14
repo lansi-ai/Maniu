@@ -202,17 +202,49 @@ async function closeApp(page) {
   page.socket.send(JSON.stringify({ id: 999_999, method: 'Runtime.evaluate', params: { expression: "window.lcoder.window('close')" } }))
 }
 
+/** 进程是否仍存在；ESRCH 表示已不存在。 */
+function processAlive(pid) {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch (error) {
+    return error?.code !== 'ESRCH'
+  }
+}
+
+/**
+ * 等实例真正退出，并报告命中的判定路径。
+ * Windows 下自 SIGKILL 后父进程偶发收不到 exit 事件，exitCode/signalCode 也保持 null；
+ * 所以同时看 exit 事件、退出码与 PID 存活，任一成立即为已退出。
+ * @param child - 探针启动的 Electron 主进程。
+ * @param milliseconds - 等待上限。
+ * @returns 是否已退出。
+ */
 async function waitExit(child, milliseconds) {
-  const exited = new Promise((resolvePromise) => {
-    if (child.exitCode !== null) { resolvePromise(true); return }
-    child.once('exit', () => { resolvePromise(true) })
-  })
   let timer
-  const timed = new Promise((resolvePromise) => { timer = setTimeout(() => { resolvePromise(false) }, milliseconds) })
-  const ok = await Promise.race([exited, timed])
+  let poll
+  const event = new Promise((resolvePromise) => {
+    if (child.exitCode !== null || child.signalCode !== null) { resolvePromise('exit-code'); return }
+    child.once('exit', () => { resolvePromise('exit-event') })
+  })
+  const gone = new Promise((resolvePromise) => {
+    if (!processAlive(child.pid)) { resolvePromise('pid-gone'); return }
+    poll = setInterval(() => {
+      if (!processAlive(child.pid)) resolvePromise('pid-gone')
+    }, 250)
+  })
+  const timed = new Promise((resolvePromise) => { timer = setTimeout(() => { resolvePromise('timeout') }, milliseconds) })
+  const outcome = await Promise.race([event, gone, timed])
   clearTimeout(timer)
-  if (!ok) child.kill('SIGTERM')
-  return ok
+  if (poll !== undefined) clearInterval(poll)
+  if (outcome === 'timeout') {
+    child.kill('SIGTERM')
+    return false
+  }
+  log(outcome === 'pid-gone'
+    ? `退出检测：PID ${String(child.pid)} 已不存在（未收到 exit 事件）`
+    : `退出检测：${outcome === 'exit-event' ? 'exit 事件' : 'exitCode'}`)
+  return true
 }
 
 async function launchResilient(suffix) {
