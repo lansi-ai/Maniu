@@ -2059,7 +2059,7 @@ tracks:
       date: '2026-11-14'
       dep: [T-179]
       inferred: false
-      note: "B 级载荷裁剪，来源是用户 2026-11-14 选择 Office 与 Python 都裁，并确认产品不做 Office 转换与数据分析。依据 T-179，Electron 368 MiB 是地板，LibreOffice 184 MiB 与 Python 157 MiB 两块无 LCoder 消费方，合计约 341 MiB 解包体积。步骤：一、先建立打包称重基线，记录 win-unpacked 总字节与各载荷字节，打包跑不通就用既有 targets 目录并写明差异；二、最小排除实验，去掉 LibreOffice 与 Python 载荷与它们的运行准备、宿主启动检查、依赖边，保留 Node 与 pnpm；三、验证启动、外壳五页、任务详情、会话发一条消息、插件清单不报缺；四、给出前后字节与未验项。红线：运行准备与宿主启动检查允许改，但每处必须先登记 lcoder/contact-surface.txt 并在 lcoder/UPSTREAM-BASELINE.md 第 3 节写改什么与为什么；不改其它上游包与模型工具面，不改 .spec，不 push 不合并。工作树 pool-slot-2 到 lcoder/t183-payload-cut，端口 9823 与 9831 与 9832。2026-11-14 12:30 监督窗口派工，实现线会话 10113767。2026-11-14 13:10 因 T-181 发现立项 P0 缺陷，本任务暂停让出 pool-slot-2，已完成改动保留在 lcoder/t183-payload-cut，未完成项待恢复后继续；恢复时重新派工。"
+      note: "B 级载荷裁剪，来源是用户 2026-11-14 选择 Office 与 Python 都裁，并确认产品不做 Office 转换与数据分析。依据 T-179，Electron 368 MiB 是地板，LibreOffice 184 MiB 与 Python 157 MiB 两块无 LCoder 消费方，合计约 341 MiB 解包体积。步骤：一、先建立打包称重基线，记录 win-unpacked 总字节与各载荷字节，打包跑不通就用既有 targets 目录并写明差异；二、最小排除实验，去掉 LibreOffice 与 Python 载荷与它们的运行准备、宿主启动检查、依赖边，保留 Node 与 pnpm；三、验证启动、外壳五页、任务详情、会话发一条消息、插件清单不报缺；四、给出前后字节与未验项。红线：运行准备与宿主启动检查允许改，但每处必须先登记 lcoder/contact-surface.txt 并在 lcoder/UPSTREAM-BASELINE.md 第 3 节写改什么与为什么；不改其它上游包与模型工具面，不改 .spec，不 push 不合并。工作树 pool-slot-2 到 lcoder/t183-payload-cut，端口 9823 与 9831 与 9832。2026-11-14 12:30 监督窗口派工，实现线会话 10113767。2026-11-14 13:10 因 T-181 发现立项 P0 缺陷，本任务暂停让出 pool-slot-2，已完成改动保留在 lcoder/t183-payload-cut，未完成项待恢复后继续；恢复时重新派工。2026-11-14 22:15 监督窗口恢复派工，工作树 pool-slot-1，会话 4733f9aa，端口改为 9822 与 9829 与 9830（9823 系列已给 M1）；先并入最新主检，锁冲突用 pnpm install --lockfile-only 重生成后再 frozen 校验。"
     - id: T-184
       title: 客户端自研架构方案
       status: done
