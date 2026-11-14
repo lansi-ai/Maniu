@@ -2213,7 +2213,7 @@ tracks:
       date: '2026-11-15'
       dep: [T-196]
       inferred: false
-      note: "B 级实现，来源是 M4 方案 C2 与 C3。C2 发布 profile：宿主-only 组合（connection、file-upload、api-remotes、host-webserver、app-boot、profile-boot，加 @lcoder/kernel/cloud 与必要宿主面），不挂上游客户端插件；新客户端入口与发布态 home（~/.dsh）；验证宿主起、新壳连上、四页与聊天可用。C3 Windows 打包链：为 @lcoder/desktop 建 electron-builder 配置，含 asar 与 asarUnpack、extraResources、NSIS per-user、LCoder 身份与图标，首版不带自动更新；先产出 unsigned win 包与 win-unpacked 并称重，记录签名所需人工步骤。范围：packages/lcoder/desktop、lcoder/scripts 与必要发布配置；不改旧壳业务与上游；不改 .spec 与台账；不 push、不合并。验收：unsigned 包可装可起（本机不允许时装 win-unpacked 验证），新客户端四页与会话可用，打包称重记录字节；S1、M2、M3、t195 四条探针仍 PASS；门禁全绿。工作树 pool-slot-1 到 lcoder/t197-package，端口 9822 与 9829 与 9830。"
+      note: "B 级实现，来源是 M4 方案 C2 与 C3。C2 发布 profile：宿主-only 组合（connection、file-upload、api-remotes、host-webserver、app-boot、profile-boot，加 @lcoder/kernel/cloud 与必要宿主面），不挂上游客户端插件；新客户端入口与发布态 home（~/.dsh）；验证宿主起、新壳连上、四页与聊天可用。C3 Windows 打包链：为 @lcoder/desktop 建 electron-builder 配置，含 asar 与 asarUnpack、extraResources、NSIS per-user、LCoder 身份与图标，首版不带自动更新；先产出 unsigned win 包与 win-unpacked 并称重，记录签名所需人工步骤。范围：packages/lcoder/desktop、lcoder/scripts 与必要发布配置；不改旧壳业务与上游；不改 .spec 与台账；不 push、不合并。验收：unsigned 包可装可起（本机不允许时装 win-unpacked 验证），新客户端四页与会话可用，打包称重记录字节；S1、M2、M3、t195 四条探针仍 PASS；门禁全绿。工作树 pool-slot-1 到 lcoder/t197-package，端口 9822 与 9829 与 9830。2026-11-15 05:10 监督窗口派工，实现线会话 485d7638。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
