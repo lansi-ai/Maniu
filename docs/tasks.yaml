@@ -1961,6 +1961,17 @@ tracks:
       dep: [T-174]
       inferred: false
       note: "C 级动效优化，来源是用户 2026-11-14 反馈菜单硬切太生硬。范围：切换需求、任务、切换项目、项目信息、设置时，主区域加一次淡入与轻微上移，约一百八十到二百二十毫秒，缓出；左侧菜单项的背景与颜色加一百二十毫秒过渡。只按 nav 变化触发，不因任务或需求内部选中变化重播。尊重 prefers-reduced-motion，系统减少动效时不动画；四套皮肤只用现有 token，不加新颜色，不产生布局跳动或滚动跳位。只改 Shell、WorkspacePages 的容器与 Shell.module.css，不改数据、模型工具面与业务逻辑。验收 typecheck、packages/lcoder vitest、verify-client-ui-i18n、改动文件 oxlint；组件测试确认切换仍正常、无新增弹窗。工作树 pool-slot-1 到 lcoder/t175-view-transition，端口 9822 与 9829 与 9830。"
+    - id: T-176
+      title: 内置 Markdown 阅读器并精简边框
+      status: doing
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-14'
+      date: '2026-11-14'
+      dep: [T-170, T-174]
+      inferred: false
+      note: "B 级界面增强，来源是用户 2026-11-14 要求减少不必要边框、内置 Markdown 阅读器并美化显示，阅读器可放大缩小与拖动，文档都用阅读器打开。现状：交付物文档预览是 pre 纯文本，需求文档在详情内联用 MarkdownText；两者都没有缩放与拖动。设计：一、新增 MarkdownReader 组件，全屏阅读层，标题栏放文档路径、缩放减、百分比、缩放加、重置与关闭；正文用现有 MarkdownText 渲染并按缩放比例变换；控制范围五十到二百 percent；二、Ctrl 或 Command 加滚轮缩放，普通滚轮滚动；放大后可按住拖动平移，复位后不拖；Esc 关闭，加减号与零重置；三、排版美化：正文限宽七百六十左右、标题层级、段落行高、列表、表格、引用、代码块与链接统一走皮肤 token，减少边框，用间距与底色分层；四、交付物文档与需求文档的打开入口都改为进阅读器，交付物预览从 pre 改为 Markdown；五、精简任务详情、需求详情、页面卡片的非必要边框，保留输入框、焦点与看板列的功能边界。约束：只改展示层与组件，不动数据、契约字段、提示词、模型工具面；四套皮肤、窄窗与 reduced-motion 可用。验收 typecheck、packages/lcoder vitest、verify-client-ui-i18n、改动文件 oxlint；组件测试覆盖打开关闭、缩放与复位、拖动平移、Esc、Markdown 标题与表格渲染、两处入口进阅读器。工作树 pool-slot-1 到 lcoder/t176-md-reader，端口 9822 与 9829 与 9830。"
     - id: T-161
       title: 需求与任务的云同步层
       status: todo
