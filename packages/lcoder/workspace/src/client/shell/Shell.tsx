@@ -223,6 +223,9 @@ export type ShellProps =
 /** 配置没给尺寸时的普通档默认值；最大化档不读配置。 */
 export const DEFAULT_CHAT_SIZE = { width: 720, height: 640 } as const
 
+/** 立项会话的 preset 与角色：需求分析师面才有 `requirement_draft`。 */
+const INTAKE_SESSION = { preset: 'lcoder-intake', role: 'intake' } as const
+
 /** 左侧菜单的主视图：需求、任务，以及底部组的三张整页。 */
 export type ShellView = 'requirements' | 'tasks' | 'projects' | 'project-info' | 'settings'
 
@@ -2060,19 +2063,19 @@ export function Shell({
   /**
    * 建一条跟随设置里默认模型的会话，并把角色记进本窗口的角色表。
    *
-   * 读者可能是拆分内的项目经理/研发经理，也可能是方案讨论里的岗位；后者传岗位 id 而不是
-   * preset。模型只在创建之后、首回合之前写一次默认，不切当前会话，避免界面上的旧选择
-   * 反写到新会话。
+   * 读者可能是拆分内的项目经理/研发经理、方案讨论里的岗位，或立项的需求分析师；
+   * 后两者传岗位 id 而不是 preset。模型只在创建之后、首回合之前写一次默认，不切当前
+   * 会话，避免界面上的旧选择反写到新会话。
    */
   const createDefaultedSession = async (
     create: (path: string, preset?: string) => Promise<SessionId>,
     preset: string,
     roleId: string,
-  ): Promise<string> => {
+  ): Promise<SessionId> => {
     const created = await create(projectPath, preset)
     await applyDefaultModel(created)
     setSessionRoles(current => ({ ...current, [String(created)]: roleId }))
-    return String(created)
+    return created
   }
 
   /**
@@ -3114,6 +3117,7 @@ export function Shell({
    * 把一档立项咒语发到指定会话。
    *
    * 调用面在宿主侧；模型选择只在真正选过时、建会话之后发送之前落一次。
+   * 只有旧匿名访客路由的会话补切云端，设置默认的模型不会被路由盖住。
    * 返回就地错误原文；路由失败已经把原因写进 `chatError`，这里返回 null。
    */
   const dispatchIntakePrompt = async (
@@ -3122,7 +3126,8 @@ export function Shell({
     modelChoice: IntakeModelOption | null,
   ): Promise<string | null> => {
     if (sendPrompt === undefined) return t('shell.noSession')
-    if (!await routeSession(target)) return null
+    // 跟随设置默认的模型不能被云端路由盖住：只有已知的旧匿名访客路由才补切。
+    if (sessionCloudProvider(target) === CLOUD_LEGACY_GUEST_ROUTE && !await routeSession(target)) return null
     if (modelChoice !== null && modelSettings !== undefined) {
       const failure = await modelSettings.setDefault(target, modelChoice.provider, modelChoice.model)
       if (failure !== undefined) return failure
@@ -3189,7 +3194,8 @@ export function Shell({
   }
 
   /**
-   * 向导的「确认」：没会话就先建一条，再按同一套会话事实判定发不发咒语。
+   * 向导的「确认」：没会话、或手上的会话还是宿主默认的空白会话，就先按 intake 新建一条，
+   * 再按同一套会话事实判定发不发咒语。
    *
    * 已经发过（`blank` 已落、消息窗口里有用户消息、或首条提示正等首个回合）就只进阶段，
    * 不重发；选过模型则在发送前落一次 `selectModel`，失败就停住并就地显示原文。
@@ -3225,10 +3231,15 @@ export function Shell({
     setWizardSending(true)
     void (async () => {
       try {
-        let target = sessionId
+        // 打开仓库时宿主先建一条默认（实施）空会话；七问发进它，访谈就跑在 dev 面，
+        // 没有 requirement_draft。空会话换成 intake 面新建；已受理过咒语的会话照旧复用。
+        let target = sessionId !== undefined && session?.blank === true
+          && agentPresetOf(sessionId) !== INTAKE_SESSION.preset
+          ? undefined
+          : sessionId
         if (target === undefined) {
           if (createSession === undefined || projectPath === '') throw new Error(t('shell.noSession'))
-          target = await createSession(projectPath)
+          target = await createDefaultedSession(createSession, INTAKE_SESSION.preset, INTAKE_SESSION.role)
           setSessionOverride(target)
           setReload(value => value + 1)
         }
@@ -3388,7 +3399,7 @@ export function Shell({
       project: { name: projectName, path: projectPath, branch: projectBranch },
       docs: info?.docs ?? { product: '', architecture: '', tests: '' },
       path: projectPath,
-      createSession: path => createSession(path),
+      createSession: () => createDefaultedSession(createSession, INTAKE_SESSION.preset, INTAKE_SESSION.role),
       sendPrompt,
     }).then((outcome) => {
       if (outcome.kind === 'create-failed') {
