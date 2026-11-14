@@ -117,7 +117,8 @@ export function createStatePublisher(window: () => BrowserWindow | undefined): S
   let latest: HostState = { kind: 'starting' }
   const send = (): void => {
     const target = window()
-    if (target !== undefined && !target.isDestroyed() && !target.webContents.isLoading()) {
+    // 加载期也发送：丢失由渲染端挂载时的 hostStateNow 补读，而不是永久停在 starting。
+    if (target !== undefined && !target.isDestroyed()) {
       target.webContents.send(IPC_CHANNELS.hostState, latest)
     }
   }

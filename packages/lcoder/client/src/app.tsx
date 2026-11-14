@@ -40,6 +40,34 @@ function sortSessions(sessions: readonly SessionSummary[]): SessionSummary[] {
   return [...sessions].sort((left, right) => right.updatedAt - left.updatedAt)
 }
 
+/** 宿主状态的稳定优先级：晚到的初始读取不得把 ready/fatal 降回 starting。 */
+const HOST_RANK: Readonly<Record<HostState['kind'], number>> = {
+  starting: 0,
+  ready: 1,
+  fatal: 2,
+  stopped: 3,
+}
+
+/** 云端状态读取的上限；超时按云端不可用展示，不留在 booting。 */
+const CLOUD_STATE_TIMEOUT_MS = 15_000
+
+function cloudFailureOf(error: unknown): RemoteFailure {
+  return {
+    code: 'lcoder/cloud-unreachable',
+    message: error instanceof Error ? error.message : String(error),
+  }
+}
+
+function withTimeout<T>(promise: Promise<T>, milliseconds: number, message: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => { reject(new Error(message)) }, milliseconds)
+    promise.then(
+      (value) => { clearTimeout(timer); resolve(value) },
+      (error: unknown) => { clearTimeout(timer); reject(error instanceof Error ? error : new Error(String(error))) },
+    )
+  })
+}
+
 /** 应用根。 */
 export function App(): JSX.Element {
   const [host, setHost] = useState<HostState>({ kind: 'starting' })
@@ -54,8 +82,14 @@ export function App(): JSX.Element {
   const activeRef = useRef<string | null>(null)
   const rebaselineRef = useRef(0)
   const composerRef = useRef<HTMLTextAreaElement | null>(null)
+  const hostEventSeen = useRef(false)
+  const cloudSeq = useRef(0)
 
   activeRef.current = active
+
+  const applyHost = useCallback((next: HostState) => {
+    setHost(current => HOST_RANK[next.kind] >= HOST_RANK[current.kind] ? next : current)
+  }, [])
 
   const closeStream = useCallback(() => {
     const stream = streamRef.current
@@ -89,60 +123,81 @@ export function App(): JSX.Element {
   }, [openFollow])
 
   const loadSessions = useCallback(async () => {
-    const answer = await window.lcoder.call('session', 'list', { _request: {} })
-    if (!answer.ok) {
-      setNotice(`${answer.error.code}: ${answer.error.message}`)
-      return
+    try {
+      const answer = await window.lcoder.call('session', 'list', { _request: {} })
+      if (!answer.ok) {
+        setNotice(`${answer.error.code}: ${answer.error.message}`)
+        return
+      }
+      const value = answer.value
+      if (!isRecord(value) || !Array.isArray(value.items)) return
+      const items = value.items.flatMap(item => summaryOf(item) ?? [])
+      setSessions(sortSessions(items))
+    } catch (error: unknown) {
+      setNotice(error instanceof Error ? error.message : String(error))
     }
-    const value = answer.value
-    if (!isRecord(value) || !Array.isArray(value.items)) return
-    const items = value.items.flatMap(item => summaryOf(item) ?? [])
-    setSessions(sortSessions(items))
   }, [])
 
   const checkCloud = useCallback(async () => {
-    setGate({ kind: 'booting' })
-    const answer = await window.lcoder.call('lcoderCloud', 'state', {})
-    if (!answer.ok) {
-      setGate({ kind: 'cloud-error', failure: answer.error })
-      return
-    }
-    const value = answer.value
-    if (!isRecord(value)) {
-      setGate({ kind: 'cloud-error', failure: { code: 'lcoder/invalid-cloud-state', message: '云端状态字段不合法' } })
-      return
-    }
-    if (value.ok === false) {
-      const failure = value.error
-      setGate({
-        kind: 'cloud-error',
-        failure: isRecord(failure)
-          ? {
-            code: typeof failure.code === 'string' ? failure.code : 'lcoder/cloud-failed',
-            message: typeof failure.message === 'string' ? failure.message : '云端调用失败',
+    const run = ++cloudSeq.current
+    const apply = (next: Gate): void => { if (run === cloudSeq.current) setGate(next) }
+    apply({ kind: 'booting' })
+
+    let failure: RemoteFailure | undefined
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        const answer = await withTimeout(
+          window.lcoder.call('lcoderCloud', 'state', {}),
+          CLOUD_STATE_TIMEOUT_MS,
+          '云端状态读取超时',
+        )
+        if (!answer.ok) {
+          failure = answer.error
+        } else {
+          const value = answer.value
+          if (!isRecord(value)) {
+            failure = { code: 'lcoder/invalid-cloud-state', message: '云端状态字段不合法' }
+          } else if (value.ok === false) {
+            const error = value.error
+            failure = isRecord(error)
+              ? {
+                code: typeof error.code === 'string' ? error.code : 'lcoder/cloud-failed',
+                message: typeof error.message === 'string' ? error.message : '云端调用失败',
+              }
+              : { code: 'lcoder/cloud-failed', message: '云端调用失败' }
+          } else {
+            const state = value.ok === true && isRecord(value.value) ? value.value : undefined
+            if (state === undefined) {
+              failure = { code: 'lcoder/invalid-cloud-state', message: '云端状态字段不合法' }
+            } else if (state.signedIn !== true) {
+              apply({ kind: 'login', message: '当前未登录。S1 只做登录门禁，登录表单在 M3 实现。' })
+              return
+            } else {
+              apply({ kind: 'ready' })
+              await loadSessions()
+              return
+            }
           }
-          : { code: 'lcoder/cloud-failed', message: '云端调用失败' },
-      })
-      return
+        }
+      } catch (error: unknown) {
+        failure = cloudFailureOf(error)
+      }
+      if (attempt === 0) await new Promise(resolve => setTimeout(resolve, 300))
     }
-    const state = value.ok === true && isRecord(value.value) ? value.value : undefined
-    if (state === undefined) {
-      setGate({ kind: 'cloud-error', failure: { code: 'lcoder/invalid-cloud-state', message: '云端状态字段不合法' } })
-      return
-    }
-    if (state.signedIn !== true) {
-      setGate({ kind: 'login', message: '当前未登录。S1 只做登录门禁，登录表单在 M3 实现。' })
-      return
-    }
-    setGate({ kind: 'ready' })
-    await loadSessions()
+    apply({ kind: 'cloud-error', failure: failure ?? { code: 'lcoder/cloud-failed', message: '云端调用失败' } })
   }, [loadSessions])
 
   useEffect(() => {
-    const off = window.lcoder.hostState(setHost)
-    void window.lcoder.hostStateNow().then(setHost).catch(() => undefined)
+    const off = window.lcoder.hostState((state) => {
+      hostEventSeen.current = true
+      applyHost(state)
+    })
+    // 挂载时补读一次；事件已到达时以事件为准，避免晚到的旧快照把 ready 降级。
+    void window.lcoder.hostStateNow()
+      .then((state) => { if (!hostEventSeen.current) applyHost(state) })
+      .catch(() => undefined)
     return off
-  }, [])
+  }, [applyHost])
 
   useEffect(() => {
     if (host.kind !== 'ready') return
