@@ -2194,7 +2194,7 @@ tracks:
       note: "B 级测试基础设施与验证，来源是 M4 决策：首版审批与提问用扩 mock 验回环。目标：扩展 lcoder/scripts/mock-cloud.mjs 的 chat completions，支持返回 tool_calls，至少一个需要审批的工具与一次 ask_user 提问，让新客户端走真实 waterfall：显示审批与提问卡、approve 与 deny 回执原样发回、工具继续或中止。范围：mock 脚本、M1 客户端若有回执缺陷可最小修、新增一条 t195 探针用 CDP DOM 断言审批与提问两轮；不改宿主与旧壳。验收：审批通过一轮、审批拒绝一轮、提问回答一轮，回执在会话事件里可查；S1 与 M2 与 M3 探针不回归；门禁全绿。工作树 slot-1 到 lcoder/t195-mock-tools，端口 9822 与 9829 与 9830。2026-11-15 01:30 监督窗口派工，实现线会话 e85dde17。2026-11-15 03:00 监督窗口核验并收口。mock 新增按轮口令 T195 approve 与 deny 与 ask，SSE 两帧返回 tool_calls，审批走 pwsh 加 danger-full-access 与 justification，提问走 ask_user_question；新增 t195 回环探针，十个阶段五十一项断言全部通过。三轮证据：审批通过回执 allowed-once 且工具执行，审批拒绝回执 rejected 且工具 isError，提问回答后回合继续；durable 会话日志有 approval/asked 两次、approval/decided 两次、tool/call 三次、tool/result 三次、job/registered 一次。客户端零改动，说明 M1 回执链路本身正确。主检 typecheck、build:check、test:docs 全过；t195 探针与 S1、M2、M3 三条回归探针全 PASS。未验项：真实 provider 的 tool_calls 格式差异、模型切换、图片 durable 预览、停止截断。已合入 lcoder/main、release pool-slot-1。"
     - id: T-196
       title: 新客户端 C1 系统面补齐
-      status: doing
+      status: done
       face: 用户端
       type: 开发
       owner: lance
@@ -2202,7 +2202,18 @@ tracks:
       date: '2026-11-15'
       dep: [T-194, T-195]
       inferred: false
-      note: "B 级实现，来源是 M4 方案 C1 与用户 2026-11-15 拍板。口径：关窗即退出，有回合在跑时先确认；首版不带自动更新，只留手动更新与说明入口；模型设置首版只读 provider 列表与默认模型，不改 baseURL 与 models；项目密码与令牌保留本地揭示，仅本地解析不进模型与日志；角色看板够用，不做关系图与并行组；发布态宿主 home 共用用户 ~/.dsh，开发仍用仓内 home；深链首版不做。范围：packages/lcoder/client 与 packages/lcoder/desktop。验收：关窗行为在空闲与运行中两种状态正确；设置只读；更新入口可解释；密码揭示仅在本地；home 解析有单测且探针不受影响；S1 与 M2 与 M3 与 t195 探针全 PASS；build/typecheck/oxlint/i18n/test:docs 全绿。工作树 pool-slot-1 到 lcoder/t196-c1-system，端口 9822 与 9829 与 9830。2026-11-15 03:15 监督窗口派工，实现线会话 f2d06079。"
+      note: "B 级实现，来源是 M4 方案 C1 与用户 2026-11-15 拍板。口径：关窗即退出，有回合在跑时先确认；首版不带自动更新，只留手动更新与说明入口；模型设置首版只读 provider 列表与默认模型，不改 baseURL 与 models；项目密码与令牌保留本地揭示，仅本地解析不进模型与日志；角色看板够用，不做关系图与并行组；发布态宿主 home 共用用户 ~/.dsh，开发仍用仓内 home；深链首版不做。范围：packages/lcoder/client 与 packages/lcoder/desktop。验收：关窗行为在空闲与运行中两种状态正确；设置只读；更新入口可解释；密码揭示仅在本地；home 解析有单测且探针不受影响；S1 与 M2 与 M3 与 t195 探针全 PASS；build/typecheck/oxlint/i18n/test:docs 全绿。工作树 pool-slot-1 到 lcoder/t196-c1-system，端口 9822 与 9829 与 9830。2026-11-15 03:15 监督窗口派工，实现线会话 f2d06079。2026-11-15 05:00 监督窗口核验并收口。关窗确认：主进程按 api-session 状态维护在跑回合，空闲直退、运行中弹确认，t195 新增挂起审批时关窗取消与确认两段；home 解析：发布态 ~/.dsh、开发态仓内、显式 DSH_HOME 优先，单测覆盖两分支；模型面板只读，保留 provider 分组、密钥三态、默认模型与账号托管说明；更新改为当前版本加手动下载说明，不发网络请求；项目密码按 passwordRef 从本地投影解析，不进模型与日志；角色看板保留，深链首版不做。主检 build:artifacts 八项、build:check、typecheck、packages/lcoder vitest 一百零二文件一千一百七十四例、i18n、test:docs 全过；S1、M2、M3、t195 四条探针全 PASS。未验项：真实云端与官网 provider、打包态、macOS。已合入 lcoder/main、release pool-slot-1。"
+    - id: T-197
+      title: M4 C2 发布 profile 与 Windows 打包链
+      status: doing
+      face: 工程
+      type: 开发
+      owner: lance
+      created: '2026-11-15'
+      date: '2026-11-15'
+      dep: [T-196]
+      inferred: false
+      note: "B 级实现，来源是 M4 方案 C2 与 C3。C2 发布 profile：宿主-only 组合（connection、file-upload、api-remotes、host-webserver、app-boot、profile-boot，加 @lcoder/kernel/cloud 与必要宿主面），不挂上游客户端插件；新客户端入口与发布态 home（~/.dsh）；验证宿主起、新壳连上、四页与聊天可用。C3 Windows 打包链：为 @lcoder/desktop 建 electron-builder 配置，含 asar 与 asarUnpack、extraResources、NSIS per-user、LCoder 身份与图标，首版不带自动更新；先产出 unsigned win 包与 win-unpacked 并称重，记录签名所需人工步骤。范围：packages/lcoder/desktop、lcoder/scripts 与必要发布配置；不改旧壳业务与上游；不改 .spec 与台账；不 push、不合并。验收：unsigned 包可装可起（本机不允许时装 win-unpacked 验证），新客户端四页与会话可用，打包称重记录字节；S1、M2、M3、t195 四条探针仍 PASS；门禁全绿。工作树 pool-slot-1 到 lcoder/t197-package，端口 9822 与 9829 与 9830。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
