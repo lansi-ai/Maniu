@@ -245,17 +245,72 @@ async function attach(url) {
   return { socket, evaluate, waitFor }
 }
 
-function closeApp(page) {
-  // 关窗命令由渲染端发出；窗口随即销毁，invoke 回执本来就不会返回，因此不等回执。
-  // 也不主动断开 CDP：保留到进程退出之后再关 socket，避免排队中的命令随断链丢失。
+async function closeApp(page) {
+  // 关窗命令由渲染端发出；窗口随即销毁，invoke 回执不会返回，因此不等回执。
   page.socket.send(JSON.stringify({
     id: 999_999,
     method: 'Runtime.evaluate',
     params: { expression: "window.lcoder.window('close')" },
   }))
+  // 等窗口目标从调试列表消失再断链：确认命令已送达且窗口已销毁。
+  const started = Date.now()
+  const deadline = started + 10_000
+  while (Date.now() < deadline) {
+    let targets
+    try {
+      targets = await (await fetch(`http://127.0.0.1:${String(RENDERER_PORT)}/json/list`)).json()
+    } catch {
+      log(`渲染调试端口已关闭（${String(Date.now() - started)} 毫秒），断开 CDP`)
+      page.socket.close()
+      return
+    }
+    if (!targets.some(target => target.type === 'page' && target.url.startsWith('file://'))) {
+      log(`窗口目标已消失（${String(Date.now() - started)} 毫秒），断开 CDP`)
+      page.socket.close()
+      return
+    }
+    await new Promise(resolvePromise => setTimeout(resolvePromise, 100))
+  }
+  log('窗口目标 10 秒内没有消失，保留 CDP 直接等退出')
 }
 
-async function waitExit(child, milliseconds) {
+/** 调试端口监听行。 */
+function portRows() {
+  const netstat = spawnSync('netstat', ['-ano'], { encoding: 'utf8', timeout: 8_000 })
+  return (netstat.stdout ?? '').split(/\r?\n/u)
+    .filter(line => /:98(?:22|29|30)\s/u.test(line))
+    .map(line => line.trim())
+}
+
+/** 读日志文件末尾若干行；文件不存在时返回空数组。 */
+function tailLines(path, count) {
+  try {
+    return readFileSync(path, 'utf8').trimEnd().split(/\r?\n/u).slice(-count)
+  } catch {
+    return []
+  }
+}
+
+/**
+ * 关窗超时现场：主进程存活、端口占用与实例日志尾部。
+ * @param child - 探针启动的 Electron 主进程。
+ * @param label - 实例阶段。
+ */
+async function dumpQuitHang(child, label) {
+  log(`--- 关窗未退出：${label}（pid ${String(child.pid)}）`)
+  let alive = false
+  try {
+    process.kill(child.pid, 0)
+    alive = true
+  } catch {
+    alive = false
+  }
+  log(`主进程仍存活=${alive ? '是' : '否'} exitCode=${String(child.exitCode)}`)
+  for (const row of portRows()) log(`  | ${row}`)
+  for (const line of tailLines(join(LOGS, 't189-probe-desktop.log'), 20)) log(`  | ${line}`)
+}
+
+async function waitExit(child, milliseconds, onTimeout) {
   const exited = new Promise((resolvePromise) => {
     if (child.exitCode !== null) { resolvePromise(true); return }
     child.once('exit', () => { resolvePromise(true) })
@@ -264,7 +319,10 @@ async function waitExit(child, milliseconds) {
   const timed = new Promise((resolvePromise) => { timer = setTimeout(() => { resolvePromise(false) }, milliseconds) })
   const ok = await Promise.race([exited, timed])
   clearTimeout(timer)
-  if (!ok) child.kill('SIGTERM')
+  if (!ok) {
+    if (onTimeout !== undefined) await onTimeout().catch(() => undefined)
+    child.kill('SIGTERM')
+  }
   return ok
 }
 
@@ -471,7 +529,7 @@ async function run() {
     await page.waitFor("document.querySelector('[data-testid=\"session-list\"]') !== null", 10_000, '聊天页会话列表')
 
     await closeApp(page)
-    const exited = await waitExit(child, 20_000)
+    const exited = await waitExit(child, 20_000, () => dumpQuitHang(child, 'M2 实例'))
     page.socket.close()
     page = undefined
     log(exited ? '实例已退出' : '实例未在 20 秒内退出，已发 SIGTERM')
