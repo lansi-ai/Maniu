@@ -2115,6 +2115,39 @@ tracks:
       dep: [T-187]
       inferred: false
       note: "B 级视觉重构，来源是用户 2026-11-14 表示不喜欢现有浅色主题，要苹果新系统那种流体玻璃、特效拉满。用户拍板四项：替换 frost 并设为默认、动效拉满但尊重 reduced-motion、环境背景用应用内自绘、只在新客户端做。范围：在 packages/lcoder/client 建立主题底座，液体玻璃作为新客户端默认浅色主题，旧壳 frost 不迁移。做法：一、token 层拆出 glass 表面、点线、阴影、圆角与高光变量；二、内置环境背景层，用柔和色块与光晕缓慢流动，不依赖系统壁纸与亚克力；三、玻璃面 backdrop-filter 模糊与饱和拉高，叠镜面边框、顶部内高光、外浮动阴影与细颗粒；四、悬停与按下加镜面扫光与折射，只用 transform 与 opacity，不触发布局；五、reduced-motion 时全部静态；六、登录门禁、会话列表、聊天三屏必须能直接看到效果，文字对比度不降。验收：typecheck、build、改动文件 oxlint、S1 探针仍 PASS；用 CDP 读 computed style 证明 backdrop-filter、合成层与 reduced-motion 分支生效；真实观感由用户手看。约束：只改新客户端与其样式资产，不改旧壳、不改上游、不 push 不合并。工作树待 T-187 合入后 claim 到 lcoder/t188-liquid-glass，端口 9822 与 9829 与 9830。T-187 已收口；2026-11-14 15:20 监督窗口派工，实现线会话 c1e5782d。2026-11-14 15:50 监督窗口核验并收口。新客户端默认浅色改为流体玻璃：新增 theme/liquid-glass.css token 与基元，环境层五个自绘漂移色块加细颗粒，玻璃面模糊三十六像素、饱和一百九十 percent，镜面亮边与顶部内高光、浮动阴影、胶囊控件、悬停扫光；登录门禁、会话列表、聊天三屏生效。CDP 实测计算样式为 blur(36px) saturate(1.9)，正常模式五个动画，模拟 reduced-motion 后动画数为零；用户已在 9822 预览并确认无意见。主检复跑 build:artifacts 八项、build:check 两项、typecheck 五项、packages/lcoder vitest 九十三文件一千一百一十九例、i18n、test:docs 二十一项全过；S1 探针 PASS。未验项：其他皮肤与新客户端后续页面尚未接入该底座、真实云端与官网 provider、打包与 macOS。已合入 lcoder/main、release pool-slot-1。"
+    - id: T-189
+      title: 新客户端 M2 工作台数据面
+      status: todo
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-14'
+      date: '2026-11-14'
+      dep: [T-188]
+      inferred: false
+      note: "B 级实现，来源是用户 2026-11-14 要求做 M2。范围按 T-184 方案 M2：spec 投影（任务、规则、需求、方案、契约、交付物、调度证据、角色、常驻会话、项目、本地密钥、自动化）、五个工作台页面（需求、任务、切换项目、项目信息、设置占位）、看板与列表、任务详情、Markdown 阅读器、需求详情与讨论历史、立项向导与结果页、专家与角色看板、调度建议、流程状态与动作日志、任务附件。只改新客户端 packages/lcoder/client 与其适配层，不引入上游 client 包。依赖 T-188；M1 的审批、提问、附件卡片尚未完成，先按现有事件渲染纯文本与工具状态，缺口在回报里列清。验收：页面 parity 清单逐项、DEMO-01 与一个真实仓可读、看板六列、详情与阅读器可开、确认需求与拆分与签约与推进经命令通道可用、S1 探针仍 PASS、build 与 typecheck 与 oxlint 与 i18n 与 test:docs 全绿。工作树 slot-1 到 lcoder/t189-m2，端口 9822 与 9829 与 9830。"
+    - id: T-190
+      title: 新客户端 M3 账号与系统面
+      status: todo
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-14'
+      date: '2026-11-14'
+      dep: [T-189]
+      inferred: false
+      note: "B 级实现，来源是用户 2026-11-14 要求做 M3。范围按 T-184 方案 M3：登录、注册、验证码、密码、个人中心与用量、设置页（模型、路由、主题、字体、语言）、四套皮肤（默认流体玻璃，替换旧 frost）、中英切换、窗口按钮与拖拽、托盘、菜单、快捷键、更新 UI、欢迎屏。为避同一客户端文件的并行冲突，排在 T-189 之后，M2 合入后再 claim。验收：登录到开会话到改设置到重启仍生效、四套皮肤与中英各一套检查、reduced-motion、上游欢迎屏不再出现、门禁与 S1 探针全绿。工作树待 M2 合入后 claim 到 lcoder/t190-m3。"
+    - id: T-191
+      title: 新客户端 M1 会话与聊天能力
+      status: todo
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-14'
+      date: '2026-11-14'
+      dep: [T-187]
+      inferred: false
+      note: "B 级实现，来源是用户 2026-11-14 早先选择只保留流程必需的聊天能力。范围按 T-184 方案 M1：会话 store 完整化（follow 三帧、补洞、projection）、工具卡与过程组、审批卡与回执、提问卡、附件上传与预览、停止与改名、模型 chip、上下文用量、无模型门禁。当前用户要求先做 M2 与 M3，本任务暂不派工；M2 期间先以纯文本与工具状态呈现，缺口在 M2 回报里列出。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
