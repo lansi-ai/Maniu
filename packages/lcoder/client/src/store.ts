@@ -18,6 +18,8 @@ export interface ChatMessage {
   readonly role: 'user' | 'assistant'
   readonly text: string
   readonly seq?: number
+  /** 这条答复里调用过的工具名；按出现顺序去重。 */
+  readonly tools?: readonly string[]
 }
 
 /** 一条 durable 会话记录。 */
@@ -86,8 +88,17 @@ export function messageOfRecord(record: HistoryRecord): ChatMessage | undefined 
   }
   if (event.type === 'assistant/message') {
     if (!isRecord(event.data) || !isRecord(event.data.message)) return undefined
-    const text = textOfContent(event.data.message.content)
-    return text === '' ? undefined : { id: `a-${String(event.seq)}`, role: 'assistant', text, seq: event.seq }
+    const content = event.data.message.content
+    const text = textOfContent(content)
+    const tools = toolNamesOf(content)
+    if (text === '') return undefined
+    return {
+      id: `a-${String(event.seq)}`,
+      role: 'assistant',
+      text,
+      seq: event.seq,
+      ...(tools.length === 0 ? {} : { tools }),
+    }
   }
   return undefined
 }
@@ -108,6 +119,17 @@ export function baselineText(baseline: unknown): string {
     }
   }
   return parts.join('')
+}
+
+/** 内容块里的工具名；按首次出现去重。 */
+function toolNamesOf(content: unknown): string[] {
+  if (!Array.isArray(content)) return []
+  const names: string[] = []
+  for (const block of content) {
+    if (isRecord(block) && block.type === 'tool-call' && typeof block.name === 'string'
+      && !names.includes(block.name)) names.push(block.name)
+  }
+  return names
 }
 
 function messagesOf(records: readonly HistoryRecord[]): ChatMessage[] {

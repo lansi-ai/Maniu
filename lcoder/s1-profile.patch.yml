@@ -40,3 +40,22 @@
       name: '@lcoder/kernel/cloud'
       config:
         baseUrl: !!js process.env.LCODER_CLOUD_BASE_URL || 'http://127.0.0.1:5091/v1'
+
+    # 工作台作用域会话：只用来提供 `.spec` 基准与承托人机命令面。
+    # 命令由 `@lcoder/kernel` 注册在该 preset 的 agent 作用域里；关掉工具自检，
+    # 避免一条只跑命令的会话在宿主日志里刷工具面噪音。
+    - id: preset-lcoder-workbench
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: lcoder-workbench
+        name: LCoder 工作台
+        description: 只承托工作台人机命令的会话
+        order: 30
+        plugins:
+          - id: ask-user
+            name: '@deepseek-ai/dsh-tool-ask-user'
+          - id: lcoder
+            name: '@lcoder/kernel'
+            config:
+              role: pm
+              selfCheck: false

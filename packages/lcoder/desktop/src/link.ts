@@ -6,17 +6,30 @@ import type { EventOutcome, HostEvent, HostWaterfall, RemoteFailure, RemoteResul
 const EVENT_STREAM_ID = 'ev'
 const EVENT_RESULT_ENDPOINT = '$events/result'
 
-/** S1 允许渲染端调用的命名空间与方法；不透传任意路径。 */
+/** 渲染端允许调用的一元方法；只放行工作台需要的窄面，不透传任意路径。 */
 const UNARY_ALLOWED = new Set([
   'lcoderCloud/state',
   'session/list',
   'session/create',
   'session/prompt',
   'session/cancel',
+  'session/rename',
+  'session/events',
+  'workspace/create',
+  'workspace/initializeDefault',
+  'workspaceFiles/list',
+  'workspaceFiles/read',
+  'workspaceFiles/readBytes',
+  'workspaceFiles/stat',
+  'directoryPicker/pick',
+  'commands/list',
+  'commands/execute',
+  'agentPresets/list',
+  'agentPresets/read',
 ])
 
-/** S1 允许打开的流式方法。 */
-const STREAM_ALLOWED = new Set(['session/follow'])
+/** 渲染端允许打开的流式方法。 */
+const STREAM_ALLOWED = new Set(['session/follow', 'workspace/follow'])
 
 /** 转发给渲染端的宿主事件。 */
 const FORWARDED_EVENTS = new Set([
@@ -29,6 +42,30 @@ const FORWARDED_EVENTS = new Set([
 
 /** 转发给渲染端的 waterfall 事件；S1 只展示，不回执卡片。 */
 const FORWARDED_WATERFALLS = new Set(['approval/request', 'user-questions/request'])
+
+/** 工作台主动作允许的人机命令；其余命令不透传。 */
+const COMMAND_ALLOWED = new Set([
+  'requirement_approve',
+  'requirement_release',
+  'requirement_close',
+  'task_contract',
+  'task_bind',
+  'task_assign',
+  'task_split_ready',
+  'task_schedule',
+  'contract_sign',
+  'proposal_approve',
+  'flow_status',
+  'flow_log',
+  'agent_bind',
+])
+
+/** 一条命令行里的命令名；不是 `/name` 形状时为空串。 */
+function commandNameOf(args: object): string {
+  const line = 'line' in args && typeof args.line === 'string' ? args.line.trim() : ''
+  const match = /^\/([A-Za-z0-9_-]+)/u.exec(line)
+  return match?.[1] ?? ''
+}
 
 /** 宿主事件与流帧的接收面。 */
 export interface LinkSink {
@@ -68,6 +105,66 @@ function resultOf(value: unknown): RemoteResult {
   return { ok: false, error: failureOf(value.error) }
 }
 
+interface BinaryAttachment {
+  readonly part: string
+  readonly path: readonly (string | number)[]
+}
+
+function attachmentOf(value: unknown): BinaryAttachment | undefined {
+  if (!isRecord(value) || value.codec !== 'bytes' || typeof value.part !== 'string' || !Array.isArray(value.path)) return undefined
+  const path = value.path.filter((segment): segment is string | number =>
+    typeof segment === 'string' || typeof segment === 'number')
+  return path.length === value.path.length ? { part: value.part, path } : undefined
+}
+
+/**
+ * 解析 `multipart/form-data` 结果：metadata 信封 + 按 path 回填的字节段。
+ * @param response - 宿主响应。
+ * @param rpcId - 本次调用编号；回执必须对得上。
+ * @returns 已解码的一元结果。
+ */
+async function binaryResultOf(response: Response, rpcId: string): Promise<RemoteResult> {
+  const form = await response.formData()
+  const metadata = form.get('metadata')
+  if (typeof metadata !== 'string') {
+    return { ok: false, error: { code: 'lcoder/invalid-response', message: '二进制回执缺少 metadata' } }
+  }
+  let envelope: unknown
+  try {
+    envelope = JSON.parse(metadata)
+  } catch {
+    return { ok: false, error: { code: 'lcoder/invalid-response', message: '二进制回执的 metadata 不是 JSON' } }
+  }
+  if (!isRecord(envelope) || envelope.rpcId !== rpcId) {
+    return { ok: false, error: { code: 'lcoder/invalid-response', message: '二进制回执的 rpcId 不匹配' } }
+  }
+  const result = resultOf(envelope.result)
+  if (!result.ok || !Array.isArray(envelope.attachments)) return result
+  const root: { value: unknown } = { value: result.value }
+  for (const raw of envelope.attachments) {
+    const attachment = attachmentOf(raw)
+    if (attachment === undefined) {
+      return { ok: false, error: { code: 'lcoder/invalid-response', message: '二进制回执的附件事项不合法' } }
+    }
+    const data = form.get(attachment.part)
+    if (!(data instanceof Blob)) {
+      return { ok: false, error: { code: 'lcoder/invalid-response', message: '二进制回执缺少字节段' } }
+    }
+    let parent: object = root
+    let key: string | number = 'value'
+    for (const segment of attachment.path) {
+      const value: unknown = Reflect.get(parent, key)
+      if (typeof value !== 'object' || value === null) {
+        return { ok: false, error: { code: 'lcoder/invalid-response', message: '二进制回执的路径不合法' } }
+      }
+      parent = value
+      key = segment
+    }
+    Reflect.set(parent, key, new Uint8Array(await data.arrayBuffer()))
+  }
+  return { ok: true, value: root.value }
+}
+
 /**
  * 一条宿主连接的完整生命周期。`connect` 换 cookie 后开 mux；断线自动重连并重开 `$events`。
  */
@@ -105,15 +202,18 @@ export class HostLink {
     this.openSocket()
   }
 
-  /** 断开并停止重连。 */
+  /** 断开并停止重连。关窗走 terminate：宿主不必等待逻辑流优雅结束。 */
   close(): void {
     this.stopping = true
     if (this.reconnectTimer !== undefined) clearTimeout(this.reconnectTimer)
     this.reconnectTimer = undefined
-    this.socket?.close()
+    const socket = this.socket
     this.socket = undefined
     this.socketOpen = false
     this.streams.clear()
+    // 优雅 close 的握手依赖对端读事件；应用已在退出路径上，多一条 open 的逻辑流
+    // （workspace/follow）就会把宿主关停拖过探针的退出窗口。直接断开 TCP 即可。
+    socket?.terminate()
   }
 
   /**
@@ -126,7 +226,13 @@ export class HostLink {
   async call(namespace: string, method: string, args: object): Promise<RemoteResult> {
     const endpoint = `${namespace}/${method}`
     if (!UNARY_ALLOWED.has(endpoint)) {
-      return { ok: false, error: { code: 'lcoder/not-allowed', message: `S1 未开放 ${endpoint}` } }
+      return { ok: false, error: { code: 'lcoder/not-allowed', message: `未开放 ${endpoint}` } }
+    }
+    if (endpoint === 'commands/execute') {
+      const name = commandNameOf(args)
+      if (!COMMAND_ALLOWED.has(name)) {
+        return { ok: false, error: { code: 'lcoder/not-allowed', message: `未开放命令 /${name}` } }
+      }
     }
     return this.post(endpoint, args)
   }
@@ -140,7 +246,7 @@ export class HostLink {
    */
   openStream(namespace: string, method: string, args: object): string {
     const endpoint = `${namespace}/${method}`
-    if (!STREAM_ALLOWED.has(endpoint)) throw new Error(`lcoder link: S1 未开放流 ${endpoint}`)
+    if (!STREAM_ALLOWED.has(endpoint)) throw new Error(`lcoder link: 未开放流 ${endpoint}`)
     const streamId = `s${++this.streamSeq}`
     this.streams.set(streamId, { endpoint, args })
     if (this.socketOpen) this.sendOpen(streamId, { endpoint, args })
@@ -297,9 +403,7 @@ export class HostLink {
         continue
       }
       const contentType = response.headers.get('content-type') ?? ''
-      if (contentType.includes('multipart/form-data')) {
-        return { ok: false, error: { code: 'lcoder/binary-unsupported', message: 'S1 不解析二进制结果' } }
-      }
+      if (contentType.includes('multipart/form-data')) return binaryResultOf(response, rpcId)
       let decoded: unknown
       try {
         decoded = JSON.parse(await response.text())
