@@ -212,12 +212,33 @@ async function attach(url) {
 }
 
 async function closeApp(page) {
-  // 只发关窗命令，不主动断开 CDP：渲染端忙时提前断链会把排队中的命令丢掉，
+  // 只发关窗命令，不在命令送达前断开 CDP：渲染端忙时提前断链会把排队中的命令丢掉，
   // 窗口不关、宿主被 SIGTERM 截断，重启后就读不到刚落盘的历史。
   page.fire("window.lcoder.window('close')")
+  // 等窗口目标从调试列表消失再断链：这是“命令已送达且窗口已销毁”的确定信号，
+  // 也避免调试连接把已销毁窗口的渲染进程继续挂在进程表里。
+  const started = Date.now()
+  const deadline = started + 10_000
+  while (Date.now() < deadline) {
+    let targets
+    try {
+      targets = await (await fetch(`http://127.0.0.1:${String(RENDERER_PORT)}/json/list`)).json()
+    } catch {
+      log(`渲染调试端口已关闭（${String(Date.now() - started)} 毫秒），断开 CDP`)
+      page.socket.close()
+      return
+    }
+    if (!targets.some(target => target.type === 'page' && target.url.startsWith('file://'))) {
+      log(`窗口目标已消失（${String(Date.now() - started)} 毫秒），断开 CDP`)
+      page.socket.close()
+      return
+    }
+    await new Promise(resolve => setTimeout(resolve, 100))
+  }
+  log('窗口目标 10 秒内没有消失，保留 CDP 直接等退出')
 }
 
-async function waitExit(child, milliseconds) {
+async function waitExit(child, milliseconds, onTimeout) {
   const exited = new Promise(resolve => {
     if (child.exitCode !== null) { resolve(true); return }
     child.once('exit', () => { resolve(true) })
@@ -226,7 +247,10 @@ async function waitExit(child, milliseconds) {
   const timed = new Promise(resolve => { timer = setTimeout(() => { resolve(false) }, milliseconds) })
   const ok = await Promise.race([exited, timed])
   clearTimeout(timer)
-  if (!ok) child.kill('SIGTERM')
+  if (!ok) {
+    if (onTimeout !== undefined) await onTimeout().catch(() => undefined)
+    child.kill('SIGTERM')
+  }
   return ok
 }
 
@@ -296,6 +320,48 @@ function tailLines(path, count = 30) {
   } catch {
     return []
   }
+}
+
+/** 本探针调试端口的监听行。 */
+function portRows() {
+  const netstat = spawnSync('netstat', ['-ano'], { encoding: 'utf8', timeout: 8_000 })
+  return (netstat.stdout ?? '').split(/\r?\n/u)
+    .filter(line => /:98(?:22|29|30)\s/u.test(line))
+    .map(line => line.trim())
+}
+
+/** 当前所有 Electron 进程（PID/父 PID/命令行）。 */
+function electronRows() {
+  const ps = spawnSync('powershell', ['-NoProfile', '-Command',
+    'Get-CimInstance Win32_Process | Where-Object { $_.Name -eq "electron.exe" } | Select-Object ProcessId,ParentProcessId,CreationDate,CommandLine | ConvertTo-Json -Compress',
+  ], { encoding: 'utf8', timeout: 8_000 })
+  return (ps.stdout ?? '').trim()
+}
+
+/**
+ * 关窗等待超时的现场：主进程是否存活、端口被哪个 PID 占着、Electron 进程表与主进程日志尾部。
+ * @param child - 探针启动的 Electron 主进程。
+ * @param logPath - 该实例的 stdout/stderr 日志。
+ * @param label - 实例阶段。
+ */
+async function dumpQuitHang(child, logPath, label) {
+  log(`--- 关窗未退出：${label}（pid ${String(child.pid)}）`)
+  let alive = false
+  try {
+    process.kill(child.pid, 0)
+    alive = true
+  } catch {
+    alive = false
+  }
+  log(`主进程仍存活=${alive ? '是' : '否'} exitCode=${String(child.exitCode)} signal=${String(child.signalCode)}`)
+  const ports = portRows()
+  log(`调试端口占用：${ports.length === 0 ? '无' : ''}`)
+  for (const row of ports) log(`  | ${row}`)
+  const table = electronRows()
+  log(`Electron 进程：${table === '' ? '读不到' : ''}`)
+  if (table !== '') log(`  | ${table}`)
+  log(`主进程日志尾部（${logPath}）：`)
+  for (const line of tailLines(logPath)) log(`  | ${line}`)
 }
 
 /**
@@ -424,7 +490,8 @@ async function firstRun() {
     log(`assistant 已提交：流式 ${String(assistant.liveAt)} 毫秒、落盘 ${String(assistant.committedAt)} 毫秒，`
       + `正文 ${JSON.stringify(String(assistant.text).slice(0, 40))}…`)
     await closeApp(page)
-    const exited = await waitExit(launched.child, 20_000)
+    const exited = await waitExit(launched.child, 20_000, () =>
+      dumpQuitHang(launched.child, launched.logPath, '首次实例'))
     page.socket.close()
     page = undefined
     if (!exited) await dumpFailure(undefined, sessionId, '首次实例关窗后退出')
@@ -473,7 +540,8 @@ async function restartRun(sessionId) {
     assert(assistant.text.includes('仓库结构'), '重启后没有从 follow snapshot 读到历史 assistant 文本')
     log(`重启后同一会话已重读历史（提交 ${String(assistant.committedAt)} 毫秒）`)
     await closeApp(page)
-    const exited = await waitExit(launched.child, 20_000)
+    const exited = await waitExit(launched.child, 20_000, () =>
+      dumpQuitHang(launched.child, launched.logPath, '重启实例'))
     page.socket.close()
     page = undefined
     if (!exited) await dumpFailure(undefined, sessionId, '重启实例关窗后退出')

@@ -112,16 +112,24 @@ export class HostSupervisor {
     this.url = undefined
     if (child.exitCode !== null || child.signalCode !== null) return
     const exited = new Promise<void>((resolve) => { child.once('close', () => { resolve() }) })
+    console.log(`lcoder desktop: 宿主 ${String(child.pid)} 收到关停请求（通道=${child.connected ? '在' : '断'}）`)
     if (child.connected) child.send({ type: 'shutdown' })
     const graceful = await Promise.race([
       exited.then(() => true),
       new Promise<false>((resolve) => { setTimeout(() => { resolve(false) }, GRACEFUL_STOP_MS).unref() }),
     ])
-    if (!graceful) child.kill('SIGTERM')
+    if (!graceful) {
+      console.warn(`lcoder desktop: 宿主 ${String(child.pid)} 优雅关停超时，发送 SIGTERM`)
+      child.kill('SIGTERM')
+    }
     await Promise.race([
       exited,
       new Promise<void>((resolve) => {
-        setTimeout(() => { child.kill('SIGKILL'); resolve() }, TERM_WAIT_MS).unref()
+        setTimeout(() => {
+          console.error(`lcoder desktop: 宿主 ${String(child.pid)} SIGTERM 后仍未退出，发送 SIGKILL`)
+          child.kill('SIGKILL')
+          resolve()
+        }, TERM_WAIT_MS).unref()
       }),
     ])
   }

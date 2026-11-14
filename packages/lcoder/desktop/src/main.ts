@@ -114,12 +114,15 @@ async function boot(): Promise<void> {
 async function shutdown(): Promise<void> {
   if (shutdownStarted) return
   shutdownStarted = true
+  console.log(`lcoder desktop: 关停步骤 托盘=${tray === undefined ? '无' : '有'} 窗口=${String(BrowserWindow.getAllWindows().length)}`)
   tray?.dispose()
   tray = undefined
   link?.close()
   link = undefined
+  const started = Date.now()
   await supervisor?.stop()
   supervisor = undefined
+  console.log(`lcoder desktop: 关停步骤 宿主已停（${String(Date.now() - started)} 毫秒）`)
 }
 
 if (!app.requestSingleInstanceLock()) {
@@ -163,14 +166,15 @@ if (!app.requestSingleInstanceLock()) {
     const guard = setTimeout(() => {
       console.error(`lcoder desktop: 关停超过 ${String(QUIT_GUARD_MS)} 毫秒，强制退出`)
       supervisor?.terminate()
-      app.exit(0)
+      process.kill(process.pid, 'SIGKILL')
     }, QUIT_GUARD_MS)
     void shutdown().finally(() => {
       clearTimeout(guard)
       console.log('lcoder desktop: 关停完成')
-      // 链路、托盘与宿主都已关停，窗口也已销毁；app.quit() 在无窗口时偶发不再推进
-      // （T-192 现场：日志停在“关停完成”且进程驻留），这里直接终止进程。
-      app.exit(0)
+      // 链路、托盘与宿主都已关停，窗口也已销毁；Electron 的 app.quit/app.exit 在
+      // renderer 进程滞留时会卡在原生退出等待（T-192 现场），这里直接终止进程。
+      console.log(`lcoder desktop: 强制终止（pid ${String(process.pid)}）`)
+      process.kill(process.pid, 'SIGKILL')
     })
   })
 }
