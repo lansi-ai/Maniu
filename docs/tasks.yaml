@@ -2104,6 +2104,17 @@ tracks:
       dep: [T-186]
       inferred: false
       note: "B 级实现，来源是 T-184 方案第 4.1 节 S1，估时六到八人日。范围：新包 packages/lcoder/desktop 与 packages/lcoder/client 骨架，自写 Electron 主进程与窗口、宿主子进程守护、进程内薄适配层（一元 POST、WS mux、events 回执）、渲染端窄 IPC、登录门禁读 lcoderCloud.state、会话列表、session.create 到 follow 到 prompt 的流式回复。验收：窗口起来、宿主 ready、登录门禁正确、会话列表非空、发一条能看到流式正文，重启后能从 follow snapshot 重读历史。依赖 T-186 通过；若 T-186 证明宿主-only 不可行，先回到方案层重定 M4 路径，不直接开工。T-186 已证明可行，S1 用其八十九行最小组合起步，connect 必须带 interactions=answer；LCoder 十个 preset 落地后宿主下限需重测。2026-11-14 14:10 监督窗口派工，实现线会话 f293433d。"
+    - id: T-188
+      title: 新客户端流体玻璃浅色主题
+      status: todo
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-14'
+      date: '2026-11-14'
+      dep: [T-187]
+      inferred: false
+      note: "B 级视觉重构，来源是用户 2026-11-14 表示不喜欢现有浅色主题，要苹果新系统那种流体玻璃、特效拉满。用户拍板四项：替换 frost 并设为默认、动效拉满但尊重 reduced-motion、环境背景用应用内自绘、只在新客户端做。范围：在 packages/lcoder/client 建立主题底座，液体玻璃作为新客户端默认浅色主题，旧壳 frost 不迁移。做法：一、token 层拆出 glass 表面、点线、阴影、圆角与高光变量；二、内置环境背景层，用柔和色块与光晕缓慢流动，不依赖系统壁纸与亚克力；三、玻璃面 backdrop-filter 模糊与饱和拉高，叠镜面边框、顶部内高光、外浮动阴影与细颗粒；四、悬停与按下加镜面扫光与折射，只用 transform 与 opacity，不触发布局；五、reduced-motion 时全部静态；六、登录门禁、会话列表、聊天三屏必须能直接看到效果，文字对比度不降。验收：typecheck、build、改动文件 oxlint、S1 探针仍 PASS；用 CDP 读 computed style 证明 backdrop-filter、合成层与 reduced-motion 分支生效；真实观感由用户手看。约束：只改新客户端与其样式资产，不改旧壳、不改上游、不 push 不合并。工作树待 T-187 合入后 claim 到 lcoder/t188-liquid-glass，端口 9822 与 9829 与 9830。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
