@@ -168,7 +168,9 @@ if (!app.requestSingleInstanceLock()) {
     void shutdown().finally(() => {
       clearTimeout(guard)
       console.log('lcoder desktop: 关停完成')
-      app.quit()
+      // 链路、托盘与宿主都已关停，窗口也已销毁；app.quit() 在无窗口时偶发不再推进
+      // （T-192 现场：日志停在“关停完成”且进程驻留），这里直接终止进程。
+      app.exit(0)
     })
   })
 }

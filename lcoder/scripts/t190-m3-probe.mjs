@@ -7,8 +7,8 @@
  * 端口：渲染 9822、主进程 9829、宿主 9830、mock 云端 5091。
  */
 
-import { spawn } from 'node:child_process'
-import { existsSync, mkdirSync, openSync, rmSync } from 'node:fs'
+import { spawn, spawnSync } from 'node:child_process'
+import { existsSync, mkdirSync, openSync, readFileSync, rmSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { join, resolve } from 'node:path'
 
@@ -61,20 +61,44 @@ async function ensureMock() {
   throw new Error('mock 云端未在 10 秒内就绪')
 }
 
+/** 本探针占用的三个调试端口。 */
+const DEBUG_PORTS = [9822, 9829, 9830]
+
+/**
+ * 列出仍被占用的调试端口。
+ * @returns 有进程监听的端口。
+ */
+async function busyPorts() {
+  const busy = []
+  for (const port of DEBUG_PORTS) {
+    try {
+      await fetch(`http://127.0.0.1:${String(port)}/json/version`, { signal: AbortSignal.timeout(800) })
+      busy.push(port)
+    } catch {
+      // 连不上即空闲。
+    }
+  }
+  return busy
+}
+
+/**
+ * 异常收尾时杀掉整个 Electron 进程树，避免宿主子进程占住会话库与端口。
+ * @param child - 探针启动的 Electron 主进程。
+ */
+function killTree(child) {
+  if (child === undefined || child.exitCode !== null || child.signalCode !== null) return
+  if (process.platform === 'win32') {
+    spawnSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' })
+    return
+  }
+  child.kill('SIGKILL')
+}
+
 function resolveElectron() {
   const requireFromApp = createRequire(join(APP_ROOT, 'package.json'))
   const resolved = requireFromApp('electron')
   assert(typeof resolved === 'string', '找到 Electron 可执行文件')
   return resolved
-}
-
-async function portInUse() {
-  try {
-    await fetch(`http://127.0.0.1:${String(RENDERER_PORT)}/json/version`, { signal: AbortSignal.timeout(800) })
-    return true
-  } catch {
-    return false
-  }
 }
 
 function launch(suffix) {
@@ -97,13 +121,16 @@ function launch(suffix) {
     APP_ROOT,
   ], { cwd: APP_ROOT, env: environment, stdio: ['ignore', out, out] })
   log(`启动桌面实例（pid ${String(child.pid)}），日志 ${logPath}`)
-  return child
+  return { child, logPath }
 }
 
-async function connectCdp() {
-  const deadline = Date.now() + 90_000
+async function connectCdp(logPath) {
+  const deadline = Date.now() + 60_000
   while (Date.now() < deadline) {
     try {
+      if (existsSync(logPath) && readFileSync(logPath, 'utf8').includes('Cannot start http server for devtools')) {
+        throw new Error('DevTools 端口绑定失败')
+      }
       const list = await (await fetch(`http://127.0.0.1:${String(RENDERER_PORT)}/json/list`)).json()
       const page = list.find(target => target.type === 'page' && target.url.startsWith('file://'))
       if (page !== undefined && typeof page.webSocketDebuggerUrl === 'string') return await attach(page.webSocketDebuggerUrl)
@@ -188,6 +215,22 @@ async function waitExit(child, milliseconds) {
   return ok
 }
 
+async function launchResilient(suffix) {
+  let lastError
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    const { child, logPath } = launch(suffix)
+    try {
+      return { child, page: await connectCdp(logPath) }
+    } catch (error) {
+      lastError = error
+      log(`${suffix} 第 ${attempt} 次启动未拿到 CDP：${error instanceof Error ? error.message : String(error)}`)
+      killTree(child)
+      await new Promise(resolvePromise => setTimeout(resolvePromise, 3_000))
+    }
+  }
+  throw lastError
+}
+
 async function waitReady(page) {
   await page.waitFor("document.querySelector('[data-testid=\"host-state\"]')?.dataset.hostState === 'ready'", 90_000, '宿主 ready')
   await page.waitFor("document.querySelector('.app')?.getAttribute('data-lcoder-state') === 'ready'", 60_000, '登录门禁放行')
@@ -226,7 +269,6 @@ async function mainMenuLabels() {
   throw new Error('读不到主进程应用菜单')
 }
 
-
 async function signUp(page) {
   await page.click('[data-testid="login-tab-register"]')
   await page.fill('[data-testid="login-phone"]', PHONE.replace('+86', ''))
@@ -238,10 +280,12 @@ async function signUp(page) {
 }
 
 async function run() {
-  let child = launch('1')
+  let child
   let page
   try {
-    page = await connectCdp()
+    const first = await launchResilient('1')
+    child = first.child
+    page = first.page
     await page.waitFor("document.querySelector('[data-testid=\"host-state\"]')?.dataset.hostState === 'ready'", 90_000, '宿主 ready')
     await page.waitFor("document.querySelector('[data-testid=\"welcome-screen\"]') !== null", 60_000, '欢迎屏')
     assert(true, '新客户端首屏是 LCoder 欢迎屏')
@@ -405,8 +449,9 @@ async function run() {
     page.socket.close()
     page = undefined
     assert(firstExited, '首次实例退出')
-    child = launch('2')
-    page = await connectCdp()
+    const second = await launchResilient('2')
+    child = second.child
+    page = second.page
     await waitReady(page)
     assert(true, '重启后仍保持登录')
     const restored = await page.evaluate(`JSON.stringify({
@@ -460,7 +505,8 @@ async function main() {
   ]) {
     assert(existsSync(path), `产物存在：${path.replace(REPO_ROOT, '')}`)
   }
-  assert(!await portInUse(), `渲染调试端口 ${String(RENDERER_PORT)} 空闲`)
+  const busy = await busyPorts()
+  assert(busy.length === 0, `调试端口空闲（占用：${busy.join(', ') || '无'}）；先关掉本工作树正在运行的实例`)
   electron = resolveElectron()
   await ensureMock()
   rmSync(HOME, { recursive: true, force: true })
