@@ -71,8 +71,10 @@ import { CLOUD_LEGACY_GUEST_ROUTE } from '../cloud/routes.ts'
 import {
   buildIntakePrompt, buildOnboardingPrompt, buildShellPrompt, isRequirementBodyTask, SHELL_BOARD_COLUMNS, SHELL_STATES,
 } from './shell-data.ts'
-import { browserSkinStorage, readSkin, SKINS, writeSkin } from './skin.ts'
+import { browserSkinStorage, readSkin, SKIN_LABEL, writeSkin } from './skin.ts'
 import type { Skin } from './skin.ts'
+import { ProjectInfoPage, SettingsPage, SwitchProjectPage } from './WorkspacePages.tsx'
+import type { FontPreset } from './WorkspacePages.tsx'
 import { recommendedRoleId } from './role-hint.ts'
 import { ChatTranscript, PendingInteractionCard } from './ChatPanel.tsx'
 import { intakeAnswersOf, formatOpenedAt } from './requirement.ts'
@@ -116,7 +118,6 @@ import type {
   ChatImageRejection, ChatModelChoice, ChatPendingAttachment, ChatPendingImage, ChatPendingFile,
   ChatUploadResult,
 } from './chat-composer.ts'
-import { ModelSettings } from './ModelSettings.tsx'
 import type { ModelSettingsFace, ModelSettingsSnapshot } from './model-settings.ts'
 import { desktopWindowBridge } from './window-chrome.ts'
 import type { DesktopWindowCommand, DesktopWindowState } from './window-chrome.ts'
@@ -195,7 +196,7 @@ export type ShellProps =
     readonly checkModels?: () => Promise<ModelStatus>
     /** 模型目录或凭据一变就重查；返回解除订阅。 */
     readonly subscribeModels?: (listener: () => void) => () => void
-    /** 设置页的模型服务数据面；缺省时设置弹窗不显示模型服务区。 */
+    /** 设置页的模型服务数据面；缺省时设置页不显示模型服务区。 */
     readonly modelSettings?: ModelSettingsFace
     /** 读会话快照里的失败：准入被拒，或这一轮没跑起来。 */
     readonly readSessionNotice?: (sessionId: SessionId) => ShellSessionNotice | null
@@ -218,6 +219,9 @@ export type ShellProps =
 
 /** 配置没给尺寸时的普通档默认值；最大化档不读配置。 */
 export const DEFAULT_CHAT_SIZE = { width: 720, height: 640 } as const
+
+/** 左侧菜单的主视图：需求、任务，以及底部组的三张整页。 */
+export type ShellView = 'requirements' | 'tasks' | 'projects' | 'project-info' | 'settings'
 
 /** 状态到词典键的映射，避免把状态字符串当展示文案。 */
 const STATE_LABEL = {
@@ -317,14 +321,6 @@ const STATE_DOT: Record<ShellTaskState, string | undefined> = {
   closed: css.stateClosed,
 }
 
-/** 皮肤到词典键；设置页与顶栏按钮共用这一份。 */
-const SKIN_LABEL: Record<Skin, LcoderWorkspaceKey> = {
-  neon: 'shell.skinNeon',
-  silver: 'shell.skinSilver',
-  frost: 'shell.skinFrost',
-  rose: 'shell.skinRose',
-}
-
 /** 皮肤到下一套的映射；顶栏色球按这个顺序循环。 */
 const NEXT_SKIN: Record<Skin, Skin> = {
   neon: 'silver',
@@ -339,14 +335,6 @@ const SKIN_ORB: Record<Skin, string | undefined> = {
   silver: css.skinOrbSilver,
   frost: css.skinOrbFrost,
   rose: css.skinOrbRose,
-}
-
-/** 皮肤到设置页色块的配色。 */
-const SKIN_SWATCH: Record<Skin, string | undefined> = {
-  neon: css.skinSwatchNeon,
-  silver: css.skinSwatchSilver,
-  frost: css.skinSwatchFrost,
-  rose: css.skinSwatchRose,
 }
 
 /** 状态到工具面的展示文案；与 kernel 的 SURFACE 同义。 */
@@ -676,7 +664,7 @@ function providerOfSelection(projected: unknown): string | undefined {
 /**
  * 外壳主组件。
  * @param props - 槽位组合进来的 props。
- * @returns 顶栏 + 任务板 + 项目信息抽屉 + 浮层。
+ * @returns 顶栏 + 左侧菜单 + 主区域视图 + 浮层。
  */
 export function Shell({
   t, files, readAttachment, openRepository, sendPrompt, uploadAttachment, readDefaultModel, signContract, advanceContract,
@@ -700,7 +688,7 @@ export function Shell({
   const [workspaceId, setWorkspaceId] = useState<string | null>(null)
   const [skin, setSkin] = useState<Skin>(() => readSkin(browserSkinStorage()))
   /** 字体预设：A 系统、B 现代；默认 B，用户看完两档再定。 */
-  const [fontPreset, setFontPreset] = useState<'system' | 'modern'>('modern')
+  const [fontPreset, setFontPreset] = useState<FontPreset>('modern')
   /** Windows 桌面自绘标题栏；Web 与 macOS 没有这个桥，不画窗口按钮。 */
   const windowBridge = useMemo(() => desktopWindowBridge(), [])
   const [windowMaximized, setWindowMaximized] = useState(false)
@@ -709,8 +697,8 @@ export function Shell({
   const [detail, setDetail] = useState<ShellTask | null>(null)
   /** 交付文档预览：路径、读取状态与正文；null 表示没打开。 */
   const [docPreview, setDocPreview] = useState<DocPreview | null>(null)
-  /** 左侧菜单：需求页与任务页。两页各自记住自己的视图与筛选，切回来不变。 */
-  const [nav, setNav] = useState<'requirements' | 'tasks'>('tasks')
+  /** 左侧菜单：需求页、任务页与三张项目/设置整页。每页各自记住自己的视图与筛选。 */
+  const [nav, setNav] = useState<ShellView>('tasks')
   const [requirementView, setRequirementView] = useState<RequirementView>('table')
   /** 任务页的看板/列表；默认看板，只在内存里记，重启回到看板。 */
   const [taskView, setTaskView] = useState<'board' | 'list'>('board')
@@ -746,7 +734,6 @@ export function Shell({
   const [chat, setChat] = useState<ShellTask | null>(null)
   /** 普通档与最大化两档；关闭对话时回到普通档。 */
   const [chatMax, setChatMax] = useState(false)
-  const [settings, setSettings] = useState(false)
   /** 立项结果页：独立整页，打开时看板让位，不复用弹窗。 */
   const [resultPage, setResultPage] = useState(false)
   /** 「全新项目」需求分析师向导：阶段由会话事实算出，这里只记开没开。 */
@@ -782,7 +769,6 @@ export function Shell({
    * 这里只记住已经读到过的事实，换会话或换项目都不复用。
    */
   const [intakeTierHint, setIntakeTierHint] = useState<{ readonly sessionId: string; readonly tier: IntakeTier } | null>(null)
-  const [drawer, setDrawer] = useState(false)
   const [revealed, setRevealed] = useState<Record<string, boolean>>({})
   /** 看板筛选：低频控件，默认收起，只在判据生效时让入口带上标记。 */
   const [filterOpen, setFilterOpen] = useState(false)
@@ -1716,13 +1702,6 @@ export function Shell({
     if (wizardOpen && wizardRunWasRunning.current && !wizardRunning) setReload(value => value + 1)
     wizardRunWasRunning.current = wizardRunning
   }, [wizardOpen, wizardRunning])
-
-  /** 从设置页回来后重读模型目录：刚配好的路线不必关掉向导再打开。 */
-  const settingsWasOpen = useRef(false)
-  useEffect(() => {
-    if (settingsWasOpen.current && !settings && wizardOpen) setIntakeModelState('idle')
-    settingsWasOpen.current = settings
-  }, [settings, wizardOpen])
 
   /**
    * 输出跟随：只在你本来就贴着底部时自动滚，向上翻历史时不要抢。
@@ -3572,6 +3551,25 @@ export function Shell({
     }
   }
 
+  /**
+   * 切到一张主视图：同时收起独立整页（结果页、个人中心、状态大盘），
+   * 让左侧菜单任何时候都能把人带到目标页。
+   */
+  const openNav = (view: ShellView): void => {
+    setNav(view)
+    setResultPage(false)
+    setPersonalPage(false)
+    setDashboardPage(false)
+  }
+
+  /** 切换工作区：清掉会话覆盖与结果页，再回到任务页；切完看到的是新项目的看板。 */
+  const switchWorkspace = (id: string): void => {
+    setWorkspaceId(id)
+    setSessionOverride(null)
+    setResultPage(false)
+    setNav('tasks')
+  }
+
   const submitRepo = async (): Promise<void> => {
     if (openRepository === undefined) return
     const path = repoPath.trim()
@@ -3582,7 +3580,7 @@ export function Shell({
       const opened = await openRepository(path)
       setWorkspaceId(opened.workspaceId)
       setSessionOverride(opened.sessionId)
-      setDrawer(false)
+      setNav('tasks')
     } catch (error: unknown) {
       const failure = describeOpenFailure(error)
       setRepoError(`${t(failure.key)}（${failure.detail}）`)
@@ -3810,7 +3808,7 @@ export function Shell({
     ? null
     : <div className={css.windowControls}>{closeWindowButton}</div>
 
-  /** 顶栏只给逐套快速切换；设置弹窗里按名字明确选择。 */
+  /** 顶栏只给逐套快速切换；设置页里按名字明确选择。 */
   const skinLabel = t(SKIN_LABEL[skin])
   const cycleSkin = (): void => {
     setSkin(current => NEXT_SKIN[current])
@@ -3860,12 +3858,12 @@ export function Shell({
           <img className={css.topLogo} src={bullMark} alt="" />
           <span className={css.topTitle}>{t('shell.brand')}</span>
         </div>
-        {/* 项目名只是一枚低调的入口：无底色，悬停才显，点击打开项目信息抽屉。 */}
+        {/* 项目名只是一枚低调的入口：无底色，悬停才显，点击进入项目信息页。 */}
         <button
           type="button"
           className={css.projectTrigger}
           title={t('shell.projectInfo')}
-          onClick={() => { setDrawer(true) }}
+          onClick={() => { openNav('project-info') }}
         >
           <span className={css.psName}>{hasWorkspace ? projectName : t('shell.chooseProject')}</span>
           <span className={css.psChevron} aria-hidden="true">⌄</span>
@@ -3971,7 +3969,7 @@ export function Shell({
               className={`${css.navItem} ${nav === 'requirements' ? css.navItemActive : ''}`}
               data-nav="requirements"
               aria-current={nav === 'requirements' ? 'page' : undefined}
-              onClick={() => { setNav('requirements') }}
+              onClick={() => { openNav('requirements') }}
             >
               <span className={css.navIcon} aria-hidden="true">◇</span>
               {t('shell.requirements')}
@@ -3981,14 +3979,40 @@ export function Shell({
               className={`${css.navItem} ${nav === 'tasks' ? css.navItemActive : ''}`}
               data-nav="tasks"
               aria-current={nav === 'tasks' ? 'page' : undefined}
-              onClick={() => { setNav('tasks') }}
+              onClick={() => { openNav('tasks') }}
             >
               <span className={css.navIcon} aria-hidden="true">▤</span>
               {t('shell.tasks')}
             </button>
           </div>
           <div className={css.navFoot}>
-            <button type="button" className={css.navItem} data-nav="settings" onClick={() => { setSettings(true) }}>
+            <button
+              type="button"
+              className={`${css.navItem} ${nav === 'projects' ? css.navItemActive : ''}`}
+              data-nav="projects"
+              aria-current={nav === 'projects' ? 'page' : undefined}
+              onClick={() => { openNav('projects') }}
+            >
+              <span className={css.navIcon} aria-hidden="true">⇄</span>
+              {t('shell.switchProject')}
+            </button>
+            <button
+              type="button"
+              className={`${css.navItem} ${nav === 'project-info' ? css.navItemActive : ''}`}
+              data-nav="project-info"
+              aria-current={nav === 'project-info' ? 'page' : undefined}
+              onClick={() => { openNav('project-info') }}
+            >
+              <span className={css.navIcon} aria-hidden="true">ⓘ</span>
+              {t('shell.projectInfo')}
+            </button>
+            <button
+              type="button"
+              className={`${css.navItem} ${nav === 'settings' ? css.navItemActive : ''}`}
+              data-nav="settings"
+              aria-current={nav === 'settings' ? 'page' : undefined}
+              onClick={() => { openNav('settings') }}
+            >
               <span className={css.navIcon} aria-hidden="true">⚙</span>
               {t('shell.settings')}
             </button>
@@ -4054,311 +4078,216 @@ export function Shell({
                   onOpen={openRequirementDetail}
                 />
               )
-              : <div className={css.boardWrap}>
-                <div className={css.boardHead}>
-                  <h3>{t('shell.board')}</h3>
-                  <span className={css.boardHint}>{t('shell.boardHint')}</span>
-                  {flow === null ? null : (
-                    <button type="button" className={css.flowBar} onClick={() => { setFlowOpen(true) }}>
-                      <span className={css.flowBarLabel}>{t('shell.flowNext')}</span>
-                      <span className={css.flowBarAction}>
-                        {flowActionText(flow.decision.action)}
-                        {flow.decision.taskId === null ? '' : ` ${flow.decision.taskId}`}
-                      </span>
-                      <span className={css.flowBarReason}>{flow.decision.reason}</span>
-                      {flow.decision.blockers.length === 0
-                        ? null
-                        : <span className={css.flowBarBlocked}>{flow.decision.blockers.map(blocker => t(FLOW_BLOCKER_LABEL[blocker.kind])).join(' / ')}</span>}
-                    </button>
-                  )}
-                  <div className={css.boardActions}>
-                    <div className={css.viewSwitch} role="group" aria-label={t('shell.taskView')}>
-                      <button
-                        type="button"
-                        className={`${css.filterChip} ${taskView === 'board' ? css.filterChipActive : ''}`}
-                        data-task-view="board"
-                        aria-pressed={taskView === 'board'}
-                        onClick={() => { setTaskView('board') }}
-                      >
-                        {t('shell.taskViewBoard')}
-                      </button>
-                      <button
-                        type="button"
-                        className={`${css.filterChip} ${taskView === 'list' ? css.filterChipActive : ''}`}
-                        data-task-view="list"
-                        aria-pressed={taskView === 'list'}
-                        onClick={() => { setTaskView('list') }}
-                      >
-                        {t('shell.taskViewList')}
-                      </button>
-                    </div>
-                    {!hasWorkspace || !hasSession ? null : (
-                      <button type="button" className={css.pillBtn} onClick={() => { setResultPage(true) }}>
-                        {t('shell.intakeResult')}
-                      </button>
-                    )}
-                    {boardTasks.length === 0 ? null : (
-                      <button
-                        type="button"
-                        className={`${css.filterToggle} ${isFilterActive(filter) ? css.filterToggleOn : ''}`}
-                        onClick={() => { setFilterOpen(open => !open) }}
-                      >
-                        {t('shell.filter')}
-                        {isFilterActive(filter) ? <span className={css.filterCount}>{String(visibleTasks.length)}</span> : null}
-                      </button>
-                    )}
-                  </div>
-                </div>
-                {filterOpen && tasks.length > 0 ? (
-                  <div className={css.filterPanel}>
-                    <span className={css.filterLabel}>{t('shell.filterGrade')}</span>
-                    {TASK_GRADE_CHOICES.map(grade => (
-                      <button
-                        type="button"
-                        key={grade}
-                        className={`${css.filterChip} ${filter.grades.includes(grade) ? css.filterChipActive : ''}`}
-                        onClick={() => {
-                          setFilter(current => ({
-                            ...current,
-                            grades: current.grades.includes(grade)
-                              ? current.grades.filter(item => item !== grade)
-                              : [...current.grades, grade],
-                          }))
-                        }}
-                      >
-                        {mappedLabel(DIFFICULTY_LABEL, grade, t)}
-                      </button>
-                    ))}
-                    <span className={css.filterLabel}>{t('shell.filterSession')}</span>
-                    {SESSION_FILTER_CHOICES.map(choice => (
-                      <button
-                        type="button"
-                        key={choice}
-                        className={`${css.filterChip} ${filter.session === choice ? css.filterChipActive : ''}`}
-                        onClick={() => { setFilter(current => ({ ...current, session: choice })) }}
-                      >
-                        {t(SESSION_FILTER_LABELS[choice])}
-                      </button>
-                    ))}
-                    <input
-                      className={css.filterSearch}
-                      type="search"
-                      value={filter.text}
-                      placeholder={t('shell.filterSearch')}
-                      onChange={(event): void => { setFilter(current => ({ ...current, text: event.target.value })) }}
-                    />
-                    {isFilterActive(filter)
-                      ? <button type="button" className={css.filterClear} onClick={() => { setFilter(EMPTY_TASK_FILTER) }}>{t('shell.filterClear')}</button>
-                      : null}
-                  </div>
-                ) : null}
-                {!hasWorkspace
-                  ? <p className={css.empty}>{t('shell.noWorkspace')}</p>
-                  : loading
-                    ? <p className={css.empty}>{t('shell.loading')}</p>
-                    : !hasSession
-                      ? <p className={css.empty}>{t('shell.noSession')}</p>
-                      : (
-                        <>
-                          {modelStatus === null || modelStatus.state === 'ready' ? null : (
-                            <div className={css.problems}>
-                              <p className={css.problemsTitle}>
-                                {t(modelStatus.state === 'empty' ? 'shell.noModels' : 'shell.unknownModels')}
-                              </p>
-                              {modelStatus.detail === '' ? null : <p className={css.problem}>{modelStatus.detail}</p>}
-                              {modelStatus.state === 'empty' ? <p className={css.secretRef}>{t('shell.howToConfigure')}</p> : null}
-                            </div>
-                          )}
-                          {taskView === 'list'
-                            ? renderTaskList()
-                            : (
-                              <div className={css.board}>
-                                {SHELL_BOARD_COLUMNS.map(column => renderColumn(column))}
-                              </div>
-                            )}
-                          {isFilterActive(filter) && visibleTasks.length === 0
-                            ? <p className={css.filterEmpty}>{t('shell.filterEmpty')}</p>
-                            : null}
-                          {boardTasks.length === 0 ? (
-                            <div className={css.onboardingBar}>
-                              <button
-                                type="button"
-                                className={css.secondaryBtn}
-                                disabled={modelBlocked}
-                                title={modelBlocked ? t('shell.noModels') : undefined}
-                                onClick={() => { startOnboarding('docs') }}
-                              >
-                                {t('shell.onboardingExistingDocs')}
-                              </button>
-                              <button
-                                type="button"
-                                className={css.primaryBtn}
-                                disabled={modelBlocked}
-                                title={modelBlocked ? t('shell.noModels') : undefined}
-                                onClick={() => { startOnboarding('new') }}
-                              >
-                                {t('shell.onboardingNewProject')}
-                              </button>
-                            </div>
-                          ) : null}
-                          {problems.length > 0 ? (
-                            <div className={css.problems}>
-                              <p className={css.problemsTitle}>{t('shell.problems')}</p>
-                              {problems.map(problem => <p key={problem} className={css.problem}>{problem}</p>)}
-                            </div>
-                          ) : null}
-                        </>
-                      )}
-              </div>}
-        </main>
-      </div>
-
-      {drawer ? (
-        <div className={css.drawerBackdrop} onClick={(event) => { if (event.target === event.currentTarget) setDrawer(false) }}>
-          <aside className={css.drawer}>
-            <div className={css.drawerHead}>
-              <div className={css.grow}>
-                <h3>{t('shell.projectInfo')}</h3>
-                <p>{t('shell.projectInfoHint')}</p>
-              </div>
-              <button type="button" className={css.iconBtn} onClick={() => { setDrawer(false) }}>✕</button>
-            </div>
-            <div className={css.drawerBody}>
-              <details className={css.drawerSection}>
-                <summary className={css.drawerSectionSummary}>
-                  <span className={css.drawerSectionTitle}>{t('shell.switchProject')}</span>
-                  <span className={css.drawerSectionCurrent}>{hasWorkspace ? projectName : t('shell.chooseProject')}</span>
-                </summary>
-                <p className={css.drawerHint}>{t('shell.projectPickerHint')}</p>
-                {workspaces.length === 0
-                  ? <p className={css.empty}>{t('shell.noWorkspace')}</p>
-                  : (
-                    <div className={css.projectPicker}>
-                      {workspaces.map((item) => {
-                        const id = String(item.workspaceId)
-                        return (
-                          <button
-                            type="button"
-                            key={id}
-                            className={`${css.projectOption} ${id === activeWorkspaceId ? css.projectOptionActive : ''}`}
-                            onClick={() => { setWorkspaceId(id); setSessionOverride(null); setDrawer(false); setResultPage(false) }}
-                          >
-                            <span className={css.psLogo}>{(item.title || 'L').slice(0, 1).toUpperCase()}</span>
-                            <span className={css.poText}>
-                              <span className={css.poName}>{item.title}</span>
-                              <span className={css.poPath}>{item.path}</span>
-                            </span>
-                            <span className={css.poCount}>{item.sessionIds.length} {t('shell.sessions')}</span>
-                            {id === activeWorkspaceId ? <span className={css.poCheck}>✓</span> : null}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  )}
-                <div className={css.repoOpen}>
-                  <input
-                    className={css.repoInput}
-                    value={repoPath}
-                    placeholder={t('shell.repoPathHint')}
-                    onChange={(event) => { setRepoPath(event.target.value) }}
+              : nav === 'projects'
+                ? (
+                  <SwitchProjectPage
+                    t={t}
+                    workspaces={workspaces}
+                    activeWorkspaceId={activeWorkspaceId}
+                    currentName={hasWorkspace ? projectName : null}
+                    onSelect={switchWorkspace}
+                    repoPath={repoPath}
+                    onRepoPath={setRepoPath}
+                    browsable={projectDirectory !== undefined}
+                    browsing={browsing}
+                    onBrowse={() => { void browseRepo() }}
+                    openable={openRepository !== undefined}
+                    opening={opening}
+                    onOpen={() => { void submitRepo() }}
+                    repoError={repoError}
                   />
-                  {projectDirectory === undefined ? null : (
-                    <button
-                      type="button"
-                      className={css.secondaryBtn}
-                      disabled={opening || browsing}
-                      onClick={() => { void browseRepo() }}
-                    >
-                      {t('shell.browse')}
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    className={css.primaryBtn}
-                    disabled={opening || openRepository === undefined || repoPath.trim() === ''}
-                    onClick={() => { void submitRepo() }}
-                  >
-                    {opening ? t('shell.opening') : t('shell.openRepo')}
-                  </button>
-                </div>
-                {repoError === null ? null : <p className={css.problem}>{repoError}</p>}
-              </details>
-
-              <details className={css.drawerSection}>
-                <summary className={css.drawerSectionSummary}>
-                  <span className={css.drawerSectionTitle}>{t('shell.basic')}</span>
-                </summary>
-                <div className={css.infoGrid}>
-                  <div className={css.infoRow}><span>{t('shell.kind')}</span><b>{info?.kind ?? '—'}</b></div>
-                  <div className={css.infoRow}>
-                    <span>{t('shell.repoUrl')}</span>
-                    {info?.repoUrl === undefined || info.repoUrl === ''
-                      ? <b>—</b>
-                      : <a href={info.repoUrl} target="_blank" rel="noreferrer">{info.repoUrl}</a>}
-                  </div>
-                  <div className={css.infoRow}><span>{t('shell.branch')}</span><b>{info?.branch ?? '—'}</b></div>
-                  <div className={css.infoRow}><span>{t('shell.specRoot')}</span><code>{specRoot || '—'}</code></div>
-                  <div className={css.infoRow}><span>{t('shell.tasks')}</span><b>{tasks.length}</b></div>
-                  <div className={css.infoRow}><span>{t('shell.rules')}</span><b>{rulesCount}</b></div>
-                </div>
-              </details>
-
-              <details className={css.drawerSection}>
-                <summary className={css.drawerSectionSummary}>
-                  <span className={css.drawerSectionTitle}>{t('shell.docs')}</span>
-                </summary>
-                <div className={css.docRow}><span>{t('shell.productDoc')}</span><code>{info?.docs.product || '—'}</code></div>
-                <div className={css.docRow}><span>{t('shell.architectureDoc')}</span><code>{info?.docs.architecture || '—'}</code></div>
-                <div className={css.docRow}><span>{t('shell.tests')}</span><code>{info?.docs.tests || '—'}</code></div>
-              </details>
-
-              <details className={css.drawerSection}>
-                <summary className={css.drawerSectionSummary}>
-                  <span className={css.drawerSectionTitle}>{t('shell.environments')}</span>
-                </summary>
-                {info === null
-                  ? <p className={css.empty}>{t('shell.projectInfoMissing')}</p>
-                  : info.kind !== 'web' || info.environments.length === 0
-                    ? <p className={css.empty}>{t('shell.webOnly')}</p>
-                    : info.environments.map((env) => {
-                      const database = env.database
-                      const passwordKey = `${env.id}.password`
-                      const shown = revealed[passwordKey] === true
-                      return (
-                        <div key={env.id} className={css.envCard}>
-                          <div className={css.envHead}>
-                            <b>{env.label}</b>
-                            <span className={css.pill}>{env.note ?? ''}</span>
+                )
+                : nav === 'project-info'
+                  ? (
+                    <ProjectInfoPage
+                      t={t}
+                      info={info}
+                      specRoot={specRoot}
+                      tasksCount={tasks.length}
+                      rulesCount={rulesCount}
+                      revealed={revealed}
+                      onToggleReveal={(key) => { setRevealed(prev => ({ ...prev, [key]: !prev[key] })) }}
+                    />
+                  )
+                  : nav === 'settings'
+                    ? (
+                      <SettingsPage
+                        t={t}
+                        specRoot={specRoot}
+                        modelSettings={modelSettings}
+                        sessionId={sessionId}
+                        onModelsChanged={() => { modelRefresh.current() }}
+                        skin={skin}
+                        onSkin={setSkin}
+                        fontPreset={fontPreset}
+                        onFontPreset={setFontPreset}
+                        expertsOpen={expertsOpen}
+                        experts={experts}
+                        expertPrompts={expertPrompts}
+                        shownExpert={shownExpert}
+                        onToggleExperts={toggleExperts}
+                        onToggleExpert={toggleExpert}
+                        onDone={() => { setNav('tasks') }}
+                      />
+                    )
+                    : <div className={css.boardWrap}>
+                      <div className={css.boardHead}>
+                        <h3>{t('shell.board')}</h3>
+                        <span className={css.boardHint}>{t('shell.boardHint')}</span>
+                        {flow === null ? null : (
+                          <button type="button" className={css.flowBar} onClick={() => { setFlowOpen(true) }}>
+                            <span className={css.flowBarLabel}>{t('shell.flowNext')}</span>
+                            <span className={css.flowBarAction}>
+                              {flowActionText(flow.decision.action)}
+                              {flow.decision.taskId === null ? '' : ` ${flow.decision.taskId}`}
+                            </span>
+                            <span className={css.flowBarReason}>{flow.decision.reason}</span>
+                            {flow.decision.blockers.length === 0
+                              ? null
+                              : <span className={css.flowBarBlocked}>{flow.decision.blockers.map(blocker => t(FLOW_BLOCKER_LABEL[blocker.kind])).join(' / ')}</span>}
+                          </button>
+                        )}
+                        <div className={css.boardActions}>
+                          <div className={css.viewSwitch} role="group" aria-label={t('shell.taskView')}>
+                            <button
+                              type="button"
+                              className={`${css.filterChip} ${taskView === 'board' ? css.filterChipActive : ''}`}
+                              data-task-view="board"
+                              aria-pressed={taskView === 'board'}
+                              onClick={() => { setTaskView('board') }}
+                            >
+                              {t('shell.taskViewBoard')}
+                            </button>
+                            <button
+                              type="button"
+                              className={`${css.filterChip} ${taskView === 'list' ? css.filterChipActive : ''}`}
+                              data-task-view="list"
+                              aria-pressed={taskView === 'list'}
+                              onClick={() => { setTaskView('list') }}
+                            >
+                              {t('shell.taskViewList')}
+                            </button>
                           </div>
-                          <div className={css.infoRow}><span>{t('shell.server')}</span><code>{env.server ?? '—'}</code></div>
-                          {database === undefined ? null : (
-                            <>
-                              <div className={css.infoRow}><span>{t('shell.dbHost')}</span><code>{database.host}:{database.port ?? '—'}</code></div>
-                              <div className={css.infoRow}><span>{t('shell.dbName')}</span><code>{database.name}</code></div>
-                              <div className={css.infoRow}><span>{t('shell.dbUser')}</span><code>{database.user}</code></div>
-                              <div className={css.infoRow}>
-                                <span>{t('shell.password')}</span>
-                                <code>{shown ? (database.passwordValue ?? t('shell.unconfigured')) : '••••••'}</code>
-                                <button
-                                  type="button"
-                                  className={css.eyeBtn}
-                                  title={shown ? t('shell.hide') : t('shell.reveal')}
-                                  onClick={() => { setRevealed(prev => ({ ...prev, [passwordKey]: !prev[passwordKey] })) }}
-                                >
-                                  {shown ? '🙈' : '👁'}
-                                </button>
-                              </div>
-                              <div className={css.secretRef}>{database.passwordRef} · {t('shell.secretNote')}</div>
-                            </>
+                          {!hasWorkspace || !hasSession ? null : (
+                            <button type="button" className={css.pillBtn} onClick={() => { setResultPage(true) }}>
+                              {t('shell.intakeResult')}
+                            </button>
+                          )}
+                          {boardTasks.length === 0 ? null : (
+                            <button
+                              type="button"
+                              className={`${css.filterToggle} ${isFilterActive(filter) ? css.filterToggleOn : ''}`}
+                              onClick={() => { setFilterOpen(open => !open) }}
+                            >
+                              {t('shell.filter')}
+                              {isFilterActive(filter) ? <span className={css.filterCount}>{String(visibleTasks.length)}</span> : null}
+                            </button>
                           )}
                         </div>
-                      )
-                    })}
-              </details>
-            </div>
-          </aside>
-        </div>
-      ) : null}
+                      </div>
+                      {filterOpen && tasks.length > 0 ? (
+                        <div className={css.filterPanel}>
+                          <span className={css.filterLabel}>{t('shell.filterGrade')}</span>
+                          {TASK_GRADE_CHOICES.map(grade => (
+                            <button
+                              type="button"
+                              key={grade}
+                              className={`${css.filterChip} ${filter.grades.includes(grade) ? css.filterChipActive : ''}`}
+                              onClick={() => {
+                                setFilter(current => ({
+                                  ...current,
+                                  grades: current.grades.includes(grade)
+                                    ? current.grades.filter(item => item !== grade)
+                                    : [...current.grades, grade],
+                                }))
+                              }}
+                            >
+                              {mappedLabel(DIFFICULTY_LABEL, grade, t)}
+                            </button>
+                          ))}
+                          <span className={css.filterLabel}>{t('shell.filterSession')}</span>
+                          {SESSION_FILTER_CHOICES.map(choice => (
+                            <button
+                              type="button"
+                              key={choice}
+                              className={`${css.filterChip} ${filter.session === choice ? css.filterChipActive : ''}`}
+                              onClick={() => { setFilter(current => ({ ...current, session: choice })) }}
+                            >
+                              {t(SESSION_FILTER_LABELS[choice])}
+                            </button>
+                          ))}
+                          <input
+                            className={css.filterSearch}
+                            type="search"
+                            value={filter.text}
+                            placeholder={t('shell.filterSearch')}
+                            onChange={(event): void => { setFilter(current => ({ ...current, text: event.target.value })) }}
+                          />
+                          {isFilterActive(filter)
+                            ? <button type="button" className={css.filterClear} onClick={() => { setFilter(EMPTY_TASK_FILTER) }}>{t('shell.filterClear')}</button>
+                            : null}
+                        </div>
+                      ) : null}
+                      {!hasWorkspace
+                        ? <p className={css.empty}>{t('shell.noWorkspace')}</p>
+                        : loading
+                          ? <p className={css.empty}>{t('shell.loading')}</p>
+                          : !hasSession
+                            ? <p className={css.empty}>{t('shell.noSession')}</p>
+                            : (
+                              <>
+                                {modelStatus === null || modelStatus.state === 'ready' ? null : (
+                                  <div className={css.problems}>
+                                    <p className={css.problemsTitle}>
+                                      {t(modelStatus.state === 'empty' ? 'shell.noModels' : 'shell.unknownModels')}
+                                    </p>
+                                    {modelStatus.detail === '' ? null : <p className={css.problem}>{modelStatus.detail}</p>}
+                                    {modelStatus.state === 'empty' ? <p className={css.secretRef}>{t('shell.howToConfigure')}</p> : null}
+                                  </div>
+                                )}
+                                {taskView === 'list'
+                                  ? renderTaskList()
+                                  : (
+                                    <div className={css.board}>
+                                      {SHELL_BOARD_COLUMNS.map(column => renderColumn(column))}
+                                    </div>
+                                  )}
+                                {isFilterActive(filter) && visibleTasks.length === 0
+                                  ? <p className={css.filterEmpty}>{t('shell.filterEmpty')}</p>
+                                  : null}
+                                {boardTasks.length === 0 ? (
+                                  <div className={css.onboardingBar}>
+                                    <button
+                                      type="button"
+                                      className={css.secondaryBtn}
+                                      disabled={modelBlocked}
+                                      title={modelBlocked ? t('shell.noModels') : undefined}
+                                      onClick={() => { startOnboarding('docs') }}
+                                    >
+                                      {t('shell.onboardingExistingDocs')}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className={css.primaryBtn}
+                                      disabled={modelBlocked}
+                                      title={modelBlocked ? t('shell.noModels') : undefined}
+                                      onClick={() => { startOnboarding('new') }}
+                                    >
+                                      {t('shell.onboardingNewProject')}
+                                    </button>
+                                  </div>
+                                ) : null}
+                                {problems.length > 0 ? (
+                                  <div className={css.problems}>
+                                    <p className={css.problemsTitle}>{t('shell.problems')}</p>
+                                    {problems.map(problem => <p key={problem} className={css.problem}>{problem}</p>)}
+                                  </div>
+                                ) : null}
+                              </>
+                            )}
+                    </div>}
+        </main>
+      </div>
 
       {rolePicker ? (
         <div className={css.modalBackdrop} onClick={(event) => { if (event.target === event.currentTarget) setRolePicker(false) }}>
@@ -5294,7 +5223,7 @@ export function Shell({
           onConfirm={confirmIntakeWizard}
           onSelectModel={setWizardModelChoice}
           onLoadModels={loadIntakeModels}
-          onOpenSettings={() => { setSettings(true) }}
+          onOpenSettings={() => { closeIntakeWizard(); openNav('settings') }}
           onApprove={approveWizardRequirement}
           onConfirmNeed={confirmIntakeRequirement}
           onRetry={retryIntakeRequirement}
@@ -5312,128 +5241,6 @@ export function Shell({
           onCancel={() => { if (!restarting) setRestartOpen(false) }}
           onConfirm={confirmIntakeRestart}
         />
-      ) : null}
-
-      {settings ? (
-        <div className={css.modalBackdrop} onClick={(event) => { if (event.target === event.currentTarget) setSettings(false) }}>
-          <div className={`${css.modal} ${css.settingsModal}`}>
-            <div className={css.modalHead}>
-              <div className={css.grow}><h3>{t('shell.settings')}</h3><p>{t('shell.settingsHint')}</p></div>
-              <button type="button" className={css.iconBtn} onClick={() => { setSettings(false) }}>✕</button>
-            </div>
-            <div className={css.modalBody}>
-              {modelSettings === undefined
-                ? null
-                : (
-                  <ModelSettings
-                    face={modelSettings}
-                    sessionId={sessionId}
-                    t={t}
-                    onChanged={() => { modelRefresh.current() }}
-                  />
-                )}
-              <div className={css.settingsGrid}>
-                <div className={css.settingRow}><div className={css.settingLabel}><span className={css.settingLabelB}>{t('shell.specRoot')}</span><span className={css.settingLabelSpan}>{specRoot || '—'}</span></div><span className={css.pill}>{t('shell.sessionBound')}</span></div>
-                <div className={css.settingRow}><div className={css.settingLabel}><span className={css.settingLabelB}>{t('shell.floating')}</span><span className={css.settingLabelSpan}>{t('shell.floatingHint')}</span></div><button type="button" className={`${css.switch} ${css.switchOn}`} /></div>
-                <div className={css.settingRow}>
-                  <div className={css.settingLabel}>
-                    <span className={css.settingLabelB}>{t('shell.skin')}</span>
-                    <span className={css.settingLabelSpan}>{t('shell.skinHint')}</span>
-                  </div>
-                  <div className={css.skinPresets} role="group" aria-label={t('shell.skin')}>
-                    {SKINS.map((value) => {
-                      const label = t(SKIN_LABEL[value])
-                      return (
-                        <button
-                          type="button"
-                          key={value}
-                          className={`${css.skinOption} ${skin === value ? css.skinOptionOn : ''}`}
-                          aria-pressed={skin === value}
-                          onClick={() => { setSkin(value) }}
-                        >
-                          <span
-                            className={`${css.skinSwatch} ${SKIN_SWATCH[value] ?? ''}`}
-                            aria-hidden="true"
-                          />
-                          {label}
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-                <div className={css.settingRow}>
-                  <div className={css.settingLabel}>
-                    <span className={css.settingLabelB}>{t('shell.font')}</span>
-                    <span className={css.settingLabelSpan}>{t('shell.fontHint')}</span>
-                  </div>
-                  <div className={css.fontPresets} role="group" aria-label={t('shell.font')}>
-                    <button
-                      type="button"
-                      className={`${css.fontOption} ${fontPreset === 'system' ? css.fontOptionOn : ''}`}
-                      aria-pressed={fontPreset === 'system'}
-                      onClick={() => { setFontPreset('system') }}
-                    >
-                      {t('shell.fontSampleA')} {t('shell.fontSystem')}
-                    </button>
-                    <button
-                      type="button"
-                      className={`${css.fontOption} ${fontPreset === 'modern' ? css.fontOptionOn : ''}`}
-                      aria-pressed={fontPreset === 'modern'}
-                      onClick={() => { setFontPreset('modern') }}
-                    >
-                      {t('shell.fontSampleB')} {t('shell.fontModern')}
-                    </button>
-                  </div>
-                </div>
-                <div className={css.settingRow}>
-                  <div className={css.settingLabel}>
-                    <span className={css.settingLabelB}>{t('shell.experts')}</span>
-                    <span className={css.settingLabelSpan}>{t('shell.expertsHint')}</span>
-                  </div>
-                  <button type="button" className={css.filterChip} onClick={toggleExperts}>
-                    {expertsOpen ? t('shell.expertsCollapse') : t('shell.expertsOpen')}
-                  </button>
-                </div>
-                {expertsOpen ? (
-                  <div className={css.expertList}>
-                    {experts.length === 0
-                      ? <p className={css.secretRef}>{t('shell.expertsEmpty')}</p>
-                      : experts.map((expert) => {
-                        const prompt = expertPrompts[expert.id]
-                        return (
-                          <div key={expert.id} className={css.expertItem}>
-                            <button type="button" className={css.expertHead} onClick={() => { toggleExpert(expert.id) }}>
-                              <span className={css.expertName}>{expert.name}</span>
-                              <span className={css.expertId}>{expert.id}</span>
-                              {expert.broken === undefined ? null
-                                : <span className={`${css.tag} ${css.tagDanger}`}>{t('shell.expertBroken')}</span>}
-                            </button>
-                            {expert.description === undefined ? null : <p className={css.expertDesc}>{expert.description}</p>}
-                            {expert.broken === undefined ? null : <p className={css.problem}>{expert.broken}</p>}
-                            {shownExpert !== expert.id ? null : prompt === undefined
-                              ? <p className={css.secretRef}>{t('shell.expertLoading')}</p>
-                              : prompt === null
-                                ? <p className={css.problem}>{t('shell.expertReadFailed')}</p>
-                                : (
-                                  <>
-                                    <p className={css.expertPrompt}>{prompt.prompt ?? t('shell.expertNoPersona')}</p>
-                                    <details className={css.expertDoc}>
-                                      <summary>{t('shell.expertDocument')}</summary>
-                                      <pre className={css.expertDocBody}>{prompt.document}</pre>
-                                    </details>
-                                  </>
-                                )}
-                          </div>
-                        )
-                      })}
-                  </div>
-                ) : null}
-                <div className={css.settingRow}><div className={css.settingLabel}><span className={css.settingLabelB}>{t('shell.plugins')}</span><span className={css.settingLabelSpan}>{t('shell.onlySettings')}</span></div><span className={css.pill}>{t('shell.hidden')}</span></div>
-              </div>
-            </div>
-            <div className={css.modalFoot}><div className={css.spacer} /><button type="button" className={css.primaryBtn} onClick={() => { setSettings(false) }}>{t('shell.done')}</button></div>
-          </div>
-        </div>
       ) : null}
 
       {accountOpen ? (

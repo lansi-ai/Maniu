@@ -97,7 +97,7 @@ export interface ShellTrack {
   readonly name: string
 }
 
-/** 项目信息抽屉的数据，来自 `.spec/project.yaml`。 */
+/** 项目信息页的数据，来自 `.spec/project.yaml`。 */
 export interface ShellProjectInfo {
   readonly kind: ShellProjectKind
   readonly repoUrl: string

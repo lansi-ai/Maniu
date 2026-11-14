@@ -4,6 +4,7 @@
  * 四套皮肤只决定 `Shell.module.css` 里的颜色与表面 token；这里只负责选择值与
  * 刷新后的恢复。读不到或读到未知值时回默认皮肤，不阻塞整壳渲染。
  */
+import type { LcoderWorkspaceKey } from '../locales.ts'
 
 /** 可用皮肤；顺序即顶栏色球的循环顺序。 */
 export const SKINS = ['neon', 'silver', 'frost', 'rose'] as const
@@ -13,6 +14,14 @@ export type Skin = (typeof SKINS)[number]
 
 /** 默认皮肤：霓虹夜航。 */
 export const DEFAULT_SKIN: Skin = 'neon'
+
+/** 皮肤到词典键；顶栏色球与设置页共用这一份。 */
+export const SKIN_LABEL: Record<Skin, LcoderWorkspaceKey> = {
+  neon: 'shell.skinNeon',
+  silver: 'shell.skinSilver',
+  frost: 'shell.skinFrost',
+  rose: 'shell.skinRose',
+}
 
 /** 本地存储键；只存皮肤标识。 */
 export const SKIN_STORAGE_KEY = 'lcoder.skin'
