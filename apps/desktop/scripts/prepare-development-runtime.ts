@@ -4,14 +4,14 @@ import { existsSync, readFileSync, realpathSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, join, resolve } from 'node:path'
 import { desktopTargetPlatform, resolveDesktopBuildTarget, resolveDesktopTargetBuildPaths } from './desktop-build-paths.mjs'
-import { fileStamp, inputsDigest, readCacheRecord, treeDigest, writeCacheRecord } from './development-cache.ts'
+import { fileStamp, inputsDigest, readCacheRecord, writeCacheRecord } from './development-cache.ts'
 
 const APP_ROOT = resolve(import.meta.dirname, '..')
 const REPOSITORY_ROOT = resolve(APP_ROOT, '..', '..')
 const LOCK_PATH = join(REPOSITORY_ROOT, 'scripts', 'primary-runtime', 'lock.json')
 const CACHE_PATH = join(APP_ROOT, '.desktop-build', 'development', 'primary-runtime.json')
 /** Bump when the reuse record's fields change meaning. */
-const CACHE_FORMAT = 1
+const CACHE_FORMAT = 2
 
 /** Sources whose edits change payload bytes without changing the locked inputs. */
 const ASSEMBLY_SOURCES = [
@@ -22,9 +22,7 @@ const ASSEMBLY_SOURCES = [
 ]
 
 interface PrimaryRuntimeLock {
-  readonly pythonVersion: string
   readonly nodeVersion: string
-  readonly pythonPackages: Readonly<Record<string, string>>
 }
 
 /** Fields the prepared payload's `runtime.json` must record for the current inputs. */
@@ -32,10 +30,8 @@ export interface PayloadIdentity {
   readonly desktopVersion: string
   readonly platform: string
   readonly arch: string
-  readonly python: string
   readonly node: string
   readonly pnpm: string
-  readonly pythonPackages: Readonly<Record<string, string>>
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -46,12 +42,6 @@ function pnpmIdentity(): { version: string; path: string; manifest: string } {
   const manifest = createRequire(import.meta.url).resolve('pnpm')
   const { version } = JSON.parse(readFileSync(manifest, 'utf8')) as { version: string }
   return { version, path: realpathSync(dirname(manifest)), manifest: fileStamp(manifest) }
-}
-
-function officeAssets(): string {
-  const { resolve: resolveOffice } = createRequire(import.meta.url)
-  const assets = realpathSync(join(dirname(resolveOffice('@deepseek-ai/dsh-skill-office/package.json')), 'assets'))
-  return `${assets} ${treeDigest(assets)}`
 }
 
 function cacheInputs(
@@ -65,7 +55,6 @@ function cacheInputs(
     lock: JSON.parse(readFileSync(LOCK_PATH, 'utf8')) as Record<string, unknown>,
     lockStamp: fileStamp(LOCK_PATH),
     assembly: ASSEMBLY_SOURCES.map(path => `${path} ${fileStamp(path)}`),
-    officeAssets: officeAssets(),
   }
 }
 
@@ -89,13 +78,8 @@ function recordedIdentity(runtimeRoot: string): Record<string, unknown> | undefi
 function payloadEntries(runtimeRoot: string, identity: PayloadIdentity): string[] {
   const payload = join(runtimeRoot, 'primary-runtime')
   const windows = identity.platform === 'win32'
-  const python = join(payload, 'dependencies', 'python')
-  const minor = identity.python.split('.').slice(0, 2).join('.')
   return [
     join(payload, 'runtime.json'),
-    join(runtimeRoot, 'office-skills'),
-    windows ? join(python, 'python.exe') : join(python, 'bin', 'python3'),
-    join(python, windows ? 'Lib' : join('lib', `python${minor}`), 'site-packages'),
     join(payload, 'dependencies', 'node', 'bin', windows ? 'node.exe' : 'node'),
     join(payload, 'dependencies', 'pnpm', 'bin', 'pnpm.mjs'),
   ]
@@ -104,17 +88,16 @@ function payloadEntries(runtimeRoot: string, identity: PayloadIdentity): string[
 /**
  * Decide whether the prepared payload still matches the inputs that produced it.
  * Content is not re-hashed; `-Smoke` executes the payload and every assembly input is part of the digest.
- * @param runtimeRoot - Target runtime directory holding `primary-runtime/` and `office-skills/`.
+ * @param runtimeRoot - Target runtime directory holding `primary-runtime/`.
  * @param identity - Versions and platform the payload must record and provide.
  * @returns `true` when the recorded manifest matches and every entry point exists.
  */
 export function payloadReusable(runtimeRoot: string, identity: PayloadIdentity): boolean {
   const recorded = recordedIdentity(runtimeRoot)
   if (recorded === undefined) return false
-  for (const field of ['desktopVersion', 'platform', 'arch', 'python', 'node', 'pnpm'] as const) {
+  for (const field of ['desktopVersion', 'platform', 'arch', 'node', 'pnpm'] as const) {
     if (recorded[field] !== identity[field]) return false
   }
-  if (JSON.stringify(recorded.pythonPackages) !== JSON.stringify(identity.pythonPackages)) return false
   for (const path of payloadEntries(runtimeRoot, identity)) {
     if (!existsSync(path)) return false
   }
@@ -133,8 +116,7 @@ export async function prepareDevelopmentRuntime(options: { deferSmoke: boolean }
   const pnpm = pnpmIdentity()
   const lock = JSON.parse(readFileSync(LOCK_PATH, 'utf8')) as PrimaryRuntimeLock
   const identity: PayloadIdentity = {
-    desktopVersion: version, ...platform, python: lock.pythonVersion, node: lock.nodeVersion,
-    pnpm: pnpm.version, pythonPackages: lock.pythonPackages,
+    desktopVersion: version, ...platform, node: lock.nodeVersion, pnpm: pnpm.version,
   }
   const digest = inputsDigest(cacheInputs(target, version, pnpm))
   const payload = join(paths.runtime, 'primary-runtime')

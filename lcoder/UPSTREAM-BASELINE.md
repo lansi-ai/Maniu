@@ -76,6 +76,28 @@ upstream = deepseek-ai/deepseek-harness
 | `apps/desktop/scripts/dev.ts` | 一行：`preparePrimaryRuntime()` 改成按 `DSH_DESKTOP_SKIP_RUNTIME_SMOKE=1` 传 `deferSmoke` | 运行时冒烟（打包 python 三条检查加 Office 往返）是发布验收口径，每次开发启动跑一遍要 100 到 143 秒；产物没变时的日常开窗需要一条跳过它的通道，装配层与 profile 都够不到 dev 脚本 |
 | `apps/desktop/resources/icon.svg`、`icon-windows.svg`、`icon-macos.svg` 与对应 `icon.png`、`icon-windows.png`、`icon-macos.png`、`tray-windows.ico` | 上游鲸标整组换成 LCoder 标记（靛蓝渐变板 + 白色 L + 右上圆点）。`icon.svg` 保持 1104 画布、图块仍在 `translate(40 32)` 的 1024 位（web 侧 `apps/web/scripts/render-app-icons.ts` 按这套常量裁影）；`icon-windows.svg` 保持 1024 画布包 1104 空间并保留 `id="tray-glyph"` 组（托盘管线靠它注入放大） | 这是操作系统层面的产品品牌面：EXE 与任务栏图标、安装向导关于页、Windows 托盘 ICO、macOS dock 全部来自这几个文件。装配层与插件改不了 Electron 打包图标，也没有配置项能覆盖 |
 | `apps/desktop/scripts/render-tray-icon.ts` | 只改措辞：文件头与一行注释里的 whale 改为 LCoder mark；管线、`TRAY_ICON_SIZES`、`tray-glyph` 注入与 1.2 倍放大全部不变 | 美术换掉后原措辞会误导下一次改图标的人去找鲸标 |
+### T-183：Office 与 Python 载荷裁剪
+
+产品在 2026-11-14 确认不做 Office 转换与数据分析，因此这两块载荷（解包 144.4 MiB Python + 181.7 MiB LibreOffice 引擎）不再随桌面端分发。改动只落在运行时准备、宿主启动检查与依赖边，不改 `.spec` 与 LCoder 自己的包。
+
+| 文件 | 改什么 | 为什么必须改 |
+|---|---|---|
+| `scripts/primary-runtime/prepare.ts` | 新增 `nodeOnly` 选项：跳过 Python 归档与 wheel、不复制 `office-skills`；`pythonPackages` 为空、digest 格式升到 9；冒烟按「解释器是否存在」双侧校验 | 这个构建器同时服务 SDK/容器载体，不能整体删 Python；桌面载体需要一个显式、可校验的「只要 node+pnpm」形态 |
+| `apps/desktop/scripts/prepare-primary-runtime.ts` | 传 `nodeOnly: true`；冒烟只要求 node+pnpm | 桌面载体声明自己的载荷组成，缺 node/pnpm 仍然报错 |
+| `apps/desktop/scripts/prepare-development-runtime.ts` | 复用判据去掉 python/site-packages/office-skills 条目与 office 资产摘要 | 开发启动按实际载荷判断新鲜度，否则每次都全量重备 |
+| `apps/desktop/scripts/prepare-dsh.ts`、`runtime-file-policy.ts` | 删除 Office 引擎选择与 prebuilds 校验；文件策略直接排除整族 `libreoffice-kit-*` | 引擎载荷不再随包；不改策略时打包会因找不到引擎直接失败 |
+| `apps/desktop/scripts/electron-builder-config.mjs` | 去掉引擎的 asarUnpack 与 `beforePack` 里 `officePackageDirectories` 调用 | 同一原因：加载器会在缺引擎时抛错 |
+| `apps/desktop/scripts/smoke-runtime.ts`、`smoke-prepared-runtime.ts`、`macos-runtime.ts` | 冒烟去掉 Python fixture 与 Office 往返，保留 CLI 装插件、宿主启动、前端与插件路由；`runtimeArchivePath` 迁到 `apps/desktop-host/src/runtime-archive.ts`；mac 签名去掉 LibreOffice JIT 授权规则 | 发布验收不应再要求已移除的载荷；ASAR 路径函数与 Office 无关，必须搬家 |
+| `apps/desktop/src/main.ts`、`host-process.ts`、`scripts/dev.ts`、`scripts/test-workspace-updates.ts` | 删除 `primaryRuntime` 形参与 `DSH_DESKTOP_PRIMARY_RUNTIME_DIR` 通道 | 宿主只剩 node/pnpm 载荷，多传一个目录只会让启动检查重新长出 Office 耦合 |
+| `apps/desktop-host/src/index.ts` | 不再安装 `desktop-office` 插件与引擎解析钩子；argv 前移一位 | 宿主启动检查原先强依赖 `office-skills` 与 Python 载荷 |
+| `apps/desktop-host/src/office.ts`、`office-engine.ts`（删除） | 删掉 Office/Python 宿主插件与 ASAR 引擎解析 | 它们只为这两块载荷存在；保留即保留启动失败面 |
+| `apps/desktop-host/src/cli.ts`、`runtime-archive.ts`（新增） | `runDesktopCli` 只接收 supportDir；保留 `runtimeArchivePath` | CLI 不再需要引擎解析，但打包后的 ASAR 定位仍要用 |
+| `apps/desktop-host/package.json`、`apps/cli/package.json` | 去掉 `libreoffice-kit`、`skill-office`、`tool-workspace-dependencies` 三条/两条依赖边 | 代码不再引用；留着等于继续把载荷拉进闭包 |
+| 相关 spec 与 fixture | 删除 `office*.spec.ts`，同步 host-process / main-startup / runtime-file-policy / prepare-development-runtime / macos-runtime / windows-asar-unpack 的期望 | 行为变了，测试必须跟着变 |
+
+- 模型可见后果：桌面会话不再提供 `load_workspace_dependencies` 工具与 office 技能；`office-to-pdf` 插件行仍在 profile 里但保持禁用，引擎缺失时该能力不可用。
+- 共享包 `packages/skill/tool-workspace-dependencies` 未改：它的 manifest 规范仍要求 `python` 字段，所以 node-only 载荷记录 lock 的版本号并声明空发行版映射，冒烟按「有解释器 ⇔ 有发行版记录」校验两侧一致。
+
 规矩：改动写在文件里的 `lcoder:` 前缀注释下，方便 grep 定位，也方便升级时用 `git diff upstream/master...HEAD -- <文件>` 一眼看清。
 
 ### T-164 桌面欢迎鉴权清理旧 cookie（扩展 1 个已登记文件与其测试）

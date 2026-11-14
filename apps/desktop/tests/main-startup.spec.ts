@@ -184,10 +184,9 @@ const harness = await vi.hoisted(async () => {
     constructor(
       readonly node: string, readonly runtime: string, readonly profile: string,
       readonly inspectPort?: number, readonly environment?: NodeJS.ProcessEnv, readonly onFailure?: (error: Error) => void,
-      readonly primaryRuntime?: string,
       readonly packageManager?: { pnpm: string; nodeBin: string },
-      readonly onPlatformSession?: ConstructorParameters<typeof DesktopHostProcess>[8],
-      readonly onPluginOperation?: ConstructorParameters<typeof DesktopHostProcess>[9],
+      readonly onPlatformSession?: ConstructorParameters<typeof DesktopHostProcess>[7],
+      readonly onPluginOperation?: ConstructorParameters<typeof DesktopHostProcess>[8],
     ) { hosts.push(this) }
   }
   const app = Object.assign(new EventEmitter(), {
@@ -476,7 +475,6 @@ beforeEach(() => {
   vi.spyOn(console, 'warn').mockImplementation(() => {})
   vi.stubEnv('DSH_DESKTOP_PNPM_ENTRY', 'test-pnpm')
   vi.stubEnv('DSH_DESKTOP_DSH_DIR', 'test-runtime')
-  vi.stubEnv('DSH_DESKTOP_PRIMARY_RUNTIME_DIR', 'test-primary-runtime')
   vi.stubGlobal('process', { ...process, platform: 'win32', arch: 'x64', resourcesPath: 'desktop-test-resources' })
   vi.stubEnv('DSH_DESKTOP_HOST_INSPECT_PORT', undefined)
   vi.stubEnv('DSH_DESKTOP_DEV_PROJECT_DIR', undefined)
@@ -507,8 +505,6 @@ describe('desktop main startup', () => {
     await readyForUpdate()
     const host = harness.hosts[0]!
     expect(host.node).toBe(process.execPath)
-    expect(host.primaryRuntime).toBe(packaged
-      ? join('desktop-test-resources', 'runtime', 'primary-runtime') : 'test-primary-runtime')
     expect(host.packageManager).toMatchObject({
       pnpm: packaged
         ? join('desktop-test-resources', 'runtime', 'primary-runtime', 'dependencies', 'pnpm', 'bin', 'pnpm.mjs')
@@ -2712,7 +2708,6 @@ describe('desktop main startup', () => {
     expect(harness.hosts[0]).toMatchObject({
       node: process.execPath,
       runtime: join(harness.app.getAppPath(), 'dsh'),
-      primaryRuntime: join('desktop-test-resources', 'runtime', 'primary-runtime'),
       profile: 'desktop-test-profile',
     })
     expect(harness.hosts[0]!.environment).not.toBe(process.env)
@@ -2734,21 +2729,11 @@ describe('desktop main startup', () => {
     await harness.hostStarted.promise
     const project = join(harness.app.getAppPath(), '.desktop-build', 'development', 'project')
     expect(harness.hosts[0]).toMatchObject({ node: process.execPath, runtime: project,
-      primaryRuntime: 'test-primary-runtime', profile: 'desktop-test-profile' })
+      profile: 'desktop-test-profile' })
     expect(harness.applyRelease).toHaveBeenCalledOnce()
     harness.hosts[0]!.ready.resolve()
     await harness.navigated.promise
     expect(harness.dialog.showErrorBox).not.toHaveBeenCalled()
-  })
-
-  it('fails an unpackaged launch that receives no primary runtime directory', async () => {
-    harness.app.isPackaged = false
-    vi.stubEnv('DSH_DESKTOP_PRIMARY_RUNTIME_DIR', undefined)
-    await import('../src/main.ts')
-    await harness.dialogShown.promise
-    const options = harness.dialog.showMessageBox.mock.calls[0]![0] as MessageBoxOptions
-    expect(options.detail).toContain('DSH_DESKTOP_PRIMARY_RUNTIME_DIR is required for an unpackaged launch')
-    expect(harness.hosts).toHaveLength(0)
   })
 
   it('keeps startup errors in the existing window without a retry handler', async () => {

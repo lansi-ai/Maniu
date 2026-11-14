@@ -49,6 +49,44 @@ apps/desktop/tests/development-build-cache.spec.ts
 apps/desktop/tests/electron-node-version.spec.ts
 apps/desktop/tests/prepare-development-runtime.spec.ts
 
+# ── T-183 Office 与 Python 载荷裁剪（运行时准备 / 宿主启动检查 / 依赖边）──
+scripts/primary-runtime/prepare.ts
+scripts/primary-runtime/prepare.spec.ts
+apps/desktop/scripts/prepare-primary-runtime.ts
+apps/desktop/scripts/prepare-development-runtime.ts
+apps/desktop/scripts/prepare-dsh.ts
+apps/desktop/scripts/runtime-file-policy.ts
+apps/desktop/scripts/electron-builder-config.mjs
+apps/desktop/scripts/smoke-runtime.ts
+apps/desktop/scripts/smoke-prepared-runtime.ts
+apps/desktop/scripts/macos-runtime.ts
+apps/desktop/scripts/dev.ts
+apps/desktop/scripts/test-workspace-updates.ts
+apps/desktop/src/main.ts
+apps/desktop/src/host-process.ts
+apps/desktop-host/src/index.ts
+apps/desktop-host/src/cli.ts
+apps/desktop-host/src/runtime-archive.ts
+apps/desktop-host/package.json
+apps/cli/package.json
+apps/desktop/tests/host-process.spec.ts
+apps/desktop/tests/main-startup.spec.ts
+apps/desktop/tests/welcome-startup.spec.ts
+apps/desktop/tests/desktop-cli.spec.ts
+apps/desktop/tests/runtime-file-policy.spec.ts
+apps/desktop/tests/prepare-development-runtime.spec.ts
+apps/desktop/tests/primary-runtime-preparation.spec.ts
+apps/desktop/tests/runtime-preparation.spec.ts
+apps/desktop/tests/macos-runtime.spec.ts
+apps/desktop/tests/windows-asar-unpack.spec.ts
+apps/desktop/tests/fixtures/workspace-update-adapters.mjs
+
+# T-183 删除的上游文件（Office 宿主插件与其测试）
+apps/desktop-host/src/office.ts
+apps/desktop-host/src/office-engine.ts
+apps/desktop-host/tests/office.spec.ts
+apps/desktop-host/tests/office-engine.spec.ts
+
 # ── T-78 至 T-82 计划接触面（设计已登记，尚未落地；每项落地前先人工复核）──
 apps/desktop/scripts/electron-builder-config.mjs
 apps/desktop/scripts/desktop-package-environment.mjs

@@ -65,7 +65,7 @@ beforeEach(() => {
     writeFileSync(join(root, 'runtime.json'), JSON.stringify({
       desktopVersion: '1.0.0', platform: state.target === 'win-x64' ? 'win32' : 'darwin',
       arch: state.target === 'mac-arm64' ? 'arm64' : 'x64',
-      python: '3.12.14', node: '24.17.0', pnpm: state.pnpm, pythonPackages: { numpy: '2.3.5' },
+      python: '3.12.14', node: '24.17.0', pnpm: state.pnpm, pythonPackages: {},
     }))
   })
 })

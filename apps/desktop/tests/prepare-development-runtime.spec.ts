@@ -18,21 +18,16 @@ const identity: PayloadIdentity = {
   desktopVersion: '1.2.3',
   platform: 'win32',
   arch: 'x64',
-  python: '3.12.14',
   node: '24.21.0',
   pnpm: '11.7.0',
-  pythonPackages: { numpy: '2.3.5' },
 }
 
 function prepared(root: string, manifest: Record<string, unknown> = {}): string {
   const payload = join(root, 'primary-runtime')
   const dependencies = join(payload, 'dependencies')
   for (const path of [
-    join(dependencies, 'python', 'python.exe'),
-    join(dependencies, 'python', 'Lib', 'site-packages', 'numpy', '__init__.py'),
     join(dependencies, 'node', 'bin', 'node.exe'),
     join(dependencies, 'pnpm', 'bin', 'pnpm.mjs'),
-    join(root, 'office-skills', 'office.py'),
   ]) {
     mkdirSync(join(path, '..'), { recursive: true })
     writeFileSync(path, '')
@@ -42,10 +37,10 @@ function prepared(root: string, manifest: Record<string, unknown> = {}): string 
     platform: identity.platform,
     arch: identity.arch,
     payloadDigest: 'digest',
-    python: identity.python,
+    python: '3.12.14',
     node: identity.node,
     pnpm: identity.pnpm,
-    pythonPackages: identity.pythonPackages,
+    pythonPackages: {},
     ...manifest,
   }))
   return root
@@ -63,8 +58,8 @@ describe('development primary runtime reuse', () => {
   it('rejects a payload built for other locked versions', () => {
     const root = prepared(temporaryRoot(), { pnpm: '11.6.0' })
     expect(payloadReusable(root, identity)).toBe(false)
-    const packages = prepared(temporaryRoot(), { pythonPackages: { numpy: '2.2.0' } })
-    expect(payloadReusable(packages, identity)).toBe(false)
+    const versions = prepared(temporaryRoot(), { node: '24.17.0' })
+    expect(payloadReusable(versions, identity)).toBe(false)
   })
 
   it('rejects a payload missing any entry point or manifest', () => {
