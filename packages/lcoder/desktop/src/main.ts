@@ -25,6 +25,11 @@ function send(channel: string, ...args: readonly unknown[]): void {
   target.webContents.send(channel, ...args)
 }
 
+function wireStateReplay(window: BrowserWindow): void {
+  window.webContents.on('did-finish-load', () => { publisher.replay() })
+  window.webContents.on('did-stop-loading', () => { publisher.replay() })
+}
+
 function hostInspectPort(): number | undefined {
   const raw = process.env.DSH_DESKTOP_HOST_INSPECT_PORT
   if (raw === undefined || raw === '') return undefined
@@ -81,12 +86,12 @@ if (!app.requestSingleInstanceLock()) {
     })
     mainWindow = createMainWindow()
     mainWindow.on('closed', () => { mainWindow = undefined })
-    mainWindow.webContents.on('did-finish-load', () => { publisher.replay() })
+    wireStateReplay(mainWindow)
     await boot()
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) {
         mainWindow = createMainWindow()
-        mainWindow.webContents.on('did-finish-load', () => { publisher.replay() })
+        wireStateReplay(mainWindow)
       }
     })
   }).catch((error: unknown) => {
