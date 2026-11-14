@@ -34,6 +34,12 @@ function isHostMessage(value: unknown): value is HostMessage {
 
 const MAX_STDERR_CHARS = 16 * 1024
 
+/** 优雅关停等待上限；宿主写完会话日志通常远低于此值。 */
+const GRACEFUL_STOP_MS = 6_000
+
+/** SIGTERM 后的等待上限；到点直接 SIGKILL，避免把关窗拖成驻留。 */
+const TERM_WAIT_MS = 2_000
+
 /** 一条宿主子进程。 */
 export class HostSupervisor {
   private child: ChildProcess | undefined
@@ -104,17 +110,28 @@ export class HostSupervisor {
     if (child === undefined) return
     this.child = undefined
     this.url = undefined
+    if (child.exitCode !== null || child.signalCode !== null) return
     const exited = new Promise<void>((resolve) => { child.once('close', () => { resolve() }) })
     if (child.connected) child.send({ type: 'shutdown' })
     const graceful = await Promise.race([
       exited.then(() => true),
-      new Promise<false>((resolve) => { setTimeout(() => { resolve(false) }, 10_000).unref() }),
+      new Promise<false>((resolve) => { setTimeout(() => { resolve(false) }, GRACEFUL_STOP_MS).unref() }),
     ])
     if (!graceful) child.kill('SIGTERM')
     await Promise.race([
       exited,
-      new Promise<void>((resolve) => { setTimeout(() => { child.kill('SIGKILL'); resolve() }, 5_000).unref() }),
+      new Promise<void>((resolve) => {
+        setTimeout(() => { child.kill('SIGKILL'); resolve() }, TERM_WAIT_MS).unref()
+      }),
     ])
+  }
+
+  /** 关停超时的最后手段：直接杀掉宿主，避免孤儿进程继续占住会话库与端口。 */
+  terminate(): void {
+    const child = this.child
+    this.child = undefined
+    this.url = undefined
+    if (child !== undefined && child.exitCode === null && child.signalCode === null) child.kill('SIGKILL')
   }
 
   private stderrText(): string {

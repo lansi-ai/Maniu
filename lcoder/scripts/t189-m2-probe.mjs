@@ -219,9 +219,8 @@ async function attach(url) {
 }
 
 async function closeApp(page) {
+  // 只发关窗命令，不主动断开 CDP：渲染端忙时提前断链会把排队中的命令丢掉。
   page.socket.send(JSON.stringify({ id: 999_999, method: 'Runtime.evaluate', params: { expression: "window.lcoder.window('close')" } }))
-  await new Promise(resolvePromise => setTimeout(resolvePromise, 200))
-  page.socket.close()
 }
 
 async function waitExit(child, milliseconds) {
@@ -422,12 +421,13 @@ async function run() {
     await page.waitFor("document.querySelector('[data-testid=\"session-list\"]') !== null", 10_000, '聊天页会话列表')
 
     await closeApp(page)
-    page = undefined
     const exited = await waitExit(child, 20_000)
+    page.socket.close()
+    page = undefined
     log(exited ? '实例已退出' : '实例未在 20 秒内退出，已发 SIGTERM')
     log('PASS：导航、六列看板、任务速览、需求列表与概要、项目信息、设置占位、聊天入口')
   } catch (error) {
-    if (page !== undefined) await closeApp(page)
+    if (page !== undefined) { await closeApp(page); page.socket.close() }
     if (child.exitCode === null) child.kill('SIGTERM')
     throw error
   }
