@@ -2007,7 +2007,7 @@ tracks:
       note: "B 级减重调研，来源是用户 2026-11-14 判断上游太重，要求从安装包与磁盘体积、构建与启动速度、代码维护与升级风险、功能心智负担四个维度减重，路线选 profile 裁剪先行。现状实测：桌面壳挂载 96 个上游插件，只有 3 处 disabled；随安装包 core set 333 个包、68.17 MiB；我们直接 import 31 个上游包，其中 workspace 有 16.0k 行与上游耦合、kernel 2.7k 行。目标：不改上游源码，用自有 profile 切片，给出可采纳的禁用清单与四维前后对照。步骤：一、导出当前实例实际激活插件清单，标注是否被 LCoder 路径触达，覆盖会话、任务、需求、项目、设置、交付物；二、新建独立切片 profile，分三波禁用，第一波遥测、插件管理、office-to-pdf、workflow、schedule、goal、plan、jobs，第二波浏览器、终端、文件、交付物侧栏，第三波客户端 UI 未用项；每波后能启动并跑 CDP DOM 断言，外壳三页可切换、任务详情可开、会话可发一条消息；三、四维测量并与全量 profile 对照，启动 ready 时间取日志时间戳三次中位数，客户端插件 JS 字节数取 combo URL 响应大小，激活插件数与可见菜单项数量对比，安装包体积单独记录本路线无法改变并给出结论；四、输出 lcoder/profile-slice.md 结论表，列出可采纳、会断链路、需改代码才能裁三类，并给出下一阶段建议。红线：不改上游源码与 packages 内上游包，不改 .spec，不动主检出默认 profile 与 T-176 的 slot-1，不删包，不 push，不合并，不改台账。时序：测量阶段要求机器独占，等 T-176 收口后再测基线，先做清点与切片。工作树 pool-slot-2 到 lcoder/t177-profile-slice，端口 9823 与 9831 与 9832。2026-11-14 10:38 监督窗口派工，实现线会话 6a29c34f。2026-11-14 11:45 监督窗口核验并收口。三波切片共关 51 行（26/9/16，另 1 行只把默认角色改为 lcoder），浏览器 roster 73→42；带 token 组合 URL 实测未压缩 10,866,318→7,758,357 字节（−28.6%）、gzip 传输 2,368,669→1,620,622 字节（−31.6%）。启动就绪全量三次中位数 5 秒，三波 5/4/5 秒，秒级分辨率下无可见收益；安装包 core set、磁盘与构建速度不变，profile 已到边界。断点与回滚：第三波首版关 ui-input-trigger 与 ui-commands 导致外壳停在 Loading plugins，回滚并把两行移出，修正版七条断言全过；两行归入需整链验证候选。第三波同时关掉上游四个 preset，默认角色改为 lcoder，名册只剩 LCoder 十个。主检复跑 typecheck 五项、packages/lcoder vitest 九十三文件一千一百一十九例、verify-client-ui-i18n 一千三百一十八文件、test:docs 二十一项、build:check 两项全过，oxlint 对 .mjs 不适用。未验项：毫秒级启动、真实模型与真实云端、逐波宿主激活数、打包体积、上游聊天整链与 shell false 回退。已合入 lcoder/main、release pool-slot-2。"
     - id: T-178
       title: 三波切片接入发布 profile
-      status: doing
+      status: done
       face: 工程
       type: 开发
       owner: lance
@@ -2015,7 +2015,7 @@ tracks:
       date: '2026-11-14'
       dep: [T-177]
       inferred: false
-      note: "B 级配置收尾，来源是用户 2026-11-14 决定三波全接。范围：把 profile-slice.mjs 的 apply 接进 rebuild.cmd profile 的 profile 保障步骤，三波默认全接，源仍是 lcoder/desktop-profile.slice.yml，不把 51 行禁用复制进 desktop-profile.patch.yml，避免双源漂移；apply 的合成校验要区分命中与未命中，未命中任一 id 即失败中止并报出 id，不能静默跳过。验收：claim 或 rebuild 后 dump-config 为 130 启用、roster 42、默认角色 lcoder；起一次桌面实例跑七条 DOM 断言；typecheck、packages/lcoder vitest、verify-client-ui-i18n、test:docs、改动文件 oxlint 全绿。工作树 pool-slot-1 到 lcoder/t178-slice-adopt，端口 9822 与 9829 与 9830。2026-11-14 11:50 监督窗口派工，实现线会话 7091330d。"
+      note: "B 级配置收尾，来源是用户 2026-11-14 决定三波全接。范围：把 profile-slice.mjs 的 apply 接进 rebuild.cmd profile 的 profile 保障步骤，三波默认全接，源仍是 lcoder/desktop-profile.slice.yml，不把 51 行禁用复制进 desktop-profile.patch.yml，避免双源漂移；apply 的合成校验要区分命中与未命中，未命中任一 id 即失败中止并报出 id，不能静默跳过。验收：claim 或 rebuild 后 dump-config 为 130 启用、roster 42、默认角色 lcoder；起一次桌面实例跑七条 DOM 断言；typecheck、packages/lcoder vitest、verify-client-ui-i18n、test:docs、改动文件 oxlint 全绿。工作树 pool-slot-1 到 lcoder/t178-slice-adopt，端口 9822 与 9829 与 9830。2026-11-14 11:50 监督窗口派工，实现线会话 7091330d。2026-11-14 12:45 监督窗口核验并收口。实现线改五文件，profile-slice.mjs 增 --all 与 check，apply 幂等，rebuild.ps1 在 profile 保障里先 apply --all 再 check --all 并把失败上抛；51 行禁用仍在切片源，未复制进装配源。合成清单 208 条、启用 130、禁用 78，运行时浏览器 roster 42，默认角色 lcoder，七条 DOM 断言 7/7。监督窗口独立注入一个不存在的 id 复验硬闸，check 退出 1 并打印该 id，随后还原且 check 复绿。主检复跑 typecheck 五项、packages/lcoder vitest 九十三文件一千一百一十九例、i18n 一千三百一十八文件、test:docs 二十一项、build:check 两项全过。注意运行副本的切片在下次 rebuild 或 claim 时生效，当前主检出已有实例不自动重载。已合入 lcoder/main、release pool-slot-1。"
     - id: T-179
       title: core set 裁剪调研
       status: done
