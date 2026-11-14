@@ -81,6 +81,67 @@
 - 为了不碰共享 `targets`，本次把本树的 `apps/desktop/.desktop-build/targets` 从 junction 换成本地目录（先拷贝既有 runtime，再由新的准备逻辑重写）。共享目录里的 slot-1 与主检出未受影响。
 - 门禁：`pnpm run typecheck` 0；`apps/desktop` + `apps/desktop-host` + `scripts/primary-runtime` 目标 spec 266 通过；`packages/lcoder` 1119 通过；`build:artifacts` 与 `build:check` 0。
 
+## 加回路径
+
+这一节只写怎么恢复，不代表要恢复。裁剪本身没有删除 lock 里的任何下载锁，也没有删除 skill-office / workspace-dependencies 的源码与包，所以回退是「改回几处开关」，不是重新设计。
+
+### 1. 依赖边与 package.json 字段
+
+| 文件 | 恢复内容 |
+| --- | --- |
+| `apps/desktop-host/package.json` | `dependencies` 加回三条：`"@deepseek-ai/libreoffice-kit": "^0.1.5"`、`"@deepseek-ai/dsh-skill-office": "workspace:*"`、`"@deepseek-ai/dsh-tool-workspace-dependencies": "workspace:*"` |
+| `apps/cli/package.json` | `dependencies` 加回两条：`"@deepseek-ai/dsh-skill-office": "workspace:*"`、`"@deepseek-ai/dsh-tool-workspace-dependencies": "workspace:*"` |
+| `pnpm-lock.yaml` | 两条 package.json 改完后跑一次 `pnpm install --lockfile-only`（或常规 install）让 importer 重新记录；不要手改 lock |
+
+- 其余字段（`scripts`、`files`、`devDependencies`）本次没有删过，不需要恢复。
+- 没有动 `packages/bundle/web-app` → `ui-sidebar-documentpreview` / `office-to-pdf` 这条链；`office-to-pdf` 的插件行一直在 profile 里，恢复依赖边与宿主检查后它即可重新加载（当前该行仍是禁用状态，需按 profile 策略单独打开）。
+
+### 2. runtime 准备与 lock 字段
+
+- `scripts/primary-runtime/lock.json` **一个字都没删**：`pythonVersion`、`pythonRelease`、每个 target 的 `pythonTarget`/`pythonSha256`、`wheels`、`pythonPackages` 全部在；13 个归档（4 个 win 轮子 + 9 个共享轮子 + Node 压缩包）在下载缓存里也都在。恢复载荷不需要重新生成 lock。
+- `scripts/primary-runtime/prepare.ts`：`nodeOnly` 分支保留即可作为回退开关。恢复 = 桌面载体不再传 `nodeOnly`；全量分支仍会解包 Python、铺 wheel、执行 `prunePrimaryRuntimePythonTests`、复制 `office-skills`，并写 13 项 `pythonPackages`。
+- `apps/desktop/scripts/prepare-primary-runtime.ts`：删掉 `nodeOnly: true` 与那行 `lcoder:` 注释。
+- `apps/desktop/scripts/prepare-development-runtime.ts`：`PayloadIdentity` 加回 `python`、`pythonPackages`；`payloadEntries` 加回 `<payload>/dependencies/python/python.exe`（Windows）或 `bin/python3`、`Lib|lib/python3.12/site-packages`、以及 `../office-skills`；`cacheInputs` 加回 `officeAssets()`（连同 `treeDigest` 导入）；`CACHE_FORMAT` 再 +1。
+- `apps/desktop/scripts/prepare-dsh.ts`、`runtime-file-policy.ts`：去掉对 `@deepseek-ai/libreoffice-kit-*` 的整族排除，恢复 `selectOfficeEngine` 选引擎与「缺引擎即失败」的校验。
+- `apps/desktop/scripts/electron-builder-config.mjs`：恢复引擎的 `asarUnpack` 模式与 `beforePack` 里的 `officePackageDirectories(...)`（否则引擎即使装回来也不会解出 ASAR）。
+- `apps/desktop/scripts/smoke-runtime.ts`、`smoke-prepared-runtime.ts`、`macos-runtime.ts`：恢复 Python fixture 生成、Office 往返三条（DOCX/XLSX/PPTX → PDF）与 skill CLI 冒烟；mac 签名加回 LibreOffice 二进制的 JIT 授权规则。
+- 载荷落点：恢复后应出现 `targets/win-x64/runtime/primary-runtime/dependencies/python`、`targets/win-x64/runtime/office-skills`，`runtime.json` 的 `pythonPackages` 为 13 项。
+
+### 3. 宿主启动检查与 host 冒烟
+
+| 文件 | 恢复内容 |
+| --- | --- |
+| `apps/desktop-host/src/office.ts`、`office-engine.ts` | 从 T-183 裁剪提交的父提交取回：`git show "$(git log --format=%H --grep '裁剪 Office 与 Python' -1)^:apps/desktop-host/src/office.ts" > apps/desktop-host/src/office.ts`（另一个同理） |
+| `apps/desktop-host/src/index.ts` | 恢复两个 import、`installOfficeEngineResolution(runtimeDir)`、把主运行时目录放回 `process.argv[4]` 并让 `packageManager` 回到 `argv[5]`/`argv[6]`、恢复 `await ctx.plugin(desktopOffice, { runtimeDir, source, root })` |
+| `apps/desktop/src/host-process.ts` | 恢复 `primaryRuntime` 形参，argv 恢复为 runtimeDir、projectDir、primaryRuntime、pnpm、nodeBin |
+| `apps/desktop/src/main.ts` | 恢复 `developmentPrimaryRuntime()`、`primaryRuntime`（打包态取 `resources/runtime/primary-runtime`），并传给 `DesktopHostProcess` |
+| `apps/desktop/scripts/dev.ts`、`test-workspace-updates.ts` | 恢复 `DSH_DESKTOP_PRIMARY_RUNTIME_DIR: developmentRuntimeDirectory()` 注入 |
+| `apps/desktop-host/src/cli.ts` | 恢复 `runDesktopCli(runtimeDir, supportDir)` 形参与 `installOfficeEngineResolution(runtimeDir)` |
+| `apps/desktop-host/tests/office.spec.ts`、`office-engine.spec.ts` 与相关断言 | 从同一个父提交取回，同步 host-process / main-startup 的 argv 期望 |
+
+- 宿主启动检查的实质是：`office.ts` 要求同级的 `office-skills` 存在，并把 `load_workspace_dependencies` 与 Office 技能一起挂回模型面；`office-engine.ts` 负责让 ASAR 内的引擎路径在原生子进程里可用。两者缺一，打包态 Office 能力仍然不可用。
+
+### 4. 回退演练（已验证）
+
+只验证「锁与资产仍然完整、全量载荷还能重新铺出来」，不改任何代码：
+
+```sh
+node --import tsx scripts/primary-runtime/prepare.ts --target win-x64 \
+  --output "$LOCALAPPDATA/Temp/t183-restore" \
+  --cache apps/desktop/.desktop-build/downloads
+```
+
+- 2026-11-14 实测：退出码 0；输出目录 **266,816,477 B**，其中 `dependencies/python` 151,562,653 B、`dependencies/node` 93,740,743 B、`dependencies/pnpm` 21,487,737 B、`office-skills` 24,743 B；`runtime.json` 记录 `python: 3.12.14`、13 项发行版；日志末尾出现 Python 校验、`pip check`、Office 读写往返与 pnpm 版本输出。
+- `--cache` 指向本机既有的归档缓存；换一台机器时省掉该参数即可，构建器会在默认缓存目录下载并校验 SHA-256。
+- 与 2026-11-11 的存量基线（266,660,010 B）相差 156 KB（0.06%），来自重新解包的文件集与文件系统统计差异，量级一致。
+- 全代码回退则是 `git revert --no-edit "$(git log --format=%H --grep '裁剪 Office 与 Python' -1)"` 后跑 `pnpm install --lockfile-only && pnpm run build:artifacts`：依赖边、宿主插件、打包过滤与冒烟项一起回来，下次启动会按全量载荷重新准备。
+
+### 以后只想按需提供时参照的机制
+
+- 上游的现成机制是 **ON_DEMAND_BUNDLES**：清单在 `packages/util/official-bundles/src/bundles.ts`，生成物是 `packages/util/official-bundles/src/catalog.generated.ts` 的 `OFFICIAL_ON_DEMAND_CATALOG`（每项带 `packageName`、`meta`、`platforms`）。消费入口是 `packages/boot/plugin-manager/src/index.ts`：`readBundles()` 把目录并进插件清单，`installBundle` 用随包的 pnpm 从 npm 现装进当前 profile。`@deepseek-ai/dsh-cua-bundle` 就是现成例子（标了 `platforms: ['darwin']`，清单里默认不列）。
+- LCoder 要按需提供 Office，入口应是自己的一条 catalog 条目 + 一个 LCoder 拥有的 bundle：把 `libreoffice-kit` 声明成该 bundle 的依赖，安装时由 pnpm 把平台包（npm optional dependency）拉下来。两点边界要先说清：其一，目录是生成的，加条目要改生成器而不是手改生成物；其二，**Python 不是 npm 包**，pnpm 装不了，仍需要 `scripts/primary-runtime` 那套带锁的下载器，或者让按需 bundle 只覆盖不需要 Python 的转换能力。
+- 按需安装会把字节写进 profile（用户目录），不影响安装包体积，但也意味着离线环境、磁盘配额与「卸载后残留」都要另行设计；本次不做。
+
 ## 未验项
 
 - 未跑 electron-builder：NSIS 安装包与 `win-unpacked` 的真实字节、压缩比没有实测；181.7 MiB 是引擎包在本机磁盘上的字节，打包器复制方式与之等价但未逐文件核对。
