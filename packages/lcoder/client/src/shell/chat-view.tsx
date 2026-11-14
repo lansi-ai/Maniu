@@ -1,38 +1,51 @@
-/** 对话页：会话列表、消息流、待办提示与输入器。 */
+/** 对话页：会话列表、聊天正文、审批/提问卡与输入器。 */
 
+import { useState } from 'react'
 import type { JSX, RefObject } from 'react'
 import type { Translate } from '../locale.ts'
+import type {
+  ChatImageLimits, ChatModelAvailability, ChatModelOption, ChatModelSelectionView, ChatContextUsage,
+  ChatPendingAttachment,
+} from '../chat/composer.ts'
 import type { ChatState, SessionSummary } from '../store.ts'
-
-/** 待办提示。 */
-export interface PendingNote {
-  readonly id: string
-  readonly kind: string
-  readonly text: string
-}
+import { Composer } from './composer.tsx'
+import { ChatTranscript } from './chat-transcript.tsx'
 
 /** 对话页属性。 */
 export interface ChatViewProps {
   readonly t: Translate
   readonly sessions: readonly SessionSummary[]
+  /** 会话标题；来自 follow 的 `session/title` 与本次改名。 */
+  readonly titles: Readonly<Record<string, string>>
   readonly active: string | null
   readonly chat: ChatState
-  readonly pending: readonly PendingNote[]
   readonly notice: string | null
   readonly sending: boolean
+  readonly running: boolean
+  readonly limits: ChatImageLimits
+  readonly models: readonly ChatModelOption[]
+  readonly selection: ChatModelSelectionView | undefined
+  readonly availability: ChatModelAvailability
+  readonly usage: ChatContextUsage
   readonly composerRef: RefObject<HTMLTextAreaElement>
   readonly onSelect: (sessionId: string) => void
   readonly onCreate: () => void
-  readonly onSend: () => void
-  readonly onDismissPending: (id: string) => void
+  readonly onSend: (text: string, attachments: readonly ChatPendingAttachment[]) => Promise<boolean>
+  readonly onStop: () => void
+  readonly onRename: (title: string) => Promise<boolean>
+  readonly ensureSession: () => Promise<string | null>
+  readonly onSelectModel: (provider: string, model: string) => Promise<boolean>
 }
 
 /**
- * 会话短名：优先取 cwd 尾段。
+ * 会话短名：已改名的标题优先，其次 cwd 尾段，最后是会话标识前缀。
  * @param session - 会话摘要。
+ * @param titles - 已读到的标题。
  * @returns 展示名。
  */
-export function sessionLabel(session: SessionSummary): string {
+export function sessionLabel(session: SessionSummary, titles: Readonly<Record<string, string>>): string {
+  const title = titles[session.sessionId]
+  if (title !== undefined && title !== '') return title
   if (session.cwd !== undefined) {
     const parts = session.cwd.split(/[\\/]/).filter(part => part !== '')
     const tail = parts[parts.length - 1]
@@ -43,13 +56,42 @@ export function sessionLabel(session: SessionSummary): string {
 
 /**
  * 对话页。
- * @param props - 会话、消息、提示与动作。
+ * @param props - 会话、聊天状态、交互与动作。
  * @returns 侧栏与聊天列。
  */
 export function ChatView({
-  t, sessions, active, chat, pending, notice, sending, composerRef, onSelect, onCreate, onSend, onDismissPending,
+  t, sessions, titles, active, chat, notice, sending, running, limits, models, selection,
+  availability, usage, composerRef, onSelect, onCreate, onSend, onStop, onRename, ensureSession,
+  onSelectModel,
 }: ChatViewProps): JSX.Element {
   const activeSession = sessions.find(item => item.sessionId === active) ?? null
+  const headTitle = active === null
+    ? t('chat.noSession')
+    : activeSession === null ? active.slice(0, 8) : sessionLabel(activeSession, titles)
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
+  const [renameProblem, setRenameProblem] = useState<string | null>(null)
+
+  const beginRename = (): void => {
+    if (active === null) return
+    setDraft(headTitle)
+    setRenameProblem(null)
+    setEditing(true)
+  }
+
+  const commitRename = async (): Promise<void> => {
+    const title = draft.trim()
+    if (title === '') {
+      setRenameProblem(t('chat.renameEmpty'))
+      return
+    }
+    const accepted = await onRename(title)
+    if (accepted) {
+      setEditing(false)
+      setRenameProblem(null)
+    }
+  }
+
   return (
     <>
       <aside className="sidebar lg-glass">
@@ -71,7 +113,7 @@ export function ChatView({
                 onClick={() => { onSelect(session.sessionId) }}
               >
                 <span className="dot" />
-                <span className="label">{sessionLabel(session)}</span>
+                <span className="label">{sessionLabel(session, titles)}</span>
                 {session.running && <span className="running">{t('chat.running')}</span>}
               </button>
             </li>
@@ -82,72 +124,59 @@ export function ChatView({
 
       <section className="chat">
         <div className="chat-head lg-glass">
-          <span data-testid="active-session">
-            {activeSession === null ? t('chat.noSession') : sessionLabel(activeSession)}
-          </span>
-        </div>
-        <div className="messages" data-testid="messages">
-          {chat.messages.map(message => (
-            <article
-              key={message.id}
-              className={message.role === 'assistant' ? 'message assistant lg-glass-card' : 'message user'}
-              data-testid={`message-${message.role}`}
-            >
-              {message.text}
-              {message.tools !== undefined && (
-                <span className="tool-line" data-testid="message-tools">
-                  {t('chat.tools', { tools: message.tools.join(', ') })}
-                </span>
-              )}
-            </article>
-          ))}
-          {chat.liveText !== '' && (
-            <article className="message assistant live lg-glass-card" data-testid="message-assistant" data-live="true">
-              {chat.liveText}
-            </article>
-          )}
-          {chat.streamError !== null && <p className="notice" data-testid="stream-error">{chat.streamError}</p>}
-        </div>
-        {pending.length > 0 && (
-          <div className="pending-stack" data-testid="pending-stack">
-            {pending.map(item => (
-              <div
-                key={item.id}
-                className="pending-note lg-glass-card"
-                data-testid={item.kind === 'approval/request' ? 'pending-approval' : 'pending-question'}
-              >
-                <strong>{item.kind === 'approval/request' ? t('pending.approvalTitle') : t('pending.questionTitle')}</strong>
-                <p>{item.text}</p>
-                <button type="button" className="pill" onClick={() => { onDismissPending(item.id) }}>
-                  {t('pending.ack')}
+          {editing ? (
+            <div className="rename-row">
+              <input
+                className="rename-input"
+                data-testid="session-rename-input"
+                value={draft}
+                aria-label={t('chat.rename')}
+                autoFocus
+                onChange={(event) => { setDraft(event.target.value); setRenameProblem(null) }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') { event.preventDefault(); void commitRename() }
+                  if (event.key === 'Escape') { setEditing(false) }
+                }}
+              />
+              <button type="button" className="pill pill-mini" data-testid="session-rename-save" onClick={() => { void commitRename() }}>
+                {t('chat.renameSave')}
+              </button>
+              <button type="button" className="pill pill-mini" data-testid="session-rename-cancel" onClick={() => { setEditing(false) }}>
+                {t('chat.renameCancel')}
+              </button>
+              {renameProblem === null ? null : <span className="rename-problem">{renameProblem}</span>}
+            </div>
+          ) : (
+            <>
+              <span data-testid="active-session">{headTitle}</span>
+              {active === null ? null : (
+                <button type="button" className="pill pill-mini" data-testid="session-rename" onClick={beginRename}>
+                  {t('chat.rename')}
                 </button>
-              </div>
-            ))}
-          </div>
-        )}
-        <div className="composer lg-glass">
-          <textarea
-            ref={composerRef}
-            data-testid="composer"
-            placeholder={t('chat.placeholder')}
-            rows={3}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' && !event.shiftKey) {
-                event.preventDefault()
-                onSend()
-              }
-            }}
-          />
-          <button
-            type="button"
-            className="pill pill-accent lg-sheen lg-lift"
-            data-testid="send"
-            disabled={sending}
-            onClick={onSend}
-          >
-            {sending ? t('chat.sending') : t('chat.send')}
-          </button>
+              )}
+              {running ? <span className="running" data-testid="session-running">{t('chat.running')}</span> : null}
+            </>
+          )}
         </div>
+
+        <ChatTranscript t={t} sessionId={active} chat={chat} />
+
+        <Composer
+          t={t}
+          sessionId={active}
+          running={running}
+          sending={sending}
+          limits={limits}
+          models={models}
+          selection={selection}
+          availability={availability}
+          usage={usage}
+          composerRef={composerRef}
+          ensureSession={ensureSession}
+          onSend={onSend}
+          onStop={onStop}
+          onSelectModel={onSelectModel}
+        />
       </section>
     </>
   )

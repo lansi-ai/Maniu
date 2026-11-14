@@ -1,7 +1,9 @@
 /** 主进程内的宿主协议薄适配层：token→cookie、一元 POST、WS mux、`$events`。 */
 
 import WebSocket, { type RawData } from 'ws'
-import type { EventOutcome, HostEvent, HostWaterfall, RemoteFailure, RemoteResult, StreamFrame } from './contract.ts'
+import type {
+  EventOutcome, HostEvent, HostWaterfall, HostWaterfallCancel, RemoteFailure, RemoteResult, StreamFrame,
+} from './contract.ts'
 
 const EVENT_STREAM_ID = 'ev'
 const EVENT_RESULT_ENDPOINT = '$events/result'
@@ -23,8 +25,10 @@ const UNARY_ALLOWED = new Set([
   'session/cancel',
   'session/rename',
   'session/events',
+  'session/attachment',
   'session/modelCatalog',
   'session/selectModel',
+  'fileUploads/upload',
   'workspace/create',
   'workspace/initializeDefault',
   'workspaceFiles/list',
@@ -47,7 +51,7 @@ const UNARY_ALLOWED = new Set([
 ])
 
 /** 渲染端允许打开的流式方法。 */
-const STREAM_ALLOWED = new Set(['session/follow', 'workspace/follow'])
+const STREAM_ALLOWED = new Set(['session/follow', 'session/control', 'workspace/follow'])
 
 /** 转发给渲染端的宿主事件。 */
 const FORWARDED_EVENTS = new Set([
@@ -62,7 +66,7 @@ const FORWARDED_EVENTS = new Set([
   'settings/document-updated',
 ])
 
-/** 转发给渲染端的 waterfall 事件；S1 只展示，不回执卡片。 */
+/** 转发给渲染端的 waterfall 事件；渲染端画卡并回执。 */
 const FORWARDED_WATERFALLS = new Set(['approval/request', 'user-questions/request'])
 
 /** 工作台主动作允许的人机命令；其余命令不透传。 */
@@ -93,6 +97,7 @@ function commandNameOf(args: object): string {
 export interface LinkSink {
   onEvent(event: HostEvent): void
   onWaterfall(event: HostWaterfall): void
+  onWaterfallCancel(event: HostWaterfallCancel): void
   onStreamFrame(streamId: string, frame: StreamFrame): void
 }
 
@@ -103,6 +108,32 @@ interface PendingStream {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/**
+ * 把一帧 waterfall 折成渲染端事件。
+ *
+ * 事件代际来自同一代 `$events` 开场的 ready 帧，waterfall 帧里没有 `clientId`；
+ * 缺代际或事件不在白名单时返回 undefined。
+ * @param value - `$events` 的一帧。
+ * @param clientId - 本次连接的事件代际。
+ * @returns 渲染端事件，或 undefined。
+ */
+export function waterfallOf(value: unknown, clientId: string | undefined): HostWaterfall | undefined {
+  if (clientId === undefined || !isRecord(value) || value.type !== 'waterfall') return undefined
+  if (typeof value.event !== 'string' || !FORWARDED_WATERFALLS.has(value.event)
+    || typeof value.eventId !== 'string' || !isRecord(value.request)) return undefined
+  return { name: value.event, clientId, eventId: value.eventId, request: value.request }
+}
+
+/**
+ * 把一帧 waterfall 撤回折成渲染端通知。
+ * @param value - `$events` 的一帧。
+ * @returns 撤回事件，或 undefined。
+ */
+export function waterfallCancelOf(value: unknown): HostWaterfallCancel | undefined {
+  if (!isRecord(value) || value.type !== 'cancel' || typeof value.eventId !== 'string') return undefined
+  return { eventId: value.eventId }
 }
 
 function textOf(data: RawData): string {
@@ -399,16 +430,13 @@ export class HostLink {
       this.sink?.onEvent({ name: value.event, args: Array.isArray(value.args) ? value.args : [] })
       return
     }
-    if (value.type === 'waterfall') {
-      if (typeof value.event !== 'string' || !FORWARDED_WATERFALLS.has(value.event)
-        || typeof value.eventId !== 'string' || typeof value.clientId !== 'string' || !isRecord(value.request)) return
-      this.sink?.onWaterfall({
-        name: value.event,
-        clientId: value.clientId,
-        eventId: value.eventId,
-        request: value.request,
-      })
+    const waterfall = waterfallOf(value, this.clientId)
+    if (waterfall !== undefined) {
+      this.sink?.onWaterfall(waterfall)
+      return
     }
+    const cancel = waterfallCancelOf(value)
+    if (cancel !== undefined) this.sink?.onWaterfallCancel(cancel)
   }
 
   private async post(endpoint: string, args: object): Promise<RemoteResult> {

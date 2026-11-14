@@ -10,6 +10,7 @@ export const IPC_CHANNELS = {
   streamFrame: 'lcoder:stream-frame',
   events: 'lcoder:events',
   waterfall: 'lcoder:waterfall',
+  waterfallCancel: 'lcoder:waterfall-cancel',
   eventResult: 'lcoder:event-result',
   window: 'lcoder:window',
   windowState: 'lcoder:window-state',
@@ -17,6 +18,8 @@ export const IPC_CHANNELS = {
   appInfo: 'lcoder:app-info',
   update: 'lcoder:update',
   locale: 'lcoder:locale',
+  preferencesRead: 'lcoder:preferences-read',
+  preferencesWrite: 'lcoder:preferences-write',
 } as const
 
 /** 宿主子进程生命周期状态。 */
@@ -50,12 +53,17 @@ export interface HostEvent {
   readonly args: readonly unknown[]
 }
 
-/** 宿主 `$events` 的 waterfall 事件；S1 只转发，不回执卡片。 */
+/** 宿主 `$events` 的 waterfall 事件；渲染端画卡并把 outcome 原样回执。 */
 export interface HostWaterfall {
   readonly name: string
   readonly clientId: string
   readonly eventId: string
   readonly request: object
+}
+
+/** 宿主撤回一条等待中的 waterfall（回合被停掉或请求超时）。 */
+export interface HostWaterfallCancel {
+  readonly eventId: string
 }
 
 /** 客户端对 waterfall 的回执。 */
@@ -78,6 +86,30 @@ export interface WindowStateInfo {
 
 /** 界面语言；主进程菜单与托盘跟随同一个值。 */
 export type DesktopLocaleId = 'zh' | 'en'
+
+/** 四套皮肤；与渲染端 `SkinId` 同一组字面量。 */
+export const DESKTOP_SKINS = ['liquid-glass', 'neon', 'silver', 'rose'] as const
+
+/** 皮肤标识。 */
+export type DesktopSkinId = (typeof DESKTOP_SKINS)[number]
+
+/** 两套字体；与渲染端 `FontId` 同一组字面量。 */
+export const DESKTOP_FONTS = ['system', 'modern'] as const
+
+/** 字体标识。 */
+export type DesktopFontId = (typeof DESKTOP_FONTS)[number]
+
+/**
+ * 跨重启保留的界面偏好。
+ *
+ * 写盘发生在主进程的每次用户选择，而不是退出时：确定性退出会直接终止
+ * 进程，渲染端 localStorage 的末批写入可能来不及落盘。
+ */
+export interface DesktopPreferences {
+  readonly skin: DesktopSkinId
+  readonly font: DesktopFontId
+  readonly locale: DesktopLocaleId
+}
 
 /**
  * 一次更新检查的结果。
@@ -109,6 +141,8 @@ export interface LcoderApi {
   onEvent(listener: (event: HostEvent) => void): () => void
   /** 订阅 waterfall 事件。 */
   onWaterfall(listener: (event: HostWaterfall) => void): () => void
+  /** 订阅 waterfall 撤回。 */
+  onWaterfallCancel(listener: (event: HostWaterfallCancel) => void): () => void
   /** 回执一个 waterfall。 */
   eventResult(clientId: string, eventId: string, outcome: EventOutcome): Promise<void>
   /** 自绘标题栏动作。 */
@@ -123,4 +157,8 @@ export interface LcoderApi {
   update(): Promise<UpdateCheck>
   /** 同步界面语言到主进程菜单与托盘。 */
   setLocale(locale: DesktopLocaleId): Promise<void>
+  /** 读主进程保存的完整偏好；启动时由渲染端补读。 */
+  readPreferences(): Promise<DesktopPreferences>
+  /** 写一项或多项偏好；主进程负责落盘并返回合并后的完整值。 */
+  writePreferences(patch: Partial<DesktopPreferences>): Promise<DesktopPreferences>
 }
