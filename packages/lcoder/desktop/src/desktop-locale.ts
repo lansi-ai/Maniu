@@ -32,7 +32,7 @@ export interface DesktopMessages {
   readonly checkForUpdates: string
   readonly about: string
   readonly aboutDetail: string
-  readonly updateUnavailable: string
+  readonly updateManual: string
 }
 
 /** 两种界面语言的主进程词典。 */
@@ -62,7 +62,7 @@ export const DESKTOP_MESSAGES: Readonly<Record<DesktopLocaleId, DesktopMessages>
     checkForUpdates: '检查更新',
     about: '关于 LCoder',
     aboutDetail: '版本 {version}',
-    updateUnavailable: '当前构建没有配置更新源，无法检查更新。',
+    updateManual: '当前版本 {version}。本版本只提供手动更新：请从 LCoder 官方下载页获取安装包后覆盖安装。',
   },
   en: {
     appName: 'LCoder',
@@ -89,7 +89,7 @@ export const DESKTOP_MESSAGES: Readonly<Record<DesktopLocaleId, DesktopMessages>
     checkForUpdates: 'Check for updates',
     about: 'About LCoder',
     aboutDetail: 'Version {version}',
-    updateUnavailable: 'This build has no update feed configured, so updates cannot be checked.',
+    updateManual: 'Version {version}. This build updates manually: download the installer from the official LCoder download page and install it over this version.',
   },
 }
 

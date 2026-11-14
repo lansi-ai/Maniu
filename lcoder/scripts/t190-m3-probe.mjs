@@ -357,53 +357,41 @@ async function run() {
     const cloudKeyInput = await page.evaluate(
       "document.querySelector('[data-testid=\"settings-provider-row\"][data-provider=\"lcoder-cloud\"] [data-testid=\"settings-key-input\"]') !== null")
     assert(cloudKeyInput === false, '云端托管路由不提供密钥输入')
+    const cloudAccountNote = await page.evaluate(
+      "(document.querySelector('[data-testid=\"settings-provider-row\"][data-provider=\"lcoder-cloud\"]')?.innerText ?? '').includes('登录令牌')")
+    assert(cloudAccountNote === true, '云端托管路由保留账号托管说明')
+    const readOnlyNote = await page.evaluate("document.querySelector('[data-testid=\"settings-models-readonly\"]') !== null")
+    assert(readOnlyNote === true, '模型面板标出首版只读')
     const defaultText = await page.evaluate("document.querySelector('[data-testid=\"settings-default-model\"]')?.innerText ?? ''")
     assert(defaultText.includes('默认模型'), `默认模型区可见（${defaultText.split('\n')[0]}）`)
-    await page.waitFor("document.querySelectorAll('[data-testid=\"settings-default-model\"] option').length > 0", 20_000, '默认模型候选')
-    await page.click('[data-testid="settings-set-default"]')
-    await page.waitFor(
-      "document.querySelector('[data-testid=\"settings-default-model\"]')?.innerText.includes('当前：')",
-      20_000, '默认模型写入')
-    assert(true, '默认模型可在设置页写入')
+    const editable = await page.evaluate(`JSON.stringify({
+      setDefault: document.querySelector('[data-testid="settings-set-default"]') !== null,
+      options: document.querySelectorAll('[data-testid="settings-default-model"] option').length,
+    })`)
+    assert(editable === '{"setDefault":false,"options":0}', `默认模型没有可编辑控件（${editable}）`)
+    assert(true, '默认模型只读展示')
 
-    const rowText = (provider) => `(document.querySelector('[data-testid="settings-provider-row"][data-provider="${provider}"]')?.innerText ?? '')`
     await page.click('[data-testid="settings-provider-row"][data-provider="deepseek"] .model-row-main')
     const keyInputState = await page.evaluate(`(() => {
       const input = document.querySelector('[data-testid="settings-provider-row"][data-provider="deepseek"] [data-testid="settings-key-input"]');
       return input === null ? 'missing' : input.disabled ? 'disabled' : 'enabled';
     })()`)
-    log(`deepseek 密钥输入：${keyInputState}`)
-    if (keyInputState === 'enabled') {
-      await page.fill('[data-testid="settings-provider-row"][data-provider="deepseek"] [data-testid="settings-key-input"]', 'sk-t190-probe-only')
-      await page.click('[data-testid="settings-provider-row"][data-provider="deepseek"] [data-testid="settings-key-save"]')
-      // 保存要么给出「已配置」回执，要么把宿主拒绝原样显示；不能静默失败。
-      const outcome = await page.waitFor(`(() => {
-        const row = document.querySelector('[data-testid="settings-provider-row"][data-provider="deepseek"]');
-        if (row === null) return false;
-        if (row.querySelector('[data-testid="settings-key-configured"]') !== null) return 'configured';
-        const notice = row.querySelector('.notice');
-        return notice !== null && (notice.textContent ?? '').trim() !== '' ? 'error' : false;
-      })()`, 20_000, '密钥保存回执')
-      log(`保存回执：${outcome}（${String(await page.evaluate(rowText('deepseek'))).replace(/\n/gu, ' | ').slice(0, 200)}）`)
-      assert(outcome === 'configured' || outcome === 'error', '密钥保存给出明确回执')
-
-      const round = await page.evaluate(`(async () => {
-        const describe = () => window.lcoder.call('credentials', 'describe', { refs: ['DEEPSEEK_API_KEY'] })
-        const configured = (answer) => answer.ok && answer.value !== null
-          && typeof answer.value === 'object' && answer.value.DEEPSEEK_API_KEY?.configured === true
-        const before = await describe()
-        const set = await window.lcoder.call('credentials', 'set', { ref: 'DEEPSEEK_API_KEY', value: 'sk-t190-probe-only' })
-        const after = await describe()
-        const unset = await window.lcoder.call('credentials', 'unset', { ref: 'DEEPSEEK_API_KEY' })
-        const final = await describe()
-        return { before: configured(before), set: set.ok, after: configured(after), unset: unset.ok, final: configured(final) };
-      })()`)
-      assert(round.before === false && round.set === true && round.after === true
-        && round.unset === true && round.final === false,
-      `credentials 写入/描述/删除往返（${JSON.stringify(round)}）`)
-    } else {
-      log(`SKIP: deepseek 密钥输入为 ${keyInputState}；当前 profile 不可写，密钥往返未验`)
-    }
+    assert(keyInputState === 'missing', `首版设置不提供密钥编辑入口（${keyInputState}）`)
+    // 界面只读，但底层凭据能力仍在：直接走 IPC 验证写入/描述/删除往返。
+    const round = await page.evaluate(`(async () => {
+      const describe = () => window.lcoder.call('credentials', 'describe', { refs: ['DEEPSEEK_API_KEY'] })
+      const configured = (answer) => answer.ok && answer.value !== null
+        && typeof answer.value === 'object' && answer.value.DEEPSEEK_API_KEY?.configured === true
+      const before = await describe()
+      const set = await window.lcoder.call('credentials', 'set', { ref: 'DEEPSEEK_API_KEY', value: 'sk-t190-probe-only' })
+      const after = await describe()
+      const unset = await window.lcoder.call('credentials', 'unset', { ref: 'DEEPSEEK_API_KEY' })
+      const final = await describe()
+      return { before: configured(before), set: set.ok, after: configured(after), unset: unset.ok, final: configured(final) };
+    })()`)
+    assert(round.before === false && round.set === true && round.after === true
+      && round.unset === true && round.final === false,
+    `credentials 写入/描述/删除往返（${JSON.stringify(round)}）`)
 
     const baseOf = (skin) => page.evaluate(`(() => {
       document.querySelector('[data-testid="settings-skin-${skin}"]').click();
@@ -430,11 +418,11 @@ async function run() {
     await page.click('[data-testid="settings-locale-zh"]')
     await page.waitFor("document.querySelector('[data-testid=\"nav-chat\"]')?.textContent === '对话'", 10_000, '中文导航')
 
-    await page.click('[data-testid="settings-update-check"]')
-    await page.waitFor(
-      "document.querySelector('[data-testid=\"settings-update-state\"]')?.textContent.includes('没有配置更新源')",
-      10_000, '更新空态')
-    assert(true, '更新检查给出可解释的空态')
+    const checkButton = await page.evaluate("document.querySelector('[data-testid=\"settings-update-check\"]') !== null")
+    assert(checkButton === false, '更新入口不提供检查按钮')
+    const updateState = await page.evaluate("document.querySelector('[data-testid=\"settings-update-state\"]')?.textContent ?? ''")
+    assert(updateState.includes('官方下载页') && updateState.includes('覆盖安装'),
+      `更新入口给出手动下载说明（${updateState.slice(0, 60)}）`)
 
     await page.click('[data-testid="window-maximize"]')
     await page.waitFor("document.querySelector('[data-testid=\"titlebar\"]')?.dataset.maximized === 'true'", 10_000, '最大化状态')
@@ -499,9 +487,10 @@ async function run() {
     assert(state.sessions > 0, '重启后会话列表仍在')
     await page.click('[data-testid="nav-settings"]')
     await page.waitFor(
-      "['当前：', 'Current:'].some(mark => (document.querySelector('[data-testid=\"settings-default-model\"]')?.innerText ?? '').includes(mark))",
+      "(() => { const text = document.querySelector('[data-testid=\"settings-default-model\"]')?.innerText ?? '';"
+      + " return text.includes('Default model') && /Current:|No default model set/.test(text) ? 'ok' : ''; })()",
       30_000, '重启后的默认模型')
-    assert(true, '重启后默认模型仍生效')
+    assert(true, '重启后默认模型区仍可见（只读）')
 
     await page.click('[data-testid="account-button"]')
     await page.click('[data-testid="account-logout"]')

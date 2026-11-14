@@ -491,6 +491,21 @@ html[data-theme='liquid-glass'] body {
 .pending-layer { position: absolute; right: 18px; bottom: 118px; z-index: 6; width: min(420px, 60%); pointer-events: none; }
 .pending-layer .pending-card { pointer-events: auto; }
 .pending-card { padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+
+/* 运行中关窗确认：只压暗底层，不接管焦点之外的交互。 */
+.quit-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(12, 16, 24, 0.34);
+}
+.quit-card { width: min(420px, 84vw); padding: 22px 24px; display: flex; flex-direction: column; gap: 12px; }
+.quit-card h3 { margin: 0; font-size: 16px; }
+.quit-card p { margin: 0; font-size: 13px; line-height: 1.6; color: var(--lg-muted); }
+.quit-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
 .pending-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .pending-head h4 { margin: 0; font-size: 13px; font-weight: 600; color: var(--lg-ink); }
 .pending-head .pill { padding: 3px 10px; font-size: 11px; }

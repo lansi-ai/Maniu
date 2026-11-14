@@ -228,9 +228,11 @@
 .detail-head { display: flex; align-items: center; gap: 8px; }
 .detail-line { margin: 6px 0; font-size: 13px; line-height: 1.6; color: var(--lg-ink-2); }
 .detail-note { margin: 14px 0 0; font-size: 11px; color: var(--lg-faint); }
+.secret-row { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.secret-value { min-width: 120px; }
 .plain-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
 .plain-list li { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border: 1px solid var(--lg-line-hair); border-radius: 12px; background: var(--lg-fill-row); }
-.plain-list em { font-style: normal; color: var(--lg-muted); font-size: 12px; }
+.plain-list em { display: block; font-style: normal; color: var(--lg-muted); font-size: 12px; }
 
 /* 项目页。 */
 .project-open { padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; }

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import type { JSX } from 'react'
-import type { EventOutcome, HostEvent, HostState, HostWaterfall, HostWaterfallCancel } from '@lcoder/desktop/contract'
+import type { CloseRequest, EventOutcome, HostEvent, HostState, HostWaterfall, HostWaterfallCancel } from '@lcoder/desktop/contract'
 import { actionOfFrame, chatReducer, emptyChat, summaryOf, type SessionSummary } from './store.ts'
 import { translate, type MessageKey, type Translate } from './locale.ts'
 import { browserStorage, markWelcomeSeen, usePreferences, welcomeSeen } from './prefs.ts'
@@ -17,6 +17,7 @@ import { RolesPage } from './pages/roles.tsx'
 import { ChatView } from './shell/chat-view.tsx'
 import { PendingCards, type AnswerResult } from './shell/pending-cards.tsx'
 import { GateView } from './shell/gate-view.tsx'
+import { QuitConfirm } from './shell/quit-confirm.tsx'
 import { Titlebar } from './shell/titlebar.tsx'
 import { useWindowState } from './shell/use-window-state.ts'
 import { ensureScopeSession, useWorkspaceList, type ProjectScope, type WorkspaceRow } from './workspace/use-workspaces.ts'
@@ -107,6 +108,7 @@ export function App(): JSX.Element {
   const [project, setProject] = useState<ProjectScope | null>(savedProject)
   const [projectNotice, setProjectNotice] = useState<string | null>(null)
   const [pending, setPending] = useState<readonly PendingInteraction[]>([])
+  const [closeRequest, setCloseRequest] = useState<CloseRequest | null>(null)
   const [titles, setTitles] = useState<Readonly<Record<string, string>>>({})
   const [catalog, setCatalog] = useState<{ readonly value: unknown; readonly error: string | null }>({
     value: null,
@@ -260,6 +262,8 @@ export function App(): JSX.Element {
     })
     return off
   }, [])
+
+  useEffect(() => window.lcoder.onCloseRequest(setCloseRequest), [])
 
   useEffect(() => {
     const off = window.lcoder.onStreamFrame((streamId, frame) => {
@@ -618,6 +622,7 @@ export function App(): JSX.Element {
 
             {page === 'project-info' && (
               <ProjectInfoPage
+                t={t}
                 project={project}
                 projection={projection.projection}
                 loading={projection.loading}
@@ -630,11 +635,6 @@ export function App(): JSX.Element {
               <SettingsPage
                 t={t}
                 prefs={prefs}
-                sessionId={active}
-                onModelsChanged={() => {
-                  void loadSessions()
-                  void loadCatalog()
-                }}
               />
             )}
 
@@ -659,6 +659,15 @@ export function App(): JSX.Element {
             <PendingCards t={t} items={pending} onAnswer={answer} />
           </div>
         </main>
+      )}
+
+      {closeRequest === null ? null : (
+        <QuitConfirm
+          t={t}
+          running={closeRequest.running}
+          onCancel={() => { setCloseRequest(null) }}
+          onConfirm={() => { void window.lcoder.confirmClose() }}
+        />
       )}
     </div>
   )

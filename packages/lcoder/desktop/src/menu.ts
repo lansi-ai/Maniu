@@ -37,7 +37,7 @@ export function installMenu(options: MenuOptions): void {
             void dialog.showMessageBox(target, {
               type: 'info',
               title: messages.checkForUpdates,
-              message: messages.updateUnavailable,
+              message: fillDesktop(messages.updateManual, { version: app.getVersion() }),
             })
           },
         },

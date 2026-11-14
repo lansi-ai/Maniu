@@ -58,6 +58,11 @@ function prepareScratch() {
     'opened_at: 2026-11-14T00:00:00.000Z',
     '',
   ].join('\n'))
+  writeFileSync(join(SCRATCH_REPO, '.spec', 'local.yaml'), [
+    'secrets:',
+    '  LCODER_DEV_DB_PASSWORD: t189-local-secret',
+    '',
+  ].join('\n'))
   log(`靶仓已准备：${SCRATCH_REPO}`)
 }
 
@@ -552,12 +557,29 @@ async function run() {
     await page.waitFor("document.querySelector('[data-testid=\"page-project-info\"]')?.innerText.includes('REQ-01') === false", 10_000, '项目信息页')
     const infoText = await page.evaluate("document.querySelector('[data-testid=\"page-project-info\"]')?.innerText ?? ''")
     assert(infoText.includes('作用域会话'), '项目信息页缺少作用域会话段')
+    assert(!infoText.includes('t189-local-secret'), '项目密码默认不显示明文')
+    const masked = await page.evaluate(
+      "document.querySelector('[data-testid=\"project-secret-value\"][data-env=\"dev\"]')?.textContent ?? ''")
+    assert(masked === '••••••', `项目密码默认打码（${masked}）`)
+    await page.evaluate("document.querySelector('[data-testid=\"project-secret-toggle\"][data-env=\"dev\"]').click()")
+    await page.waitFor(
+      "document.querySelector('[data-testid=\"project-secret-value\"][data-env=\"dev\"]')?.textContent === 't189-local-secret'",
+      10_000, '项目密码揭示')
+    await page.evaluate("document.querySelector('[data-testid=\"project-secret-toggle\"][data-env=\"dev\"]').click()")
+    await page.waitFor(
+      "document.querySelector('[data-testid=\"project-secret-value\"][data-env=\"dev\"]')?.textContent === '••••••'",
+      10_000, '项目密码隐藏')
+    log('项目密码只在本机揭示与隐藏通过')
 
     await page.evaluate("document.querySelector('[data-testid=\"nav-settings\"]').click()")
     await page.waitFor("document.querySelector('[data-testid=\"page-settings\"]')?.innerText.includes('模型服务')", 30_000, '设置页模型区')
 
     await page.evaluate("document.querySelector('[data-testid=\"nav-chat\"]').click()")
     await page.waitFor("document.querySelector('[data-testid=\"session-list\"]') !== null", 10_000, '聊天页会话列表')
+    // 拆分提示词会起一条真实回合；关窗守卫按回合状态判定，等它结束再关。
+    await page.waitFor(
+      "document.querySelector('[data-testid=\"session-item\"][data-running=\"true\"]') === null",
+      90_000, '回合已结束')
 
     await closeApp(page)
     const exited = await waitExit(child, 20_000, () => dumpQuitHang(child, 'M2 实例'))

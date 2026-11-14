@@ -16,6 +16,8 @@ interface IpcDependencies {
   readonly hostState: () => HostState
   readonly windowState: () => WindowStateInfo
   readonly update: () => UpdateCheck
+  /** 渲染端确认放弃运行中的回合；由调用方关窗。 */
+  readonly confirmClose: () => void
   /** 只切换菜单与托盘语言；落盘由调用方先做。 */
   readonly applyLocale: (locale: DesktopPreferences['locale']) => void
 }
@@ -105,6 +107,7 @@ export function registerIpc(deps: IpcDependencies): void {
     } else window.close()
   })
   ipcMain.handle(IPC_CHANNELS.appInfo, () => deps.appInfo())
+  ipcMain.handle(IPC_CHANNELS.confirmClose, () => { deps.confirmClose() })
   ipcMain.handle(IPC_CHANNELS.hostStateNow, () => deps.hostState())
   ipcMain.handle(IPC_CHANNELS.windowStateNow, () => deps.windowState())
   ipcMain.handle(IPC_CHANNELS.update, () => deps.update())
