@@ -68,7 +68,7 @@
 
 ## 验证
 
-本树（pool-slot-2）独立实例：渲染 9823、主进程 9831、宿主 9832、mock cloud 9833，`DSH_HOME` 与 `userData` 都在仓内 `.desktop-build/development`。
+本树（pool-slot-2）独立实例：渲染 9823、主进程 9831、宿主 9832、mock cloud 9833，`DSH_HOME` 与 `userData` 都在仓内 `.desktop-build/development`。以下是裁剪当时的初次验收；合入主线后的复核见下一节。
 
 | 项 | 结果 |
 | --- | --- |
@@ -80,6 +80,16 @@
 
 - 为了不碰共享 `targets`，本次把本树的 `apps/desktop/.desktop-build/targets` 从 junction 换成本地目录（先拷贝既有 runtime，再由新的准备逻辑重写）。共享目录里的 slot-1 与主检出未受影响。
 - 门禁：`pnpm run typecheck` 0；`apps/desktop` + `apps/desktop-host` + `scripts/primary-runtime` 目标 spec 266 通过；`packages/lcoder` 1119 通过；`build:artifacts` 与 `build:check` 0。
+
+### 合入主线后的复核（2026-11-14 晚）
+
+- 并入主检 `3fc8d791b7`（merge `72446316a6`）。主检自 merge-base 起没有改 `apps/desktop`、`apps/desktop-host`、`apps/cli`、`scripts/primary-runtime`，合入内容是新客户端包与文档；裁剪面没有语义冲突。
+- `pnpm install --frozen-lockfile` 通过（1756 条供应策略条目），锁无需重生成。`build:artifacts` 8/8（45 秒）、`build:check` 2/2、`typecheck` 5/5、`packages/lcoder` 93 个 spec / 1121 条通过。
+- 定向测试 `apps/desktop` + `apps/desktop-host` + `scripts/primary-runtime`：2074 通过、25 红。同一批 25 红在主检出同一点逐条复现（welcome/fatal-recovery 快照仍写 DeepSeek Harness 而品牌已改 LCoder、`DOWNLOAD_PROD_ORIGIN` 缺 `.env.windows`、`vswhere.exe`/`tar`/`npm --recursive` 本机工具链），属既有红，不是裁剪引入。
+- 实例复核（本树 pool-slot-1，端口 9842/9849/9850、mock 云 9841；原定的 9822/9829 已被 pool-slot-2 实例占用）：T-177 七条 DOM 断言 **7/7**；`pluginInventory/list` 211 条（184 active、27 disabled、**0 failed**）；`runtime.json` 仍是 node-only 空发行版映射。
+- 载荷字节与裁剪时一致：`runtime/` 115,228,736 B，其中 node 93,740,743、pnpm 21,487,737；无 `dependencies/python`、无 `office-skills`。`smokePrimaryRuntime` 退出 0，只输出载荷内 pnpm 11.28.5。
+- 新客户端不受影响：`@lcoder/desktop`、`@lcoder/client` 产物齐全，用独立 `DSH_HOME`（仓内 `.dsh-home`）与端口 9862/9869/9870 起窗，页面标题 LCoder、`data-theme=liquid-glass`、五页与「宿主就绪」均渲染；验后已停。
+- `smoke.cmd` 的 `window.up` 探针查 `div[data-theme]`，该属性自 `65a9f3b2f1`（2026-11-10 皮肤切换）起已从外壳根移除，因此这条一键冒烟在合入主检后对旧外壳必红；本轮改用 `lcoder/logs/t178-seven-dom.mjs` 的七条断言（临时副本把渲染端口改成 9842），没有改脚本本身。
 
 ## 加回路径
 
@@ -134,6 +144,7 @@ node --import tsx scripts/primary-runtime/prepare.ts --target win-x64 \
 - 2026-11-14 实测：退出码 0；输出目录 **266,816,477 B**，其中 `dependencies/python` 151,562,653 B、`dependencies/node` 93,740,743 B、`dependencies/pnpm` 21,487,737 B、`office-skills` 24,743 B；`runtime.json` 记录 `python: 3.12.14`、13 项发行版；日志末尾出现 Python 校验、`pip check`、Office 读写往返与 pnpm 版本输出。
 - `--cache` 指向本机既有的归档缓存；换一台机器时省掉该参数即可，构建器会在默认缓存目录下载并校验 SHA-256。
 - 与 2026-11-11 的存量基线（266,660,010 B）相差 156 KB（0.06%），来自重新解包的文件集与文件系统统计差异，量级一致。
+- 合入主检后复跑同一命令（2026-11-14 晚）：退出码 0；总量 266,817,611 B，`dependencies/python` 151,563,787 B、`office-skills` 24,743 B、node/pnpm 不变；`runtime.json` 记录 `python: 3.12.14` 与 13 项发行版；日志出现 `No broken requirements found.`、`Office runtime versions and document round trips passed.` 与 pnpm 11.28.5。加回路径在合并后的树上仍可用。
 - 全代码回退则是 `git revert --no-edit "$(git log --format=%H --grep '裁剪 Office 与 Python' -1)"` 后跑 `pnpm install --lockfile-only && pnpm run build:artifacts`：依赖边、宿主插件、打包过滤与冒烟项一起回来，下次启动会按全量载荷重新准备。
 
 ### 以后只想按需提供时参照的机制
@@ -144,8 +155,10 @@ node --import tsx scripts/primary-runtime/prepare.ts --target win-x64 \
 
 ## 未验项
 
-- 未跑 electron-builder：NSIS 安装包与 `win-unpacked` 的真实字节、压缩比没有实测；181.7 MiB 是引擎包在本机磁盘上的字节，打包器复制方式与之等价但未逐文件核对。
+- 未跑 electron-builder：NSIS 安装包与 `win-unpacked` 的真实字节、压缩比没有实测；181.7 MiB 是引擎包在本机磁盘上的字节（本树 `node_modules` 里该包仍是 190,527,948 B），打包器复制方式与之等价但未逐文件核对。
 - 未跑打包后的宿主冒烟（`smokeDesktopRuntime`）：它需要 `targets/electron` 与完整 dsh 树，本机没有这两样。
+- 打包前置也被本机配置挡住：`pnpm --filter @deepseek-ai/dsh-desktop run check:package` 直接报 `cannot read apps/desktop/.env.windows`；该文件要放下载域、发布标识与 Windows 签名工具链，本机没有，也不该由实现线临时造。`targets/win-x64` 下只有 `runtime/`，没有 `electron/`、`dsh/` 与 `package-set/`。
 - 未验 macOS：darwin 的签名清单里不再有 LibreOffice JIT 授权，mac 打包与签名流程未在本机执行。
 - 未验 `dsh --profile sdk` 与 `--profile headless`：它们从 `sdk-app` / 各自 bundle 取 `skill-office` 与 `tool-workspace-dependencies`，依赖仍在库里，但没有跑这两个 profile。
 - Python SDK 的 exe 路径仍走完整载荷（`--python-only` / 默认全量），本次未改也未验其产物。
+- `smoke.cmd` 对当前外壳已失效（`div[data-theme]` 在 2026-11-10 皮肤切换后不存在）；本轮没有改它，旧外壳验收走 `t178-seven-dom.mjs`。
