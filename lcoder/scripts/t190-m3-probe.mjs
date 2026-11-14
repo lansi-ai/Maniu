@@ -258,6 +258,12 @@ async function run() {
     await page.waitFor("document.querySelectorAll('[data-testid=\"session-item\"]').length > 0", 30_000, '新建会话')
     assert(true, '登录后可新建会话')
 
+    await page.fill('[data-testid="composer"]', 'M3 探针：确认云端用量写入。')
+    await page.click('[data-testid="send"]')
+    const assistant = await page.waitFor(
+      "document.querySelector('[data-testid=\"message-assistant\"]')?.textContent || ''", 90_000, 'assistant 文本')
+    assert(String(assistant).length > 0, `一轮真实回合产出 assistant 文本（${String(assistant).slice(0, 24)}…）`)
+
     const zhMenu = await mainMenuLabels()
     assert(zhMenu.includes('编辑') && zhMenu.includes('视图'), `主进程菜单已安装并按中文渲染（${zhMenu.join(' / ')}）`)
 
@@ -362,9 +368,18 @@ async function run() {
 
     await page.click('[data-testid="account-button"]')
     await page.waitFor("document.querySelector('[data-testid=\"account-menu\"]') !== null", 10_000, '账号菜单')
+    await page.click('[data-testid="account-refresh"]')
+    await new Promise(resolvePromise => setTimeout(resolvePromise, 1_500))
+    const refreshClean = await page.evaluate(
+      "document.querySelector('[data-testid=\"account-menu\"]') !== null"
+      + " && document.querySelector('[data-testid=\"account-menu\"] .notice') === null")
+    assert(refreshClean === true, '账号菜单刷新额度无错误回执')
     await page.click('[data-testid="account-personal-center"]')
     await page.waitFor("document.querySelector('[data-testid=\"page-account\"]') !== null", 10_000, '个人中心')
     await page.waitFor("document.querySelector('[data-testid=\"account-usage\"]') !== null", 10_000, '用量区')
+    await page.waitFor("document.querySelectorAll('[data-testid=\"account-usage-row\"]').length > 0", 30_000, '用量流水行')
+    const usageRow = await page.evaluate("document.querySelector('[data-testid=\"account-usage-row\"]')?.innerText ?? ''")
+    assert(usageRow.length > 0, `个人中心用量来自真实流水（${usageRow.replace(/\s+/gu, ' ').slice(0, 80)}）`)
     assert(true, '账号菜单与个人中心可用')
     await page.click('[data-testid="account-back"]')
     await page.waitFor("document.querySelector('[data-testid=\"page-settings\"]') !== null", 10_000, '返回设置页')
@@ -414,6 +429,13 @@ async function run() {
     await page.click('[data-testid="account-logout-confirm"]')
     await page.waitFor("document.querySelector('[data-testid=\"login-screen\"]') !== null", 20_000, '退出登录')
     assert(true, '退出登录回到登录页')
+
+    await page.click('[data-testid="login-tab-password"]')
+    await page.fill('[data-testid="login-phone"]', PHONE.replace('+86', ''))
+    await page.fill('[data-testid="login-password"]', PASSWORD)
+    await page.click('[data-testid="login-submit"]')
+    await waitReady(page)
+    assert(true, '密码登录可用')
 
     await closeApp(page)
     page = undefined
