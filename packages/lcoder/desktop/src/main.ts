@@ -1,12 +1,18 @@
-/** LCoder 自研壳的 S1 主进程：起宿主、接链路、开窗口、注册窄 IPC。 */
+/** LCoder 自研壳主进程：起宿主、接链路、开窗口、装系统面与窄 IPC。 */
 
 import { app, BrowserWindow } from 'electron'
+import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { IPC_CHANNELS } from './contract.ts'
+import type { DesktopLocaleId } from './contract.ts'
+import { readDesktopLocale, writeDesktopLocale } from './desktop-locale.ts'
 import { HostSupervisor } from './host-supervisor.ts'
-import { createStatePublisher, registerIpc } from './ipc.ts'
+import { createStatePublisher, createWindowStatePublisher, registerIpc } from './ipc.ts'
 import { HostLink } from './link.ts'
+import { installMenu } from './menu.ts'
 import { REPO_ROOT } from './profile.ts'
+import { DesktopTray } from './tray.ts'
+import { checkUpdate } from './update.ts'
 import { createMainWindow } from './window.ts'
 
 const home = process.env.DSH_HOME ?? join(REPO_ROOT, '.dsh-home')
@@ -15,9 +21,12 @@ process.env.DSH_HOME = home
 let mainWindow: BrowserWindow | undefined
 let supervisor: HostSupervisor | undefined
 let link: HostLink | undefined
+let tray: DesktopTray | undefined
+let locale: DesktopLocaleId = 'zh'
 let shutdownStarted = false
 
 const publisher = createStatePublisher(() => mainWindow)
+const windowState = createWindowStatePublisher(() => mainWindow)
 
 function send(channel: string, ...args: readonly unknown[]): void {
   const target = mainWindow
@@ -26,8 +35,47 @@ function send(channel: string, ...args: readonly unknown[]): void {
 }
 
 function wireStateReplay(window: BrowserWindow): void {
-  window.webContents.on('did-finish-load', () => { publisher.replay() })
-  window.webContents.on('did-stop-loading', () => { publisher.replay() })
+  window.webContents.on('did-finish-load', () => { publisher.replay(); windowState.replay() })
+  window.webContents.on('did-stop-loading', () => { publisher.replay(); windowState.replay() })
+}
+
+function publishWindowState(): void {
+  const target = mainWindow
+  if (target === undefined || target.isDestroyed()) return
+  windowState.publish({ maximized: target.isMaximized(), fullscreen: target.isFullScreen() })
+}
+
+function wireWindowState(window: BrowserWindow): void {
+  window.on('maximize', publishWindowState)
+  window.on('unmaximize', publishWindowState)
+  window.on('enter-full-screen', publishWindowState)
+  window.on('leave-full-screen', publishWindowState)
+  window.once('ready-to-show', publishWindowState)
+}
+
+function focusWindow(): void {
+  const target = mainWindow
+  if (target === undefined || target.isDestroyed()) {
+    mainWindow = createMainWindow()
+    wireMainWindow(mainWindow)
+    return
+  }
+  if (target.isMinimized()) target.restore()
+  target.show()
+  target.focus()
+}
+
+function wireMainWindow(window: BrowserWindow): void {
+  wireStateReplay(window)
+  wireWindowState(window)
+  window.on('closed', () => { mainWindow = undefined })
+}
+
+function installLocale(localeId: DesktopLocaleId): void {
+  locale = localeId
+  writeDesktopLocale(localeId)
+  installMenu({ locale: () => locale, window: () => mainWindow, quit: () => { app.quit() } })
+  tray?.relabel()
 }
 
 function hostInspectPort(): number | undefined {
@@ -63,6 +111,8 @@ async function boot(): Promise<void> {
 async function shutdown(): Promise<void> {
   if (shutdownStarted) return
   shutdownStarted = true
+  tray?.dispose()
+  tray = undefined
   link?.close()
   link = undefined
   await supervisor?.stop()
@@ -72,28 +122,32 @@ async function shutdown(): Promise<void> {
 if (!app.requestSingleInstanceLock()) {
   app.quit()
 } else {
-  app.on('second-instance', () => {
-    if (mainWindow === undefined || mainWindow.isDestroyed()) return
-    if (mainWindow.isMinimized()) mainWindow.restore()
-    mainWindow.focus()
-  })
+  app.on('second-instance', () => { focusWindow() })
   app.whenReady().then(async () => {
+    locale = readDesktopLocale()
     registerIpc({
       link: () => link,
       appInfo: () => ({ version: app.getVersion(), ...(link === undefined ? {} : { hostUrl: supervisor?.readyUrl ?? '' }) }),
       window: () => mainWindow,
       hostState: () => publisher.current(),
+      windowState: () => windowState.current(),
+      update: checkUpdate,
+      setLocale: installLocale,
     })
     mainWindow = createMainWindow()
-    mainWindow.on('closed', () => { mainWindow = undefined })
-    wireStateReplay(mainWindow)
+    wireMainWindow(mainWindow)
+    installMenu({ locale: () => locale, window: () => mainWindow, quit: () => { app.quit() } })
+    const trayIcon = join(import.meta.dirname, '..', '..', 'resources', 'tray-windows.ico')
+    if (existsSync(trayIcon)) {
+      tray = new DesktopTray({
+        iconPath: trayIcon,
+        locale: () => locale,
+        open: focusWindow,
+        quit: () => { app.quit() },
+      })
+    }
     await boot()
-    app.on('activate', () => {
-      if (BrowserWindow.getAllWindows().length === 0) {
-        mainWindow = createMainWindow()
-        wireStateReplay(mainWindow)
-      }
-    })
+    app.on('activate', () => { focusWindow() })
   }).catch((error: unknown) => {
     console.error('lcoder desktop: 启动失败', error)
     publisher.publish({ kind: 'fatal', detail: error instanceof Error ? error.message : String(error) })

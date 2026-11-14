@@ -6,21 +6,39 @@ import type { EventOutcome, HostEvent, HostWaterfall, RemoteFailure, RemoteResul
 const EVENT_STREAM_ID = 'ev'
 const EVENT_RESULT_ENDPOINT = '$events/result'
 
-/** 渲染端允许调用的一元方法；只放行工作台需要的窄面，不透传任意路径。 */
+/** 渲染端允许调用的一元方法；只放行工作台、账号与设置需要的窄面，不透传任意路径。 */
 const UNARY_ALLOWED = new Set([
   'lcoderCloud/state',
+  'lcoderCloud/sendSms',
+  'lcoderCloud/register',
+  'lcoderCloud/loginSms',
+  'lcoderCloud/loginPassword',
+  'lcoderCloud/refresh',
+  'lcoderCloud/me',
+  'lcoderCloud/logout',
+  'lcoderCloud/usage',
   'session/list',
   'session/create',
   'session/prompt',
   'session/cancel',
   'session/rename',
   'session/events',
+  'session/modelCatalog',
+  'session/selectModel',
   'workspace/create',
   'workspace/initializeDefault',
   'workspaceFiles/list',
   'workspaceFiles/read',
   'workspaceFiles/readBytes',
   'workspaceFiles/stat',
+  'settings/describe',
+  'settings/mutate',
+  'credentials/describe',
+  'credentials/set',
+  'credentials/unset',
+  'llm/listProviders',
+  'llm/listConfigurableProviders',
+  'llm/discoverModels',
   'directoryPicker/pick',
   'commands/list',
   'commands/execute',
@@ -38,6 +56,10 @@ const FORWARDED_EVENTS = new Set([
   'api-session/status',
   'api-session/activity',
   'api-session/error',
+  'llm/models-updated',
+  'llm/adapters-updated',
+  'credentials/reference-updated',
+  'settings/document-updated',
 ])
 
 /** 转发给渲染端的 waterfall 事件；S1 只展示，不回执卡片。 */

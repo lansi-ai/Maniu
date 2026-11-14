@@ -1,5 +1,5 @@
 ---
-description: "LCoder 自研 Electron 壳的 T-187 S1 骨架：frameless 窗口、受监督的最小宿主 profile 子进程、自写的 token→cookie/一元 POST/WS mux/$events 适配层，以及渲染端的窄 IPC 面。"
+description: "LCoder 自研 Electron 壳的 T-187 S1 与 T-190 M3 骨架：带最大化状态同步与拖拽区的 frameless 窗口、受监督的宿主 profile 子进程、自写的 token→cookie/一元 POST/WS mux/$events 适配层、本地化菜单与托盘，以及渲染端的窄 IPC 面。"
 kind: "package-reference"
 ---
 
@@ -16,7 +16,9 @@ kind: "package-reference"
 - `src/host-supervisor.ts`：拉起/关停宿主子进程，读 `ready`/`fatal` IPC。
 - `src/link.ts`：主进程内协议适配层——launch token 换 cookie（`interactions=answer`）、一元 `POST /api/<ns>/<method>`、WS `/api/remote.mux`、`$events` 与 `$events/result`。
 - `src/preload.ts` / `src/ipc.ts`：只暴露 call/stream/events/window 的窄 IPC；命名空间与方法白名单在 `link.ts`。
-- `src/main.ts` / `src/window.ts`：单实例、frameless 主窗口（最小 520×600）、渲染产物加载。
+- `src/main.ts` / `src/window.ts`：单实例、frameless 主窗口（最小 520×600）、渲染产物加载、最大化/全屏状态推送。
+- `src/menu.ts` / `src/tray.ts` / `src/desktop-locale.ts`：本地化应用菜单（含缩放与全屏快捷键）、托盘打开/退出，语言由渲染端经 IPC 同步并写入 userData。
+- `src/update.ts`：更新检查占位；没有更新源时返回可解释的 `unavailable/no-feed`，界面不显示网络错误。
 
 <a id="table-of-contents"></a>
 ## 目录
@@ -47,7 +49,9 @@ kind: "package-reference"
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- S1 只服务一条端到端竖切：登录门禁、会话列表、发消息与流式正文；审批/提问回执、附件、工具卡、工作台五页在 M1/M2 实现。
+- 更新检查尚未接入 `electron-updater`；当前构建只返回「没有更新源」空态，安装入口不可用。
+- 托盘只提供打开与退出；关闭窗口仍直接退出，没有「最小化到托盘」。
+- 没有接入退出确认、运行中任务检查与安装期锁；这些随打包与更新任务补齐。
 
 ### 开发备注
 

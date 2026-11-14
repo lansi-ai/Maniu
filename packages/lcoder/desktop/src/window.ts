@@ -22,7 +22,8 @@ export function createMainWindow(): BrowserWindow {
     minHeight: 600,
     frame: false,
     show: false,
-    backgroundColor: '#0f1115',
+    autoHideMenuBar: true,
+    backgroundColor: '#f3f6fc',
     title: 'LCoder',
     webPreferences: {
       preload,

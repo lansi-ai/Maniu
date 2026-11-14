@@ -39,8 +39,8 @@
 .nav-item:active { transform: scale(0.985); }
 .nav-item.active {
   background: var(--lg-fill-accent-soft);
-  border-color: rgba(255, 255, 255, 0.82);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  border-color: var(--lg-line-bright);
+  box-shadow: var(--lg-highlight);
   color: var(--lg-ink);
   font-weight: 600;
 }
@@ -129,13 +129,13 @@
   font-weight: 600;
   font-size: 12px;
   color: var(--lg-muted);
-  background: rgba(255, 255, 255, 0.72);
+  background: var(--lg-fill-raised);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--lg-line-hair);
 }
 .data-table td { padding: 9px 10px; border-bottom: 1px solid var(--lg-line-hair); vertical-align: top; }
 .data-table tbody tr { cursor: pointer; }
-.data-table tbody tr:hover { background: rgba(255, 255, 255, 0.46); }
+.data-table tbody tr:hover { background: var(--lg-fill-subtle); }
 .data-table tbody tr.selected { background: var(--lg-fill-accent-soft); }
 .mono { font-family: "Cascadia Mono", "SF Mono", Consolas, monospace; font-size: 12px; }
 .clamp { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -145,7 +145,7 @@
   padding: 1px 7px;
   border: 1px solid var(--lg-line-hair);
   border-radius: var(--lg-radius-control);
-  background: rgba(255, 255, 255, 0.5);
+  background: var(--lg-fill-subtle);
   font-size: 11px;
   color: var(--lg-ink-2);
   white-space: nowrap;
@@ -159,7 +159,7 @@
   padding: 8px 10px;
   border: 1px solid rgba(180, 35, 24, 0.24);
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.55);
+  background: var(--lg-fill-head);
   color: var(--lg-danger);
   font-size: 12px;
   white-space: pre-wrap;
@@ -229,7 +229,7 @@
 .detail-line { margin: 6px 0; font-size: 13px; line-height: 1.6; color: var(--lg-ink-2); }
 .detail-note { margin: 14px 0 0; font-size: 11px; color: var(--lg-faint); }
 .plain-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
-.plain-list li { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border: 1px solid var(--lg-line-hair); border-radius: 12px; background: rgba(255, 255, 255, 0.42); }
+.plain-list li { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border: 1px solid var(--lg-line-hair); border-radius: 12px; background: var(--lg-fill-row); }
 .plain-list em { font-style: normal; color: var(--lg-muted); font-size: 12px; }
 
 /* 项目页。 */
@@ -297,7 +297,7 @@
 }
 .link-button:hover { text-decoration: underline; }
 
-.history-round { margin-top: 12px; padding: 10px 12px; border: 1px solid var(--lg-line-hair); border-radius: 12px; background: rgba(255, 255, 255, 0.42); }
+.history-round { margin-top: 12px; padding: 10px 12px; border: 1px solid var(--lg-line-hair); border-radius: 12px; background: var(--lg-fill-row); }
 .history-round h5 { margin: 0 0 6px; font-size: 13px; }
 .history-round .detail-line { margin: 4px 0; }
 
@@ -318,7 +318,7 @@
   padding: 1px 5px;
   border: 1px solid var(--lg-line-hair);
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.6);
+  background: var(--lg-fill-code);
   font-family: "Cascadia Mono", "SF Mono", Consolas, monospace;
   font-size: 12px;
 }
@@ -327,7 +327,7 @@
   padding: 10px 12px;
   border: 1px solid var(--lg-line-hair);
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.58);
+  background: var(--lg-fill-head);
   overflow: auto;
 }
 .markdown-body pre code { padding: 0; border: 0; background: transparent; white-space: pre; }
@@ -335,13 +335,13 @@
   margin: 8px 0;
   padding: 6px 12px;
   border-left: 3px solid rgba(10, 95, 224, 0.4);
-  background: rgba(255, 255, 255, 0.38);
+  background: var(--lg-fill-blockquote);
   color: var(--lg-muted);
 }
 .markdown-body table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 12px; }
 .markdown-body th,
 .markdown-body td { padding: 5px 8px; border: 1px solid var(--lg-line-hair); text-align: left; vertical-align: top; }
-.markdown-body th { background: rgba(255, 255, 255, 0.55); }
+.markdown-body th { background: var(--lg-fill-head); }
 .markdown-body hr { border: 0; border-top: 1px solid var(--lg-line-hair); margin: 12px 0; }
 .markdown-body a { color: var(--lg-accent); }
 
@@ -402,7 +402,7 @@
   padding: 10px 12px;
   border: 1px solid var(--lg-line-hair);
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.5);
+  background: var(--lg-fill-subtle);
   color: var(--lg-ink-2);
   font-size: 11px;
   line-height: 1.55;
@@ -417,7 +417,7 @@
   overflow: hidden;
   border: 1px solid var(--lg-line);
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.5);
+  background: var(--lg-fill-subtle);
   cursor: zoom-in;
 }
 .attachment-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }

@@ -42,6 +42,16 @@
   --lg-fill-control-hover: linear-gradient(160deg, rgba(255, 255, 255, 0.88), rgba(255, 255, 255, 0.52));
   --lg-fill-accent: linear-gradient(146deg, #2f80f0 0%, #0a5fe0 52%, #0a4fc4 100%);
   --lg-fill-accent-soft: linear-gradient(150deg, rgba(96, 156, 255, 0.34), rgba(120, 176, 255, 0.2));
+  /* 内嵌面与滚动条：深色皮肤需要整体替换，不能只换主填充。 */
+  --lg-fill-subtle: rgba(255, 255, 255, 0.5);
+  --lg-fill-raised: rgba(255, 255, 255, 0.72);
+  --lg-fill-row: rgba(255, 255, 255, 0.42);
+  --lg-fill-head: rgba(255, 255, 255, 0.55);
+  --lg-fill-code: rgba(255, 255, 255, 0.6);
+  --lg-fill-blockquote: rgba(255, 255, 255, 0.38);
+  --lg-scrim-thumb: rgba(64, 86, 120, 0.22);
+  --lg-scrim-thumb-hover: rgba(64, 86, 120, 0.34);
+  --lg-selection: rgba(10, 95, 224, 0.18);
 
   /* 模糊与饱和：主面板 36px，消息与控制器 30px。 */
   --lg-blur: 36px;

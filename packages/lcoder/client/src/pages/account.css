@@ -1,0 +1,222 @@
+/* 账号面：登录页、顶栏账号入口与个人中心。 */
+
+/* 欢迎屏。 */
+.welcome-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: min(520px, 100%);
+  padding: 42px 34px 32px;
+  text-align: center;
+}
+.welcome-card h1 { margin: 0; font-size: 30px; font-weight: 650; letter-spacing: 0.01em; }
+.welcome-mark {
+  display: grid;
+  place-items: center;
+  width: 66px;
+  height: 66px;
+  border-radius: 22px;
+  background: var(--lg-fill-accent);
+  color: var(--lg-on-accent);
+  font-size: 30px;
+  font-weight: 700;
+  box-shadow: 0 22px 46px -20px rgba(10, 79, 196, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.42);
+}
+.welcome-slogan { margin: 0; font-size: 15px; color: var(--lg-ink-2); }
+.welcome-body { margin: 0; font-size: 13px; line-height: 1.66; color: var(--lg-muted); max-width: 40em; }
+.welcome-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 6px; }
+.welcome-hint { margin: 2px 0 0; font-size: 11px; color: var(--lg-faint); }
+
+/* 登录页：一张居中玻璃卡，品牌区在卡头。 */
+.login-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: min(440px, 100%);
+  padding: 26px 26px 24px;
+}
+
+.login-brand { display: flex; align-items: center; gap: 12px; }
+.login-brand h1 { margin: 0; font-size: 20px; font-weight: 600; letter-spacing: 0.01em; }
+.login-brand p { margin: 2px 0 0; font-size: 12px; color: var(--lg-muted); }
+
+.login-mark {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+  background: var(--lg-fill-accent);
+  color: var(--lg-on-accent);
+  font-size: 18px;
+  font-weight: 700;
+  box-shadow: 0 12px 26px -14px rgba(10, 79, 196, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+.login-tabs {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--lg-line);
+  border-radius: var(--lg-radius-control);
+  background: var(--lg-fill-control);
+}
+
+.login-tab {
+  flex: 1;
+  border: 0;
+  border-radius: var(--lg-radius-control);
+  background: transparent;
+  color: var(--lg-muted);
+  padding: 6px 10px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.login-tab.active { background: var(--lg-fill-control-hover); color: var(--lg-ink); font-weight: 600; }
+
+.login-form { display: flex; flex-direction: column; gap: 12px; }
+.login-field { display: flex; flex-direction: column; gap: 6px; }
+.login-field label { font-size: 12px; color: var(--lg-muted); }
+
+.login-input,
+.login-phone {
+  border: 1px solid var(--lg-line);
+  border-radius: 12px;
+  background: var(--lg-fill-control);
+  color: var(--lg-ink);
+  padding: 9px 12px;
+  font-size: 14px;
+  outline: none;
+}
+
+.login-input:focus,
+.login-phone:focus-within { border-color: var(--lg-accent); }
+.login-input.invalid,
+.login-phone.invalid { border-color: var(--lg-danger); }
+
+.login-phone { display: flex; align-items: center; gap: 8px; padding: 0 12px; }
+.login-phone input {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  color: var(--lg-ink);
+  padding: 9px 0;
+  font-size: 14px;
+  outline: none;
+}
+.login-prefix { color: var(--lg-muted); font-size: 13px; border-right: 1px solid var(--lg-line-hair); padding-right: 8px; }
+
+.login-code-row { display: flex; gap: 8px; }
+.login-code-row .login-input { flex: 1; min-width: 0; }
+.login-code-row .pill { white-space: nowrap; }
+
+.login-field-error { margin: 0; font-size: 12px; color: var(--lg-danger); }
+.login-hint { margin: 0; font-size: 12px; color: var(--lg-muted); }
+
+.login-error {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 9px 12px;
+  border: 1px solid rgba(180, 35, 24, 0.24);
+  border-radius: 12px;
+  background: var(--lg-fill-subtle);
+  font-size: 12px;
+  color: var(--lg-danger);
+}
+
+.login-submit { margin-top: 4px; justify-content: center; }
+
+/* 顶栏账号入口。 */
+.account-entry { position: relative; -webkit-app-region: no-drag; }
+
+.account-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 220px;
+  padding: 4px 10px 4px 4px;
+  border: 1px solid var(--lg-line);
+  border-radius: var(--lg-radius-control);
+  background: var(--lg-fill-control);
+  cursor: pointer;
+}
+.account-button:hover { background: var(--lg-fill-control-hover); }
+
+.account-avatar {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  flex: 0 0 26px;
+  border-radius: 50%;
+  background: var(--lg-fill-accent);
+  color: var(--lg-on-accent);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.account-button-text { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; }
+.account-button-name { font-size: 12px; color: var(--lg-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 150px; }
+.account-button-meta { font-size: 10px; color: var(--lg-muted); }
+
+.account-scrim { position: fixed; inset: 0; z-index: 20; }
+
+.account-pop {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 21;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 268px;
+  padding: 14px;
+  border-radius: var(--lg-radius-card);
+}
+
+.account-pop-head { display: flex; flex-direction: column; gap: 2px; }
+.account-pop-head strong { font-size: 13px; }
+.account-pop-head span { font-size: 11px; color: var(--lg-muted); }
+.account-pop-estimate { margin: 0; font-size: 11px; color: var(--lg-muted); }
+.account-pop-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.account-pop-actions .pill { padding: 6px 12px; font-size: 12px; }
+
+.pill.danger {
+  border-color: rgba(180, 35, 24, 0.32);
+  color: var(--lg-danger);
+}
+.pill.danger:hover { background: rgba(180, 35, 24, 0.12); color: var(--lg-danger); }
+
+/* 个人中心。 */
+.pc-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+.pc-card { display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; }
+.pc-card h4 { margin: 0 0 4px; font-size: 13px; }
+.pc-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; font-size: 12px; }
+.pc-label { color: var(--lg-muted); }
+.pc-value { color: var(--lg-ink); text-align: right; overflow-wrap: anywhere; }
+.pc-muted { margin: 0; font-size: 12px; color: var(--lg-muted); }
+.pc-estimate { margin: 0; font-size: 15px; font-weight: 600; }
+.pc-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+.pc-usage { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.pc-usage-item {
+  display: grid;
+  grid-template-columns: 148px minmax(90px, 1fr) minmax(160px, 1.4fr) 74px 120px;
+  gap: 8px;
+  align-items: baseline;
+  padding: 7px 10px;
+  border: 1px solid var(--lg-line-hair);
+  border-radius: 10px;
+  background: var(--lg-fill-row);
+  font-size: 11px;
+  color: var(--lg-ink-2);
+}
+.pc-usage-model { color: var(--lg-ink); }
+.pc-usage-cost { text-align: right; }
+.pc-usage-status { color: var(--lg-muted); text-align: right; }
+
+@media (max-width: 860px) {
+  .pc-usage-item { grid-template-columns: 1fr 1fr; }
+}
