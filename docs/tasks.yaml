@@ -2082,6 +2082,28 @@ tracks:
       dep: [T-181]
       inferred: false
       note: "B 级修复，来源是 T-181 真机验证第 3 步失败。根因：Shell.tsx 的两个立项入口（向导首次创建约 3231 行、重新开始约 3391 行）直接调用 createSession(projectPath)，既没有传 lcoder-intake 预设，也没有走 createDefaultedSession 应用默认模型，于是会话落在实施角色 lcoder，工具面没有 requirement_draft，需求无法落盘；默认模型也被云端路由覆盖，首轮撞六次 502。修法：两处都改为 createDefaultedSession(createSession, 'lcoder-intake', 'intake')，或给 runIntakeRestart 传入已带预设与默认模型的创建闭包；不改角色天花板，不把 requirement_draft 开放给 dev。验收：组件测试断言立项创建会话时传 lcoder-intake 且应用默认模型；单测覆盖首次创建与重新开始两条路径；真机重跑 T-181 第 1 至 4 步，确认会话头 agentPreset 为 lcoder-intake、需求落盘、拆分进待开发；门禁 typecheck、packages/lcoder vitest、verify-client-ui-i18n、改动文件 oxlint。工作树待 slot-2 释放后 claim 到 lcoder/t185-intake-preset，端口 9823 与 9831 与 9832。2026-11-14 13:20 监督窗口派工，实现线会话 c4bb9825；T-183 已在安全点提交两笔并保持工作树干净，暂停恢复时重新派工。"
+    - id: T-186
+      title: 宿主-only profile 启动实验
+      status: todo
+      face: 工程
+      type: 调研
+      owner: lance
+      created: '2026-11-14'
+      date: '2026-11-14'
+      dep: [T-184]
+      inferred: false
+      note: "B 级前置实验，来源是 T-184 方案第 9.2 的唯一可推翻前提。目标：验证宿主-only profile 能否启动。现状 dsh-web-app、modules、client-hmr 与若干 ui-* 之间有硬注入，T-177 已证明单独关会停在 Loading plugins。做法：在 T-178 切片基础上构造只保留宿主面、不挂客户端插件的 profile 或最小 client 集合，用 dsh 启动宿主，验证 ready、session/workspace/remote API 可用、events 流可订阅，并记录必须保留的最小客户端插件与端口。不改产品代码，实验配置放 lcoder 下。产出 lcoder/host-only-profile.md，结论写能否启动、最小依赖集、对 M4 与 S1 的影响。工作树待 slot-1 释放后 claim 到 lcoder/t186-host-only，端口 9822 与 9829 与 9830。"
+    - id: T-187
+      title: 客户端自研 S1 端到端切片
+      status: todo
+      face: 工程
+      type: 开发
+      owner: lance
+      created: '2026-11-14'
+      date: '2026-11-14'
+      dep: [T-186]
+      inferred: false
+      note: "B 级实现，来源是 T-184 方案第 4.1 节 S1，估时六到八人日。范围：新包 packages/lcoder/desktop 与 packages/lcoder/client 骨架，自写 Electron 主进程与窗口、宿主子进程守护、进程内薄适配层（一元 POST、WS mux、events 回执）、渲染端窄 IPC、登录门禁读 lcoderCloud.state、会话列表、session.create 到 follow 到 prompt 的流式回复。验收：窗口起来、宿主 ready、登录门禁正确、会话列表非空、发一条能看到流式正文，重启后能从 follow snapshot 重读历史。依赖 T-186 通过；若 T-186 证明宿主-only 不可行，先回到方案层重定 M4 路径，不直接开工。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
