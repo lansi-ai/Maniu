@@ -2139,7 +2139,7 @@ tracks:
       note: "B 级实现，来源是用户 2026-11-14 要求做 M3。范围按 T-184 方案 M3：登录、注册、验证码、密码、个人中心与用量、设置页（模型、路由、主题、字体、语言）、四套皮肤（默认流体玻璃，替换旧 frost）、中英切换、窗口按钮与拖拽、托盘、菜单、快捷键、更新 UI、欢迎屏。为避同一客户端文件的并行冲突，排在 T-189 之后，M2 合入后再 claim。验收：登录到开会话到改设置到重启仍生效、四套皮肤与中英各一套检查、reduced-motion、上游欢迎屏不再出现、门禁与 S1 探针全绿。工作树待 M2 合入后 claim 到 lcoder/t190-m3。M2 已合入；2026-11-14 17:50 监督窗口派工，实现线会话 17aa9cd3。2026-11-14 19:10 监督窗口核验并收口。三阶段落地：账号（注册、验证码、密码、退出、刷新）、个人中心与真实用量、设置（provider、默认模型、密钥三态、重启保持）、四套皮肤（默认流体玻璃）与中英与字体与 reduced-motion、自绘窗口按钮与最大化同步、托盘与菜单与快捷键、更新空态、新客户端欢迎屏。M3 修复关窗退出确定性：探针保留 CDP 等 exit，新壳关停加十二秒硬上限与诊断日志。主检门禁全过（build 八项、build:check、typecheck、vitest 九十三文件一千一百二十一例、i18n、test:docs 二十一项）；T-190 探针两次 39/39、M2 一次 PASS；S1 三次中一次重启历史超时、两次 PASS，沿用 T-192 跟进并转 doing。未验项：令牌自动续期 401 场景、托盘点击与 F11 与缩放实按、拖拽手势、真实云端与打包态与窄窗；设置页对 s1 profile 的表达式 baseURL 保存会整段被拒，已如实显示错误。已合入 lcoder/main、release pool-slot-1。"
     - id: T-191
       title: 新客户端 M1 会话与聊天能力
-      status: doing
+      status: done
       face: 用户端
       type: 开发
       owner: lance
@@ -2147,7 +2147,7 @@ tracks:
       date: '2026-11-14'
       dep: [T-187]
       inferred: false
-      note: "B 级实现，来源是用户 2026-11-14 早先选择只保留流程必需的聊天能力。范围按 T-184 方案 M1：会话 store 完整化（follow 三帧、补洞、projection）、工具卡与过程组、审批卡与回执、提问卡、附件上传与预览、停止与改名、模型 chip、上下文用量、无模型门禁。当前用户要求先做 M2 与 M3，本任务暂不派工；M2 期间先以纯文本与工具状态呈现，缺口在 M2 回报里列出。2026-11-14 22:05 监督窗口派工，实现线会话 99d6ed34；工作树 pool-slot-2 到 lcoder/t191-m1，端口 9823 与 9831 与 9832。工作树根 .env 的钥匙已暴露待轮换，本任务禁止读取或使用，默认走 mock 云端。"
+      note: "B 级实现，来源是用户 2026-11-14 早先选择只保留流程必需的聊天能力。范围按 T-184 方案 M1：会话 store 完整化（follow 三帧、补洞、projection）、工具卡与过程组、审批卡与回执、提问卡、附件上传与预览、停止与改名、模型 chip、上下文用量、无模型门禁。当前用户要求先做 M2 与 M3，本任务暂不派工；M2 期间先以纯文本与工具状态呈现，缺口在 M2 回报里列出。2026-11-14 22:05 监督窗口派工，实现线会话 99d6ed34；工作树 pool-slot-2 到 lcoder/t191-m1，端口 9823 与 9831 与 9832。工作树根 .env 的钥匙已暴露待轮换，本任务禁止读取或使用，默认走 mock 云端。2026-11-15 00:35 监督窗口核验并收口。两笔提交：M1 会话与聊天能力（store 三帧与补洞、工具卡与过程组、审批与提问回执、附件、停止改名、模型 chip、用量与无模型门禁），以及 waterfall 帧改用 events 代际回执。新增 chat-store、composer、pending、attachments 客户端测试与 link-events 主机测试。主检复跑 build:artifacts 八项、build:check、typecheck、packages/lcoder vitest 一百文件一千一百六十六例、i18n、test:docs 全过；S1、M2、M3 三条探针全 PASS。未验项：审批与提问的真实模型回环（仅单测与合成帧）、durable 图片预览、模型切换、停止截断。已合入 lcoder/main、release pool-slot-2。"
     - id: T-192
       title: S1 探针重启历史稳定性
       status: done
@@ -2161,7 +2161,7 @@ tracks:
       note: "C 级稳定性跟进，来源是 T-189 收口时 S1 探针重启历史首次超时、二次通过。现象：重启后等待历史重读超时；手动点会话两秒内回历史。排查点：follow snapshot 到达与 UI 选择时机、session/events 订阅与补洞、探针等待条件是否过窄。验收：探针连续三次 PASS；若为探针等待条件问题改探针，若为产品竞态改客户端。2026-11-14 19:10 转 doing；M3 合入后主检 S1 三次仍一红两绿，需按失败日志定位关停、落盘与跟随竞态，修复后要求 S1 连续五次 PASS。T-190 的关窗修复已把探针改为保留 CDP 等 exit，新壳关停加十二秒硬上限与关停日志；本次要保留失败现场日志再定性。2026-11-14 19:15 监督窗口派工，修复会话 410208fb。2026-11-14 21:55 监督窗口核验并收口。根因两层：探针把流式草稿当历史，实测提前约一百二十五毫秒关窗，宿主关停截断在途回合；以及 Electron 原生退出在慢关停后卡死。修法：探针只认已提交消息与新建会话、关窗等窗口目标消失、失败现场采集；新壳清理完成后自 SIGKILL 绕过原生退出；探针 waitExit 再改事件与退出码与 PID 存活三路判定，兜住 Windows 下 SIGKILL 后收不到 exit 事件。主检 S1 五连跑全 PASS，每次两实例均走 SIGKILL 且检测命中 PID 消失；T-190 探针 39/39、M2 PASS；合入后主检 sanity S1 PASS；typecheck 与 build:check 全过。未验：Windows 无 exit 事件的原生原因未定位；宿主慢关停可达八秒；更晚的结束与标题事件持久化未逐项验。已合入 lcoder/main、release pool-slot-1。"
     - id: T-193
       title: 退出前刷新渲染端偏好存储
-      status: doing
+      status: done
       face: 用户端
       type: 修复
       owner: lance
@@ -2169,7 +2169,7 @@ tracks:
       date: '2026-11-15'
       dep: [T-192, T-190]
       inferred: false
-      note: "C 级修复，来源是 T-183 合入后主检跑 M3 探针，重启后皮肤/字体/语言保持一项失败：状态回到默认 liquid-glass、system、zh-CN。根因是 T-192 的确定性退出改为清理后自 SIGKILL，跳过了 Chromium 的正常退出，渲染端 localStorage 的最后一批写入可能没有落盘。修法优先两选一：一是在自 SIGKILL 前刷 main 进程持有的 session 存储（flushStorageData 或等价），并留出有界等待；二是把皮肤/字体/语言偏好改成经窄 IPC 写主进程的 userData JSON，localStorage 只作渲染端缓存。不得回退确定性退出。验收：M3 探针 39/39，重启后皮肤/字体/语言保持；S1 与 M2 探针仍 PASS；typecheck/build:check/oxlint 全绿。与 T-191 同一工作树执行，不改其它范围。2026-11-15 00:15 监督窗口派工给 T-191 会话 99d6ed34 一并修。"
+      note: "C 级修复，来源是 T-183 合入后主检跑 M3 探针，重启后皮肤/字体/语言保持一项失败：状态回到默认 liquid-glass、system、zh-CN。根因是 T-192 的确定性退出改为清理后自 SIGKILL，跳过了 Chromium 的正常退出，渲染端 localStorage 的最后一批写入可能没有落盘。修法优先两选一：一是在自 SIGKILL 前刷 main 进程持有的 session 存储（flushStorageData 或等价），并留出有界等待；二是把皮肤/字体/语言偏好改成经窄 IPC 写主进程的 userData JSON，localStorage 只作渲染端缓存。不得回退确定性退出。验收：M3 探针 39/39，重启后皮肤/字体/语言保持；S1 与 M2 探针仍 PASS；typecheck/build:check/oxlint 全绿。与 T-191 同一工作树执行，不改其它范围。2026-11-15 00:15 监督窗口派工给 T-191 会话 99d6ed34 一并修。2026-11-15 00:35 监督窗口核验并收口。根因两条叠加：偏好只写渲染端 localStorage，自 SIGKILL 跳过 Chromium 正常退出；且渲染端启动用默认 zh 反向覆盖主进程已保存语言。修法采用主进程 userData 的 lcoder-preferences.json 作为唯一权威值，点击即经窄 IPC 同步写盘，启动时下发，localStorage 只作缓存，退出路径未改。M3 探针 39/39，重启后为 rose 与 modern 与 en，落盘文件一致；S1、M2、M3 探针全 PASS；新增偏好单测八条。已合入 lcoder/main、release pool-slot-2。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
