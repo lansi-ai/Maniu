@@ -18,6 +18,14 @@
  *
  * 统计：
  *   curl http://127.0.0.1:5091/_mock/state
+ *
+ * 探针回合（T-195）：用户消息里带下列口令时，chat completions 按「本轮阶段」
+ * 返回 OpenAI 兼容的 tool_calls，而不是默认正文：
+ *   T195:approve — 调用 pwsh 并申请 danger-full-access 扩权（会弹审批卡），
+ *                  通过后继续返回正文；T195:deny 走同一条调用链但被拒绝。
+ *   T195:ask     — 调用 ask_user_question（会弹提问卡），回答后继续返回正文。
+ * 阶段由 messages 推出：最后一次带口令的用户消息之后还没有 tool 结果就发工具
+ * 调用，有了就发最终正文；默认（无口令）仍是立项正文，不干扰 S1/M1 探针。
  */
 import { createHash, createHmac, randomBytes, randomUUID } from 'node:crypto'
 import { createServer } from 'node:http'
@@ -36,6 +44,17 @@ const USER_GRANT_MICRO_USD = 20_000_000
 const UNIT_PRICE = { inputMicroUsdPerMtok: 260_000, cachedInputMicroUsdPerMtok: 8_000, outputMicroUsdPerMtok: 500_000 }
 const INPUT_OUTPUT_RATIO = '8:2'
 const MODEL = 'deepseek-flash'
+
+/** T-195 探针口令；按最后一次带口令的用户消息决定这一轮返回什么。 */
+const PROBE_MARKERS = { approve: 'T195:approve', deny: 'T195:deny', ask: 'T195:ask' }
+/** 审批卡上显示的扩权理由；探针按它断言卡片内容。 */
+const PROBE_JUSTIFICATION = 'T195 approval probe needs one escalated command'
+/** 批准后真正执行的命令；探针按它的输出确认工具执行过。 */
+const PROBE_COMMAND = "Write-Output 'T195-PROBE-ALLOWED'"
+/** 提问卡上唯一选项的标签；回答会原样回到模型，探针按它断言回执。 */
+const PROBE_QUESTION_LABEL = '继续（推荐）'
+/** mock 侧留存的探针回合轨迹上限。 */
+const PROBE_LOG_LIMIT = 64
 
 /**
  * 按云端口径折出 token 预估：下界用全部未命中缓存的输入价，上界用缓存输入价。
@@ -82,6 +101,13 @@ const state = {
   noPrice: false,
   usageEmpty: false,
   stats: { login: 0, refresh: 0, chat: 0, guestClaim: 0, logout: 0 },
+  /** T-195 探针：每类回合的工具调用与最终正文次数，以及最近的阶段轨迹。 */
+  probe: {
+    approve: { toolCalls: 0, finals: 0 },
+    deny: { toolCalls: 0, finals: 0 },
+    ask: { toolCalls: 0, finals: 0 },
+    log: [],
+  },
 }
 
 const now = () => Date.now()
@@ -352,6 +378,151 @@ function usageChunk(messageId, created, promptTokens, completionTokens) {
   }
 }
 
+function isRecord(value) {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/** 一条 wire 消息的文本：字符串或文本块数组。 */
+function wireTextOf(message) {
+  if (!isRecord(message)) return ''
+  const content = message.content
+  if (typeof content === 'string') return content
+  if (!Array.isArray(content)) return ''
+  return content
+    .flatMap(part => isRecord(part) && typeof part.text === 'string' ? [part.text] : [])
+    .join('')
+}
+
+/**
+ * 最后一条以 T-195 口令开头的用户消息，以及它之后是否已经有工具结果。
+ *
+ * 只认「开头就是口令」的消息：宿主会把运行时上下文、技能目录与时间快照
+ * 作为额外的 user 消息追加在同一条提示之后，标题生成请求里也会在 JSON 中
+ * 带出原话——按「开头匹配」才能只命中真正的探针提示。
+ * @param messages - 请求里的 OpenAI 消息数组。
+ * @returns 本轮的口令与阶段；没有口令时 undefined（走默认立项正文）。
+ */
+function probeRoundOf(messages) {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index]
+    if (!isRecord(message) || message.role !== 'user') continue
+    const text = wireTextOf(message).trimStart()
+    const scenario = Object.keys(PROBE_MARKERS).find(key => text.startsWith(PROBE_MARKERS[key]))
+    if (scenario === undefined) continue
+    const toolMessages = messages.slice(index + 1).filter(candidate => isRecord(candidate) && candidate.role === 'tool')
+    return { scenario, stage: toolMessages.length === 0 ? 'call' : 'final', toolMessages }
+  }
+  return undefined
+}
+
+/** 一条 OpenAI 兼容的工具调用。 */
+function toolCallOf(name, args) {
+  return {
+    id: `call_t195_${randomUUID().replace(/-/g, '').slice(0, 12)}`,
+    type: 'function',
+    function: { name, arguments: JSON.stringify(args) },
+  }
+}
+
+/**
+ * 本轮要发的工具调用：审批两轮都调 `pwsh` 申请扩权，提问一轮调 `ask_user_question`。
+ * @param scenario - `approve` / `deny` / `ask`。
+ * @returns OpenAI 兼容的工具调用。
+ */
+function probeToolCallOf(scenario) {
+  if (scenario === 'ask') {
+    return toolCallOf('ask_user_question', {
+      questions: [{
+        id: 't195_choice',
+        header: 'T195 提问',
+        question: 'T195：请选择这次探针的继续方式',
+        options: [
+          { label: PROBE_QUESTION_LABEL, description: '保持当前设置把这一轮跑完' },
+          { label: '停止', description: '不再继续本轮回合' },
+        ],
+        multi_select: false,
+      }],
+    })
+  }
+  return toolCallOf('pwsh', {
+    description: 'Run the T-195 escalation probe command',
+    command: PROBE_COMMAND,
+    sandbox_permissions: 'danger-full-access',
+    justification: PROBE_JUSTIFICATION,
+  })
+}
+
+/** 工具结果的可读摘要，用于失败正文回显 mock 实际看到了什么。 */
+function probeDigestOf(toolMessages) {
+  const last = toolMessages.at(-1)
+  if (!isRecord(last)) return '(没有工具结果)'
+  const text = wireTextOf(last).replace(/\s+/gu, ' ').trim()
+  return text === '' ? '(空结果)' : text.length > 120 ? `${text.slice(0, 120)}…` : text
+}
+
+/**
+ * 工具回合之后的最终正文。
+ * 按观察到的工具结果生成：探针把正文当断言时，mock 不能无条件宣称成功。
+ * @param scenario - 本轮口令。
+ * @param toolMessages - 口令之后出现的工具结果消息。
+ * @returns 一段最终正文。
+ */
+function probeFinalOf(scenario, toolMessages) {
+  const observed = toolMessages.map(message => wireTextOf(message)).join('\n')
+  if (scenario === 'ask') {
+    return observed.includes(PROBE_QUESTION_LABEL)
+      ? `T195-ASK-DONE：已收到选择「${PROBE_QUESTION_LABEL}」。`
+      : `T195-ASK-FAILED：提问结果里没有选中项（${probeDigestOf(toolMessages)}）`
+  }
+  if (scenario === 'deny') {
+    return /rejected|denied/iu.test(observed)
+      ? 'T195-DENIED-DONE：审批拒绝后工具没有执行。'
+      : `T195-DENIED-FAILED：拒绝路径没有留下拒绝记录（${probeDigestOf(toolMessages)}）`
+  }
+  return observed.includes('T195-PROBE-ALLOWED')
+    ? 'T195-APPROVED-DONE：审批通过后命令已执行。'
+    : `T195-APPROVED-FAILED：批准后没有看到命令输出（${probeDigestOf(toolMessages)}）`
+}
+
+/** 记一条探针轨迹，供 `/_mock/state` 与探针核对轮次。 */
+function noteProbe(scenario, stage, detail) {
+  state.probe[scenario][stage === 'call' ? 'toolCalls' : 'finals'] += 1
+  state.probe.log.push({ scenario, stage, detail, at: new Date().toISOString() })
+  if (state.probe.log.length > PROBE_LOG_LIMIT) state.probe.log.shift()
+}
+
+/** 工具调用的 SSE 帧：先给身份，再给参数，最后以 tool_calls 收尾。 */
+function toolCallChunks(messageId, created, call) {
+  const chunk = delta => ({
+    id: messageId,
+    object: 'chat.completion.chunk',
+    created,
+    model: 'deepseek-flash',
+    choices: [{ index: 0, delta, finish_reason: null }],
+  })
+  return [
+    chunk({
+      role: 'assistant',
+      content: null,
+      tool_calls: [{
+        index: 0,
+        id: call.id,
+        type: 'function',
+        function: { name: call.function.name, arguments: '' },
+      }],
+    }),
+    chunk({ tool_calls: [{ index: 0, function: { arguments: call.function.arguments } }] }),
+    {
+      id: messageId,
+      object: 'chat.completion.chunk',
+      created,
+      model: 'deepseek-flash',
+      choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }],
+      lcoder: { requestId: messageId, effectiveMaxTokens: 8192 },
+    },
+  ]
+}
+
 async function handleChat(request, response, body) {
   const rid = requestId()
   if (body.baseURL !== undefined || body.provider !== undefined || body.apiKey !== undefined) {
@@ -419,13 +590,20 @@ async function handleChat(request, response, body) {
 
   const created = Math.floor(now() / 1000)
   const messageId = `chatcmpl_${randomUUID().replace(/-/g, '').slice(0, 16)}`
-  const parts = [
-    '我已经读过仓库结构和已有规格。',
-    '当前没有可执行的开发任务，我先按立项流程整理交付物与范围：',
-    '\n1. 明确产品目标与首个可验收切片；\n2. 把调研结论落成起草态任务；\n3. 等你确认后再进入架构与契约。',
-  ]
+  const probe = probeRoundOf(body.messages)
+  const call = probe?.stage === 'call' ? probeToolCallOf(probe.scenario) : undefined
+  const parts = call !== undefined
+    ? []
+    : probe === undefined
+      ? [
+        '我已经读过仓库结构和已有规格。',
+        '当前没有可执行的开发任务，我先按立项流程整理交付物与范围：',
+        '\n1. 明确产品目标与首个可验收切片；\n2. 把调研结论落成起草态任务；\n3. 等你确认后再进入架构与契约。',
+      ]
+      : [probeFinalOf(probe.scenario, probe.toolMessages)]
+  if (probe !== undefined) noteProbe(probe.scenario, probe.stage, call?.function.name ?? 'text')
   const promptTokens = Math.max(1, Math.ceil(JSON.stringify(body.messages).length / 3))
-  const completionTokens = Math.max(1, Math.ceil(parts.join('').length / 3))
+  const completionTokens = Math.max(1, Math.ceil((call?.function.arguments ?? parts.join('')).length / 3))
 
   if (body.stream === true) {
     response.writeHead(200, {
@@ -436,7 +614,10 @@ async function handleChat(request, response, body) {
       'access-control-allow-origin': '*',
     })
     const write = value => response.write(`data: ${JSON.stringify(value)}\n\n`)
-    for (const chunk of chatChunks(messageId, created, parts, 'stop')) {
+    const chunks = call === undefined
+      ? chatChunks(messageId, created, parts, 'stop')
+      : toolCallChunks(messageId, created, call)
+    for (const chunk of chunks) {
       write(chunk)
       await new Promise(resolve => setTimeout(resolve, 30))
     }
@@ -453,8 +634,10 @@ async function handleChat(request, response, body) {
     model: 'deepseek-flash',
     choices: [{
       index: 0,
-      message: { role: 'assistant', content: parts.join('') },
-      finish_reason: 'stop',
+      message: call === undefined
+        ? { role: 'assistant', content: parts.join('') }
+        : { role: 'assistant', content: null, tool_calls: [call] },
+      finish_reason: call === undefined ? 'stop' : 'tool_calls',
     }],
     usage: { prompt_tokens: promptTokens, completion_tokens: completionTokens, total_tokens: promptTokens + completionTokens },
     lcoder: { requestId: rid, effectiveMaxTokens: 8192 },
@@ -479,6 +662,7 @@ async function route(request, response) {
       noPrice: state.noPrice,
       usageEmpty: state.usageEmpty,
       stats: state.stats,
+      probe: state.probe,
       users: [...users.values()].map(user => ({ id: user.id, phone: userProfile(user).phoneMasked, status: user.status })),
       guests: [...guestGrants.values()].map(grant => ({ id: grant.id, grantDate: grant.grantDate, usedRequests: grant.usedRequests })),
       refreshTokens: refreshTokens.size,
@@ -492,6 +676,12 @@ async function route(request, response) {
       state.mode = null; state.accessGeneration = 0
       state.noPrice = false; state.usageEmpty = false
       state.stats = { login: 0, refresh: 0, chat: 0, guestClaim: 0, logout: 0 }
+      state.probe = {
+        approve: { toolCalls: 0, finals: 0 },
+        deny: { toolCalls: 0, finals: 0 },
+        ask: { toolCalls: 0, finals: 0 },
+        log: [],
+      }
     }
     if ('mode' in body) state.mode = body.mode ?? null
     if (body.noPrice === true) state.noPrice = true
