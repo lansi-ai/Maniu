@@ -13,6 +13,8 @@ export const IPC_CHANNELS = {
   waterfallCancel: 'lcoder:waterfall-cancel',
   eventResult: 'lcoder:event-result',
   window: 'lcoder:window',
+  closeRequest: 'lcoder:close-request',
+  confirmClose: 'lcoder:close-confirm',
   windowState: 'lcoder:window-state',
   windowStateNow: 'lcoder:window-state-now',
   appInfo: 'lcoder:app-info',
@@ -77,6 +79,12 @@ export type EventOutcome =
 
 /** 自绘标题栏的窗口动作。 */
 export type WindowAction = 'minimize' | 'toggle-maximize' | 'close'
+
+/** 关窗确认请求：主进程判定有回合在跑时才下发。 */
+export interface CloseRequest {
+  /** 当前在跑的会话数。 */
+  readonly running: number
+}
 
 /** 主窗口的最大化与全屏实况；自绘标题栏据此切换按钮语义。 */
 export interface WindowStateInfo {
@@ -147,6 +155,10 @@ export interface LcoderApi {
   eventResult(clientId: string, eventId: string, outcome: EventOutcome): Promise<void>
   /** 自绘标题栏动作。 */
   window(action: WindowAction): Promise<void>
+  /** 订阅关窗确认请求；只有存在运行中回合时才会到达。 */
+  onCloseRequest(listener: (request: CloseRequest) => void): () => void
+  /** 确认放弃运行中的回合并关窗。 */
+  confirmClose(): Promise<void>
   /** 订阅最大化与全屏变化；返回取消订阅函数。 */
   windowState(listener: (state: WindowStateInfo) => void): () => void
   /** 拉取当前窗口状态；用于挂载时补读。 */

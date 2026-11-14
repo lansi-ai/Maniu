@@ -604,11 +604,40 @@ async function run() {
     step('mock 侧三轮各一次工具调用与一次最终正文，轮次未串台')
     log(`mock 轮次轨迹：${JSON.stringify(probe.log.map(entry => `${entry.scenario}/${entry.stage}`))}`)
 
-    await closeApp(page)
+    // 运行中关窗：新会话留一个待审批回合，关窗必须先确认；取消留在窗口内，确认后才退出。
+    const known = await page.evaluate(
+      "[...document.querySelectorAll('[data-testid=\"session-item\"]')].map(node => node.dataset.sessionId)",
+    )
+    await page.evaluate("document.querySelector('[data-testid=\"new-session\"]').click()")
+    await page.waitFor(`(() => {
+      const active = document.querySelector('[data-testid="session-item"].active')?.dataset.sessionId;
+      return typeof active === 'string' && !${JSON.stringify(known)}.includes(active) ? active : '';
+    })()`, 30_000, '关窗确认用会话')
+    await sendPrompt(page, 'T195:approve 关窗确认场景：先不要回执。')
+    const pendingCard = await waitApprovalCard(page, '关窗确认前的审批卡')
+    assert(pendingCard.error === '', `关窗确认场景的审批卡有就地错误：${pendingCard.error}`)
+    page.fire("window.lcoder.window('close')")
+    await page.waitFor(
+      "document.querySelector('[data-testid=\"quit-confirm-dialog\"]') !== null",
+      15_000, '运行中关窗确认')
+    const dialogText = await page.evaluate(
+      "document.querySelector('[data-testid=\"quit-confirm-dialog\"]')?.innerText ?? ''")
+    assert(dialogText.includes('正在运行'), `关窗确认说明有回合在跑（${dialogText.replace(/\n/gu, ' | ').slice(0, 80)}）`)
+    await page.evaluate("document.querySelector('[data-testid=\"quit-confirm-cancel\"]').click()")
+    await page.waitFor(
+      "document.querySelector('[data-testid=\"quit-confirm-dialog\"]') === null",
+      10_000, '取消关窗')
+    assert(processAlive(launched.child.pid), '取消关窗后实例仍在运行')
+    page.fire("window.lcoder.window('close')")
+    await page.waitFor(
+      "document.querySelector('[data-testid=\"quit-confirm-dialog\"]') !== null",
+      15_000, '再次关窗确认')
+    page.fire("document.querySelector('[data-testid=\"quit-confirm-exit\"]').click()")
     const exited = await waitExit(launched.child, 20_000)
+    page.socket.close()
     page = undefined
-    assert(exited, '实例关窗后退出')
-    step('实例关窗后退出')
+    assert(exited, '确认关窗后实例退出')
+    step('运行中关窗：先确认、取消留在窗口内、确认后退出')
     assert(approved.includes('T195-APPROVED-DONE') && denied.includes('T195-DENIED-DONE'), '审批两轮的最终正文标记不完整')
     assert(asked.includes('T195-ASK-DONE'), '提问轮的最终正文标记不完整')
     assertDurable(sessionId)

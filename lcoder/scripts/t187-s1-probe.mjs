@@ -520,6 +520,10 @@ async function firstRun() {
     assert(assistant.text.includes('仓库结构'), `assistant 文本不符合 mock 预期：${String(assistant.text).slice(0, 120)}`)
     log(`assistant 已提交：流式 ${String(assistant.liveAt)} 毫秒、落盘 ${String(assistant.committedAt)} 毫秒，`
       + `正文 ${JSON.stringify(String(assistant.text).slice(0, 40))}…`)
+    // 关窗守卫按主进程序列判定回合状态；等渲染端看到会话空闲再关，避免撞上状态事件尾巴。
+    await page.waitFor(
+      "document.querySelector('[data-testid=\"session-item\"][data-running=\"true\"]') === null",
+      20_000, '回合已结束')
     await closeApp(page)
     const exited = await waitExit(launched.child, 20_000, () =>
       dumpQuitHang(launched.child, launched.logPath, '首次实例'))

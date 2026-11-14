@@ -6,16 +6,23 @@ import { join } from 'node:path'
 import { IPC_CHANNELS } from './contract.ts'
 import type { DesktopLocaleId } from './contract.ts'
 import { readDesktopPreferences } from './desktop-locale.ts'
+import { resolveDesktopHome } from './home.ts'
 import { HostSupervisor } from './host-supervisor.ts'
 import { createStatePublisher, createWindowStatePublisher, registerIpc } from './ipc.ts'
 import { HostLink } from './link.ts'
 import { installMenu } from './menu.ts'
 import { REPO_ROOT } from './profile.ts'
+import { RunningTurns } from './running-turns.ts'
 import { DesktopTray } from './tray.ts'
 import { checkUpdate } from './update.ts'
 import { createMainWindow } from './window.ts'
 
-const home = process.env.DSH_HOME ?? join(REPO_ROOT, '.dsh-home')
+const home = resolveDesktopHome({
+  isPackaged: app.isPackaged,
+  userHome: app.getPath('home'),
+  repoRoot: REPO_ROOT,
+  override: process.env.DSH_HOME,
+})
 process.env.DSH_HOME = home
 
 /** 关停从关窗开始算起的总上限；到点强制退出，绝不允许关窗后静默驻留。 */
@@ -27,6 +34,10 @@ let link: HostLink | undefined
 let tray: DesktopTray | undefined
 let locale: DesktopLocaleId = 'zh'
 let shutdownStarted = false
+/** 渲染端已确认放弃运行中的回合；主进程窗口 `close` 只放行这一次。 */
+let closeConfirmed = false
+
+const runningTurns = new RunningTurns()
 
 const publisher = createStatePublisher(() => mainWindow)
 const windowState = createWindowStatePublisher(() => mainWindow)
@@ -71,6 +82,13 @@ function focusWindow(): void {
 function wireMainWindow(window: BrowserWindow): void {
   wireStateReplay(window)
   wireWindowState(window)
+  closeConfirmed = false
+  window.on('close', (event) => {
+    // 空闲直接走正常关停；有回合在跑时先让渲染端确认，确认后同一条 close 再放行。
+    if (closeConfirmed || runningTurns.count === 0) return
+    event.preventDefault()
+    send(IPC_CHANNELS.closeRequest, { running: runningTurns.count })
+  })
   window.on('closed', () => { mainWindow = undefined })
 }
 
@@ -95,7 +113,13 @@ async function boot(): Promise<void> {
     const url = await supervisor.start(home, hostInspectPort())
     console.log('lcoder desktop: 宿主已就绪', url.replace(/token=[^&]+/u, 'token=<redacted>'))
     await link_.connect(url, {
-      onEvent: (event) => { send(IPC_CHANNELS.events, event) },
+      onEvent: (event) => {
+        if (event.name === 'api-session/status') {
+          const [sessionId, running] = event.args
+          if (typeof sessionId === 'string' && typeof running === 'boolean') runningTurns.update(sessionId, running)
+        }
+        send(IPC_CHANNELS.events, event)
+      },
       onWaterfall: (event) => { send(IPC_CHANNELS.waterfall, event) },
       onWaterfallCancel: (event) => { send(IPC_CHANNELS.waterfallCancel, event) },
       onStreamFrame: (streamId, frame) => { send(IPC_CHANNELS.streamFrame, streamId, frame) },
@@ -139,6 +163,10 @@ if (!app.requestSingleInstanceLock()) {
       hostState: () => publisher.current(),
       windowState: () => windowState.current(),
       update: checkUpdate,
+      confirmClose: () => {
+        closeConfirmed = true
+        mainWindow?.close()
+      },
       applyLocale,
     })
     mainWindow = createMainWindow()

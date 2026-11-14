@@ -1,11 +1,14 @@
-/** 项目信息页：`.spec/project.yaml` 的事实与项目运行时。 */
+/** 项目信息页：`.spec/project.yaml` 的事实、项目运行时与本机密码揭示。 */
 
+import { useState } from 'react'
 import type { JSX } from 'react'
+import type { Translate } from '../locale.ts'
 import type { ProjectScope } from '../workspace/use-workspaces.ts'
 import type { SpecProjection } from '../spec/load.ts'
 
 /** 项目信息页属性。 */
 export interface ProjectInfoPageProps {
+  readonly t: Translate
   readonly project: ProjectScope | null
   readonly projection: SpecProjection
   readonly loading: boolean
@@ -15,11 +18,19 @@ export interface ProjectInfoPageProps {
 
 /**
  * 项目信息页。
- * @param props - 项目与投影。
+ *
+ * 密码值只取投影里已读进内存的 `.spec/local.yaml` 结果，点击眼睛才显示；
+ * 不写日志、不进模型、不落渲染端持久存储。
+ * @param props - 词典、项目与投影。
  * @returns 页面。
  */
 export function ProjectInfoPage(props: ProjectInfoPageProps): JSX.Element {
   const info = props.projection.project
+  const [revealed, setRevealed] = useState<Readonly<Record<string, boolean>>>({})
+  const toggleReveal = (envId: string): void => {
+    setRevealed(current => ({ ...current, [envId]: current[envId] !== true }))
+  }
+
   return (
     <section className="page" data-testid="page-project-info">
       <header className="page-head">
@@ -68,22 +79,48 @@ export function ProjectInfoPage(props: ProjectInfoPageProps): JSX.Element {
             <h3>环境</h3>
             {(info?.environments ?? []).length === 0 && <p className="empty">`.spec/project.yaml` 没有声明环境。</p>}
             <ul className="plain-list">
-              {(info?.environments ?? []).map(env => (
-                <li key={env.id}>
-                  <strong>{env.label}</strong>
-                  {env.server !== undefined && <span>服务器：{env.server}</span>}
-                  {env.database !== undefined && (
-                    <span>
-                      数据库：{env.database.user}@{env.database.host}
-                      {env.database.port === undefined ? '' : `:${env.database.port}`}/{env.database.name}
-                      {' '}· 密码引用 {env.database.passwordRef}
-                    </span>
-                  )}
-                  {env.note !== undefined && <em>{env.note}</em>}
-                </li>
-              ))}
+              {(info?.environments ?? []).map((env) => {
+                const database = env.database
+                const shown = revealed[env.id] === true
+                const secret = database === undefined ? undefined : props.projection.secrets[database.passwordRef]
+                return (
+                  <li key={env.id}>
+                    <strong>{env.label}</strong>
+                    {env.server !== undefined && <span>服务器：{env.server}</span>}
+                    {database !== undefined && (
+                      <span>
+                        数据库：{database.user}@{database.host}
+                        {database.port === undefined ? '' : `:${database.port}`}/{database.name}
+                      </span>
+                    )}
+                    {database !== undefined && (
+                      <span className="secret-row">
+                        <span>{props.t('project.password')}</span>
+                        <code className="secret-value" data-testid="project-secret-value" data-env={env.id}>
+                          {shown ? (secret ?? props.t('project.passwordUnset')) : '••••••'}
+                        </code>
+                        <button
+                          type="button"
+                          className="pill"
+                          data-testid="project-secret-toggle"
+                          data-env={env.id}
+                          aria-pressed={shown}
+                          onClick={() => { toggleReveal(env.id) }}
+                        >
+                          {shown ? props.t('project.hidePassword') : props.t('project.revealPassword')}
+                        </button>
+                      </span>
+                    )}
+                    {database !== undefined && (
+                      <em>
+                        {props.t('project.passwordRef')} {database.passwordRef} · {props.t('project.secretNote')}
+                      </em>
+                    )}
+                    {env.note !== undefined && <em>{env.note}</em>}
+                  </li>
+                )
+              })}
             </ul>
-            <p className="detail-note">本机敏感值只从 `.spec/local.yaml` 读取，当前只展示引用名。</p>
           </section>
         </div>
       )}
