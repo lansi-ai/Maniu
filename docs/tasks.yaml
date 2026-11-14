@@ -2073,7 +2073,7 @@ tracks:
       note: "A 级架构方案，来源是用户 2026-11-14 决定客户端框架也自研：自己的 Electron 壳与 React 客户端，宿主运行时继续用上游。已拍板五项：一、自写 Electron 主进程与窗口、托盘、单实例、更新；二、自写 React 客户端与流式层，替换对 @deepseek-ai/dsh-client-* 的依赖，当前 workspace 有二十八文件、一万六千三百行与它耦合；三、通信层用进程内薄适配层，内部直连宿主 API，不写独立 BFF；四、一次性切换，切换前必须过 parity 清单并保留上一版构建产物作为回退；五、欢迎屏随新壳一起换，聊天能力只保留流程必需（流式正文、工具卡片、审批、提问、附件），不做压缩提示、子代理、反馈、轨迹。被取代项：T-180 上游聊天整链裁剪原型已撤下，不再派工；T-177 与 T-178 的客户端收益将由新客户端取代，宿主侧裁剪仍有效；T-183 载荷裁剪不受影响。本任务只出方案，不写产品代码：产出 lcoder/client-rewrite-plan.md，含宿主 API 契约清单、M0 到 M4 里程碑与估时、parity 清单、风险与回退方案、首个可实施切片，以及 apps/desktop 与上游 client 依赖的移除顺序。约束：不改源码，不改 .spec，不 push。工作树 pool-slot-1 到 lcoder/t184-client-plan，端口 9822 与 9829 与 9830。2026-11-14 13:05 监督窗口派工，方案会话 598d028f。2026-11-14 13:45 监督窗口核验并收口。方案四百四十七行，实测耦合二十八文件一万六千三百零六行，目录两万五千五百零八行约六成四需重写；宿主契约两种传输、十个命名空间约四十个方法、十二个事件通道；最危险三项为 follow 帧语义、events waterfall 回执、客户端会话状态机。用户拍板四项：宿主保持子进程、承载层完全自写、回退一个小版本且只留安装包重装、本轮不减包。里程碑 M0 到 M4 共五十至六十二人日，S1 六到八人日。未验项保留：宿主-only profile 能否启动是唯一可推翻 M4 的前提，转 T-186；frontend-static 独立挂载、Electron 全局 WebSocket、弱网补洞等转实现期验证。主检 test:docs 二十一项全过。已合入 lcoder/main、release pool-slot-1。"
     - id: T-185
       title: 立项会话改用 intake 预设并应用默认模型
-      status: doing
+      status: done
       face: 用户端
       type: 修复
       owner: lance
@@ -2081,7 +2081,7 @@ tracks:
       date: '2026-11-14'
       dep: [T-181]
       inferred: false
-      note: "B 级修复，来源是 T-181 真机验证第 3 步失败。根因：Shell.tsx 的两个立项入口（向导首次创建约 3231 行、重新开始约 3391 行）直接调用 createSession(projectPath)，既没有传 lcoder-intake 预设，也没有走 createDefaultedSession 应用默认模型，于是会话落在实施角色 lcoder，工具面没有 requirement_draft，需求无法落盘；默认模型也被云端路由覆盖，首轮撞六次 502。修法：两处都改为 createDefaultedSession(createSession, 'lcoder-intake', 'intake')，或给 runIntakeRestart 传入已带预设与默认模型的创建闭包；不改角色天花板，不把 requirement_draft 开放给 dev。验收：组件测试断言立项创建会话时传 lcoder-intake 且应用默认模型；单测覆盖首次创建与重新开始两条路径；真机重跑 T-181 第 1 至 4 步，确认会话头 agentPreset 为 lcoder-intake、需求落盘、拆分进待开发；门禁 typecheck、packages/lcoder vitest、verify-client-ui-i18n、改动文件 oxlint。工作树待 slot-2 释放后 claim 到 lcoder/t185-intake-preset，端口 9823 与 9831 与 9832。2026-11-14 13:20 监督窗口派工，实现线会话 c4bb9825；T-183 已在安全点提交两笔并保持工作树干净，暂停恢复时重新派工。"
+      note: "B 级修复，来源是 T-181 真机验证第 3 步失败。根因：Shell.tsx 的两个立项入口（向导首次创建约 3231 行、重新开始约 3391 行）直接调用 createSession(projectPath)，既没有传 lcoder-intake 预设，也没有走 createDefaultedSession 应用默认模型，于是会话落在实施角色 lcoder，工具面没有 requirement_draft，需求无法落盘；默认模型也被云端路由覆盖，首轮撞六次 502。修法：两处都改为 createDefaultedSession(createSession, 'lcoder-intake', 'intake')，或给 runIntakeRestart 传入已带预设与默认模型的创建闭包；不改角色天花板，不把 requirement_draft 开放给 dev。验收：组件测试断言立项创建会话时传 lcoder-intake 且应用默认模型；单测覆盖首次创建与重新开始两条路径；真机重跑 T-181 第 1 至 4 步，确认会话头 agentPreset 为 lcoder-intake、需求落盘、拆分进待开发；门禁 typecheck、packages/lcoder vitest、verify-client-ui-i18n、改动文件 oxlint。工作树待 slot-2 释放后 claim 到 lcoder/t185-intake-preset，端口 9823 与 9831 与 9832。2026-11-14 13:20 监督窗口派工，实现线会话 c4bb9825；T-183 已在安全点提交两笔并保持工作树干净，暂停恢复时重新派工。2026-11-14 16:30 监督窗口核验并收口。两笔提交：一是两处立项入口改走 createDefaultedSession 并带 lcoder-intake，同时修掉开仓预建空白实施会话被向导复用的问题；二是 dispatchIntakePrompt 不再无条件 routeSession，设置默认模型不再被云端路由覆盖。真机全链路通过：会话头 agentPreset 为 lcoder-intake，request/header 为 deepseek-official 与 deepseek-flash，七问代答后需求落盘为 REQ-01.md 与 REQ-01.yaml、project.yaml 与 rules.yaml，拆分出六条任务且全部 contracted，T-01 基础框架排第一。lcoder-cloud 网关持续 502 upstream_unavailable，属环境故障，已改走官网模型。主检复跑 build:artifacts 八项、build:check 两项、typecheck 五项、packages/lcoder vitest 九十三文件一千一百二十一例、i18n、test:docs 二十一项全过。钥匙由用户写入工作树根 .env 并在启动前 source，未进提交；已提醒用户轮换。未验项：macOS、云端网关本身、新客户端对立案流程的展示（M2）。已合入 lcoder/main、release pool-slot-2。"
     - id: T-186
       title: 宿主-only profile 启动实验
       status: done
