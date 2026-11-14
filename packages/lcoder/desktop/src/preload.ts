@@ -3,8 +3,8 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC_CHANNELS } from './contract.ts'
 import type {
-  DesktopLocaleId, EventOutcome, HostEvent, HostState, HostWaterfall, LcoderApi, RemoteResult,
-  StreamFrame, UpdateCheck, WindowStateInfo,
+  DesktopLocaleId, EventOutcome, HostEvent, HostState, HostWaterfall, HostWaterfallCancel, LcoderApi,
+  RemoteResult, StreamFrame, UpdateCheck, WindowStateInfo,
 } from './contract.ts'
 
 function onHostState(listener: (state: HostState) => void): () => void {
@@ -31,6 +31,12 @@ function onWaterfall(listener: (event: HostWaterfall) => void): () => void {
   return () => { ipcRenderer.removeListener(IPC_CHANNELS.waterfall, handler) }
 }
 
+function onWaterfallCancel(listener: (event: HostWaterfallCancel) => void): () => void {
+  const handler = (_event: Electron.IpcRendererEvent, event: HostWaterfallCancel): void => { listener(event) }
+  ipcRenderer.on(IPC_CHANNELS.waterfallCancel, handler)
+  return () => { ipcRenderer.removeListener(IPC_CHANNELS.waterfallCancel, handler) }
+}
+
 function onWindowState(listener: (state: WindowStateInfo) => void): () => void {
   const handler = (_event: Electron.IpcRendererEvent, state: WindowStateInfo): void => { listener(state) }
   ipcRenderer.on(IPC_CHANNELS.windowState, handler)
@@ -48,6 +54,7 @@ const api: LcoderApi = {
   onStreamFrame,
   onEvent,
   onWaterfall,
+  onWaterfallCancel,
   eventResult: (clientId, eventId, outcome: EventOutcome) =>
     ipcRenderer.invoke(IPC_CHANNELS.eventResult, { clientId, eventId, outcome }) as Promise<void>,
   window: action => ipcRenderer.invoke(IPC_CHANNELS.window, action) as Promise<void>,

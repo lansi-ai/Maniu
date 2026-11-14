@@ -1,5 +1,5 @@
 ---
-description: "LCoder's Electron shell for T-187 S1 and T-190 M3: a frameless window with synchronized maximize state and drag regions, a supervised host profile process, a self-written token-to-cookie/unary-POST/WS-mux/$events link layer, a localized menu and tray, and a narrow renderer IPC surface."
+description: "LCoder's Electron shell for T-187 S1, T-190 M3, and T-191 M1: a frameless window with synchronized maximize state and drag regions, a supervised host profile process, a self-written token-to-cookie/unary-POST/WS-mux/$events link layer with waterfall outcomes, a localized menu and tray, and a narrow renderer IPC surface."
 kind: "package-reference"
 ---
 
@@ -14,8 +14,8 @@ English | [中文](README.zh.md)
 
 - `src/host-entry.ts`：最小宿主进程，用 `runProfile` 跑 `<DSH_HOME>/profiles/s1`，把 ready URL 报回主进程。
 - `src/host-supervisor.ts`：拉起/关停宿主子进程，读 `ready`/`fatal` IPC。
-- `src/link.ts`：主进程内协议适配层——launch token 换 cookie（`interactions=answer`）、一元 `POST /api/<ns>/<method>`、WS `/api/remote.mux`、`$events` 与 `$events/result`。
-- `src/preload.ts` / `src/ipc.ts`：只暴露 call/stream/events/window 的窄 IPC；命名空间与方法白名单在 `link.ts`。
+- `src/link.ts`：主进程内协议适配层——launch token 换 cookie（`interactions=answer`）、一元 `POST /api/<ns>/<method>`、WS `/api/remote.mux`、`$events` 与 `$events/result`；流白名单含 `session/follow`、`session/control`、`workspace/follow`，一元白名单含 `session/attachment` 与 `fileUploads/upload`；waterfall 请求与撤回都转发给渲染端。
+- `src/preload.ts` / `src/ipc.ts`：只暴露 call/stream/events/waterfall/window 的窄 IPC；审批与提问的回执经 `lcoder:event-result` 原样带回宿主，撤回经 `lcoder:waterfall-cancel` 通知渲染端。命名空间与方法白名单在 `link.ts`。
 - `src/main.ts` / `src/window.ts`：单实例、frameless 主窗口（最小 520×600）、渲染产物加载、最大化/全屏状态推送。
 - `src/menu.ts` / `src/tray.ts` / `src/desktop-locale.ts`：本地化应用菜单（含缩放与全屏快捷键）、托盘打开/退出，语言由渲染端经 IPC 同步并写入 userData。
 - `src/update.ts`：更新检查占位；没有更新源时返回可解释的 `unavailable/no-feed`，界面不显示网络错误。

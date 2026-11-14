@@ -97,6 +97,7 @@ async function boot(): Promise<void> {
     await link_.connect(url, {
       onEvent: (event) => { send(IPC_CHANNELS.events, event) },
       onWaterfall: (event) => { send(IPC_CHANNELS.waterfall, event) },
+      onWaterfallCancel: (event) => { send(IPC_CHANNELS.waterfallCancel, event) },
       onStreamFrame: (streamId, frame) => { send(IPC_CHANNELS.streamFrame, streamId, frame) },
     })
     console.log('lcoder desktop: 宿主链路已连接')

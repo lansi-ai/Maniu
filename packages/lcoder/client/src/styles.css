@@ -361,3 +361,172 @@ html[data-theme='liquid-glass'] body {
 @media (prefers-reduced-motion: reduce) {
   .message.live::after { animation: none; opacity: 1; }
 }
+
+/* 对话正文：过程组、工具卡、附件与输入区。 */
+.message.user .message-text { margin: 0; white-space: pre-wrap; }
+.message .markdown-body { font-size: 14px; color: var(--lg-ink); }
+.message .markdown-body p:first-child { margin-top: 0; }
+.message .markdown-body p:last-child { margin-bottom: 0; }
+
+.process-group {
+  align-self: flex-start;
+  width: min(86%, 760px);
+  padding: 8px 12px;
+  border-radius: 16px;
+  font-size: 12px;
+}
+.process-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: var(--lg-muted);
+  cursor: pointer;
+  text-align: left;
+}
+.process-title { color: var(--lg-ink-2); }
+.process-sub { color: var(--lg-faint); }
+.process-chevron { margin-left: auto; color: var(--lg-faint); }
+.process-list { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.process-tool, .process-reasoning {
+  padding: 6px 8px;
+  border-radius: 10px;
+  background: var(--lg-fill-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.process-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.process-label { color: var(--lg-ink-2); }
+.process-name { font-size: 11px; color: var(--lg-faint); }
+.process-status { font-size: 11px; color: var(--lg-ok); }
+.process-status[data-failed='true'] { color: var(--lg-danger); }
+.process-args { font-size: 11px; color: var(--lg-muted); white-space: pre-wrap; overflow-wrap: anywhere; }
+.process-result { margin: 0; color: var(--lg-muted); font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
+.process-reasoning p { margin: 0; color: var(--lg-ink-2); line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+.attach-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.attach-image { display: block; line-height: 0; }
+.attach-image img { display: block; max-width: 260px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.4); }
+.message.user .attach-chip {
+  font-size: 12px;
+  padding: 3px 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.2);
+  color: inherit;
+}
+.message.assistant .attach-chip, .attach-chip {
+  font-size: 12px;
+  padding: 3px 8px;
+  border-radius: 8px;
+  background: var(--lg-fill-control);
+  color: var(--lg-ink-2);
+}
+
+/* 输入区：附件轨道 + 一行输入 + 模型与用量。 */
+.composer { flex-direction: column; align-items: stretch; gap: 8px; padding: 10px 12px 8px; }
+.composer-row { display: flex; align-items: flex-end; gap: 10px; }
+.composer-row textarea { flex: 1; }
+.attach-input { display: none; }
+.pill-icon { width: 34px; height: 34px; padding: 0; border-radius: 999px; font-size: 17px; line-height: 1; }
+.attach-rail { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.attach-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  padding: 4px 8px;
+  border: 1px solid var(--lg-line-hair);
+  border-radius: 10px;
+  background: var(--lg-fill-subtle);
+  font-size: 12px;
+  color: var(--lg-ink-2);
+}
+.attach-item img { width: 34px; height: 34px; object-fit: cover; border-radius: 8px; }
+.attach-name { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.attach-state { color: var(--lg-muted); font-size: 11px; }
+.attach-failed { color: var(--lg-danger); }
+.attach-remove { border: 0; background: transparent; color: var(--lg-muted); cursor: pointer; font-size: 15px; padding: 0 2px; }
+.attach-remove:hover { color: var(--lg-ink); }
+.attach-limits { font-size: 10px; color: var(--lg-faint); }
+.pill-mini { padding: 4px 10px; font-size: 11px; }
+.composer-problem { margin: 0; }
+
+.composer-meta { display: flex; align-items: center; gap: 10px; padding: 0 4px; font-size: 11px; color: var(--lg-muted); min-height: 18px; }
+.model-chip { display: inline-flex; align-items: center; gap: 6px; }
+.model-chip-label { color: var(--lg-faint); }
+.model-chip-select {
+  min-width: 120px;
+  max-width: 260px;
+  border: 1px solid var(--lg-line);
+  border-radius: 8px;
+  background: var(--lg-fill-control);
+  color: var(--lg-ink-2);
+  font: inherit;
+  padding: 2px 6px;
+}
+.model-warning { color: var(--lg-danger); }
+.context-usage { margin-left: auto; }
+
+/* 聊天头里的改名。 */
+.chat-head .pill-mini { flex: 0 0 auto; }
+.rename-row { display: flex; align-items: center; gap: 8px; width: 100%; }
+.rename-input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--lg-line);
+  border-radius: 8px;
+  background: var(--lg-fill-control);
+  color: var(--lg-ink);
+  font: inherit;
+  padding: 4px 8px;
+}
+.rename-problem { color: var(--lg-danger); font-size: 11px; }
+.chat-head .running { color: var(--lg-ok); font-size: 11px; }
+
+/* 等待人处理的交互浮在页面上，不挤占正文。 */
+.pending-layer { position: absolute; right: 18px; bottom: 118px; z-index: 6; width: min(420px, 60%); pointer-events: none; }
+.pending-layer .pending-card { pointer-events: auto; }
+.pending-card { padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+.pending-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.pending-head h4 { margin: 0; font-size: 13px; font-weight: 600; color: var(--lg-ink); }
+.pending-head .pill { padding: 3px 10px; font-size: 11px; }
+.pending-reason { margin: 0; font-size: 12px; color: var(--lg-ink-2); line-height: 1.6; white-space: pre-wrap; }
+.pending-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.pending-actions .pill { padding: 6px 14px; font-size: 12px; }
+.pending-error { margin: 0; font-size: 11px; color: var(--lg-danger); white-space: pre-wrap; }
+.pending-hint { margin: 0; font-size: 11px; color: var(--lg-faint); }
+.question-list { display: flex; flex-direction: column; gap: 12px; }
+.question { display: flex; flex-direction: column; gap: 6px; }
+.question-header { font-size: 11px; color: var(--lg-faint); }
+.question-text { margin: 0; font-size: 13px; color: var(--lg-ink); }
+.question-detail { font-size: 12px; color: var(--lg-ink-2); max-height: 220px; overflow: auto; }
+.question-options { display: flex; flex-wrap: wrap; gap: 6px; }
+.option {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 10px;
+  border: 1px solid var(--lg-line);
+  border-radius: 10px;
+  background: var(--lg-fill-control);
+  color: var(--lg-ink-2);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.option small { color: var(--lg-faint); font-size: 10px; }
+.option-on { border-color: var(--lg-accent); background: var(--lg-fill-accent-soft); color: var(--lg-ink); }
+.question-custom {
+  border: 1px solid var(--lg-line);
+  border-radius: 8px;
+  background: var(--lg-fill-control);
+  color: var(--lg-ink);
+  font: inherit;
+  font-size: 12px;
+  padding: 5px 8px;
+}

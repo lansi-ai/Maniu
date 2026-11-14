@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import type { JSX } from 'react'
-import type { HostEvent, HostState, HostWaterfall } from '@lcoder/desktop/contract'
+import type { EventOutcome, HostEvent, HostState, HostWaterfall, HostWaterfallCancel } from '@lcoder/desktop/contract'
 import { actionOfFrame, chatReducer, emptyChat, summaryOf, type SessionSummary } from './store.ts'
 import { translate, type MessageKey, type Translate } from './locale.ts'
 import { browserStorage, markWelcomeSeen, usePreferences, welcomeSeen } from './prefs.ts'
@@ -14,12 +14,19 @@ import { RequirementsPage } from './pages/requirements.tsx'
 import { SettingsPage } from './pages/settings.tsx'
 import { TasksPage } from './pages/tasks.tsx'
 import { RolesPage } from './pages/roles.tsx'
-import { ChatView, type PendingNote } from './shell/chat-view.tsx'
+import { ChatView } from './shell/chat-view.tsx'
+import { PendingCards, type AnswerResult } from './shell/pending-cards.tsx'
 import { GateView } from './shell/gate-view.tsx'
 import { Titlebar } from './shell/titlebar.tsx'
 import { useWindowState } from './shell/use-window-state.ts'
 import { ensureScopeSession, useWorkspaceList, type ProjectScope, type WorkspaceRow } from './workspace/use-workspaces.ts'
 import { useProjection } from './workspace/use-projection.ts'
+import {
+  buildPromptContent, contextUsageOf, currentChatModel, imageLimitsOf, modelAvailabilityOf,
+  modelCatalogOf, recordedModelOf, type ChatModelCatalog, type ChatPendingAttachment,
+} from './chat/composer.ts'
+import { interactionOf, type PendingInteraction } from './chat/pending.ts'
+import { useSessionControl } from './chat/use-session-control.ts'
 
 /** 工作台页面。 */
 type PageId = 'chat' | 'requirements' | 'tasks' | 'projects' | 'project-info' | 'roles' | 'settings' | 'account'
@@ -38,6 +45,7 @@ const NAV_ITEMS: readonly { readonly id: PageId; readonly key: MessageKey }[] = 
 ]
 
 const PROJECT_KEY = 'lcoder.m2.project'
+const SESSION_KEY = 'lcoder.s1.session'
 
 function savedProject(): ProjectScope | null {
   try {
@@ -81,26 +89,6 @@ function sortSessions(sessions: readonly SessionSummary[]): SessionSummary[] {
   return [...sessions].sort((left, right) => right.updatedAt - left.updatedAt)
 }
 
-function pendingTextOf(event: HostWaterfall, t: Translate): string {
-  const request = event.request
-  if (isRecord(request) && Array.isArray(request.questions)) {
-    const questions = request.questions.flatMap((question) => {
-      if (!isRecord(question)) return []
-      if (typeof question.question === 'string') return [question.question]
-      if (typeof question.header === 'string') return [question.header]
-      return []
-    })
-    if (questions.length > 0) return questions.join(t('pending.join'))
-  }
-  if (isRecord(request)) {
-    const reason = request.displayReason ?? request.reason
-    if (typeof reason === 'string' && reason !== '') return reason
-    const tool = request.toolName
-    if (typeof tool === 'string') return t('pending.toolApproval', { tool })
-  }
-  return event.name === 'approval/request' ? t('pending.waitingApproval') : t('pending.waitingQuestion')
-}
-
 /** 应用根。 */
 export function App(): JSX.Element {
   const prefs = usePreferences()
@@ -118,15 +106,22 @@ export function App(): JSX.Element {
   const [returnPage, setReturnPage] = useState<PageId>('chat')
   const [project, setProject] = useState<ProjectScope | null>(savedProject)
   const [projectNotice, setProjectNotice] = useState<string | null>(null)
-  const [pending, setPending] = useState<readonly PendingNote[]>([])
+  const [pending, setPending] = useState<readonly PendingInteraction[]>([])
+  const [titles, setTitles] = useState<Readonly<Record<string, string>>>({})
+  const [catalog, setCatalog] = useState<{ readonly value: unknown; readonly error: string | null }>({
+    value: null,
+    error: null,
+  })
 
   const workspaces = useWorkspaceList(host.kind === 'ready')
   const projection = useProjection(project?.scopeSessionId ?? null)
+  const control = useSessionControl(host.kind === 'ready')
 
   const streamRef = useRef<string | null>(null)
   const activeRef = useRef<string | null>(null)
   const rebaselineRef = useRef(0)
   const composerRef = useRef<HTMLTextAreaElement>(null)
+  const sendingRef = useRef(false)
   const hostEventSeen = useRef(false)
 
   activeRef.current = active
@@ -162,7 +157,7 @@ export function App(): JSX.Element {
   const selectSession = useCallback((sessionId: string) => {
     setActive(sessionId)
     activeRef.current = sessionId
-    localStorage.setItem('lcoder.s1.session', sessionId)
+    localStorage.setItem(SESSION_KEY, sessionId)
     void openFollow(sessionId)
   }, [openFollow])
 
@@ -182,6 +177,17 @@ export function App(): JSX.Element {
     }
   }, [])
 
+  const loadCatalog = useCallback(async () => {
+    try {
+      const answer = await window.lcoder.call('session', 'modelCatalog', {})
+      setCatalog(answer.ok
+        ? { value: answer.value, error: null }
+        : { value: null, error: `${answer.error.code}: ${answer.error.message}` })
+    } catch (error: unknown) {
+      setCatalog({ value: null, error: error instanceof Error ? error.message : String(error) })
+    }
+  }, [])
+
   useEffect(() => {
     const off = window.lcoder.hostState((state) => {
       hostEventSeen.current = true
@@ -195,12 +201,19 @@ export function App(): JSX.Element {
   }, [applyHost])
 
   useEffect(() => {
-    if (host.kind === 'ready') void loadSessions()
-  }, [host.kind, loadSessions])
+    if (host.kind === 'ready') {
+      void loadSessions()
+      void loadCatalog()
+    }
+  }, [host.kind, loadCatalog, loadSessions])
 
   useEffect(() => {
     const off = window.lcoder.onEvent((event: HostEvent) => {
       const first = event.args[0]
+      if (event.name === 'llm/models-updated' || event.name === 'llm/adapters-updated'
+        || event.name === 'credentials/reference-updated' || event.name === 'settings/document-updated') {
+        void loadCatalog()
+      }
       if (event.name === 'api-session/added') {
         const summary = summaryOf(first)
         if (summary === undefined) return
@@ -224,14 +237,25 @@ export function App(): JSX.Element {
       }
     })
     return off
-  }, [])
+  }, [loadCatalog])
 
   useEffect(() => {
     const off = window.lcoder.onWaterfall((event: HostWaterfall) => {
-      setPending(current => [...current.slice(-3), { id: event.eventId, kind: event.name, text: pendingTextOf(event, t) }])
+      const interaction = interactionOf(event.name, event.clientId, event.eventId, event.request)
+      if (interaction === undefined) return
+      setPending(current => current.some(item => item.id === interaction.id)
+        ? current
+        : [...current.slice(-3), interaction])
     })
     return off
-  }, [t])
+  }, [])
+
+  useEffect(() => {
+    const off = window.lcoder.onWaterfallCancel((event: HostWaterfallCancel) => {
+      setPending(current => current.filter(item => item.eventId !== event.eventId))
+    })
+    return off
+  }, [])
 
   useEffect(() => {
     const off = window.lcoder.onStreamFrame((streamId, frame) => {
@@ -257,17 +281,23 @@ export function App(): JSX.Element {
     if (session !== null) void openFollow(session)
   }, [chat.rebaseline, openFollow])
 
-  const createSession = useCallback(async () => {
+  useEffect(() => {
+    const title = chat.title
+    if (active === null || title === null) return
+    setTitles(current => current[active] === title ? current : { ...current, [active]: title })
+  }, [active, chat.title])
+
+  const createAndSelect = useCallback(async (): Promise<string | null> => {
     setNotice(null)
     const answer = await window.lcoder.call('session', 'create', { request: {} })
     if (!answer.ok) {
       setNotice(`${answer.error.code}: ${answer.error.message}`)
-      return
+      return null
     }
     const value = answer.value
     if (!isRecord(value) || typeof value.sessionId !== 'string') {
       setNotice('session.create 返回了无法识别的会话')
-      return
+      return null
     }
     const sessionId = value.sessionId
     setSessions(current => sortSessions([
@@ -282,47 +312,98 @@ export function App(): JSX.Element {
     ]))
     selectSession(sessionId)
     await loadSessions()
+    return sessionId
   }, [loadSessions, selectSession])
 
-  const send = useCallback(async () => {
-    const text = composerRef.current?.value.trim() ?? ''
-    if (text === '' || sending) return
-    let sessionId = activeRef.current
+  const createSession = useCallback((): void => {
+    if (sendingRef.current) return
+    void createAndSelect()
+  }, [createAndSelect])
+
+  const ensureSession = useCallback(async (): Promise<string | null> => {
+    const current = activeRef.current
+    return current !== null ? current : createAndSelect()
+  }, [createAndSelect])
+
+  const send = useCallback(async (
+    text: string,
+    attachments: readonly ChatPendingAttachment[],
+  ): Promise<boolean> => {
+    if (sendingRef.current) return false
+    sendingRef.current = true
     setSending(true)
     setNotice(null)
     try {
-      if (sessionId === null) {
-        const created = await window.lcoder.call('session', 'create', { request: {} })
-        if (!created.ok) {
-          setNotice(`${created.error.code}: ${created.error.message}`)
-          return
-        }
-        const value = created.value
-        if (!isRecord(value) || typeof value.sessionId !== 'string') {
-          setNotice('session.create 返回了无法识别的会话')
-          return
-        }
-        sessionId = value.sessionId
-        selectSession(sessionId)
-        await loadSessions()
+      const sessionId = activeRef.current ?? await createAndSelect()
+      if (sessionId === null) return false
+      let content: ReturnType<typeof buildPromptContent>
+      try {
+        content = buildPromptContent(text, attachments)
+      } catch (error: unknown) {
+        setNotice(error instanceof Error ? error.message : String(error))
+        return false
       }
       const answer = await window.lcoder.call('session', 'prompt', {
         request: {
           requestId: newRequestId(),
           sessionId,
           mode: 'queue',
-          content: [{ type: 'text', text }],
+          content,
         },
       })
       if (!answer.ok) {
         setNotice(`${answer.error.code}: ${answer.error.message}`)
-        return
+        return false
       }
-      if (composerRef.current !== null) composerRef.current.value = ''
+      return true
     } finally {
+      sendingRef.current = false
       setSending(false)
     }
-  }, [loadSessions, selectSession, sending])
+  }, [createAndSelect])
+
+  const stop = useCallback(async (): Promise<void> => {
+    const sessionId = activeRef.current
+    if (sessionId === null) return
+    const answer = await window.lcoder.call('session', 'cancel', { request: { sessionId } })
+    if (!answer.ok) setNotice(`${answer.error.code}: ${answer.error.message}`)
+  }, [])
+
+  const rename = useCallback(async (title: string): Promise<boolean> => {
+    const sessionId = activeRef.current
+    if (sessionId === null) return false
+    const answer = await window.lcoder.call('session', 'rename', { request: { sessionId, title } })
+    if (!answer.ok) {
+      setNotice(`${answer.error.code}: ${answer.error.message}`)
+      return false
+    }
+    setTitles(current => ({ ...current, [sessionId]: title }))
+    return true
+  }, [])
+
+  const answer = useCallback(async (
+    interaction: PendingInteraction,
+    outcome: EventOutcome,
+  ): Promise<AnswerResult> => {
+    try {
+      await window.lcoder.eventResult(interaction.clientId, interaction.eventId, outcome)
+      setPending(current => current.filter(item => item.id !== interaction.id))
+      return { ok: true }
+    } catch (error: unknown) {
+      return { ok: false, message: error instanceof Error ? error.message : String(error) }
+    }
+  }, [])
+
+  const selectModel = useCallback(async (provider: string, model: string): Promise<boolean> => {
+    const sessionId = activeRef.current ?? await createAndSelect()
+    if (sessionId === null) return false
+    const answer = await window.lcoder.call('session', 'selectModel', { request: { sessionId, provider, model } })
+    if (!answer.ok) {
+      setNotice(`${answer.error.code}: ${answer.error.message}`)
+      return false
+    }
+    return true
+  }, [createAndSelect])
 
   const chooseWorkspace = useCallback(async (workspace: WorkspaceRow) => {
     setProjectNotice(null)
@@ -379,6 +460,28 @@ export function App(): JSX.Element {
     setReturnPage(page)
     setPage('account')
   }, [page])
+
+  const catalogView: ChatModelCatalog = useMemo(() => modelCatalogOf(catalog.value), [catalog.value])
+  const availability = useMemo(
+    () => catalog.error !== null
+      ? { kind: 'unknown' as const, detail: catalog.error }
+      : modelAvailabilityOf(catalog.value),
+    [catalog.error, catalog.value],
+  )
+  const mergedProjection = useMemo(() => {
+    const values: Record<string, unknown> = { ...chat.projections }
+    const live = active === null ? undefined : control.bySession[active]
+    if (live !== undefined) {
+      for (const [key, entry] of Object.entries(live)) {
+        if (entry.seq > chat.projectionSeq || !(key in values)) values[key] = entry.value
+      }
+    }
+    return values
+  }, [active, chat.projectionSeq, chat.projections, control.bySession])
+  const selection = currentChatModel(recordedModelOf(mergedProjection.modelSelection), catalogView.defaultChoice)
+  const limits = imageLimitsOf(mergedProjection.imageLimits)
+  const usage = contextUsageOf(mergedProjection.contextPressure)
+  const running = active !== null && sessions.find(item => item.sessionId === active)?.running === true
 
   const gateKind: 'booting' | 'cloud-error' | 'signed-out' | 'ready' =
     host.kind !== 'ready'
@@ -454,16 +557,25 @@ export function App(): JSX.Element {
               <ChatView
                 t={t}
                 sessions={sessions}
+                titles={titles}
                 active={active}
                 chat={chat}
-                pending={pending}
                 notice={notice}
                 sending={sending}
+                running={running}
+                limits={limits}
+                models={catalogView.options}
+                selection={selection}
+                availability={availability}
+                usage={usage}
                 composerRef={composerRef}
                 onSelect={selectSession}
-                onCreate={() => { void createSession() }}
-                onSend={() => { void send() }}
-                onDismissPending={(id) => { setPending(current => current.filter(entry => entry.id !== id)) }}
+                onCreate={createSession}
+                onSend={send}
+                onStop={() => { void stop() }}
+                onRename={rename}
+                ensureSession={ensureSession}
+                onSelectModel={selectModel}
               />
             )}
 
@@ -515,7 +627,10 @@ export function App(): JSX.Element {
                 t={t}
                 prefs={prefs}
                 sessionId={active}
-                onModelsChanged={() => { void loadSessions() }}
+                onModelsChanged={() => {
+                  void loadSessions()
+                  void loadCatalog()
+                }}
               />
             )}
 
@@ -534,6 +649,10 @@ export function App(): JSX.Element {
                 reloadToken={0}
               />
             )}
+          </div>
+
+          <div className="pending-layer">
+            <PendingCards t={t} items={pending} onAnswer={answer} />
           </div>
         </main>
       )}

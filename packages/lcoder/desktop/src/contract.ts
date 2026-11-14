@@ -10,6 +10,7 @@ export const IPC_CHANNELS = {
   streamFrame: 'lcoder:stream-frame',
   events: 'lcoder:events',
   waterfall: 'lcoder:waterfall',
+  waterfallCancel: 'lcoder:waterfall-cancel',
   eventResult: 'lcoder:event-result',
   window: 'lcoder:window',
   windowState: 'lcoder:window-state',
@@ -50,12 +51,17 @@ export interface HostEvent {
   readonly args: readonly unknown[]
 }
 
-/** 宿主 `$events` 的 waterfall 事件；S1 只转发，不回执卡片。 */
+/** 宿主 `$events` 的 waterfall 事件；渲染端画卡并把 outcome 原样回执。 */
 export interface HostWaterfall {
   readonly name: string
   readonly clientId: string
   readonly eventId: string
   readonly request: object
+}
+
+/** 宿主撤回一条等待中的 waterfall（回合被停掉或请求超时）。 */
+export interface HostWaterfallCancel {
+  readonly eventId: string
 }
 
 /** 客户端对 waterfall 的回执。 */
@@ -109,6 +115,8 @@ export interface LcoderApi {
   onEvent(listener: (event: HostEvent) => void): () => void
   /** 订阅 waterfall 事件。 */
   onWaterfall(listener: (event: HostWaterfall) => void): () => void
+  /** 订阅 waterfall 撤回。 */
+  onWaterfallCancel(listener: (event: HostWaterfallCancel) => void): () => void
   /** 回执一个 waterfall。 */
   eventResult(clientId: string, eventId: string, outcome: EventOutcome): Promise<void>
   /** 自绘标题栏动作。 */

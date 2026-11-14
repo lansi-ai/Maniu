@@ -3,14 +3,14 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/lcoder/desktop/README.md
 /:
-  en: 0e719288a0db91c5
-  zh: 6bdb8646bd3ec850
+  en: 3a45cb3386ed28e4
+  zh: 10bcae887c51a883
 /lcoder-desktop:
   en: 3313e568ac61fedc
   zh: 631164d20979b34b
 /lcoder-desktop/summary:
-  en: 6ea33cc884594620
-  zh: ef5dd707ed477f10
+  en: 6d496a3f82ce067b
+  zh: c81168339078c66a
 /lcoder-desktop/table-of-contents:
   en: 576c743d341fee99
   zh: a4711f44983301cf

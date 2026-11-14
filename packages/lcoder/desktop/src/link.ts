@@ -1,7 +1,9 @@
 /** 主进程内的宿主协议薄适配层：token→cookie、一元 POST、WS mux、`$events`。 */
 
 import WebSocket, { type RawData } from 'ws'
-import type { EventOutcome, HostEvent, HostWaterfall, RemoteFailure, RemoteResult, StreamFrame } from './contract.ts'
+import type {
+  EventOutcome, HostEvent, HostWaterfall, HostWaterfallCancel, RemoteFailure, RemoteResult, StreamFrame,
+} from './contract.ts'
 
 const EVENT_STREAM_ID = 'ev'
 const EVENT_RESULT_ENDPOINT = '$events/result'
@@ -23,8 +25,10 @@ const UNARY_ALLOWED = new Set([
   'session/cancel',
   'session/rename',
   'session/events',
+  'session/attachment',
   'session/modelCatalog',
   'session/selectModel',
+  'fileUploads/upload',
   'workspace/create',
   'workspace/initializeDefault',
   'workspaceFiles/list',
@@ -47,7 +51,7 @@ const UNARY_ALLOWED = new Set([
 ])
 
 /** 渲染端允许打开的流式方法。 */
-const STREAM_ALLOWED = new Set(['session/follow', 'workspace/follow'])
+const STREAM_ALLOWED = new Set(['session/follow', 'session/control', 'workspace/follow'])
 
 /** 转发给渲染端的宿主事件。 */
 const FORWARDED_EVENTS = new Set([
@@ -62,7 +66,7 @@ const FORWARDED_EVENTS = new Set([
   'settings/document-updated',
 ])
 
-/** 转发给渲染端的 waterfall 事件；S1 只展示，不回执卡片。 */
+/** 转发给渲染端的 waterfall 事件；渲染端画卡并回执。 */
 const FORWARDED_WATERFALLS = new Set(['approval/request', 'user-questions/request'])
 
 /** 工作台主动作允许的人机命令；其余命令不透传。 */
@@ -93,6 +97,7 @@ function commandNameOf(args: object): string {
 export interface LinkSink {
   onEvent(event: HostEvent): void
   onWaterfall(event: HostWaterfall): void
+  onWaterfallCancel(event: HostWaterfallCancel): void
   onStreamFrame(streamId: string, frame: StreamFrame): void
 }
 
@@ -408,6 +413,11 @@ export class HostLink {
         eventId: value.eventId,
         request: value.request,
       })
+      return
+    }
+    if (value.type === 'cancel') {
+      if (typeof value.eventId !== 'string') return
+      this.sink?.onWaterfallCancel({ eventId: value.eventId })
     }
   }
 
