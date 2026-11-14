@@ -4,13 +4,17 @@ import { useMemo, useState } from 'react'
 import type { JSX } from 'react'
 import type { ProjectScope } from '../workspace/use-workspaces.ts'
 import type { SpecProjection } from '../spec/load.ts'
-import type { RequirementDocRow } from '../spec/rows.ts'
+import type { SessionSummary } from '../store.ts'
 import { requirementStateLabel } from '../spec/board.ts'
+import { RequirementDetail } from './requirement-detail.tsx'
+import { TaskDetail } from './task-detail.tsx'
+import { ReaderOverlay } from './reader.tsx'
 
 /** 需求页属性。 */
 export interface RequirementsPageProps {
   readonly project: ProjectScope | null
   readonly projection: SpecProjection
+  readonly sessions: readonly SessionSummary[]
   readonly loading: boolean
   readonly error: string | null
   readonly onReload: () => void
@@ -25,6 +29,8 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
   const [text, setText] = useState('')
   const [state, setState] = useState('')
   const [selected, setSelected] = useState<string | null>(null)
+  const [taskId, setTaskId] = useState<string | null>(null)
+  const [readerPath, setReaderPath] = useState<string | null>(null)
 
   const rows = useMemo(() => {
     const query = text.trim().toLowerCase()
@@ -36,6 +42,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
   }, [props.projection.requirements, state, text])
 
   const active = rows.find(row => row.id === selected) ?? null
+  const detailTask = taskId === null ? undefined : props.projection.tasks.find(task => task.id === taskId)
 
   return (
     <section className="page" data-testid="page-requirements">
@@ -109,42 +116,36 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
             {rows.length === 0 && <p className="empty" data-testid="requirement-empty">没有匹配的需求。</p>}
           </div>
 
-          <aside className="detail lg-glass-card" data-testid="requirement-summary">
-            {active === null
-              ? <p className="empty">选一条需求查看概要。</p>
-              : <RequirementSummary row={active} />}
-          </aside>
+          {active !== null && (
+            <RequirementDetail
+              row={active}
+              project={props.project}
+              projection={props.projection}
+              sessions={props.sessions}
+              onClose={() => { setSelected(null) }}
+              onOpenTask={setTaskId}
+              onOpenReader={setReaderPath}
+            />
+          )}
         </div>
       )}
-    </section>
-  )
-}
 
-function RequirementSummary(props: { readonly row: RequirementDocRow }): JSX.Element {
-  const row = props.row
-  return (
-    <div className="detail-body">
-      <div className="detail-head">
-        <span className="mono">{row.id}</span>
-        <span className="tag">{requirementStateLabel(row.state)}</span>
-      </div>
-      <h3>{row.title ?? row.id}</h3>
-      {row.recommendation !== undefined && <p className="detail-line">推荐：{row.recommendation}</p>}
-      {row.options.length > 0 && (
-        <>
-          <h4>候选做法</h4>
-          <ul className="plain-list">
-            {row.options.map(option => (
-              <li key={option.name}>
-                <strong>{option.name}</strong>
-                <span>{option.summary}</span>
-                {option.cost !== undefined && <em>{option.cost}</em>}
-              </li>
-            ))}
-          </ul>
-        </>
+      {detailTask !== undefined && (
+        <TaskDetail
+          task={detailTask}
+          projection={props.projection}
+          onClose={() => { setTaskId(null) }}
+          onOpenDoc={setReaderPath}
+        />
       )}
-      <p className="detail-note">正文与讨论历史在阶段 B 接入。</p>
-    </div>
+
+      {readerPath !== null && props.project !== null && (
+        <ReaderOverlay
+          scopeSessionId={props.project.scopeSessionId}
+          path={readerPath}
+          onClose={() => { setReaderPath(null) }}
+        />
+      )}
+    </section>
   )
 }

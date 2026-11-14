@@ -14,6 +14,7 @@ const UNARY_ALLOWED = new Set([
   'session/prompt',
   'session/cancel',
   'session/rename',
+  'session/events',
   'workspace/create',
   'workspace/initializeDefault',
   'workspaceFiles/list',

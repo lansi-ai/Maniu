@@ -548,6 +548,7 @@ export function App(): JSX.Element {
               <RequirementsPage
                 project={project}
                 projection={projection.projection}
+                sessions={sessions}
                 loading={projection.loading}
                 error={projection.error}
                 onReload={projection.reload}

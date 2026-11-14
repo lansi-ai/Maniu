@@ -10,6 +10,8 @@ import {
   BOARD_COLUMNS, STATE_LABELS, boardColumnOf, emptyTaskFilter, filterTasks, runStatusOf, sortTasks,
   type TaskFilter,
 } from '../spec/board.ts'
+import { TaskDetail } from './task-detail.tsx'
+import { ReaderOverlay } from './reader.tsx'
 
 /** 任务页属性。 */
 export interface TasksPageProps {
@@ -30,6 +32,7 @@ export function TasksPage(props: TasksPageProps): JSX.Element {
   const [view, setView] = useState<'board' | 'list'>('board')
   const [filter, setFilter] = useState<TaskFilter>(emptyTaskFilter)
   const [selected, setSelected] = useState<string | null>(null)
+  const [readerPath, setReaderPath] = useState<string | null>(null)
 
   const running = useMemo(
     () => new Set(props.sessions.filter(session => session.running).map(session => session.sessionId)),
@@ -149,7 +152,22 @@ export function TasksPage(props: TasksPageProps): JSX.Element {
         </div>
       )}
 
-      {active !== null && <TaskPeek task={active} onClose={() => { setSelected(null) }} />}
+      {active !== null && (
+        <TaskDetail
+          task={active}
+          projection={props.projection}
+          onClose={() => { setSelected(null) }}
+          onOpenDoc={setReaderPath}
+        />
+      )}
+
+      {readerPath !== null && props.project !== null && (
+        <ReaderOverlay
+          scopeSessionId={props.project.scopeSessionId}
+          path={readerPath}
+          onClose={() => { setReaderPath(null) }}
+        />
+      )}
     </section>
   )
 }
@@ -189,28 +207,5 @@ function TaskCard(props: {
         {status === 'queued' && <span className="tag tag-warn">已认领</span>}
       </span>
     </button>
-  )
-}
-
-function TaskPeek(props: { readonly task: TaskRow; readonly onClose: () => void }): JSX.Element {
-  const task = props.task
-  return (
-    <aside className="peek lg-glass" data-testid="task-peek" data-task-id={task.id}>
-      <div className="peek-head">
-        <span className="mono">{task.id}</span>
-        <button type="button" className="pill" onClick={props.onClose}>关闭</button>
-      </div>
-      <h3>{task.title}</h3>
-      <p className="detail-line">{task.description === '' ? '（没有描述）' : task.description}</p>
-      <dl className="kv">
-        <dt>状态</dt><dd>{STATE_LABELS[task.state] ?? task.state}</dd>
-        <dt>等级</dt><dd>{task.grade}</dd>
-        <dt>规则</dt><dd>{task.rules.length === 0 ? '—' : task.rules.join('、')}</dd>
-        <dt>证据</dt><dd>{task.evidence.length === 0 ? '—' : task.evidence.join('、')}</dd>
-        <dt>依赖</dt><dd>{task.dependsOn.length === 0 ? '—' : task.dependsOn.join('、')}</dd>
-        <dt>角色会话</dt><dd className="mono">{task.session ?? '—'}</dd>
-      </dl>
-      <p className="detail-note">契约、验收与附件在阶段 B 接入。</p>
-    </aside>
   )
 }
