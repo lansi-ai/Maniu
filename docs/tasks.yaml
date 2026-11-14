@@ -2180,7 +2180,7 @@ tracks:
       date: '2026-11-15'
       dep: [T-191, T-190, T-189, T-187]
       inferred: false
-      note: "B 级方案，来源是用户 2026-11-15 选择先出 M4 方案。范围按 T-184 的 M4：parity 清单逐项验收脚本、宿主-only profile 变体、一次性切换步骤、旧产物保留与回滚演练、打包与更新签名、移除 apps/desktop 与上游 client 依赖、接触面撤销。不直接切默认、不删源码、不改装配。产出 lcoder/client-cutover-plan.md，含 parity 矩阵与验收命令、切换前后检查单、回退演练步骤、依赖移除顺序、打包与签名方案、风险与未验项；交接点写清哪些必须由人执行。约束：只改 lcoder 文档，不改源码与台账；不 push、不合并。工作树 pool-slot-1 到 lcoder/t194-m4-plan，端口 9822 与 9829 与 9830。"
+      note: "B 级方案，来源是用户 2026-11-15 选择先出 M4 方案。范围按 T-184 的 M4：parity 清单逐项验收脚本、宿主-only profile 变体、一次性切换步骤、旧产物保留与回滚演练、打包与更新签名、移除 apps/desktop 与上游 client 依赖、接触面撤销。不直接切默认、不删源码、不改装配。产出 lcoder/client-cutover-plan.md，含 parity 矩阵与验收命令、切换前后检查单、回退演练步骤、依赖移除顺序、打包与签名方案、风险与未验项；交接点写清哪些必须由人执行。约束：只改 lcoder 文档，不改源码与台账；不 push、不合并。工作树 pool-slot-1 到 lcoder/t194-m4-plan，端口 9822 与 9829 与 9830。2026-11-15 00:45 监督窗口派工，方案会话 f582c2ac。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
