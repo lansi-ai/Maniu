@@ -3117,6 +3117,7 @@ export function Shell({
    * 把一档立项咒语发到指定会话。
    *
    * 调用面在宿主侧；模型选择只在真正选过时、建会话之后发送之前落一次。
+   * 只有旧匿名访客路由的会话补切云端，设置默认的模型不会被路由盖住。
    * 返回就地错误原文；路由失败已经把原因写进 `chatError`，这里返回 null。
    */
   const dispatchIntakePrompt = async (
@@ -3125,7 +3126,8 @@ export function Shell({
     modelChoice: IntakeModelOption | null,
   ): Promise<string | null> => {
     if (sendPrompt === undefined) return t('shell.noSession')
-    if (!await routeSession(target)) return null
+    // 跟随设置默认的模型不能被云端路由盖住：只有已知的旧匿名访客路由才补切。
+    if (sessionCloudProvider(target) === CLOUD_LEGACY_GUEST_ROUTE && !await routeSession(target)) return null
     if (modelChoice !== null && modelSettings !== undefined) {
       const failure = await modelSettings.setDefault(target, modelChoice.provider, modelChoice.model)
       if (failure !== undefined) return failure

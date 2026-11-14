@@ -1609,9 +1609,15 @@ describe('立项会话落在 intake 面并跟随设置默认模型', () => {
   it('首次创建以 lcoder-intake 建会话并写入默认模型', async () => {
     const { face, setDefault } = fakeModelSettings({ ...OFFICIAL })
     const createSession = vi.fn(async () => SessionId('s-9'))
+    const cloud = signedInCloud()
+    const selectRoute = vi.fn(async () => ({
+      ok: true as const,
+      value: { provider: 'lcoder-cloud', model: 'deepseek-flash' },
+    }))
+    cloud.selectRoute = selectRoute
     // 打开仓库时宿主先建的空白会话是实施面；立项不能把七问发进它。
     renderShell({
-      spec: {}, cloud: signedInCloud(), modelSettings: face, createSession,
+      spec: {}, cloud, modelSettings: face, createSession,
       sessions: [{ ...sessionRow('s-1', REPO, false), blank: true }],
       preset: 'lcoder',
       sendPrompt: async () => {},
@@ -1624,6 +1630,7 @@ describe('立项会话落在 intake 面并跟随设置默认模型', () => {
     })
     expect(createSession).toHaveBeenCalledWith(REPO, 'lcoder-intake')
     expect(createSession).toHaveBeenCalledTimes(1)
+    expect(selectRoute).not.toHaveBeenCalled()
   })
 
   it('重新开始以 lcoder-intake 建会话并写入默认模型', async () => {
