@@ -19,6 +19,7 @@ English | [中文](README.zh.md)
 - `src/main.ts` / `src/window.ts`：单实例、frameless 主窗口（最小 520×600）、渲染产物加载、最大化/全屏状态推送。
 - `src/menu.ts` / `src/tray.ts` / `src/desktop-locale.ts`：本地化应用菜单（含缩放与全屏快捷键）、托盘打开/退出，语言由渲染端经 IPC 同步并写入 userData。
 - `src/update.ts`：更新检查占位；没有更新源时返回可解释的 `unavailable/no-feed`，界面不显示网络错误。
+- 关窗即退出（与旧壳一致），托盘只在运行期提供「回到窗口 / 退出」；关停有 12 秒硬上限，超时先杀宿主再强制退出，绝不静默驻留。
 
 <a id="table-of-contents"></a>
 ## Table of Contents

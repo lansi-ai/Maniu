@@ -170,9 +170,9 @@ async function attach(url) {
 }
 
 async function closeApp(page) {
+  // 只发关窗命令，不主动断开 CDP：渲染端忙时提前断链会把排队中的命令丢掉，
+  // 窗口不关、进程不退出，探针只能等到超时。
   page.socket.send(JSON.stringify({ id: 999_999, method: 'Runtime.evaluate', params: { expression: "window.lcoder.window('close')" } }))
-  await new Promise(resolvePromise => setTimeout(resolvePromise, 200))
-  page.socket.close()
 }
 
 async function waitExit(child, milliseconds) {
@@ -401,8 +401,10 @@ async function run() {
       `reduced-motion 下环境层动效关闭（animation=${String(motion.animation)}）`)
 
     await closeApp(page)
+    const firstExited = await waitExit(child, 25_000)
+    page.socket.close()
     page = undefined
-    assert(await waitExit(child, 25_000), '首次实例退出')
+    assert(firstExited, '首次实例退出')
     child = launch('2')
     page = await connectCdp()
     await waitReady(page)
@@ -438,11 +440,13 @@ async function run() {
     assert(true, '密码登录可用')
 
     await closeApp(page)
+    const secondExited = await waitExit(child, 25_000)
+    page.socket.close()
     page = undefined
-    assert(await waitExit(child, 25_000), '第二次实例退出')
+    assert(secondExited, '第二次实例退出')
     log(`PASS：${passed} 项断言全部通过`)
   } catch (error) {
-    if (page !== undefined) await closeApp(page)
+    if (page !== undefined) { await closeApp(page); page.socket.close() }
     if (child.exitCode === null) child.kill('SIGTERM')
     throw error
   }

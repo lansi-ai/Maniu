@@ -18,6 +18,9 @@ import { createMainWindow } from './window.ts'
 const home = process.env.DSH_HOME ?? join(REPO_ROOT, '.dsh-home')
 process.env.DSH_HOME = home
 
+/** 关停从关窗开始算起的总上限；到点强制退出，绝不允许关窗后静默驻留。 */
+const QUIT_GUARD_MS = 12_000
+
 let mainWindow: BrowserWindow | undefined
 let supervisor: HostSupervisor | undefined
 let link: HostLink | undefined
@@ -156,6 +159,16 @@ if (!app.requestSingleInstanceLock()) {
   app.on('before-quit', (event) => {
     if (shutdownStarted) return
     event.preventDefault()
-    void shutdown().finally(() => { app.quit() })
+    console.log('lcoder desktop: 开始关停')
+    const guard = setTimeout(() => {
+      console.error(`lcoder desktop: 关停超过 ${String(QUIT_GUARD_MS)} 毫秒，强制退出`)
+      supervisor?.terminate()
+      app.exit(0)
+    }, QUIT_GUARD_MS)
+    void shutdown().finally(() => {
+      clearTimeout(guard)
+      console.log('lcoder desktop: 关停完成')
+      app.quit()
+    })
   })
 }

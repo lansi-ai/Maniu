@@ -184,10 +184,9 @@ async function attach(url) {
 }
 
 async function closeApp(page) {
-  // 关窗会销毁渲染上下文，回包可能永远不来；只发不等。
+  // 只发关窗命令，不主动断开 CDP：渲染端忙时提前断链会把排队中的命令丢掉，
+  // 窗口不关、宿主被 SIGTERM 截断，重启后就读不到刚落盘的历史。
   page.fire("window.lcoder.window('close')")
-  await new Promise(resolve => setTimeout(resolve, 200))
-  page.socket.close()
 }
 
 async function waitExit(child, milliseconds) {
@@ -225,9 +224,11 @@ async function firstRun() {
     assert(assistant.includes('仓库结构'), `assistant 文本不符合 mock 预期：${String(assistant).slice(0, 120)}`)
     log(`assistant 文本已出现：${JSON.stringify(String(assistant).slice(0, 40))}…`)
     await closeApp(page)
-    page = undefined
     const exited = await waitExit(launched.child, 20_000)
-    log(exited ? '首次实例已退出' : '首次实例未在 20 秒内退出，已发 SIGTERM')
+    page.socket.close()
+    page = undefined
+    assert(exited, '首次实例关窗后退出')
+    log('首次实例已退出')
     return sessionId
   } catch (error) {
     if (page !== undefined) await closeApp(page)
@@ -250,10 +251,12 @@ async function restartRun(sessionId) {
     assert(assistant.includes('仓库结构'), '重启后没有从 follow snapshot 读到历史 assistant 文本')
     log('重启后同一会话已重读历史')
     await closeApp(page)
+    const exited = await waitExit(launched.child, 20_000)
+    page.socket.close()
     page = undefined
-    await waitExit(launched.child, 20_000)
+    assert(exited, '重启实例关窗后退出')
   } catch (error) {
-    if (page !== undefined) await closeApp(page)
+    if (page !== undefined) { await closeApp(page); page.socket.close() }
     if (launched.child.exitCode === null) launched.child.kill('SIGTERM')
     throw error
   }
