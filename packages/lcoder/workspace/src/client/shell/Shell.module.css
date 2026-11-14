@@ -212,24 +212,24 @@
 /* 磨砂面：只给常驻 chrome、登录卡与浮层。基础规则是实色 + 描边，
    不支持 backdrop-filter 的环境直接落到这里，文字仍然可读。
    登录页顶栏不参与：它要和主面板共用同一张网格底，不能有分层的底色与描边。 */
-.shell :is(.topbar, .sidebar, .loginCard, .modal, .drawer, .chatWindow) {
+.shell :is(.topbar, .sidebar, .loginCard, .modal, .chatWindow) {
   background: var(--lc-glass-solid);
   border-color: var(--lc-glass-border);
 }
 @supports ((backdrop-filter: blur(2px)) or (-webkit-backdrop-filter: blur(2px))) {
-  .shell :is(.topbar, .sidebar, .loginCard, .modal, .drawer, .chatWindow) {
+  .shell :is(.topbar, .sidebar, .loginCard, .modal, .chatWindow) {
     background: var(--lc-glass-bg);
     -webkit-backdrop-filter: blur(var(--lc-glass-blur)) saturate(var(--lc-glass-saturate));
     backdrop-filter: blur(var(--lc-glass-blur)) saturate(var(--lc-glass-saturate));
   }
 }
 /* 同一屏最多三层磨砂：浮层打开时把左轨降回半透明实色；模态再压掉下层浮层。 */
-.shell:has(:is(.modalBackdrop, .drawerBackdrop, .floating)) .sidebar {
+.shell:has(:is(.modalBackdrop, .floating)) .sidebar {
   background: var(--lc-surface-2);
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
 }
-.shell:has(.modalBackdrop) :is(.chatWindow, .drawer) {
+.shell:has(.modalBackdrop) .chatWindow {
   background: var(--lc-surface);
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
@@ -681,7 +681,7 @@
 }
 
 /* 窗口栏是常驻 chrome：遮罩与浮层从它下方开始，按钮始终可点。 */
-.shell[data-chrome="custom"] :is(.modalBackdrop, .drawerBackdrop, .floating) {
+.shell[data-chrome="custom"] :is(.modalBackdrop, .floating) {
   top: var(--lc-chrome-height);
 }
 .windowControls {
@@ -1300,33 +1300,32 @@
 .skinOrbFrost { background: conic-gradient(from 210deg, #7dd3fc, #2dd4bf, #7dd3fc); box-shadow: 0 0 10px rgba(45, 212, 191, 0.35); }
 .skinOrbRose { background: conic-gradient(from 210deg, #d21c72, #a21caf, #d21c72); box-shadow: 0 0 10px rgba(210, 28, 114, 0.35); }
 
-.drawerBackdrop {
-  position: absolute; inset: 0; z-index: 45;
-  background: var(--lc-backdrop); display: flex; justify-content: flex-end;
+/* ── 项目页：切换项目、项目信息与设置 ────────────────────────
+   三页都占满主区域，与看板同级；没有遮罩，也不需要关闭按钮。 */
+.panelPage {
+  flex: 1; min-height: 0; overflow: auto;
+  padding: var(--lc-space-6) var(--lc-space-7) 40px;
+  display: grid; gap: var(--lc-space-5); align-content: start;
 }
-.drawer {
-  width: min(500px, 100%); height: 100%;
-  background: var(--lc-surface); border-left: 1px solid var(--lc-line);
-  box-shadow: var(--lc-shadow-pop);
-  display: flex; flex-direction: column;
+.panelHead { display: flex; align-items: flex-start; gap: var(--lc-space-3); }
+.panelHead h2 {
+  margin: 0; font: 600 var(--lc-text-xl) / var(--lc-leading-tight) var(--lc-font-display);
+  letter-spacing: var(--lc-tracking-tight);
 }
-.drawerHead { display: flex; align-items: flex-start; gap: var(--lc-space-3); padding: 20px; border-bottom: 1px solid var(--lc-line); }
-.drawerHead h3 { margin: 0 0 4px; font: 600 18px / var(--lc-leading-tight) var(--lc-font-display); letter-spacing: var(--lc-tracking-tight); }
-.drawerHead p { margin: 0; font-size: var(--lc-text-sm); color: var(--lc-muted); }
-.drawerBody { flex: 1; overflow: auto; padding: 20px; display: grid; gap: var(--lc-space-5); align-content: start; }
-.drawerSection { border-top: 1px solid var(--lc-line); padding-top: var(--lc-space-3); }
-.drawerSection:first-child { border-top: 0; padding-top: 0; }
-.drawerSectionSummary { display: flex; align-items: center; gap: var(--lc-space-2); cursor: pointer; list-style: none; }
-.drawerSectionSummary::-webkit-details-marker { display: none; }
-.drawerSectionSummary::before { content: '▸'; flex: 0 0 auto; font-size: 10px; color: var(--lc-faint); transition: transform .16s ease; }
-.drawerSection[open] > .drawerSectionSummary::before { transform: rotate(90deg); }
-.drawerSectionTitle { font-size: var(--lc-text-xs); letter-spacing: .08em; text-transform: uppercase; color: var(--lc-faint); }
-.drawerSectionCurrent {
-  margin-left: auto; min-width: 0; font-size: var(--lc-text-sm); font-weight: 600; color: var(--lc-ink);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+.panelHeadHint { margin: 4px 0 0; font-size: var(--lc-text-sm); color: var(--lc-muted); }
+.panelBody { display: grid; gap: var(--lc-space-4); max-width: 920px; }
+.panelSections { display: grid; gap: var(--lc-space-4); }
+.panelSection {
+  background: var(--lc-surface); border: 1px solid var(--lc-line);
+  border-radius: var(--lc-radius-lg); padding: var(--lc-space-4) var(--lc-space-5);
 }
-.drawerSection > summary + * { margin-top: var(--lc-space-3); }
-.drawerHint { margin: 0 0 var(--lc-space-3); font-size: var(--lc-text-sm); color: var(--lc-muted); }
+.panelSectionSummary { display: flex; align-items: center; gap: var(--lc-space-2); cursor: pointer; list-style: none; }
+.panelSectionSummary::-webkit-details-marker { display: none; }
+.panelSectionSummary::before { content: '▸'; flex: 0 0 auto; font-size: 10px; color: var(--lc-faint); transition: transform .16s ease; }
+.panelSection[open] > .panelSectionSummary::before { transform: rotate(90deg); }
+.panelSectionTitle { font-size: var(--lc-text-xs); letter-spacing: .08em; text-transform: uppercase; color: var(--lc-faint); }
+.panelSection > summary + * { margin-top: var(--lc-space-3); }
+@media (max-width: 980px) { .panelPage { padding: var(--lc-space-5) var(--lc-space-4) 32px; } }
 .infoGrid { display: grid; gap: var(--lc-space-2); }
 .infoRow { display: flex; align-items: center; justify-content: space-between; gap: var(--lc-space-3); font-size: var(--lc-text-sm); }
 .infoRow span { color: var(--lc-muted); flex: 0 0 auto; }
@@ -1361,8 +1360,7 @@
   .chatWindow { width: calc(100% - 24px); height: calc(100% - 24px); }
 }
 
-/* 设置弹窗里的模型服务区：分组行表 + 行内编辑卡。 */
-.settingsModal { width: min(920px, 100%); }
+/* 设置页的模型服务区：分组行表 + 行内编辑卡。 */
 .modelSection { display: grid; gap: var(--lc-space-3); padding: 16px; border: 1px solid var(--lc-line); border-radius: var(--lc-radius-lg); background: var(--lc-surface-2); }
 .modelSectionHead { display: flex; align-items: flex-start; gap: var(--lc-space-3); }
 .modelSectionHead h4 { margin: 0 0 3px; font: 600 16px / var(--lc-leading-tight) var(--lc-font-display); letter-spacing: var(--lc-tracking-tight); }
@@ -1954,8 +1952,8 @@
 .wizardNotice p { margin: 0; flex: 1 1 220px; font-size: var(--lc-text-sm); }
 
 /* ── 左侧菜单与需求页 ───────────────────────────────────────
-   一棵壳：顶栏仍在最上，左侧菜单只切主区域视图（需求 / 任务），底部设置常驻。
-   菜单不承载业务动作，配色全部走皮肤 token。 */
+   一棵壳：顶栏仍在最上，左侧菜单只切主区域视图（需求 / 任务 / 切换项目 / 项目信息 / 设置），
+   底部组常驻。菜单不承载业务动作，配色全部走皮肤 token。 */
 .workArea { display: flex; flex: 1; min-width: 0; min-height: 0; }
 .navRail {
   width: 176px; flex: 0 0 176px;
@@ -1978,10 +1976,10 @@
 @media (max-width: 760px) {
   .workArea { flex-direction: column; }
   .navRail {
-    width: 100%; flex: 0 0 auto; flex-direction: row; align-items: center;
+    width: 100%; flex: 0 0 auto; flex-direction: row; flex-wrap: wrap; align-items: center;
     border-right: 0; border-bottom: 1px solid var(--lc-line); padding: var(--lc-space-2);
   }
-  .navGroup, .navFoot { flex-direction: row; }
+  .navGroup, .navFoot { flex-direction: row; flex-wrap: wrap; }
   .navFoot { margin-top: 0; margin-left: auto; }
   .navItem { width: auto; padding: 8px 10px; }
 }

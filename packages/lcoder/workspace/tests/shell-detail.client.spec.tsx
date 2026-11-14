@@ -1585,7 +1585,7 @@ describe('新建会话跟随设置默认模型', () => {
   }
 })
 
-describe('顶栏项目控件与项目信息抽屉', () => {
+describe('顶栏项目控件与项目页', () => {
   const OTHER = 'E:/Projects/other'
 
   function workspaceItem(id: string, title: string, path: string, sessionIds: readonly SessionId[]) {
@@ -1599,9 +1599,9 @@ describe('顶栏项目控件与项目信息抽屉', () => {
     }
   }
 
-  it('顶栏只剩一个项目控件，点开后可在抽屉里切换工作区并关闭', async () => {
-    const { container } = renderShell({
-      spec: {},
+  /** 两份工作区：一台会话在 demo，两台在 other。 */
+  function twoWorkspaces() {
+    return {
       sessions: [
         sessionRow('s-1', REPO, false),
         sessionRow('s-2', OTHER, false),
@@ -1611,21 +1611,54 @@ describe('顶栏项目控件与项目信息抽屉', () => {
         workspaceItem('w-1', 'demo', REPO, [SessionId('s-1')]),
         workspaceItem('w-2', 'other', OTHER, [SessionId('s-2'), SessionId('s-3')]),
       ],
-    })
+    }
+  }
 
-    const trigger = await screen.findByRole('button', { name: 'demo' })
-    const header = container.querySelector('header')
-    expect(header).not.toBeNull()
-    const topbar = within(header as HTMLElement)
-    expect(topbar.queryByTitle(zh['shell.switchProject'])).toBeNull()
-    expect(topbar.queryByText(`ⓘ ${zh['shell.projectInfo']}`)).toBeNull()
-    expect(trigger.textContent).not.toContain(REPO)
+  it('左侧菜单按需求、任务、切换项目、项目信息、设置排列', async () => {
+    const { container } = renderShell({ spec: {} })
+    await screen.findByText(zh['shell.board'])
 
-    fireEvent.click(trigger)
+    const nav = container.querySelector('[data-lcoder-nav]') as HTMLElement
+    const items = [...nav.querySelectorAll('[data-nav]')].map(node => node.getAttribute('data-nav'))
+    expect(items).toEqual(['requirements', 'tasks', 'projects', 'project-info', 'settings'])
+  })
+
+  it('顶栏项目名进入项目信息页，三节默认折叠且没有抽屉或遮罩', async () => {
+    const scenario = twoWorkspaces()
+    const { container } = renderShell({ spec: {}, ...scenario })
+
+    fireEvent.click(await screen.findByRole('button', { name: 'demo' }))
     const heading = await screen.findByRole('heading', { name: zh['shell.projectInfo'] })
-    const drawer = heading.closest('aside')
-    expect(drawer).not.toBeNull()
-    const body = within(drawer as HTMLElement)
+    const page = heading.closest('[data-lcoder-page="project-info"]')
+    expect(page).not.toBeNull()
+    expect(document.querySelector('[class*="modalBackdrop"]')).toBeNull()
+    expect(document.querySelector('[class*="drawerBackdrop"]')).toBeNull()
+
+    const sections = [...(page as HTMLElement).querySelectorAll<HTMLDetailsElement>('details')]
+    expect(sections).toHaveLength(3)
+    expect(sections.every(section => !section.open)).toBe(true)
+
+    fireEvent.click(sections[0]?.querySelector('summary') as HTMLElement)
+    expect(sections[0]?.open).toBe(true)
+    expect(within(page as HTMLElement).getByText(zh['shell.branch'])).toBeTruthy()
+
+    const header = container.querySelector('header') as HTMLElement
+    expect(within(header).getByRole('button', { name: 'demo' })).toBeTruthy()
+  })
+
+  it('切换项目页全屏列出工作区，点击后回到任务页并换上另一项目', async () => {
+    const scenario = twoWorkspaces()
+    const { container } = renderShell({ spec: {}, ...scenario })
+    const header = container.querySelector('header') as HTMLElement
+
+    fireEvent.click(await screen.findByRole('button', { name: 'demo' }))
+    await screen.findByRole('heading', { name: zh['shell.projectInfo'] })
+    fireEvent.click(container.querySelector('[data-nav="projects"]') as HTMLElement)
+
+    const page = document.querySelector('[data-lcoder-page="projects"]') as HTMLElement
+    expect(page).not.toBeNull()
+    expect(document.querySelector('[class*="modalBackdrop"]')).toBeNull()
+    const body = within(page)
     expect(body.getByText(zh['shell.projectPickerHint'])).toBeTruthy()
     expect(body.getByPlaceholderText(zh['shell.repoPathHint'])).toBeTruthy()
     expect(body.getByRole('button', { name: zh['shell.openRepo'] })).toBeTruthy()
@@ -1634,52 +1667,57 @@ describe('顶栏项目控件与项目信息抽屉', () => {
     expect(body.getByText(`2 ${zh['shell.sessions']}`)).toBeTruthy()
 
     fireEvent.click(body.getByText('other'))
-    await waitFor(() => {
-      expect(screen.queryByRole('heading', { name: zh['shell.projectInfo'] })).toBeNull()
-    })
-    expect(within(header as HTMLElement).getByRole('button', { name: 'other' })).toBeTruthy()
+    expect(await screen.findByText(zh['shell.board'])).toBeTruthy()
+    expect(document.querySelector('[data-lcoder-page="projects"]')).toBeNull()
+    expect(within(header).getByRole('button', { name: 'other' })).toBeTruthy()
   })
 
-  it('抽屉四个小节默认折叠，切换项目只露小节标题与当前项目名', async () => {
-    const { container } = renderShell({
-      spec: {},
-      sessions: [
-        sessionRow('s-1', REPO, false),
-        sessionRow('s-2', OTHER, false),
-      ],
-      workspaces: [
-        workspaceItem('w-1', 'demo', REPO, [SessionId('s-1')]),
-        workspaceItem('w-2', 'other', OTHER, [SessionId('s-2')]),
-      ],
-    })
-
-    fireEvent.click(await screen.findByRole('button', { name: 'demo' }))
-    const heading = await screen.findByRole('heading', { name: zh['shell.projectInfo'] })
-    const drawer = heading.closest('aside') as HTMLElement
-    const sections = [...drawer.querySelectorAll<HTMLDetailsElement>('details')]
-    expect(sections).toHaveLength(4)
-    expect(sections.every(section => !section.open)).toBe(true)
-
-    const switchSummary = screen.getByText(zh['shell.switchProject']).closest('summary') as HTMLElement
-    expect(switchSummary.textContent).toContain('demo')
-    fireEvent.click(switchSummary)
-    expect(sections[0]?.open).toBe(true)
-    expect(container.ownerDocument.body.textContent).toContain('other')
-  })
-
-  it('没有工作区时顶栏显示选择项目，抽屉给出空态与打开仓库', async () => {
+  it('没有工作区时切换项目页给出空态与打开仓库', async () => {
     renderShell({ spec: {}, sessions: [], workspaces: [] })
-    fireEvent.click(await screen.findByRole('button', { name: zh['shell.chooseProject'] }))
 
-    const heading = await screen.findByRole('heading', { name: zh['shell.projectInfo'] })
-    const drawer = heading.closest('aside')
-    expect(drawer).not.toBeNull()
-    const body = within(drawer as HTMLElement)
+    fireEvent.click(await screen.findByRole('button', { name: zh['shell.chooseProject'] }))
+    expect(await screen.findByRole('heading', { name: zh['shell.projectInfo'] })).toBeTruthy()
+
+    fireEvent.click(document.querySelector('[data-nav="projects"]') as HTMLElement)
+    const body = within(document.querySelector('[data-lcoder-page="projects"]') as HTMLElement)
     expect(body.getByText(zh['shell.noWorkspace'])).toBeTruthy()
     expect(body.getByPlaceholderText(zh['shell.repoPathHint'])).toBeTruthy()
     expect(body.getByRole('button', { name: zh['shell.openRepo'] })).toBeTruthy()
   })
+
+  it('设置页整页显示，Done 回到任务页并卸下遮罩', async () => {
+    const { container } = renderShell({ spec: {} })
+    await screen.findByText(zh['shell.board'])
+
+    fireEvent.click(container.querySelector('[data-nav="settings"]') as HTMLElement)
+    const page = document.querySelector('[data-lcoder-page="settings"]') as HTMLElement
+    expect(page).not.toBeNull()
+    expect(within(page).getByRole('heading', { name: zh['shell.settings'] })).toBeTruthy()
+    expect(document.querySelector('[class*="modalBackdrop"]')).toBeNull()
+    expect(within(page).getByText(zh['shell.specRoot'])).toBeTruthy()
+    expect(within(page).getByText(zh['shell.skinHint'])).toBeTruthy()
+
+    fireEvent.click(within(page).getByRole('button', { name: zh['shell.done'] }))
+    expect(await screen.findByText(zh['shell.board'])).toBeTruthy()
+    expect(document.querySelector('[data-lcoder-page="settings"]')).toBeNull()
+  })
+
+  it('窄窗下三张整页仍渲染', async () => {
+    const original = window.innerWidth
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 480 })
+    try {
+      const { container } = renderShell({ spec: {} })
+      await screen.findByText(zh['shell.board'])
+      for (const view of ['projects', 'project-info', 'settings'] as const) {
+        fireEvent.click(container.querySelector(`[data-nav="${view}"]`) as HTMLElement)
+        expect(document.querySelector(`[data-lcoder-page="${view}"]`)).not.toBeNull()
+      }
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: original })
+    }
+  })
 })
+
 
 describe('方案讨论列与确认门禁', () => {
   const DISCUSS_TASK = 'id: T-02\ntitle: 记一笔\nstate: drafting\ngrade: B\nproposal: P-01\ntrack: h5\nrole: vue-engineer\n'
