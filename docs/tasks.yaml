@@ -1938,10 +1938,10 @@ tracks:
       date: '2026-11-13'
       dep: [T-172]
       inferred: false
-      note: "B 级展示修正，来源是 T-172 真机复核。约定标签与折叠已对，但要点仍展示 src/shared/identity.ts、按 README 执行 install 到 dev 这类技术条目。修法：要点过滤扩展技术特征，文件路径与扩展名、README、install/dev/build/start、SQL/UNIQUE/schema、框架名、API 路径、规则编号一律不进要点；每条截到约六十字符；若整组没有人类条目，不给硬凑的要点，只显示一句「这条任务偏技术骨架，完整约定见下方」，完整四段数组仍在折叠区可查。只动 task-detail-view、词典与测试。工作树 pool-slot-1 到 lcoder/t173-agreement-filter，端口 9822 与 9829 与 9830。2026-11-13 23:05 监督窗口派工，实现线会话 46210c4d。"
+      note: "B 级展示修正，来源是 T-172 真机复核。约定标签与折叠已对，但要点仍展示 src/shared/identity.ts、按 README 执行 install 到 dev 这类技术条目。修法：要点过滤扩展技术特征，文件路径与扩展名、README、install/dev/build/start、SQL/UNIQUE/schema、框架名、API 路径、规则编号一律不进要点；每条截到约六十字符；若整组没有人类条目，不给硬凑的要点，只显示一句「这条任务偏技术骨架，完整约定见下方」，完整四段数组仍在折叠区可查。只动 task-detail-view、词典与测试。工作树 pool-slot-1 到 lcoder/t173-agreement-filter，端口 9822 与 9829 与 9830。2026-11-13 23:05 监督窗口派工，实现线会话 46210c4d。2026-11-14 09:50 监督窗口核验并收口。实现线一笔提交，菜单改为需求、任务、切换项目、项目信息、设置，三页整页化并删除抽屉与设置模态；独立与主检门禁全过（九十二文件）。真机核菜单顺序、三页全屏与无遮罩。已合入 lcoder/main、release pool-slot-1。"
     - id: T-174
       title: 切换项目与项目信息改为全屏菜单
-      status: doing
+      status: done
       face: 用户端
       type: 开发
       owner: lance
