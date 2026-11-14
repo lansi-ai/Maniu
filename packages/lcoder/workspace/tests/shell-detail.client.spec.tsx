@@ -1598,6 +1598,74 @@ describe('新建会话跟随设置默认模型', () => {
   }
 })
 
+describe('立项会话落在 intake 面并跟随设置默认模型', () => {
+  const OFFICIAL = { provider: 'deepseek-official', model: 'deepseek-chat' } as const
+  /** 一轮访谈后的立项会话：首条咒语已落，最后一条答复是需求概要。 */
+  const INTAKE_MESSAGES: readonly ShellMessage[] = [
+    { role: 'user', text: '全新项目立项：demo（E:/Projects/demo，main）', hidden: true },
+    { role: 'assistant', text: '## 项目需求概要\n\n- 业务目标：本地优先待办' },
+  ]
+
+  it('首次创建以 lcoder-intake 建会话并写入默认模型', async () => {
+    const { face, setDefault } = fakeModelSettings({ ...OFFICIAL })
+    const createSession = vi.fn(async () => SessionId('s-9'))
+    const cloud = signedInCloud()
+    const selectRoute = vi.fn(async () => ({
+      ok: true as const,
+      value: { provider: 'lcoder-cloud', model: 'deepseek-flash' },
+    }))
+    cloud.selectRoute = selectRoute
+    // 打开仓库时宿主先建的空白会话是实施面；立项不能把七问发进它。
+    renderShell({
+      spec: {}, cloud, modelSettings: face, createSession,
+      sessions: [{ ...sessionRow('s-1', REPO, false), blank: true }],
+      preset: 'lcoder',
+      sendPrompt: async () => {},
+    })
+    fireEvent.click(await screen.findByRole('button', { name: zh['shell.onboardingNewProject'] }))
+    fireEvent.click(await screen.findByRole('button', { name: zh['shell.wizardConfirm'] }))
+
+    await waitFor(() => {
+      expect(setDefault).toHaveBeenCalledWith(SessionId('s-9'), OFFICIAL.provider, OFFICIAL.model)
+    })
+    expect(createSession).toHaveBeenCalledWith(REPO, 'lcoder-intake')
+    expect(createSession).toHaveBeenCalledTimes(1)
+    expect(selectRoute).not.toHaveBeenCalled()
+  })
+
+  it('重新开始以 lcoder-intake 建会话并写入默认模型', async () => {
+    const { face, setDefault } = fakeModelSettings({ ...OFFICIAL })
+    const createSession = vi.fn(async () => SessionId('s-9'))
+    renderShell({
+      spec: {}, cloud: signedInCloud(), modelSettings: face, createSession,
+      readMessages: () => INTAKE_MESSAGES,
+      subscribeSession: () => () => {},
+      sendPrompt: async () => {},
+    })
+    fireEvent.click(await screen.findByRole('button', { name: zh['shell.onboardingNewProject'] }))
+    const wizard = await waitFor(() => {
+      const node = document.querySelector<HTMLElement>('[data-lcoder-intake-wizard]')
+      expect(node).not.toBeNull()
+      return node as HTMLElement
+    })
+    await waitFor(() => { expect(wizard.getAttribute('data-phase')).toBe('result') }, { timeout: 5000 })
+    fireEvent.click(within(wizard).getByRole('button', { name: zh['shell.wizardMoreRounds'] }))
+    fireEvent.click(screen.getByRole('menuitem', { name: zh['shell.restartIntake'] }))
+    const dialog = await waitFor(() => {
+      const node = document.querySelector('[data-lcoder-intake-restart]')
+      expect(node).not.toBeNull()
+      return node as HTMLElement
+    })
+    fireEvent.click(within(dialog).getByRole('button', { name: zh['shell.restartConfirm'] }))
+
+    await waitFor(() => {
+      expect(setDefault).toHaveBeenCalledWith(SessionId('s-9'), OFFICIAL.provider, OFFICIAL.model)
+    })
+    expect(createSession).toHaveBeenCalledWith(REPO, 'lcoder-intake')
+    expect(createSession).toHaveBeenCalledTimes(1)
+  })
+})
+
 describe('顶栏项目控件与项目页', () => {
   const OTHER = 'E:/Projects/other'
 

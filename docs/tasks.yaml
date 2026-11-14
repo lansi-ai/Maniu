@@ -2007,7 +2007,7 @@ tracks:
       note: "B 级减重调研，来源是用户 2026-11-14 判断上游太重，要求从安装包与磁盘体积、构建与启动速度、代码维护与升级风险、功能心智负担四个维度减重，路线选 profile 裁剪先行。现状实测：桌面壳挂载 96 个上游插件，只有 3 处 disabled；随安装包 core set 333 个包、68.17 MiB；我们直接 import 31 个上游包，其中 workspace 有 16.0k 行与上游耦合、kernel 2.7k 行。目标：不改上游源码，用自有 profile 切片，给出可采纳的禁用清单与四维前后对照。步骤：一、导出当前实例实际激活插件清单，标注是否被 LCoder 路径触达，覆盖会话、任务、需求、项目、设置、交付物；二、新建独立切片 profile，分三波禁用，第一波遥测、插件管理、office-to-pdf、workflow、schedule、goal、plan、jobs，第二波浏览器、终端、文件、交付物侧栏，第三波客户端 UI 未用项；每波后能启动并跑 CDP DOM 断言，外壳三页可切换、任务详情可开、会话可发一条消息；三、四维测量并与全量 profile 对照，启动 ready 时间取日志时间戳三次中位数，客户端插件 JS 字节数取 combo URL 响应大小，激活插件数与可见菜单项数量对比，安装包体积单独记录本路线无法改变并给出结论；四、输出 lcoder/profile-slice.md 结论表，列出可采纳、会断链路、需改代码才能裁三类，并给出下一阶段建议。红线：不改上游源码与 packages 内上游包，不改 .spec，不动主检出默认 profile 与 T-176 的 slot-1，不删包，不 push，不合并，不改台账。时序：测量阶段要求机器独占，等 T-176 收口后再测基线，先做清点与切片。工作树 pool-slot-2 到 lcoder/t177-profile-slice，端口 9823 与 9831 与 9832。2026-11-14 10:38 监督窗口派工，实现线会话 6a29c34f。2026-11-14 11:45 监督窗口核验并收口。三波切片共关 51 行（26/9/16，另 1 行只把默认角色改为 lcoder），浏览器 roster 73→42；带 token 组合 URL 实测未压缩 10,866,318→7,758,357 字节（−28.6%）、gzip 传输 2,368,669→1,620,622 字节（−31.6%）。启动就绪全量三次中位数 5 秒，三波 5/4/5 秒，秒级分辨率下无可见收益；安装包 core set、磁盘与构建速度不变，profile 已到边界。断点与回滚：第三波首版关 ui-input-trigger 与 ui-commands 导致外壳停在 Loading plugins，回滚并把两行移出，修正版七条断言全过；两行归入需整链验证候选。第三波同时关掉上游四个 preset，默认角色改为 lcoder，名册只剩 LCoder 十个。主检复跑 typecheck 五项、packages/lcoder vitest 九十三文件一千一百一十九例、verify-client-ui-i18n 一千三百一十八文件、test:docs 二十一项、build:check 两项全过，oxlint 对 .mjs 不适用。未验项：毫秒级启动、真实模型与真实云端、逐波宿主激活数、打包体积、上游聊天整链与 shell false 回退。已合入 lcoder/main、release pool-slot-2。"
     - id: T-178
       title: 三波切片接入发布 profile
-      status: doing
+      status: done
       face: 工程
       type: 开发
       owner: lance
@@ -2015,7 +2015,7 @@ tracks:
       date: '2026-11-14'
       dep: [T-177]
       inferred: false
-      note: "B 级配置收尾，来源是用户 2026-11-14 决定三波全接。范围：把 profile-slice.mjs 的 apply 接进 rebuild.cmd profile 的 profile 保障步骤，三波默认全接，源仍是 lcoder/desktop-profile.slice.yml，不把 51 行禁用复制进 desktop-profile.patch.yml，避免双源漂移；apply 的合成校验要区分命中与未命中，未命中任一 id 即失败中止并报出 id，不能静默跳过。验收：claim 或 rebuild 后 dump-config 为 130 启用、roster 42、默认角色 lcoder；起一次桌面实例跑七条 DOM 断言；typecheck、packages/lcoder vitest、verify-client-ui-i18n、test:docs、改动文件 oxlint 全绿。工作树 pool-slot-1 到 lcoder/t178-slice-adopt，端口 9822 与 9829 与 9830。2026-11-14 11:50 监督窗口派工，实现线会话 7091330d。"
+      note: "B 级配置收尾，来源是用户 2026-11-14 决定三波全接。范围：把 profile-slice.mjs 的 apply 接进 rebuild.cmd profile 的 profile 保障步骤，三波默认全接，源仍是 lcoder/desktop-profile.slice.yml，不把 51 行禁用复制进 desktop-profile.patch.yml，避免双源漂移；apply 的合成校验要区分命中与未命中，未命中任一 id 即失败中止并报出 id，不能静默跳过。验收：claim 或 rebuild 后 dump-config 为 130 启用、roster 42、默认角色 lcoder；起一次桌面实例跑七条 DOM 断言；typecheck、packages/lcoder vitest、verify-client-ui-i18n、test:docs、改动文件 oxlint 全绿。工作树 pool-slot-1 到 lcoder/t178-slice-adopt，端口 9822 与 9829 与 9830。2026-11-14 11:50 监督窗口派工，实现线会话 7091330d。2026-11-14 12:45 监督窗口核验并收口。实现线改五文件，profile-slice.mjs 增 --all 与 check，apply 幂等，rebuild.ps1 在 profile 保障里先 apply --all 再 check --all 并把失败上抛；51 行禁用仍在切片源，未复制进装配源。合成清单 208 条、启用 130、禁用 78，运行时浏览器 roster 42，默认角色 lcoder，七条 DOM 断言 7/7。监督窗口独立注入一个不存在的 id 复验硬闸，check 退出 1 并打印该 id，随后还原且 check 复绿。主检复跑 typecheck 五项、packages/lcoder vitest 九十三文件一千一百一十九例、i18n 一千三百一十八文件、test:docs 二十一项、build:check 两项全过。注意运行副本的切片在下次 rebuild 或 claim 时生效，当前主检出已有实例不自动重载。已合入 lcoder/main、release pool-slot-1。"
     - id: T-179
       title: core set 裁剪调研
       status: done
@@ -2027,20 +2027,9 @@ tracks:
       dep: [T-177]
       inferred: false
       note: "B 级调研，来源是用户 2026-11-14 选择。目标维度是安装包与磁盘体积，T-177 已证明 profile 层到边界。方法：用 lcoder/scripts/audit-package-closure.mjs 与 lcoder/closure-audit.md 的 333 包 core set 口径，按功能分组统计包数、受控文件数与字节；给出可裁候选（遥测、插件市场、office、浏览器与终端运行时、python 与 native 等）与每项风险、依赖者、打包影响；给出试点方案，先用一次真实打包称重建立基线再动手，不删源码、不删包、不改发布脚本。产出 lcoder/core-set-slice.md，含 333 包构成表、候选分级与下一步任务建议。工作树 pool-slot-2 到 lcoder/t179-core-set，端口 9823 与 9831 与 9832。2026-11-14 11:50 监督窗口派工，实现线会话 89b63b45。2026-11-14 12:20 监督窗口核验并收口。用审计脚本 --json 与三个导出函数复算，333 包 / 9,962 文件 / 68.17 MiB 与既有口径一致；桌面启用装配可达 276 包 54.24 MiB，只由 apps/cli 声明的 56 包 12.83 MiB，dsh 自身 1.10 MiB。安装包实际由载荷决定，Electron 368 MiB、LibreOffice 184 MiB、Python 157 MiB、Node 90 MiB、pnpm 22 MiB。分级 A 11 包 1.28 MiB、B 45 包 11.55 MiB 加 Office 与 Python 两块 341 MiB 载荷、C 277 包；A 级虽安全但只省 1.28 MiB，还要改 apps/cli 依赖并登记接触面。结论是排 JS 包对安装包收效很小，真正的杠杆是 Office 与 Python 载荷；下一任务先做打包称重基线。未验项已列在文档。已合入 lcoder/main、release pool-slot-2。"
-    - id: T-180
-      title: 上游聊天整链裁剪原型
-      status: todo
-      face: 工程
-      type: 调研
-      owner: lance
-      created: '2026-11-14'
-      date: '2026-11-14'
-      dep: [T-178]
-      inferred: false
-      note: "B 级调研加原型，来源是用户 2026-11-14 选择。T-177 实测上游聊天面整链是客户端最大剩余块，约 1.6 MB 未压缩。目标：测出整链裁剪的真实收益与断点，不直接改默认。范围：在 T-178 落地后，把 ui-chat、ui-conversation、ui-tool、ui-input-trigger、ui-commands、ui-permission-presets 等整链在实验 profile 中一起关掉，验证 LCoder 外壳与会话能否工作、shell false 回退面断在哪；给出收益数字与产品取舍。红线：不改上游源码，不动默认 profile，不合并实验分支。"
     - id: T-181
       title: 全新空仓全流程真机验证
-      status: doing
+      status: done
       face: 工程
       type: 调研
       owner: lance
@@ -2048,7 +2037,7 @@ tracks:
       date: '2026-11-14'
       dep: []
       inferred: false
-      note: "B 级真机验证，来源是监督窗口 2026-11-13 的下一优先项与用户 2026-11-14 选择。用全新空目录靶仓走一次全流程，全新项目、七问、确认需求、拆分、基础框架任务、方案讨论、确认方案、待开发。约束：靶仓只放需求文档，无 .git，不复用 LCoder-First-Demo；不改产品代码。产出会话日志证据与逐步结论，失败项单列。用户 2026-11-14 授权新建靶仓 E:\\Projects\\LCoder-Empty-Demo-20261114，已建为空目录、无 .git；七问由验证线以固定示例需求作答并在结论里标注是验证方代答。"
+      note: "B 级真机验证，来源是监督窗口 2026-11-13 的下一优先项与用户 2026-11-14 选择。用全新空目录靶仓走一次全流程，全新项目、七问、确认需求、拆分、基础框架任务、方案讨论、确认方案、待开发。约束：靶仓只放需求文档，无 .git，不复用 LCoder-First-Demo；不改产品代码。产出会话日志证据与逐步结论，失败项单列。用户 2026-11-14 授权新建靶仓 E:\\Projects\\LCoder-Empty-Demo-20261114，已建为空目录、无 .git；七问由验证线以固定示例需求作答并在结论里标注是验证方代答。2026-11-14 12:30 监督窗口派工，验证线会话 67a4b4d9。2026-11-14 13:00 监督窗口核验并收口。验证按约定逐步记录，第 1、2 步通过，第 3 步失败并停下。证据：靶仓 .spec 只有 project.yaml 与 rules.yaml，没有需求与任务；立项会话 session-f83e11ad 的会话头 agentPreset 为 lcoder，不是 lcoder-intake；surface.ts 中 dev 角色天花板不含 requirement_draft，只有 intake 角色开放。根因在 Shell 两处立项入口直接 createSession，既未传 lcoder-intake 也未调用 createDefaultedSession 应用默认模型，所以会话落在实施角色且默认模型被云端路由覆盖。另记：lcoder-cloud 在立项首轮六次 502 upstream_unavailable，属网关故障；官方 provider 探针正常。验证线未修改仓库与 .spec，靶仓未初始化 git。缺陷转 T-185。"
     - id: T-182
       title: 台账收口证据错位修正
       status: done
@@ -2070,7 +2059,106 @@ tracks:
       date: '2026-11-14'
       dep: [T-179]
       inferred: false
-      note: "B 级载荷裁剪，来源是用户 2026-11-14 选择 Office 与 Python 都裁，并确认产品不做 Office 转换与数据分析。依据 T-179，Electron 368 MiB 是地板，LibreOffice 184 MiB 与 Python 157 MiB 两块无 LCoder 消费方，合计约 341 MiB 解包体积。步骤：一、先建立打包称重基线，记录 win-unpacked 总字节与各载荷字节，打包跑不通就用既有 targets 目录并写明差异；二、最小排除实验，去掉 LibreOffice 与 Python 载荷与它们的运行准备、宿主启动检查、依赖边，保留 Node 与 pnpm；三、验证启动、外壳五页、任务详情、会话发一条消息、插件清单不报缺；四、给出前后字节与未验项。红线：运行准备与宿主启动检查允许改，但每处必须先登记 lcoder/contact-surface.txt 并在 lcoder/UPSTREAM-BASELINE.md 第 3 节写改什么与为什么；不改其它上游包与模型工具面，不改 .spec，不 push 不合并。工作树 pool-slot-2 到 lcoder/t183-payload-cut，端口 9823 与 9831 与 9832。"
+      note: "B 级载荷裁剪，来源是用户 2026-11-14 选择 Office 与 Python 都裁，并确认产品不做 Office 转换与数据分析。依据 T-179，Electron 368 MiB 是地板，LibreOffice 184 MiB 与 Python 157 MiB 两块无 LCoder 消费方，合计约 341 MiB 解包体积。步骤：一、先建立打包称重基线，记录 win-unpacked 总字节与各载荷字节，打包跑不通就用既有 targets 目录并写明差异；二、最小排除实验，去掉 LibreOffice 与 Python 载荷与它们的运行准备、宿主启动检查、依赖边，保留 Node 与 pnpm；三、验证启动、外壳五页、任务详情、会话发一条消息、插件清单不报缺；四、给出前后字节与未验项。红线：运行准备与宿主启动检查允许改，但每处必须先登记 lcoder/contact-surface.txt 并在 lcoder/UPSTREAM-BASELINE.md 第 3 节写改什么与为什么；不改其它上游包与模型工具面，不改 .spec，不 push 不合并。工作树 pool-slot-2 到 lcoder/t183-payload-cut，端口 9823 与 9831 与 9832。2026-11-14 12:30 监督窗口派工，实现线会话 10113767。2026-11-14 13:10 因 T-181 发现立项 P0 缺陷，本任务暂停让出 pool-slot-2，已完成改动保留在 lcoder/t183-payload-cut，未完成项待恢复后继续；恢复时重新派工。2026-11-14 22:15 监督窗口恢复派工，工作树 pool-slot-1，会话 4733f9aa，端口改为 9822 与 9829 与 9830（9823 系列已给 M1）；先并入最新主检，锁冲突用 pnpm install --lockfile-only 重生成后再 frozen 校验。"
+    - id: T-184
+      title: 客户端自研架构方案
+      status: done
+      face: 工程
+      type: 调研
+      owner: lance
+      created: '2026-11-14'
+      date: '2026-11-14'
+      dep: []
+      inferred: false
+      note: "A 级架构方案，来源是用户 2026-11-14 决定客户端框架也自研：自己的 Electron 壳与 React 客户端，宿主运行时继续用上游。已拍板五项：一、自写 Electron 主进程与窗口、托盘、单实例、更新；二、自写 React 客户端与流式层，替换对 @deepseek-ai/dsh-client-* 的依赖，当前 workspace 有二十八文件、一万六千三百行与它耦合；三、通信层用进程内薄适配层，内部直连宿主 API，不写独立 BFF；四、一次性切换，切换前必须过 parity 清单并保留上一版构建产物作为回退；五、欢迎屏随新壳一起换，聊天能力只保留流程必需（流式正文、工具卡片、审批、提问、附件），不做压缩提示、子代理、反馈、轨迹。被取代项：T-180 上游聊天整链裁剪原型已撤下，不再派工；T-177 与 T-178 的客户端收益将由新客户端取代，宿主侧裁剪仍有效；T-183 载荷裁剪不受影响。本任务只出方案，不写产品代码：产出 lcoder/client-rewrite-plan.md，含宿主 API 契约清单、M0 到 M4 里程碑与估时、parity 清单、风险与回退方案、首个可实施切片，以及 apps/desktop 与上游 client 依赖的移除顺序。约束：不改源码，不改 .spec，不 push。工作树 pool-slot-1 到 lcoder/t184-client-plan，端口 9822 与 9829 与 9830。2026-11-14 13:05 监督窗口派工，方案会话 598d028f。2026-11-14 13:45 监督窗口核验并收口。方案四百四十七行，实测耦合二十八文件一万六千三百零六行，目录两万五千五百零八行约六成四需重写；宿主契约两种传输、十个命名空间约四十个方法、十二个事件通道；最危险三项为 follow 帧语义、events waterfall 回执、客户端会话状态机。用户拍板四项：宿主保持子进程、承载层完全自写、回退一个小版本且只留安装包重装、本轮不减包。里程碑 M0 到 M4 共五十至六十二人日，S1 六到八人日。未验项保留：宿主-only profile 能否启动是唯一可推翻 M4 的前提，转 T-186；frontend-static 独立挂载、Electron 全局 WebSocket、弱网补洞等转实现期验证。主检 test:docs 二十一项全过。已合入 lcoder/main、release pool-slot-1。"
+    - id: T-185
+      title: 立项会话改用 intake 预设并应用默认模型
+      status: done
+      face: 用户端
+      type: 修复
+      owner: lance
+      created: '2026-11-14'
+      date: '2026-11-14'
+      dep: [T-181]
+      inferred: false
+      note: "B 级修复，来源是 T-181 真机验证第 3 步失败。根因：Shell.tsx 的两个立项入口（向导首次创建约 3231 行、重新开始约 3391 行）直接调用 createSession(projectPath)，既没有传 lcoder-intake 预设，也没有走 createDefaultedSession 应用默认模型，于是会话落在实施角色 lcoder，工具面没有 requirement_draft，需求无法落盘；默认模型也被云端路由覆盖，首轮撞六次 502。修法：两处都改为 createDefaultedSession(createSession, 'lcoder-intake', 'intake')，或给 runIntakeRestart 传入已带预设与默认模型的创建闭包；不改角色天花板，不把 requirement_draft 开放给 dev。验收：组件测试断言立项创建会话时传 lcoder-intake 且应用默认模型；单测覆盖首次创建与重新开始两条路径；真机重跑 T-181 第 1 至 4 步，确认会话头 agentPreset 为 lcoder-intake、需求落盘、拆分进待开发；门禁 typecheck、packages/lcoder vitest、verify-client-ui-i18n、改动文件 oxlint。工作树待 slot-2 释放后 claim 到 lcoder/t185-intake-preset，端口 9823 与 9831 与 9832。2026-11-14 13:20 监督窗口派工，实现线会话 c4bb9825；T-183 已在安全点提交两笔并保持工作树干净，暂停恢复时重新派工。2026-11-14 16:30 监督窗口核验并收口。两笔提交：一是两处立项入口改走 createDefaultedSession 并带 lcoder-intake，同时修掉开仓预建空白实施会话被向导复用的问题；二是 dispatchIntakePrompt 不再无条件 routeSession，设置默认模型不再被云端路由覆盖。真机全链路通过：会话头 agentPreset 为 lcoder-intake，request/header 为 deepseek-official 与 deepseek-flash，七问代答后需求落盘为 REQ-01.md 与 REQ-01.yaml、project.yaml 与 rules.yaml，拆分出六条任务且全部 contracted，T-01 基础框架排第一。lcoder-cloud 网关持续 502 upstream_unavailable，属环境故障，已改走官网模型。主检复跑 build:artifacts 八项、build:check 两项、typecheck 五项、packages/lcoder vitest 九十三文件一千一百二十一例、i18n、test:docs 二十一项全过。钥匙由用户写入工作树根 .env 并在启动前 source，未进提交；已提醒用户轮换。未验项：macOS、云端网关本身、新客户端对立案流程的展示（M2）。已合入 lcoder/main、release pool-slot-2。"
+    - id: T-186
+      title: 宿主-only profile 启动实验
+      status: done
+      face: 工程
+      type: 调研
+      owner: lance
+      created: '2026-11-14'
+      date: '2026-11-14'
+      dep: [T-184]
+      inferred: false
+      note: "B 级前置实验，来源是 T-184 方案第 9.2 的唯一可推翻前提。目标：验证宿主-only profile 能否启动。现状 dsh-web-app、modules、client-hmr 与若干 ui-* 之间有硬注入，T-177 已证明单独关会停在 Loading plugins。做法：在 T-178 切片基础上构造只保留宿主面、不挂客户端插件的 profile 或最小 client 集合，用 dsh 启动宿主，验证 ready、session/workspace/remote API 可用、events 流可订阅，并记录必须保留的最小客户端插件与端口。不改产品代码，实验配置放 lcoder 下。产出 lcoder/host-only-profile.md，结论写能否启动、最小依赖集、对 M4 与 S1 的影响。工作树待 slot-1 释放后 claim 到 lcoder/t186-host-only，端口 9822 与 9829 与 9830。2026-11-14 13:50 监督窗口派工；因本轮由委派输入触发、宿主禁止再创建嵌套会话，复用已收口的 T-184 方案会话 598d028f 执行本实验。2026-11-14 14:05 监督窗口核验并收口。结论可行：196 行合成清单关掉 84 行后宿主在 3099 正常启动，零激活失败；用 connect 带 interactions=answer 换 cookie 后，一元 session/list 与 session/create 成功，WS remote.mux 的 session.follow 首帧、events 首帧与 api-session/added 事件均通；Node 24 全局 WebSocket 可用。实测最小组合 89 行，是默认 standard preset 下的下限；保留的 dsh-client-* 只有 connection 与 file-upload 的宿主半，api-remotes 必须保留。阻断点：再降要换更小的 preset；web-runtime 是唯一 ready 公告点。未验项：真实模型回合、workspace.follow 与 create、审批与提问往返、LCoder preset 依赖闭包、frontend-static 换新 dist、macOS 与 Linux。主检 test:docs 二十一项全过。已合入 lcoder/main、release pool-slot-1。"
+    - id: T-187
+      title: 客户端自研 S1 端到端切片
+      status: done
+      face: 工程
+      type: 开发
+      owner: lance
+      created: '2026-11-14'
+      date: '2026-11-14'
+      dep: [T-186]
+      inferred: false
+      note: "B 级实现，来源是 T-184 方案第 4.1 节 S1，估时六到八人日。范围：新包 packages/lcoder/desktop 与 packages/lcoder/client 骨架，自写 Electron 主进程与窗口、宿主子进程守护、进程内薄适配层（一元 POST、WS mux、events 回执）、渲染端窄 IPC、登录门禁读 lcoderCloud.state、会话列表、session.create 到 follow 到 prompt 的流式回复。验收：窗口起来、宿主 ready、登录门禁正确、会话列表非空、发一条能看到流式正文，重启后能从 follow snapshot 重读历史。依赖 T-186 通过；若 T-186 证明宿主-only 不可行，先回到方案层重定 M4 路径，不直接开工。T-186 已证明可行，S1 用其八十九行最小组合起步，connect 必须带 interactions=answer；LCoder 十个 preset 落地后宿主下限需重测。2026-11-14 14:10 监督窗口派工，实现线会话 f293433d。2026-11-14 15:15 监督窗口核验并收口。S1 端到端竖切落地：新包 packages/lcoder/desktop 与 client，主进程薄适配层（token 换 cookie 带 interactions=answer、一元 POST、WS mux、events 回执）、窄 IPC、登录门禁、会话列表、发消息流式回复、重启读历史。合入过程中补了三笔集成修复：client 本地 tsdown 入口与共享 IPC 契约、Vite 产物接入 build:artifacts 的 onSuccess、登录门禁就绪竞态（状态单调合并、就绪事件优先、cloud.state 十五秒超时与重试、session.list 兜底）。主检复跑 build:artifacts 八项、build:check 两项、typecheck 五项、packages/lcoder vitest 九十三文件一千一百一十九例、i18n、test:docs 二十一项全过；S1 探针在新建 home、复用 home、主检均 PASS。未验项：真实云端与官网 provider（本次用 mock 云端）、审批与提问卡片与回执（M1）、workspace.follow 与 create、附件、工具卡、打包与 macOS。已合入 lcoder/main、release pool-slot-1。"
+    - id: T-188
+      title: 新客户端流体玻璃浅色主题
+      status: done
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-14'
+      date: '2026-11-14'
+      dep: [T-187]
+      inferred: false
+      note: "B 级视觉重构，来源是用户 2026-11-14 表示不喜欢现有浅色主题，要苹果新系统那种流体玻璃、特效拉满。用户拍板四项：替换 frost 并设为默认、动效拉满但尊重 reduced-motion、环境背景用应用内自绘、只在新客户端做。范围：在 packages/lcoder/client 建立主题底座，液体玻璃作为新客户端默认浅色主题，旧壳 frost 不迁移。做法：一、token 层拆出 glass 表面、点线、阴影、圆角与高光变量；二、内置环境背景层，用柔和色块与光晕缓慢流动，不依赖系统壁纸与亚克力；三、玻璃面 backdrop-filter 模糊与饱和拉高，叠镜面边框、顶部内高光、外浮动阴影与细颗粒；四、悬停与按下加镜面扫光与折射，只用 transform 与 opacity，不触发布局；五、reduced-motion 时全部静态；六、登录门禁、会话列表、聊天三屏必须能直接看到效果，文字对比度不降。验收：typecheck、build、改动文件 oxlint、S1 探针仍 PASS；用 CDP 读 computed style 证明 backdrop-filter、合成层与 reduced-motion 分支生效；真实观感由用户手看。约束：只改新客户端与其样式资产，不改旧壳、不改上游、不 push 不合并。工作树待 T-187 合入后 claim 到 lcoder/t188-liquid-glass，端口 9822 与 9829 与 9830。T-187 已收口；2026-11-14 15:20 监督窗口派工，实现线会话 c1e5782d。2026-11-14 15:50 监督窗口核验并收口。新客户端默认浅色改为流体玻璃：新增 theme/liquid-glass.css token 与基元，环境层五个自绘漂移色块加细颗粒，玻璃面模糊三十六像素、饱和一百九十 percent，镜面亮边与顶部内高光、浮动阴影、胶囊控件、悬停扫光；登录门禁、会话列表、聊天三屏生效。CDP 实测计算样式为 blur(36px) saturate(1.9)，正常模式五个动画，模拟 reduced-motion 后动画数为零；用户已在 9822 预览并确认无意见。主检复跑 build:artifacts 八项、build:check 两项、typecheck 五项、packages/lcoder vitest 九十三文件一千一百一十九例、i18n、test:docs 二十一项全过；S1 探针 PASS。未验项：其他皮肤与新客户端后续页面尚未接入该底座、真实云端与官网 provider、打包与 macOS。已合入 lcoder/main、release pool-slot-1。"
+    - id: T-189
+      title: 新客户端 M2 工作台数据面
+      status: done
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-14'
+      date: '2026-11-14'
+      dep: [T-188]
+      inferred: false
+      note: "B 级实现，来源是用户 2026-11-14 要求做 M2。范围按 T-184 方案 M2：spec 投影（任务、规则、需求、方案、契约、交付物、调度证据、角色、常驻会话、项目、本地密钥、自动化）、五个工作台页面（需求、任务、切换项目、项目信息、设置占位）、看板与列表、任务详情、Markdown 阅读器、需求详情与讨论历史、立项向导与结果页、专家与角色看板、调度建议、流程状态与动作日志、任务附件。只改新客户端 packages/lcoder/client 与其适配层，不引入上游 client 包。依赖 T-188；M1 的审批、提问、附件卡片尚未完成，先按现有事件渲染纯文本与工具状态，缺口在回报里列清。验收：页面 parity 清单逐项、DEMO-01 与一个真实仓可读、看板六列、详情与阅读器可开、确认需求与拆分与签约与推进经命令通道可用、S1 探针仍 PASS、build 与 typecheck 与 oxlint 与 i18n 与 test:docs 全绿。工作树 slot-1 到 lcoder/t189-m2，端口 9822 与 9829 与 9830。2026-11-14 16:15 监督窗口派工，实现线会话 31dc7636；M3 排在 M2 之后，避开同一客户端文件的并行冲突。2026-11-14 17:40 监督窗口核验并收口。三笔提交完成阶段 A、B、C：适配层白名单与 spec 投影、六项导航与五页骨架、六列看板；任务详情与契约四段、Markdown 渲染与阅读器、需求详情与讨论历史；立项向导与结果页、角色看板、调度建议、流程状态与动作日志、任务附件只读，主动作走命令白名单。M2 探针在主检 PASS；S1 探针首次重启历史超时、二次 PASS，记为探针抖动并登记 T-192 跟进。主检复跑 build:artifacts 八项、build:check 两项、typecheck 五项、packages/lcoder vitest 九十三文件一千一百二十一例、i18n、test:docs 二十一项全过。未验项：完整模型七问落盘只验到指令发送与预览、讨论历史正样本、flow.jsonl 写入方、大附件与断流、真实云端与打包态与窄窗。M1 缺口：审批与提问无回执 UI、附件上传与聊天回显、模型 chip 与用量、工具卡仅名称行。已合入 lcoder/main、release pool-slot-1。"
+    - id: T-190
+      title: 新客户端 M3 账号与系统面
+      status: done
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-14'
+      date: '2026-11-14'
+      dep: [T-189]
+      inferred: false
+      note: "B 级实现，来源是用户 2026-11-14 要求做 M3。范围按 T-184 方案 M3：登录、注册、验证码、密码、个人中心与用量、设置页（模型、路由、主题、字体、语言）、四套皮肤（默认流体玻璃，替换旧 frost）、中英切换、窗口按钮与拖拽、托盘、菜单、快捷键、更新 UI、欢迎屏。为避同一客户端文件的并行冲突，排在 T-189 之后，M2 合入后再 claim。验收：登录到开会话到改设置到重启仍生效、四套皮肤与中英各一套检查、reduced-motion、上游欢迎屏不再出现、门禁与 S1 探针全绿。工作树待 M2 合入后 claim 到 lcoder/t190-m3。M2 已合入；2026-11-14 17:50 监督窗口派工，实现线会话 17aa9cd3。2026-11-14 19:10 监督窗口核验并收口。三阶段落地：账号（注册、验证码、密码、退出、刷新）、个人中心与真实用量、设置（provider、默认模型、密钥三态、重启保持）、四套皮肤（默认流体玻璃）与中英与字体与 reduced-motion、自绘窗口按钮与最大化同步、托盘与菜单与快捷键、更新空态、新客户端欢迎屏。M3 修复关窗退出确定性：探针保留 CDP 等 exit，新壳关停加十二秒硬上限与诊断日志。主检门禁全过（build 八项、build:check、typecheck、vitest 九十三文件一千一百二十一例、i18n、test:docs 二十一项）；T-190 探针两次 39/39、M2 一次 PASS；S1 三次中一次重启历史超时、两次 PASS，沿用 T-192 跟进并转 doing。未验项：令牌自动续期 401 场景、托盘点击与 F11 与缩放实按、拖拽手势、真实云端与打包态与窄窗；设置页对 s1 profile 的表达式 baseURL 保存会整段被拒，已如实显示错误。已合入 lcoder/main、release pool-slot-1。"
+    - id: T-191
+      title: 新客户端 M1 会话与聊天能力
+      status: doing
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-14'
+      date: '2026-11-14'
+      dep: [T-187]
+      inferred: false
+      note: "B 级实现，来源是用户 2026-11-14 早先选择只保留流程必需的聊天能力。范围按 T-184 方案 M1：会话 store 完整化（follow 三帧、补洞、projection）、工具卡与过程组、审批卡与回执、提问卡、附件上传与预览、停止与改名、模型 chip、上下文用量、无模型门禁。当前用户要求先做 M2 与 M3，本任务暂不派工；M2 期间先以纯文本与工具状态呈现，缺口在 M2 回报里列出。2026-11-14 22:05 监督窗口派工，实现线会话 99d6ed34；工作树 pool-slot-2 到 lcoder/t191-m1，端口 9823 与 9831 与 9832。工作树根 .env 的钥匙已暴露待轮换，本任务禁止读取或使用，默认走 mock 云端。"
+    - id: T-192
+      title: S1 探针重启历史稳定性
+      status: done
+      face: 工程
+      type: 修复
+      owner: lance
+      created: '2026-11-14'
+      date: '2026-11-14'
+      dep: [T-189]
+      inferred: false
+      note: "C 级稳定性跟进，来源是 T-189 收口时 S1 探针重启历史首次超时、二次通过。现象：重启后等待历史重读超时；手动点会话两秒内回历史。排查点：follow snapshot 到达与 UI 选择时机、session/events 订阅与补洞、探针等待条件是否过窄。验收：探针连续三次 PASS；若为探针等待条件问题改探针，若为产品竞态改客户端。2026-11-14 19:10 转 doing；M3 合入后主检 S1 三次仍一红两绿，需按失败日志定位关停、落盘与跟随竞态，修复后要求 S1 连续五次 PASS。T-190 的关窗修复已把探针改为保留 CDP 等 exit，新壳关停加十二秒硬上限与关停日志；本次要保留失败现场日志再定性。2026-11-14 19:15 监督窗口派工，修复会话 410208fb。2026-11-14 21:55 监督窗口核验并收口。根因两层：探针把流式草稿当历史，实测提前约一百二十五毫秒关窗，宿主关停截断在途回合；以及 Electron 原生退出在慢关停后卡死。修法：探针只认已提交消息与新建会话、关窗等窗口目标消失、失败现场采集；新壳清理完成后自 SIGKILL 绕过原生退出；探针 waitExit 再改事件与退出码与 PID 存活三路判定，兜住 Windows 下 SIGKILL 后收不到 exit 事件。主检 S1 五连跑全 PASS，每次两实例均走 SIGKILL 且检测命中 PID 消失；T-190 探针 39/39、M2 PASS；合入后主检 sanity S1 PASS；typecheck 与 build:check 全过。未验：Windows 无 exit 事件的原生原因未定位；宿主慢关停可达八秒；更晚的结束与标题事件持久化未逐项验。已合入 lcoder/main、release pool-slot-1。"
 
 milestones:
 - name: MVP-0 工作台本地跑通

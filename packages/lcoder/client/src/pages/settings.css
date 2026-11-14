@@ -1,0 +1,147 @@
+/* 设置页：模型服务、外观、语言、更新与关于。 */
+
+.settings-section,
+.model-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 18px;
+}
+
+.settings-section-head h3 { margin: 0; font-size: 15px; font-weight: 600; }
+.settings-section-head p { margin: 4px 0 0; font-size: 12px; color: var(--lg-muted); }
+.settings-muted { margin: 0; font-size: 12px; color: var(--lg-muted); }
+.model-hint { margin: 0; font-size: 11px; color: var(--lg-faint); }
+
+.settings-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.settings-label { font-size: 13px; color: var(--lg-ink); }
+
+.settings-chips { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+.settings-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--lg-line);
+  border-radius: var(--lg-radius-control);
+  background: var(--lg-fill-control);
+  color: var(--lg-ink-2);
+  font-size: 12px;
+  cursor: pointer;
+}
+.settings-chip:hover { background: var(--lg-fill-control-hover); color: var(--lg-ink); }
+.settings-chip.active {
+  border-color: var(--lg-line-bright);
+  background: var(--lg-fill-accent-soft);
+  color: var(--lg-ink);
+  font-weight: 600;
+}
+
+.skin-swatch {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 12px;
+  border-radius: 50%;
+  border: 1px solid var(--lg-line-bright);
+}
+.skin-swatch-liquid-glass { background: conic-gradient(from 210deg, #2f80f0, #8cc7ff, #eef4ff, #2f80f0); }
+.skin-swatch-neon { background: conic-gradient(from 210deg, #22d3ee, #f472b6, #22d3ee); }
+.skin-swatch-silver { background: conic-gradient(from 210deg, #7dd3fc, #a3e635, #7dd3fc); }
+.skin-swatch-rose { background: conic-gradient(from 210deg, #d21c72, #a21caf, #d21c72); }
+
+.settings-select,
+.settings-input {
+  border: 1px solid var(--lg-line);
+  border-radius: 12px;
+  background: var(--lg-fill-control);
+  color: var(--lg-ink);
+  padding: 8px 12px;
+  font-size: 13px;
+  outline: none;
+}
+.settings-select:focus,
+.settings-input:focus { border-color: var(--lg-accent); }
+
+/* 默认模型区。 */
+.model-default {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--lg-line-hair);
+  border-radius: 14px;
+  background: var(--lg-fill-row);
+}
+.model-default h4 { margin: 0; font-size: 13px; }
+.model-default-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.model-default-row .settings-select { flex: 1; min-width: 220px; }
+
+/* provider 行。 */
+.model-group { display: flex; flex-direction: column; gap: 6px; }
+.model-group-title { font-size: 11px; letter-spacing: 0.04em; color: var(--lg-faint); padding: 6px 2px 0; }
+
+.model-row { border: 1px solid var(--lg-line-hair); border-radius: 14px; background: var(--lg-fill-row); }
+.model-row-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 14px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.model-row-main:hover { background: var(--lg-fill-subtle); }
+.model-row-name { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.model-name { font-size: 13px; color: var(--lg-ink); }
+.model-id { font-size: 11px; color: var(--lg-faint); }
+.model-row-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.model-chevron { color: var(--lg-muted); font-size: 11px; }
+
+.model-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border: 1px solid var(--lg-line-hair);
+  border-radius: var(--lg-radius-control);
+  background: var(--lg-fill-subtle);
+  color: var(--lg-ink-2);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.model-tag-ok { color: var(--lg-ok); border-color: rgba(13, 122, 92, 0.3); }
+.model-tag-warn { color: #8a5a00; border-color: rgba(138, 90, 0, 0.3); }
+.model-tag-danger { color: var(--lg-danger); border-color: rgba(180, 35, 24, 0.3); }
+
+:root[data-skin='neon'] .tag-warn,
+:root[data-skin='silver'] .model-tag-warn { color: #fbbf24; border-color: rgba(251, 191, 36, 0.32); }
+
+.model-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 14px 14px;
+  border-top: 1px solid var(--lg-line-hair);
+}
+.model-field { display: flex; flex-direction: column; gap: 6px; }
+.model-label { font-size: 12px; color: var(--lg-muted); }
+.model-key-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.model-key-row .settings-input { flex: 1; min-width: 180px; }
+
+.model-model-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.model-model-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--lg-line-hair);
+  border-radius: 10px;
+  background: var(--lg-fill-subtle);
+  font-size: 12px;
+}
+.model-model-row .model-name { flex: 1; }
+.model-model-row .pill { padding: 4px 12px; font-size: 11px; }

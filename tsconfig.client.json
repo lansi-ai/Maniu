@@ -172,6 +172,7 @@
     { "path": "./packages/client/web" },
     { "path": "./packages/context/file-reference" },
     { "path": "./packages/lcoder/workspace" },
+    { "path": "./packages/lcoder/client" },
     { "path": "./apps/web" }
   ]
 }

@@ -120,3 +120,10 @@
 - **原因**：客户端 Cordis 的 `ctx.remote` 命名空间按 inject 惰性解析；`@lcoder/workspace` 的 inject 列表当时只有 workspaceFiles、commands、session、llm、settings、credentials、agentPresets，没有 fileUploads。类型面能编译，是因为远程类型声明与 inject 列表是两套东西。
 - **处理**：把 `remote.fileUploads` 加进 `packages/lcoder/workspace/src/client/index.ts` 的 inject，重打 `pnpm --filter @lcoder/workspace run bundle`，刷新渲染进程后文件项变 ready、发送恢复。
 - **预防**：新增任何 `ctx.remote.<ns>` 调用前先把同名命名空间加进 inject；附件、上传、设置这类跨命名空间功能必须用真实文件在桌面里走一遍，单测里的远程替身不会触发注入解析。
+
+## W-18 同时写 backdrop-filter 与 -webkit-backdrop-filter，打包后标准属性被挤掉
+
+- **现象**：新客户端主题层写了 `backdrop-filter: blur(36px) saturate(190%)` 与带 `-webkit-` 的同名声明；打包后 computed style 读出来是 `none`，玻璃面一点模糊都没有，而同一规则里的圆角、渐变填充、内高光阴影全部正常。
+- **原因**：Vite 8 的 CSS 压缩把同一条规则里的前缀写法当成同一属性去重，只保留最后一条。标准属性在前、`-webkit-` 在后，产物里就只剩 `-webkit-backdrop-filter`；本机 Electron 的 Chromium 不认这个前缀（`CSS.supports('-webkit-backdrop-filter', 'blur(10px)')` 为 false），计算值回落成 `none`。反过来只写标准属性时，压缩器会自动补一条前缀并把标准属性放在最后，两个都在。
+- **处理**：主题层只写标准 `backdrop-filter`，不手写 `-webkit-` 前缀；改完重新 `pnpm --filter @lcoder/client run build`，在 `lib/dist/assets/*.css` 里 grep `backdrop-filter:` 确认标准属性存在，再用 CDP 读 computed style 核实（T-188 的取证方式：`getComputedStyle(el).backdropFilter`）。
+- **预防**：CSS 里凡是需要前缀的属性（backdrop-filter、mask、text-stroke 等）一律只写标准形式，让打包器决定前缀。"样式写了但界面没效果"的排查顺序固定为：先读打包后的 CSS，再读 computed style；两步都过才算生效，只看源码会被压缩去重骗过去。

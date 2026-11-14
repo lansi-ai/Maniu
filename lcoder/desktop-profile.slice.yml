@@ -4,16 +4,16 @@
 # 已经装配好的行；patch 的规则是同一 id 后写覆盖整行 `config`，所以这里只写
 # `disabled: true`（或需要时重述完整 config），不重抄上游的其余字段。
 #
-# 作用方式（本工作树）：
-#   node lcoder/scripts/profile-slice.mjs apply --wave 1
-#   node lcoder/scripts/profile-slice.mjs status
-#   node lcoder/scripts/profile-slice.mjs restore
+# 作用方式（默认接入）：
+#   lcoder\scripts\rebuild.cmd profile    # 重拷运行副本后自动 apply --all，末尾再跑 check --all
+#   node lcoder/scripts/profile-slice.mjs apply --all | status | restore | estimate --wave 1
 #
-# 脚本把选中的波次按行追加到运行副本
+# 脚本把全部波次按行追加到运行副本
 # `apps/desktop/.desktop-build/development/home/profiles/desktop/cordis.patch.yml`
-# 末尾，夹在一对 `# ── T-177 slice` 标记之间；重复 apply 会先摘掉旧块再写。
-# 运行副本被 `lcoder\scripts\rebuild.cmd profile` 重写后切片即消失，这是故意的：
-# 装配源始终保持全量装配，切片只在显式 apply 后生效。
+# 末尾，夹在一对 `# ── T-177 slice` 标记之间；重复 apply 会先摘掉旧块再写，字节一致。
+# 运行副本被 rebuild 重写后切片会重新套上，不再“重拷即消失”。
+# `check` 把运行副本拷成临时 profile 跑一次 --dump-config，逐个核对 id 命中；
+# 任一 id 不在合成清单里（上游改名/移除）就打印全部未命中 id 并以非零退出。
 #
 # 三波的分工与验收口径见 `lcoder/profile-slice.md`；这里只保证「按 id 能关」。
 # 每一行的断点风险写在该波的小标题下。

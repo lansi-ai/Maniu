@@ -1,0 +1,37 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/lcoder/client/README.md
+/:
+  en: b549c599ce169fa2
+  zh: 5cfe5a9c9d6987d3
+/lcoder-client:
+  en: 0c917bbcc99f3e10
+  zh: f5bba9718459e030
+/lcoder-client/summary:
+  en: f72291e7c5a72fe2
+  zh: 5e4dfdaab88b4552
+/lcoder-client/table-of-contents:
+  en: 576c743d341fee99
+  zh: a4711f44983301cf
+/lcoder-client/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/lcoder-client/model-experience/chat-rendering:
+  en: aa3343cf6efd92c7
+  zh: ba38c46d76532b24
+/lcoder-client/model-experience/chat-rendering/what-the-model-sees:
+  en: b3b4e30bc94efdc6
+  zh: fea30ba13160ccd7
+/lcoder-client/model-experience/chat-rendering/token-effect:
+  en: f227f2591e2e684a
+  zh: 7b9c66af8e1f0590
+/lcoder-client/model-experience/chat-rendering/kv-cache-effect:
+  en: 1933d6adf6889a50
+  zh: b989ebdfd4f795d1
+/lcoder-client/known-limitations-and-deferred-work:
+  en: 573e2d5f7fb6fc17
+  zh: b32bb79504d232c8
+/lcoder-client/known-limitations-and-deferred-work/dev-note:
+  en: d18f72f234b5ebdf
+  zh: 4751b5f76221a242

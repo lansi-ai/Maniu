@@ -23,6 +23,7 @@ $OutputEncoding = [Text.UTF8Encoding]::new()
 
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $profileSource = Join-Path $PSScriptRoot '..\desktop-profile.patch.yml'
+$sliceSource = Join-Path $PSScriptRoot '..\desktop-profile.slice.yml'
 $profileDir = Join-Path $root 'apps\desktop\.desktop-build\development\home\profiles\desktop'
 $profileRuntime = Join-Path $profileDir 'cordis.patch.yml'
 $profileManifest = Join-Path $profileDir 'package.json'
@@ -82,6 +83,22 @@ function Invoke-Native([string]$label, [string[]]$arguments, [string]$workdir) {
   return $true
 }
 
+# profile 切片的落地与合成校验；stderr 的失败行同样不能让 PS 5.1 抛 NativeCommandError。
+function Invoke-ProfileSlice([string[]]$arguments) {
+  $label = 'profile-slice.mjs ' + ($arguments -join ' ')
+  Write-Host ("▶ " + $label) -ForegroundColor Cyan
+  $previous = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
+  & node (Join-Path $PSScriptRoot 'profile-slice.mjs') @arguments 2>&1 | ForEach-Object { Write-Host ("  " + $_) }
+  $code = $LASTEXITCODE
+  $ErrorActionPreference = $previous
+  if ($code -ne 0) {
+    Write-Host ("✗ " + $label + " 失败（退出码 " + $code + "）：切片落地或合成校验未通过，先核对 lcoder/desktop-profile.slice.yml 与上游包" ) -ForegroundColor Red
+    return $false
+  }
+  return $true
+}
+
 function Get-LastWrite([string]$path) {
   if (-not (Test-Path $path)) { return $null }
   $item = Get-Item -LiteralPath $path
@@ -97,8 +114,13 @@ function Get-Stale {
     if ($null -ne $sourceTime -and ($null -eq $artifactTime -or $sourceTime -gt $artifactTime)) { $stale += $layer.name }
   }
   $profileTime = Get-LastWrite $profileSource
+  $sliceTime = Get-LastWrite $sliceSource
   $runtimeTime = Get-LastWrite $profileRuntime
-  if ($null -ne $profileTime -and ($null -eq $runtimeTime -or $profileTime -gt $runtimeTime)) { $stale += 'profile' }
+  $profileStale = (
+    ($null -ne $profileTime -and ($null -eq $runtimeTime -or $profileTime -gt $runtimeTime)) -or
+    ($null -ne $sliceTime -and ($null -eq $runtimeTime -or $sliceTime -gt $runtimeTime))
+  )
+  if ($profileStale) { $stale += 'profile' }
   return @($stale)
 }
 
@@ -150,6 +172,8 @@ function Sync-Profile {
   [IO.File]::WriteAllText($profileRuntime, $content + $profileLocal, [Text.UTF8Encoding]::new($false))
   $presets = ([regex]::Matches((Get-Content -LiteralPath $profileRuntime -Raw -Encoding utf8), 'id: preset-lcoder')).Count
   Write-Host ("✓ 运行副本已重拷，preset 数：" + $presets + "（要重启实例）") -ForegroundColor Green
+  # 切片是运行副本的追加层：重拷会把它抹掉，所以每次都在这里按源重放（幂等）。
+  if (-not (Invoke-ProfileSlice -arguments @('apply', '--all'))) { return $false }
 
   $desired = Get-ProfileManifest
   $current = if (Test-Path $profileManifest) { Get-Content -LiteralPath $profileManifest -Raw -Encoding utf8 } else { $null }
@@ -193,6 +217,9 @@ function Sync-Profile {
     }
   }
   Write-Host '✓ profile 齐备：package.json、两条 @lcoder 链接' -ForegroundColor Green
+  # 硬闸：每个切片 id 都要在合成清单里并带上切片的效果，否则升上游后切片会静默失效。
+  if (-not (Invoke-ProfileSlice -arguments @('check', '--all'))) { return $false }
+  Write-Host '✓ 切片已命中合成清单' -ForegroundColor Green
   return $true
 }
 
