@@ -1,0 +1,210 @@
+# T-177 profile 切片：只关挂载，不改上游源码。
+#
+# 这份文件是**追加层**，不是装配源。它按 id 覆盖 `lcoder/desktop-profile.patch.yml`
+# 已经装配好的行；patch 的规则是同一 id 后写覆盖整行 `config`，所以这里只写
+# `disabled: true`（或需要时重述完整 config），不重抄上游的其余字段。
+#
+# 作用方式（本工作树）：
+#   node lcoder/scripts/profile-slice.mjs apply --wave 1
+#   node lcoder/scripts/profile-slice.mjs status
+#   node lcoder/scripts/profile-slice.mjs restore
+#
+# 脚本把选中的波次按行追加到运行副本
+# `apps/desktop/.desktop-build/development/home/profiles/desktop/cordis.patch.yml`
+# 末尾，夹在一对 `# ── T-177 slice` 标记之间；重复 apply 会先摘掉旧块再写。
+# 运行副本被 `lcoder\scripts\rebuild.cmd profile` 重写后切片即消失，这是故意的：
+# 装配源始终保持全量装配，切片只在显式 apply 后生效。
+#
+# 三波的分工与验收口径见 `lcoder/profile-slice.md`；这里只保证「按 id 能关」。
+# 每一行的断点风险写在该波的小标题下。
+
+
+# ── T-177 slice · wave 1 ──────────────────────────────────────────────────
+# 遥测、插件管理/插件清单、office-to-pdf、workflow、schedule、goal、plan、jobs。
+# 同波必须一起关的组：otel → session-telemetry-otel / desktop-product-telemetry /
+# product-analytics；plugin-manager → plugin-inventory；ui-plugin-manager →
+# entry-customization 与 ui-settings-* 五个官方设置页；jobs → job-controller → ui-jobs；
+# goal → goal-round-driver；schedule → ui-schedule。
+
+# 遥测四件套：otel 服务只被另外三行消费，四行同进同出。
+- id: otel
+  disabled: true
+- id: session-telemetry-otel
+  disabled: true
+- id: desktop-product-telemetry
+  disabled: true
+- id: product-analytics
+  disabled: true
+
+# 插件管理：宿主插件管理器、插件清单、DeepSeek 插件市场清单，以及客户端的
+# Plugins 页与五个官方设置页（它们都硬注入 ui-plugin-manager）、launcher 定制入口。
+# agent-preset-registry 的插件名册仍在别处，不受影响。
+- id: plugin-manager
+  disabled: true
+- id: plugin-inventory
+  disabled: true
+- id: plugin-package-inventory-deepseek
+  disabled: true
+- id: ui-plugin-manager
+  disabled: true
+- id: ui-settings-plugin-inventory
+  disabled: true
+- id: ui-settings-plugins
+  disabled: true
+- id: ui-settings-shell
+  disabled: true
+- id: ui-settings-agent-loop
+  disabled: true
+- id: ui-settings-subagent
+  disabled: true
+- id: ui-settings-web-search
+  disabled: true
+- id: entry-customization
+  disabled: true
+
+# Office 转 PDF：只被文档预览的 office 渲染器按 remote 命名空间取用；
+# 文档预览在第二波关。这里先关宿主侧，缺命名空间时渲染器只是不出现。
+- id: office-to-pdf
+  disabled: true
+
+# workflow：宿主侧两行已被 web-app 关掉，只剩客户端的运行视图。
+- id: ui-workflow-run
+  disabled: true
+
+# schedule：宿主服务只被 preset 内的 tool-schedule 取用（LCoder 的 preset 不挂它），
+# 客户端是会话提醒面板。
+- id: schedule
+  disabled: true
+- id: ui-schedule
+  disabled: true
+
+# goal：宿主 goal 与轮次驱动、客户端 GoalBar。LCoder 不用会话目标。
+- id: goal
+  disabled: true
+- id: goal-round-driver
+  disabled: true
+- id: ui-goal
+  disabled: true
+
+# plan：宿主的 plan-mode 已被 web-app 关掉，只剩客户端的 plan 座位。
+- id: ui-plan
+  disabled: true
+
+# jobs：宿主任务注册表与 API 控制器、客户端的后台任务名单。LCoder 的 preset 没有
+# 任何生产者（tool-bash / tool-pwsh / workflow 都被关），三行一起关。
+- id: jobs
+  disabled: true
+- id: job-controller
+  disabled: true
+- id: ui-jobs
+  disabled: true
+
+
+# ── T-177 slice · wave 2 ──────────────────────────────────────────────────
+# 侧栏四类页签（浏览器、终端、文件、文档预览）与交付物三行。
+# 依赖顺序：ui-sidebar-* 只注册页签，互不依赖；ui-open-in-app 硬注入
+# ui-sidebar-documentpreview，所以两者同波；ui-deliverables 的 chatFileMentions
+# 被 ui-chat 以 ctx.get 可选读取，关掉只是少了「本轮改动文件」的提及候选。
+
+- id: ui-sidebar-browser
+  disabled: true
+- id: ui-sidebar-terminal
+  disabled: true
+- id: ui-sidebar-files
+  disabled: true
+- id: ui-sidebar-documentpreview
+  disabled: true
+- id: ui-open-in-app
+  disabled: true
+- id: open-in-app
+  disabled: true
+
+# 交付物：「本轮改动文件」卡片、交付物文件引用、工作树快照采集。
+# LCoder 的「交付物」是 .spec 里的产品概念，由 shell 自己画，与这三行无关。
+- id: ui-deliverables
+  disabled: true
+- id: deliverable-file-references
+  disabled: true
+- id: workspace-changes
+  disabled: true
+
+
+# ── T-177 slice · wave 3 ──────────────────────────────────────────────────
+# 客户端 UI 未用项与上游 preset 名册。这一波改变的是产品口径，不只是体积：
+# 关掉之后标准/PT C/cordis 三套上游角色从名册消失，用户只剩 LCoder 的十个角色。
+# 所以 registry 的 `default` 必须同时从 standard 改成 lcoder，否则新建会话的
+# 兜底角色会指向一个已禁用的 preset。
+#
+# 验收要比前两波多两项：子 agent 派工（lcoder-review / lcoder-git）仍能起，
+# 会话头 agentPreset 仍是 lcoder*。
+
+- id: agent-preset-registry
+  config:
+    default: lcoder
+    selectedDefault: lcoder
+
+- id: preset-standard
+  disabled: true
+- id: preset-ptc
+  disabled: true
+- id: preset-cordis
+  disabled: true
+- id: preset-minimal
+  disabled: true
+
+# 上游会话组件里只服务 DSH 自己那套聊天界面的座位。LCoder 外壳自绘聊天，
+# 这些插件仍会下载并激活，但画不到屏幕上。
+- id: ui-trajectory
+  disabled: true
+- id: ui-attachment
+  disabled: true
+- id: ui-cordis
+  disabled: true
+- id: ui-model-selection
+  disabled: true
+- id: ui-message-feedback
+  disabled: true
+- id: message-feedback
+  disabled: true
+- id: command-feedback
+  disabled: true
+- id: session-log-download
+  disabled: true
+- id: ui-settings-session-log
+  disabled: true
+- id: ui-file-actions
+  disabled: true
+
+# 上游输入触发链里的叶子：技能与引用来源。两者都硬注入 ui-input-trigger，
+# 而 ui-input-trigger / ui-commands 本身不能单独关（见文件末尾的整链候选），
+# 所以只关这两片叶子。
+- id: ui-skill
+  disabled: true
+- id: ui-reference
+  disabled: true
+
+
+# (未启用) 第四波候选：上游聊天面整链。
+# ui-input-trigger 被 ui-chat / ui-commands / ui-reference / ui-skill / ui-subagent
+# 硬注入，ui-commands 又被 message-feedback / model-selection / permission-presets /
+# session-log-export 注入；单独关任何一个都会让浏览器停在「Loading plugins…」
+# （2026-11-14 实测：wave 3 含 input-trigger 时外壳整壳不渲染）。
+# 要裁这一整链，得把上列插件连同 ui-chat / ui-conversation / ui-tool 一起关，
+# 并重新验证 shell:false 回退面；本轮不做，记入「可裁但需整链验证」。
+# - id: ui-input-trigger
+#   disabled: true
+# - id: ui-commands
+#   disabled: true
+
+
+# ── 明确不关的行（列出来防止后来者顺手加进去）──────────────────────────────
+# - config-editor：settings 服务 `static inject = ['configEditor', 'profileContext']`，
+#   关掉它 LCoder 设置页（模型设置保存）直接断。
+# - settings / api-settings-controller / ui-settings：LCoder 的 ModelSettings 走
+#   remote.settings.describe/mutate，ui-settings 的 settingsSchema 也被 shell 读取。
+# - workspace-files / workspace-controller / workspace / ui-workspace：任务、需求、
+#   项目与项目信息的文件投影全走这四个，shell 还硬注入 ui-workspace。
+# - ui-sidebar-right：LCoder 的 `sidebarRightTabs` 与 `sidebar.right.pane.tab` 都注册在它上面。
+# - ui-context-menu：11 个客户端插件硬注入它，关掉会连锁失活。
+# - ui-session / ui-layout / ui-renderer / ui-slots / locale / connection / api-remotes：
+#   LCoder 的 dsh.client.inject 直接列了它们。
