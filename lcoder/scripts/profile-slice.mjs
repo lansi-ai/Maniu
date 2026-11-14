@@ -1,32 +1,47 @@
 #!/usr/bin/env node
-// T-177 profile 切片的落地工具：把 desktop-profile.slice.yml 的某一波追加到
-// 本检出的桌面 profile 运行副本，或撤回。
+// T-177 profile 切片的落地工具：把 desktop-profile.slice.yml 的波次追加到
+// 本检出的桌面 profile 运行副本，校验命中，或撤回。
 //
-//   node lcoder/scripts/profile-slice.mjs apply --wave 1 --wave 2
+//   node lcoder/scripts/profile-slice.mjs apply --all
+//   node lcoder/scripts/profile-slice.mjs check --all
 //   node lcoder/scripts/profile-slice.mjs status
 //   node lcoder/scripts/profile-slice.mjs restore
 //   node lcoder/scripts/profile-slice.mjs estimate --wave 1
 //
 // 运行副本是 `apps/desktop/.desktop-build/development/home/profiles/desktop/cordis.patch.yml`，
-// 被 `lcoder\scripts\rebuild.cmd profile` 重写；重写后切片自动消失。
+// 被 `lcoder\scripts\rebuild.cmd profile` 重写；`rebuild` 的 profile 保障在重写后
+// 自动 apply 全部波次并跑 `check`，所以重写不再让切片消失。
+// `check` 把运行副本拷成临时 profile 跑一次 `--dump-config`，逐个 id 核对命中；
+// 任一 id 不在合成清单里（上游改名/移除）即以非零退出并打印全部未命中 id。
 // `estimate` 只读本检出的客户端构建产物（packages/client/*/lib/client.js），
 // 不是运行时实际传输字节；真实字节在 `lcoder/profile-slice.md` 的测量一节记录。
 
-import { readFileSync, writeFileSync, existsSync, copyFileSync, readdirSync } from 'node:fs'
+import { readFileSync, writeFileSync, existsSync, copyFileSync, readdirSync, mkdirSync, rmSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createRequire } from 'node:module'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..')
 const SLICE = join(ROOT, 'lcoder', 'desktop-profile.slice.yml')
-const RUNTIME = join(
-  ROOT, 'apps', 'desktop', '.desktop-build', 'development', 'home', 'profiles', 'desktop', 'cordis.patch.yml',
-)
+const HOME = join(ROOT, 'apps', 'desktop', '.desktop-build', 'development', 'home')
+const RUNTIME = join(HOME, 'profiles', 'desktop', 'cordis.patch.yml')
+const CHECK_PROFILE = 'desktop-slice-check'
 const BACKUP = `${RUNTIME}.t177-backup`
 const BEGIN = '# ── T-177 slice begin'
 const END = '# ── T-177 slice end'
 const WAVE_HEADING = /^# ── T-177 slice · wave (\d+).*$/gm
 const NOT_DISABLED_HEADING = /^# ── 明确不关的行/m
+
+// 合成清单里 `disabled` 只应出现这四个 !!js 表达式；未知表达式说明上游换了写法，
+// 计数与命中判断都不再可信，直接报错而不是猜。
+const WINDOWS_DESKTOP_DISABLED = new Map([
+  ["!ctx.get('profileContext')", false],
+  ["ctx.get('profileContext')?.name !== 'desktop'", false],
+  ["profileContext?.name !== 'desktop'", false],
+  ["process.platform === 'win32'", true],
+  ["process.platform !== 'win32'", false],
+])
 
 /** Split the slice file into wave number -> row text (comments kept). */
 function readWaves() {
@@ -56,7 +71,7 @@ function stripBlock(text) {
 function parseRows(text) {
   const require2 = createRequire(join(ROOT, 'packages', 'lcoder', 'kernel', 'package.json'))
   const YAML = require2('yaml')
-  return YAML.parse(text, { customTags: [{ tag: '!!js', resolve: value => String(value) }] })
+  return YAML.parse(text, { logLevel: 'silent', customTags: [{ tag: '!!js', resolve: value => String(value) }] })
 }
 
 function apply(selected) {
@@ -81,6 +96,93 @@ function apply(selected) {
   writeFileSync(RUNTIME, next)
   console.log(`已应用第 ${selected.join(', ')} 波 → ${RUNTIME}`)
   console.log(`原文件备份在 ${BACKUP}（restore 不会删它）`)
+}
+
+/** True when a composed row is disabled in the win32 desktop context. */
+function isDisabled(row) {
+  const value = row.disabled
+  if (value === undefined) return false
+  if (typeof value === 'boolean') return value
+  if (typeof value === 'string') {
+    const known = WINDOWS_DESKTOP_DISABLED.get(value.trim())
+    if (known === undefined) throw new Error(`不认识的 disabled 表达式：${value.trim()}`)
+    return known
+  }
+  throw new Error(`disabled 既不是布尔也不是 !!js 表达式：${JSON.stringify(value)}`)
+}
+
+/**
+ * Compose the runtime profile through the CLI's dump path. The CLI reserves the
+ * profile name `desktop`, so the copy goes into a sibling temporary profile.
+ */
+function composeDump() {
+  const profileDir = join(HOME, 'profiles', CHECK_PROFILE)
+  const sources = ['cordis.yml', 'cordis.patch.yml', 'package.json']
+  if (!sources.every(name => existsSync(join(dirname(RUNTIME), name)))) {
+    throw new Error(`运行副本不完整：${dirname(RUNTIME)} 缺 ${sources.join('、')}；先跑一次 rebuild.cmd profile`)
+  }
+  rmSync(profileDir, { recursive: true, force: true })
+  mkdirSync(profileDir, { recursive: true })
+  try {
+    for (const name of sources) copyFileSync(join(dirname(RUNTIME), name), join(profileDir, name))
+    const result = spawnSync(process.execPath, [
+      '--import', 'tsx/esm',
+      join(ROOT, 'apps', 'cli', 'src', 'bin.ts'),
+      '--profile', CHECK_PROFILE, '--dump-config',
+    ], { cwd: ROOT, env: { ...process.env, DSH_HOME: HOME }, encoding: 'utf8', timeout: 180_000 })
+    if (result.error !== undefined) throw result.error
+    if (result.status !== 0) {
+      const tail = String(result.stderr ?? '').trim().split('\n').slice(-5).join(' | ')
+      throw new Error(`--dump-config 退出 ${String(result.status)}：${tail}`)
+    }
+    return String(result.stdout)
+  } finally {
+    rmSync(profileDir, { recursive: true, force: true })
+  }
+}
+
+/**
+ * Hard gate: every id from the applied waves must be present in the composed
+ * profile and carry the slice's effect. Widening this to the whole runtime
+ * profile is the upstream-upgrade drift detector.
+ */
+function check(selected) {
+  const waves = readWaves()
+  const specs = selected.flatMap(n => {
+    if (!waves.has(n)) throw new Error(`切片文件里没有第 ${n} 波；已知波次 ${[...waves.keys()].join(', ')}`)
+    return parseRows(waves.get(n)).map(spec => ({ wave: n, ...spec }))
+  })
+  const rows = parseRows(composeDump())
+  const byId = new Map()
+  for (const row of rows) {
+    if (row !== null && typeof row === 'object' && typeof row.id === 'string') byId.set(row.id, row)
+  }
+  const misses = []
+  for (const spec of specs) {
+    const row = byId.get(spec.id)
+    if (row === undefined) { misses.push(`${spec.id}（合成清单里没有这一行）`); continue }
+    if (spec.disabled === true && !isDisabled(row)) misses.push(`${spec.id}（disabled=${JSON.stringify(row.disabled ?? false)}）`)
+    for (const [key, want] of Object.entries(spec.config ?? {})) {
+      const got = row.config?.[key]
+      if (JSON.stringify(got) !== JSON.stringify(want)) misses.push(`${spec.id}.config.${key}（${JSON.stringify(got)} ≠ ${JSON.stringify(want)}）`)
+    }
+  }
+  if (misses.length > 0) {
+    throw new Error(`切片未命中 ${misses.length} 处：\n  ${misses.join('\n  ')}`)
+  }
+
+  let enabled = 0
+  let disabled = 0
+  for (const row of rows) {
+    if (row !== null && typeof row === 'object' && typeof row.id === 'string') {
+      if (isDisabled(row)) disabled += 1
+      else enabled += 1
+    }
+  }
+  console.log(`✓ 切片第 ${selected.join(', ')} 波共 ${specs.length} 行全部命中`)
+  console.log(`  合成清单 ${rows.length} 条：启用 ${enabled} / 禁用 ${disabled}（win32 桌面口径）`)
+  const registry = byId.get('agent-preset-registry')
+  console.log(`  agent-preset-registry.config.default = ${String(registry?.config?.default)}`)
 }
 
 function restore() {
@@ -185,13 +287,17 @@ function estimate(selected) {
 const argv = process.argv.slice(2)
 const command = argv[0]
 const waves = []
+let all = false
 for (let i = 1; i < argv.length; i += 1) {
   if (argv[i] === '--wave') waves.push(Number(argv[i + 1]))
+  else if (argv[i] === '--all') all = true
 }
+const selected = () => all ? [...readWaves().keys()] : (waves.length ? waves : [1])
 try {
   if (command === 'apply') {
-    const selected = waves.length ? waves : [1]
-    apply(selected)
+    apply(selected())
+  } else if (command === 'check') {
+    check(selected())
   } else if (command === 'restore') {
     restore()
   } else if (command === 'status') {
@@ -199,7 +305,7 @@ try {
   } else if (command === 'estimate') {
     estimate(waves.length ? waves : [1])
   } else {
-    throw new Error('用法：profile-slice.mjs <apply|restore|status|estimate> --wave <n>')
+    throw new Error('用法：profile-slice.mjs <apply|check|restore|status|estimate> [--all | --wave <n>]')
   }
 } catch (error) {
   console.error(String(error instanceof Error ? error.message : error))

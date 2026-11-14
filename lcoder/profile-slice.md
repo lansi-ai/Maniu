@@ -1,6 +1,6 @@
 # Profile 裁剪减重（T-177）
 
-状态：阶段一（静态装配清单与三波切片）与阶段二（逐波实测）都已完成。静态推导的数字保留作对照，结论以「阶段二实测」一节为准。
+状态：阶段一（静态装配清单与三波切片）与阶段二（逐波实测）都已完成；T-178 起三波默认接入发布 profile（`rebuild.cmd profile` 自动 apply + 合成校验硬闸）。静态推导的数字保留作对照，结论以「阶段二实测」一节为准。
 
 ## 结论
 
@@ -119,18 +119,23 @@
 
 `lcoder/desktop-profile.slice.yml` 是唯一源，按 `# ── T-177 slice · wave N` 分段，只写 `disabled` 或必要的完整 `config`；patch 语义是同 id 后写覆盖整行 config，所以不重抄上游字段。
 
-`lcoder/scripts/profile-slice.mjs` 负责落地：
+`lcoder/scripts/profile-slice.mjs` 负责落地与校验：
 
 ```sh
-node lcoder/scripts/profile-slice.mjs apply --wave 1        # 可叠加：--wave 1 --wave 2 --wave 3
+node lcoder/scripts/profile-slice.mjs apply --all         # 全部波次（rebuild 自动调用；可 --wave 单发）
+node lcoder/scripts/profile-slice.mjs check --all         # 硬闸：逐 id 核对合成清单
 node lcoder/scripts/profile-slice.mjs status
 node lcoder/scripts/profile-slice.mjs restore
-node lcoder/scripts/profile-slice.mjs estimate --wave 1     # 静态客户端产物上界
+node lcoder/scripts/profile-slice.mjs estimate --wave 1   # 静态客户端产物上界
 ```
 
-脚本把选中波次追加到运行副本 `apps/desktop/.desktop-build/development/home/profiles/desktop/cordis.patch.yml` 末尾，夹在一对 `# ── T-177 slice` 标记之间；写入前解析一次，解析失败不落盘；首次 apply 备份为 `cordis.patch.yml.t177-backup`；`restore` 先按语义比对备份（桌面端启动时会把 YAML 重新序列化，折行与默认模型落盘都会变），语义一致才写回备份原字节。`lcoder\scripts\rebuild.cmd profile` 重写运行副本后切片自动消失，这是故意的：装配源永远保持全量装配。
+默认接入：`lcoder\scripts\rebuild.cmd profile` 拷完运行副本后立刻 `apply --all`，profile 保障末尾再跑 `check --all`；`warm`/`claim` 在跳过构建时也执行同一段 profile 保障，所以这条路径同样带切片。运行副本被重拷后切片会重新套上，不再是“重拷即消失”。脚本把选中波次追加到运行副本 `apps/desktop/.desktop-build/development/home/profiles/desktop/cordis.patch.yml` 末尾，夹在一对 `# ── T-177 slice` 标记之间；apply 先摘旧块再写，重复执行字节一致，重写运行副本后重放也不堆块；写入前解析一次，解析失败不落盘；首次 apply 备份为 `cordis.patch.yml.t177-backup`（restore 不删它）。
 
-阶段一已做过的静态校验：三波分别 apply 后用临时 profile 重新 `--dump-config`，第一波 181→155 启用、第二波 →146、第三波（修正后）→130；全部 51 行命中禁用；第三波后 `agent-preset-registry.config.default` 为 `lcoder`，启用 preset 恰好是 LCoder 的十个。
+硬闸：`check` 把运行副本的三份文件（`cordis.yml`、`cordis.patch.yml`、`package.json`）拷成同 home 下的临时 profile `desktop-slice-check`，跑一次 `--dump-config` 后立即删除；逐个核对切片 id 在合成清单里存在且为 `disabled: true`，`agent-preset-registry` 另核 `config.default` / `selectedDefault` 都是 `lcoder`。任一 id 未命中就打印全部未命中 id 并以非零退出，`rebuild.cmd` 把失败原样传出。这正是升上游后的漂移探测器：上游 id 改名或移除时，include 的 patch 探测只 warn 并跳过（`vendor/include/src/index.ts:51`），切片会静默失效，而这条闸会红。
+
+实验能力保留：`restore` 先按语义比对备份（桌面端启动时会把 YAML 重新序列化，折行与默认模型落盘都会变），语义一致才写回备份原字节，否则按去掉块的内容还原；`estimate` 仍对单波做静态客户端产物估算。
+
+`check` 顺带打印的合成口径：208 条 / 启用 130 / 禁用 78（win32 桌面），`agent-preset-registry.config.default = lcoder`，启用 preset 恰为 LCoder 的十个。阶段一已做过的静态校验结论（第一波 181→155、第二波 →146、第三波 →130；全部 51 行命中禁用）仍成立。
 
 ## 阶段二实测
 
@@ -207,7 +212,7 @@ node lcoder/scripts/profile-slice.mjs estimate --wave 1     # 静态客户端产
 
 ## 下一阶段建议
 
-1. 把三波接进发布 profile 的生成流程（在 `rebuild.cmd profile` 之后自动 apply），并把"未命中 id"做成门禁：升上游后 `estimate` 报"合成清单里没有这一行"即红。
+1. 三波已接进发布 profile 的生成流程（T-178）：`rebuild.cmd profile` 重拷后自动 apply，并用 `check` 把“未命中 id”做成非零退出的硬闸。
 2. 还要减安装包就走 core set 裁剪，另立任务；profile 层已到边界。
 3. 还想减客户端字节，唯一大块是上游聊天面整链（`ui-conversation` 940 KB + `ui-chat` 688 KB + `ui-tool` 204 KB 及座位，约 1.6 MB 未压缩），需要产品拍板是否放弃 `shell: false` 回退。
 
