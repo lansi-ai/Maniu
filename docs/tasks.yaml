@@ -2170,6 +2170,17 @@ tracks:
       dep: [T-192, T-190]
       inferred: false
       note: "C 级修复，来源是 T-183 合入后主检跑 M3 探针，重启后皮肤/字体/语言保持一项失败：状态回到默认 liquid-glass、system、zh-CN。根因是 T-192 的确定性退出改为清理后自 SIGKILL，跳过了 Chromium 的正常退出，渲染端 localStorage 的最后一批写入可能没有落盘。修法优先两选一：一是在自 SIGKILL 前刷 main 进程持有的 session 存储（flushStorageData 或等价），并留出有界等待；二是把皮肤/字体/语言偏好改成经窄 IPC 写主进程的 userData JSON，localStorage 只作渲染端缓存。不得回退确定性退出。验收：M3 探针 39/39，重启后皮肤/字体/语言保持；S1 与 M2 探针仍 PASS；typecheck/build:check/oxlint 全绿。与 T-191 同一工作树执行，不改其它范围。2026-11-15 00:15 监督窗口派工给 T-191 会话 99d6ed34 一并修。2026-11-15 00:35 监督窗口核验并收口。根因两条叠加：偏好只写渲染端 localStorage，自 SIGKILL 跳过 Chromium 正常退出；且渲染端启动用默认 zh 反向覆盖主进程已保存语言。修法采用主进程 userData 的 lcoder-preferences.json 作为唯一权威值，点击即经窄 IPC 同步写盘，启动时下发，localStorage 只作缓存，退出路径未改。M3 探针 39/39，重启后为 rose 与 modern 与 en，落盘文件一致；S1、M2、M3 探针全 PASS；新增偏好单测八条。已合入 lcoder/main、release pool-slot-2。"
+    - id: T-194
+      title: 新客户端 M4 切换方案
+      status: doing
+      face: 工程
+      type: 调研
+      owner: lance
+      created: '2026-11-15'
+      date: '2026-11-15'
+      dep: [T-191, T-190, T-189, T-187]
+      inferred: false
+      note: "B 级方案，来源是用户 2026-11-15 选择先出 M4 方案。范围按 T-184 的 M4：parity 清单逐项验收脚本、宿主-only profile 变体、一次性切换步骤、旧产物保留与回滚演练、打包与更新签名、移除 apps/desktop 与上游 client 依赖、接触面撤销。不直接切默认、不删源码、不改装配。产出 lcoder/client-cutover-plan.md，含 parity 矩阵与验收命令、切换前后检查单、回退演练步骤、依赖移除顺序、打包与签名方案、风险与未验项；交接点写清哪些必须由人执行。约束：只改 lcoder 文档，不改源码与台账；不 push、不合并。工作树 pool-slot-1 到 lcoder/t194-m4-plan，端口 9822 与 9829 与 9830。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
