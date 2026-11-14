@@ -10,10 +10,11 @@
  * 端口：渲染 9822、主进程 9829、宿主 9830、mock 云端 5091。
  */
 
-import { spawn } from 'node:child_process'
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { spawn, spawnSync } from 'node:child_process'
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { join, resolve } from 'node:path'
+import { zstdDecompressSync } from 'node:zlib'
 
 const REPO_ROOT = resolve(import.meta.dirname, '..', '..')
 const APP_ROOT = join(REPO_ROOT, 'packages', 'lcoder', 'desktop')
@@ -89,20 +90,44 @@ async function seedCredential() {
   log('已写入云端测试号令牌')
 }
 
+/** 本探针占用的三个调试端口。 */
+const DEBUG_PORTS = [9822, 9829, 9830]
+
+/**
+ * 列出仍被占用的调试端口。
+ * @returns 有进程监听的端口。
+ */
+async function busyPorts() {
+  const busy = []
+  for (const port of DEBUG_PORTS) {
+    try {
+      await fetch(`http://127.0.0.1:${String(port)}/json/version`, { signal: AbortSignal.timeout(800) })
+      busy.push(port)
+    } catch {
+      // 连不上即空闲。
+    }
+  }
+  return busy
+}
+
+/**
+ * 异常收尾时杀掉整个 Electron 进程树，避免宿主子进程占住会话库与端口。
+ * @param child - 探针启动的 Electron 主进程。
+ */
+function killTree(child) {
+  if (child === undefined || child.exitCode !== null || child.signalCode !== null) return
+  if (process.platform === 'win32') {
+    spawnSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' })
+    return
+  }
+  child.kill('SIGKILL')
+}
+
 function resolveElectron() {
   const requireFromApp = createRequire(join(APP_ROOT, 'package.json'))
   const resolved = requireFromApp('electron')
   assert(typeof resolved === 'string', '找不到 Electron 可执行文件')
   return resolved
-}
-
-async function portInUse() {
-  try {
-    await fetch(`http://127.0.0.1:${String(RENDERER_PORT)}/json/version`, { signal: AbortSignal.timeout(800) })
-    return true
-  } catch {
-    return false
-  }
 }
 
 async function launch(label) {
@@ -128,10 +153,13 @@ async function launch(label) {
   return { child, logPath }
 }
 
-async function connectCdp() {
+async function connectCdp(logPath) {
   const deadline = Date.now() + 60_000
   while (Date.now() < deadline) {
     try {
+      if (existsSync(logPath) && readFileSync(logPath, 'utf8').includes('Cannot start http server for devtools')) {
+        throw new Error('DevTools 端口绑定失败')
+      }
       const list = await (await fetch(`http://127.0.0.1:${String(RENDERER_PORT)}/json/list`)).json()
       const page = list.find(target => target.type === 'page' && target.url.startsWith('file://'))
       if (page !== undefined && typeof page.webSocketDebuggerUrl === 'string') return await attach(page.webSocketDebuggerUrl)
@@ -202,61 +230,256 @@ async function waitExit(child, milliseconds) {
   return ok
 }
 
-async function firstRun() {
-  const launched = await launch('first')
-  let page
+/**
+ * 读取一个会话的 durable 日志：事件条数、assistant 正文与文件大小。
+ * 会话目录按工作区（cwd 派生）分桶，所以逐桶找 `session-<id>`。
+ * @param sessionId - 渲染端使用的会话标识（与目录名相同）。
+ * @returns 日志摘要；会话还没有落盘文件时返回 undefined。
+ */
+function readSessionLog(sessionId) {
+  if (typeof sessionId !== 'string' || sessionId === '') return undefined
+  const root = join(HOME, 'sessions')
+  if (!existsSync(root)) return undefined
+  for (const bucket of readdirSync(root)) {
+    const file = join(root, bucket, sessionId, 'session.v4.jsonl.zstd')
+    if (!existsSync(file)) continue
+    const buffer = readFileSync(file)
+    const frames = []
+    for (let index = 0; index <= buffer.length - 4; index += 1) {
+      if (buffer[index] === 0x28 && buffer[index + 1] === 0xb5 && buffer[index + 2] === 0x2f && buffer[index + 3] === 0xfd) {
+        frames.push(index)
+      }
+    }
+    frames.push(buffer.length)
+    let text = ''
+    for (let index = 0; index < frames.length - 1; index += 1) {
+      try {
+        text += zstdDecompressSync(buffer.subarray(frames[index], frames[index + 1])).toString('utf8')
+      } catch {
+        // 帧边界可能落在压缩块中间；保留已解出的记录即可。
+      }
+    }
+    const counts = {}
+    let assistant = ''
+    for (const line of text.split('\n')) {
+      if (line === '') continue
+      let record
+      try {
+        record = JSON.parse(line)
+      } catch {
+        continue
+      }
+      const event = record.event ?? record
+      const type = typeof event?.type === 'string' ? event.type : '?'
+      counts[type] = (counts[type] ?? 0) + 1
+      if (type === 'assistant/message' && Array.isArray(event?.data?.message?.content)) {
+        assistant = event.data.message.content
+          .filter(block => block?.type === 'text' && typeof block.text === 'string')
+          .map(block => block.text)
+          .join('')
+      }
+    }
+    return { path: file, size: statSync(file).size, counts, assistant }
+  }
+  return undefined
+}
+
+/**
+ * 读日志文件末尾若干行；文件不存在时返回空数组。
+ * @param path - 日志路径。
+ * @param count - 行数。
+ * @returns 末尾行。
+ */
+function tailLines(path, count = 30) {
   try {
-    page = await connectCdp()
+    return readFileSync(path, 'utf8').trimEnd().split(/\r?\n/u).slice(-count)
+  } catch {
+    return []
+  }
+}
+
+/**
+ * 读取页面上的会话列表与聊天区摘要，用于失败现场。
+ * @param page - CDP 页面。
+ * @returns 可打印的摘要。
+ */
+async function pageSummary(page) {
+  return await page.evaluate(`JSON.stringify({
+    active: document.querySelector('[data-testid="active-session"]')?.textContent ?? null,
+    sessions: [...document.querySelectorAll('[data-testid="session-item"]')].map(node => node.dataset.sessionId),
+    messages: [...document.querySelectorAll('[data-testid="message-user"], [data-testid="message-assistant"]')]
+      .map(node => ({
+        role: node.dataset.testid === 'message-user' ? 'user' : 'assistant',
+        live: node.dataset.live === 'true',
+        text: (node.textContent ?? '').slice(0, 40),
+      })),
+    streamError: document.querySelector('[data-testid="stream-error"]')?.textContent ?? null,
+    notice: document.querySelector('[data-testid="notice"]')?.textContent ?? null,
+  })`)
+}
+
+/**
+ * 打印失败现场：会话标识、durable 日志、页面摘要与两条实例日志尾部。
+ * @param page - 当前页面；页面已关时传 undefined。
+ * @param sessionId - 目标会话。
+ * @param label - 失败阶段。
+ */
+async function dumpFailure(page, sessionId, label) {
+  log(`--- 失败现场：${label}`)
+  log(`目标会话：${sessionId ?? '尚未分配'}`)
+  if (page !== undefined) {
+    try {
+      log(`页面摘要：${await pageSummary(page)}`)
+    } catch (error) {
+      log(`页面摘要读取失败：${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+  const durable = readSessionLog(sessionId)
+  if (durable === undefined) {
+    log('会话日志：不存在')
+  } else {
+    log(`会话日志：${durable.path}（${String(durable.size)} 字节）事件 ${JSON.stringify(durable.counts)}`)
+    log(`会话日志 assistant 正文：${JSON.stringify(durable.assistant.slice(0, 80))}`)
+  }
+  for (const name of ['first', 'restart']) {
+    log(`${name} 实例日志尾部（${join(LOGS, `t187-probe-${name}.log`)}）：`)
+    for (const line of tailLines(join(LOGS, `t187-probe-${name}.log`))) log(`  | ${line}`)
+  }
+}
+
+/**
+ * 等聊天区出现一条**已提交**的 assistant 记录（不是流式草稿），并记录流式文本出现的时间。
+ * 关窗必须在回合提交之后：流式文本只证明渲染端收到了 chunk，durable 历史要等
+ * `assistant/message` 落盘。
+ * @param page - CDP 页面。
+ * @param milliseconds - 等待上限。
+ * @param label - 等待阶段。
+ * @returns 已提交正文与两段时间。
+ */
+async function watchAssistant(page, milliseconds, label) {
+  const started = Date.now()
+  let liveAt
+  while (Date.now() - started < milliseconds) {
+    const state = JSON.parse(await page.evaluate(`JSON.stringify({
+      live: document.querySelector('[data-testid="message-assistant"][data-live="true"]')?.textContent ?? '',
+      committed: [...document.querySelectorAll('[data-testid="message-assistant"]:not([data-live])')]
+        .map(node => node.textContent ?? ''),
+      error: document.querySelector('[data-testid="stream-error"]')?.textContent ?? '',
+    })`))
+    if (state.live !== '' && liveAt === undefined) liveAt = Date.now() - started
+    const committed = state.committed.find(text => text.includes('仓库结构'))
+    if (committed !== undefined) {
+      return { text: committed, liveAt, committedAt: Date.now() - started }
+    }
+    if (state.error !== '') throw new Error(`${label}流错误：${state.error}`)
+    await new Promise(resolvePromise => setTimeout(resolvePromise, 50))
+  }
+  throw new Error(`等待超时：${label}（${String(milliseconds)} 毫秒内没有已提交的 assistant 记录；`
+    + `${liveAt === undefined ? '也没有流式文本' : `流式文本在 ${String(liveAt)} 毫秒出现`}）`)
+}
+
+async function launchResilient(label) {
+  let lastError
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    const launched = await launch(label)
+    try {
+      return { ...launched, page: await connectCdp(launched.logPath) }
+    } catch (error) {
+      lastError = error
+      log(`${label} 第 ${attempt} 次启动未拿到 CDP：${error instanceof Error ? error.message : String(error)}`)
+      killTree(launched.child)
+      await new Promise(resolvePromise => setTimeout(resolvePromise, 3_000))
+    }
+  }
+  throw lastError
+}
+
+async function firstRun() {
+  const launched = await launchResilient('first')
+  let page = launched.page
+  let sessionId
+  try {
     await page.waitFor("document.querySelector('[data-testid=\"host-state\"]')?.dataset.hostState === 'ready'", 60_000, '宿主 ready')
     const gate = await page.waitFor("document.querySelector('.app')?.getAttribute('data-lcoder-state')", 30_000, '门禁判定')
     assert(gate === 'ready', `登录门禁没有放行：${String(gate)}（${await page.evaluate("document.body.innerText.slice(0,200)")}）`)
     await page.waitFor("document.querySelector('[data-testid=\"session-list\"]') !== null", 10_000, '会话列表')
+    const before = JSON.parse(await page.evaluate(
+      "JSON.stringify([...document.querySelectorAll('[data-testid=\"session-item\"]')].map(node => node.dataset.sessionId))",
+    ))
     await page.evaluate("document.querySelector('[data-testid=\"new-session\"]').click()")
-    await page.waitFor("document.querySelectorAll('[data-testid=\"session-item\"]').length > 0", 20_000, '新建会话')
-    const sessionId = await page.waitFor(
-      "document.querySelector('[data-testid=\"session-item\"].active')?.dataset.sessionId ?? document.querySelector('[data-testid=\"session-item\"]')?.dataset.sessionId",
-      10_000, '会话标识',
-    )
-    log(`会话列表非空，选中 ${sessionId}`)
+    // 复用 home 时列表里已有旧会话；只认点击之后新出现的会话，避免把旧会话的历史当成新回合。
+    sessionId = await page.waitFor(`(() => {
+      const before = new Set(${JSON.stringify(before)});
+      const active = document.querySelector('[data-testid="session-item"].active')?.dataset.sessionId;
+      if (typeof active === 'string' && !before.has(active)) return active;
+      return [...document.querySelectorAll('[data-testid="session-item"]')]
+        .map(node => node.dataset.sessionId)
+        .find(id => !before.has(id)) ?? '';
+    })()`, 30_000, '新建会话')
+    log(`新建会话 ${sessionId}（点击前已有 ${String(before.length)} 条）`)
     await page.evaluate("(() => { const input = document.querySelector('[data-testid=\"composer\"]'); input.value = '你好，请用一句话说明你读到了什么。'; input.dispatchEvent(new Event('input', { bubbles: true })) })()")
     await page.evaluate("document.querySelector('[data-testid=\"send\"]').click()")
-    const assistant = await page.waitFor("document.querySelector('[data-testid=\"message-assistant\"]')?.textContent || ''", 60_000, 'assistant 文本')
-    assert(assistant.includes('仓库结构'), `assistant 文本不符合 mock 预期：${String(assistant).slice(0, 120)}`)
-    log(`assistant 文本已出现：${JSON.stringify(String(assistant).slice(0, 40))}…`)
+    const assistant = await watchAssistant(page, 60_000, 'assistant 文本')
+    assert(assistant.text.includes('仓库结构'), `assistant 文本不符合 mock 预期：${String(assistant.text).slice(0, 120)}`)
+    log(`assistant 已提交：流式 ${String(assistant.liveAt)} 毫秒、落盘 ${String(assistant.committedAt)} 毫秒，`
+      + `正文 ${JSON.stringify(String(assistant.text).slice(0, 40))}…`)
     await closeApp(page)
     const exited = await waitExit(launched.child, 20_000)
     page.socket.close()
     page = undefined
+    if (!exited) await dumpFailure(undefined, sessionId, '首次实例关窗后退出')
     assert(exited, '首次实例关窗后退出')
     log('首次实例已退出')
+    const durable = readSessionLog(sessionId)
+    assert(durable !== undefined, `首次实例退出后找不到会话日志 ${sessionId}`)
+    assert((durable.counts['assistant/message'] ?? 0) > 0,
+      `首次实例退出后会话日志没有 assistant/message（${JSON.stringify(durable.counts)}）`)
+    assert(durable.assistant.includes('仓库结构'),
+      `首次实例退出后会话日志的 assistant 正文不含 mock 文本：${JSON.stringify(durable.assistant.slice(0, 80))}`)
+    log(`会话日志已落盘：${String(durable.size)} 字节，事件 ${JSON.stringify(durable.counts)}`)
     return sessionId
   } catch (error) {
-    if (page !== undefined) await closeApp(page)
+    if (page !== undefined) {
+      await dumpFailure(page, sessionId, '首次实例')
+      await closeApp(page)
+      page.socket.close()
+    }
     if (launched.child.exitCode === null) launched.child.kill('SIGTERM')
     throw error
   }
 }
 
 async function restartRun(sessionId) {
-  const launched = await launch('restart')
-  let page
+  const launched = await launchResilient('restart')
+  let page = launched.page
   try {
-    page = await connectCdp()
     await page.waitFor("document.querySelector('[data-testid=\"host-state\"]')?.dataset.hostState === 'ready'", 60_000, '宿主 ready（重启）')
     await page.waitFor("document.querySelector('.app')?.getAttribute('data-lcoder-state') === 'ready'", 30_000, '门禁放行（重启）')
     const selector = `[data-testid="session-item"][data-session-id="${sessionId}"]`
-    await page.waitFor(`document.querySelector('${selector}') !== null`, 20_000, '重启后的会话列表')
+    try {
+      await page.waitFor(`document.querySelector('${selector}') !== null`, 20_000, '重启后的会话列表')
+    } catch (error) {
+      await dumpFailure(page, sessionId, '重启后的会话列表')
+      throw error
+    }
     await page.evaluate(`document.querySelector('${selector}').click()`)
-    const assistant = await page.waitFor("document.querySelector('[data-testid=\"message-assistant\"]')?.textContent || ''", 30_000, '重启后的历史')
-    assert(assistant.includes('仓库结构'), '重启后没有从 follow snapshot 读到历史 assistant 文本')
-    log('重启后同一会话已重读历史')
+    let assistant
+    try {
+      assistant = await watchAssistant(page, 30_000, '重启后的历史')
+    } catch (error) {
+      await dumpFailure(page, sessionId, '重启后的历史')
+      throw error
+    }
+    assert(assistant.text.includes('仓库结构'), '重启后没有从 follow snapshot 读到历史 assistant 文本')
+    log(`重启后同一会话已重读历史（提交 ${String(assistant.committedAt)} 毫秒）`)
     await closeApp(page)
     const exited = await waitExit(launched.child, 20_000)
     page.socket.close()
     page = undefined
+    if (!exited) await dumpFailure(undefined, sessionId, '重启实例关窗后退出')
     assert(exited, '重启实例关窗后退出')
   } catch (error) {
-    if (page !== undefined) { await closeApp(page); page.socket.close() }
+    if (page !== undefined) { await dumpFailure(page, sessionId, '重启实例'); await closeApp(page); page.socket.close() }
     if (launched.child.exitCode === null) launched.child.kill('SIGTERM')
     throw error
   }
@@ -270,7 +493,8 @@ async function main() {
   ]) {
     assert(existsSync(path), `缺少构建产物 ${path}`)
   }
-  assert(!await portInUse(), `渲染调试端口 ${String(RENDERER_PORT)} 已被占用；先关掉本工作树正在运行的实例`)
+  const busy = await busyPorts()
+  assert(busy.length === 0, `调试端口空闲（占用：${busy.join(', ') || '无'}）；先关掉本工作树正在运行的实例`)
   electron = resolveElectron()
   await ensureMock()
   await seedCredential()
