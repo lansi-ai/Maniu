@@ -1,0 +1,48 @@
+# T-186 H2：在 host-only 之上再关掉与 S1 无关的宿主行。
+# 必须与 host-only-profile.patch.yml 一起用，顺序在后：
+#   --patch lcoder/host-only-profile.patch.yml --patch lcoder/host-only-minimal.patch.yml
+# 保留标准 preset 依赖的宿主服务（jobs/schedule/goals/subagents/skills/web/pluginManager），
+# 否则 session/create 激活 preset 会失败。
+
+- id: otel
+  disabled: true
+- id: session-telemetry-otel
+  disabled: true
+- id: desktop-product-telemetry
+  disabled: true
+- id: plugin-inventory
+  disabled: true
+- id: plugin-package-inventory-deepseek
+  disabled: true
+- id: job-controller
+  disabled: true
+- id: terminal-controller
+  disabled: true
+- id: office-to-pdf
+  disabled: true
+- id: open-in-app
+  disabled: true
+- id: message-feedback
+  disabled: true
+- id: command-feedback
+  disabled: true
+- id: session-stats
+  disabled: true
+- id: session-turn-outline
+  disabled: true
+- id: deliverable-file-references
+  disabled: true
+- id: workspace-changes
+  disabled: true
+- id: harness-dev-context
+  disabled: true
+- id: cordis-host-runner
+  disabled: true
+- id: cordis-inspect-providers
+  disabled: true
+- id: mcp-resources
+  disabled: true
+- id: hmr
+  disabled: true
+- id: subagent-model-selection-settings
+  disabled: true
