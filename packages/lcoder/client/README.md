@@ -12,6 +12,7 @@ English | [中文](README.zh.md)
 
 - `src/app.tsx`：登录门禁、会话列表、发消息、流式正文。
 - `src/store.ts`：`session.follow` 三帧（snapshot / event / assistant-stream）的纯折叠；入口 `session.list` + `api-session/*` 事件。
+- `src/theme/liquid-glass.css`：新客户端主题底座，集中 `--lg-*` token（玻璃填充、文字、点线、阴影、圆角、高光、模糊与饱和）、应用内自绘的环境背景层，以及 `.lg-glass` / `.lg-sheen` / `.lg-lift` 基元与 reduced-motion 分支；`src/styles.css` 只消费这些变量。
 - `src/contract.ts`：`window.lcoder` 窄 IPC 契约，与主进程同名同形。
 - 渲染端无 Node、无 `fetch`、无宿主 cookie；所有宿主访问经 preload 暴露的 IPC。
 

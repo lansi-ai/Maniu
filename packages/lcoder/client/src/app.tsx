@@ -327,7 +327,16 @@ export function App(): JSX.Element {
 
   return (
     <div className="app" data-lcoder-state={gate.kind}>
-      <header className="titlebar" data-testid="titlebar">
+      <div className="ambient-layer" data-testid="ambient-layer" aria-hidden="true">
+        <span className="ambient-blob blob-a" />
+        <span className="ambient-blob blob-b" />
+        <span className="ambient-blob blob-c" />
+        <span className="ambient-blob blob-d" />
+        <span className="ambient-blob blob-e" />
+        <span className="ambient-grain" data-testid="ambient-grain" />
+      </div>
+
+      <header className="titlebar lg-glass" data-testid="titlebar">
         <div className="titlebar-drag">
           <span className="brand">LCoder</span>
           <span className="tag">S1</span>
@@ -336,42 +345,49 @@ export function App(): JSX.Element {
           </span>
         </div>
         <div className="window-buttons">
-          <button type="button" aria-label="最小化" onClick={() => { void window.lcoder.window('minimize') }}>—</button>
-          <button type="button" aria-label="最大化" onClick={() => { void window.lcoder.window('toggle-maximize') }}>□</button>
-          <button type="button" aria-label="关闭" onClick={() => { void window.lcoder.window('close') }}>×</button>
+          <button type="button" className="lg-sheen" aria-label="最小化" onClick={() => { void window.lcoder.window('minimize') }}>—</button>
+          <button type="button" className="lg-sheen" aria-label="最大化" onClick={() => { void window.lcoder.window('toggle-maximize') }}>□</button>
+          <button type="button" className="lg-sheen" data-role="close" aria-label="关闭" onClick={() => { void window.lcoder.window('close') }}>×</button>
         </div>
       </header>
 
       {gate.kind === 'booting' && (
         <main className="center" data-testid="gate-loading">
-          <p>正在读取宿主与登录状态…</p>
-          {host.kind === 'fatal' && <pre className="fatal">{host.detail}</pre>}
+          <section className="gate-card lg-glass">
+            <h1>正在启动</h1>
+            <p>正在读取宿主与登录状态…</p>
+            {host.kind === 'fatal' && <pre className="fatal">{host.detail}</pre>}
+          </section>
         </main>
       )}
 
       {gate.kind === 'cloud-error' && (
         <main className="center" data-testid="cloud-unavailable">
-          <h1>云端不可用</h1>
-          <p>登录状态读不到，这不是「未登录」。</p>
-          <code>{gate.failure.code}: {gate.failure.message}</code>
-          <button type="button" onClick={() => { void checkCloud() }}>重新检查</button>
+          <section className="gate-card lg-glass">
+            <h1>云端不可用</h1>
+            <p>登录状态读不到，这不是「未登录」。</p>
+            <code>{gate.failure.code}: {gate.failure.message}</code>
+            <button type="button" className="pill pill-accent lg-sheen lg-lift" onClick={() => { void checkCloud() }}>重新检查</button>
+          </section>
         </main>
       )}
 
       {gate.kind === 'login' && (
         <main className="center" data-testid="login-placeholder">
-          <h1>登录</h1>
-          <p>{gate.message}</p>
-          <button type="button" onClick={() => { void checkCloud() }}>重新检查</button>
+          <section className="gate-card lg-glass">
+            <h1>登录</h1>
+            <p>{gate.message}</p>
+            <button type="button" className="pill pill-accent lg-sheen lg-lift" onClick={() => { void checkCloud() }}>重新检查</button>
+          </section>
         </main>
       )}
 
       {gate.kind === 'ready' && (
         <main className="workspace" data-testid="workspace">
-          <aside className="sidebar">
+          <aside className="sidebar lg-glass">
             <div className="sidebar-head">
               <span>会话</span>
-              <button type="button" data-testid="new-session" onClick={() => { void createSession() }}>新会话</button>
+              <button type="button" className="pill lg-sheen lg-lift" data-testid="new-session" onClick={() => { void createSession() }}>新会话</button>
             </div>
             <ul className="session-list" data-testid="session-list">
               {sessions.map(session => (
@@ -381,7 +397,7 @@ export function App(): JSX.Element {
                     data-testid="session-item"
                     data-session-id={session.sessionId}
                     data-running={session.running ? 'true' : 'false'}
-                    className={session.sessionId === active ? 'session active' : 'session'}
+                    className={session.sessionId === active ? 'session active lg-sheen' : 'session lg-sheen'}
                     onClick={() => { selectSession(session.sessionId) }}
                   >
                     <span className="dot" />
@@ -395,27 +411,27 @@ export function App(): JSX.Element {
           </aside>
 
           <section className="chat">
-            <div className="chat-head">
+            <div className="chat-head lg-glass">
               <span data-testid="active-session">{activeSession === null ? '未选择会话' : sessionLabel(activeSession)}</span>
             </div>
             <div className="messages" data-testid="messages">
               {chat.messages.map(message => (
                 <article
                   key={message.id}
-                  className={`message ${message.role}`}
+                  className={message.role === 'assistant' ? 'message assistant lg-glass-card' : 'message user'}
                   data-testid={`message-${message.role}`}
                 >
                   {message.text}
                 </article>
               ))}
               {chat.liveText !== '' && (
-                <article className="message assistant live" data-testid="message-assistant" data-live="true">
+                <article className="message assistant live lg-glass-card" data-testid="message-assistant" data-live="true">
                   {chat.liveText}
                 </article>
               )}
               {chat.streamError !== null && <p className="notice" data-testid="stream-error">{chat.streamError}</p>}
             </div>
-            <div className="composer">
+            <div className="composer lg-glass">
               <textarea
                 ref={composerRef}
                 data-testid="composer"
@@ -428,7 +444,7 @@ export function App(): JSX.Element {
                   }
                 }}
               />
-              <button type="button" data-testid="send" disabled={sending} onClick={() => { void send() }}>
+              <button type="button" className="pill pill-accent lg-sheen lg-lift" data-testid="send" disabled={sending} onClick={() => { void send() }}>
                 {sending ? '发送中…' : '发送'}
               </button>
             </div>
