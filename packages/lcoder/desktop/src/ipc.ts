@@ -1,6 +1,7 @@
 /** 窄 IPC 注册：校验载荷后转给 link / 窗口；渲染端拿不到宿主 cookie。 */
 
 import { ipcMain, type BrowserWindow, type IpcMainInvokeEvent } from 'electron'
+import { IPC_CHANNELS } from './contract.ts'
 import type { EventOutcome, HostState, WindowAction } from './contract.ts'
 import type { HostLink } from './link.ts'
 
@@ -57,25 +58,25 @@ function windowAction(value: unknown): WindowAction | undefined {
  * @param deps - 当前连接、应用信息与主窗口读取器。
  */
 export function registerIpc(deps: IpcDependencies): void {
-  ipcMain.handle('lcoder:call', async (_event: IpcMainInvokeEvent, value: unknown) => {
+  ipcMain.handle(IPC_CHANNELS.call, async (_event: IpcMainInvokeEvent, value: unknown) => {
     const request = callRequest(value)
     if (request === undefined) return { ok: false, error: { code: 'lcoder/bad-request', message: '调用参数不合法' } }
     const link = deps.link()
     if (link === undefined) return { ok: false, error: { code: 'lcoder/host-not-ready', message: '宿主尚未就绪' } }
     return link.call(request.namespace, request.method, request.args)
   })
-  ipcMain.handle('lcoder:stream-open', (_event: IpcMainInvokeEvent, value: unknown) => {
+  ipcMain.handle(IPC_CHANNELS.streamOpen, (_event: IpcMainInvokeEvent, value: unknown) => {
     const request = callRequest(value)
     if (request === undefined) throw new Error('lcoder: 流参数不合法')
     const link = deps.link()
     if (link === undefined) throw new Error('lcoder: 宿主尚未就绪')
     return link.openStream(request.namespace, request.method, request.args)
   })
-  ipcMain.handle('lcoder:stream-cancel', (_event: IpcMainInvokeEvent, value: unknown) => {
+  ipcMain.handle(IPC_CHANNELS.streamCancel, (_event: IpcMainInvokeEvent, value: unknown) => {
     if (typeof value !== 'string') throw new Error('lcoder: 流标识不合法')
     deps.link()?.cancelStream(value)
   })
-  ipcMain.handle('lcoder:event-result', async (_event: IpcMainInvokeEvent, value: unknown) => {
+  ipcMain.handle(IPC_CHANNELS.eventResult, async (_event: IpcMainInvokeEvent, value: unknown) => {
     if (!isRecord(value) || typeof value.clientId !== 'string' || typeof value.eventId !== 'string') {
       throw new Error('lcoder: 回执参数不合法')
     }
@@ -84,7 +85,7 @@ export function registerIpc(deps: IpcDependencies): void {
     const answer = await deps.link()?.eventResult(value.clientId, value.eventId, outcome)
     if (answer !== undefined && !answer.ok) throw new Error(`lcoder: 回执失败 ${answer.error.code}`)
   })
-  ipcMain.handle('lcoder:window', (_event: IpcMainInvokeEvent, value: unknown) => {
+  ipcMain.handle(IPC_CHANNELS.window, (_event: IpcMainInvokeEvent, value: unknown) => {
     const action = windowAction(value)
     const window = deps.window()
     if (action === undefined || window === undefined) return
@@ -94,8 +95,8 @@ export function registerIpc(deps: IpcDependencies): void {
       else window.maximize()
     } else window.close()
   })
-  ipcMain.handle('lcoder:app-info', () => deps.appInfo())
-  ipcMain.handle('lcoder:host-state-now', () => deps.hostState())
+  ipcMain.handle(IPC_CHANNELS.appInfo, () => deps.appInfo())
+  ipcMain.handle(IPC_CHANNELS.hostStateNow, () => deps.hostState())
 }
 
 /** 宿主状态推送面。 */
@@ -117,7 +118,7 @@ export function createStatePublisher(window: () => BrowserWindow | undefined): S
   const send = (): void => {
     const target = window()
     if (target !== undefined && !target.isDestroyed() && !target.webContents.isLoading()) {
-      target.webContents.send('lcoder:host-state', latest)
+      target.webContents.send(IPC_CHANNELS.hostState, latest)
     }
   }
   return {
