@@ -1,0 +1,20 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "lib/types"
+  },
+  "include": ["src"],
+  "references": [
+    { "path": "../../../vendor/cordis" },
+    { "path": "../../../apps/cli" },
+    { "path": "../../boot/app-boot" },
+    { "path": "../../client/connection/tsconfig.host.json" },
+    { "path": "../../host/webserver" },
+    { "path": "../../util/home-paths" },
+    { "path": "../../api/session-controller/tsconfig.host.json" },
+    { "path": "../../llm/llm" },
+    { "path": "../../typert/protocol" },
+    { "path": "../kernel" }
+  ]
+}

@@ -1,0 +1,156 @@
+:root {
+  color-scheme: dark;
+  --bg: #0f1115;
+  --panel: #161a21;
+  --border: #262c36;
+  --text: #e8eaee;
+  --muted: #8b93a1;
+  --accent: #4f8cff;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root { height: 100%; margin: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  font-size: 14px;
+}
+
+.app { display: flex; flex-direction: column; height: 100%; }
+
+.titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 36px;
+  flex: 0 0 auto;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+}
+
+.titlebar-drag {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  height: 100%;
+  padding-left: 12px;
+  -webkit-app-region: drag;
+}
+
+.brand { font-weight: 600; letter-spacing: 0.02em; }
+.tag { font-size: 11px; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 1px 6px; }
+.host { font-size: 12px; color: var(--muted); }
+
+.window-buttons { display: flex; -webkit-app-region: no-drag; }
+.window-buttons button {
+  width: 42px;
+  height: 36px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 14px;
+  cursor: pointer;
+}
+.window-buttons button:hover { background: #232936; color: var(--text); }
+
+.center { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 24px; text-align: center; }
+.center h1 { font-size: 20px; margin: 0; }
+.center code, .fatal { color: var(--muted); background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 10px; max-width: 720px; overflow: auto; }
+
+.workspace { flex: 1; display: flex; min-height: 0; }
+
+.sidebar {
+  width: 240px;
+  flex: 0 0 240px;
+  border-right: 1px solid var(--border);
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.sidebar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+#root button { font: inherit; color: inherit; }
+
+.sidebar-head button, .center button {
+  border: 1px solid var(--border);
+  background: #1d2430;
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+.sidebar-head button:hover, .center button:hover { border-color: var(--accent); }
+
+.session-list { list-style: none; margin: 0; padding: 0 8px 8px; overflow: auto; flex: 1; }
+.session-list li { margin-bottom: 2px; }
+.session {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  border-radius: 6px;
+  padding: 8px;
+  text-align: left;
+  cursor: pointer;
+}
+.session:hover { background: #1d2430; }
+.session.active { background: #22304a; }
+.session .dot { width: 6px; height: 6px; border-radius: 50%; background: #3b4250; flex: 0 0 6px; }
+.session[data-running="true"] .dot { background: #3ecf8e; }
+.session .label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.session .running { font-size: 10px; color: #3ecf8e; }
+
+.notice { color: #ffb4a8; font-size: 12px; padding: 0 12px; white-space: pre-wrap; }
+
+.chat { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.chat-head { padding: 10px 16px; border-bottom: 1px solid var(--border); color: var(--muted); font-size: 12px; }
+
+.messages { flex: 1; overflow: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+.message {
+  max-width: 78%;
+  border-radius: 10px;
+  padding: 10px 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.55;
+}
+.message.user { align-self: flex-end; background: #22304a; }
+.message.assistant { align-self: flex-start; background: var(--panel); border: 1px solid var(--border); }
+.message.live { border-style: dashed; }
+
+.composer { display: flex; gap: 8px; padding: 12px; border-top: 1px solid var(--border); }
+.composer textarea {
+  flex: 1;
+  resize: none;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  padding: 8px 10px;
+  font: inherit;
+  outline: none;
+}
+.composer textarea:focus { border-color: var(--accent); }
+.composer button {
+  border: 0;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  padding: 0 18px;
+  cursor: pointer;
+}
+.composer button:disabled { opacity: 0.5; cursor: default; }
