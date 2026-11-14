@@ -13,7 +13,7 @@
     "./package.json": "./package.json"
   },
   "scripts": {
-    "build": "tsc -b && tsdown && vite build",
+    "build": "tsc -b && tsdown",
     "typecheck": "tsc -b",
     "dev": "vite"
   },
