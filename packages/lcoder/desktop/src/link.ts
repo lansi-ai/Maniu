@@ -110,6 +110,32 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+/**
+ * 把一帧 waterfall 折成渲染端事件。
+ *
+ * 事件代际来自同一代 `$events` 开场的 ready 帧，waterfall 帧里没有 `clientId`；
+ * 缺代际或事件不在白名单时返回 undefined。
+ * @param value - `$events` 的一帧。
+ * @param clientId - 本次连接的事件代际。
+ * @returns 渲染端事件，或 undefined。
+ */
+export function waterfallOf(value: unknown, clientId: string | undefined): HostWaterfall | undefined {
+  if (clientId === undefined || !isRecord(value) || value.type !== 'waterfall') return undefined
+  if (typeof value.event !== 'string' || !FORWARDED_WATERFALLS.has(value.event)
+    || typeof value.eventId !== 'string' || !isRecord(value.request)) return undefined
+  return { name: value.event, clientId, eventId: value.eventId, request: value.request }
+}
+
+/**
+ * 把一帧 waterfall 撤回折成渲染端通知。
+ * @param value - `$events` 的一帧。
+ * @returns 撤回事件，或 undefined。
+ */
+export function waterfallCancelOf(value: unknown): HostWaterfallCancel | undefined {
+  if (!isRecord(value) || value.type !== 'cancel' || typeof value.eventId !== 'string') return undefined
+  return { eventId: value.eventId }
+}
+
 function textOf(data: RawData): string {
   if (Array.isArray(data)) return Buffer.concat(data).toString('utf8')
   if (Buffer.isBuffer(data)) return data.toString('utf8')
@@ -404,21 +430,13 @@ export class HostLink {
       this.sink?.onEvent({ name: value.event, args: Array.isArray(value.args) ? value.args : [] })
       return
     }
-    if (value.type === 'waterfall') {
-      if (typeof value.event !== 'string' || !FORWARDED_WATERFALLS.has(value.event)
-        || typeof value.eventId !== 'string' || typeof value.clientId !== 'string' || !isRecord(value.request)) return
-      this.sink?.onWaterfall({
-        name: value.event,
-        clientId: value.clientId,
-        eventId: value.eventId,
-        request: value.request,
-      })
+    const waterfall = waterfallOf(value, this.clientId)
+    if (waterfall !== undefined) {
+      this.sink?.onWaterfall(waterfall)
       return
     }
-    if (value.type === 'cancel') {
-      if (typeof value.eventId !== 'string') return
-      this.sink?.onWaterfallCancel({ eventId: value.eventId })
-    }
+    const cancel = waterfallCancelOf(value)
+    if (cancel !== undefined) this.sink?.onWaterfallCancel(cancel)
   }
 
   private async post(endpoint: string, args: object): Promise<RemoteResult> {

@@ -243,9 +243,13 @@ export function App(): JSX.Element {
     const off = window.lcoder.onWaterfall((event: HostWaterfall) => {
       const interaction = interactionOf(event.name, event.clientId, event.eventId, event.request)
       if (interaction === undefined) return
-      setPending(current => current.some(item => item.id === interaction.id)
-        ? current
-        : [...current.slice(-3), interaction])
+      setPending((current) => {
+        // 重连后同一请求会带新代际重投；回执必须用新一代的 clientId。
+        if (current.some(item => item.id === interaction.id)) {
+          return current.map(item => item.id === interaction.id ? interaction : item)
+        }
+        return [...current.slice(-3), interaction]
+      })
     })
     return off
   }, [])
