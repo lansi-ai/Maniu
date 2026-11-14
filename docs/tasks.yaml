@@ -2015,7 +2015,7 @@ tracks:
       date: '2026-11-14'
       dep: [T-177]
       inferred: false
-      note: "B 级配置收尾，来源是用户 2026-11-14 决定三波全接。范围：把 profile-slice.mjs 的 apply 接进 rebuild.cmd profile 的 profile 保障步骤，三波默认全接，源仍是 lcoder/desktop-profile.slice.yml，不把 51 行禁用复制进 desktop-profile.patch.yml，避免双源漂移；apply 的合成校验要区分命中与未命中，未命中任一 id 即失败中止并报出 id，不能静默跳过。验收：claim 或 rebuild 后 dump-config 为 130 启用、roster 42、默认角色 lcoder；起一次桌面实例跑七条 DOM 断言；typecheck、packages/lcoder vitest、verify-client-ui-i18n、test:docs、改动文件 oxlint 全绿。工作树 pool-slot-1 到 lcoder/t178-slice-adopt，端口 9822 与 9829 与 9830。"
+      note: "B 级配置收尾，来源是用户 2026-11-14 决定三波全接。范围：把 profile-slice.mjs 的 apply 接进 rebuild.cmd profile 的 profile 保障步骤，三波默认全接，源仍是 lcoder/desktop-profile.slice.yml，不把 51 行禁用复制进 desktop-profile.patch.yml，避免双源漂移；apply 的合成校验要区分命中与未命中，未命中任一 id 即失败中止并报出 id，不能静默跳过。验收：claim 或 rebuild 后 dump-config 为 130 启用、roster 42、默认角色 lcoder；起一次桌面实例跑七条 DOM 断言；typecheck、packages/lcoder vitest、verify-client-ui-i18n、test:docs、改动文件 oxlint 全绿。工作树 pool-slot-1 到 lcoder/t178-slice-adopt，端口 9822 与 9829 与 9830。2026-11-14 11:50 监督窗口派工，实现线会话 7091330d。"
     - id: T-179
       title: core set 裁剪调研
       status: doing
@@ -2026,7 +2026,7 @@ tracks:
       date: '2026-11-14'
       dep: [T-177]
       inferred: false
-      note: "B 级调研，来源是用户 2026-11-14 选择。目标维度是安装包与磁盘体积，T-177 已证明 profile 层到边界。方法：用 lcoder/scripts/audit-package-closure.mjs 与 lcoder/closure-audit.md 的 333 包 core set 口径，按功能分组统计包数、受控文件数与字节；给出可裁候选（遥测、插件市场、office、浏览器与终端运行时、python 与 native 等）与每项风险、依赖者、打包影响；给出试点方案，先用一次真实打包称重建立基线再动手，不删源码、不删包、不改发布脚本。产出 lcoder/core-set-slice.md，含 333 包构成表、候选分级与下一步任务建议。工作树 pool-slot-2 到 lcoder/t179-core-set，端口 9823 与 9831 与 9832。"
+      note: "B 级调研，来源是用户 2026-11-14 选择。目标维度是安装包与磁盘体积，T-177 已证明 profile 层到边界。方法：用 lcoder/scripts/audit-package-closure.mjs 与 lcoder/closure-audit.md 的 333 包 core set 口径，按功能分组统计包数、受控文件数与字节；给出可裁候选（遥测、插件市场、office、浏览器与终端运行时、python 与 native 等）与每项风险、依赖者、打包影响；给出试点方案，先用一次真实打包称重建立基线再动手，不删源码、不删包、不改发布脚本。产出 lcoder/core-set-slice.md，含 333 包构成表、候选分级与下一步任务建议。工作树 pool-slot-2 到 lcoder/t179-core-set，端口 9823 与 9831 与 9832。2026-11-14 11:50 监督窗口派工，实现线会话 89b63b45。"
     - id: T-180
       title: 上游聊天整链裁剪原型
       status: todo
