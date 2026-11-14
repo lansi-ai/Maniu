@@ -1,4 +1,4 @@
-/** S1 渲染端：登录门禁、会话列表、发消息与流式正文。 */
+/** 新客户端根：登录门禁、会话聊天与工作台五页。 */
 
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import type { JSX } from 'react'
@@ -10,6 +10,50 @@ import {
   summaryOf,
   type SessionSummary,
 } from './store.ts'
+import { ProjectInfoPage } from './pages/project-info.tsx'
+import { ProjectsPage } from './pages/projects.tsx'
+import { RequirementsPage } from './pages/requirements.tsx'
+import { SettingsPage } from './pages/settings.tsx'
+import { TasksPage } from './pages/tasks.tsx'
+import { ensureScopeSession, useWorkspaceList, type ProjectScope, type WorkspaceRow } from './workspace/use-workspaces.ts'
+import { useProjection } from './workspace/use-projection.ts'
+
+/** 工作台页面。 */
+type PageId = 'chat' | 'requirements' | 'tasks' | 'projects' | 'project-info' | 'settings'
+
+/** 新会话默认使用的角色；工作台作用域会话靠它拿到人机命令面。 */
+const WORKBENCH_PRESET = 'lcoder-workbench'
+
+const NAV_ITEMS: readonly { readonly id: PageId; readonly label: string }[] = [
+  { id: 'chat', label: '对话' },
+  { id: 'requirements', label: '需求' },
+  { id: 'tasks', label: '任务' },
+  { id: 'projects', label: '项目' },
+  { id: 'project-info', label: '项目信息' },
+  { id: 'settings', label: '设置' },
+]
+
+const PROJECT_KEY = 'lcoder.m2.project'
+
+function savedProject(): ProjectScope | null {
+  try {
+    const raw = localStorage.getItem(PROJECT_KEY)
+    if (raw === null) return null
+    const value: unknown = JSON.parse(raw)
+    if (typeof value !== 'object' || value === null) return null
+    const fields = value as Record<string, unknown>
+    if (typeof fields.workspaceId !== 'string' || typeof fields.path !== 'string'
+      || typeof fields.title !== 'string' || typeof fields.scopeSessionId !== 'string') return null
+    return {
+      workspaceId: fields.workspaceId,
+      path: fields.path,
+      title: fields.title,
+      scopeSessionId: fields.scopeSessionId,
+    }
+  } catch {
+    return null
+  }
+}
 
 type Gate =
   | { readonly kind: 'booting' }
@@ -77,6 +121,12 @@ export function App(): JSX.Element {
   const [chat, dispatch] = useReducer(chatReducer, emptyChat)
   const [notice, setNotice] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
+  const [page, setPage] = useState<PageId>('chat')
+  const [project, setProject] = useState<ProjectScope | null>(savedProject)
+  const [projectNotice, setProjectNotice] = useState<string | null>(null)
+
+  const workspaces = useWorkspaceList(gate.kind === 'ready')
+  const projection = useProjection(project?.scopeSessionId ?? null)
 
   const streamRef = useRef<string | null>(null)
   const activeRef = useRef<string | null>(null)
@@ -325,8 +375,28 @@ export function App(): JSX.Element {
 
   const activeSession = sessions.find(item => item.sessionId === active) ?? null
 
+  const chooseWorkspace = useCallback(async (workspace: WorkspaceRow) => {
+    setProjectNotice(null)
+    let scope = await ensureScopeSession(workspace, sessions, WORKBENCH_PRESET)
+    if (!scope.ok) scope = await ensureScopeSession(workspace, sessions)
+    if (!scope.ok) {
+      setProjectNotice(scope.message)
+      return
+    }
+    const next: ProjectScope = {
+      workspaceId: workspace.workspaceId,
+      path: workspace.path,
+      title: workspace.title,
+      scopeSessionId: scope.sessionId,
+    }
+    setProject(next)
+    localStorage.setItem(PROJECT_KEY, JSON.stringify(next))
+    setPage('tasks')
+    await loadSessions()
+  }, [loadSessions, sessions])
+
   return (
-    <div className="app" data-lcoder-state={gate.kind}>
+    <div className="app" {...(gate.kind === 'booting' ? {} : { 'data-lcoder-state': gate.kind })}>
       <div className="ambient-layer" data-testid="ambient-layer" aria-hidden="true">
         <span className="ambient-blob blob-a" />
         <span className="ambient-blob blob-b" />
@@ -339,7 +409,8 @@ export function App(): JSX.Element {
       <header className="titlebar lg-glass" data-testid="titlebar">
         <div className="titlebar-drag">
           <span className="brand">LCoder</span>
-          <span className="tag">S1</span>
+          <span className="tag">M2</span>
+          <span className="tag" data-testid="titlebar-project">{project === null ? '未选择项目' : project.title}</span>
           <span className="host" data-testid="host-state" data-host-state={host.kind}>
             {host.kind === 'ready' ? '宿主就绪' : host.kind === 'fatal' ? `宿主失败：${host.detail}` : '宿主启动中…'}
           </span>
@@ -383,72 +454,139 @@ export function App(): JSX.Element {
       )}
 
       {gate.kind === 'ready' && (
-        <main className="workspace" data-testid="workspace">
-          <aside className="sidebar lg-glass">
-            <div className="sidebar-head">
-              <span>会话</span>
-              <button type="button" className="pill lg-sheen lg-lift" data-testid="new-session" onClick={() => { void createSession() }}>新会话</button>
-            </div>
-            <ul className="session-list" data-testid="session-list">
-              {sessions.map(session => (
-                <li key={session.sessionId}>
-                  <button
-                    type="button"
-                    data-testid="session-item"
-                    data-session-id={session.sessionId}
-                    data-running={session.running ? 'true' : 'false'}
-                    className={session.sessionId === active ? 'session active lg-sheen' : 'session lg-sheen'}
-                    onClick={() => { selectSession(session.sessionId) }}
-                  >
-                    <span className="dot" />
-                    <span className="label">{sessionLabel(session)}</span>
-                    {session.running && <span className="running">运行中</span>}
-                  </button>
-                </li>
-              ))}
-            </ul>
-            {notice !== null && <p className="notice" data-testid="notice">{notice}</p>}
-          </aside>
-
-          <section className="chat">
-            <div className="chat-head lg-glass">
-              <span data-testid="active-session">{activeSession === null ? '未选择会话' : sessionLabel(activeSession)}</span>
-            </div>
-            <div className="messages" data-testid="messages">
-              {chat.messages.map(message => (
-                <article
-                  key={message.id}
-                  className={message.role === 'assistant' ? 'message assistant lg-glass-card' : 'message user'}
-                  data-testid={`message-${message.role}`}
-                >
-                  {message.text}
-                </article>
-              ))}
-              {chat.liveText !== '' && (
-                <article className="message assistant live lg-glass-card" data-testid="message-assistant" data-live="true">
-                  {chat.liveText}
-                </article>
-              )}
-              {chat.streamError !== null && <p className="notice" data-testid="stream-error">{chat.streamError}</p>}
-            </div>
-            <div className="composer lg-glass">
-              <textarea
-                ref={composerRef}
-                data-testid="composer"
-                placeholder="发一条消息…"
-                rows={3}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' && !event.shiftKey) {
-                    event.preventDefault()
-                    void send()
-                  }
-                }}
-              />
-              <button type="button" className="pill pill-accent lg-sheen lg-lift" data-testid="send" disabled={sending} onClick={() => { void send() }}>
-                {sending ? '发送中…' : '发送'}
+        <main className="shell" data-testid="workspace">
+          <nav className="nav lg-glass" data-testid="nav">
+            <div className="nav-brand">LCoder</div>
+            {NAV_ITEMS.map(item => (
+              <button
+                key={item.id}
+                type="button"
+                data-testid={`nav-${item.id}`}
+                className={page === item.id ? 'nav-item active lg-sheen' : 'nav-item lg-sheen'}
+                onClick={() => { setPage(item.id) }}
+              >
+                {item.label}
               </button>
+            ))}
+            <div className="nav-foot" data-testid="nav-project">
+              {project === null ? '未选择项目' : project.title}
             </div>
-          </section>
+          </nav>
+
+          <div className="shell-body">
+            {page === 'chat' && (
+              <>
+                <aside className="sidebar lg-glass">
+                  <div className="sidebar-head">
+                    <span>会话</span>
+                    <button type="button" className="pill lg-sheen lg-lift" data-testid="new-session" onClick={() => { void createSession() }}>新会话</button>
+                  </div>
+                  <ul className="session-list" data-testid="session-list">
+                    {sessions.map(session => (
+                      <li key={session.sessionId}>
+                        <button
+                          type="button"
+                          data-testid="session-item"
+                          data-session-id={session.sessionId}
+                          data-running={session.running ? 'true' : 'false'}
+                          className={session.sessionId === active ? 'session active lg-sheen' : 'session lg-sheen'}
+                          onClick={() => { selectSession(session.sessionId) }}
+                        >
+                          <span className="dot" />
+                          <span className="label">{sessionLabel(session)}</span>
+                          {session.running && <span className="running">运行中</span>}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                  {notice !== null && <p className="notice" data-testid="notice">{notice}</p>}
+                </aside>
+
+                <section className="chat">
+                  <div className="chat-head lg-glass">
+                    <span data-testid="active-session">{activeSession === null ? '未选择会话' : sessionLabel(activeSession)}</span>
+                  </div>
+                  <div className="messages" data-testid="messages">
+                    {chat.messages.map(message => (
+                      <article
+                        key={message.id}
+                        className={message.role === 'assistant' ? 'message assistant lg-glass-card' : 'message user'}
+                        data-testid={`message-${message.role}`}
+                      >
+                        {message.text}
+                      </article>
+                    ))}
+                    {chat.liveText !== '' && (
+                      <article className="message assistant live lg-glass-card" data-testid="message-assistant" data-live="true">
+                        {chat.liveText}
+                      </article>
+                    )}
+                    {chat.streamError !== null && <p className="notice" data-testid="stream-error">{chat.streamError}</p>}
+                  </div>
+                  <div className="composer lg-glass">
+                    <textarea
+                      ref={composerRef}
+                      data-testid="composer"
+                      placeholder="发一条消息…"
+                      rows={3}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' && !event.shiftKey) {
+                          event.preventDefault()
+                          void send()
+                        }
+                      }}
+                    />
+                    <button type="button" className="pill pill-accent lg-sheen lg-lift" data-testid="send" disabled={sending} onClick={() => { void send() }}>
+                      {sending ? '发送中…' : '发送'}
+                    </button>
+                  </div>
+                </section>
+              </>
+            )}
+
+            {page === 'requirements' && (
+              <RequirementsPage
+                project={project}
+                projection={projection.projection}
+                loading={projection.loading}
+                error={projection.error}
+                onReload={projection.reload}
+              />
+            )}
+
+            {page === 'tasks' && (
+              <TasksPage
+                project={project}
+                projection={projection.projection}
+                sessions={sessions}
+                loading={projection.loading}
+                error={projection.error}
+                onReload={projection.reload}
+              />
+            )}
+
+            {page === 'projects' && (
+              <ProjectsPage
+                items={workspaces.items}
+                current={project}
+                error={projectNotice ?? workspaces.error}
+                onSelect={(workspace) => { void chooseWorkspace(workspace) }}
+                onOpened={(workspace) => { void chooseWorkspace(workspace) }}
+              />
+            )}
+
+            {page === 'project-info' && (
+              <ProjectInfoPage
+                project={project}
+                projection={projection.projection}
+                loading={projection.loading}
+                error={projection.error}
+                onReload={projection.reload}
+              />
+            )}
+
+            {page === 'settings' && <SettingsPage />}
+          </div>
         </main>
       )}
     </div>

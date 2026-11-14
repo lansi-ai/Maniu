@@ -6,17 +6,28 @@ import type { EventOutcome, HostEvent, HostWaterfall, RemoteFailure, RemoteResul
 const EVENT_STREAM_ID = 'ev'
 const EVENT_RESULT_ENDPOINT = '$events/result'
 
-/** S1 允许渲染端调用的命名空间与方法；不透传任意路径。 */
+/** 渲染端允许调用的一元方法；只放行工作台需要的窄面，不透传任意路径。 */
 const UNARY_ALLOWED = new Set([
   'lcoderCloud/state',
   'session/list',
   'session/create',
   'session/prompt',
   'session/cancel',
+  'session/rename',
+  'workspace/create',
+  'workspace/initializeDefault',
+  'workspaceFiles/list',
+  'workspaceFiles/read',
+  'workspaceFiles/stat',
+  'directoryPicker/pick',
+  'commands/list',
+  'commands/execute',
+  'agentPresets/list',
+  'agentPresets/read',
 ])
 
-/** S1 允许打开的流式方法。 */
-const STREAM_ALLOWED = new Set(['session/follow'])
+/** 渲染端允许打开的流式方法。 */
+const STREAM_ALLOWED = new Set(['session/follow', 'workspace/follow'])
 
 /** 转发给渲染端的宿主事件。 */
 const FORWARDED_EVENTS = new Set([
@@ -105,15 +116,18 @@ export class HostLink {
     this.openSocket()
   }
 
-  /** 断开并停止重连。 */
+  /** 断开并停止重连。关窗走 terminate：宿主不必等待逻辑流优雅结束。 */
   close(): void {
     this.stopping = true
     if (this.reconnectTimer !== undefined) clearTimeout(this.reconnectTimer)
     this.reconnectTimer = undefined
-    this.socket?.close()
+    const socket = this.socket
     this.socket = undefined
     this.socketOpen = false
     this.streams.clear()
+    // 优雅 close 的握手依赖对端读事件；应用已在退出路径上，多一条 open 的逻辑流
+    // （workspace/follow）就会把宿主关停拖过探针的退出窗口。直接断开 TCP 即可。
+    socket?.terminate()
   }
 
   /**
@@ -126,7 +140,7 @@ export class HostLink {
   async call(namespace: string, method: string, args: object): Promise<RemoteResult> {
     const endpoint = `${namespace}/${method}`
     if (!UNARY_ALLOWED.has(endpoint)) {
-      return { ok: false, error: { code: 'lcoder/not-allowed', message: `S1 未开放 ${endpoint}` } }
+      return { ok: false, error: { code: 'lcoder/not-allowed', message: `未开放 ${endpoint}` } }
     }
     return this.post(endpoint, args)
   }
@@ -140,7 +154,7 @@ export class HostLink {
    */
   openStream(namespace: string, method: string, args: object): string {
     const endpoint = `${namespace}/${method}`
-    if (!STREAM_ALLOWED.has(endpoint)) throw new Error(`lcoder link: S1 未开放流 ${endpoint}`)
+    if (!STREAM_ALLOWED.has(endpoint)) throw new Error(`lcoder link: 未开放流 ${endpoint}`)
     const streamId = `s${++this.streamSeq}`
     this.streams.set(streamId, { endpoint, args })
     if (this.socketOpen) this.sendOpen(streamId, { endpoint, args })
