@@ -1,0 +1,224 @@
+/**
+ * 新客户端主题底座：液态玻璃浅色。
+ *
+ * 这是新客户端唯一的主题定义处：页面只消费 --lg-* 变量与 .lg-* 基元，不另写
+ * 背景、模糊、圆角与阴影。环境层由渲染端自绘，不读系统壁纸，也不用系统亚克力。
+ * 旧壳的 frost 皮肤不参与本文件。
+ */
+
+:root[data-theme='liquid-glass'] {
+  color-scheme: light;
+
+  /* 基底色：环境层的底色与柔光都从这里取。 */
+  --lg-base-a: #f3f6fc;
+  --lg-base-b: #e1e9f5;
+  --lg-ambient-blue: rgba(104, 160, 255, 0.52);
+  --lg-ambient-violet: rgba(166, 138, 255, 0.44);
+  --lg-ambient-teal: rgba(92, 212, 198, 0.38);
+  --lg-ambient-rose: rgba(255, 148, 190, 0.34);
+  --lg-ambient-warm: rgba(255, 196, 136, 0.3);
+
+  /* 文字：正文与次要文字的对比度都按浅色玻璃底测得。 */
+  --lg-font: -apple-system, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  --lg-ink: #16191f;
+  --lg-ink-2: #2f3540;
+  --lg-muted: #59616f;
+  --lg-faint: #6b7482;
+  --lg-on-accent: #ffffff;
+  --lg-accent: #0a5fe0;
+  --lg-accent-strong: #084aad;
+  --lg-danger: #b42318;
+  --lg-ok: #0d7a5c;
+
+  /* 点线与镜面边：亮边只出现在顶部与左侧。 */
+  --lg-line: rgba(255, 255, 255, 0.58);
+  --lg-line-hair: rgba(24, 34, 52, 0.08);
+  --lg-line-bright: rgba(255, 255, 255, 0.96);
+
+  /* 玻璃填充：半透明多层渐变，模糊之下仍能透出环境色。 */
+  --lg-fill-panel: linear-gradient(158deg, rgba(255, 255, 255, 0.62) 0%, rgba(255, 255, 255, 0.36) 46%, rgba(232, 240, 253, 0.38) 100%);
+  --lg-fill-card: linear-gradient(160deg, rgba(255, 255, 255, 0.72) 0%, rgba(255, 255, 255, 0.44) 58%, rgba(238, 244, 255, 0.4) 100%);
+  --lg-fill-control: linear-gradient(160deg, rgba(255, 255, 255, 0.66), rgba(255, 255, 255, 0.34));
+  --lg-fill-control-hover: linear-gradient(160deg, rgba(255, 255, 255, 0.88), rgba(255, 255, 255, 0.52));
+  --lg-fill-accent: linear-gradient(146deg, #2f80f0 0%, #0a5fe0 52%, #0a4fc4 100%);
+  --lg-fill-accent-soft: linear-gradient(150deg, rgba(96, 156, 255, 0.34), rgba(120, 176, 255, 0.2));
+
+  /* 模糊与饱和：主面板 36px，消息与控制器 30px。 */
+  --lg-blur: 36px;
+  --lg-blur-soft: 30px;
+  --lg-saturate: 190%;
+
+  /* 阴影与内高光：外浮动阴影加顶部内高光，边框由 --lg-line 单独给。 */
+  --lg-shadow-float: 0 28px 68px -28px rgba(38, 54, 88, 0.42), 0 10px 28px -16px rgba(38, 54, 88, 0.26);
+  --lg-shadow-card: 0 14px 36px -20px rgba(38, 54, 88, 0.34), 0 4px 12px -8px rgba(38, 54, 88, 0.2);
+  --lg-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.96), inset 1px 0 0 rgba(255, 255, 255, 0.74);
+  --lg-highlight-card: inset 0 1px 0 rgba(255, 255, 255, 0.92), inset 1px 0 0 rgba(255, 255, 255, 0.6);
+
+  /* 圆角：面板 26px，卡片 18px，控件胶囊。 */
+  --lg-radius-panel: 26px;
+  --lg-radius-bar: 18px;
+  --lg-radius-card: 18px;
+  --lg-radius-control: 999px;
+
+  /* 动效：扫光只动 transform 与 opacity，不碰 backdrop-filter。 */
+  --lg-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --lg-dur-lift: 180ms;
+  --lg-dur-sheen: 900ms;
+}
+
+/* 环境层：固定在最底层，所有页面共享，不参与命中测试。 */
+.ambient-layer {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  background:
+    radial-gradient(120% 80% at 50% -12%, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0) 62%),
+    linear-gradient(180deg, var(--lg-base-a) 0%, var(--lg-base-b) 100%);
+}
+
+.ambient-blob {
+  position: absolute;
+  width: 64vmax;
+  height: 64vmax;
+  border-radius: 50%;
+  opacity: 0.85;
+  will-change: transform;
+}
+
+.ambient-blob.blob-a {
+  top: -26vmax;
+  left: -18vmax;
+  background: radial-gradient(circle at 50% 50%, var(--lg-ambient-blue) 0%, rgba(104, 160, 255, 0) 64%);
+  animation: lg-drift-a 38s var(--lg-ease) infinite alternate;
+}
+
+.ambient-blob.blob-b {
+  top: -18vmax;
+  right: -22vmax;
+  background: radial-gradient(circle at 50% 50%, var(--lg-ambient-violet) 0%, rgba(166, 138, 255, 0) 62%);
+  animation: lg-drift-b 46s var(--lg-ease) infinite alternate;
+}
+
+.ambient-blob.blob-c {
+  bottom: -30vmax;
+  left: 6vmax;
+  background: radial-gradient(circle at 50% 50%, var(--lg-ambient-teal) 0%, rgba(92, 212, 198, 0) 62%);
+  animation: lg-drift-c 52s var(--lg-ease) infinite alternate;
+}
+
+.ambient-blob.blob-d {
+  right: -16vmax;
+  bottom: -28vmax;
+  background: radial-gradient(circle at 50% 50%, var(--lg-ambient-rose) 0%, rgba(255, 148, 190, 0) 60%);
+  animation: lg-drift-d 42s var(--lg-ease) infinite alternate;
+}
+
+.ambient-blob.blob-e {
+  top: 24vmax;
+  left: 26vmax;
+  background: radial-gradient(circle at 50% 50%, var(--lg-ambient-warm) 0%, rgba(255, 196, 136, 0) 58%);
+  animation: lg-drift-e 34s var(--lg-ease) infinite alternate;
+}
+
+/* 细颗粒：内联 SVG 噪声，压掉渐变的塑料感。 */
+.ambient-grain {
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23g)' opacity='0.55'/%3E%3C/svg%3E");
+  background-size: 180px 180px;
+  mix-blend-mode: soft-light;
+  opacity: 0.34;
+}
+
+@keyframes lg-drift-a {
+  from { transform: translate3d(-4%, -3%, 0) scale(1); }
+  to { transform: translate3d(12%, 8%, 0) scale(1.16); }
+}
+
+@keyframes lg-drift-b {
+  from { transform: translate3d(4%, -2%, 0) scale(1.08); }
+  to { transform: translate3d(-10%, 10%, 0) scale(0.94); }
+}
+
+@keyframes lg-drift-c {
+  from { transform: translate3d(-6%, 4%, 0) scale(0.96); }
+  to { transform: translate3d(10%, -8%, 0) scale(1.14); }
+}
+
+@keyframes lg-drift-d {
+  from { transform: translate3d(6%, 6%, 0) scale(1.02); }
+  to { transform: translate3d(-12%, -6%, 0) scale(1.18); }
+}
+
+@keyframes lg-drift-e {
+  from { transform: translate3d(-8%, -6%, 0) scale(0.9); }
+  to { transform: translate3d(8%, 8%, 0) scale(1.1); }
+}
+
+/* 玻璃基元：面板、卡片、控制器共用边框、高光与阴影。
+   只写标准 backdrop-filter：目标渲染器是 Electron 的 Chromium，而打包器在同一条
+   规则里只保留最后一条声明，写 -webkit- 前缀会把标准属性挤掉。 */
+.lg-glass {
+  position: relative;
+  background: var(--lg-fill-panel);
+  border: 1px solid var(--lg-line);
+  border-radius: var(--lg-radius-panel);
+  box-shadow: var(--lg-shadow-float), var(--lg-highlight);
+  backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-saturate));
+}
+
+.lg-glass-card {
+  position: relative;
+  background: var(--lg-fill-card);
+  border: 1px solid var(--lg-line);
+  border-radius: var(--lg-radius-card);
+  box-shadow: var(--lg-shadow-card), var(--lg-highlight-card);
+  backdrop-filter: blur(var(--lg-blur-soft)) saturate(var(--lg-saturate));
+}
+
+/* 扫光：伪元素横穿一条白色高光带，只过渡 transform 与 opacity。 */
+.lg-sheen {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.lg-sheen::after {
+  content: '';
+  position: absolute;
+  inset: -60% -80%;
+  background: linear-gradient(100deg, rgba(255, 255, 255, 0) 38%, rgba(255, 255, 255, 0.62) 50%, rgba(255, 255, 255, 0) 62%);
+  opacity: 0;
+  transform: translate3d(-55%, 0, 0);
+  transition: transform var(--lg-dur-sheen) var(--lg-ease), opacity 220ms ease;
+  pointer-events: none;
+}
+
+.lg-sheen:hover::after,
+.lg-sheen:focus-visible::after {
+  opacity: 0.7;
+  transform: translate3d(55%, 0, 0);
+}
+
+/* 抬升：hover 上浮 1.5px，按下回位并轻微收缩。 */
+.lg-lift {
+  transition: transform var(--lg-dur-lift) var(--lg-ease);
+}
+
+.lg-lift:hover { transform: translateY(-1.5px); }
+.lg-lift:active { transform: translateY(0) scale(0.994); }
+
+/*
+ * reduced-motion：环境层静止、扫光关闭、抬升取消，玻璃的模糊、边框与阴影保留。
+ * 动画名必须是 none，不能只把时长压到 0，否则系统级「减弱动态效果」看起来仍在动。
+ */
+@media (prefers-reduced-motion: reduce) {
+  .ambient-blob { animation: none !important; }
+  .ambient-grain { opacity: 0.34; }
+  .lg-sheen::after { display: none; }
+  .lg-lift,
+  .lg-lift:hover,
+  .lg-lift:active { transform: none; transition: none; }
+}

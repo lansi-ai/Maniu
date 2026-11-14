@@ -2,6 +2,7 @@
 
 import { createRoot } from 'react-dom/client'
 import { App } from './app.tsx'
+import './theme/liquid-glass.css'
 import './styles.css'
 
 const container = document.getElementById('root')
