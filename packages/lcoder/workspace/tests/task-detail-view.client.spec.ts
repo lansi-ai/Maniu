@@ -40,12 +40,12 @@ describe('任务描述摘要', () => {
   })
 
   it('剥掉来源前缀；只剩编号的引用行整行丢弃', () => {
-    const description = '需求背景：登录接口需要限流，防止撞库。\n需求依据：REQ-01\n来源: docs/security.md'
+    const description = '需求背景：登录接口需要限流，防止撞库。\n需求依据：REQ-01\n来源: docs/architecture.md'
     expect(taskDescriptionSummary(description)).toBe('登录接口需要限流，防止撞库。')
   })
 
   it('去掉加粗、行内代码与链接语法', () => {
-    const description = '**重点**：把 `lockout` 时间写进 [安全文档](docs/security.md)。'
+    const description = '**重点**：把 `lockout` 时间写进 [安全文档](docs/architecture.md)。'
     expect(taskDescriptionSummary(description)).toBe('重点：把 lockout 时间写进 安全文档。')
   })
 
