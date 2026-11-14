@@ -2029,7 +2029,7 @@ tracks:
       note: "B 级调研，来源是用户 2026-11-14 选择。目标维度是安装包与磁盘体积，T-177 已证明 profile 层到边界。方法：用 lcoder/scripts/audit-package-closure.mjs 与 lcoder/closure-audit.md 的 333 包 core set 口径，按功能分组统计包数、受控文件数与字节；给出可裁候选（遥测、插件市场、office、浏览器与终端运行时、python 与 native 等）与每项风险、依赖者、打包影响；给出试点方案，先用一次真实打包称重建立基线再动手，不删源码、不删包、不改发布脚本。产出 lcoder/core-set-slice.md，含 333 包构成表、候选分级与下一步任务建议。工作树 pool-slot-2 到 lcoder/t179-core-set，端口 9823 与 9831 与 9832。2026-11-14 11:50 监督窗口派工，实现线会话 89b63b45。2026-11-14 12:20 监督窗口核验并收口。用审计脚本 --json 与三个导出函数复算，333 包 / 9,962 文件 / 68.17 MiB 与既有口径一致；桌面启用装配可达 276 包 54.24 MiB，只由 apps/cli 声明的 56 包 12.83 MiB，dsh 自身 1.10 MiB。安装包实际由载荷决定，Electron 368 MiB、LibreOffice 184 MiB、Python 157 MiB、Node 90 MiB、pnpm 22 MiB。分级 A 11 包 1.28 MiB、B 45 包 11.55 MiB 加 Office 与 Python 两块 341 MiB 载荷、C 277 包；A 级虽安全但只省 1.28 MiB，还要改 apps/cli 依赖并登记接触面。结论是排 JS 包对安装包收效很小，真正的杠杆是 Office 与 Python 载荷；下一任务先做打包称重基线。未验项已列在文档。已合入 lcoder/main、release pool-slot-2。"
     - id: T-181
       title: 全新空仓全流程真机验证
-      status: doing
+      status: done
       face: 工程
       type: 调研
       owner: lance
@@ -2037,7 +2037,7 @@ tracks:
       date: '2026-11-14'
       dep: []
       inferred: false
-      note: "B 级真机验证，来源是监督窗口 2026-11-13 的下一优先项与用户 2026-11-14 选择。用全新空目录靶仓走一次全流程，全新项目、七问、确认需求、拆分、基础框架任务、方案讨论、确认方案、待开发。约束：靶仓只放需求文档，无 .git，不复用 LCoder-First-Demo；不改产品代码。产出会话日志证据与逐步结论，失败项单列。用户 2026-11-14 授权新建靶仓 E:\\Projects\\LCoder-Empty-Demo-20261114，已建为空目录、无 .git；七问由验证线以固定示例需求作答并在结论里标注是验证方代答。2026-11-14 12:30 监督窗口派工，验证线会话 67a4b4d9。"
+      note: "B 级真机验证，来源是监督窗口 2026-11-13 的下一优先项与用户 2026-11-14 选择。用全新空目录靶仓走一次全流程，全新项目、七问、确认需求、拆分、基础框架任务、方案讨论、确认方案、待开发。约束：靶仓只放需求文档，无 .git，不复用 LCoder-First-Demo；不改产品代码。产出会话日志证据与逐步结论，失败项单列。用户 2026-11-14 授权新建靶仓 E:\\Projects\\LCoder-Empty-Demo-20261114，已建为空目录、无 .git；七问由验证线以固定示例需求作答并在结论里标注是验证方代答。2026-11-14 12:30 监督窗口派工，验证线会话 67a4b4d9。2026-11-14 13:00 监督窗口核验并收口。验证按约定逐步记录，第 1、2 步通过，第 3 步失败并停下。证据：靶仓 .spec 只有 project.yaml 与 rules.yaml，没有需求与任务；立项会话 session-f83e11ad 的会话头 agentPreset 为 lcoder，不是 lcoder-intake；surface.ts 中 dev 角色天花板不含 requirement_draft，只有 intake 角色开放。根因在 Shell 两处立项入口直接 createSession，既未传 lcoder-intake 也未调用 createDefaultedSession 应用默认模型，所以会话落在实施角色且默认模型被云端路由覆盖。另记：lcoder-cloud 在立项首轮六次 502 upstream_unavailable，属网关故障；官方 provider 探针正常。验证线未修改仓库与 .spec，靶仓未初始化 git。缺陷转 T-185。"
     - id: T-182
       title: 台账收口证据错位修正
       status: done
@@ -2059,7 +2059,7 @@ tracks:
       date: '2026-11-14'
       dep: [T-179]
       inferred: false
-      note: "B 级载荷裁剪，来源是用户 2026-11-14 选择 Office 与 Python 都裁，并确认产品不做 Office 转换与数据分析。依据 T-179，Electron 368 MiB 是地板，LibreOffice 184 MiB 与 Python 157 MiB 两块无 LCoder 消费方，合计约 341 MiB 解包体积。步骤：一、先建立打包称重基线，记录 win-unpacked 总字节与各载荷字节，打包跑不通就用既有 targets 目录并写明差异；二、最小排除实验，去掉 LibreOffice 与 Python 载荷与它们的运行准备、宿主启动检查、依赖边，保留 Node 与 pnpm；三、验证启动、外壳五页、任务详情、会话发一条消息、插件清单不报缺；四、给出前后字节与未验项。红线：运行准备与宿主启动检查允许改，但每处必须先登记 lcoder/contact-surface.txt 并在 lcoder/UPSTREAM-BASELINE.md 第 3 节写改什么与为什么；不改其它上游包与模型工具面，不改 .spec，不 push 不合并。工作树 pool-slot-2 到 lcoder/t183-payload-cut，端口 9823 与 9831 与 9832。2026-11-14 12:30 监督窗口派工，实现线会话 10113767。"
+      note: "B 级载荷裁剪，来源是用户 2026-11-14 选择 Office 与 Python 都裁，并确认产品不做 Office 转换与数据分析。依据 T-179，Electron 368 MiB 是地板，LibreOffice 184 MiB 与 Python 157 MiB 两块无 LCoder 消费方，合计约 341 MiB 解包体积。步骤：一、先建立打包称重基线，记录 win-unpacked 总字节与各载荷字节，打包跑不通就用既有 targets 目录并写明差异；二、最小排除实验，去掉 LibreOffice 与 Python 载荷与它们的运行准备、宿主启动检查、依赖边，保留 Node 与 pnpm；三、验证启动、外壳五页、任务详情、会话发一条消息、插件清单不报缺；四、给出前后字节与未验项。红线：运行准备与宿主启动检查允许改，但每处必须先登记 lcoder/contact-surface.txt 并在 lcoder/UPSTREAM-BASELINE.md 第 3 节写改什么与为什么；不改其它上游包与模型工具面，不改 .spec，不 push 不合并。工作树 pool-slot-2 到 lcoder/t183-payload-cut，端口 9823 与 9831 与 9832。2026-11-14 12:30 监督窗口派工，实现线会话 10113767。2026-11-14 13:10 因 T-181 发现立项 P0 缺陷，本任务暂停让出 pool-slot-2，已完成改动保留在 lcoder/t183-payload-cut，未完成项待恢复后继续；恢复时重新派工。"
     - id: T-184
       title: 客户端自研架构方案
       status: doing
@@ -2071,6 +2071,17 @@ tracks:
       dep: []
       inferred: false
       note: "A 级架构方案，来源是用户 2026-11-14 决定客户端框架也自研：自己的 Electron 壳与 React 客户端，宿主运行时继续用上游。已拍板五项：一、自写 Electron 主进程与窗口、托盘、单实例、更新；二、自写 React 客户端与流式层，替换对 @deepseek-ai/dsh-client-* 的依赖，当前 workspace 有二十八文件、一万六千三百行与它耦合；三、通信层用进程内薄适配层，内部直连宿主 API，不写独立 BFF；四、一次性切换，切换前必须过 parity 清单并保留上一版构建产物作为回退；五、欢迎屏随新壳一起换，聊天能力只保留流程必需（流式正文、工具卡片、审批、提问、附件），不做压缩提示、子代理、反馈、轨迹。被取代项：T-180 上游聊天整链裁剪原型已撤下，不再派工；T-177 与 T-178 的客户端收益将由新客户端取代，宿主侧裁剪仍有效；T-183 载荷裁剪不受影响。本任务只出方案，不写产品代码：产出 lcoder/client-rewrite-plan.md，含宿主 API 契约清单、M0 到 M4 里程碑与估时、parity 清单、风险与回退方案、首个可实施切片，以及 apps/desktop 与上游 client 依赖的移除顺序。约束：不改源码，不改 .spec，不 push。工作树 pool-slot-1 到 lcoder/t184-client-plan，端口 9822 与 9829 与 9830。2026-11-14 13:05 监督窗口派工，方案会话 598d028f。"
+    - id: T-185
+      title: 立项会话改用 intake 预设并应用默认模型
+      status: todo
+      face: 用户端
+      type: 修复
+      owner: lance
+      created: '2026-11-14'
+      date: '2026-11-14'
+      dep: [T-181]
+      inferred: false
+      note: "B 级修复，来源是 T-181 真机验证第 3 步失败。根因：Shell.tsx 的两个立项入口（向导首次创建约 3231 行、重新开始约 3391 行）直接调用 createSession(projectPath)，既没有传 lcoder-intake 预设，也没有走 createDefaultedSession 应用默认模型，于是会话落在实施角色 lcoder，工具面没有 requirement_draft，需求无法落盘；默认模型也被云端路由覆盖，首轮撞六次 502。修法：两处都改为 createDefaultedSession(createSession, 'lcoder-intake', 'intake')，或给 runIntakeRestart 传入已带预设与默认模型的创建闭包；不改角色天花板，不把 requirement_draft 开放给 dev。验收：组件测试断言立项创建会话时传 lcoder-intake 且应用默认模型；单测覆盖首次创建与重新开始两条路径；真机重跑 T-181 第 1 至 4 步，确认会话头 agentPreset 为 lcoder-intake、需求落盘、拆分进待开发；门禁 typecheck、packages/lcoder vitest、verify-client-ui-i18n、改动文件 oxlint。工作树待 slot-2 释放后 claim 到 lcoder/t185-intake-preset，端口 9823 与 9831 与 9832。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
