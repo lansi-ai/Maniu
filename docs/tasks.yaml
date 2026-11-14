@@ -1960,7 +1960,7 @@ tracks:
       date: '2026-11-14'
       dep: [T-174]
       inferred: false
-      note: "C 级动效优化，来源是用户 2026-11-14 反馈菜单硬切太生硬。范围：切换需求、任务、切换项目、项目信息、设置时，主区域加一次淡入与轻微上移，约一百八十到二百二十毫秒，缓出；左侧菜单项的背景与颜色加一百二十毫秒过渡。只按 nav 变化触发，不因任务或需求内部选中变化重播。尊重 prefers-reduced-motion，系统减少动效时不动画；四套皮肤只用现有 token，不加新颜色，不产生布局跳动或滚动跳位。只改 Shell、WorkspacePages 的容器与 Shell.module.css，不改数据、模型工具面与业务逻辑。验收 typecheck、packages/lcoder vitest、verify-client-ui-i18n、改动文件 oxlint；组件测试确认切换仍正常、无新增弹窗。工作树 pool-slot-1 到 lcoder/t175-view-transition，端口 9822 与 9829 与 9830。"
+      note: "C 级动效优化，来源是用户 2026-11-14 反馈菜单硬切太生硬。范围：切换需求、任务、切换项目、项目信息、设置时，主区域加一次淡入与轻微上移，约一百八十到二百二十毫秒，缓出；左侧菜单项的背景与颜色加一百二十毫秒过渡。只按 nav 变化触发，不因任务或需求内部选中变化重播。尊重 prefers-reduced-motion，系统减少动效时不动画；四套皮肤只用现有 token，不加新颜色，不产生布局跳动或滚动跳位。只改 Shell、WorkspacePages 的容器与 Shell.module.css，不改数据、模型工具面与业务逻辑。验收 typecheck、packages/lcoder vitest、verify-client-ui-i18n、改动文件 oxlint；组件测试确认切换仍正常、无新增弹窗。工作树 pool-slot-1 到 lcoder/t175-view-transition，端口 9822 与 9829 与 9830。2026-11-14 10:10 监督窗口派工，实现线会话 1b4593d1。"
     - id: T-176
       title: 内置 Markdown 阅读器并精简边框
       status: doing
