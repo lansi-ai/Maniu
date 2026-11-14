@@ -2191,7 +2191,7 @@ tracks:
       date: '2026-11-15'
       dep: [T-191, T-193]
       inferred: false
-      note: "B 级测试基础设施与验证，来源是 M4 决策：首版审批与提问用扩 mock 验回环。目标：扩展 lcoder/scripts/mock-cloud.mjs 的 chat completions，支持返回 tool_calls，至少一个需要审批的工具与一次 ask_user 提问，让新客户端走真实 waterfall：显示审批与提问卡、approve 与 deny 回执原样发回、工具继续或中止。范围：mock 脚本、M1 客户端若有回执缺陷可最小修、新增一条 t195 探针用 CDP DOM 断言审批与提问两轮；不改宿主与旧壳。验收：审批通过一轮、审批拒绝一轮、提问回答一轮，回执在会话事件里可查；S1 与 M2 与 M3 探针不回归；门禁全绿。工作树 slot-1 到 lcoder/t195-mock-tools，端口 9822 与 9829 与 9830。"
+      note: "B 级测试基础设施与验证，来源是 M4 决策：首版审批与提问用扩 mock 验回环。目标：扩展 lcoder/scripts/mock-cloud.mjs 的 chat completions，支持返回 tool_calls，至少一个需要审批的工具与一次 ask_user 提问，让新客户端走真实 waterfall：显示审批与提问卡、approve 与 deny 回执原样发回、工具继续或中止。范围：mock 脚本、M1 客户端若有回执缺陷可最小修、新增一条 t195 探针用 CDP DOM 断言审批与提问两轮；不改宿主与旧壳。验收：审批通过一轮、审批拒绝一轮、提问回答一轮，回执在会话事件里可查；S1 与 M2 与 M3 探针不回归；门禁全绿。工作树 slot-1 到 lcoder/t195-mock-tools，端口 9822 与 9829 与 9830。2026-11-15 01:30 监督窗口派工，实现线会话 e85dde17。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
