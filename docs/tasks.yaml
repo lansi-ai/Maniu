@@ -2169,7 +2169,7 @@ tracks:
       date: '2026-11-15'
       dep: [T-192, T-190]
       inferred: false
-      note: "C 级修复，来源是 T-183 合入后主检跑 M3 探针，重启后皮肤/字体/语言保持一项失败：状态回到默认 liquid-glass、system、zh-CN。根因是 T-192 的确定性退出改为清理后自 SIGKILL，跳过了 Chromium 的正常退出，渲染端 localStorage 的最后一批写入可能没有落盘。修法优先两选一：一是在自 SIGKILL 前刷 main 进程持有的 session 存储（flushStorageData 或等价），并留出有界等待；二是把皮肤/字体/语言偏好改成经窄 IPC 写主进程的 userData JSON，localStorage 只作渲染端缓存。不得回退确定性退出。验收：M3 探针 39/39，重启后皮肤/字体/语言保持；S1 与 M2 探针仍 PASS；typecheck/build:check/oxlint 全绿。与 T-191 同一工作树执行，不改其它范围。"
+      note: "C 级修复，来源是 T-183 合入后主检跑 M3 探针，重启后皮肤/字体/语言保持一项失败：状态回到默认 liquid-glass、system、zh-CN。根因是 T-192 的确定性退出改为清理后自 SIGKILL，跳过了 Chromium 的正常退出，渲染端 localStorage 的最后一批写入可能没有落盘。修法优先两选一：一是在自 SIGKILL 前刷 main 进程持有的 session 存储（flushStorageData 或等价），并留出有界等待；二是把皮肤/字体/语言偏好改成经窄 IPC 写主进程的 userData JSON，localStorage 只作渲染端缓存。不得回退确定性退出。验收：M3 探针 39/39，重启后皮肤/字体/语言保持；S1 与 M2 探针仍 PASS；typecheck/build:check/oxlint 全绿。与 T-191 同一工作树执行，不改其它范围。2026-11-15 00:15 监督窗口派工给 T-191 会话 99d6ed34 一并修。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
