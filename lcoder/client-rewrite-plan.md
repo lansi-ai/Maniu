@@ -199,9 +199,9 @@ packages/lcoder/client    (Renderer, React 18 + Vite)
 
 移除后宿主 profile 需要一份**只含宿主面**的变体（`lcoder-host.slice.yml`）：保留 webserver、connection、gateway、api-*、session/agent/tools/llm/workspace/settings/credentials 与十个 preset；禁掉全部 `ui-*`、`modules`、`client-hmr`、`web-app` 的页面装配。**这份变体尚未验证可启动**（见 §10）。
 
-### 3.4 三个必须先定的架构选择
+### 3.4 三个已定的架构选择
 
-| 选择 | 选项 A | 选项 B | 建议 |
+| 选择 | 选项 A | 选项 B | 结论（已定） |
 | --- | --- | --- | --- |
 | 宿主进程位置 | 保持子进程（现状） | 宿主进 Electron 主进程，用 `createPeer` 直连 | **A**。B 会让 SQLite/原生模块/工具同步活压住 UI 线程，且违背「只由 dsh profile 启动」的现有边界；A 的代价只是要讲 HTTP/WS |
 | 承载层来源 | 自写 WS mux + 一元 POST（约 700–900 行，语义抄 `stream-protocol.ts`） | 复用非 UI 的 `dsh-client-connection`（React 无关） | **A**（满足「替换 `@deepseek-ai/dsh-client-*`」的字面口径）；若团队接受保留一个非 UI 上游包，B 可省 3–4 人日 |
