@@ -17,17 +17,17 @@ html[data-theme='liquid-glass'] body {
 
 #root :focus-visible { outline: 2px solid var(--lg-accent); outline-offset: 2px; }
 
-::selection { background: rgba(10, 95, 224, 0.18); }
+::selection { background: var(--lg-selection); }
 
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
-  background: rgba(64, 86, 120, 0.22);
+  background: var(--lg-scrim-thumb);
   border: 3px solid transparent;
   background-clip: content-box;
   border-radius: 999px;
 }
-::-webkit-scrollbar-thumb:hover { background: rgba(64, 86, 120, 0.34); background-clip: content-box; }
+::-webkit-scrollbar-thumb:hover { background: var(--lg-scrim-thumb-hover); background-clip: content-box; }
 
 .app {
   position: relative;
@@ -75,6 +75,8 @@ html[data-theme='liquid-glass'] body {
 
 .host { font-size: 12px; color: var(--lg-muted); }
 .host[data-host-state='fatal'] { color: var(--lg-danger); }
+
+.titlebar-tools { display: flex; align-items: center; gap: 6px; -webkit-app-region: no-drag; }
 
 .window-buttons { display: flex; gap: 2px; -webkit-app-region: no-drag; }
 
@@ -126,7 +128,7 @@ html[data-theme='liquid-glass'] body {
   padding: 10px 12px;
   border: 1px solid var(--lg-line-hair);
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.5);
+  background: var(--lg-fill-subtle);
   color: var(--lg-ink-2);
   font-size: 12px;
   line-height: 1.5;
@@ -240,7 +242,7 @@ html[data-theme='liquid-glass'] body {
   margin: 8px 4px 0;
   padding: 7px 10px;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.5);
+  background: var(--lg-fill-subtle);
   color: var(--lg-danger);
   font-size: 12px;
   line-height: 1.5;

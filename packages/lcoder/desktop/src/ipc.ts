@@ -2,7 +2,8 @@
 
 import { ipcMain, type BrowserWindow, type IpcMainInvokeEvent } from 'electron'
 import { IPC_CHANNELS } from './contract.ts'
-import type { EventOutcome, HostState, WindowAction } from './contract.ts'
+import type { EventOutcome, HostState, UpdateCheck, WindowAction, WindowStateInfo } from './contract.ts'
+import { isDesktopLocale } from './desktop-locale.ts'
 import type { HostLink } from './link.ts'
 
 interface IpcDependencies {
@@ -10,6 +11,9 @@ interface IpcDependencies {
   readonly appInfo: () => { readonly version: string; readonly hostUrl?: string }
   readonly window: () => BrowserWindow | undefined
   readonly hostState: () => HostState
+  readonly windowState: () => WindowStateInfo
+  readonly update: () => UpdateCheck
+  readonly setLocale: (locale: 'zh' | 'en') => void
 }
 
 interface CallRequest {
@@ -97,6 +101,12 @@ export function registerIpc(deps: IpcDependencies): void {
   })
   ipcMain.handle(IPC_CHANNELS.appInfo, () => deps.appInfo())
   ipcMain.handle(IPC_CHANNELS.hostStateNow, () => deps.hostState())
+  ipcMain.handle(IPC_CHANNELS.windowStateNow, () => deps.windowState())
+  ipcMain.handle(IPC_CHANNELS.update, () => deps.update())
+  ipcMain.handle(IPC_CHANNELS.locale, (_event: IpcMainInvokeEvent, value: unknown) => {
+    if (!isDesktopLocale(value)) throw new Error('lcoder: 界面语言不合法')
+    deps.setLocale(value)
+  })
 }
 
 /** 宿主状态推送面。 */
@@ -120,6 +130,33 @@ export function createStatePublisher(window: () => BrowserWindow | undefined): S
     // 加载期也发送：丢失由渲染端挂载时的 hostStateNow 补读，而不是永久停在 starting。
     if (target !== undefined && !target.isDestroyed()) {
       target.webContents.send(IPC_CHANNELS.hostState, latest)
+    }
+  }
+  return {
+    publish(state) {
+      latest = state
+      send()
+    },
+    replay: send,
+    current: () => latest,
+  }
+}
+
+/**
+ * 建一个会记住最新窗口状态、并在页面加载完成后补发的推送器。
+ * @param window - 主窗口读取器。
+ * @returns 推送器。
+ */
+export function createWindowStatePublisher(window: () => BrowserWindow | undefined): {
+  publish(state: WindowStateInfo): void
+  replay(): void
+  current(): WindowStateInfo
+} {
+  let latest: WindowStateInfo = { maximized: false, fullscreen: false }
+  const send = (): void => {
+    const target = window()
+    if (target !== undefined && !target.isDestroyed()) {
+      target.webContents.send(IPC_CHANNELS.windowState, latest)
     }
   }
   return {

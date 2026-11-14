@@ -199,7 +199,9 @@ async function attach(url) {
   const evaluate = async (expression) => {
     const answer = await send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true })
     if (answer.result?.exceptionDetails !== undefined) {
-      throw new Error(`页面脚本失败：${answer.result.exceptionDetails.text}`)
+      const details = answer.result.exceptionDetails
+      const description = details.exception?.description ?? details.text
+      throw new Error(`页面脚本失败：${String(description).slice(0, 300)}（${expression.slice(0, 120)}）`)
     }
     return answer.result?.result?.value
   }
@@ -292,7 +294,7 @@ async function run() {
     log(`当前仓库需求行数：${String(requirementRows)}`)
 
     await openRepo(page, REQUIREMENTS_REPO)
-    await page.waitFor("document.querySelector('[data-testid=\"task-card\"]') !== null", 30_000, '目标仓任务卡')
+    await page.waitFor("document.querySelector('[data-testid=\"task-card\"][data-task-id=\"T-01\"]') !== null", 30_000, 'T-01 任务卡')
     await page.evaluate("document.querySelector('[data-testid=\"task-card\"][data-task-id=\"T-01\"]').click()")
     await page.waitFor("document.querySelector('[data-testid=\"task-detail\"]')?.dataset.taskId === 'T-01'", 10_000, 'T-01 详情')
     const deliverable = await page.waitFor("document.querySelector('[data-testid=\"task-doc\"]')?.textContent", 10_000, '交付文档入口')
@@ -414,7 +416,7 @@ async function run() {
     assert(infoText.includes('作用域会话'), '项目信息页缺少作用域会话段')
 
     await page.evaluate("document.querySelector('[data-testid=\"nav-settings\"]').click()")
-    await page.waitFor("document.querySelector('[data-testid=\"page-settings\"]')?.innerText.includes('M3')", 10_000, '设置占位')
+    await page.waitFor("document.querySelector('[data-testid=\"page-settings\"]')?.innerText.includes('模型服务')", 30_000, '设置页模型区')
 
     await page.evaluate("document.querySelector('[data-testid=\"nav-chat\"]').click()")
     await page.waitFor("document.querySelector('[data-testid=\"session-list\"]') !== null", 10_000, '聊天页会话列表')

@@ -12,7 +12,11 @@ export const IPC_CHANNELS = {
   waterfall: 'lcoder:waterfall',
   eventResult: 'lcoder:event-result',
   window: 'lcoder:window',
+  windowState: 'lcoder:window-state',
+  windowStateNow: 'lcoder:window-state-now',
   appInfo: 'lcoder:app-info',
+  update: 'lcoder:update',
+  locale: 'lcoder:locale',
 } as const
 
 /** 宿主子进程生命周期状态。 */
@@ -66,6 +70,27 @@ export type EventOutcome =
 /** 自绘标题栏的窗口动作。 */
 export type WindowAction = 'minimize' | 'toggle-maximize' | 'close'
 
+/** 主窗口的最大化与全屏实况；自绘标题栏据此切换按钮语义。 */
+export interface WindowStateInfo {
+  readonly maximized: boolean
+  readonly fullscreen: boolean
+}
+
+/** 界面语言；主进程菜单与托盘跟随同一个值。 */
+export type DesktopLocaleId = 'zh' | 'en'
+
+/**
+ * 一次更新检查的结果。
+ *
+ * 新壳当前没有接入更新源，`unavailable` 是正常空态而不是失败：界面必须
+ * 解释「这个构建不能检查更新」，不能显示成网络错误或永远转圈。
+ */
+export type UpdateCheck =
+  | { readonly kind: 'unavailable'; readonly version: string; readonly reason: 'no-feed' }
+  | { readonly kind: 'checking'; readonly version: string }
+  | { readonly kind: 'up-to-date'; readonly version: string }
+  | { readonly kind: 'error'; readonly version: string; readonly detail: string }
+
 /** preload 暴露给渲染端的完整面。 */
 export interface LcoderApi {
   /** 订阅宿主状态；返回取消订阅函数。 */
@@ -88,6 +113,14 @@ export interface LcoderApi {
   eventResult(clientId: string, eventId: string, outcome: EventOutcome): Promise<void>
   /** 自绘标题栏动作。 */
   window(action: WindowAction): Promise<void>
+  /** 订阅最大化与全屏变化；返回取消订阅函数。 */
+  windowState(listener: (state: WindowStateInfo) => void): () => void
+  /** 拉取当前窗口状态；用于挂载时补读。 */
+  windowStateNow(): Promise<WindowStateInfo>
   /** 应用版本与宿主地址，仅用于诊断展示。 */
   appInfo(): Promise<{ readonly version: string; readonly hostUrl?: string }>
+  /** 检查更新；没有更新源时返回可解释的空态。 */
+  update(): Promise<UpdateCheck>
+  /** 同步界面语言到主进程菜单与托盘。 */
+  setLocale(locale: DesktopLocaleId): Promise<void>
 }

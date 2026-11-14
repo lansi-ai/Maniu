@@ -2,7 +2,10 @@
 
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC_CHANNELS } from './contract.ts'
-import type { EventOutcome, HostEvent, HostState, HostWaterfall, LcoderApi, RemoteResult, StreamFrame } from './contract.ts'
+import type {
+  DesktopLocaleId, EventOutcome, HostEvent, HostState, HostWaterfall, LcoderApi, RemoteResult,
+  StreamFrame, UpdateCheck, WindowStateInfo,
+} from './contract.ts'
 
 function onHostState(listener: (state: HostState) => void): () => void {
   const handler = (_event: Electron.IpcRendererEvent, state: HostState): void => { listener(state) }
@@ -28,6 +31,12 @@ function onWaterfall(listener: (event: HostWaterfall) => void): () => void {
   return () => { ipcRenderer.removeListener(IPC_CHANNELS.waterfall, handler) }
 }
 
+function onWindowState(listener: (state: WindowStateInfo) => void): () => void {
+  const handler = (_event: Electron.IpcRendererEvent, state: WindowStateInfo): void => { listener(state) }
+  ipcRenderer.on(IPC_CHANNELS.windowState, handler)
+  return () => { ipcRenderer.removeListener(IPC_CHANNELS.windowState, handler) }
+}
+
 const api: LcoderApi = {
   hostState: onHostState,
   hostStateNow: () => ipcRenderer.invoke(IPC_CHANNELS.hostStateNow) as Promise<HostState>,
@@ -42,7 +51,11 @@ const api: LcoderApi = {
   eventResult: (clientId, eventId, outcome: EventOutcome) =>
     ipcRenderer.invoke(IPC_CHANNELS.eventResult, { clientId, eventId, outcome }) as Promise<void>,
   window: action => ipcRenderer.invoke(IPC_CHANNELS.window, action) as Promise<void>,
+  windowState: onWindowState,
+  windowStateNow: () => ipcRenderer.invoke(IPC_CHANNELS.windowStateNow) as Promise<WindowStateInfo>,
   appInfo: () => ipcRenderer.invoke(IPC_CHANNELS.appInfo) as Promise<{ readonly version: string; readonly hostUrl?: string }>,
+  update: () => ipcRenderer.invoke(IPC_CHANNELS.update) as Promise<UpdateCheck>,
+  setLocale: (locale: DesktopLocaleId) => ipcRenderer.invoke(IPC_CHANNELS.locale, locale) as Promise<void>,
 }
 
 contextBridge.exposeInMainWorld('lcoder', api)
