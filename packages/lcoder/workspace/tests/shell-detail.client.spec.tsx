@@ -1716,6 +1716,31 @@ describe('顶栏项目控件与项目页', () => {
       Object.defineProperty(window, 'innerWidth', { configurable: true, value: original })
     }
   })
+
+  it('菜单换页重挂主区域容器，页面内部切换不重播', async () => {
+    const { container } = renderShell({ spec: {} })
+    await screen.findByText(zh['shell.board'])
+
+    const page = (view: string): HTMLElement => {
+      const node = container.querySelector(`[data-lcoder-nav-pane="${view}"]`) as HTMLElement | null
+      expect(node).not.toBeNull()
+      expect(node?.className).toContain('navPane')
+      return node as HTMLElement
+    }
+
+    const tasks = page('tasks')
+    fireEvent.click(container.querySelector('[data-nav="requirements"]') as HTMLElement)
+    const requirements = page('requirements')
+    expect(requirements).not.toBe(tasks)
+
+    fireEvent.click(container.querySelector('[data-requirement-view="board"]') as HTMLElement)
+    expect(page('requirements')).toBe(requirements)
+
+    fireEvent.click(container.querySelector('[data-nav="settings"]') as HTMLElement)
+    expect(page('settings')).not.toBe(requirements)
+    expect(document.querySelector('[data-lcoder-page="settings"]')).not.toBeNull()
+    expect(document.querySelector('[class*="modalBackdrop"]')).toBeNull()
+  })
 })
 
 
