@@ -6,6 +6,10 @@
   "type": "module",
   "main": "lib/types/main.js",
   "exports": {
+    "./contract": {
+      "types": "./lib/types/contract.d.ts",
+      "default": "./lib/types/contract.js"
+    },
     "./package.json": "./package.json"
   },
   "scripts": {

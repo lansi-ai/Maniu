@@ -13043,6 +13043,9 @@ importers:
 
   packages/lcoder/client:
     dependencies:
+      '@lcoder/desktop':
+        specifier: workspace:*
+        version: link:../desktop
       react:
         specifier: ^18.2.0
         version: 18.3.1

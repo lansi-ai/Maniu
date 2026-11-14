@@ -1,5 +1,20 @@
 /** 主进程与渲染端共用的窄 IPC 契约（S1）。 */
 
+/** 渲染端可见的 IPC 通道名；主进程与 preload 都从这里取，避免字面量漂移。 */
+export const IPC_CHANNELS = {
+  hostState: 'lcoder:host-state',
+  hostStateNow: 'lcoder:host-state-now',
+  call: 'lcoder:call',
+  streamOpen: 'lcoder:stream-open',
+  streamCancel: 'lcoder:stream-cancel',
+  streamFrame: 'lcoder:stream-frame',
+  events: 'lcoder:events',
+  waterfall: 'lcoder:waterfall',
+  eventResult: 'lcoder:event-result',
+  window: 'lcoder:window',
+  appInfo: 'lcoder:app-info',
+} as const
+
 /** 宿主子进程生命周期状态。 */
 export type HostState =
   | { readonly kind: 'starting' }

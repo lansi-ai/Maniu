@@ -2,6 +2,7 @@
 
 import { app, BrowserWindow } from 'electron'
 import { join } from 'node:path'
+import { IPC_CHANNELS } from './contract.ts'
 import { HostSupervisor } from './host-supervisor.ts'
 import { createStatePublisher, registerIpc } from './ipc.ts'
 import { HostLink } from './link.ts'
@@ -38,9 +39,9 @@ async function boot(): Promise<void> {
     const url = await supervisor.start(home, hostInspectPort())
     console.log('lcoder desktop: 宿主已就绪', url.replace(/token=[^&]+/u, 'token=<redacted>'))
     await link_.connect(url, {
-      onEvent: (event) => { send('lcoder:events', event) },
-      onWaterfall: (event) => { send('lcoder:waterfall', event) },
-      onStreamFrame: (streamId, frame) => { send('lcoder:stream-frame', streamId, frame) },
+      onEvent: (event) => { send(IPC_CHANNELS.events, event) },
+      onWaterfall: (event) => { send(IPC_CHANNELS.waterfall, event) },
+      onStreamFrame: (streamId, frame) => { send(IPC_CHANNELS.streamFrame, streamId, frame) },
     })
     console.log('lcoder desktop: 宿主链路已连接')
     link = link_
