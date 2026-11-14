@@ -2095,7 +2095,7 @@ tracks:
       note: "B 级前置实验，来源是 T-184 方案第 9.2 的唯一可推翻前提。目标：验证宿主-only profile 能否启动。现状 dsh-web-app、modules、client-hmr 与若干 ui-* 之间有硬注入，T-177 已证明单独关会停在 Loading plugins。做法：在 T-178 切片基础上构造只保留宿主面、不挂客户端插件的 profile 或最小 client 集合，用 dsh 启动宿主，验证 ready、session/workspace/remote API 可用、events 流可订阅，并记录必须保留的最小客户端插件与端口。不改产品代码，实验配置放 lcoder 下。产出 lcoder/host-only-profile.md，结论写能否启动、最小依赖集、对 M4 与 S1 的影响。工作树待 slot-1 释放后 claim 到 lcoder/t186-host-only，端口 9822 与 9829 与 9830。2026-11-14 13:50 监督窗口派工；因本轮由委派输入触发、宿主禁止再创建嵌套会话，复用已收口的 T-184 方案会话 598d028f 执行本实验。2026-11-14 14:05 监督窗口核验并收口。结论可行：196 行合成清单关掉 84 行后宿主在 3099 正常启动，零激活失败；用 connect 带 interactions=answer 换 cookie 后，一元 session/list 与 session/create 成功，WS remote.mux 的 session.follow 首帧、events 首帧与 api-session/added 事件均通；Node 24 全局 WebSocket 可用。实测最小组合 89 行，是默认 standard preset 下的下限；保留的 dsh-client-* 只有 connection 与 file-upload 的宿主半，api-remotes 必须保留。阻断点：再降要换更小的 preset；web-runtime 是唯一 ready 公告点。未验项：真实模型回合、workspace.follow 与 create、审批与提问往返、LCoder preset 依赖闭包、frontend-static 换新 dist、macOS 与 Linux。主检 test:docs 二十一项全过。已合入 lcoder/main、release pool-slot-1。"
     - id: T-187
       title: 客户端自研 S1 端到端切片
-      status: todo
+      status: doing
       face: 工程
       type: 开发
       owner: lance
@@ -2103,7 +2103,7 @@ tracks:
       date: '2026-11-14'
       dep: [T-186]
       inferred: false
-      note: "B 级实现，来源是 T-184 方案第 4.1 节 S1，估时六到八人日。范围：新包 packages/lcoder/desktop 与 packages/lcoder/client 骨架，自写 Electron 主进程与窗口、宿主子进程守护、进程内薄适配层（一元 POST、WS mux、events 回执）、渲染端窄 IPC、登录门禁读 lcoderCloud.state、会话列表、session.create 到 follow 到 prompt 的流式回复。验收：窗口起来、宿主 ready、登录门禁正确、会话列表非空、发一条能看到流式正文，重启后能从 follow snapshot 重读历史。依赖 T-186 通过；若 T-186 证明宿主-only 不可行，先回到方案层重定 M4 路径，不直接开工。"
+      note: "B 级实现，来源是 T-184 方案第 4.1 节 S1，估时六到八人日。范围：新包 packages/lcoder/desktop 与 packages/lcoder/client 骨架，自写 Electron 主进程与窗口、宿主子进程守护、进程内薄适配层（一元 POST、WS mux、events 回执）、渲染端窄 IPC、登录门禁读 lcoderCloud.state、会话列表、session.create 到 follow 到 prompt 的流式回复。验收：窗口起来、宿主 ready、登录门禁正确、会话列表非空、发一条能看到流式正文，重启后能从 follow snapshot 重读历史。依赖 T-186 通过；若 T-186 证明宿主-only 不可行，先回到方案层重定 M4 路径，不直接开工。T-186 已证明可行，S1 用其八十九行最小组合起步，connect 必须带 interactions=answer；LCoder 十个 preset 落地后宿主下限需重测。2026-11-14 14:10 监督窗口派工，实现线会话 f293433d。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
