@@ -2062,7 +2062,7 @@ tracks:
       note: "B 级载荷裁剪，来源是用户 2026-11-14 选择 Office 与 Python 都裁，并确认产品不做 Office 转换与数据分析。依据 T-179，Electron 368 MiB 是地板，LibreOffice 184 MiB 与 Python 157 MiB 两块无 LCoder 消费方，合计约 341 MiB 解包体积。步骤：一、先建立打包称重基线，记录 win-unpacked 总字节与各载荷字节，打包跑不通就用既有 targets 目录并写明差异；二、最小排除实验，去掉 LibreOffice 与 Python 载荷与它们的运行准备、宿主启动检查、依赖边，保留 Node 与 pnpm；三、验证启动、外壳五页、任务详情、会话发一条消息、插件清单不报缺；四、给出前后字节与未验项。红线：运行准备与宿主启动检查允许改，但每处必须先登记 lcoder/contact-surface.txt 并在 lcoder/UPSTREAM-BASELINE.md 第 3 节写改什么与为什么；不改其它上游包与模型工具面，不改 .spec，不 push 不合并。工作树 pool-slot-2 到 lcoder/t183-payload-cut，端口 9823 与 9831 与 9832。2026-11-14 12:30 监督窗口派工，实现线会话 10113767。2026-11-14 13:10 因 T-181 发现立项 P0 缺陷，本任务暂停让出 pool-slot-2，已完成改动保留在 lcoder/t183-payload-cut，未完成项待恢复后继续；恢复时重新派工。"
     - id: T-184
       title: 客户端自研架构方案
-      status: doing
+      status: done
       face: 工程
       type: 调研
       owner: lance
@@ -2070,7 +2070,7 @@ tracks:
       date: '2026-11-14'
       dep: []
       inferred: false
-      note: "A 级架构方案，来源是用户 2026-11-14 决定客户端框架也自研：自己的 Electron 壳与 React 客户端，宿主运行时继续用上游。已拍板五项：一、自写 Electron 主进程与窗口、托盘、单实例、更新；二、自写 React 客户端与流式层，替换对 @deepseek-ai/dsh-client-* 的依赖，当前 workspace 有二十八文件、一万六千三百行与它耦合；三、通信层用进程内薄适配层，内部直连宿主 API，不写独立 BFF；四、一次性切换，切换前必须过 parity 清单并保留上一版构建产物作为回退；五、欢迎屏随新壳一起换，聊天能力只保留流程必需（流式正文、工具卡片、审批、提问、附件），不做压缩提示、子代理、反馈、轨迹。被取代项：T-180 上游聊天整链裁剪原型已撤下，不再派工；T-177 与 T-178 的客户端收益将由新客户端取代，宿主侧裁剪仍有效；T-183 载荷裁剪不受影响。本任务只出方案，不写产品代码：产出 lcoder/client-rewrite-plan.md，含宿主 API 契约清单、M0 到 M4 里程碑与估时、parity 清单、风险与回退方案、首个可实施切片，以及 apps/desktop 与上游 client 依赖的移除顺序。约束：不改源码，不改 .spec，不 push。工作树 pool-slot-1 到 lcoder/t184-client-plan，端口 9822 与 9829 与 9830。2026-11-14 13:05 监督窗口派工，方案会话 598d028f。"
+      note: "A 级架构方案，来源是用户 2026-11-14 决定客户端框架也自研：自己的 Electron 壳与 React 客户端，宿主运行时继续用上游。已拍板五项：一、自写 Electron 主进程与窗口、托盘、单实例、更新；二、自写 React 客户端与流式层，替换对 @deepseek-ai/dsh-client-* 的依赖，当前 workspace 有二十八文件、一万六千三百行与它耦合；三、通信层用进程内薄适配层，内部直连宿主 API，不写独立 BFF；四、一次性切换，切换前必须过 parity 清单并保留上一版构建产物作为回退；五、欢迎屏随新壳一起换，聊天能力只保留流程必需（流式正文、工具卡片、审批、提问、附件），不做压缩提示、子代理、反馈、轨迹。被取代项：T-180 上游聊天整链裁剪原型已撤下，不再派工；T-177 与 T-178 的客户端收益将由新客户端取代，宿主侧裁剪仍有效；T-183 载荷裁剪不受影响。本任务只出方案，不写产品代码：产出 lcoder/client-rewrite-plan.md，含宿主 API 契约清单、M0 到 M4 里程碑与估时、parity 清单、风险与回退方案、首个可实施切片，以及 apps/desktop 与上游 client 依赖的移除顺序。约束：不改源码，不改 .spec，不 push。工作树 pool-slot-1 到 lcoder/t184-client-plan，端口 9822 与 9829 与 9830。2026-11-14 13:05 监督窗口派工，方案会话 598d028f。2026-11-14 13:45 监督窗口核验并收口。方案四百四十七行，实测耦合二十八文件一万六千三百零六行，目录两万五千五百零八行约六成四需重写；宿主契约两种传输、十个命名空间约四十个方法、十二个事件通道；最危险三项为 follow 帧语义、events waterfall 回执、客户端会话状态机。用户拍板四项：宿主保持子进程、承载层完全自写、回退一个小版本且只留安装包重装、本轮不减包。里程碑 M0 到 M4 共五十至六十二人日，S1 六到八人日。未验项保留：宿主-only profile 能否启动是唯一可推翻 M4 的前提，转 T-186；frontend-static 独立挂载、Electron 全局 WebSocket、弱网补洞等转实现期验证。主检 test:docs 二十一项全过。已合入 lcoder/main、release pool-slot-1。"
     - id: T-185
       title: 立项会话改用 intake 预设并应用默认模型
       status: doing
