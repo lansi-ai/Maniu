@@ -2202,7 +2202,7 @@ tracks:
       date: '2026-11-15'
       dep: [T-194, T-195]
       inferred: false
-      note: "B 级实现，来源是 M4 方案 C1 与用户 2026-11-15 拍板。口径：关窗即退出，有回合在跑时先确认；首版不带自动更新，只留手动更新与说明入口；模型设置首版只读 provider 列表与默认模型，不改 baseURL 与 models；项目密码与令牌保留本地揭示，仅本地解析不进模型与日志；角色看板够用，不做关系图与并行组；发布态宿主 home 共用用户 ~/.dsh，开发仍用仓内 home；深链首版不做。范围：packages/lcoder/client 与 packages/lcoder/desktop。验收：关窗行为在空闲与运行中两种状态正确；设置只读；更新入口可解释；密码揭示仅在本地；home 解析有单测且探针不受影响；S1 与 M2 与 M3 与 t195 探针全 PASS；build/typecheck/oxlint/i18n/test:docs 全绿。工作树 pool-slot-1 到 lcoder/t196-c1-system，端口 9822 与 9829 与 9830。"
+      note: "B 级实现，来源是 M4 方案 C1 与用户 2026-11-15 拍板。口径：关窗即退出，有回合在跑时先确认；首版不带自动更新，只留手动更新与说明入口；模型设置首版只读 provider 列表与默认模型，不改 baseURL 与 models；项目密码与令牌保留本地揭示，仅本地解析不进模型与日志；角色看板够用，不做关系图与并行组；发布态宿主 home 共用用户 ~/.dsh，开发仍用仓内 home；深链首版不做。范围：packages/lcoder/client 与 packages/lcoder/desktop。验收：关窗行为在空闲与运行中两种状态正确；设置只读；更新入口可解释；密码揭示仅在本地；home 解析有单测且探针不受影响；S1 与 M2 与 M3 与 t195 探针全 PASS；build/typecheck/oxlint/i18n/test:docs 全绿。工作树 pool-slot-1 到 lcoder/t196-c1-system，端口 9822 与 9829 与 9830。2026-11-15 03:15 监督窗口派工，实现线会话 f2d06079。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
