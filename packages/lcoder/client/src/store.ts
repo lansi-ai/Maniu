@@ -490,9 +490,19 @@ export function actionOfFrame(value: unknown): ChatAction | undefined {
   return undefined
 }
 
+/** 列表载荷里的 preset：宿主线形在 `projections.values`，旧载荷在顶层。 */
+function agentPresetOf(value: Record<string, unknown>): string | undefined {
+  if (isRecord(value.projections) && isRecord(value.projections.values)
+    && typeof value.projections.values.agentPreset === 'string') {
+    return value.projections.values.agentPreset
+  }
+  return typeof value.agentPreset === 'string' ? value.agentPreset : undefined
+}
+
 /** 把 `session/list` 与事件载荷裁成列表项。 */
 export function summaryOf(value: unknown): SessionSummary | undefined {
   if (!isRecord(value) || typeof value.sessionId !== 'string' || typeof value.updatedAt !== 'number') return undefined
+  const agentPreset = agentPresetOf(value)
   return {
     sessionId: value.sessionId,
     updatedAt: value.updatedAt,
@@ -501,7 +511,6 @@ export function summaryOf(value: unknown): SessionSummary | undefined {
     ...(typeof value.cwd === 'string' ? { cwd: value.cwd } : {}),
     ...(typeof value.parentSessionId === 'string' ? { parentSessionId: value.parentSessionId } : {}),
     ...(typeof value.origin === 'string' ? { origin: value.origin } : {}),
-    ...(typeof value.projections === 'object' && value.projections !== null && 'agentPreset' in value.projections
-      && typeof value.projections.agentPreset === 'string' ? { agentPreset: value.projections.agentPreset } : {}),
+    ...(agentPreset === undefined ? {} : { agentPreset }),
   }
 }
