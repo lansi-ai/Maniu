@@ -81,7 +81,6 @@ export const ZH = {
   'login.errorGeneric': '云端返回了未知错误（{code}）',
   'login.errorNetwork': '云端不可达，请检查网络后重试。',
   'login.errorCredentials': '手机号或密码不正确。',
-  'login.errorSmsCredentials': '手机号未注册，或验证码不正确。',
   'login.errorCode': '验证码不正确或已过期。',
   'login.errorRate': '请求过于频繁，请稍后再试。',
   'login.errorSmsRate': '验证码发送过于频繁，请稍后再试。',

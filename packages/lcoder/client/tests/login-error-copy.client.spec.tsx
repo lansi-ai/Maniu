@@ -65,12 +65,12 @@ async function render(): Promise<void> {
 }
 
 describe('登录页报错文案', () => {
-  it('未注册手机号的短信登录提示验证码问题，而不是密码问题', async () => {
+  it('短信页签的凭据错误按验证码问题提示', async () => {
     await render()
     await typeInto('login-phone', '13800000001')
     await typeInto('login-code', '123456')
     await press('login-submit')
-    expect(element('login-error').querySelector('strong')?.textContent).toBe(t('login.errorSmsCredentials'))
+    expect(element('login-error').querySelector('strong')?.textContent).toBe(t('login.errorCode'))
     expect(element('login-error').textContent).toContain('mock_abc')
   })
 

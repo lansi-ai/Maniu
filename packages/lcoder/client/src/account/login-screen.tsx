@@ -17,18 +17,14 @@ type LoginField = 'phone' | 'code' | 'password'
 type FieldErrors = Partial<Record<LoginField, 'login.invalidPhone' | 'login.invalidCode' | 'login.invalidPassword'>>
 
 /**
- * 报错文案按页签区分：`invalid_credentials` 在短信登录里是「手机号未注册或验证码不对」，
- * 只有密码页签才是「手机号或密码不正确」；注册页签一律按验证码问题提示。
+ * 报错文案按页签区分：短信登录未注册会自动建号，剩下的 `invalid_credentials`
+ * 只可能是验证码问题；密码页签才提示手机号或密码不正确。
  * @param tab - 当前页签。
  * @param code - 云端业务错误码。
  * @returns 该页签使用的词典键。
  */
 function loginErrorKey(tab: LoginTab, code: string): MessageKey {
-  if (tab === 'register'
-    && (code === 'invalid_credentials' || code === 'invalid_code' || code === 'validation_failed')) {
-    return 'login.errorCode'
-  }
-  if (tab === 'sms' && code === 'invalid_credentials') return 'login.errorSmsCredentials'
+  if (tab !== 'password' && code === 'invalid_credentials') return 'login.errorCode'
   return cloudErrorKey(code)
 }
 

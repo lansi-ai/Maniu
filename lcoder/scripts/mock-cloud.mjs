@@ -221,6 +221,28 @@ function usagePageOf(user, searchParams) {
   return { items: page, nextCursor: next }
 }
 
+/**
+ * 建号并落库：注册与短信自动注册共用；短信建号没有密码。
+ * @param input - 手机号、可选密码与显示名。
+ * @returns 新建的用户记录。
+ */
+function createAccount({ phone, password = null, displayName = null }) {
+  const user = {
+    id: randomUUID(),
+    phone,
+    password,
+    displayName,
+    status: 'active',
+    createdAt: new Date().toISOString(),
+    lastLoginAt: null,
+    grantedMicroUsd: USER_GRANT_MICRO_USD,
+    reservedMicroUsd: 0,
+    spentMicroUsd: 0,
+  }
+  users.set(user.id, user)
+  return user
+}
+
 function issueSession(user) {
   const refreshToken = randomBytes(32).toString('base64url')
   const familyId = randomUUID()
@@ -756,35 +778,51 @@ async function route(request, response) {
       sendError(response, 409, 'conflict', '手机号已注册。', rid)
       return
     }
-    const user = {
-      id: randomUUID(),
+    const user = createAccount({
       phone: body.phone,
       password: body.password,
       displayName: typeof body.displayName === 'string' ? body.displayName : null,
-      status: 'active',
-      createdAt: new Date().toISOString(),
-      lastLoginAt: null,
-      grantedMicroUsd: USER_GRANT_MICRO_USD,
-      reservedMicroUsd: 0,
-      spentMicroUsd: 0,
-    }
-    users.set(user.id, user)
+    })
     sendJson(response, 200, issueSession(user), rid)
     return
   }
-  if ((path === '/v1/auth/login/sms' || path === '/v1/auth/login/password') && request.method === 'POST') {
+  if (path === '/v1/auth/login/sms' && request.method === 'POST') {
     const body = await readJson(request)
+    if (!validatePhone(body.phone) || !/^[0-9]{6}$/.test(String(body.code))) {
+      sendError(response, 422, 'validation_failed', '手机号或验证码不合法。', rid)
+      return
+    }
+    // 与真实云端一致：先验码，未注册的手机号在同一请求里建号并登录。
     const code = smsCodes.get(`${body.phone}:login`)
+    if (code === undefined || code.code !== body.code || code.expiresAt <= now()) {
+      sendError(response, 401, 'invalid_code', '验证码不正确或已过期。', rid)
+      return
+    }
+    if (state.mode === 'banned') {
+      sendError(response, 403, 'banned', '账号已被封禁。', rid)
+      return
+    }
+    const user = [...users.values()].find(candidate => candidate.phone === body.phone)
+      ?? createAccount({ phone: body.phone })
+    if (user.status === 'banned') {
+      sendError(response, 403, 'banned', '账号已被封禁。', rid)
+      return
+    }
+    sendJson(response, 200, issueSession(user), rid)
+    return
+  }
+  if (path === '/v1/auth/login/password' && request.method === 'POST') {
+    const body = await readJson(request)
     const user = [...users.values()].find(candidate => candidate.phone === body.phone)
     if (user === undefined) { sendError(response, 401, 'invalid_credentials', '手机号或密码错误。', rid); return }
     if (state.mode === 'banned' || user.status === 'banned') {
       sendError(response, 403, 'banned', '账号已被封禁。', rid)
       return
     }
-    const credentialOk = path.endsWith('/sms')
-      ? code !== undefined && code.code === body.code && code.expiresAt > now()
-      : user.password === body.password
-    if (!credentialOk) { sendError(response, 401, 'invalid_credentials', '手机号或密码错误。', rid); return }
+    if (typeof user.password !== 'string' || user.password !== body.password) {
+      sendError(response, 401, 'invalid_credentials', '手机号或密码错误。', rid)
+      return
+    }
     sendJson(response, 200, issueSession(user), rid)
     return
   }
