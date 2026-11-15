@@ -110,9 +110,9 @@
   grid-template-columns: minmax(0, auto) minmax(340px, 420px);
   align-items: center;
   justify-content: center;
-  gap: clamp(20px, 3vw, 48px);
+  gap: clamp(56px, 6vw, 112px);
   width: 100%;
-  max-width: 1080px;
+  max-width: 1180px;
 }
 
 .login-hero { display: grid; gap: 12px; align-content: center; min-width: 0; }
@@ -127,8 +127,8 @@
   color: transparent;
   opacity: 0.8;
   filter: saturate(0.9);
-  transform: translate3d(calc(var(--login-px, 0) * 10px), calc(var(--login-py, 0) * 8px), 0);
-  transition: opacity 240ms var(--lg-ease), filter 240ms var(--lg-ease), transform 420ms var(--lg-ease);
+  transform: translate3d(calc(var(--login-px, 0) * 22px), calc(var(--login-py, 0) * 20px), 0);
+  transition: opacity 240ms var(--lg-ease), filter 240ms var(--lg-ease), transform 200ms var(--lg-ease);
 }
 .login-screen:hover .login-hero-title { opacity: 1; filter: saturate(1.2) brightness(1.04); }
 .login-hero-slogan {
@@ -139,8 +139,8 @@
   white-space: nowrap;
   color: var(--lg-ink-2);
   opacity: 0.72;
-  transform: translate3d(calc(var(--login-px, 0) * 6px), calc(var(--login-py, 0) * 5px), 0);
-  transition: opacity 320ms var(--lg-ease), transform 460ms var(--lg-ease);
+  transform: translate3d(calc(var(--login-px, 0) * 18px), calc(var(--login-py, 0) * 16px), 0);
+  transition: opacity 320ms var(--lg-ease), transform 220ms var(--lg-ease);
 }
 .login-screen:hover .login-hero-slogan { opacity: 1; }
 
@@ -153,13 +153,13 @@
   min-width: 0;
   padding: clamp(22px, 3vw, 30px);
   background: var(--lg-fill-card-airy);
-  animation: login-bob 9s ease-in-out infinite alternate;
-  transform: translate3d(calc(var(--login-px, 0) * 6px), calc(var(--login-py, 0) * 4px), 0);
-  transition: transform 260ms var(--lg-ease), box-shadow 260ms var(--lg-ease);
+  animation: login-bob 11s ease-in-out infinite alternate;
+  transform: translate3d(calc(var(--login-px, 0) * 14px), calc(var(--login-py, 0) * 12px), 0);
+  transition: transform 140ms var(--lg-ease), box-shadow 260ms var(--lg-ease);
   will-change: translate;
 }
 .login-card:hover {
-  transform: translate3d(calc(var(--login-px, 0) * 6px), calc(var(--login-py, 0) * 4px - 3px), 0);
+  transform: translate3d(calc(var(--login-px, 0) * 14px), calc(var(--login-py, 0) * 12px - 3px), 0);
   box-shadow: var(--lg-shadow-float), var(--lg-highlight), 0 14px 30px -18px rgba(16, 24, 40, 0.28);
 }
 
@@ -176,13 +176,13 @@
   pointer-events: none;
   background: radial-gradient(60% 52% at 50% 42%, rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0) 72%);
   opacity: 0;
-  transform: translate3d(calc(var(--login-px, 0) * 16px), calc(var(--login-py, 0) * 12px), 0);
-  transition: opacity 220ms var(--lg-ease), transform 320ms var(--lg-ease);
+  transform: translate3d(calc(var(--login-px, 0) * 40px), calc(var(--login-py, 0) * 30px), 0);
+  transition: opacity 220ms var(--lg-ease), transform 200ms var(--lg-ease);
 }
-.login-card::before { opacity: 0.32; mix-blend-mode: soft-light; }
+.login-card::before { opacity: 0.34; mix-blend-mode: soft-light; }
 .login-control:hover::before,
 .login-phone:hover::before,
-.login-tabs:hover::before { opacity: 0.42; }
+.login-tabs:hover::before { opacity: 0.5; }
 
 .login-card-title { margin: 0; font-size: 18px; font-weight: 650; letter-spacing: 0.01em; }
 
@@ -242,7 +242,7 @@
 
 .login-control:hover,
 .login-phone:hover {
-  transform: translate3d(calc(var(--login-px, 0) * 3px), calc(var(--login-py, 0) * 2px - 1px), 0);
+  transform: translate3d(calc(var(--login-px, 0) * 6px), calc(var(--login-py, 0) * 4px - 3px), 0);
   box-shadow: var(--lg-highlight-card), 0 8px 18px -12px rgba(16, 24, 40, 0.28);
 }
 
@@ -287,7 +287,7 @@
 }
 .login-code-row .pill:hover {
   background: var(--lg-fill-control-hover);
-  transform: translate3d(calc(var(--login-px, 0) * 3px), calc(var(--login-py, 0) * 2px - 1.5px), 0);
+  transform: translate3d(calc(var(--login-px, 0) * 6px), calc(var(--login-py, 0) * 4px - 3px), 0);
   box-shadow: var(--lg-highlight-card), 0 10px 20px -12px rgba(16, 24, 40, 0.3);
 }
 
@@ -330,15 +330,15 @@
   pointer-events: none;
   background: radial-gradient(54% 62% at 50% 38%, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0) 74%);
   opacity: 0.32;
-  transform: translate3d(calc(var(--login-px, 0) * 14px), calc(var(--login-py, 0) * 8px), 0);
-  transition: opacity 220ms var(--lg-ease), transform 320ms var(--lg-ease);
+  transform: translate3d(calc(var(--login-px, 0) * 28px), calc(var(--login-py, 0) * 18px), 0);
+  transition: opacity 220ms var(--lg-ease), transform 200ms var(--lg-ease);
 }
 .login-submit:hover::before { opacity: 0.6; }
 
 /* 闲置漂浮：只动 translate（与 transform 分开合成），不产生布局跳动。 */
 @keyframes login-bob {
-  from { translate: 0 -3px; }
-  to { translate: 0 3px; }
+  from { translate: 0 -5px; }
+  to { translate: 0 5px; }
 }
 @keyframes login-bob-soft {
   from { translate: 0 -0.8px; }
