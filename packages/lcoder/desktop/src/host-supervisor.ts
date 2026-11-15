@@ -2,7 +2,7 @@
 
 import { spawn, type ChildProcess } from 'node:child_process'
 import { join } from 'node:path'
-import { materializeS1Profile } from './profile.ts'
+import { materializeReleaseProfile } from './profile.ts'
 
 /** 宿主失败时携带的完整 stderr 尾部。 */
 export class HostFatalError extends Error {
@@ -40,6 +40,16 @@ const GRACEFUL_STOP_MS = 6_000
 /** SIGTERM 后的等待上限；到点直接 SIGKILL，避免把关窗拖成驻留。 */
 const TERM_WAIT_MS = 2_000
 
+/** 发布态宿主入口与打包载荷；开发态由本包决定。 */
+export interface HostLaunch {
+  /** `host-entry.js` 的绝对路径。 */
+  readonly entry?: string | undefined
+  /** 打包载荷里的 pnpm 入口与 node 启动器目录。 */
+  readonly packageManager?: { readonly pnpm: string; readonly nodeBin: string } | undefined
+  /** 打包载荷的 `node_modules`；用户 home 的 profile 靠它解析插件包。 */
+  readonly nodeModules?: string | undefined
+}
+
 /** 一条宿主子进程。 */
 export class HostSupervisor {
   private child: ChildProcess | undefined
@@ -51,13 +61,16 @@ export class HostSupervisor {
 
   /**
    * 拉起宿主并等待 ready。
-   * @param home - 仓内 DSH home。
+   * @param home - DSH home（开发态仓内，发布态 `~/.dsh`）。
+   * @param sourceDir - 发布 profile 装配源目录。
    * @param inspectPort - 可选的宿主 inspector 端口。
+   * @param launch - 打包态的入口与载荷覆盖；缺省走本包编译产物与系统环境。
    * @returns 已就绪的宿主地址。
    */
-  async start(home: string, inspectPort?: number): Promise<string> {
-    const profileDir = materializeS1Profile(home)
-    const entry = join(import.meta.dirname, 'host-entry.js')
+  async start(home: string, sourceDir: string, inspectPort?: number, launch: HostLaunch = {}): Promise<string> {
+    const profileDir = materializeReleaseProfile(home, sourceDir, launch.nodeModules)
+    const entry = launch.entry ?? join(import.meta.dirname, 'host-entry.js')
+    const packageManager = launch.packageManager
     const child = spawn(process.execPath, [
       '--expose-internals',
       ...(inspectPort === undefined ? [] : [`--inspect=127.0.0.1:${String(inspectPort)}`]),
@@ -65,7 +78,15 @@ export class HostSupervisor {
       profileDir,
     ], {
       cwd: profileDir,
-      env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', DSH_HOME: home },
+      env: {
+        ...process.env,
+        ELECTRON_RUN_AS_NODE: '1',
+        DSH_HOME: home,
+        ...(packageManager === undefined ? {} : {
+          LCODER_HOST_PNPM: packageManager.pnpm,
+          LCODER_HOST_NODE_BIN: packageManager.nodeBin,
+        }),
+      },
       stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
     })
     this.child = child
