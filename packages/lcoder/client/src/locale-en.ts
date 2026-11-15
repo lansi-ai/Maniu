@@ -83,6 +83,7 @@ export const EN: Readonly<Record<MessageKey, string>> = {
   'login.errorGeneric': 'The cloud returned an unknown error ({code})',
   'login.errorNetwork': 'The cloud is unreachable. Check the network and retry.',
   'login.errorCredentials': 'The phone number or password is incorrect.',
+  'login.errorSmsCredentials': 'This phone number is not registered, or the code is incorrect.',
   'login.errorCode': 'The code is incorrect or expired.',
   'login.errorRate': 'Too many requests. Try again later.',
   'login.errorSmsRate': 'Codes were requested too often. Try again later.',

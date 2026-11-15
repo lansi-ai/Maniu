@@ -241,8 +241,8 @@
   transition: background-color 140ms ease, border-color 140ms ease;
 }
 .login-agree-box:checked {
-  border-color: var(--lg-accent);
-  background: var(--lg-accent);
+  border-color: var(--lg-ink);
+  background: var(--lg-ink);
 }
 .login-agree-box:checked::after {
   content: '';
@@ -381,6 +381,15 @@
   background: var(--lg-fill-subtle);
   font-size: 12px;
   color: var(--lg-danger);
+}
+.login-error strong { font-size: 12px; font-weight: 600; }
+/* 请求号：更淡、等宽、表格数字，便于对日志。 */
+.login-error span {
+  font-family: var(--lg-font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  color: var(--lg-muted);
+  opacity: 0.78;
 }
 
 /* 提交键：强调色也走半透明玻璃，背后光流仍能透出。 */

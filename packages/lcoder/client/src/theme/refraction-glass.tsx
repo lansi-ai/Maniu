@@ -47,7 +47,8 @@ export interface RefractionLayer {
 let filterUrlSupported: boolean | null = null
 function supportsFilterUrl(): boolean {
   if (filterUrlSupported !== null) return filterUrlSupported
-  filterUrlSupported = typeof CSS.supports === 'function'
+  filterUrlSupported = typeof CSS !== 'undefined'
+    && typeof CSS.supports === 'function'
     && CSS.supports('backdrop-filter', 'url(#refraction-probe)')
   return filterUrlSupported
 }

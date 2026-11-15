@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import type { JSX, RefObject } from 'react'
-import type { Translate } from '../locale.ts'
+import type { MessageKey, Translate } from '../locale.ts'
 import { cloudErrorKey, cloudFace, type CloudErrorInfo } from './cloud.ts'
 import { PaperWater } from '../theme/paper-water.tsx'
 import { useRefractionFilter } from '../theme/refraction-glass.tsx'
@@ -15,6 +15,22 @@ type LoginField = 'phone' | 'code' | 'password'
 
 /** 每个字段的就地提示。 */
 type FieldErrors = Partial<Record<LoginField, 'login.invalidPhone' | 'login.invalidCode' | 'login.invalidPassword'>>
+
+/**
+ * 报错文案按页签区分：`invalid_credentials` 在短信登录里是「手机号未注册或验证码不对」，
+ * 只有密码页签才是「手机号或密码不正确」；注册页签一律按验证码问题提示。
+ * @param tab - 当前页签。
+ * @param code - 云端业务错误码。
+ * @returns 该页签使用的词典键。
+ */
+function loginErrorKey(tab: LoginTab, code: string): MessageKey {
+  if (tab === 'register'
+    && (code === 'invalid_credentials' || code === 'invalid_code' || code === 'validation_failed')) {
+    return 'login.errorCode'
+  }
+  if (tab === 'sms' && code === 'invalid_credentials') return 'login.errorSmsCredentials'
+  return cloudErrorKey(code)
+}
 
 /** 中国大陆手机号。 */
 const PHONE_PATTERN = /^1[3-9][0-9]{9}$/
@@ -198,7 +214,7 @@ export function LoginScreen({ t, onAuthenticated }: LoginScreenProps): JSX.Eleme
   const tabLabel = tab === 'register' ? t('login.registerTab') : t('login.title')
   const cardTitle = tab === 'register' ? t('login.cardTitleRegister') : t('login.cardTitle')
   const cardSubtitle = tab === 'register' ? t('login.cardSubtitleRegister') : t('login.cardSubtitle')
-  const errorKey = error === null ? null : cloudErrorKey(error.code)
+  const errorKey = error === null ? null : loginErrorKey(tab, error.code)
 
   return (
     <main className="login-screen" data-testid="login-screen" ref={rootRef}>
