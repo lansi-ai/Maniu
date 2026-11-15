@@ -2227,7 +2227,7 @@ tracks:
       note: "B 级入口切换，来源是用户 2026-11-15 要求继续用老命令启动新客户端。范围：lcoder/scripts 下 start-desktop 与 start-all 及其共用函数，默认改为启动 @lcoder/desktop（源码态，端口 9822/9829/9830，home 仓内），新增 -Legacy 切回旧壳（9222 系列）；旧的 -Fast、-NoBuild、-KeepFollowing、-ListOnly、-Stop 语义保持；start-all 保留云端探测与 -StartCloudApi，Web 是否保留按原样。要点：进程归属识别要同时认新客户端 user-data-dir；就绪判定从新壳日志的宿主就绪行取地址；-Smoke 只对 -Legacy 生效，默认新客户端忽略并提示；smoke.cmd 等依赖旧壳的调用方要显式加 -Legacy；更新 RUN.md 与脚本头注释。验收：start-desktop.cmd -Fast 默认起新客户端；-Legacy 起旧壳；start-all.cmd -Fast 起新客户端（Web 按原逻辑）；-Stop 与 -ListOnly 正确；四条探针不回归；门禁全绿。工作树 pool-slot-1 到 lcoder/t198-start-entry，端口 9822 与 9829 与 9830。2026-11-15 09:00 监督窗口派工，实现线会话 97670d68。2026-11-15 09:25 监督窗口核验并收口。start-desktop 与 start-all 默认改起新客户端，新增 -Legacy 回退旧壳；进程归属同时认新客户端 user-data-dir 与旧壳入口；就绪判定改读新壳宿主就绪行；-Smoke 仅对 -Legacy 生效，smoke.cmd 已注明旧壳专用；RUN.md 与脚本头同步。验收：start-desktop -Fast 四秒就绪、-Legacy 四十三秒；start-all -Fast 起 Web 与新客户端；-ListOnly 与 -Stop 正确且无残留；S1、M2、M3、t195 四条探针全 PASS；typecheck、build:check、test:docs 全过。主检实测老命令四秒起新客户端窗口。已合入 lcoder/main、release pool-slot-1。"
     - id: T-199
       title: M4 C4 十二条切换冒烟
-      status: doing
+      status: done
       face: 工程
       type: 开发
       owner: lance
@@ -2235,7 +2235,29 @@ tracks:
       date: '2026-11-15'
       dep: [T-198, T-195]
       inferred: false
-      note: "B 级验收脚本，来源是 M4 方案 C4。目标：为切换后的新客户端落地十二条具名冒烟并全绿，任一项失败即非零退出。建议十二项：一窗口与宿主就绪；二登录门禁；三六页导航；四六列看板与列表切换；五任务详情与契约；六Markdown 阅读器与缩放；七需求详情与讨论历史；八立项向导与结果页；九发送与流式与工具卡；十审批通过与拒绝回执；十一提问回执与附件预览与模型用量；十二重启历史与关窗确认与停止/改名。以现有 t187/t189/t190/t195 探针为基础，可包一层按项汇总，也可写独立脚本；每项打印 PASS/FAIL 与依据。范围：lcoder/scripts 与必要文档；不改客户端业务、不改旧壳与上游；不 push、不合并、不改台账。工作树 pool-slot-1 到 lcoder/t199-smoke12，端口 9822 与 9829 与 9830。2026-11-15 09:40 监督窗口派工，实现线会话 c712b625。"
+      note: "B 级验收脚本，来源是 M4 方案 C4。目标：为切换后的新客户端落地十二条具名冒烟并全绿，任一项失败即非零退出。建议十二项：一窗口与宿主就绪；二登录门禁；三六页导航；四六列看板与列表切换；五任务详情与契约；六Markdown 阅读器与缩放；七需求详情与讨论历史；八立项向导与结果页；九发送与流式与工具卡；十审批通过与拒绝回执；十一提问回执与附件预览与模型用量；十二重启历史与关窗确认与停止/改名。以现有 t187/t189/t190/t195 探针为基础，可包一层按项汇总，也可写独立脚本；每项打印 PASS/FAIL 与依据。范围：lcoder/scripts 与必要文档；不改客户端业务、不改旧壳与上游；不 push、不合并、不改台账。工作树 pool-slot-1 到 lcoder/t199-smoke12，端口 9822 与 9829 与 9830。2026-11-15 09:40 监督窗口派工，实现线会话 c712b625。2026-11-15 10:00 监督窗口核验并收口。脚本 smoke-lcoder.mjs 与 .cmd 落地（一千零五十八行），一条命令自拉实例与 mock 与专用 home 与靶仓，逐项打印依据；干净源码跑出 10/12，退出 1。失败项 7：讨论历史候选为空，根因是 store.ts summaryOf 读 projections.agentPreset，宿主实际为 projections.values.agentPreset；临时改一行验证可到 11/12，已回滚源码，修复转 T-200。失败项 8：点开始立项后立即切对话页，RequirementsPage 卸载导致结果页不可回；修复转 T-201。其余十项 PASS，含审批通过与拒绝、提问与附件与用量、重启历史与关窗确认与停止改名。端口与 mock 无残留，工作树干净。脚本已合入 lcoder/main。C4 仍为 10/12，待两项修复后复跑。"
+    - id: T-200
+      title: 修复讨论历史读不到会话 preset
+      status: doing
+      face: 用户端
+      type: 修复
+      owner: lance
+      created: '2026-11-15'
+      date: '2026-11-15'
+      dep: [T-199]
+      inferred: false
+      note: "C 级修复，来源是 T-199 C4 冒烟第 7 项失败。根因：packages/lcoder/client/src/store.ts 的 summaryOf 只读 value.projections.agentPreset，而宿主线形是 projections.values.agentPreset，导致 SessionSummary.agentPreset 永远为空，讨论历史候选集为空。修法：summaryOf 读 projections.values.agentPreset，兼容旧线形可先看 values 再回退顶层；补一条单测覆盖两种线形；不改其它聊天行为。验收：C4 第 7 项 PASS；packages/lcoder vitest 与 typecheck、build:check 全绿。工作树 pool-slot-2 到 lcoder/t200-preset-read，端口 9823 与 9831 与 9832（只跑定向测试，不占 9822）。"
+    - id: T-201
+      title: 修复立项结果页不可回看
+      status: doing
+      face: 用户端
+      type: 修复
+      owner: lance
+      created: '2026-11-15'
+      date: '2026-11-15'
+      dep: [T-199]
+      inferred: false
+      note: "B 级修复，来源是 T-199 C4 冒烟第 8 项失败。根因：点开始立项后 App.startSession 立即 setPage('chat')，RequirementsPage 卸载，IntakeWizard 的 started 状态丢失，结果页 result=false 且无回看入口。修法二选一：把立项 started 与结果状态提升到 App 级，并在对话页与需求页保留回看入口；或发送成功后不立即切页，由用户主动进入对话。选一种并补组件测试。验收：C4 第 8 项 PASS（结果页可回看或入口可达）；S1 与 M2 探针不回归；typecheck、build:check、i18n、test:docs 全绿。工作树 pool-slot-1 到 lcoder/t201-intake-result，端口 9822 与 9829 与 9830。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
