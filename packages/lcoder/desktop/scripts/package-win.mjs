@@ -1,5 +1,5 @@
 /**
- * 产出 LCoder Windows 未签名安装包与 win-unpacked。
+ * 产出 Maniu Windows 未签名安装包与 win-unpacked。
  *
  * 步骤：staging 壳产物 → 复制发布 profile 与图标 → pnpm deploy 宿主依赖树
  * → electron-builder（NSIS per-user）→ 打印字节。
@@ -74,10 +74,10 @@ function stageApp() {
     name: '@lcoder/desktop',
     productName: IDENTITY.productName,
     version: RELEASE_VERSION,
-    description: 'LCoder 自研 Electron 壳',
+    description: 'Maniu 自研 Electron 壳',
     main: 'lib/types/main.js',
     type: 'module',
-    author: 'LCoder',
+    author: 'Maniu',
     license: 'MIT',
   }, null, 2)}\n`)
   log(`staging 完成：${APP_DIR}`)

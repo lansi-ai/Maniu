@@ -1,6 +1,6 @@
 [
   {
-    "label": "About LCoder",
+    "label": "About Maniu",
     "role": "about"
   },
   {
@@ -24,7 +24,7 @@
   },
   {
     "role": "hide",
-    "label": "Hide LCoder"
+    "label": "Hide Maniu"
   },
   {
     "role": "hideOthers",
@@ -39,6 +39,6 @@
   },
   {
     "role": "quit",
-    "label": "Quit LCoder"
+    "label": "Quit Maniu"
   }
 ]

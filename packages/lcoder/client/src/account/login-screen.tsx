@@ -134,7 +134,7 @@ export function LoginScreen({ t, onAuthenticated }: LoginScreenProps): JSX.Eleme
     <main className="center" data-testid="login-screen">
       <section className="login-card lg-glass" data-testid="login-card">
         <header className="login-brand">
-          <span className="login-mark" aria-hidden="true">L</span>
+          <span className="login-mark" aria-hidden="true">M</span>
           <div>
             <h1>{t('app.name')}</h1>
             <p>{t('welcome.slogan')}</p>

@@ -899,7 +899,7 @@ export function Shell({
   const sessionId = sessionOverride ?? workspace?.sessionIds[0]
   const session = sessionId === undefined ? undefined : sessionRows[sessionId]
   const projectPath = session?.cwd ?? workspace?.path ?? ''
-  const projectName = workspace?.title ?? 'LCoder'
+  const projectName = workspace?.title ?? 'Maniu'
   const projectBranch = info?.branch ?? '—'
   const specRoot = projectPath === '' ? '' : `${projectPath}/.spec`
   const hasWorkspace = workspace !== undefined

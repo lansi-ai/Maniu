@@ -22,7 +22,7 @@
   config:
     providers:
       lcoder-cloud:
-        displayName: LCoder Cloud
+        displayName: 慢牛云
         apiKeyEnv: LCODER_CLOUD_ACCESS_TOKEN
         api: openai-completions
         baseURL: !!js process.env.LCODER_CLOUD_BASE_URL || 'http://127.0.0.1:5091/v1'
@@ -32,7 +32,7 @@
             contextWindow: 131072
             maxTokens: 8192
       lcoder-cloud-guest:
-        displayName: LCoder Cloud（匿名立项）
+        displayName: 慢牛云（匿名立项）
         apiKeyEnv: LCODER_CLOUD_GUEST_TOKEN
         api: openai-completions
         baseURL: !!js process.env.LCODER_CLOUD_BASE_URL || 'http://127.0.0.1:5091/v1'

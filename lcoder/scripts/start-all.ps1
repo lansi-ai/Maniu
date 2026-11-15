@@ -568,24 +568,35 @@ function Wait-PortReleased {
 # 构建两边共用的产物。新客户端只要 build:artifacts（根 tsdown 的 Host 面产出 desktop lib，
 # Client 面同时产出 client/lib/dist，桌面外壳 build 是旧壳的打包产物门禁）；-Legacy 与
 # dev.ts 的构建门禁一致：先全量 artifacts，再旧壳桌面 build。
+# 旧壳的浏览器标题在构建期由 DSH_CLIENT_TITLE 定；注入 Maniu，避免工作区窗口标题仍是上游名。
 function Invoke-RepoBuild {
   param([switch]$Legacy)
-  $steps = @(
-    @{ Label = 'build:artifacts'; Command = 'pnpm --config.verify-deps-before-run=false run build:artifacts' }
-  )
-  if ($Legacy) {
-    $steps += @{ Label = '桌面外壳 build'; Command = 'pnpm --config.verify-deps-before-run=false --filter @deepseek-ai/dsh-desktop run build' }
-  }
-  foreach ($step in $steps) {
-    Write-Host ("---- 构建 {0}：{1} ----" -f $step.Label, $step.Command) -ForegroundColor Cyan
-    $started = Get-Date
-    & cmd.exe /d /c $step.Command
-    $code = $LASTEXITCODE
-    $elapsed = [int]((Get-Date) - $started).TotalSeconds
-    if ($code -ne 0) {
-      throw ("{0} 失败（退出码 {1}），产物不可用；只改过产物以外的东西时可用 -Fast 跳过构建。" -f $step.Command, $code)
+  $previousTitle = $env:DSH_CLIENT_TITLE
+  if ($Legacy) { $env:DSH_CLIENT_TITLE = 'Maniu' }
+  try {
+    $steps = @(
+      @{ Label = 'build:artifacts'; Command = 'pnpm --config.verify-deps-before-run=false run build:artifacts' }
+    )
+    if ($Legacy) {
+      $steps += @{ Label = '桌面外壳 build'; Command = 'pnpm --config.verify-deps-before-run=false --filter @deepseek-ai/dsh-desktop run build' }
     }
-    Write-Host ("✓ {0} 完成（{1} 秒）" -f $step.Label, $elapsed) -ForegroundColor Green
+    foreach ($step in $steps) {
+      Write-Host ("---- 构建 {0}：{1} ----" -f $step.Label, $step.Command) -ForegroundColor Cyan
+      $started = Get-Date
+      & cmd.exe /d /c $step.Command
+      $code = $LASTEXITCODE
+      $elapsed = [int]((Get-Date) - $started).TotalSeconds
+      if ($code -ne 0) {
+        throw ("{0} 失败（退出码 {1}），产物不可用；只改过产物以外的东西时可用 -Fast 跳过构建。" -f $step.Command, $code)
+      }
+      Write-Host ("✓ {0} 完成（{1} 秒）" -f $step.Label, $elapsed) -ForegroundColor Green
+    }
+  } finally {
+    if ($null -eq $previousTitle) {
+      Remove-Item Env:DSH_CLIENT_TITLE -ErrorAction SilentlyContinue
+    } else {
+      $env:DSH_CLIENT_TITLE = $previousTitle
+    }
   }
 }
 

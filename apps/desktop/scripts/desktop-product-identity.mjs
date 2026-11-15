@@ -50,12 +50,12 @@ const UPSTREAM_IDENTITY = {
   releaseTagPrefix: 'desktop-v',
 }
 
-/** LCoder identity, injected for every LCoder release and local build. */
+/** Maniu identity, injected for every Maniu release and local build. */
 export const LCODER_RELEASE_IDENTITY = {
   appId: 'ai.lansi.lcoder',
-  productName: 'LCoder',
+  productName: 'Maniu',
   protocolScheme: 'lcoder',
-  artifactPrefix: 'lcoder-',
+  artifactPrefix: 'maniu-',
   downloadPrefix: 'lcoder-',
   fixedDownloadDirectory: 'lcoder-desk/latest',
   updatePrefix: 'lcoder-desk',

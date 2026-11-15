@@ -1,6 +1,6 @@
-DeepSeek Harness
-DeepSeek Harness
-欢迎使用 DeepSeek Harness
-组装无限可能，共探智能上限
+慢牛 Maniu
+慢牛 Maniu
+欢迎使用 慢牛 Maniu
+稳，才跑得远
 登录
 添加 API Key

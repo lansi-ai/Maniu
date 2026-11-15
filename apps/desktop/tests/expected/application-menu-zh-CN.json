@@ -1,6 +1,6 @@
 [
   {
-    "label": "关于 LCoder",
+    "label": "关于慢牛",
     "role": "about"
   },
   {
@@ -24,7 +24,7 @@
   },
   {
     "role": "hide",
-    "label": "隐藏 LCoder"
+    "label": "隐藏慢牛"
   },
   {
     "role": "hideOthers",
@@ -39,6 +39,6 @@
   },
   {
     "role": "quit",
-    "label": "退出 LCoder"
+    "label": "退出慢牛"
   }
 ]

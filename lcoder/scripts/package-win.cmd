@@ -1,7 +1,7 @@
 @echo off
 setlocal EnableExtensions
 chcp 65001 >nul
-title LCoder Windows package (unsigned)
+title Maniu Windows package (unsigned)
 set "ROOT=%~dp0..\.."
 set "DESKTOP=%ROOT%\packages\lcoder\desktop"
 set "ARTIFACTS=%DESKTOP%\.desktop-build\artifacts"
@@ -26,7 +26,7 @@ if defined USEPROXY (
 )
 
 echo ============================================================
-echo  LCoder Windows package (unsigned, no auto update)
+echo  Maniu Windows package (unsigned, no auto update)
 echo  Root   : %ROOT%
 echo  Started: %START%
 echo  Stages : build desktop -^> build client -^> electron-builder -^> weigh
@@ -61,8 +61,8 @@ echo.
 echo [4/4] Artifacts (%TIME%)
 if exist "%ARTIFACTS%" (
   dir /b "%ARTIFACTS%"
-  for %%F in ("%ARTIFACTS%\lcoder-*-win-x64-unsigned.exe") do echo   installer: %%~nxF  %%~zF bytes
-  for %%F in ("%ARTIFACTS%\win-unpacked\LCoder.exe") do echo   unpacked : %%~nxF  %%~zF bytes
+  for %%F in ("%ARTIFACTS%\maniu-*-win-x64-unsigned.exe") do echo   installer: %%~nxF  %%~zF bytes
+  for %%F in ("%ARTIFACTS%\win-unpacked\Maniu.exe") do echo   unpacked : %%~nxF  %%~zF bytes
 ) else (
   echo   [warn] artifacts directory not found: %ARTIFACTS%
 )
