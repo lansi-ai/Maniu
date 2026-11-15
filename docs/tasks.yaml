@@ -2258,6 +2258,17 @@ tracks:
       dep: [T-199]
       inferred: false
       note: "B 级修复，来源是 T-199 C4 冒烟第 8 项失败。根因：点开始立项后 App.startSession 立即 setPage('chat')，RequirementsPage 卸载，IntakeWizard 的 started 状态丢失，结果页 result=false 且无回看入口。修法二选一：把立项 started 与结果状态提升到 App 级，并在对话页与需求页保留回看入口；或发送成功后不立即切页，由用户主动进入对话。选一种并补组件测试。验收：C4 第 8 项 PASS（结果页可回看或入口可达）；S1 与 M2 探针不回归；typecheck、build:check、i18n、test:docs 全绿。工作树 pool-slot-1 到 lcoder/t201-intake-result，端口 9822 与 9829 与 9830。2026-11-15 10:40 监督窗口派工；因委派轮禁新建会话，继续复用验证会话 c712b625，先修 T-200 后接本任务。2026-11-15 11:05 监督窗口核验并收口。采用方案 1：立项结果提升到 App 级，需求页在有结果时提供回看入口，重新立项可清除；普通发送与拆分不写立项结果，组件用例三条钉住。主检复跑 build:artifacts 八项、build:check、typecheck、packages/lcoder vitest 一百零六文件一千一百九十二例、test:docs 二十一项全过；完整 C4 冒烟 12/12、125 条断言、退出 0，第 7 与第 8 项均转 PASS。未验：结果状态只在运行内存活、重启不保留；对话页未加重复回看入口；check:i18n 两项为 workspace 既有红，不在本次 diff。已合入 lcoder/main、release pool-slot-1。"
+    - id: T-202
+      title: 登录页恢复旧版式并改流体玻璃
+      status: doing
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-15'
+      date: '2026-11-15'
+      dep: [T-201]
+      inferred: false
+      note: "B 级视觉重构，来源是用户 2026-11-15 发现新客户端登录页与旧壳不同，拍板保留旧壳原始布局、外观改为流体玻璃。范围：只改新客户端登录页（packages/lcoder/client/src/account/login-screen.tsx 与其样式、必要的玻璃 token 引用），不改认证逻辑、不改旧壳与上游。版式按旧壳：全屏主区，左侧品牌名与标语，右侧登录卡，背景保留网格与代码氛围层；表单保留现有验证码、密码、注册三页签与全部校验。外观用现有 liquid-glass token：玻璃卡、镜面边、环境色块与细颗粒，不引入旧 frost 样式。要求窄窗可用、reduced-motion 静态、中英词典不变。验收：登录流程与现有用例不回归；M3 探针 43 项与 C4 冒烟 12 项不回归；typecheck、build:check、i18n、test:docs 全绿；真实观感由用户手看。工作树 pool-slot-1 到 lcoder/t202-login-layout，端口 9822 与 9829 与 9830。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
