@@ -20,6 +20,7 @@
 
   /* 文字：正文与次要文字的对比度都按浅色玻璃底测得。 */
   --lg-font: -apple-system, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  --lg-font-mono: "Cascadia Code", "SF Mono", "JetBrains Mono", Consolas, ui-monospace, monospace;
   --lg-ink: #16191f;
   --lg-ink-2: #2f3540;
   --lg-muted: #59616f;
@@ -27,6 +28,8 @@
   --lg-on-accent: #ffffff;
   --lg-accent: #0a5fe0;
   --lg-accent-strong: #084aad;
+  /* 品牌伴色：登录页大字渐变与装饰代码的第二色，由各皮肤覆盖。 */
+  --lg-brand-2: #7b5cf0;
   --lg-danger: #b42318;
   --lg-ok: #0d7a5c;
 
