@@ -1,9 +1,10 @@
 /** 全屏登录页：验证码、密码与注册三个页签。 */
 
 import { useEffect, useRef, useState } from 'react'
-import type { JSX } from 'react'
+import type { JSX, RefObject } from 'react'
 import type { Translate } from '../locale.ts'
 import { cloudErrorKey, cloudFace, type CloudErrorInfo } from './cloud.ts'
+import { LoginWater } from './login-water.tsx'
 
 /** 登录页签。 */
 type LoginTab = 'sms' | 'password' | 'register'
@@ -19,6 +20,13 @@ const PHONE_PATTERN = /^1[3-9][0-9]{9}$/
 
 /** 六位数字验证码。 */
 const CODE_PATTERN = /^[0-9]{6}$/
+
+/** 登录页底部的装饰伪代码；不进布局、不上读屏。 */
+const AMBIENT_CODE = [
+  'const spec = read(repo)',
+  'await plan.compose(task)',
+  'if (gate.pass) ship()',
+]
 
 /**
  * 密码规则与云端一致：10–128 位，且同时含字母与数字。
@@ -38,6 +46,57 @@ function phoneDigits(value: string): string {
   return value.replace(/\D/g, '').slice(0, 11)
 }
 
+/**
+ * 把指针位置归一化后写进根元素的 --login-px / --login-py（-0.5～0.5）。
+ * pointermove 只更新目标值，统一在 rAF 里写样式；减少动态效果时不跟随并清零。
+ * @param root - 登录主区元素。
+ */
+function usePointerFollow(root: RefObject<HTMLElement | null>): void {
+  useEffect(() => {
+    const element = root.current
+    if (element === null) return
+    const reduced = typeof window.matchMedia === 'function'
+      ? window.matchMedia('(prefers-reduced-motion: reduce)')
+      : null
+    let frame = 0
+    let nextX = 0
+    let nextY = 0
+    const flush = (): void => {
+      frame = 0
+      element.style.setProperty('--login-px', nextX.toFixed(3))
+      element.style.setProperty('--login-py', nextY.toFixed(3))
+    }
+    const schedule = (): void => {
+      if (frame === 0) frame = requestAnimationFrame(flush)
+    }
+    const onMove = (event: PointerEvent): void => {
+      if (reduced?.matches === true) return
+      const rect = element.getBoundingClientRect()
+      if (rect.width < 1 || rect.height < 1) return
+      nextX = (event.clientX - rect.left) / rect.width - 0.5
+      nextY = (event.clientY - rect.top) / rect.height - 0.5
+      schedule()
+    }
+    const reset = (): void => {
+      nextX = 0
+      nextY = 0
+      schedule()
+    }
+    const onReduced = (): void => {
+      if (reduced?.matches === true) reset()
+    }
+    element.addEventListener('pointermove', onMove, { passive: true })
+    element.addEventListener('pointerleave', reset)
+    reduced?.addEventListener('change', onReduced)
+    return () => {
+      if (frame !== 0) cancelAnimationFrame(frame)
+      element.removeEventListener('pointermove', onMove)
+      element.removeEventListener('pointerleave', reset)
+      reduced?.removeEventListener('change', onReduced)
+    }
+  }, [root])
+}
+
 /** 登录页属性。 */
 export interface LoginScreenProps {
   readonly t: Translate
@@ -51,6 +110,9 @@ export interface LoginScreenProps {
  * @returns 品牌区与表单。
  */
 export function LoginScreen({ t, onAuthenticated }: LoginScreenProps): JSX.Element {
+  /** 指针跟随只写主区上的 CSS 变量，各层用 transform 消费。 */
+  const rootRef = useRef<HTMLElement | null>(null)
+  usePointerFollow(rootRef)
   const [tab, setTab] = useState<LoginTab>('sms')
   const [phone, setPhone] = useState('')
   const [code, setCode] = useState('')
@@ -131,151 +193,163 @@ export function LoginScreen({ t, onAuthenticated }: LoginScreenProps): JSX.Eleme
   const errorKey = error === null ? null : cloudErrorKey(error.code)
 
   return (
-    <main className="center" data-testid="login-screen">
-      <section className="login-card lg-glass" data-testid="login-card">
-        <header className="login-brand">
-          <span className="login-mark" aria-hidden="true">L</span>
-          <div>
-            <h1>{t('app.name')}</h1>
-            <p>{t('welcome.slogan')}</p>
-          </div>
-        </header>
+    <main className="login-screen" data-testid="login-screen" ref={rootRef}>
+      <LoginWater />
+      <div className="login-ambient" data-testid="login-ambient" aria-hidden="true">
+        {AMBIENT_CODE.map(line => <span key={line} className="login-ambient-line">{line}</span>)}
+      </div>
 
-        <div className="login-tabs" role="tablist" aria-label={title}>
-          {(['sms', 'password', 'register'] as const).map(item => (
-            <button
-              key={item}
-              type="button"
-              role="tab"
-              data-testid={`login-tab-${item}`}
-              aria-selected={tab === item}
-              className={tab === item ? 'login-tab active' : 'login-tab'}
-              onClick={() => { setTab(item); setError(null); setHint(null); setFieldErrors({}) }}
-            >
-              {t(item === 'sms' ? 'login.smsTab' : item === 'password' ? 'login.passwordTab' : 'login.registerTab')}
-            </button>
-          ))}
-        </div>
+      <div className="login-stage">
+        <section className="login-hero" data-testid="login-hero">
+          <h1 className="login-hero-title">{t('app.name')}</h1>
+          <p className="login-hero-slogan">{t('welcome.slogan')}</p>
+        </section>
 
-        <form
-          className="login-form"
-          onSubmit={(event) => { event.preventDefault(); void submit() }}
-        >
-          <div className="login-field">
-            <label htmlFor="lcoder-login-phone">{t('login.phone')}</label>
-            <div className={fieldErrors.phone === undefined ? 'login-phone' : 'login-phone invalid'}>
-              <span className="login-prefix">+86</span>
-              <input
-                id="lcoder-login-phone"
-                data-testid="login-phone"
-                type="tel"
-                inputMode="numeric"
-                autoComplete="tel-national"
-                spellCheck={false}
-                autoFocus
-                value={phone}
-                placeholder={t('login.phonePlaceholder')}
-                aria-invalid={fieldErrors.phone !== undefined}
-                onChange={(event) => {
-                  setPhone(phoneDigits(event.target.value))
-                  clearFieldError('phone')
-                }}
-              />
-            </div>
-            {fieldErrors.phone === undefined ? null : <p className="login-field-error">{t(fieldErrors.phone)}</p>}
+        <section className="login-card lg-glass" data-testid="login-card">
+          <h2 className="login-card-title">{title}</h2>
+
+          <div className="login-tabs" role="tablist" aria-label={title}>
+            {(['sms', 'password', 'register'] as const).map(item => (
+              <button
+                key={item}
+                type="button"
+                role="tab"
+                data-testid={`login-tab-${item}`}
+                aria-selected={tab === item}
+                className={tab === item ? 'login-tab active' : 'login-tab'}
+                onClick={() => { setTab(item); setError(null); setHint(null); setFieldErrors({}) }}
+              >
+                {t(item === 'sms' ? 'login.smsTab' : item === 'password' ? 'login.passwordTab' : 'login.registerTab')}
+              </button>
+            ))}
           </div>
 
-          {tab === 'password' && (
+          <form
+            className="login-form"
+            onSubmit={(event) => { event.preventDefault(); void submit() }}
+          >
             <div className="login-field">
-              <label htmlFor="lcoder-login-password">{t('login.password')}</label>
-              <input
-                id="lcoder-login-password"
-                data-testid="login-password"
-                className={fieldErrors.password === undefined ? 'login-input' : 'login-input invalid'}
-                type="password"
-                autoComplete="current-password"
-                value={password}
-                aria-invalid={fieldErrors.password !== undefined}
-                onChange={(event) => {
-                  setPassword(event.target.value)
-                  clearFieldError('password')
-                }}
-              />
-              {fieldErrors.password === undefined ? null : <p className="login-field-error">{t(fieldErrors.password)}</p>}
-            </div>
-          )}
-
-          {tab !== 'password' && (
-            <div className="login-field">
-              <label htmlFor="lcoder-login-code">{t('login.code')}</label>
-              <div className="login-code-row">
+              <label htmlFor="lcoder-login-phone">{t('login.phone')}</label>
+              <div className={fieldErrors.phone === undefined ? 'login-phone' : 'login-phone invalid'}>
+                <span className="login-prefix">+86</span>
                 <input
-                  id="lcoder-login-code"
-                  data-testid="login-code"
-                  className={fieldErrors.code === undefined ? 'login-input' : 'login-input invalid'}
-                  type="text"
+                  id="lcoder-login-phone"
+                  data-testid="login-phone"
+                  type="tel"
                   inputMode="numeric"
-                  autoComplete="one-time-code"
-                  maxLength={6}
-                  value={code}
-                  aria-invalid={fieldErrors.code !== undefined}
+                  autoComplete="tel-national"
+                  spellCheck={false}
+                  autoFocus
+                  value={phone}
+                  placeholder={t('login.phonePlaceholder')}
+                  aria-invalid={fieldErrors.phone !== undefined}
                   onChange={(event) => {
-                    setCode(event.target.value.replace(/\D/g, ''))
-                    clearFieldError('code')
+                    setPhone(phoneDigits(event.target.value))
+                    clearFieldError('phone')
                   }}
                 />
-                <button
-                  type="button"
-                  className="pill"
-                  data-testid="login-send-code"
-                  disabled={busy !== undefined || countdown > 0}
-                  onClick={() => { void sendCode() }}
-                >
-                  {busy === 'send'
-                    ? t('login.sendingCode')
-                    : countdown > 0 ? t('login.resendIn', { seconds: countdown }) : t('login.sendCode')}
-                </button>
               </div>
-              {fieldErrors.code === undefined ? null : <p className="login-field-error">{t(fieldErrors.code)}</p>}
+              {fieldErrors.phone === undefined ? null : <p className="login-field-error">{t(fieldErrors.phone)}</p>}
             </div>
-          )}
 
-          {tab === 'register' && (
-            <div className="login-field">
-              <label htmlFor="lcoder-login-new-password">{t('login.password')}</label>
-              <input
-                id="lcoder-login-new-password"
-                data-testid="login-new-password"
-                className={fieldErrors.password === undefined ? 'login-input' : 'login-input invalid'}
-                type="password"
-                autoComplete="new-password"
-                value={password}
-                aria-invalid={fieldErrors.password !== undefined}
-                onChange={(event) => {
-                  setPassword(event.target.value)
-                  clearFieldError('password')
-                }}
-              />
-              <span className="login-hint">{t('login.passwordHint')}</span>
-              {fieldErrors.password === undefined ? null : <p className="login-field-error">{t(fieldErrors.password)}</p>}
-            </div>
-          )}
+            {tab === 'password' && (
+              <div className="login-field">
+                <label htmlFor="lcoder-login-password">{t('login.password')}</label>
+                <div className={fieldErrors.password === undefined ? 'login-control' : 'login-control invalid'}>
+                  <input
+                    id="lcoder-login-password"
+                    data-testid="login-password"
+                    className="login-entry"
+                    type="password"
+                    autoComplete="current-password"
+                    value={password}
+                    aria-invalid={fieldErrors.password !== undefined}
+                    onChange={(event) => {
+                      setPassword(event.target.value)
+                      clearFieldError('password')
+                    }}
+                  />
+                </div>
+                {fieldErrors.password === undefined ? null : <p className="login-field-error">{t(fieldErrors.password)}</p>}
+              </div>
+            )}
 
-          {hint === null ? null : <p className="login-hint" data-testid="login-hint">{hint}</p>}
-          {error === null || errorKey === null ? null : (
-            <div className="login-error" role="alert" data-testid="login-error">
-              <strong>{t(errorKey, { code: error.code })}</strong>
-              {error.requestId === undefined ? null : <span>{t('login.requestId')}: {error.requestId}</span>}
-            </div>
-          )}
+            {tab !== 'password' && (
+              <div className="login-field">
+                <label htmlFor="lcoder-login-code">{t('login.code')}</label>
+                <div className="login-code-row">
+                  <div className={fieldErrors.code === undefined ? 'login-control' : 'login-control invalid'}>
+                    <input
+                      id="lcoder-login-code"
+                      data-testid="login-code"
+                      className="login-entry"
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      maxLength={6}
+                      value={code}
+                      aria-invalid={fieldErrors.code !== undefined}
+                      onChange={(event) => {
+                        setCode(event.target.value.replace(/\D/g, ''))
+                        clearFieldError('code')
+                      }}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    className="pill"
+                    data-testid="login-send-code"
+                    disabled={busy !== undefined || countdown > 0}
+                    onClick={() => { void sendCode() }}
+                  >
+                    {busy === 'send'
+                      ? t('login.sendingCode')
+                      : countdown > 0 ? t('login.resendIn', { seconds: countdown }) : t('login.sendCode')}
+                  </button>
+                </div>
+                {fieldErrors.code === undefined ? null : <p className="login-field-error">{t(fieldErrors.code)}</p>}
+              </div>
+            )}
 
-          <button type="submit" className="pill pill-accent login-submit" data-testid="login-submit" disabled={busy !== undefined}>
-            {busy === 'submit'
-              ? t('login.submitting')
-              : tab === 'register' ? t('login.submitRegister') : t('login.submitLogin')}
-          </button>
-        </form>
-      </section>
+            {tab === 'register' && (
+              <div className="login-field">
+                <label htmlFor="lcoder-login-new-password">{t('login.password')}</label>
+                <div className={fieldErrors.password === undefined ? 'login-control' : 'login-control invalid'}>
+                  <input
+                    id="lcoder-login-new-password"
+                    data-testid="login-new-password"
+                    className="login-entry"
+                    type="password"
+                    autoComplete="new-password"
+                    value={password}
+                    aria-invalid={fieldErrors.password !== undefined}
+                    onChange={(event) => {
+                      setPassword(event.target.value)
+                      clearFieldError('password')
+                    }}
+                  />
+                </div>
+                <span className="login-hint">{t('login.passwordHint')}</span>
+                {fieldErrors.password === undefined ? null : <p className="login-field-error">{t(fieldErrors.password)}</p>}
+              </div>
+            )}
+
+            {hint === null ? null : <p className="login-hint" data-testid="login-hint">{hint}</p>}
+            {error === null || errorKey === null ? null : (
+              <div className="login-error" role="alert" data-testid="login-error">
+                <strong>{t(errorKey, { code: error.code })}</strong>
+                {error.requestId === undefined ? null : <span>{t('login.requestId')}: {error.requestId}</span>}
+              </div>
+            )}
+
+            <button type="submit" className="pill pill-accent lg-lift lg-sheen login-submit" data-testid="login-submit" disabled={busy !== undefined}>
+              {busy === 'submit'
+                ? t('login.submitting')
+                : tab === 'register' ? t('login.submitRegister') : t('login.submitLogin')}
+            </button>
+          </form>
+        </section>
+      </div>
     </main>
   )
 }

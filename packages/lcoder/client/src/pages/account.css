@@ -28,39 +28,146 @@
 .welcome-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 6px; }
 .welcome-hint { margin: 2px 0 0; font-size: 11px; color: var(--lg-faint); }
 
-/* 登录页：一张居中玻璃卡，品牌区在卡头。 */
+/* 登录页：整屏主区，左侧品牌与标语、右侧登录卡，背后是网格与代码氛围层。 */
+.login-screen {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  overflow: auto;
+  padding: clamp(20px, 4vh, 44px) clamp(16px, 3vw, 40px);
+}
+
+/* 水流底：画布铺满主区，光流与水波在卡片背后流动；不接指针。 */
+.login-water {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* 代码氛围层：底部左侧三行伪代码，悬停整页时提亮；仍不接指针。 */
+.login-ambient {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  align-content: end;
+  justify-items: start;
+  gap: 6px;
+  padding: 0 clamp(16px, 3vw, 40px) clamp(30px, 7vh, 64px);
+  pointer-events: none;
+  opacity: 0.55;
+  transition: opacity 420ms var(--lg-ease);
+}
+.login-screen:hover .login-ambient { opacity: 1; }
+.login-ambient-line {
+  font: 500 12px / 1.75 var(--lg-font-mono);
+  color: var(--lg-accent);
+  text-shadow: 0 0 14px color-mix(in srgb, currentColor 32%, transparent);
+}
+.login-ambient-line:nth-child(2) { padding-left: 18px; color: var(--lg-brand-2); }
+.login-ambient-line:nth-child(3) { color: var(--lg-faint); }
+
+/* 两栏收进一个有最大宽度的中心容器：品牌区按内容取宽，登录卡定宽，整体居中。 */
+.login-stage {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, auto) minmax(340px, 420px);
+  align-items: center;
+  justify-content: center;
+  gap: clamp(20px, 3vw, 48px);
+  width: 100%;
+  max-width: 1080px;
+}
+
+.login-hero { display: grid; gap: 12px; align-content: center; min-width: 0; }
+.login-hero-title {
+  margin: 0;
+  font-size: clamp(56px, 6vw, 84px);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  background-image: linear-gradient(104deg, var(--lg-accent), var(--lg-brand-2));
+  background-clip: text;
+  color: transparent;
+  opacity: 0.8;
+  filter: saturate(0.9);
+  transform: translate3d(calc(var(--login-px, 0) * 10px), calc(var(--login-py, 0) * 8px), 0);
+  transition: opacity 240ms var(--lg-ease), filter 240ms var(--lg-ease), transform 420ms var(--lg-ease);
+}
+.login-screen:hover .login-hero-title { opacity: 1; filter: saturate(1.2) brightness(1.04); }
+.login-hero-slogan {
+  margin: 0;
+  font-size: clamp(13px, 1.05vw, 15px);
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  white-space: nowrap;
+  color: var(--lg-ink-2);
+  opacity: 0.72;
+  transform: translate3d(calc(var(--login-px, 0) * 6px), calc(var(--login-py, 0) * 5px), 0);
+  transition: opacity 320ms var(--lg-ease), transform 460ms var(--lg-ease);
+}
+.login-screen:hover .login-hero-slogan { opacity: 1; }
+
+/* 登录卡：闲置缓慢起伏，指针视差与悬停抬升都只用 transform/translate。 */
 .login-card {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  width: min(440px, 100%);
-  padding: 26px 26px 24px;
+  width: 100%;
+  min-width: 0;
+  padding: clamp(22px, 3vw, 30px);
+  background: var(--lg-fill-card-airy);
+  animation: login-bob 9s ease-in-out infinite alternate;
+  transform: translate3d(calc(var(--login-px, 0) * 6px), calc(var(--login-py, 0) * 4px), 0);
+  transition: transform 260ms var(--lg-ease), box-shadow 260ms var(--lg-ease);
+  will-change: translate;
+}
+.login-card:hover {
+  transform: translate3d(calc(var(--login-px, 0) * 6px), calc(var(--login-py, 0) * 4px - 3px), 0);
+  box-shadow: var(--lg-shadow-float), var(--lg-highlight), 0 14px 30px -18px rgba(16, 24, 40, 0.28);
 }
 
-.login-brand { display: flex; align-items: center; gap: 12px; }
-.login-brand h1 { margin: 0; font-size: 20px; font-weight: 600; letter-spacing: 0.01em; }
-.login-brand p { margin: 2px 0 0; font-size: 12px; color: var(--lg-muted); }
-
-.login-mark {
-  display: grid;
-  place-items: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 14px;
-  background: var(--lg-fill-accent);
-  color: var(--lg-on-accent);
-  font-size: 18px;
-  font-weight: 700;
-  box-shadow: 0 12px 26px -14px rgba(10, 79, 196, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+/* 玻璃高光随指针轻移：卡面与控件各一层，落在背景之上、内容之下，只动 transform 与 opacity。 */
+.login-card::before,
+.login-control::before,
+.login-phone::before,
+.login-tabs::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(60% 52% at 50% 42%, rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0) 72%);
+  opacity: 0;
+  transform: translate3d(calc(var(--login-px, 0) * 16px), calc(var(--login-py, 0) * 12px), 0);
+  transition: opacity 220ms var(--lg-ease), transform 320ms var(--lg-ease);
 }
+.login-card::before { opacity: 0.32; mix-blend-mode: soft-light; }
+.login-control:hover::before,
+.login-phone:hover::before,
+.login-tabs:hover::before { opacity: 0.42; }
+
+.login-card-title { margin: 0; font-size: 18px; font-weight: 650; letter-spacing: 0.01em; }
 
 .login-tabs {
+  position: relative;
   display: inline-flex;
   gap: 2px;
   padding: 3px;
   border: 1px solid var(--lg-line);
   border-radius: var(--lg-radius-control);
   background: var(--lg-fill-control);
+  box-shadow: var(--lg-highlight-card);
+  backdrop-filter: blur(var(--lg-blur-soft)) saturate(var(--lg-saturate));
+  animation: login-bob-soft 11s ease-in-out infinite alternate;
+  animation-delay: -1.6s;
 }
 
 .login-tab {
@@ -72,32 +179,52 @@
   padding: 6px 10px;
   font-size: 13px;
   cursor: pointer;
+  transition: background-color 160ms ease, color 160ms ease;
 }
-.login-tab.active { background: var(--lg-fill-control-hover); color: var(--lg-ink); font-weight: 600; }
+.login-tab:hover { color: var(--lg-ink); }
+.login-tab.active {
+  background: var(--lg-fill-control-hover);
+  box-shadow: var(--lg-highlight-card);
+  backdrop-filter: blur(var(--lg-blur-soft)) saturate(var(--lg-saturate));
+  color: var(--lg-ink);
+  font-weight: 600;
+}
 
-.login-form { display: flex; flex-direction: column; gap: 12px; }
+.login-form { display: flex; flex-direction: column; gap: 14px; }
 .login-field { display: flex; flex-direction: column; gap: 6px; }
 .login-field label { font-size: 12px; color: var(--lg-muted); }
 
-.login-input,
+/* 输入控件：包裹层承担玻璃与镜面边，内层输入保持无边框；悬停轻抬并加深阴影。 */
+.login-control,
 .login-phone {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   border: 1px solid var(--lg-line);
-  border-radius: 12px;
+  border-radius: 13px;
   background: var(--lg-fill-control);
-  color: var(--lg-ink);
-  padding: 9px 12px;
-  font-size: 14px;
-  outline: none;
+  box-shadow: var(--lg-highlight-card);
+  backdrop-filter: blur(var(--lg-blur-soft)) saturate(var(--lg-saturate));
+  padding: 0 12px;
+  transition: border-color 160ms ease, transform 220ms var(--lg-ease), box-shadow 220ms var(--lg-ease);
 }
 
-.login-input:focus,
+.login-control:hover,
+.login-phone:hover {
+  transform: translate3d(calc(var(--login-px, 0) * 3px), calc(var(--login-py, 0) * 2px - 1px), 0);
+  box-shadow: var(--lg-highlight-card), 0 8px 18px -12px rgba(16, 24, 40, 0.28);
+}
+
+.login-control:focus-within,
 .login-phone:focus-within { border-color: var(--lg-accent); }
-.login-input.invalid,
+.login-control.invalid,
 .login-phone.invalid { border-color: var(--lg-danger); }
 
-.login-phone { display: flex; align-items: center; gap: 8px; padding: 0 12px; }
+.login-control input,
 .login-phone input {
   flex: 1;
+  min-width: 0;
   border: 0;
   background: transparent;
   color: var(--lg-ink);
@@ -108,8 +235,26 @@
 .login-prefix { color: var(--lg-muted); font-size: 13px; border-right: 1px solid var(--lg-line-hair); padding-right: 8px; }
 
 .login-code-row { display: flex; gap: 8px; }
-.login-code-row .login-input { flex: 1; min-width: 0; }
-.login-code-row .pill { white-space: nowrap; }
+.login-code-row .login-control { flex: 1; min-width: 0; }
+/* 发送码：控件尺寸的玻璃胶囊，与输入框同一套填充、镜面边与内高光。 */
+.login-code-row .pill {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--lg-line);
+  border-radius: var(--lg-radius-control);
+  background: var(--lg-fill-control);
+  box-shadow: var(--lg-highlight-card);
+  backdrop-filter: blur(var(--lg-blur-soft)) saturate(var(--lg-saturate));
+  animation: login-bob-soft 8s ease-in-out infinite alternate;
+  animation-delay: -2.4s;
+  transition: transform 220ms var(--lg-ease), box-shadow 220ms var(--lg-ease), background-color 160ms ease;
+  white-space: nowrap;
+}
+.login-code-row .pill:hover {
+  background: var(--lg-fill-control-hover);
+  transform: translate3d(calc(var(--login-px, 0) * 3px), calc(var(--login-py, 0) * 2px - 1.5px), 0);
+  box-shadow: var(--lg-highlight-card), 0 10px 20px -12px rgba(16, 24, 40, 0.3);
+}
 
 .login-field-error { margin: 0; font-size: 12px; color: var(--lg-danger); }
 .login-hint { margin: 0; font-size: 12px; color: var(--lg-muted); }
@@ -126,7 +271,83 @@
   color: var(--lg-danger);
 }
 
-.login-submit { margin-top: 4px; justify-content: center; }
+/* 提交键：强调色也走半透明玻璃，背后光流仍能透出。 */
+.login-submit,
+.login-submit:hover {
+  margin-top: 4px;
+  border-color: rgba(255, 255, 255, 0.46);
+  background: linear-gradient(146deg,
+    color-mix(in srgb, var(--lg-accent) 90%, transparent) 0%,
+    color-mix(in srgb, var(--lg-accent-strong) 78%, transparent) 52%,
+    color-mix(in srgb, var(--lg-accent-strong) 70%, transparent) 100%);
+  color: var(--lg-on-accent);
+  box-shadow: 0 18px 34px -18px color-mix(in srgb, var(--lg-accent) 46%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(18px) saturate(160%);
+  animation: login-bob-soft 10s ease-in-out infinite alternate;
+  animation-delay: -3.2s;
+}
+.login-submit::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(54% 62% at 50% 38%, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0) 74%);
+  opacity: 0.32;
+  transform: translate3d(calc(var(--login-px, 0) * 14px), calc(var(--login-py, 0) * 8px), 0);
+  transition: opacity 220ms var(--lg-ease), transform 320ms var(--lg-ease);
+}
+.login-submit:hover::before { opacity: 0.6; }
+
+/* 闲置漂浮：只动 translate（与 transform 分开合成），不产生布局跳动。 */
+@keyframes login-bob {
+  from { translate: 0 -3px; }
+  to { translate: 0 3px; }
+}
+@keyframes login-bob-soft {
+  from { translate: 0 -0.8px; }
+  to { translate: 0 1.2px; }
+}
+
+/* 窄窗：品牌落到卡片上方并居中，氛围层让位给表单。 */
+@media (max-width: 900px) {
+  .login-screen { padding: 28px 18px; }
+  .login-stage {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    gap: 20px;
+    max-width: 480px;
+  }
+  .login-ambient { display: none; }
+  .login-hero { justify-items: center; gap: 8px; text-align: center; }
+  .login-hero-title { font-size: clamp(40px, 10vw, 56px); }
+  .login-hero-slogan { white-space: normal; letter-spacing: 0.1em; }
+  .login-card { width: min(460px, 100%); }
+}
+
+/* reduced-motion：品牌与氛围层不做过场，漂浮、抬升与跟随全部静止；玻璃填充、边框与阴影保留。 */
+@media (prefers-reduced-motion: reduce) {
+  .login-ambient,
+  .login-hero-title,
+  .login-hero-slogan,
+  .login-tab,
+  .login-card,
+  .login-card:hover,
+  .login-control,
+  .login-control:hover,
+  .login-phone,
+  .login-phone:hover,
+  .login-code-row .pill,
+  .login-code-row .pill:hover,
+  .login-submit,
+  .login-submit:hover { animation: none; translate: none; transform: none; transition: none; }
+  .login-card::before,
+  .login-control::before,
+  .login-phone::before,
+  .login-tabs::before,
+  .login-submit::before { transform: none; transition: none; }
+}
 
 /* 顶栏账号入口。 */
 .account-entry { position: relative; -webkit-app-region: no-drag; }
