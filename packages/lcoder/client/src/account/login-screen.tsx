@@ -2,9 +2,10 @@
 
 import { useEffect, useRef, useState } from 'react'
 import type { JSX, RefObject } from 'react'
-import type { Translate } from '../locale.ts'
+import type { MessageKey, Translate } from '../locale.ts'
 import { cloudErrorKey, cloudFace, type CloudErrorInfo } from './cloud.ts'
-import { LoginWater } from './login-water.tsx'
+import { PaperWater } from '../theme/paper-water.tsx'
+import { useRefractionFilter } from '../theme/refraction-glass.tsx'
 
 /** 登录页签。 */
 type LoginTab = 'sms' | 'password' | 'register'
@@ -15,17 +16,30 @@ type LoginField = 'phone' | 'code' | 'password'
 /** 每个字段的就地提示。 */
 type FieldErrors = Partial<Record<LoginField, 'login.invalidPhone' | 'login.invalidCode' | 'login.invalidPassword'>>
 
+/**
+ * 报错文案按页签区分：短信登录未注册会自动建号，剩下的 `invalid_credentials`
+ * 只可能是验证码问题；密码页签才提示手机号或密码不正确。
+ * @param tab - 当前页签。
+ * @param code - 云端业务错误码。
+ * @returns 该页签使用的词典键。
+ */
+function loginErrorKey(tab: LoginTab, code: string): MessageKey {
+  if (tab !== 'password' && code === 'invalid_credentials') return 'login.errorCode'
+  return cloudErrorKey(code)
+}
+
 /** 中国大陆手机号。 */
 const PHONE_PATTERN = /^1[3-9][0-9]{9}$/
 
 /** 六位数字验证码。 */
 const CODE_PATTERN = /^[0-9]{6}$/
 
-/** 登录页底部的装饰伪代码；不进布局、不上读屏。 */
-const AMBIENT_CODE = [
-  'const spec = read(repo)',
-  'await plan.compose(task)',
-  'if (gate.pass) ship()',
+/** 英雄区示例代码：稳定节奏，每一步先验证再推进；注释走词典。 */
+const HERO_CODE = [
+  'const pace = steady(work)',
+  'for (const step of plan) {',
+  '  verify(step); advance(step)',
+  '}',
 ]
 
 /**
@@ -113,11 +127,15 @@ export function LoginScreen({ t, onAuthenticated }: LoginScreenProps): JSX.Eleme
   /** 指针跟随只写主区上的 CSS 变量，各层用 transform 消费。 */
   const rootRef = useRef<HTMLElement | null>(null)
   usePointerFollow(rootRef)
+  /** 卡面用边缘折射，页签、输入框与按钮沿用轻量 backdrop-filter。 */
+  const refraction = useRefractionFilter({ blur: 8, strength: 1 })
   const [tab, setTab] = useState<LoginTab>('sms')
   const [phone, setPhone] = useState('')
   const [code, setCode] = useState('')
   const [password, setPassword] = useState('')
   const [countdown, setCountdown] = useState(0)
+  /** 本期只做可交互的协议勾选，不参与校验与提交。 */
+  const [agreed, setAgreed] = useState(false)
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
   const [busy, setBusy] = useState<'send' | 'submit' | undefined>(undefined)
   const [error, setError] = useState<CloudErrorInfo | null>(null)
@@ -189,26 +207,45 @@ export function LoginScreen({ t, onAuthenticated }: LoginScreenProps): JSX.Eleme
     await onAuthenticated()
   }
 
-  const title = tab === 'register' ? t('login.registerTab') : t('login.title')
-  const errorKey = error === null ? null : cloudErrorKey(error.code)
+  const tabLabel = tab === 'register' ? t('login.registerTab') : t('login.title')
+  const cardTitle = tab === 'register' ? t('login.cardTitleRegister') : t('login.cardTitle')
+  const cardSubtitle = tab === 'register' ? t('login.cardSubtitleRegister') : t('login.cardSubtitle')
+  const errorKey = error === null ? null : loginErrorKey(tab, error.code)
 
   return (
     <main className="login-screen" data-testid="login-screen" ref={rootRef}>
-      <LoginWater />
-      <div className="login-ambient" data-testid="login-ambient" aria-hidden="true">
-        {AMBIENT_CODE.map(line => <span key={line} className="login-ambient-line">{line}</span>)}
-      </div>
+      <PaperWater />
 
       <div className="login-stage">
         <section className="login-hero" data-testid="login-hero">
+          <div className="login-hero-kicker">
+            <span className="login-hero-kicker-rule" aria-hidden="true" />
+            <span className="login-hero-kicker-label">{t('login.kicker')}</span>
+          </div>
           <h1 className="login-hero-title">{t('app.name')}</h1>
           <p className="login-hero-slogan">{t('welcome.slogan')}</p>
+          <div className="login-hero-code" data-testid="login-ambient" aria-hidden="true">
+            {HERO_CODE.map(line => <span key={line} className="login-hero-code-line">{line}</span>)}
+            <span className="login-hero-code-line login-hero-code-note">{`// ${t('login.codeNote')}`}</span>
+          </div>
         </section>
 
-        <section className="login-card lg-glass" data-testid="login-card">
-          <h2 className="login-card-title">{title}</h2>
+        <section
+          className="login-card lg-glass"
+          data-testid="login-card"
+          ref={refraction.ref}
+          style={refraction.style}
+        >
+          {refraction.defs}
+          <div className="login-card-head">
+            <span className="login-card-mark" aria-hidden="true"><span /></span>
+            <div className="login-card-heading">
+              <h2 className="login-card-title">{cardTitle}</h2>
+              <p className="login-card-subtitle">{cardSubtitle}</p>
+            </div>
+          </div>
 
-          <div className="login-tabs" role="tablist" aria-label={title}>
+          <div className="login-tabs" role="tablist" aria-label={tabLabel}>
             {(['sms', 'password', 'register'] as const).map(item => (
               <button
                 key={item}
@@ -341,6 +378,22 @@ export function LoginScreen({ t, onAuthenticated }: LoginScreenProps): JSX.Eleme
                 {error.requestId === undefined ? null : <span>{t('login.requestId')}: {error.requestId}</span>}
               </div>
             )}
+
+            <div className="login-agree">
+              <input
+                type="checkbox"
+                className="login-agree-box"
+                data-testid="login-agree"
+                checked={agreed}
+                onChange={(event) => { setAgreed(event.target.checked) }}
+              />
+              <span className="login-agree-text">
+                {t('login.agreeLead')}
+                <span className="login-agree-link">{t('login.agreeTerms')}</span>
+                {t('login.agreeJoin')}
+                <span className="login-agree-link">{t('login.agreePrivacy')}</span>
+              </span>
+            </div>
 
             <button type="submit" className="pill pill-accent lg-lift lg-sheen login-submit" data-testid="login-submit" disabled={busy !== undefined}>
               {busy === 'submit'

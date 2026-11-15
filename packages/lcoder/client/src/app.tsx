@@ -17,6 +17,7 @@ import { TasksPage } from './pages/tasks.tsx'
 import { RolesPage } from './pages/roles.tsx'
 import { ChatView } from './shell/chat-view.tsx'
 import { PendingCards, type AnswerResult } from './shell/pending-cards.tsx'
+import { GateChrome } from './shell/gate-chrome.tsx'
 import { GateView } from './shell/gate-view.tsx'
 import { QuitConfirm } from './shell/quit-confirm.tsx'
 import { Titlebar } from './shell/titlebar.tsx'
@@ -534,15 +535,19 @@ export function App(): JSX.Element {
         <span className="ambient-grain" data-testid="ambient-grain" />
       </div>
 
-      <Titlebar
-        t={t}
-        host={host}
-        project={project}
-        windowState={windowState}
-        cloud={cloud.state}
-        onPersonalCenter={openAccount}
-        onCloudChanged={cloud.refresh}
-      />
+      {gateKind === 'ready' ? (
+        <Titlebar
+          t={t}
+          host={host}
+          project={project}
+          windowState={windowState}
+          cloud={cloud.state}
+          onPersonalCenter={openAccount}
+          onCloudChanged={cloud.refresh}
+        />
+      ) : (
+        <GateChrome t={t} windowState={windowState} />
+      )}
 
       {gateKind !== 'ready' && (
         <GateView

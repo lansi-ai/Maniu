@@ -21,6 +21,7 @@ kind: "package-reference"
 - `src/pages/`：需求、任务（六列看板/列表、详情、附件）、项目、项目信息（数据库密码按 `passwordRef` 从内存里的 `.spec/local.yaml` 揭示）、角色、设置；Markdown 渲染器与全屏阅读器。
 - `src/commands/run.ts`：人机命令只走 `commands.execute`，主进程对命令名再做一层白名单。
 - `src/theme/liquid-glass.css`：新客户端主题底座，集中 `--lg-*` token、环境背景层与 `.lg-glass` / `.lg-sheen` / `.lg-lift` 基元；其余样式只消费这些变量。
+- `src/theme/paper-water.tsx` / `refraction-glass.tsx`：登录页浅雾彩水流（按皮肤取色、无 WebGL 静态回退、减动效停帧）与卡面 SVG 折射（唯一 id、按尺寸与 DPR 重建）；控件仍是轻量 `backdrop-filter` 玻璃。
 - `src/contract.ts`：`window.lcoder` 窄 IPC 契约，与主进程同名同形。
 - 渲染端无 Node、无 `fetch`、无宿主 cookie；所有宿主访问经 preload 暴露的 IPC。
 
@@ -60,6 +61,7 @@ kind: "package-reference"
 - `session/control` 是宿主级流；冷会话在流打开后才激活时，模型与用量先取 follow 开场帧里的投影，再被同键、更高水位的控制帧覆盖。
 - 任务附件的图片缩略图依赖 `workspaceFiles.readBytes` 的 multipart 解码，已在适配层实现，但超大文件与断流未压测。
 - 讨论历史的参会身份聚合依赖 `session/events`；没有讨论会话时只显示定位不到。
+- 登录卡面的折射走 `backdrop-filter: url(#svg-filter)`，只有 Chromium/Electron 把它作用到背景；其它内核退回普通模糊。浅雾彩水面本身平滑，折射在卡边缘只表现为几级像素位移，原型里用来显形的演示纹理不进产品。
 
 ### 开发备注
 

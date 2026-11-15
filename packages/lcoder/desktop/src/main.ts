@@ -126,11 +126,11 @@ function hostLaunch(): HostLaunch {
   }
 }
 
-/** 窗口与托盘图标：发布态随 extraResources 落盘。 */
+/** 托盘图标：发布态随 extraResources 落盘，开发态取本包 resources。 */
 function trayIconPath(): string {
   return app.isPackaged
     ? join(process.resourcesPath, 'tray.ico')
-    : join(import.meta.dirname, '..', '..', 'resources', 'tray-windows.ico')
+    : join(import.meta.dirname, '..', '..', 'resources', 'maniu-tray.ico')
 }
 
 async function boot(): Promise<void> {
@@ -208,6 +208,7 @@ if (!app.requestSingleInstanceLock()) {
         open: focusWindow,
         quit: () => { app.quit() },
       })
+      console.log('lcoder desktop: 托盘已创建', trayIcon)
     }
     await boot()
     app.on('activate', () => { focusWindow() })

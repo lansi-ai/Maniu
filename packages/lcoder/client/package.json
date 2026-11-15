@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@lcoder/desktop": "workspace:*",
+    "@paper-design/shaders-react": "0.0.82",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "yaml": "^2.9.1"

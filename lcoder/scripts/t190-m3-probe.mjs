@@ -269,7 +269,7 @@ async function launchResilient(suffix) {
 }
 
 async function waitReady(page) {
-  await page.waitFor("document.querySelector('[data-testid=\"host-state\"]')?.dataset.hostState === 'ready'", 90_000, '宿主 ready')
+  await page.waitFor("document.querySelector('.app')?.hasAttribute('data-lcoder-state')", 90_000, '宿主 ready')
   await page.waitFor("document.querySelector('.app')?.getAttribute('data-lcoder-state') === 'ready'", 60_000, '登录门禁放行')
 }
 
@@ -323,7 +323,7 @@ async function run() {
     const first = await launchResilient('1')
     child = first.child
     page = first.page
-    await page.waitFor("document.querySelector('[data-testid=\"host-state\"]')?.dataset.hostState === 'ready'", 90_000, '宿主 ready')
+    await page.waitFor("document.querySelector('.app')?.hasAttribute('data-lcoder-state')", 90_000, '宿主 ready')
     await page.waitFor("document.querySelector('[data-testid=\"welcome-screen\"]') !== null", 60_000, '欢迎屏')
     assert(true, '新客户端首屏是 LCoder 欢迎屏')
 

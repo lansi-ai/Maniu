@@ -56,7 +56,7 @@ export function createWindowsConfig(options) {
     extraResources: [
       { from: profileDir, to: 'profile', filter: ['*.yml'] },
       { from: clientDistDir, to: 'client-dist', filter: ['**/*'] },
-      { from: iconPath, to: 'icon.png' },
+      { from: iconPath, to: 'app.ico' },
       { from: trayPath, to: 'tray.ico' },
       ...(runtimeDir === undefined ? [] : [
         { from: join(runtimeDir, 'primary-runtime'), to: 'runtime/primary-runtime' },

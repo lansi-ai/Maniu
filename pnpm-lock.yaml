@@ -13031,6 +13031,9 @@ importers:
       '@lcoder/desktop':
         specifier: workspace:*
         version: link:../desktop
+      '@paper-design/shaders-react':
+        specifier: 0.0.82
+        version: 0.0.82(@types/react@18.3.31)(react@18.3.1)
       react:
         specifier: ^18.2.0
         version: 18.3.1
@@ -20967,6 +20970,18 @@ packages:
   '@panzoom/panzoom@4.6.2':
     resolution: {integrity: sha512-Zn3B5/hwa6eYIPRSKX0xf2clv8nviTX8AnAU5kU/EugiTDhG41ya2wlBqYrZJYCWQROr/5XkWObZhIkepi89qw==}
 
+  '@paper-design/shaders-react@0.0.82':
+    resolution: {integrity: sha512-DSPvsCgqagN23sYJP4vB9UpKj0IM6Aq9DOulI8c6ByHdDD6mIKRCNN6tqHK1FDdzCEQNz0dstlRtcdImAWcqqQ==}
+    peerDependencies:
+      '@types/react': ^18 || ^19
+      react: ^18 || ^19
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
+
+  '@paper-design/shaders@0.0.82':
+    resolution: {integrity: sha512-eCxYQrrCxRVc4KG8sLSQecsq8Ymstbaq/FqZjq/fhOa6UiR1ZZfdMO5IJpHmwL0GYmfzvZVQ4l8ZOLux0uLVdg==}
+
   '@peculiar/asn1-schema@2.9.4':
     resolution: {integrity: sha512-GjzePcT9Iw8NzeOPf73iNS9xM+TBhd/FilAfP+RQGkTMQJTVWtytN3JHJACCjf/ABNau5S7mS3g+DcuxmRgYEg==}
     engines: {node: '>=14'}
@@ -28534,6 +28549,15 @@ snapshots:
     optional: true
 
   '@panzoom/panzoom@4.6.2': {}
+
+  '@paper-design/shaders-react@0.0.82(@types/react@18.3.31)(react@18.3.1)':
+    dependencies:
+      '@paper-design/shaders': 0.0.82
+      react: 18.3.1
+    optionalDependencies:
+      '@types/react': 18.3.31
+
+  '@paper-design/shaders@0.0.82': {}
 
   '@peculiar/asn1-schema@2.9.4':
     dependencies:
