@@ -2280,6 +2280,17 @@ tracks:
       dep: [T-202]
       inferred: false
       note: "B 级品牌更名，来源是用户 2026-11-15 拍板：品牌名称 Maniu、中文名慢牛，广告语「稳，才跑得远」（英文 Steady wins the long run.），中文界面品牌行显示「慢牛 Maniu」，英文界面显示 Maniu。范围按用户选择覆盖全部用户可见面。新客户端词典 app.name、welcome.slogan、welcome.hint、settings.updateManual、settings.aboutVersion；桌面壳中英 locale 的应用名、打开/退出/关于/手动更新文案；窗口标题与 index.html 标题统一 Maniu；安装包产品名 Maniu、产物前缀 maniu-、版权 Maniu；package-win.cmd 的 Maniu.exe 断言；旧壳 apps/desktop 的发布身份脚本与测试、旧壳词典的品牌与登录注册与需求分析师文案、欢迎页 DeepSeek 字标改为 Maniu 字标，安装器八个语言包里的 DeepSeek Harness 改为 Maniu；打包文档中的产物名与安装命令。不动内部包名 @lcoder/*、appId ai.lansi.lcoder、lcoder 协议、DSH_HOME 与用户数据目录、updater 缓存目录。已知影响：安装目录、快捷方式与 exe 名变化，已安装的 LCoder 需卸载后装新包；LCoder-cloud 仓的官网与云端界面仍是 LCoder，列为后续任务。验收：中英界面品牌与广告语正确且可见文案无 LCoder 残留（内部标识保留）；窗口标题、托盘、菜单、关于一致；-Legacy 旧壳标题与登录注册文案为 Maniu 与慢牛；打包产物为 maniu-版本-unsigned.exe 且 win-unpacked 内为 Maniu.exe；M3 43 项与 C4 12 项不回归；typecheck、build:check、i18n、test:docs 全绿；观感与安装包由用户手看。与 T-202 并行实现，合入顺序排在 T-202 之后。工作树 pool-slot-2 到 lcoder/t203-brand-maniu，端口 9823 与 9831 与 9832。2026-11-15 12:10 监督窗口登记并派工，实现线会话 09d06c66。"
+    - id: T-204
+      title: 开源流体与液态玻璃组件调研及可切换原型
+      status: doing
+      face: 用户端
+      type: 调研
+      owner: lance
+      created: '2026-11-15'
+      date: '2026-11-15'
+      dep: []
+      inferred: false
+      note: "B 级原型调研，来源是用户 2026-11-15 反馈 T-202 流体效果不好，要求先找开源 Electron 流体组件、出原型看过效果再开发。2026-11-15 现查 npm 与仓库结论：背景类 webgl-fluid 0.4.0（MIT，实时 Navier-Stokes，指针搅动，220 KB）、@paper-design/shaders-react 0.0.82（Apache-2.0，water 与 liquid metal 等 WebGL shader，约 1.3 MB，需锁版本）；玻璃类 liquid-glass-react 1.1.1（MIT，SVG 位移折射，要求 React 19）与自实现 SVG feDisplacementMap 折射（参考 archisvaze/liquid-glass 与 shuding/liquid-glass，均 MIT，仅 Chromium 与 Electron 的 backdrop-filter url 可用）；对照保留现有 canvas 光流与 backdrop-filter 玻璃。原型独立放在仓外 E:/Projects/LCoder-Prototypes/fluid-glass-20261115，不改产品源码、不入库；同一登录版式下提供背景与玻璃组合切换、参数滑杆、指针交互与减动效开关、FPS。预览端口 5188，Electron 调试端口 9840，窗口 1280×800，用本机 Electron 44.7.0 起窗给用户手看。验收：各组合可在同一窗口切换且指针有响应，FPS 实测有数，减动效静态，WebGL 不可用时有回退提示；不改仓、不装系统级依赖、不干扰 9822 与 9823 预览。用户选定后再另起开发任务把胜出方案接入新客户端并替换 T-202 水流底。2026-11-15 12:25 监督窗口登记并派工，实现线会话 51ea221a。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
