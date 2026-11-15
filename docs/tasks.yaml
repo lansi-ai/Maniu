@@ -2246,7 +2246,7 @@ tracks:
       date: '2026-11-15'
       dep: [T-199]
       inferred: false
-      note: "C 级修复，来源是 T-199 C4 冒烟第 7 项失败。根因：packages/lcoder/client/src/store.ts 的 summaryOf 只读 value.projections.agentPreset，而宿主线形是 projections.values.agentPreset，导致 SessionSummary.agentPreset 永远为空，讨论历史候选集为空。修法：summaryOf 读 projections.values.agentPreset，兼容旧线形可先看 values 再回退顶层；补一条单测覆盖两种线形；不改其它聊天行为。验收：C4 第 7 项 PASS；packages/lcoder vitest 与 typecheck、build:check 全绿。工作树 pool-slot-2 到 lcoder/t200-preset-read，端口 9823 与 9831 与 9832（只跑定向测试，不占 9822）。"
+      note: "C 级修复，来源是 T-199 C4 冒烟第 7 项失败。根因：packages/lcoder/client/src/store.ts 的 summaryOf 只读 value.projections.agentPreset，而宿主线形是 projections.values.agentPreset，导致 SessionSummary.agentPreset 永远为空，讨论历史候选集为空。修法：summaryOf 读 projections.values.agentPreset，兼容旧线形可先看 values 再回退顶层；补一条单测覆盖两种线形；不改其它聊天行为。验收：C4 第 7 项 PASS；packages/lcoder vitest 与 typecheck、build:check 全绿。工作树 pool-slot-2 到 lcoder/t200-preset-read，端口 9823 与 9831 与 9832（只跑定向测试，不占 9822）。2026-11-15 10:15 监督窗口派工；因本轮由委派输入触发、宿主禁止新建嵌套会话，复用 T-199 验证会话 c712b625 执行。"
     - id: T-201
       title: 修复立项结果页不可回看
       status: doing
