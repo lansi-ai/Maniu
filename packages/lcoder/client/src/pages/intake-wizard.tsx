@@ -6,10 +6,18 @@ import type { ProjectScope } from '../workspace/use-workspaces.ts'
 import type { SpecProjection } from '../spec/load.ts'
 import { buildIntakePrompt, type IntakeMode } from '../intake/prompts.ts'
 
+/** 一次立项发送的结果；提到 App 级，供向导卸载后回看。 */
+export interface IntakeResult {
+  readonly message: string
+  readonly sessionId: string
+}
+
 /** 立项向导属性。 */
 export interface IntakeWizardProps {
   readonly project: ProjectScope
   readonly projection: SpecProjection
+  readonly result: IntakeResult | null
+  readonly onClearResult: () => void
   readonly onClose: () => void
   readonly onStart: (prompt: string) => Promise<{ readonly ok: boolean; readonly message: string }>
   readonly onOpenRequirement: (id: string) => void
@@ -18,13 +26,12 @@ export interface IntakeWizardProps {
 
 /**
  * 画立项向导。
- * @param props - 项目、投影与发送回调。
+ * @param props - 项目、投影、提升到 App 的结果与发送回调。
  * @returns 向导抽屉。
  */
 export function IntakeWizard(props: IntakeWizardProps): JSX.Element {
   const [mode, setMode] = useState<IntakeMode>('fresh')
   const [busy, setBusy] = useState(false)
-  const [started, setStarted] = useState<string | null>(null)
   const [failure, setFailure] = useState<string | null>(null)
 
   const prompt = useMemo(() => buildIntakePrompt({
@@ -44,15 +51,13 @@ export function IntakeWizard(props: IntakeWizardProps): JSX.Element {
     setFailure(null)
     try {
       const answer = await props.onStart(prompt)
-      if (!answer.ok) {
-        setFailure(answer.message)
-        return
-      }
-      setStarted(answer.message)
+      if (!answer.ok) setFailure(answer.message)
     } finally {
       setBusy(false)
     }
   }
+
+  const started = props.result
 
   const latest = props.projection.requirements[props.projection.requirements.length - 1]
 
@@ -99,9 +104,10 @@ export function IntakeWizard(props: IntakeWizardProps): JSX.Element {
       {started !== null && (
         <section className="detail-section" data-testid="intake-result">
           <h4>结果</h4>
-          <p className="detail-line" data-testid="intake-result-message">{started}</p>
+          <p className="detail-line" data-testid="intake-result-message">{started.message}</p>
           <div className="detail-drawer-head">
             <button type="button" className="pill" data-testid="intake-result-refresh" onClick={props.onReload}>刷新需求</button>
+            <button type="button" className="pill" data-testid="intake-restart" onClick={props.onClearResult}>重新立项</button>
           </div>
           {latest === undefined
             ? <p className="empty" data-testid="intake-result-empty">还没有需求；等模型落盘后点「刷新需求」。</p>

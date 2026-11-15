@@ -8,6 +8,7 @@ import { translate, type MessageKey, type Translate } from './locale.ts'
 import { browserStorage, markWelcomeSeen, usePreferences, welcomeSeen } from './prefs.ts'
 import { useCloudSession } from './account/use-cloud.ts'
 import { PersonalCenter } from './account/personal-center.tsx'
+import type { IntakeResult } from './pages/intake-wizard.tsx'
 import { ProjectInfoPage } from './pages/project-info.tsx'
 import { ProjectsPage } from './pages/projects.tsx'
 import { RequirementsPage } from './pages/requirements.tsx'
@@ -106,6 +107,7 @@ export function App(): JSX.Element {
   const [page, setPage] = useState<PageId>('chat')
   const [returnPage, setReturnPage] = useState<PageId>('chat')
   const [project, setProject] = useState<ProjectScope | null>(savedProject)
+  const [intakeResult, setIntakeResult] = useState<IntakeResult | null>(null)
   const [projectNotice, setProjectNotice] = useState<string | null>(null)
   const [pending, setPending] = useState<readonly PendingInteraction[]>([])
   const [closeRequest, setCloseRequest] = useState<CloseRequest | null>(null)
@@ -433,7 +435,11 @@ export function App(): JSX.Element {
     await loadSessions()
   }, [loadSessions, sessions])
 
-  const startSession = useCallback(async (prompt: string) => {
+  const launchSession = useCallback(async (prompt: string): Promise<{
+    readonly ok: boolean
+    readonly message: string
+    readonly sessionId?: string
+  }> => {
     if (project === null) return { ok: false, message: t('flow.projectMissing') }
     const created = await window.lcoder.call('session', 'create', {
       request: { workspaceId: project.workspaceId, agentPreset: WORKBENCH_PRESET },
@@ -453,11 +459,26 @@ export function App(): JSX.Element {
       },
     })
     if (!sent.ok) return { ok: false, message: `${sent.error.code}: ${sent.error.message}` }
+    const message = t('flow.startSent', { id: sessionId.slice(0, 8) })
     selectSession(sessionId)
     setPage('chat')
     await loadSessions()
-    return { ok: true, message: t('flow.startSent', { id: sessionId.slice(0, 8) }) }
+    return { ok: true, message, sessionId }
   }, [loadSessions, project, selectSession, t])
+
+  const startSession = useCallback(async (prompt: string) => {
+    const answer = await launchSession(prompt)
+    return { ok: answer.ok, message: answer.message }
+  }, [launchSession])
+
+  const startIntake = useCallback(async (prompt: string) => {
+    setIntakeResult(null)
+    const answer = await launchSession(prompt)
+    if (answer.ok && answer.sessionId !== undefined) {
+      setIntakeResult({ message: answer.message, sessionId: answer.sessionId })
+    }
+    return { ok: answer.ok, message: answer.message }
+  }, [launchSession])
 
   const dismissWelcome = useCallback(() => {
     markWelcomeSeen(browserStorage())
@@ -594,7 +615,10 @@ export function App(): JSX.Element {
                 sessions={sessions}
                 loading={projection.loading}
                 error={projection.error}
+                intakeResult={intakeResult}
+                onClearIntakeResult={() => { setIntakeResult(null) }}
                 onReload={projection.reload}
+                onStartIntake={startIntake}
                 onStartSession={startSession}
               />
             )}
