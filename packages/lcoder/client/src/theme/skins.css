@@ -45,6 +45,7 @@
 
   --lg-fill-panel: linear-gradient(158deg, rgba(30, 44, 68, 0.82) 0%, rgba(12, 20, 34, 0.76) 62%, rgba(9, 15, 27, 0.8) 100%);
   --lg-fill-card: linear-gradient(160deg, rgba(30, 44, 68, 0.78) 0%, rgba(12, 20, 34, 0.7) 100%);
+  --lg-fill-card-airy: linear-gradient(160deg, rgba(30, 44, 68, 0.54) 0%, rgba(12, 20, 34, 0.42) 100%);
   --lg-fill-control: linear-gradient(160deg, rgba(45, 63, 92, 0.55), rgba(12, 20, 34, 0.5));
   --lg-fill-control-hover: linear-gradient(160deg, rgba(58, 80, 112, 0.7), rgba(16, 26, 42, 0.62));
   --lg-fill-accent: linear-gradient(146deg, #22d3ee 0%, #0891b2 58%, #0e7490 100%);
@@ -94,6 +95,7 @@
 
   --lg-fill-panel: linear-gradient(158deg, rgba(44, 51, 65, 0.86) 0%, rgba(21, 26, 35, 0.8) 62%, rgba(18, 22, 31, 0.84) 100%);
   --lg-fill-card: linear-gradient(160deg, rgba(44, 51, 65, 0.8) 0%, rgba(21, 26, 35, 0.76) 100%);
+  --lg-fill-card-airy: linear-gradient(160deg, rgba(44, 51, 65, 0.52) 0%, rgba(21, 26, 35, 0.44) 100%);
   --lg-fill-control: linear-gradient(160deg, rgba(58, 67, 84, 0.6), rgba(21, 26, 35, 0.54));
   --lg-fill-control-hover: linear-gradient(160deg, rgba(72, 83, 102, 0.72), rgba(27, 32, 43, 0.66));
   --lg-fill-accent: linear-gradient(146deg, #7dd3fc 0%, #38bdf8 58%, #0ea5e9 100%);
@@ -143,6 +145,7 @@
 
   --lg-fill-panel: linear-gradient(158deg, rgba(255, 255, 255, 0.66) 0%, rgba(255, 250, 253, 0.4) 52%, rgba(252, 231, 243, 0.42) 100%);
   --lg-fill-card: linear-gradient(160deg, rgba(255, 255, 255, 0.76) 0%, rgba(255, 250, 253, 0.48) 100%);
+  --lg-fill-card-airy: linear-gradient(160deg, rgba(255, 255, 255, 0.54) 0%, rgba(255, 250, 253, 0.3) 100%);
   --lg-fill-control: linear-gradient(160deg, rgba(255, 255, 255, 0.7), rgba(255, 250, 253, 0.4));
   --lg-fill-control-hover: linear-gradient(160deg, rgba(255, 255, 255, 0.92), rgba(255, 250, 253, 0.58));
   --lg-fill-accent: linear-gradient(146deg, #d21c72 0%, #b0175f 58%, #a21caf 100%);

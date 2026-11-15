@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { JSX } from 'react'
 import type { Translate } from '../locale.ts'
 import { cloudErrorKey, cloudFace, type CloudErrorInfo } from './cloud.ts'
+import { LoginWater } from './login-water.tsx'
 
 /** 登录页签。 */
 type LoginTab = 'sms' | 'password' | 'register'
@@ -139,7 +140,7 @@ export function LoginScreen({ t, onAuthenticated }: LoginScreenProps): JSX.Eleme
 
   return (
     <main className="login-screen" data-testid="login-screen">
-      <div className="login-grid" data-testid="login-grid" aria-hidden="true" />
+      <LoginWater />
       <div className="login-ambient" data-testid="login-ambient" aria-hidden="true">
         {AMBIENT_CODE.map(line => <span key={line} className="login-ambient-line">{line}</span>)}
       </div>

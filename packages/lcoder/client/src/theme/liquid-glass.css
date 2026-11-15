@@ -41,6 +41,8 @@
   /* 玻璃填充：半透明多层渐变，模糊之下仍能透出环境色。 */
   --lg-fill-panel: linear-gradient(158deg, rgba(255, 255, 255, 0.62) 0%, rgba(255, 255, 255, 0.36) 46%, rgba(232, 240, 253, 0.38) 100%);
   --lg-fill-card: linear-gradient(160deg, rgba(255, 255, 255, 0.72) 0%, rgba(255, 255, 255, 0.44) 58%, rgba(238, 244, 255, 0.4) 100%);
+  /* 登录卡：比常规卡片更透，让背后的水流与光池透上来。 */
+  --lg-fill-card-airy: linear-gradient(160deg, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0.26) 58%, rgba(238, 244, 255, 0.24) 100%);
   --lg-fill-control: linear-gradient(160deg, rgba(255, 255, 255, 0.66), rgba(255, 255, 255, 0.34));
   --lg-fill-control-hover: linear-gradient(160deg, rgba(255, 255, 255, 0.88), rgba(255, 255, 255, 0.52));
   --lg-fill-accent: linear-gradient(146deg, #2f80f0 0%, #0a5fe0 52%, #0a4fc4 100%);
