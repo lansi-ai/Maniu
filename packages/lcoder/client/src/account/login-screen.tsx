@@ -121,6 +121,8 @@ export function LoginScreen({ t, onAuthenticated }: LoginScreenProps): JSX.Eleme
   const [code, setCode] = useState('')
   const [password, setPassword] = useState('')
   const [countdown, setCountdown] = useState(0)
+  /** 本期只做可交互的协议勾选，不参与校验与提交。 */
+  const [agreed, setAgreed] = useState(false)
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
   const [busy, setBusy] = useState<'send' | 'submit' | undefined>(undefined)
   const [error, setError] = useState<CloudErrorInfo | null>(null)
@@ -192,7 +194,9 @@ export function LoginScreen({ t, onAuthenticated }: LoginScreenProps): JSX.Eleme
     await onAuthenticated()
   }
 
-  const title = tab === 'register' ? t('login.registerTab') : t('login.title')
+  const tabLabel = tab === 'register' ? t('login.registerTab') : t('login.title')
+  const cardTitle = tab === 'register' ? t('login.cardTitleRegister') : t('login.cardTitle')
+  const cardSubtitle = tab === 'register' ? t('login.cardSubtitleRegister') : t('login.cardSubtitle')
   const errorKey = error === null ? null : cloudErrorKey(error.code)
 
   return (
@@ -215,9 +219,15 @@ export function LoginScreen({ t, onAuthenticated }: LoginScreenProps): JSX.Eleme
           style={refraction.style}
         >
           {refraction.defs}
-          <h2 className="login-card-title">{title}</h2>
+          <div className="login-card-head">
+            <span className="login-card-mark" aria-hidden="true"><span /></span>
+            <div className="login-card-heading">
+              <h2 className="login-card-title">{cardTitle}</h2>
+              <p className="login-card-subtitle">{cardSubtitle}</p>
+            </div>
+          </div>
 
-          <div className="login-tabs" role="tablist" aria-label={title}>
+          <div className="login-tabs" role="tablist" aria-label={tabLabel}>
             {(['sms', 'password', 'register'] as const).map(item => (
               <button
                 key={item}
@@ -350,6 +360,22 @@ export function LoginScreen({ t, onAuthenticated }: LoginScreenProps): JSX.Eleme
                 {error.requestId === undefined ? null : <span>{t('login.requestId')}: {error.requestId}</span>}
               </div>
             )}
+
+            <div className="login-agree">
+              <input
+                type="checkbox"
+                className="login-agree-box"
+                data-testid="login-agree"
+                checked={agreed}
+                onChange={(event) => { setAgreed(event.target.checked) }}
+              />
+              <span className="login-agree-text">
+                {t('login.agreeLead')}
+                <span className="login-agree-link">{t('login.agreeTerms')}</span>
+                {t('login.agreeJoin')}
+                <span className="login-agree-link">{t('login.agreePrivacy')}</span>
+              </span>
+            </div>
 
             <button type="submit" className="pill pill-accent lg-lift lg-sheen login-submit" data-testid="login-submit" disabled={busy !== undefined}>
               {busy === 'submit'
