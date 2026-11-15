@@ -1,6 +1,6 @@
 /** 最小宿主进程：用 `desktop` 启动语义跑一份 profile，并把 ready URL 报回主进程。 */
 
-import { join } from 'node:path'
+import { delimiter, join } from 'node:path'
 import { loadLayeredEnv, loadProfileDirectory, reportSkippedBundles } from '@deepseek-ai/dsh-app-boot'
 import { runProfile } from '@deepseek-ai/dsh/profile-boot'
 import type {} from '@deepseek-ai/dsh-client-connection'
@@ -19,17 +19,34 @@ function send(message: object): void {
   process.send?.(message, (error) => { if (error !== null) console.error(error) })
 }
 
+function packageManager(): { command: string; args: string[]; env: Record<string, string> } | undefined {
+  const pnpm = process.env.LCODER_HOST_PNPM
+  const nodeBin = process.env.LCODER_HOST_NODE_BIN
+  if (pnpm === undefined || pnpm === '' || nodeBin === undefined || nodeBin === '') return undefined
+  return {
+    command: process.execPath,
+    args: ['--expose-internals', pnpm],
+    env: {
+      ELECTRON_RUN_AS_NODE: '1',
+      DSH_DESKTOP_NODE_EXECUTABLE: process.execPath,
+      PATH: `${nodeBin}${delimiter}${process.env.PATH ?? ''}`,
+    },
+  }
+}
+
 async function main(): Promise<void> {
   const profileDir = process.argv[2]
   if (profileDir === undefined) throw new Error('lcoder host: 缺少 profile 目录参数')
   const profile = loadProfileDirectory('dsh', profileDir, INSTALL_ANCHOR)
   reportSkippedBundles('dsh', profile)
+  const manager = packageManager()
   const application = runProfile({
     environment: loadLayeredEnv('dsh'),
-    profile: 's1',
+    profile: 'lcoder',
     resolvedProfile: { profile, installAnchor: INSTALL_ANCHOR },
     patchFiles: [],
     args: ['--no-open', '--host', '127.0.0.1', '--port', '0'],
+    ...(manager === undefined ? {} : { packageManager: manager }),
   })
   let stopping: Promise<void> | undefined
   const stop = (): Promise<void> => stopping ??= (async () => {

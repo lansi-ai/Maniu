@@ -10,7 +10,7 @@
 import { spawn, spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, openSync, readFileSync, rmSync } from 'node:fs'
 import { createRequire } from 'node:module'
-import { join, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 
 const REPO_ROOT = resolve(import.meta.dirname, '..', '..')
 const APP_ROOT = join(REPO_ROOT, 'packages', 'lcoder', 'desktop')
@@ -95,11 +95,16 @@ function killTree(child) {
 }
 
 function resolveElectron() {
+  const override = process.env.LCODER_PROBE_EXECUTABLE
+  if (override !== undefined && override !== '') return override
   const requireFromApp = createRequire(join(APP_ROOT, 'package.json'))
   const resolved = requireFromApp('electron')
   assert(typeof resolved === 'string', '找到 Electron 可执行文件')
   return resolved
 }
+
+/** 打包态由安装产物自己的可执行文件启动，不再传应用目录。 */
+const packagedProbe = process.env.LCODER_PROBE_PACKAGED === '1'
 
 function launch(suffix) {
   const logPath = join(LOGS, `t190-probe-desktop-${suffix}.log`)
@@ -118,8 +123,8 @@ function launch(suffix) {
     '--inspect=127.0.0.1:9829',
     `--remote-debugging-port=${String(RENDERER_PORT)}`,
     `--user-data-dir=${join(HOME, 'electron-user-data')}`,
-    APP_ROOT,
-  ], { cwd: APP_ROOT, env: environment, stdio: ['ignore', out, out] })
+    ...(packagedProbe ? [] : [APP_ROOT]),
+  ], { cwd: packagedProbe ? dirname(electron) : APP_ROOT, env: environment, stdio: ['ignore', out, out] })
   log(`启动桌面实例（pid ${String(child.pid)}），日志 ${logPath}`)
   return { child, logPath }
 }

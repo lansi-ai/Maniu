@@ -1,13 +1,17 @@
 /** 主窗口：frameless、最小 520×600、只加载本地渲染产物。 */
 
-import { BrowserWindow } from 'electron'
+import { app, BrowserWindow } from 'electron'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { REPO_ROOT } from './profile.ts'
 
-/** 渲染产物入口：默认取本仓 client 包的 dist。 */
+/** 渲染产物入口：开发态取本仓 client 包的 dist，发布态取安装包内的 client-dist。 */
 export function clientIndex(): string {
-  return process.env.LCODER_CLIENT_DIST ?? join(REPO_ROOT, 'packages', 'lcoder', 'client', 'lib', 'dist', 'index.html')
+  const override = process.env.LCODER_CLIENT_DIST
+  if (override !== undefined && override !== '') return override
+  return app.isPackaged
+    ? join(process.resourcesPath, 'client-dist', 'index.html')
+    : join(REPO_ROOT, 'packages', 'lcoder', 'client', 'lib', 'dist', 'index.html')
 }
 
 /** 创建唯一的 S1 主窗口。 */

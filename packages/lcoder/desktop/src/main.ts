@@ -7,11 +7,11 @@ import { IPC_CHANNELS } from './contract.ts'
 import type { DesktopLocaleId } from './contract.ts'
 import { readDesktopPreferences } from './desktop-locale.ts'
 import { resolveDesktopHome } from './home.ts'
-import { HostSupervisor } from './host-supervisor.ts'
+import { HostSupervisor, type HostLaunch } from './host-supervisor.ts'
 import { createStatePublisher, createWindowStatePublisher, registerIpc } from './ipc.ts'
 import { HostLink } from './link.ts'
 import { installMenu } from './menu.ts'
-import { REPO_ROOT } from './profile.ts'
+import { REPO_ROOT, releaseProfileSourceDir } from './profile.ts'
 import { RunningTurns } from './running-turns.ts'
 import { DesktopTray } from './tray.ts'
 import { checkUpdate } from './update.ts'
@@ -106,11 +106,32 @@ function hostInspectPort(): number | undefined {
   return Number.isSafeInteger(port) && port > 0 && port < 65_536 ? port : undefined
 }
 
+/** 发布态宿主与载荷都在 `resources/` 下；开发态走本包编译产物。 */
+function hostLaunch(): HostLaunch {
+  if (!app.isPackaged) return {}
+  return {
+    entry: join(process.resourcesPath, 'dsh', 'lib', 'types', 'host-entry.js'),
+    nodeModules: join(process.resourcesPath, 'dsh', 'node_modules'),
+    packageManager: {
+      pnpm: join(process.resourcesPath, 'runtime', 'primary-runtime', 'dependencies', 'pnpm', 'bin', 'pnpm.mjs'),
+      nodeBin: join(process.resourcesPath, 'runtime', 'bin'),
+    },
+  }
+}
+
+/** 窗口与托盘图标：发布态随 extraResources 落盘。 */
+function trayIconPath(): string {
+  return app.isPackaged
+    ? join(process.resourcesPath, 'tray.ico')
+    : join(import.meta.dirname, '..', '..', 'resources', 'tray-windows.ico')
+}
+
 async function boot(): Promise<void> {
   supervisor = new HostSupervisor()
   const link_ = new HostLink()
   try {
-    const url = await supervisor.start(home, hostInspectPort())
+    const sourceDir = releaseProfileSourceDir(app.isPackaged, process.resourcesPath)
+    const url = await supervisor.start(home, sourceDir, hostInspectPort(), hostLaunch())
     console.log('lcoder desktop: 宿主已就绪', url.replace(/token=[^&]+/u, 'token=<redacted>'))
     await link_.connect(url, {
       onEvent: (event) => {
@@ -172,7 +193,7 @@ if (!app.requestSingleInstanceLock()) {
     mainWindow = createMainWindow()
     wireMainWindow(mainWindow)
     installMenu({ locale: () => locale, window: () => mainWindow, quit: () => { app.quit() } })
-    const trayIcon = join(import.meta.dirname, '..', '..', 'resources', 'tray-windows.ico')
+    const trayIcon = trayIconPath()
     if (existsSync(trayIcon)) {
       tray = new DesktopTray({
         iconPath: trayIcon,

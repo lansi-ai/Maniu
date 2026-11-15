@@ -15,8 +15,14 @@
   "scripts": {
     "build": "tsc -b && tsdown",
     "bundle": "tsdown",
-    "launch": "node scripts/launch.mjs"
+    "launch": "node scripts/launch.mjs",
+    "package:win": "node scripts/package-win.mjs"
   },
+  "files": [
+    "lib/types",
+    "lib/preload.cjs",
+    "resources"
+  ],
   "dependencies": {
     "@deepseek-ai/cordis": "workspace:~",
     "@deepseek-ai/dsh": "workspace:*",
@@ -34,6 +40,7 @@
   },
   "devDependencies": {
     "electron": "^44.7.0",
+    "electron-builder": "^26.17.0",
     "tsdown": "^0.22.2",
     "@types/ws": "^8.18.1"
   },
