@@ -50,9 +50,12 @@ function prepare(canvas: HTMLCanvasElement): { ctx: CanvasRenderingContext2D; wi
 
 /**
  * 画一帧：三团缓慢游移的光池加十一条正弦光流，叠加混合出水波与折射感。
+ * 指针位置让光池与光流轻微偏移，形成随鼠标的折射错觉。
  * @param time - 毫秒时间戳；减动效时固定为 0。
+ * @param pointerX - 归一化指针横坐标（-0.5～0.5）。
+ * @param pointerY - 归一化指针纵坐标（-0.5～0.5）。
  */
-function paint(canvas: HTMLCanvasElement, time: number): void {
+function paint(canvas: HTMLCanvasElement, time: number, pointerX = 0, pointerY = 0): void {
   const surface = prepare(canvas)
   if (surface === null) return
   const { ctx, width, height } = surface
@@ -68,8 +71,8 @@ function paint(canvas: HTMLCanvasElement, time: number): void {
   ]
   for (const pool of pools) {
     const radius = Math.max(width, height) * pool.r
-    const centreX = pool.x * width
-    const centreY = pool.y * height
+    const centreX = (pool.x + pointerX * 0.1) * width
+    const centreY = (pool.y + pointerY * 0.1) * height
     const gradient = ctx.createRadialGradient(centreX, centreY, 0, centreX, centreY, radius)
     gradient.addColorStop(0, pool.color)
     gradient.addColorStop(1, 'rgba(0, 0, 0, 0)')
@@ -82,11 +85,12 @@ function paint(canvas: HTMLCanvasElement, time: number): void {
   for (let index = 0; index < STRANDS; index++) {
     const lane = (index + 0.5) / STRANDS
     const amplitude = height * (0.03 + (index % 4) * 0.012)
-    const drift = phase * (0.7 + (index % 3) * 0.35) + index * 1.7
+    const drift = phase * (0.7 + (index % 3) * 0.35) + index * 1.7 + pointerX * 1.6
+    const lift = pointerY * height * 0.035
     ctx.beginPath()
     for (let x = -SEGMENT; x <= width + SEGMENT; x += SEGMENT) {
       const u = x / Math.max(1, width)
-      const y = height * (0.18 + lane * 0.64)
+      const y = height * (0.18 + lane * 0.64) + lift
         + Math.sin(u * 5.2 + drift) * amplitude
         + Math.sin(u * 2.1 - drift * 0.7 + index) * amplitude * 0.6
       if (x <= -SEGMENT + 1) ctx.moveTo(x, y)
@@ -121,8 +125,17 @@ export function LoginWater(): JSX.Element {
       if (frame !== 0) cancelAnimationFrame(frame)
       frame = 0
     }
+    /** 读主区上的指针变量；登录页没挂指针跟随或减动效时就是 0。 */
+    const pointer = (): [number, number] => {
+      const root = canvas.closest('.login-screen')
+      if (!(root instanceof HTMLElement)) return [0, 0]
+      const x = Number.parseFloat(root.style.getPropertyValue('--login-px'))
+      const y = Number.parseFloat(root.style.getPropertyValue('--login-py'))
+      return [Number.isFinite(x) ? x : 0, Number.isFinite(y) ? y : 0]
+    }
     const tick = (now: number): void => {
-      paint(canvas, now)
+      const [x, y] = pointer()
+      paint(canvas, now, x, y)
       frame = requestAnimationFrame(tick)
     }
     const start = (): void => {

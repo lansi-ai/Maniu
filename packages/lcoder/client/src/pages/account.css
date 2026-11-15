@@ -97,7 +97,8 @@
   color: transparent;
   opacity: 0.8;
   filter: saturate(0.9);
-  transition: opacity 240ms var(--lg-ease), filter 240ms var(--lg-ease);
+  transform: translate3d(calc(var(--login-px, 0) * 10px), calc(var(--login-py, 0) * 8px), 0);
+  transition: opacity 240ms var(--lg-ease), filter 240ms var(--lg-ease), transform 420ms var(--lg-ease);
 }
 .login-screen:hover .login-hero-title { opacity: 1; filter: saturate(1.2) brightness(1.04); }
 .login-hero-slogan {
@@ -108,10 +109,12 @@
   white-space: nowrap;
   color: var(--lg-ink-2);
   opacity: 0.72;
-  transition: opacity 320ms var(--lg-ease);
+  transform: translate3d(calc(var(--login-px, 0) * 6px), calc(var(--login-py, 0) * 5px), 0);
+  transition: opacity 320ms var(--lg-ease), transform 460ms var(--lg-ease);
 }
 .login-screen:hover .login-hero-slogan { opacity: 1; }
 
+/* 登录卡：闲置缓慢起伏，指针视差与悬停抬升都只用 transform/translate。 */
 .login-card {
   display: flex;
   flex-direction: column;
@@ -120,11 +123,41 @@
   min-width: 0;
   padding: clamp(22px, 3vw, 30px);
   background: var(--lg-fill-card-airy);
+  animation: login-bob 9s ease-in-out infinite alternate;
+  transform: translate3d(calc(var(--login-px, 0) * 6px), calc(var(--login-py, 0) * 4px), 0);
+  transition: transform 260ms var(--lg-ease), box-shadow 260ms var(--lg-ease);
+  will-change: translate;
 }
+.login-card:hover {
+  transform: translate3d(calc(var(--login-px, 0) * 6px), calc(var(--login-py, 0) * 4px - 3px), 0);
+  box-shadow: var(--lg-shadow-float), var(--lg-highlight), 0 14px 30px -18px rgba(16, 24, 40, 0.28);
+}
+
+/* 玻璃高光随指针轻移：卡面与控件各一层，落在背景之上、内容之下，只动 transform 与 opacity。 */
+.login-card::before,
+.login-control::before,
+.login-phone::before,
+.login-tabs::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(60% 52% at 50% 42%, rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0) 72%);
+  opacity: 0;
+  transform: translate3d(calc(var(--login-px, 0) * 16px), calc(var(--login-py, 0) * 12px), 0);
+  transition: opacity 220ms var(--lg-ease), transform 320ms var(--lg-ease);
+}
+.login-card::before { opacity: 0.32; mix-blend-mode: soft-light; }
+.login-control:hover::before,
+.login-phone:hover::before,
+.login-tabs:hover::before { opacity: 0.42; }
 
 .login-card-title { margin: 0; font-size: 18px; font-weight: 650; letter-spacing: 0.01em; }
 
 .login-tabs {
+  position: relative;
   display: inline-flex;
   gap: 2px;
   padding: 3px;
@@ -133,6 +166,8 @@
   background: var(--lg-fill-control);
   box-shadow: var(--lg-highlight-card);
   backdrop-filter: blur(var(--lg-blur-soft)) saturate(var(--lg-saturate));
+  animation: login-bob-soft 11s ease-in-out infinite alternate;
+  animation-delay: -1.6s;
 }
 
 .login-tab {
@@ -159,31 +194,37 @@
 .login-field { display: flex; flex-direction: column; gap: 6px; }
 .login-field label { font-size: 12px; color: var(--lg-muted); }
 
-.login-input,
+/* 输入控件：包裹层承担玻璃与镜面边，内层输入保持无边框；悬停轻抬并加深阴影。 */
+.login-control,
 .login-phone {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   border: 1px solid var(--lg-line);
   border-radius: 13px;
   background: var(--lg-fill-control);
   box-shadow: var(--lg-highlight-card);
   backdrop-filter: blur(var(--lg-blur-soft)) saturate(var(--lg-saturate));
-  color: var(--lg-ink);
-  padding: 9px 12px;
-  font-size: 14px;
-  outline: none;
-  transition: border-color 160ms ease, background-color 160ms ease;
+  padding: 0 12px;
+  transition: border-color 160ms ease, transform 220ms var(--lg-ease), box-shadow 220ms var(--lg-ease);
 }
 
-.login-input:hover,
-.login-phone:hover { background: var(--lg-fill-control-hover); }
+.login-control:hover,
+.login-phone:hover {
+  transform: translate3d(calc(var(--login-px, 0) * 3px), calc(var(--login-py, 0) * 2px - 1px), 0);
+  box-shadow: var(--lg-highlight-card), 0 8px 18px -12px rgba(16, 24, 40, 0.28);
+}
 
-.login-input:focus,
+.login-control:focus-within,
 .login-phone:focus-within { border-color: var(--lg-accent); }
-.login-input.invalid,
+.login-control.invalid,
 .login-phone.invalid { border-color: var(--lg-danger); }
 
-.login-phone { display: flex; align-items: center; gap: 8px; padding: 0 12px; }
+.login-control input,
 .login-phone input {
   flex: 1;
+  min-width: 0;
   border: 0;
   background: transparent;
   color: var(--lg-ink);
@@ -194,17 +235,26 @@
 .login-prefix { color: var(--lg-muted); font-size: 13px; border-right: 1px solid var(--lg-line-hair); padding-right: 8px; }
 
 .login-code-row { display: flex; gap: 8px; }
-.login-code-row .login-input { flex: 1; min-width: 0; }
+.login-code-row .login-control { flex: 1; min-width: 0; }
 /* 发送码：控件尺寸的玻璃胶囊，与输入框同一套填充、镜面边与内高光。 */
 .login-code-row .pill {
+  position: relative;
+  overflow: hidden;
   border: 1px solid var(--lg-line);
   border-radius: var(--lg-radius-control);
   background: var(--lg-fill-control);
   box-shadow: var(--lg-highlight-card);
   backdrop-filter: blur(var(--lg-blur-soft)) saturate(var(--lg-saturate));
+  animation: login-bob-soft 8s ease-in-out infinite alternate;
+  animation-delay: -2.4s;
+  transition: transform 220ms var(--lg-ease), box-shadow 220ms var(--lg-ease), background-color 160ms ease;
   white-space: nowrap;
 }
-.login-code-row .pill:hover { background: var(--lg-fill-control-hover); }
+.login-code-row .pill:hover {
+  background: var(--lg-fill-control-hover);
+  transform: translate3d(calc(var(--login-px, 0) * 3px), calc(var(--login-py, 0) * 2px - 1.5px), 0);
+  box-shadow: var(--lg-highlight-card), 0 10px 20px -12px rgba(16, 24, 40, 0.3);
+}
 
 .login-field-error { margin: 0; font-size: 12px; color: var(--lg-danger); }
 .login-hint { margin: 0; font-size: 12px; color: var(--lg-muted); }
@@ -233,6 +283,31 @@
   color: var(--lg-on-accent);
   box-shadow: 0 18px 34px -18px color-mix(in srgb, var(--lg-accent) 46%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.4);
   backdrop-filter: blur(18px) saturate(160%);
+  animation: login-bob-soft 10s ease-in-out infinite alternate;
+  animation-delay: -3.2s;
+}
+.login-submit::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(54% 62% at 50% 38%, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0) 74%);
+  opacity: 0.32;
+  transform: translate3d(calc(var(--login-px, 0) * 14px), calc(var(--login-py, 0) * 8px), 0);
+  transition: opacity 220ms var(--lg-ease), transform 320ms var(--lg-ease);
+}
+.login-submit:hover::before { opacity: 0.6; }
+
+/* 闲置漂浮：只动 translate（与 transform 分开合成），不产生布局跳动。 */
+@keyframes login-bob {
+  from { translate: 0 -3px; }
+  to { translate: 0 3px; }
+}
+@keyframes login-bob-soft {
+  from { translate: 0 -0.8px; }
+  to { translate: 0 1.2px; }
 }
 
 /* 窄窗：品牌落到卡片上方并居中，氛围层让位给表单。 */
@@ -251,14 +326,27 @@
   .login-card { width: min(460px, 100%); }
 }
 
-/* reduced-motion：品牌与氛围层不做过场，玻璃的填充、边框与阴影保留。 */
+/* reduced-motion：品牌与氛围层不做过场，漂浮、抬升与跟随全部静止；玻璃填充、边框与阴影保留。 */
 @media (prefers-reduced-motion: reduce) {
   .login-ambient,
   .login-hero-title,
   .login-hero-slogan,
   .login-tab,
-  .login-input,
-  .login-phone { transition: none; }
+  .login-card,
+  .login-card:hover,
+  .login-control,
+  .login-control:hover,
+  .login-phone,
+  .login-phone:hover,
+  .login-code-row .pill,
+  .login-code-row .pill:hover,
+  .login-submit,
+  .login-submit:hover { animation: none; translate: none; transform: none; transition: none; }
+  .login-card::before,
+  .login-control::before,
+  .login-phone::before,
+  .login-tabs::before,
+  .login-submit::before { transform: none; transition: none; }
 }
 
 /* 顶栏账号入口。 */

@@ -1,7 +1,7 @@
 /** 全屏登录页：验证码、密码与注册三个页签。 */
 
 import { useEffect, useRef, useState } from 'react'
-import type { JSX } from 'react'
+import type { JSX, RefObject } from 'react'
 import type { Translate } from '../locale.ts'
 import { cloudErrorKey, cloudFace, type CloudErrorInfo } from './cloud.ts'
 import { LoginWater } from './login-water.tsx'
@@ -46,6 +46,57 @@ function phoneDigits(value: string): string {
   return value.replace(/\D/g, '').slice(0, 11)
 }
 
+/**
+ * 把指针位置归一化后写进根元素的 --login-px / --login-py（-0.5～0.5）。
+ * pointermove 只更新目标值，统一在 rAF 里写样式；减少动态效果时不跟随并清零。
+ * @param root - 登录主区元素。
+ */
+function usePointerFollow(root: RefObject<HTMLElement | null>): void {
+  useEffect(() => {
+    const element = root.current
+    if (element === null) return
+    const reduced = typeof window.matchMedia === 'function'
+      ? window.matchMedia('(prefers-reduced-motion: reduce)')
+      : null
+    let frame = 0
+    let nextX = 0
+    let nextY = 0
+    const flush = (): void => {
+      frame = 0
+      element.style.setProperty('--login-px', nextX.toFixed(3))
+      element.style.setProperty('--login-py', nextY.toFixed(3))
+    }
+    const schedule = (): void => {
+      if (frame === 0) frame = requestAnimationFrame(flush)
+    }
+    const onMove = (event: PointerEvent): void => {
+      if (reduced?.matches === true) return
+      const rect = element.getBoundingClientRect()
+      if (rect.width < 1 || rect.height < 1) return
+      nextX = (event.clientX - rect.left) / rect.width - 0.5
+      nextY = (event.clientY - rect.top) / rect.height - 0.5
+      schedule()
+    }
+    const reset = (): void => {
+      nextX = 0
+      nextY = 0
+      schedule()
+    }
+    const onReduced = (): void => {
+      if (reduced?.matches === true) reset()
+    }
+    element.addEventListener('pointermove', onMove, { passive: true })
+    element.addEventListener('pointerleave', reset)
+    reduced?.addEventListener('change', onReduced)
+    return () => {
+      if (frame !== 0) cancelAnimationFrame(frame)
+      element.removeEventListener('pointermove', onMove)
+      element.removeEventListener('pointerleave', reset)
+      reduced?.removeEventListener('change', onReduced)
+    }
+  }, [root])
+}
+
 /** 登录页属性。 */
 export interface LoginScreenProps {
   readonly t: Translate
@@ -59,6 +110,9 @@ export interface LoginScreenProps {
  * @returns 品牌区与表单。
  */
 export function LoginScreen({ t, onAuthenticated }: LoginScreenProps): JSX.Element {
+  /** 指针跟随只写主区上的 CSS 变量，各层用 transform 消费。 */
+  const rootRef = useRef<HTMLElement | null>(null)
+  usePointerFollow(rootRef)
   const [tab, setTab] = useState<LoginTab>('sms')
   const [phone, setPhone] = useState('')
   const [code, setCode] = useState('')
@@ -139,7 +193,7 @@ export function LoginScreen({ t, onAuthenticated }: LoginScreenProps): JSX.Eleme
   const errorKey = error === null ? null : cloudErrorKey(error.code)
 
   return (
-    <main className="login-screen" data-testid="login-screen">
+    <main className="login-screen" data-testid="login-screen" ref={rootRef}>
       <LoginWater />
       <div className="login-ambient" data-testid="login-ambient" aria-hidden="true">
         {AMBIENT_CODE.map(line => <span key={line} className="login-ambient-line">{line}</span>)}
@@ -201,19 +255,21 @@ export function LoginScreen({ t, onAuthenticated }: LoginScreenProps): JSX.Eleme
             {tab === 'password' && (
               <div className="login-field">
                 <label htmlFor="lcoder-login-password">{t('login.password')}</label>
-                <input
-                  id="lcoder-login-password"
-                  data-testid="login-password"
-                  className={fieldErrors.password === undefined ? 'login-input' : 'login-input invalid'}
-                  type="password"
-                  autoComplete="current-password"
-                  value={password}
-                  aria-invalid={fieldErrors.password !== undefined}
-                  onChange={(event) => {
-                    setPassword(event.target.value)
-                    clearFieldError('password')
-                  }}
-                />
+                <div className={fieldErrors.password === undefined ? 'login-control' : 'login-control invalid'}>
+                  <input
+                    id="lcoder-login-password"
+                    data-testid="login-password"
+                    className="login-entry"
+                    type="password"
+                    autoComplete="current-password"
+                    value={password}
+                    aria-invalid={fieldErrors.password !== undefined}
+                    onChange={(event) => {
+                      setPassword(event.target.value)
+                      clearFieldError('password')
+                    }}
+                  />
+                </div>
                 {fieldErrors.password === undefined ? null : <p className="login-field-error">{t(fieldErrors.password)}</p>}
               </div>
             )}
@@ -222,21 +278,23 @@ export function LoginScreen({ t, onAuthenticated }: LoginScreenProps): JSX.Eleme
               <div className="login-field">
                 <label htmlFor="lcoder-login-code">{t('login.code')}</label>
                 <div className="login-code-row">
-                  <input
-                    id="lcoder-login-code"
-                    data-testid="login-code"
-                    className={fieldErrors.code === undefined ? 'login-input' : 'login-input invalid'}
-                    type="text"
-                    inputMode="numeric"
-                    autoComplete="one-time-code"
-                    maxLength={6}
-                    value={code}
-                    aria-invalid={fieldErrors.code !== undefined}
-                    onChange={(event) => {
-                      setCode(event.target.value.replace(/\D/g, ''))
-                      clearFieldError('code')
-                    }}
-                  />
+                  <div className={fieldErrors.code === undefined ? 'login-control' : 'login-control invalid'}>
+                    <input
+                      id="lcoder-login-code"
+                      data-testid="login-code"
+                      className="login-entry"
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      maxLength={6}
+                      value={code}
+                      aria-invalid={fieldErrors.code !== undefined}
+                      onChange={(event) => {
+                        setCode(event.target.value.replace(/\D/g, ''))
+                        clearFieldError('code')
+                      }}
+                    />
+                  </div>
                   <button
                     type="button"
                     className="pill"
@@ -256,19 +314,21 @@ export function LoginScreen({ t, onAuthenticated }: LoginScreenProps): JSX.Eleme
             {tab === 'register' && (
               <div className="login-field">
                 <label htmlFor="lcoder-login-new-password">{t('login.password')}</label>
-                <input
-                  id="lcoder-login-new-password"
-                  data-testid="login-new-password"
-                  className={fieldErrors.password === undefined ? 'login-input' : 'login-input invalid'}
-                  type="password"
-                  autoComplete="new-password"
-                  value={password}
-                  aria-invalid={fieldErrors.password !== undefined}
-                  onChange={(event) => {
-                    setPassword(event.target.value)
-                    clearFieldError('password')
-                  }}
-                />
+                <div className={fieldErrors.password === undefined ? 'login-control' : 'login-control invalid'}>
+                  <input
+                    id="lcoder-login-new-password"
+                    data-testid="login-new-password"
+                    className="login-entry"
+                    type="password"
+                    autoComplete="new-password"
+                    value={password}
+                    aria-invalid={fieldErrors.password !== undefined}
+                    onChange={(event) => {
+                      setPassword(event.target.value)
+                      clearFieldError('password')
+                    }}
+                  />
+                </div>
                 <span className="login-hint">{t('login.passwordHint')}</span>
                 {fieldErrors.password === undefined ? null : <p className="login-field-error">{t(fieldErrors.password)}</p>}
               </div>
