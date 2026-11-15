@@ -30,6 +30,8 @@
 
 /* 登录页：整屏主区，左侧品牌与标语、右侧登录卡，背后是网格与代码氛围层。 */
 .login-screen {
+  --login-focus-ring: color-mix(in srgb, var(--lg-ink) 28%, transparent);
+  --login-focus-halo: color-mix(in srgb, var(--lg-ink) 14%, transparent);
   position: relative;
   z-index: 1;
   flex: 1;
@@ -39,6 +41,11 @@
   overflow: auto;
   padding: clamp(20px, 4vh, 44px) clamp(16px, 3vw, 40px);
 }
+
+/* 登录页聚焦用中性细环，不用强调蓝；输入自身不画 outline，键盘可达性由包裹层与按钮环承担。 */
+#root .login-screen :focus-visible { outline: 2px solid var(--login-focus-ring); }
+#root .login-screen input:focus,
+#root .login-screen input:focus-visible { outline: none; }
 
 /* 水流底：Paper Water 水面铺满主区，上面叠一层雾彩；背景容器自己成层，雾彩只与水混合。 */
 .login-backdrop {
@@ -240,9 +247,14 @@
 }
 
 .login-control:focus-within,
-.login-phone:focus-within { border-color: var(--lg-accent); }
+.login-phone:focus-within {
+  border-color: var(--login-focus-ring);
+  box-shadow: var(--lg-highlight-card), 0 0 0 2px var(--login-focus-halo), 0 8px 18px -12px rgba(16, 24, 40, 0.28);
+}
 .login-control.invalid,
 .login-phone.invalid { border-color: var(--lg-danger); }
+.login-control.invalid:focus-within,
+.login-phone.invalid:focus-within { border-color: var(--lg-danger); }
 
 .login-control input,
 .login-phone input {

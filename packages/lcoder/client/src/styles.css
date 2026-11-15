@@ -39,6 +39,52 @@ html[data-theme='liquid-glass'] body {
   padding: 12px;
 }
 
+/* 门禁态（登录、欢迎、启动中、云端不可用）到边：水流与卡片铺满窗口，没有标题栏留白。 */
+.app:not([data-lcoder-state='ready']) {
+  gap: 0;
+  padding: 0;
+}
+
+/* 门禁态窗口控制：顶部透明拖拽区加右上角幽灵按钮，不画底条、不占布局。 */
+.gate-drag {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  height: 32px;
+  -webkit-app-region: drag;
+}
+
+.gate-window-buttons {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  z-index: 40;
+  display: flex;
+  gap: 2px;
+  -webkit-app-region: no-drag;
+}
+
+.gate-window-buttons button {
+  width: 36px;
+  height: 28px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--lg-muted);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.78;
+  transition: background-color 160ms ease, color 160ms ease, opacity 160ms ease;
+}
+
+.gate-window-buttons button:hover,
+.gate-window-buttons button:focus-visible { background: var(--lg-fill-control-hover); color: var(--lg-ink); opacity: 1; }
+.gate-window-buttons button:active { transform: scale(0.94); }
+.gate-window-buttons button[data-role='close']:hover { background: rgba(180, 35, 24, 0.86); color: #fff; opacity: 1; }
+
 /* 标题栏：浮在环境层上的玻璃条，拖拽区仍占满左侧。 */
 .titlebar {
   position: relative;
