@@ -2260,7 +2260,7 @@ tracks:
       note: "B 级修复，来源是 T-199 C4 冒烟第 8 项失败。根因：点开始立项后 App.startSession 立即 setPage('chat')，RequirementsPage 卸载，IntakeWizard 的 started 状态丢失，结果页 result=false 且无回看入口。修法二选一：把立项 started 与结果状态提升到 App 级，并在对话页与需求页保留回看入口；或发送成功后不立即切页，由用户主动进入对话。选一种并补组件测试。验收：C4 第 8 项 PASS（结果页可回看或入口可达）；S1 与 M2 探针不回归；typecheck、build:check、i18n、test:docs 全绿。工作树 pool-slot-1 到 lcoder/t201-intake-result，端口 9822 与 9829 与 9830。2026-11-15 10:40 监督窗口派工；因委派轮禁新建会话，继续复用验证会话 c712b625，先修 T-200 后接本任务。2026-11-15 11:05 监督窗口核验并收口。采用方案 1：立项结果提升到 App 级，需求页在有结果时提供回看入口，重新立项可清除；普通发送与拆分不写立项结果，组件用例三条钉住。主检复跑 build:artifacts 八项、build:check、typecheck、packages/lcoder vitest 一百零六文件一千一百九十二例、test:docs 二十一项全过；完整 C4 冒烟 12/12、125 条断言、退出 0，第 7 与第 8 项均转 PASS。未验：结果状态只在运行内存活、重启不保留；对话页未加重复回看入口；check:i18n 两项为 workspace 既有红，不在本次 diff。已合入 lcoder/main、release pool-slot-1。"
     - id: T-202
       title: 登录页恢复旧版式并改流体玻璃
-      status: doing
+      status: done
       face: 用户端
       type: 开发
       owner: lance
@@ -2268,10 +2268,10 @@ tracks:
       date: '2026-11-15'
       dep: [T-201]
       inferred: false
-      note: "B 级视觉重构，来源是用户 2026-11-15 发现新客户端登录页与旧壳不同，拍板保留旧壳原始布局、外观改为流体玻璃。范围：只改新客户端登录页（packages/lcoder/client/src/account/login-screen.tsx 与其样式、必要的玻璃 token 引用），不改认证逻辑、不改旧壳与上游。版式按旧壳：全屏主区，左侧品牌名与标语，右侧登录卡，背景保留网格与代码氛围层；表单保留现有验证码、密码、注册三页签与全部校验。外观用现有 liquid-glass token：玻璃卡、镜面边、环境色块与细颗粒，不引入旧 frost 样式。要求窄窗可用、reduced-motion 静态、中英词典不变。验收：登录流程与现有用例不回归；M3 探针 43 项与 C4 冒烟 12 项不回归；typecheck、build:check、i18n、test:docs 全绿；真实观感由用户手看。工作树 pool-slot-1 到 lcoder/t202-login-layout，端口 9822 与 9829 与 9830。2026-11-15 11:20 监督窗口派工，实现线会话 f3f7c96c。2026-11-15 11:45 用户追加三条：按钮、输入框、页签等组件也要流体玻璃效果；玻璃要有适度透明，不能发死不透；背景去掉网格，改成适合流体玻璃的水流类特效（自绘，不引外部图片），保持版式与认证行为不变。2026-11-15 11:55 用户追加：要有鼠标交互。实现口径：背景光流与玻璃高光/折射响应指针位置，按钮与输入框悬停有轻微镜面跟随与抬升；用 pointermove 更新 CSS 变量并用 rAF 节流，不触发布局；reduced-motion 下静态且不跟随。2026-11-15 11:58 用户追加浮动效果：玻璃卡与按钮等控件要有轻微漂浮（闲置缓慢起伏）与悬停抬升，可用 transform 与阴影分层，不产生布局跳动；reduced-motion 下全部静止。"
+      note: "B 级视觉重构，来源是用户 2026-11-15 发现新客户端登录页与旧壳不同，拍板保留旧壳原始布局、外观改为流体玻璃。范围：只改新客户端登录页（packages/lcoder/client/src/account/login-screen.tsx 与其样式、必要的玻璃 token 引用），不改认证逻辑、不改旧壳与上游。版式按旧壳：全屏主区，左侧品牌名与标语，右侧登录卡，背景保留网格与代码氛围层；表单保留现有验证码、密码、注册三页签与全部校验。外观用现有 liquid-glass token：玻璃卡、镜面边、环境色块与细颗粒，不引入旧 frost 样式。要求窄窗可用、reduced-motion 静态、中英词典不变。验收：登录流程与现有用例不回归；M3 探针 43 项与 C4 冒烟 12 项不回归；typecheck、build:check、i18n、test:docs 全绿；真实观感由用户手看。工作树 pool-slot-1 到 lcoder/t202-login-layout，端口 9822 与 9829 与 9830。2026-11-15 11:20 监督窗口派工，实现线会话 f3f7c96c。2026-11-15 11:45 用户追加三条：按钮、输入框、页签等组件也要流体玻璃效果；玻璃要有适度透明，不能发死不透；背景去掉网格，改成适合流体玻璃的水流类特效（自绘，不引外部图片），保持版式与认证行为不变。2026-11-15 11:55 用户追加：要有鼠标交互。实现口径：背景光流与玻璃高光/折射响应指针位置，按钮与输入框悬停有轻微镜面跟随与抬升；用 pointermove 更新 CSS 变量并用 rAF 节流，不触发布局；reduced-motion 下静态且不跟随。2026-11-15 11:58 用户追加浮动效果：玻璃卡与按钮等控件要有轻微漂浮（闲置缓慢起伏）与悬停抬升，可用 transform 与阴影分层，不产生布局跳动；reduced-motion 下全部静止。2026-11-15 15:48 监督窗口收口。已合入 lcoder/main；水流底按用户反馈效果不好，由 T-205 用 Paper Water 浅雾彩替换，版式、控件玻璃、指针跟随与漂浮保留。主检 build:artifacts、build:check、test:docs、vitest 106 文件 1193 例全过。"
     - id: T-203
       title: 品牌更名为 Maniu 慢牛并换广告语
-      status: doing
+      status: done
       face: 用户端
       type: 开发
       owner: lance
@@ -2279,10 +2279,10 @@ tracks:
       date: '2026-11-15'
       dep: [T-202]
       inferred: false
-      note: "B 级品牌更名，来源是用户 2026-11-15 拍板：品牌名称 Maniu、中文名慢牛，广告语「稳，才跑得远」（英文 Steady wins the long run.），中文界面品牌行显示「慢牛 Maniu」，英文界面显示 Maniu。范围按用户选择覆盖全部用户可见面。新客户端词典 app.name、welcome.slogan、welcome.hint、settings.updateManual、settings.aboutVersion；桌面壳中英 locale 的应用名、打开/退出/关于/手动更新文案；窗口标题与 index.html 标题统一 Maniu；安装包产品名 Maniu、产物前缀 maniu-、版权 Maniu；package-win.cmd 的 Maniu.exe 断言；旧壳 apps/desktop 的发布身份脚本与测试、旧壳词典的品牌与登录注册与需求分析师文案、欢迎页 DeepSeek 字标改为 Maniu 字标，安装器八个语言包里的 DeepSeek Harness 改为 Maniu；打包文档中的产物名与安装命令。不动内部包名 @lcoder/*、appId ai.lansi.lcoder、lcoder 协议、DSH_HOME 与用户数据目录、updater 缓存目录。已知影响：安装目录、快捷方式与 exe 名变化，已安装的 LCoder 需卸载后装新包；LCoder-cloud 仓的官网与云端界面仍是 LCoder，列为后续任务。验收：中英界面品牌与广告语正确且可见文案无 LCoder 残留（内部标识保留）；窗口标题、托盘、菜单、关于一致；-Legacy 旧壳标题与登录注册文案为 Maniu 与慢牛；打包产物为 maniu-版本-unsigned.exe 且 win-unpacked 内为 Maniu.exe；M3 43 项与 C4 12 项不回归；typecheck、build:check、i18n、test:docs 全绿；观感与安装包由用户手看。与 T-202 并行实现，合入顺序排在 T-202 之后。工作树 pool-slot-2 到 lcoder/t203-brand-maniu，端口 9823 与 9831 与 9832。2026-11-15 12:10 监督窗口登记并派工，实现线会话 09d06c66。"
+      note: "B 级品牌更名，来源是用户 2026-11-15 拍板：品牌名称 Maniu、中文名慢牛，广告语「稳，才跑得远」（英文 Steady wins the long run.），中文界面品牌行显示「慢牛 Maniu」，英文界面显示 Maniu。范围按用户选择覆盖全部用户可见面。新客户端词典 app.name、welcome.slogan、welcome.hint、settings.updateManual、settings.aboutVersion；桌面壳中英 locale 的应用名、打开/退出/关于/手动更新文案；窗口标题与 index.html 标题统一 Maniu；安装包产品名 Maniu、产物前缀 maniu-、版权 Maniu；package-win.cmd 的 Maniu.exe 断言；旧壳 apps/desktop 的发布身份脚本与测试、旧壳词典的品牌与登录注册与需求分析师文案、欢迎页 DeepSeek 字标改为 Maniu 字标，安装器八个语言包里的 DeepSeek Harness 改为 Maniu；打包文档中的产物名与安装命令。不动内部包名 @lcoder/*、appId ai.lansi.lcoder、lcoder 协议、DSH_HOME 与用户数据目录、updater 缓存目录。已知影响：安装目录、快捷方式与 exe 名变化，已安装的 LCoder 需卸载后装新包；LCoder-cloud 仓的官网与云端界面仍是 LCoder，列为后续任务。验收：中英界面品牌与广告语正确且可见文案无 LCoder 残留（内部标识保留）；窗口标题、托盘、菜单、关于一致；-Legacy 旧壳标题与登录注册文案为 Maniu 与慢牛；打包产物为 maniu-版本-unsigned.exe 且 win-unpacked 内为 Maniu.exe；M3 43 项与 C4 12 项不回归；typecheck、build:check、i18n、test:docs 全绿；观感与安装包由用户手看。与 T-202 并行实现，合入顺序排在 T-202 之后。工作树 pool-slot-2 到 lcoder/t203-brand-maniu，端口 9823 与 9831 与 9832。2026-11-15 12:10 监督窗口登记并派工，实现线会话 09d06c66。2026-11-15 15:48 监督窗口收口。已合入 lcoder/main，与 T-202 的 login-screen 冲突保留 T-202 新布局、品牌走词典。主检 build:artifacts、build:check、test:docs、vitest 106 文件 1193 例全过；安装包 maniu-0.1.0-win-x64-unsigned.exe 与 win-unpacked/Maniu.exe 已构建且未安装；旧装需卸载后再装。真实观感由用户手看。"
     - id: T-204
       title: 开源流体与液态玻璃组件调研及可切换原型
-      status: doing
+      status: done
       face: 用户端
       type: 调研
       owner: lance
@@ -2290,7 +2290,18 @@ tracks:
       date: '2026-11-15'
       dep: []
       inferred: false
-      note: "B 级原型调研，来源是用户 2026-11-15 反馈 T-202 流体效果不好，要求先找开源 Electron 流体组件、出原型看过效果再开发。2026-11-15 现查 npm 与仓库结论：背景类 webgl-fluid 0.4.0（MIT，实时 Navier-Stokes，指针搅动，220 KB）、@paper-design/shaders-react 0.0.82（Apache-2.0，water 与 liquid metal 等 WebGL shader，约 1.3 MB，需锁版本）；玻璃类 liquid-glass-react 1.1.1（MIT，SVG 位移折射，要求 React 19）与自实现 SVG feDisplacementMap 折射（参考 archisvaze/liquid-glass 与 shuding/liquid-glass，均 MIT，仅 Chromium 与 Electron 的 backdrop-filter url 可用）；对照保留现有 canvas 光流与 backdrop-filter 玻璃。原型独立放在仓外 E:/Projects/LCoder-Prototypes/fluid-glass-20261115，不改产品源码、不入库；同一登录版式下提供背景与玻璃组合切换、参数滑杆、指针交互与减动效开关、FPS。预览端口 5188，Electron 调试端口 9840，窗口 1280×800，用本机 Electron 44.7.0 起窗给用户手看。验收：各组合可在同一窗口切换且指针有响应，FPS 实测有数，减动效静态，WebGL 不可用时有回退提示；不改仓、不装系统级依赖、不干扰 9822 与 9823 预览。用户选定后再另起开发任务把胜出方案接入新客户端并替换 T-202 水流底。2026-11-15 12:25 监督窗口登记并派工，实现线会话 51ea221a。"
+      note: "B 级原型调研，来源是用户 2026-11-15 反馈 T-202 流体效果不好，要求先找开源 Electron 流体组件、出原型看过效果再开发。2026-11-15 现查 npm 与仓库结论：背景类 webgl-fluid 0.4.0（MIT，实时 Navier-Stokes，指针搅动，220 KB）、@paper-design/shaders-react 0.0.82（Apache-2.0，water 与 liquid metal 等 WebGL shader，约 1.3 MB，需锁版本）；玻璃类 liquid-glass-react 1.1.1（MIT，SVG 位移折射，要求 React 19）与自实现 SVG feDisplacementMap 折射（参考 archisvaze/liquid-glass 与 shuding/liquid-glass，均 MIT，仅 Chromium 与 Electron 的 backdrop-filter url 可用）；对照保留现有 canvas 光流与 backdrop-filter 玻璃。原型独立放在仓外 E:/Projects/LCoder-Prototypes/fluid-glass-20261115，不改产品源码、不入库；同一登录版式下提供背景与玻璃组合切换、参数滑杆、指针交互与减动效开关、FPS。预览端口 5188，Electron 调试端口 9840，窗口 1280×800，用本机 Electron 44.7.0 起窗给用户手看。验收：各组合可在同一窗口切换且指针有响应，FPS 实测有数，减动效静态，WebGL 不可用时有回退提示；不改仓、不装系统级依赖、不干扰 9822 与 9823 预览。用户选定后再另起开发任务把胜出方案接入新客户端并替换 T-202 水流底。2026-11-15 12:25 监督窗口登记并派工，实现线会话 51ea221a。2026-11-15 15:52 监督窗口收口。用户认可默认组合（Paper Water 底 + 乙折射卡面 + 甲控件），追加背景改淡彩后已落地浅雾彩（雾彩默认，桃青与薰衣草可选），实测 water 126–144 FPS、0 console 错误；原型留在仓外，未入库未提交；胜出方案转 T-205 产品化。"
+    - id: T-205
+      title: 登录页接入浅雾彩水流与折射玻璃
+      status: doing
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-15'
+      date: '2026-11-15'
+      dep: [T-202, T-203, T-204]
+      inferred: false
+      note: "B 级视觉落地，来源是 T-204 原型与用户 2026-11-15 认可。胜出方案：Paper Water 浅雾彩水流背景 + 登录卡面自实现 SVG feDisplacementMap 折射 + 页签与输入与按钮轻量 backdrop-filter；默认雾彩色调（薄荷与淡粉与淡紫与天蓝叠加，正片叠底 0.82），桃青与薰衣草留在 token 不暴露产品开关。保留旧两栏版式、指针跟随、悬停抬升与轻漂浮；原型里的演示纹理不进产品。范围只到新客户端登录页与共享背景层，欢迎页如共用背景则一并生效；不改认证、数据、旧壳、安装器，不改导航与内容层的全局分层（用户要求另案再定）。实现要点：新增 @paper-design/shaders-react 0.0.82 并锁版本，进入 client 依赖与锁文件；新增可复用的折射玻璃组件与浅雾彩 token；移除 login-water.tsx 自绘 canvas 底；四皮肤不破，reduced-motion 下水面静态且不跟随；保持 Chromium 与 Electron 的 backdrop-filter url 可用口径。验收：登录页实际渲染水流与浅雾彩与卡面折射，CDP 核画布与 url(#) 与色调层；中英与四皮肤不破；M3 43 项与 C4 12 项不回归；typecheck、build:artifacts、build:check、test:docs、i18n、client 测试、改动文件 oxlint 全绿；留 9822 预览由用户手看。工作树 pool-slot-1 到 lcoder/t205-login-water，端口 9822 与 9829 与 9830。2026-11-15 15:50 监督窗口登记并派工。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
