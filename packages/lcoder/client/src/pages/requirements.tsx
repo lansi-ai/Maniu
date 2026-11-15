@@ -9,7 +9,7 @@ import { requirementStateLabel } from '../spec/board.ts'
 import { RequirementDetail } from './requirement-detail.tsx'
 import { TaskDetail } from './task-detail.tsx'
 import { ReaderOverlay } from './reader.tsx'
-import { IntakeWizard } from './intake-wizard.tsx'
+import { IntakeWizard, type IntakeResult } from './intake-wizard.tsx'
 
 /** 需求页属性。 */
 export interface RequirementsPageProps {
@@ -18,7 +18,10 @@ export interface RequirementsPageProps {
   readonly sessions: readonly SessionSummary[]
   readonly loading: boolean
   readonly error: string | null
+  readonly intakeResult: IntakeResult | null
+  readonly onClearIntakeResult: () => void
   readonly onReload: () => void
+  readonly onStartIntake: (prompt: string) => Promise<{ readonly ok: boolean; readonly message: string }>
   readonly onStartSession: (prompt: string) => Promise<{ readonly ok: boolean; readonly message: string }>
 }
 
@@ -77,7 +80,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
           <button type="button" className="pill" data-testid="requirement-reload" onClick={props.onReload}>
             {props.loading ? '读取中…' : '刷新'}
           </button>
-          <button type="button" className="pill pill-accent" data-testid="intake-open" disabled={props.project === null} onClick={() => { setWizard(true) }}>立项向导</button>
+          <button type="button" className="pill pill-accent" data-testid="intake-open" disabled={props.project === null} onClick={() => { setWizard(true) }}>{props.intakeResult === null ? '立项向导' : '立项结果'}</button>
         </div>
       </header>
 
@@ -152,8 +155,10 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
         <IntakeWizard
           project={props.project}
           projection={props.projection}
+          result={props.intakeResult}
+          onClearResult={props.onClearIntakeResult}
           onClose={() => { setWizard(false) }}
-          onStart={props.onStartSession}
+          onStart={props.onStartIntake}
           onOpenRequirement={(id) => { setWizard(false); setSelected(id) }}
           onReload={props.onReload}
         />
