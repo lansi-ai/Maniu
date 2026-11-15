@@ -2224,7 +2224,7 @@ tracks:
       date: '2026-11-15'
       dep: [T-197]
       inferred: false
-      note: "B 级入口切换，来源是用户 2026-11-15 要求继续用老命令启动新客户端。范围：lcoder/scripts 下 start-desktop 与 start-all 及其共用函数，默认改为启动 @lcoder/desktop（源码态，端口 9822/9829/9830，home 仓内），新增 -Legacy 切回旧壳（9222 系列）；旧的 -Fast、-NoBuild、-KeepFollowing、-ListOnly、-Stop 语义保持；start-all 保留云端探测与 -StartCloudApi，Web 是否保留按原样。要点：进程归属识别要同时认新客户端 user-data-dir；就绪判定从新壳日志的宿主就绪行取地址；-Smoke 只对 -Legacy 生效，默认新客户端忽略并提示；smoke.cmd 等依赖旧壳的调用方要显式加 -Legacy；更新 RUN.md 与脚本头注释。验收：start-desktop.cmd -Fast 默认起新客户端；-Legacy 起旧壳；start-all.cmd -Fast 起新客户端（Web 按原逻辑）；-Stop 与 -ListOnly 正确；四条探针不回归；门禁全绿。工作树 pool-slot-1 到 lcoder/t198-start-entry，端口 9822 与 9829 与 9830。"
+      note: "B 级入口切换，来源是用户 2026-11-15 要求继续用老命令启动新客户端。范围：lcoder/scripts 下 start-desktop 与 start-all 及其共用函数，默认改为启动 @lcoder/desktop（源码态，端口 9822/9829/9830，home 仓内），新增 -Legacy 切回旧壳（9222 系列）；旧的 -Fast、-NoBuild、-KeepFollowing、-ListOnly、-Stop 语义保持；start-all 保留云端探测与 -StartCloudApi，Web 是否保留按原样。要点：进程归属识别要同时认新客户端 user-data-dir；就绪判定从新壳日志的宿主就绪行取地址；-Smoke 只对 -Legacy 生效，默认新客户端忽略并提示；smoke.cmd 等依赖旧壳的调用方要显式加 -Legacy；更新 RUN.md 与脚本头注释。验收：start-desktop.cmd -Fast 默认起新客户端；-Legacy 起旧壳；start-all.cmd -Fast 起新客户端（Web 按原逻辑）；-Stop 与 -ListOnly 正确；四条探针不回归；门禁全绿。工作树 pool-slot-1 到 lcoder/t198-start-entry，端口 9822 与 9829 与 9830。2026-11-15 09:00 监督窗口派工，实现线会话 97670d68。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
