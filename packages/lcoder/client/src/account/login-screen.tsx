@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from 'react'
 import type { JSX, RefObject } from 'react'
 import type { Translate } from '../locale.ts'
 import { cloudErrorKey, cloudFace, type CloudErrorInfo } from './cloud.ts'
-import { LoginWater } from './login-water.tsx'
+import { PaperWater } from '../theme/paper-water.tsx'
+import { useRefractionFilter } from '../theme/refraction-glass.tsx'
 
 /** 登录页签。 */
 type LoginTab = 'sms' | 'password' | 'register'
@@ -113,6 +114,8 @@ export function LoginScreen({ t, onAuthenticated }: LoginScreenProps): JSX.Eleme
   /** 指针跟随只写主区上的 CSS 变量，各层用 transform 消费。 */
   const rootRef = useRef<HTMLElement | null>(null)
   usePointerFollow(rootRef)
+  /** 卡面用边缘折射，页签、输入框与按钮沿用轻量 backdrop-filter。 */
+  const refraction = useRefractionFilter({ blur: 8, strength: 1 })
   const [tab, setTab] = useState<LoginTab>('sms')
   const [phone, setPhone] = useState('')
   const [code, setCode] = useState('')
@@ -194,7 +197,7 @@ export function LoginScreen({ t, onAuthenticated }: LoginScreenProps): JSX.Eleme
 
   return (
     <main className="login-screen" data-testid="login-screen" ref={rootRef}>
-      <LoginWater />
+      <PaperWater />
       <div className="login-ambient" data-testid="login-ambient" aria-hidden="true">
         {AMBIENT_CODE.map(line => <span key={line} className="login-ambient-line">{line}</span>)}
       </div>
@@ -205,7 +208,13 @@ export function LoginScreen({ t, onAuthenticated }: LoginScreenProps): JSX.Eleme
           <p className="login-hero-slogan">{t('welcome.slogan')}</p>
         </section>
 
-        <section className="login-card lg-glass" data-testid="login-card">
+        <section
+          className="login-card lg-glass"
+          data-testid="login-card"
+          ref={refraction.ref}
+          style={refraction.style}
+        >
+          {refraction.defs}
           <h2 className="login-card-title">{title}</h2>
 
           <div className="login-tabs" role="tablist" aria-label={title}>

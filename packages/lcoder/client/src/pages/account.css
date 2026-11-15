@@ -40,13 +40,36 @@
   padding: clamp(20px, 4vh, 44px) clamp(16px, 3vw, 40px);
 }
 
-/* 水流底：画布铺满主区，光流与水波在卡片背后流动；不接指针。 */
+/* 水流底：Paper Water 水面铺满主区，上面叠一层雾彩；背景容器自己成层，雾彩只与水混合。 */
+.login-backdrop {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  isolation: isolate;
+}
 .login-water {
   position: absolute;
   inset: 0;
-  display: block;
   width: 100%;
   height: 100%;
+  opacity: 0.9;
+}
+.login-tone-wash {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.login-tone-wash[data-blend='multiply'] { mix-blend-mode: multiply; }
+.login-tone-wash[data-blend='screen'] { mix-blend-mode: screen; }
+.login-tone-static { position: absolute; inset: 0; }
+
+/* 折射滤镜定义：只供 backdrop-filter 引用，不占布局也不接事件。 */
+.refraction-defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
   pointer-events: none;
 }
 
