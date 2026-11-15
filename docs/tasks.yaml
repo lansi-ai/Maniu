@@ -2293,7 +2293,7 @@ tracks:
       note: "B 级原型调研，来源是用户 2026-11-15 反馈 T-202 流体效果不好，要求先找开源 Electron 流体组件、出原型看过效果再开发。2026-11-15 现查 npm 与仓库结论：背景类 webgl-fluid 0.4.0（MIT，实时 Navier-Stokes，指针搅动，220 KB）、@paper-design/shaders-react 0.0.82（Apache-2.0，water 与 liquid metal 等 WebGL shader，约 1.3 MB，需锁版本）；玻璃类 liquid-glass-react 1.1.1（MIT，SVG 位移折射，要求 React 19）与自实现 SVG feDisplacementMap 折射（参考 archisvaze/liquid-glass 与 shuding/liquid-glass，均 MIT，仅 Chromium 与 Electron 的 backdrop-filter url 可用）；对照保留现有 canvas 光流与 backdrop-filter 玻璃。原型独立放在仓外 E:/Projects/LCoder-Prototypes/fluid-glass-20261115，不改产品源码、不入库；同一登录版式下提供背景与玻璃组合切换、参数滑杆、指针交互与减动效开关、FPS。预览端口 5188，Electron 调试端口 9840，窗口 1280×800，用本机 Electron 44.7.0 起窗给用户手看。验收：各组合可在同一窗口切换且指针有响应，FPS 实测有数，减动效静态，WebGL 不可用时有回退提示；不改仓、不装系统级依赖、不干扰 9822 与 9823 预览。用户选定后再另起开发任务把胜出方案接入新客户端并替换 T-202 水流底。2026-11-15 12:25 监督窗口登记并派工，实现线会话 51ea221a。2026-11-15 15:52 监督窗口收口。用户认可默认组合（Paper Water 底 + 乙折射卡面 + 甲控件），追加背景改淡彩后已落地浅雾彩（雾彩默认，桃青与薰衣草可选），实测 water 126–144 FPS、0 console 错误；原型留在仓外，未入库未提交；胜出方案转 T-205 产品化。"
     - id: T-205
       title: 登录页接入浅雾彩水流与折射玻璃
-      status: doing
+      status: done
       face: 用户端
       type: 开发
       owner: lance
@@ -2301,7 +2301,7 @@ tracks:
       date: '2026-11-15'
       dep: [T-202, T-203, T-204]
       inferred: false
-      note: "B 级视觉落地，来源是 T-204 原型与用户 2026-11-15 认可。胜出方案：Paper Water 浅雾彩水流背景 + 登录卡面自实现 SVG feDisplacementMap 折射 + 页签与输入与按钮轻量 backdrop-filter；默认雾彩色调（薄荷与淡粉与淡紫与天蓝叠加，正片叠底 0.82），桃青与薰衣草留在 token 不暴露产品开关。保留旧两栏版式、指针跟随、悬停抬升与轻漂浮；原型里的演示纹理不进产品。范围只到新客户端登录页与共享背景层，欢迎页如共用背景则一并生效；不改认证、数据、旧壳、安装器，不改导航与内容层的全局分层（用户要求另案再定）。实现要点：新增 @paper-design/shaders-react 0.0.82 并锁版本，进入 client 依赖与锁文件；新增可复用的折射玻璃组件与浅雾彩 token；移除 login-water.tsx 自绘 canvas 底；四皮肤不破，reduced-motion 下水面静态且不跟随；保持 Chromium 与 Electron 的 backdrop-filter url 可用口径。验收：登录页实际渲染水流与浅雾彩与卡面折射，CDP 核画布与 url(#) 与色调层；中英与四皮肤不破；M3 43 项与 C4 12 项不回归；typecheck、build:artifacts、build:check、test:docs、i18n、client 测试、改动文件 oxlint 全绿；留 9822 预览由用户手看。工作树 pool-slot-1 到 lcoder/t205-login-water，端口 9822 与 9829 与 9830。2026-11-15 15:50 监督窗口登记并派工，实现线会话 d8836a23。"
+      note: "B 级视觉落地，来源是 T-204 原型与用户 2026-11-15 认可。胜出方案：Paper Water 浅雾彩水流背景 + 登录卡面自实现 SVG feDisplacementMap 折射 + 页签与输入与按钮轻量 backdrop-filter；默认雾彩色调（薄荷与淡粉与淡紫与天蓝叠加，正片叠底 0.82），桃青与薰衣草留在 token 不暴露产品开关。保留旧两栏版式、指针跟随、悬停抬升与轻漂浮；原型里的演示纹理不进产品。范围只到新客户端登录页与共享背景层，欢迎页如共用背景则一并生效；不改认证、数据、旧壳、安装器，不改导航与内容层的全局分层（用户要求另案再定）。实现要点：新增 @paper-design/shaders-react 0.0.82 并锁版本，进入 client 依赖与锁文件；新增可复用的折射玻璃组件与浅雾彩 token；移除 login-water.tsx 自绘 canvas 底；四皮肤不破，reduced-motion 下水面静态且不跟随；保持 Chromium 与 Electron 的 backdrop-filter url 可用口径。验收：登录页实际渲染水流与浅雾彩与卡面折射，CDP 核画布与 url(#) 与色调层；中英与四皮肤不破；M3 43 项与 C4 12 项不回归；typecheck、build:artifacts、build:check、test:docs、i18n、client 测试、改动文件 oxlint 全绿；留 9822 预览由用户手看。工作树 pool-slot-1 到 lcoder/t205-login-water，端口 9822 与 9829 与 9830。2026-11-15 15:50 监督窗口登记并派工，实现线会话 d8836a23。2026-11-15 20:12 监督窗口收口。已合入 lcoder/main；合入后主检 build:artifacts、build:check、typecheck、test:docs 二十一项、verify-client-ui-i18n、vitest 一百零七文件一千一百九十七例全过；新增依赖的第三方声明已重生成并通过自检。真实云端四组验收已过（新号短信自动建号、同号再登录、错码、密码错误），dev mock 的未注册口径已同步修好；预览仍留在 9822 的真实 API 环境。已知：条款链接暂无目标页；协议勾选不强制；托盘黑牛在深色任务栏对比低；Win11 可能收进溢出区；安装包需卸载旧 LCoder 再装 Maniu。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
