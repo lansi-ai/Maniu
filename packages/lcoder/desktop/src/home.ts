@@ -2,6 +2,23 @@
 
 import { join, resolve } from 'node:path'
 
+/**
+ * 发布态 Electron userData 目录名。
+ *
+ * 品牌改名不搬走已发布版本的设置与登录缓存，因此这里保持改名前的目录名；
+ * 它与产品显示名、安装目录和 exe 名无关。
+ */
+export const RELEASED_USER_DATA_DIRECTORY = 'LCoder'
+
+/**
+ * 解析发布态的 Electron userData 目录。
+ * @param appData - Electron `appData` 根目录。
+ * @returns 固定目录下的 userData 路径。
+ */
+export function releasedUserDataPath(appData: string): string {
+  return join(appData, RELEASED_USER_DATA_DIRECTORY)
+}
+
 /** 解析所需的事实；全部由调用方注入，单测不碰真实用户目录。 */
 export interface DesktopHomeInput {
   /** Electron `app.isPackaged`。 */
