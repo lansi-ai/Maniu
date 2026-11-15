@@ -2268,7 +2268,7 @@ tracks:
       date: '2026-11-15'
       dep: [T-201]
       inferred: false
-      note: "B 级视觉重构，来源是用户 2026-11-15 发现新客户端登录页与旧壳不同，拍板保留旧壳原始布局、外观改为流体玻璃。范围：只改新客户端登录页（packages/lcoder/client/src/account/login-screen.tsx 与其样式、必要的玻璃 token 引用），不改认证逻辑、不改旧壳与上游。版式按旧壳：全屏主区，左侧品牌名与标语，右侧登录卡，背景保留网格与代码氛围层；表单保留现有验证码、密码、注册三页签与全部校验。外观用现有 liquid-glass token：玻璃卡、镜面边、环境色块与细颗粒，不引入旧 frost 样式。要求窄窗可用、reduced-motion 静态、中英词典不变。验收：登录流程与现有用例不回归；M3 探针 43 项与 C4 冒烟 12 项不回归；typecheck、build:check、i18n、test:docs 全绿；真实观感由用户手看。工作树 pool-slot-1 到 lcoder/t202-login-layout，端口 9822 与 9829 与 9830。"
+      note: "B 级视觉重构，来源是用户 2026-11-15 发现新客户端登录页与旧壳不同，拍板保留旧壳原始布局、外观改为流体玻璃。范围：只改新客户端登录页（packages/lcoder/client/src/account/login-screen.tsx 与其样式、必要的玻璃 token 引用），不改认证逻辑、不改旧壳与上游。版式按旧壳：全屏主区，左侧品牌名与标语，右侧登录卡，背景保留网格与代码氛围层；表单保留现有验证码、密码、注册三页签与全部校验。外观用现有 liquid-glass token：玻璃卡、镜面边、环境色块与细颗粒，不引入旧 frost 样式。要求窄窗可用、reduced-motion 静态、中英词典不变。验收：登录流程与现有用例不回归；M3 探针 43 项与 C4 冒烟 12 项不回归；typecheck、build:check、i18n、test:docs 全绿；真实观感由用户手看。工作树 pool-slot-1 到 lcoder/t202-login-layout，端口 9822 与 9829 与 9830。2026-11-15 11:20 监督窗口派工，实现线会话 f3f7c96c。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
