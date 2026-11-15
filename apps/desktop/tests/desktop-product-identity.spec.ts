@@ -57,13 +57,13 @@ describe('LCoder product identity', () => {
     })
   })
 
-  it('maps the release contract onto internal names and fills the LCoder identity', () => {
+  it('maps the release contract onto internal names and fills the Maniu identity', () => {
     const env = lcoderEnvironment()
     expect(env).toMatchObject({
       DSH_DESKTOP_APP_ID: 'ai.lansi.lcoder',
-      DSH_DESKTOP_PRODUCT_NAME: 'LCoder',
+      DSH_DESKTOP_PRODUCT_NAME: 'Maniu',
       DSH_DESKTOP_PROTOCOL_SCHEME: 'lcoder',
-      DSH_DESKTOP_ARTIFACT_PREFIX: 'lcoder-',
+      DSH_DESKTOP_ARTIFACT_PREFIX: 'maniu-',
       DSH_DESKTOP_DOWNLOAD_PREFIX: 'lcoder-',
       DSH_DESKTOP_FIXED_DOWNLOAD_DIR: 'lcoder-desk/latest',
       DSH_DESKTOP_UPDATE_PREFIX: 'lcoder-desk',
@@ -120,15 +120,15 @@ describe('LCoder product identity', () => {
 })
 
 describe('LCoder packaged configuration', () => {
-  it('seals the LCoder identity into the Windows package', async () => {
+  it('seals the Maniu identity into the Windows package', async () => {
     const config = await builderConfig(lcoderEnvironment())
     expect(config).toMatchObject({
       appId: 'ai.lansi.lcoder',
-      productName: 'LCoder',
-      protocols: [{ name: 'LCoder', schemes: ['lcoder'] }],
+      productName: 'Maniu',
+      protocols: [{ name: 'Maniu', schemes: ['lcoder'] }],
       updaterCacheDirName: 'lcoder-updater',
     })
-    expect(config.artifactName).toBe('lcoder-${version}-${os}-${arch}-unsigned.${ext}')
+    expect(config.artifactName).toBe('maniu-${version}-${os}-${arch}-unsigned.${ext}')
     expect(config.extraMetadata).toMatchObject({
       version: '0.1.0',
       dshDesktopAppId: 'ai.lansi.lcoder',
@@ -143,9 +143,9 @@ describe('LCoder packaged configuration', () => {
       metadata: { value: metadata },
     })
     const appInfo = new AppInfo(packager, undefined)
-    expect(appInfo.productFilename).toBe('LCoder')
-    expect(expandMacro(config.nsis.uninstallDisplayName, null, appInfo, {}, false)).toBe('LCoder')
-    expect(appInfo.copyright).toBe(`Copyright © ${new Date().getFullYear()} LCoder`)
+    expect(appInfo.productFilename).toBe('Maniu')
+    expect(expandMacro(config.nsis.uninstallDisplayName, null, appInfo, {}, false)).toBe('Maniu')
+    expect(appInfo.copyright).toBe(`Copyright © ${new Date().getFullYear()} Maniu`)
   })
 
   it('names the update feed after the target directory under the configured prefix', async () => {

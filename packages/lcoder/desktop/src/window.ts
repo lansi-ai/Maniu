@@ -28,7 +28,7 @@ export function createMainWindow(): BrowserWindow {
     show: false,
     autoHideMenuBar: true,
     backgroundColor: '#f3f6fc',
-    title: 'LCoder',
+    title: 'Maniu',
     webPreferences: {
       preload,
       contextIsolation: true,

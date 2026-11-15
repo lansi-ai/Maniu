@@ -1,10 +1,17 @@
 /** 宿主 home 的两分支：发布态落用户目录，开发态留仓内，显式覆盖永远优先。 */
 import { join, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { resolveDesktopHome } from '../src/home.ts'
+import { releasedUserDataPath, resolveDesktopHome } from '../src/home.ts'
 
 const userHome = join('C:', 'Users', 'probe-user')
 const repoRoot = join('E:', 'Projects', 'probe-repo')
+const appData = join('C:', 'Users', 'probe-user', 'AppData', 'Roaming')
+
+describe('releasedUserDataPath', () => {
+  it('发布态用户数据目录保持改名前的 LCoder，不随产品名迁移', () => {
+    expect(releasedUserDataPath(appData)).toBe(join(appData, 'LCoder'))
+  })
+})
 
 describe('resolveDesktopHome', () => {
   it('发布态用用户目录下的 .dsh', () => {

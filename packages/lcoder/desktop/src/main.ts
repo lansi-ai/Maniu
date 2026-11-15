@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { IPC_CHANNELS } from './contract.ts'
 import type { DesktopLocaleId } from './contract.ts'
 import { readDesktopPreferences } from './desktop-locale.ts'
-import { resolveDesktopHome } from './home.ts'
+import { releasedUserDataPath, resolveDesktopHome } from './home.ts'
 import { HostSupervisor, type HostLaunch } from './host-supervisor.ts'
 import { createStatePublisher, createWindowStatePublisher, registerIpc } from './ipc.ts'
 import { HostLink } from './link.ts'
@@ -24,6 +24,13 @@ const home = resolveDesktopHome({
   override: process.env.DSH_HOME,
 })
 process.env.DSH_HOME = home
+
+// 发布态的 Electron 缓存与设置仍落在改名前的 LCoder 目录；开发态由启动器显式指定 userData。
+if (app.isPackaged) {
+  const userData = releasedUserDataPath(app.getPath('appData'))
+  app.setPath('userData', userData)
+  app.setPath('sessionData', userData)
+}
 
 /** 关停从关窗开始算起的总上限；到点强制退出，绝不允许关窗后静默驻留。 */
 const QUIT_GUARD_MS = 12_000

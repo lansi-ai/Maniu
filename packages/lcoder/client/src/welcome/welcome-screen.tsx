@@ -1,4 +1,4 @@
-/** 新客户端首屏：LCoder 品牌、去登录或跳过介绍。 */
+/** 新客户端首屏：Maniu 品牌、去登录或跳过介绍。 */
 
 import type { JSX } from 'react'
 import type { Translate } from '../locale.ts'
@@ -19,7 +19,7 @@ export function WelcomeScreen({ t, onSignIn, onSkip }: WelcomeScreenProps): JSX.
   return (
     <main className="center" data-testid="welcome-screen">
       <section className="welcome-card lg-glass">
-        <span className="welcome-mark" aria-hidden="true">L</span>
+        <span className="welcome-mark" aria-hidden="true">M</span>
         <h1>{t('app.name')}</h1>
         <p className="welcome-slogan">{t('welcome.slogan')}</p>
         <p className="welcome-body">{t('welcome.body')}</p>

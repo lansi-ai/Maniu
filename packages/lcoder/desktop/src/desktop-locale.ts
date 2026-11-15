@@ -38,9 +38,9 @@ export interface DesktopMessages {
 /** 两种界面语言的主进程词典。 */
 export const DESKTOP_MESSAGES: Readonly<Record<DesktopLocaleId, DesktopMessages>> = {
   zh: {
-    appName: 'LCoder',
-    openApplication: '打开 LCoder',
-    quitApplication: '退出 LCoder',
+    appName: '慢牛 Maniu',
+    openApplication: '打开慢牛',
+    quitApplication: '退出慢牛',
     edit: '编辑',
     undo: '撤销',
     redo: '重做',
@@ -60,14 +60,14 @@ export const DESKTOP_MESSAGES: Readonly<Record<DesktopLocaleId, DesktopMessages>
     close: '关闭窗口',
     help: '帮助',
     checkForUpdates: '检查更新',
-    about: '关于 LCoder',
+    about: '关于慢牛',
     aboutDetail: '版本 {version}',
-    updateManual: '当前版本 {version}。本版本只提供手动更新：请从 LCoder 官方下载页获取安装包后覆盖安装。',
+    updateManual: '当前版本 {version}。本版本只提供手动更新：请从慢牛 Maniu 官方下载页获取安装包后覆盖安装。',
   },
   en: {
-    appName: 'LCoder',
-    openApplication: 'Open LCoder',
-    quitApplication: 'Quit LCoder',
+    appName: 'Maniu',
+    openApplication: 'Open Maniu',
+    quitApplication: 'Quit Maniu',
     edit: 'Edit',
     undo: 'Undo',
     redo: 'Redo',
@@ -87,9 +87,9 @@ export const DESKTOP_MESSAGES: Readonly<Record<DesktopLocaleId, DesktopMessages>
     close: 'Close window',
     help: 'Help',
     checkForUpdates: 'Check for updates',
-    about: 'About LCoder',
+    about: 'About Maniu',
     aboutDetail: 'Version {version}',
-    updateManual: 'Version {version}. This build updates manually: download the installer from the official LCoder download page and install it over this version.',
+    updateManual: 'Version {version}. This build updates manually: download the installer from the official Maniu download page and install it over this version.',
   },
 }
 

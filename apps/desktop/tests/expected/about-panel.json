@@ -1,11 +1,11 @@
 {
   "darwin:en-US": {
     "menu": [
-      { "label": "About LCoder", "role": "about" },
+      { "label": "About Maniu", "role": "about" },
       { "type": "separator" }
     ],
     "options": {
-      "applicationName": "LCoder",
+      "applicationName": "Maniu",
       "applicationVersion": "1.0.0",
       "version": "",
       "copyright": "",
@@ -14,11 +14,11 @@
   },
   "darwin:zh-CN": {
     "menu": [
-      { "label": "关于 LCoder", "role": "about" },
+      { "label": "关于慢牛", "role": "about" },
       { "type": "separator" }
     ],
     "options": {
-      "applicationName": "LCoder",
+      "applicationName": "Maniu",
       "applicationVersion": "1.0.0",
       "version": "",
       "copyright": "",
@@ -27,11 +27,11 @@
   },
   "win32:zh-CN": {
     "menu": [
-      { "label": "关于 LCoder" },
+      { "label": "关于慢牛" },
       { "type": "separator" }
     ],
     "options": {
-      "applicationName": "LCoder",
+      "applicationName": "Maniu",
       "applicationVersion": "1.0.0",
       "version": "",
       "copyright": "",
@@ -40,11 +40,11 @@
   },
   "win32:en-US": {
     "menu": [
-      { "label": "About LCoder" },
+      { "label": "About Maniu" },
       { "type": "separator" }
     ],
     "options": {
-      "applicationName": "LCoder",
+      "applicationName": "Maniu",
       "applicationVersion": "1.0.0",
       "version": "",
       "copyright": "",

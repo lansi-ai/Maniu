@@ -13,7 +13,7 @@ node packages/lcoder/desktop/scripts/package-win.mjs
 
 - 版本由 `LCODER_RELEASE_VERSION` 决定（默认 `0.1.0`）；不改上游 `0.2.2-alpha.2`，也不改本包 `0.0.0`。
 - 宿主依赖树由 `pnpm --filter @lcoder/desktop deploy --prod --legacy` 产出；`LCODER_SKIP_DEPLOY=1` 复用已有树。
-- 产物在 `packages/lcoder/desktop/.desktop-build/artifacts/`：`lcoder-<version>-win-x64-unsigned.exe` 与 `win-unpacked/`。
+- 产物在 `packages/lcoder/desktop/.desktop-build/artifacts/`：`maniu-<version>-win-x64-unsigned.exe` 与 `win-unpacked/`。
 - 称重写到 `lcoder/logs/t197-package-weight.json`（安装包、`win-unpacked`、`app.asar`、宿主依赖树、运行时载荷）。
 
 ## 2. 产物布局
@@ -51,17 +51,17 @@ node packages/lcoder/desktop/scripts/package-win.mjs
 
 发布 profile 把 `agent-default-model` 指回 `lcoder-cloud`（`host-workbench.patch.yml`）：新客户端先登录云端再进工作台，默认模型跟云端令牌走；官方 provider 仍可在设置页切换。旧壳的官方默认不受影响。
 
-同一层把 `agent-preset-registry.selectedDefault` 设为 `standard`：新客户端「新建会话」不带 preset，普通对话需要上游标准工具面（`pwsh`、`bash`、`fs`、`subagent`、`workflow` 等）；工作台作用域会话仍显式用 `lcoder-workbench`，十个 LCoder 角色仍作为可选 preset 保留。旧壳的 `selectedDefault=lcoder` 不受影响。
+同一层把 `agent-preset-registry.selectedDefault` 设为 `standard`：新客户端「新建会话」不带 preset，普通对话需要上游标准工具面（`pwsh`、`bash`、`fs`、`subagent`、`workflow` 等）；工作台作用域会话仍显式用 `lcoder-workbench`，十个慢牛角色仍作为可选 preset 保留。旧壳的 `selectedDefault=lcoder` 不受影响。
 
 ## 3. 安装与启动验证
 
 安装包（per-user，`oneClick:false`、`allowToChangeInstallationDirectory:false`）：
 
 ```powershell
-.\lcoder-0.1.0-win-x64-unsigned.exe /S
+.\maniu-0.1.0-win-x64-unsigned.exe /S
 ```
 
-静默安装落到 `%LOCALAPPDATA%\Programs\LCoder\LCoder.exe`。不装也能直接起 `win-unpacked\LCoder.exe`。本树实测：安装成功，`LCoder.exe` 的 `FileVersion=0.1.0`、`ProductName=LCoder`，`resources/profile` 与 `resources/dsh` 都在；用安装态 exe 跑 t187 六项 PASS。
+静默安装落到 `%LOCALAPPDATA%\Programs\Maniu\Maniu.exe`。不装也能直接起 `win-unpacked\Maniu.exe`。本树实测：安装成功，`Maniu.exe` 的 `FileVersion=0.1.0`、`ProductName=Maniu`，`resources/profile` 与 `resources/dsh` 都在；用安装态 exe 跑 t187 六项 PASS。
 
 在 Git Bash 里调用安装包要用 `//S`：`/S` 会被 MSYS 路径转换改写成 `S:/`，安装器会长时间占用 CPU 而不是静默结束。
 
@@ -69,7 +69,7 @@ node packages/lcoder/desktop/scripts/package-win.mjs
 
 ```sh
 export DSH_HOME='E:\Projects\LCoder\.worktrees\pool-slot-1\.dsh-home-pkg'
-export LCODER_PROBE_EXECUTABLE='E:\Projects\LCoder\.worktrees\pool-slot-1\packages\lcoder\desktop\.desktop-build\artifacts\win-unpacked\LCoder.exe'
+export LCODER_PROBE_EXECUTABLE='E:\Projects\LCoder\.worktrees\pool-slot-1\packages\lcoder\desktop\.desktop-build\artifacts\win-unpacked\Maniu.exe'
 export LCODER_PROBE_PACKAGED=1
 node lcoder/scripts/t187-s1-probe.mjs
 node lcoder/scripts/t189-m2-probe.mjs

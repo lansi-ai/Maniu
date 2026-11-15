@@ -18,12 +18,12 @@ export const BUILD_ROOT = join(PACKAGE_ROOT, '.desktop-build')
 /** 安装包与 win-unpacked 的输出目录。 */
 export const ARTIFACTS_DIR = join(BUILD_ROOT, 'artifacts')
 
-/** LCoder 发布身份：appId、产品名、协议与产物前缀。 */
+/** Maniu 发布身份：appId、产品名、协议与产物前缀。 */
 export const IDENTITY = {
   appId: 'ai.lansi.lcoder',
-  productName: 'LCoder',
+  productName: 'Maniu',
   protocolScheme: 'lcoder',
-  artifactPrefix: 'lcoder-',
+  artifactPrefix: 'maniu-',
   updaterCacheDirName: 'lcoder-updater',
 }
 
@@ -40,7 +40,7 @@ export function createWindowsConfig(options) {
   return {
     appId: IDENTITY.appId,
     productName: IDENTITY.productName,
-    copyright: 'Copyright © 2026 LCoder',
+    copyright: 'Copyright © 2026 Maniu',
     artifactName: `${IDENTITY.artifactPrefix}\${version}-win-\${arch}-unsigned.\${ext}`,
     directories: { app: appDir, output: ARTIFACTS_DIR },
     electronVersion,

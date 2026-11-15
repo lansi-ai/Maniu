@@ -140,6 +140,18 @@ upstream = deepseek-ai/deepseek-harness
 | `apps/desktop/src/ipc.ts` | 新增 `windowDrag` 私有通道、`DesktopWindowDragRequest` 类型与窗口桥上的 `drag(request)` | 通道名与消息类型是 preload 与页面共用的单一来源 |
 | `apps/desktop/src/preload-app.ts` | Windows 窗口桥暴露 `drag(request)` | `contextBridge` 只能由 preload 注入，插件层无法补这一条 |
 
+### T-203 品牌更名 Maniu / 慢牛（修改 1 个脚本、1 个欢迎页字标、安装器文案与快照）
+
+产品口径：品牌名 Maniu，中文名慢牛，广告语中文「稳，才跑得远」/ 英文 Steady wins the long run.。内部标识（`ai.lansi.lcoder`、`lcoder` scheme、`@lcoder/*`、`DSH_HOME`、更新缓存目录、下载/发布前缀）保持不变。
+
+| 文件 | 改什么 | 为什么必须改 |
+|---|---|---|
+| `apps/desktop/scripts/desktop-product-identity.mjs` | `LCODER_RELEASE_IDENTITY` 的 `productName` 改为 `Maniu`、`artifactPrefix` 改为 `maniu-`；下载前缀、固定下载目录、更新前缀、更新缓存与 tag 前缀保持 `lcoder*` | 产品名决定 exe、安装目录、快捷方式、协议显示名与版权；产物前缀是发布文件名。下载与更新路径已接云端，不在本次改动面 |
+| `apps/desktop/renderer/assets/welcome-brand.svg` | 上游 DeepSeek 字标矢量路径整份换成 Maniu 字标：`<text>` 自绘、宽 472 高 40、深浅色各自取色、无位图无外链；中文用页面字体族回退 | 欢迎页品牌图是主进程渲染的第一视觉面；装配层与 locale 只改 alt，不改 SVG 内容 |
+| `apps/desktop/installer/locales/*.json`、`installer/extract-report.h` | 八种安装界面语言与解包错误报告里的 `DeepSeek Harness` 改为 `Maniu` | NSIS 安装器的运行中/启动失败/路径归属提示与错误报告都由这些文件直出，没有配置覆盖入口 |
+| `apps/desktop/tests/desktop-product-identity.spec.ts`、`tests/desktop-package-environment.spec.ts` | 产品名、产物前缀、exe 名、卸载显示名与版权期望改为 Maniu / `maniu-` | 身份常量是发布产物名的单源；夹具不跟改会让测试与真实产物不一致 |
+| `apps/desktop/tests/background-notice.spec.ts`、`tests/expected/fatal*.txt`、`tests/expected/welcome/*.txt` | 品牌文案与广告语期望改为 Maniu / 慢牛 Maniu；欢迎页快照同步新品牌与「稳，才跑得远」 | 这些快照原先仍写上游 `DeepSeek Harness`，是既有红项；本次改名一并把用户可见期望对齐 |
+
 ### 计划接触面（T-78 至 T-82）
 
 以下文件已在 `contact-surface.txt` 登记。T-78 已落地的行标「已落地」；其余仍待对应任务。T-78 还会扩展上表已登记的 `apps/desktop/src/main.ts`、`ipc.ts`、`preload-app.ts`、`locale.ts`、`tests/main-startup.spec.ts` 与 `tests/expected/*.json`，不重复列行。

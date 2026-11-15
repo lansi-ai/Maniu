@@ -38,7 +38,7 @@
       name: '@deepseek-ai/dsh-agent-preset'
       config:
         id: lcoder-workbench
-        name: LCoder 工作台
+        name: 慢牛工作台
         description: 只承托工作台人机命令的会话
         order: 30
         plugins:

@@ -185,7 +185,7 @@ describe('全屏登录页', () => {
     expect(screen.getByText(/30/)).toBeTruthy()
   })
 
-  it('注册页签标题为「注册 LCoder」，切回登录页签恢复登录标题', () => {
+  it('注册页签标题为「注册慢牛」，切回登录页签恢复登录标题', () => {
     renderLogin(faceOf())
     expect(screen.getByRole('heading', { name: zh['shell.cloudSignIn'], level: 2 })).toBeTruthy()
     fireEvent.click(screen.getByRole('tab', { name: zh['shell.cloudTabRegister'] }))

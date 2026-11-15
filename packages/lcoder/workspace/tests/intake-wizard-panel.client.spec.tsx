@@ -122,7 +122,7 @@ describe('向导首页', () => {
     expect(container.querySelector('[data-wizard-title-brand]')?.textContent).toBe(zh['shell.wizardTitleBrand'])
     expect(container.querySelector('[data-wizard-title-highlight]')?.textContent).toBe(zh['shell.wizardTitleHighlight'])
     const title = container.querySelector('[data-wizard-title]')
-    expect(title?.textContent).toBe('现在由LCoder团队需求分析师与您对接需求')
+    expect(title?.textContent).toBe('现在由慢牛团队需求分析师与您对接需求')
   })
 
   it('三节默认折叠，只露出标题与一行摘要；底部只有取消与确认', () => {
