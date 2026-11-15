@@ -1,10 +1,15 @@
 ﻿# 一条命令拉起本检出的 Web 与桌面端（开发态）。
 #
-# 为什么有它：Web（3080）与桌面（9222/9229/9230）各有一套启动方式，手工起两份很容易
+# 为什么有它：Web（3080）与桌面各有一套启动方式，手工起两份很容易
 # 落到别人的端口、别人的 home 或上一次没清干净的进程上。这个脚本按固定顺序做四件事：
 # 先停掉本检出的旧实例 → 构建（-Fast 跳过）→ 先起 Web 再起桌面 → 等两边就绪并给出
-# 日志位置与带 token 的地址。进程归属按检出根、状态文件记录的监听 PID 与命令行签名判断，
+# 日志位置与地址。进程归属按检出根、状态文件记录的监听 PID 与命令行签名判断，
 # 不碰主检出、别的工作树、别处占着端口的 Web。
+#
+# 桌面默认是新客户端（packages/lcoder/desktop 的 launch.mjs，inspector 9829/9822/9830，
+# 就绪行 `lcoder desktop: 宿主已就绪`）；-Legacy 回退旧壳（dev/start:desktop，
+# 9229/9222/9230，就绪行是带 token 的 dsh web）。新客户端不依赖 Web，Web 仍按原逻辑起。
+# 新客户端的构建只需 build:artifacts；旧壳保持 build:artifacts 加桌面外壳 build 两步。
 #
 # Web 的归属为什么要状态文件：启动器（cmd → node/pnpm）在 Web 跑着时也会先退掉，
 # 只记启动器会留下一个找不回的监听进程占住端口。因此就绪后把端口 owner 的 PID 也写进状态文件；
@@ -12,7 +17,8 @@
 # 构建产物（apps/cli/lib/bin.js web，命令行带检出根）与源码（apps/cli/src/bin.ts web）两种入口。
 #
 # 用法：
-#   lcoder\scripts\start-all.cmd                 # 构建 → 起 Web(3080) → 起桌面(9222/9229/9230)
+#   lcoder\scripts\start-all.cmd                 # 构建 → 起 Web(3080) → 起新客户端
+#   lcoder\scripts\start-all.cmd -Legacy         # 同上，但桌面起旧壳
 #   lcoder\scripts\start-all.cmd -Fast           # 跳过构建（产物没变时的最快启动；冒烟本来就不跑）
 #   lcoder\scripts\start-all.cmd -NoWeb          # 只起桌面
 #   lcoder\scripts\start-all.cmd -NoDesktop      # 只起 Web
@@ -37,13 +43,15 @@
 # 成功后才继续原有的成功分支（注入地址、起 Web 与桌面）。启动的 PID 记进状态文件，
 # -Stop 只停由本脚本拉起且命令行签名吻合的 API，别处起的 API 不动。
 #
-# 桌面的 inspector 端口沿用上游环境变量：DSH_DESKTOP_MAIN_INSPECT_PORT（9229）、
-# DSH_DESKTOP_RENDERER_DEBUG_PORT（9222）、DSH_DESKTOP_HOST_INSPECT_PORT（9230）。
+# 桌面 inspector 端口默认按模式取：新客户端 9829/9822/9830，旧壳 9229/9222/9230；
+# 两种模式都认同一组上游环境变量覆盖：DSH_DESKTOP_MAIN_INSPECT_PORT、
+# DSH_DESKTOP_RENDERER_DEBUG_PORT、DSH_DESKTOP_HOST_INSPECT_PORT。
 # Web 的 DSH_HOME 默认落到本检出的 .dsh-home（已在 .gitignore），不写用户目录。
 param(
   [switch]$Fast,
   [switch]$NoWeb,
   [switch]$NoDesktop,
+  [switch]$Legacy,
   [int]$WebPort = 3080,
   [switch]$Stop,
   [switch]$ListOnly,
@@ -82,6 +90,7 @@ start-all：一条命令拉起本检出的 Web 与桌面端（开发态）。
 
 选项
   -Fast              跳过构建，直接用现有产物启动（运行时冒烟一律不跑）
+  -Legacy            桌面起旧壳（9229/9222/9230）；默认起新客户端（9829/9822/9830）
   -NoWeb             只起桌面
   -NoDesktop         只起 Web
   -WebPort <端口>     Web 端口（默认 3080）
@@ -116,17 +125,19 @@ start-all：一条命令拉起本检出的 Web 与桌面端（开发态）。
 
 顺序与产物
   1. 云端：探测 /health 并注入 LCODER_CLOUD_BASE_URL（-Stop / -ListOnly 跳过）
-  2. 构建：pnpm run build:artifacts，再 pnpm --filter @deepseek-ai/dsh-desktop run build
+  2. 构建：新客户端只跑 pnpm run build:artifacts（Host 面产出 desktop lib，Client 面同时
+     产出 client/lib/dist）；-Legacy 再加 pnpm --filter @deepseek-ai/dsh-desktop run build
   3. Web：有已构建产物时直接跑 apps/cli/lib/bin.js，否则回退 pnpm run start:web；日志 lcoder\logs\web.log
-  4. 桌面：复用 start-desktop 的启动与就绪检测，日志 lcoder\logs\desktop-main.log
-  Web 的 DSH_HOME 默认指向本检出 .dsh-home；桌面的 home/userData 沿用 dev.ts 的仓内默认值。
-  运行时冒烟（python 三条检查加 Office 往返）是发布验收口径，start-all 不跑；
-  要复核用 lcoder\scripts\start-desktop.cmd -Smoke（百秒级）。
+  4. 桌面：复用 start-desktop 的启动与就绪检测，日志 lcoder\logs\desktop-main.log；
+     新客户端等 `lcoder desktop: 宿主已就绪`，旧壳等 `dsh web:` 带 token 行
+  Web 的 DSH_HOME 默认指向本检出 .dsh-home；桌面 home/userData 新客户端落本检出
+  .dsh-home，旧壳沿用 dev.ts 的仓内默认值。运行时冒烟（python 三条检查加 Office 往返）
+  是旧壳的发布验收口径，start-all 不跑；要复核用 lcoder\scripts\start-desktop.cmd -Smoke -Legacy。
 
 进程归属
-  停 electron --user-data-dir 落在本检出、命令行带本检出根路径的进程，以及状态文件
-  记录的 Web 启动器/监听进程（root 与端口都吻合且命令行是 Web 签名）。端口上的进程
-  不属于本检出时只报告、不终止。本地 API 同理：-Stop 只停状态文件记录、且命令行是
+  停 electron 带本检出 user-data-dir（旧壳）或以本检出 desktop 包为 app 路径（新客户端）
+  的进程，以及状态文件记录的 Web 启动器/监听进程（root 与端口都吻合且命令行是 Web 签名）。
+  端口上的进程不属于本检出时只报告、不终止。本地 API 同理：-Stop 只停状态文件记录、且命令行是
   dotnet run src/Api 签名的 PID；别处起的 API 与端口占用只报告、不终止。
   Ctrl+C 只停止跟随，不停已启动的实例。
 '@
@@ -554,12 +565,17 @@ function Wait-PortReleased {
   return (-not (Test-PortListening -Port $Port))
 }
 
-# 构建两边共用的产物。命令与 dev.ts 的构建门禁一致：先全量 artifacts，再桌面外壳。
+# 构建两边共用的产物。新客户端只要 build:artifacts（根 tsdown 的 Host 面产出 desktop lib，
+# Client 面同时产出 client/lib/dist，桌面外壳 build 是旧壳的打包产物门禁）；-Legacy 与
+# dev.ts 的构建门禁一致：先全量 artifacts，再旧壳桌面 build。
 function Invoke-RepoBuild {
+  param([switch]$Legacy)
   $steps = @(
-    @{ Label = 'build:artifacts'; Command = 'pnpm --config.verify-deps-before-run=false run build:artifacts' },
-    @{ Label = '桌面外壳 build'; Command = 'pnpm --config.verify-deps-before-run=false --filter @deepseek-ai/dsh-desktop run build' }
+    @{ Label = 'build:artifacts'; Command = 'pnpm --config.verify-deps-before-run=false run build:artifacts' }
   )
+  if ($Legacy) {
+    $steps += @{ Label = '桌面外壳 build'; Command = 'pnpm --config.verify-deps-before-run=false --filter @deepseek-ai/dsh-desktop run build' }
+  }
   foreach ($step in $steps) {
     Write-Host ("---- 构建 {0}：{1} ----" -f $step.Label, $step.Command) -ForegroundColor Cyan
     $started = Get-Date
@@ -606,7 +622,8 @@ function Wait-SideReady {
     [Parameter(Mandatory = $true)][string]$Name,
     [Parameter(Mandatory = $true)][string]$LogPath,
     [Parameter(Mandatory = $true)][int]$LauncherPid,
-    [Parameter(Mandatory = $true)][datetime]$Started
+    [Parameter(Mandatory = $true)][datetime]$Started,
+    [string]$ReadyPattern = 'dsh web:\s*(http://\S+)'
   )
   $printed = 0
   $lastOutput = Get-Date
@@ -625,7 +642,7 @@ function Wait-SideReady {
       if ($tail.Count -gt 30) { $tail.RemoveAt(0) }
       $elapsed = [int]((Get-Date) - $Started).TotalSeconds
       Write-Host ("[{0}] [{1,3}s] {2}" -f $Name, $elapsed, $line)
-      if ($line -match 'dsh web:\s*(http://\S+)') {
+      if ($line -match $ReadyPattern) {
         return @{ Ready = $true; Url = $Matches[1]; Tail = $tail.ToArray(); Reason = '' }
       }
     }
@@ -658,8 +675,9 @@ function Read-DesktopInspectors {
 }
 
 # 停掉请求的一边或两边，并核对端口释放。返回是否干净。
+# 桌面按当前模式核对 inspector 端口：新客户端 9829/9822/9830，旧壳 9229/9222/9230。
 function Stop-OwnedSides {
-  param([bool]$StopWeb, [bool]$StopDesktop)
+  param([bool]$StopWeb, [bool]$StopDesktop, [switch]$Legacy)
   $clean = $true
   if ($StopWeb) {
     $web = @(Get-RepoWebProcesses -Port $WebPort)
@@ -697,17 +715,7 @@ function Stop-OwnedSides {
       Write-Host ("桌面：仍有残留 PID {0}。" -f (($left | ForEach-Object { $_.ProcessId }) -join ',')) -ForegroundColor Red
       $clean = $false
     }
-    $mainPort = 9229
-    if ($env:DSH_DESKTOP_MAIN_INSPECT_PORT) { $mainPort = [int]$env:DSH_DESKTOP_MAIN_INSPECT_PORT }
-    $rendererPort = 9222
-    if ($env:DSH_DESKTOP_RENDERER_DEBUG_PORT) { $rendererPort = [int]$env:DSH_DESKTOP_RENDERER_DEBUG_PORT }
-    $hostPort = 9230
-    if ($env:DSH_DESKTOP_HOST_INSPECT_PORT) { $hostPort = [int]$env:DSH_DESKTOP_HOST_INSPECT_PORT }
-    foreach ($port in @(
-      @{ Name = 'main'; Value = $mainPort },
-      @{ Name = 'renderer'; Value = $rendererPort },
-      @{ Name = 'host'; Value = $hostPort }
-    )) {
+    foreach ($port in @(Get-DesktopInspectorPorts -Legacy:$Legacy)) {
       if (Test-PortListening -Port $port.Value) {
         $owners = @(Get-PortOwnerProcesses -Port $port.Value | Where-Object { Test-ProcessOwnedByCheckout -Process $_ })
         if ($owners.Count -gt 0) {
@@ -731,6 +739,7 @@ Assert-WebPort
 $runWeb = -not $NoWeb
 $runDesktop = -not $NoDesktop
 if (-not $runWeb -and -not $runDesktop) { throw '-NoWeb 与 -NoDesktop 同时给出，没有要处理的一边。' }
+$desktopModeLabel = if ($Legacy) { '旧壳（-Legacy）' } else { '新客户端' }
 $env:PATH = (Join-Path $env:USERPROFILE '.pnpm\bin') + ';' + $env:PATH
 $env:NO_COLOR = '1'
 $env:FORCE_COLOR = '0'
@@ -747,7 +756,7 @@ $cloudApiPort = Get-CloudApiUrlPort -Url $CloudApi
 $cloudApiPid = Get-RecordedCloudApiPid
 
 if ($ListOnly) {
-  Write-Host ("本检出 {0}" -f $root) -ForegroundColor Cyan
+  Write-Host ("本检出 {0}（桌面：{1}）" -f $root, $desktopModeLabel) -ForegroundColor Cyan
   if ($runWeb) {
     $web = @(Get-RepoWebProcesses -Port $WebPort)
     if ($web.Count -eq 0) { Write-Host ("Web：没有正在运行的实例（端口 {0}）。" -f $WebPort) -ForegroundColor Green }
@@ -779,7 +788,7 @@ if ($ListOnly) {
 if ($Stop) {
   # 先停 API：它按状态文件独立识别，随后停 Web 会清整份状态，顺序不能反。
   $apiClean = Stop-OwnedCloudApi
-  $sidesClean = Stop-OwnedSides -StopWeb $runWeb -StopDesktop $runDesktop
+  $sidesClean = Stop-OwnedSides -StopWeb $runWeb -StopDesktop $runDesktop -Legacy:$Legacy
   if (-not $apiClean -or -not $sidesClean) { exit 1 }
   return
 }
@@ -838,9 +847,9 @@ $env:LCODER_CLOUD_BASE_URL = $CloudApi
 Write-Host ("云端：已注入 LCODER_CLOUD_BASE_URL={0}（Web 与桌面两个子进程继承）" -f $CloudApi) -ForegroundColor Cyan
 
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
-Write-Host ("本检出 {0}" -f $root) -ForegroundColor Cyan
+Write-Host ("本检出 {0}（桌面：{1}）" -f $root, $desktopModeLabel) -ForegroundColor Cyan
 # 先停旧实例：桌面被单实例锁挡住的报错比这难看得多。
-Stop-OwnedSides -StopWeb $runWeb -StopDesktop $runDesktop | Out-Null
+Stop-OwnedSides -StopWeb $runWeb -StopDesktop $runDesktop -Legacy:$Legacy | Out-Null
 # 停 Web 会清掉整份状态文件；本地 API 的记录要在那之后补写，-Stop 才认得它。
 if ($cloudApiPid -gt 0) {
   Save-StartAllState -LauncherPid 0 -Port $WebPort -ApiPid $cloudApiPid -ApiPort 5081
@@ -850,7 +859,7 @@ if ($runWeb) { if (Test-Path -LiteralPath $webLog) { Remove-Item -LiteralPath $w
 if ($runDesktop) { if (Test-Path -LiteralPath $desktopLog) { Remove-Item -LiteralPath $desktopLog -Force } }
 
 if ($Fast) { Write-Host '构建：跳过（-Fast）' -ForegroundColor DarkGray }
-else { Invoke-RepoBuild }
+else { Invoke-RepoBuild -Legacy:$Legacy }
 
 $webUrl = ''
 $desktopUrl = ''
@@ -878,11 +887,12 @@ if ($runWeb) {
 
 if ($runDesktop) {
   $desktopStarted = Get-Date
-  # 构建已在上一步做完：这里走 start:desktop，不再重复构建；运行时冒烟是发布验收口径，
-  # start-all 一律不跑（显式复核用 start-desktop -Smoke）。
-  $desktopPid = Start-DesktopInstance -Root $root -LogPath $desktopLog -SkipBuild
-  Write-Host ("桌面：已启动（PID {0}），日志 {1}" -f $desktopPid, $desktopLog) -ForegroundColor Cyan
-  $result = Wait-SideReady -Name 'desktop' -LogPath $desktopLog -LauncherPid $desktopPid -Started $desktopStarted
+  # 构建已在上一步做完：这里走 launch（新客户端）或 start:desktop（旧壳），不再重复构建；
+  # 运行时冒烟是旧壳的发布验收口径，start-all 一律不跑（显式复核用 start-desktop -Smoke -Legacy）。
+  $desktopPid = Start-DesktopInstance -Root $root -LogPath $desktopLog -SkipBuild -Legacy:$Legacy
+  Write-Host ("桌面：已启动（{0}，PID {1}），日志 {2}" -f $desktopModeLabel, $desktopPid, $desktopLog) -ForegroundColor Cyan
+  $result = Wait-SideReady -Name 'desktop' -LogPath $desktopLog -LauncherPid $desktopPid -Started $desktopStarted `
+    -ReadyPattern (Get-DesktopReadyPattern -Legacy:$Legacy)
   if (-not $result.Ready) {
     Write-Host ("桌面未就绪：{0}。最后几行：" -f $result.Reason) -ForegroundColor Red
     $result.Tail | Select-Object -Last 20 | ForEach-Object { Write-Host "  $_" }
@@ -899,7 +909,7 @@ Write-Host ("云端  : {0}（{1}）" -f $CloudApi, $cloudProbeLabel)
 if ($cloudApiPid -gt 0) { Write-Host ("        本地 API PID {0}（本脚本拉起；日志 {1}）" -f $cloudApiPid, $cloudApiLog) -ForegroundColor DarkGray }
 if ($runWeb) { Write-Host ("Web   : {0}" -f $webUrl); Write-Host ("        日志 {0}" -f $webLog) -ForegroundColor DarkGray }
 if ($runDesktop) {
-  Write-Host ("桌面  : {0}" -f $desktopUrl)
+  Write-Host ("桌面  : {0}（{1}）" -f $desktopUrl, $desktopModeLabel)
   $inspectors = Read-DesktopInspectors -LogPath $desktopLog
   if ($inspectors) { Write-Host ("        inspectors {0}" -f $inspectors) -ForegroundColor DarkGray }
   Write-Host ("        日志 {0}" -f $desktopLog) -ForegroundColor DarkGray
@@ -908,6 +918,7 @@ $stopHint = 'lcoder\scripts\start-all.cmd -Stop'
 if ($runWeb -and $WebPort -ne 3080) { $stopHint += (" -WebPort {0}" -f $WebPort) }
 if (-not $runWeb) { $stopHint += ' -NoWeb' }
 if (-not $runDesktop) { $stopHint += ' -NoDesktop' }
+if ($runDesktop -and $Legacy) { $stopHint += ' -Legacy' }
 Write-Host ("停止：{0}    （Ctrl+C 只停止跟随，不停实例）" -f $stopHint) -ForegroundColor DarkGray
 
 if (-not $KeepFollowing -or (-not $runWeb -and -not $runDesktop)) { return }
