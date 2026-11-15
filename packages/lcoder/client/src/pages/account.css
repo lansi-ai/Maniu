@@ -80,28 +80,6 @@
   pointer-events: none;
 }
 
-/* 代码氛围层：底部左侧三行伪代码，悬停整页时提亮；仍不接指针。 */
-.login-ambient {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  align-content: end;
-  justify-items: start;
-  gap: 6px;
-  padding: 0 clamp(16px, 3vw, 40px) clamp(30px, 7vh, 64px);
-  pointer-events: none;
-  opacity: 0.55;
-  transition: opacity 420ms var(--lg-ease);
-}
-.login-screen:hover .login-ambient { opacity: 1; }
-.login-ambient-line {
-  font: 500 12px / 1.75 var(--lg-font-mono);
-  color: var(--lg-accent);
-  text-shadow: 0 0 14px color-mix(in srgb, currentColor 32%, transparent);
-}
-.login-ambient-line:nth-child(2) { padding-left: 18px; color: var(--lg-brand-2); }
-.login-ambient-line:nth-child(3) { color: var(--lg-faint); }
-
 /* 两栏收进一个有最大宽度的中心容器：品牌区按内容取宽，登录卡定宽，整体居中。 */
 .login-stage {
   position: relative;
@@ -115,12 +93,32 @@
   max-width: 1180px;
 }
 
-.login-hero { display: grid; gap: 12px; align-content: center; min-width: 0; }
+.login-hero { display: grid; gap: 0; align-content: center; min-width: 0; }
+
+/* 点缀：34×1 渐隐细线与小字标签，节奏对齐原型 hero__kicker。 */
+.login-hero-kicker {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+.login-hero-kicker-rule {
+  width: 34px;
+  height: 1px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--lg-accent) 60%, transparent), transparent);
+}
+.login-hero-kicker-label {
+  font-size: 11px;
+  line-height: 1;
+  letter-spacing: 0.3em;
+  color: var(--lg-muted);
+}
+
 .login-hero-title {
   margin: 0;
-  font-size: clamp(46px, 5.2vw, 74px);
+  font-size: clamp(40px, 4.2vw, 56px);
   font-weight: 600;
-  line-height: 1.06;
+  line-height: 1.05;
   letter-spacing: -0.02em;
   background-image: linear-gradient(104deg, var(--lg-accent), var(--lg-brand-2));
   background-clip: text;
@@ -132,17 +130,29 @@
 }
 .login-screen:hover .login-hero-title { opacity: 1; filter: saturate(1.2) brightness(1.04); }
 .login-hero-slogan {
-  margin: 0;
-  font-size: clamp(16px, 1.35vw, 19px);
-  font-weight: 500;
-  line-height: 1.6;
-  letter-spacing: 0.06em;
+  margin: 14px 0 0;
+  font-size: clamp(21px, 2vw, 28px);
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: 0.04em;
   color: var(--lg-ink-2);
   opacity: 0.82;
   transform: translate3d(calc(var(--login-px, 0) * 18px), calc(var(--login-py, 0) * 16px), 0);
   transition: opacity 320ms var(--lg-ease), transform 220ms var(--lg-ease);
 }
 .login-screen:hover .login-hero-slogan { opacity: 1; }
+
+/* 英雄区示例代码：留在同一列里，标语下 22px；静态英文代码 + 词典注释。 */
+.login-hero-code {
+  margin-top: 22px;
+  max-width: 30em;
+  font: 500 12px / 1.8 var(--lg-font-mono);
+  color: var(--lg-muted);
+  white-space: pre;
+  text-align: left;
+}
+.login-hero-code-line { display: block; }
+.login-hero-code-note { color: var(--lg-faint); }
 
 /* 登录卡：闲置缓慢起伏，指针视差与悬停抬升都只用 transform/translate。 */
 .login-card {
@@ -421,7 +431,8 @@
     gap: 20px;
     max-width: 480px;
   }
-  .login-ambient { display: none; }
+  .login-hero-kicker { justify-content: center; }
+  .login-hero-code { display: none; }
   .login-hero { justify-items: center; gap: 8px; text-align: center; }
   .login-hero-title { font-size: clamp(40px, 10vw, 56px); }
   .login-hero-slogan { white-space: normal; letter-spacing: 0.1em; }
@@ -430,7 +441,6 @@
 
 /* reduced-motion：品牌与氛围层不做过场，漂浮、抬升与跟随全部静止；玻璃填充、边框与阴影保留。 */
 @media (prefers-reduced-motion: reduce) {
-  .login-ambient,
   .login-hero-title,
   .login-hero-slogan,
   .login-tab,

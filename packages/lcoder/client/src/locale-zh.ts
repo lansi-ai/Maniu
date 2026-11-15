@@ -49,6 +49,8 @@ export const ZH = {
   'login.smsTab': '验证码',
   'login.passwordTab': '密码',
   'login.registerTab': '注册',
+  'login.kicker': '稳健开发',
+  'login.codeNote': '慢一点，每一步都算数',
   'login.cardTitle': '欢迎回来',
   'login.cardSubtitle': '登录慢牛，继续把每一步走稳',
   'login.cardTitleRegister': '创建账号',

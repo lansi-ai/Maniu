@@ -51,6 +51,8 @@ export const EN: Readonly<Record<MessageKey, string>> = {
   'login.smsTab': 'Code',
   'login.passwordTab': 'Password',
   'login.registerTab': 'Register',
+  'login.kicker': 'STEADY BY DESIGN',
+  'login.codeNote': 'Slow is fine; every step counts.',
   'login.cardTitle': 'Welcome back',
   'login.cardSubtitle': 'Sign in to Maniu and keep every step steady',
   'login.cardTitleRegister': 'Create account',

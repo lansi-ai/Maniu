@@ -22,11 +22,12 @@ const PHONE_PATTERN = /^1[3-9][0-9]{9}$/
 /** 六位数字验证码。 */
 const CODE_PATTERN = /^[0-9]{6}$/
 
-/** 登录页底部的装饰伪代码；不进布局、不上读屏。 */
-const AMBIENT_CODE = [
-  'const spec = read(repo)',
-  'await plan.compose(task)',
-  'if (gate.pass) ship()',
+/** 英雄区示例代码：稳定节奏，每一步先验证再推进；注释走词典。 */
+const HERO_CODE = [
+  'const pace = steady(work)',
+  'for (const step of plan) {',
+  '  verify(step); advance(step)',
+  '}',
 ]
 
 /**
@@ -202,14 +203,19 @@ export function LoginScreen({ t, onAuthenticated }: LoginScreenProps): JSX.Eleme
   return (
     <main className="login-screen" data-testid="login-screen" ref={rootRef}>
       <PaperWater />
-      <div className="login-ambient" data-testid="login-ambient" aria-hidden="true">
-        {AMBIENT_CODE.map(line => <span key={line} className="login-ambient-line">{line}</span>)}
-      </div>
 
       <div className="login-stage">
         <section className="login-hero" data-testid="login-hero">
+          <div className="login-hero-kicker">
+            <span className="login-hero-kicker-rule" aria-hidden="true" />
+            <span className="login-hero-kicker-label">{t('login.kicker')}</span>
+          </div>
           <h1 className="login-hero-title">{t('app.name')}</h1>
           <p className="login-hero-slogan">{t('welcome.slogan')}</p>
+          <div className="login-hero-code" data-testid="login-ambient" aria-hidden="true">
+            {HERO_CODE.map(line => <span key={line} className="login-hero-code-line">{line}</span>)}
+            <span className="login-hero-code-line login-hero-code-note">{`// ${t('login.codeNote')}`}</span>
+          </div>
         </section>
 
         <section
