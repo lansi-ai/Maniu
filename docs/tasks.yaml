@@ -2257,7 +2257,7 @@ tracks:
       date: '2026-11-15'
       dep: [T-199]
       inferred: false
-      note: "B 级修复，来源是 T-199 C4 冒烟第 8 项失败。根因：点开始立项后 App.startSession 立即 setPage('chat')，RequirementsPage 卸载，IntakeWizard 的 started 状态丢失，结果页 result=false 且无回看入口。修法二选一：把立项 started 与结果状态提升到 App 级，并在对话页与需求页保留回看入口；或发送成功后不立即切页，由用户主动进入对话。选一种并补组件测试。验收：C4 第 8 项 PASS（结果页可回看或入口可达）；S1 与 M2 探针不回归；typecheck、build:check、i18n、test:docs 全绿。工作树 pool-slot-1 到 lcoder/t201-intake-result，端口 9822 与 9829 与 9830。"
+      note: "B 级修复，来源是 T-199 C4 冒烟第 8 项失败。根因：点开始立项后 App.startSession 立即 setPage('chat')，RequirementsPage 卸载，IntakeWizard 的 started 状态丢失，结果页 result=false 且无回看入口。修法二选一：把立项 started 与结果状态提升到 App 级，并在对话页与需求页保留回看入口；或发送成功后不立即切页，由用户主动进入对话。选一种并补组件测试。验收：C4 第 8 项 PASS（结果页可回看或入口可达）；S1 与 M2 探针不回归；typecheck、build:check、i18n、test:docs 全绿。工作树 pool-slot-1 到 lcoder/t201-intake-result，端口 9822 与 9829 与 9830。2026-11-15 10:40 监督窗口派工；因委派轮禁新建会话，继续复用验证会话 c712b625，先修 T-200 后接本任务。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
