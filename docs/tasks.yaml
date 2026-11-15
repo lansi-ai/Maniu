@@ -2301,7 +2301,7 @@ tracks:
       date: '2026-11-15'
       dep: [T-202, T-203, T-204]
       inferred: false
-      note: "B 级视觉落地，来源是 T-204 原型与用户 2026-11-15 认可。胜出方案：Paper Water 浅雾彩水流背景 + 登录卡面自实现 SVG feDisplacementMap 折射 + 页签与输入与按钮轻量 backdrop-filter；默认雾彩色调（薄荷与淡粉与淡紫与天蓝叠加，正片叠底 0.82），桃青与薰衣草留在 token 不暴露产品开关。保留旧两栏版式、指针跟随、悬停抬升与轻漂浮；原型里的演示纹理不进产品。范围只到新客户端登录页与共享背景层，欢迎页如共用背景则一并生效；不改认证、数据、旧壳、安装器，不改导航与内容层的全局分层（用户要求另案再定）。实现要点：新增 @paper-design/shaders-react 0.0.82 并锁版本，进入 client 依赖与锁文件；新增可复用的折射玻璃组件与浅雾彩 token；移除 login-water.tsx 自绘 canvas 底；四皮肤不破，reduced-motion 下水面静态且不跟随；保持 Chromium 与 Electron 的 backdrop-filter url 可用口径。验收：登录页实际渲染水流与浅雾彩与卡面折射，CDP 核画布与 url(#) 与色调层；中英与四皮肤不破；M3 43 项与 C4 12 项不回归；typecheck、build:artifacts、build:check、test:docs、i18n、client 测试、改动文件 oxlint 全绿；留 9822 预览由用户手看。工作树 pool-slot-1 到 lcoder/t205-login-water，端口 9822 与 9829 与 9830。2026-11-15 15:50 监督窗口登记并派工。"
+      note: "B 级视觉落地，来源是 T-204 原型与用户 2026-11-15 认可。胜出方案：Paper Water 浅雾彩水流背景 + 登录卡面自实现 SVG feDisplacementMap 折射 + 页签与输入与按钮轻量 backdrop-filter；默认雾彩色调（薄荷与淡粉与淡紫与天蓝叠加，正片叠底 0.82），桃青与薰衣草留在 token 不暴露产品开关。保留旧两栏版式、指针跟随、悬停抬升与轻漂浮；原型里的演示纹理不进产品。范围只到新客户端登录页与共享背景层，欢迎页如共用背景则一并生效；不改认证、数据、旧壳、安装器，不改导航与内容层的全局分层（用户要求另案再定）。实现要点：新增 @paper-design/shaders-react 0.0.82 并锁版本，进入 client 依赖与锁文件；新增可复用的折射玻璃组件与浅雾彩 token；移除 login-water.tsx 自绘 canvas 底；四皮肤不破，reduced-motion 下水面静态且不跟随；保持 Chromium 与 Electron 的 backdrop-filter url 可用口径。验收：登录页实际渲染水流与浅雾彩与卡面折射，CDP 核画布与 url(#) 与色调层；中英与四皮肤不破；M3 43 项与 C4 12 项不回归；typecheck、build:artifacts、build:check、test:docs、i18n、client 测试、改动文件 oxlint 全绿；留 9822 预览由用户手看。工作树 pool-slot-1 到 lcoder/t205-login-water，端口 9822 与 9829 与 9830。2026-11-15 15:50 监督窗口登记并派工，实现线会话 d8836a23。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
