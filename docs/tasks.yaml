@@ -2216,7 +2216,7 @@ tracks:
       note: "B 级实现，来源是 M4 方案 C2 与 C3。C2 发布 profile：宿主-only 组合（connection、file-upload、api-remotes、host-webserver、app-boot、profile-boot，加 @lcoder/kernel/cloud 与必要宿主面），不挂上游客户端插件；新客户端入口与发布态 home（~/.dsh）；验证宿主起、新壳连上、四页与聊天可用。C3 Windows 打包链：为 @lcoder/desktop 建 electron-builder 配置，含 asar 与 asarUnpack、extraResources、NSIS per-user、LCoder 身份与图标，首版不带自动更新；先产出 unsigned win 包与 win-unpacked 并称重，记录签名所需人工步骤。范围：packages/lcoder/desktop、lcoder/scripts 与必要发布配置；不改旧壳业务与上游；不改 .spec 与台账；不 push、不合并。验收：unsigned 包可装可起（本机不允许时装 win-unpacked 验证），新客户端四页与会话可用，打包称重记录字节；S1、M2、M3、t195 四条探针仍 PASS；门禁全绿。工作树 pool-slot-1 到 lcoder/t197-package，端口 9822 与 9829 与 9830。2026-11-15 05:10 监督窗口派工，实现线会话 485d7638。2026-11-15 08:45 监督窗口核验并收口。C2 发布 profile 四层拼成 DSH_HOME/profiles/lcoder，十一个 preset 逐个 session/create 成功；C3 落地 electron-builder 与 package-win，pnpm deploy 只留依赖闭包，打包前硬断言禁止 libreoffice-kit 与 dsh-desktop 与链接与嵌套 node 或 electron。最终 unsigned 安装包 235,169,219 字节，win-unpacked 867,184,778 字节，宿主依赖树 264,974,028 字节（收敛前 803,464,611），app.asar 6,628,597，运行时 115,228,736；静默安装到本地程序目录可起，LCoder.exe 产品名与版本 0.1.0 正确。发布 profile 开发态与 win-unpacked 与安装态分别跑 S1、M2、M3、t195，全部 PASS；主检复跑 build:artifacts 八项、build:check、typecheck、packages/lcoder vitest 一百零三文件一千一百八十一例、i18n、test:docs 二十一项全过；S1、M2、M3、t195 四条探针全 PASS。人工签名清单见 lcoder/windows-packaging.md。未验项：签名包与 publisherName 与时间戳、生产 feed 上传与刷新（首版不带自动更新）、真实云端与官网 provider、macOS、自动更新与安装期锁与深链、旧壳自定义 NSIS 文案未迁入。已合入 lcoder/main、release pool-slot-1。"
     - id: T-198
       title: 旧启动命令默认拉起新客户端
-      status: doing
+      status: done
       face: 工程
       type: 开发
       owner: lance
@@ -2224,7 +2224,7 @@ tracks:
       date: '2026-11-15'
       dep: [T-197]
       inferred: false
-      note: "B 级入口切换，来源是用户 2026-11-15 要求继续用老命令启动新客户端。范围：lcoder/scripts 下 start-desktop 与 start-all 及其共用函数，默认改为启动 @lcoder/desktop（源码态，端口 9822/9829/9830，home 仓内），新增 -Legacy 切回旧壳（9222 系列）；旧的 -Fast、-NoBuild、-KeepFollowing、-ListOnly、-Stop 语义保持；start-all 保留云端探测与 -StartCloudApi，Web 是否保留按原样。要点：进程归属识别要同时认新客户端 user-data-dir；就绪判定从新壳日志的宿主就绪行取地址；-Smoke 只对 -Legacy 生效，默认新客户端忽略并提示；smoke.cmd 等依赖旧壳的调用方要显式加 -Legacy；更新 RUN.md 与脚本头注释。验收：start-desktop.cmd -Fast 默认起新客户端；-Legacy 起旧壳；start-all.cmd -Fast 起新客户端（Web 按原逻辑）；-Stop 与 -ListOnly 正确；四条探针不回归；门禁全绿。工作树 pool-slot-1 到 lcoder/t198-start-entry，端口 9822 与 9829 与 9830。2026-11-15 09:00 监督窗口派工，实现线会话 97670d68。"
+      note: "B 级入口切换，来源是用户 2026-11-15 要求继续用老命令启动新客户端。范围：lcoder/scripts 下 start-desktop 与 start-all 及其共用函数，默认改为启动 @lcoder/desktop（源码态，端口 9822/9829/9830，home 仓内），新增 -Legacy 切回旧壳（9222 系列）；旧的 -Fast、-NoBuild、-KeepFollowing、-ListOnly、-Stop 语义保持；start-all 保留云端探测与 -StartCloudApi，Web 是否保留按原样。要点：进程归属识别要同时认新客户端 user-data-dir；就绪判定从新壳日志的宿主就绪行取地址；-Smoke 只对 -Legacy 生效，默认新客户端忽略并提示；smoke.cmd 等依赖旧壳的调用方要显式加 -Legacy；更新 RUN.md 与脚本头注释。验收：start-desktop.cmd -Fast 默认起新客户端；-Legacy 起旧壳；start-all.cmd -Fast 起新客户端（Web 按原逻辑）；-Stop 与 -ListOnly 正确；四条探针不回归；门禁全绿。工作树 pool-slot-1 到 lcoder/t198-start-entry，端口 9822 与 9829 与 9830。2026-11-15 09:00 监督窗口派工，实现线会话 97670d68。2026-11-15 09:25 监督窗口核验并收口。start-desktop 与 start-all 默认改起新客户端，新增 -Legacy 回退旧壳；进程归属同时认新客户端 user-data-dir 与旧壳入口；就绪判定改读新壳宿主就绪行；-Smoke 仅对 -Legacy 生效，smoke.cmd 已注明旧壳专用；RUN.md 与脚本头同步。验收：start-desktop -Fast 四秒就绪、-Legacy 四十三秒；start-all -Fast 起 Web 与新客户端；-ListOnly 与 -Stop 正确且无残留；S1、M2、M3、t195 四条探针全 PASS；typecheck、build:check、test:docs 全过。主检实测老命令四秒起新客户端窗口。已合入 lcoder/main、release pool-slot-1。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
