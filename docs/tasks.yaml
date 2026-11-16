@@ -2422,7 +2422,7 @@ tracks:
       date: '2026-11-16'
       dep: [T-216]
       inferred: false
-      note: "B 级界面清理，来源是用户 2026-11-16 截图：左侧导航再出现一次「慢牛 Maniu」要去掉；需求页「来自 某路径 的 .spec/requirements」来源行去掉；需求页顶部那块列 .spec 文件与「宿主尚未就绪」的红色诊断块没有用，至少此页不出现；所有蓝色主题色按钮文字统一白色。范围只到 client：移除 app.tsx 的 nav-brand；requirements.tsx 移除 page-sub 来源行与 projection error 的 pre 块；样式层给 .pill-accent 全状态白字（含 hover/disabled/焦点），不改其它语义。验收：CDP 核导航无重复品牌、需求页无来源行与诊断块、蓝色按钮计算色白色；相关组件测试、i18n、typecheck、build、docs、M3 43/43、C4 12/12 全绿；留 9823 预览。工作树 pool-slot-2 到 lcoder/t217-requirements-cleanup，端口 9823/9831/9832。2026-11-16 16:20 监督窗口登记并派工。"
+      note: "B 级界面清理，来源是用户 2026-11-16 截图：左侧导航再出现一次「慢牛 Maniu」要去掉；需求页「来自 某路径 的 .spec/requirements」来源行去掉；需求页顶部那块列 .spec 文件与「宿主尚未就绪」的红色诊断块没有用，至少此页不出现；所有蓝色主题色按钮文字统一白色。范围只到 client：移除 app.tsx 的 nav-brand；requirements.tsx 移除 page-sub 来源行与 projection error 的 pre 块；样式层给 .pill-accent 全状态白字（含 hover/disabled/焦点），不改其它语义。验收：CDP 核导航无重复品牌、需求页无来源行与诊断块、蓝色按钮计算色白色；相关组件测试、i18n、typecheck、build、docs、M3 43/43、C4 12/12 全绿；留 9823 预览。工作树 pool-slot-2 到 lcoder/t217-requirements-cleanup，端口 9823/9831/9832。2026-11-16 16:20 监督窗口登记并派工，实现线会话 e3426830。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
