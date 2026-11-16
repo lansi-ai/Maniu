@@ -2312,7 +2312,7 @@ tracks:
       date: '2026-11-15'
       dep: []
       inferred: false
-      note: "B 级云端接入，来源是用户 2026-11-15 决定把 LCoder 云端 DeepSeek 上游配成 OpenCode Go 订阅。现状：LCoder-cloud 开发态默认上游 127.0.0.1:5092 且 .env 无 OPENCODE 项，模型调用落 502；Zen 免费通道对非官方客户端返回 429，Go 是订阅额度。目标配置：OPENCODE_BASE_URL=https://opencode.ai/zen/go/v1、OPENCODE_MODEL_ID=deepseek-v4.1-flash、OPENCODE_ALLOWED_HOSTS=opencode.ai、OPENCODE_API_KEY 由用户自己写入 .env；Go 的 OpenAI 兼容端点对第三方要求稳定的 x-opencode-session 头，需在 UpstreamClient 增加可选 OPENCODE_SESSION_ID 配置（未配置时进程内生成稳定 UUID），并在文档写清 OpenCode 控制台的 Region 需选 Global。范围只改 LCoder-cloud 仓与其 .env 示例与文档，不改桌面端仓、不打印密钥。验收：dotnet build 与 tests 通过；API 重启后 /health 正常；经网关 /v1/models 可见 deepseek 别名；用户填入 Go key 后一次 chat 走通；日志不含密钥。2026-11-15 20:20 监督窗口登记并派工。"
+      note: "B 级云端接入，来源是用户 2026-11-15 决定把 LCoder 云端 DeepSeek 上游配成 OpenCode Go 订阅。现状：LCoder-cloud 开发态默认上游 127.0.0.1:5092 且 .env 无 OPENCODE 项，模型调用落 502；Zen 免费通道对非官方客户端返回 429，Go 是订阅额度。目标配置：OPENCODE_BASE_URL=https://opencode.ai/zen/go/v1、OPENCODE_MODEL_ID=deepseek-v4.1-flash、OPENCODE_ALLOWED_HOSTS=opencode.ai、OPENCODE_API_KEY 由用户自己写入 .env；Go 的 OpenAI 兼容端点对第三方要求稳定的 x-opencode-session 头，需在 UpstreamClient 增加可选 OPENCODE_SESSION_ID 配置（未配置时进程内生成稳定 UUID），并在文档写清 OpenCode 控制台的 Region 需选 Global。范围只改 LCoder-cloud 仓与其 .env 示例与文档，不改桌面端仓、不打印密钥。验收：dotnet build 与 tests 通过；API 重启后 /health 正常；经网关 /v1/models 可见 deepseek 别名；用户填入 Go key 后一次 chat 走通；日志不含密钥。2026-11-15 20:20 监督窗口登记并派工，实现线会话 34381f2a。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
