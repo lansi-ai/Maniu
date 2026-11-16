@@ -2390,6 +2390,17 @@ tracks:
       dep: [T-212]
       inferred: false
       note: "B 级三修续，用户 2026-11-16 定位闪烁只发生在消息区且未出字时已开始。排查发现 styles.css 对 liquid-glass 把 body 设为 background transparent，窗口依赖 Electron 底色；消息区是唯一大面积直接透出负层 ambient 的滚动容器，透明根加滚动容器加负 z 背景容易在重绘时闪。修法：body 改用不透明基色，保留 ambient 在负层可见；给 .messages 加 isolation isolate、contain paint 与 translateZ(0)，ambient layer 也提升合成层；保持 T-212 零合成与 T-208 思考态。验收：CDP 核 body 计算背景非透明、ambient 仍可见、messages 有隔离层；真实云端长回复；闪烁由用户手看；若仍闪直接转 LCODER_DISABLE_GPU=1 的 GPU A/B；M3/C4 与门禁。工作树 pool-slot-2 到 lcoder/t213-opaque-root，端口 9823/9831/9832。2026-11-16 13:55 监督窗口登记并派工，实现线会话 d39ac2df。"
+    - id: T-215
+      title: 修复聊天历史空满交替闪烁
+      status: doing
+      face: 用户端
+      type: 修复
+      owner: lance
+      created: '2026-11-16'
+      date: '2026-11-16'
+      dep: [T-213]
+      inferred: false
+      note: "B 级根因修复，来源是用户反复反馈闪烁且滚动条卡住。用 CDP screencast 抓连续帧后实锤：消息区整块亮度在 230.0 与 226.2 每帧交替，差分恒为 25.06；025 帧有完整回复、026 帧是空消息区，即 store 在「有历史」与「空历史」之间反复重置，导致整块重绘与滚动回顶，不是玻璃或 GPU。可疑路径：openFollow 先 dispatch reset 再开流；chat.rebaseline 每次变化都会再次 openFollow；assistant-start 在已有 attempt 时无条件 rebaseline；多步回合的多次 start 或重连快照触发循环。修法：reconnect/rebaseline 重开时不再 reset，保留现有 rows 直到 snapshot 到达；assistant-start 改成切换 attempt、清 liveText 但不 rebaseline；stale attempt 的 chunk 直接丢弃；snapshot 到达再用权威历史替换。补多步 start/重连快照测试，钉住 rebaseline 不增长、历史不消失。验收：CDP screencast 连续帧不再出现空/满交替，滚动位置保持且可滚；真实云端多步长回复；M3 43/43、C4 12/12、client 测试与 typecheck/build/docs/i18n/oxlint 全绿。工作树 pool-slot-2 到 lcoder/t215-rebaseline-loop，端口 9823/9831/9832。2026-11-16 14:35 监督窗口登记并派工，实现线会话 d39ac2df。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
