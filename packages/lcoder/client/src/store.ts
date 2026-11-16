@@ -75,7 +75,8 @@ export interface HistoryRecord {
 
 interface ActiveAttempt {
   readonly attemptId: string
-  readonly revision: number
+  /** 最近接受的帧序号（宿主每帧 +1）；不是 attempt 代号。 */
+  revision: number
   nextIndex: number
   readonly settleSeq?: number
 }
@@ -119,6 +120,11 @@ export interface ChatState {
   readonly retry: ChatRetryNotice | null
   /** 回合最终失败；新的回合开始时清除。 */
   readonly failure: ChatFailure | null
+  /**
+   * 已提交、但对应 assistant/message 还没折进来的序号。
+   * 中途换 attempt 时把它带过这一跳，事件到达仍即时落行。
+   */
+  readonly settledSeqs: readonly number[]
   readonly title: string | null
   readonly projections: Readonly<Record<string, unknown>>
   /** 开场帧投影的水位；控制流的同键更新只有更新时才覆盖。 */
@@ -139,6 +145,7 @@ export const emptyChat: ChatState = {
   streamError: null,
   retry: null,
   failure: null,
+  settledSeqs: [],
   title: null,
   projections: {},
   projectionSeq: 0,
@@ -339,11 +346,27 @@ function retryOf(data: unknown): ChatRetryNotice | null {
   }
 }
 
+/** 一个回合仍只有一枚过程组；过程条目一提交就落行，让工具卡在回合结束前可见。 */
+function materializeProcess(
+  rows: readonly ChatRow[],
+  turn: TurnBuffer,
+  items: readonly ProcessItem[],
+): readonly ChatRow[] {
+  if (items.length === 0) return rows
+  const id = `p-${turn.id}`
+  const index = rows.findIndex(row => row.kind === 'process' && row.id === id)
+  if (index === -1) return [...rows, { kind: 'process', id, items }]
+  const next = [...rows]
+  next[index] = { kind: 'process', id, items }
+  return next
+}
+
 function flushTurn(state: ChatState): ChatState {
   const turn = state.turn
   if (turn === null) return state
   const rows: ChatRow[] = [...state.rows]
-  if (turn.items.length > 0) rows.push({ kind: 'process', id: `p-${turn.id}`, items: turn.items })
+  const materialized = rows.some(row => row.kind === 'process' && row.id === `p-${turn.id}`)
+  if (turn.items.length > 0 && !materialized) rows.push({ kind: 'process', id: `p-${turn.id}`, items: turn.items })
   const text = turn.texts.join('\n\n').trim()
   if (text !== '') rows.push({ kind: 'assistant', id: `a-${turn.id}`, text })
   return { ...state, rows, turn: null }
@@ -386,7 +409,8 @@ function collectAssistant(state: ChatState, data: unknown, seq: number): ChatSta
       })
     }
   }
-  return { ...base, turn: { ...started, items, texts } }
+  const nextTurn: TurnBuffer = { ...started, items, texts }
+  return { ...base, rows: materializeProcess(base.rows, started, items), turn: nextTurn }
 }
 
 function collectToolResult(state: ChatState, data: unknown): ChatState {
@@ -443,6 +467,11 @@ function applyEvent(state: ChatState, record: HistoryRecord): ChatState {
   }
 }
 
+/** 已提交 attempt 的序号交接给下一段尝试：对应事件到达时仍按「提交即落行」处理。 */
+function holdSettle(state: ChatState, attempt: ActiveAttempt): readonly number[] {
+  return attempt.settleSeq === undefined ? state.settledSeqs : [...state.settledSeqs, attempt.settleSeq]
+}
+
 /** 折叠一个 durable 事件；seq 不连续时标记重开，不把缺口画成完整历史。 */
 function appendEvent(state: ChatState, record: HistoryRecord): ChatState {
   const seq = record.event.seq
@@ -450,13 +479,17 @@ function appendEvent(state: ChatState, record: HistoryRecord): ChatState {
   if (seq > state.nextSeq) return { ...state, rebaseline: state.rebaseline + 1 }
   if (replacesSurface(record)) return { ...state, rebaseline: state.rebaseline + 1 }
   const applied = applyEvent(state, record)
-  const settled = applied.attempt !== null && applied.attempt.settleSeq === seq
+  const settledByAttempt = applied.attempt !== null && applied.attempt.settleSeq === seq
+  const settledByHistory = applied.settledSeqs.includes(seq)
   // 提交即落行：先画已提交正文，再清掉流式草稿，避免中间闪一帧空白。
-  const next = settled ? flushTurn(applied) : applied
+  const next = settledByAttempt || settledByHistory ? flushTurn(applied) : applied
   return {
     ...next,
     nextSeq: seq + 1,
-    ...(settled ? { attempt: null, liveText: '', liveReasoning: '' } : {}),
+    ...(settledByAttempt ? { attempt: null, liveText: '', liveReasoning: '' } : {}),
+    ...(settledByHistory
+      ? { settledSeqs: applied.settledSeqs.filter(value => value !== seq) }
+      : {}),
   }
 }
 
@@ -492,10 +525,17 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
     }
     case 'event':
       return appendEvent(state, action.record)
-    case 'assistant-start':
-      if (state.attempt !== null) return { ...state, rebaseline: state.rebaseline + 1 }
+    case 'assistant-start': {
+      const current = state.attempt
+      // 帧序号只增不减：迟到的旧 start 不能把已经走到后面的一段顶回去。
+      if (current !== null && action.revision < current.revision) return state
+      // 同一 attempt 的重播（重连后从头再来）就地重置序号；换代 attempt 才带走待结算序号。
+      const sameAttempt = current !== null && current.attemptId === action.attemptId
       return {
         ...state,
+        settledSeqs: current !== null && !sameAttempt
+          ? holdSettle(state, current)
+          : state.settledSeqs,
         attempt: { attemptId: action.attemptId, revision: action.revision, nextIndex: 0 },
         liveText: '',
         liveReasoning: '',
@@ -503,11 +543,15 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
         retry: null,
         failure: null,
       }
+    }
     case 'assistant-chunk': {
       const attempt = state.attempt
+      // 没有活动尝试、帧属于旧尝试、或帧序号没有前进：直接丢弃，不触发全局重开。
       if (attempt === null || attempt.attemptId !== action.attemptId
-        || attempt.revision !== action.revision || attempt.nextIndex !== action.index) {
-        return { ...state, rebaseline: state.rebaseline + 1 }
+        || action.revision <= attempt.revision) return state
+      if (attempt.nextIndex !== action.index) {
+        // 同一尝试里出现块序号缺口：只请求一次重开；attempt 清空后后续旧帧都会被丢弃。
+        return { ...state, attempt: null, rebaseline: state.rebaseline + 1 }
       }
       const chunk = action.chunk
       const text = isRecord(chunk) && chunk.type === 'text-delta'
@@ -516,7 +560,7 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
         && typeof chunk.text === 'string' ? chunk.text : ''
       return {
         ...state,
-        attempt: { ...attempt, nextIndex: attempt.nextIndex + 1 },
+        attempt: { ...attempt, revision: action.revision, nextIndex: attempt.nextIndex + 1 },
         liveText: state.liveText + text,
         // 正文一开始到达就不再显示思考态；思考缓冲也只留到那一刻。
         liveReasoning: text === '' ? state.liveReasoning + reasoning : '',
@@ -524,7 +568,8 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
     }
     case 'assistant-end': {
       const attempt = state.attempt
-      if (attempt === null || attempt.attemptId !== action.attemptId || attempt.revision !== action.revision) return state
+      if (attempt === null || attempt.attemptId !== action.attemptId
+        || action.revision < attempt.revision) return state
       const outcome = action.outcome
       if (!isRecord(outcome) || outcome.kind !== 'committed') {
         return { ...state, attempt: null, liveText: '', liveReasoning: '' }

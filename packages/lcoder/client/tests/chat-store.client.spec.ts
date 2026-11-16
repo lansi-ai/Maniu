@@ -1,6 +1,6 @@
 /** store 的折叠：三帧、补洞、过程组、结果摘要与标题。 */
 import { describe, expect, it } from 'vitest'
-import { actionOfFrame, chatReducer, emptyChat, type HistoryRecord } from '../src/store.ts'
+import { actionOfFrame, chatReducer, emptyChat, type ChatAction, type HistoryRecord } from '../src/store.ts'
 
 function record(type: string, seq: number, data: unknown): HistoryRecord {
   return { type: 'event', event: { type, seq, time: seq, data } }
@@ -73,6 +73,19 @@ describe('chatReducer snapshot', () => {
     expect(state.liveText).toBe('你好')
     expect(state.attempt?.nextIndex).toBe(2)
   })
+
+  it('重连快照原子替换历史并清掉待结算序号', () => {
+    let state = snapshot([user], 1)
+    state = chatReducer(state, { type: 'assistant-start', attemptId: 'a1', revision: 1 })
+    state = chatReducer(state, { type: 'assistant-end', attemptId: 'a1', revision: 1, outcome: { kind: 'committed', eventType: 'assistant/message', seq: 2 } })
+    state = chatReducer(state, { type: 'assistant-start', attemptId: 'a2', revision: 2 })
+    expect(state.settledSeqs).toEqual([2])
+
+    const reconnected = snapshot([user, finalText], 4)
+    expect(reconnected.settledSeqs).toEqual([])
+    expect(reconnected.attempt).toBeNull()
+    expect(reconnected.rows.map(row => row.kind)).toEqual(['user', 'assistant'])
+  })
 })
 
 describe('chatReducer event', () => {
@@ -81,6 +94,24 @@ describe('chatReducer event', () => {
     const next = chatReducer(state, { type: 'event', record: record('user/message', 6, { source: { kind: 'user' }, content: [] }) })
     expect(next.rebaseline).toBe(1)
     expect(next.rows).toEqual([])
+  })
+
+  it('过程条目提交后立即成为行，回合结束不重复', () => {
+    let state = snapshot([user], 1)
+    state = chatReducer(state, { type: 'event', record: toolCall })
+    expect(state.rows.filter(row => row.kind === 'process')).toHaveLength(1)
+    expect(state.turn?.items).toHaveLength(2)
+    state = chatReducer(state, { type: 'event', record: record('turn/end', 3, { turn: 1 }) })
+    expect(state.rows.filter(row => row.kind === 'process')).toHaveLength(1)
+    expect(state.turn).toBeNull()
+  })
+
+  it('seq 缺口只标重开，已画出的历史保持不动', () => {
+    const state = snapshot([user], 1)
+    const next = chatReducer(state, { type: 'event', record: record('user/message', 5, { source: { kind: 'user' }, content: [] }) })
+    expect(next.rebaseline).toBe(1)
+    expect(next.rows).toEqual(state.rows)
+    expect(next.nextSeq).toBe(state.nextSeq)
   })
 
   it('重复送达的事件被忽略', () => {
@@ -101,59 +132,148 @@ describe('chatReducer event', () => {
 })
 
 describe('chatReducer assistant-stream', () => {
-  it('start/chunk/end 落定后清掉流式草稿并留下正文', () => {
+  /** 宿主的 revision 是逐帧递增的帧序号：start、每个 chunk、end 各占一个。 */
+  function frames(): {
+    start: (attemptId: string) => ChatAction
+    chunk: (attemptId: string, index: number, chunk: unknown) => ChatAction
+    end: (attemptId: string, outcome: unknown) => ChatAction
+  } {
+    let revision = 0
+    return {
+      start: attemptId => ({ type: 'assistant-start', attemptId, revision: ++revision }),
+      chunk: (attemptId, index, chunk) => ({ type: 'assistant-chunk', attemptId, revision: ++revision, index, chunk }),
+      end: (attemptId, outcome) => ({ type: 'assistant-end', attemptId, revision: ++revision, outcome }),
+    }
+  }
+
+  it('帧序号逐帧递增的同一尝试全部接受，不再被判成 stale', () => {
+    const frame = frames()
     let state = snapshot([], 0)
-    state = chatReducer(state, { type: 'assistant-start', attemptId: 'a1', revision: 1 })
-    state = chatReducer(state, { type: 'assistant-chunk', attemptId: 'a1', revision: 1, index: 0, chunk: { type: 'text-delta', text: '你' } })
-    state = chatReducer(state, { type: 'assistant-chunk', attemptId: 'a1', revision: 1, index: 1, chunk: { type: 'text-delta', text: '好' } })
+    state = chatReducer(state, frame.start('a1'))
+    state = chatReducer(state, frame.chunk('a1', 0, { type: 'text-delta', text: '你' }))
+    state = chatReducer(state, frame.chunk('a1', 1, { type: 'text-delta', text: '好' }))
+    state = chatReducer(state, frame.chunk('a1', 2, { type: 'text-delta', text: '呀' }))
+    expect(state.rebaseline).toBe(0)
+    expect(state.liveText).toBe('你好呀')
+    expect(state.attempt?.revision).toBe(4)
+  })
+
+  it('start/chunk/end 落定后清掉流式草稿并留下正文', () => {
+    const frame = frames()
+    let state = snapshot([], 0)
+    state = chatReducer(state, frame.start('a1'))
+    state = chatReducer(state, frame.chunk('a1', 0, { type: 'text-delta', text: '你' }))
+    state = chatReducer(state, frame.chunk('a1', 1, { type: 'text-delta', text: '好' }))
     expect(state.liveText).toBe('你好')
-    state = chatReducer(state, { type: 'assistant-end', attemptId: 'a1', revision: 1, outcome: { kind: 'committed', eventType: 'assistant/message', seq: 1 } })
+    state = chatReducer(state, frame.end('a1', { kind: 'committed', eventType: 'assistant/message', seq: 1 }))
     state = chatReducer(state, { type: 'event', record: record('assistant/message', 1, { turn: 1, step: 1, message: { content: [{ type: 'text', text: '你好' }] } }) })
     expect(state.liveText).toBe('')
     expect(state.attempt).toBeNull()
     expect(state.rows).toEqual([{ kind: 'assistant', id: 'a-1', text: '你好' }])
   })
 
-  it('块序号不对时要求重开快照', () => {
+  it('块序号缺口只重开一次，陈旧块直接丢弃', () => {
+    const frame = frames()
     let state = snapshot([], 0)
-    state = chatReducer(state, { type: 'assistant-start', attemptId: 'a1', revision: 1 })
-    const next = chatReducer(state, { type: 'assistant-chunk', attemptId: 'a1', revision: 1, index: 3, chunk: { type: 'text-delta', text: 'x' } })
-    expect(next.rebaseline).toBe(1)
+    state = chatReducer(state, frame.start('a1'))
+    const gapped = chatReducer(state, frame.chunk('a1', 3, { type: 'text-delta', text: 'x' }))
+    expect(gapped.rebaseline).toBe(1)
+    expect(gapped.attempt).toBeNull()
+    const stale = chatReducer(gapped, frame.chunk('a1', 0, { type: 'text-delta', text: 'y' }))
+    expect(stale).toBe(gapped)
+    expect(stale.rebaseline).toBe(1)
+  })
+
+  it('连续多次 assistant-start 只切换尝试，不重开也不清历史', () => {
+    const frame = frames()
+    let state = snapshot([user], 1)
+    state = chatReducer(state, frame.start('a1'))
+    state = chatReducer(state, frame.chunk('a1', 0, { type: 'text-delta', text: '第一段' }))
+    const switched = chatReducer(state, frame.start('a2'))
+    expect(switched.rebaseline).toBe(0)
+    expect(switched.rows).toEqual(state.rows)
+    expect(switched.liveText).toBe('')
+    expect(switched.attempt).toMatchObject({ attemptId: 'a2', nextIndex: 0 })
+
+    const late = chatReducer(switched, { type: 'assistant-start', attemptId: 'a0', revision: 0 })
+    expect(late).toBe(switched)
+  })
+
+  it('同一 attempt 重播 start 就地重置序号，不重开', () => {
+    const frame = frames()
+    let state = snapshot([], 0)
+    state = chatReducer(state, frame.start('a1'))
+    state = chatReducer(state, frame.chunk('a1', 0, { type: 'text-delta', text: '半' }))
+    const replayed = chatReducer(state, frame.start('a1'))
+    expect(replayed.rebaseline).toBe(0)
+    expect(replayed.liveText).toBe('')
+    expect(replayed.attempt?.nextIndex).toBe(0)
+    const resumed = chatReducer(replayed, frame.chunk('a1', 0, { type: 'text-delta', text: '重' }))
+    expect(resumed.liveText).toBe('重')
+    const late = chatReducer(resumed, { type: 'assistant-start', attemptId: 'a1', revision: 2 })
+    expect(late).toBe(resumed)
+  })
+
+  it('旧 attempt 的块不触发重开', () => {
+    const frame = frames()
+    let state = snapshot([], 0)
+    state = chatReducer(state, frame.start('a1'))
+    state = chatReducer(state, frame.chunk('a1', 0, { type: 'text-delta', text: '旧' }))
+    state = chatReducer(state, frame.start('a2'))
+    const stale = chatReducer(state, frame.chunk('a1', 1, { type: 'text-delta', text: '尾巴' }))
+    expect(stale).toBe(state)
+    expect(stale.rebaseline).toBe(0)
+    expect(stale.liveText).toBe('')
+  })
+
+  it('切换尝试后已提交序号到达仍即时落行', () => {
+    const frame = frames()
+    let state = snapshot([], 0)
+    state = chatReducer(state, frame.start('a1'))
+    state = chatReducer(state, frame.chunk('a1', 0, { type: 'text-delta', text: '答' }))
+    state = chatReducer(state, frame.end('a1', { kind: 'committed', eventType: 'assistant/message', seq: 1 }))
+    state = chatReducer(state, frame.start('a2'))
+    expect(state.settledSeqs).toEqual([1])
+    expect(state.liveText).toBe('')
+
+    state = chatReducer(state, { type: 'event', record: record('assistant/message', 1, { turn: 1, step: 1, message: { content: [{ type: 'text', text: '答' }] } }) })
+    expect(state.rows).toEqual([{ kind: 'assistant', id: 'a-1', text: '答' }])
+    expect(state.settledSeqs).toEqual([])
+    // 补落行只清草稿，不把已经切过去的下一段 attempt 清掉。
+    expect(state.attempt).toMatchObject({ attemptId: 'a2' })
   })
 
   it('思考增量进入实时缓冲，正文一开始就清掉', () => {
+    const frame = frames()
     let state = snapshot([], 0)
-    state = chatReducer(state, { type: 'assistant-start', attemptId: 'a1', revision: 1 })
-    state = chatReducer(state, { type: 'assistant-chunk', attemptId: 'a1', revision: 1, index: 0, chunk: { type: 'reasoning-delta', index: 0, text: '先读' } })
-    state = chatReducer(state, { type: 'assistant-chunk', attemptId: 'a1', revision: 1, index: 1, chunk: { type: 'reasoning-delta', index: 0, text: '文件' } })
+    state = chatReducer(state, frame.start('a1'))
+    state = chatReducer(state, frame.chunk('a1', 0, { type: 'reasoning-delta', index: 0, text: '先读' }))
+    state = chatReducer(state, frame.chunk('a1', 1, { type: 'reasoning-delta', index: 0, text: '文件' }))
     expect(state.liveReasoning).toBe('先读文件')
     expect(state.liveText).toBe('')
     expect(state.attempt).not.toBeNull()
-    state = chatReducer(state, { type: 'assistant-chunk', attemptId: 'a1', revision: 1, index: 2, chunk: { type: 'text-delta', index: 1, text: '结论' } })
+    state = chatReducer(state, frame.chunk('a1', 2, { type: 'text-delta', index: 1, text: '结论' }))
     expect(state.liveText).toBe('结论')
     expect(state.liveReasoning).toBe('')
   })
 
   it('思考增量不打断块序号，也不把正文当思考', () => {
+    const frame = frames()
     let state = snapshot([], 0)
-    state = chatReducer(state, { type: 'assistant-start', attemptId: 'a1', revision: 1 })
-    state = chatReducer(state, { type: 'assistant-chunk', attemptId: 'a1', revision: 1, index: 0, chunk: { type: 'block-start', index: 0, blockType: 'reasoning' } })
-    state = chatReducer(state, { type: 'assistant-chunk', attemptId: 'a1', revision: 1, index: 1, chunk: { type: 'reasoning-delta', index: 0, text: '思考' } })
+    state = chatReducer(state, frame.start('a1'))
+    state = chatReducer(state, frame.chunk('a1', 0, { type: 'block-start', index: 0, blockType: 'reasoning' }))
+    state = chatReducer(state, frame.chunk('a1', 1, { type: 'reasoning-delta', index: 0, text: '思考' }))
     expect(state.rebaseline).toBe(0)
     expect(state.liveReasoning).toBe('思考')
     expect(state.attempt?.nextIndex).toBe(2)
   })
 
   it('回合结束清掉实时思考，重连基线只认思考增量', () => {
+    const frame = frames()
     let state = snapshot([], 0)
-    state = chatReducer(state, { type: 'assistant-start', attemptId: 'a1', revision: 1 })
-    state = chatReducer(state, { type: 'assistant-chunk', attemptId: 'a1', revision: 1, index: 0, chunk: { type: 'reasoning-delta', index: 0, text: '想想' } })
-    const ended = chatReducer(state, {
-      type: 'assistant-end',
-      attemptId: 'a1',
-      revision: 1,
-      outcome: { kind: 'abandoned' },
-    })
+    state = chatReducer(state, frame.start('a1'))
+    state = chatReducer(state, frame.chunk('a1', 0, { type: 'reasoning-delta', index: 0, text: '想想' }))
+    const ended = chatReducer(state, frame.end('a1', { kind: 'abandoned' }))
     expect(ended.liveReasoning).toBe('')
 
     const reconnected = snapshot([], 0, {
@@ -172,9 +292,10 @@ describe('chatReducer assistant-stream', () => {
   })
 
   it('传输错误保留已提交正文与流式草稿', () => {
+    const frame = frames()
     let state = snapshot([user], 1)
-    state = chatReducer(state, { type: 'assistant-start', attemptId: 'a1', revision: 1 })
-    state = chatReducer(state, { type: 'assistant-chunk', attemptId: 'a1', revision: 1, index: 0, chunk: { type: 'text-delta', text: '半句' } })
+    state = chatReducer(state, frame.start('a1'))
+    state = chatReducer(state, frame.chunk('a1', 0, { type: 'text-delta', text: '半句' }))
     const errored = chatReducer(state, { type: 'stream-error', message: 'transport-closed' })
     expect(errored.rows).toEqual(state.rows)
     expect(errored.liveText).toBe('半句')
