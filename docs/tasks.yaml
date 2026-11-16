@@ -2357,6 +2357,17 @@ tracks:
       dep: [T-208]
       inferred: false
       note: "B 级二修，来源是用户 2026-11-16 反馈 T-208 合并后输出时仍整窗闪烁。判断：内容层多块玻璃卡在滚动容器内随流式高度变化反复合成，叠加 34 到 52 秒环境 blob 动画，形成整窗闪。修法：聊天内容层（用户/助手/过程组卡片）改为静态磨砂，去掉 backdrop-filter，用半透明底色与内高光保持层次；回合运行中给 app 加 data-running 并暂停 ambient-blob 动画；导航、侧栏、输入器仍保留玻璃；保留 T-208 的思考态、过程组折叠与 80ms 合并。验收：CDP 核 messages 内无 backdrop-filter、运行期 blob 动画为 paused、更新频率不高于上一轮；真实云端一条长回复后由用户手看闪烁是否消失；M3 43/43、C4 12/12 与 client 测试、typecheck、build、docs、i18n、oxlint 全绿；留 9823 预览。工作树 pool-slot-2 到 lcoder/t210-flicker-2。2026-11-16 12:50 监督窗口登记并派工，实现线会话 d39ac2df。"
+    - id: T-211
+      title: 模型失败可见性与 debug 日志
+      status: doing
+      face: 工程
+      type: 修复
+      owner: lance
+      created: '2026-11-16'
+      date: '2026-11-16'
+      dep: [T-210]
+      inferred: false
+      note: "B 级可观测修复，来源是用户 2026-11-16 反馈客户端没有输出、界面也看不到错误。排查发现 5081 API 旧进程没带当前 .env，网关把上游 400 折成 502，客户端只有一问没有回答；用 .env 重启 API 后网关 chat 200、客户端实发返回 ok。根因有两层：进程配置漂移、失败不可见。范围：客户端在 llm/retry、turn/end error 与 stream-error 时显示可见状态（重试次数、错误码与请求号），不再静默；云端在 OPENCODE_DEBUG_UPSTREAM=1 时记录上游模型、session 头是否存在、状态码与响应体片段（截断并脱敏，不记录密钥），默认关闭；本地 .env 打开该开关便于调试。验收：把云端上游指向错误地址或停 API 模拟失败，客户端出现错误与重试提示，云端 debug 日志含状态码与 requestId 且无密钥；恢复后正常；M3 43/43、C4 12/12 与 client 测试、typecheck、build、docs、i18n、oxlint 全绿。T-211 基于 T-210 分支（未合并），工作树 pool-slot-1 到 lcoder/t211-debug-visibility，端口 9824 与 9833 与 9834。2026-11-16 13:20 监督窗口登记并派工。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
