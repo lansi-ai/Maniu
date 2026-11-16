@@ -22,6 +22,7 @@ export const IPC_CHANNELS = {
   locale: 'lcoder:locale',
   preferencesRead: 'lcoder:preferences-read',
   preferencesWrite: 'lcoder:preferences-write',
+  pickDirectory: 'lcoder:pick-directory',
 } as const
 
 /** 宿主子进程生命周期状态。 */
@@ -131,6 +132,11 @@ export type UpdateCheck =
   | { readonly kind: 'up-to-date'; readonly version: string }
   | { readonly kind: 'error'; readonly version: string; readonly detail: string }
 
+/** 主进程目录选择的回执；失败带人能读的原因，不静默变成取消。 */
+export type DirectoryPickResult =
+  | { readonly ok: true; readonly path: string | null }
+  | { readonly ok: false; readonly message: string }
+
 /** preload 暴露给渲染端的完整面。 */
 export interface LcoderApi {
   /** 订阅宿主状态；返回取消订阅函数。 */
@@ -173,4 +179,6 @@ export interface LcoderApi {
   readPreferences(): Promise<DesktopPreferences>
   /** 写一项或多项偏好；主进程负责落盘并返回合并后的完整值。 */
   writePreferences(patch: Partial<DesktopPreferences>): Promise<DesktopPreferences>
+  /** 弹出系统目录选择框；取消返回 null，打不开时抛错而不是当作取消。 */
+  pickDirectory(): Promise<string | null>
 }

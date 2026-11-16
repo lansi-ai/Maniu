@@ -118,12 +118,10 @@ export function useWorkspaceList(enabled: boolean): {
 
 /**
  * 选一个目录。
- * @returns 用户选中的路径；取消或失败为 null。
+ * @returns 用户选中的路径；取消为 null；对话框打不开时抛错。
  */
 export async function pickDirectory(): Promise<string | null> {
-  const answer = await window.lcoder.call('directoryPicker', 'pick', {})
-  if (!answer.ok) return null
-  return typeof answer.value === 'string' && answer.value !== '' ? answer.value : null
+  return window.lcoder.pickDirectory()
 }
 
 /** 打开项目的结果。 */

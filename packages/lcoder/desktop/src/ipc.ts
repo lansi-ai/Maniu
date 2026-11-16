@@ -1,11 +1,11 @@
 /** 窄 IPC 注册：校验载荷后转给 link / 窗口；渲染端拿不到宿主 cookie。 */
 
-import { ipcMain, type BrowserWindow, type IpcMainInvokeEvent } from 'electron'
+import { dialog, ipcMain, type BrowserWindow, type IpcMainInvokeEvent, type OpenDialogOptions } from 'electron'
 import { IPC_CHANNELS } from './contract.ts'
 import type {
-  DesktopPreferences, EventOutcome, HostState, UpdateCheck, WindowAction, WindowStateInfo,
+  DesktopPreferences, DirectoryPickResult, EventOutcome, HostState, UpdateCheck, WindowAction, WindowStateInfo,
 } from './contract.ts'
-import { readDesktopPreferences, writeDesktopPreferences } from './desktop-locale.ts'
+import { DESKTOP_MESSAGES, fillDesktop, readDesktopPreferences, writeDesktopPreferences } from './desktop-locale.ts'
 import { isDesktopLocale, preferencePatchOf } from './preferences.ts'
 import type { HostLink } from './link.ts'
 
@@ -16,6 +16,8 @@ interface IpcDependencies {
   readonly hostState: () => HostState
   readonly windowState: () => WindowStateInfo
   readonly update: () => UpdateCheck
+  /** 主进程文案当前语言。 */
+  readonly locale: () => DesktopPreferences['locale']
   /** 渲染端确认放弃运行中的回合；由调用方关窗。 */
   readonly confirmClose: () => void
   /** 只切换菜单与托盘语言；落盘由调用方先做。 */
@@ -111,6 +113,22 @@ export function registerIpc(deps: IpcDependencies): void {
   ipcMain.handle(IPC_CHANNELS.hostStateNow, () => deps.hostState())
   ipcMain.handle(IPC_CHANNELS.windowStateNow, () => deps.windowState())
   ipcMain.handle(IPC_CHANNELS.update, () => deps.update())
+  ipcMain.handle(IPC_CHANNELS.pickDirectory, async (): Promise<DirectoryPickResult> => {
+    const window = deps.window()
+    const messages = DESKTOP_MESSAGES[deps.locale()]
+    const options: OpenDialogOptions = { properties: ['openDirectory'], title: messages.pickDirectoryTitle }
+    try {
+      const result = window === undefined ? await dialog.showOpenDialog(options) : await dialog.showOpenDialog(window, options)
+      return { ok: true, path: result.canceled ? null : (result.filePaths[0] ?? null) }
+    } catch (cause: unknown) {
+      return {
+        ok: false,
+        message: fillDesktop(messages.pickDirectoryFailed, {
+          detail: cause instanceof Error ? cause.message : String(cause),
+        }),
+      }
+    }
+  })
   ipcMain.handle(IPC_CHANNELS.locale, (_event: IpcMainInvokeEvent, value: unknown) => {
     if (!isDesktopLocale(value)) throw new Error('lcoder: 界面语言不合法')
     const next = writeDesktopPreferences({ locale: value })

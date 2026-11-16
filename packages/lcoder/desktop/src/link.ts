@@ -43,7 +43,6 @@ const UNARY_ALLOWED = new Set([
   'llm/listProviders',
   'llm/listConfigurableProviders',
   'llm/discoverModels',
-  'directoryPicker/pick',
   'commands/list',
   'commands/execute',
   'agentPresets/list',
