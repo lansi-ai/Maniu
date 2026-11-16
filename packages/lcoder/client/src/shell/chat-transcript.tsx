@@ -1,6 +1,6 @@
 /** 聊天正文：用户发言与附件、按回合收敛的过程组、助手 Markdown 与流式草稿。 */
 
-import { useEffect, useState } from 'react'
+import { memo, useEffect, useState } from 'react'
 import type { JSX } from 'react'
 import type { Translate } from '../locale.ts'
 import { renderMarkdown } from '../markdown/markdown.tsx'
@@ -146,16 +146,17 @@ function ToolItem({ item, outcome, t }: {
 }
 
 /**
- * 一个回合的过程组：思考与工具调用收进一枚可展开的组头。
+ * 一个回合的过程组：思考与工具调用收进一枚可展开的组头，默认折叠。
+ * 列表用 hidden 收起，条目仍留在 DOM 里，现有 testid 与展开后的一致。
  * @param props - 过程条目、工具结果与词典。
  * @returns 过程组。
  */
-function ProcessGroup({ row, tools, t }: {
+const ProcessGroup = memo(function ProcessGroup({ row, tools, t }: {
   readonly row: ChatRow & { readonly kind: 'process' }
   readonly tools: Readonly<Record<string, ToolOutcome>>
   readonly t: Translate
 }): JSX.Element {
-  const [open, setOpen] = useState(true)
+  const [open, setOpen] = useState(false)
   const toolCount = row.items.reduce((count, item) => count + (item.kind === 'tool' ? 1 : 0), 0)
   const thoughtCount = row.items.length - toolCount
   const title = toolCount > 0
@@ -170,57 +171,96 @@ function ProcessGroup({ row, tools, t }: {
           : null}
         <span className="process-chevron" aria-hidden="true">{open ? '▾' : '▸'}</span>
       </button>
-      {open && (
-        <ol className="process-list">
-          {row.items.map((item, index) => item.kind === 'reasoning'
-            ? (
-              <li key={`reasoning-${String(index)}`} className="process-reasoning" data-testid="process-reasoning">
-                <span className="process-label">{t('chat.processThought')}</span>
-                <p>{item.text}</p>
-              </li>
-            )
-            : (
-              <ToolItem
-                key={`tool-${String(index)}`}
-                item={item}
-                outcome={tools[item.callId]}
-                t={t}
-              />
-            ))}
-        </ol>
-      )}
+      <ol className="process-list" hidden={!open}>
+        {row.items.map((item, index) => item.kind === 'reasoning'
+          ? (
+            <li key={`reasoning-${String(index)}`} className="process-reasoning" data-testid="process-reasoning">
+              <span className="process-label">{t('chat.processThought')}</span>
+              <p>{item.text}</p>
+            </li>
+          )
+          : (
+            <ToolItem
+              key={`tool-${String(index)}`}
+              item={item}
+              outcome={tools[item.callId]}
+              t={t}
+            />
+          ))}
+      </ol>
     </section>
+  )
+}, (previous, next) => previous.row === next.row && previous.t === next.t
+  && next.row.items.every(item => item.kind !== 'tool'
+    || previous.tools[item.callId] === next.tools[item.callId]))
+
+/**
+ * 一条已提交的用户发言；流式增量不会改动它，靠 memo 跳过重渲。
+ * @param props - 会话、行与词典。
+ * @returns 用户消息。
+ */
+const UserRow = memo(function UserRow({ sessionId, row, t }: {
+  readonly sessionId: string | null
+  readonly row: ChatRow & { readonly kind: 'user' }
+  readonly t: Translate
+}): JSX.Element {
+  return (
+    <article className="message user" data-testid="message-user">
+      {row.text === '' ? null : <p className="message-text">{row.text}</p>}
+      {sessionId === null ? null : (
+        <MessageAttachments sessionId={sessionId} attachments={row.attachments} t={t} />
+      )}
+    </article>
+  )
+})
+
+/**
+ * 一条已提交的助手正文；Markdown 渲染只随行内容变化。
+ * @param props - 行。
+ * @returns 助手消息。
+ */
+const AssistantRow = memo(function AssistantRow({ row }: {
+  readonly row: ChatRow & { readonly kind: 'assistant' }
+}): JSX.Element {
+  return (
+    <article className="message assistant lg-glass-card" data-testid="message-assistant">
+      <div className="markdown-body">{renderMarkdown(row.text)}</div>
+    </article>
+  )
+})
+
+/**
+ * 思考态指示：只报「正在思考」，不铺思维链；正文到达后由调用方移除。
+ * @param props - 词典。
+ * @returns 三个点与一行提示。
+ */
+function ThinkingRow({ t }: { readonly t: Translate }): JSX.Element {
+  return (
+    <div className="message assistant thinking" data-testid="chat-thinking" role="status">
+      <span>{t('chat.thinking')}</span>
+      <span className="thinking-dots" aria-hidden="true"><i /><i /><i /></span>
+    </div>
   )
 }
 
 /**
  * 聊天正文。
  * @param props - 会话标识、折叠状态与词典。
- * @returns 已提交行、流式草稿与流错误。
+ * @returns 已提交行、思考态指示、流式草稿与流错误。
  */
 export function ChatTranscript({ t, sessionId, chat }: ChatTranscriptProps): JSX.Element {
+  // 思考态只在正文还没开始时出现；流式草稿一旦有字就让位。
+  const thinking = chat.attempt !== null && chat.liveText === ''
   return (
     <div className="messages" data-testid="messages">
       {chat.rows.map((row) => {
         if (row.kind === 'process') return <ProcessGroup key={row.id} row={row} tools={chat.toolResults} t={t} />
-        if (row.kind === 'user') {
-          return (
-            <article key={row.id} className="message user" data-testid="message-user">
-              {row.text === '' ? null : <p className="message-text">{row.text}</p>}
-              {sessionId === null ? null : (
-                <MessageAttachments sessionId={sessionId} attachments={row.attachments} t={t} />
-              )}
-            </article>
-          )
-        }
-        return (
-          <article key={row.id} className="message assistant lg-glass-card" data-testid="message-assistant">
-            <div className="markdown-body">{renderMarkdown(row.text)}</div>
-          </article>
-        )
+        if (row.kind === 'user') return <UserRow key={row.id} sessionId={sessionId} row={row} t={t} />
+        return <AssistantRow key={row.id} row={row} />
       })}
+      {thinking && <ThinkingRow t={t} />}
       {chat.liveText !== '' && (
-        <article className="message assistant live lg-glass-card" data-testid="message-assistant" data-live="true">
+        <article className="message assistant live" data-testid="message-assistant" data-live="true">
           {chat.liveText}
         </article>
       )}

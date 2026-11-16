@@ -28,6 +28,7 @@ export const EN: Readonly<Record<MessageKey, string>> = {
   'chat.sessions': 'Sessions',
   'chat.newSession': 'New session',
   'chat.running': 'Running',
+  'chat.thinking': 'Thinking…',
   'chat.noSession': 'No session selected',
   'chat.placeholder': 'Send a message…',
   'chat.send': 'Send',

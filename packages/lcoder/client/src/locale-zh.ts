@@ -26,6 +26,7 @@ export const ZH = {
   'chat.sessions': '会话',
   'chat.newSession': '新会话',
   'chat.running': '运行中',
+  'chat.thinking': '思考中…',
   'chat.noSession': '未选择会话',
   'chat.placeholder': '发一条消息…',
   'chat.send': '发送',

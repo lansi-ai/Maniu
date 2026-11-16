@@ -121,6 +121,56 @@ describe('chatReducer assistant-stream', () => {
     expect(next.rebaseline).toBe(1)
   })
 
+  it('思考增量进入实时缓冲，正文一开始就清掉', () => {
+    let state = snapshot([], 0)
+    state = chatReducer(state, { type: 'assistant-start', attemptId: 'a1', revision: 1 })
+    state = chatReducer(state, { type: 'assistant-chunk', attemptId: 'a1', revision: 1, index: 0, chunk: { type: 'reasoning-delta', index: 0, text: '先读' } })
+    state = chatReducer(state, { type: 'assistant-chunk', attemptId: 'a1', revision: 1, index: 1, chunk: { type: 'reasoning-delta', index: 0, text: '文件' } })
+    expect(state.liveReasoning).toBe('先读文件')
+    expect(state.liveText).toBe('')
+    expect(state.attempt).not.toBeNull()
+    state = chatReducer(state, { type: 'assistant-chunk', attemptId: 'a1', revision: 1, index: 2, chunk: { type: 'text-delta', index: 1, text: '结论' } })
+    expect(state.liveText).toBe('结论')
+    expect(state.liveReasoning).toBe('')
+  })
+
+  it('思考增量不打断块序号，也不把正文当思考', () => {
+    let state = snapshot([], 0)
+    state = chatReducer(state, { type: 'assistant-start', attemptId: 'a1', revision: 1 })
+    state = chatReducer(state, { type: 'assistant-chunk', attemptId: 'a1', revision: 1, index: 0, chunk: { type: 'block-start', index: 0, blockType: 'reasoning' } })
+    state = chatReducer(state, { type: 'assistant-chunk', attemptId: 'a1', revision: 1, index: 1, chunk: { type: 'reasoning-delta', index: 0, text: '思考' } })
+    expect(state.rebaseline).toBe(0)
+    expect(state.liveReasoning).toBe('思考')
+    expect(state.attempt?.nextIndex).toBe(2)
+  })
+
+  it('回合结束清掉实时思考，重连基线只认思考增量', () => {
+    let state = snapshot([], 0)
+    state = chatReducer(state, { type: 'assistant-start', attemptId: 'a1', revision: 1 })
+    state = chatReducer(state, { type: 'assistant-chunk', attemptId: 'a1', revision: 1, index: 0, chunk: { type: 'reasoning-delta', index: 0, text: '想想' } })
+    const ended = chatReducer(state, {
+      type: 'assistant-end',
+      attemptId: 'a1',
+      revision: 1,
+      outcome: { kind: 'abandoned' },
+    })
+    expect(ended.liveReasoning).toBe('')
+
+    const reconnected = snapshot([], 0, {
+      assistantStream: {
+        revision: 2,
+        activeAttempt: {
+          attemptId: 'a2',
+          revision: 2,
+          nextIndex: 1,
+          stream: [{ type: 'reasoning-chunks', time0: 1, index: 0, dt: [], texts: ['想', '想'] }],
+        },
+      },
+    })
+    expect(reconnected.liveReasoning).toBe('想想')
+    expect(reconnected.liveText).toBe('')
+  })
+
   it('传输错误保留已提交正文与流式草稿', () => {
     let state = snapshot([user], 1)
     state = chatReducer(state, { type: 'assistant-start', attemptId: 'a1', revision: 1 })

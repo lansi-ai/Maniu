@@ -343,7 +343,49 @@ html[data-theme='liquid-glass'] body {
   box-shadow: 0 16px 34px -18px rgba(10, 79, 196, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.34);
 }
 
-.message.live { padding-right: 26px; }
+.message.live {
+  padding-right: 26px;
+  /* 流式正文每个增量都会长高：去掉背景模糊，改用不透明些的底色与独立合成层，
+     避免每次重绘都与环境层重新合成，观感上也更像一块稳定的纸。 */
+  background: var(--lg-fill-card), var(--lg-fill-raised);
+  border: 1px solid var(--lg-line);
+  box-shadow: var(--lg-shadow-card), var(--lg-highlight-card);
+  backdrop-filter: none;
+  transform: translateZ(0);
+}
+
+/* 思考态：一行提示加三个点，不铺思维链。 */
+.message.thinking {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  align-self: flex-start;
+  padding: 8px 14px;
+  border: 1px solid var(--lg-line-hair);
+  border-radius: 14px;
+  background: var(--lg-fill-subtle);
+  color: var(--lg-muted);
+  font-size: 13px;
+}
+
+.thinking-dots { display: inline-flex; gap: 3px; }
+
+.thinking-dots i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--lg-accent);
+  opacity: 0.35;
+  animation: lg-think 1.2s ease-in-out infinite;
+}
+
+.thinking-dots i:nth-child(2) { animation-delay: 0.16s; }
+.thinking-dots i:nth-child(3) { animation-delay: 0.32s; }
+
+@keyframes lg-think {
+  0%, 70%, 100% { opacity: 0.3; }
+  35% { opacity: 1; }
+}
 
 .message.live::after {
   content: '';
@@ -406,6 +448,7 @@ html[data-theme='liquid-glass'] body {
 /* reduced-motion 下光标也保持静态，不留任何循环动画。 */
 @media (prefers-reduced-motion: reduce) {
   .message.live::after { animation: none; opacity: 1; }
+  .thinking-dots i { animation: none; opacity: 0.7; }
 }
 
 /* 对话正文：过程组、工具卡、附件与输入区。 */
@@ -437,6 +480,8 @@ html[data-theme='liquid-glass'] body {
 .process-sub { color: var(--lg-faint); }
 .process-chevron { margin-left: auto; color: var(--lg-faint); }
 .process-list { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+/* 组列表用 hidden 收起时，条目仍在 DOM 里；这条规则压过上面的 display:flex。 */
+.process-list[hidden] { display: none; }
 .process-tool, .process-reasoning {
   padding: 6px 8px;
   border-radius: 10px;
