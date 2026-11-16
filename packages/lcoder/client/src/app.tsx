@@ -37,10 +37,20 @@ type PageId = 'chat' | 'requirements' | 'tasks' | 'projects' | 'project-info' | 
 /** 新会话默认使用的角色；工作台作用域会话靠它拿到人机命令面。 */
 const WORKBENCH_PRESET = 'lcoder-workbench'
 
-const NAV_ITEMS: readonly { readonly id: PageId; readonly key: MessageKey }[] = [
+interface NavItem {
+  readonly id: PageId
+  readonly key: MessageKey
+}
+
+/** 导航上组：对话与研发过程。 */
+const NAV_TOP: readonly NavItem[] = [
   { id: 'chat', key: 'nav.chat' },
   { id: 'requirements', key: 'nav.requirements' },
   { id: 'tasks', key: 'nav.tasks' },
+]
+
+/** 导航下组：项目与个人配置，贴底显示。 */
+const NAV_BOTTOM: readonly NavItem[] = [
   { id: 'projects', key: 'nav.projects' },
   { id: 'project-info', key: 'nav.projectInfo' },
   { id: 'roles', key: 'nav.roles' },
@@ -522,7 +532,22 @@ export function App(): JSX.Element {
           ? 'cloud-error'
           : cloud.state === null ? 'booting' : 'signed-out'
 
-  const nav = useMemo(() => NAV_ITEMS.map(item => ({ ...item, label: t(item.key) })), [t])
+  const nav = useMemo(() => ({
+    top: NAV_TOP.map(item => ({ ...item, label: t(item.key) })),
+    bottom: NAV_BOTTOM.map(item => ({ ...item, label: t(item.key) })),
+  }), [t])
+
+  const navButton = (item: { readonly id: PageId; readonly label: string }): JSX.Element => (
+    <button
+      key={item.id}
+      type="button"
+      data-testid={`nav-${item.id}`}
+      className={page === item.id ? 'nav-item active lg-sheen' : 'nav-item lg-sheen'}
+      onClick={() => { setPage(item.id) }}
+    >
+      {item.label}
+    </button>
+  )
 
   return (
     <div className="app" {...(gateKind === 'booting' ? {} : { 'data-lcoder-state': gateKind })}>
@@ -570,19 +595,9 @@ export function App(): JSX.Element {
         <main className="shell" data-testid="workspace">
           <nav className="nav lg-glass" data-testid="nav">
             <div className="nav-brand">{t('app.name')}</div>
-            {nav.map(item => (
-              <button
-                key={item.id}
-                type="button"
-                data-testid={`nav-${item.id}`}
-                className={page === item.id ? 'nav-item active lg-sheen' : 'nav-item lg-sheen'}
-                onClick={() => { setPage(item.id) }}
-              >
-                {item.label}
-              </button>
-            ))}
-            <div className="nav-foot" data-testid="nav-project">
-              {project === null ? t('titlebar.noProject') : project.title}
+            {nav.top.map(navButton)}
+            <div className="nav-bottom">
+              {nav.bottom.map(navButton)}
             </div>
           </nav>
 
