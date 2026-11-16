@@ -2444,7 +2444,7 @@ tracks:
       date: '2026-11-16'
       dep: [T-218]
       inferred: false
-      note: "B 级修复，来源是用户 2026-11-16 截图标题栏中间区域拖不动。用 Win32 真实鼠标事件实测：先激活窗口后，去掉标题栏 backdrop-filter 时拖拽让窗口移动九十像素；恢复 backdrop-filter 后只移动一到两像素。根因是 Electron 与 Chromium 中 app-region drag 区域位于 backdrop-filter 元素内会失效。修法：titlebar 去掉 lg-glass 的 backdrop-filter，用静态半透明底与内高光保持玻璃观感；账号与窗口按钮仍 no-drag；门禁态 gate-drag 无 backdrop-filter 不受影响。验收：真实鼠标从标题栏中间拖动窗口位置明显变化；账号、最小化、最大化、关闭仍可点；双击仍切换最大化；M3 43/43、C4 12/12 与 client 测试、typecheck/build/docs/i18n/oxlint 全绿；留 9823 预览。工作树 pool-slot-2 到 lcoder/t219-titlebar-drag，端口 9823/9831/9832。2026-11-16 17:20 监督窗口登记并派工。"
+      note: "B 级修复，来源是用户 2026-11-16 截图标题栏中间区域拖不动。用 Win32 真实鼠标事件实测：先激活窗口后，去掉标题栏 backdrop-filter 时拖拽让窗口移动九十像素；恢复 backdrop-filter 后只移动一到两像素。根因是 Electron 与 Chromium 中 app-region drag 区域位于 backdrop-filter 元素内会失效。修法：titlebar 去掉 lg-glass 的 backdrop-filter，用静态半透明底与内高光保持玻璃观感；账号与窗口按钮仍 no-drag；门禁态 gate-drag 无 backdrop-filter 不受影响。验收：真实鼠标从标题栏中间拖动窗口位置明显变化；账号、最小化、最大化、关闭仍可点；双击仍切换最大化；M3 43/43、C4 12/12 与 client 测试、typecheck/build/docs/i18n/oxlint 全绿；留 9823 预览。工作树 pool-slot-2 到 lcoder/t219-titlebar-drag，端口 9823/9831/9832。2026-11-16 17:20 监督窗口登记并派工，实现线会话 c055be33。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
