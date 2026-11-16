@@ -175,6 +175,20 @@
 /* 回合运行期冻结背景漂移：内容持续长高时，动态背景会让依赖它的玻璃面反复合成。 */
 .app[data-running='true'] .ambient-blob { animation-play-state: paused; }
 
+/*
+ * 零背景合成诊断态：回合运行期把所有采样背景与循环动画都关掉，只留静态底色、
+ * 内高光与细边。背景层用暂停而不是 animation:none，避免回合起止时背景位置跳变。
+ */
+.app[data-running='true'] *,
+.app[data-running='true'] *::before,
+.app[data-running='true'] *::after {
+  backdrop-filter: none !important;
+  mix-blend-mode: normal !important;
+}
+
+.app[data-running='true'] .thinking-dots i,
+.app[data-running='true'] .message.live::after { animation: none !important; }
+
 /* 玻璃基元：面板、卡片、控制器共用边框、高光与阴影。
    只写标准 backdrop-filter：目标渲染器是 Electron 的 Chromium，而打包器在同一条
    规则里只保留最后一条声明，写 -webkit- 前缀会把标准属性挤掉。 */

@@ -32,6 +32,17 @@ if (app.isPackaged) {
   app.setPath('sessionData', userData)
 }
 
+// 窗口被遮挡或失焦时主进程计时器、渲染端与合成都不降频，流式观察与 CDP 采样不受节流影响。
+app.commandLine.appendSwitch('disable-background-timer-throttling')
+app.commandLine.appendSwitch('disable-renderer-backgrounding')
+app.commandLine.appendSwitch('disable-backgrounding-occluded-windows')
+
+// 诊断开关：LCODER_DISABLE_GPU=1 时退回软件合成，用来对 GPU 合成路径做 A/B；默认不开。
+if (process.env.LCODER_DISABLE_GPU === '1') {
+  app.disableHardwareAcceleration()
+  console.log('lcoder desktop: 已关闭硬件加速（LCODER_DISABLE_GPU=1）')
+}
+
 /** 关停从关窗开始算起的总上限；到点强制退出，绝不允许关窗后静默驻留。 */
 const QUIT_GUARD_MS = 12_000
 
