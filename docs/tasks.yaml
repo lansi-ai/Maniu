@@ -2456,6 +2456,17 @@ tracks:
       dep: [T-217]
       inferred: false
       note: "B 级修复，来源是用户 2026-11-16 反馈需求页首次进入必须点刷新才出现数据。排查：useProjection 只在 scopeSessionId 变化时加载一次；宿主或作用域会话尚未就绪时首读可能失败，而 T-217 已移除需求页诊断块，界面表现为空表；点刷新会重读成功。修法：把宿主就绪与页面激活纳入加载条件；首读失败做有限退避重试，进入需求页且数据为空或出错时自动重读；保留手动刷新；用轻量加载或失败提示，不恢复大诊断块；避免重复请求。验收：冷启动后首次进需求页无需刷新即显示数据；失败可见且可重试；不重复请求；M3 43/43、C4 12/12 与 client 测试、typecheck/build/docs/i18n/oxlint 全绿；留 9823 预览。工作树 pool-slot-2 到 lcoder/t220-requirements-autoload，端口 9823/9831/9832。2026-11-16 18:00 监督窗口登记并派工，实现线会话 edc9a0e1。2026-11-16 18:24 监督窗口收口，已合入 lcoder/main；冷启动首读撞 host-not-ready 时加就绪门禁、四百与一千二百与三千毫秒退避重试、进页补读，手动刷新保留，失败只显示一行可重试提示。冷启动 A/B 显示修复后首次进需求页请求一次即成功；主检 build:artifacts、build:check、test:docs 二十一项、vitest 一千二百五十四例全过；常用窗口重启后首次进需求页无需刷新即显示两条需求。未验：真实瞬断重试仅单测覆盖。"
+    - id: T-221
+      title: 人才库一期契约与云端模型
+      status: doing
+      face: 工程
+      type: 开发
+      owner: lance
+      created: '2026-11-16'
+      date: '2026-11-16'
+      dep: [T-220]
+      inferred: false
+      note: "人才库一期契约与云端模型，来源是用户 2026-11-16 决定把角色改名为人才库并分全局与项目。已拍板：人才等于完整 agent preset，包含名称、描述、persona、继承基础 preset、已安装插件与工具组合、模型与预算；全局与项目人才都存云端；新增 .spec/project.yaml 的 projectId，随仓提交、跨设备一致；首个绑定 projectId 的账号成为项目 owner；只能改删自己创建的人才，AI 创建的项目人才由项目 owner 管理；会话创建时固定人才快照，删除时仅检查本机会话引用，有引用禁止删除；插件只能从本机已安装目录选择，不允许外部包。一期范围：kernel 增加 projectId 字段与生成或确保写入；云端新增 projects 与 talents 表、绑定与认领 API、CRUD API、版本化配置 schema 与结构校验、owner 与 createdBy 与 AI 字段及权限；项目人才按 projectId 隔离；测试与 openapi 与文档；不做客户端 UI 与宿主动态注册，留给 T-222 与 T-223。验收：两个账号的 CRUD 权限、AI 创建归项目 owner、项目隔离、配置校验、contracts 与测试全绿；不打印密钥。工作树 pool-slot-2 到 lcoder/t221-talent-contract；云仓直接 main 本地提交。2026-11-16 18:40 监督窗口登记并派工。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
