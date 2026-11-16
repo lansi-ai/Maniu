@@ -2433,7 +2433,7 @@ tracks:
       date: '2026-11-16'
       dep: [T-205]
       inferred: false
-      note: "B 级修复，来源是用户 2026-11-16 截图需求页「浏览…」不好用。根因：client 的 pickDirectory 走宿主 directoryPicker/pick，但新客户端 profile 在 host-workbench 里已禁用 directory-picker，注释明确应走主进程 window.lcoder.pickDirectory；主进程却从未实现该 IPC，点击静默失败。修法：新增 IPC channel lcoder:pick-directory，contract 增加 pickDirectory(): Promise<string|null>，ipc.ts 用 Electron dialog.showOpenDialog({properties:['openDirectory']}) 返回路径或 null，preload 暴露；client 改走主进程；取消不报错，失败给可解释反馈。验收：真实点击弹出系统选目录框、选择后路径回填、打开仓库成功；其它切换项目流程不变；typecheck、client 测试、build:artifacts、build:check、test:docs、i18n、oxlint、M3 43/43、C4 12/12。工作树 pool-slot-1 到 lcoder/t218-native-picker，端口 9824/9833/9834（9822 主实例占用）。2026-11-16 16:35 监督窗口登记并派工。"
+      note: "B 级修复，来源是用户 2026-11-16 截图需求页「浏览…」不好用。根因：client 的 pickDirectory 走宿主 directoryPicker/pick，但新客户端 profile 在 host-workbench 里已禁用 directory-picker，注释明确应走主进程 window.lcoder.pickDirectory；主进程却从未实现该 IPC，点击静默失败。修法：新增 IPC channel lcoder:pick-directory，contract 增加 pickDirectory 返回 Promise<string|null>，ipc.ts 用 Electron dialog.showOpenDialog({properties:['openDirectory']}) 返回路径或 null，preload 暴露；client 改走主进程；取消不报错，失败给可解释反馈。验收：真实点击弹出系统选目录框、选择后路径回填、打开仓库成功；其它切换项目流程不变；typecheck、client 测试、build:artifacts、build:check、test:docs、i18n、oxlint、M3 43/43、C4 12/12。工作树 pool-slot-1 到 lcoder/t218-native-picker，端口 9824/9833/9834（9822 主实例占用）。2026-11-16 16:35 监督窗口登记并派工。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
