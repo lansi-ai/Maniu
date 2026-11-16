@@ -168,7 +168,7 @@ export async function loadProjectIdentity(path: string): Promise<TalentCall<Tale
 }
 
 /**
- * 为已登记的项目补出 projectId；只应在用户明确要求启用项目人才库时调用。
+ * 为已登记的项目补出 projectId；读到老项目缺字段时自动调用一次。
  * @param path - 项目根目录。
  * @returns 写回后的项目身份。
  */

@@ -238,7 +238,7 @@ export class AgentTalents extends TypertRemoteService {
   }
 
   /**
-   * 为已登记的项目补出并写回 `projectId`；仅在用户显式要求绑定项目人才库时调用。
+   * 为已登记的项目补出并写回 `projectId`；客户端读到老项目缺字段时会自动调用一次。
    * @param input - 项目路径或作用域会话。
    * @returns 写回后的身份；没有 `project.yaml` 时返回缺文件。
    */
