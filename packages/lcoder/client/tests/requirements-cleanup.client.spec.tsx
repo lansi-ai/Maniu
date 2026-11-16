@@ -59,6 +59,7 @@ describe('需求页头清理', () => {
           projection={PROJECTION}
           sessions={[]}
           loading={false}
+          error={null}
           intakeResult={null}
           onClearIntakeResult={() => {}}
           onReload={() => {}}
