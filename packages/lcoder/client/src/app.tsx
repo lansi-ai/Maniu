@@ -741,6 +741,7 @@ export function App(): JSX.Element {
             {page === 'talents' && (
               <TalentsPage
                 t={t}
+                signedIn={cloud.state?.signedIn === true}
                 userId={cloud.state?.user?.id ?? null}
                 project={project}
                 sessions={sessions}

@@ -1,7 +1,8 @@
 /** 人才库的 Remote 调用面：云端 CRUD 与宿主清单/下发，全部折成可展示的结果。 */
 
 import {
-  catalogOf, presetToolsOf, projectViewOf, talentsOf, type TalentApplyRow, type TalentCatalogView,
+  catalogOf, isBuiltinTalentPreset, presetDocumentOf, presetRosterOf, presetToolsOf, projectViewOf, talentsOf,
+  type BuiltinPresetView, type PresetDocumentView, type TalentApplyRow, type TalentCatalogView,
   type TalentConfigView, type TalentPresetToolsView, type TalentProjectView, type TalentRow,
 } from './model.ts'
 
@@ -137,6 +138,33 @@ export async function loadCatalog(): Promise<TalentCall<TalentCatalogView>> {
   return catalog === undefined
     ? { ok: false, code: 'invalid_response', message: '宿主返回了无法识别的插件清单' }
     : { ok: true, value: catalog }
+}
+
+/**
+ * 读产品内置角色 preset 的名册；云端动态人才（`talent-*`）不在其中。
+ * @returns 内置角色行。
+ */
+export async function loadBuiltinPresets(): Promise<TalentCall<readonly BuiltinPresetView[]>> {
+  const answer = await remote('agentPresets', 'list', {})
+  if (!answer.ok) return answer
+  const roster = presetRosterOf(answer.value)
+  return roster === undefined
+    ? { ok: false, code: 'invalid_response', message: '宿主返回了无法识别的 preset 名册' }
+    : { ok: true, value: roster.filter(row => isBuiltinTalentPreset(row.id)) }
+}
+
+/**
+ * 读一个 preset 声明的人设与插件组合。
+ * @param presetId - preset id。
+ * @returns 人设与插件行。
+ */
+export async function loadPresetDocument(presetId: string): Promise<TalentCall<PresetDocumentView>> {
+  const answer = await remote('agentPresets', 'read', { agentPreset: presetId })
+  if (!answer.ok) return answer
+  const document = presetDocumentOf(answer.value)
+  return document === undefined
+    ? { ok: false, code: 'invalid_response', message: '宿主返回了无法识别的 preset 组合' }
+    : { ok: true, value: document }
 }
 
 /**

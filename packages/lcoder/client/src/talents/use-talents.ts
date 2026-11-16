@@ -2,21 +2,34 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  applyRowOf, attemptOf, needsProjectIdFix, planSync, presetIdOf, type TalentApplyFailure,
-  type TalentCatalogView, type TalentProjectView, type TalentRow,
+  applyRowOf, attemptOf, needsProjectIdFix, planSync, presetIdOf, type BuiltinPresetView, type PresetPluginView,
+  type TalentApplyFailure, type TalentCatalogView, type TalentProjectView, type TalentRow, type TalentToolView,
 } from './model.ts'
 import {
   applyTalent, createTalent as createCloudTalent, deleteTalent as deleteCloudTalent, ensureProjectIdentity,
-  listTalents, loadCatalog, loadProjectIdentity, removeTalent, talentSessionRefs, updateTalent as updateCloudTalent,
+  listTalents, loadBuiltinPresets, loadCatalog, loadPresetDocument, loadPresetTools, loadProjectIdentity,
+  removeTalent, talentSessionRefs, updateTalent as updateCloudTalent,
   type CreateTalentInput, type UpdateTalentInput,
 } from './api.ts'
 
 /** 挂载人才库运行面的输入。 */
 export interface TalentsOptions {
-  /** 云端是否已登录；未登录时不下发也不读取。 */
+  /** 云端是否已登录；未登录时不下发也不读取云端人才。 */
   readonly signedIn: boolean
   /** 当前项目根目录；没有项目时只有全局库。 */
   readonly projectPath: string | null
+}
+
+/** 一个内置角色的详情：人设、插件组合与工具面各自留下失败原因。 */
+export interface BuiltinDetailState {
+  readonly loading: boolean
+  /** 人设与插件组合读不到时的原因。 */
+  readonly error: string | null
+  readonly persona: string | null
+  readonly plugins: readonly PresetPluginView[]
+  readonly tools: readonly TalentToolView[]
+  /** 工具面读不到或 preset 不可用时的原因。 */
+  readonly toolsError: string | null
 }
 
 /** 页面拿到的运行面。 */
@@ -27,6 +40,11 @@ export interface TalentsHandle {
   readonly projectError: string | null
   readonly global: readonly TalentRow[]
   readonly projectTalents: readonly TalentRow[]
+  readonly builtins: readonly BuiltinPresetView[]
+  readonly builtinsLoading: boolean
+  readonly builtinsError: string | null
+  /** 已按需读过的内置角色详情；按 preset id 分组。 */
+  readonly builtinDetails: Readonly<Record<string, BuiltinDetailState>>
   readonly loading: boolean
   readonly error: string | null
   /** 单条人才的下发或撤回失败；按人才 id 分组。 */
@@ -41,6 +59,8 @@ export interface TalentsHandle {
   update(input: UpdateTalentInput): Promise<string | null>
   remove(id: string): Promise<string | null>
   checkRefs(id: string): Promise<TalentSessionRefs>
+  /** 第一次打开某个内置角色时读它的详情；已读过的不再重复调用。 */
+  inspectBuiltin(presetId: string): void
 }
 
 /** 删除前查引用的结果。 */
@@ -65,6 +85,10 @@ export function useTalents(options: TalentsOptions): TalentsHandle {
   const [projectError, setProjectError] = useState<string | null>(null)
   const [global, setGlobal] = useState<readonly TalentRow[]>([])
   const [projectTalents, setProjectTalents] = useState<readonly TalentRow[]>([])
+  const [builtins, setBuiltins] = useState<readonly BuiltinPresetView[]>([])
+  const [builtinsLoading, setBuiltinsLoading] = useState(true)
+  const [builtinsError, setBuiltinsError] = useState<string | null>(null)
+  const [builtinDetails, setBuiltinDetails] = useState<Readonly<Record<string, BuiltinDetailState>>>({})
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [applyErrors, setApplyErrors] = useState<Readonly<Record<string, string>>>({})
@@ -77,15 +101,11 @@ export function useTalents(options: TalentsOptions): TalentsHandle {
   const queuedRef = useRef<readonly TalentRow[] | null>(null)
   const signedInRef = useRef(signedIn)
   const fixedPathsRef = useRef(new Set<string>())
+  const inspectedRef = useRef(new Set<string>())
 
   const reload = useCallback(() => { setReloadSeq(current => current + 1) }, [])
 
   useEffect(() => {
-    if (!signedIn) {
-      setCatalog(null)
-      setCatalogError(null)
-      return
-    }
     let disposed = false
     void loadCatalog().then((answer) => {
       if (disposed) return
@@ -98,7 +118,25 @@ export function useTalents(options: TalentsOptions): TalentsHandle {
       }
     })
     return () => { disposed = true }
-  }, [signedIn, reloadSeq])
+  }, [reloadSeq])
+
+  useEffect(() => {
+    let disposed = false
+    setBuiltinsLoading(true)
+    setBuiltinsError(null)
+    void loadBuiltinPresets().then((answer) => {
+      if (disposed) return
+      if (answer.ok) {
+        setBuiltins(answer.value)
+        setBuiltinsError(null)
+      } else {
+        setBuiltins([])
+        setBuiltinsError(`${answer.code}: ${answer.message}`)
+      }
+      setBuiltinsLoading(false)
+    })
+    return () => { disposed = true }
+  }, [reloadSeq])
 
   useEffect(() => {
     if (!signedIn || projectPath === null) {
@@ -289,6 +327,33 @@ export function useTalents(options: TalentsOptions): TalentsHandle {
     return answer.ok ? { ok: true, sessionIds: answer.value } : { ok: false, message: `${answer.code}: ${answer.message}` }
   }, [])
 
+  const inspectBuiltin = useCallback((presetId: string): void => {
+    if (inspectedRef.current.has(presetId)) return
+    inspectedRef.current.add(presetId)
+    setBuiltinDetails(current => ({
+      ...current,
+      [presetId]: { loading: true, error: null, persona: null, plugins: [], tools: [], toolsError: null },
+    }))
+    void (async () => {
+      const [document, tools] = await Promise.all([loadPresetDocument(presetId), loadPresetTools(presetId)])
+      const failure = document.ok ? null : `${document.code}: ${document.message}`
+      const toolsFailure = tools.ok ? null : `${tools.code}: ${tools.message}`
+      // 读失败的不缓存，下次打开详情重试。
+      if (failure !== null || toolsFailure !== null) inspectedRef.current.delete(presetId)
+      setBuiltinDetails(current => ({
+        ...current,
+        [presetId]: {
+          loading: false,
+          error: failure,
+          persona: document.ok ? document.value.persona ?? null : null,
+          plugins: document.ok ? document.value.plugins : [],
+          tools: tools.ok ? tools.value.tools : [],
+          toolsError: toolsFailure ?? (tools.ok ? tools.value.broken ?? null : null),
+        },
+      }))
+    })()
+  }, [])
+
   const presetNames = useMemo(() => {
     const names: Record<string, string> = {}
     for (const row of [...global, ...projectTalents]) names[presetIdOf(row.id)] = row.name
@@ -296,7 +361,8 @@ export function useTalents(options: TalentsOptions): TalentsHandle {
   }, [global, projectTalents])
 
   return {
-    catalog, catalogError, project, projectError, global, projectTalents, loading, error,
-    applyErrors, applied, busy, presetNames, reload, create, update, remove, checkRefs,
+    catalog, catalogError, project, projectError, global, projectTalents, builtins, builtinsLoading, builtinsError,
+    builtinDetails, loading, error, applyErrors, applied, busy, presetNames, reload, create, update, remove,
+    checkRefs, inspectBuiltin,
   }
 }

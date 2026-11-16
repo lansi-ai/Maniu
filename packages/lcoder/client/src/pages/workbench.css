@@ -468,6 +468,27 @@
 .talent-meta dt { color: var(--lg-faint); }
 .talent-meta dd { margin: 0; color: var(--lg-ink-2); }
 .talent-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 4px; }
+
+/* 人才库：内置角色卡片与只读详情 */
+.builtin-card { cursor: pointer; }
+.builtin-card:hover { border-color: var(--lg-line-bright); }
+.builtin-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.builtin-persona {
+  margin: 0;
+  padding: 10px 12px;
+  max-height: 280px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--lg-ink-2);
+  border: 1px solid var(--lg-line-hair);
+  border-radius: 12px;
+  background: var(--lg-fill-row);
+}
+.builtin-plugin { flex-direction: row; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
 .talent-form { display: flex; flex-direction: column; gap: 12px; }
 .talent-form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
 .talent-field { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--lg-muted); }
