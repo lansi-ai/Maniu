@@ -22,6 +22,12 @@ html[data-theme='liquid-glass'] body {
 
 ::selection { background: var(--lg-selection); }
 
+/* 输入框里的选区要一眼能看出来：提高对比度，暗色皮肤同样可见。 */
+#root textarea::selection,
+#root input::selection {
+  background: color-mix(in srgb, var(--lg-accent) 42%, transparent);
+}
+
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
@@ -210,6 +216,11 @@ html[data-theme='liquid-glass'] body {
 
 .pill-accent:hover { background: var(--lg-fill-accent); color: var(--lg-on-accent); }
 
+/* `#root button` 的 color:inherit 优先级更高；发送键按产品要求固定白字。 */
+#root .composer .pill-accent,
+#root .composer .pill-accent:hover,
+#root .composer .pill-accent:disabled { color: #fff; }
+
 /* 工作区：侧栏是一整块玻璃，聊天列直接浮在环境层上。 */
 .workspace { position: relative; z-index: 1; flex: 1; display: flex; gap: 12px; min-width: 0; min-height: 0; }
 
@@ -342,7 +353,50 @@ html[data-theme='liquid-glass'] body {
   overflow-wrap: anywhere;
 }
 
+/* 一行消息 = 气泡 + 旁挂的复制按钮；按钮不占正文行。 */
+.message-line {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  width: 100%;
+}
+
+.message-line[data-kind='user'] { justify-content: flex-end; }
+
 .message.assistant { align-self: flex-start; color: var(--lg-ink); }
+
+/* 复制按钮：图标化，悬停或键盘聚焦时露出；复制成功换勾并闪一下。 */
+.copy-button {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--lg-faint);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 140ms ease, color 140ms ease, background-color 140ms ease;
+}
+
+.message-line:hover .copy-button,
+.copy-button:focus-visible,
+.copy-button[data-copied='true'],
+.copy-button[data-failed='true'] { opacity: 1; }
+
+.copy-button:hover { color: var(--lg-ink-2); background: var(--lg-fill-subtle); }
+.copy-button[data-copied='true'] { color: var(--lg-ok); }
+.copy-button[data-failed='true'] { color: var(--lg-danger); }
+.copy-icon { width: 15px; height: 15px; }
+.copy-flash { font-size: 11px; line-height: 1; white-space: nowrap; }
+.copy-flash:empty { display: none; }
+
+@media (hover: none) {
+  .copy-button { opacity: 0.72; }
+}
 
 .message.user {
   align-self: flex-end;
@@ -359,13 +413,14 @@ html[data-theme='liquid-glass'] body {
   transform: translateZ(0);
 }
 
-/* 思考态：一行提示加三个点，不铺思维链。 */
+/* 思考态：提示行 + 实时思考原文；原文在小窗里滚动，正文开始后整块移除。 */
 .message.thinking {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   align-self: flex-start;
-  padding: 8px 14px;
+  max-width: min(78%, 720px);
+  padding: 9px 14px;
   border: 1px solid var(--lg-line-hair);
   border-radius: 14px;
   background: var(--lg-fill-subtle);
@@ -373,6 +428,7 @@ html[data-theme='liquid-glass'] body {
   font-size: 13px;
 }
 
+.thinking-head { display: inline-flex; align-items: center; gap: 8px; }
 .thinking-dots { display: inline-flex; gap: 3px; }
 
 .thinking-dots i {
@@ -386,6 +442,19 @@ html[data-theme='liquid-glass'] body {
 
 .thinking-dots i:nth-child(2) { animation-delay: 0.16s; }
 .thinking-dots i:nth-child(3) { animation-delay: 0.32s; }
+
+/* 思考原文：字号克制、限高滚动，只作过程可见，不像正文那样铺满。 */
+.thinking-process {
+  max-height: 128px;
+  overflow: auto;
+  padding-right: 4px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--lg-muted);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  scrollbar-width: thin;
+}
 
 @keyframes lg-think {
   0%, 70%, 100% { opacity: 0.3; }
@@ -434,13 +503,28 @@ html[data-theme='liquid-glass'] body {
 
 .composer textarea::placeholder { color: var(--lg-faint); }
 
+/* 输入区焦点沿用登录页口径：整条胶囊给中性环，控件本身不再画蓝色 outline。 */
+.composer:focus-within {
+  outline: 2px solid color-mix(in srgb, var(--lg-ink) 22%, transparent);
+  outline-offset: 2px;
+}
+
+#root .composer textarea:focus,
+#root .composer textarea:focus-visible,
+#root .composer input:focus-visible { outline: none; }
+
+#root .composer select:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--lg-ink) 26%, transparent);
+  outline-offset: 1px;
+}
+
 .composer .pill-accent {
   padding: 8px 20px;
   border-radius: var(--lg-radius-control);
 }
 
 .composer .pill-accent:disabled {
-  opacity: 0.55;
+  opacity: 0.62;
   cursor: default;
   transform: none;
 }
