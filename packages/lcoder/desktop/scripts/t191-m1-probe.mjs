@@ -412,21 +412,14 @@ async function firstRun() {
     )
     log(`改名生效：${renamed}`)
 
-    // 图片：先验证输入区缩略图；S1 profile 的模型不支持图片输入，发送时应当次就地报错。
+    // 图片：模型声明 input: [text, image]，选择后应能作为用户消息发出并在聊天里回显。
     assert(await page.evaluate(attachFiles([{ name: 'pixel.png', type: 'image/png' }])), '附件选择器不存在')
     await page.waitFor("document.querySelector('[data-testid=\"composer-image\"]') !== null", 15_000, '输入区图片缩略图')
     await page.evaluate("document.querySelector('[data-testid=\"send\"]').click()")
-    const refused = await page.waitFor(
-      "document.querySelector('[data-testid=\"notice\"]')?.textContent ?? ''",
-      15_000,
-      '图片被拒的就地提示',
-    )
-    assert(refused.includes('image input'), `图片被拒时没有显示宿主原话：${refused}`)
-    log(`图片选择与拒绝提示成立：${refused}`)
+    await page.waitFor("document.querySelector('[data-testid=\"message-attachments\"]') !== null", 30_000, '用户消息图片回显')
+    await watchAssistant(page, 30_000, '仓库结构', '图片回合的答复')
+    log('图片随消息发出并在聊天里回显')
     await page.evaluate(CLEAR_ATTACHMENTS)
-
-    // S1 profile 的模型只有文本模态，图片无法落成 durable 引用；已提交图片的
-    // 预览通道（session/attachment）由单测覆盖调用形状，这里只验到「可选中、可拒绝」。
 
     // 文件：走宿主上传面拿 receiptId，随消息发出后在聊天里回显。
     assert(await page.evaluate(attachFiles([{ name: 'notes.md', type: 'text/markdown', text: 'hello from m1' }])), '附件选择器不存在')
