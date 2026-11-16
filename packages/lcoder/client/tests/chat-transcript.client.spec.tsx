@@ -3,7 +3,7 @@
 import { act } from 'react'
 import type { ReactElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ChatTranscript } from '../src/shell/chat-transcript.tsx'
 import { translate, type Translate } from '../src/locale.ts'
 import { emptyChat, type ChatRow, type ChatState } from '../src/store.ts'
@@ -45,14 +45,24 @@ function chatWith(rows: readonly ChatRow[]): ChatState {
 }
 
 describe('ChatTranscript 思考态', () => {
-  it('思考期只显示思考中，不铺思维链也不画正文', () => {
+  it('思考期显示思考中与实时思考原文，正文还不画', () => {
     render({
       ...emptyChat,
       attempt: { attemptId: 'a1', revision: 1, nextIndex: 3 },
       liveReasoning: '第一步先看目录，第二步再读文件，第三步核对契约……',
     })
     expect(element('chat-thinking').textContent).toContain('思考中')
+    expect(element('chat-thinking-reasoning').textContent).toContain('第一步先看目录')
     expect(query('message-assistant')).toBeNull()
+  })
+
+  it('没有思考增量时只留提示，不留空的原文块', () => {
+    render({
+      ...emptyChat,
+      attempt: { attemptId: 'a1', revision: 1, nextIndex: 3 },
+    })
+    expect(element('chat-thinking').textContent).toContain('思考中')
+    expect(query('chat-thinking-reasoning')).toBeNull()
   })
 
   it('正文一到就换成流式草稿，草稿不带玻璃卡', () => {
@@ -74,6 +84,28 @@ describe('ChatTranscript 思考态', () => {
     expect(message.getAttribute('data-live')).toBeNull()
     expect(message.className.includes('lg-frost')).toBe(true)
     expect(message.className.includes('lg-glass-card')).toBe(false)
+  })
+})
+
+describe('ChatTranscript 复制按钮', () => {
+  it('只有有文本的消息才给按钮，点击写入剪贴板并给出成功反馈', async () => {
+    const writeText = vi.fn(async () => undefined)
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    render(chatWith([
+      { kind: 'user', id: 'u-1', text: '用户问题', attachments: [] },
+      { kind: 'assistant', id: 'a-1', text: '助手回答' },
+      { kind: 'user', id: 'u-2', text: '', attachments: [] },
+    ]))
+    expect(container.querySelectorAll('[data-testid="copy-user"]')).toHaveLength(1)
+    expect(container.querySelectorAll('[data-testid="copy-assistant"]')).toHaveLength(1)
+
+    await act(async () => {
+      element('copy-assistant').click()
+      await new Promise(resolve => setTimeout(resolve, 0))
+    })
+    expect(writeText).toHaveBeenCalledWith('助手回答')
+    expect(element('copy-assistant').getAttribute('data-copied')).toBe('true')
+    expect(element('copy-assistant').getAttribute('aria-label')).toBe('已复制')
   })
 })
 

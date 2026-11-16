@@ -1,6 +1,6 @@
 /** 聊天正文：用户发言与附件、按回合收敛的过程组、助手 Markdown 与流式草稿。 */
 
-import { memo, useEffect, useState } from 'react'
+import { memo, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { JSX } from 'react'
 import type { Translate } from '../locale.ts'
 import { renderMarkdown } from '../markdown/markdown.tsx'
@@ -8,7 +8,11 @@ import type {
   ChatAttachment, ChatImageAttachment, ChatRow, ChatState, ProcessItem, ToolOutcome,
 } from '../store.ts'
 import { attachmentImageUrl } from '../chat/attachments.ts'
+import { copyText } from '../chat/clipboard.ts'
 import { formatBytes } from '../chat/composer.ts'
+
+/** 距底部多近算「在跟读」；超过就暂停自动滚动。 */
+const FOLLOW_THRESHOLD = 48
 
 /** 正文属性。 */
 export interface ChatTranscriptProps {
@@ -194,6 +198,65 @@ const ProcessGroup = memo(function ProcessGroup({ row, tools, t }: {
   && next.row.items.every(item => item.kind !== 'tool'
     || previous.tools[item.callId] === next.tools[item.callId]))
 
+/** 复制按钮的图标：空闲是两张纸，复制成功是勾。 */
+function CopyIcon({ copied }: { readonly copied: boolean }): JSX.Element {
+  return (
+    <svg className="copy-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"
+      strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {copied
+        ? <path d="M3.5 8.5l3 3 6-6.5" />
+        : (
+          <>
+            <rect x="5.5" y="5.5" width="8" height="8" rx="1.8" />
+            <path d="M10.5 3.5h-7a1 1 0 0 0-1 1v7" />
+          </>
+        )}
+    </svg>
+  )
+}
+
+/**
+ * 一条消息旁的复制按钮：图标化，悬停或键盘聚焦时露出；
+ * 复制成功换成勾并短暂标注，失败只在 title 里说明。
+ * @param props - 原文、testid 与词典。
+ * @returns 复制按钮。
+ */
+function CopyButton({ text, testId, t }: {
+  readonly text: string
+  readonly testId: string
+  readonly t: Translate
+}): JSX.Element {
+  const [state, setState] = useState<'idle' | 'copied' | 'failed'>('idle')
+  const timer = useRef<number | null>(null)
+  useEffect(() => () => {
+    if (timer.current !== null) window.clearTimeout(timer.current)
+  }, [])
+  const label = state === 'copied' ? t('chat.copied')
+    : state === 'failed' ? t('chat.copyFailed')
+      : t('chat.copyMessage')
+  return (
+    <button
+      type="button"
+      className="copy-button"
+      data-testid={testId}
+      data-copied={state === 'copied' ? 'true' : undefined}
+      data-failed={state === 'failed' ? 'true' : undefined}
+      title={label}
+      aria-label={label}
+      onClick={() => {
+        void copyText(text).then((ok) => {
+          setState(ok ? 'copied' : 'failed')
+          if (timer.current !== null) window.clearTimeout(timer.current)
+          timer.current = window.setTimeout(() => { setState('idle') }, 1400)
+        })
+      }}
+    >
+      <CopyIcon copied={state === 'copied'} />
+      <span className="copy-flash" data-testid={`${testId}-flash`}>{state === 'copied' ? t('chat.copied') : ''}</span>
+    </button>
+  )
+}
+
 /**
  * 一条已提交的用户发言；流式增量不会改动它，靠 memo 跳过重渲。
  * @param props - 会话、行与词典。
@@ -205,40 +268,57 @@ const UserRow = memo(function UserRow({ sessionId, row, t }: {
   readonly t: Translate
 }): JSX.Element {
   return (
-    <article className="message user" data-testid="message-user">
-      {row.text === '' ? null : <p className="message-text">{row.text}</p>}
-      {sessionId === null ? null : (
-        <MessageAttachments sessionId={sessionId} attachments={row.attachments} t={t} />
-      )}
-    </article>
+    <div className="message-line" data-kind="user">
+      <article className="message user" data-testid="message-user">
+        {row.text === '' ? null : <p className="message-text">{row.text}</p>}
+        {sessionId === null ? null : (
+          <MessageAttachments sessionId={sessionId} attachments={row.attachments} t={t} />
+        )}
+      </article>
+      {row.text.trim() === '' ? null : <CopyButton text={row.text} testId="copy-user" t={t} />}
+    </div>
   )
 })
 
 /**
  * 一条已提交的助手正文；Markdown 渲染只随行内容变化。
- * @param props - 行。
+ * @param props - 行与词典。
  * @returns 助手消息。
  */
-const AssistantRow = memo(function AssistantRow({ row }: {
+const AssistantRow = memo(function AssistantRow({ row, t }: {
   readonly row: ChatRow & { readonly kind: 'assistant' }
+  readonly t: Translate
 }): JSX.Element {
   return (
-    <article className="message assistant lg-frost" data-testid="message-assistant">
-      <div className="markdown-body">{renderMarkdown(row.text)}</div>
-    </article>
+    <div className="message-line" data-kind="assistant">
+      <article className="message assistant lg-frost" data-testid="message-assistant">
+        <div className="markdown-body">{renderMarkdown(row.text)}</div>
+      </article>
+      <CopyButton text={row.text} testId="copy-assistant" t={t} />
+    </div>
   )
 })
 
 /**
- * 思考态指示：只报「正在思考」，不铺思维链；正文到达后由调用方移除。
- * @param props - 词典。
- * @returns 三个点与一行提示。
+ * 思考态：一行提示、三个点，以及跟着流式增量长出来的思考原文。
+ * 原文在小窗里滚动，正文一开始出现就由调用方整个移除。
+ * @param props - 实时思考文本与词典。
+ * @returns 思考面板。
  */
-function ThinkingRow({ t }: { readonly t: Translate }): JSX.Element {
+function ThinkingRow({ reasoning, t }: { readonly reasoning: string; readonly t: Translate }): JSX.Element {
+  const box = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    if (box.current !== null) box.current.scrollTop = box.current.scrollHeight
+  }, [reasoning])
   return (
     <div className="message assistant thinking" data-testid="chat-thinking" role="status">
-      <span>{t('chat.thinking')}</span>
-      <span className="thinking-dots" aria-hidden="true"><i /><i /><i /></span>
+      <div className="thinking-head">
+        <span>{t('chat.thinking')}</span>
+        <span className="thinking-dots" aria-hidden="true"><i /><i /><i /></span>
+      </div>
+      {reasoning.trim() === '' ? null : (
+        <div className="thinking-process" data-testid="chat-thinking-reasoning" ref={box}>{reasoning}</div>
+      )}
     </div>
   )
 }
@@ -249,16 +329,33 @@ function ThinkingRow({ t }: { readonly t: Translate }): JSX.Element {
  * @returns 已提交行、思考态指示、流式草稿与流错误。
  */
 export function ChatTranscript({ t, sessionId, chat }: ChatTranscriptProps): JSX.Element {
+  const list = useRef<HTMLDivElement>(null)
+  // 只有用户停在底部附近时才跟着长高；主动上滚后暂停，回到底部自动恢复。
+  const follow = useRef(true)
+  useEffect(() => { follow.current = true }, [sessionId])
+  useLayoutEffect(() => {
+    const node = list.current
+    if (node !== null && follow.current) node.scrollTop = node.scrollHeight
+  }, [chat.rows, chat.liveText, chat.liveReasoning, chat.attempt, chat.retry, chat.failure, chat.streamError])
   // 思考态只在正文还没开始时出现；流式草稿一旦有字就让位。
   const thinking = chat.attempt !== null && chat.liveText === ''
   return (
-    <div className="messages" data-testid="messages">
+    <div
+      className="messages"
+      data-testid="messages"
+      ref={list}
+      onScroll={() => {
+        const node = list.current
+        if (node === null) return
+        follow.current = node.scrollHeight - node.scrollTop - node.clientHeight <= FOLLOW_THRESHOLD
+      }}
+    >
       {chat.rows.map((row) => {
         if (row.kind === 'process') return <ProcessGroup key={row.id} row={row} tools={chat.toolResults} t={t} />
         if (row.kind === 'user') return <UserRow key={row.id} sessionId={sessionId} row={row} t={t} />
-        return <AssistantRow key={row.id} row={row} />
+        return <AssistantRow key={row.id} row={row} t={t} />
       })}
-      {thinking && <ThinkingRow t={t} />}
+      {thinking && <ThinkingRow reasoning={chat.liveReasoning} t={t} />}
       {chat.liveText !== '' && (
         <article className="message assistant live lg-frost" data-testid="message-assistant" data-live="true">
           {chat.liveText}
