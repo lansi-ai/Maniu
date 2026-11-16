@@ -92,6 +92,8 @@ interface TurnBuffer {
 export interface ChatState {
   readonly rows: readonly ChatRow[]
   readonly liveText: string
+  /** 本轮已到达的思考增量；只用于判断思考态，不渲染完整思维链。 */
+  readonly liveReasoning: string
   readonly attempt: ActiveAttempt | null
   readonly turn: TurnBuffer | null
   /** 已折叠到的日志位置；下一条 live 事件必须是 cursor + 1，否则补洞。 */
@@ -110,6 +112,7 @@ export interface ChatState {
 export const emptyChat: ChatState = {
   rows: [],
   liveText: '',
+  liveReasoning: '',
   attempt: null,
   turn: null,
   cursor: 0,
@@ -223,6 +226,25 @@ export function baselineText(baseline: unknown): string {
       for (const text of record.texts) if (typeof text === 'string') parts.push(text)
     } else if (record.type === 'chunk' && isRecord(record.chunk)
       && record.chunk.type === 'text-delta' && typeof record.chunk.text === 'string') {
+      parts.push(record.chunk.text)
+    }
+  }
+  return parts.join('')
+}
+
+/** 把重连基线里的思考增量展开；正文开始后重连不该再显示思考态。 */
+function baselineReasoning(baseline: unknown): string {
+  if (baselineText(baseline) !== '') return ''
+  if (!isRecord(baseline) || !isRecord(baseline.activeAttempt)) return ''
+  const stream = baseline.activeAttempt.stream
+  if (!Array.isArray(stream)) return ''
+  const parts: string[] = []
+  for (const record of stream) {
+    if (!isRecord(record)) continue
+    if (record.type === 'reasoning-chunks' && Array.isArray(record.texts)) {
+      for (const text of record.texts) if (typeof text === 'string') parts.push(text)
+    } else if (record.type === 'chunk' && isRecord(record.chunk)
+      && record.chunk.type === 'reasoning-delta' && typeof record.chunk.text === 'string') {
       parts.push(record.chunk.text)
     }
   }
@@ -357,7 +379,7 @@ function appendEvent(state: ChatState, record: HistoryRecord): ChatState {
   return {
     ...next,
     nextSeq: seq + 1,
-    ...(settled ? { attempt: null, liveText: '' } : {}),
+    ...(settled ? { attempt: null, liveText: '', liveReasoning: '' } : {}),
   }
 }
 
@@ -382,6 +404,7 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
       return {
         ...folded,
         liveText: baselineText(action.baseline),
+        liveReasoning: baselineReasoning(action.baseline),
         attempt: attemptOf(action.baseline),
         cursor: action.cursor,
         nextSeq: action.cursor + 1,
@@ -398,6 +421,7 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
         ...state,
         attempt: { attemptId: action.attemptId, revision: action.revision, nextIndex: 0 },
         liveText: '',
+        liveReasoning: '',
         streamError: null,
       }
     case 'assistant-chunk': {
@@ -406,12 +430,17 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
         || attempt.revision !== action.revision || attempt.nextIndex !== action.index) {
         return { ...state, rebaseline: state.rebaseline + 1 }
       }
-      const text = isRecord(action.chunk) && action.chunk.type === 'text-delta'
-        && typeof action.chunk.text === 'string' ? action.chunk.text : ''
+      const chunk = action.chunk
+      const text = isRecord(chunk) && chunk.type === 'text-delta'
+        && typeof chunk.text === 'string' ? chunk.text : ''
+      const reasoning = isRecord(chunk) && chunk.type === 'reasoning-delta'
+        && typeof chunk.text === 'string' ? chunk.text : ''
       return {
         ...state,
         attempt: { ...attempt, nextIndex: attempt.nextIndex + 1 },
         liveText: state.liveText + text,
+        // 正文一开始到达就不再显示思考态；思考缓冲也只留到那一刻。
+        liveReasoning: text === '' ? state.liveReasoning + reasoning : '',
       }
     }
     case 'assistant-end': {
@@ -419,15 +448,15 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
       if (attempt === null || attempt.attemptId !== action.attemptId || attempt.revision !== action.revision) return state
       const outcome = action.outcome
       if (!isRecord(outcome) || outcome.kind !== 'committed') {
-        return { ...state, attempt: null, liveText: '' }
+        return { ...state, attempt: null, liveText: '', liveReasoning: '' }
       }
       const seq = typeof outcome.seq === 'number' ? outcome.seq : undefined
-      if (seq === undefined || seq < state.nextSeq) return { ...state, attempt: null, liveText: '' }
+      if (seq === undefined || seq < state.nextSeq) return { ...state, attempt: null, liveText: '', liveReasoning: '' }
       return { ...state, attempt: { ...attempt, settleSeq: seq } }
     }
     case 'stream-error':
       // 正文已提交的行不受影响；流式草稿也先留着，重开后的快照才能给出权威版本。
-      return { ...state, streamError: action.message, attempt: null }
+      return { ...state, streamError: action.message, attempt: null, liveReasoning: '' }
     default:
       return state
   }

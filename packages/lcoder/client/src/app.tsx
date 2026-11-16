@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import type { JSX } from 'react'
 import type { CloseRequest, EventOutcome, HostEvent, HostState, HostWaterfall, HostWaterfallCancel } from '@lcoder/desktop/contract'
-import { actionOfFrame, chatReducer, emptyChat, summaryOf, type SessionSummary } from './store.ts'
+import { actionOfFrame, chatReducer, emptyChat, summaryOf, type ChatAction, type SessionSummary } from './store.ts'
 import { translate, type MessageKey, type Translate } from './locale.ts'
 import { browserStorage, markWelcomeSeen, usePreferences, welcomeSeen } from './prefs.ts'
 import { useCloudSession } from './account/use-cloud.ts'
@@ -30,6 +30,7 @@ import {
 } from './chat/composer.ts'
 import { interactionOf, type PendingInteraction } from './chat/pending.ts'
 import { useSessionControl } from './chat/use-session-control.ts'
+import { createFrameBatcher, type FrameBatcher } from './chat/stream-batch.ts'
 
 /** 工作台页面。 */
 type PageId = 'chat' | 'requirements' | 'tasks' | 'projects' | 'project-info' | 'roles' | 'settings' | 'account'
@@ -128,8 +129,16 @@ export function App(): JSX.Element {
   const composerRef = useRef<HTMLTextAreaElement>(null)
   const sendingRef = useRef(false)
   const hostEventSeen = useRef(false)
+  // 流式帧先排队、按 80ms 合并提交；逐帧 dispatch 会让整段消息与背景层反复重绘。
+  const batcherRef = useRef<FrameBatcher<ChatAction> | null>(null)
+  batcherRef.current ??= createFrameBatcher<ChatAction>((actions) => {
+    for (const action of actions) dispatch(action)
+  })
+  const batcher = batcherRef.current
 
   activeRef.current = active
+
+  useEffect(() => () => { batcher.dispose() }, [batcher])
 
   const applyHost = useCallback((next: HostState) => {
     setHost(current => HOST_RANK[next.kind] >= HOST_RANK[current.kind] ? next : current)
@@ -142,6 +151,7 @@ export function App(): JSX.Element {
   }, [])
 
   const openFollow = useCallback(async (sessionId: string) => {
+    batcher.dispose()
     closeStream()
     dispatch({ type: 'reset' })
     try {
@@ -157,7 +167,7 @@ export function App(): JSX.Element {
     } catch (error: unknown) {
       dispatch({ type: 'stream-error', message: error instanceof Error ? error.message : String(error) })
     }
-  }, [closeStream])
+  }, [batcher, closeStream])
 
   const selectSession = useCallback((sessionId: string) => {
     setActive(sessionId)
@@ -273,17 +283,19 @@ export function App(): JSX.Element {
       if (streamId !== streamRef.current) return
       if (frame.kind === 'item') {
         const action = actionOfFrame(frame.value)
-        if (action !== undefined) dispatch(action)
+        if (action !== undefined) batcher.push(action)
         return
       }
       if (frame.kind === 'error') {
+        // 先落已到的帧，再把错误与重开排上；排队中的旧帧不能越过错误被提交。
+        batcher.flush()
         dispatch({ type: 'stream-error', message: `${frame.error.code}: ${frame.error.message}` })
         const session = activeRef.current
         if (session !== null) void openFollow(session)
       }
     })
     return off
-  }, [openFollow])
+  }, [batcher, openFollow])
 
   useEffect(() => {
     if (chat.rebaseline === rebaselineRef.current) return
