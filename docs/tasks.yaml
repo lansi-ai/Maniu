@@ -2368,6 +2368,17 @@ tracks:
       dep: [T-210]
       inferred: false
       note: "B 级可观测修复，来源是用户 2026-11-16 反馈客户端没有输出、界面也看不到错误。排查发现 5081 API 旧进程没带当前 .env，网关把上游 400 折成 502，客户端只有一问没有回答；用 .env 重启 API 后网关 chat 200、客户端实发返回 ok。根因有两层：进程配置漂移、失败不可见。范围：客户端在 llm/retry、turn/end error 与 stream-error 时显示可见状态（重试次数、错误码与请求号），不再静默；云端在 OPENCODE_DEBUG_UPSTREAM=1 时记录上游模型、session 头是否存在、状态码与响应体片段（截断并脱敏，不记录密钥），默认关闭；本地 .env 打开该开关便于调试。验收：把云端上游指向错误地址或停 API 模拟失败，客户端出现错误与重试提示，云端 debug 日志含状态码与 requestId 且无密钥；恢复后正常；M3 43/43、C4 12/12 与 client 测试、typecheck、build、docs、i18n、oxlint 全绿。T-211 基于 T-210 分支（未合并），工作树 pool-slot-1 到 lcoder/t211-debug-visibility，端口 9824 与 9833 与 9834。2026-11-16 13:20 监督窗口登记并派工，实现线会话 c7ef030a。"
+    - id: T-212
+      title: 聊天闪烁零合成验证
+      status: doing
+      face: 用户端
+      type: 修复
+      owner: lance
+      created: '2026-11-16'
+      date: '2026-11-16'
+      dep: [T-210]
+      inferred: false
+      note: "B 级三修，用户 2026-11-16 在 T-210 合入并重启后仍反馈闪烁。T-210 已实测运行期 messages 无模糊面、blob 全部 paused，但侧栏、导航、chat-head、输入器仍保留 backdrop-filter，ambient-grain 仍 soft-light 混合，思考点与光标仍有循环动画。先做最强零合成模式验证：回合运行期给根节点 data-running，CSS 临时关闭所有元素的 backdrop-filter 与 mix-blend-mode，暂停 ambient 与思考点/光标动画，保留静态外观；同时桌面窗口关闭 backgroundThrottling 并加 disable-backgrounding-occluded-windows。若仍闪，下一步再用 LCODER_DISABLE_GPU=1 做 GPU 诊断。验收：运行期 CDP 核全页 backdrop-filter 数量为 0、blend 为 normal、动画 none；真实云端长回复；闪烁由用户手看；M3/C4 与门禁。工作树 pool-slot-2 到 lcoder/t212-zero-composite，端口 9823/9831/9832。2026-11-16 13:35 监督窗口登记并派工，实现线会话 d39ac2df。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
