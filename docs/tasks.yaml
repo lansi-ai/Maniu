@@ -2447,7 +2447,7 @@ tracks:
       note: "B 级修复，来源是用户 2026-11-16 截图标题栏中间区域拖不动。用 Win32 真实鼠标事件实测：先激活窗口后，去掉标题栏 backdrop-filter 时拖拽让窗口移动九十像素；恢复 backdrop-filter 后只移动一到两像素。根因是 Electron 与 Chromium 中 app-region drag 区域位于 backdrop-filter 元素内会失效。修法：titlebar 去掉 lg-glass 的 backdrop-filter，用静态半透明底与内高光保持玻璃观感；账号与窗口按钮仍 no-drag；门禁态 gate-drag 无 backdrop-filter 不受影响。验收：真实鼠标从标题栏中间拖动窗口位置明显变化；账号、最小化、最大化、关闭仍可点；双击仍切换最大化；M3 43/43、C4 12/12 与 client 测试、typecheck/build/docs/i18n/oxlint 全绿；留 9823 预览。工作树 pool-slot-2 到 lcoder/t219-titlebar-drag，端口 9823/9831/9832。2026-11-16 17:20 监督窗口登记并派工，实现线会话 c055be33。2026-11-16 17:50 监督窗口收口，已合入 lcoder/main；标题栏改 lg-frost 静态玻璃并整条 drag，账号与窗口按钮维持 no-drag；真实鼠标（聚焦后）从标题栏中间拖动窗口位移 88 像素、双击最大化/还原、账号与三键均可用；主检 build:artifacts、build:check、test:docs 二十一项、vitest 一千二百四十七例全过；分支上 M3 43/43、C4 12/12。注意：实现线未能复现先前 1 到 2 像素基线，监督窗口复测也需先完成一次聚焦点击才能拖动，归因以最终拖拽可用为准。未验：深浅皮肤静态观感。"
     - id: T-220
       title: 需求页首次进入自动加载
-      status: doing
+      status: done
       face: 用户端
       type: 修复
       owner: lance
@@ -2455,7 +2455,7 @@ tracks:
       date: '2026-11-16'
       dep: [T-217]
       inferred: false
-      note: "B 级修复，来源是用户 2026-11-16 反馈需求页首次进入必须点刷新才出现数据。排查：useProjection 只在 scopeSessionId 变化时加载一次；宿主或作用域会话尚未就绪时首读可能失败，而 T-217 已移除需求页诊断块，界面表现为空表；点刷新会重读成功。修法：把宿主就绪与页面激活纳入加载条件；首读失败做有限退避重试，进入需求页且数据为空或出错时自动重读；保留手动刷新；用轻量加载或失败提示，不恢复大诊断块；避免重复请求。验收：冷启动后首次进需求页无需刷新即显示数据；失败可见且可重试；不重复请求；M3 43/43、C4 12/12 与 client 测试、typecheck/build/docs/i18n/oxlint 全绿；留 9823 预览。工作树 pool-slot-2 到 lcoder/t220-requirements-autoload，端口 9823/9831/9832。2026-11-16 18:00 监督窗口登记并派工，实现线会话 edc9a0e1。"
+      note: "B 级修复，来源是用户 2026-11-16 反馈需求页首次进入必须点刷新才出现数据。排查：useProjection 只在 scopeSessionId 变化时加载一次；宿主或作用域会话尚未就绪时首读可能失败，而 T-217 已移除需求页诊断块，界面表现为空表；点刷新会重读成功。修法：把宿主就绪与页面激活纳入加载条件；首读失败做有限退避重试，进入需求页且数据为空或出错时自动重读；保留手动刷新；用轻量加载或失败提示，不恢复大诊断块；避免重复请求。验收：冷启动后首次进需求页无需刷新即显示数据；失败可见且可重试；不重复请求；M3 43/43、C4 12/12 与 client 测试、typecheck/build/docs/i18n/oxlint 全绿；留 9823 预览。工作树 pool-slot-2 到 lcoder/t220-requirements-autoload，端口 9823/9831/9832。2026-11-16 18:00 监督窗口登记并派工，实现线会话 edc9a0e1。2026-11-16 18:24 监督窗口收口，已合入 lcoder/main；冷启动首读撞 host-not-ready 时加就绪门禁、四百与一千二百与三千毫秒退避重试、进页补读，手动刷新保留，失败只显示一行可重试提示。冷启动 A/B 显示修复后首次进需求页请求一次即成功；主检 build:artifacts、build:check、test:docs 二十一项、vitest 一千二百五十四例全过；常用窗口重启后首次进需求页无需刷新即显示两条需求。未验：真实瞬断重试仅单测覆盖。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
