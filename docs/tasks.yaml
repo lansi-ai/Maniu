@@ -2348,7 +2348,7 @@ tracks:
       note: "B 级导航调整，来源是用户 2026-11-16 截图：把「项目、项目信息、角色、设置」四项移到左侧导航最下方，并去掉底部那行项目文字；「对话、需求、任务」留在上方，品牌仍在顶部。不改路由、权限、页面内容与工作台布局，保留四个 nav-* testid，移除 nav-project 文本节点。验收：CDP 核导航两组顺序与位置（底部四项贴底）、项目文字不存在、窗口 1280×800 下不溢出；M2 与 M3 探针涉及 nav-projects/nav-roles/nav-project-info/nav-settings 的点击不回归，C4 12/12、M3 43/43 与 client 测试、typecheck、build、docs、i18n、oxlint 全绿。主实例占用 9822，本线预览用 9824 与 9833 与 9834；探针可用临时端口副本，不改固定脚本。工作树 pool-slot-1 到 lcoder/t209-nav-bottom。2026-11-16 11:45 监督窗口登记并派工，实现线会话 2b14f2e5。2026-11-16 11:55 监督窗口收口。上组对话/需求/任务、下组项目/项目信息/角色/设置贴底十一个像素，项目文字与 nav-foot 已移除，四个 testid 路由不变；已合入 lcoder/main。主检 build:artifacts、build:check、test:docs 二十一项、vitest 一百零七文件一千一百九十七例全过；分支上 M3 43/43、C4 12/12。角色页 tool-cordis 激活失败卡片复现，未在本任务处理。"
     - id: T-210
       title: 聊天输出闪烁二修
-      status: doing
+      status: done
       face: 用户端
       type: 修复
       owner: lance
@@ -2370,7 +2370,7 @@ tracks:
       note: "B 级可观测修复，来源是用户 2026-11-16 反馈客户端没有输出、界面也看不到错误。排查发现 5081 API 旧进程没带当前 .env，网关把上游 400 折成 502，客户端只有一问没有回答；用 .env 重启 API 后网关 chat 200、客户端实发返回 ok。根因有两层：进程配置漂移、失败不可见。范围：客户端在 llm/retry、turn/end error 与 stream-error 时显示可见状态（重试次数、错误码与请求号），不再静默；云端在 OPENCODE_DEBUG_UPSTREAM=1 时记录上游模型、session 头是否存在、状态码与响应体片段（截断并脱敏，不记录密钥），默认关闭；本地 .env 打开该开关便于调试。验收：把云端上游指向错误地址或停 API 模拟失败，客户端出现错误与重试提示，云端 debug 日志含状态码与 requestId 且无密钥；恢复后正常；M3 43/43、C4 12/12 与 client 测试、typecheck、build、docs、i18n、oxlint 全绿。T-211 基于 T-210 分支（未合并），工作树 pool-slot-1 到 lcoder/t211-debug-visibility，端口 9824 与 9833 与 9834。2026-11-16 13:20 监督窗口登记并派工，实现线会话 c7ef030a。2026-11-16 14:12 监督窗口收口，已合入 lcoder/main；云端 debug 开关与脱敏日志、客户端重试与最终错误提示、桌面 LCODER_DEBUG 日志均完成；云端 456 测试与契约 502 通过，桌面 1224 例与 build/check/docs 通过；失败演练显示重试 1/5 到 5/5 与请求号，恢复后正常。未验：英文与其它皮肤提示视觉、打包态与 macOS。"
     - id: T-212
       title: 聊天闪烁零合成验证
-      status: doing
+      status: done
       face: 用户端
       type: 修复
       owner: lance
@@ -2381,7 +2381,7 @@ tracks:
       note: "B 级三修，用户 2026-11-16 在 T-210 合入并重启后仍反馈闪烁。T-210 已实测运行期 messages 无模糊面、blob 全部 paused，但侧栏、导航、chat-head、输入器仍保留 backdrop-filter，ambient-grain 仍 soft-light 混合，思考点与光标仍有循环动画。先做最强零合成模式验证：回合运行期给根节点 data-running，CSS 临时关闭所有元素的 backdrop-filter 与 mix-blend-mode，暂停 ambient 与思考点/光标动画，保留静态外观；同时桌面窗口关闭 backgroundThrottling 并加 disable-backgrounding-occluded-windows。若仍闪，下一步再用 LCODER_DISABLE_GPU=1 做 GPU 诊断。验收：运行期 CDP 核全页 backdrop-filter 数量为 0、blend 为 normal、动画 none；真实云端长回复；闪烁由用户手看；M3/C4 与门禁。工作树 pool-slot-2 到 lcoder/t212-zero-composite，端口 9823/9831/9832。2026-11-16 13:35 监督窗口登记并派工，实现线会话 d39ac2df。"
     - id: T-213
       title: 消息区透明根闪烁修复
-      status: doing
+      status: done
       face: 用户端
       type: 修复
       owner: lance
@@ -2392,7 +2392,7 @@ tracks:
       note: "B 级三修续，用户 2026-11-16 定位闪烁只发生在消息区且未出字时已开始。排查发现 styles.css 对 liquid-glass 把 body 设为 background transparent，窗口依赖 Electron 底色；消息区是唯一大面积直接透出负层 ambient 的滚动容器，透明根加滚动容器加负 z 背景容易在重绘时闪。修法：body 改用不透明基色，保留 ambient 在负层可见；给 .messages 加 isolation isolate、contain paint 与 translateZ(0)，ambient layer 也提升合成层；保持 T-212 零合成与 T-208 思考态。验收：CDP 核 body 计算背景非透明、ambient 仍可见、messages 有隔离层；真实云端长回复；闪烁由用户手看；若仍闪直接转 LCODER_DISABLE_GPU=1 的 GPU A/B；M3/C4 与门禁。工作树 pool-slot-2 到 lcoder/t213-opaque-root，端口 9823/9831/9832。2026-11-16 13:55 监督窗口登记并派工，实现线会话 d39ac2df。"
     - id: T-215
       title: 修复聊天历史空满交替闪烁
-      status: doing
+      status: done
       face: 用户端
       type: 修复
       owner: lance
@@ -2400,7 +2400,18 @@ tracks:
       date: '2026-11-16'
       dep: [T-213]
       inferred: false
-      note: "B 级根因修复，来源是用户反复反馈闪烁且滚动条卡住。用 CDP screencast 抓连续帧后实锤：消息区整块亮度在 230.0 与 226.2 每帧交替，差分恒为 25.06；025 帧有完整回复、026 帧是空消息区，即 store 在「有历史」与「空历史」之间反复重置，导致整块重绘与滚动回顶，不是玻璃或 GPU。可疑路径：openFollow 先 dispatch reset 再开流；chat.rebaseline 每次变化都会再次 openFollow；assistant-start 在已有 attempt 时无条件 rebaseline；多步回合的多次 start 或重连快照触发循环。修法：reconnect/rebaseline 重开时不再 reset，保留现有 rows 直到 snapshot 到达；assistant-start 改成切换 attempt、清 liveText 但不 rebaseline；stale attempt 的 chunk 直接丢弃；snapshot 到达再用权威历史替换。补多步 start/重连快照测试，钉住 rebaseline 不增长、历史不消失。验收：CDP screencast 连续帧不再出现空/满交替，滚动位置保持且可滚；真实云端多步长回复；M3 43/43、C4 12/12、client 测试与 typecheck/build/docs/i18n/oxlint 全绿。工作树 pool-slot-2 到 lcoder/t215-rebaseline-loop，端口 9823/9831/9832。2026-11-16 14:35 监督窗口登记并派工，实现线会话 d39ac2df。"
+      note: "B 级根因修复，来源是用户反复反馈闪烁且滚动条卡住。用 CDP screencast 抓连续帧后实锤：消息区整块亮度在 230.0 与 226.2 每帧交替，差分恒为 25.06；025 帧有完整回复、026 帧是空消息区，即 store 在「有历史」与「空历史」之间反复重置，导致整块重绘与滚动回顶，不是玻璃或 GPU。可疑路径：openFollow 先 dispatch reset 再开流；chat.rebaseline 每次变化都会再次 openFollow；assistant-start 在已有 attempt 时无条件 rebaseline；多步回合的多次 start 或重连快照触发循环。修法：reconnect/rebaseline 重开时不再 reset，保留现有 rows 直到 snapshot 到达；assistant-start 改成切换 attempt、清 liveText 但不 rebaseline；stale attempt 的 chunk 直接丢弃；snapshot 到达再用权威历史替换。补多步 start/重连快照测试，钉住 rebaseline 不增长、历史不消失。验收：CDP screencast 连续帧不再出现空/满交替，滚动位置保持且可滚；真实云端多步长回复；M3 43/43、C4 12/12、client 测试与 typecheck/build/docs/i18n/oxlint 全绿。工作树 pool-slot-2 到 lcoder/t215-rebaseline-loop，端口 9823/9831/9832。2026-11-16 14:35 监督窗口登记并派工，实现线会话 d39ac2df。2026-11-16 15:35 用户确认不闪；已合入 lcoder/main，主检 1232 例与门禁通过；历史采样 3 到 5 单调不减、80 次 0 空；T-210 与 T-212 与 T-213 的样式与合成修复保留，根因以本条为准。"
+    - id: T-216
+      title: 聊天输入输出体验补齐
+      status: doing
+      face: 用户端
+      type: 变更
+      owner: lance
+      created: '2026-11-16'
+      date: '2026-11-16'
+      dep: [T-215]
+      inferred: false
+      note: "B 级聊天体验补齐，用户 2026-11-16 确认闪烁修复后提六条：发送键改用白字；思考时能看到实时思考过程，而不是只有一个状态；助手输出与用户输入都可复制，用图标按钮；输入框鼠标选区更明显；流式输出时消息区自动滚到底，用户主动上滚时不强制；去掉输入框蓝色焦点边框。范围只到 client 聊天区、输入器、样式与中英词典，不改 store 线协议、云端与认证。思考过程：思考期在消息区显示可滚动的实时 reasoning 文本和「思考中…」，正文开始后收进默认折叠的过程组，不铺满整屏；复制按钮仅在有文本时出现，图标化、aria 与词典、复制成功有轻量反馈；自动滚底按 near-bottom 阈值，用户上滚后暂停跟随；输入选区用高对比强调色。验收：真实云端一条多步长回复，CDP 核思考期有实时文本、正文开始后收起、复制按钮存在且写入剪贴板、滚到底且上滚不被拉回、焦点无蓝边；M3 43/43、C4 12/12 与 client 测试、typecheck/build/docs/i18n/oxlint 全绿；留 9823 预览。工作树 pool-slot-2 到 lcoder/t216-chat-polish，端口 9823/9831/9832。2026-11-16 15:40 监督窗口登记并派工，实现线会话 d39ac2df。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
