@@ -2334,7 +2334,7 @@ tracks:
       date: '2026-11-16'
       dep: [T-207]
       inferred: false
-      note: "B 级聊天体验修复，来源是用户 2026-11-16 截图反馈：输出与思考时窗口一直闪；没有「思考中」提示；思考结束后过程不收起。根因已查：store 的 assistant-chunk 只认 text-delta，reasoning-delta 被丢弃，所以思考期没有可见状态；ProcessGroup 初始 open 为 true 且从不自动收起；流式正文每个 delta 都重绘整段消息，live 消息仍挂玻璃卡 backdrop-filter，叠加动画背景造成闪烁。修法：store 识别 reasoning-delta 并维护实时思考缓冲；聊天页在思考期显示克制的「思考中…」指示（不展示原始长链），正文开始或回合结束后移除实时块，历史过程组默认折叠、可手动展开；流式更新按 rAF 或短间隔合并，避免逐 token 重绘，live 消息改用稳定合成层/去掉 backdrop-filter，减少整窗重绘；保持现有消息、过程组与工具卡数据契约。验收：CDP 核思考指示在思考期出现、正文开始后消失，过程组完成后默认折叠；流式长文本期间无整窗闪烁（可用合成层与帧稳定性证据，真实观感由用户手看）；M3 43/43、C4 12/12、client 测试与 typecheck/build/docs/i18n/oxlint 全绿；留 9823 真实云端预览。工作树 pool-slot-2 到 lcoder/t208-chat-streaming，端口 9823 与 9831 与 9832。2026-11-16 11:35 监督窗口登记并派工。"
+      note: "B 级聊天体验修复，来源是用户 2026-11-16 截图反馈：输出与思考时窗口一直闪；没有「思考中」提示；思考结束后过程不收起。根因已查：store 的 assistant-chunk 只认 text-delta，reasoning-delta 被丢弃，所以思考期没有可见状态；ProcessGroup 初始 open 为 true 且从不自动收起；流式正文每个 delta 都重绘整段消息，live 消息仍挂玻璃卡 backdrop-filter，叠加动画背景造成闪烁。修法：store 识别 reasoning-delta 并维护实时思考缓冲；聊天页在思考期显示克制的「思考中…」指示（不展示原始长链），正文开始或回合结束后移除实时块，历史过程组默认折叠、可手动展开；流式更新按 rAF 或短间隔合并，避免逐 token 重绘，live 消息改用稳定合成层/去掉 backdrop-filter，减少整窗重绘；保持现有消息、过程组与工具卡数据契约。验收：CDP 核思考指示在思考期出现、正文开始后消失，过程组完成后默认折叠；流式长文本期间无整窗闪烁（可用合成层与帧稳定性证据，真实观感由用户手看）；M3 43/43、C4 12/12、client 测试与 typecheck/build/docs/i18n/oxlint 全绿；留 9823 真实云端预览。工作树 pool-slot-2 到 lcoder/t208-chat-streaming，端口 9823 与 9831 与 9832。2026-11-16 11:35 监督窗口登记并派工，实现线会话 d39ac2df。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
