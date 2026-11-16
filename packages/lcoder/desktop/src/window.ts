@@ -48,6 +48,8 @@ export function createMainWindow(): BrowserWindow {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      // 窗口被遮挡或失焦时继续按真实帧率渲染，流式观察与 CDP 采样才不会被节流降频。
+      backgroundThrottling: false,
     },
   })
   window.once('ready-to-show', () => { window.show() })
