@@ -160,10 +160,14 @@ export function App(): JSX.Element {
     if (stream !== null) void window.lcoder.cancelStream(stream)
   }, [])
 
-  const openFollow = useCallback(async (sessionId: string) => {
+  /**
+   * 打开跟随流。切会话才清空主链；重连保留已画出的历史与草稿，
+   * 由随后的快照原子替换，避免「空历史/满历史」逐帧交替。
+   */
+  const openFollow = useCallback(async (sessionId: string, mode: 'switch' | 'reconnect') => {
     batcher.dispose()
     closeStream()
-    dispatch({ type: 'reset' })
+    if (mode === 'switch') dispatch({ type: 'reset' })
     try {
       const stream = await window.lcoder.openStream('session', 'follow', {
         request: {
@@ -183,7 +187,7 @@ export function App(): JSX.Element {
     setActive(sessionId)
     activeRef.current = sessionId
     localStorage.setItem(SESSION_KEY, sessionId)
-    void openFollow(sessionId)
+    void openFollow(sessionId, 'switch')
   }, [openFollow])
 
   const loadSessions = useCallback(async () => {
@@ -268,6 +272,8 @@ export function App(): JSX.Element {
     const off = window.lcoder.onWaterfall((event: HostWaterfall) => {
       const interaction = interactionOf(event.name, event.clientId, event.eventId, event.request)
       if (interaction === undefined) return
+      // 审批/提问卡出现时先把排队中的流式帧落下去，卡片与工具卡不会差一帧先后。
+      batcher.flush()
       setPending((current) => {
         // 重连后同一请求会带新代际重投；回执必须用新一代的 clientId。
         if (current.some(item => item.id === interaction.id)) {
@@ -277,7 +283,7 @@ export function App(): JSX.Element {
       })
     })
     return off
-  }, [])
+  }, [batcher])
 
   useEffect(() => {
     const off = window.lcoder.onWaterfallCancel((event: HostWaterfallCancel) => {
@@ -301,7 +307,7 @@ export function App(): JSX.Element {
         batcher.flush()
         dispatch({ type: 'stream-error', message: `${frame.error.code}: ${frame.error.message}` })
         const session = activeRef.current
-        if (session !== null) void openFollow(session)
+        if (session !== null) void openFollow(session, 'reconnect')
       }
     })
     return off
@@ -311,7 +317,7 @@ export function App(): JSX.Element {
     if (chat.rebaseline === rebaselineRef.current) return
     rebaselineRef.current = chat.rebaseline
     const session = activeRef.current
-    if (session !== null) void openFollow(session)
+    if (session !== null) void openFollow(session, 'reconnect')
   }, [chat.rebaseline, openFollow])
 
   useEffect(() => {
