@@ -2510,7 +2510,7 @@ tracks:
       date: '2026-11-17'
       dep: [T-224]
       inferred: false
-      note: "B 级用户端补齐，来源是用户 2026-11-17 反馈人才库缺少原有内置人才。现状：内置十角色在 lcoder/desktop-profile.patch.yml 里定义，preset id 为 lcoder、lcoder-intake、lcoder-architect、lcoder-review、lcoder-pm、lcoder-git、lcoder-ops、lcoder-scheduler、lcoder-flow、lcoder-manager，名称与描述由 agentPresets/list 提供；T-224 的人才库页只列云端全局与项目人才。目标：人才库页增加内置人才区，卡片列出全部可用内置 preset，与云端人才分区且不混入云端全局库；点击卡片打开详情，显示名称、描述、persona、插件组合、工具面与各自会话数；沿用现有从人才新建会话入口；内置人才只读，不提供编辑与删除，不写入云端。实现优先复用 agentPresets/list、agentPresets/read、agentTalents/presetTools 与会话投影；缺字段显示可解释占位，不臆造模型或工具。测试覆盖内置列表、详情字段、会话数、空内置与宿主失败不崩；门禁 vitest、typecheck、build、i18n，改文档才跑 test:docs。工作树 pool-slot-2 到 lcoder/t225-builtin-talents，端口 9823/9831/9832。2026-11-17 05:26 监督窗口登记并派工。"
+      note: "B 级用户端补齐，来源是用户 2026-11-17 反馈人才库缺少原有内置人才。现状：内置十角色在 lcoder/desktop-profile.patch.yml 里定义，preset id 为 lcoder、lcoder-intake、lcoder-architect、lcoder-review、lcoder-pm、lcoder-git、lcoder-ops、lcoder-scheduler、lcoder-flow、lcoder-manager，名称与描述由 agentPresets/list 提供；T-224 的人才库页只列云端全局与项目人才。目标：人才库页增加内置人才区，卡片列出全部可用内置 preset，与云端人才分区且不混入云端全局库；点击卡片打开详情，显示名称、描述、persona、插件组合、工具面与各自会话数；沿用现有从人才新建会话入口；内置人才只读，不提供编辑与删除，不写入云端。实现优先复用 agentPresets/list、agentPresets/read、agentTalents/presetTools 与会话投影；缺字段显示可解释占位，不臆造模型或工具。测试覆盖内置列表、详情字段、会话数、空内置与宿主失败不崩；门禁 vitest、typecheck、build、i18n，改文档才跑 test:docs。工作树 pool-slot-2 到 lcoder/t225-builtin-talents，端口 9823/9831/9832。2026-11-17 05:26 监督窗口登记并派工，实现线会话 af2c03e7。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
