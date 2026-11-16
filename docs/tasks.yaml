@@ -2367,7 +2367,7 @@ tracks:
       date: '2026-11-16'
       dep: [T-210]
       inferred: false
-      note: "B 级可观测修复，来源是用户 2026-11-16 反馈客户端没有输出、界面也看不到错误。排查发现 5081 API 旧进程没带当前 .env，网关把上游 400 折成 502，客户端只有一问没有回答；用 .env 重启 API 后网关 chat 200、客户端实发返回 ok。根因有两层：进程配置漂移、失败不可见。范围：客户端在 llm/retry、turn/end error 与 stream-error 时显示可见状态（重试次数、错误码与请求号），不再静默；云端在 OPENCODE_DEBUG_UPSTREAM=1 时记录上游模型、session 头是否存在、状态码与响应体片段（截断并脱敏，不记录密钥），默认关闭；本地 .env 打开该开关便于调试。验收：把云端上游指向错误地址或停 API 模拟失败，客户端出现错误与重试提示，云端 debug 日志含状态码与 requestId 且无密钥；恢复后正常；M3 43/43、C4 12/12 与 client 测试、typecheck、build、docs、i18n、oxlint 全绿。T-211 基于 T-210 分支（未合并），工作树 pool-slot-1 到 lcoder/t211-debug-visibility，端口 9824 与 9833 与 9834。2026-11-16 13:20 监督窗口登记并派工。"
+      note: "B 级可观测修复，来源是用户 2026-11-16 反馈客户端没有输出、界面也看不到错误。排查发现 5081 API 旧进程没带当前 .env，网关把上游 400 折成 502，客户端只有一问没有回答；用 .env 重启 API 后网关 chat 200、客户端实发返回 ok。根因有两层：进程配置漂移、失败不可见。范围：客户端在 llm/retry、turn/end error 与 stream-error 时显示可见状态（重试次数、错误码与请求号），不再静默；云端在 OPENCODE_DEBUG_UPSTREAM=1 时记录上游模型、session 头是否存在、状态码与响应体片段（截断并脱敏，不记录密钥），默认关闭；本地 .env 打开该开关便于调试。验收：把云端上游指向错误地址或停 API 模拟失败，客户端出现错误与重试提示，云端 debug 日志含状态码与 requestId 且无密钥；恢复后正常；M3 43/43、C4 12/12 与 client 测试、typecheck、build、docs、i18n、oxlint 全绿。T-211 基于 T-210 分支（未合并），工作树 pool-slot-1 到 lcoder/t211-debug-visibility，端口 9824 与 9833 与 9834。2026-11-16 13:20 监督窗口登记并派工，实现线会话 c7ef030a。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
