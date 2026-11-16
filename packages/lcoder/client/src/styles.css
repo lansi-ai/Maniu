@@ -4,8 +4,11 @@
 
 html, body, #root { height: 100%; margin: 0; }
 
+/* 不透明根：消息区等大面积容器不再直接透出窗口底色；背景层仍由 .app 内的 ambient-layer 覆盖。 */
+html[data-theme='liquid-glass'] { background: var(--lg-base-a); }
+
 html[data-theme='liquid-glass'] body {
-  background: transparent;
+  background: var(--lg-base-a);
   color: var(--lg-ink);
   font-family: var(--lg-font);
   font-size: 14px;
@@ -320,6 +323,12 @@ html[data-theme='liquid-glass'] body {
   padding: 4px 6px;
   overflow: auto;
   min-height: 0;
+  /* 滚动容器自己成层：内容长高时只重绘这一块，不牵动整窗与背景层。
+     contain: paint 只把绘制裁到滚动视口，滚动与焦点环仍在容器内。 */
+  isolation: isolate;
+  contain: paint;
+  transform: translateZ(0);
+  backface-visibility: hidden;
 }
 
 .message {

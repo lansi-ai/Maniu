@@ -91,6 +91,9 @@
   background:
     radial-gradient(120% 80% at 50% -12%, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0) 62%),
     linear-gradient(180deg, var(--lg-base-a) 0%, var(--lg-base-b) 100%);
+  /* 背景单独成层：上层内容重绘时复用同一层，不再与内容合成同一张图。 */
+  transform: translateZ(0);
+  backface-visibility: hidden;
 }
 
 .ambient-blob {
