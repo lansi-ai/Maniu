@@ -3,8 +3,8 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC_CHANNELS } from './contract.ts'
 import type {
-  CloseRequest, DesktopLocaleId, DesktopPreferences, EventOutcome, HostEvent, HostState, HostWaterfall,
-  HostWaterfallCancel, LcoderApi, RemoteResult, StreamFrame, UpdateCheck, WindowStateInfo,
+  CloseRequest, DesktopLocaleId, DesktopPreferences, DirectoryPickResult, EventOutcome, HostEvent, HostState,
+  HostWaterfall, HostWaterfallCancel, LcoderApi, RemoteResult, StreamFrame, UpdateCheck, WindowStateInfo,
 } from './contract.ts'
 
 function onHostState(listener: (state: HostState) => void): () => void {
@@ -74,6 +74,11 @@ const api: LcoderApi = {
   readPreferences: () => ipcRenderer.invoke(IPC_CHANNELS.preferencesRead) as Promise<DesktopPreferences>,
   writePreferences: (patch: Partial<DesktopPreferences>) =>
     ipcRenderer.invoke(IPC_CHANNELS.preferencesWrite, patch) as Promise<DesktopPreferences>,
+  pickDirectory: async () => {
+    const answer = await ipcRenderer.invoke(IPC_CHANNELS.pickDirectory) as DirectoryPickResult
+    if (!answer.ok) throw new Error(answer.message)
+    return answer.path
+  },
 }
 
 contextBridge.exposeInMainWorld('lcoder', api)

@@ -25,8 +25,15 @@ export function ProjectsPage(props: ProjectsPageProps): JSX.Element {
   const [failure, setFailure] = useState<string | null>(null)
 
   const browse = async (): Promise<void> => {
-    const picked = await pickDirectory()
-    if (picked !== null) setPath(picked)
+    try {
+      const picked = await pickDirectory()
+      if (picked !== null) {
+        setPath(picked)
+        setFailure(null)
+      }
+    } catch (cause: unknown) {
+      setFailure(cause instanceof Error ? cause.message : String(cause))
+    }
   }
 
   const submit = async (): Promise<void> => {

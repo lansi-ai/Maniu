@@ -33,6 +33,8 @@ export interface DesktopMessages {
   readonly about: string
   readonly aboutDetail: string
   readonly updateManual: string
+  readonly pickDirectoryTitle: string
+  readonly pickDirectoryFailed: string
 }
 
 /** 两种界面语言的主进程词典。 */
@@ -63,6 +65,8 @@ export const DESKTOP_MESSAGES: Readonly<Record<DesktopLocaleId, DesktopMessages>
     about: '关于慢牛',
     aboutDetail: '版本 {version}',
     updateManual: '当前版本 {version}。本版本只提供手动更新：请从慢牛 Maniu 官方下载页获取安装包后覆盖安装。',
+    pickDirectoryTitle: '选择仓库目录',
+    pickDirectoryFailed: '无法打开系统目录选择框：{detail}',
   },
   en: {
     appName: 'Maniu',
@@ -90,6 +94,8 @@ export const DESKTOP_MESSAGES: Readonly<Record<DesktopLocaleId, DesktopMessages>
     about: 'About Maniu',
     aboutDetail: 'Version {version}',
     updateManual: 'Version {version}. This build updates manually: download the installer from the official Maniu download page and install it over this version.',
+    pickDirectoryTitle: 'Choose repository folder',
+    pickDirectoryFailed: 'Could not open the system folder picker: {detail}',
   },
 }
 

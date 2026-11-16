@@ -207,6 +207,7 @@ if (!app.requestSingleInstanceLock()) {
       hostState: () => publisher.current(),
       windowState: () => windowState.current(),
       update: checkUpdate,
+      locale: () => locale,
       confirmClose: () => {
         closeConfirmed = true
         mainWindow?.close()

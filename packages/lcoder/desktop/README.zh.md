@@ -60,3 +60,5 @@ kind: "package-reference"
 <a id="dev-note"></a>
 
 构建与启动见 [lcoder/s1.md](../../../lcoder/s1.md)；Windows 打包见 [lcoder/windows-packaging.md](../../../lcoder/windows-packaging.md)。
+
+浏览按钮的目录选择走主进程 `lcoder:pick-directory` 与 `dialog.showOpenDialog`（取消返回 null，打不开回带原因）；宿主 `directory-picker` 在发布 profile 中保持禁用，两者不要混用。
