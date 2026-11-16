@@ -534,6 +534,8 @@ export function App(): JSX.Element {
   const limits = imageLimitsOf(mergedProjection.imageLimits)
   const usage = contextUsageOf(mergedProjection.contextPressure)
   const running = active !== null && sessions.find(item => item.sessionId === active)?.running === true
+  // 回合在跑或正文还在流时冻结背景漂移；两者都不是时恢复。
+  const busy = running || chat.attempt !== null
 
   const gateKind: 'booting' | 'cloud-error' | 'signed-out' | 'ready' =
     host.kind !== 'ready'
@@ -562,7 +564,11 @@ export function App(): JSX.Element {
   )
 
   return (
-    <div className="app" {...(gateKind === 'booting' ? {} : { 'data-lcoder-state': gateKind })}>
+    <div
+      className="app"
+      {...(gateKind === 'booting' ? {} : { 'data-lcoder-state': gateKind })}
+      data-running={busy ? 'true' : 'false'}
+    >
       <div className="ambient-layer" data-testid="ambient-layer" aria-hidden="true">
         <span className="ambient-blob blob-a" />
         <span className="ambient-blob blob-b" />

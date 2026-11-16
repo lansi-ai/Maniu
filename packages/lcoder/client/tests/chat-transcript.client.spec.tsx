@@ -68,11 +68,12 @@ describe('ChatTranscript 思考态', () => {
     expect(live.textContent).toContain('结论')
   })
 
-  it('已提交正文仍保留玻璃卡', () => {
+  it('已提交正文用静态磨砂，不再挂玻璃卡', () => {
     render(chatWith([{ kind: 'assistant', id: 'a-1', text: '读完了' }]))
     const message = element('message-assistant')
     expect(message.getAttribute('data-live')).toBeNull()
-    expect(message.className.includes('lg-glass-card')).toBe(true)
+    expect(message.className.includes('lg-frost')).toBe(true)
+    expect(message.className.includes('lg-glass-card')).toBe(false)
   })
 })
 
@@ -87,6 +88,8 @@ describe('ProcessGroup', () => {
     render(chatWith(rows))
     const group = element('process-group')
     expect(group.getAttribute('data-open')).toBe('false')
+    expect(group.className.includes('lg-frost')).toBe(true)
+    expect(group.className.includes('lg-glass-card')).toBe(false)
     const list = group.querySelector<HTMLElement>('.process-list')
     expect(list?.hidden).toBe(true)
     expect(element('process-reasoning').textContent).toContain('先读文件')

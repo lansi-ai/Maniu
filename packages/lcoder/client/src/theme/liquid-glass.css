@@ -172,6 +172,9 @@
   to { transform: translate3d(8%, 8%, 0) scale(1.1); }
 }
 
+/* 回合运行期冻结背景漂移：内容持续长高时，动态背景会让依赖它的玻璃面反复合成。 */
+.app[data-running='true'] .ambient-blob { animation-play-state: paused; }
+
 /* 玻璃基元：面板、卡片、控制器共用边框、高光与阴影。
    只写标准 backdrop-filter：目标渲染器是 Electron 的 Chromium，而打包器在同一条
    规则里只保留最后一条声明，写 -webkit- 前缀会把标准属性挤掉。 */
@@ -191,6 +194,17 @@
   border-radius: var(--lg-radius-card);
   box-shadow: var(--lg-shadow-card), var(--lg-highlight-card);
   backdrop-filter: blur(var(--lg-blur-soft)) saturate(var(--lg-saturate));
+}
+
+/* 静态磨砂：内容层卡片只叠半透明底色与内高光，不采样背景。
+   流式正文长高或背景漂移时都不会触发背景模糊重算，层次仍由细边与阴影给出。 */
+.lg-frost {
+  position: relative;
+  background: var(--lg-fill-card), var(--lg-fill-raised);
+  border: 1px solid var(--lg-line);
+  border-radius: var(--lg-radius-card);
+  box-shadow: var(--lg-shadow-card), var(--lg-highlight-card);
+  backdrop-filter: none;
 }
 
 /* 扫光：伪元素横穿一条白色高光带，只过渡 transform 与 opacity。 */

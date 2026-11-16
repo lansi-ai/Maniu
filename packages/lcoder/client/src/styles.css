@@ -345,12 +345,8 @@ html[data-theme='liquid-glass'] body {
 
 .message.live {
   padding-right: 26px;
-  /* 流式正文每个增量都会长高：去掉背景模糊，改用不透明些的底色与独立合成层，
-     避免每次重绘都与环境层重新合成，观感上也更像一块稳定的纸。 */
-  background: var(--lg-fill-card), var(--lg-fill-raised);
-  border: 1px solid var(--lg-line);
-  box-shadow: var(--lg-shadow-card), var(--lg-highlight-card);
-  backdrop-filter: none;
+  /* 流式正文每个增量都会长高：静态磨砂打底，再单独给一层合成层，
+     避免每次重绘都带着整个滚动区重新合成。 */
   transform: translateZ(0);
 }
 
