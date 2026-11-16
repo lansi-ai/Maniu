@@ -2478,6 +2478,17 @@ tracks:
       dep: [T-221]
       inferred: false
       note: "B 级宿主能力，承接 T-221 云端人才模型。目标：把云端人才配置注册为运行时可用的 agent preset，只允许本机已安装插件，不允许外部包与 !!js 表达式；preset id 用 talent-加云端 id，稳定可替换；内置 preset 不动。需要新增宿主 Remote 面，让客户端提交云端人才列表并应用或撤回；注册前校验插件名在本机组合清单内、禁止 url/source/package 字段、配置只接受静态 JSON；会话创建时固定当时的 preset 快照，编辑人才只影响新会话。删除保护只检查本机会话引用，提供查询会话引用或由客户端检查并阻止。测试覆盖注册替换撤回、未知插件拒绝、快照固定、引用查询；M3 43/43、C4 12/12 不回归。工作树 pool-slot-2 到 lcoder/t222-dynamic-preset，端口 9823/9831/9832；不改云端与客户端 UI，T-223 接 UI。2026-11-16 20:35 监督窗口登记并派工，实现线会话 802d083a。2026-11-16 21:40 监督窗口收口，已合入 lcoder/main；新增 agentTalents Remote 与 talent- 前缀 preset，安装插件清单校验、拒绝外部包与 __jsExpr、整批校验与回滚、替换撤回、会话快照与本机引用查询均完成；真实宿主加 mock 云端 14/14，M3 43/43、C4 12/12，主检 1279 例。已知缺口：tools 与 model 与 budget 仅校验并以 deferred 回显，未生成运行时配置；T-223 UI 前需决定是否本期补齐。"
+    - id: T-223
+      title: 人才工具白名单、模型与预算运行时生效
+      status: doing
+      face: 工程
+      type: 开发
+      owner: lance
+      created: '2026-11-16'
+      date: '2026-11-16'
+      dep: [T-222]
+      inferred: false
+      note: "B 级运行时补齐，承接 T-222。用户拍板：人才配置里的 tools 是白名单，只保留列出的工具，空列表不限制；模型写入 preset 默认模型；预算在云端网关硬限，超过 maxCostMicroUsd 或 maxRequestsPerSession 拒绝后续请求。范围两仓。LCoder：把 tools 映射到已安装工具面，未知工具拒绝；model 用 agent-default-model 或等价配置写入 preset；宿主请求云网关时带 talentId 与 sessionId 头。云端：网关解析 talentId 并读取人才配置，按 userId 与 talentId 与 sessionId 记录请求数与成本计数，超限返回可解释的预算错误；不打印密钥。验收：白名单之外的工具不在会话工具面，空列表不限制；模型生效；低预算真实测试超限被拒且不打印密钥；M3 43/43、C4 12/12 与两仓测试、契约、typecheck/build 全绿。不做客户端人才库 UI（T-224）。工作树 pool-slot-2 到 lcoder/t223-runtime-knobs，端口 9823/9831/9832；云端直接 main 本地提交。2026-11-16 22:00 监督窗口登记并派工。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
