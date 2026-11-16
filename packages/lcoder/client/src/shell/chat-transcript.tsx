@@ -264,6 +264,28 @@ export function ChatTranscript({ t, sessionId, chat }: ChatTranscriptProps): JSX
           {chat.liveText}
         </article>
       )}
+      {chat.retry !== null && (
+        <p className="notice model-retry" data-testid="chat-retry" role="status">
+          {t('chat.modelRetrying', {
+            attempt: chat.retry.attempt,
+            max: chat.retry.max ?? '∞',
+          })}
+        </p>
+      )}
+      {chat.failure !== null && (
+        <p
+          className="notice model-failure"
+          data-testid="chat-failure"
+          data-request-id={chat.failure.requestId ?? undefined}
+        >
+          <span>{t('chat.modelFailed', {
+            detail: chat.failure.message === '' ? t('chat.modelFailedGeneric') : chat.failure.message,
+          })}</span>
+          {chat.failure.requestId === null ? null : (
+            <span className="failure-request">{t('chat.modelFailedRequest', { id: chat.failure.requestId })}</span>
+          )}
+        </p>
+      )}
       {chat.streamError !== null && <p className="notice" data-testid="stream-error">{chat.streamError}</p>}
     </div>
   )

@@ -10,6 +10,7 @@ import { releasedUserDataPath, resolveDesktopHome } from './home.ts'
 import { HostSupervisor, type HostLaunch } from './host-supervisor.ts'
 import { createStatePublisher, createWindowStatePublisher, registerIpc } from './ipc.ts'
 import { HostLink } from './link.ts'
+import { createModelDebugLog } from './model-debug.ts'
 import { installMenu } from './menu.ts'
 import { REPO_ROOT, releaseProfileSourceDir } from './profile.ts'
 import { RunningTurns } from './running-turns.ts'
@@ -45,6 +46,7 @@ let shutdownStarted = false
 let closeConfirmed = false
 
 const runningTurns = new RunningTurns()
+const modelDebug = createModelDebugLog(process.env.LCODER_DEBUG === '1')
 
 const publisher = createStatePublisher(() => mainWindow)
 const windowState = createWindowStatePublisher(() => mainWindow)
@@ -150,7 +152,10 @@ async function boot(): Promise<void> {
       },
       onWaterfall: (event) => { send(IPC_CHANNELS.waterfall, event) },
       onWaterfallCancel: (event) => { send(IPC_CHANNELS.waterfallCancel, event) },
-      onStreamFrame: (streamId, frame) => { send(IPC_CHANNELS.streamFrame, streamId, frame) },
+      onStreamFrame: (streamId, frame) => {
+        modelDebug?.record(streamId, frame)
+        send(IPC_CHANNELS.streamFrame, streamId, frame)
+      },
     })
     console.log('lcoder desktop: 宿主链路已连接')
     link = link_
