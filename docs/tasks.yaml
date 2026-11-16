@@ -2414,7 +2414,7 @@ tracks:
       note: "B 级聊天体验补齐，用户 2026-11-16 确认闪烁修复后提六条：发送键改用白字；思考时能看到实时思考过程，而不是只有一个状态；助手输出与用户输入都可复制，用图标按钮；输入框鼠标选区更明显；流式输出时消息区自动滚到底，用户主动上滚时不强制；去掉输入框蓝色焦点边框。范围只到 client 聊天区、输入器、样式与中英词典，不改 store 线协议、云端与认证。思考过程：思考期在消息区显示可滚动的实时 reasoning 文本和「思考中…」，正文开始后收进默认折叠的过程组，不铺满整屏；复制按钮仅在有文本时出现，图标化、aria 与词典、复制成功有轻量反馈；自动滚底按 near-bottom 阈值，用户上滚后暂停跟随；输入选区用高对比强调色。验收：真实云端一条多步长回复，CDP 核思考期有实时文本、正文开始后收起、复制按钮存在且写入剪贴板、滚到底且上滚不被拉回、焦点无蓝边；M3 43/43、C4 12/12 与 client 测试、typecheck/build/docs/i18n/oxlint 全绿；留 9823 预览。工作树 pool-slot-2 到 lcoder/t216-chat-polish，端口 9823/9831/9832。2026-11-16 15:40 监督窗口登记并派工，实现线会话 d39ac2df。2026-11-16 16:10 监督窗口收口，已合入 lcoder/main；主检 build:artifacts、build:check、test:docs 二十一项、vitest 一百二十三文件一千二百三十四例全过；发送键白字、思考期实时原文、消息复制、选区对比、near-bottom 自动滚底、去蓝焦点均完成，T-215 历史单调与不闪不回归。未验：其它皮肤与英文、macOS、打包态。"
     - id: T-217
       title: 清理需求页诊断块并统一强调按钮
-      status: doing
+      status: done
       face: 用户端
       type: 变更
       owner: lance
@@ -2422,10 +2422,10 @@ tracks:
       date: '2026-11-16'
       dep: [T-216]
       inferred: false
-      note: "B 级界面清理，来源是用户 2026-11-16 截图：左侧导航再出现一次「慢牛 Maniu」要去掉；需求页「来自 某路径 的 .spec/requirements」来源行去掉；需求页顶部那块列 .spec 文件与「宿主尚未就绪」的红色诊断块没有用，至少此页不出现；所有蓝色主题色按钮文字统一白色。范围只到 client：移除 app.tsx 的 nav-brand；requirements.tsx 移除 page-sub 来源行与 projection error 的 pre 块；样式层给 .pill-accent 全状态白字（含 hover/disabled/焦点），不改其它语义。验收：CDP 核导航无重复品牌、需求页无来源行与诊断块、蓝色按钮计算色白色；相关组件测试、i18n、typecheck、build、docs、M3 43/43、C4 12/12 全绿；留 9823 预览。工作树 pool-slot-2 到 lcoder/t217-requirements-cleanup，端口 9823/9831/9832。2026-11-16 16:20 监督窗口登记并派工，实现线会话 e3426830。"
+      note: "B 级界面清理，来源是用户 2026-11-16 截图：左侧导航再出现一次「慢牛 Maniu」要去掉；需求页「来自 某路径 的 .spec/requirements」来源行去掉；需求页顶部那块列 .spec 文件与「宿主尚未就绪」的红色诊断块没有用，至少此页不出现；所有蓝色主题色按钮文字统一白色。范围只到 client：移除 app.tsx 的 nav-brand；requirements.tsx 移除 page-sub 来源行与 projection error 的 pre 块；样式层给 .pill-accent 全状态白字（含 hover/disabled/焦点），不改其它语义。验收：CDP 核导航无重复品牌、需求页无来源行与诊断块、蓝色按钮计算色白色；相关组件测试、i18n、typecheck、build、docs、M3 43/43、C4 12/12 全绿；留 9823 预览。工作树 pool-slot-2 到 lcoder/t217-requirements-cleanup，端口 9823/9831/9832。2026-11-16 16:20 监督窗口登记并派工，实现线会话 e3426830。2026-11-16 17:06 监督窗口收口，已合入 lcoder/main；主检 build:artifacts、build:check、test:docs 二十一项、vitest 一千二百四十七例全过；导航无重复品牌、需求页无来源行与诊断块、强调按钮默认蓝皮肤白字均实测。"
     - id: T-218
       title: 修复浏览按钮原生选目录
-      status: doing
+      status: done
       face: 用户端
       type: 修复
       owner: lance
@@ -2433,7 +2433,7 @@ tracks:
       date: '2026-11-16'
       dep: [T-205]
       inferred: false
-      note: "B 级修复，来源是用户 2026-11-16 截图需求页「浏览…」不好用。根因：client 的 pickDirectory 走宿主 directoryPicker/pick，但新客户端 profile 在 host-workbench 里已禁用 directory-picker，注释明确应走主进程 window.lcoder.pickDirectory；主进程却从未实现该 IPC，点击静默失败。修法：新增 IPC channel lcoder:pick-directory，contract 增加 pickDirectory 返回 Promise<string|null>，ipc.ts 用 Electron dialog.showOpenDialog({properties:['openDirectory']}) 返回路径或 null，preload 暴露；client 改走主进程；取消不报错，失败给可解释反馈。验收：真实点击弹出系统选目录框、选择后路径回填、打开仓库成功；其它切换项目流程不变；typecheck、client 测试、build:artifacts、build:check、test:docs、i18n、oxlint、M3 43/43、C4 12/12。工作树 pool-slot-1 到 lcoder/t218-native-picker，端口 9824/9833/9834（9822 主实例占用）。2026-11-16 16:35 监督窗口登记并派工，实现线会话 c95a0ab3。"
+      note: "B 级修复，来源是用户 2026-11-16 截图需求页「浏览…」不好用。根因：client 的 pickDirectory 走宿主 directoryPicker/pick，但新客户端 profile 在 host-workbench 里已禁用 directory-picker，注释明确应走主进程 window.lcoder.pickDirectory；主进程却从未实现该 IPC，点击静默失败。修法：新增 IPC channel lcoder:pick-directory，contract 增加 pickDirectory 返回 Promise<string|null>，ipc.ts 用 Electron dialog.showOpenDialog({properties:['openDirectory']}) 返回路径或 null，preload 暴露；client 改走主进程；取消不报错，失败给可解释反馈。验收：真实点击弹出系统选目录框、选择后路径回填、打开仓库成功；其它切换项目流程不变；typecheck、client 测试、build:artifacts、build:check、test:docs、i18n、oxlint、M3 43/43、C4 12/12。工作树 pool-slot-1 到 lcoder/t218-native-picker，端口 9824/9833/9834（9822 主实例占用）。2026-11-16 16:35 监督窗口登记并派工，实现线会话 c95a0ab3。2026-11-16 17:06 监督窗口收口，已合入 lcoder/main；主检 build:artifacts、build:check、test:docs 二十一项、vitest 一千二百四十七例全过；真实 UI 点浏览弹出原生选目录框、取消无错、选择后回填并打开成功；pickDirectory IPC 与 preload 测试通过。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
