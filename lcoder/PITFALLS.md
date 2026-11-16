@@ -127,3 +127,10 @@
 - **原因**：Vite 8 的 CSS 压缩把同一条规则里的前缀写法当成同一属性去重，只保留最后一条。标准属性在前、`-webkit-` 在后，产物里就只剩 `-webkit-backdrop-filter`；本机 Electron 的 Chromium 不认这个前缀（`CSS.supports('-webkit-backdrop-filter', 'blur(10px)')` 为 false），计算值回落成 `none`。反过来只写标准属性时，压缩器会自动补一条前缀并把标准属性放在最后，两个都在。
 - **处理**：主题层只写标准 `backdrop-filter`，不手写 `-webkit-` 前缀；改完重新 `pnpm --filter @lcoder/client run build`，在 `lib/dist/assets/*.css` 里 grep `backdrop-filter:` 确认标准属性存在，再用 CDP 读 computed style 核实（T-188 的取证方式：`getComputedStyle(el).backdropFilter`）。
 - **预防**：CSS 里凡是需要前缀的属性（backdrop-filter、mask、text-stroke 等）一律只写标准形式，让打包器决定前缀。"样式写了但界面没效果"的排查顺序固定为：先读打包后的 CSS，再读 computed style；两步都过才算生效，只看源码会被压缩去重骗过去。
+
+## W-19 旧 API 进程不带 .env，502 在客户端完全不可见
+
+- **现象**：客户端发消息后只有提问、没有任何回答，界面也没有错误；同一时刻云端网关对 `chat/completions` 返回 502。
+- **原因**：5081 上的 API 是更早的进程，没有读到当前 `.env`，上游凭据/模型配置缺失；网关把上游 400/5xx 统一折成 `502 upstream_unavailable`。客户端此前忽略 `llm/retry` 与带 `error` 原因的 `turn/end`，既看不到重试也看不到最终失败。
+- **处理**：改过云端 `.env` 后必须重启 5081 的 API 再验；旧进程会一直用启动时的环境。排查时两侧各开一个开关——云端 `OPENCODE_DEBUG_UPSTREAM=true` 看 `lcoder/logs/cloud-api.log` 里的上游状态与响应体，桌面 `LCODER_DEBUG=1` 看 `lcoder/logs/model-debug.log` 里的事件、请求号与状态；客户端最终失败行会显示「请求号：req_…」，可用来对齐两侧日志。
+- **预防**：看见「只有提问没有回答且无报错」先核 API 的启动时刻与环境，再核上游状态；不要先怀疑模型。云端 `.env` 的值不进任何提交，日志只记状态码与截断脱敏文本，不记请求头与密钥。

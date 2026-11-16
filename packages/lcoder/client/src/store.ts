@@ -80,6 +80,20 @@ interface ActiveAttempt {
   readonly settleSeq?: number
 }
 
+/** 一次模型重试提示；`attempt` 是第几次重试，从 1 开始。 */
+export interface ChatRetryNotice {
+  readonly attempt: number
+  /** 重试上限；策略为无限重试时为空。 */
+  readonly max: number | null
+}
+
+/** 回合最终失败；`requestId` 由云端错误体或响应头给出。 */
+export interface ChatFailure {
+  readonly message: string
+  readonly code: string | null
+  readonly requestId: string | null
+}
+
 /** 一个回合里还没落成行的过程条目与正文。 */
 interface TurnBuffer {
   readonly id: string
@@ -101,6 +115,10 @@ export interface ChatState {
   readonly nextSeq: number
   readonly rebaseline: number
   readonly streamError: string | null
+  /** 模型暂时不可用时的重试提示；恢复或回合结束时清除。 */
+  readonly retry: ChatRetryNotice | null
+  /** 回合最终失败；新的回合开始时清除。 */
+  readonly failure: ChatFailure | null
   readonly title: string | null
   readonly projections: Readonly<Record<string, unknown>>
   /** 开场帧投影的水位；控制流的同键更新只有更新时才覆盖。 */
@@ -119,6 +137,8 @@ export const emptyChat: ChatState = {
   nextSeq: 1,
   rebaseline: 0,
   streamError: null,
+  retry: null,
+  failure: null,
   title: null,
   projections: {},
   projectionSeq: 0,
@@ -277,6 +297,48 @@ function turnNumberOf(data: unknown): number {
   return isRecord(data) && typeof data.turn === 'number' ? data.turn : 0
 }
 
+/** 云端错误体里的请求号；适配器通常已把它放进 `requestId`，文本兜底只认同名键。 */
+function requestIdInText(text: string): string | null {
+  const match = /"request_?id"\s*:\s*"([^"]+)"/iu.exec(text)
+  return match?.[1] ?? null
+}
+
+/** 适配器会把云端错误体拼进文案；能解析时用里面的 message，界面上不摊原始 JSON。 */
+function embeddedError(text: string): Record<string, unknown> | undefined {
+  const start = text.indexOf('{')
+  if (start < 0) return undefined
+  try {
+    const parsed: unknown = JSON.parse(text.slice(start))
+    return isRecord(parsed) ? parsed : undefined
+  } catch {
+    return undefined
+  }
+}
+
+function failureOf(error: unknown): ChatFailure {
+  if (!isRecord(error)) return { message: '', code: null, requestId: null }
+  const raw = typeof error.message === 'string' ? error.message : ''
+  const embedded = embeddedError(raw)
+  const message = embedded !== undefined && typeof embedded.message === 'string' ? embedded.message : raw
+  const requestId = typeof error.requestId === 'string' && error.requestId !== ''
+    ? error.requestId
+    : embedded !== undefined && typeof embedded.requestId === 'string'
+      ? embedded.requestId
+      : requestIdInText(raw)
+  const code = embedded !== undefined && typeof embedded.code === 'string'
+    ? embedded.code
+    : typeof error.code === 'string' ? error.code : null
+  return { message, code, requestId }
+}
+
+function retryOf(data: unknown): ChatRetryNotice | null {
+  if (!isRecord(data) || typeof data.retry !== 'number') return null
+  return {
+    attempt: data.retry,
+    max: typeof data.maxRetries === 'number' ? data.maxRetries : null,
+  }
+}
+
 function flushTurn(state: ChatState): ChatState {
   const turn = state.turn
   if (turn === null) return state
@@ -349,14 +411,29 @@ function applyEvent(state: ChatState, record: HistoryRecord): ChatState {
   switch (event.type) {
     case 'user/message': {
       if (!isRecord(event.data) || !isRecord(event.data.source) || event.data.source.kind !== 'user') return state
-      return pushUser(state, event.data.content, event.seq)
+      return { ...pushUser(state, event.data.content, event.seq), retry: null }
     }
     case 'assistant/message':
-      return collectAssistant(state, event.data, event.seq)
+      return { ...collectAssistant(state, event.data, event.seq), retry: null }
     case 'tool/result':
       return collectToolResult(state, event.data)
-    case 'turn/end':
-      return flushTurn(state)
+    case 'llm/retry': {
+      const retry = retryOf(event.data)
+      // 重试只说明这次调用已失败、下一轮还没开始；最终失败等 turn/end 报。
+      return retry === null ? state : { ...state, retry, failure: null }
+    }
+    case 'llm/retry-started':
+      return state
+    case 'turn/start':
+      return { ...state, retry: null, failure: null }
+    case 'turn/end': {
+      const flushed = flushTurn(state)
+      const reason = isRecord(event.data) ? event.data.reason : undefined
+      if (isRecord(reason) && reason.kind === 'error') {
+        return { ...flushed, retry: null, failure: failureOf(reason.error) }
+      }
+      return { ...flushed, retry: null, failure: null }
+    }
     case 'session/title': {
       if (!isRecord(event.data) || typeof event.data.title !== 'string' || event.data.title.trim() === '') return state
       return { ...state, title: event.data.title }
@@ -423,6 +500,8 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
         liveText: '',
         liveReasoning: '',
         streamError: null,
+        retry: null,
+        failure: null,
       }
     case 'assistant-chunk': {
       const attempt = state.attempt

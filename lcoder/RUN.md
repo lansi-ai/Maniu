@@ -144,6 +144,10 @@ LCoder 的挂载在两种模式下位置不同。**新客户端**每次启动都
 `cordis.patch.yml` 放 LCoder 段，`package.json` 里用 `link:` 指向**当前检出**的
 `packages/lcoder/kernel` 与 `packages/lcoder/workspace`（worktree 里就跑 worktree 的包，别指回主仓）。`lcoder\scripts\rebuild.cmd profile` 会自动写这份 `package.json` 与 `node_modules/@lcoder` 两条链接，`warm`/`claim` 在跳过构建时也会执行同一步。同一段保障在重拷运行副本后会按 `lcoder/desktop-profile.slice.yml` 自动套上三波减重切片，再跑合成校验逐个核对切片 id；任一 id 未命中（上游改名或移除）就打印全部未命中 id 并非零退出。
 
+### 模型链路调试日志
+
+`LCODER_DEBUG=1` 启动桌面实例时，主进程把模型链的边界事件（`turn/start`、`llm/retry`、`llm/retry-started`、`turn/end`、流错误与重连快照）追加到 `lcoder/logs/model-debug.log`，每行带事件类型、重试次数、云端请求号、上游状态与截断文案；正文与思考增量不记，`sk-` 与 Bearer 令牌会脱敏，默认关闭。云端侧对应开关是 `OPENCODE_DEBUG_UPSTREAM`（见 LCoder-cloud 的 `docs/a3-local-dev.md`），开启后网关日志记录上游状态、是否带会话头、截断脱敏的响应体与异常类型；两侧都不记请求头与密钥。起法：`$env:LCODER_DEBUG='1'; lcoder\scripts\start-desktop.cmd -Fast`。聊天页在重试期显示「模型暂时不可用，正在重试 n/max」，最终失败显示「模型请求失败」与「请求号：req_…」，同一请求号可在 `lcoder/logs/cloud-api.log` 与 `model-debug.log` 里对上。
+
 ### 本机必读：桌面 profile 要配 `documentsDirectory`
 
 在本机这类环境里，宿主向操作系统问「文档目录在哪」会挂住不返回（同一条命令在 Git Bash 里

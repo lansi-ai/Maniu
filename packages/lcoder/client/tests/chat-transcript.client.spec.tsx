@@ -104,3 +104,28 @@ describe('ProcessGroup', () => {
     expect(element('process-reasoning').textContent).toContain('先读文件')
   })
 })
+
+describe('ChatTranscript 模型失败', () => {
+  it('重试期显示第几次与上限', () => {
+    render({ ...emptyChat, retry: { attempt: 2, max: 5 } })
+    expect(element('chat-retry').textContent).toContain('正在重试 2/5')
+  })
+
+  it('最终失败显示文案与请求号', () => {
+    render({
+      ...emptyChat,
+      failure: { message: 'The model upstream is unavailable.', code: 'SERVER', requestId: 'req_abc123' },
+    })
+    const node = element('chat-failure')
+    expect(node.textContent).toContain('The model upstream is unavailable.')
+    expect(node.textContent).toContain('req_abc123')
+    expect(node.getAttribute('data-request-id')).toBe('req_abc123')
+  })
+
+  it('没有请求号时仍显示错误文案', () => {
+    render({ ...emptyChat, failure: { message: '', code: 'SERVER', requestId: null } })
+    const node = element('chat-failure')
+    expect(node.textContent).toContain('模型请求失败')
+    expect(node.getAttribute('data-request-id')).toBeNull()
+  })
+})

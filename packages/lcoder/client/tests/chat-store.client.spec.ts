@@ -183,6 +183,108 @@ describe('chatReducer assistant-stream', () => {
   })
 })
 
+describe('模型失败可见', () => {
+  const retry = record('llm/retry', 2, {
+    retryId: 'r1',
+    turn: 1,
+    step: 1,
+    provider: 'deepseek',
+    mode: 'normal',
+    policyKey: 'default',
+    retry: 2,
+    maxRetries: 5,
+    delayMs: 1_000,
+    failure: { message: 'bad gateway', code: 'SERVER', status: 502 },
+  })
+
+  it('重试事件给出第几次与上限，正文到达后清除', () => {
+    let state = snapshot([user], 1)
+    expect(state.retry).toBeNull()
+    state = chatReducer(state, { type: 'event', record: retry })
+    expect(state.retry).toEqual({ attempt: 2, max: 5 })
+    state = chatReducer(state, {
+      type: 'event',
+      record: record('assistant/message', 3, { turn: 1, step: 1, message: { content: [{ type: 'text', text: '好了' }] } }),
+    })
+    expect(state.retry).toBeNull()
+  })
+
+  it('无限重试不带上限', () => {
+    const state = chatReducer(snapshot([user], 1), {
+      type: 'event',
+      record: record('llm/retry', 2, {
+        retryId: 'r2', turn: 1, step: 1, provider: 'deepseek', mode: 'always',
+        policyKey: 'default', retry: 3, delayMs: 1_000, failure: { message: 'bad', code: 'SERVER' },
+      }),
+    })
+    expect(state.retry).toEqual({ attempt: 3, max: null })
+  })
+
+  it('回合最终失败给出文案与请求号，新回合开始时清除', () => {
+    let state = snapshot([user], 1)
+    state = chatReducer(state, { type: 'event', record: retry })
+    state = chatReducer(state, {
+      type: 'event',
+      record: record('turn/end', 3, {
+        turn: 1,
+        reason: {
+          kind: 'error',
+          error: { message: 'The model upstream is unavailable.', code: 'SERVER', status: 502, requestId: 'req_abc123' },
+        },
+      }),
+    })
+    expect(state.retry).toBeNull()
+    expect(state.failure).toEqual({
+      message: 'The model upstream is unavailable.',
+      code: 'SERVER',
+      requestId: 'req_abc123',
+    })
+    state = chatReducer(state, { type: 'event', record: record('turn/start', 4, { turn: 2 }) })
+    expect(state.failure).toBeNull()
+  })
+
+  it('请求号也能从 502 JSON 文案里提取', () => {
+    const state = chatReducer(snapshot([user], 1), {
+      type: 'event',
+      record: record('turn/end', 2, {
+        turn: 1,
+        reason: {
+          kind: 'error',
+          error: { message: 'bad gateway {"error":{"message":"upstream","requestId":"req_json9"}}', code: 'SERVER' },
+        },
+      }),
+    })
+    expect(state.failure?.requestId).toBe('req_json9')
+    expect(state.failure?.message).toContain('bad gateway')
+  })
+
+  it('云端错误体文案收成简短错误，请求号单独保留', () => {
+    const state = chatReducer(snapshot([user], 1), {
+      type: 'event',
+      record: record('turn/end', 2, {
+        turn: 1,
+        reason: {
+          kind: 'error',
+          error: {
+            message: '502: {"code":"upstream_unavailable","message":"The model upstream is unavailable.","type":"upstream_error","requestId":"req_abc123","param":null,"details":null}',
+            code: 'SERVER',
+          },
+        },
+      }),
+    })
+    expect(state.failure).toEqual({
+      message: 'The model upstream is unavailable.',
+      code: 'upstream_unavailable',
+      requestId: 'req_abc123',
+    })
+  })
+
+  it('快照折叠能恢复等待中的重试提示', () => {
+    const state = snapshot([user, retry], 2)
+    expect(state.retry).toEqual({ attempt: 2, max: 5 })
+  })
+})
+
 describe('actionOfFrame', () => {
   it('把三帧转成折叠动作', () => {
     expect(actionOfFrame({ type: 'snapshot', records: [], cursor: 2, projections: { asOfSeq: 2, values: {} } }))
