@@ -457,3 +457,26 @@
 .pending-note strong { font-size: 12px; color: var(--lg-muted); }
 .pending-note p { margin: 0; font-size: 13px; color: var(--lg-ink-2); }
 .pending-note .pill { align-self: flex-start; padding: 4px 12px; font-size: 12px; }
+
+/* 人才库：两库分组、卡片元信息与表单 */
+.talent-group { display: flex; flex-direction: column; gap: 10px; margin-top: 18px; }
+.talent-group-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.talent-group-head h3 { margin: 0; font-size: 14px; }
+.talent-card { display: flex; flex-direction: column; gap: 8px; }
+.talent-meta { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 0; font-size: 12px; }
+.talent-meta div { display: flex; gap: 6px; }
+.talent-meta dt { color: var(--lg-faint); }
+.talent-meta dd { margin: 0; color: var(--lg-ink-2); }
+.talent-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 4px; }
+.talent-form { display: flex; flex-direction: column; gap: 12px; }
+.talent-form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+.talent-field { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--lg-muted); }
+.talent-field .settings-input,
+.talent-field .settings-select { width: 100%; }
+.talent-persona { resize: vertical; font: inherit; }
+.talent-inline { display: flex; align-items: center; gap: 8px; }
+.talent-inline .settings-input { flex: 1; min-width: 120px; }
+.talent-checks { display: flex; flex-direction: column; gap: 4px; max-height: 180px; overflow: auto; padding: 6px 8px; border: 1px solid var(--lg-line-hair); border-radius: 12px; background: var(--lg-fill-row); }
+.talent-check { display: flex; align-items: center; gap: 8px; color: var(--lg-ink-2); font-size: 12px; }
+.talent-check em { font-style: normal; color: var(--lg-faint); }
+.session-talent { margin-left: auto; padding: 1px 6px; border: 1px solid var(--lg-line-hair); border-radius: 999px; font-size: 10px; color: var(--lg-muted); }

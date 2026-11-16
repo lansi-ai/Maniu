@@ -12,7 +12,7 @@ import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 
 import { ProjectInfo, ProjectKind } from '../schema/spec.js'
 import type { ProjectKind as ProjectKindName } from '../schema/spec.js'
-import { hasProject, loadProject, projectPath, saveProject } from '../kernel/project-store.js'
+import { hasProject, loadProject, newProjectId, projectPath, saveProject } from '../kernel/project-store.js'
 import { resolveRoot } from '../kernel/spec-root.js'
 import type { RootInput } from '../kernel/spec-root.js'
 
@@ -107,9 +107,11 @@ export function createProjectTools(rootInput: RootInput): ToolDefinition[] {
 
         const docs = docsOf(args.doc_product, args.doc_architecture, args.doc_tests)
         const tracks = (args.tracks ?? []).map(track => ({ id: track.id.trim(), name: track.name.trim() }))
+        const projectId = newProjectId()
         const info = ProjectInfo.parse({
           kind: kind.data,
           repo: { url: repoUrl, branch: repoBranch },
+          projectId,
           docs,
           tracks,
         })
@@ -119,11 +121,12 @@ export function createProjectTools(rootInput: RootInput): ToolDefinition[] {
           created: true,
           path: written,
           kind: info.kind,
+          project_id: projectId,
           repo_url: info.repo.url,
           repo_branch: info.repo.branch,
           docs,
           tracks: info.tracks,
-          note: '项目信息已登记。规格条目用 spec_draft 逐条落，第一条任务用 task_draft；本工具不采集部署环境，需要 env 就人手补 .spec/project.yaml 的 environments。',
+          note: '项目信息已登记（projectId 随仓提交，云端项目人才库按它隔离）。规格条目用 spec_draft 逐条落，第一条任务用 task_draft；本工具不采集部署环境，需要 env 就人手补 .spec/project.yaml 的 environments。',
         }
       },
     }),

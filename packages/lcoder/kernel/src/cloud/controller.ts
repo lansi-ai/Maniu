@@ -7,18 +7,19 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import { CloudApiError } from './api.ts'
-import type { CloudAuthApi, CloudAuthSession } from './api.ts'
+import type { CloudAuthApi, CloudAuthSession, CloudTalentApi } from './api.ts'
 import type { CloudGuestManager } from './guest.ts'
 import { cloudErrorInfo, type CloudTokenManager } from './tokens.ts'
 import type {
-  CloudAuthValue, CloudErrorInfo, CloudGuestClaimInput, CloudGuestView, CloudLoginPasswordInput,
-  CloudLoginSmsInput, CloudOkValue, CloudQuota, CloudRegisterInput, CloudResult, CloudSendSmsInput,
-  CloudSmsValue, CloudState, CloudUsagePage, CloudUsageQuery, CloudUser,
+  CloudAuthValue, CloudCreateTalentInput, CloudDeleteTalentInput, CloudErrorInfo, CloudGuestClaimInput,
+  CloudGuestView, CloudLoginPasswordInput, CloudLoginSmsInput, CloudOkValue, CloudQuota, CloudRegisterInput,
+  CloudResult, CloudSendSmsInput, CloudSmsValue, CloudState, CloudTalent, CloudTalents, CloudTalentsQuery,
+  CloudUpdateTalentInput, CloudUsagePage, CloudUsageQuery, CloudUser,
 } from './types.ts'
 
 /** 控制器依赖；由插件入口装配。 */
 export interface CloudControllerDeps {
-  readonly api: CloudAuthApi
+  readonly api: CloudAuthApi & CloudTalentApi
   readonly tokens: CloudTokenManager
   readonly guest: CloudGuestManager
   readonly fingerprint: () => string | Promise<string>
@@ -142,6 +143,63 @@ export class CloudController extends TypertRemoteService {
   async usage(query: CloudUsageQuery): Promise<CloudResult<CloudUsagePage>> {
     try {
       return { ok: true, value: await this.deps.tokens.usage(query) }
+    } catch (error: unknown) {
+      return failureOf(error)
+    }
+  }
+
+  /**
+   * 读人才列表；全局与项目分两次查询。
+   * @param query - scope 与可选 projectId。
+   * @returns 人才列表。
+   */
+  @Remote
+  async talents(query: CloudTalentsQuery): Promise<CloudResult<CloudTalents>> {
+    try {
+      return { ok: true, value: await this.deps.tokens.authenticated(token => this.deps.api.talents(token, query)) }
+    } catch (error: unknown) {
+      return failureOf(error)
+    }
+  }
+
+  /**
+   * 新建人才。
+   * @param input - 作用域、名称与版本化配置。
+   * @returns 云端落库后的人才。
+   */
+  @Remote
+  async createTalent(input: CloudCreateTalentInput): Promise<CloudResult<CloudTalent>> {
+    try {
+      return { ok: true, value: await this.deps.tokens.authenticated(token => this.deps.api.createTalent(token, input)) }
+    } catch (error: unknown) {
+      return failureOf(error)
+    }
+  }
+
+  /**
+   * 更新人才；`expectedRevision` 与云端不一致时返回 conflict。
+   * @param input - 人才 id 与要改的字段。
+   * @returns 更新后的人才。
+   */
+  @Remote
+  async updateTalent(input: CloudUpdateTalentInput): Promise<CloudResult<CloudTalent>> {
+    try {
+      return { ok: true, value: await this.deps.tokens.authenticated(token => this.deps.api.updateTalent(token, input)) }
+    } catch (error: unknown) {
+      return failureOf(error)
+    }
+  }
+
+  /**
+   * 删除人才；权限由云端判定。
+   * @param input - 人才 id。
+   * @returns 成功标记。
+   */
+  @Remote
+  async deleteTalent(input: CloudDeleteTalentInput): Promise<CloudResult<CloudOkValue>> {
+    try {
+      await this.deps.tokens.authenticated(token => this.deps.api.deleteTalent(token, input.id))
+      return { ok: true, value: { ok: true } }
     } catch (error: unknown) {
       return failureOf(error)
     }

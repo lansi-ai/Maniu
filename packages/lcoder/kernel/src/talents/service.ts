@@ -6,6 +6,7 @@
  * 继续绑定旧 revision，新会话读最新定义，快照语义由 registry 负责。
  * 动态 preset 一律带 `talent-` 前缀，撤回只注销本服务登记过的定义。
  */
+import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import { Remote, RemoteError, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import type { PresetDefinition } from '@deepseek-ai/dsh-agent-preset-registry'
@@ -16,17 +17,36 @@ import type {} from '@deepseek-ai/dsh-app-boot'
 import type {} from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-session-query'
 import type {} from '@deepseek-ai/dsh-tools'
+import { ensureProjectId, loadProject, projectPath } from '../kernel/project-store.js'
 import { composeTalentPlugins } from './compose.ts'
-import { invalidTalent, talentIdOfPreset, validateApplyRequest } from './validate.ts'
+import { TALENT_PRESET_PREFIX, invalidTalent, talentIdOfPreset, validateApplyRequest } from './validate.ts'
 import type { ValidatedTalent } from './validate.ts'
 import type {
-  TalentApplied, TalentApplyRequest, TalentApplyResult, TalentRemoved, TalentSessionRef,
+  TalentApplied, TalentApplyRequest, TalentApplyResult, TalentCatalog, TalentCatalogPlugin,
+  TalentCatalogPreset, TalentCatalogTool, TalentPresetTools, TalentProjectIdentity, TalentProjectInput,
+  TalentRemoved, TalentSessionRef,
 } from './types.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
     agentTalents: AgentTalents
   }
+}
+
+/** 根 Loader 入口的最小读取面由 `@deepseek-ai/cordis-plugin-loader` 声明。 */
+const PACKAGE_NAME = /^[a-z0-9@][a-z0-9@._/-]{0,127}$/u
+
+/**
+ * 从模块说明里折出包名；相对路径、伪插件与非包名返回 undefined。
+ * @param specifier - Loader 行或 preset 行里写的模块说明。
+ * @returns 可提交进人才配置的包名。
+ */
+function packageNameOf(specifier: string): string | undefined {
+  if (specifier === '' || specifier.startsWith('.') || specifier.startsWith('/')
+    || specifier.startsWith('\\') || specifier.startsWith('#') || specifier.includes(':')) return undefined
+  const segments = specifier.split('/')
+  const name = specifier.startsWith('@') ? segments.slice(0, 2).join('/') : segments[0]
+  return name !== undefined && PACKAGE_NAME.test(name) ? name : undefined
 }
 
 interface PreparedTalent {
@@ -132,6 +152,123 @@ export class AgentTalents extends TypertRemoteService {
     const entry = this.entries.get(talentId)
     if (entry === undefined) throw notFound(talentId)
     return { talentId, presetId: entry.presetId, sessionIds: await this.sessionsUsing(entry.presetId) }
+  }
+
+  /**
+   * 读表单需要的本机只读清单：可解析的已安装插件包与非人才的基础 preset。
+   *
+   * 只读 root Loader 与 preset 组合，不挂载、不写配置；插件按提交时同样的
+   * `packageOf` 规则过滤，列出就能提交。
+   * @returns 插件包与基础 preset。
+   */
+  @Remote('catalog')
+  async catalog(): Promise<TalentCatalog> {
+    const names = new Set<string>()
+    const loader = this.owner.get('loader')
+    for (const entry of loader?.entries() ?? []) {
+      if (entry.options.group || entry.disabled) continue
+      const name = packageNameOf(entry.options.name)
+      if (name !== undefined) names.add(name)
+    }
+    const compositions = await this.owner.agentPresets.compositionInventory()
+    const presets: TalentCatalogPreset[] = []
+    for (const composition of compositions) {
+      for (const row of composition.rows) {
+        if (row.enabled === false) continue
+        const name = packageNameOf(row.moduleName)
+        if (name !== undefined) names.add(name)
+      }
+      if (composition.id.startsWith(TALENT_PRESET_PREFIX)) continue
+      presets.push({
+        id: composition.id,
+        ...composition.name === undefined ? {} : { name: composition.name },
+        isDefault: composition.isDefault,
+        ...composition.broken === undefined ? {} : { broken: composition.broken },
+      })
+    }
+    const plugins: TalentCatalogPlugin[] = []
+    for (const name of names) {
+      const pkg = this.owner.pluginPackages.packageOf(name, this.baseUrl)
+      if (pkg === undefined) continue
+      plugins.push({ name, ...pkg.version === undefined ? {} : { version: pkg.version } })
+    }
+    plugins.sort((left, right) => left.name.localeCompare(right.name))
+    presets.sort((left, right) => left.id.localeCompare(right.id))
+    return { plugins, presets }
+  }
+
+  /**
+   * 读一个基础 preset 当前工具面上的工具名与说明。
+   *
+   * 白名单只接受这里的名字；preset 不可用时返回空工具面与原因，不抛给界面。
+   * @param presetId - 基础 preset id。
+   * @returns 工具面或不可用原因。
+   */
+  @Remote('presetTools')
+  async presetTools(presetId: string): Promise<TalentPresetTools> {
+    const preset = (await this.owner.agentPresets.list()).find(row => row.id === presetId)
+    if (preset === undefined) return { presetId, tools: [], broken: `unknown agent preset: ${presetId}` }
+    if (preset.broken !== undefined) return { presetId, tools: [], broken: preset.broken }
+    const scope = this.owner.agentPresets.definitionScope(presetId)
+    if (scope === undefined) return { presetId, tools: [], broken: 'the preset exposes no tool scope' }
+    const tools = this.owner.tools.definitions(scope)
+      .map((definition): TalentCatalogTool => ({ name: definition.name, description: definition.description }))
+      .sort((left, right) => left.name.localeCompare(right.name))
+    return { presetId, tools }
+  }
+
+  /**
+   * 读当前项目的稳定身份；只读 `.spec/project.yaml`，不生成、不改写。
+   * @param input - 项目路径或作用域会话。
+   * @returns 已登记 id、未登记、缺文件或文件无效。
+   */
+  @Remote('projectIdentity')
+  async projectIdentity(input: TalentProjectInput): Promise<TalentProjectIdentity> {
+    const root = await this.projectRoot(input)
+    if (root === undefined) return { projectId: null, state: 'missing-context' }
+    try {
+      const info = loadProject(root)
+      if (info === null) return { projectId: null, state: 'missing-project', detail: projectPath(root) }
+      return info.projectId === undefined
+        ? { projectId: null, state: 'unbound' }
+        : { projectId: info.projectId, state: 'ready' }
+    } catch (error: unknown) {
+      return { projectId: null, state: 'invalid', detail: error instanceof Error ? error.message : String(error) }
+    }
+  }
+
+  /**
+   * 为已登记的项目补出并写回 `projectId`；客户端读到老项目缺字段时会自动调用一次。
+   * @param input - 项目路径或作用域会话。
+   * @returns 写回后的身份；没有 `project.yaml` 时返回缺文件。
+   */
+  @Remote('ensureProjectId')
+  async ensureProjectId(input: TalentProjectInput): Promise<TalentProjectIdentity> {
+    const root = await this.projectRoot(input)
+    if (root === undefined) return { projectId: null, state: 'missing-context' }
+    try {
+      return { projectId: ensureProjectId(root), state: 'ready' }
+    } catch (error: unknown) {
+      const detail = error instanceof Error ? error.message : String(error)
+      let state: TalentProjectIdentity['state'] = 'invalid'
+      try {
+        state = loadProject(root) === null ? 'missing-project' : 'invalid'
+      } catch {
+        // 文件本身不合 schema，仍按 invalid 报。
+      }
+      return { projectId: null, state, detail }
+    }
+  }
+
+  /** 项目的规格根：优先项目路径，其次作用域会话的 cwd。 */
+  private async projectRoot(input: TalentProjectInput): Promise<string | undefined> {
+    if (input.path !== undefined && input.path !== '') return join(input.path, '.spec')
+    if (input.sessionId !== undefined && input.sessionId !== '') {
+      const records = await this.owner.sessionQuery.listSessions()
+      const cwd = records.find(record => record.header.id === input.sessionId)?.header.cwd
+      if (typeof cwd === 'string' && cwd !== '') return join(cwd, '.spec')
+    }
+    return undefined
   }
 
   /**

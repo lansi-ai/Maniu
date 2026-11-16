@@ -57,6 +57,14 @@ export function saveProject(root: string, info: ProjectInfo): string {
 }
 
 /**
+ * 生成一个随仓提交的新 `projectId`。
+ * @returns 新的项目 UUID。
+ */
+export function newProjectId(): string {
+  return randomUUID()
+}
+
+/**
  * 读或补出项目的稳定 `projectId`。
  *
  * 已登记就只读回；旧文件缺 `projectId` 时就地生成 UUID 并写回，其余字段原样保留。
@@ -72,7 +80,7 @@ export function ensureProjectId(root: string): string {
   }
   if (info.projectId !== undefined) return info.projectId
 
-  const projectId = randomUUID()
+  const projectId = newProjectId()
   saveProject(root, { ...info, projectId })
   return projectId
 }

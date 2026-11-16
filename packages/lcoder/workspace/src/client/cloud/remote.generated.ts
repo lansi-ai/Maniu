@@ -7,6 +7,103 @@ import { z } from 'zod'
 
 import { createTypertRemoteInfo } from '@deepseek-ai/dsh-typert-protocol/remote-info'
 
+let _lcoder_kernel_agentTalents_applyTalents_parameter_0$schema$value
+const _lcoder_kernel_agentTalents_applyTalents_parameter_0$schema = () => (_lcoder_kernel_agentTalents_applyTalents_parameter_0$schema$value ??= z.object({
+  'talents': z.array(z.object({
+  'id': z.string().readonly().describe('云端人才 id；宿主拼成 `talent-<id>` 作为 preset id。'),
+  'name': z.string().readonly().optional().describe('人才显示名。'),
+  'description': z.string().readonly().optional().describe('一句话描述。'),
+  'config': z.object({
+  'version': z.number().readonly().describe('配置结构版本；当前只接受 1。'),
+  'basePreset': z.string().readonly().optional().describe('继承的基础 preset id。'),
+  'persona': z.string().readonly().optional().describe('人才自带的人设提示。'),
+  'plugins': z.array(z.object({
+  'name': z.string().readonly().describe('本机已安装插件的包名。'),
+  'config': z.record(z.string(), z.json()).readonly().readonly().optional().describe('插件自身定义的静态配置对象。'),
+})).readonly().optional().describe('追加或覆盖到基础 preset 的插件行。'),
+  'tools': z.array(z.string()).readonly().optional().describe('工具白名单；只列出的工具可见，空列表与缺省都不限制。'),
+  'model': z.object({
+  'provider': z.string().readonly().describe('已注册的模型 provider。'),
+  'modelId': z.string().readonly().describe('provider 内的模型 id。'),
+}).readonly().optional().describe('人才默认模型；写入新会话的模型选择。'),
+  'budget': z.object({
+  'maxCostMicroUsd': z.number().readonly().optional().describe('单会话成本上限，微美元。'),
+  'maxRequestsPerSession': z.number().readonly().optional().describe('单会话模型请求上限。'),
+}).readonly().optional().describe('人才的单会话预算；宿主随模型请求带给云端网关。'),
+}).readonly().describe('版本化配置。'),
+})).readonly().describe('本次要应用或替换的人才；未出现的已应用人才保持不变。'),
+}))
+let _lcoder_kernel_agentTalents_applyTalents_result$schema$value
+const _lcoder_kernel_agentTalents_applyTalents_result$schema = () => (_lcoder_kernel_agentTalents_applyTalents_result$schema$value ??= z.object({
+  'applied': z.array(z.object({
+  'talentId': z.string().readonly().describe('云端人才 id。'),
+  'presetId': z.string().readonly().describe('注册进 roaster 的 preset id。'),
+  'basePreset': z.union([z.literal(null), z.string()]).readonly().describe('继承的基础 preset，未继承时为 null。'),
+  'replaced': z.boolean().readonly().describe('是否替换了同 id 的旧定义。'),
+})).readonly().describe('本次实际注册或替换的人才。'),
+  'skipped': z.array(z.string()).readonly().describe('配置与已登记版本完全相同、未重新挂载的人才。'),
+}))
+let _lcoder_kernel_agentTalents_catalog_result$schema$value
+const _lcoder_kernel_agentTalents_catalog_result$schema = () => (_lcoder_kernel_agentTalents_catalog_result$schema$value ??= z.object({
+  'plugins': z.array(z.object({
+  'name': z.string().readonly().describe('包名；提交进人才 `config.plugins[].name`。'),
+  'version': z.string().readonly().optional().describe('本机包清单里声明的版本；无版本字段时缺省。'),
+})).readonly().describe('本机可解析的插件包，按包名排序。'),
+  'presets': z.array(z.object({
+  'id': z.string().readonly().describe('preset id。'),
+  'name': z.string().readonly().optional().describe('显示名。'),
+  'isDefault': z.boolean().readonly().describe('是否为新会话的默认 preset。'),
+  'broken': z.string().readonly().optional().describe('激活失败的诊断；能用时缺省。'),
+})).readonly().describe('可作为基础 preset 的声明；不含 `talent-` 动态预设。'),
+}))
+let _lcoder_kernel_agentTalents_ensureProjectId_parameter_0$schema$value
+const _lcoder_kernel_agentTalents_ensureProjectId_parameter_0$schema = () => (_lcoder_kernel_agentTalents_ensureProjectId_parameter_0$schema$value ??= z.object({
+  'path': z.string().readonly().optional().describe('项目根目录（`.spec` 的父目录）。'),
+  'sessionId': z.string().readonly().optional().describe('作用域会话 id；没有路径时用它取 `header.cwd`。'),
+}))
+let _lcoder_kernel_agentTalents_ensureProjectId_result$schema$value
+const _lcoder_kernel_agentTalents_ensureProjectId_result$schema = () => (_lcoder_kernel_agentTalents_ensureProjectId_result$schema$value ??= z.object({
+  'projectId': z.union([z.literal(null), z.string()]).readonly().describe('已登记的 UUID；未登记或读取失败时为 null。'),
+  'state': z.union([z.literal("ready"), z.literal("unbound"), z.literal("missing-project"), z.literal("missing-context"), z.literal("invalid")]).readonly().describe('结果分支。'),
+  'detail': z.string().readonly().optional().describe('诊断用的人话；ready 时缺省。'),
+}))
+let _lcoder_kernel_agentTalents_presetTools_parameter_0$schema$value
+const _lcoder_kernel_agentTalents_presetTools_parameter_0$schema = () => (_lcoder_kernel_agentTalents_presetTools_parameter_0$schema$value ??= z.string())
+let _lcoder_kernel_agentTalents_presetTools_result$schema$value
+const _lcoder_kernel_agentTalents_presetTools_result$schema = () => (_lcoder_kernel_agentTalents_presetTools_result$schema$value ??= z.object({
+  'presetId': z.string().readonly().describe('查询的 preset id。'),
+  'tools': z.array(z.object({
+  'name': z.string().readonly().describe('模型看到的工具名；白名单写这个值。'),
+  'description': z.string().readonly().describe('工具说明。'),
+})).readonly().describe('工具面；激活失败时为空。'),
+  'broken': z.string().readonly().optional().describe('preset 不可用的原因；可用时缺省。'),
+}))
+let _lcoder_kernel_agentTalents_projectIdentity_parameter_0$schema$value
+const _lcoder_kernel_agentTalents_projectIdentity_parameter_0$schema = () => (_lcoder_kernel_agentTalents_projectIdentity_parameter_0$schema$value ??= z.object({
+  'path': z.string().readonly().optional().describe('项目根目录（`.spec` 的父目录）。'),
+  'sessionId': z.string().readonly().optional().describe('作用域会话 id；没有路径时用它取 `header.cwd`。'),
+}))
+let _lcoder_kernel_agentTalents_projectIdentity_result$schema$value
+const _lcoder_kernel_agentTalents_projectIdentity_result$schema = () => (_lcoder_kernel_agentTalents_projectIdentity_result$schema$value ??= z.object({
+  'projectId': z.union([z.literal(null), z.string()]).readonly().describe('已登记的 UUID；未登记或读取失败时为 null。'),
+  'state': z.union([z.literal("ready"), z.literal("unbound"), z.literal("missing-project"), z.literal("missing-context"), z.literal("invalid")]).readonly().describe('结果分支。'),
+  'detail': z.string().readonly().optional().describe('诊断用的人话；ready 时缺省。'),
+}))
+let _lcoder_kernel_agentTalents_removeTalent_parameter_0$schema$value
+const _lcoder_kernel_agentTalents_removeTalent_parameter_0$schema = () => (_lcoder_kernel_agentTalents_removeTalent_parameter_0$schema$value ??= z.string())
+let _lcoder_kernel_agentTalents_removeTalent_result$schema$value
+const _lcoder_kernel_agentTalents_removeTalent_result$schema = () => (_lcoder_kernel_agentTalents_removeTalent_result$schema$value ??= z.object({
+  'talentId': z.string().readonly().describe('云端人才 id。'),
+  'presetId': z.string().readonly().describe('已注销的 preset id。'),
+}))
+let _lcoder_kernel_agentTalents_sessionRefs_parameter_0$schema$value
+const _lcoder_kernel_agentTalents_sessionRefs_parameter_0$schema = () => (_lcoder_kernel_agentTalents_sessionRefs_parameter_0$schema$value ??= z.string())
+let _lcoder_kernel_agentTalents_sessionRefs_result$schema$value
+const _lcoder_kernel_agentTalents_sessionRefs_result$schema = () => (_lcoder_kernel_agentTalents_sessionRefs_result$schema$value ??= z.object({
+  'talentId': z.string().readonly().describe('云端人才 id。'),
+  'presetId': z.string().readonly().describe('对应 preset id。'),
+  'sessionIds': z.array(z.string()).readonly().describe('当前使用该 preset 的本机会话 id。'),
+}))
 let _lcoder_kernel_lcoderCloud_claimGuest_parameter_0$schema$value
 const _lcoder_kernel_lcoderCloud_claimGuest_parameter_0$schema = () => (_lcoder_kernel_lcoderCloud_claimGuest_parameter_0$schema$value ??= z.object({
   'clientVersion': z.string().readonly().optional(),
@@ -51,6 +148,96 @@ const _lcoder_kernel_lcoderCloud_claimGuest_result$schema = () => (_lcoder_kerne
   'outputMicroUsdPerMtok': z.number().readonly(),
 })]).readonly(),
 })]).readonly().describe('匿名授权的 token 预估；服务端没给时为 null。'),
+}).readonly(),
+})]))
+let _lcoder_kernel_lcoderCloud_createTalent_parameter_0$schema$value
+const _lcoder_kernel_lcoderCloud_createTalent_parameter_0$schema = () => (_lcoder_kernel_lcoderCloud_createTalent_parameter_0$schema$value ??= z.object({
+  'scope': z.union([z.literal("global"), z.literal("project")]).readonly(),
+  'projectId': z.string().readonly().optional(),
+  'createdBy': z.union([z.literal("user"), z.literal("ai")]).readonly().optional(),
+  'name': z.string().readonly(),
+  'description': z.string().readonly().optional(),
+  'config': z.object({
+  'version': z.number().readonly(),
+  'basePreset': z.string().readonly().optional(),
+  'persona': z.string().readonly().optional(),
+  'plugins': z.array(z.object({
+  'name': z.string().readonly(),
+  'config': z.record(z.string(), z.json()).readonly().readonly().optional(),
+})).readonly().optional(),
+  'tools': z.array(z.string()).readonly().optional(),
+  'model': z.object({
+  'provider': z.string().readonly(),
+  'modelId': z.string().readonly(),
+}).readonly().optional(),
+  'budget': z.object({
+  'maxCostMicroUsd': z.number().readonly().optional(),
+  'maxRequestsPerSession': z.number().readonly().optional(),
+}).readonly().optional(),
+}).readonly(),
+}))
+let _lcoder_kernel_lcoderCloud_createTalent_result$schema$value
+const _lcoder_kernel_lcoderCloud_createTalent_result$schema = () => (_lcoder_kernel_lcoderCloud_createTalent_result$schema$value ??= z.union([z.object({
+  'ok': z.literal(false).readonly(),
+  'error': z.object({
+  'code': z.string().readonly().describe('云端 `error.code`，或客户端侧补的 `offline` / `needs_login` / `guest_missing`。'),
+  'message': z.string().readonly().describe('面向人的一句话；不含令牌、手机号明文与上游原文。'),
+  'requestId': z.string().readonly().optional().describe('服务端请求号；只用于诊断展示。'),
+  'retryAfterSeconds': z.number().readonly().optional().describe('429/402 的 Retry-After 秒数。'),
+  'status': z.number().readonly().optional().describe('HTTP 状态码；网络失败时缺省。'),
+}).readonly(),
+}), z.object({
+  'ok': z.literal(true).readonly(),
+  'value': z.object({
+  'id': z.string().readonly(),
+  'scope': z.union([z.literal("global"), z.literal("project")]).readonly(),
+  'projectId': z.union([z.literal(null), z.string()]).readonly(),
+  'ownerUserId': z.string().readonly(),
+  'createdBy': z.union([z.literal("user"), z.literal("ai")]).readonly(),
+  'name': z.string().readonly(),
+  'description': z.string().readonly(),
+  'config': z.object({
+  'version': z.number().readonly(),
+  'basePreset': z.string().readonly().optional(),
+  'persona': z.string().readonly().optional(),
+  'plugins': z.array(z.object({
+  'name': z.string().readonly(),
+  'config': z.record(z.string(), z.json()).readonly().readonly().optional(),
+})).readonly().optional(),
+  'tools': z.array(z.string()).readonly().optional(),
+  'model': z.object({
+  'provider': z.string().readonly(),
+  'modelId': z.string().readonly(),
+}).readonly().optional(),
+  'budget': z.object({
+  'maxCostMicroUsd': z.number().readonly().optional(),
+  'maxRequestsPerSession': z.number().readonly().optional(),
+}).readonly().optional(),
+}).readonly(),
+  'revision': z.number().readonly(),
+  'canManage': z.boolean().readonly().describe('当前账号能否改删；由云端按创建者与项目 owner 判定。'),
+  'createdAt': z.string().readonly(),
+  'updatedAt': z.string().readonly(),
+}).readonly(),
+})]))
+let _lcoder_kernel_lcoderCloud_deleteTalent_parameter_0$schema$value
+const _lcoder_kernel_lcoderCloud_deleteTalent_parameter_0$schema = () => (_lcoder_kernel_lcoderCloud_deleteTalent_parameter_0$schema$value ??= z.object({
+  'id': z.string().readonly(),
+}))
+let _lcoder_kernel_lcoderCloud_deleteTalent_result$schema$value
+const _lcoder_kernel_lcoderCloud_deleteTalent_result$schema = () => (_lcoder_kernel_lcoderCloud_deleteTalent_result$schema$value ??= z.union([z.object({
+  'ok': z.literal(false).readonly(),
+  'error': z.object({
+  'code': z.string().readonly().describe('云端 `error.code`，或客户端侧补的 `offline` / `needs_login` / `guest_missing`。'),
+  'message': z.string().readonly().describe('面向人的一句话；不含令牌、手机号明文与上游原文。'),
+  'requestId': z.string().readonly().optional().describe('服务端请求号；只用于诊断展示。'),
+  'retryAfterSeconds': z.number().readonly().optional().describe('429/402 的 Retry-After 秒数。'),
+  'status': z.number().readonly().optional().describe('HTTP 状态码；网络失败时缺省。'),
+}).readonly(),
+}), z.object({
+  'ok': z.literal(true).readonly(),
+  'value': z.object({
+  'ok': z.boolean().readonly(),
 }).readonly(),
 })]))
 let _lcoder_kernel_lcoderCloud_loginPassword_parameter_0$schema$value
@@ -353,6 +540,126 @@ const _lcoder_kernel_lcoderCloud_state_result$schema = () => (_lcoder_kernel_lco
 })]).readonly().describe('最近一次后台刷新失败的原因；成功时清空。'),
 }).readonly(),
 })]))
+let _lcoder_kernel_lcoderCloud_talents_parameter_0$schema$value
+const _lcoder_kernel_lcoderCloud_talents_parameter_0$schema = () => (_lcoder_kernel_lcoderCloud_talents_parameter_0$schema$value ??= z.object({
+  'scope': z.union([z.literal("global"), z.literal("project")]).readonly().optional(),
+  'projectId': z.string().readonly().optional(),
+}))
+let _lcoder_kernel_lcoderCloud_talents_result$schema$value
+const _lcoder_kernel_lcoderCloud_talents_result$schema = () => (_lcoder_kernel_lcoderCloud_talents_result$schema$value ??= z.union([z.object({
+  'ok': z.literal(false).readonly(),
+  'error': z.object({
+  'code': z.string().readonly().describe('云端 `error.code`，或客户端侧补的 `offline` / `needs_login` / `guest_missing`。'),
+  'message': z.string().readonly().describe('面向人的一句话；不含令牌、手机号明文与上游原文。'),
+  'requestId': z.string().readonly().optional().describe('服务端请求号；只用于诊断展示。'),
+  'retryAfterSeconds': z.number().readonly().optional().describe('429/402 的 Retry-After 秒数。'),
+  'status': z.number().readonly().optional().describe('HTTP 状态码；网络失败时缺省。'),
+}).readonly(),
+}), z.object({
+  'ok': z.literal(true).readonly(),
+  'value': z.object({
+  'items': z.array(z.object({
+  'id': z.string().readonly(),
+  'scope': z.union([z.literal("global"), z.literal("project")]).readonly(),
+  'projectId': z.union([z.literal(null), z.string()]).readonly(),
+  'ownerUserId': z.string().readonly(),
+  'createdBy': z.union([z.literal("user"), z.literal("ai")]).readonly(),
+  'name': z.string().readonly(),
+  'description': z.string().readonly(),
+  'config': z.object({
+  'version': z.number().readonly(),
+  'basePreset': z.string().readonly().optional(),
+  'persona': z.string().readonly().optional(),
+  'plugins': z.array(z.object({
+  'name': z.string().readonly(),
+  'config': z.record(z.string(), z.json()).readonly().readonly().optional(),
+})).readonly().optional(),
+  'tools': z.array(z.string()).readonly().optional(),
+  'model': z.object({
+  'provider': z.string().readonly(),
+  'modelId': z.string().readonly(),
+}).readonly().optional(),
+  'budget': z.object({
+  'maxCostMicroUsd': z.number().readonly().optional(),
+  'maxRequestsPerSession': z.number().readonly().optional(),
+}).readonly().optional(),
+}).readonly(),
+  'revision': z.number().readonly(),
+  'canManage': z.boolean().readonly().describe('当前账号能否改删；由云端按创建者与项目 owner 判定。'),
+  'createdAt': z.string().readonly(),
+  'updatedAt': z.string().readonly(),
+})).readonly(),
+}).readonly(),
+})]))
+let _lcoder_kernel_lcoderCloud_updateTalent_parameter_0$schema$value
+const _lcoder_kernel_lcoderCloud_updateTalent_parameter_0$schema = () => (_lcoder_kernel_lcoderCloud_updateTalent_parameter_0$schema$value ??= z.object({
+  'id': z.string().readonly(),
+  'name': z.string().readonly().optional(),
+  'description': z.string().readonly().optional(),
+  'config': z.object({
+  'version': z.number().readonly(),
+  'basePreset': z.string().readonly().optional(),
+  'persona': z.string().readonly().optional(),
+  'plugins': z.array(z.object({
+  'name': z.string().readonly(),
+  'config': z.record(z.string(), z.json()).readonly().readonly().optional(),
+})).readonly().optional(),
+  'tools': z.array(z.string()).readonly().optional(),
+  'model': z.object({
+  'provider': z.string().readonly(),
+  'modelId': z.string().readonly(),
+}).readonly().optional(),
+  'budget': z.object({
+  'maxCostMicroUsd': z.number().readonly().optional(),
+  'maxRequestsPerSession': z.number().readonly().optional(),
+}).readonly().optional(),
+}).readonly().optional(),
+  'expectedRevision': z.number().readonly().optional(),
+}))
+let _lcoder_kernel_lcoderCloud_updateTalent_result$schema$value
+const _lcoder_kernel_lcoderCloud_updateTalent_result$schema = () => (_lcoder_kernel_lcoderCloud_updateTalent_result$schema$value ??= z.union([z.object({
+  'ok': z.literal(false).readonly(),
+  'error': z.object({
+  'code': z.string().readonly().describe('云端 `error.code`，或客户端侧补的 `offline` / `needs_login` / `guest_missing`。'),
+  'message': z.string().readonly().describe('面向人的一句话；不含令牌、手机号明文与上游原文。'),
+  'requestId': z.string().readonly().optional().describe('服务端请求号；只用于诊断展示。'),
+  'retryAfterSeconds': z.number().readonly().optional().describe('429/402 的 Retry-After 秒数。'),
+  'status': z.number().readonly().optional().describe('HTTP 状态码；网络失败时缺省。'),
+}).readonly(),
+}), z.object({
+  'ok': z.literal(true).readonly(),
+  'value': z.object({
+  'id': z.string().readonly(),
+  'scope': z.union([z.literal("global"), z.literal("project")]).readonly(),
+  'projectId': z.union([z.literal(null), z.string()]).readonly(),
+  'ownerUserId': z.string().readonly(),
+  'createdBy': z.union([z.literal("user"), z.literal("ai")]).readonly(),
+  'name': z.string().readonly(),
+  'description': z.string().readonly(),
+  'config': z.object({
+  'version': z.number().readonly(),
+  'basePreset': z.string().readonly().optional(),
+  'persona': z.string().readonly().optional(),
+  'plugins': z.array(z.object({
+  'name': z.string().readonly(),
+  'config': z.record(z.string(), z.json()).readonly().readonly().optional(),
+})).readonly().optional(),
+  'tools': z.array(z.string()).readonly().optional(),
+  'model': z.object({
+  'provider': z.string().readonly(),
+  'modelId': z.string().readonly(),
+}).readonly().optional(),
+  'budget': z.object({
+  'maxCostMicroUsd': z.number().readonly().optional(),
+  'maxRequestsPerSession': z.number().readonly().optional(),
+}).readonly().optional(),
+}).readonly(),
+  'revision': z.number().readonly(),
+  'canManage': z.boolean().readonly().describe('当前账号能否改删；由云端按创建者与项目 owner 判定。'),
+  'createdAt': z.string().readonly(),
+  'updatedAt': z.string().readonly(),
+}).readonly(),
+})]))
 let _lcoder_kernel_lcoderCloud_usage_parameter_0$schema$value
 const _lcoder_kernel_lcoderCloud_usage_parameter_0$schema = () => (_lcoder_kernel_lcoderCloud_usage_parameter_0$schema$value ??= z.object({
   'limit': z.number().readonly().optional().describe('1–100；默认 20。'),
@@ -389,10 +696,82 @@ const _lcoder_kernel_lcoderCloud_usage_result$schema = () => (_lcoder_kernel_lco
   'nextCursor': z.union([z.literal(null), z.string()]).readonly(),
 }).readonly(),
 })]))
+let _lcoder_kernel_agentTalents_applyTalents_parameter_0_strict$schema$value
+const _lcoder_kernel_agentTalents_applyTalents_parameter_0_strict$schema = () => (_lcoder_kernel_agentTalents_applyTalents_parameter_0_strict$schema$value ??= z.strictObject({
+  'talents': z.array(z.strictObject({
+  'id': z.string().readonly().describe('云端人才 id；宿主拼成 `talent-<id>` 作为 preset id。'),
+  'name': z.string().readonly().optional().describe('人才显示名。'),
+  'description': z.string().readonly().optional().describe('一句话描述。'),
+  'config': z.strictObject({
+  'version': z.number().readonly().describe('配置结构版本；当前只接受 1。'),
+  'basePreset': z.string().readonly().optional().describe('继承的基础 preset id。'),
+  'persona': z.string().readonly().optional().describe('人才自带的人设提示。'),
+  'plugins': z.array(z.strictObject({
+  'name': z.string().readonly().describe('本机已安装插件的包名。'),
+  'config': z.record(z.string(), z.json()).readonly().readonly().optional().describe('插件自身定义的静态配置对象。'),
+})).readonly().optional().describe('追加或覆盖到基础 preset 的插件行。'),
+  'tools': z.array(z.string()).readonly().optional().describe('工具白名单；只列出的工具可见，空列表与缺省都不限制。'),
+  'model': z.strictObject({
+  'provider': z.string().readonly().describe('已注册的模型 provider。'),
+  'modelId': z.string().readonly().describe('provider 内的模型 id。'),
+}).readonly().optional().describe('人才默认模型；写入新会话的模型选择。'),
+  'budget': z.strictObject({
+  'maxCostMicroUsd': z.number().readonly().optional().describe('单会话成本上限，微美元。'),
+  'maxRequestsPerSession': z.number().readonly().optional().describe('单会话模型请求上限。'),
+}).readonly().optional().describe('人才的单会话预算；宿主随模型请求带给云端网关。'),
+}).readonly().describe('版本化配置。'),
+})).readonly().describe('本次要应用或替换的人才；未出现的已应用人才保持不变。'),
+}))
+let _lcoder_kernel_agentTalents_ensureProjectId_parameter_0_strict$schema$value
+const _lcoder_kernel_agentTalents_ensureProjectId_parameter_0_strict$schema = () => (_lcoder_kernel_agentTalents_ensureProjectId_parameter_0_strict$schema$value ??= z.strictObject({
+  'path': z.string().readonly().optional().describe('项目根目录（`.spec` 的父目录）。'),
+  'sessionId': z.string().readonly().optional().describe('作用域会话 id；没有路径时用它取 `header.cwd`。'),
+}))
+let _lcoder_kernel_agentTalents_presetTools_parameter_0_strict$schema$value
+const _lcoder_kernel_agentTalents_presetTools_parameter_0_strict$schema = () => (_lcoder_kernel_agentTalents_presetTools_parameter_0_strict$schema$value ??= z.string())
+let _lcoder_kernel_agentTalents_projectIdentity_parameter_0_strict$schema$value
+const _lcoder_kernel_agentTalents_projectIdentity_parameter_0_strict$schema = () => (_lcoder_kernel_agentTalents_projectIdentity_parameter_0_strict$schema$value ??= z.strictObject({
+  'path': z.string().readonly().optional().describe('项目根目录（`.spec` 的父目录）。'),
+  'sessionId': z.string().readonly().optional().describe('作用域会话 id；没有路径时用它取 `header.cwd`。'),
+}))
+let _lcoder_kernel_agentTalents_removeTalent_parameter_0_strict$schema$value
+const _lcoder_kernel_agentTalents_removeTalent_parameter_0_strict$schema = () => (_lcoder_kernel_agentTalents_removeTalent_parameter_0_strict$schema$value ??= z.string())
+let _lcoder_kernel_agentTalents_sessionRefs_parameter_0_strict$schema$value
+const _lcoder_kernel_agentTalents_sessionRefs_parameter_0_strict$schema = () => (_lcoder_kernel_agentTalents_sessionRefs_parameter_0_strict$schema$value ??= z.string())
 let _lcoder_kernel_lcoderCloud_claimGuest_parameter_0_strict$schema$value
 const _lcoder_kernel_lcoderCloud_claimGuest_parameter_0_strict$schema = () => (_lcoder_kernel_lcoderCloud_claimGuest_parameter_0_strict$schema$value ??= z.strictObject({
   'clientVersion': z.string().readonly().optional(),
   'captchaToken': z.string().readonly().optional(),
+}))
+let _lcoder_kernel_lcoderCloud_createTalent_parameter_0_strict$schema$value
+const _lcoder_kernel_lcoderCloud_createTalent_parameter_0_strict$schema = () => (_lcoder_kernel_lcoderCloud_createTalent_parameter_0_strict$schema$value ??= z.strictObject({
+  'scope': z.union([z.literal("global"), z.literal("project")]).readonly(),
+  'projectId': z.string().readonly().optional(),
+  'createdBy': z.union([z.literal("user"), z.literal("ai")]).readonly().optional(),
+  'name': z.string().readonly(),
+  'description': z.string().readonly().optional(),
+  'config': z.strictObject({
+  'version': z.number().readonly(),
+  'basePreset': z.string().readonly().optional(),
+  'persona': z.string().readonly().optional(),
+  'plugins': z.array(z.strictObject({
+  'name': z.string().readonly(),
+  'config': z.record(z.string(), z.json()).readonly().readonly().optional(),
+})).readonly().optional(),
+  'tools': z.array(z.string()).readonly().optional(),
+  'model': z.strictObject({
+  'provider': z.string().readonly(),
+  'modelId': z.string().readonly(),
+}).readonly().optional(),
+  'budget': z.strictObject({
+  'maxCostMicroUsd': z.number().readonly().optional(),
+  'maxRequestsPerSession': z.number().readonly().optional(),
+}).readonly().optional(),
+}).readonly(),
+}))
+let _lcoder_kernel_lcoderCloud_deleteTalent_parameter_0_strict$schema$value
+const _lcoder_kernel_lcoderCloud_deleteTalent_parameter_0_strict$schema = () => (_lcoder_kernel_lcoderCloud_deleteTalent_parameter_0_strict$schema$value ??= z.strictObject({
+  'id': z.string().readonly(),
 }))
 let _lcoder_kernel_lcoderCloud_loginPassword_parameter_0_strict$schema$value
 const _lcoder_kernel_lcoderCloud_loginPassword_parameter_0_strict$schema = () => (_lcoder_kernel_lcoderCloud_loginPassword_parameter_0_strict$schema$value ??= z.strictObject({
@@ -417,6 +796,36 @@ const _lcoder_kernel_lcoderCloud_sendSms_parameter_0_strict$schema = () => (_lco
   'purpose': z.union([z.literal("register"), z.literal("login")]).readonly(),
   'captchaToken': z.string().readonly().optional(),
 }))
+let _lcoder_kernel_lcoderCloud_talents_parameter_0_strict$schema$value
+const _lcoder_kernel_lcoderCloud_talents_parameter_0_strict$schema = () => (_lcoder_kernel_lcoderCloud_talents_parameter_0_strict$schema$value ??= z.strictObject({
+  'scope': z.union([z.literal("global"), z.literal("project")]).readonly().optional(),
+  'projectId': z.string().readonly().optional(),
+}))
+let _lcoder_kernel_lcoderCloud_updateTalent_parameter_0_strict$schema$value
+const _lcoder_kernel_lcoderCloud_updateTalent_parameter_0_strict$schema = () => (_lcoder_kernel_lcoderCloud_updateTalent_parameter_0_strict$schema$value ??= z.strictObject({
+  'id': z.string().readonly(),
+  'name': z.string().readonly().optional(),
+  'description': z.string().readonly().optional(),
+  'config': z.strictObject({
+  'version': z.number().readonly(),
+  'basePreset': z.string().readonly().optional(),
+  'persona': z.string().readonly().optional(),
+  'plugins': z.array(z.strictObject({
+  'name': z.string().readonly(),
+  'config': z.record(z.string(), z.json()).readonly().readonly().optional(),
+})).readonly().optional(),
+  'tools': z.array(z.string()).readonly().optional(),
+  'model': z.strictObject({
+  'provider': z.string().readonly(),
+  'modelId': z.string().readonly(),
+}).readonly().optional(),
+  'budget': z.strictObject({
+  'maxCostMicroUsd': z.number().readonly().optional(),
+  'maxRequestsPerSession': z.number().readonly().optional(),
+}).readonly().optional(),
+}).readonly().optional(),
+  'expectedRevision': z.number().readonly().optional(),
+}))
 let _lcoder_kernel_lcoderCloud_usage_parameter_0_strict$schema$value
 const _lcoder_kernel_lcoderCloud_usage_parameter_0_strict$schema = () => (_lcoder_kernel_lcoderCloud_usage_parameter_0_strict$schema$value ??= z.strictObject({
   'limit': z.number().readonly().optional().describe('1–100；默认 20。'),
@@ -429,6 +838,213 @@ const _lcoder_kernel_lcoderCloud_usage_parameter_0_strict$schema = () => (_lcode
 export const TYPERT_REMOTE = createTypertRemoteInfo({
   package: '@lcoder/kernel',
   methods: {
+    'agentTalents/applyTalents': {
+      service: 'agentTalents',
+      description: '应用或替换一批人才。整批先校验后落盘，任一条失败都回滚本次已做的改动。',
+      invocation: { kind: 'direct' },
+      parameters: [
+        {
+          name: 'request',
+          description: '人才列表。',
+          source: 'json',
+          codec: {
+            mode: 'strict',
+            typeSymbol: '@lcoder/kernel/talents/types#TalentApplyRequest',
+            create: _lcoder_kernel_agentTalents_applyTalents_parameter_0$schema,
+            jsonSchema: {"type":"object","properties":{"talents":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string","description":"云端人才 id；宿主拼成 `talent-<id>` 作为 preset id。"},"name":{"type":"string","description":"人才显示名。"},"description":{"type":"string","description":"一句话描述。"},"config":{"type":"object","properties":{"version":{"type":"number","description":"配置结构版本；当前只接受 1。"},"basePreset":{"type":"string","description":"继承的基础 preset id。"},"persona":{"type":"string","description":"人才自带的人设提示。"},"plugins":{"type":"array","items":{"type":"object","properties":{"name":{"type":"string","description":"本机已安装插件的包名。"},"config":{"type":"object","properties":{},"required":[],"additionalProperties":true,"description":"插件自身定义的静态配置对象。"}},"required":["name"],"additionalProperties":true},"description":"追加或覆盖到基础 preset 的插件行。"},"tools":{"type":"array","items":{"type":"string"},"description":"工具白名单；只列出的工具可见，空列表与缺省都不限制。"},"model":{"type":"object","properties":{"provider":{"type":"string","description":"已注册的模型 provider。"},"modelId":{"type":"string","description":"provider 内的模型 id。"}},"required":["provider","modelId"],"additionalProperties":true,"description":"人才默认模型；写入新会话的模型选择。"},"budget":{"type":"object","properties":{"maxCostMicroUsd":{"type":"number","description":"单会话成本上限，微美元。"},"maxRequestsPerSession":{"type":"number","description":"单会话模型请求上限。"}},"required":[],"additionalProperties":true,"description":"人才的单会话预算；宿主随模型请求带给云端网关。"}},"required":["version"],"additionalProperties":true,"description":"版本化配置。"}},"required":["id","config"],"additionalProperties":true},"description":"本次要应用或替换的人才；未出现的已应用人才保持不变。"}},"required":["talents"],"additionalProperties":true},
+          },
+          strictCodec: {
+            mode: 'strict',
+            typeSymbol: '@lcoder/kernel/talents/types#TalentApplyRequest',
+            create: _lcoder_kernel_agentTalents_applyTalents_parameter_0_strict$schema,
+            jsonSchema: {"type":"object","properties":{"talents":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string","description":"云端人才 id；宿主拼成 `talent-<id>` 作为 preset id。"},"name":{"type":"string","description":"人才显示名。"},"description":{"type":"string","description":"一句话描述。"},"config":{"type":"object","properties":{"version":{"type":"number","description":"配置结构版本；当前只接受 1。"},"basePreset":{"type":"string","description":"继承的基础 preset id。"},"persona":{"type":"string","description":"人才自带的人设提示。"},"plugins":{"type":"array","items":{"type":"object","properties":{"name":{"type":"string","description":"本机已安装插件的包名。"},"config":{"type":"object","properties":{},"required":[],"additionalProperties":true,"description":"插件自身定义的静态配置对象。"}},"required":["name"],"additionalProperties":false},"description":"追加或覆盖到基础 preset 的插件行。"},"tools":{"type":"array","items":{"type":"string"},"description":"工具白名单；只列出的工具可见，空列表与缺省都不限制。"},"model":{"type":"object","properties":{"provider":{"type":"string","description":"已注册的模型 provider。"},"modelId":{"type":"string","description":"provider 内的模型 id。"}},"required":["provider","modelId"],"additionalProperties":false,"description":"人才默认模型；写入新会话的模型选择。"},"budget":{"type":"object","properties":{"maxCostMicroUsd":{"type":"number","description":"单会话成本上限，微美元。"},"maxRequestsPerSession":{"type":"number","description":"单会话模型请求上限。"}},"required":[],"additionalProperties":false,"description":"人才的单会话预算；宿主随模型请求带给云端网关。"}},"required":["version"],"additionalProperties":false,"description":"版本化配置。"}},"required":["id","config"],"additionalProperties":false},"description":"本次要应用或替换的人才；未出现的已应用人才保持不变。"}},"required":["talents"],"additionalProperties":false},
+          },
+        },
+      ],
+      result: {
+        mode: 'strict',
+        typeSymbol: '@lcoder/kernel/talents/types#TalentApplyResult',
+        create: _lcoder_kernel_agentTalents_applyTalents_result$schema,
+        description: '实际注册/替换的人才与因配置未变而跳过的人才。',
+        jsonSchema: {"type":"object","properties":{"applied":{"type":"array","items":{"type":"object","properties":{"talentId":{"type":"string","description":"云端人才 id。"},"presetId":{"type":"string","description":"注册进 roaster 的 preset id。"},"basePreset":{"oneOf":[{"type":"null","const":null},{"type":"string"}],"description":"继承的基础 preset，未继承时为 null。"},"replaced":{"type":"boolean","description":"是否替换了同 id 的旧定义。"}},"required":["talentId","presetId","basePreset","replaced"],"additionalProperties":true},"description":"本次实际注册或替换的人才。"},"skipped":{"type":"array","items":{"type":"string"},"description":"配置与已登记版本完全相同、未重新挂载的人才。"}},"required":["applied","skipped"],"additionalProperties":true},
+      },
+      sourceLocation: {"file":"packages/lcoder/kernel/src/talents/service.ts","line":93,"column":9},
+    },
+    'agentTalents/catalog': {
+      service: 'agentTalents',
+      description: '读表单需要的本机只读清单：可解析的已安装插件包与非人才的基础 preset。 只读 root Loader 与 preset 组合，不挂载、不写配置；插件按提交时同样的 `packageOf` 规则过滤，列出就能提交。',
+      invocation: { kind: 'direct' },
+      parameters: [
+      ],
+      result: {
+        mode: 'strict',
+        typeSymbol: '@lcoder/kernel/talents/types#TalentCatalog',
+        create: _lcoder_kernel_agentTalents_catalog_result$schema,
+        description: '插件包与基础 preset。',
+        jsonSchema: {"type":"object","properties":{"plugins":{"type":"array","items":{"type":"object","properties":{"name":{"type":"string","description":"包名；提交进人才 `config.plugins[].name`。"},"version":{"type":"string","description":"本机包清单里声明的版本；无版本字段时缺省。"}},"required":["name"],"additionalProperties":true},"description":"本机可解析的插件包，按包名排序。"},"presets":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string","description":"preset id。"},"name":{"type":"string","description":"显示名。"},"isDefault":{"type":"boolean","description":"是否为新会话的默认 preset。"},"broken":{"type":"string","description":"激活失败的诊断；能用时缺省。"}},"required":["id","isDefault"],"additionalProperties":true},"description":"可作为基础 preset 的声明；不含 `talent-` 动态预设。"}},"required":["plugins","presets"],"additionalProperties":true},
+      },
+      sourceLocation: {"file":"packages/lcoder/kernel/src/talents/service.ts","line":165,"column":9},
+    },
+    'agentTalents/ensureProjectId': {
+      service: 'agentTalents',
+      description: '为已登记的项目补出并写回 `projectId`；仅在用户显式要求绑定项目人才库时调用。',
+      invocation: { kind: 'direct' },
+      parameters: [
+        {
+          name: 'input',
+          description: '项目路径或作用域会话。',
+          source: 'json',
+          codec: {
+            mode: 'strict',
+            typeSymbol: '@lcoder/kernel/talents/types#TalentProjectInput',
+            create: _lcoder_kernel_agentTalents_ensureProjectId_parameter_0$schema,
+            jsonSchema: {"type":"object","properties":{"path":{"type":"string","description":"项目根目录（`.spec` 的父目录）。"},"sessionId":{"type":"string","description":"作用域会话 id；没有路径时用它取 `header.cwd`。"}},"required":[],"additionalProperties":true},
+          },
+          strictCodec: {
+            mode: 'strict',
+            typeSymbol: '@lcoder/kernel/talents/types#TalentProjectInput',
+            create: _lcoder_kernel_agentTalents_ensureProjectId_parameter_0_strict$schema,
+            jsonSchema: {"type":"object","properties":{"path":{"type":"string","description":"项目根目录（`.spec` 的父目录）。"},"sessionId":{"type":"string","description":"作用域会话 id；没有路径时用它取 `header.cwd`。"}},"required":[],"additionalProperties":false},
+          },
+        },
+      ],
+      result: {
+        mode: 'strict',
+        typeSymbol: '@lcoder/kernel/talents/types#TalentProjectIdentity',
+        create: _lcoder_kernel_agentTalents_ensureProjectId_result$schema,
+        description: '写回后的身份；没有 `project.yaml` 时返回缺文件。',
+        jsonSchema: {"type":"object","properties":{"projectId":{"oneOf":[{"type":"null","const":null},{"type":"string"}],"description":"已登记的 UUID；未登记或读取失败时为 null。"},"state":{"type":"string","enum":["ready","unbound","missing-project","missing-context","invalid"],"description":"结果分支。"},"detail":{"type":"string","description":"诊断用的人话；ready 时缺省。"}},"required":["projectId","state"],"additionalProperties":true},
+      },
+      sourceLocation: {"file":"packages/lcoder/kernel/src/talents/service.ts","line":248,"column":9},
+    },
+    'agentTalents/presetTools': {
+      service: 'agentTalents',
+      description: '读一个基础 preset 当前工具面上的工具名与说明。 白名单只接受这里的名字；preset 不可用时返回空工具面与原因，不抛给界面。',
+      invocation: { kind: 'direct' },
+      parameters: [
+        {
+          name: 'presetId',
+          description: '基础 preset id。',
+          source: 'json',
+          codec: {
+            mode: 'strict',
+            typeSymbol: '@lcoder/kernel#agentTalents/presetTools:presetId',
+            create: _lcoder_kernel_agentTalents_presetTools_parameter_0$schema,
+            jsonSchema: {"type":"string"},
+          },
+          strictCodec: {
+            mode: 'strict',
+            typeSymbol: '@lcoder/kernel#agentTalents/presetTools:presetId',
+            create: _lcoder_kernel_agentTalents_presetTools_parameter_0_strict$schema,
+            jsonSchema: {"type":"string"},
+          },
+        },
+      ],
+      result: {
+        mode: 'strict',
+        typeSymbol: '@lcoder/kernel/talents/types#TalentPresetTools',
+        create: _lcoder_kernel_agentTalents_presetTools_result$schema,
+        description: '工具面或不可用原因。',
+        jsonSchema: {"type":"object","properties":{"presetId":{"type":"string","description":"查询的 preset id。"},"tools":{"type":"array","items":{"type":"object","properties":{"name":{"type":"string","description":"模型看到的工具名；白名单写这个值。"},"description":{"type":"string","description":"工具说明。"}},"required":["name","description"],"additionalProperties":true},"description":"工具面；激活失败时为空。"},"broken":{"type":"string","description":"preset 不可用的原因；可用时缺省。"}},"required":["presetId","tools"],"additionalProperties":true},
+      },
+      sourceLocation: {"file":"packages/lcoder/kernel/src/talents/service.ts","line":208,"column":9},
+    },
+    'agentTalents/projectIdentity': {
+      service: 'agentTalents',
+      description: '读当前项目的稳定身份；只读 `.spec/project.yaml`，不生成、不改写。',
+      invocation: { kind: 'direct' },
+      parameters: [
+        {
+          name: 'input',
+          description: '项目路径或作用域会话。',
+          source: 'json',
+          codec: {
+            mode: 'strict',
+            typeSymbol: '@lcoder/kernel/talents/types#TalentProjectInput',
+            create: _lcoder_kernel_agentTalents_projectIdentity_parameter_0$schema,
+            jsonSchema: {"type":"object","properties":{"path":{"type":"string","description":"项目根目录（`.spec` 的父目录）。"},"sessionId":{"type":"string","description":"作用域会话 id；没有路径时用它取 `header.cwd`。"}},"required":[],"additionalProperties":true},
+          },
+          strictCodec: {
+            mode: 'strict',
+            typeSymbol: '@lcoder/kernel/talents/types#TalentProjectInput',
+            create: _lcoder_kernel_agentTalents_projectIdentity_parameter_0_strict$schema,
+            jsonSchema: {"type":"object","properties":{"path":{"type":"string","description":"项目根目录（`.spec` 的父目录）。"},"sessionId":{"type":"string","description":"作用域会话 id；没有路径时用它取 `header.cwd`。"}},"required":[],"additionalProperties":false},
+          },
+        },
+      ],
+      result: {
+        mode: 'strict',
+        typeSymbol: '@lcoder/kernel/talents/types#TalentProjectIdentity',
+        create: _lcoder_kernel_agentTalents_projectIdentity_result$schema,
+        description: '已登记 id、未登记、缺文件或文件无效。',
+        jsonSchema: {"type":"object","properties":{"projectId":{"oneOf":[{"type":"null","const":null},{"type":"string"}],"description":"已登记的 UUID；未登记或读取失败时为 null。"},"state":{"type":"string","enum":["ready","unbound","missing-project","missing-context","invalid"],"description":"结果分支。"},"detail":{"type":"string","description":"诊断用的人话；ready 时缺省。"}},"required":["projectId","state"],"additionalProperties":true},
+      },
+      sourceLocation: {"file":"packages/lcoder/kernel/src/talents/service.ts","line":227,"column":9},
+    },
+    'agentTalents/removeTalent': {
+      service: 'agentTalents',
+      description: '撤回一条人才。仍有本机会话引用时拒绝；内置与其它来源的 preset 一律不碰。',
+      invocation: { kind: 'direct' },
+      parameters: [
+        {
+          name: 'talentId',
+          description: '云端人才 id。',
+          source: 'json',
+          codec: {
+            mode: 'strict',
+            typeSymbol: '@lcoder/kernel#agentTalents/removeTalent:talentId',
+            create: _lcoder_kernel_agentTalents_removeTalent_parameter_0$schema,
+            jsonSchema: {"type":"string"},
+          },
+          strictCodec: {
+            mode: 'strict',
+            typeSymbol: '@lcoder/kernel#agentTalents/removeTalent:talentId',
+            create: _lcoder_kernel_agentTalents_removeTalent_parameter_0_strict$schema,
+            jsonSchema: {"type":"string"},
+          },
+        },
+      ],
+      result: {
+        mode: 'strict',
+        typeSymbol: '@lcoder/kernel/talents/types#TalentRemoved',
+        create: _lcoder_kernel_agentTalents_removeTalent_result$schema,
+        description: '已注销的 preset id。',
+        jsonSchema: {"type":"object","properties":{"talentId":{"type":"string","description":"云端人才 id。"},"presetId":{"type":"string","description":"已注销的 preset id。"}},"required":["talentId","presetId"],"additionalProperties":true},
+      },
+      sourceLocation: {"file":"packages/lcoder/kernel/src/talents/service.ts","line":131,"column":9},
+    },
+    'agentTalents/sessionRefs': {
+      service: 'agentTalents',
+      description: '列出仍在用某条人才的本机会话。',
+      invocation: { kind: 'direct' },
+      parameters: [
+        {
+          name: 'talentId',
+          description: '云端人才 id。',
+          source: 'json',
+          codec: {
+            mode: 'strict',
+            typeSymbol: '@lcoder/kernel#agentTalents/sessionRefs:talentId',
+            create: _lcoder_kernel_agentTalents_sessionRefs_parameter_0$schema,
+            jsonSchema: {"type":"string"},
+          },
+          strictCodec: {
+            mode: 'strict',
+            typeSymbol: '@lcoder/kernel#agentTalents/sessionRefs:talentId',
+            create: _lcoder_kernel_agentTalents_sessionRefs_parameter_0_strict$schema,
+            jsonSchema: {"type":"string"},
+          },
+        },
+      ],
+      result: {
+        mode: 'strict',
+        typeSymbol: '@lcoder/kernel/talents/types#TalentSessionRef',
+        create: _lcoder_kernel_agentTalents_sessionRefs_result$schema,
+        description: '人才、preset 与使用它的会话 id。',
+        jsonSchema: {"type":"object","properties":{"talentId":{"type":"string","description":"云端人才 id。"},"presetId":{"type":"string","description":"对应 preset id。"},"sessionIds":{"type":"array","items":{"type":"string"},"description":"当前使用该 preset 的本机会话 id。"}},"required":["talentId","presetId","sessionIds"],"additionalProperties":true},
+      },
+      sourceLocation: {"file":"packages/lcoder/kernel/src/talents/service.ts","line":151,"column":9},
+    },
     'lcoderCloud/claimGuest': {
       service: 'lcoderCloud',
       description: '领取或复用今日匿名立项授权。',
@@ -459,7 +1075,71 @@ export const TYPERT_REMOTE = createTypertRemoteInfo({
         description: '服务端承认的授权状态。',
         jsonSchema: {"oneOf":[{"type":"object","properties":{"ok":{"type":"boolean","const":false},"error":{"type":"object","properties":{"code":{"type":"string","description":"云端 `error.code`，或客户端侧补的 `offline` / `needs_login` / `guest_missing`。"},"message":{"type":"string","description":"面向人的一句话；不含令牌、手机号明文与上游原文。"},"requestId":{"type":"string","description":"服务端请求号；只用于诊断展示。"},"retryAfterSeconds":{"type":"number","description":"429/402 的 Retry-After 秒数。"},"status":{"type":"number","description":"HTTP 状态码；网络失败时缺省。"}},"required":["code","message"],"additionalProperties":true}},"required":["ok","error"],"additionalProperties":true},{"type":"object","properties":{"ok":{"type":"boolean","const":true},"value":{"type":"object","properties":{"grantDate":{"type":"string"},"expiresAt":{"type":"string"},"remainingRequests":{"type":"number"},"remainingCostMicroUsd":{"type":"number"},"limits":{"type":"object","properties":{"maxRequests":{"type":"number"},"maxCostMicroUsd":{"type":"number"},"dailyGrantLimit":{"type":"number"}},"required":["maxRequests","maxCostMicroUsd","dailyGrantLimit"],"additionalProperties":true},"model":{"type":"string"},"scope":{"type":"string"},"revoked":{"type":"boolean"},"estimate":{"oneOf":[{"type":"null","const":null},{"type":"object","properties":{"available":{"type":"boolean"},"unavailableReason":{"oneOf":[{"type":"null","const":null},{"type":"string","enum":["no_effective_price","zero_unit_price","zero_balance","estimate_overflow"]}]},"model":{"type":"string"},"availableMicroUsd":{"type":"number"},"lowerBoundTokens":{"type":"number"},"upperBoundTokens":{"type":"number"},"inputOutputRatio":{"type":"string","description":"云端固定输入输出占比，例如 `8:2`。"},"price":{"oneOf":[{"type":"null","const":null},{"type":"object","properties":{"inputMicroUsdPerMtok":{"type":"number"},"cachedInputMicroUsdPerMtok":{"type":"number"},"outputMicroUsdPerMtok":{"type":"number"}},"required":["inputMicroUsdPerMtok","cachedInputMicroUsdPerMtok","outputMicroUsdPerMtok"],"additionalProperties":true}]}},"required":["available","unavailableReason","model","availableMicroUsd","lowerBoundTokens","upperBoundTokens","inputOutputRatio","price"],"additionalProperties":true}],"description":"匿名授权的 token 预估；服务端没给时为 null。"}},"required":["grantDate","expiresAt","remainingRequests","remainingCostMicroUsd","limits","model","scope","revoked","estimate"],"additionalProperties":true}},"required":["ok","value"],"additionalProperties":true}]},
       },
-      sourceLocation: {"file":"packages/lcoder/kernel/src/cloud/controller.ts","line":170,"column":9},
+      sourceLocation: {"file":"packages/lcoder/kernel/src/cloud/controller.ts","line":228,"column":9},
+    },
+    'lcoderCloud/createTalent': {
+      service: 'lcoderCloud',
+      description: '新建人才。',
+      invocation: { kind: 'direct' },
+      parameters: [
+        {
+          name: 'input',
+          description: '作用域、名称与版本化配置。',
+          source: 'json',
+          codec: {
+            mode: 'strict',
+            typeSymbol: '@lcoder/kernel/cloud/types#CloudCreateTalentInput',
+            create: _lcoder_kernel_lcoderCloud_createTalent_parameter_0$schema,
+            jsonSchema: {"type":"object","properties":{"scope":{"type":"string","enum":["global","project"]},"projectId":{"type":"string"},"createdBy":{"type":"string","enum":["user","ai"]},"name":{"type":"string"},"description":{"type":"string"},"config":{"type":"object","properties":{"version":{"type":"number"},"basePreset":{"type":"string"},"persona":{"type":"string"},"plugins":{"type":"array","items":{"type":"object","properties":{"name":{"type":"string"},"config":{"type":"object","properties":{},"required":[],"additionalProperties":true}},"required":["name"],"additionalProperties":true}},"tools":{"type":"array","items":{"type":"string"}},"model":{"type":"object","properties":{"provider":{"type":"string"},"modelId":{"type":"string"}},"required":["provider","modelId"],"additionalProperties":true},"budget":{"type":"object","properties":{"maxCostMicroUsd":{"type":"number"},"maxRequestsPerSession":{"type":"number"}},"required":[],"additionalProperties":true}},"required":["version"],"additionalProperties":true}},"required":["scope","name","config"],"additionalProperties":true},
+          },
+          strictCodec: {
+            mode: 'strict',
+            typeSymbol: '@lcoder/kernel/cloud/types#CloudCreateTalentInput',
+            create: _lcoder_kernel_lcoderCloud_createTalent_parameter_0_strict$schema,
+            jsonSchema: {"type":"object","properties":{"scope":{"type":"string","enum":["global","project"]},"projectId":{"type":"string"},"createdBy":{"type":"string","enum":["user","ai"]},"name":{"type":"string"},"description":{"type":"string"},"config":{"type":"object","properties":{"version":{"type":"number"},"basePreset":{"type":"string"},"persona":{"type":"string"},"plugins":{"type":"array","items":{"type":"object","properties":{"name":{"type":"string"},"config":{"type":"object","properties":{},"required":[],"additionalProperties":true}},"required":["name"],"additionalProperties":false}},"tools":{"type":"array","items":{"type":"string"}},"model":{"type":"object","properties":{"provider":{"type":"string"},"modelId":{"type":"string"}},"required":["provider","modelId"],"additionalProperties":false},"budget":{"type":"object","properties":{"maxCostMicroUsd":{"type":"number"},"maxRequestsPerSession":{"type":"number"}},"required":[],"additionalProperties":false}},"required":["version"],"additionalProperties":false}},"required":["scope","name","config"],"additionalProperties":false},
+          },
+        },
+      ],
+      result: {
+        mode: 'strict',
+        typeSymbol: '@lcoder/kernel/cloud/types#CloudResult',
+        create: _lcoder_kernel_lcoderCloud_createTalent_result$schema,
+        description: '云端落库后的人才。',
+        jsonSchema: {"oneOf":[{"type":"object","properties":{"ok":{"type":"boolean","const":false},"error":{"type":"object","properties":{"code":{"type":"string","description":"云端 `error.code`，或客户端侧补的 `offline` / `needs_login` / `guest_missing`。"},"message":{"type":"string","description":"面向人的一句话；不含令牌、手机号明文与上游原文。"},"requestId":{"type":"string","description":"服务端请求号；只用于诊断展示。"},"retryAfterSeconds":{"type":"number","description":"429/402 的 Retry-After 秒数。"},"status":{"type":"number","description":"HTTP 状态码；网络失败时缺省。"}},"required":["code","message"],"additionalProperties":true}},"required":["ok","error"],"additionalProperties":true},{"type":"object","properties":{"ok":{"type":"boolean","const":true},"value":{"type":"object","properties":{"id":{"type":"string"},"scope":{"type":"string","enum":["global","project"]},"projectId":{"oneOf":[{"type":"null","const":null},{"type":"string"}]},"ownerUserId":{"type":"string"},"createdBy":{"type":"string","enum":["user","ai"]},"name":{"type":"string"},"description":{"type":"string"},"config":{"type":"object","properties":{"version":{"type":"number"},"basePreset":{"type":"string"},"persona":{"type":"string"},"plugins":{"type":"array","items":{"type":"object","properties":{"name":{"type":"string"},"config":{"type":"object","properties":{},"required":[],"additionalProperties":true}},"required":["name"],"additionalProperties":true}},"tools":{"type":"array","items":{"type":"string"}},"model":{"type":"object","properties":{"provider":{"type":"string"},"modelId":{"type":"string"}},"required":["provider","modelId"],"additionalProperties":true},"budget":{"type":"object","properties":{"maxCostMicroUsd":{"type":"number"},"maxRequestsPerSession":{"type":"number"}},"required":[],"additionalProperties":true}},"required":["version"],"additionalProperties":true},"revision":{"type":"number"},"canManage":{"type":"boolean","description":"当前账号能否改删；由云端按创建者与项目 owner 判定。"},"createdAt":{"type":"string"},"updatedAt":{"type":"string"}},"required":["id","scope","projectId","ownerUserId","createdBy","name","description","config","revision","canManage","createdAt","updatedAt"],"additionalProperties":true}},"required":["ok","value"],"additionalProperties":true}]},
+      },
+      sourceLocation: {"file":"packages/lcoder/kernel/src/cloud/controller.ts","line":171,"column":9},
+    },
+    'lcoderCloud/deleteTalent': {
+      service: 'lcoderCloud',
+      description: '删除人才；权限由云端判定。',
+      invocation: { kind: 'direct' },
+      parameters: [
+        {
+          name: 'input',
+          description: '人才 id。',
+          source: 'json',
+          codec: {
+            mode: 'strict',
+            typeSymbol: '@lcoder/kernel/cloud/types#CloudDeleteTalentInput',
+            create: _lcoder_kernel_lcoderCloud_deleteTalent_parameter_0$schema,
+            jsonSchema: {"type":"object","properties":{"id":{"type":"string"}},"required":["id"],"additionalProperties":true},
+          },
+          strictCodec: {
+            mode: 'strict',
+            typeSymbol: '@lcoder/kernel/cloud/types#CloudDeleteTalentInput',
+            create: _lcoder_kernel_lcoderCloud_deleteTalent_parameter_0_strict$schema,
+            jsonSchema: {"type":"object","properties":{"id":{"type":"string"}},"required":["id"],"additionalProperties":false},
+          },
+        },
+      ],
+      result: {
+        mode: 'strict',
+        typeSymbol: '@lcoder/kernel/cloud/types#CloudResult',
+        create: _lcoder_kernel_lcoderCloud_deleteTalent_result$schema,
+        description: '成功标记。',
+        jsonSchema: {"oneOf":[{"type":"object","properties":{"ok":{"type":"boolean","const":false},"error":{"type":"object","properties":{"code":{"type":"string","description":"云端 `error.code`，或客户端侧补的 `offline` / `needs_login` / `guest_missing`。"},"message":{"type":"string","description":"面向人的一句话；不含令牌、手机号明文与上游原文。"},"requestId":{"type":"string","description":"服务端请求号；只用于诊断展示。"},"retryAfterSeconds":{"type":"number","description":"429/402 的 Retry-After 秒数。"},"status":{"type":"number","description":"HTTP 状态码；网络失败时缺省。"}},"required":["code","message"],"additionalProperties":true}},"required":["ok","error"],"additionalProperties":true},{"type":"object","properties":{"ok":{"type":"boolean","const":true},"value":{"type":"object","properties":{"ok":{"type":"boolean"}},"required":["ok"],"additionalProperties":true}},"required":["ok","value"],"additionalProperties":true}]},
+      },
+      sourceLocation: {"file":"packages/lcoder/kernel/src/cloud/controller.ts","line":199,"column":9},
     },
     'lcoderCloud/loginPassword': {
       service: 'lcoderCloud',
@@ -491,7 +1171,7 @@ export const TYPERT_REMOTE = createTypertRemoteInfo({
         description: '登录资料。',
         jsonSchema: {"oneOf":[{"type":"object","properties":{"ok":{"type":"boolean","const":false},"error":{"type":"object","properties":{"code":{"type":"string","description":"云端 `error.code`，或客户端侧补的 `offline` / `needs_login` / `guest_missing`。"},"message":{"type":"string","description":"面向人的一句话；不含令牌、手机号明文与上游原文。"},"requestId":{"type":"string","description":"服务端请求号；只用于诊断展示。"},"retryAfterSeconds":{"type":"number","description":"429/402 的 Retry-After 秒数。"},"status":{"type":"number","description":"HTTP 状态码；网络失败时缺省。"}},"required":["code","message"],"additionalProperties":true}},"required":["ok","error"],"additionalProperties":true},{"type":"object","properties":{"ok":{"type":"boolean","const":true},"value":{"type":"object","properties":{"user":{"type":"object","properties":{"id":{"type":"string"},"displayName":{"oneOf":[{"type":"null","const":null},{"type":"string"}]},"phoneMasked":{"oneOf":[{"type":"null","const":null},{"type":"string"}]},"status":{"type":"string"},"createdAt":{"type":"string"},"lastLoginAt":{"oneOf":[{"type":"null","const":null},{"type":"string"}]}},"required":["id","displayName","phoneMasked","status"],"additionalProperties":true},"quota":{"type":"object","properties":{"grantedMicroUsd":{"type":"number"},"reservedMicroUsd":{"type":"number"},"spentMicroUsd":{"type":"number"},"availableMicroUsd":{"type":"number"},"currency":{"type":"string"},"updatedAt":{"type":"string"}},"required":["grantedMicroUsd","reservedMicroUsd","spentMicroUsd","availableMicroUsd","currency"],"additionalProperties":true},"expiresIn":{"type":"number"}},"required":["user","quota","expiresIn"],"additionalProperties":true}},"required":["ok","value"],"additionalProperties":true}]},
       },
-      sourceLocation: {"file":"packages/lcoder/kernel/src/cloud/controller.ts","line":106,"column":9},
+      sourceLocation: {"file":"packages/lcoder/kernel/src/cloud/controller.ts","line":107,"column":9},
     },
     'lcoderCloud/loginSms': {
       service: 'lcoderCloud',
@@ -523,7 +1203,7 @@ export const TYPERT_REMOTE = createTypertRemoteInfo({
         description: '登录资料。',
         jsonSchema: {"oneOf":[{"type":"object","properties":{"ok":{"type":"boolean","const":false},"error":{"type":"object","properties":{"code":{"type":"string","description":"云端 `error.code`，或客户端侧补的 `offline` / `needs_login` / `guest_missing`。"},"message":{"type":"string","description":"面向人的一句话；不含令牌、手机号明文与上游原文。"},"requestId":{"type":"string","description":"服务端请求号；只用于诊断展示。"},"retryAfterSeconds":{"type":"number","description":"429/402 的 Retry-After 秒数。"},"status":{"type":"number","description":"HTTP 状态码；网络失败时缺省。"}},"required":["code","message"],"additionalProperties":true}},"required":["ok","error"],"additionalProperties":true},{"type":"object","properties":{"ok":{"type":"boolean","const":true},"value":{"type":"object","properties":{"user":{"type":"object","properties":{"id":{"type":"string"},"displayName":{"oneOf":[{"type":"null","const":null},{"type":"string"}]},"phoneMasked":{"oneOf":[{"type":"null","const":null},{"type":"string"}]},"status":{"type":"string"},"createdAt":{"type":"string"},"lastLoginAt":{"oneOf":[{"type":"null","const":null},{"type":"string"}]}},"required":["id","displayName","phoneMasked","status"],"additionalProperties":true},"quota":{"type":"object","properties":{"grantedMicroUsd":{"type":"number"},"reservedMicroUsd":{"type":"number"},"spentMicroUsd":{"type":"number"},"availableMicroUsd":{"type":"number"},"currency":{"type":"string"},"updatedAt":{"type":"string"}},"required":["grantedMicroUsd","reservedMicroUsd","spentMicroUsd","availableMicroUsd","currency"],"additionalProperties":true},"expiresIn":{"type":"number"}},"required":["user","quota","expiresIn"],"additionalProperties":true}},"required":["ok","value"],"additionalProperties":true}]},
       },
-      sourceLocation: {"file":"packages/lcoder/kernel/src/cloud/controller.ts","line":96,"column":9},
+      sourceLocation: {"file":"packages/lcoder/kernel/src/cloud/controller.ts","line":97,"column":9},
     },
     'lcoderCloud/logout': {
       service: 'lcoderCloud',
@@ -538,7 +1218,7 @@ export const TYPERT_REMOTE = createTypertRemoteInfo({
         description: '成功标记。',
         jsonSchema: {"oneOf":[{"type":"object","properties":{"ok":{"type":"boolean","const":false},"error":{"type":"object","properties":{"code":{"type":"string","description":"云端 `error.code`，或客户端侧补的 `offline` / `needs_login` / `guest_missing`。"},"message":{"type":"string","description":"面向人的一句话；不含令牌、手机号明文与上游原文。"},"requestId":{"type":"string","description":"服务端请求号；只用于诊断展示。"},"retryAfterSeconds":{"type":"number","description":"429/402 的 Retry-After 秒数。"},"status":{"type":"number","description":"HTTP 状态码；网络失败时缺省。"}},"required":["code","message"],"additionalProperties":true}},"required":["ok","error"],"additionalProperties":true},{"type":"object","properties":{"ok":{"type":"boolean","const":true},"value":{"type":"object","properties":{"ok":{"type":"boolean"}},"required":["ok"],"additionalProperties":true}},"required":["ok","value"],"additionalProperties":true}]},
       },
-      sourceLocation: {"file":"packages/lcoder/kernel/src/cloud/controller.ts","line":155,"column":9},
+      sourceLocation: {"file":"packages/lcoder/kernel/src/cloud/controller.ts","line":213,"column":9},
     },
     'lcoderCloud/me': {
       service: 'lcoderCloud',
@@ -553,7 +1233,7 @@ export const TYPERT_REMOTE = createTypertRemoteInfo({
         description: '登录资料。',
         jsonSchema: {"oneOf":[{"type":"object","properties":{"ok":{"type":"boolean","const":false},"error":{"type":"object","properties":{"code":{"type":"string","description":"云端 `error.code`，或客户端侧补的 `offline` / `needs_login` / `guest_missing`。"},"message":{"type":"string","description":"面向人的一句话；不含令牌、手机号明文与上游原文。"},"requestId":{"type":"string","description":"服务端请求号；只用于诊断展示。"},"retryAfterSeconds":{"type":"number","description":"429/402 的 Retry-After 秒数。"},"status":{"type":"number","description":"HTTP 状态码；网络失败时缺省。"}},"required":["code","message"],"additionalProperties":true}},"required":["ok","error"],"additionalProperties":true},{"type":"object","properties":{"ok":{"type":"boolean","const":true},"value":{"type":"object","properties":{"user":{"type":"object","properties":{"id":{"type":"string"},"displayName":{"oneOf":[{"type":"null","const":null},{"type":"string"}]},"phoneMasked":{"oneOf":[{"type":"null","const":null},{"type":"string"}]},"status":{"type":"string"},"createdAt":{"type":"string"},"lastLoginAt":{"oneOf":[{"type":"null","const":null},{"type":"string"}]}},"required":["id","displayName","phoneMasked","status"],"additionalProperties":true},"quota":{"type":"object","properties":{"grantedMicroUsd":{"type":"number"},"reservedMicroUsd":{"type":"number"},"spentMicroUsd":{"type":"number"},"availableMicroUsd":{"type":"number"},"currency":{"type":"string"},"updatedAt":{"type":"string"}},"required":["grantedMicroUsd","reservedMicroUsd","spentMicroUsd","availableMicroUsd","currency"],"additionalProperties":true},"expiresIn":{"type":"number"}},"required":["user","quota","expiresIn"],"additionalProperties":true}},"required":["ok","value"],"additionalProperties":true}]},
       },
-      sourceLocation: {"file":"packages/lcoder/kernel/src/cloud/controller.ts","line":128,"column":9},
+      sourceLocation: {"file":"packages/lcoder/kernel/src/cloud/controller.ts","line":129,"column":9},
     },
     'lcoderCloud/refresh': {
       service: 'lcoderCloud',
@@ -568,7 +1248,7 @@ export const TYPERT_REMOTE = createTypertRemoteInfo({
         description: '刷新后的登录资料。',
         jsonSchema: {"oneOf":[{"type":"object","properties":{"ok":{"type":"boolean","const":false},"error":{"type":"object","properties":{"code":{"type":"string","description":"云端 `error.code`，或客户端侧补的 `offline` / `needs_login` / `guest_missing`。"},"message":{"type":"string","description":"面向人的一句话；不含令牌、手机号明文与上游原文。"},"requestId":{"type":"string","description":"服务端请求号；只用于诊断展示。"},"retryAfterSeconds":{"type":"number","description":"429/402 的 Retry-After 秒数。"},"status":{"type":"number","description":"HTTP 状态码；网络失败时缺省。"}},"required":["code","message"],"additionalProperties":true}},"required":["ok","error"],"additionalProperties":true},{"type":"object","properties":{"ok":{"type":"boolean","const":true},"value":{"type":"object","properties":{"user":{"type":"object","properties":{"id":{"type":"string"},"displayName":{"oneOf":[{"type":"null","const":null},{"type":"string"}]},"phoneMasked":{"oneOf":[{"type":"null","const":null},{"type":"string"}]},"status":{"type":"string"},"createdAt":{"type":"string"},"lastLoginAt":{"oneOf":[{"type":"null","const":null},{"type":"string"}]}},"required":["id","displayName","phoneMasked","status"],"additionalProperties":true},"quota":{"type":"object","properties":{"grantedMicroUsd":{"type":"number"},"reservedMicroUsd":{"type":"number"},"spentMicroUsd":{"type":"number"},"availableMicroUsd":{"type":"number"},"currency":{"type":"string"},"updatedAt":{"type":"string"}},"required":["grantedMicroUsd","reservedMicroUsd","spentMicroUsd","availableMicroUsd","currency"],"additionalProperties":true},"expiresIn":{"type":"number"}},"required":["user","quota","expiresIn"],"additionalProperties":true}},"required":["ok","value"],"additionalProperties":true}]},
       },
-      sourceLocation: {"file":"packages/lcoder/kernel/src/cloud/controller.ts","line":115,"column":9},
+      sourceLocation: {"file":"packages/lcoder/kernel/src/cloud/controller.ts","line":116,"column":9},
     },
     'lcoderCloud/register': {
       service: 'lcoderCloud',
@@ -600,7 +1280,7 @@ export const TYPERT_REMOTE = createTypertRemoteInfo({
         description: '登录资料。',
         jsonSchema: {"oneOf":[{"type":"object","properties":{"ok":{"type":"boolean","const":false},"error":{"type":"object","properties":{"code":{"type":"string","description":"云端 `error.code`，或客户端侧补的 `offline` / `needs_login` / `guest_missing`。"},"message":{"type":"string","description":"面向人的一句话；不含令牌、手机号明文与上游原文。"},"requestId":{"type":"string","description":"服务端请求号；只用于诊断展示。"},"retryAfterSeconds":{"type":"number","description":"429/402 的 Retry-After 秒数。"},"status":{"type":"number","description":"HTTP 状态码；网络失败时缺省。"}},"required":["code","message"],"additionalProperties":true}},"required":["ok","error"],"additionalProperties":true},{"type":"object","properties":{"ok":{"type":"boolean","const":true},"value":{"type":"object","properties":{"user":{"type":"object","properties":{"id":{"type":"string"},"displayName":{"oneOf":[{"type":"null","const":null},{"type":"string"}]},"phoneMasked":{"oneOf":[{"type":"null","const":null},{"type":"string"}]},"status":{"type":"string"},"createdAt":{"type":"string"},"lastLoginAt":{"oneOf":[{"type":"null","const":null},{"type":"string"}]}},"required":["id","displayName","phoneMasked","status"],"additionalProperties":true},"quota":{"type":"object","properties":{"grantedMicroUsd":{"type":"number"},"reservedMicroUsd":{"type":"number"},"spentMicroUsd":{"type":"number"},"availableMicroUsd":{"type":"number"},"currency":{"type":"string"},"updatedAt":{"type":"string"}},"required":["grantedMicroUsd","reservedMicroUsd","spentMicroUsd","availableMicroUsd","currency"],"additionalProperties":true},"expiresIn":{"type":"number"}},"required":["user","quota","expiresIn"],"additionalProperties":true}},"required":["ok","value"],"additionalProperties":true}]},
       },
-      sourceLocation: {"file":"packages/lcoder/kernel/src/cloud/controller.ts","line":86,"column":9},
+      sourceLocation: {"file":"packages/lcoder/kernel/src/cloud/controller.ts","line":87,"column":9},
     },
     'lcoderCloud/sendSms': {
       service: 'lcoderCloud',
@@ -632,7 +1312,7 @@ export const TYPERT_REMOTE = createTypertRemoteInfo({
         description: '重发倒计时与有效期。',
         jsonSchema: {"oneOf":[{"type":"object","properties":{"ok":{"type":"boolean","const":false},"error":{"type":"object","properties":{"code":{"type":"string","description":"云端 `error.code`，或客户端侧补的 `offline` / `needs_login` / `guest_missing`。"},"message":{"type":"string","description":"面向人的一句话；不含令牌、手机号明文与上游原文。"},"requestId":{"type":"string","description":"服务端请求号；只用于诊断展示。"},"retryAfterSeconds":{"type":"number","description":"429/402 的 Retry-After 秒数。"},"status":{"type":"number","description":"HTTP 状态码；网络失败时缺省。"}},"required":["code","message"],"additionalProperties":true}},"required":["ok","error"],"additionalProperties":true},{"type":"object","properties":{"ok":{"type":"boolean","const":true},"value":{"type":"object","properties":{"requestId":{"type":"string"},"resendAfterSeconds":{"type":"number"},"expiresInSeconds":{"type":"number"}},"required":["requestId","resendAfterSeconds","expiresInSeconds"],"additionalProperties":true}},"required":["ok","value"],"additionalProperties":true}]},
       },
-      sourceLocation: {"file":"packages/lcoder/kernel/src/cloud/controller.ts","line":72,"column":9},
+      sourceLocation: {"file":"packages/lcoder/kernel/src/cloud/controller.ts","line":73,"column":9},
     },
     'lcoderCloud/state': {
       service: 'lcoderCloud',
@@ -647,7 +1327,71 @@ export const TYPERT_REMOTE = createTypertRemoteInfo({
         description: '顶栏与门禁需要的状态。',
         jsonSchema: {"oneOf":[{"type":"object","properties":{"ok":{"type":"boolean","const":false},"error":{"type":"object","properties":{"code":{"type":"string","description":"云端 `error.code`，或客户端侧补的 `offline` / `needs_login` / `guest_missing`。"},"message":{"type":"string","description":"面向人的一句话；不含令牌、手机号明文与上游原文。"},"requestId":{"type":"string","description":"服务端请求号；只用于诊断展示。"},"retryAfterSeconds":{"type":"number","description":"429/402 的 Retry-After 秒数。"},"status":{"type":"number","description":"HTTP 状态码；网络失败时缺省。"}},"required":["code","message"],"additionalProperties":true}},"required":["ok","error"],"additionalProperties":true},{"type":"object","properties":{"ok":{"type":"boolean","const":true},"value":{"type":"object","properties":{"signedIn":{"type":"boolean"},"needsLogin":{"type":"boolean"},"user":{"oneOf":[{"type":"null","const":null},{"type":"object","properties":{"id":{"type":"string"},"displayName":{"oneOf":[{"type":"null","const":null},{"type":"string"}]},"phoneMasked":{"oneOf":[{"type":"null","const":null},{"type":"string"}]},"status":{"type":"string"},"createdAt":{"type":"string"},"lastLoginAt":{"oneOf":[{"type":"null","const":null},{"type":"string"}]}},"required":["id","displayName","phoneMasked","status"],"additionalProperties":true}]},"quota":{"oneOf":[{"type":"null","const":null},{"type":"object","properties":{"grantedMicroUsd":{"type":"number"},"reservedMicroUsd":{"type":"number"},"spentMicroUsd":{"type":"number"},"availableMicroUsd":{"type":"number"},"currency":{"type":"string"},"updatedAt":{"type":"string"}},"required":["grantedMicroUsd","reservedMicroUsd","spentMicroUsd","availableMicroUsd","currency"],"additionalProperties":true}]},"estimate":{"oneOf":[{"type":"null","const":null},{"type":"object","properties":{"available":{"type":"boolean"},"unavailableReason":{"oneOf":[{"type":"null","const":null},{"type":"string","enum":["no_effective_price","zero_unit_price","zero_balance","estimate_overflow"]}]},"model":{"type":"string"},"availableMicroUsd":{"type":"number"},"lowerBoundTokens":{"type":"number"},"upperBoundTokens":{"type":"number"},"inputOutputRatio":{"type":"string","description":"云端固定输入输出占比，例如 `8:2`。"},"price":{"oneOf":[{"type":"null","const":null},{"type":"object","properties":{"inputMicroUsdPerMtok":{"type":"number"},"cachedInputMicroUsdPerMtok":{"type":"number"},"outputMicroUsdPerMtok":{"type":"number"}},"required":["inputMicroUsdPerMtok","cachedInputMicroUsdPerMtok","outputMicroUsdPerMtok"],"additionalProperties":true}]}},"required":["available","unavailableReason","model","availableMicroUsd","lowerBoundTokens","upperBoundTokens","inputOutputRatio","price"],"additionalProperties":true}],"description":"登录账号的 token 预估；未登录或服务端没给时为 null。"},"guest":{"oneOf":[{"type":"null","const":null},{"type":"object","properties":{"grantDate":{"type":"string"},"expiresAt":{"type":"string"},"remainingRequests":{"type":"number"},"remainingCostMicroUsd":{"type":"number"},"limits":{"type":"object","properties":{"maxRequests":{"type":"number"},"maxCostMicroUsd":{"type":"number"},"dailyGrantLimit":{"type":"number"}},"required":["maxRequests","maxCostMicroUsd","dailyGrantLimit"],"additionalProperties":true},"model":{"type":"string"},"scope":{"type":"string"},"revoked":{"type":"boolean"},"estimate":{"oneOf":[{"type":"null","const":null},{"type":"object","properties":{"available":{"type":"boolean"},"unavailableReason":{"oneOf":[{"type":"null","const":null},{"type":"string","enum":["no_effective_price","zero_unit_price","zero_balance","estimate_overflow"]}]},"model":{"type":"string"},"availableMicroUsd":{"type":"number"},"lowerBoundTokens":{"type":"number"},"upperBoundTokens":{"type":"number"},"inputOutputRatio":{"type":"string","description":"云端固定输入输出占比，例如 `8:2`。"},"price":{"oneOf":[{"type":"null","const":null},{"type":"object","properties":{"inputMicroUsdPerMtok":{"type":"number"},"cachedInputMicroUsdPerMtok":{"type":"number"},"outputMicroUsdPerMtok":{"type":"number"}},"required":["inputMicroUsdPerMtok","cachedInputMicroUsdPerMtok","outputMicroUsdPerMtok"],"additionalProperties":true}]}},"required":["available","unavailableReason","model","availableMicroUsd","lowerBoundTokens","upperBoundTokens","inputOutputRatio","price"],"additionalProperties":true}],"description":"匿名授权的 token 预估；服务端没给时为 null。"}},"required":["grantDate","expiresAt","remainingRequests","remainingCostMicroUsd","limits","model","scope","revoked","estimate"],"additionalProperties":true}]},"guestExpired":{"type":"boolean","description":"本地还留着匿名令牌，但服务端已判过期。"},"lastError":{"oneOf":[{"type":"null","const":null},{"type":"object","properties":{"code":{"type":"string","description":"云端 `error.code`，或客户端侧补的 `offline` / `needs_login` / `guest_missing`。"},"message":{"type":"string","description":"面向人的一句话；不含令牌、手机号明文与上游原文。"},"requestId":{"type":"string","description":"服务端请求号；只用于诊断展示。"},"retryAfterSeconds":{"type":"number","description":"429/402 的 Retry-After 秒数。"},"status":{"type":"number","description":"HTTP 状态码；网络失败时缺省。"}},"required":["code","message"],"additionalProperties":true}],"description":"最近一次后台刷新失败的原因；成功时清空。"}},"required":["signedIn","needsLogin","user","quota","estimate","guest","guestExpired","lastError"],"additionalProperties":true}},"required":["ok","value"],"additionalProperties":true}]},
       },
-      sourceLocation: {"file":"packages/lcoder/kernel/src/cloud/controller.ts","line":52,"column":9},
+      sourceLocation: {"file":"packages/lcoder/kernel/src/cloud/controller.ts","line":53,"column":9},
+    },
+    'lcoderCloud/talents': {
+      service: 'lcoderCloud',
+      description: '读人才列表；全局与项目分两次查询。',
+      invocation: { kind: 'direct' },
+      parameters: [
+        {
+          name: 'query',
+          description: 'scope 与可选 projectId。',
+          source: 'json',
+          codec: {
+            mode: 'strict',
+            typeSymbol: '@lcoder/kernel/cloud/types#CloudTalentsQuery',
+            create: _lcoder_kernel_lcoderCloud_talents_parameter_0$schema,
+            jsonSchema: {"type":"object","properties":{"scope":{"type":"string","enum":["global","project"]},"projectId":{"type":"string"}},"required":[],"additionalProperties":true},
+          },
+          strictCodec: {
+            mode: 'strict',
+            typeSymbol: '@lcoder/kernel/cloud/types#CloudTalentsQuery',
+            create: _lcoder_kernel_lcoderCloud_talents_parameter_0_strict$schema,
+            jsonSchema: {"type":"object","properties":{"scope":{"type":"string","enum":["global","project"]},"projectId":{"type":"string"}},"required":[],"additionalProperties":false},
+          },
+        },
+      ],
+      result: {
+        mode: 'strict',
+        typeSymbol: '@lcoder/kernel/cloud/types#CloudResult',
+        create: _lcoder_kernel_lcoderCloud_talents_result$schema,
+        description: '人才列表。',
+        jsonSchema: {"oneOf":[{"type":"object","properties":{"ok":{"type":"boolean","const":false},"error":{"type":"object","properties":{"code":{"type":"string","description":"云端 `error.code`，或客户端侧补的 `offline` / `needs_login` / `guest_missing`。"},"message":{"type":"string","description":"面向人的一句话；不含令牌、手机号明文与上游原文。"},"requestId":{"type":"string","description":"服务端请求号；只用于诊断展示。"},"retryAfterSeconds":{"type":"number","description":"429/402 的 Retry-After 秒数。"},"status":{"type":"number","description":"HTTP 状态码；网络失败时缺省。"}},"required":["code","message"],"additionalProperties":true}},"required":["ok","error"],"additionalProperties":true},{"type":"object","properties":{"ok":{"type":"boolean","const":true},"value":{"type":"object","properties":{"items":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"scope":{"type":"string","enum":["global","project"]},"projectId":{"oneOf":[{"type":"null","const":null},{"type":"string"}]},"ownerUserId":{"type":"string"},"createdBy":{"type":"string","enum":["user","ai"]},"name":{"type":"string"},"description":{"type":"string"},"config":{"type":"object","properties":{"version":{"type":"number"},"basePreset":{"type":"string"},"persona":{"type":"string"},"plugins":{"type":"array","items":{"type":"object","properties":{"name":{"type":"string"},"config":{"type":"object","properties":{},"required":[],"additionalProperties":true}},"required":["name"],"additionalProperties":true}},"tools":{"type":"array","items":{"type":"string"}},"model":{"type":"object","properties":{"provider":{"type":"string"},"modelId":{"type":"string"}},"required":["provider","modelId"],"additionalProperties":true},"budget":{"type":"object","properties":{"maxCostMicroUsd":{"type":"number"},"maxRequestsPerSession":{"type":"number"}},"required":[],"additionalProperties":true}},"required":["version"],"additionalProperties":true},"revision":{"type":"number"},"canManage":{"type":"boolean","description":"当前账号能否改删；由云端按创建者与项目 owner 判定。"},"createdAt":{"type":"string"},"updatedAt":{"type":"string"}},"required":["id","scope","projectId","ownerUserId","createdBy","name","description","config","revision","canManage","createdAt","updatedAt"],"additionalProperties":true}}},"required":["items"],"additionalProperties":true}},"required":["ok","value"],"additionalProperties":true}]},
+      },
+      sourceLocation: {"file":"packages/lcoder/kernel/src/cloud/controller.ts","line":157,"column":9},
+    },
+    'lcoderCloud/updateTalent': {
+      service: 'lcoderCloud',
+      description: '更新人才；`expectedRevision` 与云端不一致时返回 conflict。',
+      invocation: { kind: 'direct' },
+      parameters: [
+        {
+          name: 'input',
+          description: '人才 id 与要改的字段。',
+          source: 'json',
+          codec: {
+            mode: 'strict',
+            typeSymbol: '@lcoder/kernel/cloud/types#CloudUpdateTalentInput',
+            create: _lcoder_kernel_lcoderCloud_updateTalent_parameter_0$schema,
+            jsonSchema: {"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"},"description":{"type":"string"},"config":{"type":"object","properties":{"version":{"type":"number"},"basePreset":{"type":"string"},"persona":{"type":"string"},"plugins":{"type":"array","items":{"type":"object","properties":{"name":{"type":"string"},"config":{"type":"object","properties":{},"required":[],"additionalProperties":true}},"required":["name"],"additionalProperties":true}},"tools":{"type":"array","items":{"type":"string"}},"model":{"type":"object","properties":{"provider":{"type":"string"},"modelId":{"type":"string"}},"required":["provider","modelId"],"additionalProperties":true},"budget":{"type":"object","properties":{"maxCostMicroUsd":{"type":"number"},"maxRequestsPerSession":{"type":"number"}},"required":[],"additionalProperties":true}},"required":["version"],"additionalProperties":true},"expectedRevision":{"type":"number"}},"required":["id"],"additionalProperties":true},
+          },
+          strictCodec: {
+            mode: 'strict',
+            typeSymbol: '@lcoder/kernel/cloud/types#CloudUpdateTalentInput',
+            create: _lcoder_kernel_lcoderCloud_updateTalent_parameter_0_strict$schema,
+            jsonSchema: {"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"},"description":{"type":"string"},"config":{"type":"object","properties":{"version":{"type":"number"},"basePreset":{"type":"string"},"persona":{"type":"string"},"plugins":{"type":"array","items":{"type":"object","properties":{"name":{"type":"string"},"config":{"type":"object","properties":{},"required":[],"additionalProperties":true}},"required":["name"],"additionalProperties":false}},"tools":{"type":"array","items":{"type":"string"}},"model":{"type":"object","properties":{"provider":{"type":"string"},"modelId":{"type":"string"}},"required":["provider","modelId"],"additionalProperties":false},"budget":{"type":"object","properties":{"maxCostMicroUsd":{"type":"number"},"maxRequestsPerSession":{"type":"number"}},"required":[],"additionalProperties":false}},"required":["version"],"additionalProperties":false},"expectedRevision":{"type":"number"}},"required":["id"],"additionalProperties":false},
+          },
+        },
+      ],
+      result: {
+        mode: 'strict',
+        typeSymbol: '@lcoder/kernel/cloud/types#CloudResult',
+        create: _lcoder_kernel_lcoderCloud_updateTalent_result$schema,
+        description: '更新后的人才。',
+        jsonSchema: {"oneOf":[{"type":"object","properties":{"ok":{"type":"boolean","const":false},"error":{"type":"object","properties":{"code":{"type":"string","description":"云端 `error.code`，或客户端侧补的 `offline` / `needs_login` / `guest_missing`。"},"message":{"type":"string","description":"面向人的一句话；不含令牌、手机号明文与上游原文。"},"requestId":{"type":"string","description":"服务端请求号；只用于诊断展示。"},"retryAfterSeconds":{"type":"number","description":"429/402 的 Retry-After 秒数。"},"status":{"type":"number","description":"HTTP 状态码；网络失败时缺省。"}},"required":["code","message"],"additionalProperties":true}},"required":["ok","error"],"additionalProperties":true},{"type":"object","properties":{"ok":{"type":"boolean","const":true},"value":{"type":"object","properties":{"id":{"type":"string"},"scope":{"type":"string","enum":["global","project"]},"projectId":{"oneOf":[{"type":"null","const":null},{"type":"string"}]},"ownerUserId":{"type":"string"},"createdBy":{"type":"string","enum":["user","ai"]},"name":{"type":"string"},"description":{"type":"string"},"config":{"type":"object","properties":{"version":{"type":"number"},"basePreset":{"type":"string"},"persona":{"type":"string"},"plugins":{"type":"array","items":{"type":"object","properties":{"name":{"type":"string"},"config":{"type":"object","properties":{},"required":[],"additionalProperties":true}},"required":["name"],"additionalProperties":true}},"tools":{"type":"array","items":{"type":"string"}},"model":{"type":"object","properties":{"provider":{"type":"string"},"modelId":{"type":"string"}},"required":["provider","modelId"],"additionalProperties":true},"budget":{"type":"object","properties":{"maxCostMicroUsd":{"type":"number"},"maxRequestsPerSession":{"type":"number"}},"required":[],"additionalProperties":true}},"required":["version"],"additionalProperties":true},"revision":{"type":"number"},"canManage":{"type":"boolean","description":"当前账号能否改删；由云端按创建者与项目 owner 判定。"},"createdAt":{"type":"string"},"updatedAt":{"type":"string"}},"required":["id","scope","projectId","ownerUserId","createdBy","name","description","config","revision","canManage","createdAt","updatedAt"],"additionalProperties":true}},"required":["ok","value"],"additionalProperties":true}]},
+      },
+      sourceLocation: {"file":"packages/lcoder/kernel/src/cloud/controller.ts","line":185,"column":9},
     },
     'lcoderCloud/usage': {
       service: 'lcoderCloud',
@@ -679,7 +1423,7 @@ export const TYPERT_REMOTE = createTypertRemoteInfo({
         description: '流水与下一页游标。',
         jsonSchema: {"oneOf":[{"type":"object","properties":{"ok":{"type":"boolean","const":false},"error":{"type":"object","properties":{"code":{"type":"string","description":"云端 `error.code`，或客户端侧补的 `offline` / `needs_login` / `guest_missing`。"},"message":{"type":"string","description":"面向人的一句话；不含令牌、手机号明文与上游原文。"},"requestId":{"type":"string","description":"服务端请求号；只用于诊断展示。"},"retryAfterSeconds":{"type":"number","description":"429/402 的 Retry-After 秒数。"},"status":{"type":"number","description":"HTTP 状态码；网络失败时缺省。"}},"required":["code","message"],"additionalProperties":true}},"required":["ok","error"],"additionalProperties":true},{"type":"object","properties":{"ok":{"type":"boolean","const":true},"value":{"type":"object","properties":{"items":{"type":"array","items":{"type":"object","properties":{"requestId":{"type":"string"},"source":{"type":"string","enum":["user","guest"]},"model":{"type":"string"},"promptTokens":{"type":"number"},"cachedTokens":{"type":"number"},"completionTokens":{"type":"number"},"costMicroUsd":{"type":"number"},"absorbedMicroUsd":{"type":"number"},"status":{"type":"string","enum":["settled","failed","reserved","released"]},"createdAt":{"type":"string"}},"required":["requestId","source","model","promptTokens","cachedTokens","completionTokens","costMicroUsd","status","createdAt"],"additionalProperties":true}},"nextCursor":{"oneOf":[{"type":"null","const":null},{"type":"string"}]}},"required":["items","nextCursor"],"additionalProperties":true}},"required":["ok","value"],"additionalProperties":true}]},
       },
-      sourceLocation: {"file":"packages/lcoder/kernel/src/cloud/controller.ts","line":142,"column":9},
+      sourceLocation: {"file":"packages/lcoder/kernel/src/cloud/controller.ts","line":143,"column":9},
     },
   },
 }, z)

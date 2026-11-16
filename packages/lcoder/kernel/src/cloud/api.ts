@@ -4,10 +4,12 @@
  * 令牌刷新、单飞、401 重试与凭据落盘都在 `tokens.ts` / `guest.ts`；这一层
  * 不缓存令牌、不重试业务请求，方便单测直接断言线上字段。
  */
+import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import type {
-  CloudEstimateReason, CloudGuestClaimInput, CloudGuestLimits, CloudGuestView, CloudLoginPasswordInput,
-  CloudLoginSmsInput, CloudQuota, CloudRegisterInput, CloudSendSmsInput, CloudSmsValue, CloudTokenEstimate,
-  CloudTokenPrice, CloudUsageItem, CloudUsagePage, CloudUsageQuery, CloudUser,
+  CloudCreateTalentInput, CloudEstimateReason, CloudGuestClaimInput, CloudGuestLimits, CloudGuestView,
+  CloudLoginPasswordInput, CloudLoginSmsInput, CloudQuota, CloudRegisterInput, CloudSendSmsInput, CloudSmsValue,
+  CloudTalent, CloudTalentConfig, CloudTalents, CloudTalentsQuery, CloudTokenEstimate, CloudTokenPrice,
+  CloudUpdateTalentInput, CloudUsageItem, CloudUsagePage, CloudUsageQuery, CloudUser,
 } from './types.ts'
 
 /** 云端错误体里的字段；未知形状按状态码兜底。 */
@@ -61,7 +63,7 @@ export interface CloudGuestSession {
 
 /** 一次请求的选项。 */
 interface RequestOptions {
-  readonly method?: 'GET' | 'POST'
+  readonly method?: 'GET' | 'POST' | 'PATCH' | 'DELETE'
   readonly body?: unknown
   readonly token?: string | undefined
   readonly timeoutMs?: number
@@ -199,6 +201,117 @@ function usagePageOf(value: unknown): CloudUsagePage {
   return { items, nextCursor: textOf(page.nextCursor) ?? null }
 }
 
+/** 云端只认对象；数组与标量都是坏响应。 */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/** 递归校验一段静态 JSON 对象；非 JSON 值让整条响应无效。 */
+function jsonObjectOf(value: unknown): Record<string, JsonValue> | undefined {
+  if (!isRecord(value)) return undefined
+  const result: Record<string, JsonValue> = {}
+  for (const [key, item] of Object.entries(value)) {
+    const json = jsonOf(item)
+    if (json === undefined) return undefined
+    result[key] = json
+  }
+  return result
+}
+
+/** 递归校验一个静态 JSON 值。 */
+function jsonOf(value: unknown): JsonValue | undefined {
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') return value
+  if (typeof value === 'number') return Number.isFinite(value) ? value : undefined
+  if (Array.isArray(value)) {
+    const items: JsonValue[] = []
+    for (const item of value) {
+      const json = jsonOf(item)
+      if (json === undefined) return undefined
+      items.push(json)
+    }
+    return items
+  }
+  return jsonObjectOf(value)
+}
+
+/** 读一条人才配置；字段不全或类型不对时整条响应无效。 */
+function talentConfigOf(value: unknown): CloudTalentConfig | undefined {
+  if (!isRecord(value) || typeof value.version !== 'number') return undefined
+  const rawPlugins = value.plugins
+  let plugins: { name: string; config?: Record<string, JsonValue> }[] | undefined
+  if (rawPlugins !== undefined) {
+    if (!Array.isArray(rawPlugins)) return undefined
+    const parsed = rawPlugins.flatMap((entry): { name: string; config?: Record<string, JsonValue> }[] => {
+      if (!isRecord(entry) || typeof entry.name !== 'string') return []
+      if (entry.config === undefined) return [{ name: entry.name }]
+      const config = jsonObjectOf(entry.config)
+      return config === undefined ? [] : [{ name: entry.name, config }]
+    })
+    if (parsed.length !== rawPlugins.length) return undefined
+    plugins = parsed
+  }
+  const tools = value.tools === undefined
+    ? undefined
+    : Array.isArray(value.tools) && value.tools.every(item => typeof item === 'string')
+      ? value.tools.filter((item): item is string => typeof item === 'string')
+      : undefined
+  if (value.tools !== undefined && tools === undefined) return undefined
+  const model = value.model === undefined
+    ? undefined
+    : isRecord(value.model) && typeof value.model.provider === 'string' && typeof value.model.modelId === 'string'
+      ? { provider: value.model.provider, modelId: value.model.modelId }
+      : undefined
+  if (value.model !== undefined && model === undefined) return undefined
+  const budget = value.budget === undefined
+    ? undefined
+    : isRecord(value.budget)
+      ? {
+        ...typeof value.budget.maxCostMicroUsd === 'number' ? { maxCostMicroUsd: value.budget.maxCostMicroUsd } : {},
+        ...typeof value.budget.maxRequestsPerSession === 'number'
+          ? { maxRequestsPerSession: value.budget.maxRequestsPerSession } : {},
+      }
+      : undefined
+  if (value.budget !== undefined && budget === undefined) return undefined
+  return {
+    version: value.version,
+    ...typeof value.basePreset === 'string' ? { basePreset: value.basePreset } : {},
+    ...typeof value.persona === 'string' ? { persona: value.persona } : {},
+    ...plugins === undefined ? {} : { plugins },
+    ...tools === undefined ? {} : { tools },
+    ...model === undefined ? {} : { model },
+    ...budget === undefined ? {} : { budget },
+  }
+}
+
+/** 读一条人才；任一必填字段缺失都按坏响应处理。 */
+function talentOf(value: unknown): CloudTalent | undefined {
+  if (!isRecord(value)) return undefined
+  const { id, scope, projectId, ownerUserId, createdBy, name, description, revision, canManage, createdAt, updatedAt } = value
+  const config = talentConfigOf(value.config)
+  if (typeof id !== 'string' || (scope !== 'global' && scope !== 'project') || typeof ownerUserId !== 'string'
+    || (createdBy !== 'user' && createdBy !== 'ai') || typeof name !== 'string' || typeof description !== 'string'
+    || typeof revision !== 'number' || typeof canManage !== 'boolean'
+    || typeof createdAt !== 'string' || typeof updatedAt !== 'string' || config === undefined
+    || !(projectId === null || typeof projectId === 'string')) return undefined
+  return {
+    id, scope, projectId, ownerUserId, createdBy, name, description, config, revision, canManage, createdAt, updatedAt,
+  }
+}
+
+/** 解析人才列表；不是列表就让界面看到一条可读的失败。 */
+function talentsOf(value: unknown): CloudTalents {
+  if (!isRecord(value) || !Array.isArray(value.items)) {
+    throw new CloudApiError({ code: 'internal_error', message: '云端人才列表不完整。' })
+  }
+  const items: CloudTalent[] = []
+  for (const raw of value.items) {
+    const talent = talentOf(raw)
+    if (talent === undefined) throw new CloudApiError({ code: 'internal_error', message: '云端人才条目不完整。' })
+    items.push(talent)
+  }
+  return { items }
+}
+
 /** 把一次失败响应折成 {@link CloudApiError}。 */
 function failureOf(response: Response, body: unknown): CloudApiError {
   const parsed = (typeof body === 'object' && body !== null ? body : {}) as ErrorBody
@@ -229,8 +342,16 @@ export interface CloudAuthApi {
   guestStatus(guestToken: string): Promise<CloudGuestView>
 }
 
+/** 人才库的 HTTP 面；令牌由调用方按需刷新后传入。 */
+export interface CloudTalentApi {
+  talents(accessToken: string, query: CloudTalentsQuery): Promise<CloudTalents>
+  createTalent(accessToken: string, input: CloudCreateTalentInput): Promise<CloudTalent>
+  updateTalent(accessToken: string, input: CloudUpdateTalentInput): Promise<CloudTalent>
+  deleteTalent(accessToken: string, talentId: string): Promise<void>
+}
+
 /** 云端 HTTP 客户端。 */
-export class CloudApi implements CloudAuthApi {
+export class CloudApi implements CloudAuthApi, CloudTalentApi {
   private readonly baseUrl: string
   private readonly fetchImpl: typeof fetch
   private readonly defaultTimeoutMs: number
@@ -419,6 +540,78 @@ export class CloudApi implements CloudAuthApi {
     const encoded = params.toString()
     const suffix = encoded.length === 0 ? '' : `?${encoded}`
     return usagePageOf(await this.request<unknown>(`/me/usage${suffix}`, { token: accessToken }))
+  }
+
+  /**
+   * 读人才列表；全局与项目按 scope 分两次取。
+   * @param accessToken - 访问令牌。
+   * @param query - scope 与可选的 projectId。
+   * @returns 人才列表。
+   */
+  async talents(accessToken: string, query: CloudTalentsQuery = {}): Promise<CloudTalents> {
+    const params = new URLSearchParams()
+    if (query.scope !== undefined) params.set('scope', query.scope)
+    if (query.projectId !== undefined) params.set('projectId', query.projectId)
+    const encoded = params.toString()
+    return talentsOf(await this.request<unknown>(`/talents${encoded === '' ? '' : `?${encoded}`}`, { token: accessToken }))
+  }
+
+  /**
+   * 新建一条人才；项目人才由云端在首次绑定时认领项目。
+   * @param accessToken - 访问令牌。
+   * @param input - 作用域、名称与版本化配置。
+   * @returns 云端落库后的人才。
+   */
+  async createTalent(accessToken: string, input: CloudCreateTalentInput): Promise<CloudTalent> {
+    const body = await this.request<unknown>('/talents', {
+      method: 'POST',
+      token: accessToken,
+      body: {
+        scope: input.scope,
+        ...input.projectId === undefined ? {} : { projectId: input.projectId },
+        ...input.createdBy === undefined ? {} : { createdBy: input.createdBy },
+        name: input.name,
+        ...input.description === undefined ? {} : { description: input.description },
+        config: input.config,
+      },
+    })
+    const talent = talentOf(body)
+    if (talent === undefined) throw new CloudApiError({ code: 'internal_error', message: '云端新建人才的结果不完整。' })
+    return talent
+  }
+
+  /**
+   * 更新一条人才；期望版本不一致时云端返回 409。
+   * @param accessToken - 访问令牌。
+   * @param input - 人才 id 与要改的字段。
+   * @returns 更新后的人才。
+   */
+  async updateTalent(accessToken: string, input: CloudUpdateTalentInput): Promise<CloudTalent> {
+    const body = await this.request<unknown>(`/talents/${encodeURIComponent(input.id)}`, {
+      method: 'PATCH',
+      token: accessToken,
+      body: {
+        ...input.name === undefined ? {} : { name: input.name },
+        ...input.description === undefined ? {} : { description: input.description },
+        ...input.config === undefined ? {} : { config: input.config },
+        ...input.expectedRevision === undefined ? {} : { expectedRevision: input.expectedRevision },
+      },
+    })
+    const talent = talentOf(body)
+    if (talent === undefined) throw new CloudApiError({ code: 'internal_error', message: '云端更新人才的结果不完整。' })
+    return talent
+  }
+
+  /**
+   * 删除一条人才；权限与存在性由云端判定。
+   * @param accessToken - 访问令牌。
+   * @param talentId - 人才 id。
+   */
+  async deleteTalent(accessToken: string, talentId: string): Promise<void> {
+    await this.request<undefined>(`/talents/${encodeURIComponent(talentId)}`, {
+      method: 'DELETE',
+      token: accessToken,
+    })
   }
 
   /**

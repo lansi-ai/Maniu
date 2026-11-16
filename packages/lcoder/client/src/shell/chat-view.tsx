@@ -28,6 +28,8 @@ export interface ChatViewProps {
   readonly availability: ChatModelAvailability
   readonly usage: ChatContextUsage
   readonly composerRef: RefObject<HTMLTextAreaElement>
+  /** 人才 preset id → 显示名；会话列表据此标注归属。 */
+  readonly talentNames: Readonly<Record<string, string>>
   readonly onSelect: (sessionId: string) => void
   readonly onCreate: () => void
   readonly onSend: (text: string, attachments: readonly ChatPendingAttachment[]) => Promise<boolean>
@@ -61,7 +63,7 @@ export function sessionLabel(session: SessionSummary, titles: Readonly<Record<st
  */
 export function ChatView({
   t, sessions, titles, active, chat, notice, sending, running, limits, models, selection,
-  availability, usage, composerRef, onSelect, onCreate, onSend, onStop, onRename, ensureSession,
+  availability, usage, composerRef, talentNames, onSelect, onCreate, onSend, onStop, onRename, ensureSession,
   onSelectModel,
 }: ChatViewProps): JSX.Element {
   const activeSession = sessions.find(item => item.sessionId === active) ?? null
@@ -114,6 +116,9 @@ export function ChatView({
               >
                 <span className="dot" />
                 <span className="label">{sessionLabel(session, titles)}</span>
+                {session.agentPreset !== undefined && talentNames[session.agentPreset] !== undefined
+                  ? <span className="session-talent" data-testid="session-talent">{talentNames[session.agentPreset]}</span>
+                  : null}
                 {session.running && <span className="running">{t('chat.running')}</span>}
               </button>
             </li>
