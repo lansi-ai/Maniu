@@ -2345,7 +2345,7 @@ tracks:
       date: '2026-11-16'
       dep: [T-205]
       inferred: false
-      note: "B 级导航调整，来源是用户 2026-11-16 截图：把「项目、项目信息、角色、设置」四项移到左侧导航最下方，并去掉底部那行项目文字；「对话、需求、任务」留在上方，品牌仍在顶部。不改路由、权限、页面内容与工作台布局，保留四个 nav-* testid，移除 nav-project 文本节点。验收：CDP 核导航两组顺序与位置（底部四项贴底）、项目文字不存在、窗口 1280×800 下不溢出；M2 与 M3 探针涉及 nav-projects/nav-roles/nav-project-info/nav-settings 的点击不回归，C4 12/12、M3 43/43 与 client 测试、typecheck、build、docs、i18n、oxlint 全绿。主实例占用 9822，本线预览用 9824 与 9833 与 9834；探针可用临时端口副本，不改固定脚本。工作树 pool-slot-1 到 lcoder/t209-nav-bottom。2026-11-16 11:45 监督窗口登记并派工。"
+      note: "B 级导航调整，来源是用户 2026-11-16 截图：把「项目、项目信息、角色、设置」四项移到左侧导航最下方，并去掉底部那行项目文字；「对话、需求、任务」留在上方，品牌仍在顶部。不改路由、权限、页面内容与工作台布局，保留四个 nav-* testid，移除 nav-project 文本节点。验收：CDP 核导航两组顺序与位置（底部四项贴底）、项目文字不存在、窗口 1280×800 下不溢出；M2 与 M3 探针涉及 nav-projects/nav-roles/nav-project-info/nav-settings 的点击不回归，C4 12/12、M3 43/43 与 client 测试、typecheck、build、docs、i18n、oxlint 全绿。主实例占用 9822，本线预览用 9824 与 9833 与 9834；探针可用临时端口副本，不改固定脚本。工作树 pool-slot-1 到 lcoder/t209-nav-bottom。2026-11-16 11:45 监督窗口登记并派工，实现线会话 2b14f2e5。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
