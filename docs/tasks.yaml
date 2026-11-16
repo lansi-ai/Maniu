@@ -2466,7 +2466,7 @@ tracks:
       date: '2026-11-16'
       dep: [T-220]
       inferred: false
-      note: "人才库一期契约与云端模型，来源是用户 2026-11-16 决定把角色改名为人才库并分全局与项目。已拍板：人才等于完整 agent preset，包含名称、描述、persona、继承基础 preset、已安装插件与工具组合、模型与预算；全局与项目人才都存云端；新增 .spec/project.yaml 的 projectId，随仓提交、跨设备一致；首个绑定 projectId 的账号成为项目 owner；只能改删自己创建的人才，AI 创建的项目人才由项目 owner 管理；会话创建时固定人才快照，删除时仅检查本机会话引用，有引用禁止删除；插件只能从本机已安装目录选择，不允许外部包。一期范围：kernel 增加 projectId 字段与生成或确保写入；云端新增 projects 与 talents 表、绑定与认领 API、CRUD API、版本化配置 schema 与结构校验、owner 与 createdBy 与 AI 字段及权限；项目人才按 projectId 隔离；测试与 openapi 与文档；不做客户端 UI 与宿主动态注册，留给 T-222 与 T-223。验收：两个账号的 CRUD 权限、AI 创建归项目 owner、项目隔离、配置校验、contracts 与测试全绿；不打印密钥。工作树 pool-slot-2 到 lcoder/t221-talent-contract；云仓直接 main 本地提交。2026-11-16 18:40 监督窗口登记并派工。"
+      note: "人才库一期契约与云端模型，来源是用户 2026-11-16 决定把角色改名为人才库并分全局与项目。已拍板：人才等于完整 agent preset，包含名称、描述、persona、继承基础 preset、已安装插件与工具组合、模型与预算；全局与项目人才都存云端；新增 .spec/project.yaml 的 projectId，随仓提交、跨设备一致；首个绑定 projectId 的账号成为项目 owner；只能改删自己创建的人才，AI 创建的项目人才由项目 owner 管理；会话创建时固定人才快照，删除时仅检查本机会话引用，有引用禁止删除；插件只能从本机已安装目录选择，不允许外部包。一期范围：kernel 增加 projectId 字段与生成或确保写入；云端新增 projects 与 talents 表、绑定与认领 API、CRUD API、版本化配置 schema 与结构校验、owner 与 createdBy 与 AI 字段及权限；项目人才按 projectId 隔离；测试与 openapi 与文档；不做客户端 UI 与宿主动态注册，留给 T-222 与 T-223。验收：两个账号的 CRUD 权限、AI 创建归项目 owner、项目隔离、配置校验、contracts 与测试全绿；不打印密钥。工作树 pool-slot-2 到 lcoder/t221-talent-contract；云仓直接 main 本地提交。2026-11-16 18:40 监督窗口登记并派工，实现线会话 e52bc180。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
