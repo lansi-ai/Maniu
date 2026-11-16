@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
-/** 人才库页的权限分支、删除引用拦截与项目库未绑定态。 */
+/** 人才库页的权限分支、删除引用拦截、内置角色区与项目库未绑定态。 */
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { translate, type MessageKey } from '../src/locale.ts'
 import { TalentsPage } from '../src/pages/talents.tsx'
-import type { TalentRow } from '../src/talents/model.ts'
-import type { TalentsHandle } from '../src/talents/use-talents.ts'
+import type { SessionSummary } from '../src/store.ts'
+import type { BuiltinPresetView, TalentRow } from '../src/talents/model.ts'
+import type { BuiltinDetailState, TalentsHandle } from '../src/talents/use-talents.ts'
 import type { ProjectScope } from '../src/workspace/use-workspaces.ts'
 
 const t = (key: MessageKey, params?: Readonly<Record<string, string | number>>): string =>
@@ -37,6 +38,24 @@ function talent(id: string, overrides: Partial<TalentRow> = {}): TalentRow {
   }
 }
 
+function builtin(id: string, overrides: Partial<BuiltinPresetView> = {}): BuiltinPresetView {
+  return { id, name: `角色 ${id}`, description: '一句话说明', isDefault: false, ...overrides }
+}
+
+function session(sessionId: string, agentPreset: string): SessionSummary {
+  return { sessionId, updatedAt: 1, running: false, blank: false, agentPreset }
+}
+
+/** 点卡片本身（不是卡片里的按钮）打开内置详情。 */
+async function openCard(builtinId: string): Promise<void> {
+  const card = container.querySelector<HTMLElement>(`[data-builtin-id="${builtinId}"]`)
+  expect(card).not.toBeNull()
+  await act(async () => {
+    ;(card as HTMLElement).click()
+    await new Promise(resolve => setTimeout(resolve, 0))
+  })
+}
+
 function handleOf(overrides: Partial<TalentsHandle> = {}): TalentsHandle {
   return {
     catalog: { plugins: [], presets: [] },
@@ -45,6 +64,10 @@ function handleOf(overrides: Partial<TalentsHandle> = {}): TalentsHandle {
     projectError: null,
     global: [],
     projectTalents: [],
+    builtins: [],
+    builtinsLoading: false,
+    builtinsError: null,
+    builtinDetails: {},
     loading: false,
     error: null,
     applyErrors: {},
@@ -56,6 +79,7 @@ function handleOf(overrides: Partial<TalentsHandle> = {}): TalentsHandle {
     update: vi.fn(async () => null),
     remove: vi.fn(async () => null),
     checkRefs: vi.fn(async () => ({ ok: true as const, sessionIds: [] })),
+    inspectBuiltin: vi.fn(),
     ...overrides,
   }
 }
@@ -84,14 +108,15 @@ async function press(testId: string): Promise<void> {
   })
 }
 
-function render(talents: TalentsHandle, project: ProjectScope | null = null): void {
+function render(talents: TalentsHandle, project: ProjectScope | null = null, sessions: readonly SessionSummary[] = []): void {
   act(() => {
     root.render(
       <TalentsPage
         t={t}
+        signedIn
         userId="u1"
         project={project}
-        sessions={[]}
+        sessions={sessions}
         talents={talents}
         onStartSession={async () => ({ ok: true, message: '' })}
       />,
@@ -181,5 +206,142 @@ describe('人才库页', () => {
     const second = container.querySelector('[data-talent-id="b"]')
     expect(second?.textContent).not.toContain('下发失败')
     expect(second?.querySelector('[data-testid="talent-start"]')?.hasAttribute('disabled')).toBe(false)
+  })
+})
+
+describe('内置人才区', () => {
+  it('单独成区，卡片带名称、描述、内置标与会话数，不混入全局库', () => {
+    render(
+      handleOf({
+        builtins: [
+          builtin('lcoder-pm', { name: '慢牛项目经理', description: '谈需求、拆任务', isDefault: true }),
+          builtin('lcoder-intake', { name: '慢牛立项' }),
+        ],
+      }),
+      null,
+      [session('s1', 'lcoder-pm'), session('s2', 'lcoder-pm'), session('s3', 'talent-cloud-1')],
+    )
+    expect(container.querySelector('[data-testid="talent-group-builtin"]')).not.toBeNull()
+    expect(container.querySelectorAll('[data-testid="builtin-card"]')).toHaveLength(2)
+    const pm = container.querySelector('[data-builtin-id="lcoder-pm"]')
+    expect(pm?.textContent).toContain('慢牛项目经理')
+    expect(pm?.textContent).toContain('谈需求、拆任务')
+    expect(pm?.querySelector('[data-testid="builtin-source"]')?.textContent).toBe('内置')
+    expect(pm?.textContent).toContain('默认')
+    expect(pm?.querySelector('[data-testid="builtin-sessions"]')?.textContent).toBe('2')
+    expect(container.querySelector('[data-testid="talent-list-global"]')).toBeNull()
+    expect(container.querySelector('[data-testid="talent-empty"]')?.textContent).toContain('还没有全局人才')
+  })
+
+  it('激活失败的内置角色标出原因并禁用开始', () => {
+    render(handleOf({ builtins: [builtin('lcoder-ops', { broken: 'unknown plugin @x/y' })] }))
+    const card = container.querySelector('[data-builtin-id="lcoder-ops"]')
+    expect(card?.querySelector('[data-testid="builtin-broken"]')?.textContent).toContain('unknown plugin @x/y')
+    expect(card?.querySelector('[data-testid="builtin-start"]')?.hasAttribute('disabled')).toBe(true)
+    expect(card?.querySelector('[data-testid="builtin-detail-open"]')).not.toBeNull()
+  })
+
+  it('内置区加载、空态与宿主失败都有可读提示', () => {
+    render(handleOf({ builtinsLoading: true }))
+    expect(container.querySelector('[data-testid="talents-builtin-loading"]')).not.toBeNull()
+    act(() => { root.unmount() })
+    root = createRoot(container)
+    render(handleOf())
+    expect(container.querySelector('[data-testid="talent-empty-builtin"]')?.textContent).toContain('没有可用的内置角色')
+    act(() => { root.unmount() })
+    root = createRoot(container)
+    render(handleOf({ builtinsError: 'link_unavailable: 宿主连接已断开' }))
+    const failure = container.querySelector('[data-testid="talents-builtin-error"]')
+    expect(failure?.textContent).toContain('读取内置人才失败')
+    expect(failure?.textContent).toContain('link_unavailable')
+    expect(container.querySelector('[data-testid="builtin-card"]')).toBeNull()
+    expect(container.querySelector('[data-testid="talent-group-global"]')).not.toBeNull()
+  })
+
+  it('点卡片打开详情：人设、插件组合、工具面、会话数与只读标识', async () => {
+    const detail: BuiltinDetailState = {
+      loading: false,
+      error: null,
+      persona: '你是慢牛项目经理。',
+      plugins: [
+        { id: 'persona', name: '@deepseek-ai/dsh-persona', group: false, disabled: 'no' },
+        { id: 'compaction', name: 'cordis:group', group: true, disabled: 'no' },
+        { id: 'missing', name: '@deepseek-ai/dsh-missing', group: false, disabled: 'yes' },
+        { id: 'tool-bash', name: '@deepseek-ai/dsh-tool-bash', group: false, disabled: 'conditional' },
+      ],
+      tools: [{ name: 'file_read', description: '读文件' }],
+      toolsError: null,
+    }
+    const inspectBuiltin = vi.fn()
+    render(handleOf({
+      builtins: [builtin('lcoder-pm', { name: '慢牛项目经理', description: '谈需求', isDefault: true })],
+      builtinDetails: { 'lcoder-pm': detail },
+      catalog: {
+        plugins: [{ name: '@deepseek-ai/dsh-persona' }, { name: '@deepseek-ai/dsh-tool-bash' }],
+        presets: [],
+      },
+      inspectBuiltin,
+    }), null, [session('s1', 'lcoder-pm')])
+    await openCard('lcoder-pm')
+    expect(inspectBuiltin).toHaveBeenCalledWith('lcoder-pm')
+    const drawer = container.querySelector('[data-testid="builtin-detail"]')
+    expect(drawer).not.toBeNull()
+    expect(drawer?.textContent).toContain('慢牛项目经理')
+    expect(drawer?.textContent).toContain('跟随全局默认')
+    expect(drawer?.textContent).toContain('lcoder-pm')
+    expect(drawer?.querySelector('[data-testid="builtin-persona"]')?.textContent).toContain('你是慢牛项目经理')
+    const pluginRows = drawer?.querySelectorAll('[data-testid="builtin-plugins"] li') ?? []
+    expect(pluginRows).toHaveLength(4)
+    const pluginText = [...pluginRows].map(row => row.textContent ?? '').join('\n')
+    expect(pluginText).toContain('分组')
+    expect(pluginText).toContain('禁用')
+    expect(pluginText).toContain('条件禁用')
+    expect(drawer?.querySelector('[data-testid="builtin-plugin-unknown"]')?.textContent).toBe('未安装')
+    expect(drawer?.querySelector('[data-testid="builtin-tools"]')?.textContent).toContain('file_read')
+    // 内置人才只读：详情里没有改删入口。
+    expect(drawer?.querySelector('[data-testid="talent-edit"]')).toBeNull()
+    expect(drawer?.querySelector('[data-testid="talent-delete"]')).toBeNull()
+  })
+
+  it('详情读不到时给出可读失败，工具面照常显示', async () => {
+    render(handleOf({
+      builtins: [builtin('lcoder-pm')],
+      builtinDetails: {
+        'lcoder-pm': {
+          loading: false,
+          error: 'link_unavailable: 宿主连接已断开',
+          persona: null,
+          plugins: [],
+          tools: [{ name: 'file_read', description: '' }],
+          toolsError: null,
+        },
+      },
+    }))
+    await openCard('lcoder-pm')
+    const drawer = container.querySelector('[data-testid="builtin-detail"]')
+    expect(drawer?.querySelector('[data-testid="builtin-detail-error"]')?.textContent).toContain('读取预设详情失败')
+    expect(drawer?.querySelector('[data-testid="builtin-tools"]')?.textContent).toContain('file_read')
+    expect(drawer?.querySelector('[data-testid="builtin-persona"]')).toBeNull()
+  })
+
+  it('工具面读不到时只在该区报原因', async () => {
+    render(handleOf({
+      builtins: [builtin('lcoder-pm')],
+      builtinDetails: {
+        'lcoder-pm': {
+          loading: false,
+          error: null,
+          persona: '你是慢牛项目经理。',
+          plugins: [],
+          tools: [],
+          toolsError: 'the preset exposes no tool scope',
+        },
+      },
+    }))
+    await openCard('lcoder-pm')
+    const drawer = container.querySelector('[data-testid="builtin-detail"]')
+    expect(drawer?.querySelector('[data-testid="builtin-tools-error"]')?.textContent)
+      .toContain('the preset exposes no tool scope')
+    expect(drawer?.querySelector('[data-testid="builtin-persona"]')?.textContent).toContain('你是慢牛项目经理')
   })
 })

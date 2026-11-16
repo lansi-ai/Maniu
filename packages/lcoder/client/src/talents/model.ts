@@ -1,4 +1,6 @@
-/** 人才库的渲染端数据面：云端响应解析、下发摘要与去重计划。 */
+/** 人才库的渲染端数据面：云端响应解析、下发摘要、内置名册与去重计划。 */
+
+import { parse as parseYaml, type ScalarTag } from 'yaml'
 
 /** 云端人才的一行插件。 */
 export interface TalentPluginView {
@@ -331,4 +333,132 @@ export function attemptOf(
   return previous !== undefined && previous.digest === digest
     ? { kind: 'skip', message: previous.message }
     : { kind: 'apply', digest }
+}
+
+/** `agentPresets/list` 名册里的一行；只保留人才库展示需要的字段。 */
+export interface BuiltinPresetView {
+  readonly id: string
+  readonly name?: string
+  readonly description?: string
+  readonly isDefault: boolean
+  /** 激活失败的诊断；能用时缺省。 */
+  readonly broken?: string
+}
+
+/** 产品内置角色 preset 的前缀；云端人才的 `talent-*` 不在此列。 */
+const BUILTIN_PRESET_PREFIX = 'lcoder'
+
+/** 工作台作用域会话的内部 preset；它不是用户可以选用的人才。 */
+const WORKBENCH_PRESET_ID = 'lcoder-workbench'
+
+/**
+ * 判断一个 preset id 是否属于产品内置角色。
+ * @param presetId - 名册里的 preset id。
+ * @returns 内置角色为 true；工作台会话壳与上游系统 preset 为 false。
+ */
+export function isBuiltinTalentPreset(presetId: string): boolean {
+  return (presetId === BUILTIN_PRESET_PREFIX || presetId.startsWith(`${BUILTIN_PRESET_PREFIX}-`))
+    && presetId !== WORKBENCH_PRESET_ID
+}
+
+/**
+ * 解析 `agentPresets/list` 的名册。
+ * @param value - Remote 返回值。
+ * @returns 每一行；结构不符时返回 undefined。
+ */
+export function presetRosterOf(value: unknown): readonly BuiltinPresetView[] | undefined {
+  if (!isRecord(value) || !Array.isArray(value.presets)) return undefined
+  const rows = value.presets.flatMap((entry): BuiltinPresetView[] => {
+    if (!isRecord(entry) || typeof entry.id !== 'string') return []
+    return [{
+      id: entry.id,
+      ...typeof entry.name === 'string' ? { name: entry.name } : {},
+      ...typeof entry.description === 'string' ? { description: entry.description } : {},
+      isDefault: entry.isDefault === true,
+      ...typeof entry.broken === 'string' ? { broken: entry.broken } : {},
+    }]
+  })
+  return rows.length === value.presets.length ? rows : undefined
+}
+
+/** preset 组合里的一行插件；`!!js` 条件禁用记为 `conditional`。 */
+export interface PresetPluginView {
+  readonly id?: string
+  readonly name: string
+  /** 分组行（`cordis:group`）；成员紧随其后。 */
+  readonly group: boolean
+  readonly disabled: 'no' | 'yes' | 'conditional'
+}
+
+/** `agentPresets/read` 的展示面：只取人设与插件组合。 */
+export interface PresetDocumentView {
+  readonly presetId: string
+  readonly persona?: string
+  readonly plugins: readonly PresetPluginView[]
+}
+
+/** 读组合 YAML 用的方言：`!!js` 标量按表达式保留，不当作错误标签。 */
+const JS_EXPR_TAG: ScalarTag = {
+  tag: 'tag:yaml.org,2002:js',
+  resolve: value => ({ jsExpr: value }),
+}
+
+function pluginsOf(value: unknown, rows: PresetPluginView[]): void {
+  if (!Array.isArray(value)) return
+  for (const entry of value) {
+    if (!isRecord(entry) || typeof entry.name !== 'string') continue
+    const group = entry.group === true || entry.name === 'cordis:group'
+    rows.push({
+      ...typeof entry.id === 'string' ? { id: entry.id } : {},
+      name: entry.name,
+      group,
+      disabled: entry.disabled === undefined ? 'no' : entry.disabled === true ? 'yes' : 'conditional',
+    })
+    if (group) pluginsOf(entry.config, rows)
+  }
+}
+
+function personaOf(value: unknown): string | undefined {
+  if (!Array.isArray(value)) return undefined
+  for (const entry of value) {
+    if (!isRecord(entry)) continue
+    if (entry.name === '@deepseek-ai/dsh-persona' && isRecord(entry.config)
+      && typeof entry.config.prefix === 'string' && entry.config.prefix.trim() !== '') return entry.config.prefix
+    const nested = personaOf(entry.config)
+    if (nested !== undefined) return nested
+  }
+  return undefined
+}
+
+/**
+ * 解析 `agentPresets/read` 的组合内容。
+ * @param value - Remote 返回值。
+ * @returns 人设与插件行；结构不符或 YAML 读不了时返回 undefined。
+ */
+export function presetDocumentOf(value: unknown): PresetDocumentView | undefined {
+  if (!isRecord(value) || typeof value.agentPreset !== 'string' || typeof value.content !== 'string') return undefined
+  let parsed: unknown
+  try {
+    parsed = parseYaml(value.content, { customTags: [JS_EXPR_TAG] })
+  } catch {
+    return undefined
+  }
+  const rows = parsed ?? []
+  if (!Array.isArray(rows)) return undefined
+  const plugins: PresetPluginView[] = []
+  pluginsOf(rows, plugins)
+  const persona = personaOf(rows)
+  return { presetId: value.agentPreset, ...persona === undefined ? {} : { persona }, plugins }
+}
+
+/**
+ * 从模块说明里折出包名；相对路径、伪插件与非包名返回 undefined。
+ * @param specifier - 组合行里写的模块说明。
+ * @returns 包名；判断是否已安装时用它对齐本机清单。
+ */
+export function pluginPackageOf(specifier: string): string | undefined {
+  if (specifier === '' || specifier.startsWith('.') || specifier.startsWith('/')
+    || specifier.startsWith('\\') || specifier.startsWith('#') || specifier.includes(':')) return undefined
+  const segments = specifier.split('/')
+  return specifier.startsWith('@') ? segments.slice(0, 2).join('/') : segments[0]
 }
