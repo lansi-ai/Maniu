@@ -144,6 +144,24 @@ describe('declarative preset revisions', () => {
     })
     await expect(ctx.agentPresets.readDocument('absent')).rejects.toThrow('Unknown agent preset: absent')
   })
+
+  it('reads a declaration\'s child rows detached for successor composition', async () => {
+    const ctx = await setup()
+    await declare(ctx, {
+      ...contribution('standard'),
+      plugins: [
+        { id: 'contribute', name: plugin('contribute'), config: { tool: 'standard' } },
+        { id: 'windows-only', name: 'missing', disabled: { __jsExpr: "process.platform !== 'win32'" } },
+      ],
+    })
+    const rows = ctx.agentPresets.definitionPlugins('standard')
+    expect(rows).toEqual([
+      { id: 'contribute', name: plugin('contribute'), config: { tool: 'standard' } },
+      { id: 'windows-only', name: 'missing', disabled: { __jsExpr: "process.platform !== 'win32'" } },
+    ])
+    expect(ctx.agentPresets.definitionPlugins('standard')).not.toBe(rows)
+    expect(ctx.agentPresets.definitionPlugins('absent')).toBeUndefined()
+  })
 })
 
 it('retains a retired revision for an in-flight cold read', async () => {

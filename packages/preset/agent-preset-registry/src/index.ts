@@ -245,6 +245,19 @@ export class AgentPresetRegistry extends TypertRemoteService {
     })
   }
 
+  /**
+   * Read one declaration's child plugin rows as detached values.
+   *
+   * A caller that composes a successor definition (for example a dynamic
+   * preset extending this one) must not mutate the declaration's own rows.
+   * @param agentPreset Preset identity.
+   * @returns A structured clone of the declared rows, or undefined when no declaration supplies the id.
+   */
+  definitionPlugins(agentPreset: string): PresetDefinition['plugins'] | undefined {
+    const record = this.definitions.get(agentPreset)
+    return record === undefined ? undefined : structuredClone(record.config.plugins)
+  }
+
   private async retain(id?: string): Promise<Generation> {
     const wanted = id ?? this.defaultId
     while (true) {

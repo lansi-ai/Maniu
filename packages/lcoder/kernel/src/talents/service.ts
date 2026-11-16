@@ -1,0 +1,244 @@
+/**
+ * 人才库宿主服务：把客户端提交的云端人才注册成可选择的 agent preset。
+ *
+ * 只认本机事实：插件必须在宿主的已安装清单里解析得到；基础 preset 必须
+ * 已注册；人才配置只接受静态 JSON。注册进同一进程的 registry 后，旧会话
+ * 继续绑定旧 revision，新会话读最新定义，快照语义由 registry 负责。
+ * 动态 preset 一律带 `talent-` 前缀，撤回只注销本服务登记过的定义。
+ */
+import type { Context } from '@deepseek-ai/cordis'
+import { Remote, RemoteError, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
+import type { PresetDefinition } from '@deepseek-ai/dsh-agent-preset-registry'
+import type { SessionRecord } from '@deepseek-ai/dsh-session-query'
+import type {} from '@deepseek-ai/dsh-agent-preset-registry'
+import type {} from '@deepseek-ai/dsh-app-boot'
+import type {} from '@deepseek-ai/dsh-session'
+import type {} from '@deepseek-ai/dsh-session-query'
+import { composeTalentPlugins } from './compose.ts'
+import { deferredFields, invalidTalent, validateApplyRequest } from './validate.ts'
+import type { ValidatedTalent } from './validate.ts'
+import type {
+  TalentApplied, TalentApplyRequest, TalentApplyResult, TalentDeferredField, TalentRemoved, TalentSessionRef,
+} from './types.ts'
+
+declare module '@deepseek-ai/cordis' {
+  interface Context {
+    agentTalents: AgentTalents
+  }
+}
+
+interface PreparedTalent {
+  readonly talentId: string
+  readonly presetId: string
+  readonly basePreset: string | null
+  readonly definition: PresetDefinition
+  readonly digest: string
+  readonly deferred: readonly TalentDeferredField[]
+}
+
+interface AppliedTalent extends PreparedTalent {
+  readonly dispose: () => Promise<void>
+}
+
+function notFound(talentId: string): RemoteError {
+  return new RemoteError('agent-talent/not-found', `Unknown talent: ${talentId}`, { talentId })
+}
+
+/** 人才库 Remote 服务。 */
+export class AgentTalents extends TypertRemoteService {
+  private readonly owner: Context
+  private readonly entries = new Map<string, AppliedTalent>()
+
+  /**
+   * @param ctx - 宿主上下文；调用方须已提供 `agentPresets`、`pluginPackages`、`sessionQuery` 与 `sessions`。
+   */
+  constructor(ctx: Context) {
+    super(ctx, 'agentTalents')
+    this.owner = ctx
+  }
+
+  /** 插件解析的基准位置：profile 的 Loader 根；未设时退回本包位置。 */
+  private get baseUrl(): string {
+    return this.owner.baseUrl ?? import.meta.url
+  }
+
+  /**
+   * 应用或替换一批人才。整批先校验后落盘，任一条失败都回滚本次已做的改动。
+   * @param request - 人才列表。
+   * @returns 实际注册/替换的人才与因配置未变而跳过的人才。
+   */
+  @Remote('applyTalents')
+  async applyTalents(request: TalentApplyRequest): Promise<TalentApplyResult> {
+    const prepared = this.prepare(request)
+    const applied: TalentApplied[] = []
+    const skipped: string[] = []
+    const staged: { previous: AppliedTalent | undefined; entry: AppliedTalent }[] = []
+    for (const item of prepared) {
+      const previous = this.entries.get(item.talentId)
+      if (previous !== undefined && previous.digest === item.digest) {
+        skipped.push(item.talentId)
+        continue
+      }
+      if (previous !== undefined) await previous.dispose()
+      let entry: AppliedTalent
+      try {
+        entry = await this.register(item)
+      } catch (error: unknown) {
+        if (previous !== undefined) await this.restore(previous)
+        await this.rollback(staged)
+        throw error
+      }
+      this.entries.set(item.talentId, entry)
+      staged.push({ previous, entry })
+      applied.push({
+        talentId: item.talentId,
+        presetId: item.presetId,
+        basePreset: item.basePreset,
+        replaced: previous !== undefined,
+        deferred: item.deferred,
+      })
+    }
+    return { applied, skipped }
+  }
+
+  /**
+   * 撤回一条人才。仍有本机会话引用时拒绝；内置与其它来源的 preset 一律不碰。
+   * @param talentId - 云端人才 id。
+   * @returns 已注销的 preset id。
+   */
+  @Remote('removeTalent')
+  async removeTalent(talentId: string): Promise<TalentRemoved> {
+    const entry = this.entries.get(talentId)
+    if (entry === undefined) throw notFound(talentId)
+    const sessions = await this.sessionsUsing(entry.presetId)
+    if (sessions.length > 0) {
+      throw new RemoteError('agent-talent/referenced',
+        `Talent ${talentId} is still used by ${String(sessions.length)} session(s): ${sessions.join(', ')}`,
+        { talentId, sessions })
+    }
+    await entry.dispose()
+    this.entries.delete(talentId)
+    return { talentId, presetId: entry.presetId }
+  }
+
+  /**
+   * 列出仍在用某条人才的本机会话。
+   * @param talentId - 云端人才 id。
+   * @returns 人才、preset 与使用它的会话 id。
+   */
+  @Remote('sessionRefs')
+  async sessionRefs(talentId: string): Promise<TalentSessionRef> {
+    const entry = this.entries.get(talentId)
+    if (entry === undefined) throw notFound(talentId)
+    return { talentId, presetId: entry.presetId, sessionIds: await this.sessionsUsing(entry.presetId) }
+  }
+
+  /** 注销本服务注册的全部动态 preset；插件卸载时调用。 */
+  async disposeTalents(): Promise<void> {
+    const entries = [...this.entries.values()]
+    this.entries.clear()
+    for (const entry of entries) {
+      try {
+        await entry.dispose()
+      } catch (error: unknown) {
+        this.owner.logger.warn(`agent talent ${entry.talentId}: unregistering on unload failed (${String(error)})`)
+      }
+    }
+  }
+
+  private prepare(request: TalentApplyRequest): PreparedTalent[] {
+    const selection = validateApplyRequest(request)
+    const composed = new Map<string, PresetDefinition['plugins']>()
+    const prepared: PreparedTalent[] = []
+    for (const talent of selection.talents) prepared.push(this.prepareOne(talent, composed))
+    return prepared
+  }
+
+  private prepareOne(talent: ValidatedTalent, composed: Map<string, PresetDefinition['plugins']>): PreparedTalent {
+    const owned = this.entries.get(talent.talentId)
+    if (owned === undefined && this.owner.agentPresets.definitionPlugins(talent.presetId) !== undefined) {
+      throw new RemoteError('agent-talent/reserved',
+        `Agent preset ${talent.presetId} is already declared by a non-talent source`,
+        { talentId: talent.talentId, presetId: talent.presetId })
+    }
+    let base: PresetDefinition['plugins'] = []
+    const basePreset = talent.config.basePreset
+    if (basePreset !== undefined) {
+      const declared = composed.get(basePreset) ?? this.owner.agentPresets.definitionPlugins(basePreset)
+      if (declared === undefined) {
+        throw invalidTalent(talent.talentId, `config.basePreset "${basePreset}" is not a registered agent preset`)
+      }
+      base = declared
+    }
+    for (const plugin of talent.config.plugins ?? []) {
+      if (this.owner.pluginPackages.packageOf(plugin.name, this.baseUrl) === undefined) {
+        throw new RemoteError('agent-talent/unknown-plugin',
+          `Talent ${talent.talentId} names plugin "${plugin.name}", which is not installed on this host`,
+          { talentId: talent.talentId, plugin: plugin.name })
+      }
+    }
+    const plugins = composeTalentPlugins(base, talent.config)
+    composed.set(talent.presetId, plugins)
+    const definition: PresetDefinition = {
+      id: talent.presetId,
+      ...talent.name === undefined ? {} : { name: talent.name },
+      ...talent.description === undefined ? {} : { description: talent.description },
+      plugins,
+    }
+    return {
+      talentId: talent.talentId,
+      presetId: talent.presetId,
+      basePreset: basePreset ?? null,
+      definition,
+      digest: JSON.stringify(definition),
+      deferred: deferredFields(talent.config),
+    }
+  }
+
+  private async register(item: PreparedTalent): Promise<AppliedTalent> {
+    const dispose = await this.owner.agentPresets.register(item.definition)
+    try {
+      const resolved = await this.owner.agentPresets.resolve(item.presetId)
+      if (resolved.broken !== undefined) {
+        throw invalidTalent(item.talentId, `preset activation failed: ${resolved.broken}`)
+      }
+      return { ...item, dispose }
+    } catch (error: unknown) {
+      await dispose()
+      throw error
+    }
+  }
+
+  private async restore(entry: AppliedTalent): Promise<void> {
+    try {
+      const dispose = await this.owner.agentPresets.register(entry.definition)
+      this.entries.set(entry.talentId, { ...entry, dispose })
+    } catch (error: unknown) {
+      this.owner.logger.warn(`agent talent ${entry.talentId}: restoring the previous preset failed (${String(error)})`)
+    }
+  }
+
+  private async rollback(staged: readonly { previous: AppliedTalent | undefined; entry: AppliedTalent }[]): Promise<void> {
+    for (const step of [...staged].reverse()) {
+      const current = this.entries.get(step.entry.talentId)
+      if (current !== undefined) {
+        await current.dispose()
+        this.entries.delete(step.entry.talentId)
+      }
+      if (step.previous !== undefined) await this.restore(step.previous)
+    }
+  }
+
+  private async sessionsUsing(presetId: string): Promise<string[]> {
+    const records = await this.owner.sessionQuery.listSessions()
+    return records.filter(record => this.presetOf(record) === presetId).map(record => record.header.id)
+  }
+
+  private presetOf(record: SessionRecord): string | undefined {
+    const live = this.owner.sessions.get(record.header.id)
+    if (live !== undefined) {
+      return this.owner.agentPresets.presetForSession(live) ?? record.header.agentPreset ?? undefined
+    }
+    return record.header.agentPreset ?? undefined
+  }
+}

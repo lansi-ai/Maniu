@@ -47,6 +47,9 @@ const UNARY_ALLOWED = new Set([
   'commands/execute',
   'agentPresets/list',
   'agentPresets/read',
+  'agentTalents/applyTalents',
+  'agentTalents/removeTalent',
+  'agentTalents/sessionRefs',
 ])
 
 /** 渲染端允许打开的流式方法。 */

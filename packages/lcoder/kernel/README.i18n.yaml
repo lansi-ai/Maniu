@@ -21,11 +21,14 @@
   en: 0116022a4a852132
   zh: afab15ff1a52da7e
 /lcoder-kernel/use-this-package/minimal-configuration:
-  en: 7d6193eabcb6626c
-  zh: 6fb2bb22bf7fe56a
+  en: cce189945857ba3f
+  zh: 50d88fe146999567
+/lcoder-kernel/use-this-package/talent-library-host-presets:
+  en: 3d5f44d21d4b9aba
+  zh: 8327e0ad280f4386
 /lcoder-kernel/understand-the-implementation:
-  en: fd8e747cc1998c8a
-  zh: 58ae1be2c9369796
+  en: 8a652a4cb7a7f3ca
+  zh: cc1589147ea1db59
 /lcoder-kernel/further-exploration:
   en: b44de98f05ca06ec
   zh: 78166b63b55c8174
@@ -45,8 +48,8 @@
   en: 17e398ac57bc55d6
   zh: 5e33660058244801
 /lcoder-kernel/known-limitations-and-deferred-work:
-  en: 501fae6f9138ce03
-  zh: 00f753a6c8888ea7
+  en: bbd24bb0f7f33714
+  zh: 1d80ed51301ef957
 /lcoder-kernel/known-limitations-and-deferred-work/dev-note:
   en: ab7b3c608d26bd33
   zh: f9df7398d9b6244d

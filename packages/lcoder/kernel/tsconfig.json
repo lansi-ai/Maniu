@@ -20,10 +20,25 @@
       "path": "../../core/tools"
     },
     {
+      "path": "../../core/session"
+    },
+    {
       "path": "../../credentials/credentials"
     },
     {
       "path": "../../identity/anonymous-user-id"
+    },
+    {
+      "path": "../../preset/agent-preset-registry"
+    },
+    {
+      "path": "../../boot/app-boot"
+    },
+    {
+      "path": "../../session-query/session-query"
+    },
+    {
+      "path": "../../util/values"
     },
     {
       "path": "../../typert/protocol"
