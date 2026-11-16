@@ -130,7 +130,7 @@ export function App(): JSX.Element {
   })
 
   const workspaces = useWorkspaceList(host.kind === 'ready')
-  const projection = useProjection(project?.scopeSessionId ?? null)
+  const projection = useProjection(project?.scopeSessionId ?? null, host.kind === 'ready')
   const control = useSessionControl(host.kind === 'ready')
 
   const streamRef = useRef<string | null>(null)
@@ -657,6 +657,7 @@ export function App(): JSX.Element {
                 projection={projection.projection}
                 sessions={sessions}
                 loading={projection.loading}
+                error={projection.error}
                 intakeResult={intakeResult}
                 onClearIntakeResult={() => { setIntakeResult(null) }}
                 onReload={projection.reload}

@@ -143,6 +143,15 @@
 .tag-warn { color: #8a5a00; border-color: rgba(138, 90, 0, 0.28); }
 
 .empty { margin: 8px 2px; color: var(--lg-faint); font-size: 12px; }
+.read-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 2px;
+  color: var(--lg-danger);
+  font-size: 12px;
+}
+.read-error span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .problem {
   margin: 0 4px;
   padding: 8px 10px;

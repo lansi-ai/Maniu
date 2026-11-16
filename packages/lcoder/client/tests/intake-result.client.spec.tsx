@@ -125,6 +125,7 @@ describe('立项结果提升到 App 级', () => {
           projection={PROJECTION}
           sessions={[]}
           loading={false}
+          error={null}
           intakeResult={{ message: '指令已发送到会话 session-1', sessionId: 'session-1' }}
           onClearIntakeResult={() => {}}
           onReload={() => {}}
@@ -148,6 +149,7 @@ describe('立项结果提升到 App 级', () => {
           projection={WITH_REQUIREMENT}
           sessions={[]}
           loading={false}
+          error={null}
           intakeResult={null}
           onClearIntakeResult={() => {}}
           onReload={() => {}}

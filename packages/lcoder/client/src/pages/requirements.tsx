@@ -1,6 +1,6 @@
 /** 需求页：列表、搜索、状态筛选；详情在阶段 B 接入。 */
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { JSX } from 'react'
 import type { ProjectScope } from '../workspace/use-workspaces.ts'
 import type { SpecProjection } from '../spec/load.ts'
@@ -17,6 +17,7 @@ export interface RequirementsPageProps {
   readonly projection: SpecProjection
   readonly sessions: readonly SessionSummary[]
   readonly loading: boolean
+  readonly error: string | null
   readonly intakeResult: IntakeResult | null
   readonly onClearIntakeResult: () => void
   readonly onReload: () => void
@@ -48,6 +49,13 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
 
   const active = rows.find(row => row.id === selected) ?? null
   const detailTask = taskId === null ? undefined : props.projection.tasks.find(task => task.id === taskId)
+
+  // 进入页面时若上次读取为空或出错，补读一次；读取中不叠加第二个请求。
+  // 只在挂载这一刻判定，后续变化由加载态回报。
+  useEffect(() => {
+    if (props.project === null || props.loading) return
+    if (props.projection.requirements.length === 0 || props.error !== null) props.onReload()
+  }, [])
 
   return (
     <section className="page" data-testid="page-requirements">
@@ -84,6 +92,15 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
 
       {props.project === null && <p className="empty" data-testid="requirement-no-project">先在「切换项目」里打开一个仓库。</p>}
 
+      {props.project !== null && props.error !== null && (
+        <p className="read-error" data-testid="requirement-read-error">
+          <span>读取失败：{props.error.split('\n')[0]}</span>
+          <button type="button" className="pill" data-testid="requirement-retry" disabled={props.loading} onClick={props.onReload}>
+            {props.loading ? '读取中…' : '重试'}
+          </button>
+        </p>
+      )}
+
       {props.project !== null && (
         <div className="split">
           <div className="table-wrap lg-glass-card">
@@ -117,7 +134,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
                 ))}
               </tbody>
             </table>
-            {rows.length === 0 && <p className="empty" data-testid="requirement-empty">没有匹配的需求。</p>}
+            {rows.length === 0 && <p className="empty" data-testid="requirement-empty">{props.loading ? '读取中…' : '没有匹配的需求。'}</p>}
           </div>
 
           {active !== null && (
