@@ -2304,7 +2304,7 @@ tracks:
       note: "B 级视觉落地，来源是 T-204 原型与用户 2026-11-15 认可。胜出方案：Paper Water 浅雾彩水流背景 + 登录卡面自实现 SVG feDisplacementMap 折射 + 页签与输入与按钮轻量 backdrop-filter；默认雾彩色调（薄荷与淡粉与淡紫与天蓝叠加，正片叠底 0.82），桃青与薰衣草留在 token 不暴露产品开关。保留旧两栏版式、指针跟随、悬停抬升与轻漂浮；原型里的演示纹理不进产品。范围只到新客户端登录页与共享背景层，欢迎页如共用背景则一并生效；不改认证、数据、旧壳、安装器，不改导航与内容层的全局分层（用户要求另案再定）。实现要点：新增 @paper-design/shaders-react 0.0.82 并锁版本，进入 client 依赖与锁文件；新增可复用的折射玻璃组件与浅雾彩 token；移除 login-water.tsx 自绘 canvas 底；四皮肤不破，reduced-motion 下水面静态且不跟随；保持 Chromium 与 Electron 的 backdrop-filter url 可用口径。验收：登录页实际渲染水流与浅雾彩与卡面折射，CDP 核画布与 url(#) 与色调层；中英与四皮肤不破；M3 43 项与 C4 12 项不回归；typecheck、build:artifacts、build:check、test:docs、i18n、client 测试、改动文件 oxlint 全绿；留 9822 预览由用户手看。工作树 pool-slot-1 到 lcoder/t205-login-water，端口 9822 与 9829 与 9830。2026-11-15 15:50 监督窗口登记并派工，实现线会话 d8836a23。2026-11-15 20:12 监督窗口收口。已合入 lcoder/main；合入后主检 build:artifacts、build:check、typecheck、test:docs 二十一项、verify-client-ui-i18n、vitest 一百零七文件一千一百九十七例全过；新增依赖的第三方声明已重生成并通过自检。真实云端四组验收已过（新号短信自动建号、同号再登录、错码、密码错误），dev mock 的未注册口径已同步修好；预览仍留在 9822 的真实 API 环境。已知：条款链接暂无目标页；协议勾选不强制；托盘黑牛在深色任务栏对比低；Win11 可能收进溢出区；安装包需卸载旧 LCoder 再装 Maniu。"
     - id: T-206
       title: 云端 DeepSeek 上游接入 OpenCode Go
-      status: doing
+      status: done
       face: 工程
       type: 开发
       owner: lance
@@ -2312,7 +2312,7 @@ tracks:
       date: '2026-11-15'
       dep: []
       inferred: false
-      note: "B 级云端接入，来源是用户 2026-11-15 决定把 LCoder 云端 DeepSeek 上游配成 OpenCode Go 订阅。现状：LCoder-cloud 开发态默认上游 127.0.0.1:5092 且 .env 无 OPENCODE 项，模型调用落 502；Zen 免费通道对非官方客户端返回 429，Go 是订阅额度。目标配置：OPENCODE_BASE_URL=https://opencode.ai/zen/go/v1、OPENCODE_MODEL_ID=deepseek-v4.1-flash、OPENCODE_ALLOWED_HOSTS=opencode.ai、OPENCODE_API_KEY 由用户自己写入 .env；Go 的 OpenAI 兼容端点对第三方要求稳定的 x-opencode-session 头，需在 UpstreamClient 增加可选 OPENCODE_SESSION_ID 配置（未配置时进程内生成稳定 UUID），并在文档写清 OpenCode 控制台的 Region 需选 Global。范围只改 LCoder-cloud 仓与其 .env 示例与文档，不改桌面端仓、不打印密钥。验收：dotnet build 与 tests 通过；API 重启后 /health 正常；经网关 /v1/models 可见 deepseek 别名；用户填入 Go key 后一次 chat 走通；日志不含密钥。2026-11-15 20:20 监督窗口登记并派工，实现线会话 34381f2a。"
+      note: "B 级云端接入，来源是用户 2026-11-15 决定把 LCoder 云端 DeepSeek 上游配成 OpenCode Go 订阅。现状：LCoder-cloud 开发态默认上游 127.0.0.1:5092 且 .env 无 OPENCODE 项，模型调用落 502；Zen 免费通道对非官方客户端返回 429，Go 是订阅额度。目标配置：OPENCODE_BASE_URL=https://opencode.ai/zen/go/v1、OPENCODE_MODEL_ID=deepseek-v4.1-flash、OPENCODE_ALLOWED_HOSTS=opencode.ai、OPENCODE_API_KEY 由用户自己写入 .env；Go 的 OpenAI 兼容端点对第三方要求稳定的 x-opencode-session 头，需在 UpstreamClient 增加可选 OPENCODE_SESSION_ID 配置（未配置时进程内生成稳定 UUID），并在文档写清 OpenCode 控制台的 Region 需选 Global。范围只改 LCoder-cloud 仓与其 .env 示例与文档，不改桌面端仓、不打印密钥。验收：dotnet build 与 tests 通过；API 重启后 /health 正常；经网关 /v1/models 可见 deepseek 别名；用户填入 Go key 后一次 chat 走通；日志不含密钥。2026-11-15 20:20 监督窗口登记并派工，实现线会话 34381f2a。2026-11-16 10:22 监督窗口收口。云端已接 OpenCode Go，UpstreamClient 补 x-opencode-session，CloudOptions 支持 OPENCODE_SESSION_ID；dotnet build 与 444 测试通过，契约校验 490/490。API 重启后 PID 38356、health 200；经网关非流式与流式 chat 均 200（内容 pong，3.69s/4.27s，billing_source=go），日志零密钥。还缺长流、工具调用、账单对账、生产部署与多实例限流验证。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
