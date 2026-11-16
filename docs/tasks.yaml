@@ -2313,6 +2313,17 @@ tracks:
       dep: []
       inferred: false
       note: "B 级云端接入，来源是用户 2026-11-15 决定把 LCoder 云端 DeepSeek 上游配成 OpenCode Go 订阅。现状：LCoder-cloud 开发态默认上游 127.0.0.1:5092 且 .env 无 OPENCODE 项，模型调用落 502；Zen 免费通道对非官方客户端返回 429，Go 是订阅额度。目标配置：OPENCODE_BASE_URL=https://opencode.ai/zen/go/v1、OPENCODE_MODEL_ID=deepseek-v4.1-flash、OPENCODE_ALLOWED_HOSTS=opencode.ai、OPENCODE_API_KEY 由用户自己写入 .env；Go 的 OpenAI 兼容端点对第三方要求稳定的 x-opencode-session 头，需在 UpstreamClient 增加可选 OPENCODE_SESSION_ID 配置（未配置时进程内生成稳定 UUID），并在文档写清 OpenCode 控制台的 Region 需选 Global。范围只改 LCoder-cloud 仓与其 .env 示例与文档，不改桌面端仓、不打印密钥。验收：dotnet build 与 tests 通过；API 重启后 /health 正常；经网关 /v1/models 可见 deepseek 别名；用户填入 Go key 后一次 chat 走通；日志不含密钥。2026-11-15 20:20 监督窗口登记并派工，实现线会话 34381f2a。2026-11-16 10:22 监督窗口收口。云端已接 OpenCode Go，UpstreamClient 补 x-opencode-session，CloudOptions 支持 OPENCODE_SESSION_ID；dotnet build 与 444 测试通过，契约校验 490/490。API 重启后 PID 38356、health 200；经网关非流式与流式 chat 均 200（内容 pong，3.69s/4.27s，billing_source=go），日志零密钥。还缺长流、工具调用、账单对账、生产部署与多实例限流验证。"
+    - id: T-207
+      title: 打开 1M 上下文与图片分析
+      status: doing
+      face: 工程
+      type: 开发
+      owner: lance
+      created: '2026-11-16'
+      date: '2026-11-16'
+      dep: [T-206]
+      inferred: false
+      note: "B 级能力开启，来源是用户 2026-11-16 拍板按默认打开 1M 上下文与图片分析，输出上限 32K，游客仍禁图。上游 Go 的 deepseek-v4.1-flash 已验证支持 context 1000000、output 384000 与 jpeg/png/gif/webp 图片输入。范围两层。云端 LCoder-cloud：GatewayModelPolicy 的 contextWindow 提到 1000000、输出上限 32768、/v1/models 增加 supportsImages、CostFormula 的 MaxPromptTokens 与 MaxRequestBodyBytes 放宽到支持 1M 与图片（认证用户允许 image_url，游客仍拒）、提示 token 估算不要直接把 base64 当文本并给图片定额、契约与测试同步。桌面 LCoder：全部 deepseek-flash 模型条目 contextWindow 改 1000000、maxTokens 改 32768、用户路由 input 增加 image，guest 路由保持 text，client 协议不改。验收：云端 dotnet build 与测试与契约校验通过，API 重启后 /v1/models 带 1M 与图片标记；认证用户图片 chat 成功、游客图片被拒；桌面登录云端后模型显示 1M 与 32K 且能附图分析；M3 43 与 C4 12 与 client 门禁不回归；留 9823 预览。成本风险：1M 上下文与图片更吃 Go 订阅额度，输出先控制在 32K。工作树 pool-slot-2 到 lcoder/t207-context-vision，端口 9823 与 9831 与 9832。2026-11-16 10:32 监督窗口登记并派工。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
