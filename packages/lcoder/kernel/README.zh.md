@@ -58,7 +58,9 @@ kind: "package-reference"
 
 ### 人才库宿主动态 preset
 
-`@lcoder/kernel/talents` 挂载人才库的宿主半边。客户端经 `agentTalents/applyTalents` 提交云端人才；每条人才注册成稳定 preset `talent-<云端 id>`，以它的 `basePreset` 声明行为底，`persona` 与 `plugins` 按同名覆盖。插件必须能从本机已安装包解析到；`url`、`source`、`package`、未知字段、`!!js` 标记、重名与非 JSON 值由 `agent-talent/invalid` 或 `agent-talent/unknown-plugin` 拒绝。配置未变的重复提交是空操作；编辑后替换定义，运行中的会话保持它启动时的 revision。仍有本机会话记录该 preset 时 `agentTalents/removeTalent` 拒绝撤回，`agentTalents/sessionRefs` 列出这些会话，内置 preset 永不被替换或删除。`tools`、`model` 与 `budget` 只做校验并作为 `deferred` 回显；本阶段不生成运行时行。
+`@lcoder/kernel/talents` 挂载人才库的宿主半边。客户端经 `agentTalents/applyTalents` 提交云端人才；每条人才注册成稳定 preset `talent-<云端 id>`，以它的 `basePreset` 声明行为底，`persona` 与 `plugins` 按同名覆盖。插件必须能从本机已安装包解析到；`url`、`source`、`package`、未知字段、`!!js` 标记、重名与非 JSON 值由 `agent-talent/invalid` 或 `agent-talent/unknown-plugin` 拒绝。配置未变的重复提交是空操作；编辑后替换定义，运行中的会话保持它启动时的 revision。仍有本机会话记录该 preset 时 `agentTalents/removeTalent` 拒绝撤回，`agentTalents/sessionRefs` 列出这些会话，内置 preset 永不被替换或删除。
+
+`tools`、`model` 与 `budget` 在 preset 末尾生成 `@lcoder/kernel/talents-policy` 行。`tools` 是白名单：Agent 创建时策略把工具面收窄到列出的工具，空列表或缺省不限制，列出的工具不在已挂载 preset 的工具面上时报 `agent-talent/unknown-tool` 并拒绝登记。`model` 写入新启动会话的模型选择；恢复的会话保持它记录的模型。`budget` 留在云端：`lcoder-cloud` 路由上的每次模型请求都带 `x-lcoder-session-id`，会话 preset 是已登记人才时再带 `x-lcoder-talent-id`，网关据此按会话计量并限制该人才。
 
 -----
 
@@ -92,7 +94,7 @@ kind: "package-reference"
 | `src/commands/flow-status.ts`、`src/commands/flow-log.ts` | 流程判定 JSON 与逐任务动作流水 |
 | `src/commands/agent-bind.ts` | `.spec/agents.yaml` 里的两条常驻调度会话号 |
 | `src/kernel/role-store.ts`、`src/schema/roles.ts` | `.spec/roles.yaml` 的读写与共享的内置角色 id |
-| `src/talents/service.ts`、`src/talents/validate.ts`、`src/talents/compose.ts` | 人才库宿主动态 preset 的注册、wire 校验与组合 |
+| `src/talents/service.ts`、`src/talents/validate.ts`、`src/talents/compose.ts`、`src/talents/policy.ts` | 人才库宿主动态 preset 的注册、wire 校验、组合与按 Agent 生效的策略行 |
 | `src/tools/role-tools.ts` | `role_draft`，模型唯一的岗位写入口 |
 | `src/commands/task-assign.ts` | 人机命令 `task_assign`，写回 `Task.role` |
 | `src/commands/task-split-ready.ts` | 人机命令 `task_split_ready`，把拆分任务推进到 `contracted` |
@@ -138,7 +140,7 @@ kind: "package-reference"
 - `task_transition` 没有工具入口；推进任务需要编辑其 YAML。
 - `when` 只管本包注册的工具。bundle 全局注册的工具（`read`、`write`、`edit`、`glob`、`grep`、`bash`、`pwsh`）对该 profile 的每个 Agent 都可见，所以未立项仓库并不会因此失去改代码能力；要收住它们需要 Agent 作用域的 `restrict`。
 - P1 使用文本索引，注释或字符串里的同名标识符会造成误报。
-- 人才的 `tools`、`model` 与 `budget` 只做校验，本阶段没有运行时效果；Remote 结果在 `deferred` 下列出它们。
+- 人才的 `tools` 白名单与 `model` 默认模型在 Agent 以该人才 preset 创建时生效；通过 `agent-presets` 把运行中的会话改绑到别的 preset 不会重新施加。直接注册在某个 Agent 自身作用域里的工具不会被 restriction 隐藏，因为 restriction 豁免查看作用域的注册。
 - 动态人才 preset 只存在进程内：宿主每次重启后要由客户端重新提交；记录过某条人才的会话在重新提交前无法恢复。
 - 删除保护只覆盖本机，这是既定口径：别的设备上的会话不会拦住云端删除。
 

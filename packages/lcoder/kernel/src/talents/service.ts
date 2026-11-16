@@ -9,16 +9,18 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { Remote, RemoteError, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import type { PresetDefinition } from '@deepseek-ai/dsh-agent-preset-registry'
+import type { SessionId } from '@deepseek-ai/dsh-session'
 import type { SessionRecord } from '@deepseek-ai/dsh-session-query'
 import type {} from '@deepseek-ai/dsh-agent-preset-registry'
 import type {} from '@deepseek-ai/dsh-app-boot'
 import type {} from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-session-query'
+import type {} from '@deepseek-ai/dsh-tools'
 import { composeTalentPlugins } from './compose.ts'
-import { deferredFields, invalidTalent, validateApplyRequest } from './validate.ts'
+import { invalidTalent, talentIdOfPreset, validateApplyRequest } from './validate.ts'
 import type { ValidatedTalent } from './validate.ts'
 import type {
-  TalentApplied, TalentApplyRequest, TalentApplyResult, TalentDeferredField, TalentRemoved, TalentSessionRef,
+  TalentApplied, TalentApplyRequest, TalentApplyResult, TalentRemoved, TalentSessionRef,
 } from './types.ts'
 
 declare module '@deepseek-ai/cordis' {
@@ -33,7 +35,7 @@ interface PreparedTalent {
   readonly basePreset: string | null
   readonly definition: PresetDefinition
   readonly digest: string
-  readonly deferred: readonly TalentDeferredField[]
+  readonly tools: readonly string[] | undefined
 }
 
 interface AppliedTalent extends PreparedTalent {
@@ -95,7 +97,6 @@ export class AgentTalents extends TypertRemoteService {
         presetId: item.presetId,
         basePreset: item.basePreset,
         replaced: previous !== undefined,
-        deferred: item.deferred,
       })
     }
     return { applied, skipped }
@@ -131,6 +132,20 @@ export class AgentTalents extends TypertRemoteService {
     const entry = this.entries.get(talentId)
     if (entry === undefined) throw notFound(talentId)
     return { talentId, presetId: entry.presetId, sessionIds: await this.sessionsUsing(entry.presetId) }
+  }
+
+  /**
+   * 读一个在跑会话当前绑定的人才 id；非人才会话返回 undefined。
+   * @param sessionId - 模型请求携带的会话 id。
+   * @returns 仍在本进程登记的人才 id，或 undefined。
+   */
+  talentIdForSession(sessionId: SessionId): string | undefined {
+    const session = this.owner.sessions.get(sessionId)
+    if (session === undefined) return undefined
+    const presetId = this.owner.agentPresets.presetForSession(session) ?? session.header.agentPreset
+    if (presetId === undefined) return undefined
+    const talentId = talentIdOfPreset(presetId)
+    return talentId !== undefined && this.entries.has(talentId) ? talentId : undefined
   }
 
   /** 注销本服务注册的全部动态 preset；插件卸载时调用。 */
@@ -177,7 +192,7 @@ export class AgentTalents extends TypertRemoteService {
           { talentId: talent.talentId, plugin: plugin.name })
       }
     }
-    const plugins = composeTalentPlugins(base, talent.config)
+    const plugins = composeTalentPlugins(base, talent)
     composed.set(talent.presetId, plugins)
     const definition: PresetDefinition = {
       id: talent.presetId,
@@ -191,7 +206,7 @@ export class AgentTalents extends TypertRemoteService {
       basePreset: basePreset ?? null,
       definition,
       digest: JSON.stringify(definition),
-      deferred: deferredFields(talent.config),
+      tools: talent.config.tools !== undefined && talent.config.tools.length > 0 ? talent.config.tools : undefined,
     }
   }
 
@@ -202,10 +217,27 @@ export class AgentTalents extends TypertRemoteService {
       if (resolved.broken !== undefined) {
         throw invalidTalent(item.talentId, `preset activation failed: ${resolved.broken}`)
       }
+      this.assertKnownTools(item)
       return { ...item, dispose }
     } catch (error: unknown) {
       await dispose()
       throw error
+    }
+  }
+
+  /** 挂载后按 preset 作用域的工具面拒绝白名单里不存在的工具。 */
+  private assertKnownTools(item: PreparedTalent): void {
+    if (item.tools === undefined) return
+    const scope = this.owner.agentPresets.definitionScope(item.presetId)
+    if (scope === undefined) {
+      throw invalidTalent(item.talentId, 'the activated preset exposes no scope to inspect its tools')
+    }
+    const known = new Set(this.owner.tools.definitions(scope).map(definition => definition.name))
+    const unknown = item.tools.filter(name => !known.has(name))
+    if (unknown.length > 0) {
+      throw new RemoteError('agent-talent/unknown-tool',
+        `Talent ${item.talentId} names tool(s) this preset does not expose: ${unknown.join(', ')}`,
+        { talentId: item.talentId, tools: unknown })
     }
   }
 

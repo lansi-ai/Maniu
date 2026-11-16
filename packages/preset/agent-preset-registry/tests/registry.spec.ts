@@ -162,6 +162,15 @@ describe('declarative preset revisions', () => {
     expect(ctx.agentPresets.definitionPlugins('standard')).not.toBe(rows)
     expect(ctx.agentPresets.definitionPlugins('absent')).toBeUndefined()
   })
+
+  it('exposes the mounted revision scope for scoped inspection', async () => {
+    const ctx = await setup()
+    const definition = await declare(ctx, contribution('standard'))
+    expect(ctx.agentPresets.definitionScope('standard')).toBeTypeOf('object')
+    expect(ctx.agentPresets.definitionScope('absent')).toBeUndefined()
+    await definition.dispose()
+    expect(ctx.agentPresets.definitionScope('standard')).toBeUndefined()
+  })
 })
 
 it('retains a retired revision for an in-flight cold read', async () => {

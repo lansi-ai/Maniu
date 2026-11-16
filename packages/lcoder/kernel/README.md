@@ -58,7 +58,9 @@ The plugin mounts as a row through the patch layer; it has no `dsh plugin add` i
 
 ### Talent library host presets
 
-`@lcoder/kernel/talents` mounts the host half of the talent library. The client submits cloud talents through `agentTalents/applyTalents`; each talent becomes the stable preset `talent-<cloud id>`, composed from its `basePreset` declaration with `persona` and `plugins` applied over same-named rows. Only plugins resolvable from this host's installed packages are accepted; `url`, `source`, `package`, extra fields, `!!js` markers, duplicate names, and non-JSON values are rejected with `agent-talent/invalid` or `agent-talent/unknown-plugin`. Re-submitting an unchanged talent is a no-op; an edited talent replaces its definition, and running sessions keep the revision they started with. `agentTalents/removeTalent` refuses while any local session still records the preset, `agentTalents/sessionRefs` lists them, and built-in presets are never replaced or removed. `tools`, `model`, and `budget` are validated and echoed as `deferred`; they do not compose runtime rows in this phase.
+`@lcoder/kernel/talents` mounts the host half of the talent library. The client submits cloud talents through `agentTalents/applyTalents`; each talent becomes the stable preset `talent-<cloud id>`, composed from its `basePreset` declaration with `persona` and `plugins` applied over same-named rows. Only plugins resolvable from this host's installed packages are accepted; `url`, `source`, `package`, extra fields, `!!js` markers, duplicate names, and non-JSON values are rejected with `agent-talent/invalid` or `agent-talent/unknown-plugin`. Re-submitting an unchanged talent is a no-op; an edited talent replaces its definition, and running sessions keep the revision they started with. `agentTalents/removeTalent` refuses while any local session still records the preset, `agentTalents/sessionRefs` lists them, and built-in presets are never replaced or removed.
+
+`tools`, `model`, and `budget` compose a `@lcoder/kernel/talents-policy` row at the end of the preset. `tools` is a whitelist: at Agent creation the policy narrows the tool surface to the named tools, an empty list (or no list) does not restrict, and a name the mounted preset does not expose fails with `agent-talent/unknown-tool` before the talent is registered. `model` becomes the model selection of a newly started session; a resumed session keeps its recorded selection. `budget` stays cloud-side: every model request on the `lcoder-cloud` route carries `x-lcoder-session-id`, plus `x-lcoder-talent-id` when the session's preset is a registered talent, so the gateway can meter and cap that talent per session.
 
 -----
 
@@ -95,7 +97,7 @@ Every tool factory accepts either a fixed root or a resolver. The resolver reads
 | `src/kernel/sign-gate.ts` | The three compensating gates for AI self-signing |
 | `src/commands/flow-status.ts`, `src/commands/flow-log.ts` | Flow evaluation JSON and the per-task action log |
 | `src/commands/agent-bind.ts` | The two resident scheduler session ids in `.spec/agents.yaml` |
-| `src/talents/service.ts`, `src/talents/validate.ts`, `src/talents/compose.ts` | Dynamic talent presets: registration, wire validation, and composition |
+| `src/talents/service.ts`, `src/talents/validate.ts`, `src/talents/compose.ts`, `src/talents/policy.ts` | Dynamic talent presets: registration, wire validation, composition, and the per-Agent policy row |
 
 </details>
 
@@ -135,9 +137,9 @@ The visible tool set changes only on a task-state transition. Re-applying the sa
 - `flow_status` re-reads the whole `.spec` on each call and is not subscribed to file changes; the shell asks again when the projection reloads or a batch finishes.
 - `.spec/automation.yaml` is read whenever the kernel evaluates a decision; it has no writer, so a human edits it directly. The policy cannot carry external irreversible actions such as push or deployment.
 - `task_transition` has no tool entry; advancing a task requires editing its YAML.
+- Talent tool whitelists and default models apply when an Agent is created with the talent preset. Rebinding a live session to another preset through `agent-presets` does not reapply them, and tools registered directly in an Agent's own scope stay visible because restrictions exempt the viewing scope's registrations.
 - `when` gates only the tools this package registers. Tools registered globally by a shipped bundle (`read`, `write`, `edit`, `glob`, `grep`, `bash`, `pwsh`) stay visible to every Agent in the profile, so an un-onboarded repository does not lose code-editing capability from this package alone; covering them takes an Agent-scope `restrict`.
 - P1 uses a text index, so a symbol name in a comment or string can produce a false positive.
-- A talent's `tools`, `model`, and `budget` are accepted and validated but have no runtime effect yet; the remote result reports them under `deferred`.
 - Dynamic talent presets are process-local: the client must submit them again after every host restart, and a session that recorded a talent cannot resume until it does.
 - Removal protection covers this machine only, as decided: sessions on another device do not block a cloud-side deletion.
 

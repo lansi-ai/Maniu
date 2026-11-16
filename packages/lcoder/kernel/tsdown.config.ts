@@ -12,6 +12,7 @@ export default defineConfig({
     index: 'lib/types/index.js',
     cloud: 'lib/types/cloud/plugin.js',
     talents: 'lib/types/talents/plugin.js',
+    'talents-policy': 'lib/types/talents/policy.js',
   },
   outDir: 'lib',
   format: ['esm'],

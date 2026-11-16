@@ -61,6 +61,8 @@ preset 的服务提供方及其消费方必须共享同一个 `cordis:group` 隔
 
 `inspectCompositions()` 读取本注册表仍保留的全部代际；传入 Agent 上下文时只选择它绑定的精确代际，在此没有绑定时返回空列表。每个 `AgentPresetInspection` 包含 preset ID、纯数据形式的活动模块引用及解析基址，以及泄漏的服务名。检查器查询运行中的服务，而不是模块级挂载表；结果不包含 Loader 树或 fiber。这些记录定义在 [composition-inventory.ts](src/composition-inventory.ts) 中。
 
+`definitionScope(presetId)` 返回已挂载代际当前的 scope key；没有已挂载代际提供该 id 时返回 undefined。按作用域记账的注册表（例如工具注册表）用它在该 preset 有任何 Agent 加入之前检查它会提供给 Agent 的贡献；key 是不透明标识，不附带注册权限。
+
 | 文件 | 职责 |
 |---|---|
 | [index.ts](src/index.ts) | 注册、代际与 Agent 绑定 |

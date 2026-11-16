@@ -23,7 +23,7 @@ export interface TalentModelInput {
   readonly modelId: string
 }
 
-/** 人才的单会话预算。 */
+/** 人才的单会话预算；网关按会话硬限。 */
 export interface TalentBudgetInput {
   /** 单会话成本上限，微美元。 */
   readonly maxCostMicroUsd?: number
@@ -41,11 +41,11 @@ export interface TalentConfigInput {
   readonly persona?: string
   /** 追加或覆盖到基础 preset 的插件行。 */
   readonly plugins?: readonly TalentPluginInput[]
-  /** 工具组合；本阶段只做校验，不落到运行时。 */
+  /** 工具白名单；只列出的工具可见，空列表与缺省都不限制。 */
   readonly tools?: readonly string[]
-  /** 人才模型；本阶段只做校验，不落到运行时。 */
+  /** 人才默认模型；写入新会话的模型选择。 */
   readonly model?: TalentModelInput
-  /** 人才预算；本阶段只做校验，不落到运行时。 */
+  /** 人才的单会话预算；宿主随模型请求带给云端网关。 */
   readonly budget?: TalentBudgetInput
 }
 
@@ -77,12 +77,7 @@ export interface TalentApplied {
   readonly basePreset: string | null
   /** 是否替换了同 id 的旧定义。 */
   readonly replaced: boolean
-  /** 已通过校验、但本阶段尚未落到运行时的配置字段。 */
-  readonly deferred: readonly TalentDeferredField[]
 }
-
-/** 本阶段接受但未实现运行时语义的人才字段。 */
-export type TalentDeferredField = 'tools' | 'model' | 'budget'
 
 /** 应用结果。 */
 export interface TalentApplyResult {
@@ -116,6 +111,8 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
     'agent-talent/invalid': { readonly talentId: string; readonly reason: string }
     /** 人才引用了本机未安装的插件。 */
     'agent-talent/unknown-plugin': { readonly talentId: string; readonly plugin: string }
+    /** 白名单里的工具不在该 preset 的工具面上。 */
+    'agent-talent/unknown-tool': { readonly talentId: string; readonly tools: readonly string[] }
     /** 目标 preset id 已被非动态定义占用。 */
     'agent-talent/reserved': { readonly talentId: string; readonly presetId: string }
     /** 本进程没有登记该人才。 */
