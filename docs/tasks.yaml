@@ -2403,7 +2403,7 @@ tracks:
       note: "B 级根因修复，来源是用户反复反馈闪烁且滚动条卡住。用 CDP screencast 抓连续帧后实锤：消息区整块亮度在 230.0 与 226.2 每帧交替，差分恒为 25.06；025 帧有完整回复、026 帧是空消息区，即 store 在「有历史」与「空历史」之间反复重置，导致整块重绘与滚动回顶，不是玻璃或 GPU。可疑路径：openFollow 先 dispatch reset 再开流；chat.rebaseline 每次变化都会再次 openFollow；assistant-start 在已有 attempt 时无条件 rebaseline；多步回合的多次 start 或重连快照触发循环。修法：reconnect/rebaseline 重开时不再 reset，保留现有 rows 直到 snapshot 到达；assistant-start 改成切换 attempt、清 liveText 但不 rebaseline；stale attempt 的 chunk 直接丢弃；snapshot 到达再用权威历史替换。补多步 start/重连快照测试，钉住 rebaseline 不增长、历史不消失。验收：CDP screencast 连续帧不再出现空/满交替，滚动位置保持且可滚；真实云端多步长回复；M3 43/43、C4 12/12、client 测试与 typecheck/build/docs/i18n/oxlint 全绿。工作树 pool-slot-2 到 lcoder/t215-rebaseline-loop，端口 9823/9831/9832。2026-11-16 14:35 监督窗口登记并派工，实现线会话 d39ac2df。2026-11-16 15:35 用户确认不闪；已合入 lcoder/main，主检 1232 例与门禁通过；历史采样 3 到 5 单调不减、80 次 0 空；T-210 与 T-212 与 T-213 的样式与合成修复保留，根因以本条为准。"
     - id: T-216
       title: 聊天输入输出体验补齐
-      status: doing
+      status: done
       face: 用户端
       type: 变更
       owner: lance
@@ -2411,7 +2411,7 @@ tracks:
       date: '2026-11-16'
       dep: [T-215]
       inferred: false
-      note: "B 级聊天体验补齐，用户 2026-11-16 确认闪烁修复后提六条：发送键改用白字；思考时能看到实时思考过程，而不是只有一个状态；助手输出与用户输入都可复制，用图标按钮；输入框鼠标选区更明显；流式输出时消息区自动滚到底，用户主动上滚时不强制；去掉输入框蓝色焦点边框。范围只到 client 聊天区、输入器、样式与中英词典，不改 store 线协议、云端与认证。思考过程：思考期在消息区显示可滚动的实时 reasoning 文本和「思考中…」，正文开始后收进默认折叠的过程组，不铺满整屏；复制按钮仅在有文本时出现，图标化、aria 与词典、复制成功有轻量反馈；自动滚底按 near-bottom 阈值，用户上滚后暂停跟随；输入选区用高对比强调色。验收：真实云端一条多步长回复，CDP 核思考期有实时文本、正文开始后收起、复制按钮存在且写入剪贴板、滚到底且上滚不被拉回、焦点无蓝边；M3 43/43、C4 12/12 与 client 测试、typecheck/build/docs/i18n/oxlint 全绿；留 9823 预览。工作树 pool-slot-2 到 lcoder/t216-chat-polish，端口 9823/9831/9832。2026-11-16 15:40 监督窗口登记并派工，实现线会话 d39ac2df。"
+      note: "B 级聊天体验补齐，用户 2026-11-16 确认闪烁修复后提六条：发送键改用白字；思考时能看到实时思考过程，而不是只有一个状态；助手输出与用户输入都可复制，用图标按钮；输入框鼠标选区更明显；流式输出时消息区自动滚到底，用户主动上滚时不强制；去掉输入框蓝色焦点边框。范围只到 client 聊天区、输入器、样式与中英词典，不改 store 线协议、云端与认证。思考过程：思考期在消息区显示可滚动的实时 reasoning 文本和「思考中…」，正文开始后收进默认折叠的过程组，不铺满整屏；复制按钮仅在有文本时出现，图标化、aria 与词典、复制成功有轻量反馈；自动滚底按 near-bottom 阈值，用户上滚后暂停跟随；输入选区用高对比强调色。验收：真实云端一条多步长回复，CDP 核思考期有实时文本、正文开始后收起、复制按钮存在且写入剪贴板、滚到底且上滚不被拉回、焦点无蓝边；M3 43/43、C4 12/12 与 client 测试、typecheck/build/docs/i18n/oxlint 全绿；留 9823 预览。工作树 pool-slot-2 到 lcoder/t216-chat-polish，端口 9823/9831/9832。2026-11-16 15:40 监督窗口登记并派工，实现线会话 d39ac2df。2026-11-16 16:10 监督窗口收口，已合入 lcoder/main；主检 build:artifacts、build:check、test:docs 二十一项、vitest 一百二十三文件一千二百三十四例全过；发送键白字、思考期实时原文、消息复制、选区对比、near-bottom 自动滚底、去蓝焦点均完成，T-215 历史单调与不闪不回归。未验：其它皮肤与英文、macOS、打包态。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
