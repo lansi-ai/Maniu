@@ -52,6 +52,10 @@
       config:
         baseUrl: !!js process.env.LCODER_CLOUD_BASE_URL || 'http://127.0.0.1:5091/v1'
 
+    # 人才库宿主动态 preset：客户端提交云端人才列表，这里校验并注册成可选的 agent preset。
+    - id: lcoder-talents
+      name: '@lcoder/kernel/talents'
+
     # 宿主侧：注册六个工具（规格/任务/编辑），工具面按当前任务状态收放。
     # `tools` 服务由 base 清单的 `- id: tools` 行提供，所以这一行能激活。
     - id: lcoder-kernel

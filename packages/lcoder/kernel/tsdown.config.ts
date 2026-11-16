@@ -11,6 +11,7 @@ export default defineConfig({
   entry: {
     index: 'lib/types/index.js',
     cloud: 'lib/types/cloud/plugin.js',
+    talents: 'lib/types/talents/plugin.js',
   },
   outDir: 'lib',
   format: ['esm'],

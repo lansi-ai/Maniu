@@ -13136,6 +13136,21 @@ importers:
       '@deepseek-ai/dsh-agent':
         specifier: workspace:*
         version: link:../../core/agent
+      '@deepseek-ai/dsh-agent-preset-registry':
+        specifier: workspace:*
+        version: link:../../preset/agent-preset-registry
+      '@deepseek-ai/dsh-app-boot':
+        specifier: workspace:*
+        version: link:../../boot/app-boot
+      '@deepseek-ai/dsh-session':
+        specifier: workspace:*
+        version: link:../../core/session
+      '@deepseek-ai/dsh-session-query':
+        specifier: workspace:*
+        version: link:../../session-query/session-query
+      '@deepseek-ai/dsh-util-values':
+        specifier: workspace:*
+        version: link:../../util/values
 
   packages/lcoder/workspace:
     devDependencies:

@@ -56,6 +56,10 @@ The plugin mounts as a row through the patch layer; it has no `dsh plugin add` i
 
 `deliverable_draft` records a task's deliverables in `.spec/deliverables/<task id>.yaml` from a required `summary`, a non-empty `docs` array of repository-relative paths, and an optional `commands` array. Every `docs` entry must resolve to an existing file under the repository root; absolute paths, `..` segments, and missing files are rejected. The tool overwrites the index per task, keeps the first `created_at`, and refreshes `updated_at`; it records the index only, and the engineering documents themselves are still written with `file_edit`. `task_close` runs D1 after P1, P3, and P4: a task graded A, assigned to the `general` track, or whose title or description mentions 基础框架, 脚手架, 架构, or 技术选型 must have a readable index with a non-empty summary and at least one document, and closure otherwise reports `.spec/deliverables/<task id>.yaml` as the next step. Ordinary tasks are unaffected. Only `dev`, `architect`, and `ops` see the tool, and only from `contracted` onward.
 
+### Talent library host presets
+
+`@lcoder/kernel/talents` mounts the host half of the talent library. The client submits cloud talents through `agentTalents/applyTalents`; each talent becomes the stable preset `talent-<cloud id>`, composed from its `basePreset` declaration with `persona` and `plugins` applied over same-named rows. Only plugins resolvable from this host's installed packages are accepted; `url`, `source`, `package`, extra fields, `!!js` markers, duplicate names, and non-JSON values are rejected with `agent-talent/invalid` or `agent-talent/unknown-plugin`. Re-submitting an unchanged talent is a no-op; an edited talent replaces its definition, and running sessions keep the revision they started with. `agentTalents/removeTalent` refuses while any local session still records the preset, `agentTalents/sessionRefs` lists them, and built-in presets are never replaced or removed. `tools`, `model`, and `budget` are validated and echoed as `deferred`; they do not compose runtime rows in this phase.
+
 -----
 
 <a id="understand-the-implementation"></a>
@@ -91,6 +95,7 @@ Every tool factory accepts either a fixed root or a resolver. The resolver reads
 | `src/kernel/sign-gate.ts` | The three compensating gates for AI self-signing |
 | `src/commands/flow-status.ts`, `src/commands/flow-log.ts` | Flow evaluation JSON and the per-task action log |
 | `src/commands/agent-bind.ts` | The two resident scheduler session ids in `.spec/agents.yaml` |
+| `src/talents/service.ts`, `src/talents/validate.ts`, `src/talents/compose.ts` | Dynamic talent presets: registration, wire validation, and composition |
 
 </details>
 
@@ -132,6 +137,9 @@ The visible tool set changes only on a task-state transition. Re-applying the sa
 - `task_transition` has no tool entry; advancing a task requires editing its YAML.
 - `when` gates only the tools this package registers. Tools registered globally by a shipped bundle (`read`, `write`, `edit`, `glob`, `grep`, `bash`, `pwsh`) stay visible to every Agent in the profile, so an un-onboarded repository does not lose code-editing capability from this package alone; covering them takes an Agent-scope `restrict`.
 - P1 uses a text index, so a symbol name in a comment or string can produce a false positive.
+- A talent's `tools`, `model`, and `budget` are accepted and validated but have no runtime effect yet; the remote result reports them under `deferred`.
+- Dynamic talent presets are process-local: the client must submit them again after every host restart, and a session that recorded a talent cannot resume until it does.
+- Removal protection covers this machine only, as decided: sessions on another device do not block a cloud-side deletion.
 
 <a id="dev-note"></a>
 ### Dev Note
