@@ -8,6 +8,7 @@
  * 一条分工与 `spec-store` 一致：本模块只做读写，语义是否合规由 schema
  * （`ProjectInfo`）在写前认，坏文件当场抛，不留半截。
  */
+import { randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 
@@ -53,4 +54,25 @@ export function saveProject(root: string, info: ProjectInfo): string {
   mkdirSync(dirname(path), { recursive: true })
   writeFileSync(path, stringifyYaml(data), 'utf8')
   return path
+}
+
+/**
+ * 读或补出项目的稳定 `projectId`。
+ *
+ * 已登记就只读回；旧文件缺 `projectId` 时就地生成 UUID 并写回，其余字段原样保留。
+ * 没有 `project.yaml` 直接抛：项目身份还没登记，不能凭空造一个不随仓的 id。
+ * @param root - 规格库根。
+ * @returns 随仓提交的项目 UUID。
+ * @throws 项目信息尚未登记，或文件本身不合 `ProjectInfo` 时抛出。
+ */
+export function ensureProjectId(root: string): string {
+  const info = loadProject(root)
+  if (info === null) {
+    throw new Error(`读不到 ${projectPath(root)}：项目身份还没登记，无法生成 projectId`)
+  }
+  if (info.projectId !== undefined) return info.projectId
+
+  const projectId = randomUUID()
+  saveProject(root, { ...info, projectId })
+  return projectId
 }

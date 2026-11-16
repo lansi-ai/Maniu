@@ -631,6 +631,17 @@ export const ProjectInfo = z.object({
     url: z.string().min(1),
     branch: z.string().min(1),
   }),
+  /**
+   * 项目稳定 id：随仓提交，云端人才库按它隔离项目人才。
+   *
+   * 旧文件可以缺省；绑定云端人才时由 `ensureProjectId` 生成 UUID 并写回。
+   */
+  projectId: z.string()
+    .regex(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+      'projectId 必须是 UUID',
+    )
+    .optional(),
   docs: z.object({
     product: z.string().optional(),
     architecture: z.string().optional(),
