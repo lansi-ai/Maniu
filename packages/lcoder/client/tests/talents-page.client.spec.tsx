@@ -1,0 +1,185 @@
+// @vitest-environment jsdom
+/** 人才库页的权限分支、删除引用拦截与项目库未绑定态。 */
+import { act } from 'react'
+import { createRoot, type Root } from 'react-dom/client'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { translate, type MessageKey } from '../src/locale.ts'
+import { TalentsPage } from '../src/pages/talents.tsx'
+import type { TalentRow } from '../src/talents/model.ts'
+import type { TalentsHandle } from '../src/talents/use-talents.ts'
+import type { ProjectScope } from '../src/workspace/use-workspaces.ts'
+
+const t = (key: MessageKey, params?: Readonly<Record<string, string | number>>): string =>
+  translate('zh', key, params)
+
+const PROJECT: ProjectScope = {
+  workspaceId: 'workspace-1',
+  path: 'E:/repo',
+  title: 'Repo',
+  scopeSessionId: 'session-scope',
+}
+
+function talent(id: string, overrides: Partial<TalentRow> = {}): TalentRow {
+  return {
+    id,
+    scope: 'global',
+    projectId: null,
+    ownerUserId: 'u1',
+    createdBy: 'user',
+    name: `人才 ${id}`,
+    description: '说明',
+    config: { version: 1 },
+    revision: 1,
+    canManage: true,
+    createdAt: '2026-11-16T10:00:00.000Z',
+    updatedAt: '2026-11-16T10:00:00.000Z',
+    ...overrides,
+  }
+}
+
+function handleOf(overrides: Partial<TalentsHandle> = {}): TalentsHandle {
+  return {
+    catalog: { plugins: [], presets: [] },
+    catalogError: null,
+    project: null,
+    projectError: null,
+    global: [],
+    projectTalents: [],
+    loading: false,
+    error: null,
+    applyErrors: {},
+    applied: new Set<string>(),
+    busy: false,
+    presetNames: {},
+    reload: vi.fn(),
+    create: vi.fn(async () => null),
+    update: vi.fn(async () => null),
+    remove: vi.fn(async () => null),
+    checkRefs: vi.fn(async () => ({ ok: true as const, sessionIds: [] })),
+    ...overrides,
+  }
+}
+
+let container: HTMLDivElement
+let root: Root
+
+beforeEach(() => {
+  Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', { configurable: true, value: true })
+  container = document.createElement('div')
+  document.body.append(container)
+  root = createRoot(container)
+})
+
+afterEach(() => {
+  act(() => { root.unmount() })
+  container.remove()
+})
+
+async function press(testId: string): Promise<void> {
+  const node = container.querySelector(`[data-testid="${testId}"]`)
+  expect(node).not.toBeNull()
+  await act(async () => {
+    ;(node as HTMLElement).click()
+    await new Promise(resolve => setTimeout(resolve, 0))
+  })
+}
+
+function render(talents: TalentsHandle, project: ProjectScope | null = null): void {
+  act(() => {
+    root.render(
+      <TalentsPage
+        t={t}
+        userId="u1"
+        project={project}
+        sessions={[]}
+        talents={talents}
+        onStartSession={async () => ({ ok: true, message: '' })}
+      />,
+    )
+  })
+}
+
+describe('人才库页', () => {
+  it('空库给可读空态，加载时给加载态', () => {
+    render(handleOf())
+    expect(container.querySelector('[data-testid="talent-empty"]')?.textContent).toContain('还没有全局人才')
+    act(() => { root.unmount() })
+    root = createRoot(container)
+    render(handleOf({ loading: true }))
+    expect(container.querySelector('[data-testid="talents-loading"]')).not.toBeNull()
+  })
+
+  it('他人创建的人才保留卡片，但隐藏改删并说明归属', () => {
+    const mine = talent('a')
+    const others = talent('b', { name: '别人的', ownerUserId: 'u2', canManage: false, createdBy: 'ai' })
+    render(handleOf({ global: [mine, others], applied: new Set(['a', 'b']) }))
+    const cards = container.querySelectorAll('[data-testid="talent-card"]')
+    expect(cards).toHaveLength(2)
+    const other = container.querySelector('[data-talent-id="b"]')
+    expect(other?.querySelector('[data-testid="talent-edit"]')).toBeNull()
+    expect(other?.querySelector('[data-testid="talent-delete"]')).toBeNull()
+    expect(other?.querySelector('[data-testid="talent-cannot-manage"]')?.textContent).toContain('owner')
+    expect(container.querySelector('[data-talent-id="a"] [data-testid="talent-edit"]')).not.toBeNull()
+  })
+
+  it('删除前查会话引用，有引用时拦住并列出会话', async () => {
+    const checkRefs = vi.fn(async () => ({ ok: true as const, sessionIds: ['session-1', 'session-2'] }))
+    const remove = vi.fn(async () => null)
+    render(handleOf({ global: [talent('a')], applied: new Set(['a']), checkRefs, remove }))
+    await press('talent-delete')
+    expect(checkRefs).toHaveBeenCalledWith('a')
+    expect(remove).not.toHaveBeenCalled()
+    const blocked = container.querySelector('[data-testid="talent-delete-blocked"]')
+    expect(blocked?.textContent).toContain('2 条本机会话')
+    expect(blocked?.textContent).toContain('session-1')
+    expect(container.querySelector('[data-testid="talent-delete-confirm"]')).toBeNull()
+  })
+
+  it('没有引用时先确认再删除', async () => {
+    const remove = vi.fn(async () => null)
+    render(handleOf({ global: [talent('a')], applied: new Set(['a']), remove }))
+    await press('talent-delete')
+    expect(container.querySelector('[data-testid="talent-delete-confirm"]')).not.toBeNull()
+    await press('talent-delete-confirm')
+    expect(remove).toHaveBeenCalledWith('a')
+  })
+
+  it('项目身份就绪时直接展示项目库，没有启用按钮', () => {
+    const projectTalent = talent('p1', { name: '项目人才', scope: 'project', projectId: 'project-1' })
+    render(handleOf({
+      project: { path: 'E:/repo', projectId: 'project-1', state: 'ready' },
+      projectTalents: [projectTalent],
+      applied: new Set(['p1']),
+    }), PROJECT)
+    expect(container.querySelector('[data-testid="talent-list-project"]')).not.toBeNull()
+    expect(container.querySelector('[data-testid="talent-project-enable"]')).toBeNull()
+    expect(container.querySelector('[data-testid="talent-create-project"]')).not.toBeNull()
+  })
+
+  it('老项目缺 projectId 时只显示补写中的加载态，没有手动入口', () => {
+    render(handleOf({
+      project: { path: 'E:/repo', projectId: null, state: 'unbound' },
+    }), PROJECT)
+    expect(container.querySelector('[data-testid="talent-project-pending"]')).not.toBeNull()
+    expect(container.querySelector('[data-testid="talent-project-enable"]')).toBeNull()
+  })
+
+  it('没有项目时项目库只提示先选项目', () => {
+    render(handleOf())
+    expect(container.querySelector('[data-testid="talent-project-missing"]')?.textContent).toContain('先选择一个项目')
+  })
+
+  it('下发失败只显示在该人才卡片上', () => {
+    render(handleOf({
+      global: [talent('a'), talent('b', { name: '第二个' })],
+      applyErrors: { a: 'agent-talent/unknown-plugin: missing' },
+      applied: new Set(['b']),
+    }))
+    const first = container.querySelector('[data-talent-id="a"]')
+    expect(first?.textContent).toContain('下发失败')
+    expect(first?.querySelector('[data-testid="talent-start"]')?.hasAttribute('disabled')).toBe(true)
+    const second = container.querySelector('[data-talent-id="b"]')
+    expect(second?.textContent).not.toContain('下发失败')
+    expect(second?.querySelector('[data-testid="talent-start"]')?.hasAttribute('disabled')).toBe(false)
+  })
+})

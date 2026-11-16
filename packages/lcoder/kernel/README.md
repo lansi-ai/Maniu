@@ -62,6 +62,8 @@ The plugin mounts as a row through the patch layer; it has no `dsh plugin add` i
 
 `tools`, `model`, and `budget` compose a `@lcoder/kernel/talents-policy` row at the end of the preset. `tools` is a whitelist: at Agent creation the policy narrows the tool surface to the named tools, an empty list (or no list) does not restrict, and a name the mounted preset does not expose fails with `agent-talent/unknown-tool` before the talent is registered. `model` becomes the model selection of a newly started session; a resumed session keeps its recorded selection. `budget` stays cloud-side: every model request on the `lcoder-cloud` route carries `x-lcoder-session-id`, plus `x-lcoder-talent-id` when the session's preset is a registered talent, so the gateway can meter and cap that talent per session.
 
+The same plugin exposes the read-only form catalog and project identity. `agentTalents/catalog` lists the locally resolvable plugin packages named by the root Loader and preset compositions, plus the non-talent base presets; `agentTalents/presetTools` reads one base preset's current tool surface so a whitelist can only name tools it exposes. `agentTalents/projectIdentity` reads `.spec/project.yaml` below the given project path (or a scope session's `cwd`) without writing it. New projects get their `projectId` from `project_draft` when the file is first registered; for an existing file that lacks the field, the client calls `agentTalents/ensureProjectId` automatically once and the write is idempotent. A missing `.spec/project.yaml` is never given an invented id.
+
 -----
 
 <a id="understand-the-implementation"></a>

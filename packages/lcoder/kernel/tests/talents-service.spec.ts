@@ -5,6 +5,9 @@
  */
 import { Context } from '@deepseek-ai/cordis'
 import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { AgentTalents } from '../src/talents/service.ts'
 import type { PresetDefinition } from '@deepseek-ai/dsh-agent-preset-registry'
@@ -44,6 +47,32 @@ class FakePresets {
 
   definitionScope(id: string): string | undefined {
     return this.definitions.has(id) ? `scope:${id}` : undefined
+  }
+
+  async list(): Promise<{ id: string; name?: string; broken?: string }[]> {
+    return [...this.definitions.values()].map(definition => ({
+      id: definition.id,
+      ...definition.name === undefined ? {} : { name: definition.name },
+      ...this.broken.has(definition.id) ? { broken: 'activation exploded' } : {},
+    }))
+  }
+
+  async compositionInventory(): Promise<{
+    id: string
+    name?: string
+    isDefault: boolean
+    broken?: string
+    rows: { moduleName: string; enabled: boolean }[]
+  }[]> {
+    return [...this.definitions.values()].map(definition => ({
+      id: definition.id,
+      ...definition.name === undefined ? {} : { name: definition.name },
+      isDefault: definition.id === 'standard',
+      ...this.broken.has(definition.id) ? { broken: 'activation exploded' } : {},
+      rows: (definition.plugins ?? []).flatMap(row => 'name' in row && typeof row.name === 'string'
+        ? [{ moduleName: row.name, enabled: true }]
+        : []),
+    }))
   }
 }
 
@@ -253,5 +282,117 @@ describe('talent registry service', () => {
     await h.service.disposeTalents()
     expect(h.presets.disposals).toEqual(['talent-a1', 'talent-a2'])
     expect(h.presets.definitions.has('standard')).toBe(true)
+  })
+})
+
+describe('talent catalog', () => {
+  it('lists resolvable plugin rows and excludes talent presets from the base roster', async () => {
+    const h = fixture({
+      id: 'standard',
+      name: '标准',
+      plugins: [
+        { id: 'persona', name: '@deepseek-ai/dsh-persona' },
+        { id: 'todo', name: '@deepseek-ai/dsh-tool-todo' },
+      ],
+    })
+    h.installed.add('@deepseek-ai/dsh-tool-todo')
+    h.presets.definitions.set('talent-a1', { id: 'talent-a1', plugins: [{ name: '@lcoder/kernel' }] })
+    h.presets.definitions.set('lcoder', { id: 'lcoder', name: '实施', plugins: [] })
+    const catalog = await h.service.catalog()
+    expect(catalog.presets).toEqual([
+      { id: 'lcoder', name: '实施', isDefault: false },
+      { id: 'standard', name: '标准', isDefault: true },
+    ])
+    expect(catalog.plugins.map(plugin => plugin.name)).toEqual([
+      '@deepseek-ai/dsh-persona', '@deepseek-ai/dsh-tool-todo', '@lcoder/kernel',
+    ])
+  })
+
+  it('drops a row the host cannot resolve and keeps broken presets visible', async () => {
+    const h = fixture({
+      id: 'standard',
+      plugins: [
+        { id: 'persona', name: '@deepseek-ai/dsh-persona' },
+        { id: 'missing', name: '@fixture/not-installed' },
+      ],
+    })
+    h.presets.broken.add('lcoder')
+    h.presets.definitions.set('lcoder', { id: 'lcoder', plugins: [] })
+    const catalog = await h.service.catalog()
+    expect(catalog.plugins.map(plugin => plugin.name)).toEqual(['@deepseek-ai/dsh-persona'])
+    expect(catalog.presets.find(preset => preset.id === 'lcoder')?.broken).toBe('activation exploded')
+  })
+
+  it('reads the tool surface of one base preset and explains an unusable one', async () => {
+    const h = fixture()
+    const tools = await h.service.presetTools('standard')
+    expect(tools).toEqual({
+      presetId: 'standard',
+      tools: [
+        { name: 'edit', description: undefined },
+        { name: 'read', description: undefined },
+        { name: 'write', description: undefined },
+      ],
+    })
+    expect((await h.service.presetTools('absent')).broken).toContain('unknown agent preset')
+    h.presets.broken.add('standard')
+    expect((await h.service.presetTools('standard')).broken).toBe('activation exploded')
+  })
+})
+
+describe('project identity', () => {
+  function projectFixture(text?: string): { readonly root: string; readonly cleanup: () => void } {
+    const root = mkdtempSync(join(tmpdir(), 'lcoder-talent-project-'))
+    mkdirSync(join(root, '.spec'), { recursive: true })
+    if (text !== undefined) writeFileSync(join(root, '.spec', 'project.yaml'), text, 'utf8')
+    return { root, cleanup: () => { rmSync(root, { recursive: true, force: true }) } }
+  }
+
+  const REGISTERED = 'kind: web\nrepo:\n  url: repo\n  branch: main\n'
+
+  it('reads an existing projectId and never writes the file', async () => {
+    const h = fixture()
+    const project = projectFixture(`${REGISTERED}projectId: 0f4c2f3e-1f4a-4d5e-8a1b-2c3d4e5f6a7b\n`)
+    try {
+      expect(await h.service.projectIdentity({ path: project.root })).toEqual({
+        projectId: '0f4c2f3e-1f4a-4d5e-8a1b-2c3d4e5f6a7b',
+        state: 'ready',
+      })
+      const before = readFileSync(join(project.root, '.spec', 'project.yaml'), 'utf8')
+      await h.service.projectIdentity({ path: project.root })
+      expect(readFileSync(join(project.root, '.spec', 'project.yaml'), 'utf8')).toBe(before)
+    } finally {
+      project.cleanup()
+    }
+  })
+
+  it('reports an unbound project, then writes a stable id only when asked', async () => {
+    const h = fixture()
+    const project = projectFixture(REGISTERED)
+    try {
+      expect((await h.service.projectIdentity({ path: project.root })).state).toBe('unbound')
+      const written = await h.service.ensureProjectId({ path: project.root })
+      expect(written.state).toBe('ready')
+      expect(written.projectId).toMatch(/^[0-9a-f-]{36}$/u)
+      expect(readFileSync(join(project.root, '.spec', 'project.yaml'), 'utf8')).toContain(String(written.projectId))
+      expect((await h.service.ensureProjectId({ path: project.root })).projectId).toBe(written.projectId)
+    } finally {
+      project.cleanup()
+    }
+  })
+
+  it('distinguishes a missing project file, an invalid file and missing context', async () => {
+    const h = fixture()
+    const empty = projectFixture()
+    const invalid = projectFixture('kind: web\n')
+    try {
+      expect((await h.service.projectIdentity({ path: empty.root })).state).toBe('missing-project')
+      expect((await h.service.projectIdentity({ path: invalid.root })).state).toBe('invalid')
+      expect((await h.service.projectIdentity({})).state).toBe('missing-context')
+      expect((await h.service.ensureProjectId({ path: empty.root })).state).toBe('missing-project')
+    } finally {
+      empty.cleanup()
+      invalid.cleanup()
+    }
   })
 })

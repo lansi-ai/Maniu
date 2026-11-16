@@ -62,6 +62,8 @@ kind: "package-reference"
 
 `tools`、`model` 与 `budget` 在 preset 末尾生成 `@lcoder/kernel/talents-policy` 行。`tools` 是白名单：Agent 创建时策略把工具面收窄到列出的工具，空列表或缺省不限制，列出的工具不在已挂载 preset 的工具面上时报 `agent-talent/unknown-tool` 并拒绝登记。`model` 写入新启动会话的模型选择；恢复的会话保持它记录的模型。`budget` 留在云端：`lcoder-cloud` 路由上的每次模型请求都带 `x-lcoder-session-id`，会话 preset 是已登记人才时再带 `x-lcoder-talent-id`，网关据此按会话计量并限制该人才。
 
+同一个插件还提供只读的表单清单与项目身份。`agentTalents/catalog` 列出根 Loader 与 preset 组合里出现过、且本机可解析的插件包，以及非人才的 base preset；`agentTalents/presetTools` 读一个 base preset 当前的工具面，让白名单只能写它真正暴露的工具。`agentTalents/projectIdentity` 读项目路径（或作用域会话 `cwd`）下的 `.spec/project.yaml`，本身不写文件。新项目在 `project_draft` 首次登记时就写入 `projectId`；老文件缺字段时由客户端自动调用一次 `agentTalents/ensureProjectId`，重复调用幂等。缺 `.spec/project.yaml` 的项目不会凭空得到 id。
+
 -----
 
 <a id="understand-the-implementation"></a>

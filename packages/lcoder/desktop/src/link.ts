@@ -19,6 +19,10 @@ const UNARY_ALLOWED = new Set([
   'lcoderCloud/me',
   'lcoderCloud/logout',
   'lcoderCloud/usage',
+  'lcoderCloud/talents',
+  'lcoderCloud/createTalent',
+  'lcoderCloud/updateTalent',
+  'lcoderCloud/deleteTalent',
   'session/list',
   'session/create',
   'session/prompt',
@@ -50,6 +54,10 @@ const UNARY_ALLOWED = new Set([
   'agentTalents/applyTalents',
   'agentTalents/removeTalent',
   'agentTalents/sessionRefs',
+  'agentTalents/catalog',
+  'agentTalents/presetTools',
+  'agentTalents/projectIdentity',
+  'agentTalents/ensureProjectId',
 ])
 
 /** 渲染端允许打开的流式方法。 */

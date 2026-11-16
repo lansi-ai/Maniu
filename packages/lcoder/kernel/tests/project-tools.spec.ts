@@ -51,18 +51,22 @@ describe('项目信息工具', () => {
       repo: { url: 'E:/Projects/intake-demo', branch: 'main' },
       docs: { product: 'prd.md#4.2' },
     })
+    expect(info.projectId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u)
+    expect(r.project_id).toBe(info.projectId)
   })
 
-  it('文件已存在 → 只回读现值，不覆盖人写过的内容', async () => {
+  it('文件已存在 → 只回读现值，不覆盖人写过的内容，也不补 projectId', async () => {
     const { spec } = makeEmptyRepo()
     mkdirSync(spec, { recursive: true })
     const path = join(spec, 'project.yaml')
-    writeFileSync(path, 'kind: library\nrepo:\n  url: https://example.invalid/kept\n  branch: trunk\n', 'utf8')
+    const original = 'kind: library\nrepo:\n  url: https://example.invalid/kept\n  branch: trunk\n'
+    writeFileSync(path, original, 'utf8')
 
     const r = await call(spec, 'project_draft', { ...ANSWERED, repo_url: 'E:/Projects/other' })
 
     expect(r).toMatchObject({ created: false, repo_url: 'https://example.invalid/kept', repo_branch: 'trunk' })
     expect(readFileSync(path, 'utf8')).toContain('https://example.invalid/kept')
+    expect(readFileSync(path, 'utf8')).toBe(original)
   })
 
   it('登记项目追加轨；与内置轨重名或重复被拒', async () => {

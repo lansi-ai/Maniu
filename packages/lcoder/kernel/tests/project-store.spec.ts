@@ -64,12 +64,14 @@ describe('projectId', () => {
     expect(readFileSync(projectPath(spec), 'utf8')).toBe(before)
   })
 
-  it('连续调用返回同一个 id', () => {
+  it('连续调用返回同一个 id，第二次不再写文件', () => {
     const spec = makeSpec()
     writeFileSync(projectPath(spec), stringifyYaml(LEGACY), 'utf8')
 
     const first = ensureProjectId(spec)
+    const written = readFileSync(projectPath(spec), 'utf8')
     expect(ensureProjectId(spec)).toBe(first)
+    expect(readFileSync(projectPath(spec), 'utf8')).toBe(written)
     expect(loadProject(spec)?.projectId).toBe(first)
   })
 

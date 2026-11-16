@@ -14,7 +14,7 @@ import { ProjectsPage } from './pages/projects.tsx'
 import { RequirementsPage } from './pages/requirements.tsx'
 import { SettingsPage } from './pages/settings.tsx'
 import { TasksPage } from './pages/tasks.tsx'
-import { RolesPage } from './pages/roles.tsx'
+import { TalentsPage } from './pages/talents.tsx'
 import { ChatView } from './shell/chat-view.tsx'
 import { PendingCards, type AnswerResult } from './shell/pending-cards.tsx'
 import { GateChrome } from './shell/gate-chrome.tsx'
@@ -31,9 +31,10 @@ import {
 import { interactionOf, type PendingInteraction } from './chat/pending.ts'
 import { useSessionControl } from './chat/use-session-control.ts'
 import { createFrameBatcher, type FrameBatcher } from './chat/stream-batch.ts'
+import { useTalents } from './talents/use-talents.ts'
 
 /** 工作台页面。 */
-type PageId = 'chat' | 'requirements' | 'tasks' | 'projects' | 'project-info' | 'roles' | 'settings' | 'account'
+type PageId = 'chat' | 'requirements' | 'tasks' | 'projects' | 'project-info' | 'talents' | 'settings' | 'account'
 
 /** 新会话默认使用的角色；工作台作用域会话靠它拿到人机命令面。 */
 const WORKBENCH_PRESET = 'lcoder-workbench'
@@ -54,7 +55,7 @@ const NAV_TOP: readonly NavItem[] = [
 const NAV_BOTTOM: readonly NavItem[] = [
   { id: 'projects', key: 'nav.projects' },
   { id: 'project-info', key: 'nav.projectInfo' },
-  { id: 'roles', key: 'nav.roles' },
+  { id: 'talents', key: 'nav.talents' },
   { id: 'settings', key: 'nav.settings' },
 ]
 
@@ -132,6 +133,10 @@ export function App(): JSX.Element {
   const workspaces = useWorkspaceList(host.kind === 'ready')
   const projection = useProjection(project?.scopeSessionId ?? null, host.kind === 'ready')
   const control = useSessionControl(host.kind === 'ready')
+  const talents = useTalents({
+    signedIn: cloud.state?.signedIn === true,
+    projectPath: project?.path ?? null,
+  })
 
   const streamRef = useRef<string | null>(null)
   const activeRef = useRef<string | null>(null)
@@ -444,6 +449,25 @@ export function App(): JSX.Element {
     return true
   }, [createAndSelect])
 
+  /** 从人才卡新建一条绑定该人才 preset 的会话。 */
+  const startTalentSession = useCallback(async (presetId: string): Promise<{
+    readonly ok: boolean
+    readonly message: string
+  }> => {
+    const created = await window.lcoder.call('session', 'create', {
+      request: { ...project === null ? {} : { workspaceId: project.workspaceId }, agentPreset: presetId },
+    })
+    if (!created.ok) return { ok: false, message: `${created.error.code}: ${created.error.message}` }
+    const value = created.value
+    if (!isRecord(value) || typeof value.sessionId !== 'string') {
+      return { ok: false, message: 'session.create 返回了无法识别的会话' }
+    }
+    selectSession(value.sessionId)
+    setPage('chat')
+    await loadSessions()
+    return { ok: true, message: '' }
+  }, [loadSessions, project, selectSession])
+
   const chooseWorkspace = useCallback(async (workspace: WorkspaceRow) => {
     setProjectNotice(null)
     let scope = await ensureScopeSession(workspace, sessions, WORKBENCH_PRESET)
@@ -641,6 +665,7 @@ export function App(): JSX.Element {
                 availability={availability}
                 usage={usage}
                 composerRef={composerRef}
+                talentNames={talents.presetNames}
                 onSelect={selectSession}
                 onCreate={createSession}
                 onSend={send}
@@ -713,11 +738,14 @@ export function App(): JSX.Element {
               />
             )}
 
-            {page === 'roles' && (
-              <RolesPage
-                projection={projection.projection}
+            {page === 'talents' && (
+              <TalentsPage
+                t={t}
+                userId={cloud.state?.user?.id ?? null}
+                project={project}
                 sessions={sessions}
-                reloadToken={0}
+                talents={talents}
+                onStartSession={startTalentSession}
               />
             )}
           </div>

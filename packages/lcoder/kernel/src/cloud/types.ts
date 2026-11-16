@@ -4,6 +4,7 @@
  * 这里只放能过 JSON round trip 的事实；访问令牌、刷新令牌、密码与验证码
  * 从不出现在任何返回值里。错误统一带 `code`，界面按码分支，不解析 `message`。
  */
+import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 
 /** 用户令牌对应的 provider 路由。 */
 export const CLOUD_USER_ROUTE = 'lcoder-cloud'
@@ -212,4 +213,91 @@ export interface CloudGuestClaimInput {
 export interface CloudRouteInput {
   readonly sessionId: string
   readonly mode: 'user' | 'guest'
+}
+
+/** 人才库的两级作用域。 */
+export type CloudTalentScope = 'global' | 'project'
+
+/** 人才保存者：人还是项目 agent。 */
+export type CloudTalentCreatedBy = 'user' | 'ai'
+
+/** 人才引用的一行本机插件。 */
+export interface CloudTalentPlugin {
+  readonly name: string
+  readonly config?: Readonly<Record<string, JsonValue>>
+}
+
+/** 人才默认模型。 */
+export interface CloudTalentModel {
+  readonly provider: string
+  readonly modelId: string
+}
+
+/** 人才单会话预算，单位微美元与请求数。 */
+export interface CloudTalentBudget {
+  readonly maxCostMicroUsd?: number
+  readonly maxRequestsPerSession?: number
+}
+
+/** 云端版本化人才配置；结构校验在云端与服务端宿主各做一次。 */
+export interface CloudTalentConfig {
+  readonly version: number
+  readonly basePreset?: string
+  readonly persona?: string
+  readonly plugins?: readonly CloudTalentPlugin[]
+  readonly tools?: readonly string[]
+  readonly model?: CloudTalentModel
+  readonly budget?: CloudTalentBudget
+}
+
+/** 一条云端人才及其当前账号的权限。 */
+export interface CloudTalent {
+  readonly id: string
+  readonly scope: CloudTalentScope
+  readonly projectId: string | null
+  readonly ownerUserId: string
+  readonly createdBy: CloudTalentCreatedBy
+  readonly name: string
+  readonly description: string
+  readonly config: CloudTalentConfig
+  readonly revision: number
+  /** 当前账号能否改删；由云端按创建者与项目 owner 判定。 */
+  readonly canManage: boolean
+  readonly createdAt: string
+  readonly updatedAt: string
+}
+
+/** 人才列表。 */
+export interface CloudTalents {
+  readonly items: readonly CloudTalent[]
+}
+
+/** 人才列表查询；全局与项目分两次读。 */
+export interface CloudTalentsQuery {
+  readonly scope?: CloudTalentScope
+  readonly projectId?: string
+}
+
+/** 新建人才的入参。 */
+export interface CloudCreateTalentInput {
+  readonly scope: CloudTalentScope
+  readonly projectId?: string
+  readonly createdBy?: CloudTalentCreatedBy
+  readonly name: string
+  readonly description?: string
+  readonly config: CloudTalentConfig
+}
+
+/** 更新人才的入参；`expectedRevision` 命中才写入。 */
+export interface CloudUpdateTalentInput {
+  readonly id: string
+  readonly name?: string
+  readonly description?: string
+  readonly config?: CloudTalentConfig
+  readonly expectedRevision?: number
+}
+
+/** 删除人才的入参。 */
+export interface CloudDeleteTalentInput {
+  readonly id: string
 }

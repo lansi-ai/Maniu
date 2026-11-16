@@ -105,6 +105,73 @@ export interface TalentSessionRef {
   readonly sessionIds: readonly string[]
 }
 
+/** 一个可选的本机插件包。 */
+export interface TalentCatalogPlugin {
+  /** 包名；提交进人才 `config.plugins[].name`。 */
+  readonly name: string
+  /** 本机包清单里声明的版本；无版本字段时缺省。 */
+  readonly version?: string
+}
+
+/** 一个可作为基础 preset 的声明。 */
+export interface TalentCatalogPreset {
+  /** preset id。 */
+  readonly id: string
+  /** 显示名。 */
+  readonly name?: string
+  /** 是否为新会话的默认 preset。 */
+  readonly isDefault: boolean
+  /** 激活失败的诊断；能用时缺省。 */
+  readonly broken?: string
+}
+
+/** 表单需要的本机只读清单。 */
+export interface TalentCatalog {
+  /** 本机可解析的插件包，按包名排序。 */
+  readonly plugins: readonly TalentCatalogPlugin[]
+  /** 可作为基础 preset 的声明；不含 `talent-` 动态预设。 */
+  readonly presets: readonly TalentCatalogPreset[]
+}
+
+/** 基础 preset 工具面上的一个工具。 */
+export interface TalentCatalogTool {
+  /** 模型看到的工具名；白名单写这个值。 */
+  readonly name: string
+  /** 工具说明。 */
+  readonly description: string
+}
+
+/** 一个基础 preset 的工具面。 */
+export interface TalentPresetTools {
+  /** 查询的 preset id。 */
+  readonly presetId: string
+  /** 工具面；激活失败时为空。 */
+  readonly tools: readonly TalentCatalogTool[]
+  /** preset 不可用的原因；可用时缺省。 */
+  readonly broken?: string
+}
+
+/** 项目身份查询的上下文：项目工作区路径优先，其次会话 cwd。 */
+export interface TalentProjectInput {
+  /** 项目根目录（`.spec` 的父目录）。 */
+  readonly path?: string
+  /** 作用域会话 id；没有路径时用它取 `header.cwd`。 */
+  readonly sessionId?: string
+}
+
+/** 项目身份的三种可解释结果。 */
+export type TalentProjectState = 'ready' | 'unbound' | 'missing-project' | 'missing-context' | 'invalid'
+
+/** 当前项目的稳定身份。 */
+export interface TalentProjectIdentity {
+  /** 已登记的 UUID；未登记或读取失败时为 null。 */
+  readonly projectId: string | null
+  /** 结果分支。 */
+  readonly state: TalentProjectState
+  /** 诊断用的人话；ready 时缺省。 */
+  readonly detail?: string
+}
+
 declare module '@deepseek-ai/dsh-typert-protocol' {
   interface RemoteErrorDetailsMap {
     /** 人才输入不符合本地契约。 */
