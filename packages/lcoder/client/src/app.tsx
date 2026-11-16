@@ -618,7 +618,6 @@ export function App(): JSX.Element {
       {gateKind === 'ready' && (
         <main className="shell" data-testid="workspace">
           <nav className="nav lg-glass" data-testid="nav">
-            <div className="nav-brand">{t('app.name')}</div>
             {nav.top.map(navButton)}
             <div className="nav-bottom">
               {nav.bottom.map(navButton)}
@@ -658,7 +657,6 @@ export function App(): JSX.Element {
                 projection={projection.projection}
                 sessions={sessions}
                 loading={projection.loading}
-                error={projection.error}
                 intakeResult={intakeResult}
                 onClearIntakeResult={() => { setIntakeResult(null) }}
                 onReload={projection.reload}

@@ -17,7 +17,6 @@ export interface RequirementsPageProps {
   readonly projection: SpecProjection
   readonly sessions: readonly SessionSummary[]
   readonly loading: boolean
-  readonly error: string | null
   readonly intakeResult: IntakeResult | null
   readonly onClearIntakeResult: () => void
   readonly onReload: () => void
@@ -55,7 +54,6 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
       <header className="page-head">
         <div>
           <h2>需求</h2>
-          <p className="page-sub">来自 {props.project?.path ?? '未选择项目'} 的 .spec/requirements</p>
         </div>
         <div className="page-actions">
           <input
@@ -85,7 +83,6 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
       </header>
 
       {props.project === null && <p className="empty" data-testid="requirement-no-project">先在「切换项目」里打开一个仓库。</p>}
-      {props.error !== null && <pre className="problem" data-testid="requirement-problems">{props.error}</pre>}
 
       {props.project !== null && (
         <div className="split">
