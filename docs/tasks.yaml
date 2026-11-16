@@ -2379,6 +2379,17 @@ tracks:
       dep: [T-210]
       inferred: false
       note: "B 级三修，用户 2026-11-16 在 T-210 合入并重启后仍反馈闪烁。T-210 已实测运行期 messages 无模糊面、blob 全部 paused，但侧栏、导航、chat-head、输入器仍保留 backdrop-filter，ambient-grain 仍 soft-light 混合，思考点与光标仍有循环动画。先做最强零合成模式验证：回合运行期给根节点 data-running，CSS 临时关闭所有元素的 backdrop-filter 与 mix-blend-mode，暂停 ambient 与思考点/光标动画，保留静态外观；同时桌面窗口关闭 backgroundThrottling 并加 disable-backgrounding-occluded-windows。若仍闪，下一步再用 LCODER_DISABLE_GPU=1 做 GPU 诊断。验收：运行期 CDP 核全页 backdrop-filter 数量为 0、blend 为 normal、动画 none；真实云端长回复；闪烁由用户手看；M3/C4 与门禁。工作树 pool-slot-2 到 lcoder/t212-zero-composite，端口 9823/9831/9832。2026-11-16 13:35 监督窗口登记并派工，实现线会话 d39ac2df。"
+    - id: T-213
+      title: 消息区透明根闪烁修复
+      status: doing
+      face: 用户端
+      type: 修复
+      owner: lance
+      created: '2026-11-16'
+      date: '2026-11-16'
+      dep: [T-212]
+      inferred: false
+      note: "B 级三修续，用户 2026-11-16 定位闪烁只发生在消息区且未出字时已开始。排查发现 styles.css 对 liquid-glass 把 body 设为 background transparent，窗口依赖 Electron 底色；消息区是唯一大面积直接透出负层 ambient 的滚动容器，透明根加滚动容器加负 z 背景容易在重绘时闪。修法：body 改用不透明基色，保留 ambient 在负层可见；给 .messages 加 isolation isolate、contain paint 与 translateZ(0)，ambient layer 也提升合成层；保持 T-212 零合成与 T-208 思考态。验收：CDP 核 body 计算背景非透明、ambient 仍可见、messages 有隔离层；真实云端长回复；闪烁由用户手看；若仍闪直接转 LCODER_DISABLE_GPU=1 的 GPU A/B；M3/C4 与门禁。工作树 pool-slot-2 到 lcoder/t213-opaque-root，端口 9823/9831/9832。2026-11-16 13:55 监督窗口登记并派工，实现线会话 d39ac2df。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
