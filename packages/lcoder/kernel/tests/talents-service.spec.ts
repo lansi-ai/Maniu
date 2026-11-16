@@ -41,6 +41,10 @@ class FakePresets {
   presetForSession(session: { id: string }): string | null {
     return this.livePreset.get(session.id) ?? null
   }
+
+  definitionScope(id: string): string | undefined {
+    return this.definitions.has(id) ? `scope:${id}` : undefined
+  }
 }
 
 interface Fixture {
@@ -48,8 +52,10 @@ interface Fixture {
   readonly service: AgentTalents
   readonly presets: FakePresets
   readonly installed: Set<string>
+  /** preset scope -> tool names the mounted preset exposes. */
+  readonly tools: Map<string, string[]>
   records: { header: { id: string; agentPreset?: string } }[]
-  live: Map<string, { id: string }> }
+  live: Map<string, { id: string; header?: { agentPreset?: string } }> }
 
 function fixture(base: PresetDefinition = {
   id: 'standard',
@@ -59,7 +65,8 @@ function fixture(base: PresetDefinition = {
   presets.definitions.set(base.id, base)
   const installed = new Set(['@deepseek-ai/dsh-persona', '@deepseek-ai/dsh-tool-ask-user', '@lcoder/kernel'])
   const records: Fixture['records'] = []
-  const live = new Map<string, { id: string }>()
+  const live = new Map<string, { id: string; header?: { agentPreset?: string } }>()
+  const tools = new Map<string, string[]>([[`scope:${base.id}`, ['read', 'write', 'edit']]])
   const ctx = new Context()
   ctx.provide('agentPresets', presets as never)
   ctx.provide('pluginPackages', {
@@ -67,7 +74,11 @@ function fixture(base: PresetDefinition = {
   } as never)
   ctx.provide('sessions', { get: (id: string) => live.get(id) } as never)
   ctx.provide('sessionQuery', { listSessions: async () => records } as never)
-  return { ctx, service: new AgentTalents(ctx), presets, installed, records, live }
+  ctx.provide('tools', {
+    definitions: (scope: string | undefined) => (scope === undefined ? [] : tools.get(scope) ?? ['read', 'write', 'edit'])
+      .map(name => ({ name })),
+  } as never)
+  return { ctx, service: new AgentTalents(ctx), presets, installed, tools, records, live }
 }
 
 function talent(id: string, config: Record<string, unknown> = {}): TalentApplyRequest['talents'][number] {
@@ -85,25 +96,73 @@ function codeOf(promise: Promise<unknown>): Promise<string> {
 }
 
 describe('talent registry service', () => {
-  it('registers a talent over its base preset and reports deferred fields', async () => {
+  it('registers a talent over its base preset and folds runtime knobs into a policy row', async () => {
     const h = fixture()
     const result = await h.service.applyTalents({
       talents: [talent('a1', {
         basePreset: 'standard',
         persona: '人才人设',
         plugins: [{ name: '@deepseek-ai/dsh-tool-ask-user', config: { mode: 'popup' } }],
+        tools: ['read', 'write'],
         model: { provider: 'lcoder-cloud', modelId: 'deepseek-flash' },
+        budget: { maxRequestsPerSession: 3 },
       })],
     })
     expect(result.applied).toEqual([{
-      talentId: 'a1', presetId: 'talent-a1', basePreset: 'standard', replaced: false, deferred: ['model'],
+      talentId: 'a1', presetId: 'talent-a1', basePreset: 'standard', replaced: false,
     }])
     const definition = h.presets.definitions.get('talent-a1')
     expect(definition?.name).toBe('人才 a1')
     expect(definition?.plugins).toEqual([
       { id: 'persona', name: '@deepseek-ai/dsh-persona', config: { prefix: '人才人设' } },
       { name: '@deepseek-ai/dsh-tool-ask-user', config: { mode: 'popup' } },
+      {
+        id: 'talent-policy',
+        name: '@lcoder/kernel/talents-policy',
+        config: {
+          talentId: 'a1',
+          tools: ['read', 'write'],
+          model: { provider: 'lcoder-cloud', modelId: 'deepseek-flash' },
+        },
+      },
     ])
+  })
+
+  it('rejects a whitelist naming a tool the preset does not expose', async () => {
+    const h = fixture()
+    await expect(h.service.applyTalents({
+      talents: [talent('a1', { tools: ['read', 'bash'] })],
+    })).rejects.toMatchObject({
+      code: 'agent-talent/unknown-tool',
+      details: { talentId: 'a1', tools: ['bash'] },
+    })
+    expect(h.presets.definitions.has('talent-a1')).toBe(false)
+    expect(h.presets.disposals).toEqual(['talent-a1'])
+  })
+
+  it('treats an empty tool list as no restriction and still applies the model', async () => {
+    const h = fixture()
+    await h.service.applyTalents({
+      talents: [talent('a1', { tools: [], model: { provider: 'lcoder-cloud', modelId: 'deepseek-flash' } })],
+    })
+    const plugins = h.presets.definitions.get('talent-a1')?.plugins ?? []
+    expect(plugins.at(-1)).toEqual({
+      id: 'talent-policy',
+      name: '@lcoder/kernel/talents-policy',
+      config: { talentId: 'a1', model: { provider: 'lcoder-cloud', modelId: 'deepseek-flash' } },
+    })
+  })
+
+  it('maps a live session preset back to its registered talent id', async () => {
+    const h = fixture()
+    await h.service.applyTalents({ talents: [talent('a1')] })
+    h.live.set('session-1', { id: 'session-1' })
+    h.presets.livePreset.set('session-1', 'talent-a1')
+    expect(h.service.talentIdForSession('session-1' as never)).toBe('a1')
+    expect(h.service.talentIdForSession('session-missing' as never)).toBeUndefined()
+    h.live.set('session-standard', { id: 'session-standard' })
+    h.presets.livePreset.set('session-standard', 'standard')
+    expect(h.service.talentIdForSession('session-standard' as never)).toBeUndefined()
   })
 
   it('replaces an edited talent, skips an unchanged resubmission, and keeps the base snapshot', async () => {

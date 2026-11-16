@@ -61,6 +61,8 @@ Activation auditing checks imports, missing services and globally leaked service
 
 `inspectCompositions()` reads all revisions retained by this registry; passing an Agent context selects its exact revision, or returns an empty list when it has no binding here. Each `AgentPresetInspection` contains a preset ID, detached active-module references with their resolution bases, and leaked-service names. Inspectors query the runtime service rather than a module-local mount table; the results contain no Loader trees or fibers. [composition-inventory.ts](src/composition-inventory.ts) defines these records.
 
+`definitionScope(presetId)` returns the standing scope key of the mounted revision, or undefined when no mounted revision supplies the id. Scoped registries use it to inspect the contributions a preset will give an Agent before any Agent joins that preset; the key is opaque and grants no registration access.
+
 | File | Responsibility |
 |---|---|
 | [index.ts](src/index.ts) | Registration, revisions and Agent bindings |

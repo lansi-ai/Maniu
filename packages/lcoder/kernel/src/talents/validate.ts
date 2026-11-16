@@ -8,7 +8,7 @@
 import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import type {
-  TalentApplyRequest, TalentBudgetInput, TalentConfigInput, TalentDeferredField, TalentModelInput, TalentPluginInput,
+  TalentApplyRequest, TalentBudgetInput, TalentConfigInput, TalentModelInput, TalentPluginInput,
 } from './types.ts'
 
 /** 动态 preset id 前缀；`talent-<云端 id>`。 */
@@ -66,19 +66,6 @@ export function talentIdOfPreset(presetId: string): string | undefined {
   if (!presetId.startsWith(TALENT_PRESET_PREFIX)) return undefined
   const id = presetId.slice(TALENT_PRESET_PREFIX.length)
   return TALENT_ID.test(id) ? id : undefined
-}
-
-/**
- * 列出已通过校验、但本阶段没有运行时语义的配置字段。
- * @param config - 人才配置。
- * @returns 出现的字段名，按固定顺序。
- */
-export function deferredFields(config: TalentConfigInput): TalentDeferredField[] {
-  const fields: TalentDeferredField[] = []
-  if (config.tools !== undefined) fields.push('tools')
-  if (config.model !== undefined) fields.push('model')
-  if (config.budget !== undefined) fields.push('budget')
-  return fields
 }
 
 function invalid(talentId: string, reason: string): RemoteError {

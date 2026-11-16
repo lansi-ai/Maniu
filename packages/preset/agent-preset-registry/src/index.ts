@@ -258,6 +258,19 @@ export class AgentPresetRegistry extends TypertRemoteService {
     return record === undefined ? undefined : structuredClone(record.config.plugins)
   }
 
+  /**
+   * Scope of one mounted preset revision.
+   *
+   * A scoped registry (the tool registry, for example) resolves its
+   * contributions per scope; inspecting a preset before any Agent joins it
+   * needs the same scope key Agents bind to.
+   * @param agentPreset - Preset identity.
+   * @returns The standing scope key, or undefined when no mounted revision supplies the id.
+   */
+  definitionScope(agentPreset: string): ScopeKey | undefined {
+    return this.definitions.get(agentPreset)?.generation?.key
+  }
+
   private async retain(id?: string): Promise<Generation> {
     const wanted = id ?? this.defaultId
     while (true) {

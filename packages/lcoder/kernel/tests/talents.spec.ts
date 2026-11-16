@@ -4,9 +4,11 @@
  */
 import { describe, expect, it } from 'vitest'
 import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
-import { composeTalentPlugins, PERSONA_PLUGIN } from '../src/talents/compose.ts'
 import {
-  deferredFields, presetIdOf, talentIdOfPreset, toStaticJson, validateApplyRequest,
+  composeTalentPlugins, PERSONA_PLUGIN, TALENT_POLICY_PLUGIN, TALENT_POLICY_ROW, talentPolicyConfig,
+} from '../src/talents/compose.ts'
+import {
+  presetIdOf, talentIdOfPreset, toStaticJson, validateApplyRequest,
 } from '../src/talents/validate.ts'
 import type { TalentApplyRequest } from '../src/talents/types.ts'
 
@@ -38,7 +40,6 @@ describe('talent input validation', () => {
     })
     expect(selection.talents).toHaveLength(1)
     expect(selection.talents[0]?.presetId).toBe('talent-abc-123')
-    expect(deferredFields(selection.talents[0]!.config)).toEqual(['tools', 'model', 'budget'])
     expect(presetIdOf('abc')).toBe('talent-abc')
     expect(talentIdOfPreset('talent-abc')).toBe('abc')
     expect(talentIdOfPreset('lcoder')).toBeUndefined()
@@ -103,16 +104,19 @@ describe('talent composition', () => {
     { id: 'compaction', name: 'cordis:group', group: true, config: [] as unknown[] },
   ]
 
+  function compose(config: Record<string, unknown>, talentId = 'a1', rows: typeof base = base) {
+    return composeTalentPlugins(rows, { talentId, config: { version: 1, ...config } })
+  }
+
   it('clones base rows and does not mutate the declaration', () => {
-    const rows = composeTalentPlugins(base, { version: 1, plugins: [{ name: '@deepseek-ai/dsh-tool-ask-user', config: { x: 1 } }] })
+    const rows = compose({ plugins: [{ name: '@deepseek-ai/dsh-tool-ask-user', config: { x: 1 } }] })
     expect(rows).not.toBe(base)
     expect(rows[1]).not.toBe(base[1])
     expect(base[1]).toEqual({ id: 'ask-user', name: '@deepseek-ai/dsh-tool-ask-user' })
   })
 
   it('overrides persona and a same-named plugin row in place, appends new plugins', () => {
-    const rows = composeTalentPlugins(base, {
-      version: 1,
+    const rows = compose({
       persona: '人才人设',
       plugins: [
         { name: '@deepseek-ai/dsh-tool-ask-user', config: { mode: 'popup' } },
@@ -126,15 +130,38 @@ describe('talent composition', () => {
   })
 
   it('adds a persona row when the base declares none', () => {
-    const rows = composeTalentPlugins([], { version: 1, persona: '只有人设' })
+    const rows = compose({ persona: '只有人设' }, 'a1', [])
     expect(rows).toEqual([{ name: PERSONA_PLUGIN, config: { prefix: '只有人设' } }])
   })
 
   it('removes the inherited config when the talent names the plugin without one', () => {
     const rows = composeTalentPlugins(
       [{ id: 'ask-user', name: '@deepseek-ai/dsh-tool-ask-user', config: { inherited: true } }],
-      { version: 1, plugins: [{ name: '@deepseek-ai/dsh-tool-ask-user' }] },
+      { talentId: 'a1', config: { version: 1, plugins: [{ name: '@deepseek-ai/dsh-tool-ask-user' }] } },
     )
     expect(rows).toEqual([{ id: 'ask-user', name: '@deepseek-ai/dsh-tool-ask-user' }])
+  })
+
+  it('appends the runtime policy row for tools and model, and nothing for empty tools', () => {
+    const rows = compose({
+      tools: ['read'],
+      model: { provider: 'lcoder-cloud', modelId: 'deepseek-flash' },
+    })
+    expect(rows.at(-1)).toEqual({
+      id: TALENT_POLICY_ROW,
+      name: TALENT_POLICY_PLUGIN,
+      config: { talentId: 'a1', tools: ['read'], model: { provider: 'lcoder-cloud', modelId: 'deepseek-flash' } },
+    })
+    expect(compose({ tools: ['read'] }).at(-1)).toEqual({
+      id: TALENT_POLICY_ROW, name: TALENT_POLICY_PLUGIN, config: { talentId: 'a1', tools: ['read'] },
+    })
+    expect(compose({ tools: [] })).toHaveLength(base.length)
+    expect(compose({ budget: { maxRequestsPerSession: 3 } })).toHaveLength(base.length)
+  })
+
+  it('builds the policy config from the validated talent only', () => {
+    expect(talentPolicyConfig('a1', { version: 1 })).toBeUndefined()
+    expect(talentPolicyConfig('a1', { version: 1, tools: [] })).toBeUndefined()
+    expect(talentPolicyConfig('a1', { version: 1, tools: ['read'] })).toEqual({ talentId: 'a1', tools: ['read'] })
   })
 })
