@@ -2326,7 +2326,7 @@ tracks:
       note: "B 级能力开启，来源是用户 2026-11-16 拍板按默认打开 1M 上下文与图片分析，输出上限 32K，游客仍禁图。上游 Go 的 deepseek-v4.1-flash 已验证支持 context 1000000、output 384000 与 jpeg/png/gif/webp 图片输入。范围两层。云端 LCoder-cloud：GatewayModelPolicy 的 contextWindow 提到 1000000、输出上限 32768、/v1/models 增加 supportsImages、CostFormula 的 MaxPromptTokens 与 MaxRequestBodyBytes 放宽到支持 1M 与图片（认证用户允许 image_url，游客仍拒）、提示 token 估算不要直接把 base64 当文本并给图片定额、契约与测试同步。桌面 LCoder：全部 deepseek-flash 模型条目 contextWindow 改 1000000、maxTokens 改 32768、用户路由 input 增加 image，guest 路由保持 text，client 协议不改。验收：云端 dotnet build 与测试与契约校验通过，API 重启后 /v1/models 带 1M 与图片标记；认证用户图片 chat 成功、游客图片被拒；桌面登录云端后模型显示 1M 与 32K 且能附图分析；M3 43 与 C4 12 与 client 门禁不回归；留 9823 预览。成本风险：1M 上下文与图片更吃 Go 订阅额度，输出先控制在 32K。工作树 pool-slot-2 到 lcoder/t207-context-vision，端口 9823 与 9831 与 9832。2026-11-16 10:32 监督窗口登记并派工，实现线会话 ebe012da。2026-11-16 11:20 监督窗口收口。云端两提交打开 1M 上下文、32K 输出与图片能力，API 重启后 PID 3628、health 200，/v1/models 实测 contextWindow 1000000、maxOutputTokens 32768、supportsImages true；认证用户小图 chat 200（答复 Red，billing_source=go），游客图片由单测与集成测试覆盖拒绝；云端 452 测试通过、契约 498/498。桌面 4 个 deepseek-flash 条目统一 1M/32K，用户路由加图片输入、游客保持纯文本；已合入 lcoder/main，主检 build:artifacts、build:check、test:docs 二十一项、vitest 一百零七文件一千一百九十七例全过；M3 43/43、C4 12/12 在分支通过；9823 预览显示上下文 1.00M 并能识别附图。已知：界面无 32K 展示位；客户端不持久化上游 usage 扩展；游客图片拒绝未在真实 5081 跑通（受限流），由测试覆盖。"
     - id: T-208
       title: 修复聊天流式闪烁与思考态
-      status: doing
+      status: done
       face: 用户端
       type: 修复
       owner: lance
@@ -2334,7 +2334,7 @@ tracks:
       date: '2026-11-16'
       dep: [T-207]
       inferred: false
-      note: "B 级聊天体验修复，来源是用户 2026-11-16 截图反馈：输出与思考时窗口一直闪；没有「思考中」提示；思考结束后过程不收起。根因已查：store 的 assistant-chunk 只认 text-delta，reasoning-delta 被丢弃，所以思考期没有可见状态；ProcessGroup 初始 open 为 true 且从不自动收起；流式正文每个 delta 都重绘整段消息，live 消息仍挂玻璃卡 backdrop-filter，叠加动画背景造成闪烁。修法：store 识别 reasoning-delta 并维护实时思考缓冲；聊天页在思考期显示克制的「思考中…」指示（不展示原始长链），正文开始或回合结束后移除实时块，历史过程组默认折叠、可手动展开；流式更新按 rAF 或短间隔合并，避免逐 token 重绘，live 消息改用稳定合成层/去掉 backdrop-filter，减少整窗重绘；保持现有消息、过程组与工具卡数据契约。验收：CDP 核思考指示在思考期出现、正文开始后消失，过程组完成后默认折叠；流式长文本期间无整窗闪烁（可用合成层与帧稳定性证据，真实观感由用户手看）；M3 43/43、C4 12/12、client 测试与 typecheck/build/docs/i18n/oxlint 全绿；留 9823 真实云端预览。工作树 pool-slot-2 到 lcoder/t208-chat-streaming，端口 9823 与 9831 与 9832。2026-11-16 11:35 监督窗口登记并派工，实现线会话 d39ac2df。"
+      note: "B 级聊天体验修复，来源是用户 2026-11-16 截图反馈：输出与思考时窗口一直闪；没有「思考中」提示；思考结束后过程不收起。根因已查：store 的 assistant-chunk 只认 text-delta，reasoning-delta 被丢弃，所以思考期没有可见状态；ProcessGroup 初始 open 为 true 且从不自动收起；流式正文每个 delta 都重绘整段消息，live 消息仍挂玻璃卡 backdrop-filter，叠加动画背景造成闪烁。修法：store 识别 reasoning-delta 并维护实时思考缓冲；聊天页在思考期显示克制的「思考中…」指示（不展示原始长链），正文开始或回合结束后移除实时块，历史过程组默认折叠、可手动展开；流式更新按 rAF 或短间隔合并，避免逐 token 重绘，live 消息改用稳定合成层/去掉 backdrop-filter，减少整窗重绘；保持现有消息、过程组与工具卡数据契约。验收：CDP 核思考指示在思考期出现、正文开始后消失，过程组完成后默认折叠；流式长文本期间无整窗闪烁（可用合成层与帧稳定性证据，真实观感由用户手看）；M3 43/43、C4 12/12、client 测试与 typecheck/build/docs/i18n/oxlint 全绿；留 9823 真实云端预览。工作树 pool-slot-2 到 lcoder/t208-chat-streaming，端口 9823 与 9831 与 9832。2026-11-16 11:35 监督窗口登记并派工，实现线会话 d39ac2df。2026-11-16 12:36 监督窗口收口。store 识别 reasoning-delta 并维护 liveReasoning，思考期显示三点「思考中…」且不铺思维链，正文到达即消失；过程组默认折叠、组内列表用 hidden 收起；流式改为 80ms 合并，提交行 memo 隔离，live 正文去 backdrop-filter 并独立合成层。真实云端 CDP：思考指示持续约 2.4s、思维链原文 0 字符；回合结束过程组 data-open=false；live filter none、已提交仍 blur；MutationObserver 均值 14/s、峰值 23/s。已合入 lcoder/main，主检 build:artifacts、build:check、test:docs 二十一项、vitest 一百零八文件一千二百零八例、i18n 全过；分支上 M3 43/43、C4 12/12。未验：闪烁真实观感由用户手看；其它皮肤与英文思考态、打包态与 macOS 未验。"
     - id: T-209
       title: 左侧导航底部归组
       status: done
