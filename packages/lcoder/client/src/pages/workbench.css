@@ -13,14 +13,6 @@
   border-radius: var(--lg-radius-panel);
 }
 
-.nav-brand {
-  padding: 2px 10px 10px;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  color: var(--lg-muted);
-}
-
 .nav-item {
   display: flex;
   align-items: center;
