@@ -94,7 +94,10 @@ html[data-theme='liquid-glass'] body {
 .gate-window-buttons button:active { transform: scale(0.94); }
 .gate-window-buttons button[data-role='close']:hover { background: rgba(180, 35, 24, 0.86); color: #fff; opacity: 1; }
 
-/* 标题栏：浮在环境层上的玻璃条，拖拽区仍占满左侧。 */
+/* 标题栏：静态玻璃条。
+   拖拽区不能落在 backdrop-filter 元素内：Windows 的 -webkit-app-region 靠命中测试
+   实现，模糊层会让整条标题栏只移动 1–2px。这里用半透明底、镜面内高光与细边保留
+   玻璃观感（.lg-frost 已含 backdrop-filter: none），整条标题栏可拖，控件区 no-drag。 */
 .titlebar {
   position: relative;
   z-index: 1;
@@ -105,6 +108,7 @@ html[data-theme='liquid-glass'] body {
   flex: 0 0 auto;
   padding: 0 6px 0 0;
   border-radius: var(--lg-radius-bar);
+  -webkit-app-region: drag;
 }
 
 .titlebar-drag {
