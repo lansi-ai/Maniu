@@ -2323,7 +2323,7 @@ tracks:
       date: '2026-11-16'
       dep: [T-206]
       inferred: false
-      note: "B 级能力开启，来源是用户 2026-11-16 拍板按默认打开 1M 上下文与图片分析，输出上限 32K，游客仍禁图。上游 Go 的 deepseek-v4.1-flash 已验证支持 context 1000000、output 384000 与 jpeg/png/gif/webp 图片输入。范围两层。云端 LCoder-cloud：GatewayModelPolicy 的 contextWindow 提到 1000000、输出上限 32768、/v1/models 增加 supportsImages、CostFormula 的 MaxPromptTokens 与 MaxRequestBodyBytes 放宽到支持 1M 与图片（认证用户允许 image_url，游客仍拒）、提示 token 估算不要直接把 base64 当文本并给图片定额、契约与测试同步。桌面 LCoder：全部 deepseek-flash 模型条目 contextWindow 改 1000000、maxTokens 改 32768、用户路由 input 增加 image，guest 路由保持 text，client 协议不改。验收：云端 dotnet build 与测试与契约校验通过，API 重启后 /v1/models 带 1M 与图片标记；认证用户图片 chat 成功、游客图片被拒；桌面登录云端后模型显示 1M 与 32K 且能附图分析；M3 43 与 C4 12 与 client 门禁不回归；留 9823 预览。成本风险：1M 上下文与图片更吃 Go 订阅额度，输出先控制在 32K。工作树 pool-slot-2 到 lcoder/t207-context-vision，端口 9823 与 9831 与 9832。2026-11-16 10:32 监督窗口登记并派工。"
+      note: "B 级能力开启，来源是用户 2026-11-16 拍板按默认打开 1M 上下文与图片分析，输出上限 32K，游客仍禁图。上游 Go 的 deepseek-v4.1-flash 已验证支持 context 1000000、output 384000 与 jpeg/png/gif/webp 图片输入。范围两层。云端 LCoder-cloud：GatewayModelPolicy 的 contextWindow 提到 1000000、输出上限 32768、/v1/models 增加 supportsImages、CostFormula 的 MaxPromptTokens 与 MaxRequestBodyBytes 放宽到支持 1M 与图片（认证用户允许 image_url，游客仍拒）、提示 token 估算不要直接把 base64 当文本并给图片定额、契约与测试同步。桌面 LCoder：全部 deepseek-flash 模型条目 contextWindow 改 1000000、maxTokens 改 32768、用户路由 input 增加 image，guest 路由保持 text，client 协议不改。验收：云端 dotnet build 与测试与契约校验通过，API 重启后 /v1/models 带 1M 与图片标记；认证用户图片 chat 成功、游客图片被拒；桌面登录云端后模型显示 1M 与 32K 且能附图分析；M3 43 与 C4 12 与 client 门禁不回归；留 9823 预览。成本风险：1M 上下文与图片更吃 Go 订阅额度，输出先控制在 32K。工作树 pool-slot-2 到 lcoder/t207-context-vision，端口 9823 与 9831 与 9832。2026-11-16 10:32 监督窗口登记并派工，实现线会话 ebe012da。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
