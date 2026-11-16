@@ -28,7 +28,7 @@ export function Titlebar({
 }: TitlebarProps): JSX.Element {
   const toggleMaximize = (): void => { void window.lcoder.window('toggle-maximize') }
   return (
-    <header className="titlebar lg-glass" data-testid="titlebar" data-maximized={windowState.maximized ? 'true' : 'false'}>
+    <header className="titlebar lg-frost" data-testid="titlebar" data-maximized={windowState.maximized ? 'true' : 'false'}>
       <div
         className="titlebar-drag"
         onDoubleClick={toggleMaximize}
