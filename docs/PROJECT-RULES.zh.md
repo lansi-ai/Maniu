@@ -38,7 +38,7 @@
 | 产品自动化策略（按动作开关、停止条件、任务范围） | `.spec/automation.yaml` |
 | 常驻调度会话（每仓一条智能调度与一条流程控制） | `.spec/agents.yaml`（`schedulerSession`、`flowSession`） |
 | 岗位名册（轻量岗位，继承内置角色天花板） | `.spec/roles.yaml` |
-| 流程配置（内置节点、逐节点岗位与节点内自动衔接；只由人写，缺文件走预制） | `.spec/flow.yaml` |
+| 流程配置（内置节点、逐节点岗位与节点内自动衔接；只由人写，缺文件走预制，保存与读取都校验节点能力） | `.spec/flow.yaml` |
 | 产品方案（候选、推荐、决定态） | `.spec/proposals/P-<nn>.yaml`；任务用 `proposal:` 回指 |
 | 产品任务证据 | `.spec/evidence/<ID>/<name>.log` |
 | 验收命令与环境 | `.spec/env.yaml`；敏感值写 `.spec/local.yaml`，不提交 |

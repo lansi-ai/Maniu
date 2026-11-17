@@ -9,6 +9,7 @@ import { afterAll, describe, expect, it } from 'vitest'
 
 import { createFlowSaveCommand } from '../src/commands/flow-save.js'
 import { flowConfigPath, loadFlowConfig } from '../src/kernel/flow-config.js'
+import { saveRoles } from '../src/kernel/role-store.js'
 import { ROLE_TOOLS, SURFACE, UNSCOPEED_SURFACE, allowedTools } from '../src/kernel/surface.js'
 import { BUILTIN_ROLES } from '../src/schema/roles.js'
 import type { TaskState } from '../src/schema/spec.js'
@@ -23,21 +24,25 @@ function makeSpec(): string {
   dirs.push(repo)
   const root = join(repo, '.spec')
   mkdirSync(root, { recursive: true })
+  saveRoles(root, [
+    { id: 'deputy-pm', name: '副项目经理', inherits: 'pm' },
+    { id: 'dotnet-eng', name: '.NET 工程师', inherits: 'dev' },
+  ])
   return root
 }
 
 const save = (root: string, raw: string) => createFlowSaveCommand(root).handler({ rawInput: raw })
 
-const CONFIG = '{"nodes":[{"node":"review","roles":["maniu-pm","maniu-review"],"auto":true}]}'
+const CONFIG = '{"nodes":[{"node":"review","roles":["maniu-pm","deputy-pm"],"auto":true}]}'
 
 describe('flow_save 命令', () => {
   it('合法 JSON 写入 flow.yaml，回执列出节点与衔接方式', () => {
     const root = makeSpec()
     const result = save(root, CONFIG)
     expect(result.kind).toBe('success')
-    expect(result.kind === 'success' ? result.text : '').toContain('review[maniu-pm、maniu-review]自动')
+    expect(result.kind === 'success' ? result.text : '').toContain('review[maniu-pm、deputy-pm]自动')
     expect(loadFlowConfig(root).config.nodes).toEqual([
-      { node: 'review', roles: ['maniu-pm', 'maniu-review'], auto: true },
+      { node: 'review', roles: ['maniu-pm', 'deputy-pm'], auto: true },
     ])
   })
 
@@ -60,6 +65,15 @@ describe('flow_save 命令', () => {
     const ghost = save(root, '{"nodes":[{"node":"review","roles":["nobody"],"auto":true}]}')
     expect(ghost.kind).toBe('error')
     expect(ghost.kind === 'error' ? ghost.text : '').toContain('nobody')
+    expect(existsSync(flowConfigPath(root))).toBe(false)
+  })
+
+  it('节点能力不足拒绝保存：继承 dev 的岗位进不了评审节点', () => {
+    const root = makeSpec()
+    const result = save(root, '{"nodes":[{"node":"review","roles":["dotnet-eng"],"auto":true}]}')
+    expect(result.kind).toBe('error')
+    expect(result.kind === 'error' ? result.text : '').toContain('流程节点能力不足')
+    expect(result.kind === 'error' ? result.text : '').toContain('requirement_review_draft')
     expect(existsSync(flowConfigPath(root))).toBe(false)
   })
 

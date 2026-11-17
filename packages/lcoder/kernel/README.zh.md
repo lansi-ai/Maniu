@@ -60,11 +60,11 @@ kind: "package-reference"
 
 `requirement_split_plan` 只有 `manager` 角色看得见：它要求需求已是 `confirmed`，并接收非空的 `tasks` 数组，每项含 `task`、`role` 与可选的 `reason`，把需求编号、生成时刻与逐条建议写进 `.spec/requirements/<编号>/split-plan.yaml`，覆盖上一份计划。每个任务必须存在、通过 `Task.requirement` 回指该需求且仍在 `drafting`；每个岗位必须能按 `.spec/roles.yaml` 或内置角色 id 解析，同一条任务只能出现一次。它不建任务、不分配、不改状态；分配仍由人经 `/task_assign` 完成。
 
-`/requirement_approve` 要求至少一轮评审，且当前正文有对应版本快照；它把起草态需求推到 `confirmed`，写 `confirmed_at`、`approved_at` 与 `approved_version`。存在 `.spec/flow.yaml` 且配置了 `review` 节点时再加一条：每个配置岗位都要有一轮 `role` 署名等于该 id 的评审；无署名的旧评审按缺岗计，拒绝时列出缺哪些岗位。没有该文件时保持至少一轮的旧门槛。没有版本记录的需求先补 v1；正文与最新快照不一致时追加一版，保证 `approved_version` 指的就是过审的正文。`/requirement_release` 只在至少一条任务通过 `Task.requirement` 回指且这些任务全部 `closed` 时推到 `released`，否则报出未关闭的任务编号；`/requirement_close` 关闭起草或已确认的需求，并拒绝已上线的需求——它是终态。客户端投影按同一目录把每份 YAML 与同名正文合成一行，并把 `versions`、`reviews`、`approved_at` 与 `approved_version` 透传出去；`requirements/<编号>/split-plan.yaml` 存在时一并读入，缺失不报错。
+`/requirement_approve` 要求至少一轮评审，且当前正文有对应版本快照；它把起草态需求推到 `confirmed`，写 `confirmed_at`、`approved_at` 与 `approved_version`。存在 `.spec/flow.yaml` 且配置了 `review` 节点时再加一条：按配置顺序为每个条目消费一轮根匹配的署名评审，一轮只消费给一个条目——条目的根是内置 preset 的角色或名册岗位的 `inherits`，评审轮的根是署名 preset 的内置根；因此 `maniu-pm` 加一个继承 pm 的岗位需要两轮独立评审。无署名的旧轮与非内置 preset 的署名不可消费；拒绝时列出无轮可消费的条目。没有该文件时保持至少一轮的旧门槛。没有版本记录的需求先补 v1；正文与最新快照不一致时追加一版，保证 `approved_version` 指的就是过审的正文。`/requirement_release` 只在至少一条任务通过 `Task.requirement` 回指且这些任务全部 `closed` 时推到 `released`，否则报出未关闭的任务编号；`/requirement_close` 关闭起草或已确认的需求，并拒绝已上线的需求——它是终态。客户端投影按同一目录把每份 YAML 与同名正文合成一行，并把 `versions`、`reviews`、`approved_at` 与 `approved_version` 透传出去；`requirements/<编号>/split-plan.yaml` 存在时一并读入，缺失不报错。
 
 `deliverable_draft` 用必填的 `summary`、至少一条仓库相对路径的 `docs` 与可空的 `commands`，把一条任务的交付物登记成 `.spec/deliverables/<任务编号>.yaml`。每条 `docs` 必须在仓库根下解析成真实文件；绝对路径、`..` 与不存在的文件都被拒。工具按任务覆盖写，保留首次 `created_at` 并刷新 `updated_at`；它只登记索引，工程文档本身仍用 `file_edit` 写。`task_close` 在 P1、P3、P4 之后跑 D1：A 级、通用轨、或标题描述命中基础框架、脚手架、架构、技术选型的任务，必须有一份摘要非空、至少一条文档的可读索引，否则收口把 `.spec/deliverables/<任务编号>.yaml` 作为下一步报出来。普通任务不受影响。只有 `dev`、`architect` 与 `ops` 看得见这个工具，且从 `contracted` 起才可见。
 
-`.spec/flow.yaml` 是每项目一份的可选流程配置：`nodes` 里每种内置节点（`intake`、`review`、`revise`、`split`）至多一条，每条含非空有序的 `roles` 数组（内置 preset id `maniu-<角色>` 或 `.spec/roles.yaml` 岗位 id）与 `auto` 布尔。`auto` 只管节点内的多岗衔接：`true` 时前一岗产物落盘即自动发起下一岗，`false` 时停下等人点下一岗位；节点之间始终由人触发。没有该文件时走内核预制流程：立项 `maniu-intake` 人工、评审 `maniu-pm` 自动、改稿 `maniu-intake` 人工、拆分 `maniu-manager` 人工。未知节点、空岗位、重复节点与解析不了的岗位在读与写两侧都被拒绝。`/flow_save <json>` 是唯一写入口，`/flow_save preset` 删除文件恢复预制；模型没有流程配置入口。
+`.spec/flow.yaml` 是每项目一份的可选流程配置：`nodes` 里每种内置节点（`intake`、`review`、`revise`、`split`）至多一条，每条含非空有序的 `roles` 数组（内置 preset id `maniu-<角色>` 或 `.spec/roles.yaml` 岗位 id）与 `auto` 布尔。`auto` 只管节点内的多岗衔接：`true` 时前一岗产物落盘即自动发起下一岗，`false` 时停下等人点下一岗位；节点之间始终由人触发。没有该文件时走内核预制流程：立项 `maniu-intake` 人工、评审 `maniu-pm` 自动、改稿 `maniu-intake` 人工、拆分 `maniu-manager` 人工。未知节点、空岗位、重复节点与解析不了的岗位在读与写两侧都被拒绝；条目的内置根不持有该节点所需工具同样拒绝：立项要 `requirement_draft`（根 `intake`）、评审要 `requirement_review_draft`（根 `pm`）、改稿要 `requirement_revise`（根 `intake`）、拆分要 `requirement_split_plan` 与 `task_draft`（根 `manager`），所以继承 dev 的岗位进不了评审节点。`/flow_save <json>` 是唯一写入口，`/flow_save preset` 删除文件恢复预制；模型没有流程配置入口。
 
 ### 人才库宿主动态 preset
 
@@ -102,7 +102,7 @@ kind: "package-reference"
 | `src/checkers/index.ts` | P1、P3、P4、D1 收口检查器 |
 | `src/kernel/automation.ts` | `.spec/automation.yaml` 的读取、默认值与策略哈希 |
 | `src/kernel/flow.ts`、`src/kernel/flow-store.ts` | 纯函数下一步判定与 `.spec` 事实装配 |
-| `src/kernel/flow-config.ts` | `.spec/flow.yaml` 的读写、预制回落与评审署名配齐判定 |
+| `src/kernel/flow-config.ts` | `.spec/flow.yaml` 的读写、预制回落、节点能力校验与根匹配的评审署名消费 |
 | `src/commands/flow-save.ts` | 人机命令 `flow_save`，写入或恢复流程配置 |
 | `src/kernel/sign-gate.ts` | AI 自签的三道补偿闸 |
 | `src/commands/flow-status.ts`、`src/commands/flow-log.ts` | 流程判定 JSON 与逐任务动作流水 |

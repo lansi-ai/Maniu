@@ -44,7 +44,7 @@ function projectionOf(reviews: readonly RequirementReviewRow[], flow?: SpecProje
     proposals: [],
     requirements: [draftOf(reviews)],
     groups: [],
-    roles: [{ id: 'dotnet-eng', name: '.NET 工程师', inherits: 'dev' }],
+    roles: [{ id: 'deputy-pm', name: '副项目经理', inherits: 'pm' }],
     project: null,
     secrets: {},
     automation: null,
@@ -54,8 +54,8 @@ function projectionOf(reviews: readonly RequirementReviewRow[], flow?: SpecProje
   }
 }
 
-const TWO_ROLES_AUTO = { nodes: [{ node: 'review' as const, roles: ['maniu-pm', 'maniu-review'], auto: true }] }
-const TWO_ROLES_MANUAL = { nodes: [{ node: 'review' as const, roles: ['maniu-pm', 'maniu-review'], auto: false }] }
+const TWO_ROLES_AUTO = { nodes: [{ node: 'review' as const, roles: ['maniu-pm', 'deputy-pm'], auto: true }] }
+const TWO_ROLES_MANUAL = { nodes: [{ node: 'review' as const, roles: ['maniu-pm', 'deputy-pm'], auto: false }] }
 
 let container: HTMLDivElement
 let root: Root
@@ -144,14 +144,15 @@ describe('auto 节点内自动衔接', () => {
     expect(h.started).toHaveLength(1)
     expect(h.started[0]?.preset).toBe('maniu-pm')
     expect(container.querySelectorAll('.op-card')).toHaveLength(1)
-    // 多岗卡按岗位列步骤。
+    // 多岗卡按配置条目显示名列步骤。
     expect(element('requirement-op-running')?.textContent).toContain('项目经理')
-    expect(element('requirement-op-running')?.textContent).toContain('评审')
+    expect(element('requirement-op-running')?.textContent).toContain('副项目经理')
 
     h.render(projectionOf([review(1), review(2, 'maniu-pm')], TWO_ROLES_AUTO))
     await settle()
     expect(h.started).toHaveLength(2)
-    expect(h.started[1]?.preset).toBe('maniu-review')
+    // 名册岗位条目折算成继承角色的 preset 发起。
+    expect(h.started[1]?.preset).toBe('maniu-pm')
     expect(container.querySelectorAll('.op-card')).toHaveLength(1)
     expect(element('requirement-op-running')).not.toBeNull()
     expect(element('op-next-role')).toBeNull()
@@ -159,14 +160,14 @@ describe('auto 节点内自动衔接', () => {
     expect(steps[0]?.className).toContain('op-step-done')
     expect(steps[1]?.className).toContain('op-step-active')
 
-    h.render(projectionOf([review(1), review(2, 'maniu-pm'), review(3, 'maniu-review')], TWO_ROLES_AUTO))
+    h.render(projectionOf([review(1), review(2, 'maniu-pm'), review(3, 'maniu-pm')], TWO_ROLES_AUTO))
     await settle()
     expect(element('requirement-op-running')).toBeNull()
     expect(element('requirement-op-success')?.textContent).toContain('评审完成')
     expect(h.started).toHaveLength(2)
   })
 
-  it('增轮但署名不匹配当前岗时不算完成，不发起下一岗', async () => {
+  it('增轮但最新一轮署名根不匹配当前条目时不算完成，不发起下一岗', async () => {
     const h = harness()
     h.render(projectionOf([review(1)], TWO_ROLES_AUTO))
     await press('requirement-op-review')
@@ -176,6 +177,17 @@ describe('auto 节点内自动衔接', () => {
     expect(h.started).toHaveLength(1)
     expect(element('requirement-op-running')).not.toBeNull()
     expect(element('requirement-op-success')).toBeNull()
+  })
+
+  it('有配置时增轮但最新一轮无署名不算完成', async () => {
+    const h = harness()
+    h.render(projectionOf([review(1)], TWO_ROLES_AUTO))
+    await press('requirement-op-review')
+
+    h.render(projectionOf([review(1), review(2)], TWO_ROLES_AUTO))
+    await settle()
+    expect(h.started).toHaveLength(1)
+    expect(element('requirement-op-running')).not.toBeNull()
   })
 })
 
@@ -195,10 +207,10 @@ describe('manual 节点内等人点下一岗位', () => {
 
     await press('op-next-role')
     expect(h.started).toHaveLength(2)
-    expect(h.started[1]?.preset).toBe('maniu-review')
+    expect(h.started[1]?.preset).toBe('maniu-pm')
     expect(element('op-next-role')).toBeNull()
 
-    h.render(projectionOf([review(1), review(2, 'maniu-pm'), review(3, 'maniu-review')], TWO_ROLES_MANUAL))
+    h.render(projectionOf([review(1), review(2, 'maniu-pm'), review(3, 'maniu-pm')], TWO_ROLES_MANUAL))
     await settle()
     expect(element('requirement-op-success')?.textContent).toContain('评审完成')
     expect((element('requirement-op-review') as HTMLButtonElement).disabled).toBe(false)
@@ -206,14 +218,14 @@ describe('manual 节点内等人点下一岗位', () => {
 })
 
 describe('岗位到 preset 的折算', () => {
-  it('名册岗位按继承角色发起会话', async () => {
+  it('名册岗位按继承角色发起会话，浮卡显示岗位名与自定义来源', async () => {
     const h = harness()
-    const flow = { nodes: [{ node: 'review' as const, roles: ['dotnet-eng'], auto: false }] }
+    const flow = { nodes: [{ node: 'review' as const, roles: ['deputy-pm'], auto: false }] }
     h.render(projectionOf([review(1)], flow))
     await press('requirement-op-review')
     expect(h.started).toHaveLength(1)
-    expect(h.started[0]?.preset).toBe('maniu-dev')
-    expect(element('requirement-op-running')?.textContent).toContain('.NET 工程师')
+    expect(h.started[0]?.preset).toBe('maniu-pm')
+    expect(element('requirement-op-running')?.textContent).toContain('副项目经理')
     expect(element('requirement-op-running')?.textContent).toContain('自定义岗位')
   })
 

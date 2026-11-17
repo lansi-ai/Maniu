@@ -5,12 +5,12 @@ import type { JSX } from 'react'
 import type { ProjectScope } from '../workspace/use-workspaces.ts'
 import type { SpecProjection } from '../spec/load.ts'
 import type { SessionSummary } from '../store.ts'
-import type { RequirementDocRow } from '../spec/rows.ts'
+import type { RequirementDocRow, RequirementReviewRow } from '../spec/rows.ts'
 import { requirementStateLabel } from '../spec/board.ts'
 import { hasIntakeWork } from '../intake/eligibility.ts'
 import { buildIntakeFollowupPrompt, buildManagerSplitPrompt, buildReviewPrompt, buildRevisePrompt, BUILTIN_SPLIT_TRACKS } from '../intake/prompts.ts'
 import { INTAKE_PRESET_ID, MANAGER_PRESET_ID, PM_PRESET_ID } from '../talents/model.ts'
-import { flowNodeOf, flowRoleLabel, flowRoleSource, presetOfRole } from '../flow/config.ts'
+import { entryRoot, flowNodeOf, flowRoleLabel, flowRoleSource, presetOfRole, presetRoot } from '../flow/config.ts'
 import { translate, type MessageKey, type Translate } from '../locale.ts'
 import { OperationCards, type OperationCardView, type OperationStep, type OperationStepState } from '../shell/operation-cards.tsx'
 import { RequirementDetail } from './requirement-detail.tsx'
@@ -76,7 +76,7 @@ interface OpWatch extends OpRun {
   readonly related: number
   readonly planAt: string | null
   readonly requirements: number
-  /** 评审完成须匹配的署名；null 表示不要求（无配置或非评审节点）。 */
+  /** 评审完成须匹配的条目内置根；null 表示不要求（无配置或非评审节点）。 */
   readonly roleSig: string | null
   readonly deadline: number
 }
@@ -231,7 +231,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
       roleIndex,
       sessionId: answer.sessionId ?? null,
       ...baselineOf(run.requirementId),
-      roleSig: run.kind === 'review' && reviewConfigured ? roleId : null,
+      roleSig: run.kind === 'review' && reviewConfigured ? entryRoot(roleId, props.projection.roles) ?? null : null,
       deadline: Date.now() + OP_TIMEOUT_MS,
     }])
     return answer
@@ -278,8 +278,8 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
   const revise = (row: RequirementDocRow) => startNode('revise', row)
   const split = (row: RequirementDocRow) => startNode('split', row)
 
-  // 完成判定以投影里的磁盘事实为准：评审见增轮（有配置时署名须匹配当前岗）、改稿见增版、
-  // 拆分见关联任务或计划出现/更新、立项见需求条数增量。落盘后按 auto 决定自动发起下一岗还是停下等人。
+  // 完成判定以投影里的磁盘事实为准：评审见增轮（有配置时最新一轮署名根须等于当前条目根）、
+  // 改稿见增版、拆分见关联任务或计划出现/更新、立项见需求条数增量。落盘后按 auto 决定自动发起下一岗还是停下等人。
   useEffect(() => {
     if (watches.length === 0) return
     const doneWatches = watches.filter((watch) => {
@@ -288,7 +288,13 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
       if (row === undefined) return false
       if (watch.kind === 'review') {
         const fresh = row.reviews.filter(entry => entry.round > watch.reviewRound)
-        return fresh.length > 0 && (watch.roleSig === null || fresh.some(entry => entry.role === watch.roleSig))
+        if (fresh.length === 0) return false
+        if (watch.roleSig === null) return true
+        const latest = row.reviews.reduce<RequirementReviewRow | null>(
+          (best, entry) => best === null || entry.round > best.round ? entry : best,
+          null,
+        )
+        return latest?.role !== undefined && presetRoot(latest.role) === watch.roleSig
       }
       if (watch.kind === 'revise') return row.versions.length > watch.versions
       const related = props.projection.tasks.filter(

@@ -11,6 +11,7 @@ import { createFlowSaveCommand } from '../src/commands/flow-save.js'
 import { createRequirementApproveCommand } from '../src/commands/requirement-approve.js'
 import { flowConfigPath } from '../src/kernel/flow-config.js'
 import { loadRequirement, saveRequirement } from '../src/kernel/requirement-store.js'
+import { saveRoles } from '../src/kernel/role-store.js'
 import { Requirement } from '../src/schema/spec.js'
 import type { RequirementReview } from '../src/schema/spec.js'
 
@@ -26,6 +27,7 @@ function makeSpec(): string {
   dirs.push(repo)
   const root = join(repo, '.spec')
   mkdirSync(join(root, 'requirements'), { recursive: true })
+  saveRoles(root, [{ id: 'deputy-pm', name: '副项目经理', inherits: 'pm' }])
   return root
 }
 
@@ -58,32 +60,40 @@ function configureFlow(root: string, roles: readonly string[]): void {
 
 const approve = (root: string) => createRequirementApproveCommand(root, () => AT).handler({ rawInput: 'REQ-01' })
 
-describe('有流程配置：逐岗署名配齐才许过审', () => {
-  it('每个配置岗位都有署名评审时过审', () => {
+describe('有流程配置：根匹配＋一轮一岗配齐才许过审', () => {
+  it('pm＋继承 pm 的岗位配齐两轮署名评审时过审', () => {
     const root = makeSpec()
-    writeRequirement(root, [review(1, 'maniu-pm'), review(2, 'maniu-review')])
-    configureFlow(root, ['maniu-pm', 'maniu-review'])
+    writeRequirement(root, [review(1, 'maniu-pm'), review(2, 'maniu-pm')])
+    configureFlow(root, ['maniu-pm', 'deputy-pm'])
 
     const result = approve(root)
     expect(result.kind).toBe('success')
     expect(loadRequirement(root, 'REQ-01').state).toBe('confirmed')
   })
 
-  it('缺一个岗位就拒绝，提示列出缺哪些岗位，状态不动', () => {
+  it('只有一轮时第二个条目无轮可消费，拒绝并列出缺岗，状态不动', () => {
     const root = makeSpec()
     writeRequirement(root, [review(1, 'maniu-pm')])
-    configureFlow(root, ['maniu-pm', 'maniu-review'])
+    configureFlow(root, ['maniu-pm', 'deputy-pm'])
 
     const result = approve(root)
     expect(result.kind).toBe('error')
     const text = result.kind === 'error' ? result.text : ''
     expect(text).toContain('还没配齐')
-    expect(text).toContain('maniu-review')
+    expect(text).toContain('deputy-pm')
     expect(text).not.toContain('maniu-pm')
     expect(loadRequirement(root, 'REQ-01').state).toBe('draft')
   })
 
-  it('旧评审无署名按未配齐拒绝', () => {
+  it('名册岗位条目可由署内置 pm preset 的轮满足', () => {
+    const root = makeSpec()
+    writeRequirement(root, [review(1, 'maniu-pm')])
+    configureFlow(root, ['deputy-pm'])
+
+    expect(approve(root).kind).toBe('success')
+  })
+
+  it('旧评审无署名不可消费，按未配齐拒绝', () => {
     const root = makeSpec()
     writeRequirement(root, [review(1), review(2)])
     configureFlow(root, ['maniu-pm'])
@@ -94,9 +104,9 @@ describe('有流程配置：逐岗署名配齐才许过审', () => {
     expect(loadRequirement(root, 'REQ-01').state).toBe('draft')
   })
 
-  it('署名要精确匹配配置 id，相近名字不算', () => {
+  it('非内置 preset 的署名没有内置根，不可消费', () => {
     const root = makeSpec()
-    writeRequirement(root, [review(1, 'maniu-pm-2')])
+    writeRequirement(root, [review(1, 'maniu-pm-2'), review(2, 'talent-abc')])
     configureFlow(root, ['maniu-pm'])
 
     expect(approve(root).kind).toBe('error')

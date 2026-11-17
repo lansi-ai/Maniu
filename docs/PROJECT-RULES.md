@@ -38,7 +38,7 @@ English | [中文](PROJECT-RULES.zh.md)
 | Product automation policy (per-action switches, stop conditions, task scope) | `.spec/automation.yaml` |
 | Resident scheduler sessions (one scheduler and one flow-control session per repository) | `.spec/agents.yaml` (`schedulerSession`, `flowSession`) |
 | Job-role roster (lightweight roles inheriting a built-in ceiling) | `.spec/roles.yaml` |
-| Flow configuration (built-in nodes, per-node roles and intra-node auto-advance; human-written, preset fallback when absent) | `.spec/flow.yaml` |
+| Flow configuration (built-in nodes, per-node roles and intra-node auto-advance; human-written, preset fallback when absent, node capability checked on save and read) | `.spec/flow.yaml` |
 | Product proposals (options, recommendation, decision) | `.spec/proposals/P-<nn>.yaml`; tasks point back with `proposal:` |
 | Product task evidence | `.spec/evidence/<ID>/<name>.log` |
 | Acceptance commands and environment | `.spec/env.yaml`; sensitive values go in `.spec/local.yaml`, which is not committed |

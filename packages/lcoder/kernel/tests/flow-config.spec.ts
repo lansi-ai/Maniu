@@ -31,10 +31,14 @@ function makeSpec(): string {
   dirs.push(repo)
   const root = join(repo, '.spec')
   mkdirSync(root, { recursive: true })
+  saveRoles(root, [
+    { id: 'deputy-pm', name: '副项目经理', inherits: 'pm' },
+    { id: 'dotnet-eng', name: '.NET 工程师', inherits: 'dev' },
+  ])
   return root
 }
 
-const REVIEW_NODE = { node: 'review', roles: ['maniu-pm', 'maniu-review'], auto: true }
+const REVIEW_NODE = { node: 'review', roles: ['maniu-pm', 'deputy-pm'], auto: true }
 
 function review(round: number, role?: string): RequirementReview {
   return {
@@ -79,11 +83,10 @@ describe('写入与读回', () => {
     expect(parseYaml(readFileSync(saved.path, 'utf8'))).toEqual({ nodes: [REVIEW_NODE] })
   })
 
-  it('名册岗位可解析：roles.yaml 里的岗位 id 能进配置', () => {
+  it('名册岗位可解析：继承 pm 的岗位能进评审节点', () => {
     const root = makeSpec()
-    saveRoles(root, [{ id: 'dotnet-eng', name: '.NET 工程师', inherits: 'dev' }])
-    saveFlowConfig(root, { nodes: [{ node: 'review', roles: ['maniu-pm', 'dotnet-eng'], auto: false }] })
-    expect(loadFlowConfig(root).config.nodes[0]?.roles).toEqual(['maniu-pm', 'dotnet-eng'])
+    saveFlowConfig(root, { nodes: [{ node: 'review', roles: ['maniu-pm', 'deputy-pm'], auto: false }] })
+    expect(loadFlowConfig(root).config.nodes[0]?.roles).toEqual(['maniu-pm', 'deputy-pm'])
   })
 
   it('恢复预制删除文件；本来没有文件时返回 false', () => {
@@ -137,33 +140,83 @@ describe('非法配置拒绝', () => {
     expect(() => saveFlowConfig(root, { nodes: [REVIEW_NODE], extra: 1 })).toThrow(/流程配置非法/)
   })
 
-  it('磁盘上的坏文件读取时抛：形状非法与岗位失效都当场响', () => {
+  it('磁盘上的坏文件读取时抛：形状非法、岗位失效与能力不足都当场响', () => {
     const root = makeSpec()
     writeFileSync(flowConfigPath(root), 'nodes: [{node: review, roles: [], auto: true}]', 'utf8')
     expect(() => loadFlowConfig(root)).toThrow(/流程配置非法/)
     writeFileSync(flowConfigPath(root), 'nodes: [{node: review, roles: [ghost], auto: true}]', 'utf8')
     expect(() => loadFlowConfig(root)).toThrow(/岗位解析不了/)
+    writeFileSync(flowConfigPath(root), 'nodes: [{node: review, roles: [dotnet-eng], auto: true}]', 'utf8')
+    expect(() => loadFlowConfig(root)).toThrow(/流程节点能力不足/)
     writeFileSync(flowConfigPath(root), 'nodes: [', 'utf8')
     expect(() => loadFlowConfig(root)).toThrow(/不是能读的 YAML/)
   })
 })
 
-describe('配齐判定', () => {
-  it('review 节点每个配置岗位都要有署名等于该 id 的评审', () => {
-    const config = FlowConfig.parse({ nodes: [REVIEW_NODE] })
-    expect(missingReviewSignatures(config, [])).toEqual(['maniu-pm', 'maniu-review'])
-    expect(missingReviewSignatures(config, [review(1, 'maniu-pm')])).toEqual(['maniu-review'])
-    expect(missingReviewSignatures(config, [review(1, 'maniu-pm'), review(2, 'maniu-review')])).toEqual([])
+describe('节点能力校验', () => {
+  it('继承 dev 的岗位进评审节点拒绝：根 dev 没有 requirement_review_draft', () => {
+    const root = makeSpec()
+    expect(() => saveFlowConfig(root, { nodes: [{ node: 'review', roles: ['dotnet-eng'], auto: true }] }))
+      .toThrow(/流程节点能力不足.*review 节点的 dotnet-eng（根 dev）没有 requirement_review_draft/)
+    expect(existsSync(flowConfigPath(root))).toBe(false)
   })
 
-  it('无署名旧评审不算配齐；署名不精确匹配也不算', () => {
+  it('architect 进评审节点拒绝；pm 进立项节点、dev 进拆分节点同样拒绝', () => {
+    const root = makeSpec()
+    expect(() => saveFlowConfig(root, { nodes: [{ node: 'review', roles: ['maniu-architect'], auto: true }] }))
+      .toThrow(/流程节点能力不足/)
+    expect(() => saveFlowConfig(root, { nodes: [{ node: 'intake', roles: ['maniu-pm'], auto: false }] }))
+      .toThrow(/requirement_draft/)
+    expect(() => saveFlowConfig(root, { nodes: [{ node: 'split', roles: ['maniu-dev'], auto: false }] }))
+      .toThrow(/requirement_split_plan/)
+  })
+
+  it('各节点用对根就放行：intake/revise 用 intake，review 用 pm，split 用 manager', () => {
+    const root = makeSpec()
+    saveFlowConfig(root, {
+      nodes: [
+        { node: 'intake', roles: ['maniu-intake'], auto: false },
+        { node: 'review', roles: ['deputy-pm'], auto: true },
+        { node: 'revise', roles: ['maniu-intake'], auto: false },
+        { node: 'split', roles: ['maniu-manager'], auto: false },
+      ],
+    })
+    expect(loadFlowConfig(root).source).toBe('file')
+  })
+})
+
+describe('配齐判定：根匹配＋一轮一岗', () => {
+  it('pm＋继承 pm 的岗位须两轮独立评审，一轮只消费给一个条目', () => {
+    const root = makeSpec()
     const config = FlowConfig.parse({ nodes: [REVIEW_NODE] })
-    expect(missingReviewSignatures(config, [review(1), review(2)])).toEqual(['maniu-pm', 'maniu-review'])
-    expect(missingReviewSignatures(config, [review(1, 'maniu-reviewer')])).toEqual(['maniu-pm', 'maniu-review'])
+    expect(missingReviewSignatures(root, config, [])).toEqual(['maniu-pm', 'deputy-pm'])
+    expect(missingReviewSignatures(root, config, [review(1, 'maniu-pm')])).toEqual(['deputy-pm'])
+    expect(missingReviewSignatures(root, config, [review(1, 'maniu-pm'), review(2, 'maniu-pm')])).toEqual([])
+  })
+
+  it('按配置顺序消费：第一个条目先拿轮，剩下的条目缺轮', () => {
+    const root = makeSpec()
+    const config = FlowConfig.parse({ nodes: [{ node: 'review', roles: ['deputy-pm', 'maniu-pm'], auto: true }] })
+    expect(missingReviewSignatures(root, config, [review(1, 'maniu-pm')])).toEqual(['maniu-pm'])
+  })
+
+  it('名册岗位条目可由署内置 preset 的轮满足：根相等即可', () => {
+    const root = makeSpec()
+    const config = FlowConfig.parse({ nodes: [{ node: 'review', roles: ['deputy-pm'], auto: true }] })
+    expect(missingReviewSignatures(root, config, [review(1, 'maniu-pm')])).toEqual([])
+  })
+
+  it('无署名旧轮与非内置 preset 署名不可消费；根不等也不可消费', () => {
+    const root = makeSpec()
+    const config = FlowConfig.parse({ nodes: [REVIEW_NODE] })
+    expect(missingReviewSignatures(root, config, [review(1), review(2)])).toEqual(['maniu-pm', 'deputy-pm'])
+    expect(missingReviewSignatures(root, config, [review(1, 'talent-abc'), review(2, 'maniu-dev')]))
+      .toEqual(['maniu-pm', 'deputy-pm'])
   })
 
   it('没有 review 节点时不要求署名', () => {
+    const root = makeSpec()
     const config = FlowConfig.parse({ nodes: [{ node: 'split', roles: ['maniu-manager'], auto: false }] })
-    expect(missingReviewSignatures(config, [])).toEqual([])
+    expect(missingReviewSignatures(root, config, [])).toEqual([])
   })
 })

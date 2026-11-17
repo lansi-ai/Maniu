@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { flowTextToRow, requirementTextToRow } from '../src/spec/rows.ts'
-import { flowNodeOf, flowNodesOf, flowSaveLine, presetOfRole, PRESET_FLOW_NODES } from '../src/flow/config.ts'
+import { entryRoot, flowNodeOf, flowNodesOf, flowSaveLine, presetOfRole, presetRoot, PRESET_FLOW_NODES } from '../src/flow/config.ts'
 
 const VALID = [
   'nodes:',
@@ -75,6 +75,16 @@ describe('岗位折算与序列化', () => {
     expect(presetOfRole('maniu-review', roster)).toBe('maniu-review')
     expect(presetOfRole('dotnet-eng', roster)).toBe('maniu-dev')
     expect(presetOfRole('nobody', roster)).toBeUndefined()
+  })
+
+  it('条目根：内置 preset 取角色，名册岗位取 inherits；署名根只认内置 preset', () => {
+    expect(entryRoot('maniu-pm', roster)).toBe('pm')
+    expect(entryRoot('dotnet-eng', roster)).toBe('dev')
+    expect(entryRoot('nobody', roster)).toBeUndefined()
+    expect(presetRoot('maniu-pm')).toBe('pm')
+    expect(presetRoot('talent-abc')).toBeUndefined()
+    expect(presetRoot('maniu-pm-2')).toBeUndefined()
+    expect(presetRoot('')).toBeUndefined()
   })
 
   it('flowSaveLine 生成整份 JSON 命令行', () => {
