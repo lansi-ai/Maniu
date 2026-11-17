@@ -6,10 +6,15 @@ import type { ProjectScope } from '../workspace/use-workspaces.ts'
 import type { SpecProjection } from '../spec/load.ts'
 import type { SessionSummary } from '../store.ts'
 import { requirementStateLabel } from '../spec/board.ts'
+import { hasIntakeWork } from '../intake/eligibility.ts'
+import { translate, type Translate } from '../locale.ts'
 import { RequirementDetail } from './requirement-detail.tsx'
 import { TaskDetail } from './task-detail.tsx'
 import { ReaderOverlay } from './reader.tsx'
 import { IntakeWizard, type IntakeResult } from './intake-wizard.tsx'
+
+/** 工作台页面尚未全面接入词典，未传取词函数时沿用中文；新客户端可传入自己的取词函数。 */
+const zhText: Translate = (key, params) => translate('zh', key, params)
 
 /** 需求页属性。 */
 export interface RequirementsPageProps {
@@ -23,6 +28,8 @@ export interface RequirementsPageProps {
   readonly onReload: () => void
   readonly onStartIntake: (prompt: string) => Promise<{ readonly ok: boolean; readonly message: string }>
   readonly onStartSession: (prompt: string) => Promise<{ readonly ok: boolean; readonly message: string }>
+  /** 取词函数；缺省为中文词典。 */
+  readonly t?: Translate
 }
 
 /**
@@ -31,6 +38,7 @@ export interface RequirementsPageProps {
  * @returns 页面。
  */
 export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
+  const t = props.t ?? zhText
   const [text, setText] = useState('')
   const [state, setState] = useState('')
   const [selected, setSelected] = useState<string | null>(null)
@@ -49,6 +57,10 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
 
   const active = rows.find(row => row.id === selected) ?? null
   const detailTask = taskId === null ? undefined : props.projection.tasks.find(task => task.id === taskId)
+
+  // 立项分析只对空项目开放；已有结果时仍允许打开结果页回看，但不允许开新立项。
+  const blockedIntake = hasIntakeWork(props.projection) && props.intakeResult === null
+  const firstRequirement = props.projection.requirements[0]
 
   // 进入页面时若上次读取为空或出错，补读一次；读取中不叠加第二个请求。
   // 只在挂载这一刻判定，后续变化由加载态回报。
@@ -86,9 +98,34 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
           <button type="button" className="pill" data-testid="requirement-reload" onClick={props.onReload}>
             {props.loading ? '读取中…' : '刷新'}
           </button>
-          <button type="button" className="pill pill-accent" data-testid="intake-open" disabled={props.project === null} onClick={() => { setWizard(true) }}>{props.intakeResult === null ? '立项向导' : '立项结果'}</button>
+          <button
+            type="button"
+            className="pill pill-accent"
+            data-testid="intake-open"
+            disabled={props.project === null || blockedIntake}
+            title={blockedIntake ? t('requirement.intakeBlocked') : undefined}
+            onClick={() => { setWizard(true) }}
+          >
+            {props.intakeResult === null ? '立项向导' : '立项结果'}
+          </button>
         </div>
       </header>
+
+      {props.project !== null && blockedIntake && (
+        <p className="detail-note" data-testid="requirement-intake-blocked">
+          <span>{t('requirement.intakeBlocked')}</span>
+          {firstRequirement === undefined ? null : (
+            <button
+              type="button"
+              className="link-button"
+              data-testid="requirement-intake-blocked-open"
+              onClick={() => { setSelected(firstRequirement.id) }}
+            >
+              {t('requirement.intakeBlockedOpen', { id: firstRequirement.id })}
+            </button>
+          )}
+        </p>
+      )}
 
       {props.project === null && <p className="empty" data-testid="requirement-no-project">先在「切换项目」里打开一个仓库。</p>}
 
@@ -175,6 +212,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
           onStart={props.onStartIntake}
           onOpenRequirement={(id) => { setWizard(false); setSelected(id) }}
           onReload={props.onReload}
+          t={t}
         />
       )}
 

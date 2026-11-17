@@ -164,3 +164,53 @@ describe('立项结果提升到 App 级', () => {
     expect(onStartIntake).not.toHaveBeenCalled()
   })
 })
+
+describe('非空项目的立项准入', () => {
+  function renderPage(projection: SpecProjection, intakeResult: IntakeResult | null): void {
+    act(() => {
+      root.render(
+        <RequirementsPage
+          project={PROJECT}
+          projection={projection}
+          sessions={[]}
+          loading={false}
+          error={null}
+          intakeResult={intakeResult}
+          onClearIntakeResult={() => {}}
+          onReload={() => {}}
+          onStartIntake={async () => ({ ok: true, message: 'ok' })}
+          onStartSession={async () => ({ ok: true, message: 'ok' })}
+        />,
+      )
+    })
+  }
+
+  it('非空项目禁用立项入口，给出原因并可打开已有需求', async () => {
+    renderPage(WITH_REQUIREMENT, null)
+    const open = element('intake-open') as HTMLButtonElement
+    expect(open.disabled).toBe(true)
+    expect(element('requirement-intake-blocked')?.textContent).toContain('不能再做立项分析')
+    await press('requirement-intake-blocked-open')
+    expect(element('requirement-detail')).not.toBeNull()
+    expect(element('intake-wizard')).toBeNull()
+  })
+
+  it('已有结果时仍可打开结果页回看，但不允许开新立项', async () => {
+    renderPage(WITH_REQUIREMENT, { message: '指令已发送到会话 session-1', sessionId: 'session-1' })
+    const open = element('intake-open') as HTMLButtonElement
+    expect(open.disabled).toBe(false)
+    expect(open.textContent).toBe('立项结果')
+    await press('intake-open')
+    expect(element('intake-result-message')?.textContent).toContain('session-1')
+    expect(element('intake-restart')).toBeNull()
+  })
+
+  it('空项目可正常立项', async () => {
+    renderPage(PROJECTION, null)
+    const open = element('intake-open') as HTMLButtonElement
+    expect(open.disabled).toBe(false)
+    expect(element('requirement-intake-blocked')).toBeNull()
+    await press('intake-open')
+    expect(element('intake-start')).not.toBeNull()
+  })
+})

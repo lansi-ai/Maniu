@@ -443,26 +443,7 @@ html[data-theme='liquid-glass'] body {
   box-shadow: 0 16px 34px -18px rgba(10, 79, 196, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.34);
 }
 
-/* 立项指令不摊开正文：只留一枚角色胶囊，指令本身仍在会话日志里。 */
-.message.intake-seed {
-  padding: 0;
-  border: 0;
-  background: transparent;
-  box-shadow: none;
-}
-
-.role-capsule {
-  display: inline-flex;
-  align-items: center;
-  padding: 4px 12px;
-  border: 1px solid var(--lg-line);
-  border-radius: 999px;
-  background: var(--lg-fill-subtle);
-  color: var(--lg-ink-2);
-  font-size: 12px;
-  line-height: 1.4;
-  letter-spacing: 0.02em;
-}
+/* 立项指令整行不渲染：指令本身仍在会话日志里。 */
 
 .message.live {
   padding-right: 26px;

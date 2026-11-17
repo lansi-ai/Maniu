@@ -34,6 +34,7 @@ import { useSessionControl } from './chat/use-session-control.ts'
 import { createFrameBatcher, type FrameBatcher } from './chat/stream-batch.ts'
 import { useTalents } from './talents/use-talents.ts'
 import { INTAKE_PRESET_ID, isIntakePreset } from './talents/model.ts'
+import { hasIntakeWork } from './intake/eligibility.ts'
 import { titleIntakeSession } from './intake/session-title.ts'
 
 /** 工作台页面。 */
@@ -531,13 +532,15 @@ export function App(): JSX.Element {
   }, [launchSession])
 
   const startIntake = useCallback(async (prompt: string) => {
+    // 即便向导已经打开，非空项目也不再允许开新立项。
+    if (hasIntakeWork(projection.projection)) return { ok: false, message: t('intake.blocked') }
     setIntakeResult(null)
     const answer = await launchSession(prompt, INTAKE_PRESET_ID)
     if (answer.ok && answer.sessionId !== undefined) {
       setIntakeResult({ message: answer.message, sessionId: answer.sessionId })
     }
     return { ok: answer.ok, message: answer.message }
-  }, [launchSession])
+  }, [launchSession, projection.projection, t])
 
   const dismissWelcome = useCallback(() => {
     markWelcomeSeen(browserStorage())
@@ -698,6 +701,7 @@ export function App(): JSX.Element {
                 onReload={projection.reload}
                 onStartIntake={startIntake}
                 onStartSession={startSession}
+                t={t}
               />
             )}
 
