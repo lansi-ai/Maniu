@@ -6,6 +6,7 @@ import type { MessageKey, Translate } from '../locale.ts'
 import type { SessionSummary } from '../store.ts'
 import type { ProjectScope } from '../workspace/use-workspaces.ts'
 import { currentPresetId, pluginPackageOf, presetIdOf, type BuiltinPresetView, type TalentRow } from '../talents/model.ts'
+import { personaSummaryKeyOf, toolCopyKeyOf } from '../talents/detail-copy.ts'
 import type { BuiltinDetailState, TalentsHandle } from '../talents/use-talents.ts'
 import { TalentForm, type TalentFormValue } from './talent-form.tsx'
 import { DetailDrawer } from './detail-drawer.tsx'
@@ -46,6 +47,7 @@ export function TalentsPage(props: TalentsPageProps): JSX.Element {
   const [confirming, setConfirming] = useState<string | null>(null)
   const [actionErrors, setActionErrors] = useState<Readonly<Record<string, string>>>({})
   const [builtinOpen, setBuiltinOpen] = useState<string | null>(null)
+  const [personaOpen, setPersonaOpen] = useState(false)
 
   const sessionsOfPreset = (presetId: string): number =>
     sessions.filter(session => session.agentPreset !== undefined && currentPresetId(session.agentPreset) === presetId).length
@@ -58,6 +60,7 @@ export function TalentsPage(props: TalentsPageProps): JSX.Element {
 
   const openBuiltin = (presetId: string): void => {
     setBuiltinOpen(presetId)
+    setPersonaOpen(false)
     talents.inspectBuiltin(presetId)
   }
 
@@ -236,6 +239,7 @@ export function TalentsPage(props: TalentsPageProps): JSX.Element {
 
   const builtinDrawer = (row: BuiltinPresetView): JSX.Element => {
     const detail: BuiltinDetailState | undefined = talents.builtinDetails[row.id]
+    const summaryKey = personaSummaryKeyOf(row.id)
     const installed: ReadonlySet<string> | null = talents.catalog === null
       ? null
       : new Set(talents.catalog.plugins.map(plugin => plugin.name))
@@ -271,34 +275,65 @@ export function TalentsPage(props: TalentsPageProps): JSX.Element {
                 ? null
                 : detail.persona === null
                   ? <p className="empty">{t('talents.personaEmpty')}</p>
-                  : <pre className="builtin-persona" data-testid="builtin-persona">{detail.persona}</pre>}
+                  : (
+                    <>
+                      {summaryKey === undefined
+                        ? (
+                          <p className="detail-line" data-testid="builtin-persona-fallback">
+                            {row.description === undefined || row.description === ''
+                              ? t('talents.personaFallback')
+                              : row.description}
+                          </p>
+                        )
+                        : (
+                          <ul className="builtin-persona-summary" data-testid="builtin-persona-summary">
+                            {t(summaryKey).split('\n').map(line => <li key={line}>{line}</li>)}
+                          </ul>
+                        )}
+                      <button
+                        type="button"
+                        className="pill"
+                        data-testid="builtin-persona-toggle"
+                        aria-expanded={personaOpen}
+                        onClick={() => { setPersonaOpen(current => !current) }}
+                      >
+                        {personaOpen ? t('talents.personaHideFull') : t('talents.personaShowFull')}
+                      </button>
+                      {personaOpen ? <pre className="builtin-persona" data-testid="builtin-persona">{detail.persona}</pre> : null}
+                    </>
+                  )}
             </section>
             <section className="detail-section" data-testid="builtin-plugins-section">
               <h4>{t('talents.pluginsSection')}</h4>
-              {detail.error !== null ? null : detail.plugins.length === 0
-                ? <p className="empty">{t('talents.compositionEmpty')}</p>
-                : (
-                  <ul className="plain-list compact" data-testid="builtin-plugins">
-                    {detail.plugins.map((plugin, index) => {
-                      const packageName = pluginPackageOf(plugin.name)
-                      const unknown = installed !== null && packageName !== undefined && !installed.has(packageName)
-                      return (
-                        <li key={`${plugin.id ?? plugin.name}-${String(index)}`} className="builtin-plugin">
-                          <strong>{plugin.id ?? plugin.name}</strong>
-                          <span className="mono">{plugin.name}</span>
-                          {plugin.group ? <span className="tag">{t('talents.pluginGroup')}</span> : null}
-                          {plugin.disabled === 'yes' ? <span className="tag">{t('talents.pluginDisabled')}</span> : null}
-                          {plugin.disabled === 'conditional'
-                            ? <span className="tag">{t('talents.pluginConditional')}</span>
-                            : null}
-                          {unknown ? (
-                            <span className="tag" data-testid="builtin-plugin-unknown">{t('talents.pluginUnknown')}</span>
-                          ) : null}
-                        </li>
-                      )
-                    })}
-                  </ul>
-                )}
+              {detail.error !== null ? null : (
+                <>
+                  <p className="detail-line" data-testid="builtin-plugins-note">{t('talents.pluginsNote')}</p>
+                  {detail.plugins.length === 0
+                    ? <p className="empty">{t('talents.compositionEmpty')}</p>
+                    : (
+                      <ul className="plain-list compact" data-testid="builtin-plugins">
+                        {detail.plugins.map((plugin, index) => {
+                          const packageName = pluginPackageOf(plugin.name)
+                          const unknown = installed !== null && packageName !== undefined && !installed.has(packageName)
+                          return (
+                            <li key={`${plugin.id ?? plugin.name}-${String(index)}`} className="builtin-plugin">
+                              <strong>{plugin.id ?? plugin.name}</strong>
+                              <span className="mono">{plugin.name}</span>
+                              {plugin.group ? <span className="tag">{t('talents.pluginGroup')}</span> : null}
+                              {plugin.disabled === 'yes' ? <span className="tag">{t('talents.pluginDisabled')}</span> : null}
+                              {plugin.disabled === 'conditional'
+                                ? <span className="tag">{t('talents.pluginConditional')}</span>
+                                : null}
+                              {unknown ? (
+                                <span className="tag" data-testid="builtin-plugin-unknown">{t('talents.pluginUnknown')}</span>
+                              ) : null}
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    )}
+                </>
+              )}
               {detail.error === null && installed === null
                 ? <p className="empty">{t('talents.pluginsUnchecked')}</p>
                 : null}
@@ -312,20 +347,27 @@ export function TalentsPage(props: TalentsPageProps): JSX.Element {
               ) : detail.tools.length === 0
                 ? <p className="empty">{t('talents.toolsEmpty')}</p>
                 : (
-                  <ul className="builtin-tools" data-testid="builtin-tools">
-                    {detail.tools.map(tool => (
-                      <li key={tool.name}>
-                        <span
-                          className="tag builtin-tool"
-                          data-testid="builtin-tool"
-                          data-tool-name={tool.name}
-                          title={tool.description === '' ? undefined : tool.description}
-                        >
-                          {tool.name}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
+                  <>
+                    <p className="detail-line" data-testid="builtin-tools-hint">{t('talents.toolsHoverHint')}</p>
+                    <ul className="builtin-tools" data-testid="builtin-tools">
+                      {detail.tools.map((tool) => {
+                        const copyKey = toolCopyKeyOf(tool.name)
+                        const copy = copyKey === undefined ? tool.description : t(copyKey)
+                        return (
+                          <li key={tool.name}>
+                            <span
+                              className="tag builtin-tool"
+                              data-testid="builtin-tool"
+                              data-tool-name={tool.name}
+                              title={copy === '' ? undefined : copy}
+                            >
+                              {tool.name}
+                            </span>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  </>
                 )}
             </section>
           </>
