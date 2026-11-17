@@ -91,6 +91,7 @@ const COMMAND_ALLOWED = new Set([
   'task_schedule',
   'contract_sign',
   'proposal_approve',
+  'proposal_reject',
   'flow_status',
   'flow_log',
   'flow_save',

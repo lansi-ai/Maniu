@@ -1,14 +1,14 @@
-/** 需求页：列表、搜索、状态筛选；四类操作按流程配置逐岗推进，进度走操作浮卡。 */
+/** 需求页：列表、搜索、状态筛选；四类操作按流程配置逐岗推进，进度走操作浮卡；新建需求与改稿走提案对比确认。 */
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { JSX } from 'react'
 import type { ProjectScope } from '../workspace/use-workspaces.ts'
 import type { SpecProjection } from '../spec/load.ts'
 import type { SessionSummary } from '../store.ts'
-import type { RequirementDocRow, RequirementReviewRow } from '../spec/rows.ts'
+import type { ProposalRow, RequirementDocRow, RequirementReviewRow } from '../spec/rows.ts'
 import { requirementStateLabel } from '../spec/board.ts'
 import { hasIntakeWork } from '../intake/eligibility.ts'
-import { buildIntakeFollowupPrompt, buildManagerSplitPrompt, buildReviewPrompt, buildRevisePrompt, BUILTIN_SPLIT_TRACKS } from '../intake/prompts.ts'
+import { buildIntakeFollowupPrompt, buildManagerSplitPrompt, buildRequirementCreatePrompt, buildReviewPrompt, buildRevisePrompt, BUILTIN_SPLIT_TRACKS } from '../intake/prompts.ts'
 import { INTAKE_PRESET_ID, MANAGER_PRESET_ID, PM_PRESET_ID } from '../talents/model.ts'
 import { entryRoot, flowNodeOf, flowRoleLabel, flowRoleSource, presetOfRole, presetRoot } from '../flow/config.ts'
 import { translate, type MessageKey, type Translate } from '../locale.ts'
@@ -17,6 +17,8 @@ import { RequirementDetail } from './requirement-detail.tsx'
 import { TaskDetail } from './task-detail.tsx'
 import { ReaderOverlay } from './reader.tsx'
 import { IntakeWizard, type IntakeResult } from './intake-wizard.tsx'
+import { ProposalCompare } from './proposal-compare.tsx'
+import { DetailDrawer } from './detail-drawer.tsx'
 
 /** 工作台页面尚未全面接入词典，未传取词函数时沿用中文；新客户端可传入自己的取词函数。 */
 const zhText: Translate = (key, params) => translate('zh', key, params)
@@ -25,11 +27,12 @@ const zhText: Translate = (key, params) => translate('zh', key, params)
 const OP_POLL_MS = 4000
 const OP_TIMEOUT_MS = 5 * 60 * 1000
 
-/** 四类后台操作；立项调研也走后台浮卡，不强制跳转对话。 */
-type OpKind = 'intake' | 'review' | 'revise' | 'split'
+/** 五类后台操作；立项调研与新建需求都走后台浮卡，不强制跳转对话。 */
+type OpKind = 'intake' | 'create' | 'review' | 'revise' | 'split'
 
 const OP_RUNNING_KEY: Readonly<Record<OpKind, MessageKey>> = {
   intake: 'requirement.opRunning.intake',
+  create: 'requirement.opRunning.create',
   review: 'requirement.opRunning.review',
   revise: 'requirement.opRunning.revise',
   split: 'requirement.opRunning.split',
@@ -37,6 +40,7 @@ const OP_RUNNING_KEY: Readonly<Record<OpKind, MessageKey>> = {
 
 const OP_DONE_KEY: Readonly<Record<OpKind, MessageKey>> = {
   intake: 'requirement.opDone.intake',
+  create: 'requirement.opDone.create',
   review: 'requirement.opDone.review',
   revise: 'requirement.opDone.revise',
   split: 'requirement.opDone.split',
@@ -44,6 +48,7 @@ const OP_DONE_KEY: Readonly<Record<OpKind, MessageKey>> = {
 
 const OP_TITLE_KEY: Readonly<Record<OpKind, MessageKey>> = {
   intake: 'requirement.opTitle.intake',
+  create: 'requirement.opTitle.create',
   review: 'requirement.opTitle.review',
   revise: 'requirement.opTitle.revise',
   split: 'requirement.opTitle.split',
@@ -52,6 +57,7 @@ const OP_TITLE_KEY: Readonly<Record<OpKind, MessageKey>> = {
 /** 岗位解析不了时的节点默认 preset；正常配置都能解析到岗位自己的 preset。 */
 const OP_PRESET: Readonly<Record<OpKind, string>> = {
   intake: INTAKE_PRESET_ID,
+  create: INTAKE_PRESET_ID,
   review: PM_PRESET_ID,
   revise: INTAKE_PRESET_ID,
   split: MANAGER_PRESET_ID,
@@ -76,6 +82,8 @@ interface OpWatch extends OpRun {
   readonly related: number
   readonly planAt: string | null
   readonly requirements: number
+  /** 发起时已有的提案编号；之后新出现的起草态需求变更提案算本次操作的产物。 */
+  readonly proposalIds: readonly string[]
   /** 评审完成须匹配的条目内置根；null 表示不要求（无配置或非评审节点）。 */
   readonly roleSig: string | null
   readonly deadline: number
@@ -137,6 +145,9 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
   const [taskId, setTaskId] = useState<string | null>(null)
   const [readerPath, setReaderPath] = useState<string | null>(null)
   const [wizard, setWizard] = useState(false)
+  const [createOpen, setCreateOpen] = useState(false)
+  const [createText, setCreateText] = useState('')
+  const [compareId, setCompareId] = useState<string | null>(null)
   const [opNotice, setOpNotice] = useState<string | null>(null)
   const [watches, setWatches] = useState<readonly OpWatch[]>([])
   const [paused, setPaused] = useState<readonly PausedOp[]>([])
@@ -187,7 +198,8 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
     if (kind === 'review') return buildReviewPrompt(requirement, row.text)
     if (kind === 'revise') {
       const sorted = [...row.reviews].sort((left, right) => left.round - right.round)
-      return buildRevisePrompt(requirement, row.text, sorted[sorted.length - 1]?.report)
+      const baseVersion = row.versions.reduce((max, version) => Math.max(max, version.n), 0) || 1
+      return buildRevisePrompt(requirement, row.text, sorted[sorted.length - 1]?.report, baseVersion)
     }
     return splitPromptOf(row)
   }
@@ -201,6 +213,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
       related: requirementId === null ? 0 : relatedOf(requirementId).length,
       planAt: row?.splitPlan?.at ?? null,
       requirements: props.projection.requirements.length,
+      proposalIds: props.projection.proposals.map(item => item.id),
     }
   }
 
@@ -243,7 +256,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
     return answer
   }
 
-  const startNode = (kind: OpKind, row: RequirementDocRow): Promise<{ readonly ok: boolean; readonly message: string }> => {
+  const startNode = (kind: 'review' | 'revise' | 'split', row: RequirementDocRow): Promise<{ readonly ok: boolean; readonly message: string }> => {
     const node = flowNodeOf(flow, kind)
     return launchRole(
       { key: `${kind}-${row.id}-${String(Date.now())}`, kind, requirementId: row.id, roles: node.roles, auto: node.auto },
@@ -273,6 +286,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
       related: 0,
       planAt: null,
       requirements: props.projection.requirements.length,
+      proposalIds: props.projection.proposals.map(item => item.id),
       roleSig: null,
       deadline: Date.now() + OP_TIMEOUT_MS,
     }])
@@ -280,16 +294,51 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
     return answer
   }
 
+  // 新建需求后台发起：描述随首条消息发给需求分析师，不跳转对话；完成看需求条数增量，提案期间浮卡等待对比。
+  const createStart = async (description: string): Promise<void> => {
+    setOpNotice(null)
+    let answer: { readonly ok: boolean; readonly message: string; readonly sessionId?: string }
+    try {
+      answer = await props.onStartSession(buildRequirementCreatePrompt(description), INTAKE_PRESET_ID)
+    } catch (cause: unknown) {
+      setOpNotice(cause instanceof Error ? cause.message : String(cause))
+      return
+    }
+    if (!answer.ok) {
+      setOpNotice(answer.message)
+      return
+    }
+    setWatches(current => [...current, {
+      key: `create-${String(Date.now())}`,
+      kind: 'create',
+      requirementId: null,
+      roles: [INTAKE_PRESET_ID],
+      roleIndex: 0,
+      auto: false,
+      sessionId: answer.sessionId ?? null,
+      reviewRound: 0,
+      versions: 0,
+      related: 0,
+      planAt: null,
+      requirements: props.projection.requirements.length,
+      proposalIds: props.projection.proposals.map(item => item.id),
+      roleSig: null,
+      deadline: Date.now() + OP_TIMEOUT_MS,
+    }])
+    setCreateOpen(false)
+    setCreateText('')
+  }
+
   const review = (row: RequirementDocRow) => startNode('review', row)
   const revise = (row: RequirementDocRow) => startNode('revise', row)
   const split = (row: RequirementDocRow) => startNode('split', row)
 
   // 完成判定以投影里的磁盘事实为准：评审见增轮（有配置时最新一轮署名根须等于当前条目根）、
-  // 改稿见增版、拆分见关联任务或计划出现/更新、立项见需求条数增量。落盘后按 auto 决定自动发起下一岗还是停下等人。
+  // 改稿见增版、拆分见关联任务或计划出现/更新、立项与新建需求见需求条数增量。落盘后按 auto 决定自动发起下一岗还是停下等人。
   useEffect(() => {
     if (watches.length === 0) return
     const doneWatches = watches.filter((watch) => {
-      if (watch.kind === 'intake') return props.projection.requirements.length > watch.requirements
+      if (watch.kind === 'intake' || watch.kind === 'create') return props.projection.requirements.length > watch.requirements
       const row = props.projection.requirements.find(item => item.id === watch.requirementId)
       if (row === undefined) return false
       if (watch.kind === 'review') {
@@ -385,6 +434,19 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
     return session !== undefined && !session.running && !session.blank
   }
 
+  // 提案等待对比：发起后新出现的起草态需求变更提案算本次操作的产物；新建看 new，改稿看目标的 revise。
+  const pendingProposalOf = (watch: OpWatch): ProposalRow | undefined => {
+    if (watch.kind !== 'create' && watch.kind !== 'revise') return undefined
+    return props.projection.proposals.find((proposal) => {
+      const change = proposal.requirementChange
+      if (proposal.decision !== 'draft' || change === undefined) return false
+      if (watch.proposalIds.includes(proposal.id)) return false
+      return watch.kind === 'create'
+        ? change.mode === 'new'
+        : change.mode === 'revise' && change.target === watch.requirementId
+    })
+  }
+
   // 记录每张立项卡是否见过回合在跑；卡结束后清掉标记。
   useEffect(() => {
     const keys = new Set(watches.map(item => item.key))
@@ -430,6 +492,13 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
   const blockedIntake = hasIntakeWork(props.projection) && props.intakeResult === null
   const firstRequirement = props.projection.requirements[0]
 
+  // 待确认的需求变更：起草态且带载荷的提案；对比视图只对这些提案开放。
+  const pendingChanges = props.projection.proposals.flatMap(proposal =>
+    proposal.decision === 'draft' && proposal.requirementChange !== undefined
+      ? [{ proposal, change: proposal.requirementChange }]
+      : [])
+  const compare = compareId === null ? undefined : pendingChanges.find(entry => entry.proposal.id === compareId)
+
   const cards = useMemo<readonly OperationCardView[]>(() => {
     const labelCtx = {
       ...(props.presetNames === undefined ? {} : { presetNames: props.presetNames }),
@@ -440,10 +509,13 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
     const idOf = (run: OpRun, index: number): string => run.roles[index] ?? run.roles[run.roles.length - 1] ?? ''
     // 单岗节点沿用四步清单；多岗节点按岗位列步骤，末尾一步是整节点完成。
     // 等待确认时当前岗的工作已结束：单岗清单「岗位工作中」置完成，多岗清单当前岗置完成。
-    const stepsOf = (run: OpRun, landed: number, status: OperationCardView['status'], active: boolean, awaiting = false): readonly OperationStep[] => {
+    // 提案已落盘等待对比时「产物落盘」也置完成：提案就是本次操作的产物，落需求本体等人确认。
+    const stepsOf = (run: OpRun, landed: number, status: OperationCardView['status'], active: boolean, awaiting = false, proposalLanded = false): readonly OperationStep[] => {
       if (run.roles.length <= 1) {
         const states: readonly OperationStepState[] = status === 'running'
-          ? awaiting ? ['done', 'done', 'pending', 'pending'] : ['done', 'active', 'pending', 'pending']
+          ? proposalLanded
+            ? ['done', 'done', 'done', 'pending']
+            : awaiting ? ['done', 'done', 'pending', 'pending'] : ['done', 'active', 'pending', 'pending']
           : status === 'done'
             ? ['done', 'done', 'done', 'done']
             : ['done', 'failed', 'pending', 'pending']
@@ -457,7 +529,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
       const steps: OperationStep[] = run.roles.map((role, index) => {
         const state: OperationStepState = status === 'failed' && index === landed
           ? 'failed'
-          : index < landed || (awaiting && index === landed)
+          : index < landed || ((awaiting || proposalLanded) && index === landed)
             ? 'done'
             : active && status === 'running' && index === landed
               ? 'active'
@@ -476,6 +548,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
       active: boolean,
       nextRoleLabel?: string,
       awaiting = false,
+      compareProposalId?: string,
     ): OperationCardView => {
       const roleId = idOf(run, current)
       return {
@@ -485,25 +558,30 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
         sourceLabel: flowRoleSource(roleId, t),
         status,
         statusText,
-        steps: stepsOf(run, current, status, active, awaiting),
+        steps: stepsOf(run, current, status, active, awaiting, compareProposalId !== undefined),
         sessionId,
         minimized: minimizedKeys.includes(run.key),
         ...(nextRoleLabel === undefined ? {} : { nextRoleLabel }),
         ...(awaiting ? { awaitingConfirm: true } : {}),
+        ...(compareProposalId === undefined ? {} : { compareProposalId }),
       }
     }
-    const idTextOf = (run: OpRun): string => run.requirementId ?? t('requirement.opTitle.intake')
+    const idTextOf = (run: OpRun): string =>
+      run.requirementId ?? t(run.kind === 'create' ? 'requirement.opTitle.create' : 'requirement.opTitle.intake')
     return [
       ...watches.map((watch) => {
         const awaiting = awaitingConfirmOf(watch)
+        const pendingProposal = pendingProposalOf(watch)
         return viewOf(
           watch, watch.roleIndex, watch.sessionId, 'running',
           awaiting
             ? t('op.awaitConfirm')
-            : confirmSent.includes(watch.key)
-              ? t('op.confirmSent')
-              : t(OP_RUNNING_KEY[watch.kind], { id: idTextOf(watch) }),
-          !awaiting, undefined, awaiting,
+            : pendingProposal !== undefined
+              ? t('op.awaitProposal')
+              : confirmSent.includes(watch.key)
+                ? t('op.confirmSent')
+                : t(OP_RUNNING_KEY[watch.kind], { id: idTextOf(watch) }),
+          !awaiting && pendingProposal === undefined, undefined, awaiting, pendingProposal?.id,
         )
       }),
       ...paused.map(run => viewOf(
@@ -580,6 +658,15 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
           >
             {props.intakeResult === null ? '立项向导' : '立项结果'}
           </button>
+          <button
+            type="button"
+            className="pill pill-accent"
+            data-testid="requirement-new-open"
+            disabled={props.project === null || busyOf('create', null)}
+            onClick={() => { setCreateOpen(true) }}
+          >
+            {t('requirement.new')}
+          </button>
         </div>
       </header>
 
@@ -612,6 +699,36 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
 
       {opNotice !== null && (
         <p className="problem" data-testid="requirement-op-result">{t('requirement.opFailed', { detail: opNotice })}</p>
+      )}
+
+      {props.project !== null && pendingChanges.length > 0 && (
+        <section className="pending-proposals lg-glass-card" data-testid="requirement-pending-proposals">
+          <h3>{t('requirement.pendingTitle')}</h3>
+          <ul className="plain-list compact">
+            {pendingChanges.map(({ proposal, change }) => (
+              <li key={proposal.id} data-testid="requirement-pending-proposal" data-proposal-id={proposal.id}>
+                <div className="pending-proposal-body">
+                  <strong>{proposal.title}</strong>
+                  <span className="tag">
+                    {change.mode === 'new' ? t('requirement.pendingNew') : t('requirement.pendingTarget', { target: change.target ?? '' })}
+                  </span>
+                  <p className="detail-note">
+                    {change.analysis.length > 120 ? `${change.analysis.slice(0, 120)}…` : change.analysis}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="pill pill-accent"
+                  data-testid="requirement-pending-open"
+                  data-proposal-id={proposal.id}
+                  onClick={() => { setCompareId(proposal.id) }}
+                >
+                  {t('requirement.pendingOpen')}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
       {props.project !== null && (
@@ -745,6 +862,48 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
         />
       )}
 
+      {createOpen && props.project !== null && (
+        <DetailDrawer
+          testId="requirement-new-drawer"
+          closeTestId="requirement-new-close"
+          onClose={() => { setCreateOpen(false) }}
+          head={<h3>{t('requirement.newDrawerTitle')}</h3>}
+          t={t}
+        >
+          <p className="detail-note">{t('requirement.newHint')}</p>
+          <textarea
+            className="new-requirement-input"
+            data-testid="requirement-new-description"
+            value={createText}
+            placeholder={t('requirement.newPlaceholder')}
+            rows={6}
+            onChange={(event) => { setCreateText(event.target.value) }}
+          />
+          <div className="action-row">
+            <button
+              type="button"
+              className="pill pill-accent"
+              data-testid="requirement-new-start"
+              onClick={() => { void createStart(createText) }}
+            >
+              {t('requirement.newStart')}
+            </button>
+          </div>
+        </DetailDrawer>
+      )}
+
+      {compare !== undefined && props.project !== null && (
+        <ProposalCompare
+          proposal={compare.proposal}
+          change={compare.change}
+          requirements={props.projection.requirements}
+          scopeSessionId={props.project.scopeSessionId}
+          onClose={() => { setCompareId(null) }}
+          onReload={props.onReload}
+          t={t}
+        />
+      )}
+
       {readerPath !== null && props.project !== null && (
         <ReaderOverlay
           scopeSessionId={props.project.scopeSessionId}
@@ -759,6 +918,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
         onOpenSession={props.onOpenSession}
         onClose={closeCard}
         onNextRole={nextRole}
+        onCompare={(proposalId) => { setCompareId(proposalId) }}
         {...(props.onConfirmIntake === undefined ? {} : { onConfirmIntake: (key: string) => { void confirmIntake(key) } })}
         t={t}
       />

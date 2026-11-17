@@ -742,6 +742,35 @@ html[data-theme='liquid-glass'] body {
 .op-capsule.op-done .op-dot { background: #22c55e; }
 .op-capsule.op-failed .op-dot { background: #f59e0b; }
 
+/* 待确认的需求变更卡：标题、目标与分析摘要，入口打开对比视图。 */
+.pending-proposals { margin: 0 0 12px; padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
+.pending-proposals h3 { margin: 0; font-size: 14px; }
+.pending-proposals li { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.pending-proposal-body { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.pending-proposal-body .detail-note { margin: 0; }
+
+/* 新建需求抽屉的描述输入。 */
+.new-requirement-input { width: 100%; resize: vertical; padding: 8px 10px; border: 1px solid var(--lg-line); border-radius: 8px; background: var(--lg-fill-card); color: inherit; font: inherit; }
+
+/* 提案对比视图：全屏层，逐条目差异加两栏全文对照。 */
+.compare-layer { position: absolute; inset: 0; z-index: 8; display: flex; align-items: stretch; justify-content: center; padding: 8px; background: rgba(20, 30, 48, 0.28); }
+.compare-panel { flex: 1; display: flex; flex-direction: column; gap: 10px; padding: 14px 18px; border: 1px solid var(--lg-line); border-radius: 14px; background: var(--lg-fill-card); min-width: 0; }
+.compare-bar { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.compare-bar h3 { margin: 0; font-size: 15px; }
+.compare-sub { margin: 2px 0 0; font-size: 12px; color: var(--lg-muted); }
+.compare-scroll { flex: 1; overflow: auto; display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+.compare-entry-added { color: #16a34a; }
+.compare-entry-removed { color: #dc2626; }
+.compare-entry-mark { display: inline-block; width: 16px; }
+.compare-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.compare-col { min-width: 0; }
+.compare-col h5 { margin: 0 0 6px; font-size: 12px; color: var(--lg-muted); }
+.compare-text { border: 1px solid var(--lg-line); border-radius: 8px; padding: 8px; overflow: auto; max-height: 420px; font-family: var(--font-mono, monospace); font-size: 12px; white-space: pre-wrap; word-break: break-word; }
+.compare-line.removed { background: rgba(220, 38, 38, 0.12); }
+.compare-line.added { background: rgba(22, 163, 74, 0.14); }
+.compare-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+@media (max-width: 900px) { .compare-columns { grid-template-columns: 1fr; } }
+
 /* 对话页的审批/提问卡排在消息尾部，与消息同宽左对齐、随对话滚动。 */
 .chat-pending {
   align-self: flex-start;

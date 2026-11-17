@@ -2,7 +2,7 @@
 /** 立项提示词与人才库人设同源：向导只发项目事实，纪律只在 maniu-intake 人设里。 */
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { buildIntakePrompt, buildManagerSplitPrompt, buildReviewPrompt, type IntakeProject } from '../src/intake/prompts.ts'
+import { buildIntakePrompt, buildManagerSplitPrompt, buildRequirementCreatePrompt, buildReviewPrompt, buildRevisePrompt, type IntakeProject } from '../src/intake/prompts.ts'
 
 const PROJECT: IntakeProject = {
   name: '仓库 A',
@@ -70,6 +70,76 @@ describe('需求评审提示词', () => {
     expect(prompt).toContain('2. 合理性：')
     expect(prompt).toContain('3. 需求角度：')
     expect(prompt).toContain('4. 技术实现角度：')
+  })
+})
+
+describe('新建需求提示词', () => {
+  it('用户描述随首条消息，四步限定指令齐全', () => {
+    const prompt = buildRequirementCreatePrompt('希望支持订单导出')
+    expect(prompt).toContain('希望支持订单导出')
+    expect(prompt).toContain('只登记这一条')
+    expect(prompt).toContain('冲突/重复')
+    expect(prompt).toContain('影响面')
+    expect(prompt).toContain('优先级')
+    expect(prompt).toContain('明确禁止代码层判断')
+    expect(prompt).toContain('小需求出短文档')
+    expect(prompt).toContain('大需求出完整文档')
+    expect(prompt).toContain('ask_user_question')
+    expect(prompt).toContain('一次只问一个问题')
+    expect(prompt).toContain('requirement_propose')
+    expect(prompt).toContain('mode 为 new')
+    expect(prompt).toContain('不调用 requirement_draft')
+    expect(prompt).toContain('不做整项目立项')
+    expect(prompt).toContain('不写 .spec/project.yaml')
+    expect(prompt).toContain('不动其他需求')
+  })
+
+  it('描述可空：空时先问用户，仍走提案通道', () => {
+    const prompt = buildRequirementCreatePrompt('   ')
+    expect(prompt).toContain('用户没有提供描述')
+    expect(prompt).toContain('ask_user_question')
+    expect(prompt).toContain('requirement_propose')
+  })
+
+  it('确认态需求只能作为 new 的依据，不能改稿', () => {
+    const prompt = buildRequirementCreatePrompt('基于已确认需求扩展')
+    expect(prompt).toContain('target 与 base_version')
+    expect(prompt).toContain('确认态需求只能这样作为新需求的依据，不能改稿')
+  })
+})
+
+describe('需求改稿提示词（提案流程）', () => {
+  it('四步走提案：基线是当前正文与最近评审报告，落盘走 requirement_propose revise', () => {
+    const prompt = buildRevisePrompt(
+      { id: 'REQ-01', title: '待改稿需求' },
+      '# 当前正文\n\n内容',
+      'requirements/REQ-01/reviews/R2.md',
+      3,
+    )
+    expect(prompt).toContain('需求改稿：请修订需求 REQ-01（待改稿需求）')
+    expect(prompt).toContain('.spec/requirements/REQ-01/reviews/R2.md')
+    expect(prompt).toContain('当前正文版本号是 v3')
+    expect(prompt).toContain('冲突/重复')
+    expect(prompt).toContain('影响面')
+    expect(prompt).toContain('优先级')
+    expect(prompt).toContain('明确禁止代码层判断')
+    expect(prompt).toContain('ask_user_question')
+    expect(prompt).toContain('一次只问一个问题')
+    expect(prompt).toContain('requirement_propose')
+    expect(prompt).toContain('mode 为 revise')
+    expect(prompt).toContain('target 为 REQ-01')
+    expect(prompt).toContain('base_version 为 3')
+    expect(prompt).toContain('不调用 requirement_revise 直接落盘')
+    expect(prompt).toContain('不改其他需求')
+    expect(prompt).toContain('# 当前正文')
+  })
+
+  it('没有评审报告时不编造意见；旧需求没有版本表按 v1', () => {
+    const prompt = buildRevisePrompt({ id: 'REQ-02', title: '旧需求' }, '正文')
+    expect(prompt).toContain('还没有评审报告')
+    expect(prompt).toContain('不要编造评审意见')
+    expect(prompt).toContain('当前正文版本号是 v1')
+    expect(prompt).toContain('base_version 为 1')
   })
 })
 

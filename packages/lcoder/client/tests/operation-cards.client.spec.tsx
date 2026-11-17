@@ -219,3 +219,45 @@ describe('操作进度浮卡', () => {
     expect(element('op-view-session')?.textContent).toBe('查看对话')
   })
 })
+
+describe('提案等待对比浮卡', () => {
+  it('等待态画「去对比」按钮，点击带提案编号回调；查看对话仍自愿', () => {
+    const onCompare = vi.fn((_proposalId: string) => {})
+    act(() => {
+      root.render(
+        <OperationCards
+          cards={[cardOf({ statusText: '提案待你对比确认', compareProposalId: 'P-01' })]}
+          onToggleMinimize={onToggleMinimize}
+          onOpenSession={onOpenSession}
+          onClose={onClose}
+          onCompare={onCompare}
+          t={t}
+        />,
+      )
+    })
+    expect(element('requirement-op-running')?.textContent).toContain('提案待你对比确认')
+    expect(element('op-go-compare')?.textContent).toBe('去对比')
+    press('op-go-compare')
+    expect(onCompare).toHaveBeenCalledWith('P-01')
+    expect(element('op-view-session')?.textContent).toBe('查看对话')
+    press('op-view-session')
+    expect(onOpenSession).toHaveBeenCalledWith('session-1')
+  })
+
+  it('没有提案或没有回调时不画去对比按钮', () => {
+    render([cardOf()])
+    expect(element('op-go-compare')).toBeNull()
+    act(() => {
+      root.render(
+        <OperationCards
+          cards={[cardOf({ compareProposalId: 'P-01' })]}
+          onToggleMinimize={onToggleMinimize}
+          onOpenSession={onOpenSession}
+          onClose={onClose}
+          t={t}
+        />,
+      )
+    })
+    expect(element('op-go-compare')).toBeNull()
+  })
+})

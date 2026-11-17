@@ -154,6 +154,19 @@ export interface ProposalRow {
   readonly recommendation: string
   readonly decision: 'draft' | 'approved' | 'rejected' | 'unknown'
   readonly decidedAt: string | null
+  /** 需求变更载荷；缺省表示普通方案探讨。 */
+  readonly requirementChange?: RequirementChangeRow
+}
+
+/** 提案携带的需求变更：new 登记新需求，revise 改稿既有需求；正文与分析结论都在载荷里。 */
+export interface RequirementChangeRow {
+  readonly mode: 'new' | 'revise'
+  /** revise 的目标需求编号；new 记录依据时才有。 */
+  readonly target?: string
+  /** 基线版本号；与 target 成对。 */
+  readonly baseVersion?: number
+  readonly content: string
+  readonly analysis: string
 }
 
 /** 方案里的一条候选。 */
@@ -402,6 +415,29 @@ export function groupTextToRow(fileName: string, text: string): SchedulingGroupR
 }
 
 /**
+ * 提案里的需求变更载荷 → 行；形状不合（缺 mode/正文/分析，revise 缺目标或基线，new 依据不成对）时缺省。
+ * @param value - YAML 里的 requirement_change 字段。
+ * @returns 可展示的变更载荷；读不懂为 undefined。
+ */
+function requirementChangeOf(value: unknown): RequirementChangeRow | undefined {
+  const fields = recordOf(value)
+  if (fields === undefined) return undefined
+  const mode = fields.mode
+  const content = asText(fields.content)
+  const analysis = asText(fields.analysis)
+  if ((mode !== 'new' && mode !== 'revise') || content === undefined || analysis === undefined) return undefined
+  const target = asText(fields.target)
+  const baseVersion = positiveInt(fields.base_version)
+  if (mode === 'revise') {
+    if (target === undefined || baseVersion === null) return undefined
+    return { mode, target, baseVersion, content, analysis }
+  }
+  if ((target === undefined) !== (baseVersion === null)) return undefined
+  if (target !== undefined && baseVersion !== null) return { mode, target, baseVersion, content, analysis }
+  return { mode, content, analysis }
+}
+
+/**
  * 方案 YAML → 行。
  * @param fileName - 文件名，缺 id 时兜底。
  * @param text - 文件正文。
@@ -421,6 +457,7 @@ export function proposalTextToRow(fileName: string, text: string): ProposalRow |
     return [{ name, summary: asText(record?.summary) ?? '', cost: asText(record?.cost) ?? '' }]
   })
   const decision = asText(fields.decision)
+  const requirementChange = requirementChangeOf(fields.requirement_change)
   return {
     id: asText(fields.id) ?? fileName.replace(/\.yaml$/, ''),
     title,
@@ -429,6 +466,7 @@ export function proposalTextToRow(fileName: string, text: string): ProposalRow |
     recommendation,
     decision: decision === 'draft' || decision === 'approved' || decision === 'rejected' ? decision : 'unknown',
     decidedAt: asText(fields.decided_at) ?? null,
+    ...(requirementChange === undefined ? {} : { requirementChange }),
   }
 }
 
