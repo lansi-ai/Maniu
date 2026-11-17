@@ -31,7 +31,7 @@ const EMPTY: SpecProjection = {
 
 const WITH_REQUIREMENT: SpecProjection = {
   ...EMPTY,
-  requirements: [{ id: 'REQ-01', text: '正文', title: '探针需求', state: 'confirmed', options: [] }],
+  requirements: [{ id: 'REQ-01', text: '正文', title: '探针需求', state: 'confirmed', options: [], versions: [], reviews: [] }],
 }
 
 let container: HTMLDivElement
