@@ -148,6 +148,7 @@ export const EN: Readonly<Record<MessageKey, string>> = {
   'task.clearRequirementFilter': 'Clear filter',
   'intake.sessionTitle': 'Requirement analysis',
   'intake.roleName': 'Requirements analyst',
+  'intake.resultBackground': 'The intake session runs in the background; progress and the confirm entry live on the requirements page floating card, and filed requirements appear in the list.',
   'intake.roleLabel': 'Using {name}',
   'intake.blocked': 'This project already has requirements or tasks; intake analysis only runs on an empty project.',
   'intake.blockedOpen': 'View existing requirements',

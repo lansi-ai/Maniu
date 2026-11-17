@@ -146,6 +146,7 @@ export const ZH = {
   'task.clearRequirementFilter': '清除筛选',
   'intake.sessionTitle': '需求分析',
   'intake.roleName': '需求分析师',
+  'intake.resultBackground': '立项会话在后台运行；进度与确认入口在需求页浮卡，落盘的需求会出现在需求列表。',
   'intake.roleLabel': '本次使用{name}',
   'intake.blocked': '这个项目已经有需求或任务，立项分析只对空项目开放。',
   'intake.blockedOpen': '查看已有需求',
