@@ -721,7 +721,8 @@ export function App(): JSX.Element {
               />
             )}
 
-            {page === 'requirements' && (
+            {/* 需求页跨页保持挂载：后台操作的浮卡与轮询状态住在页内，卸载即丢；隐藏而非条件渲染。 */}
+            <div style={page === 'requirements' ? undefined : { display: 'none' }} data-testid="requirements-host">
               <RequirementsPage
                 project={project}
                 projection={projection.projection}
@@ -742,7 +743,7 @@ export function App(): JSX.Element {
                 }}
                 t={t}
               />
-            )}
+            </div>
 
             {page === 'tasks' && (
               <TasksPage

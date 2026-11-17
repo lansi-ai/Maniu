@@ -229,3 +229,22 @@ describe('立项等待确认的宿主通道', () => {
     expect(followOpens()).toHaveLength(0)
   })
 })
+
+describe('操作浮卡跨页存活', () => {
+  it('切到对话页再回需求页，运行卡仍在且隐藏期不丢状态', async () => {
+    withRequirement = true
+    await renderApp()
+    await press('nav-requirements')
+    await press('requirement-op-review')
+    expect(element('requirement-op-running')).not.toBeNull()
+
+    await press('nav-chat')
+    const host = element('requirements-host') as HTMLElement | null
+    expect(host?.style.display).toBe('none')
+    expect(element('requirement-op-running')).not.toBeNull()
+
+    await press('nav-requirements')
+    expect((element('requirements-host') as HTMLElement | null)?.style.display).not.toBe('none')
+    expect(element('requirement-op-running')).not.toBeNull()
+  })
+})
