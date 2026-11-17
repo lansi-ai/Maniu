@@ -100,6 +100,49 @@ ${body}
 }
 
 /**
+ * 生成需求拆分提示词（研发经理）。
+ *
+ * 拆分与岗位建议都由研发经理做：先按技术维度用 `task_draft` 建任务，
+ * 再用 `requirement_split_plan` 写逐条建议；分配仍等人确认后走 `/task_assign`。
+ * @param requirement - 需求编号与标题。
+ * @param document - 需求正文。
+ * @param tracks - 可用轨的显示文本。
+ * @returns 可直接发送给研发经理会话的提示词。
+ */
+export function buildManagerSplitPrompt(
+  requirement: { readonly id: string; readonly title: string },
+  document: string,
+  tracks: readonly string[],
+): string {
+  const body = bodyOf(document)
+  return `需求拆分：请把需求 ${requirement.id}（${requirement.title}）拆分成可执行的开发任务，并逐条给出岗位建议。
+
+依据：以末尾附上的《项目需求概要》（.spec/requirements/${requirement.id}.md）为唯一范围依据；文档里暂不开发的范围不要拆成任务。
+
+执行身份：你是这条需求的研发经理，负责按技术维度拆分任务，并判断每条任务该由什么岗位来做。
+- 用户已在界面上确认需求并亲自点击「拆分任务」，这就是明确的拆分授权；不要重复追问。
+- 不改需求文档、.spec/project.yaml、已有方案与规格条目，不开始实现，不调用编辑与命令工具。
+
+第一步，建任务：
+- 按技术维度用 task_draft 建任务，state 一律 drafting。
+- 每条任务写 description（范围与验收标准）、grade、rules、depends_on、scope.allowed_paths、track 与 requirement: ${requirement.id}。
+- 每条任务必须标一条轨，只能取：${tracks.join('、')}。
+- 空仓时第一条任务必须是「项目基础框架与脚手架」，所有功能任务在 depends_on 里依赖它；已有可运行框架只补实际缺口。
+
+第二步，写岗位建议：
+- 任务建完后调用 requirement_split_plan：参数 id 为 ${requirement.id}，tasks 逐条给 task（刚建的任务编号）、role（岗位 id，优先取 .spec/roles.yaml；也可用内置角色 id）与 reason（一句技术理由）。
+- 计划写到 .spec/requirements/${requirement.id}/split-plan.yaml，覆盖上一份计划。
+- 只给建议：不分配岗位、不改任务状态；分配由人在界面上逐条确认后执行 /task_assign，不要假称已分配。
+
+完成后列出每条任务的编号、标题、轨、依赖与建议岗位，然后停下。
+
+《项目需求概要》正文：
+"""
+${body}
+"""`
+}
+
+/**
  * 生成需求评审提示词。
  *
  * 评审只出报告：报告由项目经理用 `requirement_review_draft` 落盘，

@@ -74,6 +74,19 @@ export interface RequirementReviewRow {
   readonly sessionId?: string
 }
 
+/** 拆分计划里的一条岗位建议。 */
+export interface RequirementSplitPlanEntryRow {
+  readonly task: string
+  readonly role: string
+  readonly reason?: string
+}
+
+/** 研发经理对一次拆分给出的岗位建议；计划文件缺失时整个字段缺省。 */
+export interface RequirementSplitPlanRow {
+  readonly at: string
+  readonly entries: readonly RequirementSplitPlanEntryRow[]
+}
+
 /** 需求行（含正文）。 */
 export interface RequirementDocRow {
   readonly id: string
@@ -90,6 +103,8 @@ export interface RequirementDocRow {
   readonly reviews: readonly RequirementReviewRow[]
   readonly approvedAt?: string
   readonly approvedVersion?: number
+  /** 拆分岗位建议；没有计划文件时缺省。 */
+  readonly splitPlan?: RequirementSplitPlanRow
 }
 
 /** 规则行。 */
@@ -469,6 +484,27 @@ export function requirementTextToRow(fileName: string, text: string): Omit<Requi
     ...(approvedAt === undefined ? {} : { approvedAt }),
     ...(approvedVersion === undefined ? {} : { approvedVersion }),
   }
+}
+
+/**
+ * 拆分计划 YAML → 行。
+ * @param text - `requirements/<编号>/split-plan.yaml` 正文。
+ * @returns 生成时刻与逐条建议；读不懂或没有有效条目时为 undefined。
+ */
+export function splitPlanTextToRow(text: string): RequirementSplitPlanRow | undefined {
+  const fields = parsed(text)
+  if (fields === undefined) return undefined
+  const at = asText(fields.at)
+  if (at === undefined) return undefined
+  const entries = (Array.isArray(fields.tasks) ? fields.tasks : []).flatMap((entry: unknown) => {
+    const record = recordOf(entry)
+    const task = asText(record?.task)
+    const role = asText(record?.role)
+    if (task === undefined || role === undefined) return []
+    const reason = asText(record?.reason)
+    return [{ task, role, ...(reason === undefined ? {} : { reason }) }]
+  })
+  return entries.length === 0 ? undefined : { at, entries }
 }
 
 function repoRelativeDocs(value: unknown): string[] {

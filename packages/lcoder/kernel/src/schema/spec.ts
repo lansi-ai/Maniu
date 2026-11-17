@@ -466,6 +466,43 @@ export const Requirement = z
   .strict()
 export type Requirement = z.infer<typeof Requirement>
 
+// ── 6.4 拆分岗位建议 ────────────────────────────────────────
+
+/**
+ * 一条岗位建议：拆分出的任务该由哪个岗位来做。
+ *
+ * `role` 可以是 `.spec/roles.yaml` 里的岗位 id，也可以是内置角色 id；
+ * 只校形态，「名册与内置角色都认识」由写盘侧查。理由可省。
+ */
+export const RequirementSplitPlanEntry = z
+  .object({
+    task: Id,
+    role: z
+      .string()
+      .regex(ROLE_ID_PATTERN, '岗位 id 要小写字母开头，只含小写字母、数字、下划线或连字符'),
+    /** 一句技术理由，说明为什么这条任务归这个岗位。 */
+    reason: z.string().min(1).optional(),
+  })
+  .strict()
+export type RequirementSplitPlanEntry = z.infer<typeof RequirementSplitPlanEntry>
+
+/**
+ * `.spec/requirements/<ID>/split-plan.yaml`：研发经理对一次拆分给出的逐条岗位建议。
+ *
+ * 计划只是建议：模型写这份文件，分配仍由人逐条确认后执行 `/task_assign`，
+ * 所以它不带状态、不带「已分配」标记。再次拆分覆盖上一份计划。
+ */
+export const RequirementSplitPlan = z
+  .object({
+    requirement: RequirementId,
+    /** 生成时刻。 */
+    at: IsoDateTime,
+    /** 逐条建议；至少一条，顺序即展示顺序。 */
+    tasks: z.array(RequirementSplitPlanEntry).min(1),
+  })
+  .strict()
+export type RequirementSplitPlan = z.infer<typeof RequirementSplitPlan>
+
 // ── 6.5 常驻会话登记 ────────────────────────────────────────
 
 /**
@@ -713,6 +750,7 @@ export const SpecLayout = [
   { glob: 'tasks/*.yaml', schema: Task, many: true },
   { glob: 'proposals/*.yaml', schema: Proposal, many: true },
   { glob: 'requirements/*.yaml', schema: Requirement, many: true },
+  { glob: 'requirements/*/split-plan.yaml', schema: RequirementSplitPlan, many: true },
   { glob: 'deliverables/*.yaml', schema: Deliverable, many: true },
   { glob: 'contracts/*.contract.yaml', schema: Contract, many: true },
   { glob: 'automation.yaml', schema: AutomationPolicy, many: false },

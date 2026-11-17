@@ -14,6 +14,8 @@ export {
   ProjectTrack,
   Requirement,
   RequirementOption,
+  RequirementSplitPlan,
+  RequirementSplitPlanEntry,
   RequirementState,
   RolesFile,
   RuleEntry,

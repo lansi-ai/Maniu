@@ -28,7 +28,7 @@ import type { BuiltinRoleId } from '../schema/roles.js'
  * 签署是人机命令（`ctx.commands`，不经过模型回合），见 docs/cookbook/adding-a-tool.md。
  */
 export const SURFACE: Readonly<Record<TaskState, readonly string[]>> = {
-  drafting: ['file_read', 'file_list', 'project_draft', 'spec_query', 'spec_draft', 'spec_bind', 'task_read', 'task_draft', 'contract_draft', 'proposal_draft', 'requirement_draft', 'requirement_revise', 'requirement_review_draft', 'git_status', 'git_diff', 'role_draft'],
+  drafting: ['file_read', 'file_list', 'project_draft', 'spec_query', 'spec_draft', 'spec_bind', 'task_read', 'task_draft', 'contract_draft', 'proposal_draft', 'requirement_draft', 'requirement_revise', 'requirement_review_draft', 'requirement_split_plan', 'git_status', 'git_diff', 'role_draft'],
   contracted: [
     'file_read',
     'file_list',
@@ -42,6 +42,7 @@ export const SURFACE: Readonly<Record<TaskState, readonly string[]>> = {
     'requirement_draft',
     'requirement_revise',
     'requirement_review_draft',
+    'requirement_split_plan',
     'git_status',
     'git_diff',
     'git_commit',
@@ -65,6 +66,7 @@ export const SURFACE: Readonly<Record<TaskState, readonly string[]>> = {
     'requirement_draft',
     'requirement_revise',
     'requirement_review_draft',
+    'requirement_split_plan',
     'git_status',
     'git_diff',
     'git_commit',
@@ -88,6 +90,7 @@ export const SURFACE: Readonly<Record<TaskState, readonly string[]>> = {
     'requirement_draft',
     'requirement_revise',
     'requirement_review_draft',
+    'requirement_split_plan',
     'git_status',
     'git_diff',
     'git_commit',
@@ -133,6 +136,7 @@ export const UNSCOPEED_SURFACE: readonly string[] = [
   'requirement_draft',
   'requirement_revise',
   'requirement_review_draft',
+  'requirement_split_plan',
   'git_status',
   'git_diff',
 ]
@@ -203,10 +207,11 @@ export const ROLE_TOOLS: Readonly<Record<RoleId, readonly string[]>> = {
   flow: ['file_read', 'file_list', 'spec_query', 'task_read'],
   /**
    * 研发经理：需求与任务拆完之后，给每条任务定岗位。
-   * 它只起草岗位名册（`role_draft`），**分配仍是人机命令** `/task_assign`；
+   * 它按技术维度拆任务（`task_draft`）、把逐条岗位建议写成拆分计划（`requirement_split_plan`），
+   * 并起草岗位名册（`role_draft`）；**分配仍是人机命令** `/task_assign`。
    * 没有任何改代码或跑命令的能力。
    */
-  manager: ['file_read', 'file_list', 'spec_query', 'task_read', 'task_draft', 'role_draft'],
+  manager: ['file_read', 'file_list', 'spec_query', 'task_read', 'task_draft', 'role_draft', 'requirement_split_plan'],
 }
 
 /**

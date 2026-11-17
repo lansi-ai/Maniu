@@ -4,7 +4,7 @@ import { useCallback, useState } from 'react'
 import type { JSX } from 'react'
 import type { ProjectScope } from '../workspace/use-workspaces.ts'
 import type { SpecProjection } from '../spec/load.ts'
-import type { RequirementDocRow } from '../spec/rows.ts'
+import type { RequirementDocRow, RequirementSplitPlanEntryRow } from '../spec/rows.ts'
 import type { SessionSummary } from '../store.ts'
 import { requirementStateLabel } from '../spec/board.ts'
 import { readDiscussionHistory, type DiscussionHistory } from '../discussion/history.ts'
@@ -50,6 +50,8 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
   const [historyBusy, setHistoryBusy] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
   const [result, setResult] = useState<CommandOutcome | null>(null)
+  const [ignored, setIgnored] = useState<ReadonlySet<string>>(() => new Set())
+  const [assigns, setAssigns] = useState<Readonly<Record<string, CommandOutcome>>>({})
   const related = props.projection.tasks.filter(task => task.requirement === row.id || task.proposal === row.id)
 
   const execute = async (kind: string, line: string): Promise<void> => {
@@ -75,6 +77,35 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
     } finally {
       setBusy(null)
     }
+  }
+
+  const assign = async (entry: RequirementSplitPlanEntryRow): Promise<void> => {
+    if (busy !== null) return
+    setBusy(`assign-${entry.task}`)
+    try {
+      const outcome = await runCommand(props.project.scopeSessionId, `/task_assign ${entry.task} ${entry.role}`)
+      setAssigns(current => ({ ...current, [entry.task]: outcome }))
+      if (outcome.ok) props.onReload()
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const ignore = (task: string): void => {
+    setIgnored((current) => {
+      const next = new Set(current)
+      next.add(task)
+      return next
+    })
+  }
+
+  const plan = row.splitPlan
+  const planDone = plan !== undefined && plan.entries.every(
+    entry => ignored.has(entry.task) || assigns[entry.task]?.ok === true,
+  )
+  const roleLabel = (id: string): string => {
+    const name = props.projection.roles.find(role => role.id === id)?.name
+    return name === undefined ? id : `${name}（${id}）`
   }
 
   const reviewed = row.reviews.length > 0
@@ -144,6 +175,109 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
         <section className="detail-section" data-testid="requirement-recommendation">
           <h4>推荐</h4>
           <p className="detail-line">{row.recommendation}</p>
+        </section>
+      )}
+
+      {plan !== undefined && (
+        <section className="detail-section" data-testid="requirement-split-plan">
+          <h4>{t('requirement.splitPlanTitle')}</h4>
+          <p className="detail-note">{t('requirement.splitPlanAt', { at: plan.at })}</p>
+          <div className="table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th scope="col">{t('requirement.splitPlanTask')}</th>
+                  <th scope="col">{t('requirement.splitPlanRole')}</th>
+                  <th scope="col">{t('requirement.splitPlanReason')}</th>
+                  <th scope="col">{t('requirement.splitPlanAction')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {plan.entries.map((entry) => {
+                  const task = props.projection.tasks.find(item => item.id === entry.task)
+                  const outcome = assigns[entry.task]
+                  const done = ignored.has(entry.task) || outcome?.ok === true
+                  return (
+                    <tr key={entry.task} data-testid="requirement-split-plan-row" data-task-id={entry.task}>
+                      <td><span className="mono">{entry.task}</span> {task?.title ?? ''}</td>
+                      <td>{roleLabel(entry.role)}</td>
+                      <td>{entry.reason ?? '—'}</td>
+                      <td>
+                        {ignored.has(entry.task)
+                          ? <span className="tag" data-testid="requirement-split-plan-status" data-ok="ignored">{t('requirement.roleIgnored')}</span>
+                          : outcome === undefined
+                            ? (
+                              <div className="row-actions">
+                                <button
+                                  type="button"
+                                  className="pill"
+                                  data-testid="requirement-split-plan-confirm"
+                                  data-task-id={entry.task}
+                                  disabled={busy !== null}
+                                  onClick={() => { void assign(entry) }}
+                                >
+                                  {t('requirement.confirmRole')}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="link-button"
+                                  data-testid="requirement-split-plan-ignore"
+                                  data-task-id={entry.task}
+                                  disabled={busy !== null}
+                                  onClick={() => { ignore(entry.task) }}
+                                >
+                                  {t('requirement.ignoreRole')}
+                                </button>
+                              </div>
+                            )
+                            : (
+                              <span
+                                className={outcome.ok ? 'detail-line' : 'problem'}
+                                data-testid="requirement-split-plan-status"
+                                data-ok={outcome.ok ? 'true' : 'false'}
+                              >
+                                {outcome.text}
+                              </span>
+                            )}
+                        {!done && outcome !== undefined && (
+                          <div className="row-actions">
+                            <button
+                              type="button"
+                              className="link-button"
+                              data-testid="requirement-split-plan-retry"
+                              data-task-id={entry.task}
+                              disabled={busy !== null}
+                              onClick={() => { void assign(entry) }}
+                            >
+                              {t('requirement.confirmRole')}
+                            </button>
+                            <button
+                              type="button"
+                              className="link-button"
+                              data-testid="requirement-split-plan-ignore"
+                              data-task-id={entry.task}
+                              disabled={busy !== null}
+                              onClick={() => { ignore(entry.task) }}
+                            >
+                              {t('requirement.ignoreRole')}
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+          {planDone && (
+            <p className="detail-note" data-testid="requirement-split-plan-done">
+              <span>{t('requirement.splitPlanDone')}</span>
+              <button type="button" className="link-button" data-testid="requirement-split-plan-tasks" onClick={props.onOpenTasks}>
+                {t('requirement.splitPlanGoTasks')}
+              </button>
+            </p>
+          )}
         </section>
       )}
 
@@ -281,7 +415,7 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
             {result.text}
           </p>
         )}
-        <p className="detail-note">拆分通过工作台会话执行项目经理指令；确认、上线、关闭走 kernel 人机命令。</p>
+        <p className="detail-note">{t('requirement.splitNote')}</p>
       </section>
     </DetailDrawer>
   )
