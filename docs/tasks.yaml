@@ -2688,7 +2688,7 @@ tracks:
       date: '2026-11-17'
       dep: [T-238]
       inferred: false
-      note: "B 级流程改动，来源是用户 2026-11-17 要求过审后的任务分配由研发经理按技术维度完成。现状拆分按钮仍用项目经理指令，产出任务只标轨；T-149 曾取消研发经理分配回合。目标：拆分改为研发经理会话，按技术维度拆任务并逐条给出岗位（人才映射）建议；界面展示建议并逐条让人确认，确认后才走 task_assign 人机命令，模型不直接分配；未确认前不写盘。实现口径已定，新增模型工具 requirement_split_plan，只进研发经理 manager 工具面，参数 id 与 tasks 数组（每项含 task 任务编号、role 岗位或内置角色 id、reason 可选）；校验需求已过审、任务属于该需求且为 drafting、角色可解析，写 .spec/requirements/<ID>/split-plan.yaml 并记录生成时刻，不建任务、不分配、不改状态。拆分按钮改为启动研发经理会话，指令要求先按技术维度用 task_draft 建任务并带 track 与 requirement，再调用 requirement_split_plan 写逐条岗位建议；界面读该文件展示建议，逐条人工确认后执行 task_assign，拒绝条目不写盘且计划文件保留。不改模型不能分配的红线、不改状态机边、不改云合同。验收 typecheck、packages/lcoder vitest、改动文件 oxlint、verify-client-ui-i18n；单测覆盖建议解析或落盘、逐条确认、拒绝不写盘、确认后调用命令。待 T-238 合入后派工。2026-11-17 15:02 监督窗口登记。"
+      note: "B 级流程改动，来源是用户 2026-11-17 要求过审后的任务分配由研发经理按技术维度完成。现状拆分按钮仍用项目经理指令，产出任务只标轨；T-149 曾取消研发经理分配回合。目标：拆分改为研发经理会话，按技术维度拆任务并逐条给出岗位（人才映射）建议；界面展示建议并逐条让人确认，确认后才走 task_assign 人机命令，模型不直接分配；未确认前不写盘。实现口径已定，新增模型工具 requirement_split_plan，只进研发经理 manager 工具面，参数 id 与 tasks 数组（每项含 task 任务编号、role 岗位或内置角色 id、reason 可选）；校验需求已过审、任务属于该需求且为 drafting、角色可解析，写 .spec/requirements/<ID>/split-plan.yaml 并记录生成时刻，不建任务、不分配、不改状态。拆分按钮改为启动研发经理会话，指令要求先按技术维度用 task_draft 建任务并带 track 与 requirement，再调用 requirement_split_plan 写逐条岗位建议；界面读该文件展示建议，逐条人工确认后执行 task_assign，拒绝条目不写盘且计划文件保留。不改模型不能分配的红线、不改状态机边、不改云合同。验收 typecheck、packages/lcoder vitest、改动文件 oxlint、verify-client-ui-i18n；单测覆盖建议解析或落盘、逐条确认、拒绝不写盘、确认后调用命令。待 T-238 合入后派工。2026-11-17 15:02 监督窗口登记。2026-11-17 15:38 监督窗口更新口径并派工，实现线会话 1f646542。"
 
 
 milestones:
