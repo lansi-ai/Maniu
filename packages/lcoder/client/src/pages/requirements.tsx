@@ -5,8 +5,11 @@ import type { JSX } from 'react'
 import type { ProjectScope } from '../workspace/use-workspaces.ts'
 import type { SpecProjection } from '../spec/load.ts'
 import type { SessionSummary } from '../store.ts'
+import type { RequirementDocRow } from '../spec/rows.ts'
 import { requirementStateLabel } from '../spec/board.ts'
 import { hasIntakeWork } from '../intake/eligibility.ts'
+import { buildReviewPrompt, buildRevisePrompt, buildSplitPrompt, BUILTIN_SPLIT_TRACKS } from '../intake/prompts.ts'
+import { INTAKE_PRESET_ID, PM_PRESET_ID } from '../talents/model.ts'
 import { translate, type Translate } from '../locale.ts'
 import { RequirementDetail } from './requirement-detail.tsx'
 import { TaskDetail } from './task-detail.tsx'
@@ -27,7 +30,13 @@ export interface RequirementsPageProps {
   readonly onClearIntakeResult: () => void
   readonly onReload: () => void
   readonly onStartIntake: (prompt: string) => Promise<{ readonly ok: boolean; readonly message: string }>
-  readonly onStartSession: (prompt: string) => Promise<{ readonly ok: boolean; readonly message: string }>
+  /** 新建会话并发送指令；`preset` 缺省沿用工作台角色。 */
+  readonly onStartSession: (
+    prompt: string,
+    preset?: string,
+  ) => Promise<{ readonly ok: boolean; readonly message: string }>
+  /** 跳到任务页并只显示该需求关联的任务。 */
+  readonly onOpenTasks: (requirementId: string) => void
   /** 取词函数；缺省为中文词典。 */
   readonly t?: Translate
 }
@@ -45,6 +54,8 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
   const [taskId, setTaskId] = useState<string | null>(null)
   const [readerPath, setReaderPath] = useState<string | null>(null)
   const [wizard, setWizard] = useState(false)
+  const [opBusy, setOpBusy] = useState<string | null>(null)
+  const [opNotice, setOpNotice] = useState<string | null>(null)
 
   const rows = useMemo(() => {
     const query = text.trim().toLowerCase()
@@ -57,6 +68,52 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
 
   const active = rows.find(row => row.id === selected) ?? null
   const detailTask = taskId === null ? undefined : props.projection.tasks.find(task => task.id === taskId)
+
+  const relatedOf = (requirementId: string) => props.projection.tasks.filter(
+    task => task.requirement === requirementId || task.proposal === requirementId,
+  )
+
+  const splitPromptOf = (row: RequirementDocRow): string => {
+    const extra = (props.projection.project?.tracks ?? []).map(track => `${track.id}（${track.name}）`)
+    return buildSplitPrompt(
+      { id: row.id, title: row.title ?? row.id },
+      row.text,
+      [...BUILTIN_SPLIT_TRACKS, ...extra],
+    )
+  }
+
+  const launch = async (
+    kind: string,
+    prompt: string,
+    preset?: string,
+  ): Promise<{ readonly ok: boolean; readonly message: string }> => {
+    setOpBusy(kind)
+    setOpNotice(null)
+    try {
+      const answer = await props.onStartSession(prompt, preset)
+      if (!answer.ok) setOpNotice(answer.message)
+      return answer
+    } finally {
+      setOpBusy(null)
+    }
+  }
+
+  const review = (row: RequirementDocRow) => launch(
+    `review-${row.id}`,
+    buildReviewPrompt({ id: row.id, title: row.title ?? row.id }, row.text),
+    PM_PRESET_ID,
+  )
+
+  const revise = (row: RequirementDocRow) => {
+    const sorted = [...row.reviews].sort((left, right) => left.round - right.round)
+    return launch(
+      `revise-${row.id}`,
+      buildRevisePrompt({ id: row.id, title: row.title ?? row.id }, row.text, sorted[sorted.length - 1]?.report),
+      INTAKE_PRESET_ID,
+    )
+  }
+
+  const split = (row: RequirementDocRow) => launch(`split-${row.id}`, splitPromptOf(row))
 
   // 立项分析只对空项目开放；已有结果时仍允许打开结果页回看，但不允许开新立项。
   const blockedIntake = hasIntakeWork(props.projection) && props.intakeResult === null
@@ -138,6 +195,10 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
         </p>
       )}
 
+      {opNotice !== null && (
+        <p className="problem" data-testid="requirement-op-result">{t('requirement.opFailed', { detail: opNotice })}</p>
+      )}
+
       {props.project !== null && (
         <div className="split">
           <div className="table-wrap lg-glass-card">
@@ -147,28 +208,77 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
                   <th scope="col">编号</th>
                   <th scope="col">标题</th>
                   <th scope="col">状态</th>
-                  <th scope="col">候选</th>
-                  <th scope="col">推荐</th>
+                  <th scope="col">{t('requirement.colOpened')}</th>
+                  <th scope="col">{t('requirement.colActions')}</th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map(row => (
-                  <tr
-                    key={row.id}
-                    data-testid="requirement-row"
-                    data-requirement-id={row.id}
-                    className={row.id === selected ? 'selected' : undefined}
-                    tabIndex={0}
-                    onClick={() => { setSelected(row.id) }}
-                    onKeyDown={(event) => { if (event.key === 'Enter') setSelected(row.id) }}
-                  >
-                    <td className="mono">{row.id}</td>
-                    <td>{row.title ?? row.id}</td>
-                    <td><span className="tag">{requirementStateLabel(row.state)}</span></td>
-                    <td>{row.options.length}</td>
-                    <td className="clamp">{row.recommendation ?? '—'}</td>
-                  </tr>
-                ))}
+                {rows.map((row) => {
+                  const related = relatedOf(row.id)
+                  return (
+                    <tr
+                      key={row.id}
+                      data-testid="requirement-row"
+                      data-requirement-id={row.id}
+                      className={row.id === selected ? 'selected' : undefined}
+                      tabIndex={0}
+                      onClick={() => { setSelected(row.id) }}
+                      onKeyDown={(event) => { if (event.key === 'Enter') setSelected(row.id) }}
+                    >
+                      <td className="mono">{row.id}</td>
+                      <td>{row.title ?? row.id}</td>
+                      <td><span className="tag">{requirementStateLabel(row.state)}</span></td>
+                      <td className="mono">{row.openedAt?.slice(0, 10) ?? '—'}</td>
+                      <td>
+                        <div className="row-actions">
+                          {row.state === 'draft' && (
+                            <>
+                              <button
+                                type="button"
+                                className="pill"
+                                data-testid="requirement-op-review"
+                                disabled={opBusy !== null}
+                                onClick={(event) => { event.stopPropagation(); void review(row) }}
+                              >
+                                {t('requirement.opReview')}
+                              </button>
+                              <button
+                                type="button"
+                                className="pill"
+                                data-testid="requirement-op-revise"
+                                disabled={opBusy !== null}
+                                onClick={(event) => { event.stopPropagation(); void revise(row) }}
+                              >
+                                {t('requirement.opRevise')}
+                              </button>
+                            </>
+                          )}
+                          {row.state === 'confirmed' && related.length === 0 && (
+                            <button
+                              type="button"
+                              className="pill"
+                              data-testid="requirement-op-split"
+                              disabled={opBusy !== null}
+                              onClick={(event) => { event.stopPropagation(); void split(row) }}
+                            >
+                              {t('requirement.opSplit')}
+                            </button>
+                          )}
+                          {related.length > 0 && (
+                            <button
+                              type="button"
+                              className="pill"
+                              data-testid="requirement-op-tasks"
+                              onClick={(event) => { event.stopPropagation(); props.onOpenTasks(row.id) }}
+                            >
+                              {t('requirement.opTasks')}
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
             {rows.length === 0 && <p className="empty" data-testid="requirement-empty">{props.loading ? '读取中…' : '没有匹配的需求。'}</p>}
@@ -184,7 +294,9 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
               onOpenTask={setTaskId}
               onOpenReader={setReaderPath}
               onReload={props.onReload}
-              onStartSession={props.onStartSession}
+              onSplit={() => split(active)}
+              onOpenTasks={() => { props.onOpenTasks(active.id) }}
+              t={t}
             />
           )}
         </div>

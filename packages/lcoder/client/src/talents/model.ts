@@ -354,6 +354,9 @@ const WORKBENCH_PRESET_ID = 'maniu-workbench'
 /** 立项会话的 preset；对话页据此收起首条立项指令。 */
 export const INTAKE_PRESET_ID = 'maniu-intake'
 
+/** 需求评审会话的 preset；每轮评审都新开一个会话。 */
+export const PM_PRESET_ID = 'maniu-pm'
+
 /** 改名前的角色 preset 前缀；旧会话的 `agentPreset` 记录的仍是它。 */
 const RETIRED_PRESET_PREFIX = 'lcoder'
 
