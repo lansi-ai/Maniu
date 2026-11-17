@@ -2557,7 +2557,7 @@ tracks:
       date: '2026-11-17'
       dep: [T-218]
       inferred: false
-      note: "C 级修复，来源是用户 2026-11-17 反馈切换项目页点击浏览每次都落在下载目录。根因是 lcoder pick-directory 的 showOpenDialog 没有 defaultPath，Windows 回落到系统默认目录。修法：IPC 增加可选 defaultPath，渲染端传当前输入框路径或当前项目路径；主进程校验为存在的目录，不存在时退到最近的已存在祖先，再退到上次成功选择的目录；上次选择写入桌面偏好并跨会话复用；取消不改变偏好；标题与错误文案不变。测试覆盖传参、无效路径回落、偏好持久化与取消；client 与 desktop 定向测试、typecheck、build、i18n。不改 T-226 的改名范围。工作树 pool-slot-1 到 lcoder/t229-picker-default，端口按占用自动顺延。2026-11-17 09:21 监督窗口登记并派工。"
+      note: "C 级修复，来源是用户 2026-11-17 反馈切换项目页点击浏览每次都落在下载目录。根因是 lcoder pick-directory 的 showOpenDialog 没有 defaultPath，Windows 回落到系统默认目录。修法：IPC 增加可选 defaultPath，渲染端传当前输入框路径或当前项目路径；主进程校验为存在的目录，不存在时退到最近的已存在祖先，再退到上次成功选择的目录；上次选择写入桌面偏好并跨会话复用；取消不改变偏好；标题与错误文案不变。测试覆盖传参、无效路径回落、偏好持久化与取消；client 与 desktop 定向测试、typecheck、build、i18n。不改 T-226 的改名范围。工作树 pool-slot-1 到 lcoder/t229-picker-default，端口按占用自动顺延。2026-11-17 09:21 监督窗口登记并派工，实现线会话 81e07d60。"
 
 
 milestones:
