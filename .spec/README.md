@@ -5,6 +5,7 @@
 - **开发台账**：`docs/tasks.yaml`（dev-flow，人维护）。
 - **示例规则**：`DR-01`（已确认，有代码落点）、`DR-02`（草稿，尚无落点）。
 - **示例任务**：`DEMO-01`（`drafting`），带描述、领域 `data`、变更类型 `feature` 与一张示例图片附件。
+- **示例需求**：`REQ-01`（`draft`），带 v1 正文快照与一轮评审；版本快照在 `requirements/REQ-01/versions/v<n>.md`，评审报告在 `requirements/REQ-01/reviews/R<n>.md`，YAML 里的 `versions` 与 `reviews` 记轮次与路径，`approved_at` 与 `approved_version` 在人工过审时写入。
 - **示例契约**：`contracts/DEMO-01.contract.yaml`（由 `contract_draft` 起草，`sig` 为空，等人在任务详情里签署）。
 - **示例状态机**：`spec/states/order.yaml`。
 - **示例命令**：`env.yaml`。

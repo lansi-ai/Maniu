@@ -59,6 +59,21 @@ export interface RequirementOptionRow {
   readonly cost?: string
 }
 
+/** 需求正文的一版快照。 */
+export interface RequirementVersionRow {
+  readonly n: number
+  readonly at: string
+  readonly note?: string
+}
+
+/** 一轮评审报告。 */
+export interface RequirementReviewRow {
+  readonly round: number
+  readonly at: string
+  readonly report: string
+  readonly sessionId?: string
+}
+
 /** 需求行（含正文）。 */
 export interface RequirementDocRow {
   readonly id: string
@@ -71,6 +86,10 @@ export interface RequirementDocRow {
   readonly confirmedAt?: string
   readonly releasedAt?: string
   readonly closedAt?: string
+  readonly versions: readonly RequirementVersionRow[]
+  readonly reviews: readonly RequirementReviewRow[]
+  readonly approvedAt?: string
+  readonly approvedVersion?: number
 }
 
 /** 规则行。 */
@@ -411,6 +430,30 @@ export function requirementTextToRow(fileName: string, text: string): Omit<Requi
   const confirmedAt = asText(fields.confirmed_at)
   const releasedAt = asText(fields.released_at)
   const closedAt = asText(fields.closed_at)
+  const versions = (Array.isArray(fields.versions) ? fields.versions : []).flatMap((entry: unknown) => {
+    const record = recordOf(entry)
+    const n = record?.n
+    const at = asText(record?.at)
+    if (typeof n !== 'number' || !Number.isInteger(n) || n < 1 || at === undefined) return []
+    const note = asText(record?.note)
+    return [{ n, at, ...(note === undefined ? {} : { note }) }]
+  })
+  const reviews = (Array.isArray(fields.reviews) ? fields.reviews : []).flatMap((entry: unknown) => {
+    const record = recordOf(entry)
+    const round = record?.round
+    const at = asText(record?.at)
+    const report = asText(record?.report)
+    if (typeof round !== 'number' || !Number.isInteger(round) || round < 1 || at === undefined || report === undefined) return []
+    const sessionId = asText(record?.sessionId)
+    return [{ round, at, report, ...(sessionId === undefined ? {} : { sessionId }) }]
+  })
+  const approvedAt = asText(fields.approved_at)
+  const rawApprovedVersion = fields.approved_version
+  const approvedVersion = typeof rawApprovedVersion === 'number'
+    && Number.isInteger(rawApprovedVersion)
+    && rawApprovedVersion > 0
+    ? rawApprovedVersion
+    : undefined
   return {
     id: asText(fields.id) ?? fileName.replace(/\.yaml$/, ''),
     title,
@@ -421,6 +464,10 @@ export function requirementTextToRow(fileName: string, text: string): Omit<Requi
     ...(confirmedAt === undefined ? {} : { confirmedAt }),
     ...(releasedAt === undefined ? {} : { releasedAt }),
     ...(closedAt === undefined ? {} : { closedAt }),
+    versions,
+    reviews,
+    ...(approvedAt === undefined ? {} : { approvedAt }),
+    ...(approvedVersion === undefined ? {} : { approvedVersion }),
   }
 }
 

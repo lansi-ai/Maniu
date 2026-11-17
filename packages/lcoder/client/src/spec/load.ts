@@ -141,7 +141,7 @@ async function loadRequirements(files: SpecFiles, signal: AbortSignal): Promise<
     .map(async ([, name]) => {
       const text = await documentText(name)
       if (text.trim() === '') return
-      rows.push({ id: name.replace(/\.md$/, ''), text, options: [] })
+      rows.push({ id: name.replace(/\.md$/, ''), text, options: [], versions: [], reviews: [] })
     }))
   return { rows: sorted(rows), problems }
 }

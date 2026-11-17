@@ -37,6 +37,8 @@ const CONFIRMED_REQUIREMENT = {
   title: '探针需求',
   state: 'confirmed' as const,
   options: [],
+  versions: [],
+  reviews: [],
 }
 
 const WITH_REQUIREMENT: SpecProjection = { ...PROJECTION, requirements: [CONFIRMED_REQUIREMENT] }

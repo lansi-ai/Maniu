@@ -1,10 +1,13 @@
 /**
- * 需求工具：把一条需求落成 `.spec/requirements/REQ-xx.yaml` 与同名正文。
+ * 需求工具：把一条需求落成 `.spec/requirements/REQ-xx.yaml` 与同名正文，
+ * 并负责需求分析师改稿、项目经理出评审报告这两条模型写入口。
  *
- * 两条刻意的限制：
- *   1. **只写 `draft`。** 批准、发布与关闭都是人机命令，模型能起草需求、能比较候选，
- *      不能替人拍板——与 `proposal_draft` 和 `/proposal_approve` 的分工同构。
- *   2. **正文与元数据一起落。** 先写正文再写 YAML，任一步失败回滚，磁盘上不留半截需求。
+ * 三条刻意的限制：
+ *   1. **只写 `draft`。** 批准、发布与关闭都是人机命令，模型能起草需求、能比较候选、
+ *      能改稿、能出评审报告，不能替人拍板——与 `proposal_draft` 和 `/proposal_approve` 的分工同构。
+ *   2. **正文与元数据一起落。** 先写正文与快照再写 YAML，任一步失败回滚，磁盘上不留半截需求。
+ *   3. **评审只出报告。** `requirement_review_draft` 不改状态与正文；改稿由
+ *      `requirement_revise` 单独做，两条工具分别只对项目经理与需求分析师可见。
  *
  * 输出统一用 `{ type: 'json' }` + JSON 渲染，理由见 docs/cookbook/adding-a-tool.md。
  */
@@ -12,7 +15,16 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 
 import type { RequirementOption } from '../schema/spec.js'
-import { createRequirement } from '../kernel/requirement-store.js'
+import {
+  assertRequirementId,
+  createRequirement,
+  loadRequirement,
+  readRequirementDocument,
+  recordRequirementReview,
+  requirementDocPath,
+  requirementPath,
+  reviseRequirement,
+} from '../kernel/requirement-store.js'
 import { resolveRoot } from '../kernel/spec-root.js'
 import type { RootInput } from '../kernel/spec-root.js'
 
@@ -52,9 +64,9 @@ function optionsOf(raw: readonly RequirementOptionArg[] | undefined): Requiremen
 }
 
 /**
- * 建需求工具。
+ * 建需求工具：起草、改稿与评审三条模型写入口；可见性由角色天花板收窄。
  * @param rootInput - 规格根解析（按会话工作区）。
- * @returns `requirement_draft` 工具定义。
+ * @returns `requirement_draft`、`requirement_revise` 与 `requirement_review_draft` 工具定义。
  */
 export function createRequirementTools(rootInput: RootInput): ToolDefinition[] {
   return [
@@ -107,9 +119,105 @@ export function createRequirementTools(rootInput: RootInput): ToolDefinition[] {
           document_path: draft.documentPath,
           characters: draft.characters,
           state: draft.requirement.state,
+          version: 1,
           note: PENDING_NOTE,
         }
       },
     }),
+    defineTool({
+      name: 'requirement_review_draft',
+      description:
+        '给一条起草态需求追加一轮评审，报告写到 `.spec/requirements/<编号>/reviews/R<轮次>.md`，并把轮次记进 YAML。参数 id 是需求编号，report 是完整 Markdown 评审报告；要求需求 state 为 draft 且正文已存在。本工具只追加评审，不改需求状态与正文——改稿由需求分析师用 requirement_revise 做，过审由人完成。',
+      parameters: {
+        id: { type: 'string', required: true, description: '需求编号，如 REQ-01' },
+        report: { type: 'string', required: true, description: '完整的评审报告，Markdown；去空白后必须非空' },
+      },
+      output: { schema: { type: 'json' }, render: renderJson },
+      // oxlint-disable-next-line typescript/require-await -- execute 的契约要求返回 Promise（ToolDefinition.execute），这里是同步实现。
+      async execute(args, exec) {
+        const root = resolveRoot(rootInput, exec)
+        const id = assertRequirementId(args.id.trim())
+        if (args.report.trim() === '') {
+          throw new Error('requirement_review_draft 需要非空的 report：评审报告不能为空')
+        }
+
+        let requirement
+        try {
+          requirement = loadRequirement(root, id)
+        } catch (error: unknown) {
+          throw new Error(`读不到需求 ${id}（${requirementPath(root, id)}）：${errorMessage(error)}`)
+        }
+        if (requirement.state !== 'draft') {
+          throw new Error(`${id} 现在在「${requirement.state}」，只有起草态需求能评审`)
+        }
+        if (readRequirementDocument(root, id) === undefined) {
+          throw new Error(`${id} 还没有正文（${requirementDocPath(root, id)} 不存在或为空）；先补正文再评审`)
+        }
+
+        const sessionId = exec.agent?.session.header.id
+        const review = recordRequirementReview(root, id, {
+          report: args.report,
+          at: new Date().toISOString(),
+          ...(sessionId === undefined ? {} : { sessionId }),
+        })
+
+        return {
+          requirement_id: id,
+          round: review.round,
+          report_path: review.relativeReport,
+          state: review.requirement.state,
+          note: '评审报告已落盘，只追加评审记录；本工具不改需求状态与正文，改稿与过审都不由本工具完成。',
+        }
+      },
+    }),
+    defineTool({
+      name: 'requirement_revise',
+      description:
+        '改写一条起草态需求的正文，并把新正文记成下一个版本；版本快照写在 `.spec/requirements/<编号>/versions/v<版本号>.md`。参数 id 是需求编号，content 是新的完整 Markdown 正文；要求需求 state 为 draft 且正文已存在。旧需求还没有版本表时先补录 v1，再写新版本。本工具不改需求状态，过审由人完成。',
+      parameters: {
+        id: { type: 'string', required: true, description: '需求编号，如 REQ-01' },
+        content: { type: 'string', required: true, description: '新的完整需求正文，Markdown；去空白后必须非空' },
+      },
+      output: { schema: { type: 'json' }, render: renderJson },
+      // oxlint-disable-next-line typescript/require-await -- execute 的契约要求返回 Promise（ToolDefinition.execute），这里是同步实现。
+      async execute(args, exec) {
+        const root = resolveRoot(rootInput, exec)
+        const id = assertRequirementId(args.id.trim())
+        if (args.content.trim() === '') {
+          throw new Error('requirement_revise 需要非空的 content：新正文去空白后不能为空')
+        }
+
+        let requirement
+        try {
+          requirement = loadRequirement(root, id)
+        } catch (error: unknown) {
+          throw new Error(`读不到需求 ${id}（${requirementPath(root, id)}）：${errorMessage(error)}`)
+        }
+        if (requirement.state !== 'draft') {
+          throw new Error(`${id} 现在在「${requirement.state}」，只有起草态需求能改稿`)
+        }
+
+        const revision = reviseRequirement(root, id, {
+          content: args.content,
+          at: new Date().toISOString(),
+        })
+
+        return {
+          requirement_id: id,
+          version: revision.version,
+          path: revision.documentPath,
+          snapshot_path: revision.snapshotPath,
+          backfilled: revision.backfilled,
+          characters: args.content.trim().length,
+          state: revision.requirement.state,
+          note: '新正文已落盘并记为新的版本；本工具不改需求状态，过审仍由人机命令完成。',
+        }
+      },
+    }),
   ]
+}
+
+/** 把抛出物说成人话：只取消息，不带栈。 */
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }

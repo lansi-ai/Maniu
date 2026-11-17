@@ -410,11 +410,36 @@ export const RequirementOption = z.object({
 })
 export type RequirementOption = z.infer<typeof RequirementOption>
 
+/** 需求正文的一版快照；快照文件在 `requirements/<ID>/versions/v<n>.md`。 */
+export const RequirementVersion = z.object({
+  /** 版本号，从 1 递增。 */
+  n: z.number().int().positive(),
+  at: IsoDateTime,
+  /** 这一版的说明；缺省表示没有特别说明。 */
+  note: z.string().min(1).optional(),
+})
+export type RequirementVersion = z.infer<typeof RequirementVersion>
+
+/** 一轮评审；报告文件在 `requirements/<ID>/reviews/R<round>.md`。 */
+export const RequirementReview = z.object({
+  /** 轮次，从 1 递增。 */
+  round: z.number().int().positive(),
+  at: IsoDateTime,
+  /** 报告文件相对 `.spec` 根目录的路径，如 `requirements/REQ-01/reviews/R1.md`。 */
+  report: z.string().min(1),
+  /** 产出这轮评审的会话号；缺省表示不是从会话里落的。 */
+  sessionId: z.string().min(1).optional(),
+})
+export type RequirementReview = z.infer<typeof RequirementReview>
+
 /**
  * `.spec/requirements/REQ-01.yaml`：一条需求的元数据，正文写在同名 `.md`。
  *
  * 正文不塞进 YAML：需求文档是给人读的 Markdown，与任务、方案共用「YAML 记事实、
  * 同名文件记正文」的约定。四个时刻都可缺省——只有对应状态真的到达过才写。
+ *
+ * `versions` 与 `reviews` 都缺省为空数组，旧文件照常解析；`approved_at` 与
+ * `approved_version` 只在人过审时写，指向过审那一刻的正文版本。
  */
 export const Requirement = z
   .object({
@@ -429,6 +454,14 @@ export const Requirement = z
     confirmed_at: IsoDateTime.optional(),
     released_at: IsoDateTime.optional(),
     closed_at: IsoDateTime.optional(),
+    /** 正文版本快照；缺省为空数组，旧需求在改稿或过审前补录 v1。 */
+    versions: z.array(RequirementVersion).default([]),
+    /** 评审轮次；缺省为空数组。 */
+    reviews: z.array(RequirementReview).default([]),
+    /** 人过审的时刻；未过审缺省。 */
+    approved_at: IsoDateTime.optional(),
+    /** 人过审时锁定的正文版本号；未过审缺省。 */
+    approved_version: z.number().int().positive().optional(),
   })
   .strict()
 export type Requirement = z.infer<typeof Requirement>

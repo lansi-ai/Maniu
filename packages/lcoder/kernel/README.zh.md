@@ -52,7 +52,13 @@ kind: "package-reference"
 
 `task_draft` 除标题与分级外还接受可选的任务元信息字段：`description`（允许换行，最多 4000 个字符）、`category`（`page`、`api`、`data`、`other`）、`change_type`（`bug`、`feature`、`improvement`、`style`）、`attachments`（最多 8 张图片，路径相对 `.spec` 根目录，扩展名限 `png`、`jpg`、`jpeg`、`webp`、`gif`；绝对路径、`..`、空串与其他扩展名都被拒）、`track`（内置轨或 `.spec/project.yaml` 追加的轨，未知轨连同可用清单一起拒绝）、`proposal` 与 `requirement`（分别回指方案与需求，写前查存在，两者可以并存，读侧优先 `requirement`）。它的回显包含这些字段，`task_read` 读任务详情时也一并返回。
 
-`requirement_draft` 用必填的标题与 Markdown 正文、可选的 `options`（每项 `name` 与 `summary` 必填、`cost` 可省）与 `recommendation`，写 `.spec/requirements/REQ-<编号>.yaml` 与同名正文文件。它取现有 `REQ-` 编号之后的下一个空号，不覆盖已有文件对；先写正文再写元数据，元数据写失败会删掉刚写的正文。状态固定写 `draft`。`/requirement_approve` 把正文非空的起草态需求推到 `confirmed`；`/requirement_release` 只在至少一条任务通过 `Task.requirement` 回指且这些任务全部 `closed` 时推到 `released`，否则报出未关闭的任务编号；`/requirement_close` 关闭起草或已确认的需求，并拒绝已上线的需求——它是终态。工作台投影按同一目录把每份 YAML 与同名正文合成一行。
+`requirement_draft` 用必填的标题与 Markdown 正文、可选的 `options`（每项 `name` 与 `summary` 必填、`cost` 可省）与 `recommendation`，写 `.spec/requirements/REQ-<编号>.yaml` 与同名正文文件。它取现有 `REQ-` 编号之后的下一个空号，不覆盖已有文件对；先写正文，再把它存成 `requirements/<编号>/versions/v1.md` 快照并记进 `versions`，元数据写失败会删掉刚写的文件。状态固定写 `draft`。
+
+`requirement_revise` 只有 `intake` 角色看得见：它要求起草态且正文非空，需求还没有版本记录时先补录 v1，然后用新正文覆盖 `REQ-<编号>.md`，把它存成 `requirements/<编号>/versions/v<版本号>.md` 并追加版本记录，返回版本号。
+
+`requirement_review_draft` 只有 `pm` 角色看得见：它要求起草态且正文非空，把 Markdown 评审报告写到 `requirements/<编号>/reviews/R<轮次>.md`，追加一条 `reviews` 记录（轮次、时刻、报告路径与可选会话号），返回轮次。它不改需求状态与正文。
+
+`/requirement_approve` 要求至少一轮评审，且当前正文有对应版本快照；它把起草态需求推到 `confirmed`，写 `confirmed_at`、`approved_at` 与 `approved_version`。没有版本记录的需求先补 v1；正文与最新快照不一致时追加一版，保证 `approved_version` 指的就是过审的正文。`/requirement_release` 只在至少一条任务通过 `Task.requirement` 回指且这些任务全部 `closed` 时推到 `released`，否则报出未关闭的任务编号；`/requirement_close` 关闭起草或已确认的需求，并拒绝已上线的需求——它是终态。客户端投影按同一目录把每份 YAML 与同名正文合成一行，并把 `versions`、`reviews`、`approved_at` 与 `approved_version` 透传出去。
 
 `deliverable_draft` 用必填的 `summary`、至少一条仓库相对路径的 `docs` 与可空的 `commands`，把一条任务的交付物登记成 `.spec/deliverables/<任务编号>.yaml`。每条 `docs` 必须在仓库根下解析成真实文件；绝对路径、`..` 与不存在的文件都被拒。工具按任务覆盖写，保留首次 `created_at` 并刷新 `updated_at`；它只登记索引，工程文档本身仍用 `file_edit` 写。`task_close` 在 P1、P3、P4 之后跑 D1：A 级、通用轨、或标题描述命中基础框架、脚手架、架构、技术选型的任务，必须有一份摘要非空、至少一条文档的可读索引，否则收口把 `.spec/deliverables/<任务编号>.yaml` 作为下一步报出来。普通任务不受影响。只有 `dev`、`architect` 与 `ops` 看得见这个工具，且从 `contracted` 起才可见。
 
@@ -82,9 +88,9 @@ kind: "package-reference"
 | `src/kernel/spec-root.ts` | 会话优先的规格根解析 |
 | `src/kernel/spec-store.ts` | 规则与状态机的读写 |
 | `src/kernel/task-store.ts` | 任务对象、迁移与落盘 |
-| `src/kernel/requirement-store.ts` | 需求对象、编号分配与两文件写入 |
+| `src/kernel/requirement-store.ts` | 需求对象、编号分配、版本快照、评审记录与多文件写入 |
 | `src/tools/spec-tools.ts`、`src/tools/task-tools.ts`、`src/tools/edit-tools.ts` | 模型工具 |
-| `src/tools/requirement-tools.ts` | 模型可调用的 `requirement_draft` |
+| `src/tools/requirement-tools.ts` | 模型可调用的 `requirement_draft`、`requirement_revise` 与 `requirement_review_draft` |
 | `src/tools/deliverable-tools.ts` | 模型可调用的 `deliverable_draft` |
 | `src/kernel/deliverable-store.ts`, `src/schema/deliverable.ts` | 交付索引的读写与必须交付判定 |
 | `src/commands/requirement-approve.ts`、`src/commands/requirement-release.ts`、`src/commands/requirement-close.ts` | 三条只进命令面的需求状态命令 |
