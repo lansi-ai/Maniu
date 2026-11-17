@@ -21,6 +21,7 @@ import { GateChrome } from './shell/gate-chrome.tsx'
 import { GateView } from './shell/gate-view.tsx'
 import { QuitConfirm } from './shell/quit-confirm.tsx'
 import { Titlebar } from './shell/titlebar.tsx'
+import { WindowGutter } from './shell/window-gutter.tsx'
 import { useWindowState } from './shell/use-window-state.ts'
 import { ensureScopeSession, useWorkspaceList, type ProjectScope, type WorkspaceRow } from './workspace/use-workspaces.ts'
 import { useProjection } from './workspace/use-projection.ts'
@@ -588,6 +589,8 @@ export function App(): JSX.Element {
         <span className="ambient-blob blob-e" />
         <span className="ambient-grain" data-testid="ambient-grain" />
       </div>
+
+      <WindowGutter />
 
       {gateKind === 'ready' ? (
         <Titlebar
