@@ -8,6 +8,7 @@ export const DEFAULT_DESKTOP_PREFERENCES: DesktopPreferences = {
   skin: 'liquid-glass',
   font: 'system',
   locale: 'zh',
+  lastPickedDirectory: null,
 }
 
 /**
@@ -50,6 +51,9 @@ export function sanitizeDesktopPreferences(value: unknown): DesktopPreferences {
     skin: isDesktopSkin(record.skin) ? record.skin : DEFAULT_DESKTOP_PREFERENCES.skin,
     font: isDesktopFont(record.font) ? record.font : DEFAULT_DESKTOP_PREFERENCES.font,
     locale: isDesktopLocale(record.locale) ? record.locale : DEFAULT_DESKTOP_PREFERENCES.locale,
+    lastPickedDirectory: typeof record.lastPickedDirectory === 'string' && record.lastPickedDirectory !== ''
+      ? record.lastPickedDirectory
+      : null,
   }
 }
 

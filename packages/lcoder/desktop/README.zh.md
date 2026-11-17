@@ -61,4 +61,4 @@ kind: "package-reference"
 
 构建与启动见 [lcoder/s1.md](../../../lcoder/s1.md)；Windows 打包见 [lcoder/windows-packaging.md](../../../lcoder/windows-packaging.md)。
 
-浏览按钮的目录选择走主进程 `lcoder:pick-directory` 与 `dialog.showOpenDialog`（取消返回 null，打不开回带原因）；宿主 `directory-picker` 在发布 profile 中保持禁用，两者不要混用。
+浏览按钮的目录选择走主进程 `lcoder:pick-directory` 与 `dialog.showOpenDialog`（取消返回 null，打不开回带原因）；起始目录优先用当前项目路径，不可用时退到最近的已存在祖先，再退到上次成功选择的目录，成功选择写进桌面偏好。宿主 `directory-picker` 在发布 profile 中保持禁用，两者不要混用。

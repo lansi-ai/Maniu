@@ -26,7 +26,8 @@ export function ProjectsPage(props: ProjectsPageProps): JSX.Element {
 
   const browse = async (): Promise<void> => {
     try {
-      const picked = await pickDirectory()
+      const entered = path.trim()
+      const picked = await pickDirectory(entered === '' ? props.current?.path : entered)
       if (picked !== null) {
         setPath(picked)
         setFailure(null)

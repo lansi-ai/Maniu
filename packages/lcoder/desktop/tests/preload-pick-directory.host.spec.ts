@@ -30,7 +30,13 @@ describe('preload pickDirectory', () => {
   it('转发选中路径', async () => {
     electron.invoke.mockResolvedValue({ ok: true, path: 'E:/repo' })
     await expect((await api()).pickDirectory()).resolves.toBe('E:/repo')
-    expect(electron.invoke).toHaveBeenCalledWith(IPC_CHANNELS.pickDirectory)
+    expect(electron.invoke).toHaveBeenCalledWith(IPC_CHANNELS.pickDirectory, undefined)
+  })
+
+  it('把期望的起始目录一并转给主进程', async () => {
+    electron.invoke.mockResolvedValue({ ok: true, path: 'E:/repo' })
+    await expect((await api()).pickDirectory('E:/current')).resolves.toBe('E:/repo')
+    expect(electron.invoke).toHaveBeenCalledWith(IPC_CHANNELS.pickDirectory, 'E:/current')
   })
 
   it('取消映射为 null', async () => {

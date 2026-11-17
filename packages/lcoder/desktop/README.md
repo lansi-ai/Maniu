@@ -57,4 +57,4 @@ One follow stream per selected session leaves the Host's request prefix reusable
 
 构建与启动见 [lcoder/s1.md](../../../lcoder/s1.md)；Windows 打包见 [lcoder/windows-packaging.md](../../../lcoder/windows-packaging.md)。
 
-浏览按钮的目录选择走主进程 `lcoder:pick-directory` 与 `dialog.showOpenDialog`（取消返回 null，打不开回带原因）；宿主 `directory-picker` 在发布 profile 中保持禁用，两者不要混用。
+The browse button's directory picker goes through the main process `lcoder:pick-directory` and `dialog.showOpenDialog` (cancel returns null, failures report the reason); it starts at the current project path, falls back to the nearest existing ancestor and then the last successful pick, and persists successful picks in desktop preferences. The host `directory-picker` stays disabled in the release profile; do not mix the two.
