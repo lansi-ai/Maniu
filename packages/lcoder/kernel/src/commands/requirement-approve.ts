@@ -4,7 +4,9 @@
  * 为什么单独一条命令、不让 `requirement_draft` 顺带写：起草与确认是两件事——正文写得再细，
  * 确认与否是人的决定。与 `contract_sign`、`proposal_approve` 同一档纪律。
  *
- * 过审门槛：至少一轮评审，且当前正文有对应版本快照；过审时写 `approved_at` 与
+ * 过审门槛：至少一轮评审，且当前正文有对应版本快照；有 `.spec/flow.yaml` 时
+ * 再加一条——review 节点配置的每个岗位都要有一轮署名（`reviews[].role`）等于
+ * 该岗位的评审，旧式无署名评审按未配齐计。过审时写 `approved_at` 与
  * `approved_version`，把「人确认的是哪一版正文」钉在 YAML 里。
  *
  * 只做这一条边。发布与关闭各有自己的前置条件，另起两条命令，失败分得清。
@@ -13,6 +15,7 @@
  */
 import { hasSpecRoot, resolveRoot } from '../kernel/spec-root.js'
 import type { RootInput, SpecRootContext } from '../kernel/spec-root.js'
+import { flowConfigPath, loadFlowConfig, missingReviewSignatures } from '../kernel/flow-config.js'
 import { approveRequirement, assertRequirementId, loadRequirement, readRequirementDocument, requirementDocPath, requirementPath } from '../kernel/requirement-store.js'
 
 /** 一次人机命令调用里 kernel 用到的部分：会话事实加命令名后的原文。 */
@@ -45,7 +48,7 @@ export function createRequirementApproveCommand(
 ): RequirementApproveDefinition {
   return {
     name: 'requirement_approve',
-    description: '确认一条起草态需求，把状态从起草改为已确认（要求正文已存在且至少有一轮评审）',
+    description: '确认一条起草态需求，把状态从起草改为已确认（要求正文已存在、至少一轮评审；有流程配置时评审节点各岗位的署名评审须配齐）',
     input: { hint: '<需求编号>' },
     handler: invocation => approve(rootInput, invocation, now),
   }
@@ -99,6 +102,22 @@ function approve(
     return {
       kind: 'error',
       text: `${id} 还没有评审记录；过审前至少要有 1 轮评审（由项目经理用 requirement_review_draft 落报告）`,
+    }
+  }
+
+  let flow
+  try {
+    flow = loadFlowConfig(root)
+  } catch (error: unknown) {
+    return { kind: 'error', text: `读流程配置失败（${flowConfigPath(root)}）：${errorMessage(error)}` }
+  }
+  if (flow.source === 'file') {
+    const missing = missingReviewSignatures(flow.config, requirement.reviews)
+    if (missing.length > 0) {
+      return {
+        kind: 'error',
+        text: `${id} 的评审还没配齐：流程配置要求岗位 ${missing.join('、')} 各有一轮署名评审（reviews 的 role 字段），现在还没有；先让对应岗位完成评审再过审`,
+      }
     }
   }
 

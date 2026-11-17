@@ -93,6 +93,7 @@ const COMMAND_ALLOWED = new Set([
   'proposal_approve',
   'flow_status',
   'flow_log',
+  'flow_save',
   'agent_bind',
 ])
 

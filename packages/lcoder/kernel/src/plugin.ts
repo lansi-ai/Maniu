@@ -14,6 +14,7 @@ import { createAgentBindCommand } from './commands/agent-bind.js'
 import { createContractSignCommand } from './commands/contract-sign.js'
 import { createDeployCommand } from './commands/deploy.js'
 import { createFlowLogCommand } from './commands/flow-log.js'
+import { createFlowSaveCommand } from './commands/flow-save.js'
 import { createFlowStatusCommand } from './commands/flow-status.js'
 import { createProposalApproveCommand } from './commands/proposal-approve.js'
 import { createRequirementApproveCommand } from './commands/requirement-approve.js'
@@ -182,6 +183,7 @@ export function apply(ctx: PluginContext, config: LcoderConfig = {}): void {
     createTaskScheduleCommand(rootInput),
     createFlowStatusCommand(rootInput),
     createFlowLogCommand(rootInput),
+    createFlowSaveCommand(rootInput),
     createAgentBindCommand(rootInput),
     createProposalApproveCommand(rootInput),
     createRequirementApproveCommand(rootInput),
