@@ -20,12 +20,15 @@
 /lcoder-project-rules-project-rules/3-workflow-task-grading/task-grading:
   en: 03000e6e398dc770
   zh: 9e5f4f1ee7e2625d
+/lcoder-project-rules-project-rules/3-workflow-task-grading/gate-tiers-and-fast-lane:
+  en: 45cd94bb5877c1f0
+  zh: f564584e11af3cc0
 /lcoder-project-rules-project-rules/3-workflow-task-grading/start-process-grades-a-b:
   en: b5fb26cbfae39cbd
   zh: 74720c19fe4fa17a
 /lcoder-project-rules-project-rules/3-workflow-task-grading/completion-gates-must-pass:
-  en: cdc808e228f89126
-  zh: 33e340f66c1e4758
+  en: 6f1d41f30103fd89
+  zh: 87782e03199f4ed7
 /lcoder-project-rules-project-rules/3-workflow-task-grading/special-cases:
   en: f928e4ac89d54f79
   zh: 948f54b4eea92636

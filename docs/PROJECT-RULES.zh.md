@@ -66,6 +66,18 @@
 
 分级与开发台账 `docs/tasks.yaml` 的 `grade` 字段一致；开发进度的唯一源是 `docs/tasks.yaml`，`.spec/tasks/*.yaml` 是产品数据。
 
+### 门禁分级与快修通道
+
+| 分级 | 工作树 / 窗口 | 合入前 | 合入后 |
+|---|---|---|---|
+| A | 新工作树 + 新窗口 | build:artifacts、build:check、typecheck、packages/lcoder vitest、i18n、文档变更时 test:docs、M3 43/43、C4 12/12 | build:check + 定向 vitest；发版前跑一次全量 |
+| B | 新工作树 + 新窗口 | build:artifacts、build:check、typecheck、packages/lcoder vitest、i18n、文档变更时 test:docs | build:check + 定向 vitest |
+| C | 复用预热修复窗口，或工作区干净的主检出 | 触及包的定向用例 + typecheck；消费构建产物时跑 build:check | 只跑定向用例 |
+
+- C 级指最多两个文件，且不碰契约、持久化、包边界、宿主面、profile 或云端；拿不准就升级。
+- 同一条用户消息里的 C 级修复合并为一个任务、一次构建、一次合入；不要一项开一个窗口。
+- 不得跳过 typecheck、定向用例或触及面的检查；只免除重复的全量运行、与改动无关的产物重建与 M3/C4。
+
 ### 开工流程（A/B 类）
 
 1. 读 [active-context.zh.md](active-context.zh.md)，确认与「当前焦点/下一步」一致。
@@ -78,6 +90,7 @@
 - [ ] `pnpm typecheck` 全绿
 - [ ] `pnpm lint` 全绿
 - [ ] `pnpm exec vitest run packages/lcoder` 全绿；改上游共享面时跑全仓 `pnpm test`
+- [ ] C 级按上面的快修通道执行：定向用例替代全量 `packages/lcoder` 运行
 - [ ] 文档或包 README 变更时 `pnpm run test:docs` 全绿
 - [ ] 开发证据：门禁命令输出记录在 `docs/tasks.yaml` 的任务 note 或提交说明；`.spec/evidence` 只服务产品任务
 - [ ] 若本次变更同时触及产品任务（`.spec`），按 kernel 的 P1/P3/P4 另行验证；开发任务本身不写 `.spec` 契约
