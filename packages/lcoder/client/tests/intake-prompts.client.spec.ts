@@ -1,0 +1,68 @@
+// @vitest-environment node
+/** 立项提示词与人才库人设同源：向导只发项目事实，纪律只在 maniu-intake 人设里。 */
+import { readFileSync } from 'node:fs'
+import { describe, expect, it } from 'vitest'
+import { buildIntakePrompt, type IntakeProject } from '../src/intake/prompts.ts'
+
+const PROJECT: IntakeProject = {
+  name: '仓库 A',
+  path: 'E:/repo-a',
+  branch: 'main',
+  docs: { product: '产品说明', architecture: '架构说明', tests: '' },
+}
+
+const PROFILE = readFileSync(new URL('../../../../lcoder/desktop-profile.patch.yml', import.meta.url), 'utf8')
+
+describe('立项提示词', () => {
+  it('全新项目只给项目事实与第 0 步，不重复人设纪律', () => {
+    const prompt = buildIntakePrompt(PROJECT, 'fresh')
+    expect(prompt).toContain('全新项目立项：')
+    expect(prompt).toContain('仓库 A（E:/repo-a，main）')
+    expect(prompt).toContain('第 0 步 先看清仓库')
+    expect(prompt).not.toContain('七个问题依次覆盖')
+    expect(prompt).not.toContain('每个问题都用 ask_user_question 弹出选择框')
+    expect(prompt).not.toContain('问完先出《项目需求概要 V0.1》')
+    expect(prompt).not.toContain('project_draft 登记')
+    expect(prompt).not.toContain('输出完停下，等用户回复「确认需求」')
+  })
+
+  it('已有资料档带上声明的文档来源，仍不重复纪律', () => {
+    const prompt = buildIntakePrompt(PROJECT, 'onboarding')
+    expect(prompt).toContain('已有资料立项：')
+    expect(prompt).toContain('- 产品文档：产品说明')
+    expect(prompt).toContain('- 架构文档：架构说明')
+    expect(prompt).not.toContain('测试用例：')
+    expect(prompt).not.toContain('七个问题依次覆盖')
+  })
+})
+
+describe('内置角色人设源', () => {
+  it('角色名去掉慢牛前缀，立项改叫需求分析师', () => {
+    expect(PROFILE).toContain('name: 需求分析师')
+    expect(PROFILE).toContain('name: 实施')
+    expect(PROFILE).toContain('name: 项目经理')
+    expect(PROFILE).toContain('name: 架构')
+    expect(PROFILE).toContain('name: 评审')
+    expect(PROFILE).toContain('name: Git')
+    expect(PROFILE).toContain('name: 运维')
+    expect(PROFILE).toContain('name: 研发经理')
+    expect(PROFILE).toContain('name: 智能调度')
+    expect(PROFILE).toContain('name: 流程控制')
+    expect(PROFILE).not.toMatch(/^ {8}name: 慢牛/mu)
+    expect(PROFILE).not.toContain('You are 慢牛')
+  })
+
+  it('需求分析师人设承载七问纪律与落盘顺序', () => {
+    expect(PROFILE).toContain('You are 需求分析师.')
+    expect(PROFILE).toContain('访谈规则：')
+    expect(PROFILE).toContain('七个问题依次覆盖：')
+    expect(PROFILE).toContain('1. 你想做一个什么软件？')
+    expect(PROFILE).toContain('7. 准备在哪里使用，有没有参考产品或别的硬要求？')
+    expect(PROFILE).toContain('问完先出《项目需求概要 V0.1》，不要立刻登记：')
+    expect(PROFILE).toContain('用户确认后按顺序落盘，只用专用工具，不用通用写文件能力：')
+    expect(PROFILE).toContain('project_draft 登记 .spec/project.yaml')
+    expect(PROFILE).toContain('requirement_draft 登记需求')
+    expect(PROFILE).toContain('失败就照实报四件事')
+    expect(PROFILE).toContain('不签契约、不推进任务状态、不改业务代码、不跑命令、不提交、不推送、不部署。')
+  })
+})

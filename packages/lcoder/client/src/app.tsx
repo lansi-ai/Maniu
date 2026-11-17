@@ -40,6 +40,9 @@ type PageId = 'chat' | 'requirements' | 'tasks' | 'projects' | 'project-info' | 
 /** 新会话默认使用的角色；工作台作用域会话靠它拿到人机命令面。 */
 const WORKBENCH_PRESET = 'maniu-workbench'
 
+/** 立项会话使用的角色；访谈纪律只由它的人设承载。 */
+const INTAKE_PRESET = 'maniu-intake'
+
 interface NavItem {
   readonly id: PageId
   readonly key: MessageKey
@@ -470,14 +473,14 @@ export function App(): JSX.Element {
     await loadSessions()
   }, [loadSessions, sessions])
 
-  const launchSession = useCallback(async (prompt: string): Promise<{
+  const launchSession = useCallback(async (prompt: string, agentPreset = WORKBENCH_PRESET): Promise<{
     readonly ok: boolean
     readonly message: string
     readonly sessionId?: string
   }> => {
     if (project === null) return { ok: false, message: t('flow.projectMissing') }
     const created = await window.lcoder.call('session', 'create', {
-      request: { workspaceId: project.workspaceId, agentPreset: WORKBENCH_PRESET },
+      request: { workspaceId: project.workspaceId, agentPreset },
     })
     if (!created.ok) return { ok: false, message: `${created.error.code}: ${created.error.message}` }
     const value = created.value
@@ -508,7 +511,7 @@ export function App(): JSX.Element {
 
   const startIntake = useCallback(async (prompt: string) => {
     setIntakeResult(null)
-    const answer = await launchSession(prompt)
+    const answer = await launchSession(prompt, INTAKE_PRESET)
     if (answer.ok && answer.sessionId !== undefined) {
       setIntakeResult({ message: answer.message, sessionId: answer.sessionId })
     }

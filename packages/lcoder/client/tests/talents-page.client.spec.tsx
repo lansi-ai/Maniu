@@ -234,8 +234,8 @@ describe('内置人才并入全局库', () => {
     render(
       handleOf({
         builtins: [
-          builtin('maniu-pm', { name: '慢牛项目经理', description: '谈需求、拆任务', isDefault: true }),
-          builtin('maniu-intake', { name: '慢牛立项' }),
+          builtin('maniu-pm', { name: '项目经理', description: '谈需求、拆任务', isDefault: true }),
+          builtin('maniu-intake', { name: '需求分析师' }),
         ],
         global: [talent('a', { name: '云端全局人才' })],
       }),
@@ -250,12 +250,19 @@ describe('内置人才并入全局库', () => {
       .toEqual(['maniu-pm', 'maniu-intake', 'a'])
     expect(container.querySelectorAll('[data-testid="builtin-card"]')).toHaveLength(2)
     const pm = container.querySelector('[data-builtin-id="maniu-pm"]')
-    expect(pm?.textContent).toContain('慢牛项目经理')
+    expect(pm?.textContent).toContain('项目经理')
     expect(pm?.textContent).toContain('谈需求、拆任务')
-    expect(pm?.querySelector('[data-testid="builtin-source"]')?.textContent).toBe('内置')
+    expect(pm?.querySelector('[data-testid="builtin-source"]')?.textContent).toBe('慢牛内置')
     expect(pm?.textContent).toContain('默认')
     expect(pm?.querySelector('[data-testid="builtin-sessions"]')?.textContent).toBe('2')
     expect(container.querySelector('[data-testid="talent-empty"]')).toBeNull()
+  })
+
+  it('卡片右上角标签：内置角色标慢牛内置，用户人才标自定义', () => {
+    render(handleOf({ builtins: [builtin('maniu-pm')], global: [talent('a')] }))
+    expect(container.querySelector('[data-builtin-id="maniu-pm"] [data-testid="builtin-source"]')?.textContent)
+      .toBe('慢牛内置')
+    expect(container.querySelector('[data-talent-id="a"] .tag')?.textContent).toBe('自定义')
   })
 
   it('内置为空、云端有内容时全局库照常显示，空态提示仍在', () => {
@@ -297,7 +304,7 @@ describe('内置人才并入全局库', () => {
     const detail: BuiltinDetailState = {
       loading: false,
       error: null,
-      persona: '你是慢牛项目经理。',
+      persona: '你是项目经理。',
       plugins: [
         { id: 'persona', name: '@deepseek-ai/dsh-persona', group: false, disabled: 'no' },
         { id: 'compaction', name: 'cordis:group', group: true, disabled: 'no' },
@@ -309,7 +316,7 @@ describe('内置人才并入全局库', () => {
     }
     const inspectBuiltin = vi.fn()
     render(handleOf({
-      builtins: [builtin('maniu-pm', { name: '慢牛项目经理', description: '谈需求', isDefault: true })],
+      builtins: [builtin('maniu-pm', { name: '项目经理', description: '谈需求', isDefault: true })],
       builtinDetails: { 'maniu-pm': detail },
       catalog: {
         plugins: [{ name: '@deepseek-ai/dsh-persona' }, { name: '@deepseek-ai/dsh-tool-bash' }],
@@ -321,10 +328,10 @@ describe('内置人才并入全局库', () => {
     expect(inspectBuiltin).toHaveBeenCalledWith('maniu-pm')
     const drawer = container.querySelector('[data-testid="builtin-detail"]')
     expect(drawer).not.toBeNull()
-    expect(drawer?.textContent).toContain('慢牛项目经理')
+    expect(drawer?.textContent).toContain('项目经理')
     expect(drawer?.textContent).toContain('跟随全局默认')
     expect(drawer?.textContent).toContain('maniu-pm')
-    expect(drawer?.querySelector('[data-testid="builtin-persona"]')?.textContent).toContain('你是慢牛项目经理')
+    expect(drawer?.querySelector('[data-testid="builtin-persona"]')?.textContent).toContain('你是项目经理')
     const pluginRows = drawer?.querySelectorAll('[data-testid="builtin-plugins"] li') ?? []
     expect(pluginRows).toHaveLength(4)
     const pluginText = [...pluginRows].map(row => row.textContent ?? '').join('\n')
@@ -332,7 +339,11 @@ describe('内置人才并入全局库', () => {
     expect(pluginText).toContain('禁用')
     expect(pluginText).toContain('条件禁用')
     expect(drawer?.querySelector('[data-testid="builtin-plugin-unknown"]')?.textContent).toBe('未安装')
-    expect(drawer?.querySelector('[data-testid="builtin-tools"]')?.textContent).toContain('file_read')
+    const tools = [...(drawer?.querySelectorAll('[data-testid="builtin-tool"]') ?? [])]
+    expect(tools).toHaveLength(1)
+    expect(tools[0]?.getAttribute('data-tool-name')).toBe('file_read')
+    expect(tools[0]?.textContent).toBe('file_read')
+    expect(tools[0]?.getAttribute('title')).toBe('读文件')
     // 内置人才只读：详情里没有改删入口。
     expect(drawer?.querySelector('[data-testid="talent-edit"]')).toBeNull()
     expect(drawer?.querySelector('[data-testid="talent-delete"]')).toBeNull()
@@ -366,7 +377,7 @@ describe('内置人才并入全局库', () => {
         'maniu-pm': {
           loading: false,
           error: null,
-          persona: '你是慢牛项目经理。',
+          persona: '你是项目经理。',
           plugins: [],
           tools: [],
           toolsError: 'the preset exposes no tool scope',
@@ -377,6 +388,6 @@ describe('内置人才并入全局库', () => {
     const drawer = container.querySelector('[data-testid="builtin-detail"]')
     expect(drawer?.querySelector('[data-testid="builtin-tools-error"]')?.textContent)
       .toContain('the preset exposes no tool scope')
-    expect(drawer?.querySelector('[data-testid="builtin-persona"]')?.textContent).toContain('你是慢牛项目经理')
+    expect(drawer?.querySelector('[data-testid="builtin-persona"]')?.textContent).toContain('你是项目经理')
   })
 })

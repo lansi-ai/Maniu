@@ -9,8 +9,8 @@ import {
 const ROSTER = {
   presets: [
     { id: 'standard', isDefault: false },
-    { id: 'maniu', name: '慢牛实施', description: '开发角色', isDefault: true },
-    { id: 'maniu-pm', name: '慢牛项目经理', description: '谈需求', isDefault: false },
+    { id: 'maniu', name: '实施', description: '开发角色', isDefault: true },
+    { id: 'maniu-pm', name: '项目经理', description: '谈需求', isDefault: false },
     { id: 'maniu-workbench', name: '慢牛工作台', description: '内部会话', isDefault: false },
     { id: 'maniu-broken', name: '坏角色', broken: 'unknown plugin @x/y', isDefault: false },
     { id: 'talent-cloud-1', name: '云端人才', isDefault: false },
@@ -21,7 +21,7 @@ const DOCUMENT = `- id: persona
   name: '@deepseek-ai/dsh-persona'
   config:
     prefix: |-
-      你是慢牛项目经理。
+      你是项目经理。
       一次只问一个问题。
 - id: ask-user
   name: '@deepseek-ai/dsh-tool-ask-user'
@@ -42,7 +42,7 @@ describe('内置角色名册', () => {
   it('解析 name、description、默认与失败原因', () => {
     const rows = presetRosterOf(ROSTER)
     expect(rows).toHaveLength(6)
-    expect(rows?.[1]).toEqual({ id: 'maniu', name: '慢牛实施', description: '开发角色', isDefault: true })
+    expect(rows?.[1]).toEqual({ id: 'maniu', name: '实施', description: '开发角色', isDefault: true })
     expect(rows?.[4]).toMatchObject({ id: 'maniu-broken', broken: 'unknown plugin @x/y' })
   })
 
@@ -73,7 +73,7 @@ describe('内置角色名册', () => {
 describe('preset 组合解析', () => {
   it('读人设行、展开分组、标出禁用与条件禁用', () => {
     const parsed = presetDocumentOf({ agentPreset: 'maniu-pm', content: DOCUMENT })
-    expect(parsed?.persona).toContain('你是慢牛项目经理')
+    expect(parsed?.persona).toContain('你是项目经理')
     expect(parsed?.plugins).toEqual([
       { id: 'persona', name: '@deepseek-ai/dsh-persona', group: false, disabled: 'no' },
       { id: 'ask-user', name: '@deepseek-ai/dsh-tool-ask-user', group: false, disabled: 'no' },
@@ -149,7 +149,7 @@ describe('agentPresets 调用面', () => {
     const answer = await loadPresetDocument('maniu-pm')
     expect(answer.ok).toBe(true)
     if (!answer.ok) return
-    expect(answer.value.persona).toContain('你是慢牛项目经理')
+    expect(answer.value.persona).toContain('你是项目经理')
     expect(call).toHaveBeenCalledWith('agentPresets', 'read', { agentPreset: 'maniu-pm' })
   })
 
