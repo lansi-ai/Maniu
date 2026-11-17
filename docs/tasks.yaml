@@ -2662,9 +2662,21 @@ tracks:
       owner: lance
       created: '2026-11-17'
       date: '2026-11-17'
-      dep: [T-236, T-237]
+      dep: [T-236, T-237, T-239]
       inferred: false
       note: "B 级需求页与拆分流程，来源同上。一、需求表去掉候选与推荐两列，加创建时间与操作列；草稿态操作给评审与修改需求，已过审且无关联任务给拆分并分配，已有关联任务给查看任务。二、评审按钮新建或复用项目经理会话并发送评审指令，要求按完备性、合理性与需求角度与技术实现角度出报告，由项目经理用 requirement_review_draft 落盘，多轮每次新增一轮。三、修改需求按钮新建或复用需求分析师会话，把当前正文与最近评审报告交给它，用 requirement_revise 落版本并改稿。四、需求详情加阶段进度，列创建时间、每轮评审时间与报告（可打开阅读）、各版本、过审时间与版本号、拆分时间与生成任务，全部只读保留。五、拆分改为研发经理会话，按技术维度拆任务并给出任务到岗位的建议映射，界面逐条让人确认后走 task_assign 人机命令，模型不直接分配，未确认不写盘。六、有任务后提供查看任务按钮，跳到任务页并只列出该需求关联任务。范围 packages/lcoder/client 与拆分评审提示词；不改 kernel 新工具、不改状态机与云合同。验收 typecheck、packages/lcoder vitest、改动文件 oxlint、verify-client-ui-i18n；组件测试覆盖新列与操作分支、评审与改稿入口、进度时间线、分配确认与拒绝、按需求过滤跳转。待 T-236 与 T-237 合入后再 claim 工作树与派工。2026-11-17 14:10 监督窗口登记。"
+
+    - id: T-239
+      title: 立项入口收紧与角色标识修正
+      status: doing
+      face: 用户端
+      type: 修复
+      owner: lance
+      created: '2026-11-17'
+      date: '2026-11-17'
+      dep: [T-233, T-236]
+      inferred: false
+      note: "B 级口径修正，来源是用户 2026-11-17 两张验收截图。一、立项向导里的角色人设整段提示词不要显示，改成在这一面板内用一行标识本次使用需求分析师，显示名从 preset 名册读 maniu-intake 的名字，读不到回退词典；对话页不再用胶囊标需求分析师，立项会话的首条指令行整行不渲染，指令仍保留在会话日志。二、项目不是空的时候不允许再做立项分析，不要靠模型弹框问用户选哪种；需求页的立项入口在投影里已有需求或任务时禁用并给出可读原因与指向已有需求，startIntake 同样拒绝，双重保护。空项目判定为 requirements 或 tasks 至少一条，只有 project.yaml 不拦。范围 packages/lcoder/client 的 requirements 页与 intake-wizard 与 chat-transcript 与 chat-view 与 app 与词典与测试；不改 kernel、人设、云合同与拆分流程。验收 typecheck、packages/lcoder vitest、改动文件 oxlint、verify-client-ui-i18n；组件测试覆盖非空项目禁立项并提示、空项目可立项、向导显示角色标识且不含完整人设、对话首条指令行不渲染。工作树 pool-slot-2 到 lcoder/t239-intake-gate，端口 9823 与 9831 与 9832。2026-11-17 14:20 监督窗口登记并派工，实现线会话 2c7e73bf。"
 
 
 milestones:
