@@ -26,7 +26,7 @@ function rails(): HTMLElement[] {
 
 describe('WindowGutter', () => {
   it('renders one empty drag rail per window edge', () => {
-    act(() => { root.render(<WindowGutter />) })
+    act(() => { root.render(<WindowGutter maximized={false} />) })
     const edges = rails().map(node => node.dataset.edge)
     expect(edges).toEqual(['top', 'left', 'right'])
     for (const rail of rails()) {
@@ -37,12 +37,20 @@ describe('WindowGutter', () => {
     }
   })
 
+  it('switches to the maximized class when the window is maximized', () => {
+    act(() => { root.render(<WindowGutter maximized />) })
+    for (const rail of rails()) {
+      expect(rail.className).toBe('window-gutter is-maximized')
+      expect(rail.getAttribute('aria-hidden')).toBe('true')
+    }
+  })
+
   it('leaves page controls as siblings that still receive clicks', () => {
     const onClick = vi.fn()
     act(() => {
       root.render(
         <>
-          <WindowGutter />
+          <WindowGutter maximized={false} />
           <button type="button" data-testid="page-control" onClick={onClick}>打开</button>
         </>,
       )

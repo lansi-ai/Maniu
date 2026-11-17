@@ -590,7 +590,7 @@ export function App(): JSX.Element {
         <span className="ambient-grain" data-testid="ambient-grain" />
       </div>
 
-      <WindowGutter />
+      <WindowGutter maximized={windowState.maximized} />
 
       {gateKind === 'ready' ? (
         <Titlebar
