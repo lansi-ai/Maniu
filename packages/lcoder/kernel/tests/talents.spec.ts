@@ -129,6 +129,27 @@ describe('talent composition', () => {
     expect(rows[3]).toEqual({ name: '@deepseek-ai/dsh-tool-todo' })
   })
 
+  it('merges a timer row nested in a base group instead of mounting a second provider', () => {
+    const rows = composeTalentPlugins(
+      [{
+        id: 'timers',
+        name: 'cordis:group',
+        group: true,
+        config: [{ id: 'timer', name: '@deepseek-ai/cordis-plugin-timer' }],
+      }],
+      {
+        talentId: 'a1',
+        config: { version: 1, plugins: [{ name: '@deepseek-ai/cordis-plugin-timer', config: { tick: 1 } }] },
+      },
+    )
+    expect(rows).toEqual([{
+      id: 'timers',
+      name: 'cordis:group',
+      group: true,
+      config: [{ id: 'timer', name: '@deepseek-ai/cordis-plugin-timer', config: { tick: 1 } }],
+    }])
+  })
+
   it('adds a persona row when the base declares none', () => {
     const rows = compose({ persona: '只有人设' }, 'a1', [])
     expect(rows).toEqual([{ name: PERSONA_PLUGIN, config: { prefix: '只有人设' } }])

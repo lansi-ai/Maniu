@@ -329,7 +329,7 @@ export class AgentTalents extends TypertRemoteService {
           { talentId: talent.talentId, plugin: plugin.name })
       }
     }
-    const plugins = composeTalentPlugins(base, talent)
+    const plugins = composeTalentPlugins(base, this.withoutHostProvidedPlugins(talent))
     composed.set(talent.presetId, plugins)
     const definition: PresetDefinition = {
       id: talent.presetId,
@@ -345,6 +345,31 @@ export class AgentTalents extends TypertRemoteService {
       digest: JSON.stringify(definition),
       tools: talent.config.tools !== undefined && talent.config.tools.length > 0 ? talent.config.tools : undefined,
     }
+  }
+
+  /**
+   * 去掉宿主根组合已经挂载的同名插件。
+   *
+   * 根组合里的插件已把服务注册进宿主 realm；preset 再挂一次会在激活时抛
+   * `service ... has been registered`。人才没有额外配置时直接沿用宿主那份，
+   * 有配置则拒绝，因为两份配置无法安全合并。
+   */
+  private withoutHostProvidedPlugins(talent: ValidatedTalent): ValidatedTalent {
+    const declared = talent.config.plugins
+    if (declared === undefined || declared.length === 0) return talent
+    const host = new Set<string>()
+    for (const entry of this.owner.get('loader')?.entries() ?? []) {
+      if (entry.options.group || entry.disabled) continue
+      host.add(entry.options.name)
+    }
+    const kept = declared.filter((plugin) => {
+      if (!host.has(plugin.name)) return true
+      if (plugin.config === undefined) return false
+      throw new RemoteError('agent-talent/duplicate-plugin',
+        `Talent ${talent.talentId} configures plugin "${plugin.name}", which the host profile already provides; remove it from the talent to inherit the host configuration`,
+        { talentId: talent.talentId, plugin: plugin.name })
+    })
+    return kept.length === declared.length ? talent : { ...talent, config: { ...talent.config, plugins: kept } }
   }
 
   private async register(item: PreparedTalent): Promise<AppliedTalent> {

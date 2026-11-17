@@ -3,7 +3,9 @@
  *
  * 组合规则：先取基础 preset 的声明行（深拷贝），人设覆盖基础行里的
  * `@deepseek-ai/dsh-persona`，人才列出的插件按同名覆盖基础行、不存在的追加。
- * 同名覆盖只改 `config`，基础行的 `id`、`isolate` 与分组结构保持不变。
+ * 同名行无论位于顶层还是分组内都算同一行：分组内的行就地改 `config`，
+ * 不另加一条顶层行，避免同一服务在挂载时注册两次。同名覆盖只改 `config`，
+ * 基础行的 `id`、`isolate` 与分组结构保持不变。
  * 工具白名单与默认模型落到末尾的策略行：白名单在 Agent 创建时按
  * agent 作用域收窄工具面，模型写入新会话的模型选择；空 `tools` 表示不限制。
  */
@@ -22,6 +24,12 @@ export const TALENT_POLICY_ROW = 'talent-policy'
 
 type PluginRow = PresetDefinition['plugins'][number]
 
+/** 一个可替换的行位置；跨组合查找列内元素时用。 */
+interface RowSlot {
+  readonly rows: PluginRow[]
+  readonly index: number
+}
+
 function replaceConfig(row: PluginRow, config: unknown): PluginRow {
   const next = { ...row }
   if (config === undefined) delete next.config
@@ -29,13 +37,33 @@ function replaceConfig(row: PluginRow, config: unknown): PluginRow {
   return next
 }
 
+/** 分组行的子行；非分组行返回 undefined。 */
+function nestedRows(row: PluginRow): PluginRow[] | undefined {
+  if (row.group !== true || !Array.isArray(row.config)) return undefined
+  return row.config as PluginRow[]
+}
+
+/** 先找同层、再下探分组，同一层按声明顺序，保证组合内的同名插件只留一行。 */
+function locate(rows: readonly PluginRow[], matches: (row: PluginRow) => boolean): RowSlot | undefined {
+  for (const [index, row] of rows.entries()) {
+    if (row.group !== true && matches(row)) return { rows: rows as PluginRow[], index }
+  }
+  for (const row of rows) {
+    const nested = nestedRows(row)
+    if (nested === undefined) continue
+    const found = locate(nested, matches)
+    if (found !== undefined) return found
+  }
+  return undefined
+}
+
 function upsert(rows: PluginRow[], name: string, config: unknown): void {
-  const index = rows.findIndex(row => row.group !== true && row.name === name)
-  if (index === -1) {
+  const existing = locate(rows, row => row.name === name)
+  if (existing === undefined) {
     rows.push(config === undefined ? { name } : { name, config })
     return
   }
-  rows[index] = replaceConfig(rows[index] as PluginRow, config)
+  existing.rows[existing.index] = replaceConfig(existing.rows[existing.index] as PluginRow, config)
 }
 
 /**
