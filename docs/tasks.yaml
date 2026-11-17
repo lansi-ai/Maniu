@@ -2726,6 +2726,30 @@ tracks:
       inferred: false
       note: "A 级流程配置能力，来源是用户 2026-11-17 要求项目流程可配置，四问已拍板：内置节点加可配岗位、多岗衔接可配置是否自动进入、每项目可配但要有预制流程、配齐才许过审。数据面新增可选 .spec/flow.yaml，缺省走内核内置预制流程（立项分析→需求评审→需求修改→拆分并分配，评审默认自动衔接、修改默认人工触发）；节点为内置类型 intake/review/revise/split，每节点 roles 数组按序配岗位（preset 或名册岗位 id）与 auto 开关（auto 为 true 时前一岗产物落盘自动发起下一岗，false 停下等人点下一岗位）；节点之间仍由人触发（评审完是否改稿是人的决定），auto 只作用于节点内多岗衔接。kernel 增 flow schema 与 store（校验节点类型与岗位可解析、旧项目无文件照常走预制）、人机命令 flow_save 写配置（模型不可写）、requirement_review_draft 落 reviews 时记可选 role 字段标明产出岗位；requirement_approve 门槛扩展为有 flow 配置时评审节点每个配置岗位都须有署该岗位的评审轮次，无配置保持至少一轮，旧评审无 role 署名时按未配齐拒绝并给可读提示。客户端项目信息抽屉加流程配置节（节点列表、岗位从人才名册选、增删排序、auto 开关、恢复预制），流程编排复用 T-242 后台发起与磁盘事实判定及操作浮卡（一节点一卡、步骤按岗位推进、manual 节点卡上给下一岗位按钮）。范围 kernel 的 schema/store/命令/工具与客户端抽屉/编排/浮卡步骤及双语文档与 prd-and-design 同步；不改状态机边与云合同，模型仍不能过审与写配置。验收 typecheck、kernel 与 packages/lcoder vitest、改动文件 oxlint、verify-client-ui-i18n、test:docs；单测覆盖无配置走预制、配置校验与非法拒绝、auto 与 manual 衔接、评审署名、配齐过审与未配齐拒绝、旧数据兼容。待 T-242 合入后 claim 工作树派工。2026-11-17 17:05 监督窗口登记。2026-11-17 18:12 T-242 合入后 claim pool-slot-2 到 lcoder/t243-flow-config 并派工，实现线会话 30563866。2026-11-17 18:20 实现线两笔提交回报全绿并主动披露契约字面后果（名册岗位署名精确匹配永远缺岗）；监督窗口核实名册岗位非独立 preset 后弹窗请用户拍板，用户选根匹配加一轮一岗；契约修正送实现会话：过审配齐按配置顺序为每条目消费一个根相等的未消费评审轮，flow_save 加节点能力校验（intake 根 intake、review 根 pm、revise 根 intake、split 根 manager，不满足拒绝），客户端岗位条目折算 maniu-继承角色 preset 发起且浮卡显示岗位名，文档双源同步改述。2026-11-17 19:25 监督窗口核验并收口。三笔提交：kernel 落 flow schema 与 store 与预制回落、flow_save 人机命令（工具面不含且有测试钉住）、评审署名与配齐过审；客户端落项目信息页流程配置节（岗位多选/排序/auto/恢复预制）、四类操作按配置岗位顺序编排与浮卡按岗位步骤、auto 自动衔接与 manual 下一岗位按钮；修正笔落根匹配加一轮一岗消费、节点能力校验（与角色工具表同源，继承 dev 的岗位进评审节点保存即拒）、岗位折算 maniu-继承角色 preset 发起与浮卡岗位名、文档双源改述。独立复跑工作树 typecheck 五项、packages/lcoder vitest 一百五十文件一千五百五十一例、改动 TS 文件 oxlint 零错零警、i18n 一千三百一十八文件、test:docs 二十一项全过；合入后主检 rebuild、强制 build:artifacts 八项与 build:check 两项、typecheck 五项、同组 vitest、i18n 与 test:docs 全过，bundle 时刻核新鲜。未验项为真实模型链路、真窗口配置节与多岗浮卡观感，主检实例需重启生效。已合入 lcoder/main、release pool-slot-2、删分支。"
 
+    - id: T-244
+      title: 研发经理纳入评审工具面
+      status: doing
+      face: 工程
+      type: 开发
+      owner: lance
+      created: '2026-11-17'
+      date: '2026-11-17'
+      dep: [T-243]
+      inferred: false
+      note: "A 级角色工具面契约改动，来源是 T-243 真机验收：用户原例评审配产品经理加研发经理，但 T-237 只把 requirement_review_draft 给了 pm，flow_save 节点能力校验按契约拒绝 manager 进评审节点（真机已验拒绝文案可读）。目标：ROLE_TOOLS.manager 增 requirement_review_draft，使研发经理可出评审报告；manager 人设前缀补该工具与评审职责（只出报告不改稿）；surface.spec 的 dev 等式注释同步（dev 仍排除角色专属写入口）；persona-surface 同步测试应自动钉住人设提及；kernel README 双语与 prd-and-design、PROJECT-RULES 的工具面表同步；模型可见工具面变化按测试policy核 recorded-session snapshot，受影响则重录（无钥匙则如实报未验）。不改状态机边、不改云合同、模型仍不能过审。验收 typecheck、kernel 与 packages/lcoder vitest、改动文件 oxlint、test:docs、persona-surface 同步测试绿。工作树 pool-slot-1 到 lcoder/t244-manager-review，端口 9822 与 9829 与 9830 让位主检实例改用 9824 与 9833 与 9834。2026-11-17 19:55 监督窗口登记。"
+
+    - id: T-245
+      title: 后台立项的概要确认入口
+      status: doing
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-17'
+      date: '2026-11-17'
+      dep: [T-242]
+      inferred: false
+      note: "B 级客户端补口，来源是 T-242 真机验收：人设约定立项概要确认是对话里自由文本回复确认需求，后台化后需求页与浮卡没有确认入口，不进入对话就永远落不了盘（真机浮卡走到超时、.spec 未建，证据已取）。目标：立项浮卡在会话回合结束且需求条数未增时进入等待确认态，卡上给确认需求按钮（经宿主 session/prompt 向该会话发送确认需求指令）与查看概要入口（自愿打开对话）；发送后恢复轮询直到需求落盘转完成卡；超时口径不变；等待确认态边框沿用进行中蓝并在状态文案说明等待人确认。不改 kernel 与人设提示词、不改状态机与云合同；新文案走中英词典。验收 typecheck、packages/lcoder vitest、改动文件 oxlint、verify-client-ui-i18n；组件测试覆盖等待确认态判定（回合结束且未落盘）、确认按钮发送指令、发送后恢复轮询、落盘转完成、查看概要自愿跳转。工作树 pool-slot-2 到 lcoder/t245-intake-confirm，端口 9823 与 9831 与 9832。2026-11-17 19:55 监督窗口登记。"
+
 
 milestones:
 - name: MVP-0 工作台本地跑通
