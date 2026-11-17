@@ -351,6 +351,9 @@ const BUILTIN_PRESET_PREFIX = 'maniu'
 /** 工作台作用域会话的内部 preset；它不是用户可以选用的人才。 */
 const WORKBENCH_PRESET_ID = 'maniu-workbench'
 
+/** 立项会话的 preset；对话页据此收起首条立项指令。 */
+export const INTAKE_PRESET_ID = 'maniu-intake'
+
 /** 改名前的角色 preset 前缀；旧会话的 `agentPreset` 记录的仍是它。 */
 const RETIRED_PRESET_PREFIX = 'lcoder'
 
@@ -363,6 +366,15 @@ export function currentPresetId(presetId: string): string {
   return presetId === RETIRED_PRESET_PREFIX || presetId.startsWith(`${RETIRED_PRESET_PREFIX}-`)
     ? `${BUILTIN_PRESET_PREFIX}${presetId.slice(RETIRED_PRESET_PREFIX.length)}`
     : presetId
+}
+
+/**
+ * 判断一个会话是否使用立项 preset。
+ * @param presetId - 会话头记录的 preset id；旧会话可能是改名前的 `lcoder-intake`。
+ * @returns 立项会话为 true。
+ */
+export function isIntakePreset(presetId: string | undefined): boolean {
+  return presetId !== undefined && currentPresetId(presetId) === INTAKE_PRESET_ID
 }
 
 /**

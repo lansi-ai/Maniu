@@ -1,7 +1,7 @@
 /** 聊天正文：用户发言与附件、按回合收敛的过程组、助手 Markdown 与流式草稿。 */
 
 import { memo, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import type { JSX } from 'react'
+import type { JSX, ReactNode } from 'react'
 import type { Translate } from '../locale.ts'
 import { renderMarkdown } from '../markdown/markdown.tsx'
 import type {
@@ -19,6 +19,12 @@ export interface ChatTranscriptProps {
   readonly t: Translate
   readonly sessionId: string | null
   readonly chat: ChatState
+  /** 立项会话的首条用户指令只露角色胶囊，不摊开整段提示词。 */
+  readonly seedHidden?: boolean
+  /** 待处理卡；排在消息之后，随对话一起滚动。 */
+  readonly pending?: ReactNode
+  /** 待处理卡数量；增加时滚到底，让新卡片进入视野。 */
+  readonly pendingCount?: number
 }
 
 function toolLabel(name: string, t: Translate): string {
@@ -259,14 +265,28 @@ function CopyButton({ text, testId, t }: {
 
 /**
  * 一条已提交的用户发言；流式增量不会改动它，靠 memo 跳过重渲。
- * @param props - 会话、行与词典。
- * @returns 用户消息。
+ * 立项会话的首条指令换成角色胶囊，正文仍留在会话日志里。
+ * @param props - 会话、行、词典与是否收起正文。
+ * @returns 用户消息或角色胶囊。
  */
-const UserRow = memo(function UserRow({ sessionId, row, t }: {
+const UserRow = memo(function UserRow({ sessionId, row, t, seed }: {
   readonly sessionId: string | null
   readonly row: ChatRow & { readonly kind: 'user' }
   readonly t: Translate
+  readonly seed?: boolean
 }): JSX.Element {
+  if (seed === true) {
+    return (
+      <div className="message-line" data-kind="user">
+        <article className="message intake-seed" data-testid="message-user" data-seed="true">
+          <span className="role-capsule" data-testid="intake-seed-role">{t('intake.seedRole')}</span>
+          {sessionId === null ? null : (
+            <MessageAttachments sessionId={sessionId} attachments={row.attachments} t={t} />
+          )}
+        </article>
+      </div>
+    )
+  }
   return (
     <div className="message-line" data-kind="user">
       <article className="message user" data-testid="message-user">
@@ -325,20 +345,31 @@ function ThinkingRow({ reasoning, t }: { readonly reasoning: string; readonly t:
 
 /**
  * 聊天正文。
- * @param props - 会话标识、折叠状态与词典。
- * @returns 已提交行、思考态指示、流式草稿与流错误。
+ * @param props - 会话标识、折叠状态、立项收起、待处理卡与词典。
+ * @returns 已提交行、思考态指示、流式草稿、待处理卡与流错误。
  */
-export function ChatTranscript({ t, sessionId, chat }: ChatTranscriptProps): JSX.Element {
+export function ChatTranscript({
+  t, sessionId, chat, seedHidden, pending, pendingCount = 0,
+}: ChatTranscriptProps): JSX.Element {
   const list = useRef<HTMLDivElement>(null)
   // 只有用户停在底部附近时才跟着长高；主动上滚后暂停，回到底部自动恢复。
   const follow = useRef(true)
+  // 待处理卡出现前可能已经停在别处；卡片一多出来就必须滚到它。
+  const seenPending = useRef(0)
   useEffect(() => { follow.current = true }, [sessionId])
   useLayoutEffect(() => {
     const node = list.current
-    if (node !== null && follow.current) node.scrollTop = node.scrollHeight
-  }, [chat.rows, chat.liveText, chat.liveReasoning, chat.attempt, chat.retry, chat.failure, chat.streamError])
+    if (node === null) return
+    if (pendingCount > seenPending.current) follow.current = true
+    seenPending.current = pendingCount
+    if (follow.current) node.scrollTop = node.scrollHeight
+  }, [
+    chat.rows, chat.liveText, chat.liveReasoning, chat.attempt, chat.retry, chat.failure, chat.streamError,
+    pendingCount,
+  ])
   // 思考态只在正文还没开始时出现；流式草稿一旦有字就让位。
   const thinking = chat.attempt !== null && chat.liveText === ''
+  const seedId = seedHidden === true ? chat.rows.find(row => row.kind === 'user')?.id : undefined
   return (
     <div
       className="messages"
@@ -352,7 +383,9 @@ export function ChatTranscript({ t, sessionId, chat }: ChatTranscriptProps): JSX
     >
       {chat.rows.map((row) => {
         if (row.kind === 'process') return <ProcessGroup key={row.id} row={row} tools={chat.toolResults} t={t} />
-        if (row.kind === 'user') return <UserRow key={row.id} sessionId={sessionId} row={row} t={t} />
+        if (row.kind === 'user') {
+          return <UserRow key={row.id} sessionId={sessionId} row={row} t={t} seed={row.id === seedId} />
+        }
         return <AssistantRow key={row.id} row={row} t={t} />
       })}
       {thinking && <ThinkingRow reasoning={chat.liveReasoning} t={t} />}
@@ -384,6 +417,7 @@ export function ChatTranscript({ t, sessionId, chat }: ChatTranscriptProps): JSX
         </p>
       )}
       {chat.streamError !== null && <p className="notice" data-testid="stream-error">{chat.streamError}</p>}
+      {pending}
     </div>
   )
 }

@@ -175,3 +175,23 @@ export function PendingCards({ t, items, onAnswer }: PendingCardsProps): JSX.Ele
     </div>
   )
 }
+
+/** 右下浮层属性。 */
+export interface PendingLayerProps extends PendingCardsProps {
+  /** 对话页把卡片放进聊天列，浮层只在其他页出现。 */
+  readonly visible: boolean
+}
+
+/**
+ * 非对话页的等待交互浮层；对话页用聊天列里的卡片，避免同一请求画两份。
+ * @param props - 是否显示、交互列表与回执回调。
+ * @returns 浮层；隐藏或没有交互时为空。
+ */
+export function PendingLayer({ visible, t, items, onAnswer }: PendingLayerProps): JSX.Element | null {
+  if (!visible) return null
+  return (
+    <div className="pending-layer">
+      <PendingCards t={t} items={items} onAnswer={onAnswer} />
+    </div>
+  )
+}
