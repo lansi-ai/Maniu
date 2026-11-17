@@ -2786,6 +2786,18 @@ tracks:
       inferred: false
       note: "C 级样式回归修复，来源是用户 2026-11-17 截图报需求页样式跑偏。根因一：T-247 保活 wrapper div 成为壳层 flex 子项而 .page 的 flex:1 失效，页宽缩到内容宽（表格占左半右半空）；修法 wrapper 可见时 display:contents 恢复 .page 为有效 flex 子项、隐藏时 display:none 不变。根因二（预存缺口）：pill-accent:disabled 只设颜色不设透明度，禁用的立项向导仍亮蓝实心；补 opacity 与 cursor。范围 app.tsx 与 styles.css 两文件；不改契约。验收 typecheck、定向 vitest（app-launch-route 与需求页组）、改动文件 oxlint；真机核 .page 计算宽度撑满壳层与禁用按钮变淡。监督窗口按 C 快 lane 在主检出直修并记录原因（用户报障点名修复）。2026-11-17 22:05 登记。2026-11-17 22:15 核验并收口：wrapper 可见时 display:contents 恢复 .page 的 flex:1 撑满、隐藏时 none 不变；pill-accent:disabled 补 opacity 0.55 与 not-allowed 光标。定向门禁 typecheck 五项与三组 vitest 二十一例与 oxlint 零过；build:artifacts 重出后重启实例，真机核 page 宽等于壳层宽（1112=1112）、host display contents、禁用按钮 opacity 0.55，截图留用户审。已提交主线。"
 
+    - id: T-249
+      title: 对话式需求分析提案与对比确认落盘
+      status: doing
+      face: 工程
+      type: 开发
+      owner: lance
+      created: '2026-11-17'
+      date: '2026-11-17'
+      dep: [T-243, T-245]
+      inferred: false
+      note: "A 级契约扩展，来源是用户 2026-11-17 要求需求页可新建需求且不必走整项目立项，经三轮口径修订签核 v3：新建与改稿都通过与需求分析师对话完成，无手动写盘表单；分析师只做需求层分析（与现有需求冲突/重复、影响面大小、优先级建议，明禁代码层判断），按需求大小出文档（小需求短文档大需求完整文档），提问卡请用户确认文档方向后调新模型工具 requirement_propose 写提案 .spec/proposals/P-xx.yaml（requirement_change 载荷 mode new/revise、目标 REQ、基线版本、完整新正文），此时需求本体不落盘；界面出待确认需求变更卡与对比视图（revise 旧正文对新正文逐条目差异加全文对照，new 新条目全文，附分析结论），人点确认走人机命令 proposal_approve 扩展分支调 createRequirement 或 reviseRequirement 落盘（note 记溯源），拒绝则提案 rejected 需求不动；落盘后进入既有评审配齐过审流程。红线：模型只能提案不能落需求本体，落盘只被人机命令触发，状态机零新边，revise 提案目标须 draft，确认态只能 new 基于其版本。kernel 改 requirement_propose 工具仅 intake 面、proposal schema 可选 requirement_change、proposal_approve 应用分支与拒绝路径（缺则补人机拒绝命令）、测试；client 改新建入口抽屉（描述输入随首条消息）、新建与改稿提示词（分析-文档-确认-提案四步）、待确认卡与对比视图、浮卡新建类与提案等待态加去对比入口、词典；双源文档同步。浮卡完成判定新建看需求条数增改稿看版本增，提案待确认期间等待态。验收 typecheck、kernel 与 packages/lcoder vitest、改动文件 oxlint、verify-client-ui-i18n、test:docs、snapshot 按政策核归因；组件测试覆盖入口不受禁立项影响、描述随首条消息、限定指令不含整项目立项与代码判断、提案不落需求本体、对比视图差异与确认拒绝、浮卡等待态；真机全链留监督窗口复验。工作树 pool-slot-1 到 lcoder/t249-req-proposal，端口 9824 与 9833 与 9834。2026-11-17 22:30 监督窗口登记。"
+
 
 milestones:
 - name: MVP-0 工作台本地跑通
