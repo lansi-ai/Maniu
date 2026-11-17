@@ -2692,7 +2692,7 @@ tracks:
 
     - id: T-241
       title: 人设与人才卡同步工具白名单
-      status: doing
+      status: done
       face: 用户端
       type: 修复
       owner: lance
@@ -2700,7 +2700,7 @@ tracks:
       date: '2026-11-17'
       dep: [T-237, T-240]
       inferred: false
-      note: "B 级人设与人才卡文案同步修复，来源是用户 2026-11-17 在本窗询问需求评审是否加载项目经理人才，核查发现人设工具清单落后于角色工具白名单。用户明确指示本窗登记并修，救火原因即用户点名本窗且旧监督窗口已收口 T-240 处于空闲。工具白名单 ROLE_TOOLS 与状态机不改，只同步装配层人设文本与人才卡摘要。一、项目经理人设补 requirement_review_draft 与评审职责（只出报告、不改正文、过审由人），需求分析师人设补 requirement_revise 与改稿职责，架构与运维人设补齐遗漏的 deliverable_draft，实施人设的分状态工具面举例更新为当前工具面，全部人设把天花板比喻改为「你被允许使用的工具是」直白表述。二、人才卡摘要项目经理补评审能力、需求分析师补改稿能力、研发经理补拆分计划能力，中英词典成对更新。三、新增 kernel 同步测试，读装配补丁断言每个角色人设提及其白名单内的全部工具，防止再次漂移。范围 lcoder/desktop-profile.patch.yml、packages/lcoder/client 的 locale-zh 与 locale-en、packages/lcoder/kernel 新增测试；不改 kernel 源码、状态机与云合同。验收 typecheck、packages/lcoder vitest、改动文件 oxlint、verify-client-ui-i18n、test:docs；合入后重拷运行 profile 副本并重启实例生效。工作树 pool-slot-1 到 lcoder/t241-persona-sync，端口 9822 与 9829 与 9830。2026-11-17 16:18 本监督窗口登记并自修。"
+      note: "B 级人设与人才卡文案同步修复，来源是用户 2026-11-17 在本窗询问需求评审是否加载项目经理人才，核查发现人设工具清单落后于角色工具白名单。用户明确指示本窗登记并修，救火原因即用户点名本窗且旧监督窗口已收口 T-240 处于空闲。工具白名单 ROLE_TOOLS 与状态机不改，只同步装配层人设文本与人才卡摘要。一、项目经理人设补 requirement_review_draft 与评审职责（只出报告、不改正文、过审由人），需求分析师人设补 requirement_revise 与改稿职责，架构与运维人设补齐遗漏的 deliverable_draft，实施人设的分状态工具面举例更新为当前工具面，全部人设把天花板比喻改为「你被允许使用的工具是」直白表述。二、人才卡摘要项目经理补评审能力、需求分析师补改稿能力、研发经理补拆分计划能力，中英词典成对更新。三、新增 kernel 同步测试，读装配补丁断言每个角色人设提及其白名单内的全部工具，防止再次漂移。范围 lcoder/desktop-profile.patch.yml、packages/lcoder/client 的 locale-zh 与 locale-en、packages/lcoder/kernel 新增测试；不改 kernel 源码、状态机与云合同。验收 typecheck、packages/lcoder vitest、改动文件 oxlint、verify-client-ui-i18n、test:docs；合入后重拷运行 profile 副本并重启实例生效。工作树 pool-slot-1 到 lcoder/t241-persona-sync，端口 9822 与 9829 与 9830。2026-11-17 16:18 本监督窗口登记并自修。2026-11-17 16:35 本监督窗口核验并收口。一笔实现提交。项目经理人设补 requirement_review_draft 与评审职责，需求分析师补 requirement_revise 与改稿职责，架构与运维补齐 deliverable_draft，实施人设分状态工具面举例更新为当前工具面，十个 preset 的天花板比喻全部换成「你被允许使用的工具是」直白表述；中英人才卡摘要成对补评审、改稿与拆分计划能力；新增 kernel persona-surface 同步测试二十一例，断言每个角色人设提及白名单全部工具且不用比喻词，变异验证抽掉工具名即红。独立复跑工作树 typecheck 五项、packages/lcoder vitest 一百三十八文件一千四百六十例、改动三文件 oxlint 零错零警、i18n 一千三百一十八文件、test:docs 二十一项全过；合入后主检 rebuild 重拷 profile、强制 build:artifacts 与 build:check、typecheck 五项、同组 vitest、i18n 与 test:docs 全过。发现 rebuild 分层判新鲜漏掉 merge 后客户端源码变更，记 PITFALLS W-21，已强制全量重出并核 bundle 时刻新鲜。未验项为真实模型会话的新人设表现与人才卡真窗口观感，主检实例需重启生效。已合入 lcoder/main、release pool-slot-1、删分支。"
 
 
 milestones:

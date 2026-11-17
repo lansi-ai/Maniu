@@ -141,3 +141,10 @@
 - **原因**：续会话走宿主 `composeAgent(presetForObservation(...))`，用的是会话 header 里**已记录**的 id；历史会话不能改写，名字一换就查不到声明。
 - **处理**：给每个改名后的 preset 声明写 `retiredIds: [旧 id]`（`lcoder/desktop-profile.patch.yml` 十个角色与 `host-workbench.patch.yml`、`s1-profile.patch.yml` 的工作台各一条）。registry 的 `resolve`/`retain`/`definitionPlugins`/`definitionScope` 都按同一跳别名解析，talents 里云端存的旧 `basePreset` 也照样能落；名册与专家计数不新增行。
 - **预防**：凡是改 preset id 或包名，先在隔离 home 里造一条带旧 id 头的会话做续聊探针；旧会话 header 一律不改写，"旧 id 解析到新声明"由声明侧承担。
+
+## W-21 merge 之后 rebuild.cmd 分层判新鲜漏掉客户端源码变更
+
+- **现象**：T-241 合入主线后跑 `lcoder\scripts\rebuild.cmd`，只报「本次要重建：profile」并重拷运行副本；`packages/lcoder/client/lib/index.js` 停在 merge 前的时刻，而 merge 改过的 `locale-zh.ts` 更新——运行实例加载的仍是旧词典 bundle。
+- **原因**：分层新鲜度判定没有把这次 merge 的客户端源码变更识别为过期层；具体判定逻辑未查明，本条只记录实测行为与兜底做法。
+- **处理**：合入后除了跑 rebuild，还要比对 `packages/lcoder/*/lib` 产物与对应 `src` 的修改时刻；发现产物更旧就强制 `pnpm run build:artifacts` 再 `pnpm run build:check`，重出后再重启实例。
+- **预防**：「门禁绿」不等于「运行副本新鲜」；凡改动会进 bundle 的源码（词典、组件、kernel），收口前必核产物时刻，必要时全量重出，不依赖分层判新鲜。
