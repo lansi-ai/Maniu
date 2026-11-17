@@ -125,6 +125,7 @@ export function App(): JSX.Element {
   const [returnPage, setReturnPage] = useState<PageId>('chat')
   const [project, setProject] = useState<ProjectScope | null>(savedProject)
   const [intakeResult, setIntakeResult] = useState<IntakeResult | null>(null)
+  const [taskRequirement, setTaskRequirement] = useState<string | null>(null)
   const [projectNotice, setProjectNotice] = useState<string | null>(null)
   const [pending, setPending] = useState<readonly PendingInteraction[]>([])
   const [closeRequest, setCloseRequest] = useState<CloseRequest | null>(null)
@@ -526,8 +527,8 @@ export function App(): JSX.Element {
     return { ok: true, message, sessionId }
   }, [loadSessions, project, selectSession, t])
 
-  const startSession = useCallback(async (prompt: string) => {
-    const answer = await launchSession(prompt)
+  const startSession = useCallback(async (prompt: string, agentPreset?: string) => {
+    const answer = await launchSession(prompt, agentPreset)
     return { ok: answer.ok, message: answer.message }
   }, [launchSession])
 
@@ -701,6 +702,10 @@ export function App(): JSX.Element {
                 onReload={projection.reload}
                 onStartIntake={startIntake}
                 onStartSession={startSession}
+                onOpenTasks={(requirementId) => {
+                  setTaskRequirement(requirementId)
+                  setPage('tasks')
+                }}
                 t={t}
               />
             )}
@@ -713,6 +718,9 @@ export function App(): JSX.Element {
                 loading={projection.loading}
                 error={projection.error}
                 onReload={projection.reload}
+                requirementFilter={taskRequirement}
+                onClearRequirementFilter={() => { setTaskRequirement(null) }}
+                t={t}
               />
             )}
 

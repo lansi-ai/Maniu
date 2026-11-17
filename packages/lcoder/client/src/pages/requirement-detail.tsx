@@ -9,12 +9,16 @@ import type { SessionSummary } from '../store.ts'
 import { requirementStateLabel } from '../spec/board.ts'
 import { readDiscussionHistory, type DiscussionHistory } from '../discussion/history.ts'
 import { runCommand, type CommandOutcome } from '../commands/run.ts'
-import { buildSplitPrompt } from '../intake/prompts.ts'
 import { renderMarkdown } from '../markdown/markdown.tsx'
+import { translate, type Translate } from '../locale.ts'
 import { DetailDrawer } from './detail-drawer.tsx'
 
-/** 内置轨的显示文本；项目追加轨在调用处补上。 */
-const BUILTIN_TRACKS = ['h5（H5 前端）', 'admin（管理端）', 'api（接口）', 'desktop（桌面端）', 'host（宿主端）', 'general（通用）']
+const zhText: Translate = (key, params) => translate('zh', key, params)
+
+/** 评审报告与版本快照在阅读器里的仓库相对路径。 */
+function specPath(relative: string): string {
+  return `.spec/${relative.replace(/^\.?[\\/]/, '').replace(/^\.spec[\\/]/, '')}`
+}
 
 /** 需求详情属性。 */
 export interface RequirementDetailProps {
@@ -26,7 +30,12 @@ export interface RequirementDetailProps {
   readonly onOpenTask: (taskId: string) => void
   readonly onOpenReader: (path: string) => void
   readonly onReload: () => void
-  readonly onStartSession: (prompt: string) => Promise<{ readonly ok: boolean; readonly message: string }>
+  /** 发送拆分指令；由需求页按当前投影拼提示词。 */
+  readonly onSplit: () => Promise<{ readonly ok: boolean; readonly message: string }>
+  /** 跳到任务页并只显示本需求关联的任务。 */
+  readonly onOpenTasks: () => void
+  /** 取词函数；缺省为中文词典。 */
+  readonly t?: Translate
 }
 
 /**
@@ -35,6 +44,7 @@ export interface RequirementDetailProps {
  * @returns 详情面板。
  */
 export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
+  const t = props.t ?? zhText
   const row = props.row
   const [history, setHistory] = useState<DiscussionHistory | null>(null)
   const [historyBusy, setHistoryBusy] = useState(false)
@@ -60,19 +70,15 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
     setBusy('split')
     setResult(null)
     try {
-      const extra = (props.projection.project?.tracks ?? []).map(track => `${track.id}（${track.name}）`)
-      const answer = await props.onStartSession(buildSplitPrompt(
-        { id: row.id, title: row.title ?? row.id },
-        row.text,
-        [...BUILTIN_TRACKS, ...extra],
-      ))
+      const answer = await props.onSplit()
       setResult({ ok: answer.ok, text: answer.message })
     } finally {
       setBusy(null)
     }
   }
 
-  const canApprove = row.state === 'draft'
+  const reviewed = row.reviews.length > 0
+  const canApprove = row.state === 'draft' && reviewed
   const canRelease = row.state === 'confirmed'
   const canClose = row.state === 'draft' || row.state === 'confirmed'
 
@@ -142,17 +148,78 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
       )}
 
       <section className="detail-section" data-testid="requirement-timeline">
-        <h4>时间线</h4>
-        <dl className="kv">
-          <dt>开立</dt><dd>{row.openedAt ?? '—'}</dd>
-          <dt>确认</dt><dd>{row.confirmedAt ?? '—'}</dd>
-          <dt>上线</dt><dd>{row.releasedAt ?? '—'}</dd>
-          <dt>关闭</dt><dd>{row.closedAt ?? '—'}</dd>
-        </dl>
+        <h4>{t('requirement.timeline')}</h4>
+        <ul className="timeline">
+          <li data-testid="requirement-timeline-opened">
+            <span className="tag">{t('requirement.timelineOpened')}</span>
+            <span className="time">{row.openedAt ?? '—'}</span>
+          </li>
+          {row.reviews.map(review => (
+            <li key={`review-${String(review.round)}`} data-testid="requirement-timeline-review" data-round={review.round}>
+              <span className="tag">{t('requirement.timelineReview', { round: review.round })}</span>
+              <span className="time">{review.at}</span>
+              <button
+                type="button"
+                className="link-button"
+                data-testid="requirement-open-report"
+                data-path={specPath(review.report)}
+                onClick={() => { props.onOpenReader(specPath(review.report)) }}
+              >
+                {t('requirement.openReport')}
+              </button>
+            </li>
+          ))}
+          {row.reviews.length === 0 && (
+            <li className="empty" data-testid="requirement-timeline-review-empty">{t('requirement.noReviews')}</li>
+          )}
+          {row.versions.map(version => (
+            <li key={`version-${String(version.n)}`} data-testid="requirement-timeline-version" data-version={version.n}>
+              <span className="tag">{t('requirement.timelineVersion', { n: version.n })}</span>
+              <span className="time">{version.at}</span>
+              <button
+                type="button"
+                className="link-button"
+                data-testid="requirement-open-version"
+                data-version={version.n}
+                data-path={`.spec/requirements/${row.id}/versions/v${String(version.n)}.md`}
+                onClick={() => { props.onOpenReader(`.spec/requirements/${row.id}/versions/v${String(version.n)}.md`) }}
+              >
+                {t('requirement.openSnapshot')}
+              </button>
+            </li>
+          ))}
+          {row.versions.length === 0 && (
+            <li className="empty" data-testid="requirement-timeline-version-empty">{t('requirement.noVersions')}</li>
+          )}
+          <li data-testid="requirement-timeline-approved">
+            <span className="tag">{t('requirement.timelineApproved')}</span>
+            <span className="time">{row.approvedAt ?? '—'}</span>
+            <span>{row.approvedVersion === undefined
+              ? t('requirement.notApproved')
+              : t('requirement.timelineApprovedVersion', { n: row.approvedVersion })}</span>
+          </li>
+          {related.map(task => (
+            <li key={`split-${task.id}`} data-testid="requirement-timeline-split" data-task-id={task.id}>
+              <span className="tag">{t('requirement.timelineSplit')}</span>
+              <span className="mono">{task.id}</span>
+              <span className="time">{task.openedAt ?? '—'}</span>
+            </li>
+          ))}
+          {related.length === 0 && (
+            <li className="empty" data-testid="requirement-timeline-split-empty">{t('requirement.noSplit')}</li>
+          )}
+        </ul>
       </section>
 
       <section className="detail-section" data-testid="requirement-related">
-        <h4>关联任务</h4>
+        <div className="detail-drawer-head">
+          <h4>关联任务</h4>
+          {related.length > 0 && (
+            <button type="button" className="pill" data-testid="requirement-view-tasks" onClick={props.onOpenTasks}>
+              {t('requirement.opTasks')}
+            </button>
+          )}
+        </div>
         {related.length === 0
           ? <p className="empty">还没有拆出任务。</p>
           : (
@@ -192,11 +259,23 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
       <section className="detail-section" data-testid="requirement-actions">
         <h4>动作（命令通道）</h4>
         <div className="action-row">
-          <button type="button" className="pill" data-testid="requirement-approve" disabled={!canApprove || busy !== null} onClick={() => { void execute('approve', `/requirement_approve ${row.id}`) }}>确认需求</button>
+          <button
+            type="button"
+            className="pill"
+            data-testid="requirement-approve"
+            disabled={!canApprove || busy !== null}
+            title={reviewed ? undefined : t('requirement.approveNeedsReview')}
+            onClick={() => { void execute('approve', `/requirement_approve ${row.id}`) }}
+          >
+            确认需求
+          </button>
           <button type="button" className="pill" data-testid="requirement-split" disabled={!canRelease || busy !== null} onClick={() => { void split() }}>拆分任务</button>
           <button type="button" className="pill" data-testid="requirement-release" disabled={!canRelease || busy !== null} onClick={() => { void execute('release', `/requirement_release ${row.id}`) }}>上线</button>
           <button type="button" className="pill" data-testid="requirement-close" disabled={!canClose || busy !== null} onClick={() => { void execute('close', `/requirement_close ${row.id}`) }}>关闭</button>
         </div>
+        {row.state === 'draft' && !reviewed && (
+          <p className="detail-note" data-testid="requirement-approve-hint">{t('requirement.approveNeedsReview')}</p>
+        )}
         {result !== null && (
           <p className={result.ok ? 'detail-line' : 'problem'} data-testid="requirement-action-result" data-ok={result.ok ? 'true' : 'false'}>
             {result.text}

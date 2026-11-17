@@ -49,6 +49,20 @@ ${sources}
 - 需要确认文档位置时，用 ask_user_question 把 file_list 实际列出的候选做成选项，不要让人手打路径。`
 }
 
+/** 内置轨的提示词显示文本；项目追加轨在调用处补上。 */
+export const BUILTIN_SPLIT_TRACKS: readonly string[] = [
+  'h5（H5 前端）',
+  'admin（管理端）',
+  'api（接口）',
+  'desktop（桌面端）',
+  'host（宿主端）',
+  'general（通用）',
+]
+
+function bodyOf(document: string): string {
+  return document.trim() === '' ? '（读不到需求正文；请先读取 .spec/requirements 下的同名文档）' : document.trim()
+}
+
 /**
  * 生成需求拆分提示词。
  * @param requirement - 需求编号与标题。
@@ -61,7 +75,7 @@ export function buildSplitPrompt(
   document: string,
   tracks: readonly string[],
 ): string {
-  const body = document.trim() === '' ? '（读不到需求正文；请先读取 .spec/requirements 下的同名文档）' : document.trim()
+  const body = bodyOf(document)
   return `需求拆分：请把需求 ${requirement.id}（${requirement.title}）拆分成可执行的开发任务，写入 .spec/tasks。
 
 依据：以末尾附上的《项目需求概要》（.spec/requirements/${requirement.id}.md）为唯一范围依据；文档里暂不开发的范围不要拆成任务。
@@ -80,6 +94,80 @@ export function buildSplitPrompt(
 - 完成后列出新建任务的编号、标题、轨与依赖关系。
 
 《项目需求概要》正文：
+"""
+${body}
+"""`
+}
+
+/**
+ * 生成需求评审提示词。
+ *
+ * 评审只出报告：报告由项目经理用 `requirement_review_draft` 落盘，
+ * 正文与状态都不改，过审仍由人在界面上完成。
+ * @param requirement - 需求编号与标题。
+ * @param document - 当前需求正文。
+ * @returns 可直接发送给项目经理会话的提示词。
+ */
+export function buildReviewPrompt(
+  requirement: { readonly id: string; readonly title: string },
+  document: string,
+): string {
+  const body = bodyOf(document)
+  return `需求评审：请对需求 ${requirement.id}（${requirement.title}）做一轮独立评审，把报告落盘。这一轮不改正文，也不签不批。
+
+执行身份：你是这条需求的项目经理，负责在需求确认前做评审。
+
+四个角度都要写到，不能合并或省略：
+1. 文档完备性：目标、范围、验收口径、边界与例外是否写全，缺什么。
+2. 合理性：目标与手段是否匹配，约束、代价与优先级是否成立。
+3. 需求角度：用户价值、使用场景、与已有需求的冲突或重复。
+4. 技术实现角度：可行性、影响面、数据与接口、依赖与风险。
+
+要求：
+- 用 requirement_review_draft 落盘：参数 id 为 ${requirement.id}，report 是完整 Markdown 报告；每条意见写清位置与可执行的修改建议。
+- 只读查看需求正文与仓库事实；不改需求正文、不改状态、不签契约、不推进任务、不调用过审命令。
+- 结尾给出结论：可以确认，或需要修改（列出必须修改项）。
+- 输出完停下，不自行改稿，也不自行过审。
+
+《需求正文》：
+"""
+${body}
+"""`
+}
+
+/**
+ * 生成需求改稿提示词。
+ *
+ * 改稿只动正文与版本：需求分析师用 `requirement_revise` 写入完整新正文，
+ * 状态、过审与其他需求都不动。
+ * @param requirement - 需求编号与标题。
+ * @param document - 当前需求正文。
+ * @param reviewReport - 最近一份评审报告相对 `.spec` 的路径。
+ * @returns 可直接发送给需求分析师会话的提示词。
+ */
+export function buildRevisePrompt(
+  requirement: { readonly id: string; readonly title: string },
+  document: string,
+  reviewReport?: string,
+): string {
+  const body = bodyOf(document)
+  const report = reviewReport === undefined || reviewReport.trim() === ''
+    ? '这条需求还没有评审报告：按正文自身的问题做必要修订，不要编造评审意见。'
+    : `最近一份评审报告：.spec/${reviewReport.replace(/^\.?[\\/]/, '').replace(/^\.spec[\\/]/, '')}`
+  return `需求改稿：请修订需求 ${requirement.id}（${requirement.title}）的正文，并落成新版本。
+
+执行身份：你是这条需求的需求分析师。
+${report}
+- 先用 file_read 读评审报告；逐条处理其中的意见。
+- 用 requirement_revise 写入完整的新正文，不是差异片段；保留用户已确认的内容，被评审否定的部分要改，并在正文里回应评审意见。
+- 只改需求正文与版本：不改状态、不签不批、不推进任务、不改其他需求。
+- 写完回报新版本号、改了哪些段落，以及哪些评审意见保留待议。
+
+要求：
+- 新正文保持原结构与既有约定，补上评审指出的缺失项。
+- 不删用户已确认的范围；需要收缩范围时写明理由。
+
+《当前需求正文》：
 """
 ${body}
 """`

@@ -10,6 +10,7 @@ import {
   BOARD_COLUMNS, STATE_LABELS, boardColumnOf, emptyTaskFilter, filterTasks, runStatusOf, sortTasks,
   type TaskFilter,
 } from '../spec/board.ts'
+import { translate, type Translate } from '../locale.ts'
 import { TaskDetail } from './task-detail.tsx'
 import { ReaderOverlay } from './reader.tsx'
 import { FlowPanel } from './flow-panel.tsx'
@@ -22,6 +23,11 @@ export interface TasksPageProps {
   readonly loading: boolean
   readonly error: string | null
   readonly onReload: () => void
+  /** 只显示该需求关联的任务；null 表示不过滤。 */
+  readonly requirementFilter: string | null
+  readonly onClearRequirementFilter: () => void
+  /** 取词函数；缺省为中文词典。 */
+  readonly t?: Translate
 }
 
 /**
@@ -30,6 +36,7 @@ export interface TasksPageProps {
  * @returns 页面。
  */
 export function TasksPage(props: TasksPageProps): JSX.Element {
+  const t = props.t ?? ((key, params) => translate('zh', key, params))
   const [view, setView] = useState<'board' | 'list'>('board')
   const [filter, setFilter] = useState<TaskFilter>(emptyTaskFilter)
   const [selected, setSelected] = useState<string | null>(null)
@@ -40,7 +47,12 @@ export function TasksPage(props: TasksPageProps): JSX.Element {
     () => new Set(props.sessions.filter(session => session.running).map(session => session.sessionId)),
     [props.sessions],
   )
-  const rows = useMemo(() => sortTasks(filterTasks(props.projection.tasks, filter)), [props.projection.tasks, filter])
+  const rows = useMemo(() => {
+    const matched = filterTasks(props.projection.tasks, filter)
+    return sortTasks(props.requirementFilter === null
+      ? matched
+      : matched.filter(task => task.requirement === props.requirementFilter))
+  }, [props.projection.tasks, props.requirementFilter, filter])
   const roles = useMemo(
     () => [...new Set(props.projection.roles.map(role => role.id))].sort(),
     [props.projection.roles],
@@ -89,6 +101,20 @@ export function TasksPage(props: TasksPageProps): JSX.Element {
           <button type="button" className="pill" data-testid="flow-open" disabled={props.project === null} onClick={() => { setFlowOpen(true) }}>流程</button>
         </div>
       </header>
+
+      {props.requirementFilter !== null && (
+        <div className="filter-bar" data-testid="task-requirement-filter">
+          <span className="tag">{t('task.requirementFilter', { id: props.requirementFilter })}</span>
+          <button
+            type="button"
+            className="link-button"
+            data-testid="task-requirement-filter-clear"
+            onClick={props.onClearRequirementFilter}
+          >
+            {t('task.clearRequirementFilter')}
+          </button>
+        </div>
+      )}
 
       {props.project === null && <p className="empty" data-testid="task-no-project">先在「切换项目」里打开一个仓库。</p>}
       {props.error !== null && <pre className="problem" data-testid="task-problems">{props.error}</pre>}

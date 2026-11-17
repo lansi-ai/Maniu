@@ -405,6 +405,25 @@
 .action-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0; }
 .action-row .search { width: 140px; }
 
+/* 需求表行内操作与详情阶段时间线；窄窗靠换行保持可点。 */
+.row-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.row-actions .pill { padding: 3px 9px; font-size: 12px; }
+.filter-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 0 4px; }
+
+.timeline { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.timeline li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 9px;
+  border: 1px solid var(--lg-line-hair);
+  border-radius: 10px;
+  background: var(--lg-fill-row);
+}
+.timeline .time { color: var(--lg-muted); font-size: 12px; overflow-wrap: anywhere; }
+.timeline li.empty { padding: 2px; border: 0; background: none; color: var(--lg-faint); font-size: 12px; }
+
 .prompt-preview {
   max-height: 320px;
   overflow: auto;
