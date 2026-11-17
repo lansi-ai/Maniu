@@ -2752,7 +2752,7 @@ tracks:
 
     - id: T-246
       title: 立项结果跨项目残留与旧文案
-      status: doing
+      status: done
       face: 用户端
       type: 修复
       owner: lance
@@ -2760,11 +2760,11 @@ tracks:
       date: '2026-11-17'
       dep: [T-242]
       inferred: false
-      note: "B 级客户端修复，来源是复验靶仓 3 时实测：intakeResult 是 App 级状态，切换项目不清除，新空仓向导显示上一仓的旧结果视图（含空会话号文案），且结果视图文案仍说立项会话已切到对话页，与 T-242 后台化口径矛盾。目标：切换项目时清除或按 workspace 隔离 intakeResult；结果视图文案改述为后台发起浮卡接管口径（中英成对）；补组件测试覆盖切换项目后向导回起始表单与文案不含已切到对话页。范围 app.tsx 与中英词典与测试；不改 kernel 与人设。验收 typecheck、packages/lcoder vitest、改动文件 oxlint、verify-client-ui-i18n。工作树 pool-slot-1 到 lcoder/t246-intake-result-scope，端口 9824 与 9833 与 9834。2026-11-17 21:05 监督窗口登记。2026-11-17 21:12 派工被平台嵌套会话限制拦截（首轮任务不得再建会话），监督窗口按纪律接管自修，原因记此。"
+      note: "B 级客户端修复，来源是复验靶仓 3 时实测：intakeResult 是 App 级状态，切换项目不清除，新空仓向导显示上一仓的旧结果视图（含空会话号文案），且结果视图文案仍说立项会话已切到对话页，与 T-242 后台化口径矛盾。目标：切换项目时清除或按 workspace 隔离 intakeResult；结果视图文案改述为后台发起浮卡接管口径（中英成对）；补组件测试覆盖切换项目后向导回起始表单与文案不含已切到对话页。范围 app.tsx 与中英词典与测试；不改 kernel 与人设。验收 typecheck、packages/lcoder vitest、改动文件 oxlint、verify-client-ui-i18n。工作树 pool-slot-1 到 lcoder/t246-intake-result-scope，端口 9824 与 9833 与 9834。2026-11-17 21:05 监督窗口登记。2026-11-17 21:12 派工被平台嵌套会话限制拦截（首轮任务不得再建会话），监督窗口按纪律接管自修，原因记此。2026-11-17 21:40 核验并收口：切项目清 intakeResult（render 期 ref 比对）、结果视图硬编码旧文案改词典键 intake.resultBackground 中英成对、文案测试绿；独立复跑 typecheck 五项 vitest 一百五十一文件一千五百六十九例 oxlint 零 i18n 过；合入后主检全绿（test:docs 初红因验收报告含十六进制_commit 哈希触 repository-references 门禁，去哈希后二十一项绿）；真机复验切靶 2 后向导回立项向导禁用态。已合入主线、release pool-slot-1、删分支。"
 
     - id: T-247
       title: 多岗 auto 衔接静默丢运行
-      status: doing
+      status: done
       face: 用户端
       type: 修复
       owner: lance
@@ -2772,7 +2772,7 @@ tracks:
       date: '2026-11-17'
       dep: [T-243]
       inferred: false
-      note: "B 级编排缺陷，来源是复验靶仓 3 实测：flow.yaml review 配 pm 加 manager 且 auto true，第二次评审首岗 pm 落 R2 后 manager 会话未发起、R3 永不落盘，且浮卡全部消失（无运行卡无暂停卡无失败卡无超时卡）、无 opNotice——auto 推进路径静默丢运行。对照 manual 同配置正常（下一岗位按钮与配齐过审均真机通过）。要求：先用组件测试复现（假定时器加 sessions 摘要驱动回合结束与投影增量），定位完成 effect 移除 watch 与 launchRole 异步登记之间的竞态或状态丢失根因，修复后 auto 双岗必须顺序落两轮且全程有卡；任何失败路径必须留失败卡或可读提示，不允许静默消失；补回归测试 auto 双岗顺序落盘与中途失败留卡。范围 requirements.tsx 与测试；不改 kernel。验收 typecheck、packages/lcoder vitest、改动文件 oxlint、verify-client-ui-i18n。工作树 pool-slot-2 到 lcoder/t247-auto-advance，端口 9823 与 9831 与 9832。2026-11-17 21:05 监督窗口登记。2026-11-17 21:12 派工被平台嵌套会话限制拦截，监督窗口按纪律接管自修，原因记此。验收报告见 lcoder/acceptance-20261117.md。"
+      note: "B 级编排缺陷，来源是复验靶仓 3 实测：flow.yaml review 配 pm 加 manager 且 auto true，第二次评审首岗 pm 落 R2 后 manager 会话未发起、R3 永不落盘，且浮卡全部消失（无运行卡无暂停卡无失败卡无超时卡）、无 opNotice——auto 推进路径静默丢运行。对照 manual 同配置正常（下一岗位按钮与配齐过审均真机通过）。要求：先用组件测试复现（假定时器加 sessions 摘要驱动回合结束与投影增量），定位完成 effect 移除 watch 与 launchRole 异步登记之间的竞态或状态丢失根因，修复后 auto 双岗必须顺序落两轮且全程有卡；任何失败路径必须留失败卡或可读提示，不允许静默消失；补回归测试 auto 双岗顺序落盘与中途失败留卡。范围 requirements.tsx 与测试；不改 kernel。验收 typecheck、packages/lcoder vitest、改动文件 oxlint、verify-client-ui-i18n。工作树 pool-slot-2 到 lcoder/t247-auto-advance，端口 9823 与 9831 与 9832。2026-11-17 21:05 监督窗口登记。2026-11-17 21:12 派工被平台嵌套会话限制拦截，监督窗口按纪律接管自修，原因记此。验收报告见 lcoder/acceptance-20261117.md。2026-11-17 21:40 核验并收口：范围收敛为操作状态随页卸载丢失（auto 衔接本身真机通过，判据 8 纠正为过，误判三成因已披露）；修法需求页跨页保持挂载隐藏而非条件渲染，回归测试切页往返运行卡仍在；独立复跑门禁全绿，合入后主检全绿；真机复验 chat 页隐藏期卡仍在、回需求页卡仍 running。已合入主线、release pool-slot-2、删分支。"
 
 
 milestones:
