@@ -474,7 +474,7 @@ export function App(): JSX.Element {
     await loadSessions()
   }, [loadSessions, sessions])
 
-  const launchSession = useCallback(async (prompt: string, agentPreset = WORKBENCH_PRESET): Promise<{
+  const launchSession = useCallback(async (prompt: string, agentPreset = WORKBENCH_PRESET, route = true): Promise<{
     readonly ok: boolean
     readonly message: string
     readonly sessionId?: string
@@ -521,16 +521,23 @@ export function App(): JSX.Element {
     })
     if (!sent.ok) return { ok: false, message: `${sent.error.code}: ${sent.error.message}` }
     const message = t('flow.startSent', { id: sessionId.slice(0, 8) })
-    selectSession(sessionId)
-    setPage('chat')
+    // route=false 时后台发起：会话只登记进列表，不抢占当前页面。
+    if (route) {
+      selectSession(sessionId)
+      setPage('chat')
+    }
     await loadSessions()
     return { ok: true, message, sessionId }
   }, [loadSessions, project, selectSession, t])
 
   const startSession = useCallback(async (prompt: string, agentPreset?: string) => {
-    const answer = await launchSession(prompt, agentPreset)
-    return { ok: answer.ok, message: answer.message }
+    return launchSession(prompt, agentPreset, false)
   }, [launchSession])
+
+  const openSession = useCallback((sessionId: string): void => {
+    selectSession(sessionId)
+    setPage('chat')
+  }, [selectSession])
 
   const startIntake = useCallback(async (prompt: string) => {
     // 即便向导已经打开，非空项目也不再允许开新立项。
@@ -702,6 +709,7 @@ export function App(): JSX.Element {
                 onReload={projection.reload}
                 onStartIntake={startIntake}
                 onStartSession={startSession}
+                onOpenSession={openSession}
                 onOpenTasks={(requirementId) => {
                   setTaskRequirement(requirementId)
                   setPage('tasks')

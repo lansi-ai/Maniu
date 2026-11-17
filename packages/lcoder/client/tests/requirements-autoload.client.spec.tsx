@@ -180,6 +180,7 @@ describe('需求页进入补读与轻量提示', () => {
           onReload={props.onReload ?? (() => {})}
           onStartIntake={async () => ({ ok: true, message: 'ok' })}
           onStartSession={async () => ({ ok: true, message: 'ok' })}
+          onOpenSession={() => {}}
           onOpenTasks={() => {}}
         />,
       )

@@ -79,6 +79,10 @@ let root: Root
 
 beforeEach(() => {
   Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', { configurable: true, value: true })
+  Object.defineProperty(window, 'lcoder', {
+    configurable: true,
+    value: { call: vi.fn(async () => ({ ok: true, value: { text: '# 评审报告' } })) },
+  })
   container = document.createElement('div')
   document.body.append(container)
   root = createRoot(container)
@@ -87,6 +91,7 @@ beforeEach(() => {
 afterEach(() => {
   act(() => { root.unmount() })
   container.remove()
+  Reflect.deleteProperty(window, 'lcoder')
 })
 
 function element(testId: string): Element | null {
@@ -99,7 +104,7 @@ interface DetailCalls {
   readonly split: () => Promise<{ readonly ok: boolean; readonly message: string }>
 }
 
-function renderDetail(row: RequirementDocRow, calls: DetailCalls): void {
+async function renderDetail(row: RequirementDocRow, calls: DetailCalls): Promise<void> {
   act(() => {
     root.render(
       <RequirementDetail
@@ -112,10 +117,12 @@ function renderDetail(row: RequirementDocRow, calls: DetailCalls): void {
         onOpenReader={(path) => { calls.readers.push(path) }}
         onReload={() => {}}
         onSplit={calls.split}
+        onRevise={async () => ({ ok: true, message: 'ok' })}
         onOpenTasks={calls.tasksOpened}
       />,
     )
   })
+  await act(async () => { await Promise.resolve() })
 }
 
 async function pressSelector(selector: string): Promise<void> {
@@ -132,8 +139,8 @@ function callsOf(): DetailCalls {
 }
 
 describe('需求详情阶段时间线', () => {
-  it('列出创建、评审、版本、过审与拆分，全部只读', () => {
-    renderDetail(ROW, callsOf())
+  it('列出创建、评审、版本、过审与拆分，全部只读', async () => {
+    await renderDetail(ROW, callsOf())
 
     expect(element('requirement-timeline-opened')?.textContent).toContain('2026-11-17T09:00:00+08:00')
 
@@ -160,7 +167,7 @@ describe('需求详情阶段时间线', () => {
 
   it('打开报告与版本快照走 .spec 相对路径', async () => {
     const calls = callsOf()
-    renderDetail(ROW, calls)
+    await renderDetail(ROW, calls)
 
     await pressSelector('[data-testid="requirement-open-report"]')
     expect(calls.readers).toEqual(['.spec/requirements/REQ-01/reviews/R1.md'])
@@ -174,22 +181,22 @@ describe('需求详情阶段时间线', () => {
 
   it('有关联任务时查看任务进入任务页', async () => {
     const opened = vi.fn()
-    renderDetail(ROW, { readers: [], tasksOpened: opened, split: async () => ({ ok: true, message: 'ok' }) })
+    await renderDetail(ROW, { readers: [], tasksOpened: opened, split: async () => ({ ok: true, message: 'ok' }) })
     await pressSelector('[data-testid="requirement-view-tasks"]')
     expect(opened).toHaveBeenCalledTimes(1)
   })
 })
 
 describe('确认需求的评审门槛', () => {
-  it('没有评审时禁用确认并说明原因', () => {
-    renderDetail(UNREVIEWED, callsOf())
+  it('没有评审时禁用确认并说明原因', async () => {
+    await renderDetail(UNREVIEWED, callsOf())
     const approve = element('requirement-approve') as HTMLButtonElement
     expect(approve.disabled).toBe(true)
     expect(element('requirement-approve-hint')?.textContent).toContain('至少完成一轮评审')
   })
 
-  it('有一轮评审后可以确认', () => {
-    renderDetail(ROW, callsOf())
+  it('有一轮评审后可以确认', async () => {
+    await renderDetail(ROW, callsOf())
     const approve = element('requirement-approve') as HTMLButtonElement
     expect(approve.disabled).toBe(false)
     expect(element('requirement-approve-hint')).toBeNull()

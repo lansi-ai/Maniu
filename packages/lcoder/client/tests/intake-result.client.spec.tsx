@@ -133,6 +133,7 @@ describe('立项结果提升到 App 级', () => {
           onReload={() => {}}
           onStartIntake={async () => ({ ok: true, message: 'ok' })}
           onStartSession={async () => ({ ok: true, message: 'ok' })}
+          onOpenSession={() => {}}
           onOpenTasks={() => {}}
         />,
       )
@@ -158,6 +159,7 @@ describe('立项结果提升到 App 级', () => {
           onReload={() => {}}
           onStartIntake={onStartIntake}
           onStartSession={onStartSession}
+          onOpenSession={() => {}}
           onOpenTasks={() => {}}
         />,
       )
@@ -184,6 +186,7 @@ describe('非空项目的立项准入', () => {
           onReload={() => {}}
           onStartIntake={async () => ({ ok: true, message: 'ok' })}
           onStartSession={async () => ({ ok: true, message: 'ok' })}
+          onOpenSession={() => {}}
           onOpenTasks={() => {}}
         />,
       )

@@ -133,6 +133,7 @@ function renderPage(
           calls.push(preset === undefined ? { prompt } : { prompt, preset })
           return { ok: true, message: 'ok' }
         }}
+        onOpenSession={() => {}}
         onOpenTasks={onOpenTasks}
       />,
     )

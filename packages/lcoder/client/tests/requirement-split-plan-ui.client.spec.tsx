@@ -109,6 +109,7 @@ function renderDetail(calls: { readonly reload: () => void; readonly openTasks: 
         onOpenReader={() => {}}
         onReload={calls.reload}
         onSplit={async () => ({ ok: true, message: 'ok' })}
+        onRevise={async () => ({ ok: true, message: 'ok' })}
         onOpenTasks={calls.openTasks}
       />,
     )

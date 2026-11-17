@@ -1,6 +1,6 @@
 /** 需求页：列表、搜索、状态筛选；详情在阶段 B 接入。 */
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { JSX } from 'react'
 import type { ProjectScope } from '../workspace/use-workspaces.ts'
 import type { SpecProjection } from '../spec/load.ts'
@@ -10,7 +10,7 @@ import { requirementStateLabel } from '../spec/board.ts'
 import { hasIntakeWork } from '../intake/eligibility.ts'
 import { buildManagerSplitPrompt, buildReviewPrompt, buildRevisePrompt, BUILTIN_SPLIT_TRACKS } from '../intake/prompts.ts'
 import { INTAKE_PRESET_ID, MANAGER_PRESET_ID, PM_PRESET_ID } from '../talents/model.ts'
-import { translate, type Translate } from '../locale.ts'
+import { translate, type MessageKey, type Translate } from '../locale.ts'
 import { RequirementDetail } from './requirement-detail.tsx'
 import { TaskDetail } from './task-detail.tsx'
 import { ReaderOverlay } from './reader.tsx'
@@ -18,6 +18,37 @@ import { IntakeWizard, type IntakeResult } from './intake-wizard.tsx'
 
 /** 工作台页面尚未全面接入词典，未传取词函数时沿用中文；新客户端可传入自己的取词函数。 */
 const zhText: Translate = (key, params) => translate('zh', key, params)
+
+/** 后台操作的轮询间隔与等待上限。 */
+const OP_POLL_MS = 4000
+const OP_TIMEOUT_MS = 5 * 60 * 1000
+
+/** 三类后台操作。 */
+type OpKind = 'review' | 'revise' | 'split'
+
+const OP_RUNNING_KEY: Readonly<Record<OpKind, MessageKey>> = {
+  review: 'requirement.opRunning.review',
+  revise: 'requirement.opRunning.revise',
+  split: 'requirement.opRunning.split',
+}
+
+const OP_DONE_KEY: Readonly<Record<OpKind, MessageKey>> = {
+  review: 'requirement.opDone.review',
+  revise: 'requirement.opDone.revise',
+  split: 'requirement.opDone.split',
+}
+
+/** 一次后台操作的磁盘事实基线；完成判定只看投影相对基线的增量。 */
+interface OpWatch {
+  readonly kind: OpKind
+  readonly requirementId: string
+  readonly sessionId: string | null
+  readonly reviews: number
+  readonly versions: number
+  readonly related: number
+  readonly planAt: string | null
+  readonly deadline: number
+}
 
 /** 需求页属性。 */
 export interface RequirementsPageProps {
@@ -30,11 +61,13 @@ export interface RequirementsPageProps {
   readonly onClearIntakeResult: () => void
   readonly onReload: () => void
   readonly onStartIntake: (prompt: string) => Promise<{ readonly ok: boolean; readonly message: string }>
-  /** 新建会话并发送指令；`preset` 缺省沿用工作台角色。 */
+  /** 后台新建会话并发送指令，不跳转对话；`preset` 缺省沿用工作台角色，成功时带回会话号。 */
   readonly onStartSession: (
     prompt: string,
     preset?: string,
-  ) => Promise<{ readonly ok: boolean; readonly message: string }>
+  ) => Promise<{ readonly ok: boolean; readonly message: string; readonly sessionId?: string }>
+  /** 自愿打开一条会话并进入对话页；超时提示里的入口走它。 */
+  readonly onOpenSession: (sessionId: string) => void
   /** 跳到任务页并只显示该需求关联的任务。 */
   readonly onOpenTasks: (requirementId: string) => void
   /** 取词函数；缺省为中文词典。 */
@@ -56,6 +89,11 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
   const [wizard, setWizard] = useState(false)
   const [opBusy, setOpBusy] = useState<string | null>(null)
   const [opNotice, setOpNotice] = useState<string | null>(null)
+  const [watch, setWatch] = useState<OpWatch | null>(null)
+  const [opSuccess, setOpSuccess] = useState<string | null>(null)
+  const [opTimeout, setOpTimeout] = useState<OpWatch | null>(null)
+  const loadingRef = useRef(props.loading)
+  loadingRef.current = props.loading
 
   const rows = useMemo(() => {
     const query = text.trim().toLowerCase()
@@ -83,23 +121,47 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
   }
 
   const launch = async (
-    kind: string,
+    kind: OpKind,
+    row: RequirementDocRow,
     prompt: string,
-    preset?: string,
+    preset: string,
   ): Promise<{ readonly ok: boolean; readonly message: string }> => {
-    setOpBusy(kind)
+    setOpBusy(`${kind}-${row.id}`)
     setOpNotice(null)
+    setOpSuccess(null)
+    setOpTimeout(null)
+    setWatch(null)
+    let answer: { readonly ok: boolean; readonly message: string; readonly sessionId?: string }
     try {
-      const answer = await props.onStartSession(prompt, preset)
-      if (!answer.ok) setOpNotice(answer.message)
-      return answer
-    } finally {
+      answer = await props.onStartSession(prompt, preset)
+    } catch (cause: unknown) {
+      const message = cause instanceof Error ? cause.message : String(cause)
+      setOpNotice(message)
       setOpBusy(null)
+      return { ok: false, message }
     }
+    if (!answer.ok) {
+      setOpNotice(answer.message)
+      setOpBusy(null)
+      return answer
+    }
+    // 忙碌保持到磁盘事实出现增量或超时；发起成功只登记基线，不清忙碌。
+    setWatch({
+      kind,
+      requirementId: row.id,
+      sessionId: answer.sessionId ?? null,
+      reviews: row.reviews.length,
+      versions: row.versions.length,
+      related: relatedOf(row.id).length,
+      planAt: row.splitPlan?.at ?? null,
+      deadline: Date.now() + OP_TIMEOUT_MS,
+    })
+    return answer
   }
 
   const review = (row: RequirementDocRow) => launch(
-    `review-${row.id}`,
+    'review',
+    row,
     buildReviewPrompt({ id: row.id, title: row.title ?? row.id }, row.text),
     PM_PRESET_ID,
   )
@@ -107,17 +169,55 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
   const revise = (row: RequirementDocRow) => {
     const sorted = [...row.reviews].sort((left, right) => left.round - right.round)
     return launch(
-      `revise-${row.id}`,
+      'revise',
+      row,
       buildRevisePrompt({ id: row.id, title: row.title ?? row.id }, row.text, sorted[sorted.length - 1]?.report),
       INTAKE_PRESET_ID,
     )
   }
 
-  const split = (row: RequirementDocRow) => launch(`split-${row.id}`, splitPromptOf(row), MANAGER_PRESET_ID)
+  const split = (row: RequirementDocRow) => launch('split', row, splitPromptOf(row), MANAGER_PRESET_ID)
+
+  // 完成判定以投影里的磁盘事实为准：评审见增轮、改稿见增版、拆分见关联任务或计划出现/更新。
+  useEffect(() => {
+    if (watch === null) return
+    const row = props.projection.requirements.find(item => item.id === watch.requirementId)
+    if (row === undefined) return
+    const related = props.projection.tasks.filter(
+      task => task.requirement === row.id || task.proposal === row.id,
+    ).length
+    const done = watch.kind === 'review'
+      ? row.reviews.length > watch.reviews
+      : watch.kind === 'revise'
+        ? row.versions.length > watch.versions
+        : related > watch.related || (row.splitPlan !== undefined && row.splitPlan.at !== watch.planAt)
+    if (!done) return
+    setWatch(null)
+    setOpBusy(null)
+    setOpSuccess(t(OP_DONE_KEY[watch.kind], { id: row.id }))
+    setSelected(row.id)
+    props.onReload()
+  }, [watch, props.projection, props.onReload, t])
+
+  // 固定间隔轮询投影；读取中不叠加请求，卸载或操作被替换时清理。
+  useEffect(() => {
+    if (watch === null) return
+    const timer = setInterval(() => {
+      if (Date.now() >= watch.deadline) {
+        setOpTimeout(watch)
+        setWatch(null)
+        setOpBusy(null)
+        return
+      }
+      if (!loadingRef.current) props.onReload()
+    }, OP_POLL_MS)
+    return () => { clearInterval(timer) }
+  }, [watch, props.onReload])
 
   // 立项分析只对空项目开放；已有结果时仍允许打开结果页回看，但不允许开新立项。
   const blockedIntake = hasIntakeWork(props.projection) && props.intakeResult === null
   const firstRequirement = props.projection.requirements[0]
+  const timeoutSessionId = opTimeout?.sessionId ?? null
 
   // 进入页面时若上次读取为空或出错，补读一次；读取中不叠加第二个请求。
   // 只在挂载这一刻判定，后续变化由加载态回报。
@@ -197,6 +297,40 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
 
       {opNotice !== null && (
         <p className="problem" data-testid="requirement-op-result">{t('requirement.opFailed', { detail: opNotice })}</p>
+      )}
+
+      {watch !== null && (
+        <p className="detail-note" data-testid="requirement-op-running">
+          {t(OP_RUNNING_KEY[watch.kind], { id: watch.requirementId })}
+        </p>
+      )}
+
+      {opSuccess !== null && (
+        <p className="detail-line" data-testid="requirement-op-success">{opSuccess}</p>
+      )}
+
+      {opTimeout !== null && (
+        <p className="problem" data-testid="requirement-op-timeout">
+          <span>{t('requirement.opTimeout', { id: opTimeout.requirementId })}</span>
+          {timeoutSessionId !== null && (
+            <button
+              type="button"
+              className="link-button"
+              data-testid="requirement-op-timeout-session"
+              onClick={() => { props.onOpenSession(timeoutSessionId) }}
+            >
+              {t('requirement.opTimeoutSession')}
+            </button>
+          )}
+          <button
+            type="button"
+            className="link-button"
+            data-testid="requirement-op-timeout-reload"
+            onClick={() => { setOpTimeout(null); props.onReload() }}
+          >
+            {t('requirement.opTimeoutReload')}
+          </button>
+        </p>
       )}
 
       {props.project !== null && (
@@ -296,6 +430,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
               onOpenReader={setReaderPath}
               onReload={props.onReload}
               onSplit={() => split(active)}
+              onRevise={() => revise(active)}
               onOpenTasks={() => { props.onOpenTasks(active.id) }}
               t={t}
             />

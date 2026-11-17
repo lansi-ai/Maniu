@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { CSSProperties, JSX, PointerEvent as ReactPointerEvent } from 'react'
+import { readWorkspaceText } from '../spec/files.ts'
 import { renderMarkdown } from '../markdown/markdown.tsx'
 
 const ZOOM_MIN = 50
@@ -51,25 +52,17 @@ export function ReaderOverlay(props: ReaderOverlayProps): JSX.Element {
   useEffect(() => {
     let disposed = false
     setLoaded({ status: 'loading' })
-    void window.lcoder.call('workspaceFiles', 'read', {
-      workspaceFileScopeId: props.scopeSessionId,
-      path: props.path,
-      range: { offset: 1, limit: DOC_LINES },
-    }).then((answer) => {
-      if (disposed) return
-      if (!answer.ok) {
-        setLoaded({ status: 'failed', text: `${answer.error.code}: ${answer.error.message}` })
-        return
-      }
-      const value = answer.value
-      const text = typeof value === 'object' && value !== null && 'text' in value && typeof value.text === 'string'
-        ? value.text
-        : ''
-      setLoaded({ status: 'ready', text })
-    }).catch((cause: unknown) => {
-      if (disposed) return
-      setLoaded({ status: 'failed', text: cause instanceof Error ? cause.message : String(cause) })
-    })
+    void readWorkspaceText(props.scopeSessionId, props.path, DOC_LINES)
+      .then((answer) => {
+        if (disposed) return
+        setLoaded(answer.ok
+          ? { status: 'ready', text: answer.text }
+          : { status: 'failed', text: `${answer.error.code}: ${answer.error.message}` })
+      })
+      .catch((cause: unknown) => {
+        if (disposed) return
+        setLoaded({ status: 'failed', text: cause instanceof Error ? cause.message : String(cause) })
+      })
     return () => { disposed = true }
   }, [props.path, props.scopeSessionId])
 
