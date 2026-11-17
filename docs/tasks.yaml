@@ -2642,6 +2642,30 @@ tracks:
       inferred: false
       note: "B 级对话页改版，来源是用户 2026-11-17 对开始立项后对话页的三条反馈。一、立项会话里不再显示那条立项指令的蓝色气泡，只标出本次使用的是需求分析师；指令仍照常发送并留在会话日志里，只改渲染。二、点击开始立项后会话标题直接显示需求分析，不再用宿主根据首条消息起的仓库检查式标题。三、提问与审批卡现在是固定在右下角的全局浮层，改为融进对话列，随对话滚动、与消息同宽左对齐，聊天页不再用右下浮层；非聊天页仍保留浮层以免审批被漏掉。实现要点：ChatView 增加待处理卡与回答回调，ChatTranscript 按会话 preset 是否 maniu-intake 识别第一条用户消息并以角色胶囊替代正文；startIntake 创建成功后调用 session rename 改成需求分析，失败给可读提示但不阻断进入对话；pending-layer 按当前页条件渲染。范围 packages/lcoder/client 的 app、chat-view、chat-transcript、pending-cards、词典、样式与组件测试；不改 kernel、人设、工具与云合同。验收 typecheck、packages/lcoder vitest、改动文件 oxlint、verify-client-ui-i18n；组件测试覆盖首条指令隐藏与角色胶囊、其它消息正常、标题改名为需求分析、提问卡在对话列内渲染且聊天页无浮层、非聊天页浮层仍在。工作树 pool-slot-2 到 lcoder/t236-intake-chat，端口 9823 与 9831 与 9832。2026-11-17 13:30 监督窗口登记并派工，实现线会话 ec73c2c1。"
 
+    - id: T-237
+      title: 需求评审与版本留存的模型层
+      status: doing
+      face: 工程
+      type: 开发
+      owner: lance
+      created: '2026-11-17'
+      date: '2026-11-17'
+      dep: []
+      inferred: false
+      note: "A 级产品数据与内核契约，来源是用户 2026-11-17 需求页反馈与三条已确认口径，评审只出报告不改稿、改稿由需求分析师会话按报告进行、过审前至少一轮评审、人才分配由研发经理建议后人工确认。数据面保持向后兼容，所有字段可选且旧 YAML 照常解析。requirements/REQ-xx.yaml 增 versions 数组（每项 n 与 at 与可选 note），正文快照写 requirements/<ID>/versions/v<n>.md，requirement_draft 落盘时写 v1；增 reviews 数组（每项 round 与 at 与 report 相对路径与可选 sessionId），报告写 requirements/<ID>/reviews/R<n>.md；增可选 approved_at 与 approved_version，过审时写。模型工具面新增两个内核写入口，一、requirement_review_draft 只进项目经理 maniu-pm 工具面，参数 id 与 report，要求需求是 draft 且正文存在，写报告并追加 reviews，返回轮次，不能过审；二、requirement_revise 只进需求分析师 maniu-intake 工具面，参数 id 与 content，要求 draft，先把当前正文快照成新版本再覆盖 REQ-xx.md，返回版本号。人机命令 requirement_approve 扩展为至少一轮评审才允许，写 confirmed 与 confirmed_at 与 approved_at 与 approved_version，当前正文无对应版本时先补一份快照；模型仍不能调用审核通过。范围 packages/lcoder/kernel 的 schema 与 requirement-store 与工具注册与命令与投影与 README，以及 .spec 示例数据与双语文档；不改需求页 UI 与拆分流程（转 T-238），不改会话格式与云合同。验收 typecheck、kernel 与 packages/lcoder vitest、改动文件 oxlint、test:docs；单测覆盖旧 YAML 兼容、初稿版本、改稿快照与覆盖、评审轮次追加与非法状态拒绝、过审门槛与版本记录、模型工具面不含审核通过。工作树 pool-slot-1 到 lcoder/t237-req-review-core，端口 9822 与 9829 与 9830。2026-11-17 14:10 监督窗口登记并派工，实现线会话 ea0b63b3。"
+
+    - id: T-238
+      title: 需求页评审流程与任务跳转
+      status: todo
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-17'
+      date: '2026-11-17'
+      dep: [T-236, T-237]
+      inferred: false
+      note: "B 级需求页与拆分流程，来源同上。一、需求表去掉候选与推荐两列，加创建时间与操作列；草稿态操作给评审与修改需求，已过审且无关联任务给拆分并分配，已有关联任务给查看任务。二、评审按钮新建或复用项目经理会话并发送评审指令，要求按完备性、合理性与需求角度与技术实现角度出报告，由项目经理用 requirement_review_draft 落盘，多轮每次新增一轮。三、修改需求按钮新建或复用需求分析师会话，把当前正文与最近评审报告交给它，用 requirement_revise 落版本并改稿。四、需求详情加阶段进度，列创建时间、每轮评审时间与报告（可打开阅读）、各版本、过审时间与版本号、拆分时间与生成任务，全部只读保留。五、拆分改为研发经理会话，按技术维度拆任务并给出任务到岗位的建议映射，界面逐条让人确认后走 task_assign 人机命令，模型不直接分配，未确认不写盘。六、有任务后提供查看任务按钮，跳到任务页并只列出该需求关联任务。范围 packages/lcoder/client 与拆分评审提示词；不改 kernel 新工具、不改状态机与云合同。验收 typecheck、packages/lcoder vitest、改动文件 oxlint、verify-client-ui-i18n；组件测试覆盖新列与操作分支、评审与改稿入口、进度时间线、分配确认与拒绝、按需求过滤跳转。待 T-236 与 T-237 合入后再 claim 工作树与派工。2026-11-17 14:10 监督窗口登记。"
+
 
 milestones:
 - name: MVP-0 工作台本地跑通
