@@ -54,6 +54,24 @@ html[data-theme='liquid-glass'] body {
   padding: 0;
 }
 
+/* 窗口透明边的拖拽条：只占最外一条 7px 窄带，不覆盖标题栏控件。
+   最外 0–4px 留给缩放边，顶部补到标题栏上缘（12px），左右只在标题栏高度带内。
+   门禁态窗口按钮 z-index 40 更高；标题栏控件与账号菜单都在窄带之外。 */
+.window-gutter {
+  position: fixed;
+  z-index: 2;
+  -webkit-app-region: drag;
+}
+
+.window-gutter[data-edge='top'] { top: 5px; left: 0; right: 0; height: 7px; }
+.window-gutter[data-edge='left'] { top: 12px; left: 5px; width: 7px; height: 46px; }
+.window-gutter[data-edge='right'] { top: 12px; right: 5px; width: 7px; height: 46px; }
+
+/* 最大化态没有可用的顶部缩放边：三条轨道都铺到窗口最外缘。 */
+.window-gutter.is-maximized[data-edge='top'] { top: 0; height: 12px; }
+.window-gutter.is-maximized[data-edge='left'] { left: 0; width: 12px; }
+.window-gutter.is-maximized[data-edge='right'] { right: 0; width: 12px; }
+
 /* 门禁态窗口控制：顶部透明拖拽区加右上角幽灵按钮，不画底条、不占布局。 */
 .gate-drag {
   position: absolute;
