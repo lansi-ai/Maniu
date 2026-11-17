@@ -2559,6 +2559,18 @@ tracks:
       inferred: false
       note: "C 级修复，来源是用户 2026-11-17 反馈切换项目页点击浏览每次都落在下载目录。根因是 lcoder pick-directory 的 showOpenDialog 没有 defaultPath，Windows 回落到系统默认目录。修法：IPC 增加可选 defaultPath，渲染端传当前输入框路径或当前项目路径；主进程校验为存在的目录，不存在时退到最近的已存在祖先，再退到上次成功选择的目录；上次选择写入桌面偏好并跨会话复用；取消不改变偏好；标题与错误文案不变。测试覆盖传参、无效路径回落、偏好持久化与取消；client 与 desktop 定向测试、typecheck、build、i18n。不改 T-226 的改名范围。工作树 pool-slot-1 到 lcoder/t229-picker-default，端口按占用自动顺延。2026-11-17 09:21 监督窗口登记并派工，实现线会话 81e07d60。2026-11-17 09:47 监督窗口收口，已合入 lcoder/main；lcoder pick-directory 增加可选 defaultPath，渲染端传输入框路径、为空时当前项目路径；主进程校验为存在目录，否则逐级向上找最近祖先，再回退上次成功选择的目录，都不行才交给系统默认；成功选择写入桌面偏好 lastPickedDirectory 跨会话复用，取消不写，渲染端不能改该字段；标题与返回语义不变。主检 build:artifacts 八项、build:check、typecheck、test:docs 二十一项、i18n、vitest 一千三百五十四例全过；实现线 desktop 与 client 定向二十七例全过。未验：原生对话框真实落点与视觉由用户手看。"
 
+    - id: T-230
+      title: 标题栏顶部透明边改为可拖
+      status: doing
+      face: 用户端
+      type: 修复
+      owner: lance
+      created: '2026-11-17'
+      date: '2026-11-17'
+      dep: [T-219]
+      inferred: false
+      note: "C 级修复，来源是用户 2026-11-17 反馈标题栏拖动又不好用。监督窗口实测：真实鼠标在标题栏中段拖动可移动七十八像素；原生命中矩阵显示顶部零到四像素为 HTTOP 缩放边、五到十一像素为 HTCLIENT 死角、十二像素起才是 HTCAPTION，左右透明边同样为 HTCLIENT。用户从窗口最上缘抓取时无反应。修法：在窗口透明边增加不遮内容的拖拽条，顶部从五像素覆盖到标题栏上缘，左右只在标题栏高度带内覆盖五到十二像素，保留最外缩放边，底部不动；拖拽条 aria-hidden，不改变标题栏外观与控件行为，登录门禁与主界面都生效。验证：修复后原生命中矩阵顶部八像素返回 HTCAPTION、两像素仍为缩放边、标题栏中心仍可拖，真实拖动位移非零；client 测试断言拖拽条存在且不拦控件；typecheck、build、i18n。工作树 pool-slot-2 到 lcoder/t230-titlebar-gutter，端口 9823/9831/9832。2026-11-17 10:40 监督窗口登记并派工。"
+
 
 milestones:
 - name: MVP-0 工作台本地跑通
