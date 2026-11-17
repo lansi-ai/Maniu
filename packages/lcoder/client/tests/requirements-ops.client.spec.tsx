@@ -186,15 +186,17 @@ describe('需求表操作分支', () => {
     expect(calls[0]?.prompt).toContain('不改状态')
   })
 
-  it('已过审且没有关联任务时给拆分，仍走项目经理指令', async () => {
+  it('已过审且没有关联任务时给拆分，交给研发经理', async () => {
     const calls: StartCall[] = []
     renderPage(projectionOf([CONFIRMED_EMPTY], []), calls)
 
     expect(element('requirement-op-tasks')).toBeNull()
     await press('requirement-op-split')
     expect(calls).toHaveLength(1)
-    expect(calls[0]?.preset).toBeUndefined()
+    expect(calls[0]?.preset).toBe('maniu-manager')
     expect(calls[0]?.prompt).toContain('需求拆分：请把需求 REQ-02（待拆分需求）')
+    expect(calls[0]?.prompt).toContain('requirement_split_plan')
+    expect(calls[0]?.prompt).toContain('不分配岗位')
   })
 
   it('已有关联任务时给查看任务，不改发会话', async () => {

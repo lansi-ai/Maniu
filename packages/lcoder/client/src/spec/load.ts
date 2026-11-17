@@ -9,11 +9,11 @@ import { messageOf } from './files.ts'
 import {
   agentsTextToRow, automationTextToRow, contractTextToRow, deliverableTextToRow, groupTextToRow,
   isMissing, localSecretsOf, projectTextToRow, proposalTextToRow, requirementTextToRow,
-  rolesTextToRows, rulesTextToRows, taskTextToRow,
+  rolesTextToRows, rulesTextToRows, splitPlanTextToRow, taskTextToRow,
 } from './rows.ts'
 import type {
   AgentsRow, AutomationPolicyRow, ContractRow, DeliverableRow, JobRoleRow, ProjectInfoRow,
-  ProposalRow, RequirementDocRow, RuleRow, SchedulingGroupRow, TaskRow,
+  ProposalRow, RequirementDocRow, RequirementSplitPlanRow, RuleRow, SchedulingGroupRow, TaskRow,
 } from './rows.ts'
 
 /** 工作台一次读取的全部规格事实。 */
@@ -134,7 +134,17 @@ async function loadRequirements(files: SpecFiles, signal: AbortSignal): Promise<
     withMeta.add(meta.id)
     const document = documents.get(meta.id)
     const text = document === undefined ? '' : await documentText(document)
-    rows.push({ ...meta, text })
+    const answer = await readText(files, `${REQUIREMENTS_DIR}/${meta.id}/split-plan.yaml`)
+    let splitPlan: RequirementSplitPlanRow | undefined
+    if ('text' in answer) {
+      splitPlan = splitPlanTextToRow(answer.text)
+      if (splitPlan === undefined) {
+        problems.push(`${REQUIREMENTS_DIR}/${meta.id}/split-plan.yaml: 不是能读的拆分计划`)
+      }
+    } else if ('problem' in answer) {
+      problems.push(answer.problem)
+    }
+    rows.push({ ...meta, text, ...(splitPlan === undefined ? {} : { splitPlan }) })
   }))
   await Promise.all([...documents.entries()]
     .filter(([id]) => !withMeta.has(id))

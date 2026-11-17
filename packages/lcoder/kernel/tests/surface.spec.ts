@@ -118,7 +118,7 @@ describe('掩码自检', () => {
 
 describe('空看板工具面', () => {
   it('只放开立项需要的读取、建任务与立项落盘能力，外加出方案、起草与改写需求', () => {
-    expect(UNSCOPEED_SURFACE).toEqual(['file_read', 'file_list', 'project_draft', 'spec_query', 'spec_draft', 'task_read', 'task_draft', 'proposal_draft', 'requirement_draft', 'requirement_revise', 'requirement_review_draft', 'git_status', 'git_diff'])
+    expect(UNSCOPEED_SURFACE).toEqual(['file_read', 'file_list', 'project_draft', 'spec_query', 'spec_draft', 'task_read', 'task_draft', 'proposal_draft', 'requirement_draft', 'requirement_revise', 'requirement_review_draft', 'requirement_split_plan', 'git_status', 'git_diff'])
     expect(UNSCOPEED_SURFACE).not.toContain('file_edit')
     expect(UNSCOPEED_SURFACE).not.toContain('cmd_run')
     expect(UNSCOPEED_SURFACE).not.toContain('spec_bind')
@@ -154,7 +154,7 @@ describe('空看板工具面', () => {
 
 describe('角色天花板', () => {
   it('实施角色等于全集去掉只对特定角色开放的工具', () => {
-    const roleOnly = ['role_draft', 'requirement_draft', 'requirement_revise', 'requirement_review_draft']
+    const roleOnly = ['role_draft', 'requirement_draft', 'requirement_revise', 'requirement_review_draft', 'requirement_split_plan']
     expect([...ROLE_TOOLS.dev].sort()).toEqual(
       allToolNames().filter(name => !roleOnly.includes(name)),
     )
@@ -194,6 +194,19 @@ describe('角色天花板', () => {
       for (const role of ROLES) {
         expect(allowedTools(state, role)).not.toContain('requirement_approve')
       }
+    }
+  })
+
+  it('拆分岗位建议只进研发经理，终态不可见，分配仍是人机命令', () => {
+    expect(ROLE_TOOLS.manager).toContain('requirement_split_plan')
+    for (const role of ROLES) {
+      if (role !== 'manager') expect(ROLE_TOOLS[role]).not.toContain('requirement_split_plan')
+    }
+    expect(allowedTools('drafting', 'manager')).toContain('requirement_split_plan')
+    expect(allowedTools(null, 'manager')).toContain('requirement_split_plan')
+    expect(allowedTools('closed', 'manager')).not.toContain('requirement_split_plan')
+    for (const state of [...STATES, null] as const) {
+      for (const role of ROLES) expect(allowedTools(state, role)).not.toContain('task_assign')
     }
   })
 
@@ -258,7 +271,7 @@ describe('角色天花板', () => {
   })
 
   it('role_draft 只对研发经理可见，且研发经理没有任何代码或命令工具', () => {
-    expect(ROLE_TOOLS.manager).toEqual(['file_read', 'file_list', 'spec_query', 'task_read', 'task_draft', 'role_draft'])
+    expect(ROLE_TOOLS.manager).toEqual(['file_read', 'file_list', 'spec_query', 'task_read', 'task_draft', 'role_draft', 'requirement_split_plan'])
     for (const tool of ['file_edit', 'cmd_run', 'git_commit', 'contract_draft', 'task_close', 'evidence_attach']) {
       expect(ROLE_TOOLS.manager).not.toContain(tool)
     }

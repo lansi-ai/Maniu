@@ -46,7 +46,7 @@ kind: "package-reference"
 | `root` | `process.cwd()/.spec` | 会话没有 cwd 时的备案规格根 |
 | `selfCheck` | `true` | 加载时打印工具面自检 |
 | `taskId` | 第一个任务 | 没有会话认领时，用哪个任务的状态选择工具面；某条会话被任务的 `session` 字段认领时，该会话改按那条任务取状态，并行的两条会话各读各的。读不到任何任务时按立项面收 |
-| `role` | 未设 | 角色天花板，取值 `intake`、`architect`、`pm`、`dev`、`git`、`ops`、`review`、`scheduler`、`flow`、`manager`；工具面取状态掩码与该角色工具表的交集，角色只会减去能力，`scheduler` 与 `flow` 只有 `file_read`、`file_list`、`spec_query`、`task_read`，`role_draft` 只有 `manager` 看得见。配错角色名在装载时即失败 |
+| `role` | 未设 | 角色天花板，取值 `intake`、`architect`、`pm`、`dev`、`git`、`ops`、`review`、`scheduler`、`flow`、`manager`；工具面取状态掩码与该角色工具表的交集，角色只会减去能力，`scheduler` 与 `flow` 只有 `file_read`、`file_list`、`spec_query`、`task_read`，`role_draft` 与 `requirement_split_plan` 只有 `manager` 看得见。配错角色名在装载时即失败 |
 
 本插件通过 patch 层作为插件行挂载，没有 `dsh plugin add` 安装路径。一次工具调用从 `session.header.cwd/.spec` 解析规格根；没有会话 cwd 时用 `root`，没有 `root` 时用 `process.cwd()/.spec`。除工具外它注册若干人机命令：`contract_sign` 由人签署任务的契约，`task_bind` 把任务认给当前会话，`task_assign` 把任务分配给岗位，`task_contract` 推进到已签约，`task_split_ready` 把需求拆出且已分配岗位的起草任务直接推进到待开发，`proposal_approve` 采纳方案，`requirement_approve` 确认需求，`requirement_release` 把已确认需求标为已上线，`requirement_close` 取消未上线需求，`deploy` 执行部署，`task_schedule` 把一次调度判定追加到 `.spec/evidence/<任务>/schedule.jsonl`，入队判定还会在 `.spec/evidence/scheduling/` 下写联调组记录；`flow_status` 只读求值，返回策略、下一步与逐任务计划的一行 JSON；`flow_log` 把一次开工或流程结果追加到 `.spec/evidence/<任务>/flow.jsonl`；`agent_bind` 把智能调度或流程控制的单例会话号写进 `.spec/agents.yaml`。工作台外壳调用后三条，它们都不进模型工具面。它们都由宿主写 `.spec`，都留在命令面而不是工具面——注册成工具就等于模型能给自己签字、能自己挑工具面，也能自己写审计记录。`task_assign <任务编号> <岗位 id>` 先查 `.spec/roles.yaml`、再查内置角色，写回 `Task.role`，不改任务状态。`task_split_ready <任务编号>` 只接受需求拆出、已分配岗位的 drafting 任务，直接写入 contracted，以需求文档作为契约依据；没有方案回指或没有岗位的会被拒绝。`role_draft` 是模型唯一的岗位写入口：它只能追加或更新一项、不能删除，继承不合法当场拒绝，并且只有 `manager` 角色看得见；分配始终只由人做。它还接受可选的 `signals`，是三组字符串数组——`strong` 技术栈强特征词、`medium` 弱语义词、`preferredPaths` 文件落点前缀——每组最多 32 条、每条最多 64 个字符，忽略大小写去重；名册只把它们存给本地建议层，调度硬闸从不读取。AI 自签是 kernel 函数而不是命令或工具：`selfSignContract` 只在 `.spec/automation.yaml` 的 `sign` 为 `auto`、任务没有 `scope.irreversible`、契约有非空 `review*.log` 证据时写 `by: agent`，并记下 `actor` preset 与策略路径、哈希、文件修改时刻。P3 用同一套三闸复核，收口时任何一道不成立的 agent 签名都无效。
 
@@ -58,7 +58,9 @@ kind: "package-reference"
 
 `requirement_review_draft` 只有 `pm` 角色看得见：它要求起草态且正文非空，把 Markdown 评审报告写到 `requirements/<编号>/reviews/R<轮次>.md`，追加一条 `reviews` 记录（轮次、时刻、报告路径与可选会话号），返回轮次。它不改需求状态与正文。
 
-`/requirement_approve` 要求至少一轮评审，且当前正文有对应版本快照；它把起草态需求推到 `confirmed`，写 `confirmed_at`、`approved_at` 与 `approved_version`。没有版本记录的需求先补 v1；正文与最新快照不一致时追加一版，保证 `approved_version` 指的就是过审的正文。`/requirement_release` 只在至少一条任务通过 `Task.requirement` 回指且这些任务全部 `closed` 时推到 `released`，否则报出未关闭的任务编号；`/requirement_close` 关闭起草或已确认的需求，并拒绝已上线的需求——它是终态。客户端投影按同一目录把每份 YAML 与同名正文合成一行，并把 `versions`、`reviews`、`approved_at` 与 `approved_version` 透传出去。
+`requirement_split_plan` 只有 `manager` 角色看得见：它要求需求已是 `confirmed`，并接收非空的 `tasks` 数组，每项含 `task`、`role` 与可选的 `reason`，把需求编号、生成时刻与逐条建议写进 `.spec/requirements/<编号>/split-plan.yaml`，覆盖上一份计划。每个任务必须存在、通过 `Task.requirement` 回指该需求且仍在 `drafting`；每个岗位必须能按 `.spec/roles.yaml` 或内置角色 id 解析，同一条任务只能出现一次。它不建任务、不分配、不改状态；分配仍由人经 `/task_assign` 完成。
+
+`/requirement_approve` 要求至少一轮评审，且当前正文有对应版本快照；它把起草态需求推到 `confirmed`，写 `confirmed_at`、`approved_at` 与 `approved_version`。没有版本记录的需求先补 v1；正文与最新快照不一致时追加一版，保证 `approved_version` 指的就是过审的正文。`/requirement_release` 只在至少一条任务通过 `Task.requirement` 回指且这些任务全部 `closed` 时推到 `released`，否则报出未关闭的任务编号；`/requirement_close` 关闭起草或已确认的需求，并拒绝已上线的需求——它是终态。客户端投影按同一目录把每份 YAML 与同名正文合成一行，并把 `versions`、`reviews`、`approved_at` 与 `approved_version` 透传出去；`requirements/<编号>/split-plan.yaml` 存在时一并读入，缺失不报错。
 
 `deliverable_draft` 用必填的 `summary`、至少一条仓库相对路径的 `docs` 与可空的 `commands`，把一条任务的交付物登记成 `.spec/deliverables/<任务编号>.yaml`。每条 `docs` 必须在仓库根下解析成真实文件；绝对路径、`..` 与不存在的文件都被拒。工具按任务覆盖写，保留首次 `created_at` 并刷新 `updated_at`；它只登记索引，工程文档本身仍用 `file_edit` 写。`task_close` 在 P1、P3、P4 之后跑 D1：A 级、通用轨、或标题描述命中基础框架、脚手架、架构、技术选型的任务，必须有一份摘要非空、至少一条文档的可读索引，否则收口把 `.spec/deliverables/<任务编号>.yaml` 作为下一步报出来。普通任务不受影响。只有 `dev`、`architect` 与 `ops` 看得见这个工具，且从 `contracted` 起才可见。
 
@@ -88,9 +90,9 @@ kind: "package-reference"
 | `src/kernel/spec-root.ts` | 会话优先的规格根解析 |
 | `src/kernel/spec-store.ts` | 规则与状态机的读写 |
 | `src/kernel/task-store.ts` | 任务对象、迁移与落盘 |
-| `src/kernel/requirement-store.ts` | 需求对象、编号分配、版本快照、评审记录与多文件写入 |
+| `src/kernel/requirement-store.ts` | 需求对象、编号分配、版本快照、评审记录、拆分岗位建议与多文件写入 |
 | `src/tools/spec-tools.ts`、`src/tools/task-tools.ts`、`src/tools/edit-tools.ts` | 模型工具 |
-| `src/tools/requirement-tools.ts` | 模型可调用的 `requirement_draft`、`requirement_revise` 与 `requirement_review_draft` |
+| `src/tools/requirement-tools.ts` | 模型可调用的 `requirement_draft`、`requirement_revise`、`requirement_review_draft` 与 `requirement_split_plan` |
 | `src/tools/deliverable-tools.ts` | 模型可调用的 `deliverable_draft` |
 | `src/kernel/deliverable-store.ts`, `src/schema/deliverable.ts` | 交付索引的读写与必须交付判定 |
 | `src/commands/requirement-approve.ts`、`src/commands/requirement-release.ts`、`src/commands/requirement-close.ts` | 三条只进命令面的需求状态命令 |

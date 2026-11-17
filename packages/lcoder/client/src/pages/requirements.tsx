@@ -8,8 +8,8 @@ import type { SessionSummary } from '../store.ts'
 import type { RequirementDocRow } from '../spec/rows.ts'
 import { requirementStateLabel } from '../spec/board.ts'
 import { hasIntakeWork } from '../intake/eligibility.ts'
-import { buildReviewPrompt, buildRevisePrompt, buildSplitPrompt, BUILTIN_SPLIT_TRACKS } from '../intake/prompts.ts'
-import { INTAKE_PRESET_ID, PM_PRESET_ID } from '../talents/model.ts'
+import { buildManagerSplitPrompt, buildReviewPrompt, buildRevisePrompt, BUILTIN_SPLIT_TRACKS } from '../intake/prompts.ts'
+import { INTAKE_PRESET_ID, MANAGER_PRESET_ID, PM_PRESET_ID } from '../talents/model.ts'
 import { translate, type Translate } from '../locale.ts'
 import { RequirementDetail } from './requirement-detail.tsx'
 import { TaskDetail } from './task-detail.tsx'
@@ -75,7 +75,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
 
   const splitPromptOf = (row: RequirementDocRow): string => {
     const extra = (props.projection.project?.tracks ?? []).map(track => `${track.id}（${track.name}）`)
-    return buildSplitPrompt(
+    return buildManagerSplitPrompt(
       { id: row.id, title: row.title ?? row.id },
       row.text,
       [...BUILTIN_SPLIT_TRACKS, ...extra],
@@ -113,7 +113,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
     )
   }
 
-  const split = (row: RequirementDocRow) => launch(`split-${row.id}`, splitPromptOf(row))
+  const split = (row: RequirementDocRow) => launch(`split-${row.id}`, splitPromptOf(row), MANAGER_PRESET_ID)
 
   // 立项分析只对空项目开放；已有结果时仍允许打开结果页回看，但不允许开新立项。
   const blockedIntake = hasIntakeWork(props.projection) && props.intakeResult === null
@@ -286,6 +286,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
 
           {active !== null && (
             <RequirementDetail
+              key={active.id}
               row={active}
               project={props.project}
               projection={props.projection}

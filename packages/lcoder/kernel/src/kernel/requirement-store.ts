@@ -12,7 +12,7 @@ import { dirname, join } from 'node:path'
 
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml'
 
-import { Requirement } from '../schema/spec.js'
+import { Requirement, RequirementSplitPlan } from '../schema/spec.js'
 import type { RequirementOption, RequirementVersion } from '../schema/spec.js'
 import { listFiles, matchPattern } from '../schema/validate.js'
 
@@ -102,6 +102,16 @@ export function requirementVersionPath(root: string, id: string, version: number
  */
 export function requirementReviewPath(root: string, id: string, round: number): string {
   return join(root, REQUIREMENTS_DIR, id, 'reviews', `R${String(round)}.md`)
+}
+
+/**
+ * 拆分岗位建议文件的落点。
+ * @param root - 规格根。
+ * @param id - 需求编号。
+ * @returns `requirements/<id>/split-plan.yaml` 的绝对路径。
+ */
+export function requirementSplitPlanPath(root: string, id: string): string {
+  return join(root, REQUIREMENTS_DIR, id, 'split-plan.yaml')
 }
 
 /**
@@ -407,6 +417,32 @@ export function recordRequirementReview(root: string, id: string, input: Require
     throw error
   }
   return { requirement: reviewed, round, reportPath, relativeReport }
+}
+
+/**
+ * 写一份拆分岗位建议：先过 schema，再整文件覆盖上一份计划。
+ *
+ * 计划只是建议，不带任务状态；分配仍由人机命令写进任务。
+ * @param root - 规格根。
+ * @param plan - 需求编号、生成时刻与逐条建议。
+ * @returns 写入的路径。
+ */
+export function saveSplitPlan(root: string, plan: RequirementSplitPlan): string {
+  const path = requirementSplitPlanPath(root, plan.requirement)
+  writeText(path, stringifyYaml(RequirementSplitPlan.parse(plan)))
+  return path
+}
+
+/**
+ * 读一份拆分岗位建议。
+ * @param root - 规格根。
+ * @param id - 需求编号。
+ * @returns 解析后的计划；文件不存在时为 undefined，形状不合会抛。
+ */
+export function loadSplitPlan(root: string, id: string): RequirementSplitPlan | undefined {
+  const path = requirementSplitPlanPath(root, id)
+  if (!existsSync(path)) return undefined
+  return RequirementSplitPlan.parse(parseYaml(readFileSync(path, 'utf8')))
 }
 
 /** 一次过审落盘的结果。 */

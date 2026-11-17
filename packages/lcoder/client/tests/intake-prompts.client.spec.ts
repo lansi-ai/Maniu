@@ -2,7 +2,7 @@
 /** 立项提示词与人才库人设同源：向导只发项目事实，纪律只在 maniu-intake 人设里。 */
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { buildIntakePrompt, type IntakeProject } from '../src/intake/prompts.ts'
+import { buildIntakePrompt, buildManagerSplitPrompt, type IntakeProject } from '../src/intake/prompts.ts'
 
 const PROJECT: IntakeProject = {
   name: '仓库 A',
@@ -33,6 +33,21 @@ describe('立项提示词', () => {
     expect(prompt).toContain('- 架构文档：架构说明')
     expect(prompt).not.toContain('测试用例：')
     expect(prompt).not.toContain('七个问题依次覆盖')
+  })
+})
+
+describe('研发经理拆分提示词', () => {
+  it('先按技术维度建任务，再写逐条岗位建议，明确不分配不改状态', () => {
+    const prompt = buildManagerSplitPrompt({ id: 'REQ-02', title: '待拆分需求' }, '# 正文\n\n内容', ['api（接口）', 'h5（H5 前端）'])
+    expect(prompt).toContain('需求拆分：请把需求 REQ-02（待拆分需求）')
+    expect(prompt).toContain('task_draft')
+    expect(prompt).toContain('requirement: REQ-02')
+    expect(prompt).toContain('api（接口）')
+    expect(prompt).toContain('requirement_split_plan')
+    expect(prompt).toContain('.spec/requirements/REQ-02/split-plan.yaml')
+    expect(prompt).toContain('不分配岗位')
+    expect(prompt).toContain('不改任务状态')
+    expect(prompt).toContain('# 正文')
   })
 })
 
