@@ -7,6 +7,7 @@ import type { SpecProjection } from '../spec/load.ts'
 import { runCommand } from '../commands/run.ts'
 import { parseFlowStatus, type FlowStatus } from '../flow/status.ts'
 import { loadActionLog, type ActionLogEntry } from '../flow/history.ts'
+import { DetailDrawer } from './detail-drawer.tsx'
 
 /** 流程面板属性。 */
 export interface FlowPanelProps {
@@ -53,16 +54,17 @@ export function FlowPanel(props: FlowPanelProps): JSX.Element {
   useEffect(() => { void refresh() }, [refresh])
 
   return (
-    <aside className="detail-drawer lg-glass" data-testid="flow-panel">
-      <div className="detail-drawer-head">
-        <h3>流程状态</h3>
-        <div>
-          <button type="button" className="pill" data-testid="flow-refresh" disabled={busy} onClick={() => { void refresh() }}>
-            {busy ? '求值中…' : '重跑判定'}
-          </button>
-          <button type="button" className="pill" data-testid="flow-close" onClick={props.onClose}>关闭</button>
-        </div>
-      </div>
+    <DetailDrawer
+      testId="flow-panel"
+      closeTestId="flow-close"
+      onClose={props.onClose}
+      head={<h3>流程状态</h3>}
+      actions={(
+        <button type="button" className="pill" data-testid="flow-refresh" disabled={busy} onClick={() => { void refresh() }}>
+          {busy ? '求值中…' : '重跑判定'}
+        </button>
+      )}
+    >
 
       {statusError !== null && <p className="problem" data-testid="flow-error">{statusError}</p>}
 
@@ -119,6 +121,6 @@ export function FlowPanel(props: FlowPanelProps): JSX.Element {
           )}
         {problems.length > 0 && <pre className="problem">{problems.join('\n')}</pre>}
       </section>
-    </aside>
+    </DetailDrawer>
   )
 }

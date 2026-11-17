@@ -10,6 +10,7 @@ import { STATE_LABELS } from '../spec/board.ts'
 import { renderMarkdown } from '../markdown/markdown.tsx'
 import { runCommand, type CommandOutcome } from '../commands/run.ts'
 import { scheduleTask } from '../flow/scheduling.ts'
+import { DetailDrawer } from './detail-drawer.tsx'
 import { TaskAttachments } from './task-attachments.tsx'
 
 /** 任务详情属性。 */
@@ -62,15 +63,19 @@ export function TaskDetail(props: TaskDetailProps): JSX.Element {
     }
   }
   return (
-    <aside className="detail-drawer lg-glass" data-testid="task-detail" data-task-id={task.id}>
-      <div className="detail-drawer-head">
+    <DetailDrawer
+      testId="task-detail"
+      closeTestId="task-detail-close"
+      onClose={props.onClose}
+      attributes={{ 'data-task-id': task.id }}
+      head={(
         <div>
           <span className="mono">{task.id}</span>
           <span className="tag">{task.grade}</span>
           <span className="tag">{STATE_LABELS[task.state] ?? task.state}</span>
         </div>
-        <button type="button" className="pill" data-testid="task-detail-close" onClick={props.onClose}>关闭</button>
-      </div>
+      )}
+    >
       <h3 data-testid="task-detail-title">{task.title}</h3>
 
       <section className="detail-section" data-testid="task-description">
@@ -199,6 +204,6 @@ export function TaskDetail(props: TaskDetailProps): JSX.Element {
           </p>
         )}
       </section>
-    </aside>
+    </DetailDrawer>
   )
 }

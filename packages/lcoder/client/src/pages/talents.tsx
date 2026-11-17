@@ -8,6 +8,7 @@ import type { ProjectScope } from '../workspace/use-workspaces.ts'
 import { currentPresetId, pluginPackageOf, presetIdOf, type BuiltinPresetView, type TalentRow } from '../talents/model.ts'
 import type { BuiltinDetailState, TalentsHandle } from '../talents/use-talents.ts'
 import { TalentForm, type TalentFormValue } from './talent-form.tsx'
+import { DetailDrawer } from './detail-drawer.tsx'
 
 /** 人才库页属性。 */
 export interface TalentsPageProps {
@@ -239,18 +240,14 @@ export function TalentsPage(props: TalentsPageProps): JSX.Element {
       ? null
       : new Set(talents.catalog.plugins.map(plugin => plugin.name))
     return (
-      <aside className="detail-drawer lg-glass" data-testid="builtin-detail" data-builtin-id={row.id}>
-        <div className="detail-drawer-head">
-          {builtinTags(row)}
-          <button
-            type="button"
-            className="pill"
-            data-testid="builtin-detail-close"
-            onClick={() => { setBuiltinOpen(null) }}
-          >
-            {t('talents.close')}
-          </button>
-        </div>
+      <DetailDrawer
+        t={t}
+        testId="builtin-detail"
+        closeTestId="builtin-detail-close"
+        onClose={() => { setBuiltinOpen(null) }}
+        attributes={{ 'data-builtin-id': row.id }}
+        head={builtinTags(row)}
+      >
         <h3>{row.name ?? row.id}</h3>
         {row.description === undefined || row.description === '' ? null : <p className="detail-line">{row.description}</p>}
         <dl className="talent-meta">
@@ -327,7 +324,7 @@ export function TalentsPage(props: TalentsPageProps): JSX.Element {
             </section>
           </>
         )}
-      </aside>
+      </DetailDrawer>
     )
   }
 

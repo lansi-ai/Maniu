@@ -269,12 +269,22 @@
   right: 0;
   bottom: 0;
   width: min(560px, 54vw);
-  overflow: auto;
-  padding: 16px 18px 24px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   z-index: 3;
 }
 
+/* 放大态由外壳测量宿主页面的可见矩形后内联定位，这里只收掉右、下锚点。 */
+.detail-drawer.is-expanded { right: auto; bottom: auto; }
+
 .detail-drawer-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+/* 顶栏常驻：主体是唯一的滚动容器，放大时控制条仍然可见可点。 */
+.detail-drawer-bar { flex: 0 0 auto; padding: 16px 18px 8px; }
+.detail-drawer-leading { min-width: 0; }
+.detail-drawer-controls { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.detail-drawer-body { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 0 18px 24px; }
+.detail-drawer-icon { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 0; }
 .detail-drawer h3 { margin: 8px 0 4px; font-size: 17px; line-height: 1.4; }
 .detail-section { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--lg-line-hair); }
 .detail-section h4 { margin: 0 0 8px; font-size: 13px; color: var(--lg-muted); }
