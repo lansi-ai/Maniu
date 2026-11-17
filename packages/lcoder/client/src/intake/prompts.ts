@@ -164,11 +164,11 @@ ${body}
 /**
  * 生成需求评审提示词。
  *
- * 评审只出报告：报告由项目经理用 `requirement_review_draft` 落盘，
+ * 评审只出报告：报告由评审岗位（项目经理或研发经理）用 `requirement_review_draft` 落盘，
  * 正文与状态都不改，过审仍由人在界面上完成。
  * @param requirement - 需求编号与标题。
  * @param document - 当前需求正文。
- * @returns 可直接发送给项目经理会话的提示词。
+ * @returns 可直接发送给评审岗位会话的提示词。
  */
 export function buildReviewPrompt(
   requirement: { readonly id: string; readonly title: string },
@@ -177,7 +177,7 @@ export function buildReviewPrompt(
   const body = bodyOf(document)
   return `需求评审：请对需求 ${requirement.id}（${requirement.title}）做一轮独立评审，把报告落盘。这一轮不改正文，也不签不批。
 
-执行身份：你是这条需求的项目经理，负责在需求确认前做评审。
+执行身份：你是这条需求的评审岗位，负责在需求确认前按你的岗位视角做独立评审。
 
 四个角度都要写到，不能合并或省略：
 1. 文档完备性：目标、范围、验收口径、边界与例外是否写全，缺什么。
