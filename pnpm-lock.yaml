@@ -13028,7 +13028,7 @@ importers:
 
   packages/lcoder/client:
     dependencies:
-      '@lcoder/desktop':
+      '@maniu/desktop':
         specifier: workspace:*
         version: link:../desktop
       '@paper-design/shaders-react':
@@ -13089,7 +13089,7 @@ importers:
       '@deepseek-ai/dsh-web-app':
         specifier: workspace:*
         version: link:../../bundle/web-app
-      '@lcoder/kernel':
+      '@maniu/kernel':
         specifier: workspace:*
         version: link:../kernel
       ws:
@@ -13220,7 +13220,7 @@ importers:
       '@deepseek-ai/dsh-typert-protocol':
         specifier: workspace:*
         version: link:../../typert/protocol
-      '@lcoder/kernel':
+      '@maniu/kernel':
         specifier: workspace:*
         version: link:../kernel
       '@testing-library/react':

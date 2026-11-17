@@ -121,7 +121,7 @@ function Start-DesktopInstance {
       $scriptName = if ($SkipBuild) { 'start:desktop' } else { 'dev:desktop' }
       $command = "$pnpm run $scriptName"
     } else {
-      $launch = "$pnpm --filter @lcoder/desktop run launch"
+      $launch = "$pnpm --filter @maniu/desktop run launch"
       $command = if ($SkipBuild) { $launch } else { "$pnpm run build:artifacts && $launch" }
     }
     $process = Start-Process -FilePath 'cmd.exe' `

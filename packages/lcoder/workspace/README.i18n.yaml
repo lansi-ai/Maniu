@@ -5,48 +5,48 @@
 /:
   en: 579f7f9b4ed6f6d6
   zh: 94765dfdf979910c
-/lcoder-workspace:
-  en: 31dfb0c1516250ab
-  zh: ba84854ed0d135dc
-/lcoder-workspace/summary:
-  en: be9d17f4e7f5e184
-  zh: 5e9fc30193649c3d
-/lcoder-workspace/table-of-contents:
+/maniu-workspace:
+  en: 2a3446beca5f632d
+  zh: f8770291b14a7fc5
+/maniu-workspace/summary:
+  en: d0a6467584dc2a47
+  zh: 7acb3e8f37a726e5
+/maniu-workspace/table-of-contents:
   en: d152484eb41ac6b4
   zh: ce40cab8e7534137
-/lcoder-workspace/use-this-package:
+/maniu-workspace/use-this-package:
   en: 6f631efd7f7ebb88
   zh: 8b33088281087868
-/lcoder-workspace/use-this-package/when-to-choose-it:
+/maniu-workspace/use-this-package/when-to-choose-it:
   en: d299c1418962fdd1
   zh: 006fdc36c26c8794
-/lcoder-workspace/use-this-package/minimal-configuration:
+/maniu-workspace/use-this-package/minimal-configuration:
   en: d8ca0890f10402d3
   zh: f764350d36bfd94a
-/lcoder-workspace/understand-the-implementation:
-  en: 7756541dc8493bed
-  zh: 897cab46db1c7fd3
-/lcoder-workspace/further-exploration:
+/maniu-workspace/understand-the-implementation:
+  en: 2899bd9091e5101e
+  zh: 4d37a8e65c60767d
+/maniu-workspace/further-exploration:
   en: 049a3143f1297b06
   zh: c473145c86a0f175
-/lcoder-workspace/model-experience:
+/maniu-workspace/model-experience:
   en: 215e7ba838619b7b
   zh: a311da3843709f90
-/lcoder-workspace/model-experience/shell-ui:
+/maniu-workspace/model-experience/shell-ui:
   en: dff726517046664d
   zh: dff726517046664d
-/lcoder-workspace/model-experience/shell-ui/what-the-model-sees:
+/maniu-workspace/model-experience/shell-ui/what-the-model-sees:
   en: df6bbc0ba830c219
   zh: 14ac3c9a56a6895b
-/lcoder-workspace/model-experience/shell-ui/token-effect:
+/maniu-workspace/model-experience/shell-ui/token-effect:
   en: 5b37455ecb039048
   zh: 97088abfb8d196c9
-/lcoder-workspace/model-experience/shell-ui/kv-cache-effect:
+/maniu-workspace/model-experience/shell-ui/kv-cache-effect:
   en: 23a330138dae57ad
   zh: 0fa47c1864e92997
-/lcoder-workspace/known-limitations-and-deferred-work:
+/maniu-workspace/known-limitations-and-deferred-work:
   en: 5c039c1c3e25a625
   zh: 16bc022557c98df2
-/lcoder-workspace/known-limitations-and-deferred-work/dev-note:
-  en: b11a9ab0c18fcccd
-  zh: 2b7c2a14140f0493
+/maniu-workspace/known-limitations-and-deferred-work/dev-note:
+  en: 997dd0c5047cbfbd
+  zh: 030c53f1b7287761

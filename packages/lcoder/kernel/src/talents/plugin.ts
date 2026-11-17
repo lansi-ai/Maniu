@@ -1,5 +1,5 @@
 /**
- * `@lcoder/kernel/talents` 的 Cordis 入口：全局挂载人才库宿主动态 preset 服务。
+ * `@maniu/kernel/talents` 的 Cordis 入口：全局挂载人才库宿主动态 preset 服务。
  *
  * 这个插件不归属任何角色 preset；它要在第一条会话出现之前就能接收人才列表，
  * 让新会话直接选到 `talent-<id>`。注册的动态 preset 由本服务持有，插件卸载时

@@ -13,9 +13,9 @@
  * 打分权重是本地规则：强特征 3、弱语义 1、命中标题再加 2、落点偏好 4；
  * 历史保留只给已有信号命中的岗位加少量分。置信度是候选分占比，没有校准概率语义。
  */
-import { isBuiltinRole } from '@lcoder/kernel/src/schema/roles.ts'
-import type { BuiltinRoleId } from '@lcoder/kernel/src/schema/roles.ts'
-import type { RoleSignals } from '@lcoder/kernel/src/schema/spec.ts'
+import { isBuiltinRole } from '@maniu/kernel/src/schema/roles.ts'
+import type { BuiltinRoleId } from '@maniu/kernel/src/schema/roles.ts'
+import type { RoleSignals } from '@maniu/kernel/src/schema/spec.ts'
 
 /** 本地规则阈值：置信度不低于 0.6 且与第二名分差不小于 1 才给建议。 */
 export const LOCAL_ROLE_POLICY = { accept: 0.6, margin: 1 } as const

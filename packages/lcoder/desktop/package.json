@@ -1,5 +1,5 @@
 {
-  "name": "@lcoder/desktop",
+  "name": "@maniu/desktop",
   "version": "0.0.0",
   "private": true,
   "description": "LCoder 自研 Electron 壳（T-187 S1）",
@@ -35,7 +35,7 @@
     "@deepseek-ai/dsh-llm": "workspace:*",
     "@deepseek-ai/dsh-typert-protocol": "workspace:*",
     "@deepseek-ai/dsh-web-app": "workspace:*",
-    "@lcoder/kernel": "workspace:*",
+    "@maniu/kernel": "workspace:*",
     "ws": "^8.21.3"
   },
   "devDependencies": {

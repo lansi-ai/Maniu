@@ -11,7 +11,7 @@ import { parse as parseYaml } from 'yaml'
 import type {
   WorkspaceDirectoryListing, WorkspaceFileText,
 } from '@deepseek-ai/dsh-api-workspace-files/types'
-import type { RoleSignals } from '@lcoder/kernel/src/schema/spec.ts'
+import type { RoleSignals } from '@maniu/kernel/src/schema/spec.ts'
 import type { ShellEnvironment, ShellProjectInfo } from './shell/shell-data.ts'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
@@ -251,7 +251,7 @@ export interface ProjectionFilesRemote {
  * kernel 约定的布局：`.spec` 目录是规格库根，任务在它下面的 `tasks/`，
  * 规则库在它下面的 `spec/rules.yaml`。
  *
- * 这里必须与 `@lcoder/kernel` 的两处落盘保持一致（`task-store.taskPath` 与
+ * 这里必须与 `@maniu/kernel` 的两处落盘保持一致（`task-store.taskPath` 与
  * `spec-store.saveRules` 都以 `.spec` 为 root）——UI 是这些文件的投影，
  * 路径一旦分叉，画出来的就是另一套事实。
  */

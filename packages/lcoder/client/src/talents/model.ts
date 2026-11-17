@@ -346,10 +346,24 @@ export interface BuiltinPresetView {
 }
 
 /** 产品内置角色 preset 的前缀；云端人才的 `talent-*` 不在此列。 */
-const BUILTIN_PRESET_PREFIX = 'lcoder'
+const BUILTIN_PRESET_PREFIX = 'maniu'
 
 /** 工作台作用域会话的内部 preset；它不是用户可以选用的人才。 */
-const WORKBENCH_PRESET_ID = 'lcoder-workbench'
+const WORKBENCH_PRESET_ID = 'maniu-workbench'
+
+/** 改名前的角色 preset 前缀；旧会话的 `agentPreset` 记录的仍是它。 */
+const RETIRED_PRESET_PREFIX = 'lcoder'
+
+/**
+ * 把改名前记录的 preset id 换到当前命名，供会话归属与人才名查找。
+ * @param presetId - 会话或名册里的 preset id。
+ * @returns 当前前缀下的 id；没有对应关系时原样返回。
+ */
+export function currentPresetId(presetId: string): string {
+  return presetId === RETIRED_PRESET_PREFIX || presetId.startsWith(`${RETIRED_PRESET_PREFIX}-`)
+    ? `${BUILTIN_PRESET_PREFIX}${presetId.slice(RETIRED_PRESET_PREFIX.length)}`
+    : presetId
+}
 
 /**
  * 判断一个 preset id 是否属于产品内置角色。

@@ -5,7 +5,7 @@ import type { JSX } from 'react'
 import type { MessageKey, Translate } from '../locale.ts'
 import type { SessionSummary } from '../store.ts'
 import type { ProjectScope } from '../workspace/use-workspaces.ts'
-import { pluginPackageOf, presetIdOf, type BuiltinPresetView, type TalentRow } from '../talents/model.ts'
+import { currentPresetId, pluginPackageOf, presetIdOf, type BuiltinPresetView, type TalentRow } from '../talents/model.ts'
 import type { BuiltinDetailState, TalentsHandle } from '../talents/use-talents.ts'
 import { TalentForm, type TalentFormValue } from './talent-form.tsx'
 
@@ -48,7 +48,7 @@ export function TalentsPage(props: TalentsPageProps): JSX.Element {
   const [builtinOpen, setBuiltinOpen] = useState<string | null>(null)
 
   const sessionsOfPreset = (presetId: string): number =>
-    sessions.filter(session => session.agentPreset === presetId).length
+    sessions.filter(session => session.agentPreset !== undefined && currentPresetId(session.agentPreset) === presetId).length
 
   const sessionsOf = (row: TalentRow): number => sessionsOfPreset(presetIdOf(row.id))
 

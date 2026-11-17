@@ -214,16 +214,16 @@ describe('内置人才区', () => {
     render(
       handleOf({
         builtins: [
-          builtin('lcoder-pm', { name: '慢牛项目经理', description: '谈需求、拆任务', isDefault: true }),
-          builtin('lcoder-intake', { name: '慢牛立项' }),
+          builtin('maniu-pm', { name: '慢牛项目经理', description: '谈需求、拆任务', isDefault: true }),
+          builtin('maniu-intake', { name: '慢牛立项' }),
         ],
       }),
       null,
-      [session('s1', 'lcoder-pm'), session('s2', 'lcoder-pm'), session('s3', 'talent-cloud-1')],
+      [session('s1', 'maniu-pm'), session('s2', 'lcoder-pm'), session('s3', 'talent-cloud-1')],
     )
     expect(container.querySelector('[data-testid="talent-group-builtin"]')).not.toBeNull()
     expect(container.querySelectorAll('[data-testid="builtin-card"]')).toHaveLength(2)
-    const pm = container.querySelector('[data-builtin-id="lcoder-pm"]')
+    const pm = container.querySelector('[data-builtin-id="maniu-pm"]')
     expect(pm?.textContent).toContain('慢牛项目经理')
     expect(pm?.textContent).toContain('谈需求、拆任务')
     expect(pm?.querySelector('[data-testid="builtin-source"]')?.textContent).toBe('内置')
@@ -234,8 +234,8 @@ describe('内置人才区', () => {
   })
 
   it('激活失败的内置角色标出原因并禁用开始', () => {
-    render(handleOf({ builtins: [builtin('lcoder-ops', { broken: 'unknown plugin @x/y' })] }))
-    const card = container.querySelector('[data-builtin-id="lcoder-ops"]')
+    render(handleOf({ builtins: [builtin('maniu-ops', { broken: 'unknown plugin @x/y' })] }))
+    const card = container.querySelector('[data-builtin-id="maniu-ops"]')
     expect(card?.querySelector('[data-testid="builtin-broken"]')?.textContent).toContain('unknown plugin @x/y')
     expect(card?.querySelector('[data-testid="builtin-start"]')?.hasAttribute('disabled')).toBe(true)
     expect(card?.querySelector('[data-testid="builtin-detail-open"]')).not.toBeNull()
@@ -274,21 +274,21 @@ describe('内置人才区', () => {
     }
     const inspectBuiltin = vi.fn()
     render(handleOf({
-      builtins: [builtin('lcoder-pm', { name: '慢牛项目经理', description: '谈需求', isDefault: true })],
-      builtinDetails: { 'lcoder-pm': detail },
+      builtins: [builtin('maniu-pm', { name: '慢牛项目经理', description: '谈需求', isDefault: true })],
+      builtinDetails: { 'maniu-pm': detail },
       catalog: {
         plugins: [{ name: '@deepseek-ai/dsh-persona' }, { name: '@deepseek-ai/dsh-tool-bash' }],
         presets: [],
       },
       inspectBuiltin,
-    }), null, [session('s1', 'lcoder-pm')])
-    await openCard('lcoder-pm')
-    expect(inspectBuiltin).toHaveBeenCalledWith('lcoder-pm')
+    }), null, [session('s1', 'maniu-pm')])
+    await openCard('maniu-pm')
+    expect(inspectBuiltin).toHaveBeenCalledWith('maniu-pm')
     const drawer = container.querySelector('[data-testid="builtin-detail"]')
     expect(drawer).not.toBeNull()
     expect(drawer?.textContent).toContain('慢牛项目经理')
     expect(drawer?.textContent).toContain('跟随全局默认')
-    expect(drawer?.textContent).toContain('lcoder-pm')
+    expect(drawer?.textContent).toContain('maniu-pm')
     expect(drawer?.querySelector('[data-testid="builtin-persona"]')?.textContent).toContain('你是慢牛项目经理')
     const pluginRows = drawer?.querySelectorAll('[data-testid="builtin-plugins"] li') ?? []
     expect(pluginRows).toHaveLength(4)
@@ -305,9 +305,9 @@ describe('内置人才区', () => {
 
   it('详情读不到时给出可读失败，工具面照常显示', async () => {
     render(handleOf({
-      builtins: [builtin('lcoder-pm')],
+      builtins: [builtin('maniu-pm')],
       builtinDetails: {
-        'lcoder-pm': {
+        'maniu-pm': {
           loading: false,
           error: 'link_unavailable: 宿主连接已断开',
           persona: null,
@@ -317,7 +317,7 @@ describe('内置人才区', () => {
         },
       },
     }))
-    await openCard('lcoder-pm')
+    await openCard('maniu-pm')
     const drawer = container.querySelector('[data-testid="builtin-detail"]')
     expect(drawer?.querySelector('[data-testid="builtin-detail-error"]')?.textContent).toContain('读取预设详情失败')
     expect(drawer?.querySelector('[data-testid="builtin-tools"]')?.textContent).toContain('file_read')
@@ -326,9 +326,9 @@ describe('内置人才区', () => {
 
   it('工具面读不到时只在该区报原因', async () => {
     render(handleOf({
-      builtins: [builtin('lcoder-pm')],
+      builtins: [builtin('maniu-pm')],
       builtinDetails: {
-        'lcoder-pm': {
+        'maniu-pm': {
           loading: false,
           error: null,
           persona: '你是慢牛项目经理。',
@@ -338,7 +338,7 @@ describe('内置人才区', () => {
         },
       },
     }))
-    await openCard('lcoder-pm')
+    await openCard('maniu-pm')
     const drawer = container.querySelector('[data-testid="builtin-detail"]')
     expect(drawer?.querySelector('[data-testid="builtin-tools-error"]')?.textContent)
       .toContain('the preset exposes no tool scope')

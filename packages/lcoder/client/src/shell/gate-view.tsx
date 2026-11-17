@@ -1,7 +1,7 @@
 /** 登录门禁的四种视图：启动中、云端不可用、欢迎屏与登录页。 */
 
 import type { JSX } from 'react'
-import type { HostState, RemoteFailure } from '@lcoder/desktop/contract'
+import type { HostState, RemoteFailure } from '@maniu/desktop/contract'
 import type { Translate } from '../locale.ts'
 import { LoginScreen } from '../account/login-screen.tsx'
 import { WelcomeScreen } from '../welcome/welcome-screen.tsx'

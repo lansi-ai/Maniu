@@ -19,14 +19,14 @@ function sequenced(agentPreset: unknown): Record<string, unknown> {
 
 describe('summaryOf agentPreset', () => {
   it('优先读宿主 projections.values.agentPreset', () => {
-    const summary = summaryOf(row(sequenced('lcoder-pm')))
-    expect(summary?.agentPreset).toBe('lcoder-pm')
+    const summary = summaryOf(row(sequenced('maniu-pm')))
+    expect(summary?.agentPreset).toBe('maniu-pm')
     expect(summary?.cwd).toBe('E:/repo')
   })
 
   it('宿主值不是字符串时回退顶层 agentPreset', () => {
-    const summary = summaryOf(row({ ...sequenced(7), agentPreset: 'lcoder-architect' }))
-    expect(summary?.agentPreset).toBe('lcoder-architect')
+    const summary = summaryOf(row({ ...sequenced(7), agentPreset: 'maniu-architect' }))
+    expect(summary?.agentPreset).toBe('maniu-architect')
   })
 
   it('旧载荷只有顶层 agentPreset 时仍能读出', () => {
@@ -35,8 +35,8 @@ describe('summaryOf agentPreset', () => {
   })
 
   it('projections 缺少 values 时回退顶层', () => {
-    const summary = summaryOf(row({ projections: { kind: 'cached', asOfSeq: 2 }, agentPreset: 'lcoder-manager' }))
-    expect(summary?.agentPreset).toBe('lcoder-manager')
+    const summary = summaryOf(row({ projections: { kind: 'cached', asOfSeq: 2 }, agentPreset: 'maniu-manager' }))
+    expect(summary?.agentPreset).toBe('maniu-manager')
   })
 
   it('两种线形都没有有效 preset 时为空', () => {

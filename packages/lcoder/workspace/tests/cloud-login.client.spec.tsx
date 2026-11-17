@@ -8,7 +8,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
-import type { CloudAuthValue } from '@lcoder/kernel/src/cloud/types.ts'
+import type { CloudAuthValue } from '@maniu/kernel/src/cloud/types.ts'
 import { CloudLoginScreen } from '../src/client/cloud/CloudAccount.tsx'
 import { cloudErrorAction, cloudErrorKey } from '../src/client/cloud/errors.ts'
 import type { CloudFace } from '../src/client/cloud/face.ts'

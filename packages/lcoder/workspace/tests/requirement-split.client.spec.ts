@@ -7,7 +7,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ShellMessage, ShellTask } from '../src/client/shell/shell-data.ts'
 import type { ShellSessionNotice } from '../src/client/model-status.ts'
-import type { TrackDescriptor } from '@lcoder/kernel/src/schema/tracks.ts'
+import type { TrackDescriptor } from '@maniu/kernel/src/schema/tracks.ts'
 import {
   REQUIREMENT_SPLIT_PM_PRESET,
   buildPmSplitPrompt, existingSplitTasks, lastAssistantText, newDraftingTasks,

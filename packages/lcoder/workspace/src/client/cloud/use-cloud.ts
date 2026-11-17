@@ -4,7 +4,7 @@
  * 只缓存展示值；余额与额度仍以服务端返回为准。
  */
 import { useEffect, useRef, useState } from 'react'
-import type { CloudErrorInfo, CloudState } from '@lcoder/kernel/src/cloud/types.ts'
+import type { CloudErrorInfo, CloudState } from '@maniu/kernel/src/cloud/types.ts'
 import type { CloudFace } from './face.ts'
 
 /** 外壳读到的登录会话。 */

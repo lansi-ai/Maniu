@@ -117,15 +117,15 @@
 ## W-17 客户端调 `ctx.remote.<ns>` 没写进 inject，运行时才报错
 
 - **现象**：浮层里选好图片与文件后，图片能加进列表，文件项却显示「上传失败（cannot get property "remote.fileUploads" without inject）」，发送按钮被这条失败附件禁用。
-- **原因**：客户端 Cordis 的 `ctx.remote` 命名空间按 inject 惰性解析；`@lcoder/workspace` 的 inject 列表当时只有 workspaceFiles、commands、session、llm、settings、credentials、agentPresets，没有 fileUploads。类型面能编译，是因为远程类型声明与 inject 列表是两套东西。
-- **处理**：把 `remote.fileUploads` 加进 `packages/lcoder/workspace/src/client/index.ts` 的 inject，重打 `pnpm --filter @lcoder/workspace run bundle`，刷新渲染进程后文件项变 ready、发送恢复。
+- **原因**：客户端 Cordis 的 `ctx.remote` 命名空间按 inject 惰性解析；`@maniu/workspace` 的 inject 列表当时只有 workspaceFiles、commands、session、llm、settings、credentials、agentPresets，没有 fileUploads。类型面能编译，是因为远程类型声明与 inject 列表是两套东西。
+- **处理**：把 `remote.fileUploads` 加进 `packages/lcoder/workspace/src/client/index.ts` 的 inject，重打 `pnpm --filter @maniu/workspace run bundle`，刷新渲染进程后文件项变 ready、发送恢复。
 - **预防**：新增任何 `ctx.remote.<ns>` 调用前先把同名命名空间加进 inject；附件、上传、设置这类跨命名空间功能必须用真实文件在桌面里走一遍，单测里的远程替身不会触发注入解析。
 
 ## W-18 同时写 backdrop-filter 与 -webkit-backdrop-filter，打包后标准属性被挤掉
 
 - **现象**：新客户端主题层写了 `backdrop-filter: blur(36px) saturate(190%)` 与带 `-webkit-` 的同名声明；打包后 computed style 读出来是 `none`，玻璃面一点模糊都没有，而同一规则里的圆角、渐变填充、内高光阴影全部正常。
 - **原因**：Vite 8 的 CSS 压缩把同一条规则里的前缀写法当成同一属性去重，只保留最后一条。标准属性在前、`-webkit-` 在后，产物里就只剩 `-webkit-backdrop-filter`；本机 Electron 的 Chromium 不认这个前缀（`CSS.supports('-webkit-backdrop-filter', 'blur(10px)')` 为 false），计算值回落成 `none`。反过来只写标准属性时，压缩器会自动补一条前缀并把标准属性放在最后，两个都在。
-- **处理**：主题层只写标准 `backdrop-filter`，不手写 `-webkit-` 前缀；改完重新 `pnpm --filter @lcoder/client run build`，在 `lib/dist/assets/*.css` 里 grep `backdrop-filter:` 确认标准属性存在，再用 CDP 读 computed style 核实（T-188 的取证方式：`getComputedStyle(el).backdropFilter`）。
+- **处理**：主题层只写标准 `backdrop-filter`，不手写 `-webkit-` 前缀；改完重新 `pnpm --filter @maniu/client run build`，在 `lib/dist/assets/*.css` 里 grep `backdrop-filter:` 确认标准属性存在，再用 CDP 读 computed style 核实（T-188 的取证方式：`getComputedStyle(el).backdropFilter`）。
 - **预防**：CSS 里凡是需要前缀的属性（backdrop-filter、mask、text-stroke 等）一律只写标准形式，让打包器决定前缀。"样式写了但界面没效果"的排查顺序固定为：先读打包后的 CSS，再读 computed style；两步都过才算生效，只看源码会被压缩去重骗过去。
 
 ## W-19 旧 API 进程不带 .env，502 在客户端完全不可见
@@ -134,3 +134,10 @@
 - **原因**：5081 上的 API 是更早的进程，没有读到当前 `.env`，上游凭据/模型配置缺失；网关把上游 400/5xx 统一折成 `502 upstream_unavailable`。客户端此前忽略 `llm/retry` 与带 `error` 原因的 `turn/end`，既看不到重试也看不到最终失败。
 - **处理**：改过云端 `.env` 后必须重启 5081 的 API 再验；旧进程会一直用启动时的环境。排查时两侧各开一个开关——云端 `OPENCODE_DEBUG_UPSTREAM=true` 看 `lcoder/logs/cloud-api.log` 里的上游状态与响应体，桌面 `LCODER_DEBUG=1` 看 `lcoder/logs/model-debug.log` 里的事件、请求号与状态；客户端最终失败行会显示「请求号：req_…」，可用来对齐两侧日志。
 - **预防**：看见「只有提问没有回答且无报错」先核 API 的启动时刻与环境，再核上游状态；不要先怀疑模型。云端 `.env` 的值不进任何提交，日志只记状态码与截断脱敏文本，不记请求头与密钥。
+
+## W-20 改 preset id 后旧会话打不开：header 记录的是旧 id
+
+- **现象**：产品把角色 preset 从 `lcoder*` 改名到 `maniu*` 之后，旧会话点开就报 `agent-preset/not-found`（`Unknown agent preset: lcoder-pm`），历史和角色都还在，就是起不来。
+- **原因**：续会话走宿主 `composeAgent(presetForObservation(...))`，用的是会话 header 里**已记录**的 id；历史会话不能改写，名字一换就查不到声明。
+- **处理**：给每个改名后的 preset 声明写 `retiredIds: [旧 id]`（`lcoder/desktop-profile.patch.yml` 十个角色与 `host-workbench.patch.yml`、`s1-profile.patch.yml` 的工作台各一条）。registry 的 `resolve`/`retain`/`definitionPlugins`/`definitionScope` 都按同一跳别名解析，talents 里云端存的旧 `basePreset` 也照样能落；名册与专家计数不新增行。
+- **预防**：凡是改 preset id 或包名，先在隔离 home 里造一条带旧 id 头的会话做续聊探针；旧会话 header 一律不改写，"旧 id 解析到新声明"由声明侧承担。

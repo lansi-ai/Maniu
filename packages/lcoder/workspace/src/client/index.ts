@@ -35,7 +35,7 @@ declare module '@deepseek-ai/dsh-api-session-controller/client' {
 }
 import type { SettingsNamespaceView } from '@deepseek-ai/dsh-api-remotes/client'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
-import type { CloudResult } from '@lcoder/kernel/src/cloud/types.ts'
+import type { CloudResult } from '@maniu/kernel/src/cloud/types.ts'
 import type { PromptContentPart } from '@deepseek-ai/dsh-api-session-controller/types'
 import cloudRemote from './cloud/remote.generated.ts'
 import { createCloudFace, unavailableCloudFace } from './cloud/face.ts'
@@ -104,7 +104,7 @@ function chatSizeOf(config: Config): { readonly width: number; readonly height: 
   const width = config.chatWindow?.width ?? DEFAULT_CHAT_SIZE.width
   const height = config.chatWindow?.height ?? DEFAULT_CHAT_SIZE.height
   if (!Number.isFinite(width) || width <= 0 || !Number.isFinite(height) || height <= 0) {
-    throw new Error('@lcoder/workspace: chatWindow width/height must be positive numbers')
+    throw new Error('@maniu/workspace: chatWindow width/height must be positive numbers')
   }
   return { width, height }
 }
@@ -124,11 +124,11 @@ function countOf(value: unknown): number | undefined {
 /** 本包的文案命名空间。 */
 const NS = 'lcoderWorkspace'
 
-/** LCoder 角色的 id 前缀；装配层的角色 preset 都按它命名。 */
-const LCODER_ROLE_PREFIX = 'lcoder'
+/** 产品角色的 id 前缀；装配层的角色 preset 都按它命名。 */
+const ROLE_PREFIX = 'maniu'
 
 /** 插件名，与包名一致，loader 据此在诊断里说话。 */
-export const name = '@lcoder/workspace'
+export const name = '@maniu/workspace'
 
 /** 浏览器侧必需的服务：槽位运行时、词典、页签注册表、远程文件面、命令面、角色名册、会话面、布局与工作区。 */
 export const inject = [
@@ -435,12 +435,12 @@ export async function apply(ctx: ClientContext, config: Config = {}): Promise<vo
       const roster = await ctx.remote.agentPresets.list()
       if (!roster.ok) return []
       return roster.value.presets
-        .filter(row => row.id.startsWith(LCODER_ROLE_PREFIX))
+        .filter(row => row.id.startsWith(ROLE_PREFIX))
         .map(row => (row.name === undefined ? { id: row.id } : { id: row.id, name: row.name }))
     }
     /**
      * 专家名册：宿主真实注册的全部 preset，按装配声明的 order 排。
-     * 这里不筛 `lcoder` 前缀——用户问的是内置了多少个专家，筛掉上游那几个会让数字说谎。
+     * 这里不筛 `maniu` 前缀——用户问的是内置了多少个专家，筛掉上游那几个会让数字说谎。
      */
     const listExperts = async (): Promise<readonly ExpertRow[]> => {
       const roster = await ctx.remote.agentPresets.list()

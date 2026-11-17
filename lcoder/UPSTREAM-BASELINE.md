@@ -142,7 +142,7 @@ upstream = deepseek-ai/deepseek-harness
 
 ### T-203 品牌更名 Maniu / 慢牛（修改 1 个脚本、1 个欢迎页字标、安装器文案与快照）
 
-产品口径：品牌名 Maniu，中文名慢牛，广告语中文「稳，才跑得远」/ 英文 Steady wins the long run.。内部标识（`ai.lansi.lcoder`、`lcoder` scheme、`@lcoder/*`、`DSH_HOME`、更新缓存目录、下载/发布前缀）保持不变。
+产品口径：品牌名 Maniu，中文名慢牛，广告语中文「稳，才跑得远」/ 英文 Steady wins the long run.。内部标识（`ai.lansi.lcoder`、`lcoder` scheme、`@maniu/*`、`DSH_HOME`、更新缓存目录、下载/发布前缀）保持不变。
 
 | 文件 | 改什么 | 为什么必须改 |
 |---|---|---|

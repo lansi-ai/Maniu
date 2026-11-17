@@ -8,14 +8,9 @@
 import type { ShellMessage } from './shell-data.ts'
 import { MEETING_ROLE_MARKER } from './plan-discussion.ts'
 
-/** 讨论可能用到的 preset；重启后按它缩小候选会话。 */
-export const DISCUSSION_SESSION_PRESETS: readonly string[] = [
-  'lcoder-intake',
-  'lcoder-pm',
-  'lcoder-manager',
-  'lcoder-architect',
-  'lcoder',
-]
+/** 角色 preset 的前缀；改名前的 `lcoder*` 仍可能留在旧会话的 `agentPreset` 里。 */
+const PRESET_PREFIX = 'maniu'
+const RETIRED_PRESET_PREFIX = 'lcoder'
 
 /** 一条候选会话：会话号、preset、是否本窗口记录过，与已读到的消息。 */
 export interface DiscussionHistoryCandidate {
@@ -54,9 +49,19 @@ export interface DiscussionHistorySelection {
   readonly found: boolean
 }
 
+/** 去掉 preset 前缀后的角色名；裸前缀（实施）为空串，其它 preset 为 undefined。 */
+function presetRole(preset: string | undefined): string | undefined {
+  if (preset === undefined || preset === '') return undefined
+  for (const prefix of [PRESET_PREFIX, RETIRED_PRESET_PREFIX]) {
+    if (preset === prefix) return ''
+    if (preset.startsWith(`${prefix}-`)) return preset.slice(prefix.length + 1)
+  }
+  return undefined
+}
+
 /** 这条 preset 是不是讨论角色的 preset。 */
 export function isDiscussionPreset(preset: string | undefined): boolean {
-  return preset !== undefined && DISCUSSION_SESSION_PRESETS.includes(preset)
+  return roleOfPreset(preset) !== undefined
 }
 
 /** 只取有正文的消息文本：用户发言、助手答复与注入上下文；过程段与压缩标记不含正文。 */
@@ -108,17 +113,17 @@ export function parseMeetingRole(messages: readonly ShellMessage[]): { readonly 
 
 /** preset 到讨论角色的兜底映射；技术岗位重启后只知道是 dev 面。 */
 export function roleOfPreset(preset: string | undefined): { readonly roleId: string; readonly roleName: string } | undefined {
-  switch (preset) {
-    case 'lcoder-intake':
-      return { roleId: 'analyst', roleName: '需求分析师' }
-    case 'lcoder-pm':
-      return { roleId: 'pm', roleName: '项目经理' }
-    case 'lcoder-manager':
-      return { roleId: 'manager', roleName: '研发经理' }
-    case 'lcoder-architect':
-      return { roleId: 'architect', roleName: '架构师' }
-    case 'lcoder':
+  switch (presetRole(preset)) {
+    case '':
       return { roleId: 'track', roleName: '技术岗位' }
+    case 'intake':
+      return { roleId: 'analyst', roleName: '需求分析师' }
+    case 'pm':
+      return { roleId: 'pm', roleName: '项目经理' }
+    case 'manager':
+      return { roleId: 'manager', roleName: '研发经理' }
+    case 'architect':
+      return { roleId: 'architect', roleName: '架构师' }
     default:
       return undefined
   }

@@ -3,7 +3,7 @@ description: "LCoder 自研渲染端的 T-187 S1、T-189 M2、T-190 M3 与 T-191
 kind: "package-reference"
 ---
 
-# @lcoder/client
+# @maniu/client
 
 [English](README.md) | 中文
 

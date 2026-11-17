@@ -12,8 +12,8 @@
 import type { ContractRow } from '../projection.ts'
 import type { ShellBoardColumnId, ShellSignResult, ShellTask } from './shell-data.ts'
 import { boundRequirementText, taskDigest } from './requirement.ts'
-import { BUILTIN_TRACKS } from '@lcoder/kernel/src/schema/tracks.ts'
-import type { TrackDescriptor } from '@lcoder/kernel/src/schema/tracks.ts'
+import { BUILTIN_TRACKS } from '@maniu/kernel/src/schema/tracks.ts'
+import type { TrackDescriptor } from '@maniu/kernel/src/schema/tracks.ts'
 import { lastAssistantText, waitForTurn } from './session-turn.ts'
 import type { SessionTurnPorts } from './session-turn.ts'
 
@@ -50,7 +50,7 @@ export const ANALYST_ROLE: MeetingRole = {
   name: '需求分析师',
   kind: 'analyst',
   inherits: 'intake',
-  preset: 'lcoder-intake',
+  preset: 'maniu-intake',
 }
 
 export const PM_MEETING_ROLE: MeetingRole = {
@@ -58,7 +58,7 @@ export const PM_MEETING_ROLE: MeetingRole = {
   name: '项目经理',
   kind: 'pm',
   inherits: 'pm',
-  preset: 'lcoder-pm',
+  preset: 'maniu-pm',
 }
 
 export const MANAGER_MEETING_ROLE: MeetingRole = {
@@ -66,7 +66,7 @@ export const MANAGER_MEETING_ROLE: MeetingRole = {
   name: '研发经理',
   kind: 'manager',
   inherits: 'manager',
-  preset: 'lcoder-manager',
+  preset: 'maniu-manager',
 }
 
 /** 架构师：固定入会、汇总各方意见并逐任务起草契约。 */
@@ -75,7 +75,7 @@ export const ARCHITECT_ROLE: MeetingRole = {
   name: '架构师',
   kind: 'architect',
   inherits: 'architect',
-  preset: 'lcoder-architect',
+  preset: 'maniu-architect',
 }
 
 /** 内置技术轨的显示名；与 kernel 的内置轨保持同一份顺序。 */
@@ -106,7 +106,7 @@ export function technicalRoleOf(
     name: `${known.name}工程师`,
     kind: 'track',
     inherits: 'dev',
-    preset: 'lcoder',
+    preset: 'maniu',
   }
 }
 

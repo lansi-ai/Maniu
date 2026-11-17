@@ -32,8 +32,8 @@ $profileWorkspace = Join-Path $profileDir 'pnpm-workspace.yaml'
 # 装配源只有 cordis.patch.yml；profile 的 package.json 与 node_modules 链接只能在这里补。
 # 缺了它们，外壳的 client 半边不进插件清单，新树启动看到的是原版 DSH。
 $profileLinks = @(
-  @{ name = '@lcoder/kernel';    path = (Join-Path $root 'packages\lcoder\kernel') },
-  @{ name = '@lcoder/workspace'; path = (Join-Path $root 'packages\lcoder\workspace') }
+  @{ name = '@maniu/kernel';    path = (Join-Path $root 'packages\lcoder\kernel') },
+  @{ name = '@maniu/workspace'; path = (Join-Path $root 'packages\lcoder\workspace') }
 )
 
 # 与 packages/boot/app-boot 的 initProfile 模板一致：out-of-tree 插件要的 pnpm 设置。
@@ -63,8 +63,8 @@ $profileLocal = @"
 
 # 每一层：源码目录、产物文件、重建命令、生效方式。
 $layers = @(
-  @{ name = 'kernel';    source = 'packages\lcoder\kernel\src';    artifact = 'packages\lcoder\kernel\lib\index.js';    filter = '@lcoder/kernel';    note = 'kernel 在宿主进程里加载：要重启实例' },
-  @{ name = 'workspace'; source = 'packages\lcoder\workspace\src'; artifact = 'packages\lcoder\workspace\lib\client.js'; filter = '@lcoder/workspace'; note = '外壳产物由宿主直出：刷新页面即生效，不用重启' },
+  @{ name = 'kernel';    source = 'packages\lcoder\kernel\src';    artifact = 'packages\lcoder\kernel\lib\index.js';    filter = '@maniu/kernel';    note = 'kernel 在宿主进程里加载：要重启实例' },
+  @{ name = 'workspace'; source = 'packages\lcoder\workspace\src'; artifact = 'packages\lcoder\workspace\lib\client.js'; filter = '@maniu/workspace'; note = '外壳产物由宿主直出：刷新页面即生效，不用重启' },
   @{ name = 'desktop';   source = 'apps\desktop\src';              artifact = 'apps\desktop\lib\main.js';              filter = '@deepseek-ai/dsh-desktop'; note = '主进程/preload 改动：要重启实例' }
 )
 
@@ -133,8 +133,8 @@ function Get-ProfileManifest {
   "name": "dsh-profile-desktop",
   "private": true,
   "dependencies": {
-    "@lcoder/kernel": "$kernel",
-    "@lcoder/workspace": "$workspace"
+    "@maniu/kernel": "$kernel",
+    "@maniu/workspace": "$workspace"
   },
   "dsh": {
     "profile": {
@@ -216,7 +216,7 @@ function Sync-Profile {
       return $false
     }
   }
-  Write-Host '✓ profile 齐备：package.json、两条 @lcoder 链接' -ForegroundColor Green
+  Write-Host '✓ profile 齐备：package.json、两条 @maniu 链接' -ForegroundColor Green
   # 硬闸：每个切片 id 都要在合成清单里并带上切片的效果，否则升上游后切片会静默失效。
   if (-not (Invoke-ProfileSlice -arguments @('check', '--all'))) { return $false }
   Write-Host '✓ 切片已命中合成清单' -ForegroundColor Green

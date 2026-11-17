@@ -132,16 +132,16 @@
 # ── T-177 slice · wave 3 ──────────────────────────────────────────────────
 # 客户端 UI 未用项与上游 preset 名册。这一波改变的是产品口径，不只是体积：
 # 关掉之后标准/PT C/cordis 三套上游角色从名册消失，用户只剩 LCoder 的十个角色。
-# 所以 registry 的 `default` 必须同时从 standard 改成 lcoder，否则新建会话的
+# 所以 registry 的 `default` 必须同时从 standard 改成 maniu，否则新建会话的
 # 兜底角色会指向一个已禁用的 preset。
 #
-# 验收要比前两波多两项：子 agent 派工（lcoder-review / lcoder-git）仍能起，
-# 会话头 agentPreset 仍是 lcoder*。
+# 验收要比前两波多两项：子 agent 派工（maniu-review / maniu-git）仍能起，
+# 旧会话头里的 lcoder* 仍能解析到 maniu* 声明（preset 的 retiredIds）。
 
 - id: agent-preset-registry
   config:
-    default: lcoder
-    selectedDefault: lcoder
+    default: maniu
+    selectedDefault: maniu
 
 - id: preset-standard
   disabled: true

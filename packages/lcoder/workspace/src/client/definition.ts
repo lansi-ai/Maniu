@@ -16,7 +16,7 @@ import type {} from './locales.ts'
 export const WORKSPACE_KIND = 'lcoder-workspace'
 
 /** 本实现在页签系统里的身份，也是正文注册时用的键。 */
-export const WORKSPACE_ID = '@lcoder/workspace'
+export const WORKSPACE_ID = '@maniu/workspace'
 
 /**
  * 工作台类型的注册定义。

@@ -24,8 +24,8 @@ export interface AgentRoleDef {
 
 /** 两个常驻角色；顺序即顶栏顺序。 */
 export const AGENT_ROLES: Readonly<Record<AgentRole, AgentRoleDef>> = {
-  scheduler: { role: 'scheduler', preset: 'lcoder-scheduler', key: 'schedulerSession', titleKey: 'shell.scheduler' },
-  flow: { role: 'flow', preset: 'lcoder-flow', key: 'flowSession', titleKey: 'shell.flowAgent' },
+  scheduler: { role: 'scheduler', preset: 'maniu-scheduler', key: 'schedulerSession', titleKey: 'shell.scheduler' },
+  flow: { role: 'flow', preset: 'maniu-flow', key: 'flowSession', titleKey: 'shell.flowAgent' },
 }
 
 /** 工作区里一条候选会话的已知事实。 */

@@ -30,7 +30,7 @@ describe('talent input validation', () => {
   it('normalizes a complete talent and maps the preset id', () => {
     const selection = validateApplyRequest({
       talents: [talent('abc-123', {
-        basePreset: 'lcoder',
+        basePreset: 'maniu',
         persona: '你是测试人才。',
         plugins: [{ name: '@deepseek-ai/dsh-persona', config: { prefix: 'x' } }],
         tools: ['file_read'],
@@ -42,7 +42,7 @@ describe('talent input validation', () => {
     expect(selection.talents[0]?.presetId).toBe('talent-abc-123')
     expect(presetIdOf('abc')).toBe('talent-abc')
     expect(talentIdOfPreset('talent-abc')).toBe('abc')
-    expect(talentIdOfPreset('lcoder')).toBeUndefined()
+    expect(talentIdOfPreset('maniu')).toBeUndefined()
     expect(talentIdOfPreset('talent-')).toBeUndefined()
   })
 
@@ -50,16 +50,16 @@ describe('talent input validation', () => {
     expect(codeOf(() => validateApplyRequest({ talents: [talent('a', { url: 'https://example.com/p.js' })] })))
       .toBe('agent-talent/invalid')
     expect(codeOf(() => validateApplyRequest({
-      talents: [talent('a', { plugins: [{ name: '@lcoder/kernel', package: 'evil' }] })],
+      talents: [talent('a', { plugins: [{ name: '@maniu/kernel', package: 'evil' }] })],
     }))).toBe('agent-talent/invalid')
     expect(codeOf(() => validateApplyRequest({
-      talents: [talent('a', { plugins: [{ name: '@lcoder/kernel', config: { nested: { __jsExpr: 'process.exit(1)' } } }] })],
+      talents: [talent('a', { plugins: [{ name: '@maniu/kernel', config: { nested: { __jsExpr: 'process.exit(1)' } } }] })],
     }))).toBe('agent-talent/invalid')
   })
 
   it('rejects duplicate plugin names and duplicate talent ids', () => {
     expect(codeOf(() => validateApplyRequest({
-      talents: [talent('a', { plugins: [{ name: '@lcoder/kernel' }, { name: '@lcoder/kernel' }] })],
+      talents: [talent('a', { plugins: [{ name: '@maniu/kernel' }, { name: '@maniu/kernel' }] })],
     }))).toBe('agent-talent/invalid')
     expect(codeOf(() => validateApplyRequest({ talents: [talent('dup'), talent('dup')] })))
       .toBe('agent-talent/invalid')

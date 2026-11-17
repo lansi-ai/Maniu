@@ -8,7 +8,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { ContractRow } from '../src/client/projection.ts'
 import type { ShellMessage, ShellSignResult, ShellTask } from '../src/client/shell/shell-data.ts'
 import type { ShellSessionNotice } from '../src/client/model-status.ts'
-import type { TrackDescriptor } from '@lcoder/kernel/src/schema/tracks.ts'
+import type { TrackDescriptor } from '@maniu/kernel/src/schema/tracks.ts'
 import {
   ARCHITECT_ROLE, boardColumnOf, buildContractDraftPrompt, buildMeetingPrompt, confirmPlan,
   contractComplete, contractOf, contractSigned, discussionNeeded, discussionTasksOf, meetingTierOf,
@@ -93,7 +93,7 @@ describe('会议规模与按轨角色', () => {
 
   it('技术岗位按轨映射：内置轨走 dev 面，general 走架构师，项目轨用项目名', () => {
     expect(technicalRoleOf('h5', TRACKS)).toMatchObject({
-      id: 'track-h5', name: 'H5 前端工程师', kind: 'track', inherits: 'dev', preset: 'lcoder',
+      id: 'track-h5', name: 'H5 前端工程师', kind: 'track', inherits: 'dev', preset: 'maniu',
     })
     expect(technicalRoleOf('api', TRACKS)).toMatchObject({ id: 'track-api', name: '接口工程师' })
     expect(technicalRoleOf('general', TRACKS)).toEqual(ARCHITECT_ROLE)

@@ -1,7 +1,7 @@
 # T-197 C2 发布层：新壳自己的浏览器行与工作台 preset。
 #
 # 发布 profile = desktop-profile.patch.yml + host-only-profile.patch.yml
-# + host-only-minimal.patch.yml + 本文件，顺序固定；`@lcoder/desktop` 的
+# + host-only-minimal.patch.yml + 本文件，顺序固定；`@maniu/desktop` 的
 # materializeReleaseProfile 按这个顺序拼成 `<DSH_HOME>/profiles/lcoder`。
 #
 # desktop-profile 末尾插入的 `ui-lcoder-workspace` 是旧壳的浏览器工作台，
@@ -22,7 +22,7 @@
     provider: lcoder-cloud
     model: deepseek-flash
 
-# 新客户端「新建会话」不带 preset（工作台作用域会话才显式要 lcoder-workbench）；
+# 新客户端「新建会话」不带 preset（工作台作用域会话才显式要 maniu-workbench）；
 # 首个默认角色取上游 standard，普通对话才有 pwsh 与完整编码工具面。
 # 十个 LCoder 角色仍作为可选 preset 保留，旧壳的 selectedDefault=lcoder 不受影响。
 - id: agent-preset-registry
@@ -32,20 +32,21 @@
 
 - insert:
     # 工作台作用域会话：只用来提供 `.spec` 基准与承托人机命令面。
-    # 命令由 `@lcoder/kernel` 注册在该 preset 的 agent 作用域里；关掉工具自检，
+    # 命令由 `@maniu/kernel` 注册在该 preset 的 agent 作用域里；关掉工具自检，
     # 避免一条只跑命令的会话在宿主日志里刷工具面噪音。
-    - id: preset-lcoder-workbench
+    - id: preset-maniu-workbench
       name: '@deepseek-ai/dsh-agent-preset'
       config:
-        id: lcoder-workbench
+        id: maniu-workbench
+        retiredIds: [lcoder-workbench]
         name: 慢牛工作台
         description: 只承托工作台人机命令的会话
         order: 30
         plugins:
           - id: ask-user
             name: '@deepseek-ai/dsh-tool-ask-user'
-          - id: lcoder
-            name: '@lcoder/kernel'
+          - id: maniu
+            name: '@maniu/kernel'
             config:
               role: pm
               selfCheck: false

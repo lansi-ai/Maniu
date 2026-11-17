@@ -3,7 +3,7 @@ description: "LCoder's self-built React renderer for T-187 S1, T-189 M2, T-190 M
 kind: "package-reference"
 ---
 
-# @lcoder/client
+# @maniu/client
 
 English | [中文](README.zh.md)
 

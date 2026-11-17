@@ -21,7 +21,7 @@ afterAll(() => {
 })
 
 function makeSpec(): { repo: string; root: string } {
-  const repo = mkdtempSync(join(tmpdir(), 'lcoder-flow-cmd-'))
+  const repo = mkdtempSync(join(tmpdir(), 'maniu-flow-cmd-'))
   dirs.push(repo)
   const root = join(repo, '.spec')
   mkdirSync(join(root, 'tasks'), { recursive: true })
@@ -101,7 +101,7 @@ describe('flow_status', () => {
   })
 
   it('没有 .spec 时仍可求值：任务为空，下一步是起草任务', () => {
-    const repo = mkdtempSync(join(tmpdir(), 'lcoder-flow-cmd-empty-'))
+    const repo = mkdtempSync(join(tmpdir(), 'maniu-flow-cmd-empty-'))
     dirs.push(repo)
     const command = createFlowStatusCommand(join(repo, '.spec'))
 
@@ -157,7 +157,7 @@ describe('flow_log', () => {
     expect(command.handler(invocation(repo, 'T-01 {"action":"deploy"}')).kind).toBe('error')
     expect(command.handler(invocation(repo, 'T-99 {"action":"implement"}')).kind).toBe('error')
 
-    const empty = mkdtempSync(join(tmpdir(), 'lcoder-flow-cmd-nospec-'))
+    const empty = mkdtempSync(join(tmpdir(), 'maniu-flow-cmd-nospec-'))
     dirs.push(empty)
     const noSpec = createFlowLogCommand(join(empty, '.spec'))
     expect(noSpec.handler(invocation(empty, 'T-01 {"action":"implement"}')).kind).toBe('error')

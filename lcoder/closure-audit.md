@@ -13,7 +13,7 @@
 
 三个闭包按以下根集合计算，分类优先级为运行时 > 构建 > 测试。
 
-运行时根包括 Desktop profile 的两个 bundle（`@deepseek-ai/dsh-base`、`@deepseek-ai/dsh-web-app`）、core package set 根（`@deepseek-ai/dsh`、`@deepseek-ai/dsh-desktop-host`）、`apps/desktop` 与 `apps/desktop-host` 声明的 dependencies 和 devDependencies、profile 里的 `@lcoder/kernel` 与 `@lcoder/workspace`、`lcoder/desktop-profile.patch.yml` 中的插件名，再沿 dependencies、peerDependencies、optionalDependencies 与包内 `cordis*.yml` 的插件名递归。ON_DEMAND 插件只从 npm 现装，不计入运行时。
+运行时根包括 Desktop profile 的两个 bundle（`@deepseek-ai/dsh-base`、`@deepseek-ai/dsh-web-app`）、core package set 根（`@deepseek-ai/dsh`、`@deepseek-ai/dsh-desktop-host`）、`apps/desktop` 与 `apps/desktop-host` 声明的 dependencies 和 devDependencies、profile 里的 `@maniu/kernel` 与 `@maniu/workspace`、`lcoder/desktop-profile.patch.yml` 中的插件名，再沿 dependencies、peerDependencies、optionalDependencies 与包内 `cordis*.yml` 的插件名递归。ON_DEMAND 插件只从 npm 现装，不计入运行时。
 
 构建根包括根 `tsconfig.host.json` 与 `tsconfig.client.json` 的 references 与 include、根 `tsdown.config.ts` 的 workspace 通配（`packages/*/*` 与 `vendor/*`）、`scripts/build.ts`、`scripts/run-gates.ts`、Typert 生成器、根 tsdown 与打包驱动脚本、`apps/desktop/scripts` 下的 electron-builder 与 prepare 脚本所 import 的 workspace 包，以及 `native/system` 的原生构建包。
 
@@ -33,7 +33,7 @@
 
 表中的运行时行不含根清单；根清单自身另有仓库根文件，未计入 397 个包。
 
-core package set 单独按打包脚本的依赖口径计算为 333 个包、9,962 个受控文件、68.17 MiB。运行时分类比它多 5 个包，分别是 `apps/desktop`、`@deepseek-ai/dsh-client-ui-primitives`、`@deepseek-ai/dsh-util-file-drag`、`@lcoder/kernel`、`@lcoder/workspace`，它们来自 Desktop 壳的 devDependencies 与 profile 的 link 依赖，不属于上游 core package set。
+core package set 单独按打包脚本的依赖口径计算为 333 个包、9,962 个受控文件、68.17 MiB。运行时分类比它多 5 个包，分别是 `apps/desktop`、`@deepseek-ai/dsh-client-ui-primitives`、`@deepseek-ai/dsh-util-file-drag`、`@maniu/kernel`、`@maniu/workspace`，它们来自 Desktop 壳的 devDependencies 与 profile 的 link 依赖，不属于上游 core package set。
 
 重叠情况如下。
 

@@ -43,10 +43,10 @@ cd /d "%ROOT%" || goto fail_root
 echo.
 echo [1/4] Build desktop shell (%TIME%)
 if not defined SKIPBUILD (
-  call pnpm --filter @lcoder/desktop run build
+  call pnpm --filter @maniu/desktop run build
   if errorlevel 1 goto fail_build_desktop
   echo [2/4] Build new client (%TIME%)
-  call pnpm --filter @lcoder/client run build
+  call pnpm --filter @maniu/client run build
   if errorlevel 1 goto fail_build_client
 ) else (
   echo       skipped by -SkipBuild

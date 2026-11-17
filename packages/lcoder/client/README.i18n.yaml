@@ -5,33 +5,33 @@
 /:
   en: 55761a6a04ae5cfc
   zh: 50ce2bbe2fbdac7d
-/lcoder-client:
-  en: 0c917bbcc99f3e10
-  zh: f5bba9718459e030
-/lcoder-client/summary:
+/maniu-client:
+  en: 3f9cf0f97901f886
+  zh: 58be7981db70bedd
+/maniu-client/summary:
   en: 93ffc6b441476313
   zh: 994648f6baeef306
-/lcoder-client/table-of-contents:
+/maniu-client/table-of-contents:
   en: 576c743d341fee99
   zh: a4711f44983301cf
-/lcoder-client/model-experience:
+/maniu-client/model-experience:
   en: 215e7ba838619b7b
   zh: a311da3843709f90
-/lcoder-client/model-experience/chat-rendering:
+/maniu-client/model-experience/chat-rendering:
   en: aa3343cf6efd92c7
   zh: ba38c46d76532b24
-/lcoder-client/model-experience/chat-rendering/what-the-model-sees:
+/maniu-client/model-experience/chat-rendering/what-the-model-sees:
   en: b3b4e30bc94efdc6
   zh: fea30ba13160ccd7
-/lcoder-client/model-experience/chat-rendering/token-effect:
+/maniu-client/model-experience/chat-rendering/token-effect:
   en: f227f2591e2e684a
   zh: 7b9c66af8e1f0590
-/lcoder-client/model-experience/chat-rendering/kv-cache-effect:
+/maniu-client/model-experience/chat-rendering/kv-cache-effect:
   en: 1933d6adf6889a50
   zh: b989ebdfd4f795d1
-/lcoder-client/known-limitations-and-deferred-work:
+/maniu-client/known-limitations-and-deferred-work:
   en: 843bebd06be52894
   zh: 3855e3b8592c8ca2
-/lcoder-client/known-limitations-and-deferred-work/dev-note:
+/maniu-client/known-limitations-and-deferred-work/dev-note:
   en: d18f72f234b5ebdf
   zh: 4751b5f76221a242

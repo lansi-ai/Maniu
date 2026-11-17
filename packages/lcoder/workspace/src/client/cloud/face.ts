@@ -9,7 +9,7 @@ import type {
   CloudAuthValue, CloudLoginPasswordInput, CloudLoginSmsInput,
   CloudOkValue, CloudRegisterInput, CloudResult, CloudSendSmsInput, CloudSmsValue, CloudState,
   CloudUsagePage, CloudUsageQuery,
-} from '@lcoder/kernel/src/cloud/types.ts'
+} from '@maniu/kernel/src/cloud/types.ts'
 import { CLOUD_MODEL, CLOUD_USER_ROUTE } from './routes.ts'
 
 /** 生成贡献在 `ctx.remote` 上的签名；与 `typert.remote-client.d.ts` 一致。 */

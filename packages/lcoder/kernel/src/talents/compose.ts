@@ -15,7 +15,7 @@ import type { TalentPolicyConfig } from './policy.ts'
 export const PERSONA_PLUGIN = '@deepseek-ai/dsh-persona'
 
 /** 人才运行时策略行插件包名。 */
-export const TALENT_POLICY_PLUGIN = '@lcoder/kernel/talents-policy'
+export const TALENT_POLICY_PLUGIN = '@maniu/kernel/talents-policy'
 
 /** 策略行在 preset 内的行 id。 */
 export const TALENT_POLICY_ROW = 'talent-policy'

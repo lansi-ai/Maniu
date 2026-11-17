@@ -8,6 +8,7 @@ import type {
   ChatPendingAttachment,
 } from '../chat/composer.ts'
 import type { ChatState, SessionSummary } from '../store.ts'
+import { currentPresetId } from '../talents/model.ts'
 import { Composer } from './composer.tsx'
 import { ChatTranscript } from './chat-transcript.tsx'
 
@@ -116,8 +117,8 @@ export function ChatView({
               >
                 <span className="dot" />
                 <span className="label">{sessionLabel(session, titles)}</span>
-                {session.agentPreset !== undefined && talentNames[session.agentPreset] !== undefined
-                  ? <span className="session-talent" data-testid="session-talent">{talentNames[session.agentPreset]}</span>
+                {session.agentPreset !== undefined && talentNames[currentPresetId(session.agentPreset)] !== undefined
+                  ? <span className="session-talent" data-testid="session-talent">{talentNames[currentPresetId(session.agentPreset)]}</span>
                   : null}
                 {session.running && <span className="running">{t('chat.running')}</span>}
               </button>

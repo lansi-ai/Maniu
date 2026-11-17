@@ -6,7 +6,7 @@
  */
 import type { ReactNode } from 'react'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
-import type { RequirementProgressId } from '@lcoder/kernel/src/schema/requirement-progress.ts'
+import type { RequirementProgressId } from '@maniu/kernel/src/schema/requirement-progress.ts'
 import type { RequirementFilter, RequirementViewRow } from './requirement-page.ts'
 import {
   REQUIREMENT_BOARD_COLUMNS, REQUIREMENT_PROGRESS_LABEL, isRequirementFilterActive,

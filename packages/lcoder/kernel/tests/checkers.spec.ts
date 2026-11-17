@@ -63,7 +63,7 @@ function agentSig(hash: string): Record<string, unknown> {
     by: 'agent',
     at: AT,
     hash,
-    actor: 'lcoder-flow',
+    actor: 'maniu-flow',
     authorization: { policy: 'automation.yaml', hash: 'sha256:策略', at: AT },
   }
 }

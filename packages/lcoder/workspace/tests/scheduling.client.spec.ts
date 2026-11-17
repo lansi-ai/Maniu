@@ -291,26 +291,28 @@ describe('岗位硬闸：严格岗位 + 实施兜底', () => {
 
 describe('会话有效岗位的推导', () => {
   it('认领任务优先于建会话时的选择与 preset，后者依次兜底', () => {
-    expect(effectiveSessionRole({ claimed: ['dotnet-engineer'], chosen: 'lcoder-review', preset: 'lcoder-review' }))
+    expect(effectiveSessionRole({ claimed: ['dotnet-engineer'], chosen: 'maniu-review', preset: 'maniu-review' }))
       .toBe('dotnet-engineer')
-    expect(effectiveSessionRole({ claimed: [undefined], chosen: 'vue-engineer', preset: 'lcoder-review' }))
+    expect(effectiveSessionRole({ claimed: [undefined], chosen: 'vue-engineer', preset: 'maniu-review' }))
       .toBe('vue-engineer')
-    expect(effectiveSessionRole({ claimed: [], chosen: undefined, preset: 'lcoder-manager' }))
-      .toBe('lcoder-manager')
+    expect(effectiveSessionRole({ claimed: [], chosen: undefined, preset: 'maniu-manager' }))
+      .toBe('maniu-manager')
     expect(effectiveSessionRole({ claimed: [], chosen: undefined, preset: undefined })).toBeUndefined()
   })
 
   it('认领任务岗位不一致时整组忽略，不把会话归给任何一条', () => {
     expect(effectiveSessionRole({
       claimed: ['dotnet-engineer', 'vue-engineer'],
-      chosen: 'lcoder-review',
-      preset: 'lcoder-review',
-    })).toBe('lcoder-review')
+      chosen: 'maniu-review',
+      preset: 'maniu-review',
+    })).toBe('maniu-review')
   })
 
-  it('preset 反推：lcoder 是实施，lcoder-manager 是研发经理，上游 preset 不映射', () => {
+  it('preset 反推：maniu 是实施，maniu-manager 是研发经理，改名前 lcoder 前缀同样认，上游 preset 不映射', () => {
+    expect(builtinRoleOfPreset('maniu')).toBe('dev')
+    expect(builtinRoleOfPreset('maniu-manager')).toBe('manager')
     expect(builtinRoleOfPreset('lcoder')).toBe('dev')
-    expect(builtinRoleOfPreset('lcoder-manager')).toBe('manager')
+    expect(builtinRoleOfPreset('lcoder-review')).toBe('review')
     expect(builtinRoleOfPreset('standard')).toBeUndefined()
     expect(builtinRoleOfPreset(undefined)).toBeUndefined()
   })

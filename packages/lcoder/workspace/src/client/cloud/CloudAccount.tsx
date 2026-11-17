@@ -8,7 +8,7 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import type { CloudErrorInfo, CloudState } from '@lcoder/kernel/src/cloud/types.ts'
+import type { CloudErrorInfo, CloudState } from '@maniu/kernel/src/cloud/types.ts'
 import type { LcoderWorkspaceKey } from '../locales.ts'
 import { cloudErrorAction, cloudErrorKey } from './errors.ts'
 import { activeEstimate, estimateRange, fill, usd } from './estimate.ts'

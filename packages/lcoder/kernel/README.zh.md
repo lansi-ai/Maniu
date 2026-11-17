@@ -3,13 +3,13 @@ description: "LCoder 的宿主插件：规格、任务、需求与编辑工具�
 kind: "package-reference"
 ---
 
-# @lcoder/kernel
+# @maniu/kernel
 
 [English](README.md) | 中文
 
 ## 概述
 
-`@lcoder/kernel` 向 DeepSeek Harness 宿主注册 LCoder 的规格、任务与需求工具。工具面随当前任务状态收放：`drafting` 给读取、契约与立项工具，`contracted` 增加编辑、命令执行与证据，`closed` 只读。取不到任务状态的仓库不再拿到全量能力，而是拿到立项面 `file_read`、`spec_query`、`task_read`、`task_draft`。规格根跟随会话工作区，因此桌面端宿主读目标仓库的 `.spec`，而不是它的 profile 目录。宿主提供 `tools` 服务后，通过 LCoder patch 层挂载本包。`contract_sign` 刻意不存在。
+`@maniu/kernel` 向 DeepSeek Harness 宿主注册 LCoder 的规格、任务与需求工具。工具面随当前任务状态收放：`drafting` 给读取、契约与立项工具，`contracted` 增加编辑、命令执行与证据，`closed` 只读。取不到任务状态的仓库不再拿到全量能力，而是拿到立项面 `file_read`、`spec_query`、`task_read`、`task_draft`。规格根跟随会话工作区，因此桌面端宿主读目标仓库的 `.spec`，而不是它的 profile 目录。宿主提供 `tools` 服务后，通过 LCoder patch 层挂载本包。`contract_sign` 刻意不存在。
 
 ## 目录
 
@@ -36,7 +36,7 @@ kind: "package-reference"
 ```yaml
 - insert:
     - id: lcoder-kernel
-      name: '@lcoder/kernel'
+      name: '@maniu/kernel'
       config:
         root: !!js process.env.LCODER_SPEC_ROOT || undefined
 ```
@@ -58,9 +58,9 @@ kind: "package-reference"
 
 ### 人才库宿主动态 preset
 
-`@lcoder/kernel/talents` 挂载人才库的宿主半边。客户端经 `agentTalents/applyTalents` 提交云端人才；每条人才注册成稳定 preset `talent-<云端 id>`，以它的 `basePreset` 声明行为底，`persona` 与 `plugins` 按同名覆盖。插件必须能从本机已安装包解析到；`url`、`source`、`package`、未知字段、`!!js` 标记、重名与非 JSON 值由 `agent-talent/invalid` 或 `agent-talent/unknown-plugin` 拒绝。配置未变的重复提交是空操作；编辑后替换定义，运行中的会话保持它启动时的 revision。仍有本机会话记录该 preset 时 `agentTalents/removeTalent` 拒绝撤回，`agentTalents/sessionRefs` 列出这些会话，内置 preset 永不被替换或删除。
+`@maniu/kernel/talents` 挂载人才库的宿主半边。客户端经 `agentTalents/applyTalents` 提交云端人才；每条人才注册成稳定 preset `talent-<云端 id>`，以它的 `basePreset` 声明行为底，`persona` 与 `plugins` 按同名覆盖。插件必须能从本机已安装包解析到；`url`、`source`、`package`、未知字段、`!!js` 标记、重名与非 JSON 值由 `agent-talent/invalid` 或 `agent-talent/unknown-plugin` 拒绝。配置未变的重复提交是空操作；编辑后替换定义，运行中的会话保持它启动时的 revision。仍有本机会话记录该 preset 时 `agentTalents/removeTalent` 拒绝撤回，`agentTalents/sessionRefs` 列出这些会话，内置 preset 永不被替换或删除。
 
-`tools`、`model` 与 `budget` 在 preset 末尾生成 `@lcoder/kernel/talents-policy` 行。`tools` 是白名单：Agent 创建时策略把工具面收窄到列出的工具，空列表或缺省不限制，列出的工具不在已挂载 preset 的工具面上时报 `agent-talent/unknown-tool` 并拒绝登记。`model` 写入新启动会话的模型选择；恢复的会话保持它记录的模型。`budget` 留在云端：`lcoder-cloud` 路由上的每次模型请求都带 `x-lcoder-session-id`，会话 preset 是已登记人才时再带 `x-lcoder-talent-id`，网关据此按会话计量并限制该人才。
+`tools`、`model` 与 `budget` 在 preset 末尾生成 `@maniu/kernel/talents-policy` 行。`tools` 是白名单：Agent 创建时策略把工具面收窄到列出的工具，空列表或缺省不限制，列出的工具不在已挂载 preset 的工具面上时报 `agent-talent/unknown-tool` 并拒绝登记。`model` 写入新启动会话的模型选择；恢复的会话保持它记录的模型。`budget` 留在云端：`lcoder-cloud` 路由上的每次模型请求都带 `x-lcoder-session-id`，会话 preset 是已登记人才时再带 `x-lcoder-talent-id`，网关据此按会话计量并限制该人才。
 
 同一个插件还提供只读的表单清单与项目身份。`agentTalents/catalog` 列出根 Loader 与 preset 组合里出现过、且本机可解析的插件包，以及非人才的 base preset；`agentTalents/presetTools` 读一个 base preset 当前的工具面，让白名单只能写它真正暴露的工具。`agentTalents/projectIdentity` 读项目路径（或作用域会话 `cwd`）下的 `.spec/project.yaml`，本身不写文件。新项目在 `project_draft` 首次登记时就写入 `projectId`；老文件缺字段时由客户端自动调用一次 `agentTalents/ensureProjectId`，重复调用幂等。缺 `.spec/project.yaml` 的项目不会凭空得到 id。
 
@@ -152,6 +152,6 @@ kind: "package-reference"
 <details>
 <summary>维护者工作上下文——点击展开</summary>
 
-构建用 `pnpm --filter @lcoder/kernel run bundle`；根 `tsconfig.host.json` 通过 `references` 包含本包，所以 `pnpm typecheck` 会覆盖它。包测试用 `pnpm exec vitest run packages/lcoder/kernel`。
+构建用 `pnpm --filter @maniu/kernel run bundle`；根 `tsconfig.host.json` 通过 `references` 包含本包，所以 `pnpm typecheck` 会覆盖它。包测试用 `pnpm exec vitest run packages/lcoder/kernel`。
 
 </details>

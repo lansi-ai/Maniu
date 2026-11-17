@@ -22,7 +22,7 @@ import { Shell } from '../src/client/shell/Shell.tsx'
 import type { ShellProps } from '../src/client/shell/Shell.tsx'
 import type { ShellMessage } from '../src/client/shell/shell-data.ts'
 import type { CloudFace } from '../src/client/cloud/face.ts'
-import type { CloudState } from '@lcoder/kernel/src/cloud/types.ts'
+import type { CloudState } from '@maniu/kernel/src/cloud/types.ts'
 import type { ModelSettingsFace, ModelSettingsSnapshot } from '../src/client/shell/model-settings.ts'
 import { zh, en } from '../src/client/locales.ts'
 import {
@@ -284,7 +284,7 @@ function renderShell(scenario: ShellScenario) {
     useSessionAccess: vi.fn(),
     useContextMenu: vi.fn(),
     useResource: vi.fn(),
-    listRoles: async () => [{ id: 'lcoder-review', name: '评审' }],
+    listRoles: async () => [{ id: 'maniu-review', name: '评审' }],
     checkModels: async () => ({ state: 'ready' }),
     createSession: scenario.createSession ?? (async () => SessionId('s-9')),
     ...(scenario.modelSettings === undefined ? {} : { modelSettings: scenario.modelSettings }),
@@ -903,7 +903,7 @@ describe('需求详情的动作、拆分与讨论历史', () => {
 
     fireEvent.click(within(drawer).getByRole('button', { name: zh['shell.splitTasks'] }))
     await waitFor(() => { expect(createSession).toHaveBeenCalledTimes(1) })
-    expect(createSession).toHaveBeenCalledWith(REPO, 'lcoder-pm')
+    expect(createSession).toHaveBeenCalledWith(REPO, 'maniu-pm')
     await waitFor(() => { expect(sent).toHaveLength(1) })
     expect(String(sent[0]?.sessionId)).toBe('s-9')
     expect(sent[0]?.content).toContain('《项目需求概要》正文（.spec/requirements/REQ-01.md）')
@@ -962,7 +962,7 @@ describe('需求详情的动作、拆分与讨论历史', () => {
     expect(await within(drawer).findByText(t('shell.splitResult', { tasks: '1' }))).toBeTruthy()
     expect(assignTask).not.toHaveBeenCalled()
     expect(createSession).toHaveBeenCalledTimes(1)
-    expect(createSession).toHaveBeenNthCalledWith(1, REPO, 'lcoder-pm')
+    expect(createSession).toHaveBeenNthCalledWith(1, REPO, 'maniu-pm')
     expect(await within(drawer).findByText(t('shell.splitTracks', { tracks: 'H5 前端 1' }))).toBeTruthy()
 
     fireEvent.click(drawer.querySelector('[data-requirement-drawer-close]') as HTMLElement)
@@ -987,7 +987,7 @@ describe('需求详情的动作、拆分与讨论历史', () => {
     })
     renderShell({
       spec: { requirements: { 'REQ-01.yaml': REQ_CONFIRMED, 'REQ-01.md': REQUIREMENT_DOC } },
-      preset: 'lcoder-pm',
+      preset: 'maniu-pm',
       readSessionMessages,
     })
     const drawer = await openRequirement('REQ-01')
@@ -1022,7 +1022,7 @@ describe('需求详情的动作、拆分与讨论历史', () => {
         sessionRow('s-split', REPO, false),
         sessionRow('s-meet', REPO, false),
       ],
-      presets: { 's-intake': 'lcoder', 's-split': 'lcoder-pm', 's-meet': 'lcoder-architect' },
+      presets: { 's-intake': 'maniu', 's-split': 'maniu-pm', 's-meet': 'maniu-architect' },
       readSessionMessages,
     })
     const drawer = await openRequirement('REQ-01')
@@ -1046,7 +1046,7 @@ describe('需求详情的动作、拆分与讨论历史', () => {
     const readSessionMessages: NonNullable<ShellProps['readSessionMessages']> = () =>
       new Promise<readonly ShellMessage[] | null>((resolve) => { releaseHistory = resolve })
     const requirements: Record<string, string> = { 'REQ-01.yaml': REQ_CONFIRMED, 'REQ-01.md': REQUIREMENT_DOC }
-    renderShell({ spec: { requirements }, preset: 'lcoder-pm', readSessionMessages })
+    renderShell({ spec: { requirements }, preset: 'maniu-pm', readSessionMessages })
     const drawer = await openRequirement('REQ-01')
 
     fireEvent.click(within(drawer).getByRole('button', { name: zh['shell.discussionHistory'] }))
@@ -1079,7 +1079,7 @@ describe('需求详情的动作、拆分与讨论历史', () => {
           'REQ-02.md': '# 会员积分\n\n## 第一版功能清单\n- 积分累计\n',
         },
       },
-      preset: 'lcoder-pm',
+      preset: 'maniu-pm',
       readSessionMessages,
     })
     const drawer = await openRequirement('REQ-01')
@@ -1095,7 +1095,7 @@ describe('需求详情的动作、拆分与讨论历史', () => {
   it('候选会话读不出来时提示读取失败，而不是定位不到', async () => {
     renderShell({
       spec: { requirements: { 'REQ-01.yaml': REQ_CONFIRMED, 'REQ-01.md': REQUIREMENT_DOC } },
-      preset: 'lcoder-pm',
+      preset: 'maniu-pm',
       readSessionMessages: async () => null,
     })
     const drawer = await openRequirement('REQ-01')
@@ -1606,7 +1606,7 @@ describe('立项会话落在 intake 面并跟随设置默认模型', () => {
     { role: 'assistant', text: '## 项目需求概要\n\n- 业务目标：本地优先待办' },
   ]
 
-  it('首次创建以 lcoder-intake 建会话并写入默认模型', async () => {
+  it('首次创建以 maniu-intake 建会话并写入默认模型', async () => {
     const { face, setDefault } = fakeModelSettings({ ...OFFICIAL })
     const createSession = vi.fn(async () => SessionId('s-9'))
     const cloud = signedInCloud()
@@ -1619,7 +1619,7 @@ describe('立项会话落在 intake 面并跟随设置默认模型', () => {
     renderShell({
       spec: {}, cloud, modelSettings: face, createSession,
       sessions: [{ ...sessionRow('s-1', REPO, false), blank: true }],
-      preset: 'lcoder',
+      preset: 'maniu',
       sendPrompt: async () => {},
     })
     fireEvent.click(await screen.findByRole('button', { name: zh['shell.onboardingNewProject'] }))
@@ -1628,12 +1628,12 @@ describe('立项会话落在 intake 面并跟随设置默认模型', () => {
     await waitFor(() => {
       expect(setDefault).toHaveBeenCalledWith(SessionId('s-9'), OFFICIAL.provider, OFFICIAL.model)
     })
-    expect(createSession).toHaveBeenCalledWith(REPO, 'lcoder-intake')
+    expect(createSession).toHaveBeenCalledWith(REPO, 'maniu-intake')
     expect(createSession).toHaveBeenCalledTimes(1)
     expect(selectRoute).not.toHaveBeenCalled()
   })
 
-  it('重新开始以 lcoder-intake 建会话并写入默认模型', async () => {
+  it('重新开始以 maniu-intake 建会话并写入默认模型', async () => {
     const { face, setDefault } = fakeModelSettings({ ...OFFICIAL })
     const createSession = vi.fn(async () => SessionId('s-9'))
     renderShell({
@@ -1661,7 +1661,7 @@ describe('立项会话落在 intake 面并跟随设置默认模型', () => {
     await waitFor(() => {
       expect(setDefault).toHaveBeenCalledWith(SessionId('s-9'), OFFICIAL.provider, OFFICIAL.model)
     })
-    expect(createSession).toHaveBeenCalledWith(REPO, 'lcoder-intake')
+    expect(createSession).toHaveBeenCalledWith(REPO, 'maniu-intake')
     expect(createSession).toHaveBeenCalledTimes(1)
   })
 })

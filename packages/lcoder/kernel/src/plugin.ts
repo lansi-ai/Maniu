@@ -39,7 +39,7 @@ import type { RootInput, SpecRootContext } from './kernel/spec-root.js'
 import { listTasks, pickTaskForSession } from './kernel/task-store.js'
 import type { Task, TaskState } from './schema/spec.js'
 
-export const name = 'lcoder'
+export const name = 'maniu'
 
 /** 依赖工具注册表与人机命令面；两者缺一样本插件都不该激活。 */
 export const inject = ['tools', 'commands']

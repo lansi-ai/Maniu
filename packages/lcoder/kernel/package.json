@@ -1,5 +1,5 @@
 {
-  "name": "@lcoder/kernel",
+  "name": "@maniu/kernel",
   "version": "0.0.0",
   "private": true,
   "description": "LCoder 内核：规格库、任务状态机、检查器、工具实现",

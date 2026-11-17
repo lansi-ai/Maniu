@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import type { JSX } from 'react'
-import type { CloseRequest, EventOutcome, HostEvent, HostState, HostWaterfall, HostWaterfallCancel } from '@lcoder/desktop/contract'
+import type { CloseRequest, EventOutcome, HostEvent, HostState, HostWaterfall, HostWaterfallCancel } from '@maniu/desktop/contract'
 import { actionOfFrame, chatReducer, emptyChat, summaryOf, type ChatAction, type SessionSummary } from './store.ts'
 import { translate, type MessageKey, type Translate } from './locale.ts'
 import { browserStorage, markWelcomeSeen, usePreferences, welcomeSeen } from './prefs.ts'
@@ -37,7 +37,7 @@ import { useTalents } from './talents/use-talents.ts'
 type PageId = 'chat' | 'requirements' | 'tasks' | 'projects' | 'project-info' | 'talents' | 'settings' | 'account'
 
 /** 新会话默认使用的角色；工作台作用域会话靠它拿到人机命令面。 */
-const WORKBENCH_PRESET = 'lcoder-workbench'
+const WORKBENCH_PRESET = 'maniu-workbench'
 
 interface NavItem {
   readonly id: PageId

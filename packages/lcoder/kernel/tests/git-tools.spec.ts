@@ -18,7 +18,7 @@ afterAll(() => {
 })
 
 function makeRepo(): string {
-  const repo = mkdtempSync(join(tmpdir(), 'lcoder-git-'))
+  const repo = mkdtempSync(join(tmpdir(), 'maniu-git-'))
   dirs.push(repo)
   return repo
 }

@@ -2,14 +2,9 @@
 
 import type { SessionSummary } from '../store.ts'
 
-/** 讨论可能用到的 preset。 */
-const DISCUSSION_PRESETS: readonly string[] = [
-  'lcoder-intake',
-  'lcoder-pm',
-  'lcoder-manager',
-  'lcoder-architect',
-  'lcoder',
-]
+/** 角色 preset 的前缀；改名前的 `lcoder*` 仍可能留在旧会话的 header 里。 */
+const PRESET_PREFIX = 'maniu'
+const RETIRED_PRESET_PREFIX = 'lcoder'
 
 /** 讨论提示词里的身份标记。 */
 const ROLE_MARKER = '参会身份：'
@@ -90,19 +85,29 @@ function markerOf(messages: readonly MessageRow[]): { readonly id: string; reado
   return undefined
 }
 
+/** 去掉 preset 前缀后的角色名；裸前缀（实施）为空串，其它 preset 为 undefined。 */
+function presetRole(preset: string | undefined): string | undefined {
+  if (preset === undefined || preset === '') return undefined
+  for (const prefix of [PRESET_PREFIX, RETIRED_PRESET_PREFIX]) {
+    if (preset === prefix) return ''
+    if (preset.startsWith(`${prefix}-`)) return preset.slice(prefix.length + 1)
+  }
+  return undefined
+}
+
 function roleOfPreset(preset: string | undefined): { readonly id: string; readonly name: string } | undefined {
-  switch (preset) {
-    case 'lcoder-intake': return { id: 'analyst', name: '需求分析师' }
-    case 'lcoder-pm': return { id: 'pm', name: '项目经理' }
-    case 'lcoder-manager': return { id: 'manager', name: '研发经理' }
-    case 'lcoder-architect': return { id: 'architect', name: '架构师' }
-    case 'lcoder': return { id: 'track', name: '技术岗位' }
+  switch (presetRole(preset)) {
+    case '': return { id: 'track', name: '技术岗位' }
+    case 'intake': return { id: 'analyst', name: '需求分析师' }
+    case 'pm': return { id: 'pm', name: '项目经理' }
+    case 'manager': return { id: 'manager', name: '研发经理' }
+    case 'architect': return { id: 'architect', name: '架构师' }
     default: return undefined
   }
 }
 
 function isDiscussionSession(session: SessionSummary): boolean {
-  return session.agentPreset !== undefined && DISCUSSION_PRESETS.includes(session.agentPreset)
+  return roleOfPreset(session.agentPreset) !== undefined
 }
 
 async function readMessages(sessionId: string): Promise<MessageRow[] | null> {

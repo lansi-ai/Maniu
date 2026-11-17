@@ -92,7 +92,7 @@ function fixture(base: PresetDefinition = {
 }): Fixture {
   const presets = new FakePresets()
   presets.definitions.set(base.id, base)
-  const installed = new Set(['@deepseek-ai/dsh-persona', '@deepseek-ai/dsh-tool-ask-user', '@lcoder/kernel'])
+  const installed = new Set(['@deepseek-ai/dsh-persona', '@deepseek-ai/dsh-tool-ask-user', '@maniu/kernel'])
   const records: Fixture['records'] = []
   const live = new Map<string, { id: string; header?: { agentPreset?: string } }>()
   const tools = new Map<string, string[]>([[`scope:${base.id}`, ['read', 'write', 'edit']]])
@@ -147,7 +147,7 @@ describe('talent registry service', () => {
       { name: '@deepseek-ai/dsh-tool-ask-user', config: { mode: 'popup' } },
       {
         id: 'talent-policy',
-        name: '@lcoder/kernel/talents-policy',
+        name: '@maniu/kernel/talents-policy',
         config: {
           talentId: 'a1',
           tools: ['read', 'write'],
@@ -177,7 +177,7 @@ describe('talent registry service', () => {
     const plugins = h.presets.definitions.get('talent-a1')?.plugins ?? []
     expect(plugins.at(-1)).toEqual({
       id: 'talent-policy',
-      name: '@lcoder/kernel/talents-policy',
+      name: '@maniu/kernel/talents-policy',
       config: { talentId: 'a1', model: { provider: 'lcoder-cloud', modelId: 'deepseek-flash' } },
     })
   })
@@ -196,22 +196,22 @@ describe('talent registry service', () => {
 
   it('replaces an edited talent, skips an unchanged resubmission, and keeps the base snapshot', async () => {
     const h = fixture()
-    await h.service.applyTalents({ talents: [talent('a1', { plugins: [{ name: '@lcoder/kernel' }] })] })
+    await h.service.applyTalents({ talents: [talent('a1', { plugins: [{ name: '@maniu/kernel' }] })] })
     const [first] = h.presets.registers
-    const skipped = await h.service.applyTalents({ talents: [talent('a1', { plugins: [{ name: '@lcoder/kernel' }] })] })
+    const skipped = await h.service.applyTalents({ talents: [talent('a1', { plugins: [{ name: '@maniu/kernel' }] })] })
     expect(skipped.applied).toEqual([])
     expect(skipped.skipped).toEqual(['a1'])
     expect(h.presets.registers).toHaveLength(1)
 
     const replaced = await h.service.applyTalents({
-      talents: [talent('a1', { plugins: [{ name: '@lcoder/kernel', config: { role: 'review' } }] })],
+      talents: [talent('a1', { plugins: [{ name: '@maniu/kernel', config: { role: 'review' } }] })],
     })
     expect(replaced.applied[0]?.replaced).toBe(true)
     expect(h.presets.registers).toHaveLength(2)
     expect(h.presets.disposals).toEqual(['talent-a1'])
     expect(h.presets.registers[0]).toBe(first)
     expect(h.presets.definitions.get('talent-a1')?.plugins).toContainEqual({
-      name: '@lcoder/kernel', config: { role: 'review' },
+      name: '@maniu/kernel', config: { role: 'review' },
     })
   })
 
@@ -232,13 +232,13 @@ describe('talent registry service', () => {
 
   it('rolls back the whole batch when a later registration fails', async () => {
     const h = fixture()
-    await h.service.applyTalents({ talents: [talent('a1', { plugins: [{ name: '@lcoder/kernel' }] })] })
+    await h.service.applyTalents({ talents: [talent('a1', { plugins: [{ name: '@maniu/kernel' }] })] })
     const previous = h.presets.definitions.get('talent-a1')
     h.presets.broken.add('talent-a2')
     await expect(h.service.applyTalents({
       talents: [
-        talent('a1', { plugins: [{ name: '@lcoder/kernel', config: { role: 'review' } }] }),
-        talent('a2', { plugins: [{ name: '@lcoder/kernel' }] }),
+        talent('a1', { plugins: [{ name: '@maniu/kernel', config: { role: 'review' } }] }),
+        talent('a2', { plugins: [{ name: '@maniu/kernel' }] }),
       ],
     })).rejects.toMatchObject({ code: 'agent-talent/invalid' })
     expect(h.presets.definitions.has('talent-a2')).toBe(false)
@@ -296,15 +296,15 @@ describe('talent catalog', () => {
       ],
     })
     h.installed.add('@deepseek-ai/dsh-tool-todo')
-    h.presets.definitions.set('talent-a1', { id: 'talent-a1', plugins: [{ name: '@lcoder/kernel' }] })
-    h.presets.definitions.set('lcoder', { id: 'lcoder', name: '实施', plugins: [] })
+    h.presets.definitions.set('talent-a1', { id: 'talent-a1', plugins: [{ name: '@maniu/kernel' }] })
+    h.presets.definitions.set('maniu', { id: 'maniu', name: '实施', plugins: [] })
     const catalog = await h.service.catalog()
     expect(catalog.presets).toEqual([
-      { id: 'lcoder', name: '实施', isDefault: false },
+      { id: 'maniu', name: '实施', isDefault: false },
       { id: 'standard', name: '标准', isDefault: true },
     ])
     expect(catalog.plugins.map(plugin => plugin.name)).toEqual([
-      '@deepseek-ai/dsh-persona', '@deepseek-ai/dsh-tool-todo', '@lcoder/kernel',
+      '@deepseek-ai/dsh-persona', '@deepseek-ai/dsh-tool-todo', '@maniu/kernel',
     ])
   })
 
@@ -316,11 +316,11 @@ describe('talent catalog', () => {
         { id: 'missing', name: '@fixture/not-installed' },
       ],
     })
-    h.presets.broken.add('lcoder')
-    h.presets.definitions.set('lcoder', { id: 'lcoder', plugins: [] })
+    h.presets.broken.add('maniu')
+    h.presets.definitions.set('maniu', { id: 'maniu', plugins: [] })
     const catalog = await h.service.catalog()
     expect(catalog.plugins.map(plugin => plugin.name)).toEqual(['@deepseek-ai/dsh-persona'])
-    expect(catalog.presets.find(preset => preset.id === 'lcoder')?.broken).toBe('activation exploded')
+    expect(catalog.presets.find(preset => preset.id === 'maniu')?.broken).toBe('activation exploded')
   })
 
   it('reads the tool surface of one base preset and explains an unusable one', async () => {

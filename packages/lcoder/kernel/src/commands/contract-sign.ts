@@ -111,7 +111,7 @@ function signContract(rootInput: RootInput, invocation: SignInvocation, now: () 
 export interface SelfSignRequest extends SpecRootContext {
   /** 任务编号。 */
   readonly taskId: string
-  /** 具体 preset（如 `lcoder-flow`），写进 `sig.actor`。 */
+  /** 具体 preset（如 `maniu-flow`），写进 `sig.actor`。 */
   readonly actor: string
 }
 

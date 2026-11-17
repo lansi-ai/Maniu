@@ -5,51 +5,51 @@
 /:
   en: acb6f2b35b4985af
   zh: 81344e09f4e9ebb9
-/lcoder-kernel:
-  en: a95393a6e4ffca62
-  zh: e7af040009df6a9e
-/lcoder-kernel/summary:
-  en: 559987d3667372bd
-  zh: ab32864d3883efc4
-/lcoder-kernel/table-of-contents:
+/maniu-kernel:
+  en: cb2b78e1d1a6caee
+  zh: f485f945f920bd6d
+/maniu-kernel/summary:
+  en: e637a3a4a2670c09
+  zh: ccefb1b1650fc606
+/maniu-kernel/table-of-contents:
   en: d152484eb41ac6b4
   zh: ce40cab8e7534137
-/lcoder-kernel/use-this-package:
+/maniu-kernel/use-this-package:
   en: 8e0d0538c78d6782
   zh: 1ce81fb6e7e1eb74
-/lcoder-kernel/use-this-package/when-to-choose-it:
+/maniu-kernel/use-this-package/when-to-choose-it:
   en: 0116022a4a852132
   zh: afab15ff1a52da7e
-/lcoder-kernel/use-this-package/minimal-configuration:
+/maniu-kernel/use-this-package/minimal-configuration:
   en: cce189945857ba3f
   zh: 50d88fe146999567
-/lcoder-kernel/use-this-package/talent-library-host-presets:
-  en: ffdf0679757f2891
-  zh: 3c86dc43c2a06230
-/lcoder-kernel/understand-the-implementation:
+/maniu-kernel/use-this-package/talent-library-host-presets:
+  en: 0f234cca37efe3b6
+  zh: 1738f744a51b50ca
+/maniu-kernel/understand-the-implementation:
   en: f039edf668b57bd9
   zh: 7044a40749d065b3
-/lcoder-kernel/further-exploration:
+/maniu-kernel/further-exploration:
   en: b44de98f05ca06ec
   zh: 78166b63b55c8174
-/lcoder-kernel/model-experience:
+/maniu-kernel/model-experience:
   en: 215e7ba838619b7b
   zh: a311da3843709f90
-/lcoder-kernel/model-experience/registered-tools:
+/maniu-kernel/model-experience/registered-tools:
   en: a16d0961a3504ff2
   zh: cb31599adb4c7f0c
-/lcoder-kernel/model-experience/registered-tools/what-the-model-sees:
+/maniu-kernel/model-experience/registered-tools/what-the-model-sees:
   en: af12c95e6e3401fe
   zh: f7155c2ded22854c
-/lcoder-kernel/model-experience/registered-tools/token-effect:
+/maniu-kernel/model-experience/registered-tools/token-effect:
   en: 96e3087ddc03dd14
   zh: cc71ba26943a9e71
-/lcoder-kernel/model-experience/registered-tools/kv-cache-effect:
+/maniu-kernel/model-experience/registered-tools/kv-cache-effect:
   en: 17e398ac57bc55d6
   zh: 5e33660058244801
-/lcoder-kernel/known-limitations-and-deferred-work:
+/maniu-kernel/known-limitations-and-deferred-work:
   en: ebdf28939aae0dfe
   zh: 61b94e242988c154
-/lcoder-kernel/known-limitations-and-deferred-work/dev-note:
-  en: ab7b3c608d26bd33
-  zh: f9df7398d9b6244d
+/maniu-kernel/known-limitations-and-deferred-work/dev-note:
+  en: 080f5aea7e2d15ef
+  zh: c5ba3533c4de7f5c

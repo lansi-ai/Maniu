@@ -3,13 +3,13 @@ description: "LCoder's host plugin: specification, task, requirement, and edit t
 kind: "package-reference"
 ---
 
-# @lcoder/kernel
+# @maniu/kernel
 
 English | [中文](README.zh.md)
 
 ## Summary
 
-`@lcoder/kernel` registers LCoder's specification, task, and requirement tools with a DeepSeek Harness host. The tool surface follows the current task state: `drafting` exposes read, contract, and task-drafting tools, `contracted` adds editing, command execution, and evidence, and `closed` is read-only. A repository whose task state is unavailable gets the onboarding surface `file_read`, `spec_query`, `task_read`, `task_draft` instead of the full set. The specification root follows the session workspace, so the desktop host reads the target repository's `.spec` rather than its profile directory. Mount it through the LCoder patch layer after the host provides `tools`. `contract_sign` is deliberately absent.
+`@maniu/kernel` registers LCoder's specification, task, and requirement tools with a DeepSeek Harness host. The tool surface follows the current task state: `drafting` exposes read, contract, and task-drafting tools, `contracted` adds editing, command execution, and evidence, and `closed` is read-only. A repository whose task state is unavailable gets the onboarding surface `file_read`, `spec_query`, `task_read`, `task_draft` instead of the full set. The specification root follows the session workspace, so the desktop host reads the target repository's `.spec` rather than its profile directory. Mount it through the LCoder patch layer after the host provides `tools`. `contract_sign` is deliberately absent.
 
 ## Table of Contents
 
@@ -36,7 +36,7 @@ Choose it when a DeepSeek Harness composition already provides the `tools` servi
 ```yaml
 - insert:
     - id: lcoder-kernel
-      name: '@lcoder/kernel'
+      name: '@maniu/kernel'
       config:
         root: !!js process.env.LCODER_SPEC_ROOT || undefined
 ```
@@ -58,9 +58,9 @@ The plugin mounts as a row through the patch layer; it has no `dsh plugin add` i
 
 ### Talent library host presets
 
-`@lcoder/kernel/talents` mounts the host half of the talent library. The client submits cloud talents through `agentTalents/applyTalents`; each talent becomes the stable preset `talent-<cloud id>`, composed from its `basePreset` declaration with `persona` and `plugins` applied over same-named rows. Only plugins resolvable from this host's installed packages are accepted; `url`, `source`, `package`, extra fields, `!!js` markers, duplicate names, and non-JSON values are rejected with `agent-talent/invalid` or `agent-talent/unknown-plugin`. Re-submitting an unchanged talent is a no-op; an edited talent replaces its definition, and running sessions keep the revision they started with. `agentTalents/removeTalent` refuses while any local session still records the preset, `agentTalents/sessionRefs` lists them, and built-in presets are never replaced or removed.
+`@maniu/kernel/talents` mounts the host half of the talent library. The client submits cloud talents through `agentTalents/applyTalents`; each talent becomes the stable preset `talent-<cloud id>`, composed from its `basePreset` declaration with `persona` and `plugins` applied over same-named rows. Only plugins resolvable from this host's installed packages are accepted; `url`, `source`, `package`, extra fields, `!!js` markers, duplicate names, and non-JSON values are rejected with `agent-talent/invalid` or `agent-talent/unknown-plugin`. Re-submitting an unchanged talent is a no-op; an edited talent replaces its definition, and running sessions keep the revision they started with. `agentTalents/removeTalent` refuses while any local session still records the preset, `agentTalents/sessionRefs` lists them, and built-in presets are never replaced or removed.
 
-`tools`, `model`, and `budget` compose a `@lcoder/kernel/talents-policy` row at the end of the preset. `tools` is a whitelist: at Agent creation the policy narrows the tool surface to the named tools, an empty list (or no list) does not restrict, and a name the mounted preset does not expose fails with `agent-talent/unknown-tool` before the talent is registered. `model` becomes the model selection of a newly started session; a resumed session keeps its recorded selection. `budget` stays cloud-side: every model request on the `lcoder-cloud` route carries `x-lcoder-session-id`, plus `x-lcoder-talent-id` when the session's preset is a registered talent, so the gateway can meter and cap that talent per session.
+`tools`, `model`, and `budget` compose a `@maniu/kernel/talents-policy` row at the end of the preset. `tools` is a whitelist: at Agent creation the policy narrows the tool surface to the named tools, an empty list (or no list) does not restrict, and a name the mounted preset does not expose fails with `agent-talent/unknown-tool` before the talent is registered. `model` becomes the model selection of a newly started session; a resumed session keeps its recorded selection. `budget` stays cloud-side: every model request on the `lcoder-cloud` route carries `x-lcoder-session-id`, plus `x-lcoder-talent-id` when the session's preset is a registered talent, so the gateway can meter and cap that talent per session.
 
 The same plugin exposes the read-only form catalog and project identity. `agentTalents/catalog` lists the locally resolvable plugin packages named by the root Loader and preset compositions, plus the non-talent base presets; `agentTalents/presetTools` reads one base preset's current tool surface so a whitelist can only name tools it exposes. `agentTalents/projectIdentity` reads `.spec/project.yaml` below the given project path (or a scope session's `cwd`) without writing it. New projects get their `projectId` from `project_draft` when the file is first registered; for an existing file that lacks the field, the client calls `agentTalents/ensureProjectId` automatically once and the write is idempotent. A missing `.spec/project.yaml` is never given an invented id.
 
@@ -151,6 +151,6 @@ The visible tool set changes only on a task-state transition. Re-applying the sa
 <details>
 <summary>Working context for maintainers — click to expand</summary>
 
-Build with `pnpm --filter @lcoder/kernel run bundle`; the root `tsconfig.host.json` includes this package through `references`, so `pnpm typecheck` covers it. Run the package tests with `pnpm exec vitest run packages/lcoder/kernel`.
+Build with `pnpm --filter @maniu/kernel run bundle`; the root `tsconfig.host.json` includes this package through `references`, so `pnpm typecheck` covers it. Run the package tests with `pnpm exec vitest run packages/lcoder/kernel`.
 
 </details>

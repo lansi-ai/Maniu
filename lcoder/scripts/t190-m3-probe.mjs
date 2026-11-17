@@ -3,8 +3,10 @@
  * → 窗口最大化 → 个人中心 → 重启保持 → 退出登录。
  *
  * 用法：node lcoder/scripts/t190-m3-probe.mjs
- * 前置：`pnpm --filter @lcoder/desktop --filter @lcoder/client run build`
- * 端口：渲染 9822、主进程 9829、宿主 9830、mock 云端 5091。
+ * 前置：`pnpm --filter @maniu/desktop --filter @maniu/client run build`
+ * 端口：渲染 9822、主进程 9829、宿主 9830、mock 云端 5091；可用
+ * `LCODER_PROBE_RENDERER_PORT` / `LCODER_PROBE_MAIN_PORT` / `LCODER_PROBE_HOST_PORT` /
+ * `LCODER_PROBE_MOCK_PORT` 换一组，并行工作树必须换。
  */
 
 import { spawn, spawnSync } from 'node:child_process'
@@ -16,9 +18,13 @@ const REPO_ROOT = resolve(import.meta.dirname, '..', '..')
 const APP_ROOT = join(REPO_ROOT, 'packages', 'lcoder', 'desktop')
 const LOGS = join(REPO_ROOT, 'lcoder', 'logs')
 const HOME = join(LOGS, 't190-home')
-const MOCK_PORT = 5091
+/** 端口按 env 覆盖，默认值留给主检出；并行工作树换一组避免撞车。 */
+const portOf = (name, fallback) => Number(process.env[name] ?? fallback)
+const MOCK_PORT = portOf('LCODER_PROBE_MOCK_PORT', 5091)
 const MOCK_BASE = `http://127.0.0.1:${String(MOCK_PORT)}/v1`
-const RENDERER_PORT = 9822
+const RENDERER_PORT = portOf('LCODER_PROBE_RENDERER_PORT', 9822)
+const MAIN_PORT = portOf('LCODER_PROBE_MAIN_PORT', 9829)
+const HOST_PORT = portOf('LCODER_PROBE_HOST_PORT', 9830)
 const PASSWORD = 'lcoder-m3-pass'
 /** 每次运行用新手机号，避免 mock 内存里重名账号。 */
 const PHONE = `+86139${String(Date.now() % 100_000_000).padStart(8, '0')}`
@@ -51,7 +57,7 @@ async function ensureMock() {
   if (await checkMock()) return
   const out = openSync(join(LOGS, 't190-probe-mock.log'), 'w')
   mockChild = spawn(process.execPath, [join(REPO_ROOT, 'lcoder', 'scripts', 'mock-cloud.mjs')], {
-    cwd: REPO_ROOT, stdio: ['ignore', out, out],
+    cwd: REPO_ROOT, env: { ...process.env, MOCK_CLOUD_PORT: String(MOCK_PORT) }, stdio: ['ignore', out, out],
   })
   const deadline = Date.now() + 10_000
   while (Date.now() < deadline) {
@@ -62,7 +68,7 @@ async function ensureMock() {
 }
 
 /** 本探针占用的三个调试端口。 */
-const DEBUG_PORTS = [9822, 9829, 9830]
+const DEBUG_PORTS = [RENDERER_PORT, MAIN_PORT, HOST_PORT]
 
 /**
  * 列出仍被占用的调试端口。
@@ -115,12 +121,12 @@ function launch(suffix) {
     DSH_HOME: HOME,
     LCODER_CLOUD_BASE_URL: MOCK_BASE,
     DSH_DESKTOP_RENDERER_DEBUG_PORT: String(RENDERER_PORT),
-    DSH_DESKTOP_MAIN_INSPECT_PORT: '9829',
-    DSH_DESKTOP_HOST_INSPECT_PORT: '9830',
+    DSH_DESKTOP_MAIN_INSPECT_PORT: String(MAIN_PORT),
+    DSH_DESKTOP_HOST_INSPECT_PORT: String(HOST_PORT),
     ELECTRON_ENABLE_LOGGING: '0',
   })
   const child = spawn(electron, [
-    '--inspect=127.0.0.1:9829',
+    `--inspect=127.0.0.1:${String(MAIN_PORT)}`,
     `--remote-debugging-port=${String(RENDERER_PORT)}`,
     `--user-data-dir=${join(HOME, 'electron-user-data')}`,
     ...(packagedProbe ? [] : [APP_ROOT]),
@@ -278,7 +284,7 @@ async function mainMenuLabels() {
   const deadline = Date.now() + 20_000
   while (Date.now() < deadline) {
     try {
-      const list = await (await fetch('http://127.0.0.1:9829/json/list')).json()
+      const list = await (await fetch(`http://127.0.0.1:${String(MAIN_PORT)}/json/list`)).json()
       const target = list[0]
       if (target === undefined) throw new Error('主进程 inspector 没有目标')
       const socket = new WebSocket(target.webSocketDebuggerUrl)

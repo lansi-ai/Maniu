@@ -6,7 +6,7 @@
  * 聊天里回显；重启后同一会话仍能读到正文、改名后的标题与图片预览。
  *
  * 用法：node packages/lcoder/desktop/scripts/t191-m1-probe.mjs
- * 前置：`pnpm --filter @lcoder/desktop --filter @lcoder/client run build`。
+ * 前置：`pnpm --filter @maniu/desktop --filter @maniu/client run build`。
  */
 
 import { spawn, spawnSync } from 'node:child_process'
