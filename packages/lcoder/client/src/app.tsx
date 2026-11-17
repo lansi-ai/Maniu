@@ -543,11 +543,12 @@ export function App(): JSX.Element {
     // 即便向导已经打开，非空项目也不再允许开新立项。
     if (hasIntakeWork(projection.projection)) return { ok: false, message: t('intake.blocked') }
     setIntakeResult(null)
-    const answer = await launchSession(prompt, INTAKE_PRESET_ID)
+    // 立项后台发起：留在需求页，进度由操作浮卡接管，提问卡走非对话页浮层。
+    const answer = await launchSession(prompt, INTAKE_PRESET_ID, false)
     if (answer.ok && answer.sessionId !== undefined) {
       setIntakeResult({ message: answer.message, sessionId: answer.sessionId })
     }
-    return { ok: answer.ok, message: answer.message }
+    return { ok: answer.ok, message: answer.message, ...(answer.sessionId === undefined ? {} : { sessionId: answer.sessionId }) }
   }, [launchSession, projection.projection, t])
 
   const dismissWelcome = useCallback(() => {
@@ -709,6 +710,7 @@ export function App(): JSX.Element {
                 onReload={projection.reload}
                 onStartIntake={startIntake}
                 onStartSession={startSession}
+                presetNames={talents.presetNames}
                 onOpenSession={openSession}
                 onOpenTasks={(requirementId) => {
                   setTaskRequirement(requirementId)

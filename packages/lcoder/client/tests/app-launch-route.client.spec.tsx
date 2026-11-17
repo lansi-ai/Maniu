@@ -176,21 +176,20 @@ describe('评审后台发起', () => {
   })
 })
 
-describe('立项跳转不受影响', () => {
-  it('立项发起后仍选中会话并进入对话页', async () => {
+describe('立项后台发起不跳转', () => {
+  it('立项发起后留在需求页，浮卡接管进度且会话只登记进列表', async () => {
     withRequirement = false
     await renderApp()
     await press('nav-requirements')
     await press('intake-open')
     await press('intake-start')
 
-    expect(element('page-requirements')).toBeNull()
-    expect(element('session-list')).not.toBeNull()
+    expect(element('page-requirements')).not.toBeNull()
+    expect(element('session-list')).toBeNull()
     expect(createdSessions).toHaveLength(1)
-    expect(localStorage.getItem(SESSION_KEY)).toBe(createdSessions[0])
-    const follows = followOpens()
-    expect(follows.length).toBeGreaterThan(0)
-    const request = follows[follows.length - 1]?.args.request as Record<string, unknown>
-    expect((request.address as Record<string, unknown>).sessionId).toBe(createdSessions[0])
+    expect(localStorage.getItem(SESSION_KEY)).toBeNull()
+    expect(followOpens()).toHaveLength(0)
+    expect(element('intake-wizard')).toBeNull()
+    expect(element('requirement-op-running')?.textContent).toContain('需求调研进行中')
   })
 })

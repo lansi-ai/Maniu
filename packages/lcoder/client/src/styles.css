@@ -711,6 +711,31 @@ html[data-theme='liquid-glass'] body {
 .pending-layer .pending-card { pointer-events: auto; }
 .pending-card { padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
 
+/* 后台操作进度浮卡：右下角堆叠，状态色边框，可最小化成胶囊。 */
+.op-layer { position: absolute; right: 18px; bottom: 18px; z-index: 6; display: flex; flex-direction: column; gap: 8px; width: min(340px, 60%); }
+.op-card { padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; border: 1px solid var(--lg-line); border-radius: 12px; background: var(--lg-fill-card); }
+.op-card.op-running { border-color: #3b82f6; }
+.op-card.op-done { border-color: #22c55e; }
+.op-card.op-failed { border-color: #f59e0b; }
+.op-head h3 { margin: 0; font-size: 13px; }
+.op-sub { margin: 0; font-size: 11px; color: var(--lg-muted); }
+.op-steps { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 3px; }
+.op-steps li { position: relative; padding-left: 14px; font-size: 12px; color: var(--lg-ink-2); }
+.op-steps li::before { content: ''; position: absolute; left: 2px; top: 5px; width: 7px; height: 7px; border-radius: 50%; background: var(--lg-faint); }
+.op-steps li.op-step-done::before { background: #22c55e; }
+.op-steps li.op-step-active::before { background: #3b82f6; }
+.op-steps li.op-step-failed::before { background: #f59e0b; }
+.op-status { margin: 0; font-size: 12px; color: var(--lg-ink-2); }
+.op-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.op-capsule { display: flex; align-items: center; gap: 6px; align-self: flex-end; padding: 4px 12px; border: 1px solid var(--lg-line); border-radius: 999px; background: var(--lg-fill-card); font-size: 12px; cursor: pointer; }
+.op-capsule.op-running { border-color: #3b82f6; }
+.op-capsule.op-done { border-color: #22c55e; }
+.op-capsule.op-failed { border-color: #f59e0b; }
+.op-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--lg-faint); }
+.op-capsule.op-running .op-dot { background: #3b82f6; }
+.op-capsule.op-done .op-dot { background: #22c55e; }
+.op-capsule.op-failed .op-dot { background: #f59e0b; }
+
 /* 对话页的审批/提问卡排在消息尾部，与消息同宽左对齐、随对话滚动。 */
 .chat-pending {
   align-self: flex-start;
