@@ -2618,6 +2618,18 @@ tracks:
       inferred: false
       note: "B 级缺陷，来源是用户 2026-11-17 人才库截图。多条 T224 验证人才卡片显示下发失败，错误为 agent-talent/invalid，内容为 preset activation failed 且 @deepseek-ai/cordis-plugin-timer 报 service timer has been registered。现状：TalentsService.prepareOne 先取 config.basePreset 的插件再叠加人才自己的 config.plugins，没有对会注册同一服务的插件去重或提前拒绝，直到 register 后 agentPresets.resolve 返回 broken 才暴露，错误也只剩底层字符串。目标：同一份 preset 组合内不重复注册同一服务提供者，至少覆盖 timer 这一组；能安全合并时按插件 id 去重并保留人才显式配置，不能安全合并时在下发前给出可读拒绝，不再落到 preset activation failed。范围 packages/lcoder/kernel/src/talents 与其测试，不改云合同与创建流程。验收 packages/lcoder vitest、typecheck、改动文件 oxlint；新增用例覆盖 basePreset 已含 timer 再叠加 timer 的成功去重或明确拒绝。与 T-233 同一工作树、分开提交，先做 T-233。2026-11-17 11:56 监督窗口登记并派工，实现线会话 d160c670。2026-11-17 12:45 监督窗口核验并收口。根因两处，组合按同层查找导致基础 preset 分组内的 timer 被再追加一条顶层行，宿主根组合已挂载的 timer 在 preset 再挂时重复注册。修法为同名行跨分组递归定位并就地改配置，宿主已挂插件在人才无附加配置时沿用同一份，有额外配置时以 duplicate-plugin 在下发前可读拒绝。新增用例覆盖分组内去重与两种宿主插件分支，kernel README 中英同步。独立复跑与 T-233 同组门禁全过。未验项为真实云端下发与用户删档后的重新下发。与 T-233 同批合入 lcoder/main。"
 
+    - id: T-235
+      title: 内置角色详情的人设摘要与说明文案
+      status: doing
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-17'
+      date: '2026-11-17'
+      dep: [T-233]
+      inferred: false
+      note: "B 级显示层改版，来源是用户 2026-11-17 对内置角色详情的三条反馈。一、人设一节不再整段输出提示词，改为几条人能看懂的要点（身份、会做、不做），完整提示词收进「查看完整提示词」，默认折叠、按需展开；摘要按预设 id 放进中英词典，人设正文仍是模型唯一源，不改任何 persona。二、插件组合加一段说明，讲清它是角色运行时加载的能力模块、分组表示同组服务互相隔离、包名用于排查问题；原列表保留。三、工具面描述改成人话，按工具名在中英词典给出显示文案，未收录的工具回退宿主返回的描述，只改显示层，不改工具 schema 与任何模型可见文本。范围 packages/lcoder/client 的 talents 页面与词典与样式与组件测试；不改 kernel、云合同、preset 人设与插件组合。验收 typecheck、packages/lcoder vitest、verify-client-ui-i18n、改动文件 oxlint；组件测试覆盖摘要要点、完整提示词折叠与展开、插件组合说明、工具描述映射与回退、未收录工具仍显示名称。工作树 pool-slot-2 到 lcoder/t235-talent-help，端口 9823 与 9831 与 9832。2026-11-17 12:58 监督窗口登记并派工，实现线会话 7c961476。"
+
 
 milestones:
 - name: MVP-0 工作台本地跑通
