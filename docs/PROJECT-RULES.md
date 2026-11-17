@@ -66,6 +66,18 @@ English | [中文](PROJECT-RULES.zh.md)
 
 The grade matches the `grade` field in the development ledger `docs/tasks.yaml`. The single source of development progress is `docs/tasks.yaml`; `.spec/tasks/*.yaml` is product data.
 
+### Gate tiers and fast lane
+
+| Grade | Worktree / window | Before merge | After merge |
+|---|---|---|---|
+| A | new worktree + new window | build:artifacts, build:check, typecheck, packages/lcoder vitest, i18n, test:docs when docs change, M3 43/43, C4 12/12 | build:check + targeted vitest; full suite once before release |
+| B | new worktree + new window | build:artifacts, build:check, typecheck, packages/lcoder vitest, i18n, test:docs when docs change | build:check + targeted vitest |
+| C | reuse the warm fix window, or the main checkout when its tree is clean | targeted specs for touched packages + typecheck; build:check when built output is consumed | targeted specs only |
+
+- C grade means at most two files and no contract, persistence, package boundary, host surface, profile, or cloud change. Grade up when in doubt.
+- Batch the C fixes from one user message into one task, one build, and one merge; do not open a window per item.
+- Never skip typecheck, targeted specs, or the check for the touched surface. Only duplicated full-suite runs, artifact rebuilds unrelated to the change, and M3/C4 are dropped.
+
 ### Start process (grades A/B)
 
 1. Read [active-context.md](active-context.md) and confirm the work matches the current focus and next step.
@@ -78,6 +90,7 @@ The grade matches the `grade` field in the development ledger `docs/tasks.yaml`.
 - [ ] `pnpm typecheck` is green
 - [ ] `pnpm lint` is green
 - [ ] `pnpm exec vitest run packages/lcoder` is green; run the repository-wide `pnpm test` when an upstream shared surface changes
+- [ ] Grade C follows the fast lane above: targeted specs replace the full `packages/lcoder` run
 - [ ] `pnpm run test:docs` is green when documents or package READMEs change
 - [ ] Development evidence: gate output is recorded in the `docs/tasks.yaml` task note or the commit message; `.spec/evidence` serves product tasks only
 - [ ] When the change also touches a product task (`.spec`), verify P1/P3/P4 through the kernel; the development task itself does not write a `.spec` contract
