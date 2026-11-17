@@ -19,7 +19,7 @@ export interface ChatTranscriptProps {
   readonly t: Translate
   readonly sessionId: string | null
   readonly chat: ChatState
-  /** 立项会话的首条用户指令只露角色胶囊，不摊开整段提示词。 */
+  /** 立项会话的首条用户指令整行不渲染；指令仍照常发送并留在会话日志里。 */
   readonly seedHidden?: boolean
   /** 待处理卡；排在消息之后，随对话一起滚动。 */
   readonly pending?: ReactNode
@@ -265,28 +265,17 @@ function CopyButton({ text, testId, t }: {
 
 /**
  * 一条已提交的用户发言；流式增量不会改动它，靠 memo 跳过重渲。
- * 立项会话的首条指令换成角色胶囊，正文仍留在会话日志里。
- * @param props - 会话、行、词典与是否收起正文。
- * @returns 用户消息或角色胶囊。
+ * 立项会话的首条指令整行不渲染，正文仍留在会话日志里。
+ * @param props - 会话、行、词典与是否收起整行。
+ * @returns 用户消息；收起时为 null。
  */
 const UserRow = memo(function UserRow({ sessionId, row, t, seed }: {
   readonly sessionId: string | null
   readonly row: ChatRow & { readonly kind: 'user' }
   readonly t: Translate
   readonly seed?: boolean
-}): JSX.Element {
-  if (seed === true) {
-    return (
-      <div className="message-line" data-kind="user">
-        <article className="message intake-seed" data-testid="message-user" data-seed="true">
-          <span className="role-capsule" data-testid="intake-seed-role">{t('intake.seedRole')}</span>
-          {sessionId === null ? null : (
-            <MessageAttachments sessionId={sessionId} attachments={row.attachments} t={t} />
-          )}
-        </article>
-      </div>
-    )
-  }
+}): JSX.Element | null {
+  if (seed === true) return null
   return (
     <div className="message-line" data-kind="user">
       <article className="message user" data-testid="message-user">

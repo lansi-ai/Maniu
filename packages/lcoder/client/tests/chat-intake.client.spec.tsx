@@ -60,28 +60,27 @@ function transcript(chat: ChatState, seedHidden?: boolean): ReactElement {
 }
 
 describe('立项首条指令', () => {
-  it('收起正文，只显示需求分析师胶囊', () => {
+  it('整行不渲染：正文、角色胶囊与复制按钮都不出现', () => {
     render(transcript(chatWith([
       { kind: 'user', id: 'u-1', text: SEED_TEXT, attachments: [] },
     ]), true))
-    expect(element('intake-seed-role').textContent).toBe('需求分析师')
+    expect(query('message-user')).toBeNull()
+    expect(query('intake-seed-role')).toBeNull()
+    expect(query('copy-user')).toBeNull()
     expect(container.textContent).not.toContain('七问访谈')
-    const message = element('message-user')
-    expect(message.getAttribute('data-seed')).toBe('true')
-    expect(message.textContent).not.toContain('示例仓库')
+    expect(container.textContent).not.toContain('需求分析师')
   })
 
-  it('第二条用户消息照常显示正文', () => {
+  it('第二条用户消息照常显示正文与复制按钮', () => {
     render(transcript(chatWith([
       { kind: 'user', id: 'u-1', text: SEED_TEXT, attachments: [] },
       { kind: 'user', id: 'u-2', text: '我想做一个任务看板', attachments: [] },
     ]), true))
     const messages = container.querySelectorAll<HTMLElement>('[data-testid="message-user"]')
-    expect(messages).toHaveLength(2)
-    expect(messages[0]?.getAttribute('data-seed')).toBe('true')
-    expect(messages[1]?.getAttribute('data-seed')).toBeNull()
-    expect(messages[1]?.textContent).toBe('我想做一个任务看板')
-    expect(container.querySelectorAll('[data-testid="intake-seed-role"]')).toHaveLength(1)
+    expect(messages).toHaveLength(1)
+    expect(messages[0]?.textContent).toBe('我想做一个任务看板')
+    expect(query('copy-user')).not.toBeNull()
+    expect(container.querySelectorAll('[data-testid="intake-seed-role"]')).toHaveLength(0)
   })
 
   it('非立项会话照常摊开正文', () => {

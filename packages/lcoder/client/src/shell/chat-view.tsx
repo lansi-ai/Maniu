@@ -74,7 +74,7 @@ export function ChatView({
   ensureSession, onSelectModel,
 }: ChatViewProps): JSX.Element {
   const activeSession = sessions.find(item => item.sessionId === active) ?? null
-  // 立项会话的首条消息是整段指令；正文留在会话日志里，界面上只露角色胶囊。
+  // 立项会话的首条消息是整段指令；正文留在会话日志里，界面上整行不渲染。
   const intake = activeSession !== null && isIntakePreset(activeSession.agentPreset)
   const headTitle = active === null
     ? t('chat.noSession')

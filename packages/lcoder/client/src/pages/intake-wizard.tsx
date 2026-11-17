@@ -5,11 +5,16 @@ import type { JSX } from 'react'
 import type { ProjectScope } from '../workspace/use-workspaces.ts'
 import type { SpecProjection } from '../spec/load.ts'
 import { buildIntakePrompt, type IntakeMode } from '../intake/prompts.ts'
-import { loadPresetDocument } from '../talents/api.ts'
+import { hasIntakeWork } from '../intake/eligibility.ts'
+import { loadBuiltinPresets } from '../talents/api.ts'
+import { translate, type Translate } from '../locale.ts'
 import { DetailDrawer } from './detail-drawer.tsx'
 
 /** 立项会话的角色；人设是访谈纪律的唯一来源。 */
 const INTAKE_PRESET = 'maniu-intake'
+
+/** 工作台页面尚未全面接入词典，未传取词函数时沿用中文；新客户端可传入自己的取词函数。 */
+const zhText: Translate = (key, params) => translate('zh', key, params)
 
 /** 一次立项发送的结果；提到 App 级，供向导卸载后回看。 */
 export interface IntakeResult {
@@ -27,6 +32,8 @@ export interface IntakeWizardProps {
   readonly onStart: (prompt: string) => Promise<{ readonly ok: boolean; readonly message: string }>
   readonly onOpenRequirement: (id: string) => void
   readonly onReload: () => void
+  /** 取词函数；缺省为中文词典。 */
+  readonly t?: Translate
 }
 
 /**
@@ -35,21 +42,19 @@ export interface IntakeWizardProps {
  * @returns 向导抽屉。
  */
 export function IntakeWizard(props: IntakeWizardProps): JSX.Element {
+  const t = props.t ?? zhText
   const [mode, setMode] = useState<IntakeMode>('fresh')
   const [busy, setBusy] = useState(false)
   const [failure, setFailure] = useState<string | null>(null)
-  const [persona, setPersona] = useState<{ text: string | null; error: string | null }>({ text: null, error: null })
+  const [rosterName, setRosterName] = useState<string | null>(null)
 
+  // 显示名以人才库名册为准；读不到时回退词典，不把角色名写死在界面里。
   useEffect(() => {
     let live = true
-    void loadPresetDocument(INTAKE_PRESET).then((answer) => {
-      if (!live) return
-      if (!answer.ok) {
-        setPersona({ text: null, error: `${answer.code}：${answer.message}` })
-        return
-      }
-      const text = answer.value.persona?.trim() ?? ''
-      setPersona(text === '' ? { text: null, error: '这个角色没有声明人设行。' } : { text, error: null })
+    void loadBuiltinPresets().then((answer) => {
+      if (!live || !answer.ok) return
+      const name = answer.value.find(row => row.id === INTAKE_PRESET)?.name?.trim()
+      if (name !== undefined && name !== '') setRosterName(name)
     })
     return () => { live = false }
   }, [])
@@ -78,7 +83,7 @@ export function IntakeWizard(props: IntakeWizardProps): JSX.Element {
   }
 
   const started = props.result
-
+  const blocked = hasIntakeWork(props.projection)
   const latest = props.projection.requirements[props.projection.requirements.length - 1]
 
   return (
@@ -88,8 +93,23 @@ export function IntakeWizard(props: IntakeWizardProps): JSX.Element {
       onClose={props.onClose}
       head={<h3>立项向导</h3>}
     >
+      <p className="detail-note intake-role" data-testid="intake-role">
+        {t('intake.roleLabel', { name: rosterName ?? t('intake.roleName') })}
+      </p>
 
-      {started === null && (
+      {started === null && blocked && (
+        <section className="detail-section" data-testid="intake-blocked">
+          <h4>项目已有内容</h4>
+          <p className="detail-line">{t('intake.blocked')}</p>
+          <div className="detail-drawer-head">
+            <button type="button" className="pill" data-testid="intake-blocked-open" onClick={props.onClose}>
+              {t('intake.blockedOpen')}
+            </button>
+          </div>
+        </section>
+      )}
+
+      {started === null && !blocked && (
         <>
           <section className="detail-section">
             <h4>项目</h4>
@@ -113,18 +133,6 @@ export function IntakeWizard(props: IntakeWizardProps): JSX.Element {
             <pre className="prompt-preview" data-testid="intake-prompt">{prompt}</pre>
           </section>
 
-          <section className="detail-section" data-testid="intake-persona-section">
-            <h4>角色人设</h4>
-            <p className="detail-note">来自人才库「需求分析师」，只读展示；立项会话用的就是这份人设。</p>
-            {persona.error !== null ? (
-              <p className="problem" data-testid="intake-persona-error">读取角色人设失败：{persona.error}</p>
-            ) : persona.text === null ? (
-              <p className="empty" data-testid="intake-persona-loading">正在读取角色人设…</p>
-            ) : (
-              <pre className="builtin-persona" data-testid="intake-persona">{persona.text}</pre>
-            )}
-          </section>
-
           {failure !== null && <p className="problem" data-testid="intake-error">{failure}</p>}
           <div className="detail-drawer-head">
             <button type="button" className="pill pill-accent" data-testid="intake-start" disabled={busy} onClick={() => { void start() }}>
@@ -140,7 +148,9 @@ export function IntakeWizard(props: IntakeWizardProps): JSX.Element {
           <p className="detail-line" data-testid="intake-result-message">{started.message}</p>
           <div className="detail-drawer-head">
             <button type="button" className="pill" data-testid="intake-result-refresh" onClick={props.onReload}>刷新需求</button>
-            <button type="button" className="pill" data-testid="intake-restart" onClick={props.onClearResult}>重新立项</button>
+            {blocked ? null : (
+              <button type="button" className="pill" data-testid="intake-restart" onClick={props.onClearResult}>重新立项</button>
+            )}
           </div>
           {latest === undefined
             ? <p className="empty" data-testid="intake-result-empty">还没有需求；等模型落盘后点「刷新需求」。</p>
