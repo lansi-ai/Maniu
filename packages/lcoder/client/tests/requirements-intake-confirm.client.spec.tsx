@@ -1,0 +1,265 @@
+// @vitest-environment jsdom
+/** T-245：立项浮卡的等待确认态判定、确认指令发送、发送后恢复轮询、落盘转完成与查看概要自愿跳转。 */
+import { act } from 'react'
+import { createRoot, type Root } from 'react-dom/client'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { RequirementsPage } from '../src/pages/requirements.tsx'
+import type { RequirementDocRow } from '../src/spec/rows.ts'
+import type { SpecProjection } from '../src/spec/load.ts'
+import type { SessionSummary } from '../src/store.ts'
+import type { ProjectScope } from '../src/workspace/use-workspaces.ts'
+
+const PROJECT: ProjectScope = {
+  workspaceId: 'workspace-1',
+  path: 'E:/repo',
+  title: 'Repo',
+  scopeSessionId: 'session-scope',
+}
+
+const LANDED: RequirementDocRow = {
+  id: 'REQ-01',
+  title: '立项需求',
+  text: '概要正文',
+  state: 'draft',
+  options: [],
+  versions: [{ n: 1, at: '2026-11-17T09:00:00+08:00' }],
+  reviews: [],
+}
+
+function projectionOf(requirements: readonly RequirementDocRow[]): SpecProjection {
+  return {
+    tasks: [],
+    rules: [],
+    contracts: [],
+    proposals: [],
+    requirements,
+    groups: [],
+    roles: [],
+    project: null,
+    secrets: {},
+    automation: null,
+    agents: null,
+    problems: [],
+  }
+}
+
+function sessionOf(overrides: Partial<SessionSummary> = {}): SessionSummary {
+  return { sessionId: 'session-intake-1', updatedAt: 1, running: true, blank: false, ...overrides }
+}
+
+let container: HTMLDivElement
+let root: Root
+
+beforeEach(() => {
+  vi.useFakeTimers()
+  Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', { configurable: true, value: true })
+  Object.defineProperty(window, 'lcoder', {
+    configurable: true,
+    value: { call: vi.fn(async () => ({ ok: true, value: {} })) },
+  })
+  container = document.createElement('div')
+  document.body.append(container)
+  root = createRoot(container)
+})
+
+afterEach(() => {
+  act(() => { root.unmount() })
+  container.remove()
+  Reflect.deleteProperty(window, 'lcoder')
+  vi.useRealTimers()
+})
+
+function element(testId: string): Element | null {
+  return container.querySelector(`[data-testid="${testId}"]`)
+}
+
+async function press(testId: string): Promise<void> {
+  const node = element(testId)
+  expect(node).not.toBeNull()
+  await act(async () => {
+    ;(node as HTMLElement).click()
+    await vi.advanceTimersByTimeAsync(0)
+  })
+}
+
+async function tick(ms: number): Promise<void> {
+  await act(async () => { await vi.advanceTimersByTimeAsync(ms) })
+}
+
+interface Harness {
+  readonly reload: ReturnType<typeof vi.fn>
+  readonly openSession: ReturnType<typeof vi.fn>
+  readonly confirmed: string[]
+  confirmAnswer: { readonly ok: boolean; readonly message: string }
+  render(projection: SpecProjection, sessions: readonly SessionSummary[]): void
+}
+
+function harness(): Harness {
+  const reload = vi.fn()
+  const openSession = vi.fn()
+  const confirmed: string[] = []
+  const h: Harness = {
+    reload,
+    openSession,
+    confirmed,
+    confirmAnswer: { ok: true, message: 'ok' },
+    render(projection, sessions) {
+      act(() => {
+        root.render(
+          <RequirementsPage
+            project={PROJECT}
+            projection={projection}
+            sessions={sessions}
+            loading={false}
+            error={null}
+            intakeResult={null}
+            onClearIntakeResult={() => {}}
+            onReload={reload}
+            onStartIntake={async () => ({ ok: true, message: 'ok', sessionId: 'session-intake-1' })}
+            onStartSession={async () => ({ ok: true, message: 'ok' })}
+            onConfirmIntake={async (sessionId) => {
+              confirmed.push(sessionId)
+              return h.confirmAnswer
+            }}
+            onOpenSession={openSession}
+            onOpenTasks={() => {}}
+          />,
+        )
+      })
+    },
+  }
+  return h
+}
+
+/** 走真实入口后台发起立项：向导收起，浮卡接管。 */
+async function startIntake(h: Harness): Promise<void> {
+  h.render(projectionOf([]), [])
+  await press('intake-open')
+  await press('intake-start')
+  expect(element('intake-wizard')).toBeNull()
+  expect(element('requirement-op-running')).not.toBeNull()
+}
+
+/** 让立项会话跑过一个回合再结束：浮卡据此进入等待确认态。 */
+function turnEnded(h: Harness): void {
+  h.render(projectionOf([]), [sessionOf({ running: true })])
+  h.render(projectionOf([]), [sessionOf({ running: false })])
+}
+
+describe('等待确认态判定', () => {
+  it('回合结束且需求未落盘时进入等待确认态：蓝边框、等待文案、确认与查看概要入口', async () => {
+    const h = harness()
+    await startIntake(h)
+    h.render(projectionOf([]), [sessionOf({ running: true })])
+    expect(element('op-confirm-intake')).toBeNull()
+    expect(element('requirement-op-running')?.textContent).toContain('需求调研进行中')
+
+    h.render(projectionOf([]), [sessionOf({ running: false })])
+    const card = element('requirement-op-running')
+    expect(card?.className).toContain('op-running')
+    expect(card?.textContent).toContain('等待你确认')
+    expect(element('op-confirm-intake')?.textContent).toBe('确认需求')
+    expect(element('op-view-session')?.textContent).toBe('查看概要')
+    expect(card?.querySelectorAll('.op-step-done')).toHaveLength(2)
+    expect(card?.querySelectorAll('.op-step-pending')).toHaveLength(2)
+    expect(card?.querySelectorAll('.op-step-active')).toHaveLength(0)
+  })
+
+  it('回合仍在跑或会话还是空白时不进入等待确认态', async () => {
+    const h = harness()
+    await startIntake(h)
+    h.render(projectionOf([]), [sessionOf({ running: true })])
+    expect(element('op-confirm-intake')).toBeNull()
+
+    h.render(projectionOf([]), [sessionOf({ running: false, blank: true })])
+    expect(element('op-confirm-intake')).toBeNull()
+    expect(element('requirement-op-running')?.textContent).toContain('需求调研进行中')
+  })
+
+  it('会话从未跑过回合时不算回合结束，不进入等待确认态', async () => {
+    const h = harness()
+    await startIntake(h)
+    h.render(projectionOf([]), [sessionOf({ running: false })])
+    expect(element('op-confirm-intake')).toBeNull()
+    expect(element('requirement-op-running')?.textContent).toContain('需求调研进行中')
+  })
+
+  it('回合结束但需求已落盘时直接转完成卡，不出现确认入口', async () => {
+    const h = harness()
+    await startIntake(h)
+    h.render(projectionOf([LANDED]), [sessionOf({ running: false })])
+    await act(async () => { await Promise.resolve() })
+    expect(element('requirement-op-success')?.textContent).toContain('需求调研完成')
+    expect(element('op-confirm-intake')).toBeNull()
+  })
+})
+
+describe('确认入口与恢复轮询', () => {
+  it('确认按钮向该会话发送指令，发送后恢复轮询，落盘转完成卡', async () => {
+    const h = harness()
+    await startIntake(h)
+    turnEnded(h)
+    await press('op-confirm-intake')
+    expect(h.confirmed).toEqual(['session-intake-1'])
+    expect(element('op-confirm-intake')).toBeNull()
+    expect(element('requirement-op-running')?.textContent).toContain('确认已发送')
+
+    const before = h.reload.mock.calls.length
+    await tick(4000)
+    expect(h.reload.mock.calls.length).toBe(before + 1)
+
+    h.render(projectionOf([LANDED]), [sessionOf({ running: false })])
+    await act(async () => { await Promise.resolve() })
+    expect(element('requirement-op-success')?.textContent).toContain('需求调研完成')
+    expect(element('op-confirm-intake')).toBeNull()
+  })
+
+  it('发送后回合再次跑起前不重复进入等待确认态；回合再结束仍未落盘则回到等待确认', async () => {
+    const h = harness()
+    await startIntake(h)
+    turnEnded(h)
+    await press('op-confirm-intake')
+
+    h.render(projectionOf([]), [sessionOf({ running: false })])
+    expect(element('op-confirm-intake')).toBeNull()
+    expect(element('requirement-op-running')?.textContent).toContain('确认已发送')
+
+    h.render(projectionOf([]), [sessionOf({ running: true })])
+    h.render(projectionOf([]), [sessionOf({ running: false })])
+    expect(element('op-confirm-intake')).not.toBeNull()
+    await press('op-confirm-intake')
+    expect(h.confirmed).toEqual(['session-intake-1', 'session-intake-1'])
+  })
+
+  it('发送失败给可读提示并回到等待确认态', async () => {
+    const h = harness()
+    await startIntake(h)
+    turnEnded(h)
+    h.confirmAnswer = { ok: false, message: '宿主尚未就绪' }
+    await press('op-confirm-intake')
+    expect(element('requirement-op-result')?.textContent).toContain('宿主尚未就绪')
+    expect(element('op-confirm-intake')).not.toBeNull()
+  })
+
+  it('查看概要自愿打开对话，不强制跳转', async () => {
+    const h = harness()
+    await startIntake(h)
+    turnEnded(h)
+    await press('op-view-session')
+    expect(h.openSession).toHaveBeenCalledWith('session-intake-1')
+    expect(element('page-requirements')).not.toBeNull()
+  })
+
+  it('等待确认态超时口径不变：到期转失败卡并停止轮询', async () => {
+    const h = harness()
+    await startIntake(h)
+    turnEnded(h)
+    await tick(5 * 60 * 1000)
+    expect(element('requirement-op-running')).toBeNull()
+    expect(element('requirement-op-timeout')?.textContent).toContain('等待超时')
+    expect(element('op-confirm-intake')).toBeNull()
+    const afterTimeout = h.reload.mock.calls.length
+    await tick(12000)
+    expect(h.reload.mock.calls.length).toBe(afterTimeout)
+  })
+})

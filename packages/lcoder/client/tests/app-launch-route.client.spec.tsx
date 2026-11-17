@@ -3,6 +3,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { HostEvent } from '@maniu/desktop/contract'
 import { App } from '../src/app.tsx'
 
 const PROJECT_KEY = 'lcoder.m2.project'
@@ -35,6 +36,7 @@ let streamOpens: CallRecord[]
 let sessionItems: Record<string, unknown>[]
 let createdSessions: string[]
 let withRequirement = true
+let eventListener: ((event: HostEvent) => void) | null = null
 
 async function fakeCall(namespace: string, method: string, args: Record<string, unknown>): Promise<unknown> {
   calls.push({ namespace, method, args })
@@ -77,6 +79,7 @@ beforeEach(() => {
   sessionItems = []
   createdSessions = []
   withRequirement = true
+  eventListener = null
   localStorage.clear()
   localStorage.setItem(PROJECT_KEY, JSON.stringify(PROJECT))
   let streamSeq = 0
@@ -93,7 +96,10 @@ beforeEach(() => {
       }),
       cancelStream: async () => {},
       onStreamFrame: () => () => {},
-      onEvent: () => () => {},
+      onEvent: (listener: (event: HostEvent) => void) => {
+        eventListener = listener
+        return () => {}
+      },
       onWaterfall: () => () => {},
       onWaterfallCancel: () => () => {},
       eventResult: async () => {},
@@ -191,5 +197,35 @@ describe('立项后台发起不跳转', () => {
     expect(followOpens()).toHaveLength(0)
     expect(element('intake-wizard')).toBeNull()
     expect(element('requirement-op-running')?.textContent).toContain('需求调研进行中')
+  })
+})
+
+describe('立项等待确认的宿主通道', () => {
+  it('回合结束未落盘时浮卡给确认入口，点击经 session/prompt 发「确认需求」且不跳转', async () => {
+    withRequirement = false
+    await renderApp()
+    await press('nav-requirements')
+    await press('intake-open')
+    await press('intake-start')
+    const sessionId = createdSessions[0]
+    expect(sessionId).toBeDefined()
+
+    const emit = (running: boolean): void => {
+      act(() => { eventListener?.({ name: 'api-session/status', args: [sessionId, running] }) })
+    }
+    emit(true)
+    emit(false)
+    expect(element('op-confirm-intake')).not.toBeNull()
+    expect(element('requirement-op-running')?.textContent).toContain('等待你确认')
+
+    await press('op-confirm-intake')
+    const prompts = calls.filter(item => item.namespace === 'session' && item.method === 'prompt')
+    const confirm = prompts[prompts.length - 1]
+    const request = confirm?.args.request as Record<string, unknown>
+    expect(request.sessionId).toBe(sessionId)
+    expect(request.content).toEqual([{ type: 'text', text: '确认需求' }])
+    expect(element('page-requirements')).not.toBeNull()
+    expect(localStorage.getItem(SESSION_KEY)).toBeNull()
+    expect(followOpens()).toHaveLength(0)
   })
 })

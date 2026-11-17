@@ -114,6 +114,8 @@ export interface RequirementsPageProps {
   ) => Promise<{ readonly ok: boolean; readonly message: string; readonly sessionId?: string }>
   /** 自愿打开一条会话并进入对话页；超时提示里的入口走它。 */
   readonly onOpenSession: (sessionId: string) => void
+  /** 立项等待确认时向该会话发送「确认需求」指令；不跳转对话。 */
+  readonly onConfirmIntake?: (sessionId: string) => Promise<{ readonly ok: boolean; readonly message: string }>
   /** 跳到任务页并只显示该需求关联的任务。 */
   readonly onOpenTasks: (requirementId: string) => void
   /** preset 名册显示名；浮卡子标题取它，读不到回退词典。 */
@@ -140,6 +142,10 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
   const [paused, setPaused] = useState<readonly PausedOp[]>([])
   const [finished, setFinished] = useState<readonly FinishedOp[]>([])
   const [minimizedKeys, setMinimizedKeys] = useState<readonly string[]>([])
+  // 已发确认指令的立项卡键：回合再次跑起来前不重复进入等待确认态，防止连发。
+  const [confirmSent, setConfirmSent] = useState<readonly string[]>([])
+  // 见过回合跑起来的立项卡键：刚发起尚未开跑的会话不算「回合结束」，不进入等待确认态。
+  const [sawRunning, setSawRunning] = useState<readonly string[]>([])
   const loadingRef = useRef(props.loading)
   loadingRef.current = props.loading
   const flow = props.projection.flow
@@ -370,6 +376,56 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
     void launchRole(run, run.roleIndex)
   }
 
+  // 立项等待确认：会话回合结束（跑过且不在跑）而需求条数未增；发过确认的卡等回合再次跑起前不重复判定。
+  const awaitingConfirmOf = (watch: OpWatch): boolean => {
+    if (watch.kind !== 'intake' || watch.sessionId === null) return false
+    if (props.projection.requirements.length > watch.requirements) return false
+    if (confirmSent.includes(watch.key) || !sawRunning.includes(watch.key)) return false
+    const session = props.sessions.find(item => item.sessionId === watch.sessionId)
+    return session !== undefined && !session.running && !session.blank
+  }
+
+  // 记录每张立项卡是否见过回合在跑；卡结束后清掉标记。
+  useEffect(() => {
+    const keys = new Set(watches.map(item => item.key))
+    const kept = sawRunning.filter(key => keys.has(key))
+    const fresh = watches
+      .filter(watch => watch.kind === 'intake' && watch.sessionId !== null && !kept.includes(watch.key)
+        && props.sessions.find(item => item.sessionId === watch.sessionId)?.running === true)
+      .map(watch => watch.key)
+    if (kept.length !== sawRunning.length || fresh.length > 0) setSawRunning([...kept, ...fresh])
+  }, [watches, props.sessions, sawRunning])
+
+  // 确认指令已发：回合重新跑起来或卡已结束时清掉标记，之后回合再结束仍会回到等待确认态。
+  useEffect(() => {
+    if (confirmSent.length === 0) return
+    const kept = confirmSent.filter((key) => {
+      const watch = watches.find(item => item.key === key)
+      if (watch === undefined) return false
+      return props.sessions.find(item => item.sessionId === watch.sessionId)?.running !== true
+    })
+    if (kept.length !== confirmSent.length) setConfirmSent(kept)
+  }, [confirmSent, watches, props.sessions])
+
+  /** 立项卡点「确认需求」：经宿主向该会话发确认指令，成功后保持轮询等落盘。 */
+  const confirmIntake = async (key: string): Promise<void> => {
+    const watch = watches.find(item => item.key === key)
+    if (watch === undefined || watch.sessionId === null || props.onConfirmIntake === undefined) return
+    if (confirmSent.includes(key)) return
+    setOpNotice(null)
+    setConfirmSent(current => [...current, key])
+    let answer: { readonly ok: boolean; readonly message: string }
+    try {
+      answer = await props.onConfirmIntake(watch.sessionId)
+    } catch (cause: unknown) {
+      answer = { ok: false, message: cause instanceof Error ? cause.message : String(cause) }
+    }
+    if (!answer.ok) {
+      setConfirmSent(current => current.filter(item => item !== key))
+      setOpNotice(answer.message)
+    }
+  }
+
   // 立项分析只对空项目开放；已有结果时仍允许打开结果页回看，但不允许开新立项。
   const blockedIntake = hasIntakeWork(props.projection) && props.intakeResult === null
   const firstRequirement = props.projection.requirements[0]
@@ -383,10 +439,11 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
     const labelOf = (id: string): string => flowRoleLabel(id, labelCtx)
     const idOf = (run: OpRun, index: number): string => run.roles[index] ?? run.roles[run.roles.length - 1] ?? ''
     // 单岗节点沿用四步清单；多岗节点按岗位列步骤，末尾一步是整节点完成。
-    const stepsOf = (run: OpRun, landed: number, status: OperationCardView['status'], active: boolean): readonly OperationStep[] => {
+    // 等待确认时当前岗的工作已结束：单岗清单「岗位工作中」置完成，多岗清单当前岗置完成。
+    const stepsOf = (run: OpRun, landed: number, status: OperationCardView['status'], active: boolean, awaiting = false): readonly OperationStep[] => {
       if (run.roles.length <= 1) {
         const states: readonly OperationStepState[] = status === 'running'
-          ? ['done', 'active', 'pending', 'pending']
+          ? awaiting ? ['done', 'done', 'pending', 'pending'] : ['done', 'active', 'pending', 'pending']
           : status === 'done'
             ? ['done', 'done', 'done', 'done']
             : ['done', 'failed', 'pending', 'pending']
@@ -400,7 +457,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
       const steps: OperationStep[] = run.roles.map((role, index) => {
         const state: OperationStepState = status === 'failed' && index === landed
           ? 'failed'
-          : index < landed
+          : index < landed || (awaiting && index === landed)
             ? 'done'
             : active && status === 'running' && index === landed
               ? 'active'
@@ -418,6 +475,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
       statusText: string,
       active: boolean,
       nextRoleLabel?: string,
+      awaiting = false,
     ): OperationCardView => {
       const roleId = idOf(run, current)
       return {
@@ -427,18 +485,27 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
         sourceLabel: flowRoleSource(roleId, t),
         status,
         statusText,
-        steps: stepsOf(run, current, status, active),
+        steps: stepsOf(run, current, status, active, awaiting),
         sessionId,
         minimized: minimizedKeys.includes(run.key),
         ...(nextRoleLabel === undefined ? {} : { nextRoleLabel }),
+        ...(awaiting ? { awaitingConfirm: true } : {}),
       }
     }
     const idTextOf = (run: OpRun): string => run.requirementId ?? t('requirement.opTitle.intake')
     return [
-      ...watches.map(watch => viewOf(
-        watch, watch.roleIndex, watch.sessionId, 'running',
-        t(OP_RUNNING_KEY[watch.kind], { id: idTextOf(watch) }), true,
-      )),
+      ...watches.map((watch) => {
+        const awaiting = awaitingConfirmOf(watch)
+        return viewOf(
+          watch, watch.roleIndex, watch.sessionId, 'running',
+          awaiting
+            ? t('op.awaitConfirm')
+            : confirmSent.includes(watch.key)
+              ? t('op.confirmSent')
+              : t(OP_RUNNING_KEY[watch.kind], { id: idTextOf(watch) }),
+          !awaiting, undefined, awaiting,
+        )
+      }),
       ...paused.map(run => viewOf(
         run, run.roleIndex, run.sessionId, 'running',
         t('op.awaitNext', { done: labelOf(idOf(run, run.roleIndex - 1)), next: labelOf(idOf(run, run.roleIndex)) }),
@@ -452,7 +519,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
         false,
       )),
     ]
-  }, [watches, paused, finished, minimizedKeys, props.presetNames, props.projection.roles, t])
+  }, [watches, paused, finished, minimizedKeys, confirmSent, sawRunning, props.presetNames, props.projection, props.sessions, t])
 
   const toggleMinimize = (key: string) => {
     setMinimizedKeys(current => current.includes(key)
@@ -692,6 +759,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
         onOpenSession={props.onOpenSession}
         onClose={closeCard}
         onNextRole={nextRole}
+        {...(props.onConfirmIntake === undefined ? {} : { onConfirmIntake: (key: string) => { void confirmIntake(key) } })}
         t={t}
       />
     </section>

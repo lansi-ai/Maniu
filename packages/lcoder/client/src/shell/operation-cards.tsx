@@ -28,6 +28,8 @@ export interface OperationCardView {
   readonly minimized: boolean
   /** 人工衔接节点里等待发起的下一岗位名；有值时卡上画「下一岗位」按钮。 */
   readonly nextRoleLabel?: string
+  /** 立项等待人工确认概要：卡上画「确认需求」按钮，查看对话入口改标「查看概要」。 */
+  readonly awaitingConfirm?: boolean
 }
 
 /** 浮卡列表属性。 */
@@ -38,6 +40,8 @@ export interface OperationCardsProps {
   readonly onClose: (key: string) => void
   /** 人工衔接：点「下一岗位」发起下一岗。 */
   readonly onNextRole?: (key: string) => void
+  /** 立项等待确认：点「确认需求」向该会话发送确认指令。 */
+  readonly onConfirmIntake?: (key: string) => void
   readonly t: Translate
 }
 
@@ -86,6 +90,16 @@ export function OperationCards(props: OperationCardsProps): JSX.Element | null {
             </ol>
             <p className="op-status">{card.statusText}</p>
             <div className="op-actions">
+              {card.awaitingConfirm === true && card.status === 'running' && props.onConfirmIntake !== undefined && (
+                <button
+                  type="button"
+                  className="pill pill-accent"
+                  data-testid="op-confirm-intake"
+                  onClick={() => { props.onConfirmIntake?.(card.key) }}
+                >
+                  {props.t('op.confirmIntake')}
+                </button>
+              )}
               {card.nextRoleLabel !== undefined && card.status === 'running' && props.onNextRole !== undefined && (
                 <button
                   type="button"
@@ -103,7 +117,7 @@ export function OperationCards(props: OperationCardsProps): JSX.Element | null {
                   data-testid={card.status === 'failed' ? 'requirement-op-timeout-session' : 'op-view-session'}
                   onClick={() => { props.onOpenSession(sessionId) }}
                 >
-                  {props.t('op.viewSession')}
+                  {card.awaitingConfirm === true ? props.t('op.viewSummary') : props.t('op.viewSession')}
                 </button>
               )}
               <button

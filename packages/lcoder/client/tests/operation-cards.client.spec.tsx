@@ -183,4 +183,39 @@ describe('操作进度浮卡', () => {
     render([cardOf()])
     expect(element('op-next-role')).toBeNull()
   })
+
+  it('等待确认卡给确认需求按钮与查看概要入口，边框沿用进行中蓝', () => {
+    const onConfirmIntake = vi.fn()
+    act(() => {
+      root.render(
+        <OperationCards
+          cards={[cardOf({ awaitingConfirm: true, statusText: '概要已出，等待你确认；点「确认需求」后才会落盘。' })]}
+          onToggleMinimize={onToggleMinimize}
+          onOpenSession={onOpenSession}
+          onClose={onClose}
+          onConfirmIntake={onConfirmIntake}
+          t={t}
+        />,
+      )
+    })
+    const card = element('requirement-op-running')
+    expect(card?.className).toContain('op-running')
+    expect(card?.textContent).toContain('等待你确认')
+    expect(element('op-confirm-intake')?.textContent).toBe('确认需求')
+    expect(element('op-view-session')?.textContent).toBe('查看概要')
+    press('op-confirm-intake')
+    expect(onConfirmIntake).toHaveBeenCalledWith('review-REQ-01-1')
+    press('op-view-session')
+    expect(onOpenSession).toHaveBeenCalledWith('session-1')
+  })
+
+  it('未提供确认回调时不画确认按钮；非等待确认卡沿用查看对话文案', () => {
+    render([cardOf({ awaitingConfirm: true })])
+    expect(element('op-confirm-intake')).toBeNull()
+    expect(element('op-view-session')?.textContent).toBe('查看概要')
+
+    render([cardOf()])
+    expect(element('op-confirm-intake')).toBeNull()
+    expect(element('op-view-session')?.textContent).toBe('查看对话')
+  })
 })

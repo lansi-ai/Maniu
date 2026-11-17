@@ -35,6 +35,7 @@ import { createFrameBatcher, type FrameBatcher } from './chat/stream-batch.ts'
 import { useTalents } from './talents/use-talents.ts'
 import { INTAKE_PRESET_ID, isIntakePreset } from './talents/model.ts'
 import { hasIntakeWork } from './intake/eligibility.ts'
+import { INTAKE_CONFIRM_PROMPT } from './intake/prompts.ts'
 import { titleIntakeSession } from './intake/session-title.ts'
 
 /** 工作台页面。 */
@@ -539,6 +540,20 @@ export function App(): JSX.Element {
     setPage('chat')
   }, [selectSession])
 
+  // 立项浮卡的确认入口：向既有立项会话发「确认需求」，不新建会话、不跳转对话。
+  const confirmIntake = useCallback(async (sessionId: string): Promise<{ readonly ok: boolean; readonly message: string }> => {
+    const answer = await window.lcoder.call('session', 'prompt', {
+      request: {
+        requestId: newRequestId(),
+        sessionId,
+        mode: 'queue',
+        content: [{ type: 'text', text: INTAKE_CONFIRM_PROMPT }],
+      },
+    })
+    if (!answer.ok) return { ok: false, message: `${answer.error.code}: ${answer.error.message}` }
+    return { ok: true, message: t('flow.startSent', { id: sessionId.slice(0, 8) }) }
+  }, [t])
+
   const startIntake = useCallback(async (prompt: string) => {
     // 即便向导已经打开，非空项目也不再允许开新立项。
     if (hasIntakeWork(projection.projection)) return { ok: false, message: t('intake.blocked') }
@@ -718,6 +733,7 @@ export function App(): JSX.Element {
                 onReload={projection.reload}
                 onStartIntake={startIntake}
                 onStartSession={startSession}
+                onConfirmIntake={confirmIntake}
                 presetNames={flowRoleNames}
                 onOpenSession={openSession}
                 onOpenTasks={(requirementId) => {
