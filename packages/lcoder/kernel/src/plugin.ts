@@ -17,6 +17,7 @@ import { createFlowLogCommand } from './commands/flow-log.js'
 import { createFlowSaveCommand } from './commands/flow-save.js'
 import { createFlowStatusCommand } from './commands/flow-status.js'
 import { createProposalApproveCommand } from './commands/proposal-approve.js'
+import { createProposalRejectCommand } from './commands/proposal-reject.js'
 import { createRequirementApproveCommand } from './commands/requirement-approve.js'
 import { createRequirementCloseCommand } from './commands/requirement-close.js'
 import { createRequirementReleaseCommand } from './commands/requirement-release.js'
@@ -186,6 +187,7 @@ export function apply(ctx: PluginContext, config: LcoderConfig = {}): void {
     createFlowSaveCommand(rootInput),
     createAgentBindCommand(rootInput),
     createProposalApproveCommand(rootInput),
+    createProposalRejectCommand(rootInput),
     createRequirementApproveCommand(rootInput),
     createRequirementReleaseCommand(rootInput),
     createRequirementCloseCommand(rootInput),

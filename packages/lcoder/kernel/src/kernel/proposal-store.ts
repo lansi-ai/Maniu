@@ -2,8 +2,9 @@
  * 方案对象的读写与编号分配。
  *
  * 与 `task-store` 同一条口径：编号形态稳定（`P-01`）、写盘前过 schema、按 id 排序读回。
- * `decision` 只有两条写入口——`proposal_draft` 写 `draft`，人机命令 `/proposal_approve` 写
- * `approved` 或 `rejected`。模型能出方案，改不了人的结论，与 `contract_sign` 同一档纪律。
+ * `decision` 只有两条写入口——`proposal_draft` 与 `requirement_propose` 写 `draft`，
+ * 人机命令 `/proposal_approve` 与 `/proposal_reject` 写 `approved` 或 `rejected`。
+ * 模型能出方案，改不了人的结论，与 `contract_sign` 同一档纪律。
  */
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'

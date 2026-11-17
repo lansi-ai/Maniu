@@ -2,7 +2,7 @@
  * 方案工具集：把需求探讨的结论落成 `.spec/proposals/P-01.yaml`。
  *
  * 两条刻意的限制：
- *   1. **`decision` 只有 `draft` 从这里写。** 批准与驳回归人机命令 `/proposal_approve`，
+ *   1. **`decision` 只有 `draft` 从这里写。** 批准与驳回归人机命令 `/proposal_approve` 与 `/proposal_reject`，
  *      模型能出方案、能比较代价，不能替人拍板——与 `contract_draft` 和 `contract_sign` 的分工同构。
  *   2. **已拍板的方案不改写。** 人的结论落盘后，模型再调只能读到现值；要改方案由人先把
  *      `decision` 退回 `draft`，或另出一条新方案。否则讨论记录会被后续回合悄悄覆盖。
@@ -22,7 +22,7 @@ const renderJson = (_args: unknown, value: unknown): { type: 'text'; text: strin
 ]
 
 /** 落盘后给模型的下一步口径：等用户拍板，批准才拆任务。 */
-const PENDING_NOTE = '方案已落盘，决定态是 draft。请把它讲给用户并等他拍板：批准走 /proposal_approve，驳回由人改文件。拍板后再用 task_draft 拆任务，并把 proposal 填成这个编号。'
+const PENDING_NOTE = '方案已落盘，决定态是 draft。请把它讲给用户并等他拍板：批准走 /proposal_approve，驳回走 /proposal_reject。拍板后再用 task_draft 拆任务，并把 proposal 填成这个编号。'
 
 /** 标题查重键：与任务立项同一口径，空白与大小写不算差异。 */
 function titleKey(title: string): string {

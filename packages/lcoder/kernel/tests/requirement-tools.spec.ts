@@ -47,11 +47,13 @@ function read(spec: string, id: string): Requirement {
 const CONTENT = '# 佣金改造\n\n自营订单不该按下限兜底，代发订单保持现状。'
 
 describe('需求工具', () => {
-  it('提供起草、评审、改稿与拆分岗位建议四个工具，不含过审与分配能力', () => {
+  it('提供起草、评审、改稿、需求变更提案与拆分岗位建议五个工具，不含过审与分配能力', () => {
     const names = createRequirementTools(makeRepo().spec).map(entry => entry.name)
-    expect(names).toEqual(['requirement_draft', 'requirement_review_draft', 'requirement_revise', 'requirement_split_plan'])
+    expect(names).toEqual(['requirement_draft', 'requirement_review_draft', 'requirement_revise', 'requirement_propose', 'requirement_split_plan'])
     expect(names).not.toContain('requirement_approve')
     expect(names).not.toContain('task_assign')
+    expect(names).not.toContain('proposal_approve')
+    expect(names).not.toContain('proposal_reject')
   })
 
   it('首次落盘取 REQ-01：正文与 YAML 都写下，并留下 v1 快照', async () => {
