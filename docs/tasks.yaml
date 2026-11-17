@@ -2776,7 +2776,7 @@ tracks:
 
     - id: T-248
       title: 需求页保活 wrapper 布局与禁用态样式
-      status: doing
+      status: done
       face: 用户端
       type: 修复
       owner: lance
@@ -2784,7 +2784,7 @@ tracks:
       date: '2026-11-17'
       dep: [T-247]
       inferred: false
-      note: "C 级样式回归修复，来源是用户 2026-11-17 截图报需求页样式跑偏。根因一：T-247 保活 wrapper div 成为壳层 flex 子项而 .page 的 flex:1 失效，页宽缩到内容宽（表格占左半右半空）；修法 wrapper 可见时 display:contents 恢复 .page 为有效 flex 子项、隐藏时 display:none 不变。根因二（预存缺口）：pill-accent:disabled 只设颜色不设透明度，禁用的立项向导仍亮蓝实心；补 opacity 与 cursor。范围 app.tsx 与 styles.css 两文件；不改契约。验收 typecheck、定向 vitest（app-launch-route 与需求页组）、改动文件 oxlint；真机核 .page 计算宽度撑满壳层与禁用按钮变淡。监督窗口按 C 快 lane 在主检出直修并记录原因（用户报障点名修复）。2026-11-17 22:05 登记。"
+      note: "C 级样式回归修复，来源是用户 2026-11-17 截图报需求页样式跑偏。根因一：T-247 保活 wrapper div 成为壳层 flex 子项而 .page 的 flex:1 失效，页宽缩到内容宽（表格占左半右半空）；修法 wrapper 可见时 display:contents 恢复 .page 为有效 flex 子项、隐藏时 display:none 不变。根因二（预存缺口）：pill-accent:disabled 只设颜色不设透明度，禁用的立项向导仍亮蓝实心；补 opacity 与 cursor。范围 app.tsx 与 styles.css 两文件；不改契约。验收 typecheck、定向 vitest（app-launch-route 与需求页组）、改动文件 oxlint；真机核 .page 计算宽度撑满壳层与禁用按钮变淡。监督窗口按 C 快 lane 在主检出直修并记录原因（用户报障点名修复）。2026-11-17 22:05 登记。2026-11-17 22:15 核验并收口：wrapper 可见时 display:contents 恢复 .page 的 flex:1 撑满、隐藏时 none 不变；pill-accent:disabled 补 opacity 0.55 与 not-allowed 光标。定向门禁 typecheck 五项与三组 vitest 二十一例与 oxlint 零过；build:artifacts 重出后重启实例，真机核 page 宽等于壳层宽（1112=1112）、host display contents、禁用按钮 opacity 0.55，截图留用户审。已提交主线。"
 
 
 milestones:
