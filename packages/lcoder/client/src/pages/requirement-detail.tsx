@@ -1,12 +1,13 @@
-/** 需求详情：正文、候选、推荐、关联任务与讨论历史。 */
+/** 需求详情：正文、内联评审报告、候选、推荐、关联任务与讨论历史。 */
 
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { JSX } from 'react'
 import type { ProjectScope } from '../workspace/use-workspaces.ts'
 import type { SpecProjection } from '../spec/load.ts'
-import type { RequirementDocRow, RequirementSplitPlanEntryRow } from '../spec/rows.ts'
+import type { RequirementDocRow, RequirementReviewRow, RequirementSplitPlanEntryRow } from '../spec/rows.ts'
 import type { SessionSummary } from '../store.ts'
 import { requirementStateLabel } from '../spec/board.ts'
+import { readWorkspaceText } from '../spec/files.ts'
 import { readDiscussionHistory, type DiscussionHistory } from '../discussion/history.ts'
 import { runCommand, type CommandOutcome } from '../commands/run.ts'
 import { renderMarkdown } from '../markdown/markdown.tsx'
@@ -14,6 +15,15 @@ import { translate, type Translate } from '../locale.ts'
 import { DetailDrawer } from './detail-drawer.tsx'
 
 const zhText: Translate = (key, params) => translate('zh', key, params)
+
+/** 内联评审报告的单次行数上限；与阅读器一致。 */
+const REPORT_LINES = 5000
+
+/** 内联评审报告的读取状态。 */
+type ReportState =
+  | { readonly status: 'loading' }
+  | { readonly status: 'ready'; readonly text: string }
+  | { readonly status: 'failed'; readonly message: string }
 
 /** 评审报告与版本快照在阅读器里的仓库相对路径。 */
 function specPath(relative: string): string {
@@ -32,6 +42,8 @@ export interface RequirementDetailProps {
   readonly onReload: () => void
   /** 发送拆分指令；由需求页按当前投影拼提示词。 */
   readonly onSplit: () => Promise<{ readonly ok: boolean; readonly message: string }>
+  /** 发送改稿指令；评审报告旁的「修改需求」走它。 */
+  readonly onRevise: () => Promise<{ readonly ok: boolean; readonly message: string }>
   /** 跳到任务页并只显示本需求关联的任务。 */
   readonly onOpenTasks: () => void
   /** 取词函数；缺省为中文词典。 */
@@ -54,6 +66,32 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
   const [assigns, setAssigns] = useState<Readonly<Record<string, CommandOutcome>>>({})
   const related = props.projection.tasks.filter(task => task.requirement === row.id || task.proposal === row.id)
 
+  const latestReview = row.reviews.reduce<RequirementReviewRow | null>(
+    (best, review) => best === null || review.round > best.round ? review : best,
+    null,
+  )
+  const reportPath = latestReview === null ? null : specPath(latestReview.report)
+  const [report, setReport] = useState<ReportState>({ status: 'loading' })
+
+  // 内联报告与阅读器走同一条宿主文件通道；轮次或项目变化时重读，卸载后不再落状态。
+  useEffect(() => {
+    if (reportPath === null) return
+    let disposed = false
+    setReport({ status: 'loading' })
+    void readWorkspaceText(props.project.scopeSessionId, reportPath, REPORT_LINES)
+      .then((answer) => {
+        if (disposed) return
+        setReport(answer.ok
+          ? { status: 'ready', text: answer.text }
+          : { status: 'failed', message: `${answer.error.code}: ${answer.error.message}` })
+      })
+      .catch((cause: unknown) => {
+        if (disposed) return
+        setReport({ status: 'failed', message: cause instanceof Error ? cause.message : String(cause) })
+      })
+    return () => { disposed = true }
+  }, [reportPath, props.project.scopeSessionId])
+
   const execute = async (kind: string, line: string): Promise<void> => {
     if (busy !== null) return
     setBusy(kind)
@@ -73,6 +111,18 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
     setResult(null)
     try {
       const answer = await props.onSplit()
+      setResult({ ok: answer.ok, text: answer.message })
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const revise = async (): Promise<void> => {
+    if (busy !== null) return
+    setBusy('revise')
+    setResult(null)
+    try {
+      const answer = await props.onRevise()
       setResult({ ok: answer.ok, text: answer.message })
     } finally {
       setBusy(null)
@@ -155,6 +205,53 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
           ? <p className="empty">正文缺失。</p>
           : <div className="markdown-body tall" data-testid="requirement-document-body">{renderMarkdown(row.text)}</div>}
       </section>
+
+      {latestReview !== null && reportPath !== null && (
+        <section className="detail-section" data-testid="requirement-review-report" data-round={latestReview.round}>
+          <div className="detail-drawer-head">
+            <h4>{t('requirement.reportTitle', { round: latestReview.round })}</h4>
+            <button
+              type="button"
+              className="pill"
+              data-testid="requirement-report-open"
+              onClick={() => { props.onOpenReader(reportPath) }}
+            >
+              {t('requirement.openReport')}
+            </button>
+          </div>
+          {report.status === 'loading' && (
+            <p className="empty" data-testid="requirement-report-loading">{t('requirement.reportLoading')}</p>
+          )}
+          {report.status === 'failed' && (
+            <p className="problem" data-testid="requirement-report-failed">
+              {t('requirement.reportFailed', { detail: report.message })}
+            </p>
+          )}
+          {report.status === 'ready' && (
+            <div className="markdown-body tall" data-testid="requirement-report-body">{renderMarkdown(report.text)}</div>
+          )}
+          <div className="action-row">
+            <button
+              type="button"
+              className="pill"
+              data-testid="requirement-report-revise"
+              disabled={row.state !== 'draft' || busy !== null}
+              onClick={() => { void revise() }}
+            >
+              {t('requirement.opRevise')}
+            </button>
+            <button
+              type="button"
+              className="pill"
+              data-testid="requirement-report-approve"
+              disabled={!canApprove || busy !== null}
+              onClick={() => { void execute('approve', `/requirement_approve ${row.id}`) }}
+            >
+              {t('requirement.reportApprove')}
+            </button>
+          </div>
+        </section>
+      )}
 
       {row.options.length > 0 && (
         <section className="detail-section" data-testid="requirement-options">

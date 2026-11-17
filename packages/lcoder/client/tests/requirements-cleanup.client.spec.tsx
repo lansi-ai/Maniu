@@ -65,6 +65,7 @@ describe('需求页头清理', () => {
           onReload={() => {}}
           onStartIntake={async () => ({ ok: true, message: 'ok' })}
           onStartSession={async () => ({ ok: true, message: 'ok' })}
+          onOpenSession={() => {}}
           onOpenTasks={() => {}}
         />,
       )
