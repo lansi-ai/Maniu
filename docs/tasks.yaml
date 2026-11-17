@@ -2728,7 +2728,7 @@ tracks:
 
     - id: T-244
       title: 研发经理纳入评审工具面
-      status: doing
+      status: done
       face: 工程
       type: 开发
       owner: lance
@@ -2736,11 +2736,11 @@ tracks:
       date: '2026-11-17'
       dep: [T-243]
       inferred: false
-      note: "A 级角色工具面契约改动，来源是 T-243 真机验收：用户原例评审配产品经理加研发经理，但 T-237 只把 requirement_review_draft 给了 pm，flow_save 节点能力校验按契约拒绝 manager 进评审节点（真机已验拒绝文案可读）。目标：ROLE_TOOLS.manager 增 requirement_review_draft，使研发经理可出评审报告；manager 人设前缀补该工具与评审职责（只出报告不改稿）；surface.spec 的 dev 等式注释同步（dev 仍排除角色专属写入口）；persona-surface 同步测试应自动钉住人设提及；kernel README 双语与 prd-and-design、PROJECT-RULES 的工具面表同步；模型可见工具面变化按测试policy核 recorded-session snapshot，受影响则重录（无钥匙则如实报未验）。不改状态机边、不改云合同、模型仍不能过审。验收 typecheck、kernel 与 packages/lcoder vitest、改动文件 oxlint、test:docs、persona-surface 同步测试绿。工作树 pool-slot-1 到 lcoder/t244-manager-review，端口 9822 与 9829 与 9830 让位主检实例改用 9824 与 9833 与 9834。2026-11-17 19:55 监督窗口登记并派工，实现线会话 e926ac84。"
+      note: "A 级角色工具面契约改动，来源是 T-243 真机验收：用户原例评审配产品经理加研发经理，但 T-237 只把 requirement_review_draft 给了 pm，flow_save 节点能力校验按契约拒绝 manager 进评审节点（真机已验拒绝文案可读）。目标：ROLE_TOOLS.manager 增 requirement_review_draft，使研发经理可出评审报告；manager 人设前缀补该工具与评审职责（只出报告不改稿）；surface.spec 的 dev 等式注释同步（dev 仍排除角色专属写入口）；persona-surface 同步测试应自动钉住人设提及；kernel README 双语与 prd-and-design、PROJECT-RULES 的工具面表同步；模型可见工具面变化按测试policy核 recorded-session snapshot，受影响则重录（无钥匙则如实报未验）。不改状态机边、不改云合同、模型仍不能过审。验收 typecheck、kernel 与 packages/lcoder vitest、改动文件 oxlint、test:docs、persona-surface 同步测试绿。工作树 pool-slot-1 到 lcoder/t244-manager-review，端口 9822 与 9829 与 9830 让位主检实例改用 9824 与 9833 与 9834。2026-11-17 19:55 监督窗口登记并派工，实现线会话 e926ac84。2026-11-17 20:36 监督窗口核验并收口。一笔提交：ROLE_TOOLS.manager 增 requirement_review_draft、manager 人设补工具与只出报告职责、评审提示词身份行改岗位中性（监督裁决）并补钉住测试、surface 与 flow-config 与 flow-save 测试更新、kernel README 与 prd 双语同步；PROJECT-RULES 全文核查无工具面表述无可改述点如实报。独立复跑 typecheck 五项、vitest 一百五十文件一千五百五十六例、oxlint 零错零警、test:docs 二十一项全过。snapshot 全量回放红一百八十二例经归因为 Windows 环境性预存问题（基提交同红同 diff、场景不装 kernel、占位符归一化上游路径），按政策归 CI 不修不重录，对照日志留 /tmp/t244-snap-base.log。合入后主检与 T-245 合流复跑 build 八项 check 两项 typecheck 五项 vitest 一百五十一文件一千五百六十八例 i18n 与 test:docs 全过。未验项真机 pm 加 manager 顺序评审留复验。已合入 lcoder/main、release pool-slot-1、删分支。"
 
     - id: T-245
       title: 后台立项的概要确认入口
-      status: doing
+      status: done
       face: 用户端
       type: 开发
       owner: lance
@@ -2748,7 +2748,7 @@ tracks:
       date: '2026-11-17'
       dep: [T-242]
       inferred: false
-      note: "B 级客户端补口，来源是 T-242 真机验收：人设约定立项概要确认是对话里自由文本回复确认需求，后台化后需求页与浮卡没有确认入口，不进入对话就永远落不了盘（真机浮卡走到超时、.spec 未建，证据已取）。目标：立项浮卡在会话回合结束且需求条数未增时进入等待确认态，卡上给确认需求按钮（经宿主 session/prompt 向该会话发送确认需求指令）与查看概要入口（自愿打开对话）；发送后恢复轮询直到需求落盘转完成卡；超时口径不变；等待确认态边框沿用进行中蓝并在状态文案说明等待人确认。不改 kernel 与人设提示词、不改状态机与云合同；新文案走中英词典。验收 typecheck、packages/lcoder vitest、改动文件 oxlint、verify-client-ui-i18n；组件测试覆盖等待确认态判定（回合结束且未落盘）、确认按钮发送指令、发送后恢复轮询、落盘转完成、查看概要自愿跳转。工作树 pool-slot-2 到 lcoder/t245-intake-confirm，端口 9823 与 9831 与 9832。2026-11-17 19:55 监督窗口登记并派工，实现线会话 5d5a183d。"
+      note: "B 级客户端补口，来源是 T-242 真机验收：人设约定立项概要确认是对话里自由文本回复确认需求，后台化后需求页与浮卡没有确认入口，不进入对话就永远落不了盘（真机浮卡走到超时、.spec 未建，证据已取）。目标：立项浮卡在会话回合结束且需求条数未增时进入等待确认态，卡上给确认需求按钮（经宿主 session/prompt 向该会话发送确认需求指令）与查看概要入口（自愿打开对话）；发送后恢复轮询直到需求落盘转完成卡；超时口径不变；等待确认态边框沿用进行中蓝并在状态文案说明等待人确认。不改 kernel 与人设提示词、不改状态机与云合同；新文案走中英词典。验收 typecheck、packages/lcoder vitest、改动文件 oxlint、verify-client-ui-i18n；组件测试覆盖等待确认态判定（回合结束且未落盘）、确认按钮发送指令、发送后恢复轮询、落盘转完成、查看概要自愿跳转。工作树 pool-slot-2 到 lcoder/t245-intake-confirm，端口 9823 与 9831 与 9832。2026-11-17 19:55 监督窗口登记并派工，实现线会话 5d5a183d（首轮空输出 failed，唤醒后正常）。2026-11-17 20:36 监督窗口核验并收口。一笔提交：立项浮卡等待确认态（回合跑过且结束、需求未增、sawRunning 防假等待）、确认需求按钮经宿主 session/prompt 发送不新建不跳转、查看概要自愿、防连发与再等待与失败回退、超时口径不变、中英词典四条与 client README 双语同步；新增九例确认链测试与浮卡两例与路由一例。独立复跑 typecheck 五项、vitest 一百五十一文件一千五百六十三例、oxlint 零错零警、i18n 与 test:docs 全过；合入后主检复跑全绿再与 T-244 合流复跑全绿。未验项真机确认落盘留复验。已合入 lcoder/main、release pool-slot-2、删分支。"
 
 
 milestones:
