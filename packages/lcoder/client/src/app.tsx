@@ -449,25 +449,6 @@ export function App(): JSX.Element {
     return true
   }, [createAndSelect])
 
-  /** 从人才卡新建一条绑定该人才 preset 的会话。 */
-  const startTalentSession = useCallback(async (presetId: string): Promise<{
-    readonly ok: boolean
-    readonly message: string
-  }> => {
-    const created = await window.lcoder.call('session', 'create', {
-      request: { ...project === null ? {} : { workspaceId: project.workspaceId }, agentPreset: presetId },
-    })
-    if (!created.ok) return { ok: false, message: `${created.error.code}: ${created.error.message}` }
-    const value = created.value
-    if (!isRecord(value) || typeof value.sessionId !== 'string') {
-      return { ok: false, message: 'session.create 返回了无法识别的会话' }
-    }
-    selectSession(value.sessionId)
-    setPage('chat')
-    await loadSessions()
-    return { ok: true, message: '' }
-  }, [loadSessions, project, selectSession])
-
   const chooseWorkspace = useCallback(async (workspace: WorkspaceRow) => {
     setProjectNotice(null)
     let scope = await ensureScopeSession(workspace, sessions, WORKBENCH_PRESET)
@@ -746,7 +727,6 @@ export function App(): JSX.Element {
                 project={project}
                 sessions={sessions}
                 talents={talents}
-                onStartSession={startTalentSession}
               />
             )}
           </div>

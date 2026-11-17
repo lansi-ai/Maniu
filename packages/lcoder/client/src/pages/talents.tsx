@@ -1,4 +1,4 @@
-/** 人才库页：内置角色、全局与项目两库、表单、权限分支、引用拦截与从人才开会话。 */
+/** 人才库页：全局（内置角色在前）与项目两库、表单、权限分支与引用拦截。 */
 
 import { useState } from 'react'
 import type { JSX } from 'react'
@@ -17,7 +17,6 @@ export interface TalentsPageProps {
   readonly project: ProjectScope | null
   readonly sessions: readonly SessionSummary[]
   readonly talents: TalentsHandle
-  readonly onStartSession: (presetId: string) => Promise<{ readonly ok: boolean; readonly message: string }>
 }
 
 interface Editing {
@@ -55,13 +54,6 @@ export function TalentsPage(props: TalentsPageProps): JSX.Element {
   const creatorOf = (row: TalentRow): string => row.ownerUserId === props.userId
     ? t('talents.creatorSelf')
     : t('talents.creatorOther', { id: row.ownerUserId.slice(0, 8) })
-
-  const startPreset = async (key: string, presetId: string): Promise<void> => {
-    const answer = await props.onStartSession(presetId)
-    if (!answer.ok) setActionErrors(current => ({ ...current, [key]: answer.message }))
-  }
-
-  const start = async (row: TalentRow): Promise<void> => startPreset(row.id, presetIdOf(row.id))
 
   const openBuiltin = (presetId: string): void => {
     setBuiltinOpen(presetId)
@@ -119,7 +111,6 @@ export function TalentsPage(props: TalentsPageProps): JSX.Element {
     const model = row.config.model === undefined
       ? t('talents.modelFollow')
       : `${row.config.model.provider}/${row.config.model.modelId}`
-    const ready = talents.applied.has(row.id)
     return (
       <article
         key={row.id}
@@ -138,7 +129,9 @@ export function TalentsPage(props: TalentsPageProps): JSX.Element {
           <div><dt>{t('talents.model')}</dt><dd>{model}</dd></div>
           <div><dt>{t('talents.sessions')}</dt><dd>{String(sessionsOf(row))}</dd></div>
         </dl>
-        {!ready && applyError === undefined ? <p className="empty">{t('talents.applying')}</p> : null}
+        {!talents.applied.has(row.id) && applyError === undefined
+          ? <p className="empty">{t('talents.applying')}</p>
+          : null}
         {applyError === undefined ? null : <p className="problem">{t('talents.applyFailed', { detail: applyError })}</p>}
         {actionError === undefined ? null : <p className="problem">{actionError}</p>}
         {refs === undefined ? null : (
@@ -164,15 +157,6 @@ export function TalentsPage(props: TalentsPageProps): JSX.Element {
           </div>
         ) : (
           <div className="talent-actions">
-            <button
-              type="button"
-              className="pill pill-accent"
-              data-testid="talent-start"
-              disabled={!ready}
-              onClick={() => { void start(row) }}
-            >
-              {t('talents.start')}
-            </button>
             {row.canManage ? (
               <>
                 <button
@@ -231,15 +215,6 @@ export function TalentsPage(props: TalentsPageProps): JSX.Element {
         <div className="talent-actions">
           <button
             type="button"
-            className="pill pill-accent"
-            data-testid="builtin-start"
-            disabled={row.broken !== undefined}
-            onClick={(event) => { event.stopPropagation(); void startPreset(row.id, row.id) }}
-          >
-            {t('talents.start')}
-          </button>
-          <button
-            type="button"
             className="pill"
             data-testid="builtin-detail-open"
             onClick={(event) => { event.stopPropagation(); openBuiltin(row.id) }}
@@ -250,29 +225,6 @@ export function TalentsPage(props: TalentsPageProps): JSX.Element {
       </article>
     )
   }
-
-  const builtinGroup = (): JSX.Element => (
-    <section className="talent-group" data-testid="talent-group-builtin">
-      <header className="talent-group-head">
-        <div>
-          <h3>{t('talents.builtin')}</h3>
-          <p className="page-sub">{t('talents.builtinHint')}</p>
-        </div>
-      </header>
-      {talents.builtinsError === null ? null : (
-        <p className="problem" data-testid="talents-builtin-error">
-          {t('talents.builtinFailed', { detail: talents.builtinsError })}
-        </p>
-      )}
-      {talents.builtinsLoading ? <p className="empty" data-testid="talents-builtin-loading">{t('talents.builtinLoading')}</p> : null}
-      {!talents.builtinsLoading && talents.builtinsError === null && talents.builtins.length === 0
-        ? <p className="empty" data-testid="talent-empty-builtin">{t('talents.builtinEmpty')}</p>
-        : null}
-      {talents.builtins.length === 0
-        ? null
-        : <div className="info-grid" data-testid="builtin-list">{talents.builtins.map(builtinCard)}</div>}
-    </section>
-  )
 
   const builtinTags = (row: BuiltinPresetView): JSX.Element => (
     <div className="builtin-tags">
@@ -379,30 +331,43 @@ export function TalentsPage(props: TalentsPageProps): JSX.Element {
     )
   }
 
-  const group = (scope: 'global' | 'project', rows: readonly TalentRow[]): JSX.Element => (
-    <section className="talent-group" data-testid={scope === 'global' ? 'talent-group-global' : 'talent-group-project'}>
-      <header className="talent-group-head">
-        <div>
-          <h3>{scope === 'global' ? t('talents.global') : t('talents.project')}</h3>
-          <p className="page-sub">{scope === 'global' ? t('talents.globalHint') : t('talents.projectHint')}</p>
-        </div>
-        <button
-          type="button"
-          className="pill pill-accent"
-          data-testid={scope === 'global' ? 'talent-create-global' : 'talent-create-project'}
-          disabled={!canCreate}
-          onClick={() => { setEditing({ scope, row: null }) }}
-        >
-          {scope === 'global' ? t('talents.createGlobal') : t('talents.createProject')}
-        </button>
-      </header>
-      {rows.length === 0
-        ? <p className="empty" data-testid="talent-empty">{scope === 'global' ? t('talents.emptyGlobal') : t('talents.emptyProject')}</p>
-        : <div className="info-grid" data-testid={scope === 'global' ? 'talent-list-global' : 'talent-list-project'}>
-          {rows.map(card)}
-        </div>}
-    </section>
-  )
+  const globalGroup = (): JSX.Element => {
+    const rows = talents.global
+    return (
+      <section className="talent-group" data-testid="talent-group-global">
+        <header className="talent-group-head">
+          <div>
+            <h3>{t('talents.global')}</h3>
+          </div>
+          <button
+            type="button"
+            className="pill pill-accent"
+            data-testid="talent-create-global"
+            disabled={!canCreate}
+            onClick={() => { setEditing({ scope: 'global', row: null }) }}
+          >
+            {t('talents.createGlobal')}
+          </button>
+        </header>
+        {talents.builtinsError === null ? null : (
+          <p className="problem" data-testid="talents-builtin-error">
+            {t('talents.builtinFailed', { detail: talents.builtinsError })}
+          </p>
+        )}
+        {talents.builtinsLoading ? <p className="empty" data-testid="talents-builtin-loading">{t('talents.builtinLoading')}</p> : null}
+        {!talents.builtinsLoading && talents.builtinsError === null && talents.builtins.length === 0
+          ? <p className="empty" data-testid="talent-empty-builtin">{t('talents.builtinEmpty')}</p>
+          : null}
+        {talents.builtins.length + rows.length === 0
+          ? null
+          : <div className="info-grid" data-testid="talent-list-global">
+            {talents.builtins.map(builtinCard)}
+            {rows.map(card)}
+          </div>}
+        {rows.length === 0 ? <p className="empty" data-testid="talent-empty">{t('talents.emptyGlobal')}</p> : null}
+      </section>
+    )
+  }
 
   const label = (key: MessageKey): string => t(key)
   const projectReady = props.project !== null
@@ -418,12 +383,6 @@ export function TalentsPage(props: TalentsPageProps): JSX.Element {
       <header className="page-head">
         <div>
           <h2>{t('talents.title')}</h2>
-          <p className="page-sub">
-            {t('talents.subtitle', {
-              count: talents.builtins.length + talents.global.length + talents.projectTalents.length,
-            })}
-            {props.project === null ? '' : ` · ${props.project.title}`}
-          </p>
         </div>
         <button type="button" className="pill" data-testid="talent-reload" onClick={() => { talents.reload() }}>
           {t('talents.reload')}
@@ -452,15 +411,12 @@ export function TalentsPage(props: TalentsPageProps): JSX.Element {
         />
       ) : null}
 
-      {builtinGroup()}
-
-      {group('global', talents.global)}
+      {globalGroup()}
 
       <section className="talent-group" data-testid="talent-group-project">
         <header className="talent-group-head">
           <div>
             <h3>{t('talents.project')}</h3>
-            <p className="page-sub">{t('talents.projectHint')}</p>
           </div>
           {hasProjectId ? (
             <button
