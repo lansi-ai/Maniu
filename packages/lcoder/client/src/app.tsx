@@ -728,7 +728,8 @@ export function App(): JSX.Element {
             )}
 
             {/* 需求页跨页保持挂载：后台操作的浮卡与轮询状态住在页内，卸载即丢；隐藏而非条件渲染。 */}
-            <div style={page === 'requirements' ? undefined : { display: 'none' }} data-testid="requirements-host">
+            {/* display:contents 让 .page 仍是壳层的有效 flex 子项（flex:1 撑满），隐藏时才 none。 */}
+            <div style={page === 'requirements' ? { display: 'contents' } : { display: 'none' }} data-testid="requirements-host">
               <RequirementsPage
                 project={project}
                 projection={projection.projection}
