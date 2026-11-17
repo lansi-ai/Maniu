@@ -35,6 +35,19 @@
 4. Windows snapshot 套件环境性红：预存问题，归 CI；若要求 Windows 全绿需另立任务。
 5. 云端真实 COS/短信等（A9d/A11/A9f/A12）不在本次范围。
 
+## T-249 全链复验（2026-11-18，靶仓 4）
+
+| 步骤 | 结果 | 证据 |
+|---|---|---|
+| 新建入口不受禁立项影响、描述随首条消息 | ✅ | requirement-new-open/description/start；空仓可用 |
+| 分析师需求层分析＋按大小出文档＋提问确认 | ✅ | 判「小需求」问文档详略；analysis 明写不含实现判断 |
+| 提案态需求本体不落盘 | ✅ | pending-proposal 在场时 requirements rows=[] |
+| 对比视图（模式/分析/新正文/条目） | ✅ | compare-mode「P-01 · 新需求」、analysis、new-body 1814 字 |
+| 确认落盘＋note 溯源＋提案清零 | ✅ | compare-approve 后 REQ-01 v1 note=对话新建、pending=0、op-done |
+| 评审→过审 | ✅ | R1 落盘、过审批准版本 v1 |
+
+误判披露：监督窗口首轮独立门禁误跑在基提交（实现会话为 snapshot 归因临时检出基线），结果作废并重跑真分支；oxlint 首轮因参数未传 lint 全仓触预存红，限定文件后零错零警。
+
 ## 复现命令（人工可复核）
 
 - 起实例：`lcoder\scripts\start-all.cmd -Fast`（renderer 9822）。
