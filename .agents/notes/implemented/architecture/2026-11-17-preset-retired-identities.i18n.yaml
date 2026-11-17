@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-11-17-preset-retired-identities.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-11-17-preset-retired-identities.md
+/agent-note-retired-preset-identities-belong-to-the-declaring-preset:
+  en: 92e17629ce181a10
+  zh: 261aa5a6bbab86f3
+/agent-note-retired-preset-identities-belong-to-the-declaring-preset/problem:
+  en: bad85c7819cee61a
+  zh: a61caedc67ae906c
+/agent-note-retired-preset-identities-belong-to-the-declaring-preset/decision:
+  en: 58a3045a832edacd
+  zh: 8ebb41c8992f42ec
+/agent-note-retired-preset-identities-belong-to-the-declaring-preset/alternatives-considered:
+  en: fc2b57b4319985a3
+  zh: b2d1f5c9bb788506
+/agent-note-retired-preset-identities-belong-to-the-declaring-preset/consequences:
+  en: 35befbbeb7372529
+  zh: 451f9d2bb629048a

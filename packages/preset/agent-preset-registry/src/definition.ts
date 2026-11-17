@@ -7,6 +7,14 @@ export interface PresetDefinition {
   readonly name?: string
   readonly description?: string
   readonly order?: number
+  /**
+   * Earlier identities this declaration answers to.
+   *
+   * A Session header keeps the identity it recorded, so a Session committed
+   * under a retired identity still resolves to this declaration. Retirement is
+   * one hop: a retired id resolves to `id` and never chains further.
+   */
+  readonly retiredIds?: readonly string[]
   readonly plugins: readonly (Omit<EntryOptions, 'id' | 'disabled'> & { id?: string; disabled?: EntryOptions['disabled'] | JsExpr })[]
 }
 

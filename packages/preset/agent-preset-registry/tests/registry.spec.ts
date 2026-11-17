@@ -145,6 +145,33 @@ describe('declarative preset revisions', () => {
     await expect(ctx.agentPresets.readDocument('absent')).rejects.toThrow('Unknown agent preset: absent')
   })
 
+  it('resolves a retired identity to the declaration that retires it', async () => {
+    const ctx = await setup()
+    const definition = await declare(ctx, { ...contribution('standard'), retiredIds: ['retired'] })
+    expect(await ctx.agentPresets.resolve('retired')).toEqual({ id: 'standard' })
+    expect(await ctx.agentPresets.resolve('standard')).toEqual({ id: 'standard' })
+    expect(ctx.agentPresets.definitionPlugins('retired')).toEqual(ctx.agentPresets.definitionPlugins('standard'))
+    expect(ctx.agentPresets.definitionScope('retired')).toBe(ctx.agentPresets.definitionScope('standard'))
+    const agent = await agentOn(ctx, 'aliased', 'retired')
+    expect(ctx.agentPresets.inspectCompositions(agent.ctx).map(row => row.id)).toEqual(['standard'])
+    expect(ctx.tools.schemas(agent).map(row => row.name)).toEqual(['standard'])
+    await definition.dispose()
+    await expect(ctx.agentPresets.resolve('retired')).rejects.toThrow('Unknown agent preset: retired')
+  })
+
+  it('refuses a retired identity that a declaration or another retirement already claims', async () => {
+    const ctx = await setup()
+    await declare(ctx, contribution('minimal'))
+    await expect(declare(ctx, { ...contribution('standard'), retiredIds: ['minimal'] }))
+      .rejects.toThrow('Duplicate agent preset: minimal')
+    await expect(declare(ctx, { ...contribution('self'), retiredIds: ['self'] }))
+      .rejects.toThrow('Duplicate agent preset: self')
+    await declare(ctx, { ...contribution('standard'), retiredIds: ['retired'] })
+    await expect(declare(ctx, { ...contribution('replacement'), id: 'replacement', retiredIds: ['retired'] }))
+      .rejects.toThrow('Duplicate agent preset: retired')
+    expect(ctx.agentPresets.definitionPlugins('standard')).toBeDefined()
+  })
+
   it('reads a declaration\'s child rows detached for successor composition', async () => {
     const ctx = await setup()
     await declare(ctx, {
