@@ -3,15 +3,29 @@
  *
  * 为什么单独一条命令、不让 `proposal_draft` 顺带写：出方案与拍板是两件事——方案写得再好，
  * 采纳与否是人的决定。与 `contract_draft` 和 `contract_sign` 的分工同构，也让失败分得清。
+ * 驳回走 `/proposal_reject`，同样只由人触发。
  *
- * 只做批准这一条。驳回收回由人改 `decision: rejected`——把「驳回」也做成命令，
- * 就等于把方案的决定态从「人写的一个字段」扩成「一张命令表」，收不回来。
+ * 带 `requirement_change` 载荷的提案在批准时应用成需求落盘：new 调 `createRequirement`
+ * （v1 快照 note 记来源），revise 调 `reviseRequirement`（note 记基线版本）；
+ * 需求写成功后提案才转 `approved`，提案写失败时回滚需求改动。
  *
  * 与 `contract_sign` 同档：人机命令，不进任何角色或状态的工具面。
  */
+import { rmSync, writeFileSync } from 'node:fs'
+
 import { hasSpecRoot, resolveRoot } from '../kernel/spec-root.js'
 import type { RootInput, SpecRootContext } from '../kernel/spec-root.js'
 import { assertProposalId, listProposals, loadProposal, proposalPath, saveProposal } from '../kernel/proposal-store.js'
+import {
+  createRequirement,
+  loadRequirement,
+  readRequirementDocument,
+  requirementDocPath,
+  requirementVersionPath,
+  reviseRequirement,
+  saveRequirement,
+} from '../kernel/requirement-store.js'
+import type { Proposal, RequirementChange } from '../schema/spec.js'
 
 /** 一次人机命令调用里 kernel 用到的部分：会话事实加命令名后的原文。 */
 export interface ProposalApproveInvocation extends SpecRootContext {
@@ -43,7 +57,7 @@ export function createProposalApproveCommand(
 ): ProposalApproveDefinition {
   return {
     name: 'proposal_approve',
-    description: '确认采纳某个方案，把决定态从起草改为已批准',
+    description: '确认采纳某个方案；带需求变更载荷的提案会把新需求或改稿落盘',
     input: { hint: '<方案编号>' },
     handler: invocation => approve(rootInput, invocation, now),
   }
@@ -84,12 +98,101 @@ function approve(rootInput: RootInput, invocation: ProposalApproveInvocation, no
   }
 
   const at = now()
+  if (proposal.requirement_change !== undefined) {
+    return applyChange(root, proposal, proposal.requirement_change, at)
+  }
   saveProposal(root, { ...proposal, decision: 'approved', decided_at: at })
 
   return {
     kind: 'success',
     text: `${id}「${proposal.title}」已批准（${at}）。可以按 recommendation 用 task_draft 拆任务了，拆出来的任务把 proposal 填成 ${id}。`,
   }
+}
+
+/**
+ * 应用需求变更提案：先把需求落盘，再把提案写成 approved；提案写失败时回滚需求改动。
+ * @param root - 规格根。
+ * @param proposal - 起草态且带载荷的提案。
+ * @param change - 需求变更载荷。
+ * @param at - 结论时刻。
+ * @returns 命令结果。
+ */
+function applyChange(root: string, proposal: Proposal, change: RequirementChange, at: string): ProposalApproveResult {
+  const approved: Proposal = { ...proposal, decision: 'approved', decided_at: at }
+  if (change.mode === 'new') {
+    const note = change.target !== undefined && change.base_version !== undefined
+      ? `基于 ${change.target} v${String(change.base_version)}`
+      : '对话新建'
+    let draft
+    try {
+      draft = createRequirement(root, { title: proposal.title, content: change.content, opened_at: at, note })
+    } catch (error: unknown) {
+      return { kind: 'error', text: `${proposal.id} 的新需求落盘失败：${errorMessage(error)}；提案仍是 draft` }
+    }
+    try {
+      saveProposal(root, approved)
+    } catch (error: unknown) {
+      return rollbackFailure(proposal.id, error, () => {
+        rmSync(draft.yamlPath, { force: true })
+        rmSync(draft.documentPath, { force: true })
+        rmSync(requirementVersionPath(root, draft.requirement.id, 1), { force: true })
+      })
+    }
+    return {
+      kind: 'success',
+      text: `${proposal.id}「${proposal.title}」已批准：新需求 ${draft.requirement.id} 已落盘（draft，v1，${note}）。接下来走评审与过审。`,
+    }
+  }
+
+  let before
+  try {
+    before = loadRequirement(root, change.target)
+  } catch (error: unknown) {
+    return { kind: 'error', text: `读不到提案目标 ${change.target}：${errorMessage(error)}；提案仍是 draft` }
+  }
+  if (before.state !== 'draft') {
+    return {
+      kind: 'error',
+      text: `${change.target} 现在在「${before.state}」，只有起草态需求能应用改稿提案；提案仍是 draft`,
+    }
+  }
+  const beforeDoc = readRequirementDocument(root, change.target)
+  const note = `对话改稿，基于 v${String(change.base_version)}`
+  let revision
+  try {
+    revision = reviseRequirement(root, change.target, { content: change.content, at, note })
+  } catch (error: unknown) {
+    return { kind: 'error', text: `${proposal.id} 的改稿落盘失败：${errorMessage(error)}；提案仍是 draft` }
+  }
+  try {
+    saveProposal(root, approved)
+  } catch (error: unknown) {
+    const maxBefore = before.versions.reduce((max, version) => Math.max(max, version.n), 0)
+    return rollbackFailure(proposal.id, error, () => {
+      if (beforeDoc !== undefined) writeFileSync(requirementDocPath(root, change.target), beforeDoc, 'utf8')
+      for (let n = maxBefore + 1; n <= revision.version; n += 1) {
+        rmSync(requirementVersionPath(root, change.target, n), { force: true })
+      }
+      saveRequirement(root, before)
+    })
+  }
+  return {
+    kind: 'success',
+    text: `${proposal.id}「${proposal.title}」已批准：${change.target} 已改稿为 v${String(revision.version)}（${note}）。接下来走评审与过审。`,
+  }
+}
+
+/** 提案批准态写失败时回滚需求改动；回滚也失败就如实报未可信状态，请人核对。 */
+function rollbackFailure(id: string, error: unknown, rollback: () => void): ProposalApproveResult {
+  try {
+    rollback()
+  } catch (restoreError: unknown) {
+    return {
+      kind: 'error',
+      text: `${id} 的批准态写失败（${errorMessage(error)}），且需求改动回滚失败（${errorMessage(restoreError)}）；请人工核对 .spec 后再操作`,
+    }
+  }
+  return { kind: 'error', text: `${id} 的批准态写失败：${errorMessage(error)}；需求改动已回滚，提案仍是 draft` }
 }
 
 /** 把抛出物说成人话：只取消息，不带栈。 */

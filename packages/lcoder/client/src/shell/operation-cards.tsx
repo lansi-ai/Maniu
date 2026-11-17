@@ -30,6 +30,8 @@ export interface OperationCardView {
   readonly nextRoleLabel?: string
   /** 立项等待人工确认概要：卡上画「确认需求」按钮，查看对话入口改标「查看概要」。 */
   readonly awaitingConfirm?: boolean
+  /** 提案已写未确认：卡上画「去对比」按钮，打开对比视图而不跳对话。 */
+  readonly compareProposalId?: string
 }
 
 /** 浮卡列表属性。 */
@@ -42,6 +44,8 @@ export interface OperationCardsProps {
   readonly onNextRole?: (key: string) => void
   /** 立项等待确认：点「确认需求」向该会话发送确认指令。 */
   readonly onConfirmIntake?: (key: string) => void
+  /** 提案等待对比：点「去对比」打开该提案的对比视图。 */
+  readonly onCompare?: (proposalId: string) => void
   readonly t: Translate
 }
 
@@ -98,6 +102,17 @@ export function OperationCards(props: OperationCardsProps): JSX.Element | null {
                   onClick={() => { props.onConfirmIntake?.(card.key) }}
                 >
                   {props.t('op.confirmIntake')}
+                </button>
+              )}
+              {card.compareProposalId !== undefined && card.status === 'running' && props.onCompare !== undefined && (
+                <button
+                  type="button"
+                  className="pill pill-accent"
+                  data-testid="op-go-compare"
+                  data-proposal-id={card.compareProposalId}
+                  onClick={() => { props.onCompare?.(card.compareProposalId ?? '') }}
+                >
+                  {props.t('op.goCompare')}
                 </button>
               )}
               {card.nextRoleLabel !== undefined && card.status === 'running' && props.onNextRole !== undefined && (

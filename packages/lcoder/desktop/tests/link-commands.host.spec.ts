@@ -34,6 +34,18 @@ describe('commands/execute 白名单', () => {
     ])
   })
 
+  it('方案批准与驳回都透传给宿主', async () => {
+    const { link, fetched } = linked()
+    const approve = await link.call('commands', 'execute', { agentId: 's-1', line: '/proposal_approve P-01', submittedAttachments: [] })
+    expect(approve.ok).toBe(true)
+    const reject = await link.call('commands', 'execute', { agentId: 's-1', line: '/proposal_reject P-01', submittedAttachments: [] })
+    expect(reject.ok).toBe(true)
+    expect(fetched).toEqual([
+      'http://127.0.0.1:9/api/commands/execute',
+      'http://127.0.0.1:9/api/commands/execute',
+    ])
+  })
+
   it('未列出的命令在转发前被拒，不碰宿主', async () => {
     const { link, fetched } = linked()
     const answer = await link.call('commands', 'execute', { agentId: 's-1', line: '/deploy T-01', submittedAttachments: [] })

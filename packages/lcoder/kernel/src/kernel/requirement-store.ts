@@ -187,6 +187,8 @@ export interface RequirementDraftInput {
   readonly options?: readonly RequirementOption[]
   readonly recommendation?: string
   readonly opened_at: string
+  /** v1 快照的说明；缺省表示没有特别说明。提案落盘用它记录来源（基于哪条需求哪一版，或对话新建）。 */
+  readonly note?: string
 }
 
 /** 一次起草的落盘结果。 */
@@ -217,7 +219,11 @@ export function createRequirement(root: string, input: RequirementDraftInput): R
 
   mkdirSync(dirname(yamlPath), { recursive: true })
   writeFileSync(documentPath, input.content, 'utf8')
-  const version: RequirementVersion = { n: 1, at: input.opened_at }
+  const version: RequirementVersion = {
+    n: 1,
+    at: input.opened_at,
+    ...(input.note === undefined ? {} : { note: input.note }),
+  }
   try {
     writeText(versionPath, input.content)
   } catch (error) {

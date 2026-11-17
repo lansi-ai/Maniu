@@ -361,7 +361,7 @@ export type AutomationPolicy = z.infer<typeof AutomationPolicy>
  * 方案的决定态。
  *
  * `draft` 由模型起草；`approved` 与 `rejected` 是人的结论，只有人机命令 `/proposal_approve`
- * 写它——模型能出方案，不能给自己拍板，与 `contract_sign` 同一档口径。
+ * 与 `/proposal_reject` 写它——模型能出方案，不能给自己拍板，与 `contract_sign` 同一档口径。
  */
 export const ProposalDecision = z.enum(['draft', 'approved', 'rejected'])
 export type ProposalDecision = z.infer<typeof ProposalDecision>
@@ -373,6 +373,40 @@ export const ProposalOption = z.object({
   cost: z.string().min(1),
 })
 export type ProposalOption = z.infer<typeof ProposalOption>
+
+/**
+ * 提案携带的需求变更载荷：需求分析师只写提案，需求本体由人经 `/proposal_approve` 落盘。
+ *
+ * `content` 是完整新正文，`analysis` 是需求层分析结论（与现有需求的冲突/重复、影响面、优先级建议）。
+ * `revise` 必须给 `target` 与 `base_version`；`new` 两者可省，给出时须成对，
+ * 记录「基于哪条需求的哪一版」——确认态需求只能作为 new 的依据，不能被改稿。
+ * 「目标存在且起草态、基线版本存在」由写盘侧查，schema 只校形态。
+ */
+export const RequirementChange = z.discriminatedUnion('mode', [
+  z
+    .object({
+      mode: z.literal('new'),
+      /** 作为依据的需求编号；缺省表示对话新建。 */
+      target: RequirementId.optional(),
+      /** 依据需求的正文版本号；与 target 成对。 */
+      base_version: z.number().int().positive().optional(),
+      content: z.string().min(1),
+      analysis: z.string().min(1),
+    })
+    .superRefine((change, ctx) => {
+      if ((change.target === undefined) !== (change.base_version === undefined)) {
+        ctx.addIssue({ code: 'custom', message: 'new 提案的 target 与 base_version 要么都写要么都省：它们记录作为依据的需求版本' })
+      }
+    }),
+  z.object({
+    mode: z.literal('revise'),
+    target: RequirementId,
+    base_version: z.number().int().positive(),
+    content: z.string().min(1),
+    analysis: z.string().min(1),
+  }),
+])
+export type RequirementChange = z.infer<typeof RequirementChange>
 
 /** `.spec/proposals/P-01.yaml`：一次需求探讨的落盘物，拆出去的任务用 `Task.proposal` 回指它。 */
 export const Proposal = z.object({
@@ -387,6 +421,8 @@ export const Proposal = z.object({
   /** 人的结论时刻；`draft` 为 null。 */
   decided_at: IsoDateTime.nullable().default(null),
   opened_at: IsoDateTime,
+  /** 需求变更载荷；缺省表示普通方案探讨。带载荷的提案由 `/proposal_approve` 应用成需求落盘。 */
+  requirement_change: RequirementChange.optional(),
 })
 export type Proposal = z.infer<typeof Proposal>
 

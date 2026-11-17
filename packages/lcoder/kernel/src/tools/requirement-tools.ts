@@ -1,6 +1,6 @@
 /**
  * 需求工具：把一条需求落成 `.spec/requirements/REQ-xx.yaml` 与同名正文，
- * 并负责需求分析师改稿、项目经理出评审报告这两条模型写入口。
+ * 并负责需求分析师改稿、需求变更提案、项目经理出评审报告这几条模型写入口。
  *
  * 三条刻意的限制：
  *   1. **只写 `draft`。** 批准、发布与关闭都是人机命令，模型能起草需求、能比较候选、
@@ -9,12 +9,15 @@
  *   3. **评审只出报告。** `requirement_review_draft` 不改状态与正文；改稿由
  *      `requirement_revise` 单独做，两条工具分别只对项目经理与需求分析师可见。
  *
+ * `requirement_propose` 是提案通道：只写 `.spec/proposals/P-xx.yaml` 的 `requirement_change`
+ * 载荷，需求本体由人经 `/proposal_approve` 落盘；它只对需求分析师可见。
+ *
  * 输出统一用 `{ type: 'json' }` + JSON 渲染，理由见 docs/cookbook/adding-a-tool.md。
  */
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 
-import type { RequirementOption, RequirementSplitPlanEntry, Task } from '../schema/spec.js'
+import type { Proposal, Requirement, RequirementChange, RequirementOption, RequirementSplitPlanEntry, Task } from '../schema/spec.js'
 import {
   assertRequirementId,
   createRequirement,
@@ -27,8 +30,9 @@ import {
   reviseRequirement,
   saveSplitPlan,
 } from '../kernel/requirement-store.js'
+import { listProposals, nextProposalId, saveProposal } from '../kernel/proposal-store.js'
 import { resolveRole, rolesPath } from '../kernel/role-store.js'
-import { resolveRoot } from '../kernel/spec-root.js'
+import { hasSpecRoot, resolveRoot } from '../kernel/spec-root.js'
 import type { RootInput } from '../kernel/spec-root.js'
 import { listTasks } from '../kernel/task-store.js'
 
@@ -38,6 +42,36 @@ const renderJson = (_args: unknown, value: unknown): { type: 'text'; text: strin
 
 /** 落盘后给模型的下一步口径：正文讲给用户，状态推进等人。 */
 const PENDING_NOTE = '需求已落盘，状态 draft。把正文讲给用户；确认、发布、关闭都由人机命令完成，本工具不提供。'
+
+/** 提案落盘后给模型的下一步口径：需求本体等人对比确认后才写。 */
+const PROPOSE_PENDING_NOTE = '提案已落盘，需求本体没有写。把提案正文与分析结论讲给用户，等人在界面对比确认（/proposal_approve）后才落需求本体；拒绝走 /proposal_reject。本工具不提供需求本体落盘与过审。'
+
+/**
+ * 从正文推导提案标题：取第一个 Markdown 标题，其次第一个非空行（超长截断），都取不到用兜底标题。
+ * @param content - 完整新正文。
+ * @param fallback - 正文推不出标题时的兜底（改稿用目标需求标题，新建用固定文案）。
+ * @returns 非空标题。
+ */
+function proposalTitleOf(content: string, fallback: string): string {
+  const heading = /^#{1,6}\s+(.+?)\s*$/m.exec(content)?.[1]?.trim()
+  if (heading !== undefined && heading !== '') return heading
+  const line = content.split('\n').map(entry => entry.trim()).find(entry => entry !== '')
+  if (line === undefined) return fallback
+  return line.length > 60 ? `${line.slice(0, 60)}…` : line
+}
+
+/**
+ * 基线版本是否存在：版本表里有这一版，或旧需求没有版本表但正文存在且基线是 v1
+ * （与改稿补录 v1 同一口径）。
+ * @param root - 规格根。
+ * @param requirement - 目标需求。
+ * @param version - 提案声明的基线版本号。
+ * @returns 基线存在为 true。
+ */
+function hasBaseVersion(root: string, requirement: Requirement, version: number): boolean {
+  if (requirement.versions.some(entry => entry.n === version)) return true
+  return requirement.versions.length === 0 && version === 1 && readRequirementDocument(root, requirement.id) !== undefined
+}
 
 /** 工具参数里的一条候选：三个字段都由模型直接给对象，逐项校验后落盘。 */
 interface RequirementOptionArg {
@@ -136,9 +170,9 @@ function splitPlanEntriesOf(
 }
 
 /**
- * 建需求工具：起草、评审、改稿与拆分岗位建议四条模型写入口；可见性由角色天花板收窄。
+ * 建需求工具：起草、评审、改稿、需求变更提案与拆分岗位建议五条模型写入口；可见性由角色天花板收窄。
  * @param rootInput - 规格根解析（按会话工作区）。
- * @returns `requirement_draft`、`requirement_review_draft`、`requirement_revise` 与 `requirement_split_plan` 工具定义。
+ * @returns `requirement_draft`、`requirement_review_draft`、`requirement_revise`、`requirement_propose` 与 `requirement_split_plan` 工具定义。
  */
 export function createRequirementTools(rootInput: RootInput): ToolDefinition[] {
   return [
@@ -285,6 +319,103 @@ export function createRequirementTools(rootInput: RootInput): ToolDefinition[] {
           characters: args.content.trim().length,
           state: revision.requirement.state,
           note: '新正文已落盘并记为新的版本；本工具不改需求状态，过审仍由人机命令完成。',
+        }
+      },
+    }),
+    defineTool({
+      name: 'requirement_propose',
+      description:
+        '把一条需求变更写成待确认提案 `.spec/proposals/P-<编号>.yaml`（requirement_change 载荷），不写需求本体。mode new 登记新需求，target 与 base_version 可省，给出时须成对，记录作为依据的需求版本（确认态需求只能这样作为 new 的依据）；mode revise 改稿既有需求，target 与 base_version 必填，要求目标存在、state 为 draft 且基线版本存在。content 是完整新正文，analysis 是需求层分析结论（与现有需求的冲突/重复、影响面、优先级建议）。落盘后由人在界面对比确认：批准走 /proposal_approve 才落需求本体，拒绝走 /proposal_reject；本工具不能落需求本体、不能过审。',
+      parameters: {
+        mode: { type: 'string', enum: ['new', 'revise'], required: true, description: 'new 登记新需求；revise 改稿既有起草态需求的正文' },
+        target: { type: 'string', description: '需求编号，如 REQ-01；revise 必填；new 可选，记录作为依据的需求，与 base_version 成对' },
+        base_version: { type: 'integer', description: '基线版本号；revise 必填，取目标需求当前最新版本号；new 记录依据时与 target 成对给出' },
+        content: { type: 'string', required: true, description: '完整的新需求正文，Markdown；去空白后必须非空' },
+        analysis: { type: 'string', required: true, description: '需求层分析结论：与现有需求的冲突/重复、影响面大小、优先级建议；不写代码层判断' },
+      },
+      output: { schema: { type: 'json' }, render: renderJson },
+      // oxlint-disable-next-line typescript/require-await -- execute 的契约要求返回 Promise（ToolDefinition.execute），这里是同步实现。
+      async execute(args, exec) {
+        const root = resolveRoot(rootInput, exec)
+        const content = args.content
+        if (content.trim() === '') throw new Error('requirement_propose 需要非空的 content：新正文去空白后不能为空')
+        const analysis = args.analysis.trim()
+        if (analysis === '') throw new Error('requirement_propose 需要非空的 analysis：写需求层分析结论（冲突/重复、影响面、优先级建议）')
+
+        const target = args.target?.trim()
+        const baseVersion = args.base_version
+        let change: RequirementChange
+        let fallbackTitle = '新需求'
+        if (args.mode === 'revise') {
+          if (target === undefined || target === '') throw new Error('requirement_propose revise 需要 target：指定要改稿的需求编号')
+          if (baseVersion === undefined) throw new Error('requirement_propose revise 需要 base_version：取目标需求当前最新的版本号')
+          const id = assertRequirementId(target)
+          let requirement
+          try {
+            requirement = loadRequirement(root, id)
+          } catch (error: unknown) {
+            throw new Error(`读不到需求 ${id}（${requirementPath(root, id)}）：${errorMessage(error)}`)
+          }
+          if (requirement.state !== 'draft') {
+            throw new Error(`${id} 现在在「${requirement.state}」，只有起草态需求能改稿；确认态需求只能基于其版本登记新需求（mode new，用 target 与 base_version 记录依据）`)
+          }
+          if (!hasBaseVersion(root, requirement, baseVersion)) {
+            throw new Error(`${id} 没有版本 v${String(baseVersion)}；base_version 要取该需求已有的版本号`)
+          }
+          change = { mode: 'revise', target: id, base_version: baseVersion, content, analysis }
+          fallbackTitle = requirement.title
+        } else {
+          if (target !== undefined && target !== '') {
+            if (baseVersion === undefined) {
+              throw new Error('requirement_propose new 的 target 与 base_version 要成对给出：它们记录作为依据的需求版本')
+            }
+            const id = assertRequirementId(target)
+            let requirement
+            try {
+              requirement = loadRequirement(root, id)
+            } catch (error: unknown) {
+              throw new Error(`读不到依据需求 ${id}（${requirementPath(root, id)}）：${errorMessage(error)}`)
+            }
+            if (!hasBaseVersion(root, requirement, baseVersion)) {
+              throw new Error(`${id} 没有版本 v${String(baseVersion)}；base_version 要取该需求已有的版本号`)
+            }
+            change = { mode: 'new', target: id, base_version: baseVersion, content, analysis }
+          } else {
+            if (baseVersion !== undefined) {
+              throw new Error('requirement_propose new 的 target 与 base_version 要成对给出：它们记录作为依据的需求版本')
+            }
+            change = { mode: 'new', content, analysis }
+          }
+        }
+
+        const title = proposalTitleOf(content, fallbackTitle)
+        const existing = hasSpecRoot(root) ? listProposals(root) : []
+        const proposal: Proposal = {
+          id: nextProposalId(existing),
+          title,
+          problem: analysis,
+          options: [{
+            name: change.mode === 'new' ? '登记新需求' : '改稿需求正文',
+            summary: title,
+            cost: '需人对比确认后才写需求本体',
+          }],
+          recommendation: change.mode === 'new'
+            ? '建议登记为新需求；由人对比确认后落盘。'
+            : `建议基于 ${change.target} v${String(change.base_version)} 改稿；由人对比确认后落盘。`,
+          decision: 'draft',
+          decided_at: null,
+          opened_at: new Date().toISOString(),
+          requirement_change: change,
+        }
+        const path = saveProposal(root, proposal)
+        return {
+          proposal_id: proposal.id,
+          path,
+          mode: change.mode,
+          target: change.target ?? null,
+          base_version: change.base_version ?? null,
+          decision: proposal.decision,
+          note: PROPOSE_PENDING_NOTE,
         }
       },
     }),
