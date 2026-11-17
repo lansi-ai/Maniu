@@ -165,7 +165,7 @@ export function IntakeWizard(props: IntakeWizardProps): JSX.Element {
                 ))}
               </ul>
             )}
-          <p className="detail-note">立项会话已切到「对话」页；模型落盘的需求会出现在需求列表。</p>
+          <p className="detail-note">{t('intake.resultBackground')}</p>
         </section>
       )}
     </DetailDrawer>

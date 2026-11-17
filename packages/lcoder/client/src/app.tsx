@@ -126,6 +126,12 @@ export function App(): JSX.Element {
   const [returnPage, setReturnPage] = useState<PageId>('chat')
   const [project, setProject] = useState<ProjectScope | null>(savedProject)
   const [intakeResult, setIntakeResult] = useState<IntakeResult | null>(null)
+  // 立项结果属于发起它的项目；切项目即清除，避免新仓向导显示别仓旧结果。
+  const intakeWorkspaceRef = useRef<string | null>(null)
+  if (intakeWorkspaceRef.current !== (project?.workspaceId ?? null)) {
+    intakeWorkspaceRef.current = project?.workspaceId ?? null
+    if (intakeResult !== null) setIntakeResult(null)
+  }
   const [taskRequirement, setTaskRequirement] = useState<string | null>(null)
   const [projectNotice, setProjectNotice] = useState<string | null>(null)
   const [pending, setPending] = useState<readonly PendingInteraction[]>([])

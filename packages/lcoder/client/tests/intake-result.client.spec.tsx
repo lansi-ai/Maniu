@@ -98,6 +98,21 @@ function Harness(): JSX.Element {
   )
 }
 
+describe('立项结果视图文案', () => {
+  it('结果视图用后台口径词典文案，不再说已切到对话页', async () => {
+    await act(async () => {
+      root.render(
+        <Harness />,
+      )
+    })
+    await press('intake-start')
+    const note = element('intake-result')?.textContent ?? ''
+    expect(note).toContain('后台运行')
+    expect(note).toContain('浮卡')
+    expect(note).not.toContain('已切到')
+  })
+})
+
 describe('立项结果提升到 App 级', () => {
   it('发送后显示结果，向导重挂仍可回看，清除后回到起始表单', async () => {
     await act(async () => { root.render(<Harness />) })
