@@ -16,7 +16,7 @@ import { SettingsPage } from './pages/settings.tsx'
 import { TasksPage } from './pages/tasks.tsx'
 import { TalentsPage } from './pages/talents.tsx'
 import { ChatView } from './shell/chat-view.tsx'
-import { PendingCards, type AnswerResult } from './shell/pending-cards.tsx'
+import { PendingLayer, type AnswerResult } from './shell/pending-cards.tsx'
 import { GateChrome } from './shell/gate-chrome.tsx'
 import { GateView } from './shell/gate-view.tsx'
 import { QuitConfirm } from './shell/quit-confirm.tsx'
@@ -33,15 +33,14 @@ import { interactionOf, type PendingInteraction } from './chat/pending.ts'
 import { useSessionControl } from './chat/use-session-control.ts'
 import { createFrameBatcher, type FrameBatcher } from './chat/stream-batch.ts'
 import { useTalents } from './talents/use-talents.ts'
+import { INTAKE_PRESET_ID, isIntakePreset } from './talents/model.ts'
+import { titleIntakeSession } from './intake/session-title.ts'
 
 /** 工作台页面。 */
 type PageId = 'chat' | 'requirements' | 'tasks' | 'projects' | 'project-info' | 'talents' | 'settings' | 'account'
 
 /** 新会话默认使用的角色；工作台作用域会话靠它拿到人机命令面。 */
 const WORKBENCH_PRESET = 'maniu-workbench'
-
-/** 立项会话使用的角色；访谈纪律只由它的人设承载。 */
-const INTAKE_PRESET = 'maniu-intake'
 
 interface NavItem {
   readonly id: PageId
@@ -488,6 +487,28 @@ export function App(): JSX.Element {
       return { ok: false, message: 'session.create 返回了无法识别的会话' }
     }
     const sessionId = value.sessionId
+    // 先登记进列表：首帧可能早于 session/list 回来，没有 preset 就会把立项指令摊开。
+    setSessions(current => sortSessions([
+      ...current.filter(item => item.sessionId !== sessionId),
+      {
+        sessionId,
+        updatedAt: Date.now(),
+        running: false,
+        blank: true,
+        agentPreset,
+      },
+    ]))
+    if (isIntakePreset(agentPreset)) {
+      // 宿主按首条消息起的标题对访谈没有意义；改成本地化的固定标题。
+      const title = t('intake.sessionTitle')
+      const failure = await titleIntakeSession(
+        (namespace, method, args) => window.lcoder.call(namespace, method, args),
+        sessionId,
+        title,
+      )
+      if (failure === null) setTitles(current => ({ ...current, [sessionId]: title }))
+      else setNotice(t('intake.titleFailed', { detail: failure }))
+    }
     const sent = await window.lcoder.call('session', 'prompt', {
       request: {
         requestId: newRequestId(),
@@ -511,7 +532,7 @@ export function App(): JSX.Element {
 
   const startIntake = useCallback(async (prompt: string) => {
     setIntakeResult(null)
-    const answer = await launchSession(prompt, INTAKE_PRESET)
+    const answer = await launchSession(prompt, INTAKE_PRESET_ID)
     if (answer.ok && answer.sessionId !== undefined) {
       setIntakeResult({ message: answer.message, sessionId: answer.sessionId })
     }
@@ -653,6 +674,8 @@ export function App(): JSX.Element {
                 usage={usage}
                 composerRef={composerRef}
                 talentNames={talents.presetNames}
+                pending={pending}
+                onAnswer={answer}
                 onSelect={selectSession}
                 onCreate={createSession}
                 onSend={send}
@@ -737,9 +760,7 @@ export function App(): JSX.Element {
             )}
           </div>
 
-          <div className="pending-layer">
-            <PendingCards t={t} items={pending} onAnswer={answer} />
-          </div>
+          <PendingLayer visible={page !== 'chat'} t={t} items={pending} onAnswer={answer} />
         </main>
       )}
 

@@ -10,7 +10,7 @@ English | [中文](README.zh.md)
 <a id="summary"></a>
 ## Summary
 
-- `src/app.tsx`：登录门禁、会话列表、聊天与工作台导航；欢迎屏与登录页在门禁内切换；运行中关窗的确认层由主进程 `lcoder:close-request` 触发。
+- `src/app.tsx`：登录门禁、会话列表、聊天与工作台导航；欢迎屏与登录页在门禁内切换；审批/提问卡在对话页排进消息列、其他页走右下浮层；立项会话的首条指令只显示需求分析师胶囊，标题固定为「需求分析」；运行中关窗的确认层由主进程 `lcoder:close-request` 触发。
 - `src/account/`：验证码/密码登录、注册、退出与令牌刷新、个人中心与用量分页；令牌始终留在宿主凭据里。
 - `src/pages/settings.tsx`、`src/settings/model-settings.ts`：模型服务首版只读（provider、密钥三态与默认模型可见）、皮肤、字体、语言与手动更新说明；`src/prefs.ts` 持久化本地偏好。
 - `src/locale-zh.ts` / `src/locale-en.ts`：新壳与 M3 新增文案的双语词典；`src/theme/skins.css` 提供霓虹/冷银/粉樱三套皮肤与自托管 Inter。

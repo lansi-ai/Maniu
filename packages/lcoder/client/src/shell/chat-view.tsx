@@ -2,15 +2,18 @@
 
 import { useState } from 'react'
 import type { JSX, RefObject } from 'react'
+import type { EventOutcome } from '../contract.ts'
 import type { Translate } from '../locale.ts'
 import type {
   ChatImageLimits, ChatModelAvailability, ChatModelOption, ChatModelSelectionView, ChatContextUsage,
   ChatPendingAttachment,
 } from '../chat/composer.ts'
+import type { PendingInteraction } from '../chat/pending.ts'
 import type { ChatState, SessionSummary } from '../store.ts'
-import { currentPresetId } from '../talents/model.ts'
+import { currentPresetId, isIntakePreset } from '../talents/model.ts'
 import { Composer } from './composer.tsx'
 import { ChatTranscript } from './chat-transcript.tsx'
+import { PendingCards, type AnswerResult } from './pending-cards.tsx'
 
 /** 对话页属性。 */
 export interface ChatViewProps {
@@ -31,6 +34,9 @@ export interface ChatViewProps {
   readonly composerRef: RefObject<HTMLTextAreaElement>
   /** 人才 preset id → 显示名；会话列表据此标注归属。 */
   readonly talentNames: Readonly<Record<string, string>>
+  /** 等待人处理的审批与提问；在对话列内渲染，不再走右下浮层。 */
+  readonly pending: readonly PendingInteraction[]
+  readonly onAnswer: (interaction: PendingInteraction, outcome: EventOutcome) => Promise<AnswerResult>
   readonly onSelect: (sessionId: string) => void
   readonly onCreate: () => void
   readonly onSend: (text: string, attachments: readonly ChatPendingAttachment[]) => Promise<boolean>
@@ -64,10 +70,12 @@ export function sessionLabel(session: SessionSummary, titles: Readonly<Record<st
  */
 export function ChatView({
   t, sessions, titles, active, chat, notice, sending, running, limits, models, selection,
-  availability, usage, composerRef, talentNames, onSelect, onCreate, onSend, onStop, onRename, ensureSession,
-  onSelectModel,
+  availability, usage, composerRef, talentNames, pending, onAnswer, onSelect, onCreate, onSend, onStop, onRename,
+  ensureSession, onSelectModel,
 }: ChatViewProps): JSX.Element {
   const activeSession = sessions.find(item => item.sessionId === active) ?? null
+  // 立项会话的首条消息是整段指令；正文留在会话日志里，界面上只露角色胶囊。
+  const intake = activeSession !== null && isIntakePreset(activeSession.agentPreset)
   const headTitle = active === null
     ? t('chat.noSession')
     : activeSession === null ? active.slice(0, 8) : sessionLabel(activeSession, titles)
@@ -165,7 +173,18 @@ export function ChatView({
           )}
         </div>
 
-        <ChatTranscript t={t} sessionId={active} chat={chat} />
+        <ChatTranscript
+          t={t}
+          sessionId={active}
+          chat={chat}
+          seedHidden={intake}
+          pendingCount={pending.length}
+          pending={pending.length === 0 ? null : (
+            <div className="chat-pending" data-testid="chat-pending">
+              <PendingCards t={t} items={pending} onAnswer={onAnswer} />
+            </div>
+          )}
+        />
 
         <Composer
           t={t}

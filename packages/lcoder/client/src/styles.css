@@ -443,6 +443,27 @@ html[data-theme='liquid-glass'] body {
   box-shadow: 0 16px 34px -18px rgba(10, 79, 196, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.34);
 }
 
+/* 立项指令不摊开正文：只留一枚角色胶囊，指令本身仍在会话日志里。 */
+.message.intake-seed {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.role-capsule {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border: 1px solid var(--lg-line);
+  border-radius: 999px;
+  background: var(--lg-fill-subtle);
+  color: var(--lg-ink-2);
+  font-size: 12px;
+  line-height: 1.4;
+  letter-spacing: 0.02em;
+}
+
 .message.live {
   padding-right: 26px;
   /* 流式正文每个增量都会长高：静态磨砂打底，再单独给一层合成层，
@@ -704,10 +725,20 @@ html[data-theme='liquid-glass'] body {
 .rename-problem { color: var(--lg-danger); font-size: 11px; }
 .chat-head .running { color: var(--lg-ok); font-size: 11px; }
 
-/* 等待人处理的交互浮在页面上，不挤占正文。 */
+/* 等待人处理的交互浮在页面上，不挤占正文；对话页改用聊天列里的卡片。 */
 .pending-layer { position: absolute; right: 18px; bottom: 118px; z-index: 6; width: min(420px, 60%); pointer-events: none; }
 .pending-layer .pending-card { pointer-events: auto; }
 .pending-card { padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+
+/* 对话页的审批/提问卡排在消息尾部，与消息同宽左对齐、随对话滚动。 */
+.chat-pending {
+  align-self: flex-start;
+  width: 100%;
+  max-width: min(78%, 720px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
 
 /* 运行中关窗确认：只压暗底层，不接管焦点之外的交互。 */
 .quit-backdrop {
