@@ -2632,7 +2632,7 @@ tracks:
 
     - id: T-236
       title: 立项会话的对话呈现整理
-      status: doing
+      status: done
       face: 用户端
       type: 开发
       owner: lance
@@ -2640,7 +2640,7 @@ tracks:
       date: '2026-11-17'
       dep: [T-233, T-235]
       inferred: false
-      note: "B 级对话页改版，来源是用户 2026-11-17 对开始立项后对话页的三条反馈。一、立项会话里不再显示那条立项指令的蓝色气泡，只标出本次使用的是需求分析师；指令仍照常发送并留在会话日志里，只改渲染。二、点击开始立项后会话标题直接显示需求分析，不再用宿主根据首条消息起的仓库检查式标题。三、提问与审批卡现在是固定在右下角的全局浮层，改为融进对话列，随对话滚动、与消息同宽左对齐，聊天页不再用右下浮层；非聊天页仍保留浮层以免审批被漏掉。实现要点：ChatView 增加待处理卡与回答回调，ChatTranscript 按会话 preset 是否 maniu-intake 识别第一条用户消息并以角色胶囊替代正文；startIntake 创建成功后调用 session rename 改成需求分析，失败给可读提示但不阻断进入对话；pending-layer 按当前页条件渲染。范围 packages/lcoder/client 的 app、chat-view、chat-transcript、pending-cards、词典、样式与组件测试；不改 kernel、人设、工具与云合同。验收 typecheck、packages/lcoder vitest、改动文件 oxlint、verify-client-ui-i18n；组件测试覆盖首条指令隐藏与角色胶囊、其它消息正常、标题改名为需求分析、提问卡在对话列内渲染且聊天页无浮层、非聊天页浮层仍在。工作树 pool-slot-2 到 lcoder/t236-intake-chat，端口 9823 与 9831 与 9832。2026-11-17 13:30 监督窗口登记并派工，实现线会话 ec73c2c1。"
+      note: "B 级对话页改版，来源是用户 2026-11-17 对开始立项后对话页的三条反馈。一、立项会话里不再显示那条立项指令的蓝色气泡，只标出本次使用的是需求分析师；指令仍照常发送并留在会话日志里，只改渲染。二、点击开始立项后会话标题直接显示需求分析，不再用宿主根据首条消息起的仓库检查式标题。三、提问与审批卡现在是固定在右下角的全局浮层，改为融进对话列，随对话滚动、与消息同宽左对齐，聊天页不再用右下浮层；非聊天页仍保留浮层以免审批被漏掉。实现要点：ChatView 增加待处理卡与回答回调，ChatTranscript 按会话 preset 是否 maniu-intake 识别第一条用户消息并以角色胶囊替代正文；startIntake 创建成功后调用 session rename 改成需求分析，失败给可读提示但不阻断进入对话；pending-layer 按当前页条件渲染。范围 packages/lcoder/client 的 app、chat-view、chat-transcript、pending-cards、词典、样式与组件测试；不改 kernel、人设、工具与云合同。验收 typecheck、packages/lcoder vitest、改动文件 oxlint、verify-client-ui-i18n；组件测试覆盖首条指令隐藏与角色胶囊、其它消息正常、标题改名为需求分析、提问卡在对话列内渲染且聊天页无浮层、非聊天页浮层仍在。工作树 pool-slot-2 到 lcoder/t236-intake-chat，端口 9823 与 9831 与 9832。2026-11-17 13:30 监督窗口登记并派工，实现线会话 ec73c2c1。2026-11-17 14:05 监督窗口核验并收口。两笔提交，立项会话按 preset 识别首条用户消息并只渲染需求分析师胶囊，正文留在会话日志；创建后先登记带 preset 的会话摘要再改名需求分析，标题同时反映在聊天头与列表，失败可读提示不阻断；提问与审批卡改为在对话列尾部渲染并随对话滚动，新增卡数量增加时自动滚底，非对话页仍保留右下浮层。独立复跑工作树 typecheck 五项、packages/lcoder vitest 一百三十文件一千三百九十四例、改动八文件 oxlint 零错零警、i18n 一千三百一十八文件、test:docs 二十一项全过；合入后主检 build:artifacts 八项、build:check 两项、typecheck 五项、同组 vitest 一百三十文件一千三百九十四例、i18n 与 test:docs 全过。未验项为真实云端与模型钥匙下的真窗口观感与列内卡片定位，主检实例需重启后生效。已合入 lcoder/main、release pool-slot-2。"
 
     - id: T-237
       title: 需求评审与版本留存的模型层
