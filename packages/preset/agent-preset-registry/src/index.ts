@@ -60,6 +60,8 @@ export class AgentPresetRegistry extends TypertRemoteService {
   private agentPresetProjectionHandle!: ProjectionHandle<string | null>
   private readonly owner: Context
   private readonly definitions = new Map<string, Definition>()
+  /** Retired identity → declaring definition id, indexed from `Definition.retiredIds`. */
+  private readonly retired = new Map<string, string>()
   private readonly generations = new Map<ScopeKey, Generation>()
   private readonly bindings = new WeakMap<ScopeKey, Binding>()
   private readonly switches = new Map<string, Promise<unknown>>()
@@ -81,6 +83,14 @@ export class AgentPresetRegistry extends TypertRemoteService {
   /** Default preset for a subsequently created session. */
   get defaultId(): string { return this.config.selectedDefault.get() ?? this.config.default }
 
+  /** Declaration for a requested identity, following one retired-id hop.
+   * @param id Requested identity, current or retired.
+   * @returns The declaration registered under that identity, or undefined.
+   */
+  private definitionFor(id: string): Definition | undefined {
+    return this.definitions.get(this.retired.get(id) ?? id)
+  }
+
   /**
    * Read the preset recorded for a Session, including selections no longer in the roster.
    * @param session - Session whose committed preset selection is read.
@@ -98,13 +108,22 @@ export class AgentPresetRegistry extends TypertRemoteService {
     const context = this.ctx
     if (!definition.id.trim()) throw new Error('Preset id must not be empty')
     if (this.definitions.has(definition.id)) throw new Error(`Duplicate agent preset: ${definition.id}`)
+    for (const retired of definition.retiredIds ?? []) {
+      if (retired === definition.id || this.definitions.has(retired) || this.retired.has(retired)) {
+        throw new Error(`Duplicate agent preset: ${retired}`)
+      }
+    }
     const record: Definition = { config: definition, context, ready: Promise.resolve() }
     this.definitions.set(definition.id, record)
+    for (const retired of definition.retiredIds ?? []) this.retired.set(retired, definition.id)
     let disposed = false
     const unregister = async (): Promise<void> => {
       if (disposed) return
       disposed = true
       this.definitions.delete(definition.id)
+      for (const retired of definition.retiredIds ?? []) {
+        if (this.retired.get(retired) === definition.id) this.retired.delete(retired)
+      }
       await record.ready
       if (record.generation !== undefined) {
         record.generation.retired = true
@@ -213,17 +232,17 @@ export class AgentPresetRegistry extends TypertRemoteService {
     return { presets: (await this.list()).map(row => ({ ...row, isDefault: row.id === defaultId })) }
   }
 
-  /** Resolve an identity without starting an Agent.
+  /** Resolve an identity without starting an Agent. A retired identity resolves through `aliases` to its current declaration.
    * @param id Explicit preset or the current default.
-   * @returns Current metadata, including failure when activation failed.
+   * @returns Current metadata under the declaration's own id, including failure when activation failed.
    */
   async resolve(id?: string): Promise<AgentPreset> {
     const wanted = id ?? this.defaultId
-    const record = this.definitions.get(wanted)
+    const record = this.definitionFor(wanted)
     if (record === undefined) throw new RemoteError('agent-preset/not-found', `Unknown agent preset: ${wanted}`,
       { agentPreset: wanted, available: [...this.definitions.keys()] })
     const broken = await this.diagnostic(record)
-    return { id: wanted, ...(broken === undefined ? {} : { broken }) }
+    return { id: record.config.id, ...(broken === undefined ? {} : { broken }) }
   }
 
   /** Read one declaration's child plugin list as YAML, for viewing only.
@@ -232,7 +251,7 @@ export class AgentPresetRegistry extends TypertRemoteService {
    */
   @Remote('read')
   readDocument(agentPreset: string): Promise<AgentPresetDocument> {
-    const record = this.definitions.get(agentPreset)
+    const record = this.definitionFor(agentPreset)
     if (record === undefined) {
       return Promise.reject(new RemoteError('agent-preset/not-found', `Unknown agent preset: ${agentPreset}`,
         { agentPreset, available: [...this.definitions.keys()] }))
@@ -254,7 +273,7 @@ export class AgentPresetRegistry extends TypertRemoteService {
    * @returns A structured clone of the declared rows, or undefined when no declaration supplies the id.
    */
   definitionPlugins(agentPreset: string): PresetDefinition['plugins'] | undefined {
-    const record = this.definitions.get(agentPreset)
+    const record = this.definitionFor(agentPreset)
     return record === undefined ? undefined : structuredClone(record.config.plugins)
   }
 
@@ -268,17 +287,17 @@ export class AgentPresetRegistry extends TypertRemoteService {
    * @returns The standing scope key, or undefined when no mounted revision supplies the id.
    */
   definitionScope(agentPreset: string): ScopeKey | undefined {
-    return this.definitions.get(agentPreset)?.generation?.key
+    return this.definitionFor(agentPreset)?.generation?.key
   }
 
   private async retain(id?: string): Promise<Generation> {
     const wanted = id ?? this.defaultId
     while (true) {
-      const record = this.definitions.get(wanted)
+      const record = this.definitionFor(wanted)
       if (record === undefined) throw new RemoteError('agent-preset/not-found', `Unknown agent preset: ${wanted}`,
         { agentPreset: wanted, available: [...this.definitions.keys()] })
       const broken = await this.diagnostic(record)
-      if (this.definitions.get(wanted) !== record) continue
+      if (this.definitionFor(wanted) !== record) continue
       const generation = record.generation
       if (broken !== undefined || generation === undefined) {
         const reason = broken as string
@@ -394,7 +413,7 @@ export class AgentPresetRegistry extends TypertRemoteService {
       if (boundary.openTurnStartSeq !== null || boundary.lastTurn > 0) {
         throw new RemoteError('agent-preset/locked', 'This session has already started', { sessionId: agent.id, agentPreset })
       }
-      const current = this.definitions.get(agentPreset)?.generation
+      const current = this.definitionFor(agentPreset)?.generation
       if (current !== undefined && this.generationFor(agent.ctx) === current
         && this.agentPresetProjectionHandle.stateOf(agent.session) === agentPreset) return agentPreset
       const preset = await this.recompose(agent.ctx, agentPreset)

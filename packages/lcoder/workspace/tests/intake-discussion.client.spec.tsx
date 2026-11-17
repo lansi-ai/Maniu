@@ -173,7 +173,7 @@ function renderShell(scenario: ShellScenario = {}): {
     useSessionAccess: vi.fn(),
     useContextMenu: vi.fn(),
     useResource: vi.fn(),
-    listRoles: async () => [{ id: 'lcoder-review', name: '评审' }],
+    listRoles: async () => [{ id: 'maniu-review', name: '评审' }],
     checkModels: async () => ({ state: 'ready' }),
     createSession,
     sendPrompt,

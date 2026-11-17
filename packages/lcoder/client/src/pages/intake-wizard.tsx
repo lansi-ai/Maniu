@@ -5,6 +5,7 @@ import type { JSX } from 'react'
 import type { ProjectScope } from '../workspace/use-workspaces.ts'
 import type { SpecProjection } from '../spec/load.ts'
 import { buildIntakePrompt, type IntakeMode } from '../intake/prompts.ts'
+import { DetailDrawer } from './detail-drawer.tsx'
 
 /** 一次立项发送的结果；提到 App 级，供向导卸载后回看。 */
 export interface IntakeResult {
@@ -62,11 +63,12 @@ export function IntakeWizard(props: IntakeWizardProps): JSX.Element {
   const latest = props.projection.requirements[props.projection.requirements.length - 1]
 
   return (
-    <aside className="detail-drawer lg-glass" data-testid="intake-wizard">
-      <div className="detail-drawer-head">
-        <h3>立项向导</h3>
-        <button type="button" className="pill" data-testid="intake-close" onClick={props.onClose}>关闭</button>
-      </div>
+    <DetailDrawer
+      testId="intake-wizard"
+      closeTestId="intake-close"
+      onClose={props.onClose}
+      head={<h3>立项向导</h3>}
+    >
 
       {started === null && (
         <>
@@ -125,6 +127,6 @@ export function IntakeWizard(props: IntakeWizardProps): JSX.Element {
           <p className="detail-note">立项会话已切到「对话」页；模型落盘的需求会出现在需求列表。</p>
         </section>
       )}
-    </aside>
+    </DetailDrawer>
   )
 }

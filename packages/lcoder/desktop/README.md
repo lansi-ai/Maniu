@@ -3,7 +3,7 @@ description: "LCoder's Electron shell for T-187 S1, T-190 M3, and T-191 M1: a fr
 kind: "package-reference"
 ---
 
-# @lcoder/desktop
+# @maniu/desktop
 
 English | [中文](README.zh.md)
 

@@ -1,7 +1,7 @@
 /** 门禁态的窗口控制：一条透明拖拽区与右上角三个幽灵按钮，不画玻璃条、不占布局高度。 */
 
 import type { JSX } from 'react'
-import type { WindowStateInfo } from '@lcoder/desktop/contract'
+import type { WindowStateInfo } from '@maniu/desktop/contract'
 import type { Translate } from '../locale.ts'
 
 /** 门禁态窗口控制属性。 */

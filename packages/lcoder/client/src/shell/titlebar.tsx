@@ -1,7 +1,7 @@
 /** 自绘标题栏：品牌、项目、宿主状态、账号入口与窗口按钮。 */
 
 import type { JSX } from 'react'
-import type { HostState, WindowStateInfo } from '@lcoder/desktop/contract'
+import type { HostState, WindowStateInfo } from '@maniu/desktop/contract'
 import type { Translate } from '../locale.ts'
 import type { CloudState } from '../account/cloud.ts'
 import { AccountMenu } from '../account/account-menu.tsx'

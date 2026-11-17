@@ -356,9 +356,9 @@ describe('契约', () => {
 
     const aiSigned = CONTRACT_YAML.replace('by: human', 'by: agent').replace(
       'hash: sha256:abcdef0123456789',
-      'hash: sha256:abcdef0123456789\n  actor: lcoder-flow',
+      'hash: sha256:abcdef0123456789\n  actor: maniu-flow',
     )
-    expect(contractTextToRow('T-014.contract.yaml', aiSigned)?.signedActor).toBe('lcoder-flow')
+    expect(contractTextToRow('T-014.contract.yaml', aiSigned)?.signedActor).toBe('maniu-flow')
   })
 
   it('读不懂的契约给 undefined：缺正文或缺验收都算', () => {

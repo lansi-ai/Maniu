@@ -3,7 +3,7 @@
  *
  * 区间数值由云端算好；桌面只做插值与格式化，不含任何单价常量。
  */
-import type { CloudEstimateReason, CloudState, CloudTokenEstimate } from '@lcoder/kernel/src/cloud/types.ts'
+import type { CloudEstimateReason, CloudState, CloudTokenEstimate } from '@maniu/kernel/src/cloud/types.ts'
 import type { LcoderWorkspaceKey } from '../locales.ts'
 
 /** 弹窗与个人中心共用的翻译函数。 */

@@ -65,13 +65,13 @@ function stageApp() {
   rmSync(APP_DIR, { recursive: true, force: true })
   mkdirSync(join(APP_DIR, 'lib', 'types'), { recursive: true })
   const types = join(PACKAGE_ROOT, 'lib', 'types')
-  assert(existsSync(join(types, 'main.js')), '缺少 lib/types/main.js；先 pnpm --filter @lcoder/desktop run build')
+  assert(existsSync(join(types, 'main.js')), '缺少 lib/types/main.js；先 pnpm --filter @maniu/desktop run build')
   for (const entry of readdirSync(types, { withFileTypes: true })) {
     if (entry.isFile() && entry.name.endsWith('.js')) cpSync(join(types, entry.name), join(APP_DIR, 'lib', 'types', entry.name))
   }
   cpSync(join(PACKAGE_ROOT, 'lib', 'preload.cjs'), join(APP_DIR, 'lib', 'preload.cjs'))
   writeFileSync(join(APP_DIR, 'package.json'), `${JSON.stringify({
-    name: '@lcoder/desktop',
+    name: '@maniu/desktop',
     productName: IDENTITY.productName,
     version: RELEASE_VERSION,
     description: 'Maniu 自研 Electron 壳',
@@ -91,7 +91,7 @@ function stageResources() {
   }
   rmSync(CLIENT_DIST_DIR, { recursive: true, force: true })
   const clientDist = join(REPO_ROOT, 'packages', 'lcoder', 'client', 'lib', 'dist')
-  assert(existsSync(join(clientDist, 'index.html')), '缺少 client dist；先 pnpm --filter @lcoder/client run build')
+  assert(existsSync(join(clientDist, 'index.html')), '缺少 client dist；先 pnpm --filter @maniu/client run build')
   cpSync(clientDist, CLIENT_DIST_DIR, { recursive: true })
   assert(existsSync(ICON_SOURCE), `缺少应用图标 ${ICON_SOURCE}`)
   assert(existsSync(TRAY_SOURCE), `缺少托盘图标 ${TRAY_SOURCE}`)
@@ -103,7 +103,7 @@ function deployRuntimeTree() {
   } else {
     rmSync(DEPLOY_DIR, { recursive: true, force: true })
     mkdirSync(DEPLOY_DIR, { recursive: true })
-    runPnpm(['--filter', '@lcoder/desktop', 'deploy', '--prod', '--legacy',
+    runPnpm(['--filter', '@maniu/desktop', 'deploy', '--prod', '--legacy',
       '--config.node-linker=hoisted', '--config.allow-unused-patches=true', DEPLOY_DIR])
   }
   assert(existsSync(join(DEPLOY_DIR, 'node_modules', '@deepseek-ai', 'dsh')), '部署树缺少 @deepseek-ai/dsh')
@@ -124,7 +124,7 @@ function deployRuntimeTree() {
 function refreshLcoderPackages(deployDir) {
   for (const name of ['kernel', 'desktop']) {
     const source = join(REPO_ROOT, 'packages', 'lcoder', name)
-    const target = join(deployDir, 'node_modules', '@lcoder', name)
+    const target = join(deployDir, 'node_modules', '@maniu', name)
     if (!existsSync(join(source, 'package.json')) || !existsSync(target)) continue
     rmSync(target, { recursive: true, force: true })
     cpSync(source, target, {
@@ -164,7 +164,7 @@ function prunedByName(name) {
 
 /**
  * hoisted deploy 会把 workspace 依赖留成指向 `.desktop-build/` 外的相对链接，
- * 并把无关 workspace 项目也挂进 node_modules。只保留 `@lcoder/desktop` 依赖
+ * 并把无关 workspace 项目也挂进 node_modules。只保留 `@maniu/desktop` 依赖
  * 闭包里的链接，并把它们复制成实体目录；其余链接删除。
  * @param deployDir - 部署树根目录。
  * @returns 保留并实体化的包数。

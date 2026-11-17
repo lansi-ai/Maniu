@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ShellMessage } from '../src/client/shell/shell-data.ts'
 import {
-  DISCUSSION_SESSION_PRESETS, groupDiscussionHistory, isDiscussionPreset, mentionsRequirement,
+  groupDiscussionHistory, isDiscussionPreset, mentionsRequirement,
   parseMeetingRole, readDiscussionHistory, roleOfPreset, selectDiscussionHistory, statementsOf,
 } from '../src/client/shell/discussion-history.ts'
 import type { DiscussionHistoryCandidate } from '../src/client/shell/discussion-history.ts'
@@ -37,15 +37,17 @@ describe('方案编号与角色识别', () => {
   })
 
   it('preset 兜底映射讨论角色；未知 preset 不猜', () => {
-    expect(roleOfPreset('lcoder-intake')).toEqual({ roleId: 'analyst', roleName: '需求分析师' })
+    expect(roleOfPreset('maniu-intake')).toEqual({ roleId: 'analyst', roleName: '需求分析师' })
+    expect(roleOfPreset('maniu-pm')).toEqual({ roleId: 'pm', roleName: '项目经理' })
+    expect(roleOfPreset('maniu-manager')).toEqual({ roleId: 'manager', roleName: '研发经理' })
+    expect(roleOfPreset('maniu-architect')).toEqual({ roleId: 'architect', roleName: '架构师' })
+    expect(roleOfPreset('maniu')).toEqual({ roleId: 'track', roleName: '技术岗位' })
+    expect(roleOfPreset('maniu-review')).toBeUndefined()
     expect(roleOfPreset('lcoder-pm')).toEqual({ roleId: 'pm', roleName: '项目经理' })
-    expect(roleOfPreset('lcoder-manager')).toEqual({ roleId: 'manager', roleName: '研发经理' })
-    expect(roleOfPreset('lcoder-architect')).toEqual({ roleId: 'architect', roleName: '架构师' })
     expect(roleOfPreset('lcoder')).toEqual({ roleId: 'track', roleName: '技术岗位' })
-    expect(roleOfPreset('lcoder-review')).toBeUndefined()
-    expect(isDiscussionPreset('lcoder')).toBe(true)
-    expect(isDiscussionPreset('lcoder-review')).toBe(false)
-    expect(DISCUSSION_SESSION_PRESETS).toContain('lcoder-manager')
+    expect(isDiscussionPreset('maniu')).toBe(true)
+    expect(isDiscussionPreset('lcoder-manager')).toBe(true)
+    expect(isDiscussionPreset('maniu-review')).toBe(false)
   })
 
   it('只收助手答复作为发言，指令与注入上下文不进历史', () => {
@@ -64,31 +66,31 @@ describe('历史定位与分组', () => {
     {
       sessionId: 's-1',
       recorded: false,
-      preset: 'lcoder-intake',
+      preset: 'maniu-intake',
       messages: [meetingPrompt('需求分析师', 'analyst'), assistant('功能清单已覆盖。')],
     },
     {
       sessionId: 's-2',
       recorded: false,
-      preset: 'lcoder-pm',
+      preset: 'maniu-pm',
       messages: [meetingPrompt('项目经理', 'pm'), assistant('按三条任务拆分。')],
     },
     {
       sessionId: 's-3',
       recorded: false,
-      preset: 'lcoder-architect',
+      preset: 'maniu-architect',
       messages: [meetingPrompt('架构师', 'architect'), assistant('契约要点如下。')],
     },
     {
       sessionId: 's-9',
       recorded: false,
-      preset: 'lcoder-pm',
+      preset: 'maniu-pm',
       messages: [meetingPrompt('项目经理', 'pm', 'P-02'), assistant('别的需求。')],
     },
     {
       sessionId: 's-10',
       recorded: false,
-      preset: 'lcoder-review',
+      preset: 'maniu-review',
       messages: [assistant('无关会话。')],
     },
   ]
@@ -118,13 +120,13 @@ describe('历史定位与分组', () => {
     const selection = selectDiscussionHistory([
       {
         sessionId: 's-1',
-        preset: 'lcoder', // preset 兜底只会得到「技术岗位」
+        preset: 'maniu', // preset 兜底只会得到「技术岗位」
         recorded: false,
         messages: [meetingPrompt('H5 前端工程师', 'track-h5'), assistant('表单先定字段。')],
       },
       {
         sessionId: 's-2',
-        preset: 'lcoder-architect',
+        preset: 'maniu-architect',
         recorded: true,
         messages: [{ role: 'user', text: '需求 P-01 的讨论' }, assistant('契约要点。')],
       },
@@ -139,7 +141,7 @@ describe('重启扫描与记录信任', () => {
     const selection = selectDiscussionHistory([
       {
         sessionId: 's-intake',
-        preset: 'lcoder',
+        preset: 'maniu',
         recorded: false,
         messages: [
           { role: 'user', text: '立项：按 .spec/requirements/P-01.md 落需求。' },
@@ -148,7 +150,7 @@ describe('重启扫描与记录信任', () => {
       },
       {
         sessionId: 's-split',
-        preset: 'lcoder-pm',
+        preset: 'maniu-pm',
         recorded: false,
         messages: [
           { role: 'user', text: '拆分完成：P-01 已拆出 T-01、T-02。' },
@@ -157,7 +159,7 @@ describe('重启扫描与记录信任', () => {
       },
       {
         sessionId: 's-meeting',
-        preset: 'lcoder-architect',
+        preset: 'maniu-architect',
         recorded: false,
         messages: [meetingPrompt('架构师', 'architect'), assistant('契约要点如下。')],
       },
@@ -170,13 +172,13 @@ describe('重启扫描与记录信任', () => {
     const selection = selectDiscussionHistory([
       {
         sessionId: 's-intake',
-        preset: 'lcoder',
+        preset: 'maniu',
         recorded: false,
         messages: [{ role: 'user', text: '立项：P-01' }, assistant('需求已立项。')],
       },
       {
         sessionId: 's-split',
-        preset: 'lcoder-pm',
+        preset: 'maniu-pm',
         recorded: false,
         messages: [{ role: 'user', text: '拆分完成：P-01 已拆出 T-02。' }, assistant('拆分完成汇报。')],
       },
@@ -188,7 +190,7 @@ describe('重启扫描与记录信任', () => {
     const selection = selectDiscussionHistory([
       {
         sessionId: 's-recorded',
-        preset: 'lcoder-pm',
+        preset: 'maniu-pm',
         recorded: true,
         messages: [{ role: 'user', text: '需求 P-01 的讨论' }, assistant('按三条任务拆分。')],
       },
@@ -201,13 +203,13 @@ describe('重启扫描与记录信任', () => {
     const selection = selectDiscussionHistory([
       {
         sessionId: 's-unknown',
-        preset: 'lcoder-review',
+        preset: 'maniu-review',
         recorded: true,
         messages: [{ role: 'user', text: '需求 P-01 的讨论' }, assistant('无关结论。')],
       },
       {
         sessionId: 's-unknown-scan',
-        preset: 'lcoder-review',
+        preset: 'maniu-review',
         recorded: false,
         messages: [{ role: 'user', text: '需求 P-01 的讨论' }, assistant('无关结论。')],
       },
@@ -227,7 +229,7 @@ describe('异步读取候选会话', () => {
         : []
     }
     const result = await readDiscussionHistory(
-      [{ sessionId: 's-1', preset: 'lcoder-pm', recorded: true }],
+      [{ sessionId: 's-1', preset: 'maniu-pm', recorded: true }],
       'P-01',
       read,
     )
@@ -252,7 +254,7 @@ describe('异步读取候选会话', () => {
       return [meetingPrompt('项目经理', 'pm'), assistant('其余候选照常读。')]
     }
     const result = await readDiscussionHistory(
-      [{ sessionId: 's-bad', recorded: false }, { sessionId: 's-ok', preset: 'lcoder-pm', recorded: false }],
+      [{ sessionId: 's-bad', recorded: false }, { sessionId: 's-ok', preset: 'maniu-pm', recorded: false }],
       'P-01',
       read,
     )

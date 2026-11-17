@@ -7,7 +7,7 @@
 import type { SessionEventLikeEntry } from '@deepseek-ai/dsh-api-session-controller/client'
 // Type-only: pulls the `compaction/*` SessionEventMap members into this program.
 import type {} from '@deepseek-ai/dsh-compaction/types'
-import { BUILTIN_ROLES } from '@lcoder/kernel/src/schema/roles.ts'
+import { BUILTIN_ROLES } from '@maniu/kernel/src/schema/roles.ts'
 import type { LcoderWorkspaceKey } from '../locales.ts'
 
 /** 内置角色 id；与 kernel 的岗位 `inherits` 共用同一份，用来判断岗位 id 是否已知。 */

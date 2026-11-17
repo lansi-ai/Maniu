@@ -20,7 +20,7 @@ export PATH="$HOME/.pnpm/bin:$PATH"   # Git Bash
 node -v                               # 期望 v24.x
 ```
 
-## 2. 把 `@lcoder/*` 接进 profile
+## 2. 把 `@maniu/*` 接进 profile
 
 插件行是按**包名**解析的，解析基准是 profile 目录（`<DSH_HOME>/profiles/web/`），不是仓库。
 仓库里的 workspace 包在那儿看不见，所以两行都会 "failed to import"。
@@ -38,7 +38,7 @@ pnpm add "link:E:/Projects/LCoder/packages/lcoder/kernel" \
 profile 目录不存在时先空跑一次（`DSH_HOME=… pnpm dsh web --no-open --port 3080` 起来后 Ctrl+C），
 或者用 `--from-default-profile web` 让 dsh 从出厂模板建一份。重建 home 目录后，这一步要重做。
 
-> 警告里会提到 `@lcoder/workspace` 的 peer 依赖 `@deepseek-ai/cordis` 不解析——
+> 警告里会提到 `@maniu/workspace` 的 peer 依赖 `@deepseek-ai/cordis` 不解析——
 > 无妨：cordis 由宿主提供，浏览器侧插件不自己解析它。
 
 ## 3. 起服务
@@ -55,8 +55,8 @@ DSH_HOME='E:\Projects\LCoder\.dsh-home' pnpm dsh web --patch lcoder/cordis.patch
 改了 `packages/lcoder/*/src` 后，重打一次产物即可（服务会 stat-poll 到并广播 reload）：
 
 ```sh
-pnpm --filter @lcoder/workspace bundle
-pnpm --filter @lcoder/kernel bundle
+pnpm --filter @maniu/workspace bundle
+pnpm --filter @maniu/kernel bundle
 ```
 
 ## 怎么确认真的起来了
@@ -67,17 +67,18 @@ pnpm --filter @lcoder/kernel bundle
 2. **kernel 挂上了**：selfCheck 那行 `[lcoder] 已注册 12 个工具与 /contract_sign、/task_bind、/task_contract 命令；角色 …`
    打到**宿主 stderr**，桌面实例里采不到它——宿主子进程的 stdout 不并入 `dev:desktop` 日志，
    而且 kernel 是 Agent 作用域**懒装载**，`apply()` 要到起回合才发生，无钥匙实例里这行出现 0 次。
-   桌面端改判两条：会话头 `agentPreset` 是 `lcoder*`（不要钥匙，实测可采），以及真点一次
+   桌面端改判两条：会话头 `agentPreset` 是 `maniu*`（改名前建的旧会话仍是 `lcoder*`，同样算数；
+   不要钥匙，实测可采），以及真点一次
    「签署契约」看宿主是否落盘。要数注册计数就另起一份 web 判别器跑同码。
 3. **规格根对着目标仓库**：`[lcoder] 规格根：<仓库>/.spec` 同样走宿主 stderr，桌面里采不到；
    判它看落盘位置——`task_draft` 或 `/task_bind` 写完去目标仓库找 `.spec/tasks/`，落在 profile 目录就是错的。
 4. **没有激活失败**：不应该出现 `N entries did not activate`
 5. **工作台进了浏览器清单**：带会话取首页，插件组合 URL 里要有
-   `@lcoder/workspace/client.js`
+   `@maniu/workspace/client.js`
 
 ```sh
 TOKEN=$(grep -o "token=[A-Za-z0-9_-]*" lcoder/web.log | head -1 | cut -d= -f2)
-curl -s -c /tmp/cj -b /tmp/cj -L "http://127.0.0.1:3080/?token=$TOKEN" | grep -o "@lcoder/workspace/client.js"
+curl -s -c /tmp/cj -b /tmp/cj -L "http://127.0.0.1:3080/?token=$TOKEN" | grep -o "@maniu/workspace/client.js"
 ```
 
 浏览器里打开 `http://127.0.0.1:3080/?token=…`（token 从日志取），右侧栏的
@@ -109,7 +110,7 @@ lcoder\scripts\start-desktop.cmd -Legacy    # 起旧壳（dev:desktop 路径）
 
 - **停旧实例**按路径判定，只认本检出：新客户端的 `.dsh-home\electron-user-data`、以本检出 `packages\lcoder\desktop` 为 app 路径的 electron（含宿主子进程），以及旧壳的 `--user-data-dir` 与 `dev.ts` 启动器。不碰 worktree、主检出或本机安装版。
 - **构建**只跑 `pnpm run build:artifacts`：根 tsdown 的 Host 面产出 `packages/lcoder/desktop/lib`（`main.js`、`host-entry.js`、`preload.cjs`），Client 面同时产出 `packages/lcoder/client/lib/dist`。不需要再单独构建桌面外壳。`-NoBuild` / `-Fast` 跳过构建，改过源码别用。
-- **启动**执行 `pnpm --filter @lcoder/desktop run launch`。宿主监听随机端口，inspector 固定 `9829/9822/9830`（`DSH_DESKTOP_MAIN_INSPECT_PORT` / `DSH_DESKTOP_RENDERER_DEBUG_PORT` / `DSH_DESKTOP_HOST_INSPECT_PORT` 可覆盖）。
+- **启动**执行 `pnpm --filter @maniu/desktop run launch`。宿主监听随机端口，inspector 固定 `9829/9822/9830`（`DSH_DESKTOP_MAIN_INSPECT_PORT` / `DSH_DESKTOP_RENDERER_DEBUG_PORT` / `DSH_DESKTOP_HOST_INSPECT_PORT` 可覆盖）。
 - **就绪**认日志里的 `lcoder desktop: 宿主已就绪 http://127.0.0.1:<port>/?token=<redacted>`，随后打印窗口与地址。宿主自己也会打一行 `dsh web:`，新客户端不用它判就绪。
 - `-ListOnly` 只列会停哪些进程；`-KeepRunning` 不停旧实例；`-KeepFollowing` 就绪后继续跟随。`-Smoke` 只对旧壳有效：默认新客户端下会提示并忽略，需要旧壳运行时冒烟时写 `-Smoke -Legacy`。`lcoder\scripts\smoke.cmd` 同样只跑旧壳（它直接执行 `pnpm run start:desktop`，不经过 start-desktop）；新客户端的验收入口是 `t187-s1-probe.mjs` / `t189-m2-probe.mjs` / `t190-m3-probe.mjs` / `t195-approval-probe.mjs`。
 
@@ -142,7 +143,7 @@ pnpm run dev:desktop > lcoder/desktop.log 2>&1
 
 LCoder 的挂载在两种模式下位置不同。**新客户端**每次启动都会把 `lcoder/desktop-profile.patch.yml`、`host-only-profile.patch.yml`、`host-only-minimal.patch.yml`、`host-workbench.patch.yml` 拼成 `.dsh-home/profiles/lcoder/cordis.patch.yml`，插件按包名解析、开发态走仓根解析，因此不用手写 `link:`；改过装配源或 `lcoder/desktop-profile.slice.yml` 后重启实例即可生效。**旧壳**（`-Legacy`）仍用 `apps/desktop/.desktop-build/development/home/profiles/desktop/`：
 `cordis.patch.yml` 放 LCoder 段，`package.json` 里用 `link:` 指向**当前检出**的
-`packages/lcoder/kernel` 与 `packages/lcoder/workspace`（worktree 里就跑 worktree 的包，别指回主仓）。`lcoder\scripts\rebuild.cmd profile` 会自动写这份 `package.json` 与 `node_modules/@lcoder` 两条链接，`warm`/`claim` 在跳过构建时也会执行同一步。同一段保障在重拷运行副本后会按 `lcoder/desktop-profile.slice.yml` 自动套上三波减重切片，再跑合成校验逐个核对切片 id；任一 id 未命中（上游改名或移除）就打印全部未命中 id 并非零退出。
+`packages/lcoder/kernel` 与 `packages/lcoder/workspace`（worktree 里就跑 worktree 的包，别指回主仓）。`lcoder\scripts\rebuild.cmd profile` 会自动写这份 `package.json` 与 `node_modules/@maniu` 两条链接，`warm`/`claim` 在跳过构建时也会执行同一步。同一段保障在重拷运行副本后会按 `lcoder/desktop-profile.slice.yml` 自动套上三波减重切片，再跑合成校验逐个核对切片 id；任一 id 未命中（上游改名或移除）就打印全部未命中 id 并非零退出。
 
 ### 模型链路调试日志
 
@@ -171,7 +172,7 @@ LCoder 的挂载在两种模式下位置不同。**新客户端**每次启动都
 ```sh
 pnpm run dev:desktop          # 旧壳：构建产物后启动（改过 src 用这个）
 pnpm run start:desktop        # 旧壳：同上但跳过重建
-pnpm --filter @lcoder/workspace bundle   # 只重打外壳产物；start:desktop 不会替你做
+pnpm --filter @maniu/workspace bundle   # 只重打外壳产物；start:desktop 不会替你做
 ```
 
 新客户端启动日志里按顺序确认两件事：`lcoder desktop: DSH_HOME=<仓内路径>`、
@@ -179,18 +180,18 @@ pnpm --filter @lcoder/workspace bundle   # 只重打外壳产物；start:desktop
 `lcoder desktop: 宿主已就绪 http://127.0.0.1:<port>/?token=<redacted>`。旧壳对应的是
 `desktop development: DSH_HOME=<仓内路径>`、`inspectors main=9229, renderer=9222, host=9230`、
 `dsh web: http://127.0.0.1:<port>/?token=…`。第三件事不在日志里——kernel 的注册行走宿主 stderr 且不并日志，改判会话头
-`agentPreset` 是不是 `lcoder*`（见「怎么确认真的起来了」第 2 条）。两条齐才算宿主活着。
+`agentPreset` 是不是 `maniu*`（改名前建的会话是 `lcoder*`，也算；见「怎么确认真的起来了」第 2 条）。两条齐才算宿主活着。
 一条桌面线一个 worktree：feature worktree 用 `DSH_DESKTOP_MAIN_INSPECT_PORT` /
 `DSH_DESKTOP_RENDERER_DEBUG_PORT` / `DSH_DESKTOP_HOST_INSPECT_PORT` 换一组预留端口，
 端口号写进该任务的台账备注；主窗保留默认（新客户端 9829/9822/9830，旧壳 9229/9222/9230）。
 
 ## 并联工作树
 
-并行窗口用独立 worktree 时，web 用 worktree 自己的仓内 home（`DSH_HOME='<worktree>\.dsh-home'`）；桌面默认的新客户端也用同一个 `<worktree>\.dsh-home`（userData 在 `.dsh-home\electron-user-data`），旧壳（`-Legacy`）才用 worktree 自带的 `apps/desktop/.desktop-build/development/home`；都不碰主窗口共用的目录。smoke 的端口换 3081，桌面按上一节的三件套换一组预留 inspector。首次先 `pnpm install`、`pnpm run build:artifacts`（新 worktree 只 `pnpm install` 会因缺 `lib/` 产物而起不来）；旧壳 profile 的 `package.json` 两条 `link:` 与 `node_modules/@lcoder` 两条链接由 `lcoder\scripts\rebuild.cmd profile` 自动写成本 tree，不必手抄。
+并行窗口用独立 worktree 时，web 用 worktree 自己的仓内 home（`DSH_HOME='<worktree>\.dsh-home'`）；桌面默认的新客户端也用同一个 `<worktree>\.dsh-home`（userData 在 `.dsh-home\electron-user-data`），旧壳（`-Legacy`）才用 worktree 自带的 `apps/desktop/.desktop-build/development/home`；都不碰主窗口共用的目录。smoke 的端口换 3081，桌面按上一节的三件套换一组预留 inspector。首次先 `pnpm install`、`pnpm run build:artifacts`（新 worktree 只 `pnpm install` 会因缺 `lib/` 产物而起不来）；旧壳 profile 的 `package.json` 两条 `link:` 与 `node_modules/@maniu` 两条链接由 `lcoder\scripts\rebuild.cmd profile` 自动写成本 tree，不必手抄。
 
 装完先核一条再判门禁，`grep -o 'InstallationProbe = .*' node_modules/.pnpm/@botiverse+oar@0.67.0_patch_*/node_modules/@botiverse/oar/dist/contracts/installation.d.ts` 要带 `options?`——`pnpm-workspace.yaml` 给这个依赖打了补丁，新 tree 的 `pnpm install` 可能静默不应用，症状是 `packages/experimental/subagent-oar/src/run.ts:253` 报 TS2554、host compiler 退出 1、桌面产物链全断。`pnpm install --force` 即解；别把它记成上游类型错误（`lcoder/PITFALLS.md` W-09）。
 
-装配源进仓后，worktree 的桌面 profile 由脚本装配，不再手抄。`lcoder/desktop-profile.patch.yml` 是十个角色 preset 与 LCoder 段的唯一可审阅源，`rebuild.cmd profile`（`warm`/`claim` 在跳过构建时也会跑）把它连同本机本地段拷进本 worktree 的 `…/home/profiles/desktop/cordis.patch.yml`，并写出 `package.json` 的两条 `link:` 与 `node_modules/@lcoder/{kernel,workspace}` 链接。仍要手工核三件：`documentsDirectory` 指向一个真实存在的目录、两条 `link:` 解析到**本 worktree** 的两个包（不是主检出）、十个 preset 的 `role` 各就各位（`dev` / `intake` / `architect` / `pm` / `git` / `ops` / `review` / `scheduler` / `flow` / `manager`；kernel 只挂在 preset 内，没有全局行）。十个 preset 各挂 `ask-user` 与一个 `isolate` 组里的 `compaction-basic`——web-app 在宿主面禁用了 compaction，preset 必须自己挂，且 compaction 是 isolate 服务。改过装配源或切片源（`lcoder/desktop-profile.slice.yml`）后重跑一次 `rebuild.cmd profile`，否则角色名册与减重切片不会更新；切片未命中合成清单时这次重建以非零退出。
+装配源进仓后，worktree 的桌面 profile 由脚本装配，不再手抄。`lcoder/desktop-profile.patch.yml` 是十个角色 preset 与 LCoder 段的唯一可审阅源，`rebuild.cmd profile`（`warm`/`claim` 在跳过构建时也会跑）把它连同本机本地段拷进本 worktree 的 `…/home/profiles/desktop/cordis.patch.yml`，并写出 `package.json` 的两条 `link:` 与 `node_modules/@maniu/{kernel,workspace}` 链接。仍要手工核三件：`documentsDirectory` 指向一个真实存在的目录、两条 `link:` 解析到**本 worktree** 的两个包（不是主检出）、十个 preset 的 `role` 各就各位（`dev` / `intake` / `architect` / `pm` / `git` / `ops` / `review` / `scheduler` / `flow` / `manager`；kernel 只挂在 preset 内，没有全局行）。十个 preset 各挂 `ask-user` 与一个 `isolate` 组里的 `compaction-basic`——web-app 在宿主面禁用了 compaction，preset 必须自己挂，且 compaction 是 isolate 服务。改过装配源或切片源（`lcoder/desktop-profile.slice.yml`）后重跑一次 `rebuild.cmd profile`，否则角色名册与减重切片不会更新；切片未命中合成清单时这次重建以非零退出。
 
 还有一条本机偏离：worktree 首启动时 `@electron/get` 下载 Electron 会对本机 GitHub 超时，先对拷主仓 `apps/desktop/.desktop-build/downloads` 缓存并设 `ELECTRON_SKIP_BINARY_DOWNLOAD=1`，否则 `start:desktop` 以 `aborted due to timeout` 退出。web 冒烟用的 `.dsh-home/profiles/web` 同样要装两条 `link:`，少一条就报 `2 entries did not activate`。
 

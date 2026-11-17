@@ -5,33 +5,33 @@
 /:
   en: 3a45cb3386ed28e4
   zh: 10bcae887c51a883
-/lcoder-desktop:
-  en: 3313e568ac61fedc
-  zh: 631164d20979b34b
-/lcoder-desktop/summary:
+/maniu-desktop:
+  en: ac61c35d3c89d71f
+  zh: 01c983ed2385008a
+/maniu-desktop/summary:
   en: c4d36af5e28a9211
   zh: a3fcdcbba4c3651e
-/lcoder-desktop/table-of-contents:
+/maniu-desktop/table-of-contents:
   en: 576c743d341fee99
   zh: a4711f44983301cf
-/lcoder-desktop/model-experience:
+/maniu-desktop/model-experience:
   en: 215e7ba838619b7b
   zh: a311da3843709f90
-/lcoder-desktop/model-experience/session-transport:
+/maniu-desktop/model-experience/session-transport:
   en: d5238b893d95eb47
   zh: 362e7997f2d4f844
-/lcoder-desktop/model-experience/session-transport/what-the-model-sees:
+/maniu-desktop/model-experience/session-transport/what-the-model-sees:
   en: 1ad63af51afb88d8
   zh: 2f226e4a39f06b63
-/lcoder-desktop/model-experience/session-transport/token-effect:
+/maniu-desktop/model-experience/session-transport/token-effect:
   en: b30012f8a2e22a7d
   zh: 9a74c057ea079003
-/lcoder-desktop/model-experience/session-transport/kv-cache-effect:
+/maniu-desktop/model-experience/session-transport/kv-cache-effect:
   en: 32c7f7248741fb30
   zh: ea3c8b091b6977f2
-/lcoder-desktop/known-limitations-and-deferred-work:
+/maniu-desktop/known-limitations-and-deferred-work:
   en: 372fea4b2c14b71e
   zh: 5f9c519b8f4cac47
-/lcoder-desktop/known-limitations-and-deferred-work/dev-note:
+/maniu-desktop/known-limitations-and-deferred-work/dev-note:
   en: b82d85172457b247
   zh: 0b5e083e741e6d12

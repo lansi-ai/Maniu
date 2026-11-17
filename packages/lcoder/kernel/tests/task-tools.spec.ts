@@ -207,7 +207,7 @@ describe('任务工具', () => {
         '  by: agent',
         '  at: 2026-11-02T15:00:00+08:00',
         '  hash: sha256:x',
-        '  actor: lcoder-flow',
+        '  actor: maniu-flow',
         '  authorization:',
         '    policy: automation.yaml',
         '    hash: sha256:策略',

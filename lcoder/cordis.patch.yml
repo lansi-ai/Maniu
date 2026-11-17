@@ -7,12 +7,12 @@
 # 用法（在仓库根执行）：
 #   pnpm dsh web --patch lcoder/cordis.patch.yml
 #
-# `@lcoder/kernel` 的规格根这样取：
+# `@maniu/kernel` 的规格根这样取：
 #   1. 有会话时取 `session.header.cwd/.spec`——桌面端宿主 cwd 是 profile，
 #      不是目标仓库，只有会话工作区才是正确来源；
 #   2. 没有会话 cwd 时（headless、启动自检）用下面的 `root` 配置；
 #   3. `root` 未设置时退回进程工作目录下的 `.spec`。
-# `@lcoder/workspace` 没有配置面。它的 `dsh.client.inject` 声明在
+# `@maniu/workspace` 没有配置面。它的 `dsh.client.inject` 声明在
 # packages/lcoder/workspace/package.json 里，浏览器侧依赖顺序由它决定。
 
 # 云端两条路由：用户令牌与匿名令牌各走一个 apiKeyEnv，宿主刷新出哪一条，
@@ -48,18 +48,18 @@
     # 云端控制器必须全局在册：它在第一条会话出现之前就要给顶栏、门禁与模型请求
     # 提供同一个令牌供应器；角色 preset 里的 kernel 是懒装载，赶不上这一步。
     - id: lcoder-cloud
-      name: '@lcoder/kernel/cloud'
+      name: '@maniu/kernel/cloud'
       config:
         baseUrl: !!js process.env.LCODER_CLOUD_BASE_URL || 'http://127.0.0.1:5091/v1'
 
     # 人才库宿主动态 preset：客户端提交云端人才列表，这里校验并注册成可选的 agent preset。
     - id: lcoder-talents
-      name: '@lcoder/kernel/talents'
+      name: '@maniu/kernel/talents'
 
     # 宿主侧：注册六个工具（规格/任务/编辑），工具面按当前任务状态收放。
     # `tools` 服务由 base 清单的 `- id: tools` 行提供，所以这一行能激活。
     - id: lcoder-kernel
-      name: '@lcoder/kernel'
+      name: '@maniu/kernel'
       config:
         # 部署可用环境变量指定无会话时的规格根；留空则用进程工作目录。
         root: !!js process.env.LCODER_SPEC_ROOT || undefined
@@ -67,4 +67,4 @@
     # 浏览器侧：右栏的工作台页签。数据走文件投影，读的是上面那个 kernel
     # 落盘的同一批 YAML（`.spec/tasks/*.yaml`、`.spec/spec/rules.yaml`）。
     - id: ui-lcoder-workspace
-      name: '@lcoder/workspace'
+      name: '@maniu/workspace'

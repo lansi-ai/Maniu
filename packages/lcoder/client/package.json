@@ -1,5 +1,5 @@
 {
-  "name": "@lcoder/client",
+  "name": "@maniu/client",
   "version": "0.0.0",
   "private": true,
   "description": "LCoder 自研渲染端（T-187 S1）",
@@ -18,7 +18,7 @@
     "dev": "vite"
   },
   "dependencies": {
-    "@lcoder/desktop": "workspace:*",
+    "@maniu/desktop": "workspace:*",
     "@paper-design/shaders-react": "0.0.82",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import type { JSX } from 'react'
-import type { CloseRequest, EventOutcome, HostEvent, HostState, HostWaterfall, HostWaterfallCancel } from '@lcoder/desktop/contract'
+import type { CloseRequest, EventOutcome, HostEvent, HostState, HostWaterfall, HostWaterfallCancel } from '@maniu/desktop/contract'
 import { actionOfFrame, chatReducer, emptyChat, summaryOf, type ChatAction, type SessionSummary } from './store.ts'
 import { translate, type MessageKey, type Translate } from './locale.ts'
 import { browserStorage, markWelcomeSeen, usePreferences, welcomeSeen } from './prefs.ts'
@@ -37,7 +37,7 @@ import { useTalents } from './talents/use-talents.ts'
 type PageId = 'chat' | 'requirements' | 'tasks' | 'projects' | 'project-info' | 'talents' | 'settings' | 'account'
 
 /** 新会话默认使用的角色；工作台作用域会话靠它拿到人机命令面。 */
-const WORKBENCH_PRESET = 'lcoder-workbench'
+const WORKBENCH_PRESET = 'maniu-workbench'
 
 interface NavItem {
   readonly id: PageId
@@ -449,25 +449,6 @@ export function App(): JSX.Element {
     return true
   }, [createAndSelect])
 
-  /** 从人才卡新建一条绑定该人才 preset 的会话。 */
-  const startTalentSession = useCallback(async (presetId: string): Promise<{
-    readonly ok: boolean
-    readonly message: string
-  }> => {
-    const created = await window.lcoder.call('session', 'create', {
-      request: { ...project === null ? {} : { workspaceId: project.workspaceId }, agentPreset: presetId },
-    })
-    if (!created.ok) return { ok: false, message: `${created.error.code}: ${created.error.message}` }
-    const value = created.value
-    if (!isRecord(value) || typeof value.sessionId !== 'string') {
-      return { ok: false, message: 'session.create 返回了无法识别的会话' }
-    }
-    selectSession(value.sessionId)
-    setPage('chat')
-    await loadSessions()
-    return { ok: true, message: '' }
-  }, [loadSessions, project, selectSession])
-
   const chooseWorkspace = useCallback(async (workspace: WorkspaceRow) => {
     setProjectNotice(null)
     let scope = await ensureScopeSession(workspace, sessions, WORKBENCH_PRESET)
@@ -746,7 +727,6 @@ export function App(): JSX.Element {
                 project={project}
                 sessions={sessions}
                 talents={talents}
-                onStartSession={startTalentSession}
               />
             )}
           </div>

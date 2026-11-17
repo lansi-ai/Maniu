@@ -119,7 +119,7 @@ describe('contract_sign', () => {
         by: 'agent',
         at: '2026-11-04T09:00:00+08:00',
         hash: contractHash(draft),
-        actor: 'lcoder-flow',
+        actor: 'maniu-flow',
         authorization: { policy: 'automation.yaml', hash: 'sha256:策略', at: '2026-11-04T08:00:00+08:00' },
       },
     })

@@ -27,7 +27,7 @@ pnpm run build:artifacts
 lcoder\scripts\start-desktop.cmd
 ```
 
-改过源码后，用 `lcoder\scripts\rebuild.cmd` 只重建改动的那一层（`workspace`、`kernel`、`desktop`、`profile` 或 `all`）。完整步骤见手册 [RUN.md](lcoder/RUN.md)，包括仓内 `DSH_HOME`、把 `@lcoder/*` 以 `link:` 接进 profile、本机 `documentsDirectory` 规避、模型钥匙与就绪判据，并记录了 Web UI 判别入口 `pnpm dsh web --patch lcoder/cordis.patch.yml`。运行前请阅读[安全说明](SAFETY.zh.md)。
+改过源码后，用 `lcoder\scripts\rebuild.cmd` 只重建改动的那一层（`workspace`、`kernel`、`desktop`、`profile` 或 `all`）。完整步骤见手册 [RUN.md](lcoder/RUN.md)，包括仓内 `DSH_HOME`、把 `@maniu/*` 以 `link:` 接进 profile、本机 `documentsDirectory` 规避、模型钥匙与就绪判据，并记录了 Web UI 判别入口 `pnpm dsh web --patch lcoder/cordis.patch.yml`。运行前请阅读[安全说明](SAFETY.zh.md)。
 
 根目录的构建与门禁命令以 `package.json` 为准：`pnpm run build` 构建全部产物并跑聚合检查，`pnpm run build:check` 只跑聚合检查；`pnpm run typecheck`、`pnpm run lint`、`pnpm exec vitest run packages/lcoder`、`pnpm run test:docs` 为收口门禁。
 

@@ -10,7 +10,7 @@ English | [中文](PROJECT-RULES.zh.md)
 - **Stack**: TypeScript (ESM) · Node ≥24.9 · pnpm workspaces · Cordis · React 18
 - **Baseline**: DeepSeek Harness `0.2.2-alpha.2`, released 2026-10-30
 - **Current main line**: MVP-0, getting the workbench running locally and closing T-02
-- **Naming**: packages `@lcoder/kernel` and `@lcoder/workspace`; main branch `lcoder/main`
+- **Naming**: packages `@maniu/kernel` and `@maniu/workspace`; main branch `lcoder/main`
 - **Architecture**: [UPSTREAM-BASELINE.md](../lcoder/UPSTREAM-BASELINE.md) (upstream relationship and contact surface), [architecture.md](architecture.md) (upstream architecture)
 
 ## 1. Hard red lines (project-specific · never violate)
@@ -130,10 +130,10 @@ The grade matches the `grade` field in the development ledger `docs/tasks.yaml`.
 - Node must be `>=24.9.0`; on this machine use `pnpm env use --global 24` and do not change the system Node.
 - First install: `pnpm install`; before the first launch run `pnpm run build:artifacts`.
 - Launch: `DSH_HOME='<repo>\.dsh-home' pnpm dsh web --patch lcoder/cordis.patch.yml --no-open --port 3080` (Git Bash needs the Windows form of the path, or the profile silently fails to resolve).
-- `@lcoder/*` must be linked with `link:` into the in-repo profile (`<DSH_HOME>/profiles/web/package.json`); it is never linked into `~/.dsh`. Repeat after rebuilding the home directory.
+- `@maniu/*` must be linked with `link:` into the in-repo profile (`<DSH_HOME>/profiles/web/package.json`); it is never linked into `~/.dsh`. Repeat after rebuilding the home directory.
 - On Windows, killing `dev:web` does not kill child processes; clean the process tree and confirm the port is free before starting another instance.
 - Do not pipe `dev:web`; redirect output to a file and read it, or the log stays buffered until the process exits.
-- One desktop line per worktree: the main window keeps the default Electron inspector ports (9229/9222/9230), and a feature worktree sets `DSH_DESKTOP_MAIN_INSPECT_PORT`, `DSH_DESKTOP_RENDERER_DEBUG_PORT`, and `DSH_DESKTOP_HOST_INSPECT_PORT` to a reserved triple recorded in that task's ledger note. `apps/desktop/scripts/dev.ts` points `DSH_HOME` and Electron `userData` into `apps/desktop/.desktop-build/development/`, so a worktree never writes the main window's `~/.dsh`; leave those defaults alone — setting `DSH_HOME` to `~/.dsh` is what turns a verification run into a write against the machine's install. `@lcoder/*` links point at the worktree's own package directories.
+- One desktop line per worktree: the main window keeps the default Electron inspector ports (9229/9222/9230), and a feature worktree sets `DSH_DESKTOP_MAIN_INSPECT_PORT`, `DSH_DESKTOP_RENDERER_DEBUG_PORT`, and `DSH_DESKTOP_HOST_INSPECT_PORT` to a reserved triple recorded in that task's ledger note. `apps/desktop/scripts/dev.ts` points `DSH_HOME` and Electron `userData` into `apps/desktop/.desktop-build/development/`, so a worktree never writes the main window's `~/.dsh`; leave those defaults alone — setting `DSH_HOME` to `~/.dsh` is what turns a verification run into a write against the machine's install. `@maniu/*` links point at the worktree's own package directories.
 - **Heavy work runs single-lane.** Every `pnpm install` and artifact build across worktrees goes through `lcoder/scripts/worktree.cmd -Action provision` or `-Action build`; the script holds one machine-level named mutex, so only one heavy command runs at a time. Do not run those commands concurrently by hand; tests may run in parallel with capped workers.
 - **Parallel budget: at most two UI worktrees.** A wave that needs install or build keeps only one line in the heavy lane and parks the rest; documentation and contract lines use `-Action sparse` and skip installation entirely.
 - **Share runtime, isolate session data.** `-Action junction` shares only `.desktop-build/downloads` and `targets`; `electron-user-data` and the in-repo home stay per worktree.

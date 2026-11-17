@@ -110,7 +110,7 @@ export const SURFACE: Readonly<Record<TaskState, readonly string[]>> = {
  * `project_draft` 与 `spec_draft` 是这条引导链的落盘口：没有它们，引导问到的
  * 答案只能停在对话里，重启即丢，而 UI 侧没有写盘通道（`.spec` 只有 kernel 能写）。
  *
- * 掩码只覆盖 `@lcoder/kernel` 自己注册的工具。桌面 profile 的 web-app bundle 在
+ * 掩码只覆盖 `@maniu/kernel` 自己注册的工具。桌面 profile 的 web-app bundle 在
  * 宿主机面禁用了 `tool-fs` / `tool-fs-search` / `tool-bash` / `tool-pwsh`，改由每个
  * preset 自己挂；LCoder 的 preset 只挂本包，所以角色面必须自带列目录能力
  * （`file_list`），不能指望上游的 `glob`（T-32）。

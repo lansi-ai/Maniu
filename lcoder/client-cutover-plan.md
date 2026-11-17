@@ -10,7 +10,7 @@
 - parity 共 57 项：**已验 26 / 未验 25 / 阻塞 6**。阻塞全部集中在两处：**系统面未实现**（自动更新、更新期锁、退出确认、深链）与**两处产品面缺失**（项目密码揭示、模型路由配置）。未验里最危险的是审批与提问的真实回环、工具卡、附件探针未在本树复跑。
 - 切换前必须补两个变体：**发布用宿主-only profile**（只能从 `desktop-profile.patch.yml` 的十个角色 preset 派生，不能沿用 S1 的单 preset）与**打包配置迁入新壳**（electron-builder、NSIS、asar、签名、feed、electron-updater 全部未在新壳存在）。
 - 数据面结论：宿主 home 保持 `~/.dsh` 不动即可带走会话与云端令牌；**壳的 UI 偏好（皮肤、字体、语言、欢迎屏标记）不会自动迁移**，按「一次性重置」处理。
-- 回退只能手动重装旧安装包（`allowDowngrade=false`），保留上一版签名安装包、`win-unpacked` 与 feed 对象各 1 个小版本；会话数据格式不变，回退后仍可读；但新壳创建的 `lcoder-workbench` 会话需要在旧 profile 里补同名 preset 才能继续对话。
+- 回退只能手动重装旧安装包（`allowDowngrade=false`），保留上一版签名安装包、`win-unpacked` 与 feed 对象各 1 个小版本；会话数据格式不变，回退后仍可读；但新壳创建的 `maniu-workbench` 会话需要在旧 profile 里补同名 preset 才能继续对话。
 - 移除顺序保持「先并行、后切换、再撤接触面」；上游源码不删。宿主侧必须继续使用的客户端包只有三个：`connection`、`file-upload`、`api-remotes`。
 
 ## 1. parity 矩阵
@@ -31,7 +31,7 @@
 | 4 | 需求 | 上线 / 关闭命令 | 同一命令白名单，未进探针 | 扩 t189 断言 `requirement_release` / `_close` 回执 | 未验 |
 | 5 | 需求 | 拆分与提案审批 | `pages/requirement-detail.tsx` 只发送拆分指令；提案列表未消费 | 探针断言拆分后 `.spec/proposals` 落盘与审批回执 | 未验 |
 | 6 | 需求 | 讨论历史（按需求聚合轮次） | `discussion/history.ts`，按需聚合 | 需要一条真实多轮会话作正样本 | 未验 |
-| 7 | 立项 | 三档向导、模型选择、确认需求、结果页、重开 | `pages/intake-wizard.tsx` 只有两档，且选项为 7 问指令后发到新的工作台会话 | 补「三档」与 `lcoder-intake` 专用会话；探针断言 7 问落盘 | 未验 |
+| 7 | 立项 | 三档向导、模型选择、确认需求、结果页、重开 | `pages/intake-wizard.tsx` 只有两档，且选项为 7 问指令后发到新的工作台会话 | 补「三档」与 `maniu-intake` 专用会话；探针断言 7 问落盘 | 未验 |
 | 8 | 任务 | 六列看板 | `spec/board.ts` 六列；t189 断言六列与 DEMO-01 卡 | 复用 t189 | 已验 |
 | 9 | 任务 | 看板 / 列表切换、筛选 | `pages/tasks.tsx` 有切换与文本/等级/会话/角色筛选；列筛选无控件 | 补列筛选控件后扩 t189 | 未验 |
 | 10 | 任务 | 任务卡：状态、等级、会话 chip、队列、调度建议 | `task-detail.tsx` 调度段 + t189 调度记录断言 | 复用 t189；队列标记未单独断言 | 已验 |
@@ -116,7 +116,7 @@ bundles:  @deepseek-ai/dsh-base + @deepseek-ai/dsh-web-app   # 与旧桌面一�
 patch:    lcoder/desktop-profile.patch.yml                   # 十个角色 preset、云端 provider、默认模型
         + lcoder/host-only-profile.patch.yml                 # 关 63 行浏览器面
         + lcoder/host-only-minimal.patch.yml                 # 再关 21 行只服务上游 UI 的宿主行
-        + (新增) lcoder/host-workbench.patch.yml             # lcoder-workbench preset、registry 默认值
+        + (新增) lcoder/host-workbench.patch.yml             # maniu-workbench preset、registry 默认值
 ```
 
 - profile 目录名改为 **`lcoder`**（`<DSH_HOME>/profiles/lcoder`），旧 `desktop` 目录原样保留给回退。profile 名不进入会话格式，改名不影响历史。
@@ -130,7 +130,7 @@ patch:    lcoder/desktop-profile.patch.yml                   # 十个角色 pres
 | 浏览器装配 | 全部 `ui-*`、`modules`、`client-hmr`、`locale`、`shortcuts`、`resources` 等 63 行启用 | 全关（复用 T-186 H1 清单） | 上游页面不可用；这正是新客户端要的结果 |
 | 只服务上游 UI 的宿主行 | 默认启用 | 关 21 行（`otel`、`job-controller`、`terminal-controller`、`office-to-pdf`、`open-in-app`、`message-feedback`、`session-stats`、`session-turn-outline`、`deliverable-file-references`、`workspace-changes` 等） | 新客户端没有这些页面；关掉不减安装包，只减少启动面 |
 | 角色 preset | 十个（`lcoder`、`-intake`、`-architect`、`-review`、`-pm`、`-git`、`-ops`、`-scheduler`、`-flow`、`-manager`）＋ `lcoder-cloud` | 原样保留；`agent-preset-registry.selectedDefault` 仍为 `lcoder` | 历史会话的 `agentPreset` 必须继续可解析 |
-| 工作台会话 preset | 无 | 新增 `lcoder-workbench`（新客户端建项目会话时使用） | 回退时旧 profile 需补同名 preset，见 §4.3 |
+| 工作台会话 preset | 无 | 新增 `maniu-workbench`（新客户端建项目会话时使用） | 回退时旧 profile 需补同名 preset，见 §4.3 |
 | 默认模型 / 云端 provider | `agent-default-model` + `llm-pi-ai` 的 `lcoder-cloud` | 原样 | 切换壳不要求重新登录 |
 | 传输与协议 | `web-startup`、`webserver`、`web-runtime`、`connection`、`typert*`、`api-remotes`、`remote-access` | 原样保留 | `$events` 需要 `api-remotes`；`/connect` 必须 `interactions=answer` |
 | `file-upload` | 启用 | 保留 | `session-controller` 的 static inject 点名它 |
@@ -139,7 +139,7 @@ patch:    lcoder/desktop-profile.patch.yml                   # 十个角色 pres
 
 ### 2.3 启动方式
 
-- 开发：`pnpm --filter @lcoder/desktop run launch`，`DSH_HOME` 默认 `<本树>/.dsh-home`，走 `s1` 快速 profile。
+- 开发：`pnpm --filter @maniu/desktop run launch`，`DSH_HOME` 默认 `<本树>/.dsh-home`，走 `s1` 快速 profile。
 - 发布：新壳启动 → `HostSupervisor` 用 `process.execPath`（`ELECTRON_RUN_AS_NODE=1`）起 `host-entry.js`，参数为 profile 目录；宿主把 `ready.url` 经 IPC 回主进程，再由 link 换 cookie。
 - 打包态必须补两项与旧壳的差异：
   1. `host-entry` 当前不传 `packageManager`（node/pnpm 路径）。工具执行需要 T-183 的 node-only 运行时载荷，必须按旧 `desktop-host` 的方式传入 `command` / `args` / `PATH`。
@@ -148,7 +148,7 @@ patch:    lcoder/desktop-profile.patch.yml                   # 十个角色 pres
 ### 2.4 验收
 
 1. 用发布变体起宿主：日志零激活失败，`session/list`、`session/create`（`lcoder` preset）、`session/follow`、`$events` 四项通。
-2. 用 `lcoder-workbench` 与 `lcoder-intake` 各建一条会话，确认 preset 不被拒。
+2. 用 `maniu-workbench` 与 `maniu-intake` 各建一条会话，确认 preset 不被拒。
 3. 重跑 T-186 的 H2 口径（89 行）在**十个 preset** 下的依赖闭包；T-186 只验过 `standard`，preset 会抬高宿主下限。
 4. 再跑 t187/t189/t190/t191 四条探针，全部在发布 profile 上 PASS；探针不得依赖 `s1` 特有点（如单 preset）。
 
@@ -176,7 +176,7 @@ patch:    lcoder/desktop-profile.patch.yml                   # 十个角色 pres
 | ---: | --- | --- | --- | --- |
 | C0 | 旧壳最后一版打 tag 并保留安装包、`win-unpacked`、feed 对象 | 发布配置 | 无 | `ls-remote` / feed 对象存在 |
 | C1 | 新壳补系统面：更新、更新期锁、退出确认、深链、菜单即时本地化、密码揭示、模型配置面 | 代码 | 无 | 对应探针/人工项转已验 |
-| C2 | 发布 profile 变体落地：新壳 profile 模板、十个 preset、`lcoder-workbench`、`lcoder-intake` 会话 | 代码 + 装配 | 无（可与 C1 并行） | §2.4 四项 |
+| C2 | 发布 profile 变体落地：新壳 profile 模板、十个 preset、`maniu-workbench`、`maniu-intake` 会话 | 代码 + 装配 | 无（可与 C1 并行） | §2.4 四项 |
 | C3 | 新壳打包链：builder 配置、NSIS、图标、签名、feed、updater | 代码 + 发布配置 | C1 | 本机产出未签名安装包并起窗 |
 | C4 | 12 条冒烟脚本落地并全绿（含审批/提问/工具卡） | 代码 | C1、C2 | 脚本退出码 0 |
 | C5 | 入口切换：`start-all` / `start-desktop` / `rebuild` / `smoke` 指向新壳；默认 profile 改为发布变体 | 代码（仓库脚本） | C4 | 一条命令起窗，探针全 PASS |
@@ -192,9 +192,9 @@ patch:    lcoder/desktop-profile.patch.yml                   # 十个角色 pres
 
 | 入口 | 现状 | 切换后 |
 | --- | --- | --- |
-| `lcoder/scripts/start-all.ps1` | 拉旧壳 `pnpm run start:desktop` | 拉新壳 `pnpm --filter @lcoder/desktop run launch` |
+| `lcoder/scripts/start-all.ps1` | 拉旧壳 `pnpm run start:desktop` | 拉新壳 `pnpm --filter @maniu/desktop run launch` |
 | `lcoder/scripts/start-desktop.ps1` / `.cmd` | 旧壳 dev 脚本 | 新壳 launch；保留 `-Fast` 跳过构建语义 |
-| `lcoder/scripts/rebuild.cmd` | 构建旧 Desktop bundle | 构建 `@lcoder/desktop` + `@lcoder/client` |
+| `lcoder/scripts/rebuild.cmd` | 构建旧 Desktop bundle | 构建 `@maniu/desktop` + `@maniu/client` |
 | `lcoder/scripts/smoke.cmd` | 旧壳 6 项 DOM 探针 | 12 条切换冒烟（可包一层并按项报告） |
 | `apps/desktop/package.json` 的 `package:win:*` 等 | 旧壳打包 | 新壳 `packages/lcoder/desktop` 同名脚本；旧脚本保留到观察期结束 |
 | 默认 profile | `profiles/desktop`（旧壳） | `profiles/lcoder`（发布变体）；`desktop` 目录保留 |
@@ -205,7 +205,7 @@ patch:    lcoder/desktop-profile.patch.yml                   # 十个角色 pres
 - **profile 新增而非覆盖**：新壳只写 `profiles/lcoder`，不动 `profiles/desktop`；旧壳回退时仍读自己的 profile。
 - **UI 偏好重置**：旧壳偏好分散在 `dsh-app://app` 的 localStorage（`lcoder.skin`）与 `userData/desktop/locale-cache`；新壳用 `file://` origin 与 `userData/lcoder-preferences.json`，两套 origin 不互通。接受一次性重置：皮肤回落 `liquid-glass`、字体 `system`、语言按旧 locale-cache 手工带一次也可不做。
 - **欢迎屏**：新壳首次启动显示一次；旧壳的 `DSH_DESKTOP_WELCOME` 开关不再使用。
-- **会话 preset 兼容**：新壳创建的 `lcoder-workbench` 会话，在旧壳回退时要能解析；因此 C2 同时给旧 `desktop-profile.patch.yml` 补一条同名 preset（只加装配，不改行为），或把新客户端项目会话改用 `lcoder` preset。推荐前者。
+- **会话 preset 兼容**：新壳创建的 `maniu-workbench` 会话，在旧壳回退时要能解析；因此 C2 同时给旧 `desktop-profile.patch.yml` 补一条同名 preset（只加装配，不改行为），或把新客户端项目会话改用 `lcoder` preset。推荐前者。
 
 ### 3.5 用户可见变化（需发布说明）
 
@@ -246,7 +246,7 @@ patch:    lcoder/desktop-profile.patch.yml                   # 十个角色 pres
 | 会话 JSONL（v4） | 兼容 | 新客户端不新增会话格式，只消费 `session/follow`；旧壳可读 |
 | 云端令牌 | 兼容 | 存 `~/.dsh/.credentials.yaml`，两壳共用 home |
 | 宿主设置（模型、路由） | 兼容 | 在 home 的 profile 文档里；两壳 profile 独立，旧壳读自己的 `desktop` |
-| `lcoder-workbench` 会话 | **需前置** | 新壳建的项目会话带该 preset；回退前旧 profile 必须已补同名 preset（§3.4） |
+| `maniu-workbench` 会话 | **需前置** | 新壳建的项目会话带该 preset；回退前旧 profile 必须已补同名 preset（§3.4） |
 | UI 偏好 | 不兼容 | 新壳 `lcoder-preferences.json` + `file://` localStorage；旧壳不读，旧壳偏好仍在旧 origin，无需迁移 |
 | 欢迎屏标记 | 不兼容 | 旧壳环境变量开关与新壳标记互不影响 |
 | 自动更新通道 | 需一致 | 回退包必须与旧 feed 通道、`productName`、`appId`、`publisherName` 完全一致，否则更新器拒装 |
@@ -257,7 +257,7 @@ patch:    lcoder/desktop-profile.patch.yml                   # 十个角色 pres
 
 1. 在干净用户目录安装旧版 → 登录 → 建一条会话 → 发一条消息 → 关窗。
 2. 覆盖安装新版 RC → 验证会话仍在、可继续、可新建。
-3. 手动重装旧版 → 验证同一批会话可读、可继续；`lcoder-workbench` 会话可打开。
+3. 手动重装旧版 → 验证同一批会话可读、可继续；`maniu-workbench` 会话可打开。
 4. 复核安装目录、协议注册、托盘图标、更新缓存目录没有残留第二个应用。
 5. 记录演练时间、包版本、会话数与截图到发布记录。演练不通过则不允许 C6。
 
@@ -279,7 +279,7 @@ patch:    lcoder/desktop-profile.patch.yml                   # 十个角色 pres
 | R1 | 新壳跑通 S1/M1/M2/M3；旧壳保持可启动 | R0 | 四条探针 PASS；旧壳 smoke 仍绿 |
 | R2 | parity 硬闸全绿，切默认入口（§3.3） | R1 + §3.1 | 12 条冒烟全绿 |
 | R3 | 两个 RC 观察期；旧包与 feed 对象保留 | R2 | 安装、更新、回退各一次 |
-| R4 | 退出 `packages/lcoder/workspace` 的客户端半：`src/client` 删除；`projection.ts`、`locales.ts`、纯函数迁入 `@lcoder/client`；包只保留 kernel 依赖与宿主侧内容 | R3 | `@lcoder/workspace` 不再被 profile 挂载；`pnpm typecheck`、client 构建、四条探针全绿 |
+| R4 | 退出 `packages/lcoder/workspace` 的客户端半：`src/client` 删除；`projection.ts`、`locales.ts`、纯函数迁入 `@maniu/client`；包只保留 kernel 依赖与宿主侧内容 | R3 | `@maniu/workspace` 不再被 profile 挂载；`pnpm typecheck`、client 构建、四条探针全绿 |
 | R5 | profile 去客户端：发布变体为默认；禁用行写入模板 | R4 | 宿主启动零激活失败；`$events`、`session/follow`、命令面全通 |
 | R6 | 接触面撤销（§5.3） | R4、R5 | `git diff upstream/master...HEAD -- apps/desktop packages/client` 为空；`upstream-diff.sh` 只剩保留项 |
 | R7 | 文档收口：`RUN.md`、`PROJECT-RULES` 目录表、`prd-and-design`、`UPSTREAM-BASELINE` §3、`desktop-release` | R6 | `pnpm run test:docs`、`doc-sync` 全绿 |
@@ -399,7 +399,7 @@ patch:    lcoder/desktop-profile.patch.yml                   # 十个角色 pres
 | 宿主崩溃不重启 | `HostSupervisor` 只在 ready 前处理失败，ready 后无 `exit` 监听 | 宿主崩溃后界面永久转圈或显示过期状态 | 切换前加崩溃检测与「重新启动宿主」入口；至少要有明确错误态 |
 | 发布 profile 只验过 `standard` preset | T-186 实验用上游 web profile；LCoder 十个 preset 依赖更多服务 | 发布 profile 起不来或建会话被 `agent-preset/invalid` 拒 | C2 用 H2 口径 + 十个 preset 重跑；H3 的负对照保留 |
 | 真实云端与令牌续期 | 全部探针走 mock；`refresh` / 401 / 额度耗尽未验 | 上线后登录态过期即掉线 | 用测试账号跑一次真实云端与 token 过期；不加「缺字段就猜」的兼容 |
-| 立项语义漂移 | 旧壳建 `lcoder-intake` 专用会话；新壳把 7 问指令发到工作台会话，仅两档 | 立项访谈拿不到 `requirement_draft` 工具面 | 恢复三档与 intake 专用会话，或在产品上明确降级；C2 前拍板 |
+| 立项语义漂移 | 旧壳建 `maniu-intake` 专用会话；新壳把 7 问指令发到工作台会话，仅两档 | 立项访谈拿不到 `requirement_draft` 工具面 | 恢复三档与 intake 专用会话，或在产品上明确降级；C2 前拍板 |
 
 ### 7.2 未验清单（按归属）
 
@@ -434,7 +434,7 @@ patch:    lcoder/desktop-profile.patch.yml                   # 十个角色 pres
 | 3 | 项目信息密码揭示 | A 切换前补齐；B 接受功能回退 | 建议 A：旧壳已有，属「必需（流程）」；只在内存揭示，成本小 |
 | 4 | 模型配置面 | A 切换前补「发现模型 + baseURL/模型 id 编辑」；B 只保留默认模型与密钥 | 建议 A：没有它就无法接入非默认云端路由；B 会让设置页明显缩水 |
 | 5 | 角色看板与并行组 | A 补关系图与 `scheduling.groups` 视图；B 降级为列表 | 建议 B 先降级并在发布说明写明；关系图不是流程必需，但需用户确认 |
-| 6 | 立项向导 | A 恢复三档 + `lcoder-intake` 专用会话；B 保持两档、在现有会话里访谈 | 建议 A：`requirement_draft` 工具面只在该 preset 里，B 会改变立项行为 |
+| 6 | 立项向导 | A 恢复三档 + `maniu-intake` 专用会话；B 保持两档、在现有会话里访谈 | 建议 A：`requirement_draft` 工具面只在该 preset 里，B 会改变立项行为 |
 | 7 | 首版发布范围 | A 只发 Windows；B 等 macOS 一起发 | 建议 A：macOS 完全未验，等待会把 Windows 修复一起拖住 |
 | 8 | 自动更新 | A 随切换启用（含强制更新策略与安装锁）；B 首版只支持手动安装，下一版再开 | 建议 A，但若 C1 排不进就把更新 UI 明确标「暂不可用」并保留 feed 回退路径；不能出现「显示可更新但装了报错」 |
 | 9 | 宿主 home | A 共用 `~/.dsh`；B 新目录并迁移 | 建议 A：会话与云端令牌原地保留，回退也简单；代价是两壳共享凭据文件，需要约定不并发运行 |

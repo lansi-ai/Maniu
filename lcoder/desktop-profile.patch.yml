@@ -40,20 +40,23 @@
             input: [text, image]
 
 # 角色名册：`selectedDefault` 是新会话的默认角色（实施）。
+# 每个角色声明的 `retiredIds` 让旧会话 header 里的 lcoder* 标识继续解析到
+# 改名后的 maniu* 声明：旧会话不改记录、不新增名册行，继续对话绑的是新声明。
 - id: agent-preset-registry
   name: "@deepseek-ai/dsh-agent-preset-registry"
   config:
     default: standard
-    selectedDefault: lcoder
+    selectedDefault: maniu
 
-# ── 实施（沿用 id `lcoder`，让已存在会话的 agentPreset 继续有效）────────
-# 工具面 = SURFACE[任务状态] ∩ 角色表；十个 preset 各挂一份 @lcoder/kernel，
+# ── 实施（id `maniu`；旧会话记录的 `lcoder` 由上面的 aliases 解析）────────
+# 工具面 = SURFACE[任务状态] ∩ 角色表；十个 preset 各挂一份 @maniu/kernel，
 # 各带自己的 role，所以每个角色的会话拿到的工具面由它的 preset 唯一决定。
 - insert:
-    - id: preset-lcoder
+    - id: preset-maniu
       name: "@deepseek-ai/dsh-agent-preset"
       config:
-        id: lcoder
+        id: maniu
+        retiredIds: [lcoder]
         name: 慢牛实施
         description: 按任务状态放开编辑与命令的开发角色（实验）
         order: 20
@@ -66,7 +69,7 @@
                 file_read / file_list / spec_query / spec_bind / task_read / task_draft / contract_draft；
                 契约签署后才出现 file_edit / cmd_run / evidence_attach，验证阶段才有 task_close。
                 仓库还没有任务时你拿到的是立项面（file_read / file_list / spec_query / task_read / task_draft）。
-                你可以把复核派给评审子 agent（subagent 工具的 agent_preset 取 lcoder-review）。
+                你可以把复核派给评审子 agent（subagent 工具的 agent_preset 取 maniu-review）。
                 没有对应工具时如实说明做不到，绝不假称已完成。
           # 提问走弹出选择框：工具阻塞到人选完为止，不让人打字。
           - id: ask-user
@@ -85,8 +88,8 @@
                 config:
                   thresholdRatio: 0.8
                   retainRatio: 0.16
-          - id: lcoder
-            name: '@lcoder/kernel'
+          - id: maniu
+            name: '@maniu/kernel'
             config:
               selfCheck: true
               role: dev
@@ -97,17 +100,18 @@
             config:
               provider: spawn
               toolName: subagent
-              agentPreset: lcoder-review
+              agentPreset: maniu-review
               allowedAgentPresets:
-                - lcoder-review
-                - lcoder-git
+                - maniu-review
+                - maniu-git
 
 # ── 立项/产品 ─────────────────────────────────────────────────
 - insert:
-    - id: preset-lcoder-intake
+    - id: preset-maniu-intake
       name: "@deepseek-ai/dsh-agent-preset"
       config:
-        id: lcoder-intake
+        id: maniu-intake
+        retiredIds: [lcoder-intake]
         name: 慢牛立项
         description: 读产品文档、调研、立起草态任务的角色（实验）
         order: 21
@@ -136,18 +140,19 @@
                 config:
                   thresholdRatio: 0.8
                   retainRatio: 0.16
-          - id: lcoder
-            name: '@lcoder/kernel'
+          - id: maniu
+            name: '@maniu/kernel'
             config:
               selfCheck: true
               role: intake
 
 # ── 架构/契约 ─────────────────────────────────────────────────
 - insert:
-    - id: preset-lcoder-architect
+    - id: preset-maniu-architect
       name: "@deepseek-ai/dsh-agent-preset"
       config:
-        id: lcoder-architect
+        id: maniu-architect
+        retiredIds: [lcoder-architect]
         name: 慢牛架构
         description: 给规格条目绑落点、起草契约的角色（实验）
         order: 22
@@ -159,7 +164,7 @@
                 You are 慢牛架构. 你的天花板是 file_read / file_list / spec_query / spec_bind / task_read /
                 task_draft / contract_draft：先 file_list 与 file_read 摸清落点，把调研结论落成规格条目、绑代码落点、起草契约正文。
                 契约由人签署，你没有签署能力；你也不改代码、不跑命令。
-                需要复核起草好的契约时可以派评审子 agent（lcoder-review）。缺工具就如实说。
+                需要复核起草好的契约时可以派评审子 agent（maniu-review）。缺工具就如实说。
           # 提问走弹出选择框：工具阻塞到人选完为止，不让人打字。
           - id: ask-user
             name: '@deepseek-ai/dsh-tool-ask-user'
@@ -177,8 +182,8 @@
                 config:
                   thresholdRatio: 0.8
                   retainRatio: 0.16
-          - id: lcoder
-            name: '@lcoder/kernel'
+          - id: maniu
+            name: '@maniu/kernel'
             config:
               selfCheck: true
               role: architect
@@ -187,17 +192,18 @@
             config:
               provider: spawn
               toolName: subagent
-              agentPreset: lcoder-review
+              agentPreset: maniu-review
               allowedAgentPresets:
-                - lcoder-review
-                - lcoder-git
+                - maniu-review
+                - maniu-git
 
 # ── 评审 ─────────────────────────────────────────────────────
 - insert:
-    - id: preset-lcoder-review
+    - id: preset-maniu-review
       name: "@deepseek-ai/dsh-agent-preset"
       config:
-        id: lcoder-review
+        id: maniu-review
+        retiredIds: [lcoder-review]
         name: 慢牛评审
         description: 只读复核、挂证据、按状态收口的角色（实验）
         order: 23
@@ -227,8 +233,8 @@
                 config:
                   thresholdRatio: 0.8
                   retainRatio: 0.16
-          - id: lcoder
-            name: '@lcoder/kernel'
+          - id: maniu
+            name: '@maniu/kernel'
             config:
               selfCheck: true
               role: review
@@ -237,10 +243,11 @@
 # 需求探讨与方案拆分。批准方案的 /proposal_approve 是人机命令，不在它的工具面上：
 # 模型能出方案、能拆任务，不能给自己拍板。
 - insert:
-    - id: preset-lcoder-pm
+    - id: preset-maniu-pm
       name: "@deepseek-ai/dsh-agent-preset"
       config:
-        id: lcoder-pm
+        id: maniu-pm
+        retiredIds: [lcoder-pm]
         name: 慢牛项目经理
         description: 谈需求、出方案、拆任务的项目经理角色（实验）
         order: 19
@@ -276,8 +283,8 @@
                 config:
                   thresholdRatio: 0.8
                   retainRatio: 0.16
-          - id: lcoder
-            name: '@lcoder/kernel'
+          - id: maniu
+            name: '@maniu/kernel'
             config:
               selfCheck: true
               role: pm
@@ -286,10 +293,11 @@
 # 提交动作的窄口：git_status / git_diff / git_commit，没有编辑能力，也没有 push。
 # 谁都能被委派进来（实施写完代码叫它提交），但它自己不改一个文件字节。
 - insert:
-    - id: preset-lcoder-git
+    - id: preset-maniu-git
       name: "@deepseek-ai/dsh-agent-preset"
       config:
-        id: lcoder-git
+        id: maniu-git
+        retiredIds: [lcoder-git]
         name: 慢牛Git
         description: 看状态与差异、把指定路径提交到本地仓库的角色（实验）
         order: 24
@@ -322,8 +330,8 @@
                 config:
                   thresholdRatio: 0.8
                   retainRatio: 0.16
-          - id: lcoder
-            name: '@lcoder/kernel'
+          - id: maniu
+            name: '@maniu/kernel'
             config:
               selfCheck: true
               role: git
@@ -332,10 +340,11 @@
 # 定位是指导落地与写维护部署脚本，不是替人上线：真正执行部署的 /deploy 是人机命令，
 # 只跑 env.yaml 里登记为 human 的命令，且由人触发。
 - insert:
-    - id: preset-lcoder-ops
+    - id: preset-maniu-ops
       name: "@deepseek-ai/dsh-agent-preset"
       config:
-        id: lcoder-ops
+        id: maniu-ops
+        retiredIds: [lcoder-ops]
         name: 慢牛运维
         description: 写与维护部署脚本、指导服务器落地、跑登记过的命令（实验）
         order: 25
@@ -370,8 +379,8 @@
                 config:
                   thresholdRatio: 0.8
                   retainRatio: 0.16
-          - id: lcoder
-            name: '@lcoder/kernel'
+          - id: maniu
+            name: '@maniu/kernel'
             config:
               selfCheck: true
               role: ops
@@ -379,10 +388,11 @@
 # ── 智能调度 ─────────────────────────────────────────────────
 # 常驻单例：每个仓库一条。它只解释「该交给谁」，真正的分配由工作台的调度判定执行。
 - insert:
-    - id: preset-lcoder-scheduler
+    - id: preset-maniu-scheduler
       name: "@deepseek-ai/dsh-agent-preset"
       config:
-        id: lcoder-scheduler
+        id: maniu-scheduler
+        retiredIds: [lcoder-scheduler]
         name: 智能调度
         description: 只看任务与规格，把任务分给合适的会话（实验）
         order: 26
@@ -410,8 +420,8 @@
                 config:
                   thresholdRatio: 0.8
                   retainRatio: 0.16
-          - id: lcoder
-            name: '@lcoder/kernel'
+          - id: maniu
+            name: '@maniu/kernel'
             config:
               selfCheck: true
               role: scheduler
@@ -419,10 +429,11 @@
 # ── 流程控制 ─────────────────────────────────────────────────
 # 常驻单例：每个仓库一条。它只解释下一步与挡住原因，不推进状态。
 - insert:
-    - id: preset-lcoder-flow
+    - id: preset-maniu-flow
       name: "@deepseek-ai/dsh-agent-preset"
       config:
-        id: lcoder-flow
+        id: maniu-flow
+        retiredIds: [lcoder-flow]
         name: 流程控制
         description: 只看任务与规格，说明下一步、理由与挡住原因（实验）
         order: 27
@@ -450,8 +461,8 @@
                 config:
                   thresholdRatio: 0.8
                   retainRatio: 0.16
-          - id: lcoder
-            name: '@lcoder/kernel'
+          - id: maniu
+            name: '@maniu/kernel'
             config:
               selfCheck: true
               role: flow
@@ -460,10 +471,11 @@
 # 需求与任务拆完之后给每条任务定岗位。岗位分配是调度硬约束，只有人机命令
 # /task_assign 能写；这个角色只起草岗位名册（role_draft），改不了代码、跑不了命令。
 - insert:
-    - id: preset-lcoder-manager
+    - id: preset-maniu-manager
       name: "@deepseek-ai/dsh-agent-preset"
       config:
-        id: lcoder-manager
+        id: maniu-manager
+        retiredIds: [lcoder-manager]
         name: 慢牛研发经理
         description: 任务拆完之后给每条任务定岗位、维护岗位名册（实验）
         order: 28
@@ -497,8 +509,8 @@
                 config:
                   thresholdRatio: 0.8
                   retainRatio: 0.16
-          - id: lcoder
-            name: '@lcoder/kernel'
+          - id: maniu
+            name: '@maniu/kernel'
             config:
               selfCheck: true
               role: manager
@@ -527,15 +539,15 @@
 - insert:
     # 云端控制器全局在册：顶栏、门禁与模型请求共用一个令牌供应器。
     - id: lcoder-cloud
-      name: '@lcoder/kernel/cloud'
+      name: '@maniu/kernel/cloud'
       config:
         baseUrl: !!js process.env.LCODER_CLOUD_BASE_URL || 'http://127.0.0.1:5091/v1'
 
     # 人才库宿主动态 preset：客户端提交云端人才列表，这里校验并注册成可选的 agent preset。
     - id: lcoder-talents
-      name: '@lcoder/kernel/talents'
+      name: '@maniu/kernel/talents'
 
     - id: ui-lcoder-workspace
-      name: '@lcoder/workspace'
+      name: '@maniu/workspace'
       config:
         shell: true

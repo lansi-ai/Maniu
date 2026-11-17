@@ -28,7 +28,7 @@ for (const path of [
   join(APP_ROOT, 'lib', 'preload.cjs'),
   join(REPO_ROOT, 'packages', 'lcoder', 'client', 'lib', 'dist', 'index.html'),
 ]) {
-  if (!existsSync(path)) throw new Error(`缺少构建产物 ${path}；先跑 pnpm --filter @lcoder/desktop --filter @lcoder/client run build`)
+  if (!existsSync(path)) throw new Error(`缺少构建产物 ${path}；先跑 pnpm --filter @maniu/desktop --filter @maniu/client run build`)
 }
 
 const electron = createRequire(import.meta.url)('electron')

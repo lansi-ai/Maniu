@@ -191,8 +191,8 @@ export function ensureBuild({ mode, environment, log }) {
     rebuilt.push('base')
   }
   const layers = [
-    { name: 'kernel', source: join(ROOT, 'packages', 'lcoder', 'kernel', 'src'), artifact: join(ROOT, 'packages', 'lcoder', 'kernel', 'lib', 'index.js'), filter: '@lcoder/kernel' },
-    { name: 'workspace', source: join(ROOT, 'packages', 'lcoder', 'workspace', 'src'), artifact: join(ROOT, 'packages', 'lcoder', 'workspace', 'lib', 'client.js'), filter: '@lcoder/workspace' },
+    { name: 'kernel', source: join(ROOT, 'packages', 'lcoder', 'kernel', 'src'), artifact: join(ROOT, 'packages', 'lcoder', 'kernel', 'lib', 'index.js'), filter: '@maniu/kernel' },
+    { name: 'workspace', source: join(ROOT, 'packages', 'lcoder', 'workspace', 'src'), artifact: join(ROOT, 'packages', 'lcoder', 'workspace', 'lib', 'client.js'), filter: '@maniu/workspace' },
   ]
   for (const layer of layers) {
     const stale = !existsSync(layer.artifact) || newestMtime(layer.source) > statSync(layer.artifact).mtimeMs
@@ -249,13 +249,13 @@ export function prepareProfile({ log }) {
     name: 'dsh-profile-desktop',
     private: true,
     dependencies: {
-      '@lcoder/kernel': link(join(ROOT, 'packages', 'lcoder', 'kernel')),
-      '@lcoder/workspace': link(join(ROOT, 'packages', 'lcoder', 'workspace')),
+      '@maniu/kernel': link(join(ROOT, 'packages', 'lcoder', 'kernel')),
+      '@maniu/workspace': link(join(ROOT, 'packages', 'lcoder', 'workspace')),
     },
     dsh: { profile: { bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'] } },
   }
   writeFileSync(join(PROFILE, 'package.json'), `${JSON.stringify(manifest, undefined, 2)}\n`)
-  const scoped = join(PROFILE, 'node_modules', '@lcoder')
+  const scoped = join(PROFILE, 'node_modules', '@maniu')
   mkdirSync(scoped, { recursive: true })
   linkDirectory(join(ROOT, 'packages', 'lcoder', 'kernel'), join(scoped, 'kernel'))
   linkDirectory(join(ROOT, 'packages', 'lcoder', 'workspace'), join(scoped, 'workspace'))

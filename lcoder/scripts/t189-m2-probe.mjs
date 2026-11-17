@@ -3,7 +3,7 @@
  * → 需求列表 → 项目信息 → 设置占位 → 回到聊天。
  *
  * 用法：node lcoder/scripts/t189-m2-probe.mjs
- * 前置：`pnpm --filter @lcoder/desktop --filter @lcoder/client run build`
+ * 前置：`pnpm --filter @maniu/desktop --filter @maniu/client run build`
  * 端口：渲染 9822、主进程 9829、宿主 9830、mock 云端 5091。
  */
 
@@ -422,7 +422,7 @@ async function run() {
       `命令面缺少工作台命令：${JSON.stringify(commands)}`)
     const presets = await page.evaluate("window.lcoder.call('agentPresets','list',{}).then(answer => answer.ok ? answer.value.presets.map(item => item.id) : null)")
     log(`命令 ${String(commands.length)} 条；preset ${JSON.stringify(presets)}`)
-    assert(Array.isArray(presets) && presets.includes('lcoder-workbench'), '工作台 preset 未注册')
+    assert(Array.isArray(presets) && presets.includes('maniu-workbench'), '工作台 preset 未注册')
     const columnOfDemo = await page.evaluate(
       "document.querySelector('[data-testid=\"task-card\"][data-task-id=\"DEMO-01\"]')?.closest('[data-testid=\"task-column\"]')?.dataset.column")
     log(`DEMO-01 位于列 ${String(columnOfDemo)}`)
@@ -474,7 +474,7 @@ async function run() {
 
     await page.evaluate("document.querySelector('[data-testid=\"nav-roles\"]').click()")
     await page.waitFor("document.querySelectorAll('[data-testid=\"preset-card\"]').length > 0", 20_000, '角色看板')
-    await page.waitFor("document.querySelector('[data-testid=\"preset-card\"][data-preset-id=\"lcoder-workbench\"]') !== null", 10_000, '工作台 preset')
+    await page.waitFor("document.querySelector('[data-testid=\"preset-card\"][data-preset-id=\"maniu-workbench\"]') !== null", 10_000, '工作台 preset')
     log('角色看板通过')
 
     // 靶仓：命令动作、附件只读、调度与流程日志。

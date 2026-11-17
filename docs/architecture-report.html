@@ -454,7 +454,7 @@ h2:hover .anchor, h3:hover .anchor, h4:hover .anchor { opacity: .7; }
 <section class="hero">
   <span class="eyebrow">架构与功能解析 · 单文件离线</span>
   <h1>把「规格 → 契约 → 实现 → 验证 → 收口」<br>做成<em>可执行的状态机</em></h1>
-  <p class="lede">LCoder 是 DeepSeek Harness（下称 DSH）的 Windows 桌面端二次开发：它不复制上游业务实现，而是在装配层叠加一个 <code>@lcoder/kernel</code> 宿主插件、一个 <code>@lcoder/workspace</code> 浏览器插件与一层 profile 补丁。前四章用大白话写给非技术读者，后面十二章再拆技术细节；每一条技术结论都带源码行号。</p>
+  <p class="lede">LCoder 是 DeepSeek Harness（下称 DSH）的 Windows 桌面端二次开发：它不复制上游业务实现，而是在装配层叠加一个 <code>@maniu/kernel</code> 宿主插件、一个 <code>@maniu/workspace</code> 浏览器插件与一层 profile 补丁。前四章用大白话写给非技术读者，后面十二章再拆技术细节；每一条技术结论都带源码行号。</p>
   <div class="meta-grid">
     <div class="meta"><b>17</b><span>章</span></div>
     <div class="meta"><b>17</b><span>模型工具</span></div>
@@ -676,19 +676,19 @@ h2:hover .anchor, h3:hover .anchor, h4:hover .anchor { opacity: .7; }
     <div class="arrow">↓</div>
     <div class="stack-row"><div class="stack-label">patch</div><div class="stack-box"><span class="chip hot">lcoder/cordis.patch.yml</span><span class="chip hot">lcoder/desktop-profile.patch.yml</span></div></div>
     <div class="arrow">↓</div>
-    <div class="stack-row"><div class="stack-label">plugins</div><div class="stack-box"><span class="chip cool">@lcoder/kernel</span><span class="chip cool">@lcoder/kernel/cloud</span><span class="chip cool">@lcoder/workspace</span></div></div>
+    <div class="stack-row"><div class="stack-label">plugins</div><div class="stack-box"><span class="chip cool">@maniu/kernel</span><span class="chip cool">@maniu/kernel/cloud</span><span class="chip cool">@maniu/workspace</span></div></div>
     <div class="arrow">↓</div>
     <div class="stack-row"><div class="stack-label">data</div><div class="stack-box"><span class="chip">.spec/tasks/*.yaml</span><span class="chip">.spec/spec/rules.yaml</span><span class="chip">.spec/contracts/*.yaml</span><span class="chip">.spec/evidence/</span></div></div>
   </div>
   <p class="blk">装配补丁保持「只加不改」：web 侧的 <code>lcoder/cordis.patch.yml</code> 只替换 <code>llm-pi-ai</code> 的 provider 配置并插入云端控制器、内核与工作台三行，上游 bundle 的 patch 一个字都不改。<code class="ref">lcoder/cordis.patch.yml:1</code> <code class="ref">lcoder/cordis.patch.yml:45</code> 桌面 profile 再把 <code>ui-sidebar</code>、<code>ui-settings-account</code>、<code>ui-brand-official</code> 三行禁用，由 LCoder 外壳自画顶栏与首屏。<code class="ref">lcoder/desktop-profile.patch.yml:468</code> <code class="ref">lcoder/desktop-profile.patch.yml:482</code></p>
-  <p class="blk">角色的做法也一样：九个 preset 各自挂一份 <code>@lcoder/kernel</code> 并写死自己的 <code>role</code>，新建会话时按 preset 指名；工具面 = <code>SURFACE[任务状态] ∩ 角色表</code>，由预设唯一决定。<code class="ref">lcoder/desktop-profile.patch.yml:58</code> <code class="ref">packages/lcoder/kernel/src/kernel/surface.ts:202</code></p>
+  <p class="blk">角色的做法也一样：九个 preset 各自挂一份 <code>@maniu/kernel</code> 并写死自己的 <code>role</code>，新建会话时按 preset 指名；工具面 = <code>SURFACE[任务状态] ∩ 角色表</code>，由预设唯一决定。<code class="ref">lcoder/desktop-profile.patch.yml:58</code> <code class="ref">packages/lcoder/kernel/src/kernel/surface.ts:202</code></p>
   <div class="callout blk"><p><b>为什么是二开而不是重写。</b>上游已经提供插件宿主、工具注册、会话与 UI 扩展点，直接复用比另写运行时更稳；LCoder 只在装配层加入自己的规则与界面。<code class="ref">docs/prd-and-design.md:13</code></p></div>
 
   <h3 id="s1-3" class="blk"><span class="h3n">1.3</span>装配补丁与运行链路<a class="anchor" href="#s1-3">#</a></h3>
   <p class="blk">宿主插件用 Cordis 的标准最小形态：具名导出 <code>name</code> / <code>inject</code> / <code>apply</code>，依赖 <code>tools</code> 与 <code>commands</code> 两个服务，缺一个就不激活。<code class="ref">packages/lcoder/kernel/src/plugin.ts:34</code> <code class="ref">packages/lcoder/kernel/src/plugin.ts:37</code> <code>apply</code> 做四件事：解析角色、解析规格根、注册工具（带 <code>when</code> 求值）、注册人机命令；最后打印一行自检，列出工具数、命令名与当前角色。<code class="ref">packages/lcoder/kernel/src/plugin.ts:96</code> <code class="ref">packages/lcoder/kernel/src/plugin.ts:139</code> <code class="ref">packages/lcoder/kernel/src/plugin.ts:165</code> <code class="ref">packages/lcoder/kernel/src/plugin.ts:182</code></p>
   <p class="blk">工具注册用 <code>when</code> 而不是 <code>restrict</code>：<code>restrict</code> 只对<b>全局注册</b>的工具生效（报错原文是 <code>names unknown global tools</code>），而 LCoder 在 preset 作用域注册，属于 scoped，必须用每个 model step 求值一次的 <code>when</code>。<code class="ref">packages/lcoder/kernel/src/plugin.ts:66</code> <code class="ref">packages/lcoder/kernel/src/plugin.ts:76</code></p>
-  <p class="blk">浏览器侧入口 <code>@lcoder/workspace</code> 先挂云端 Remote，再按 <code>shell</code> 配置决定走整壳还是回退右栏页签；整壳占用 <code>main</code> 的 <code>lcoder-home</code>，注册后调用 <code>layout.selectPanel</code> 切过去并折叠空侧栏轨道。<code class="ref">packages/lcoder/workspace/src/client/index.ts:245</code> <code class="ref">packages/lcoder/workspace/src/client/index.ts:252</code> <code class="ref">packages/lcoder/workspace/src/client/index.ts:494</code> <code class="ref">packages/lcoder/workspace/src/client/index.ts:514</code></p>
-  <p class="blk">云端控制器必须全局在册：它要在第一条会话出现之前就能给顶栏、门禁与模型请求提供同一个令牌供应器，因此单独一行 <code>@lcoder/kernel/cloud</code>，而角色 preset 里的 kernel 是懒装载，赶不上这一步。<code class="ref">lcoder/cordis.patch.yml:46</code> <code class="ref">packages/lcoder/kernel/src/cloud/plugin.ts:2</code></p>
+  <p class="blk">浏览器侧入口 <code>@maniu/workspace</code> 先挂云端 Remote，再按 <code>shell</code> 配置决定走整壳还是回退右栏页签；整壳占用 <code>main</code> 的 <code>lcoder-home</code>，注册后调用 <code>layout.selectPanel</code> 切过去并折叠空侧栏轨道。<code class="ref">packages/lcoder/workspace/src/client/index.ts:245</code> <code class="ref">packages/lcoder/workspace/src/client/index.ts:252</code> <code class="ref">packages/lcoder/workspace/src/client/index.ts:494</code> <code class="ref">packages/lcoder/workspace/src/client/index.ts:514</code></p>
+  <p class="blk">云端控制器必须全局在册：它要在第一条会话出现之前就能给顶栏、门禁与模型请求提供同一个令牌供应器，因此单独一行 <code>@maniu/kernel/cloud</code>，而角色 preset 里的 kernel 是懒装载，赶不上这一步。<code class="ref">lcoder/cordis.patch.yml:46</code> <code class="ref">packages/lcoder/kernel/src/cloud/plugin.ts:2</code></p>
   <p class="blk">桌面侧另有一条必须保留的规避：profile 把 <code>workspace-controller.documentsDirectory</code> 配死到本检出下的真实目录，跳过本机向操作系统查询「文档」目录那一步——那一步在开发机上会挂住，把「打开仓库」拖成永久无应答。<code class="ref">lcoder/desktop-profile.patch.yml:19</code> <code class="ref">docs/PROJECT-RULES.md:127</code></p>
 </section>
 <section class="chapter" id="ch2" data-title="数据面">

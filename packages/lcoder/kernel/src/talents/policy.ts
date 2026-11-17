@@ -1,5 +1,5 @@
 /**
- * `@lcoder/kernel/talents-policy`：人才 preset 末尾的运行时策略行。
+ * `@maniu/kernel/talents-policy`：人才 preset 末尾的运行时策略行。
  *
  * 这一行只由 {@link composeTalentPlugins} 生成，配置来自已校验的人才配置。
  * Agent 加入该 preset 时：工具白名单按 agent 作用域收窄工具面，未知工具让

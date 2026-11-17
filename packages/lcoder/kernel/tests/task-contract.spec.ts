@@ -50,7 +50,7 @@ function agentSig(hash: string): Record<string, unknown> {
     by: 'agent',
     at: '2026-11-04T10:00:00+08:00',
     hash,
-    actor: 'lcoder-flow',
+    actor: 'maniu-flow',
     authorization: { policy: 'automation.yaml', hash: 'sha256:策略', at: '2026-11-04T09:00:00+08:00' },
   }
 }
@@ -130,7 +130,7 @@ describe('task_contract', () => {
     const r = run(root, 'T-01')
     expect(r.kind).toBe('success')
     expect(r.text).toContain('AI 自签')
-    expect(r.text).toContain('lcoder-flow')
+    expect(r.text).toContain('maniu-flow')
     expect(stateOf(root)).toBe('contracted')
   })
 

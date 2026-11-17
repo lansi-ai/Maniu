@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * 把宿主生成的 `@lcoder/kernel` Remote 贡献同步进工作台源码。
+ * 把宿主生成的 `@maniu/kernel` Remote 贡献同步进工作台源码。
  *
- * 浏览器包只认仓库内的相对模块，不能把 `@lcoder/kernel/remote` 当模块表行；
+ * 浏览器包只认仓库内的相对模块，不能把 `@maniu/kernel/remote` 当模块表行；
  * 同时单测要在没有 lib 产物的干净检出里跑，所以生成的贡献固化进 `src`。
  *
  * 用法（仓库根）：

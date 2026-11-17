@@ -4,7 +4,7 @@
  * 这里只是展示：不写 `.spec`、不调 `/task_assign`，也不把建议塞进调度判定。
  * 能力天花板直接取 kernel 的 `ROLE_TOOLS`，不在这里抄第二份。
  */
-import { ROLE_TOOLS } from '@lcoder/kernel/src/kernel/surface.ts'
+import { ROLE_TOOLS } from '@maniu/kernel/src/kernel/surface.ts'
 import { suggestRole } from '../role-suggest.ts'
 import type { SuggestRosterJob } from '../role-suggest.ts'
 import type { JobRoleRow } from '../projection.ts'

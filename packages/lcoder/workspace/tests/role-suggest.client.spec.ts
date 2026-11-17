@@ -12,7 +12,7 @@ import type {
   SuggestRoleRequest,
   SuggestTask,
 } from '../src/client/role-suggest.ts'
-import type { RoleSignals } from '@lcoder/kernel/src/schema/spec.ts'
+import type { RoleSignals } from '@maniu/kernel/src/schema/spec.ts'
 
 /** 只保留判定需要的能力位：函数只检查 `file_edit`，其余工具名不参与。 */
 const CEILING: RoleCeiling = {

@@ -14,7 +14,7 @@ const CLOUD_ROW = {
   description: '只看不改',
   config: {
     version: 1,
-    basePreset: 'lcoder-review',
+    basePreset: 'maniu-review',
     persona: '你是评审',
     plugins: [{ name: '@deepseek-ai/dsh-tool-todo', config: { allowParallelInProgress: true } }],
     tools: ['file_read'],

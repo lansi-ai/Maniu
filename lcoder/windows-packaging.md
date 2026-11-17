@@ -6,13 +6,13 @@
 
 ```sh
 export pnpm_config_verify_deps_before_run=false
-pnpm --filter @lcoder/desktop run build
-pnpm --filter @lcoder/client run build
+pnpm --filter @maniu/desktop run build
+pnpm --filter @maniu/client run build
 node packages/lcoder/desktop/scripts/package-win.mjs
 ```
 
 - 版本由 `LCODER_RELEASE_VERSION` 决定（默认 `0.1.0`）；不改上游 `0.2.2-alpha.2`，也不改本包 `0.0.0`。
-- 宿主依赖树由 `pnpm --filter @lcoder/desktop deploy --prod --legacy` 产出；`LCODER_SKIP_DEPLOY=1` 复用已有树。
+- 宿主依赖树由 `pnpm --filter @maniu/desktop deploy --prod --legacy` 产出；`LCODER_SKIP_DEPLOY=1` 复用已有树。
 - 产物在 `packages/lcoder/desktop/.desktop-build/artifacts/`：`maniu-<version>-win-x64-unsigned.exe` 与 `win-unpacked/`。
 - 称重写到 `lcoder/logs/t197-package-weight.json`（安装包、`win-unpacked`、`app.asar`、宿主依赖树、运行时载荷）。
 
@@ -21,7 +21,7 @@ node packages/lcoder/desktop/scripts/package-win.mjs
 | 位置 | 内容 |
 | --- | --- |
 | `app.asar` | 壳的 `lib/`（主进程、preload）与 `package.json`（约 6.6 MB） |
-| `resources/dsh/` | `pnpm deploy` 出来的宿主依赖树（含 `host-entry.js` 与 `@lcoder/kernel`） |
+| `resources/dsh/` | `pnpm deploy` 出来的宿主依赖树（含 `host-entry.js` 与 `@maniu/kernel`） |
 | `resources/profile/` | 发布 profile 的四层装配源；运行时拼成 `<DSH_HOME>/profiles/lcoder` |
 | `resources/client-dist/` | 新客户端 Vite 产物 |
 | `resources/runtime/` | T-183 node-only 运行时载荷（`primary-runtime/` 与 `runtime/bin/node.exe`） |
@@ -33,9 +33,9 @@ node packages/lcoder/desktop/scripts/package-win.mjs
 
 `pnpm deploy` 的 hoisted 树会挂上共享 lockfile 里的全部 workspace 项目，并把它们的链接留在 `node_modules`；这些链接在安装包里不存在，NSIS 的 7z 也会失败。打包脚本因此做三件事：
 
-1. 只保留 `@lcoder/desktop` 依赖闭包里的 workspace 链接并复制成实体目录，其余链接删除。
+1. 只保留 `@maniu/desktop` 依赖闭包里的 workspace 链接并复制成实体目录，其余链接删除。
 2. 删除发布 profile 永远不 import 的载荷：`dsh-client-ui-*`、`dsh-client-modules`、`client-hmr`、`locale`、`shortcuts`、`resources`、`office-to-pdf`、`libreoffice-kit*`、上游 `dsh-desktop`、实验包与 Python 运行时闭包。
-3. 从仓内源码刷新 `@lcoder/kernel` 与 `@lcoder/desktop`（pnpm 按 `files` 拷的快照可能漏掉代码分块）。
+3. 从仓内源码刷新 `@maniu/kernel` 与 `@maniu/desktop`（pnpm 按 `files` 拷的快照可能漏掉代码分块）。
 
 硬断言在 `assertDeployClean`：出现 `libreoffice-kit*`、`dsh-desktop`、实验包、任何符号链接，或部署树内出现 `node.exe` / `electron.exe`，打包直接失败并打印路径。
 
@@ -47,11 +47,11 @@ node packages/lcoder/desktop/scripts/package-win.mjs
 
 目标区间是部署树 200–300 MB；收敛后落在 253 MB。剩余大头是 Electron 本体（约 400 MB，地板）、Node 运行时 115 MB、宿主依赖树 253 MB 与客户端产物。宿主依赖树里主要是 CLI 与 provider 的真实依赖（`openai`、`node-pty`、`sherpa-onnx` 等），它们仍在 manifest 闭包里，未逐包裁剪。
 
-`@deepseek-ai/dsh`（CLI）与 `@deepseek-ai/dsh-web-app` 仍留在 `@lcoder/desktop` 依赖里：`host-entry` 的 `runProfile` 只从 `@deepseek-ai/dsh/profile-boot` 导入，而 `web-startup`/`web-runtime`/`connection`/`file-upload`/`api-remotes` 等宿主行来自 `dsh-web-app`。把两者拆成独立 host 包需要把这些行和 profile-boot 一起搬成新包，本轮未做；本轮用上面的裁剪把它们的无关载荷排除掉。
+`@deepseek-ai/dsh`（CLI）与 `@deepseek-ai/dsh-web-app` 仍留在 `@maniu/desktop` 依赖里：`host-entry` 的 `runProfile` 只从 `@deepseek-ai/dsh/profile-boot` 导入，而 `web-startup`/`web-runtime`/`connection`/`file-upload`/`api-remotes` 等宿主行来自 `dsh-web-app`。把两者拆成独立 host 包需要把这些行和 profile-boot 一起搬成新包，本轮未做；本轮用上面的裁剪把它们的无关载荷排除掉。
 
 发布 profile 把 `agent-default-model` 指回 `lcoder-cloud`（`host-workbench.patch.yml`）：新客户端先登录云端再进工作台，默认模型跟云端令牌走；官方 provider 仍可在设置页切换。旧壳的官方默认不受影响。
 
-同一层把 `agent-preset-registry.selectedDefault` 设为 `standard`：新客户端「新建会话」不带 preset，普通对话需要上游标准工具面（`pwsh`、`bash`、`fs`、`subagent`、`workflow` 等）；工作台作用域会话仍显式用 `lcoder-workbench`，十个慢牛角色仍作为可选 preset 保留。旧壳的 `selectedDefault=lcoder` 不受影响。
+同一层把 `agent-preset-registry.selectedDefault` 设为 `standard`：新客户端「新建会话」不带 preset，普通对话需要上游标准工具面（`pwsh`、`bash`、`fs`、`subagent`、`workflow` 等）；工作台作用域会话仍显式用 `maniu-workbench`，十个慢牛角色仍作为可选 preset 保留。旧壳的 `selectedDefault=lcoder` 不受影响。
 
 ## 3. 安装与启动验证
 

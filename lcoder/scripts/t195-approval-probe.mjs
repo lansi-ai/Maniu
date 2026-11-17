@@ -15,7 +15,7 @@
  * 三轮最终正文。
  *
  * 用法：node lcoder/scripts/t195-approval-probe.mjs
- * 前置：`pnpm --filter @lcoder/desktop --filter @lcoder/client run build`
+ * 前置：`pnpm --filter @maniu/desktop --filter @maniu/client run build`
  */
 
 import { spawn, spawnSync } from 'node:child_process'

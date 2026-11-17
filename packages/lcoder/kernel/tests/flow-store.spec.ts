@@ -22,7 +22,7 @@ afterAll(() => {
 })
 
 function makeSpec(): string {
-  const repo = mkdtempSync(join(tmpdir(), 'lcoder-flow-store-'))
+  const repo = mkdtempSync(join(tmpdir(), 'maniu-flow-store-'))
   dirs.push(repo)
   const root = join(repo, '.spec')
   mkdirSync(join(root, 'tasks'), { recursive: true })
@@ -67,7 +67,7 @@ describe('loadFlowSnapshot', () => {
     writePolicy(root, 'actions:\n  sign: auto\n  implement: auto\n')
     writeFileSync(join(root, 'evidence', 'T-01', 'review.log'), '复核通过', 'utf8')
 
-    expect(selfSignContract(root, { taskId: 'T-01', actor: 'lcoder-flow' }).kind).toBe('success')
+    expect(selfSignContract(root, { taskId: 'T-01', actor: 'maniu-flow' }).kind).toBe('success')
     expect(loadFlowSnapshot(root).decision).toMatchObject({ action: 'sign', taskId: 'T-01' })
 
     writeTask(root, { state: 'contracted' })

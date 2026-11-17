@@ -21,7 +21,7 @@ const require = createRequire(import.meta.url)
 const yamlBrowser = join(dirname(require.resolve('yaml/package.json')), 'browser', 'index.js')
 
 export default (inlineConfig: Parameters<typeof bundle>[0]) => bundle(inlineConfig).map(config => {
-  if (config.name !== '@lcoder/workspace/client') return config
+  if (config.name !== '@maniu/workspace/client') return config
   return {
     ...config,
     inputOptions: {

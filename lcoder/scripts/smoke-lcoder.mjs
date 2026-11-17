@@ -3,10 +3,12 @@
  *
  * 一项一条断言，逐项打印 PASS/FAIL 与依据（DOM、会话日志或 mock 状态）；任一项
  * 失败即非零退出。只跑本工作树的实例：渲染 9822、主进程 9829、宿主 9830、
- * mock 云端 5091；DSH_HOME 用本树 `lcoder/logs/smoke-lcoder-home`，每次重建。
+ * mock 云端 5091；这四个端口可用 `LCODER_PROBE_MOCK_PORT` / `LCODER_PROBE_RENDERER_PORT` /
+ * `LCODER_PROBE_MAIN_PORT` / `LCODER_PROBE_HOST_PORT` 覆盖，并行工作树必须换一组。
+ * DSH_HOME 用本树 `lcoder/logs/smoke-lcoder-home`，每次重建。
  *
  * 用法：node lcoder/scripts/smoke-lcoder.mjs
- * 前置：`pnpm --filter @lcoder/desktop --filter @lcoder/client run build`
+ * 前置：`pnpm --filter @maniu/desktop --filter @maniu/client run build`
  *
  * 十二项：
  *   1 窗口与宿主就绪        2 登录门禁              3 六页导航
@@ -15,7 +17,7 @@
  *  10 审批通过与拒绝回执   11 提问回执、附件预览、模型用量
  *  12 重启历史、关窗确认、停止与改名
  *
- * 讨论历史的正样本由本脚本经宿主 IPC 造一条 `lcoder-pm` 会话：界面目前没有创建
+ * 讨论历史的正样本由本脚本经宿主 IPC 造一条 `maniu-pm` 会话：界面目前没有创建
  * 讨论角色会话的入口，但历史聚合读的是真实 durable 事件，不是合成帧。
  */
 
@@ -30,12 +32,14 @@ const APP_ROOT = join(REPO_ROOT, 'packages', 'lcoder', 'desktop')
 const LOGS = join(REPO_ROOT, 'lcoder', 'logs')
 const HOME = join(LOGS, 'smoke-lcoder-home')
 const SCRATCH_REPO = join(LOGS, 'smoke-lcoder-scratch')
-const MOCK_PORT = 5091
+/** 端口按 env 覆盖，默认值留给主检出；并行工作树换一组避免撞车。 */
+const portOf = (name, fallback) => Number(process.env[name] ?? fallback)
+const MOCK_PORT = portOf('LCODER_PROBE_MOCK_PORT', 5091)
 const MOCK_BASE = `http://127.0.0.1:${String(MOCK_PORT)}/v1`
 const MOCK_ORIGIN = `http://127.0.0.1:${String(MOCK_PORT)}`
-const RENDERER_PORT = 9822
-const MAIN_PORT = 9829
-const HOST_PORT = 9830
+const RENDERER_PORT = portOf('LCODER_PROBE_RENDERER_PORT', 9822)
+const MAIN_PORT = portOf('LCODER_PROBE_MAIN_PORT', 9829)
+const HOST_PORT = portOf('LCODER_PROBE_HOST_PORT', 9830)
 const PHONE = '+8613900000099'
 const PASSWORD = 'lcoder-t199-pass'
 const RENAMED = 'T199 smoke session'
@@ -705,10 +709,10 @@ async function waitSessionAssistant(page, sessionId, milliseconds) {
 }
 
 const PRESET_ROLES = {
-  'lcoder-pm': 'pm',
-  'lcoder-intake': 'analyst',
-  'lcoder-manager': 'manager',
-  'lcoder-architect': 'architect',
+  'maniu-pm': 'pm',
+  'maniu-intake': 'analyst',
+  'maniu-manager': 'manager',
+  'maniu-architect': 'architect',
   'lcoder': 'track',
 }
 
@@ -992,7 +996,7 @@ async function main() {
     join(APP_ROOT, 'lib', 'preload.cjs'),
     join(REPO_ROOT, 'packages', 'lcoder', 'client', 'lib', 'dist', 'index.html'),
   ]) {
-    assert(existsSync(path), `缺少构建产物 ${path}；先跑 pnpm --filter @lcoder/desktop --filter @lcoder/client run build`)
+    assert(existsSync(path), `缺少构建产物 ${path}；先跑 pnpm --filter @maniu/desktop --filter @maniu/client run build`)
   }
   const busy = await busyPorts()
   assert(busy.length === 0, `调试端口应空闲（占用：${busy.join(', ') || '无'}）`)

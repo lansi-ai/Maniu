@@ -320,7 +320,7 @@ export function attachFileStats(packages, byDir) {
 
 /** 统计实际 node_modules 里指向 workspace 包的符号链接；没有安装时返回 null。 */
 export function countWorkspaceLinks(packages, byDir) {
-  const scopeNames = ['@deepseek-ai', '@lcoder']
+  const scopeNames = ['@deepseek-ai', '@maniu']
   const links = []
   for (const pkg of packages.values()) {
     const modules = join(pkg.abs, 'node_modules')

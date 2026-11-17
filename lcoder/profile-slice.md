@@ -34,7 +34,7 @@
 | win32 桌面禁用 | 27 | 26 行字面禁用 + `bash-sandbox` 的平台表达式（非 win32 才挂） |
 | preset 定义行 | 14 | 上游 4 个（standard / ptc / cordis / minimal）+ LCoder 10 个 |
 | preset 子插件 | 114 | 只在对应角色会话创建时装载 |
-| LCoder 直接触达 | 21 | 含 `@lcoder/*` 两行 |
+| LCoder 直接触达 | 21 | 含 `@maniu/*` 两行 |
 | 客户端产物合计 | 7.25 MiB | 全部 client 包，未压缩，含未启用项 |
 
 ## 第一波：先关掉没有业务消费者的整块
@@ -203,7 +203,7 @@ node lcoder/scripts/profile-slice.mjs estimate --wave 1   # 静态客户端产�
 | --- | --- | --- | --- |
 | 安装包体积 | 333 包 / 68.17 MiB core set | 不变 | profile 改不了这一维；要动得另立 core set 裁剪任务 |
 | 磁盘（源码与 node_modules） | 12,805 受控文件 / 87.03 MiB + 链接 | 不变 | 禁用不动包 |
-| 构建速度 | `build:artifacts` 全量 | 不变 | 分层重建 2 秒只是 `@lcoder/workspace` 重打，profile 不参与 |
+| 构建速度 | `build:artifacts` 全量 | 不变 | 分层重建 2 秒只是 `@maniu/workspace` 重打，profile 不参与 |
 | 客户端下载 | 10.87 MB 未压缩 / 2.37 MB gzip | 7.76 MB / 1.62 MB | −28.6% / −31.6% |
 | 启动就绪 | 5 秒（中位数） | 4–5 秒 | 1 秒分辨率内无可测收益 |
 | 激活条目 | 184 宿主 + 73 roster | 静态 130 宿主 + 42 roster | 宿主逐波未实测（仪器同波被关） |
@@ -429,14 +429,14 @@ node lcoder/scripts/profile-slice.mjs estimate --wave 1   # 静态客户端产�
 | 195 | `preset-minimal` | `@deepseek-ai/dsh-agent-preset` | packages/preset | 宿主 | 启用 | — | — | — |
 | 196 | `preset-cordis` | `@deepseek-ai/dsh-agent-preset` | packages/preset | 宿主 | 启用 | — | — | — |
 | 197 | `preset-lcoder` | `@deepseek-ai/dsh-agent-preset` | packages/preset | 宿主 | 启用 | — | — | — |
-| 198 | `preset-lcoder-intake` | `@deepseek-ai/dsh-agent-preset` | packages/preset | 宿主 | 启用 | — | — | — |
-| 199 | `preset-lcoder-architect` | `@deepseek-ai/dsh-agent-preset` | packages/preset | 宿主 | 启用 | — | — | — |
-| 200 | `preset-lcoder-review` | `@deepseek-ai/dsh-agent-preset` | packages/preset | 宿主 | 启用 | — | — | — |
-| 201 | `preset-lcoder-pm` | `@deepseek-ai/dsh-agent-preset` | packages/preset | 宿主 | 启用 | — | — | — |
-| 202 | `preset-lcoder-git` | `@deepseek-ai/dsh-agent-preset` | packages/preset | 宿主 | 启用 | — | — | — |
-| 203 | `preset-lcoder-ops` | `@deepseek-ai/dsh-agent-preset` | packages/preset | 宿主 | 启用 | — | — | — |
-| 204 | `preset-lcoder-scheduler` | `@deepseek-ai/dsh-agent-preset` | packages/preset | 宿主 | 启用 | — | — | — |
-| 205 | `preset-lcoder-flow` | `@deepseek-ai/dsh-agent-preset` | packages/preset | 宿主 | 启用 | — | — | — |
-| 206 | `preset-lcoder-manager` | `@deepseek-ai/dsh-agent-preset` | packages/preset | 宿主 | 启用 | — | — | — |
-| 207 | `lcoder-cloud` | `@lcoder/kernel/cloud` | — | 宿主 | 启用 | G | — | — |
-| 208 | `ui-lcoder-workspace` | `@lcoder/workspace` | packages/lcoder | 客户端 | 启用 | STRPIGD | — | — |
+| 198 | `preset-maniu-intake` | `@deepseek-ai/dsh-agent-preset` | packages/preset | 宿主 | 启用 | — | — | — |
+| 199 | `preset-maniu-architect` | `@deepseek-ai/dsh-agent-preset` | packages/preset | 宿主 | 启用 | — | — | — |
+| 200 | `preset-maniu-review` | `@deepseek-ai/dsh-agent-preset` | packages/preset | 宿主 | 启用 | — | — | — |
+| 201 | `preset-maniu-pm` | `@deepseek-ai/dsh-agent-preset` | packages/preset | 宿主 | 启用 | — | — | — |
+| 202 | `preset-maniu-git` | `@deepseek-ai/dsh-agent-preset` | packages/preset | 宿主 | 启用 | — | — | — |
+| 203 | `preset-maniu-ops` | `@deepseek-ai/dsh-agent-preset` | packages/preset | 宿主 | 启用 | — | — | — |
+| 204 | `preset-maniu-scheduler` | `@deepseek-ai/dsh-agent-preset` | packages/preset | 宿主 | 启用 | — | — | — |
+| 205 | `preset-maniu-flow` | `@deepseek-ai/dsh-agent-preset` | packages/preset | 宿主 | 启用 | — | — | — |
+| 206 | `preset-maniu-manager` | `@deepseek-ai/dsh-agent-preset` | packages/preset | 宿主 | 启用 | — | — | — |
+| 207 | `lcoder-cloud` | `@maniu/kernel/cloud` | — | 宿主 | 启用 | G | — | — |
+| 208 | `ui-lcoder-workspace` | `@maniu/workspace` | packages/lcoder | 客户端 | 启用 | STRPIGD | — | — |

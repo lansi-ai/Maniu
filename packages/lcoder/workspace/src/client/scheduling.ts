@@ -10,8 +10,8 @@
  * 这一层不读写盘、不调远程、不订阅，所以每条规则都能被单测钉死；
  * `Shell.tsx` 只负责拿结果、执行（复用 / 入队 / 新建 / 按住）并渲染理由。
  */
-import { isBuiltinRole } from '@lcoder/kernel/src/schema/roles.ts'
-import type { BuiltinRoleId } from '@lcoder/kernel/src/schema/roles.ts'
+import { isBuiltinRole } from '@maniu/kernel/src/schema/roles.ts'
+import type { BuiltinRoleId } from '@maniu/kernel/src/schema/roles.ts'
 
 /** 名册里的一条岗位；判闸与写理由只需要 id、显示名与继承的内置角色。 */
 export interface SchedulingRole {
@@ -28,20 +28,33 @@ interface NormalizedRole {
   readonly label: string
 }
 
-/** 默认预设（dev）的 id 不带角色后缀；其余 LCoder preset 形如 `lcoder-<角色>`。 */
-const PRESET_PREFIX = 'lcoder'
+/** 角色 preset 的前缀；改名前的 `lcoder*` 仍可能留在旧会话的 `agentPreset` 里。 */
+const PRESET_PREFIX = 'maniu'
+const RETIRED_PRESET_PREFIX = 'lcoder'
 
 /**
- * 从会话 preset id 反推内置角色：`lcoder` 是实施，`lcoder-<内置角色>` 直接取后缀。
- * 其它 preset（上游角色）反推不出 LCoder 角色，返回 undefined。
+ * 从会话 preset id 反推角色名：裸前缀是实施（`dev`），`<前缀>-<内置角色>` 直接取后缀。
+ * 两代前缀都认，旧会话的 `lcoder*` 不会因为改名丢掉岗位。
+ * @param preset - 会话的 `agentPreset`。
+ * @returns 前缀后的角色名，或 undefined。
+ */
+function presetRoleOf(preset: string | undefined): string | undefined {
+  if (preset === undefined || preset === '') return undefined
+  for (const prefix of [PRESET_PREFIX, RETIRED_PRESET_PREFIX]) {
+    if (preset === prefix) return 'dev'
+    if (preset.startsWith(`${prefix}-`)) return preset.slice(prefix.length + 1)
+  }
+  return undefined
+}
+
+/**
+ * 从会话 preset id 反推内置角色：裸前缀是实施，`<前缀>-<内置角色>` 直接取后缀。
+ * 其它 preset（上游角色）反推不出产品角色，返回 undefined。
  * @param preset - 会话的 `agentPreset`。
  * @returns 内置角色或 undefined。
  */
 export function builtinRoleOfPreset(preset: string | undefined): BuiltinRoleId | undefined {
-  if (preset === undefined || preset === '') return undefined
-  const name = preset === PRESET_PREFIX
-    ? 'dev'
-    : preset.startsWith(`${PRESET_PREFIX}-`) ? preset.slice(PRESET_PREFIX.length + 1) : undefined
+  const name = presetRoleOf(preset)
   return name !== undefined && isBuiltinRole(name) ? name : undefined
 }
 

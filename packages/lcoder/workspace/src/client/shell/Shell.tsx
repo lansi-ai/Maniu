@@ -39,7 +39,7 @@ import {
   AGENT_ROLES, liveAgentSession, resolveAgentSession, titleNeedsFix,
 } from '../singleton.ts'
 import type { AgentRole, AgentSessionCandidate } from '../singleton.ts'
-import { decideScheduling, effectiveSessionRole } from '../scheduling.ts'
+import { builtinRoleOfPreset, decideScheduling, effectiveSessionRole } from '../scheduling.ts'
 import type { SchedulingDecision, SchedulingSession, SchedulingTask } from '../scheduling.ts'
 import type { ExpertPrompt, ExpertRow } from '../experts.ts'
 import { describeOpenFailure } from '../open-failure.ts'
@@ -134,8 +134,8 @@ import type {
   ShellTaskState,
 } from './shell-data.ts'
 import { BUILTIN_ROLE_IDS } from './shell-data.ts'
-import { BUILTIN_TRACKS } from '@lcoder/kernel/src/schema/tracks.ts'
-import { mustDeliver } from '@lcoder/kernel/src/schema/deliverable.ts'
+import { BUILTIN_TRACKS } from '@maniu/kernel/src/schema/tracks.ts'
+import { mustDeliver } from '@maniu/kernel/src/schema/deliverable.ts'
 import { DeliverableView } from './DeliverableView.tsx'
 import bullMark from '../assets/bull-mark.png'
 import css from './Shell.module.css'
@@ -224,7 +224,7 @@ export type ShellProps =
 export const DEFAULT_CHAT_SIZE = { width: 720, height: 640 } as const
 
 /** 立项会话的 preset 与角色：需求分析师面才有 `requirement_draft`。 */
-const INTAKE_SESSION = { preset: 'lcoder-intake', role: 'intake' } as const
+const INTAKE_SESSION = { preset: 'maniu-intake', role: 'intake' } as const
 
 /** 左侧菜单的主视图：需求、任务，以及底部组的三张整页。 */
 export type ShellView = 'requirements' | 'tasks' | 'projects' | 'project-info' | 'settings'
@@ -995,7 +995,7 @@ export function Shell({
     if (typeof projected === 'string' && projected !== '') return projected
     // 本窗口记下的可能是岗位 id（未来的名册选择），只有 preset 形态才拿来当 preset。
     const named = sessionRoles[String(id)]
-    return named !== undefined && (named === 'lcoder' || named.startsWith('lcoder-')) ? named : undefined
+    return named !== undefined && builtinRoleOfPreset(named) !== undefined ? named : undefined
   }
 
   /**

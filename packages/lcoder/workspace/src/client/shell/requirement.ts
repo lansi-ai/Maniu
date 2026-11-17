@@ -6,8 +6,8 @@
  * 进度判定见 `requirement-page.ts`（调用 kernel 的派生函数）。
  */
 import type { ShellMessage, ShellTask } from './shell-data.ts'
-import { BUILTIN_TRACKS } from '@lcoder/kernel/src/schema/tracks.ts'
-import type { TrackDescriptor } from '@lcoder/kernel/src/schema/tracks.ts'
+import { BUILTIN_TRACKS } from '@maniu/kernel/src/schema/tracks.ts'
+import type { TrackDescriptor } from '@maniu/kernel/src/schema/tracks.ts'
 
 /**
  * 任务开立时间的展示值。

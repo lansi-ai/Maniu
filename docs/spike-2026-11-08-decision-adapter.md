@@ -117,7 +117,7 @@ type AssignSuggestion = {
 2. 远端 provider 失败（超时、451、403、限流）一律降级成本地结果，`offline.degradedFrom = 'remote_model'` 并写原因；建议界面显示「本次未用外部模型」，不重试到阻塞。
 3. 本地规则无任何命中时返回 `dev` 兜底、置信度 0、`needs_human`，不返回空列表，也不猜一个名册岗位。
 
-接入点建议：独立包 `@lcoder/role-suggest`，提供纯函数 `suggestRole(request): AssignSuggestion` 与可选 remote provider 接口；由客户端任务详情消费并渲染建议卡片，人点「采用」后再走既有命令。不挂在 kernel 的工具面，也不由模型自动触发。
+接入点建议：独立包 `@maniu/role-suggest`，提供纯函数 `suggestRole(request): AssignSuggestion` 与可选 remote provider 接口；由客户端任务详情消费并渲染建议卡片，人点「采用」后再走既有命令。不挂在 kernel 的工具面，也不由模型自动触发。
 
 ## 4. 供应商核查
 

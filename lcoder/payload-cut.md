@@ -88,7 +88,7 @@
 - 定向测试 `apps/desktop` + `apps/desktop-host` + `scripts/primary-runtime`：2074 通过、25 红。同一批 25 红在主检出同一点逐条复现（welcome/fatal-recovery 快照仍写 DeepSeek Harness 而品牌已改 LCoder、`DOWNLOAD_PROD_ORIGIN` 缺 `.env.windows`、`vswhere.exe`/`tar`/`npm --recursive` 本机工具链），属既有红，不是裁剪引入。
 - 实例复核（本树 pool-slot-1，端口 9842/9849/9850、mock 云 9841；原定的 9822/9829 已被 pool-slot-2 实例占用）：T-177 七条 DOM 断言 **7/7**；`pluginInventory/list` 211 条（184 active、27 disabled、**0 failed**）；`runtime.json` 仍是 node-only 空发行版映射。
 - 载荷字节与裁剪时一致：`runtime/` 115,228,736 B，其中 node 93,740,743、pnpm 21,487,737；无 `dependencies/python`、无 `office-skills`。`smokePrimaryRuntime` 退出 0，只输出载荷内 pnpm 11.28.5。
-- 新客户端不受影响：`@lcoder/desktop`、`@lcoder/client` 产物齐全，用独立 `DSH_HOME`（仓内 `.dsh-home`）与端口 9862/9869/9870 起窗，页面标题 LCoder、`data-theme=liquid-glass`、五页与「宿主就绪」均渲染；验后已停。
+- 新客户端不受影响：`@maniu/desktop`、`@maniu/client` 产物齐全，用独立 `DSH_HOME`（仓内 `.dsh-home`）与端口 9862/9869/9870 起窗，页面标题 LCoder、`data-theme=liquid-glass`、五页与「宿主就绪」均渲染；验后已停。
 - `smoke.cmd` 的 `window.up` 探针查 `div[data-theme]`，该属性自 2026-11-10 皮肤切换起已从外壳根移除，因此这条一键冒烟在合入主检后对旧外壳必红；本轮改用 `lcoder/logs/t178-seven-dom.mjs` 的七条断言（临时副本把渲染端口改成 9842），没有改脚本本身。
 
 ## 加回路径

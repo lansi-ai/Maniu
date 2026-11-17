@@ -6,7 +6,7 @@
  * 会话列表非空 → 发一条 → 出现 assistant 文本」，最后重启一次验证历史重读。
  *
  * 用法：node lcoder/scripts/t187-s1-probe.mjs
- * 前置：客户端与主进程产物已构建（pnpm --filter @lcoder/desktop --filter @lcoder/client run build）。
+ * 前置：客户端与主进程产物已构建（pnpm --filter @maniu/desktop --filter @maniu/client run build）。
  * 端口：渲染 9822、主进程 9829、宿主 9830、mock 云端 5091。
  */
 

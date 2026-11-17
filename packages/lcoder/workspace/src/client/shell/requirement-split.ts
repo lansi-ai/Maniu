@@ -13,7 +13,7 @@
  * 建会话、发送与轮询都从 {@link RequirementSplitPorts} 注入，便于单测。
  */
 import type { ShellSessionNotice } from '../model-status.ts'
-import type { TrackDescriptor } from '@lcoder/kernel/src/schema/tracks.ts'
+import type { TrackDescriptor } from '@maniu/kernel/src/schema/tracks.ts'
 import type { ShellMessage, ShellTask } from './shell-data.ts'
 import { boundRequirementText, buildRequirementSplitPrompt } from './requirement.ts'
 import type { RequirementRef, RequirementSplitSource } from './requirement.ts'
@@ -21,8 +21,8 @@ import { lastAssistantText, waitForTurn } from './session-turn.ts'
 
 export { lastAssistantText }
 
-/** 项目经理会话的 preset；`lcoder-pm` 带 task_draft，能写 drafting 任务。 */
-export const REQUIREMENT_SPLIT_PM_PRESET = 'lcoder-pm'
+/** 项目经理会话的 preset；`maniu-pm` 带 task_draft，能写 drafting 任务。 */
+export const REQUIREMENT_SPLIT_PM_PRESET = 'maniu-pm'
 /** 一轮会话的等待上限：三分钟足够模型读完需求并写任务；到点按失败报。 */
 export const REQUIREMENT_SPLIT_TIMEOUT_MS = 180_000
 /** 轮询间隔：只看会话与投影事实，不靠 React 重渲染。 */

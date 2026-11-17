@@ -103,7 +103,7 @@ async function boot(
   }
 }
 
-describe('@lcoder/workspace apply', () => {
+describe('@maniu/workspace apply', () => {
   it('shell: false 时把页签类型、两本词典、正文都挂上去', async () => {
     const h = await boot({ shell: false })
     try {
@@ -338,19 +338,19 @@ describe('@lcoder/workspace apply', () => {
     const h = await boot({ shell: true }, workspaces, sessions)
     try {
       const face = h.injections[0] as { createSession: (path: string, preset?: string) => Promise<string> }
-      expect(await face.createSession('E:/repo/target', 'lcoder-review')).toBe('s-9')
-      expect(sessions.create).toHaveBeenCalledWith({ workspaceId: 'w-1', agentPreset: 'lcoder-review' })
+      expect(await face.createSession('E:/repo/target', 'maniu-review')).toBe('s-9')
+      expect(sessions.create).toHaveBeenCalledWith({ workspaceId: 'w-1', agentPreset: 'maniu-review' })
       await face.createSession('E:/repo/target')
       expect(sessions.create.mock.calls[1]?.[0]).toEqual({ workspaceId: 'w-1' })
     } finally { await h.fiber.dispose() }
   })
 
-  it('角色名册只交 LCoder 角色，远程拒绝就交空表而不是编造角色', async () => {
+  it('角色名册只交产品角色，远程拒绝就交空表而不是编造角色', async () => {
     const roster = {
       presets: [
         { id: 'standard', isDefault: false },
-        { id: 'lcoder', isDefault: true },
-        { id: 'lcoder-review', name: '评审', isDefault: false },
+        { id: 'maniu', isDefault: true },
+        { id: 'maniu-review', name: '评审', isDefault: false },
       ],
     }
     const list = vi.fn()
@@ -363,7 +363,7 @@ describe('@lcoder/workspace apply', () => {
     try {
       const face = h.injections[0] as { listRoles: () => Promise<Array<{ id: string; name?: string }>> }
       // `standard` 不挂本包工具，读不到 .spec，外壳不把它当角色给。
-      expect(await face.listRoles()).toEqual([{ id: 'lcoder' }, { id: 'lcoder-review', name: '评审' }])
+      expect(await face.listRoles()).toEqual([{ id: 'maniu' }, { id: 'maniu-review', name: '评审' }])
       expect(await face.listRoles()).toEqual([])
     } finally { await h.fiber.dispose() }
   })

@@ -1,4 +1,4 @@
-/** 讨论历史：从宿主列表线形认出 lcoder-pm 会话。 */
+/** 讨论历史：从宿主列表线形认出 maniu-pm 会话。 */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { summaryOf, type SessionSummary } from '../src/store.ts'
 import { readDiscussionHistory } from '../src/discussion/history.ts'
@@ -60,17 +60,23 @@ afterEach(() => {
 })
 
 describe('readDiscussionHistory', () => {
-  it('宿主投影线形识别 lcoder-pm 会话', async () => {
+  it('宿主投影线形识别 maniu-pm 会话', async () => {
     stubHostRecords()
     const sessions = [summaryOfRow({
-      projections: { kind: 'sequenced', asOfSeq: 3, values: { agentPreset: 'lcoder-pm' } },
+      projections: { kind: 'sequenced', asOfSeq: 3, values: { agentPreset: 'maniu-pm' } },
     })]
     const history = await readDiscussionHistory(PROJECT, sessions, 'REQ-99')
     expect(history.status).toBe('ready')
     expect(history.groups).toEqual(PM_GROUP)
   })
 
-  it('旧顶层线形同样识别 lcoder-pm 会话', async () => {
+  it('旧顶层线形同样识别 maniu-pm 会话', async () => {
+    stubHostRecords()
+    const history = await readDiscussionHistory(PROJECT, [summaryOfRow({ agentPreset: 'maniu-pm' })], 'REQ-99')
+    expect(history.groups).toEqual(PM_GROUP)
+  })
+
+  it('改名前的 lcoder-pm 会话仍按项目经理认', async () => {
     stubHostRecords()
     const history = await readDiscussionHistory(PROJECT, [summaryOfRow({ agentPreset: 'lcoder-pm' })], 'REQ-99')
     expect(history.groups).toEqual(PM_GROUP)

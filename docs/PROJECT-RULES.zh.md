@@ -10,7 +10,7 @@
 - **技术栈**：TypeScript（ESM）· Node ≥24.9 · pnpm workspaces · Cordis · React 18
 - **基线版本**：DeepSeek Harness `0.2.2-alpha.2`（2026-10-30）
 - **当前主线**：MVP-0 —— 工作台在本地跑通，收口 T-02
-- **命名**：包名 `@lcoder/kernel`、`@lcoder/workspace`；主线分支 `lcoder/main`
+- **命名**：包名 `@maniu/kernel`、`@maniu/workspace`；主线分支 `lcoder/main`
 - **架构**：[UPSTREAM-BASELINE.md](../lcoder/UPSTREAM-BASELINE.md)（上游关系与接触面）、[architecture.zh.md](architecture.zh.md)（上游架构）
 
 ## 1. 硬约束红线（项目专属 · 永不违反）
@@ -130,10 +130,10 @@
 - Node 要求 `>=24.9.0`；本机用 `pnpm env use --global 24`，不要改系统 Node。
 - 首次安装 `pnpm install`；首次启动前跑 `pnpm run build:artifacts`。
 - 启动：`DSH_HOME='<仓内绝对路径>\.dsh-home' pnpm dsh web --patch lcoder/cordis.patch.yml --no-open --port 3080`（Git Bash 里路径要写成 Windows 形式，否则 profile 静默起不来）。
-- `@lcoder/*` 用 `link:` 接进仓内 profile（`<DSH_HOME>/profiles/web/package.json`），不接进 `~/.dsh`；重建 home 目录后重做。
+- `@maniu/*` 用 `link:` 接进仓内 profile（`<DSH_HOME>/profiles/web/package.json`），不接进 `~/.dsh`；重建 home 目录后重做。
 - Windows 上 kill `dev:web` 不会带走子进程；换实例前按进程树清理，再确认端口空闲。
 - 不要给 `dev:web` 接管道；输出重定向到文件再读，否则日志会被缓冲到进程结束。
-- 一条桌面线一个 worktree：主窗用默认 Electron inspector 端口（9229/9222/9230），feature worktree 用 `DSH_DESKTOP_MAIN_INSPECT_PORT`、`DSH_DESKTOP_RENDERER_DEBUG_PORT`、`DSH_DESKTOP_HOST_INSPECT_PORT` 设一组预留端口，端口号记在该任务的台账备注里。`apps/desktop/scripts/dev.ts` 把 `DSH_HOME` 与 Electron `userData` 指进 `apps/desktop/.desktop-build/development/`，worktree 不写主窗的 `~/.dsh`；这些默认值别改——把 `DSH_HOME` 设成 `~/.dsh` 就等于让一次验证去写本机安装态。`@lcoder/*` 的 link 要指向 worktree 自己的包目录。
+- 一条桌面线一个 worktree：主窗用默认 Electron inspector 端口（9229/9222/9230），feature worktree 用 `DSH_DESKTOP_MAIN_INSPECT_PORT`、`DSH_DESKTOP_RENDERER_DEBUG_PORT`、`DSH_DESKTOP_HOST_INSPECT_PORT` 设一组预留端口，端口号记在该任务的台账备注里。`apps/desktop/scripts/dev.ts` 把 `DSH_HOME` 与 Electron `userData` 指进 `apps/desktop/.desktop-build/development/`，worktree 不写主窗的 `~/.dsh`；这些默认值别改——把 `DSH_HOME` 设成 `~/.dsh` 就等于让一次验证去写本机安装态。`@maniu/*` 的 link 要指向 worktree 自己的包目录。
 - **重活单通道。** 所有跨工作树的 `pnpm install` 与构建产物生成都走 `lcoder/scripts/worktree.cmd -Action provision` 或 `-Action build`；脚本持一把机器级命名互斥，同一时间只允许一条重活。禁止手工并发跑这些命令；测试可以并行，但要限制 worker。
 - **并行预算：同时最多两条 UI 工作树。** 需要安装或构建的波次只留一条在重活车道，其余等；文档与契约线用 `-Action sparse`，完全不装依赖。
 - **共享运行时、隔离会话数据。** `-Action junction` 只共享 `.desktop-build/downloads` 与 `targets`；`electron-user-data` 与仓内 home 仍按工作树独立。

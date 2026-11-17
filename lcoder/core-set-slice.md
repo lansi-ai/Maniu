@@ -45,7 +45,7 @@
 | 只由 `apps/cli` 声明 | 56 | 1,864 | 12.83 MiB | 桌面装配不可达；`dsh` 的依赖列表是唯一入边 |
 | `@deepseek-ai/dsh` 自身 | 1 | 201 | 1.10 MiB | 桌面宿主用它启动 profile |
 
-- 208 行装配里有 191 个不同包，其中 189 个在 core set；`@lcoder/kernel`、`@lcoder/workspace` 与两个客户端工具包不在闭包里，属 LCoder 自有面。
+- 208 行装配里有 191 个不同包，其中 189 个在 core set；`@maniu/kernel`、`@maniu/workspace` 与两个客户端工具包不在闭包里，属 LCoder 自有面。
 - 客户端 UI 最大（23.93 MiB）且几乎都可达，因为 `@deepseek-ai/dsh-web-app` 的 139 条 `dependencies` 把整套客户端插件都声明了。profile 里禁用某个插件不会让它离开安装包。
 - 其他（上游实验能力）10.42 MiB 与插件市场 2.87 MiB 合计 13.29 MiB，几乎全部落在不可达的 56 个包里，是本次最主要的可裁面积。
 

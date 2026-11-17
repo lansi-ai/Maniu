@@ -27,7 +27,7 @@ Launch the desktop application through the repository launcher; it stops previou
 lcoder\scripts\start-desktop.cmd
 ```
 
-After a source change, rebuild only the changed layer with `lcoder\scripts\rebuild.cmd` (`workspace`, `kernel`, `desktop`, `profile`, or `all`). The manual [RUN.md](lcoder/RUN.md) owns the full procedure, including the repository-local `DSH_HOME`, linking `@lcoder/*` into the profile, the `documentsDirectory` workaround, model credentials, and the readiness checks, and it records the Web UI debugging entry `pnpm dsh web --patch lcoder/cordis.patch.yml`. Review the [safety notice](SAFETY.md) before running the harness.
+After a source change, rebuild only the changed layer with `lcoder\scripts\rebuild.cmd` (`workspace`, `kernel`, `desktop`, `profile`, or `all`). The manual [RUN.md](lcoder/RUN.md) owns the full procedure, including the repository-local `DSH_HOME`, linking `@maniu/*` into the profile, the `documentsDirectory` workaround, model credentials, and the readiness checks, and it records the Web UI debugging entry `pnpm dsh web --patch lcoder/cordis.patch.yml`. Review the [safety notice](SAFETY.md) before running the harness.
 
 Root build and gate commands are defined in `package.json`: `pnpm run build` builds every artifact and runs the aggregate checks, `pnpm run build:check` runs those checks alone, and `pnpm run typecheck`, `pnpm run lint`, `pnpm exec vitest run packages/lcoder`, and `pnpm run test:docs` are the completion gates.
 

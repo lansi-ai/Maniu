@@ -4,8 +4,8 @@
  * 九态一律调用 kernel 的 `requirementProgress` 折出，界面不另写一套判断；
  * 这里只负责把投影行与任务对起来、按视图顺序排好，供表格与看板共用。
  */
-import { requirementProgress } from '@lcoder/kernel/src/schema/requirement-progress.ts'
-import type { RequirementProgressId } from '@lcoder/kernel/src/schema/requirement-progress.ts'
+import { requirementProgress } from '@maniu/kernel/src/schema/requirement-progress.ts'
+import type { RequirementProgressId } from '@maniu/kernel/src/schema/requirement-progress.ts'
 
 export type { RequirementProgressId }
 import type { LcoderWorkspaceKey } from '../locales.ts'

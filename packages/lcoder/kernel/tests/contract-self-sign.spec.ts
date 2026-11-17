@@ -58,7 +58,7 @@ function addReviewEvidence(root: string, name = 'review', content = '复核通�
   writeFileSync(join(root, 'evidence', 'T-01', `${name}.log`), content, 'utf8')
 }
 
-function sign(root: string, actor = 'lcoder-flow', at = '2026-11-06T10:00:00+08:00'): SignCommandResult {
+function sign(root: string, actor = 'maniu-flow', at = '2026-11-06T10:00:00+08:00'): SignCommandResult {
   return selfSignContract(root, { taskId: 'T-01', actor }, () => at)
 }
 
@@ -86,13 +86,13 @@ describe('selfSignContract', () => {
 
     const text = successText(sign(root))
     expect(text).toContain('AI 自签')
-    expect(text).toContain('lcoder-flow')
+    expect(text).toContain('maniu-flow')
 
     const signed = body(root)
     expect(signed.sig).toMatchObject({
       by: 'agent',
       at: '2026-11-06T10:00:00+08:00',
-      actor: 'lcoder-flow',
+      actor: 'maniu-flow',
       authorization: { policy: 'automation.yaml', hash: policyHash },
     })
     expect(signed.sig?.hash).toMatch(/^sha256:/u)

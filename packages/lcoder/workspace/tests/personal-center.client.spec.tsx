@@ -11,7 +11,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import type {
   CloudQuota, CloudState, CloudTokenEstimate, CloudUsageItem, CloudUsagePage, CloudUsageQuery,
-} from '@lcoder/kernel/src/cloud/types.ts'
+} from '@maniu/kernel/src/cloud/types.ts'
 import { PersonalCenter } from '../src/client/cloud/PersonalCenter.tsx'
 import type { CloudFace } from '../src/client/cloud/face.ts'
 import { zh } from '../src/client/locales.ts'

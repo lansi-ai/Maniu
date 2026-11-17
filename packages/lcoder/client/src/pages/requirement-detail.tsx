@@ -11,6 +11,7 @@ import { readDiscussionHistory, type DiscussionHistory } from '../discussion/his
 import { runCommand, type CommandOutcome } from '../commands/run.ts'
 import { buildSplitPrompt } from '../intake/prompts.ts'
 import { renderMarkdown } from '../markdown/markdown.tsx'
+import { DetailDrawer } from './detail-drawer.tsx'
 
 /** 内置轨的显示文本；项目追加轨在调用处补上。 */
 const BUILTIN_TRACKS = ['h5（H5 前端）', 'admin（管理端）', 'api（接口）', 'desktop（桌面端）', 'host（宿主端）', 'general（通用）']
@@ -92,14 +93,18 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
   }, [historyBusy, props.project.path, props.sessions, row.id])
 
   return (
-    <aside className="detail-drawer lg-glass" data-testid="requirement-detail" data-requirement-id={row.id}>
-      <div className="detail-drawer-head">
+    <DetailDrawer
+      testId="requirement-detail"
+      closeTestId="requirement-detail-close"
+      onClose={props.onClose}
+      attributes={{ 'data-requirement-id': row.id }}
+      head={(
         <div>
           <span className="mono">{row.id}</span>
           <span className="tag">{requirementStateLabel(row.state)}</span>
         </div>
-        <button type="button" className="pill" data-testid="requirement-detail-close" onClick={props.onClose}>关闭</button>
-      </div>
+      )}
+    >
       <h3 data-testid="requirement-detail-title">{row.title ?? row.id}</h3>
 
       <section className="detail-section">
@@ -199,6 +204,6 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
         )}
         <p className="detail-note">拆分通过工作台会话执行项目经理指令；确认、上线、关闭走 kernel 人机命令。</p>
       </section>
-    </aside>
+    </DetailDrawer>
   )
 }

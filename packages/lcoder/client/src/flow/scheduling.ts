@@ -42,8 +42,21 @@ function pathsOverlap(left: readonly string[], right: readonly string[]): boolea
   }))
 }
 
-function roleAllows(taskRole: string | undefined, sessionRole: string | undefined): boolean {
-  if (taskRole === undefined || sessionRole === undefined) return true
+/** 角色 preset 的前缀；改名前的 `lcoder*` 仍可能留在旧会话的 `agentPreset` 里。 */
+const PRESET_PREFIXES = ['maniu', 'lcoder'] as const
+
+/** 从 preset id 反推角色名：裸前缀是实施（`dev`），`<前缀>-<角色>` 取后缀。 */
+function presetRoleOf(preset: string): string | undefined {
+  for (const prefix of PRESET_PREFIXES) {
+    if (preset === prefix) return 'dev'
+    if (preset.startsWith(`${prefix}-`)) return preset.slice(prefix.length + 1)
+  }
+  return undefined
+}
+
+function roleAllows(taskRole: string | undefined, sessionPreset: string | undefined): boolean {
+  if (taskRole === undefined || sessionPreset === undefined) return true
+  const sessionRole = presetRoleOf(sessionPreset) ?? sessionPreset
   return taskRole === sessionRole || sessionRole === 'dev'
 }
 

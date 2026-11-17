@@ -188,7 +188,7 @@ packages/lcoder/client    (Renderer, React 18 + Vite)
 | `dsh-typert-protocol` / `typert-registry` / `typert-loader` | 协议描述与生成物 | 新客户端可读**生成物**，不读运行时服务 |
 | `dsh-host-webserver` / `frontend-static` | HTTP 监听、静态兜底 | 可选：用 `frontend-static` 直接服务自写客户端产物 |
 | `dsh-session` / `agent` / `llm` / `tools` / `workspace` / `settings` / `credentials` | 运行时 | 不动 |
-| `@lcoder/kernel` | 工具、人类命令、云端 Remote、`.spec` 状态机 | 不动 |
+| `@maniu/kernel` | 工具、人类命令、云端 Remote、`.spec` 状态机 | 不动 |
 
 ### 3.3 彻底移除（客户端侧）
 
@@ -334,7 +334,7 @@ packages/lcoder/client    (Renderer, React 18 + Vite)
 | R1 | 新壳跑通 S1 与 M1；旧壳保持可启动 | R0 | 开发期双壳 | 旧壳 |
 | R2 | parity 硬闸全绿，切默认入口：`start-all`/`rebuild`/打包脚本指向新壳 | M1–M3 | 新壳成为默认 | 旧壳构建目录仍保留 |
 | R3 | 两个 RC 观察期；旧产物（安装包 + `win-unpacked`）与 feed 条目保留 | R2 | 回退包 | 重装旧版 |
-| R4 | 退出 `packages/lcoder/workspace` 的客户端半：`src/client` 删除，`projection.ts`/`locales.ts`/纯函数迁入 `@lcoder/client`；包只保留 kernel 依赖 | R3 | 一个 UI 包 | git revert |
+| R4 | 退出 `packages/lcoder/workspace` 的客户端半：`src/client` 删除，`projection.ts`/`locales.ts`/纯函数迁入 `@maniu/client`；包只保留 kernel 依赖 | R3 | 一个 UI 包 | git revert |
 | R5 | profile 去客户端：新增 `lcoder-host.slice.yml`，禁用全部 `ui-*`、`modules`、`client-hmr`、`web-app` 的页面装配；保留 webserver/connection/gateway/api-*/session/agent/tools/llm/workspace/settings/credentials/preset | R4 | 宿主-only profile | 恢复旧 profile |
 | R6 | 接触面撤销（见下表）：改回上游原状或改由新包承担 | R4 | `contact-surface.txt` 大幅缩短 | 逐文件恢复 |
 | R7 | 文档收口：RUN、PROJECT-RULES 目录表、prd-and-design §3/§12、desktop-release、UPSTREAM-BASELINE §3 | R6 | 新入口文档 | — |
@@ -412,7 +412,7 @@ packages/lcoder/client    (Renderer, React 18 + Vite)
 
 ## 8. 明确非目标
 
-- **不自研 agent runtime**：agent loop、会话持久化、工具执行、模型路由、工作区实体、`.spec` 状态机全部继续用上游与 `@lcoder/kernel`。
+- **不自研 agent runtime**：agent loop、会话持久化、工具执行、模型路由、工作区实体、`.spec` 状态机全部继续用上游与 `@maniu/kernel`。
 - **不做独立 BFF 服务**：不新起第二个 HTTP/WS 服务，不引入 GraphQL/RPC 中间层；适配层是主进程内模块。
 - **不改宿主 API**：除已有的 `lcoderCloud` Remote，不新增 Remote、不改上游服务签名。
 - **不做压缩提示、子代理、反馈、轨迹 UI**：用户已明确剪掉；对应事件可以忽略。

@@ -3,7 +3,7 @@ description: "LCoder 自研 Electron 壳的 T-187 S1、T-190 M3 与 T-191 M1 骨
 kind: "package-reference"
 ---
 
-# @lcoder/desktop
+# @maniu/desktop
 
 [English](README.md) | 中文
 
