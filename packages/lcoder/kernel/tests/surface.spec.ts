@@ -176,19 +176,23 @@ describe('角色天花板', () => {
     for (const tools of Object.values(ROLE_TOOLS)) expect(tools).not.toContain('requirement_approve')
   })
 
-  it('改稿只进需求分析师，评审只进项目经理，两者都不含过审能力', () => {
+  it('改稿只进需求分析师，评审只进项目经理与研发经理，两者都不含过审能力', () => {
     expect(ROLE_TOOLS.intake).toContain('requirement_revise')
     expect(ROLE_TOOLS.pm).toContain('requirement_review_draft')
+    expect(ROLE_TOOLS.manager).toContain('requirement_review_draft')
     for (const role of ROLES) {
       if (role !== 'intake') expect(ROLE_TOOLS[role]).not.toContain('requirement_revise')
-      if (role !== 'pm') expect(ROLE_TOOLS[role]).not.toContain('requirement_review_draft')
+      if (role !== 'pm' && role !== 'manager') expect(ROLE_TOOLS[role]).not.toContain('requirement_review_draft')
     }
     expect(allowedTools('drafting', 'intake')).toContain('requirement_revise')
     expect(allowedTools(null, 'intake')).toContain('requirement_revise')
     expect(allowedTools('drafting', 'pm')).toContain('requirement_review_draft')
     expect(allowedTools(null, 'pm')).toContain('requirement_review_draft')
+    expect(allowedTools('drafting', 'manager')).toContain('requirement_review_draft')
+    expect(allowedTools(null, 'manager')).toContain('requirement_review_draft')
     expect(allowedTools('closed', 'intake')).not.toContain('requirement_revise')
     expect(allowedTools('closed', 'pm')).not.toContain('requirement_review_draft')
+    expect(allowedTools('closed', 'manager')).not.toContain('requirement_review_draft')
 
     for (const state of [...STATES, null] as const) {
       for (const role of ROLES) {
@@ -271,7 +275,7 @@ describe('角色天花板', () => {
   })
 
   it('role_draft 只对研发经理可见，且研发经理没有任何代码或命令工具', () => {
-    expect(ROLE_TOOLS.manager).toEqual(['file_read', 'file_list', 'spec_query', 'task_read', 'task_draft', 'role_draft', 'requirement_split_plan'])
+    expect(ROLE_TOOLS.manager).toEqual(['file_read', 'file_list', 'spec_query', 'task_read', 'task_draft', 'role_draft', 'requirement_split_plan', 'requirement_review_draft'])
     for (const tool of ['file_edit', 'cmd_run', 'git_commit', 'contract_draft', 'task_close', 'evidence_attach']) {
       expect(ROLE_TOOLS.manager).not.toContain(tool)
     }

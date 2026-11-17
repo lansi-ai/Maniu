@@ -77,6 +77,16 @@ describe('flow_save 命令', () => {
     expect(existsSync(flowConfigPath(root))).toBe(false)
   })
 
+  it('pm＋manager 顺序评审可保存：研发经理持有评审工具，不再被能力校验拒绝', () => {
+    const root = makeSpec()
+    const result = save(root, '{"nodes":[{"node":"review","roles":["maniu-pm","maniu-manager"],"auto":true}]}')
+    expect(result.kind).toBe('success')
+    expect(result.kind === 'success' ? result.text : '').toContain('review[maniu-pm、maniu-manager]自动')
+    expect(loadFlowConfig(root).config.nodes).toEqual([
+      { node: 'review', roles: ['maniu-pm', 'maniu-manager'], auto: true },
+    ])
+  })
+
   it('没有 .spec 的仓库拒绝配置', () => {
     const repo = mkdtempSync(join(tmpdir(), 'lcoder-flow-save-nospec-'))
     dirs.push(repo)

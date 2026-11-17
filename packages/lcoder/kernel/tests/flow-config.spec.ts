@@ -183,6 +183,12 @@ describe('节点能力校验', () => {
     })
     expect(loadFlowConfig(root).source).toBe('file')
   })
+
+  it('研发经理可进评审节点：pm＋manager 顺序各评一轮的配置放行', () => {
+    const root = makeSpec()
+    saveFlowConfig(root, { nodes: [{ node: 'review', roles: ['maniu-pm', 'maniu-manager'], auto: true }] })
+    expect(loadFlowConfig(root).config.nodes[0]?.roles).toEqual(['maniu-pm', 'maniu-manager'])
+  })
 })
 
 describe('配齐判定：根匹配＋一轮一岗', () => {
@@ -198,6 +204,15 @@ describe('配齐判定：根匹配＋一轮一岗', () => {
     const root = makeSpec()
     const config = FlowConfig.parse({ nodes: [{ node: 'review', roles: ['deputy-pm', 'maniu-pm'], auto: true }] })
     expect(missingReviewSignatures(root, config, [review(1, 'maniu-pm')])).toEqual(['maniu-pm'])
+  })
+
+  it('pm＋manager 各评一轮：pm 的轮满足不了 manager 条目，两轮署名才配齐', () => {
+    const root = makeSpec()
+    const config = FlowConfig.parse({ nodes: [{ node: 'review', roles: ['maniu-pm', 'maniu-manager'], auto: true }] })
+    expect(missingReviewSignatures(root, config, [])).toEqual(['maniu-pm', 'maniu-manager'])
+    expect(missingReviewSignatures(root, config, [review(1, 'maniu-pm')])).toEqual(['maniu-manager'])
+    expect(missingReviewSignatures(root, config, [review(1, 'maniu-pm'), review(2, 'maniu-pm')])).toEqual(['maniu-manager'])
+    expect(missingReviewSignatures(root, config, [review(1, 'maniu-pm'), review(2, 'maniu-manager')])).toEqual([])
   })
 
   it('名册岗位条目可由署内置 preset 的轮满足：根相等即可', () => {

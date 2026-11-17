@@ -158,7 +158,7 @@ export const ROLES: readonly RoleId[] = BUILTIN_ROLES
  * 与 `SURFACE` 求交后才进模型视野，所以这张表只会让能力变少，不会越过状态：
  * `contract_sign` 不在任何一行里，它是人机命令（见文件头那条注意）。
  * `dev` 这一行必须等于 `allToolNames()` 去掉只对特定角色开放的 `role_draft`、`requirement_draft`、
- * `requirement_revise` 与 `requirement_review_draft`，否则新增工具会静默地对实施角色隐身，
+ * `requirement_revise`、`requirement_review_draft` 与 `requirement_split_plan`，否则新增工具会静默地对实施角色隐身，
  * `surface.spec.ts` 用一条断言钉住这个等式。
  */
 export const ROLE_TOOLS: Readonly<Record<RoleId, readonly string[]>> = {
@@ -206,12 +206,13 @@ export const ROLE_TOOLS: Readonly<Record<RoleId, readonly string[]>> = {
    */
   flow: ['file_read', 'file_list', 'spec_query', 'task_read'],
   /**
-   * 研发经理：需求与任务拆完之后，给每条任务定岗位。
+   * 研发经理：需求与任务拆完之后，给每条任务定岗位，并可对需求出评审报告。
    * 它按技术维度拆任务（`task_draft`）、把逐条岗位建议写成拆分计划（`requirement_split_plan`），
    * 并起草岗位名册（`role_draft`）；**分配仍是人机命令** `/task_assign`。
+   * 评审用 `requirement_review_draft` 只出报告，不改需求正文与状态；过审由人做。
    * 没有任何改代码或跑命令的能力。
    */
-  manager: ['file_read', 'file_list', 'spec_query', 'task_read', 'task_draft', 'role_draft', 'requirement_split_plan'],
+  manager: ['file_read', 'file_list', 'spec_query', 'task_read', 'task_draft', 'role_draft', 'requirement_split_plan', 'requirement_review_draft'],
 }
 
 /**

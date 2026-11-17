@@ -2,7 +2,7 @@
 /** 立项提示词与人才库人设同源：向导只发项目事实，纪律只在 maniu-intake 人设里。 */
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { buildIntakePrompt, buildManagerSplitPrompt, type IntakeProject } from '../src/intake/prompts.ts'
+import { buildIntakePrompt, buildManagerSplitPrompt, buildReviewPrompt, type IntakeProject } from '../src/intake/prompts.ts'
 
 const PROJECT: IntakeProject = {
   name: '仓库 A',
@@ -48,6 +48,28 @@ describe('研发经理拆分提示词', () => {
     expect(prompt).toContain('不分配岗位')
     expect(prompt).toContain('不改任务状态')
     expect(prompt).toContain('# 正文')
+  })
+})
+
+describe('需求评审提示词', () => {
+  it('身份岗位中性：pm 与 manager 会话都收同一份，不写死项目经理', () => {
+    const prompt = buildReviewPrompt({ id: 'REQ-01', title: '待评审需求' }, '# 正文\n\n内容')
+    expect(prompt).toContain('需求评审：请对需求 REQ-01（待评审需求）')
+    expect(prompt).toContain('执行身份：你是这条需求的评审岗位')
+    expect(prompt).not.toContain('项目经理')
+    expect(prompt).toContain('requirement_review_draft')
+    expect(prompt).toContain('不改需求正文、不改状态')
+    expect(prompt).toContain('不自行改稿，也不自行过审')
+    expect(prompt).toContain('# 正文')
+  })
+
+  it('四角度要求完整保留，不能合并或省略', () => {
+    const prompt = buildReviewPrompt({ id: 'REQ-01', title: '待评审需求' }, '# 正文\n\n内容')
+    expect(prompt).toContain('四个角度都要写到，不能合并或省略')
+    expect(prompt).toContain('1. 文档完备性：')
+    expect(prompt).toContain('2. 合理性：')
+    expect(prompt).toContain('3. 需求角度：')
+    expect(prompt).toContain('4. 技术实现角度：')
   })
 })
 

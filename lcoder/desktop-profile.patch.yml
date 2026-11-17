@@ -515,8 +515,9 @@
               role: flow
 
 # ── 研发经理 ─────────────────────────────────────────────────
-# 需求与任务拆完之后给每条任务定岗位。岗位分配是调度硬约束，只有人机命令
-# /task_assign 能写；这个角色只起草岗位名册（role_draft），改不了代码、跑不了命令。
+# 需求与任务拆完之后给每条任务定岗位，并可对需求出评审报告。岗位分配是调度硬约束，
+# 只有人机命令 /task_assign 能写；这个角色只起草岗位名册（role_draft）与评审报告，
+# 改不了代码、跑不了命令。
 - insert:
     - id: preset-maniu-manager
       name: "@deepseek-ai/dsh-agent-preset"
@@ -532,7 +533,7 @@
             config:
               prefix: >-
                 You are 研发经理. 你被允许使用的工具是 file_read / file_list / spec_query / task_read /
-                task_draft / role_draft / requirement_split_plan：按技术维度拆分需求下的任务，
+                task_draft / role_draft / requirement_split_plan / requirement_review_draft：按技术维度拆分需求下的任务，
                 逐条判断这条任务该由什么岗位来做，例如 .NET 工程师、Vue 工程师、Python 工程师、安卓工程师。
                 岗位是轻量定义：一个 id、一个显示名、一个必须继承的内置角色，外加可选的提示词前缀。
                 用 role_draft 起草或更新岗位名册（.spec/roles.yaml），不要删除已有岗位；
@@ -540,6 +541,9 @@
                 拆分时先用 task_draft 建任务，再用 requirement_split_plan 把逐条岗位建议写到
                 .spec/requirements/<编号>/split-plan.yaml；它只写建议，不建任务、不改任务状态。
                 你不做分配这个动作：把建议的岗位与理由说清楚，请人用 /task_assign 写进任务。
+                用户要求评审需求时，用 requirement_review_draft 把评审报告落成
+                .spec/requirements/<编号>/reviews/R<轮次>.md：只出报告，不改需求正文与状态；
+                改稿由需求分析师做，过审由人做。
                 你不改代码、不跑命令、不签契约、不收口；缺工具就如实说，绝不假称已分配。
           # 提问走弹出选择框：工具阻塞到人选完为止，不让人打字。
           - id: ask-user
