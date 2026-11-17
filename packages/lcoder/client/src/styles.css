@@ -72,6 +72,15 @@ html[data-theme='liquid-glass'] body {
 .window-gutter.is-maximized[data-edge='left'] { left: 0; width: 12px; }
 .window-gutter.is-maximized[data-edge='right'] { right: 0; width: 12px; }
 
+/* 标题栏拖拽垫：原生拖拽区在标题栏中段被裁断，用固定层补命中；
+   右边界停在工具区左缘前 2px，pointer-events 关闭，不抢账号与窗口按钮。 */
+.titlebar-pad {
+  position: fixed;
+  z-index: 2;
+  -webkit-app-region: drag;
+  pointer-events: none;
+}
+
 /* 门禁态窗口控制：顶部透明拖拽区加右上角幽灵按钮，不画底条、不占布局。 */
 .gate-drag {
   position: absolute;
