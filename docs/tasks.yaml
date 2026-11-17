@@ -2547,6 +2547,18 @@ tracks:
       inferred: false
       note: "B 级用户端开发，来源是用户 2026-11-17 截图反馈。要求在所有抽屉的关闭按钮旁增加放大按钮，放大后抽屉在工作区内全屏。范围是 detail-drawer 的五个使用点，包含流程面板、立项向导、需求详情、任务详情、人才与内置人才详情。落地：抽一个可复用的抽屉外壳或 hook，提供放大与还原切换，按钮与关闭并排，纯图标带 aria-label 或图标加文案，文案走中英词典；放大态覆盖工作区内容区且不含标题栏与左侧导航，内部独立滚动，头部按钮保持可见可操作，Esc 与关闭按钮行为不变；切换不丢表单输入与滚动位置；reduced-motion 下无过渡。若现有布局让工作区定位不可靠，基于已存在的布局容器定位并给出实测证据。测试覆盖展开状态切换、关闭后复位、文案；client 定向 vitest、typecheck、build、i18n。与 T-226 与 T-227 同分支 lcoder/t226-maniu-scope 实施，独立提交。2026-11-17 09:18 监督窗口登记并派工，与 T-226 同窗口实施。"
 
+    - id: T-229
+      title: 浏览目录默认打开当前项目路径
+      status: doing
+      face: 用户端
+      type: 修复
+      owner: lance
+      created: '2026-11-17'
+      date: '2026-11-17'
+      dep: [T-218]
+      inferred: false
+      note: "C 级修复，来源是用户 2026-11-17 反馈切换项目页点击浏览每次都落在下载目录。根因是 lcoder pick-directory 的 showOpenDialog 没有 defaultPath，Windows 回落到系统默认目录。修法：IPC 增加可选 defaultPath，渲染端传当前输入框路径或当前项目路径；主进程校验为存在的目录，不存在时退到最近的已存在祖先，再退到上次成功选择的目录；上次选择写入桌面偏好并跨会话复用；取消不改变偏好；标题与错误文案不变。测试覆盖传参、无效路径回落、偏好持久化与取消；client 与 desktop 定向测试、typecheck、build、i18n。不改 T-226 的改名范围。工作树 pool-slot-1 到 lcoder/t229-picker-default，端口按占用自动顺延。2026-11-17 09:21 监督窗口登记并派工。"
+
 
 milestones:
 - name: MVP-0 工作台本地跑通
