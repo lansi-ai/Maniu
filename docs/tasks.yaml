@@ -2581,8 +2581,7 @@ tracks:
       date: '2026-11-17'
       dep: [T-230]
       inferred: false
-      note: "C 级修复，来源是用户 2026-11-17 反馈标题栏右侧红框区域拖不动。两个独立实例取证一致：页面 DOM 里 titlebar-drag 到九百八十二或一千零三像素，但原生 WM_NCHITTEST 的拖拽区在约六百六十五或七百五十像素就被裁断，右段返回 HTCLIENT；真实鼠标在八百像素拖动为零位移。去圆角、强制 resize、frame change、重设 app-region 都不能恢复；放在 titlebar 内的绝对层仍被裁，放在 body 的固定定位层可覆盖到样例的一千一百像素。固定层铺满全宽会盖过账号与窗口按钮的 no-drag，故拖拽垫必须停在 titlebar-tools 左侧。修法：扩展 WindowGutter，加一条窗口级固定拖拽垫，覆盖标题栏空白区从栏左到工具区左前二像素，pointer-events 为 none，z-index 二，按标题栏与工具区矩形在窗口尺寸与状态变化时重算；没有标题栏的门禁态跳过。验证：新起隔离实例的原生命中矩阵在八百与九百像素返回 HTCAPTION，账号与窗口按钮仍为 HTCLIENT；真实在八百像素拖动位移非零；elementFromPoint 仍命中账号与关闭按钮。C 级快修门禁。工作树 pool-slot-2 到 lcoder/t231-right-pad，端口 9823/9831/9832。2026-11-17 11:08 监督窗口登记并派工，实现线会话 9269af88。
-
+      note: "C 级修复，来源是用户 2026-11-17 反馈标题栏右侧红框区域拖不动。两个独立实例取证一致：页面 DOM 里 titlebar-drag 到九百八十二或一千零三像素，但原生 WM_NCHITTEST 的拖拽区在约六百六十五或七百五十像素就被裁断，右段返回 HTCLIENT；真实鼠标在八百像素拖动为零位移。去圆角、强制 resize、frame change、重设 app-region 都不能恢复；放在 titlebar 内的绝对层仍被裁，放在 body 的固定定位层可覆盖到样例的一千一百像素。固定层铺满全宽会盖过账号与窗口按钮的 no-drag，故拖拽垫必须停在 titlebar-tools 左侧。修法：扩展 WindowGutter，加一条窗口级固定拖拽垫，覆盖标题栏空白区从栏左到工具区左前二像素，pointer-events 为 none，z-index 二，按标题栏与工具区矩形在窗口尺寸与状态变化时重算；没有标题栏的门禁态跳过。验证：新起隔离实例的原生命中矩阵在八百与九百像素返回 HTCAPTION，账号与窗口按钮仍为 HTCLIENT；真实在八百像素拖动位移非零；elementFromPoint 仍命中账号与关闭按钮。C 级快修门禁。工作树 pool-slot-2 到 lcoder/t231-right-pad，端口 9823/9831/9832。2026-11-17 11:08 监督窗口登记并派工，实现线会话 9269af88。"
 
 milestones:
 - name: MVP-0 工作台本地跑通
