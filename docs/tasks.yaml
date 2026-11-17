@@ -2644,7 +2644,7 @@ tracks:
 
     - id: T-237
       title: 需求评审与版本留存的模型层
-      status: doing
+      status: done
       face: 工程
       type: 开发
       owner: lance
@@ -2652,7 +2652,7 @@ tracks:
       date: '2026-11-17'
       dep: []
       inferred: false
-      note: "A 级产品数据与内核契约，来源是用户 2026-11-17 需求页反馈与三条已确认口径，评审只出报告不改稿、改稿由需求分析师会话按报告进行、过审前至少一轮评审、人才分配由研发经理建议后人工确认。数据面保持向后兼容，所有字段可选且旧 YAML 照常解析。requirements/REQ-xx.yaml 增 versions 数组（每项 n 与 at 与可选 note），正文快照写 requirements/<ID>/versions/v<n>.md，requirement_draft 落盘时写 v1；增 reviews 数组（每项 round 与 at 与 report 相对路径与可选 sessionId），报告写 requirements/<ID>/reviews/R<n>.md；增可选 approved_at 与 approved_version，过审时写。模型工具面新增两个内核写入口，一、requirement_review_draft 只进项目经理 maniu-pm 工具面，参数 id 与 report，要求需求是 draft 且正文存在，写报告并追加 reviews，返回轮次，不能过审；二、requirement_revise 只进需求分析师 maniu-intake 工具面，参数 id 与 content，要求 draft，先把当前正文快照成新版本再覆盖 REQ-xx.md，返回版本号。人机命令 requirement_approve 扩展为至少一轮评审才允许，写 confirmed 与 confirmed_at 与 approved_at 与 approved_version，当前正文无对应版本时先补一份快照；模型仍不能调用审核通过。范围 packages/lcoder/kernel 的 schema 与 requirement-store 与工具注册与命令与投影与 README，以及 .spec 示例数据与双语文档；不改需求页 UI 与拆分流程（转 T-238），不改会话格式与云合同。验收 typecheck、kernel 与 packages/lcoder vitest、改动文件 oxlint、test:docs；单测覆盖旧 YAML 兼容、初稿版本、改稿快照与覆盖、评审轮次追加与非法状态拒绝、过审门槛与版本记录、模型工具面不含审核通过。工作树 pool-slot-1 到 lcoder/t237-req-review-core，端口 9822 与 9829 与 9830。2026-11-17 14:10 监督窗口登记并派工，实现线会话 ea0b63b3。"
+      note: "A 级产品数据与内核契约，来源是用户 2026-11-17 需求页反馈与三条已确认口径，评审只出报告不改稿、改稿由需求分析师会话按报告进行、过审前至少一轮评审、人才分配由研发经理建议后人工确认。数据面保持向后兼容，所有字段可选且旧 YAML 照常解析。requirements/REQ-xx.yaml 增 versions 数组（每项 n 与 at 与可选 note），正文快照写 requirements/<ID>/versions/v<n>.md，requirement_draft 落盘时写 v1；增 reviews 数组（每项 round 与 at 与 report 相对路径与可选 sessionId），报告写 requirements/<ID>/reviews/R<n>.md；增可选 approved_at 与 approved_version，过审时写。模型工具面新增两个内核写入口，一、requirement_review_draft 只进项目经理 maniu-pm 工具面，参数 id 与 report，要求需求是 draft 且正文存在，写报告并追加 reviews，返回轮次，不能过审；二、requirement_revise 只进需求分析师 maniu-intake 工具面，参数 id 与 content，要求 draft，先把当前正文快照成新版本再覆盖 REQ-xx.md，返回版本号。人机命令 requirement_approve 扩展为至少一轮评审才允许，写 confirmed 与 confirmed_at 与 approved_at 与 approved_version，当前正文无对应版本时先补一份快照；模型仍不能调用审核通过。范围 packages/lcoder/kernel 的 schema 与 requirement-store 与工具注册与命令与投影与 README，以及 .spec 示例数据与双语文档；不改需求页 UI 与拆分流程（转 T-238），不改会话格式与云合同。验收 typecheck、kernel 与 packages/lcoder vitest、改动文件 oxlint、test:docs；单测覆盖旧 YAML 兼容、初稿版本、改稿快照与覆盖、评审轮次追加与非法状态拒绝、过审门槛与版本记录、模型工具面不含审核通过。工作树 pool-slot-1 到 lcoder/t237-req-review-core，端口 9822 与 9829 与 9830。2026-11-17 14:10 监督窗口登记并派工，实现线会话 ea0b63b3。2026-11-17 14:42 监督窗口核验并收口。一笔提交。需求 YAML 增可选 versions 与 reviews 与 approved_at 与 approved_version，旧文件照常解析；新建需求落 v1 快照；改稿前确保当前正文已有快照，旧需求先补 v1 再写新版本；评审只追加报告不改状态与正文；过审命令要求至少一轮评审并写批准版本。requirement_revise 只进需求分析师工具面，requirement_review_draft 只进项目经理工具面，模型仍无过审能力；客户端投影透传四项，缺失给空数组与未定义。示例 .spec 补了 REQ-01 的 v1 快照与首轮评审。独立复跑工作树 typecheck 五项、packages/lcoder vitest 一百二十九文件一千三百九十八例、改动七文件 oxlint 零错零警、test:docs 二十一项全过；合入后主检 build:artifacts 八项、build:check 两项、typecheck 五项、vitest 一百三十一文件一千四百八例、test:docs 二十一项全过。未验项为真实模型调用两个新工具与界面呈现，交 T-238 与用户验收。已合入 lcoder/main、release pool-slot-1。"
 
     - id: T-238
       title: 需求页评审流程与任务跳转
