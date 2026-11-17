@@ -483,8 +483,30 @@
 .builtin-card { cursor: pointer; }
 .builtin-card:hover { border-color: var(--lg-line-bright); }
 .builtin-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.builtin-persona-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 0 10px;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--lg-ink-2);
+}
+.builtin-persona-summary li { position: relative; padding-left: 14px; overflow-wrap: anywhere; }
+.builtin-persona-summary li::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: .72em;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--lg-faint);
+}
 .builtin-persona {
-  margin: 0;
+  margin: 10px 0 0;
   padding: 10px 12px;
   max-height: 280px;
   overflow: auto;

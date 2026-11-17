@@ -331,22 +331,82 @@ describe('内置人才并入全局库', () => {
     expect(drawer?.textContent).toContain('项目经理')
     expect(drawer?.textContent).toContain('跟随全局默认')
     expect(drawer?.textContent).toContain('maniu-pm')
-    expect(drawer?.querySelector('[data-testid="builtin-persona"]')?.textContent).toContain('你是项目经理')
+    const summary = drawer?.querySelector('[data-testid="builtin-persona-summary"]')
+    expect(summary?.textContent).toContain('身份：项目经理')
+    expect(summary?.textContent).toContain('不做：')
+    expect(drawer?.querySelector('[data-testid="builtin-persona"]')).toBeNull()
+    const toggle = drawer?.querySelector('[data-testid="builtin-persona-toggle"]')
+    expect(toggle?.textContent).toBe('查看完整提示词')
+    expect(toggle?.getAttribute('aria-expanded')).toBe('false')
     const pluginRows = drawer?.querySelectorAll('[data-testid="builtin-plugins"] li') ?? []
     expect(pluginRows).toHaveLength(4)
+    expect(drawer?.querySelector('[data-testid="builtin-plugins-note"]')?.textContent).toContain('能力模块')
+    expect(drawer?.querySelector('[data-testid="builtin-plugins-note"]')?.textContent).toContain('隔离')
+    expect(drawer?.querySelector('[data-testid="builtin-plugins-note"]')?.textContent).toContain('插件名')
     const pluginText = [...pluginRows].map(row => row.textContent ?? '').join('\n')
     expect(pluginText).toContain('分组')
     expect(pluginText).toContain('禁用')
     expect(pluginText).toContain('条件禁用')
     expect(drawer?.querySelector('[data-testid="builtin-plugin-unknown"]')?.textContent).toBe('未安装')
+    expect(drawer?.querySelector('[data-testid="builtin-tools-hint"]')?.textContent).toContain('悬停')
     const tools = [...(drawer?.querySelectorAll('[data-testid="builtin-tool"]') ?? [])]
     expect(tools).toHaveLength(1)
     expect(tools[0]?.getAttribute('data-tool-name')).toBe('file_read')
     expect(tools[0]?.textContent).toBe('file_read')
-    expect(tools[0]?.getAttribute('title')).toBe('读文件')
+    expect(tools[0]?.getAttribute('title')).toBe('读仓库里的文本文件，可按行分段。')
     // 内置人才只读：详情里没有改删入口。
     expect(drawer?.querySelector('[data-testid="talent-edit"]')).toBeNull()
     expect(drawer?.querySelector('[data-testid="talent-delete"]')).toBeNull()
+  })
+
+  it('完整提示词默认折叠，点按钮展开后再收起', async () => {
+    const detail: BuiltinDetailState = {
+      loading: false,
+      error: null,
+      persona: '你是项目经理。',
+      plugins: [],
+      tools: [],
+      toolsError: null,
+    }
+    render(handleOf({
+      builtins: [builtin('maniu-pm')],
+      builtinDetails: { 'maniu-pm': detail },
+    }))
+    await openCard('maniu-pm')
+    const drawer = container.querySelector('[data-testid="builtin-detail"]')
+    expect(drawer?.querySelector('[data-testid="builtin-persona"]')).toBeNull()
+    await press('builtin-persona-toggle')
+    expect(drawer?.querySelector('[data-testid="builtin-persona"]')?.textContent).toContain('你是项目经理')
+    expect(drawer?.querySelector('[data-testid="builtin-persona-toggle"]')?.textContent).toBe('收起完整提示词')
+    expect(drawer?.querySelector('[data-testid="builtin-persona-toggle"]')?.getAttribute('aria-expanded')).toBe('true')
+    await press('builtin-persona-toggle')
+    expect(drawer?.querySelector('[data-testid="builtin-persona"]')).toBeNull()
+    expect(drawer?.querySelector('[data-testid="builtin-persona-toggle"]')?.textContent).toBe('查看完整提示词')
+  })
+
+  it('未收录摘要的预设回退到描述，未收录工具回退到宿主说明', async () => {
+    render(handleOf({
+      builtins: [builtin('maniu-experiment', { description: '实验角色说明' })],
+      builtinDetails: {
+        'maniu-experiment': {
+          loading: false,
+          error: null,
+          persona: '你是实验角色。',
+          plugins: [],
+          tools: [{ name: 'custom_tool', description: '宿主描述' }],
+          toolsError: null,
+        },
+      },
+    }))
+    await openCard('maniu-experiment')
+    const drawer = container.querySelector('[data-testid="builtin-detail"]')
+    expect(drawer?.querySelector('[data-testid="builtin-persona-summary"]')).toBeNull()
+    expect(drawer?.querySelector('[data-testid="builtin-persona-fallback"]')?.textContent).toBe('实验角色说明')
+    expect(drawer?.querySelector('[data-testid="builtin-persona-toggle"]')).not.toBeNull()
+    const tool = drawer?.querySelector('[data-testid="builtin-tool"]')
+    expect(tool?.getAttribute('data-tool-name')).toBe('custom_tool')
+    expect(tool?.textContent).toBe('custom_tool')
+    expect(tool?.getAttribute('title')).toBe('宿主描述')
   })
 
   it('详情读不到时给出可读失败，工具面照常显示', async () => {
@@ -388,6 +448,6 @@ describe('内置人才并入全局库', () => {
     const drawer = container.querySelector('[data-testid="builtin-detail"]')
     expect(drawer?.querySelector('[data-testid="builtin-tools-error"]')?.textContent)
       .toContain('the preset exposes no tool scope')
-    expect(drawer?.querySelector('[data-testid="builtin-persona"]')?.textContent).toContain('你是项目经理')
+    expect(drawer?.querySelector('[data-testid="builtin-persona-summary"]')?.textContent).toContain('身份：项目经理')
   })
 })
