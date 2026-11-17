@@ -1,18 +1,18 @@
 /** 读 `.spec/` 目录，折成工作台各页共用的投影。 */
 
 import {
-  AGENTS_FILE, AUTOMATION_FILE, CONTRACTS_DIR, DELIVERABLES_DIR, LOCAL_FILE, PROJECT_FILE,
+  AGENTS_FILE, AUTOMATION_FILE, CONTRACTS_DIR, DELIVERABLES_DIR, FLOW_FILE, LOCAL_FILE, PROJECT_FILE,
   PROPOSALS_DIR, REQUIREMENTS_DIR, ROLES_FILE, RULES_FILE, SCHEDULING_DIR, TASKS_DIR,
 } from './files.ts'
 import type { SpecFiles } from './files.ts'
 import { messageOf } from './files.ts'
 import {
-  agentsTextToRow, automationTextToRow, contractTextToRow, deliverableTextToRow, groupTextToRow,
+  agentsTextToRow, automationTextToRow, contractTextToRow, deliverableTextToRow, flowTextToRow, groupTextToRow,
   isMissing, localSecretsOf, projectTextToRow, proposalTextToRow, requirementTextToRow,
   rolesTextToRows, rulesTextToRows, splitPlanTextToRow, taskTextToRow,
 } from './rows.ts'
 import type {
-  AgentsRow, AutomationPolicyRow, ContractRow, DeliverableRow, JobRoleRow, ProjectInfoRow,
+  AgentsRow, AutomationPolicyRow, ContractRow, DeliverableRow, FlowConfigRow, JobRoleRow, ProjectInfoRow,
   ProposalRow, RequirementDocRow, RequirementSplitPlanRow, RuleRow, SchedulingGroupRow, TaskRow,
 } from './rows.ts'
 
@@ -29,6 +29,8 @@ export interface SpecProjection {
   readonly secrets: Readonly<Record<string, string>>
   readonly automation: AutomationPolicyRow | null
   readonly agents: AgentsRow | null
+  /** 流程配置；缺省表示没有 flow.yaml，编排与配置节走内置预制。 */
+  readonly flow?: FlowConfigRow | null
   readonly problems: readonly string[]
 }
 
@@ -187,11 +189,12 @@ export async function loadSpecProjection(files: SpecFiles, signal: AbortSignal):
     loadDir(files, SCHEDULING_DIR, '.yaml', groupTextToRow, signal),
     readFileRow(files, ROLES_FILE, rolesTextToRows),
   ])
-  const [project, secrets, automation, agents] = await Promise.all([
+  const [project, secrets, automation, agents, flow] = await Promise.all([
     readFileRow(files, PROJECT_FILE, projectTextToRow),
     readFileRow(files, LOCAL_FILE, localSecretsOf),
     readFileRow(files, AUTOMATION_FILE, automationTextToRow),
     readFileRow(files, AGENTS_FILE, agentsTextToRow),
+    readFileRow(files, FLOW_FILE, flowTextToRow),
   ])
   const deliverableByTask = new Map(deliverables.rows.map(row => [row.task, row]))
   return {
@@ -209,10 +212,12 @@ export async function loadSpecProjection(files: SpecFiles, signal: AbortSignal):
     secrets: secrets.row ?? {},
     automation: automation.row,
     agents: agents.row,
+    flow: flow.row,
     problems: [
       ...tasks.problems, ...rules.problems, ...contracts.problems, ...proposals.problems,
       ...requirements.problems, ...deliverables.problems, ...groups.problems, ...roles.problems,
       ...project.problems, ...secrets.problems, ...automation.problems, ...agents.problems,
+      ...flow.problems,
     ],
   }
 }

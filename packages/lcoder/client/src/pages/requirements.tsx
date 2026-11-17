@@ -1,4 +1,4 @@
-/** 需求页：列表、搜索、状态筛选；详情在阶段 B 接入。 */
+/** 需求页：列表、搜索、状态筛选；四类操作按流程配置逐岗推进，进度走操作浮卡。 */
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { JSX } from 'react'
@@ -8,10 +8,11 @@ import type { SessionSummary } from '../store.ts'
 import type { RequirementDocRow } from '../spec/rows.ts'
 import { requirementStateLabel } from '../spec/board.ts'
 import { hasIntakeWork } from '../intake/eligibility.ts'
-import { buildManagerSplitPrompt, buildReviewPrompt, buildRevisePrompt, BUILTIN_SPLIT_TRACKS } from '../intake/prompts.ts'
-import { INTAKE_PRESET_ID, MANAGER_PRESET_ID, PM_PRESET_ID, currentPresetId, isBuiltinTalentPreset } from '../talents/model.ts'
+import { buildIntakeFollowupPrompt, buildManagerSplitPrompt, buildReviewPrompt, buildRevisePrompt, BUILTIN_SPLIT_TRACKS } from '../intake/prompts.ts'
+import { INTAKE_PRESET_ID, MANAGER_PRESET_ID, PM_PRESET_ID } from '../talents/model.ts'
+import { flowNodeOf, flowRoleLabel, flowRoleSource, presetOfRole } from '../flow/config.ts'
 import { translate, type MessageKey, type Translate } from '../locale.ts'
-import { OperationCards, type OperationCardView, type OperationStep } from '../shell/operation-cards.tsx'
+import { OperationCards, type OperationCardView, type OperationStep, type OperationStepState } from '../shell/operation-cards.tsx'
 import { RequirementDetail } from './requirement-detail.tsx'
 import { TaskDetail } from './task-detail.tsx'
 import { ReaderOverlay } from './reader.tsx'
@@ -48,13 +49,7 @@ const OP_TITLE_KEY: Readonly<Record<OpKind, MessageKey>> = {
   split: 'requirement.opTitle.split',
 }
 
-const OP_ROLE_FALLBACK_KEY: Readonly<Record<OpKind, MessageKey>> = {
-  intake: 'intake.roleName',
-  review: 'op.roleName.pm',
-  revise: 'intake.roleName',
-  split: 'op.roleName.manager',
-}
-
+/** 岗位解析不了时的节点默认 preset；正常配置都能解析到岗位自己的 preset。 */
 const OP_PRESET: Readonly<Record<OpKind, string>> = {
   intake: INTAKE_PRESET_ID,
   review: PM_PRESET_ID,
@@ -62,28 +57,43 @@ const OP_PRESET: Readonly<Record<OpKind, string>> = {
   split: MANAGER_PRESET_ID,
 }
 
-/** 一次后台操作的磁盘事实基线；完成判定只看投影相对基线的增量。 */
-interface OpWatch {
+/** 一次节点运行的身份：一节点一卡，卡内按岗位推进。 */
+interface OpRun {
   readonly key: string
   readonly kind: OpKind
   /** 立项调研没有需求编号，用 null；完成看需求条数增量。 */
   readonly requirementId: string | null
+  readonly roles: readonly string[]
+  readonly auto: boolean
+}
+
+/** 当前岗位的磁盘事实基线；完成判定只看投影相对基线的增量。 */
+interface OpWatch extends OpRun {
+  readonly roleIndex: number
   readonly sessionId: string | null
-  readonly reviews: number
+  readonly reviewRound: number
   readonly versions: number
   readonly related: number
   readonly planAt: string | null
   readonly requirements: number
+  /** 评审完成须匹配的署名；null 表示不要求（无配置或非评审节点）。 */
+  readonly roleSig: string | null
   readonly deadline: number
 }
 
+/** 人工衔接的节点运行：前一岗已落盘，等人点「下一岗位」。 */
+interface PausedOp extends OpRun {
+  /** 下一个要发起的岗位序号；之前的岗位都已落盘。 */
+  readonly roleIndex: number
+  readonly sessionId: string | null
+}
+
 /** 已结束的操作卡：完成保持绿色、失败给警示色，直到用户关闭。 */
-interface FinishedOp {
-  readonly key: string
-  readonly kind: OpKind
-  readonly requirementId: string | null
+interface FinishedOp extends OpRun {
   readonly sessionId: string | null
   readonly status: 'done' | 'failed'
+  /** 已落盘的岗位数；失败时指向出事的那一岗。 */
+  readonly landed: number
 }
 
 /** 需求页属性。 */
@@ -127,13 +137,16 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
   const [wizard, setWizard] = useState(false)
   const [opNotice, setOpNotice] = useState<string | null>(null)
   const [watches, setWatches] = useState<readonly OpWatch[]>([])
+  const [paused, setPaused] = useState<readonly PausedOp[]>([])
   const [finished, setFinished] = useState<readonly FinishedOp[]>([])
   const [minimizedKeys, setMinimizedKeys] = useState<readonly string[]>([])
   const loadingRef = useRef(props.loading)
   loadingRef.current = props.loading
-  const busyOf = (kind: OpKind, requirementId: string | null) => watches.some(
-    item => item.kind === kind && item.requirementId === requirementId,
-  )
+  const flow = props.projection.flow
+  const reviewConfigured = flow?.nodes.some(node => node.node === 'review') === true
+  const busyOf = (kind: OpKind, requirementId: string | null) =>
+    watches.some(item => item.kind === kind && item.requirementId === requirementId)
+    || paused.some(item => item.kind === kind && item.requirementId === requirementId)
 
   const rows = useMemo(() => {
     const query = text.trim().toLowerCase()
@@ -160,39 +173,76 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
     )
   }
 
-  const launch = async (
-    kind: OpKind,
-    row: RequirementDocRow,
-    prompt: string,
-    preset: string,
-  ): Promise<{ readonly ok: boolean; readonly message: string }> => {
+  const promptOf = (kind: OpKind, row: RequirementDocRow | null): string => {
+    if (row === null) {
+      return buildIntakeFollowupPrompt({ name: props.project?.title ?? '', path: props.project?.path ?? '' })
+    }
+    const requirement = { id: row.id, title: row.title ?? row.id }
+    if (kind === 'review') return buildReviewPrompt(requirement, row.text)
+    if (kind === 'revise') {
+      const sorted = [...row.reviews].sort((left, right) => left.round - right.round)
+      return buildRevisePrompt(requirement, row.text, sorted[sorted.length - 1]?.report)
+    }
+    return splitPromptOf(row)
+  }
+
+  /** 当前投影里该需求的磁盘事实基线；下一岗发起时按它记增量起点。 */
+  const baselineOf = (requirementId: string | null) => {
+    const row = requirementId === null ? undefined : props.projection.requirements.find(item => item.id === requirementId)
+    return {
+      reviewRound: row?.reviews.reduce((max, entry) => Math.max(max, entry.round), 0) ?? 0,
+      versions: row?.versions.length ?? 0,
+      related: requirementId === null ? 0 : relatedOf(requirementId).length,
+      planAt: row?.splitPlan?.at ?? null,
+      requirements: props.projection.requirements.length,
+    }
+  }
+
+  /** 发起节点里的某一岗；成功登记基线，失败首岗只给提示、后续岗转失败卡。 */
+  const launchRole = async (run: OpRun, roleIndex: number): Promise<{ readonly ok: boolean; readonly message: string }> => {
+    const roleId = run.roles[roleIndex]
+    if (roleId === undefined) return { ok: false, message: '流程配置里没有这一岗' }
+    const row = run.requirementId === null
+      ? null
+      : props.projection.requirements.find(item => item.id === run.requirementId) ?? null
+    const preset = presetOfRole(roleId, props.projection.roles) ?? OP_PRESET[run.kind]
     setOpNotice(null)
     let answer: { readonly ok: boolean; readonly message: string; readonly sessionId?: string }
     try {
-      answer = await props.onStartSession(prompt, preset)
+      answer = await props.onStartSession(promptOf(run.kind, row), preset)
     } catch (cause: unknown) {
       const message = cause instanceof Error ? cause.message : String(cause)
       setOpNotice(message)
+      if (roleIndex > 0) {
+        setFinished(current => [...current, { ...run, sessionId: null, status: 'failed', landed: roleIndex }])
+      }
       return { ok: false, message }
     }
     if (!answer.ok) {
       setOpNotice(answer.message)
+      if (roleIndex > 0) {
+        setFinished(current => [...current, { ...run, sessionId: null, status: 'failed', landed: roleIndex }])
+      }
       return answer
     }
     // 忙碌保持到磁盘事实出现增量或超时；发起成功只登记基线，不清忙碌。
     setWatches(current => [...current, {
-      key: `${kind}-${row.id}-${String(Date.now())}`,
-      kind,
-      requirementId: row.id,
+      ...run,
+      roleIndex,
       sessionId: answer.sessionId ?? null,
-      reviews: row.reviews.length,
-      versions: row.versions.length,
-      related: relatedOf(row.id).length,
-      planAt: row.splitPlan?.at ?? null,
-      requirements: props.projection.requirements.length,
+      ...baselineOf(run.requirementId),
+      roleSig: run.kind === 'review' && reviewConfigured ? roleId : null,
       deadline: Date.now() + OP_TIMEOUT_MS,
     }])
     return answer
+  }
+
+  const startNode = (kind: OpKind, row: RequirementDocRow): Promise<{ readonly ok: boolean; readonly message: string }> => {
+    const node = flowNodeOf(flow, kind)
+    return launchRole(
+      { key: `${kind}-${row.id}-${String(Date.now())}`, kind, requirementId: row.id, roles: node.roles, auto: node.auto },
+      0,
+    )
   }
 
   // 立项调研后台发起：向导收起，浮卡接管进度；七问提问卡走非对话页浮层。
@@ -203,68 +253,81 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
       setOpNotice(answer.message)
       return answer
     }
+    const node = flowNodeOf(flow, 'intake')
     setWatches(current => [...current, {
       key: `intake-${String(Date.now())}`,
       kind: 'intake',
       requirementId: null,
+      roles: node.roles,
+      roleIndex: 0,
+      auto: node.auto,
       sessionId: answer.sessionId ?? null,
-      reviews: 0,
+      reviewRound: 0,
       versions: 0,
       related: 0,
       planAt: null,
       requirements: props.projection.requirements.length,
+      roleSig: null,
       deadline: Date.now() + OP_TIMEOUT_MS,
     }])
     setWizard(false)
     return answer
   }
 
-  const review = (row: RequirementDocRow) => launch(
-    'review',
-    row,
-    buildReviewPrompt({ id: row.id, title: row.title ?? row.id }, row.text),
-    PM_PRESET_ID,
-  )
+  const review = (row: RequirementDocRow) => startNode('review', row)
+  const revise = (row: RequirementDocRow) => startNode('revise', row)
+  const split = (row: RequirementDocRow) => startNode('split', row)
 
-  const revise = (row: RequirementDocRow) => {
-    const sorted = [...row.reviews].sort((left, right) => left.round - right.round)
-    return launch(
-      'revise',
-      row,
-      buildRevisePrompt({ id: row.id, title: row.title ?? row.id }, row.text, sorted[sorted.length - 1]?.report),
-      INTAKE_PRESET_ID,
-    )
-  }
-
-  const split = (row: RequirementDocRow) => launch('split', row, splitPromptOf(row), MANAGER_PRESET_ID)
-
-  // 完成判定以投影里的磁盘事实为准：评审见增轮、改稿见增版、拆分见关联任务或计划出现/更新、立项见需求条数增量。
+  // 完成判定以投影里的磁盘事实为准：评审见增轮（有配置时署名须匹配当前岗）、改稿见增版、
+  // 拆分见关联任务或计划出现/更新、立项见需求条数增量。落盘后按 auto 决定自动发起下一岗还是停下等人。
   useEffect(() => {
     if (watches.length === 0) return
     const doneWatches = watches.filter((watch) => {
       if (watch.kind === 'intake') return props.projection.requirements.length > watch.requirements
       const row = props.projection.requirements.find(item => item.id === watch.requirementId)
       if (row === undefined) return false
+      if (watch.kind === 'review') {
+        const fresh = row.reviews.filter(entry => entry.round > watch.reviewRound)
+        return fresh.length > 0 && (watch.roleSig === null || fresh.some(entry => entry.role === watch.roleSig))
+      }
+      if (watch.kind === 'revise') return row.versions.length > watch.versions
       const related = props.projection.tasks.filter(
         task => task.requirement === row.id || task.proposal === row.id,
       ).length
-      return watch.kind === 'review'
-        ? row.reviews.length > watch.reviews
-        : watch.kind === 'revise'
-          ? row.versions.length > watch.versions
-          : related > watch.related || (row.splitPlan !== undefined && row.splitPlan.at !== watch.planAt)
+      return related > watch.related || (row.splitPlan !== undefined && row.splitPlan.at !== watch.planAt)
     })
     if (doneWatches.length === 0) return
     setWatches(current => current.filter(item => !doneWatches.includes(item)))
-    setFinished(current => [...current, ...doneWatches.map(watch => ({
-      key: watch.key,
-      kind: watch.kind,
-      requirementId: watch.requirementId,
-      sessionId: watch.sessionId,
-      status: 'done' as const,
-    }))])
-    const last = doneWatches[doneWatches.length - 1]
-    if (last !== undefined && last.requirementId !== null) setSelected(last.requirementId)
+    const finishedNow: FinishedOp[] = []
+    for (const watch of doneWatches) {
+      const next = watch.roleIndex + 1
+      if (next >= watch.roles.length) {
+        finishedNow.push({
+          key: watch.key,
+          kind: watch.kind,
+          requirementId: watch.requirementId,
+          roles: watch.roles,
+          auto: watch.auto,
+          sessionId: watch.sessionId,
+          status: 'done',
+          landed: next,
+        })
+        if (watch.requirementId !== null) setSelected(watch.requirementId)
+      } else if (watch.auto) {
+        void launchRole(watch, next)
+      } else {
+        setPaused(current => [...current, {
+          key: watch.key,
+          kind: watch.kind,
+          requirementId: watch.requirementId,
+          roles: watch.roles,
+          auto: watch.auto,
+          roleIndex: next,
+          sessionId: watch.sessionId,
+        }])
+      }
+    }
+    if (finishedNow.length > 0) setFinished(current => [...current, ...finishedNow])
     props.onReload()
   }, [watches, props.projection, props.onReload])
 
@@ -280,8 +343,11 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
           key: watch.key,
           kind: watch.kind,
           requirementId: watch.requirementId,
+          roles: watch.roles,
+          auto: watch.auto,
           sessionId: watch.sessionId,
           status: 'failed' as const,
+          landed: watch.roleIndex,
         }))])
         return
       }
@@ -290,61 +356,97 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
     return () => { clearInterval(timer) }
   }, [watches, props.onReload])
 
+  /** 人工衔接：点「下一岗位」才发起下一岗。 */
+  const nextRole = (key: string): void => {
+    const run = paused.find(item => item.key === key)
+    if (run === undefined) return
+    setPaused(current => current.filter(item => item.key !== key))
+    void launchRole(run, run.roleIndex)
+  }
+
   // 立项分析只对空项目开放；已有结果时仍允许打开结果页回看，但不允许开新立项。
   const blockedIntake = hasIntakeWork(props.projection) && props.intakeResult === null
   const firstRequirement = props.projection.requirements[0]
 
   const cards = useMemo<readonly OperationCardView[]>(() => {
+    const labelCtx = {
+      ...(props.presetNames === undefined ? {} : { presetNames: props.presetNames }),
+      roster: props.projection.roles,
+      t,
+    }
+    const labelOf = (id: string): string => flowRoleLabel(id, labelCtx)
+    const idOf = (run: OpRun, index: number): string => run.roles[index] ?? run.roles[run.roles.length - 1] ?? ''
+    // 单岗节点沿用四步清单；多岗节点按岗位列步骤，末尾一步是整节点完成。
+    const stepsOf = (run: OpRun, landed: number, status: OperationCardView['status'], active: boolean): readonly OperationStep[] => {
+      if (run.roles.length <= 1) {
+        const states: readonly OperationStepState[] = status === 'running'
+          ? ['done', 'active', 'pending', 'pending']
+          : status === 'done'
+            ? ['done', 'done', 'done', 'done']
+            : ['done', 'failed', 'pending', 'pending']
+        return [
+          { label: t('op.step.launched'), state: states[0] ?? 'pending' },
+          { label: t('op.step.working'), state: states[1] ?? 'pending' },
+          { label: t('op.step.landed'), state: states[2] ?? 'pending' },
+          { label: t('op.step.done'), state: states[3] ?? 'pending' },
+        ]
+      }
+      const steps: OperationStep[] = run.roles.map((role, index) => {
+        const state: OperationStepState = status === 'failed' && index === landed
+          ? 'failed'
+          : index < landed
+            ? 'done'
+            : active && status === 'running' && index === landed
+              ? 'active'
+              : 'pending'
+        return { label: labelOf(role), state }
+      })
+      steps.push({ label: t('op.step.done'), state: status === 'done' ? 'done' : 'pending' })
+      return steps
+    }
     const viewOf = (
-      kind: OpKind,
-      requirementId: string | null,
+      run: OpRun,
+      current: number,
       sessionId: string | null,
       status: OperationCardView['status'],
-      key: string,
+      statusText: string,
+      active: boolean,
+      nextRoleLabel?: string,
     ): OperationCardView => {
-      const preset = OP_PRESET[kind]
-      const id = requirementId ?? t('requirement.opTitle.intake')
-      const steps: readonly OperationStep[] = status === 'running'
-        ? [
-          { label: t('op.step.launched'), state: 'done' },
-          { label: t('op.step.working'), state: 'active' },
-          { label: t('op.step.landed'), state: 'pending' },
-          { label: t('op.step.done'), state: 'pending' },
-        ]
-        : status === 'done'
-          ? [
-            { label: t('op.step.launched'), state: 'done' },
-            { label: t('op.step.working'), state: 'done' },
-            { label: t('op.step.landed'), state: 'done' },
-            { label: t('op.step.done'), state: 'done' },
-          ]
-          : [
-            { label: t('op.step.launched'), state: 'done' },
-            { label: t('op.step.working'), state: 'failed' },
-            { label: t('op.step.landed'), state: 'pending' },
-            { label: t('op.step.done'), state: 'pending' },
-          ]
+      const roleId = idOf(run, current)
       return {
-        key,
-        title: t(OP_TITLE_KEY[kind]),
-        roleLabel: props.presetNames?.[currentPresetId(preset)] ?? t(OP_ROLE_FALLBACK_KEY[kind]),
-        sourceLabel: t(isBuiltinTalentPreset(preset) ? 'op.sourceBuiltin' : 'op.sourceCustom'),
+        key: run.key,
+        title: t(OP_TITLE_KEY[run.kind]),
+        roleLabel: labelOf(roleId),
+        sourceLabel: flowRoleSource(roleId, t),
         status,
-        statusText: status === 'running'
-          ? t(OP_RUNNING_KEY[kind], { id })
-          : status === 'done'
-            ? t(OP_DONE_KEY[kind], { id })
-            : t('requirement.opTimeout', { id }),
-        steps,
+        statusText,
+        steps: stepsOf(run, current, status, active),
         sessionId,
-        minimized: minimizedKeys.includes(key),
+        minimized: minimizedKeys.includes(run.key),
+        ...(nextRoleLabel === undefined ? {} : { nextRoleLabel }),
       }
     }
+    const idTextOf = (run: OpRun): string => run.requirementId ?? t('requirement.opTitle.intake')
     return [
-      ...watches.map(watch => viewOf(watch.kind, watch.requirementId, watch.sessionId, 'running', watch.key)),
-      ...finished.map(item => viewOf(item.kind, item.requirementId, item.sessionId, item.status, item.key)),
+      ...watches.map(watch => viewOf(
+        watch, watch.roleIndex, watch.sessionId, 'running',
+        t(OP_RUNNING_KEY[watch.kind], { id: idTextOf(watch) }), true,
+      )),
+      ...paused.map(run => viewOf(
+        run, run.roleIndex, run.sessionId, 'running',
+        t('op.awaitNext', { done: labelOf(idOf(run, run.roleIndex - 1)), next: labelOf(idOf(run, run.roleIndex)) }),
+        false, labelOf(idOf(run, run.roleIndex)),
+      )),
+      ...finished.map(item => viewOf(
+        item, Math.min(item.landed, item.roles.length - 1), item.sessionId, item.status,
+        item.status === 'done'
+          ? t(OP_DONE_KEY[item.kind], { id: idTextOf(item) })
+          : t('requirement.opTimeout', { id: idTextOf(item) }),
+        false,
+      )),
     ]
-  }, [watches, finished, minimizedKeys, props.presetNames, t])
+  }, [watches, paused, finished, minimizedKeys, props.presetNames, props.projection.roles, t])
 
   const toggleMinimize = (key: string) => {
     setMinimizedKeys(current => current.includes(key)
@@ -583,6 +685,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
         onToggleMinimize={toggleMinimize}
         onOpenSession={props.onOpenSession}
         onClose={closeCard}
+        onNextRole={nextRole}
         t={t}
       />
     </section>

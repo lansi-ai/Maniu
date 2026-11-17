@@ -160,4 +160,27 @@ describe('操作进度浮卡', () => {
     render([cardOf({ sessionId: null })])
     expect(element('op-view-session')).toBeNull()
   })
+
+  it('人工衔接卡给下一岗位按钮，点击回调带卡键；无下一岗时不画', () => {
+    const onNextRole = vi.fn()
+    act(() => {
+      root.render(
+        <OperationCards
+          cards={[cardOf({ nextRoleLabel: '评审', statusText: '「项目经理」已完成，点「下一岗位」发起「评审」。' })]}
+          onToggleMinimize={onToggleMinimize}
+          onOpenSession={onOpenSession}
+          onClose={onClose}
+          onNextRole={onNextRole}
+          t={t}
+        />,
+      )
+    })
+    const button = element('op-next-role')
+    expect(button?.textContent).toBe('下一岗位')
+    press('op-next-role')
+    expect(onNextRole).toHaveBeenCalledWith('review-REQ-01-1')
+
+    render([cardOf()])
+    expect(element('op-next-role')).toBeNull()
+  })
 })

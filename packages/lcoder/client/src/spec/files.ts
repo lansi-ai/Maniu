@@ -14,6 +14,7 @@ export const LOCAL_FILE = `${SPEC_DIR}/local.yaml`
 export const AUTOMATION_FILE = `${SPEC_DIR}/automation.yaml`
 export const AGENTS_FILE = `${SPEC_DIR}/agents.yaml`
 export const ROLES_FILE = `${SPEC_DIR}/roles.yaml`
+export const FLOW_FILE = `${SPEC_DIR}/flow.yaml`
 
 /** 单页行数；任务与规则都是几十行的量级。 */
 export const PAGE_LINES = 500

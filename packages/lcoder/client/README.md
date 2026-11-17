@@ -17,9 +17,9 @@ English | [中文](README.zh.md)
 - `src/prefs.ts`：皮肤、字体与语言以主进程 userData 的偏好文件为权威值，localStorage 只作渲染端缓存；启动时先经 `lcoder:preferences-read` 取回落盘值再挂载，点击即经 `lcoder:preferences-write` 同步落盘。
 - `src/store.ts`：`session.follow` 三帧（snapshot / event / assistant-stream）的纯折叠；按 seq 检测缺口并要求重开快照，折叠会话标题、投影水位、按回合收敛的过程组与工具结果摘要；入口 `session.list` + `api-session/*` 事件。
 - `src/chat/`：审批/提问回执编码（`approvalOutcome` / `questionOutcome` 原样发回宿主结果）、模型与上下文用量判定、图片上限与提示词拼装、附件读取与 `session/attachment` 预览、`session/control` 投影流。
-- `src/spec/`：`.spec` 文件投影（任务、规则、契约、方案、需求、交付物、联调组、岗位、项目与本地密钥），全部经宿主 `workspaceFiles` 读取。
-- `src/pages/`：需求、任务（六列看板/列表、详情、附件）、项目、项目信息（数据库密码按 `passwordRef` 从内存里的 `.spec/local.yaml` 揭示）、人才库（内置角色并入全局库、只读查看详情、下发宿主preset、老项目自动补projectId）、设置；详情抽屉统一带放大/还原（放大铺满工作区并独立滚动）；Markdown 渲染器与全屏阅读器。
-- `src/commands/run.ts`：人机命令只走 `commands.execute`，主进程对命令名再做一层白名单。
+- `src/spec/`：`.spec` 文件投影（任务、规则、契约、方案、需求、交付物、联调组、岗位、流程配置、项目与本地密钥），全部经宿主 `workspaceFiles` 读取。
+- `src/pages/`：需求、任务（六列看板/列表、详情、附件）、项目、项目信息（数据库密码按 `passwordRef` 从内存里的 `.spec/local.yaml` 揭示；流程配置节经`/flow_save`写`.spec/flow.yaml`）、人才库（内置角色并入全局库、只读查看详情、下发宿主preset、老项目自动补projectId）、设置；详情抽屉统一带放大/还原（放大铺满工作区并独立滚动）；Markdown 渲染器与全屏阅读器。
+- `src/commands/run.ts`：人机命令只走 `commands.execute`，主进程对命令名再做一层白名单；`src/flow/config.ts`提供流程配置模型与`/flow_save`序列化，需求页四类操作按配置逐岗推进，一节点一浮卡，auto落盘续岗、人工等「下一岗位」。
 - `src/theme/liquid-glass.css`：新客户端主题底座，集中 `--lg-*` token、环境背景层与 `.lg-glass` / `.lg-sheen` / `.lg-lift` 基元；其余样式只消费这些变量。
 - `src/theme/paper-water.tsx` / `refraction-glass.tsx`：登录页浅雾彩水流（按皮肤取色、无 WebGL 静态回退、减动效停帧）与卡面 SVG 折射（唯一 id、按尺寸与 DPR 重建）；控件仍是轻量 `backdrop-filter` 玻璃。
 - `src/contract.ts`：`window.lcoder` 窄 IPC 契约，与主进程同名同形。

@@ -49,6 +49,22 @@ ${sources}
 - 需要确认文档位置时，用 ask_user_question 把 file_list 实际列出的候选做成选项，不要让人手打路径。`
 }
 
+/**
+ * 生成多岗立项的接续提示词：首岗之后的岗位从自己的视角复核并补齐立项结论。
+ * @param project - 项目名与路径。
+ * @returns 可直接发送给接续岗位会话的提示词。
+ */
+export function buildIntakeFollowupPrompt(project: { readonly name: string; readonly path: string }): string {
+  return `需求调研接续：项目「${project.name}」（${project.path}）的立项调研已由前一岗位完成首轮。
+
+执行身份：你是本项目立项流程的接续岗位，从自己的专业视角复核立项结论。
+- 先用 file_read 读 .spec/requirements 下已登记的需求与 .spec/project.yaml，弄清前一岗位已经确认了什么。
+- 补齐你这一岗看到的缺口：范围、验收口径、约束与风险；需要向用户确认时用 ask_user_question 一次问一个问题。
+- 确有新的独立需求时用 requirement_draft 登记成起草态需求；不重复登记已有需求，不改已有需求正文。
+- 只读查看仓库事实，不改代码、不跑命令、不签契约、不推进任何状态。
+- 完成后回报你补了什么、登记了哪条需求，然后停下。`
+}
+
 /** 内置轨的提示词显示文本；项目追加轨在调用处补上。 */
 export const BUILTIN_SPLIT_TRACKS: readonly string[] = [
   'h5（H5 前端）',

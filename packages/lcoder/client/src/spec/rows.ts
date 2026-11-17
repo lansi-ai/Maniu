@@ -52,6 +52,21 @@ export interface JobRoleRow {
   readonly signals?: RoleSignals
 }
 
+/** 内置流程节点类型。 */
+export type FlowNodeKind = 'intake' | 'review' | 'revise' | 'split'
+
+/** 一个流程节点：按序岗位与节点内自动衔接开关。 */
+export interface FlowNodeRow {
+  readonly node: FlowNodeKind
+  readonly roles: readonly string[]
+  readonly auto: boolean
+}
+
+/** `.spec/flow.yaml` 的展示数据；文件缺失时整个字段缺省，走预制。 */
+export interface FlowConfigRow {
+  readonly nodes: readonly FlowNodeRow[]
+}
+
 /** 需求里的一条候选做法。 */
 export interface RequirementOptionRow {
   readonly name: string
@@ -72,6 +87,8 @@ export interface RequirementReviewRow {
   readonly at: string
   readonly report: string
   readonly sessionId?: string
+  /** 产出这轮评审的会话 preset 署名；旧数据缺省。 */
+  readonly role?: string
 }
 
 /** 拆分计划里的一条岗位建议。 */
@@ -460,7 +477,8 @@ export function requirementTextToRow(fileName: string, text: string): Omit<Requi
     const report = asText(record?.report)
     if (typeof round !== 'number' || !Number.isInteger(round) || round < 1 || at === undefined || report === undefined) return []
     const sessionId = asText(record?.sessionId)
-    return [{ round, at, report, ...(sessionId === undefined ? {} : { sessionId }) }]
+    const role = asText(record?.role)
+    return [{ round, at, report, ...(sessionId === undefined ? {} : { sessionId }), ...(role === undefined ? {} : { role }) }]
   })
   const approvedAt = asText(fields.approved_at)
   const rawApprovedVersion = fields.approved_version
@@ -572,6 +590,41 @@ export function rolesTextToRows(text: string): JobRoleRow[] {
       ...(signals === undefined ? {} : { signals }),
     }]
   })
+}
+
+/**
+ * 判断任意值是内置流程节点类型。
+ * @param value - 配置文件里的节点名。
+ * @returns 四种内置节点之一为 true。
+ */
+export function isFlowNodeKind(value: unknown): value is FlowNodeKind {
+  return value === 'intake' || value === 'review' || value === 'revise' || value === 'split'
+}
+
+/**
+ * 流程配置 YAML → 行；形状非法（未知节点、空岗位、重复节点、auto 非布尔）时整份拒读。
+ * @param text - `flow.yaml` 正文。
+ * @returns 节点配置；读不懂为 undefined，由读取侧记问题。
+ */
+export function flowTextToRow(text: string): FlowConfigRow | undefined {
+  const doc = parsed(text)
+  if (doc === undefined || !Array.isArray(doc.nodes)) return undefined
+  const nodes: FlowNodeRow[] = []
+  const seen = new Set<FlowNodeKind>()
+  for (const entry of doc.nodes) {
+    const fields = recordOf(entry)
+    if (fields === undefined) return undefined
+    const kind = fields.node
+    if (!isFlowNodeKind(kind) || seen.has(kind)) return undefined
+    if (typeof fields.auto !== 'boolean') return undefined
+    const roles = fields.roles
+    if (!Array.isArray(roles) || roles.length === 0) return undefined
+    const ids = roles.filter((item): item is string => typeof item === 'string' && item !== '')
+    if (ids.length !== roles.length) return undefined
+    seen.add(kind)
+    nodes.push({ node: kind, roles: ids, auto: fields.auto })
+  }
+  return { nodes }
 }
 
 /**
