@@ -1,11 +1,15 @@
 /** 立项向导与结果页：选择档位、预览指令、发送并在结果里查看新需求。 */
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { JSX } from 'react'
 import type { ProjectScope } from '../workspace/use-workspaces.ts'
 import type { SpecProjection } from '../spec/load.ts'
 import { buildIntakePrompt, type IntakeMode } from '../intake/prompts.ts'
+import { loadPresetDocument } from '../talents/api.ts'
 import { DetailDrawer } from './detail-drawer.tsx'
+
+/** 立项会话的角色；人设是访谈纪律的唯一来源。 */
+const INTAKE_PRESET = 'maniu-intake'
 
 /** 一次立项发送的结果；提到 App 级，供向导卸载后回看。 */
 export interface IntakeResult {
@@ -34,6 +38,21 @@ export function IntakeWizard(props: IntakeWizardProps): JSX.Element {
   const [mode, setMode] = useState<IntakeMode>('fresh')
   const [busy, setBusy] = useState(false)
   const [failure, setFailure] = useState<string | null>(null)
+  const [persona, setPersona] = useState<{ text: string | null; error: string | null }>({ text: null, error: null })
+
+  useEffect(() => {
+    let live = true
+    void loadPresetDocument(INTAKE_PRESET).then((answer) => {
+      if (!live) return
+      if (!answer.ok) {
+        setPersona({ text: null, error: `${answer.code}：${answer.message}` })
+        return
+      }
+      const text = answer.value.persona?.trim() ?? ''
+      setPersona(text === '' ? { text: null, error: '这个角色没有声明人设行。' } : { text, error: null })
+    })
+    return () => { live = false }
+  }, [])
 
   const prompt = useMemo(() => buildIntakePrompt({
     name: props.project.title,
@@ -86,12 +105,24 @@ export function IntakeWizard(props: IntakeWizardProps): JSX.Element {
               <button type="button" data-testid="intake-mode-fresh" className={mode === 'fresh' ? 'active' : undefined} onClick={() => { setMode('fresh') }}>全新项目</button>
               <button type="button" data-testid="intake-mode-onboarding" className={mode === 'onboarding' ? 'active' : undefined} onClick={() => { setMode('onboarding') }}>已有资料</button>
             </div>
-            <p className="detail-note">指令会发送到一条新的工作台会话；模型先做 7 问访谈，出《项目需求概要》等你回复「确认需求」后才落盘。</p>
+            <p className="detail-note">指令会发送到一条新的需求分析师会话；模型先做 7 问访谈，出《项目需求概要》等你回复「确认需求」后才落盘。</p>
           </section>
 
           <section className="detail-section">
             <h4>指令预览</h4>
             <pre className="prompt-preview" data-testid="intake-prompt">{prompt}</pre>
+          </section>
+
+          <section className="detail-section" data-testid="intake-persona-section">
+            <h4>角色人设</h4>
+            <p className="detail-note">来自人才库「需求分析师」，只读展示；立项会话用的就是这份人设。</p>
+            {persona.error !== null ? (
+              <p className="problem" data-testid="intake-persona-error">读取角色人设失败：{persona.error}</p>
+            ) : persona.text === null ? (
+              <p className="empty" data-testid="intake-persona-loading">正在读取角色人设…</p>
+            ) : (
+              <pre className="builtin-persona" data-testid="intake-persona">{persona.text}</pre>
+            )}
           </section>
 
           {failure !== null && <p className="problem" data-testid="intake-error">{failure}</p>}

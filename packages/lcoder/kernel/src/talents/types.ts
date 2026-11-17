@@ -178,6 +178,8 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
     'agent-talent/invalid': { readonly talentId: string; readonly reason: string }
     /** 人才引用了本机未安装的插件。 */
     'agent-talent/unknown-plugin': { readonly talentId: string; readonly plugin: string }
+    /** 人才给宿主根组合已挂载的插件另配了一份配置，无法安全合并。 */
+    'agent-talent/duplicate-plugin': { readonly talentId: string; readonly plugin: string }
     /** 白名单里的工具不在该 preset 的工具面上。 */
     'agent-talent/unknown-tool': { readonly talentId: string; readonly tools: readonly string[] }
     /** 目标 preset id 已被非动态定义占用。 */

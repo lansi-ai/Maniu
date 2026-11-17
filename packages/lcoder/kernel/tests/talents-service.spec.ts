@@ -89,7 +89,7 @@ interface Fixture {
 function fixture(base: PresetDefinition = {
   id: 'standard',
   plugins: [{ id: 'persona', name: '@deepseek-ai/dsh-persona', config: { prefix: '基础' } }],
-}): Fixture {
+}, hostModules: readonly string[] = []): Fixture {
   const presets = new FakePresets()
   presets.definitions.set(base.id, base)
   const installed = new Set(['@deepseek-ai/dsh-persona', '@deepseek-ai/dsh-tool-ask-user', '@maniu/kernel'])
@@ -107,6 +107,11 @@ function fixture(base: PresetDefinition = {
     definitions: (scope: string | undefined) => (scope === undefined ? [] : tools.get(scope) ?? ['read', 'write', 'edit'])
       .map(name => ({ name })),
   } as never)
+  if (hostModules.length > 0) {
+    ctx.provide('loader', {
+      entries: () => hostModules.map(name => ({ options: { name }, disabled: false })),
+    } as never)
+  }
   return { ctx, service: new AgentTalents(ctx), presets, installed, tools, records, live }
 }
 
@@ -155,6 +160,46 @@ describe('talent registry service', () => {
         },
       },
     ])
+  })
+
+  it('dedupes a timer row inherited from the base preset and keeps the talent config', async () => {
+    const h = fixture({
+      id: 'standard',
+      plugins: [{ id: 'timer', name: '@deepseek-ai/cordis-plugin-timer' }],
+    })
+    h.installed.add('@deepseek-ai/cordis-plugin-timer')
+    await h.service.applyTalents({
+      talents: [talent('a1', {
+        basePreset: 'standard',
+        plugins: [{ name: '@deepseek-ai/cordis-plugin-timer', config: { tick: 1 } }],
+      })],
+    })
+    expect(h.presets.definitions.get('talent-a1')?.plugins).toEqual([
+      { id: 'timer', name: '@deepseek-ai/cordis-plugin-timer', config: { tick: 1 } },
+    ])
+  })
+
+  it('drops a host-provided plugin the talent adds without config', async () => {
+    const h = fixture({ id: 'standard', plugins: [] }, ['@deepseek-ai/cordis-plugin-timer'])
+    h.installed.add('@deepseek-ai/cordis-plugin-timer')
+    await h.service.applyTalents({
+      talents: [talent('a1', { plugins: [{ name: '@deepseek-ai/cordis-plugin-timer' }] })],
+    })
+    expect(h.presets.definitions.get('talent-a1')?.plugins).toEqual([])
+  })
+
+  it('refuses to remount a host-provided plugin with talent config', async () => {
+    const h = fixture({ id: 'standard', plugins: [] }, ['@deepseek-ai/cordis-plugin-timer'])
+    h.installed.add('@deepseek-ai/cordis-plugin-timer')
+    await expect(h.service.applyTalents({
+      talents: [talent('a1', {
+        plugins: [{ name: '@deepseek-ai/cordis-plugin-timer', config: { tick: 1 } }],
+      })],
+    })).rejects.toMatchObject({
+      code: 'agent-talent/duplicate-plugin',
+      details: { talentId: 'a1', plugin: '@deepseek-ai/cordis-plugin-timer' },
+    })
+    expect(h.presets.registers).toEqual([])
   })
 
   it('rejects a whitelist naming a tool the preset does not expose', async () => {

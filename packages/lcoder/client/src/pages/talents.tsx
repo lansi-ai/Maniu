@@ -312,11 +312,17 @@ export function TalentsPage(props: TalentsPageProps): JSX.Element {
               ) : detail.tools.length === 0
                 ? <p className="empty">{t('talents.toolsEmpty')}</p>
                 : (
-                  <ul className="plain-list compact" data-testid="builtin-tools">
+                  <ul className="builtin-tools" data-testid="builtin-tools">
                     {detail.tools.map(tool => (
                       <li key={tool.name}>
-                        <strong>{tool.name}</strong>
-                        {tool.description === '' ? null : <span>{tool.description}</span>}
+                        <span
+                          className="tag builtin-tool"
+                          data-testid="builtin-tool"
+                          data-tool-name={tool.name}
+                          title={tool.description === '' ? undefined : tool.description}
+                        >
+                          {tool.name}
+                        </span>
                       </li>
                     ))}
                   </ul>

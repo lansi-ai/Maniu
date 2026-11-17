@@ -58,7 +58,7 @@ kind: "package-reference"
 
 ### 人才库宿主动态 preset
 
-`@maniu/kernel/talents` 挂载人才库的宿主半边。客户端经 `agentTalents/applyTalents` 提交云端人才；每条人才注册成稳定 preset `talent-<云端 id>`，以它的 `basePreset` 声明行为底，`persona` 与 `plugins` 按同名覆盖。插件必须能从本机已安装包解析到；`url`、`source`、`package`、未知字段、`!!js` 标记、重名与非 JSON 值由 `agent-talent/invalid` 或 `agent-talent/unknown-plugin` 拒绝。配置未变的重复提交是空操作；编辑后替换定义，运行中的会话保持它启动时的 revision。仍有本机会话记录该 preset 时 `agentTalents/removeTalent` 拒绝撤回，`agentTalents/sessionRefs` 列出这些会话，内置 preset 永不被替换或删除。
+`@maniu/kernel/talents` 挂载人才库的宿主半边。客户端经 `agentTalents/applyTalents` 提交云端人才；每条人才注册成稳定 preset `talent-<云端 id>`，以它的 `basePreset` 声明行为底，`persona` 与 `plugins` 按同名覆盖，分组里的同名行同样就地覆盖。插件必须能从本机已安装包解析到；`url`、`source`、`package`、未知字段、`!!js` 标记、重名与非 JSON 值由 `agent-talent/invalid` 或 `agent-talent/unknown-plugin` 拒绝。宿主根组合已挂载的插件在人才没有额外配置时直接沿用；人才给它另配配置时以 `agent-talent/duplicate-plugin` 拒绝，不再重复挂载同一服务。配置未变的重复提交是空操作；编辑后替换定义，运行中的会话保持它启动时的 revision。仍有本机会话记录该 preset 时 `agentTalents/removeTalent` 拒绝撤回，`agentTalents/sessionRefs` 列出这些会话，内置 preset 永不被替换或删除。
 
 `tools`、`model` 与 `budget` 在 preset 末尾生成 `@maniu/kernel/talents-policy` 行。`tools` 是白名单：Agent 创建时策略把工具面收窄到列出的工具，空列表或缺省不限制，列出的工具不在已挂载 preset 的工具面上时报 `agent-talent/unknown-tool` 并拒绝登记。`model` 写入新启动会话的模型选择；恢复的会话保持它记录的模型。`budget` 留在云端：`lcoder-cloud` 路由上的每次模型请求都带 `x-lcoder-session-id`，会话 preset 是已登记人才时再带 `x-lcoder-talent-id`，网关据此按会话计量并限制该人才。
 
