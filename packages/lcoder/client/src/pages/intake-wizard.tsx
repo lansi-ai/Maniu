@@ -105,7 +105,7 @@ export function IntakeWizard(props: IntakeWizardProps): JSX.Element {
               <button type="button" data-testid="intake-mode-fresh" className={mode === 'fresh' ? 'active' : undefined} onClick={() => { setMode('fresh') }}>全新项目</button>
               <button type="button" data-testid="intake-mode-onboarding" className={mode === 'onboarding' ? 'active' : undefined} onClick={() => { setMode('onboarding') }}>已有资料</button>
             </div>
-            <p className="detail-note">指令会发送到一条新的工作台会话；模型先做 7 问访谈，出《项目需求概要》等你回复「确认需求」后才落盘。</p>
+            <p className="detail-note">指令会发送到一条新的需求分析师会话；模型先做 7 问访谈，出《项目需求概要》等你回复「确认需求」后才落盘。</p>
           </section>
 
           <section className="detail-section">
