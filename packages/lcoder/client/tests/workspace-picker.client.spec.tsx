@@ -8,7 +8,7 @@ import { pickDirectory } from '../src/workspace/use-workspaces.ts'
 
 let container: HTMLDivElement
 let root: Root
-const pick = vi.fn<() => Promise<string | null>>()
+const pick = vi.fn<(defaultPath?: string) => Promise<string | null>>()
 
 beforeEach(() => {
   Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', { configurable: true, value: true })
@@ -51,12 +51,27 @@ async function browse(): Promise<void> {
   await act(async () => { element('project-browse').click() })
 }
 
+function typePath(value: string): void {
+  const input = element('project-path') as HTMLInputElement
+  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+  act(() => {
+    setter?.call(input, value)
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+}
+
 describe('pickDirectory', () => {
   it('直接返回 preload 的结果', async () => {
     pick.mockResolvedValue('E:/repo')
     await expect(pickDirectory()).resolves.toBe('E:/repo')
     pick.mockResolvedValue(null)
     await expect(pickDirectory()).resolves.toBeNull()
+  })
+
+  it('把起始目录转给 preload', async () => {
+    pick.mockResolvedValue(null)
+    await pickDirectory('E:/current')
+    expect(pick).toHaveBeenCalledWith('E:/current')
   })
 })
 
@@ -67,6 +82,28 @@ describe('项目页浏览按钮', () => {
     await browse()
     expect((element('project-path') as HTMLInputElement).value).toBe('E:/repo')
     expect(container.querySelector('[data-testid="project-error"]')).toBeNull()
+  })
+
+  it('把输入框里的路径作为起始目录', async () => {
+    pick.mockResolvedValue(null)
+    renderPage('E:/existing')
+    await browse()
+    expect(pick).toHaveBeenCalledWith('E:/existing')
+  })
+
+  it('输入框清空时回落到当前项目路径', async () => {
+    pick.mockResolvedValue(null)
+    renderPage('E:/existing')
+    typePath('')
+    await browse()
+    expect(pick).toHaveBeenCalledWith('E:/existing')
+  })
+
+  it('没有输入也没有当前项目时只开对话框', async () => {
+    pick.mockResolvedValue(null)
+    renderPage()
+    await browse()
+    expect(pick).toHaveBeenCalledWith(undefined)
   })
 
   it('取消不改变已有路径', async () => {

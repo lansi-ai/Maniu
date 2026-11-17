@@ -118,10 +118,11 @@ export function useWorkspaceList(enabled: boolean): {
 
 /**
  * 选一个目录。
+ * @param defaultPath - 期望的起始目录；主进程会把它降级到最近的已存在目录或上次选择。
  * @returns 用户选中的路径；取消为 null；对话框打不开时抛错。
  */
-export async function pickDirectory(): Promise<string | null> {
-  return window.lcoder.pickDirectory()
+export async function pickDirectory(defaultPath?: string): Promise<string | null> {
+  return window.lcoder.pickDirectory(defaultPath)
 }
 
 /** 打开项目的结果。 */

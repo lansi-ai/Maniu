@@ -118,6 +118,8 @@ export interface DesktopPreferences {
   readonly skin: DesktopSkinId
   readonly font: DesktopFontId
   readonly locale: DesktopLocaleId
+  /** 上次成功选择的目录；取消对话框不更新，作为下次选择的起始目录。 */
+  readonly lastPickedDirectory: string | null
 }
 
 /**
@@ -179,6 +181,10 @@ export interface LcoderApi {
   readPreferences(): Promise<DesktopPreferences>
   /** 写一项或多项偏好；主进程负责落盘并返回合并后的完整值。 */
   writePreferences(patch: Partial<DesktopPreferences>): Promise<DesktopPreferences>
-  /** 弹出系统目录选择框；取消返回 null，打不开时抛错而不是当作取消。 */
-  pickDirectory(): Promise<string | null>
+  /**
+   * 弹出系统目录选择框。
+   * @param defaultPath - 期望的起始目录；不是已存在目录时主进程退到最近的已存在祖先，再退到上次成功选择的目录。
+   * @returns 选中的目录；取消返回 null，打不开时抛错而不是当作取消。
+   */
+  pickDirectory(defaultPath?: string): Promise<string | null>
 }

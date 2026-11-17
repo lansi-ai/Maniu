@@ -1,6 +1,8 @@
 /** 窄 IPC 注册：校验载荷后转给 link / 窗口；渲染端拿不到宿主 cookie。 */
 
 import { dialog, ipcMain, type BrowserWindow, type IpcMainInvokeEvent, type OpenDialogOptions } from 'electron'
+import { statSync } from 'node:fs'
+import { dirname } from 'node:path'
 import { IPC_CHANNELS } from './contract.ts'
 import type {
   DesktopPreferences, DirectoryPickResult, EventOutcome, HostState, UpdateCheck, WindowAction, WindowStateInfo,
@@ -65,6 +67,43 @@ function windowAction(value: unknown): WindowAction | undefined {
   return value === 'minimize' || value === 'toggle-maximize' || value === 'close' ? value : undefined
 }
 
+function isDirectory(path: string): boolean {
+  try {
+    return statSync(path).isDirectory()
+  } catch (error: unknown) {
+    // 不存在、无权限或非法路径一律按「不是目录」处理，交给回退链。
+    void error
+    return false
+  }
+}
+
+/** 从路径向上找最近的已存在目录；直到根都不存在时为 undefined。 */
+function nearestExistingDirectory(path: string): string | undefined {
+  let current = path
+  for (;;) {
+    if (isDirectory(current)) return current
+    const parent = dirname(current)
+    if (parent === current) return undefined
+    current = parent
+  }
+}
+
+/**
+ * 折出对话框的起始目录：先取渲染端期望路径的最近已存在目录，再退到上次成功选择的目录。
+ * @param value - `lcoder:pick-directory` 的载荷；非字符串或空白视为未指定。
+ * @returns 已存在目录；没有可用起点时为 undefined。
+ */
+function pickerDefaultPath(value: unknown): string | undefined {
+  const requested = typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined
+  const remembered = readDesktopPreferences().lastPickedDirectory
+  for (const candidate of [requested, remembered]) {
+    if (candidate === null || candidate === undefined) continue
+    const directory = nearestExistingDirectory(candidate)
+    if (directory !== undefined) return directory
+  }
+  return undefined
+}
+
 
 /**
  * 注册 S1 的 IPC 面。
@@ -113,13 +152,20 @@ export function registerIpc(deps: IpcDependencies): void {
   ipcMain.handle(IPC_CHANNELS.hostStateNow, () => deps.hostState())
   ipcMain.handle(IPC_CHANNELS.windowStateNow, () => deps.windowState())
   ipcMain.handle(IPC_CHANNELS.update, () => deps.update())
-  ipcMain.handle(IPC_CHANNELS.pickDirectory, async (): Promise<DirectoryPickResult> => {
+  ipcMain.handle(IPC_CHANNELS.pickDirectory, async (_event: IpcMainInvokeEvent, value: unknown): Promise<DirectoryPickResult> => {
     const window = deps.window()
     const messages = DESKTOP_MESSAGES[deps.locale()]
-    const options: OpenDialogOptions = { properties: ['openDirectory'], title: messages.pickDirectoryTitle }
+    const defaultPath = pickerDefaultPath(value)
+    const options: OpenDialogOptions = {
+      properties: ['openDirectory'],
+      title: messages.pickDirectoryTitle,
+      ...(defaultPath === undefined ? {} : { defaultPath }),
+    }
     try {
       const result = window === undefined ? await dialog.showOpenDialog(options) : await dialog.showOpenDialog(window, options)
-      return { ok: true, path: result.canceled ? null : (result.filePaths[0] ?? null) }
+      const picked = result.canceled ? null : (result.filePaths[0] ?? null)
+      if (picked !== null) writeDesktopPreferences({ lastPickedDirectory: picked })
+      return { ok: true, path: picked }
     } catch (cause: unknown) {
       return {
         ok: false,

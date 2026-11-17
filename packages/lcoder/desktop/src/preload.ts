@@ -74,8 +74,8 @@ const api: LcoderApi = {
   readPreferences: () => ipcRenderer.invoke(IPC_CHANNELS.preferencesRead) as Promise<DesktopPreferences>,
   writePreferences: (patch: Partial<DesktopPreferences>) =>
     ipcRenderer.invoke(IPC_CHANNELS.preferencesWrite, patch) as Promise<DesktopPreferences>,
-  pickDirectory: async () => {
-    const answer = await ipcRenderer.invoke(IPC_CHANNELS.pickDirectory) as DirectoryPickResult
+  pickDirectory: async (defaultPath?: string) => {
+    const answer = await ipcRenderer.invoke(IPC_CHANNELS.pickDirectory, defaultPath) as DirectoryPickResult
     if (!answer.ok) throw new Error(answer.message)
     return answer.path
   },
