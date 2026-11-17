@@ -2594,6 +2594,30 @@ tracks:
       inferred: false
       note: "B 级原型，来源是用户 2026-11-17 觉得自绘液态玻璃问题多，要求找开源好看的管理端模板。用户已拍板目标是桌面客户端，并选择先做可切换原型。范围：仓外目录 LCoder-Prototypes/ui-kit-compare-20261117 新建一个 Vite 加 React 加 TypeScript 单页应用，顶部切换两套方案，共用一份假数据与页面；方案 A 为 shadcn ui 加 Tailwind 加 CSS 材质玻璃皮肤，参考 solid-glass 的静态材质思路，不引入 WebGL 或 SVG 折射；方案 B 为 TDesign React 加同一套玻璃 token。页面覆盖外壳标题栏与左侧导航、对话、需求表格与详情抽屉含放大、人才库内置并入全局且无开始会话、设置最小页；交互包含导航切换、抽屉打开与放大与关闭、表格行打开、人才详情与主题切换。不得改动产品仓与现有 fluid-glass 原型；版本现查 npm，React 19 与 Tailwind v4 兼容问题要报告并退到最近稳定组合；运行端口 5190，README 写清命令与差异。视觉由用户自看，不做截图矩阵。2026-11-17 11:14 监督窗口登记并派工，实现线会话 6df6bd5a。2026-11-17 11:32 用户先说不想要 liquid glass，随后明确只用毛玻璃；最终口径为保留半透明磨砂与轻微背模糊，去掉折射水流彩色光斑噪点与鼠标漂浮，背景稳定，高频重绘区用静态磨砂。"
 
+    - id: T-233
+      title: 人才库卡片口径与立项人设同源
+      status: doing
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-17'
+      date: '2026-11-17'
+      dep: [T-224]
+      inferred: false
+      note: "B 级用户端改版，来源是用户 2026-11-17 对人才库与立项的五条反馈，口径已确认。一、内置角色预设显示名全局去掉慢牛前缀，慢牛立项改为需求分析师；另外七个去前缀为项目经理、实施、架构、评审、Git、运维、研发经理，智能调度与流程控制本就没有前缀，人设首句一并改成同名。慢牛云与慢牛工作台不是人才角色，保留品牌名。二、人才卡右上角标签内置改为慢牛内置，用户创建改为自定义，中英词典同步。三、立项提示词以人才库需求分析师的人设为唯一源，把现行七问纪律整体搬进 maniu-intake 人设，向导只发项目标题与路径与分支与文档事实与第 0 步读仓库或读资料，不再重复人设纪律；向导预览可经 agentPresets.read 读该人设只读展示，保证与人才卡一致。四、内置角色详情的工具面不再用名称加描述小字的列表，改为名称胶囊，鼠标悬停显示描述，保留 data-testid 便于定向断言。范围 lcoder/desktop-profile.patch.yml 与 packages/lcoder/client；不改契约工具与状态机，不改旧壳与上游。验收 typecheck、packages/lcoder vitest、改动文件 oxlint、verify-client-ui-i18n、test:docs；组件测试覆盖标签文案、卡片名称无慢牛、工具胶囊与悬停描述、立项消息不再重复人设纪律、分析师的 maniu-intake 人设包含七问纪律。工作树 pool-slot-2 到 lcoder/t233-talent-copy，端口 9823 与 9831 与 9832。2026-11-17 11:56 监督窗口登记并派工，实现线会话 d160c670。"
+
+    - id: T-234
+      title: 人才下发时同服务插件重复注册导致激活失败
+      status: doing
+      face: 工程
+      type: 修复
+      owner: lance
+      created: '2026-11-17'
+      date: '2026-11-17'
+      dep: [T-224]
+      inferred: false
+      note: "B 级缺陷，来源是用户 2026-11-17 人才库截图。多条 T224 验证人才卡片显示下发失败，错误为 agent-talent/invalid，内容为 preset activation failed 且 @deepseek-ai/cordis-plugin-timer 报 service timer has been registered。现状：TalentsService.prepareOne 先取 config.basePreset 的插件再叠加人才自己的 config.plugins，没有对会注册同一服务的插件去重或提前拒绝，直到 register 后 agentPresets.resolve 返回 broken 才暴露，错误也只剩底层字符串。目标：同一份 preset 组合内不重复注册同一服务提供者，至少覆盖 timer 这一组；能安全合并时按插件 id 去重并保留人才显式配置，不能安全合并时在下发前给出可读拒绝，不再落到 preset activation failed。范围 packages/lcoder/kernel/src/talents 与其测试，不改云合同与创建流程。验收 packages/lcoder vitest、typecheck、改动文件 oxlint；新增用例覆盖 basePreset 已含 timer 再叠加 timer 的成功去重或明确拒绝。与 T-233 同一工作树、分开提交，先做 T-233。2026-11-17 11:56 监督窗口登记并派工，实现线会话 d160c670。"
+
 
 milestones:
 - name: MVP-0 工作台本地跑通
