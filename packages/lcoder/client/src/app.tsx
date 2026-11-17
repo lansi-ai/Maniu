@@ -487,6 +487,17 @@ export function App(): JSX.Element {
       return { ok: false, message: 'session.create 返回了无法识别的会话' }
     }
     const sessionId = value.sessionId
+    // 先登记进列表：首帧可能早于 session/list 回来，没有 preset 就会把立项指令摊开。
+    setSessions(current => sortSessions([
+      ...current.filter(item => item.sessionId !== sessionId),
+      {
+        sessionId,
+        updatedAt: Date.now(),
+        running: false,
+        blank: true,
+        agentPreset,
+      },
+    ]))
     if (isIntakePreset(agentPreset)) {
       // 宿主按首条消息起的标题对访谈没有意义；改成本地化的固定标题。
       const title = t('intake.sessionTitle')
