@@ -2513,7 +2513,7 @@ tracks:
       note: "B 级用户端补齐，来源是用户 2026-11-17 反馈人才库缺少原有内置人才。现状：内置十角色在 lcoder/desktop-profile.patch.yml 里定义，preset id 为 lcoder、lcoder-intake、lcoder-architect、lcoder-review、lcoder-pm、lcoder-git、lcoder-ops、lcoder-scheduler、lcoder-flow、lcoder-manager，名称与描述由 agentPresets/list 提供；T-224 的人才库页只列云端全局与项目人才。目标：人才库页增加内置人才区，卡片列出全部可用内置 preset，与云端人才分区且不混入云端全局库；点击卡片打开详情，显示名称、描述、persona、插件组合、工具面与各自会话数；沿用现有从人才新建会话入口；内置人才只读，不提供编辑与删除，不写入云端。实现优先复用 agentPresets/list、agentPresets/read、agentTalents/presetTools 与会话投影；缺字段显示可解释占位，不臆造模型或工具。测试覆盖内置列表、详情字段、会话数、空内置与宿主失败不崩；门禁 vitest、typecheck、build、i18n，改文档才跑 test:docs。工作树 pool-slot-2 到 lcoder/t225-builtin-talents，端口 9823/9831/9832。2026-11-17 05:26 监督窗口登记并派工，实现线会话 af2c03e7。2026-11-17 05:59 监督窗口收口，已合入 lcoder/main；人才库页新增内置人才区，只取产品内置的 lcoder 与 lcoder- 前缀 preset 并排除内部工作台，十张卡片带名称、描述、内置来源与会话数，broken 条目显示原因；点击卡片打开只读详情，persona 取 preset 组合的 persona 行，插件行展平分组并标禁用与未安装，工具面来自 presetTools，模型显示跟随全局默认；不提供编辑删除，不写云端，可从内置角色直接新建会话。内置名册与宿主清单在未登录时也可读，云端两库仍要求登录。主检 build:artifacts 八项、build:check、typecheck、test:docs 二十一项、verify-client-ui-i18n、vitest 一千三百四十三例全过；实现线 client 定向一百二十八例与真实宿主探针通过。未验：1280×800 排版与抽屉视觉由用户自验收；探测时宿主 isDefault 落在 standard，界面按事实展示，未改 profile 默认。"
     - id: T-226
       title: 包名与内置 preset 标识统一改 maniu
-      status: doing
+      status: done
       face: 工程
       type: 重构
       owner: lance
@@ -2521,11 +2521,11 @@ tracks:
       date: '2026-11-17'
       dep: [T-225]
       inferred: false
-      note: "A 级改造，来源是用户 2026-11-17 指示人才库里所有 lcoder 改为 maniu，并在选项中选了连插件包名一起改。范围：工作区包名 @lcoder/client 与 @lcoder/desktop 与 @lcoder/kernel 与 @lcoder/workspace 改为 @maniu 前缀，含 package.json、tsconfig paths、tsdown、pnpm-lock、全部 import 与测试；内置 preset id lcoder 与 lcoder-intake 与 lcoder-architect 与 lcoder-review 与 lcoder-pm 与 lcoder-git 与 lcoder-ops 与 lcoder-scheduler 与 lcoder-flow 与 lcoder-manager 与 lcoder-workbench 统一改为 maniu 前缀，profile patch、客户端常量、角色映射、路由与调度判断同步；人才库内置卡片与详情里出现的插件包名必须显示 @maniu。不动：packages/lcoder 目录名、appId、协议名、桌面数据目录、CSS 类名与日志文件名等非界面内部标识；云端仓库不涉及。兼容：旧会话 header 里的 agentPreset 仍是 lcoder 前缀，必须仍能打开与继续，且不改写已提交的会话记录；实现要给出可验证的兼容方式并说明代价，内置名册不因此显示 lcoder 条目。文档与 i18n pairing 同步。验收：全仓无 @lcoder 包引用；人才库界面与详情无 lcoder 字样；旧会话可继续；pnpm 安装后 build:artifacts、build:check、typecheck、test:docs、vitest、i18n、M3 43/43、C4 12/12 全绿；真实宿主起窗验证内置十项与新建会话。工作树 pool-slot-2 到 lcoder/t226-maniu-scope，端口 9823/9831/9832。2026-11-17 08:14 监督窗口登记并派工，实现线会话 65acf887。"
+      note: "A 级改造，来源是用户 2026-11-17 指示人才库里所有 lcoder 改为 maniu，并在选项中选了连插件包名一起改。范围：工作区包名 @lcoder/client 与 @lcoder/desktop 与 @lcoder/kernel 与 @lcoder/workspace 改为 @maniu 前缀，含 package.json、tsconfig paths、tsdown、pnpm-lock、全部 import 与测试；内置 preset id lcoder 与 lcoder-intake 与 lcoder-architect 与 lcoder-review 与 lcoder-pm 与 lcoder-git 与 lcoder-ops 与 lcoder-scheduler 与 lcoder-flow 与 lcoder-manager 与 lcoder-workbench 统一改为 maniu 前缀，profile patch、客户端常量、角色映射、路由与调度判断同步；人才库内置卡片与详情里出现的插件包名必须显示 @maniu。不动：packages/lcoder 目录名、appId、协议名、桌面数据目录、CSS 类名与日志文件名等非界面内部标识；云端仓库不涉及。兼容：旧会话 header 里的 agentPreset 仍是 lcoder 前缀，必须仍能打开与继续，且不改写已提交的会话记录；实现要给出可验证的兼容方式并说明代价，内置名册不因此显示 lcoder 条目。文档与 i18n pairing 同步。验收：全仓无 @lcoder 包引用；人才库界面与详情无 lcoder 字样；旧会话可继续；pnpm 安装后 build:artifacts、build:check、typecheck、test:docs、vitest、i18n、M3 43/43、C4 12/12 全绿；真实宿主起窗验证内置十项与新建会话。工作树 pool-slot-2 到 lcoder/t226-maniu-scope，端口 9823/9831/9832。2026-11-17 08:14 监督窗口登记并派工，实现线会话 65acf887。2026-11-17 10:16 监督窗口收口，已合入 lcoder/main；工作区四包改名 @maniu/client 与 @maniu/desktop 与 @maniu/kernel 与 @maniu/workspace，package.json、tsconfig paths、tsdown、锁文件与全部 import 同步；内置 preset id 统一为 maniu 前缀，profile patch、客户端常量与角色映射、路由与调度、内置名册过滤同步；人才库详情里的插件包名已显示 @maniu。旧会话兼容用 preset registry 的 retiredIds 一跳解析，lcoder 前缀旧 header 仍可打开与继续，历史会话未改写。未改目录名、appId、协议、数据目录、CSS 类名与云端标识。主检在 pnpm install 后 build:artifacts 八项、build:check、typecheck、test:docs 二十一项、i18n、vitest 一千三百六十三例全过；C4 12/12（125 条断言）与 M3 43/43 在 9842/9849/9850 与 mock 5291 上复跑通过。未验：安装包打包签名与视觉由用户验收。"
 
     - id: T-227
       title: 人才库页合并内置人才并去掉会话语入口
-      status: doing
+      status: done
       face: 用户端
       type: 调整
       owner: lance
@@ -2533,11 +2533,11 @@ tracks:
       date: '2026-11-17'
       dep: [T-226]
       inferred: false
-      note: "B 级用户端调整，来源是用户 2026-11-17 截图反馈。要求：一是内置人才全部归入全局人才库，不保留独立的内置人才板块；二是人才库页面不能开始会话；三是去掉红框内的说明小字。落地：把内置十角色卡片并入全局人才库分组，内置在前、云端全局在后，卡片保留内置标识与只读详情，删除独立内置区分组与标题；删除页头汇总行（含人数与项目名尾注）、全局与项目分组说明小字和内置说明；移除卡片与详情抽屉里的开始会话按钮及相关处理，本页不再创建会话，查看详情与云端编辑删除保留；清理不再使用的词典键与样式，中英词典与 pairing 同步；内置读取失败、空态与 broken 仍要可见。更新页面与内置详情测试，去掉开始会话语义；门禁 vitest、typecheck、build、i18n，改文档才跑 test:docs。与 T-226 同分支 lcoder/t226-maniu-scope 实施，独立提交。2026-11-17 09:09 监督窗口登记并派工，与 T-226 同窗口实施。"
+      note: "B 级用户端调整，来源是用户 2026-11-17 截图反馈。要求：一是内置人才全部归入全局人才库，不保留独立的内置人才板块；二是人才库页面不能开始会话；三是去掉红框内的说明小字。落地：把内置十角色卡片并入全局人才库分组，内置在前、云端全局在后，卡片保留内置标识与只读详情，删除独立内置区分组与标题；删除页头汇总行（含人数与项目名尾注）、全局与项目分组说明小字和内置说明；移除卡片与详情抽屉里的开始会话按钮及相关处理，本页不再创建会话，查看详情与云端编辑删除保留；清理不再使用的词典键与样式，中英词典与 pairing 同步；内置读取失败、空态与 broken 仍要可见。更新页面与内置详情测试，去掉开始会话语义；门禁 vitest、typecheck、build、i18n，改文档才跑 test:docs。与 T-226 同分支 lcoder/t226-maniu-scope 实施，独立提交。2026-11-17 09:09 监督窗口登记并派工，与 T-226 同窗口实施。2026-11-17 10:16 监督窗口收口，已合入 lcoder/main；内置十角色并入全局人才库同一网格，内置在前、云端在后，独立内置区与标题删除；卡片与详情抽屉的开始会话入口与启动回调全部移除，本页不再创建会话；页头人数汇总与项目尾注、内置与全局与项目说明小字删除，相关词典键清理；查看详情与云端编辑删除保留；空态与 broken 仍可见。主检与 C4/M3 全绿；实现线真宿主探针 11/11（十项内置在全局组、开始按钮零、page-sub 零、插件显示 @maniu）。未验：视觉由用户验收。"
 
     - id: T-228
       title: 所有抽屉支持放大到工作区全屏
-      status: doing
+      status: done
       face: 用户端
       type: 开发
       owner: lance
@@ -2545,7 +2545,7 @@ tracks:
       date: '2026-11-17'
       dep: [T-227]
       inferred: false
-      note: "B 级用户端开发，来源是用户 2026-11-17 截图反馈。要求在所有抽屉的关闭按钮旁增加放大按钮，放大后抽屉在工作区内全屏。范围是 detail-drawer 的五个使用点，包含流程面板、立项向导、需求详情、任务详情、人才与内置人才详情。落地：抽一个可复用的抽屉外壳或 hook，提供放大与还原切换，按钮与关闭并排，纯图标带 aria-label 或图标加文案，文案走中英词典；放大态覆盖工作区内容区且不含标题栏与左侧导航，内部独立滚动，头部按钮保持可见可操作，Esc 与关闭按钮行为不变；切换不丢表单输入与滚动位置；reduced-motion 下无过渡。若现有布局让工作区定位不可靠，基于已存在的布局容器定位并给出实测证据。测试覆盖展开状态切换、关闭后复位、文案；client 定向 vitest、typecheck、build、i18n。与 T-226 与 T-227 同分支 lcoder/t226-maniu-scope 实施，独立提交。2026-11-17 09:18 监督窗口登记并派工，与 T-226 同窗口实施。"
+      note: "B 级用户端开发，来源是用户 2026-11-17 截图反馈。要求在所有抽屉的关闭按钮旁增加放大按钮，放大后抽屉在工作区内全屏。范围是 detail-drawer 的五个使用点，包含流程面板、立项向导、需求详情、任务详情、人才与内置人才详情。落地：抽一个可复用的抽屉外壳或 hook，提供放大与还原切换，按钮与关闭并排，纯图标带 aria-label 或图标加文案，文案走中英词典；放大态覆盖工作区内容区且不含标题栏与左侧导航，内部独立滚动，头部按钮保持可见可操作，Esc 与关闭按钮行为不变；切换不丢表单输入与滚动位置；reduced-motion 下无过渡。若现有布局让工作区定位不可靠，基于已存在的布局容器定位并给出实测证据。测试覆盖展开状态切换、关闭后复位、文案；client 定向 vitest、typecheck、build、i18n。与 T-226 与 T-227 同分支 lcoder/t226-maniu-scope 实施，独立提交。2026-11-17 09:18 监督窗口登记并派工，与 T-226 同窗口实施。2026-11-17 10:16 监督窗口收口，已合入 lcoder/main；新增 DetailDrawer 外壳统一 aside、顶栏、主体滚动区与放大与关闭按钮，五处抽屉接入（流程面板、立项向导、需求详情、任务详情、人才与内置详情）；放大态按宿主页面可见矩形内联 fixed 定位，覆盖工作区不含标题栏与导航，主体独立滚动，头部常驻；关闭卸载复位；无过渡动画；按钮有 aria-label 与 aria-pressed，文案中英。实现线真宿主 1280×800 断言 24/24。主检与 C4 12/12、M3 43/43 全绿。未验：视觉由用户验收；抽屉原本无 Esc 与外部点击关闭，本次未新增。"
 
     - id: T-229
       title: 浏览目录默认打开当前项目路径
