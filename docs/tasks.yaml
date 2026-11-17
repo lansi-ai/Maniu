@@ -2592,7 +2592,7 @@ tracks:
       date: '2026-11-17'
       dep: [T-230]
       inferred: false
-      note: "B 级原型，来源是用户 2026-11-17 觉得自绘液态玻璃问题多，要求找开源好看的管理端模板。用户已拍板目标是桌面客户端，并选择先做可切换原型。范围：仓外目录 LCoder-Prototypes/ui-kit-compare-20261117 新建一个 Vite 加 React 加 TypeScript 单页应用，顶部切换两套方案，共用一份假数据与页面；方案 A 为 shadcn ui 加 Tailwind 加 CSS 材质玻璃皮肤，参考 solid-glass 的静态材质思路，不引入 WebGL 或 SVG 折射；方案 B 为 TDesign React 加同一套玻璃 token。页面覆盖外壳标题栏与左侧导航、对话、需求表格与详情抽屉含放大、人才库内置并入全局且无开始会话、设置最小页；交互包含导航切换、抽屉打开与放大与关闭、表格行打开、人才详情与主题切换。不得改动产品仓与现有 fluid-glass 原型；版本现查 npm，React 19 与 Tailwind v4 兼容问题要报告并退到最近稳定组合；运行端口 5190，README 写清命令与差异。视觉由用户自看，不做截图矩阵。2026-11-17 11:20 监督窗口登记并派工。"
+      note: "B 级原型，来源是用户 2026-11-17 觉得自绘液态玻璃问题多，要求找开源好看的管理端模板。用户已拍板目标是桌面客户端，并选择先做可切换原型。范围：仓外目录 LCoder-Prototypes/ui-kit-compare-20261117 新建一个 Vite 加 React 加 TypeScript 单页应用，顶部切换两套方案，共用一份假数据与页面；方案 A 为 shadcn ui 加 Tailwind 加 CSS 材质玻璃皮肤，参考 solid-glass 的静态材质思路，不引入 WebGL 或 SVG 折射；方案 B 为 TDesign React 加同一套玻璃 token。页面覆盖外壳标题栏与左侧导航、对话、需求表格与详情抽屉含放大、人才库内置并入全局且无开始会话、设置最小页；交互包含导航切换、抽屉打开与放大与关闭、表格行打开、人才详情与主题切换。不得改动产品仓与现有 fluid-glass 原型；版本现查 npm，React 19 与 Tailwind v4 兼容问题要报告并退到最近稳定组合；运行端口 5190，README 写清命令与差异。视觉由用户自看，不做截图矩阵。2026-11-17 11:14 监督窗口登记并派工，实现线会话 6df6bd5a。"
 
 
 milestones:
