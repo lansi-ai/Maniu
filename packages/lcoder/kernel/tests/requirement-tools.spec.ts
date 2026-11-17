@@ -29,11 +29,11 @@ function makeRepo(): { repo: string; spec: string } {
   return { repo, spec: join(repo, '.spec') }
 }
 
-function callTool(spec: string, name: string, args: Record<string, unknown>): Promise<Record<string, unknown>> {
+function callTool(spec: string, name: string, args: Record<string, unknown>, exec: unknown = {}): Promise<Record<string, unknown>> {
   const tool = createRequirementTools(spec).find(entry => entry.name === name)
   if (tool === undefined) throw new Error(`没有 ${name}`)
-  const exec = (tool as unknown as { execute: (a: unknown, e: unknown) => Promise<unknown> }).execute
-  return exec(args, {}) as Promise<Record<string, unknown>>
+  const execute = (tool as unknown as { execute: (a: unknown, e: unknown) => Promise<unknown> }).execute
+  return execute(args, exec) as Promise<Record<string, unknown>>
 }
 
 function call(spec: string, args: Record<string, unknown>): Promise<Record<string, unknown>> {
@@ -173,6 +173,21 @@ describe('需求评审', () => {
     expect(requirement.reviews.map(review => review.round)).toEqual([1, 2])
     expect(requirement.reviews[1]?.report).toBe('requirements/REQ-01/reviews/R2.md')
     expect(readFileSync(join(spec, 'requirements', 'REQ-01.md'), 'utf8')).toBe(CONTENT)
+  })
+
+  it('评审落盘记产出会话的 preset 署名；没有会话事实时不写 role', async () => {
+    const { spec } = makeRepo()
+    await call(spec, { title: '佣金改造', content: CONTENT })
+
+    await callTool(spec, 'requirement_review_draft', { id: 'REQ-01', report: '# 署名评审' }, {
+      agent: { session: { header: { id: 'session-review-1', agentPreset: 'maniu-pm' } } },
+    })
+    await callTool(spec, 'requirement_review_draft', { id: 'REQ-01', report: '# 无会话来源' })
+
+    const requirement = read(spec, 'REQ-01')
+    expect(requirement.reviews[0]).toMatchObject({ round: 1, sessionId: 'session-review-1', role: 'maniu-pm' })
+    expect(requirement.reviews[1]?.role).toBeUndefined()
+    expect(requirement.reviews[1]?.sessionId).toBeUndefined()
   })
 
   it('非起草态、没有正文或空报告都拒绝，一个文件都不写', async () => {

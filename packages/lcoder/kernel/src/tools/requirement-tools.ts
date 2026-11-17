@@ -227,10 +227,12 @@ export function createRequirementTools(rootInput: RootInput): ToolDefinition[] {
         }
 
         const sessionId = exec.agent?.session.header.id
+        const role = exec.agent?.session.header.agentPreset
         const review = recordRequirementReview(root, id, {
           report: args.report,
           at: new Date().toISOString(),
           ...(sessionId === undefined ? {} : { sessionId }),
+          ...(role === undefined ? {} : { role }),
         })
 
         return {

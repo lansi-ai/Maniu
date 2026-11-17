@@ -562,6 +562,14 @@ export function App(): JSX.Element {
   }, [page])
 
   const catalogView: ChatModelCatalog = useMemo(() => modelCatalogOf(catalog.value), [catalog.value])
+  // 流程岗位显示名：内置 preset 名册在前，云端人才名覆盖同名 id。
+  const flowRoleNames = useMemo(() => {
+    const names: Record<string, string> = {}
+    for (const row of talents.builtins) {
+      if (row.name !== undefined) names[row.id] = row.name
+    }
+    return { ...names, ...talents.presetNames }
+  }, [talents.builtins, talents.presetNames])
   const availability = useMemo(
     () => catalog.error !== null
       ? { kind: 'unknown' as const, detail: catalog.error }
@@ -710,7 +718,7 @@ export function App(): JSX.Element {
                 onReload={projection.reload}
                 onStartIntake={startIntake}
                 onStartSession={startSession}
-                presetNames={talents.presetNames}
+                presetNames={flowRoleNames}
                 onOpenSession={openSession}
                 onOpenTasks={(requirementId) => {
                   setTaskRequirement(requirementId)
@@ -752,6 +760,7 @@ export function App(): JSX.Element {
                 loading={projection.loading}
                 error={projection.error}
                 onReload={projection.reload}
+                presetNames={flowRoleNames}
               />
             )}
 

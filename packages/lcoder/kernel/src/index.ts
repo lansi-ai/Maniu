@@ -30,6 +30,7 @@ export * from './kernel/automation.js'
 export * from './kernel/sign-gate.js'
 export * from './kernel/flow.js'
 export * from './kernel/flow-store.js'
+export * from './kernel/flow-config.js'
 
 export { selfSignContract } from './commands/contract-sign.js'
 export type { SelfSignRequest, SignCommandResult } from './commands/contract-sign.js'

@@ -26,6 +26,8 @@ export interface OperationCardView {
   readonly steps: readonly OperationStep[]
   readonly sessionId: string | null
   readonly minimized: boolean
+  /** 人工衔接节点里等待发起的下一岗位名；有值时卡上画「下一岗位」按钮。 */
+  readonly nextRoleLabel?: string
 }
 
 /** 浮卡列表属性。 */
@@ -34,6 +36,8 @@ export interface OperationCardsProps {
   readonly onToggleMinimize: (key: string) => void
   readonly onOpenSession: (sessionId: string) => void
   readonly onClose: (key: string) => void
+  /** 人工衔接：点「下一岗位」发起下一岗。 */
+  readonly onNextRole?: (key: string) => void
   readonly t: Translate
 }
 
@@ -82,6 +86,16 @@ export function OperationCards(props: OperationCardsProps): JSX.Element | null {
             </ol>
             <p className="op-status">{card.statusText}</p>
             <div className="op-actions">
+              {card.nextRoleLabel !== undefined && card.status === 'running' && props.onNextRole !== undefined && (
+                <button
+                  type="button"
+                  className="pill pill-accent"
+                  data-testid="op-next-role"
+                  onClick={() => { props.onNextRole?.(card.key) }}
+                >
+                  {props.t('op.nextRole')}
+                </button>
+              )}
               {sessionId !== null && (
                 <button
                   type="button"

@@ -429,6 +429,8 @@ export const RequirementReview = z.object({
   report: z.string().min(1),
   /** 产出这轮评审的会话号；缺省表示不是从会话里落的。 */
   sessionId: z.string().min(1).optional(),
+  /** 产出这轮评审的会话 preset id（署名）；旧数据缺省，配齐过审时按未署名计。 */
+  role: z.string().min(1).optional(),
 })
 export type RequirementReview = z.infer<typeof RequirementReview>
 
@@ -622,6 +624,52 @@ export const RolesFile = z
   })
 export type RolesFile = z.infer<typeof RolesFile>
 
+// ── 6.7 流程配置 ────────────────────────────────────────────
+
+/** 内置流程节点：立项分析、需求评审、需求修改、拆分并分配。 */
+export const FlowNodeKind = z.enum(['intake', 'review', 'revise', 'split'])
+export type FlowNodeKind = z.infer<typeof FlowNodeKind>
+
+/**
+ * 一个流程节点：按序执行的岗位与节点内衔接方式。
+ *
+ * `roles` 按数组顺序逐岗执行，每项是内置 preset id 或 `roles.yaml` 岗位 id；
+ * 「能不能解析」由写盘侧查（要读名册），schema 只校形态。
+ * `auto` 只作用于节点内多岗衔接：true 时前一岗产物落盘自动发起下一岗，
+ * false 时停下等人点「下一岗位」；节点之间始终由人触发。
+ */
+export const FlowNode = z
+  .object({
+    node: FlowNodeKind,
+    roles: z.array(z.string().regex(ROLE_ID_PATTERN, '岗位 id 要小写字母开头，只含小写字母、数字、下划线或连字符')).min(1, '每个节点至少要配一个岗位'),
+    auto: z.boolean(),
+  })
+  .strict()
+export type FlowNode = z.infer<typeof FlowNode>
+
+/**
+ * `.spec/flow.yaml`：每项目一份的流程配置。
+ *
+ * 文件缺失走内核内置预制流程（见 `flow-config.ts` 的 `PRESET_FLOW`），不是故障；
+ * 每种节点至多一条——同一节点两份岗位清单时，编排与过审门槛就没有唯一答案。
+ * 只有人机命令 `/flow_save` 写它，模型不写。
+ */
+export const FlowConfig = z
+  .object({
+    nodes: z.array(FlowNode),
+  })
+  .strict()
+  .superRefine((file, ctx) => {
+    const seen = new Set<string>()
+    for (const [index, node] of file.nodes.entries()) {
+      if (seen.has(node.node)) {
+        ctx.addIssue({ code: 'custom', path: ['nodes', index, 'node'], message: `流程节点重复：${node.node}` })
+      }
+      seen.add(node.node)
+    }
+  })
+export type FlowConfig = z.infer<typeof FlowConfig>
+
 // ── 7. 环境档案 ─────────────────────────────────────────────
 
 /** 三级执行权。默认给最保守的一档：需要确认。 */
@@ -756,6 +804,7 @@ export const SpecLayout = [
   { glob: 'automation.yaml', schema: AutomationPolicy, many: false },
   { glob: 'agents.yaml', schema: AgentsRegistry, many: false },
   { glob: 'roles.yaml', schema: RolesFile, many: false },
+  { glob: 'flow.yaml', schema: FlowConfig, many: false },
   { glob: 'env.yaml', schema: Env, many: false },
   { glob: 'project.yaml', schema: ProjectInfo, many: false },
 ] as const

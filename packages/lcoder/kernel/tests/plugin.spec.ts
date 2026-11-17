@@ -199,6 +199,7 @@ describe('插件装配', () => {
         'lcoder.command(task_schedule)',
         'lcoder.command(flow_status)',
         'lcoder.command(flow_log)',
+        'lcoder.command(flow_save)',
         'lcoder.command(agent_bind)',
         'lcoder.command(proposal_approve)',
         'lcoder.command(requirement_approve)',
@@ -211,9 +212,19 @@ describe('插件装配', () => {
     expect(harness.registrations.map(r => r.name).sort()).toEqual(TOOL_NAMES)
     expect(harness.commands.map(c => c.name)).toEqual([
       'contract_sign', 'task_bind', 'task_assign', 'task_contract', 'task_split_ready', 'task_schedule',
-      'flow_status', 'flow_log', 'agent_bind', 'proposal_approve',
+      'flow_status', 'flow_log', 'flow_save', 'agent_bind', 'proposal_approve',
       'requirement_approve', 'requirement_release', 'requirement_close', 'deploy',
     ])
+  })
+
+  it('流程配置不是工具：flow_save 只进命令面，模型不能自己写流程', () => {
+    const { spec } = makeRepo()
+    const harness = makeHarness()
+    apply(harness.ctx, { root: spec, selfCheck: false })
+    harness.runEffects()
+
+    expect(harness.registrations.map(r => r.name)).not.toContain('flow_save')
+    expect(harness.commands.map(c => c.name)).toContain('flow_save')
   })
 
   it('签署不是工具：contract_sign 只进命令面', () => {

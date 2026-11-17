@@ -371,6 +371,8 @@ export interface RequirementReviewInput {
   readonly at: string
   /** 产出这轮评审的会话号；缺省表示没有会话来源。 */
   readonly sessionId?: string
+  /** 产出这轮评审的会话 preset id（署名）；缺省表示旧式无署名评审。 */
+  readonly role?: string
 }
 
 /** 一次评审落盘的结果。 */
@@ -388,7 +390,7 @@ export interface RequirementReviewResult {
  * 只追加 `reviews`，不改状态与正文——评审只出报告，改稿由需求分析师另一条工具做。
  * @param root - 规格根。
  * @param id - 需求编号。
- * @param input - 报告正文、时刻与可选会话号。
+ * @param input - 报告正文、时刻、可选会话号与产出会话的 preset 署名。
  * @returns 落盘后的需求、轮次与报告路径。
  */
 export function recordRequirementReview(root: string, id: string, input: RequirementReviewInput): RequirementReviewResult {
@@ -407,6 +409,7 @@ export function recordRequirementReview(root: string, id: string, input: Require
         at: input.at,
         report: relativeReport,
         ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }),
+        ...(input.role === undefined ? {} : { role: input.role }),
       },
     ],
   }
