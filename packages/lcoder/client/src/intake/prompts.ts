@@ -1,5 +1,8 @@
 /** 立项与拆分的提示词模板；正文由模型执行，界面只负责发送。 */
 
+/** 立项概要确认指令：人设约定用户回复「确认需求」后才落盘；浮卡确认按钮原样发送。 */
+export const INTAKE_CONFIRM_PROMPT = '确认需求'
+
 /** 立项项目事实。 */
 export interface IntakeProject {
   readonly name: string
