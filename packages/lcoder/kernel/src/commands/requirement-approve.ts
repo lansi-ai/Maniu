@@ -4,13 +4,16 @@
  * 为什么单独一条命令、不让 `requirement_draft` 顺带写：起草与确认是两件事——正文写得再细，
  * 确认与否是人的决定。与 `contract_sign`、`proposal_approve` 同一档纪律。
  *
+ * 过审门槛：至少一轮评审，且当前正文有对应版本快照；过审时写 `approved_at` 与
+ * `approved_version`，把「人确认的是哪一版正文」钉在 YAML 里。
+ *
  * 只做这一条边。发布与关闭各有自己的前置条件，另起两条命令，失败分得清。
  *
  * 与 `contract_sign` 同档：人机命令，不进任何角色或状态的工具面。
  */
 import { hasSpecRoot, resolveRoot } from '../kernel/spec-root.js'
 import type { RootInput, SpecRootContext } from '../kernel/spec-root.js'
-import { assertRequirementId, loadRequirement, readRequirementDocument, requirementDocPath, requirementPath, saveRequirement } from '../kernel/requirement-store.js'
+import { approveRequirement, assertRequirementId, loadRequirement, readRequirementDocument, requirementDocPath, requirementPath } from '../kernel/requirement-store.js'
 
 /** 一次人机命令调用里 kernel 用到的部分：会话事实加命令名后的原文。 */
 export interface RequirementApproveInvocation extends SpecRootContext {
@@ -42,7 +45,7 @@ export function createRequirementApproveCommand(
 ): RequirementApproveDefinition {
   return {
     name: 'requirement_approve',
-    description: '确认一条起草态需求，把状态从起草改为已确认（要求正文已存在）',
+    description: '确认一条起草态需求，把状态从起草改为已确认（要求正文已存在且至少有一轮评审）',
     input: { hint: '<需求编号>' },
     handler: invocation => approve(rootInput, invocation, now),
   }
@@ -92,12 +95,24 @@ function approve(
     }
   }
 
+  if (requirement.reviews.length === 0) {
+    return {
+      kind: 'error',
+      text: `${id} 还没有评审记录；过审前至少要有 1 轮评审（由项目经理用 requirement_review_draft 落报告）`,
+    }
+  }
+
   const at = now()
-  saveRequirement(root, { ...requirement, state: 'confirmed', confirmed_at: at })
+  let approved
+  try {
+    approved = approveRequirement(root, id, at)
+  } catch (error: unknown) {
+    return { kind: 'error', text: `${id} 确认失败：${errorMessage(error)}` }
+  }
 
   return {
     kind: 'success',
-    text: `${id}「${requirement.title}」已确认（${at}）。可以按推荐拆任务，拆出来的任务把 requirement 填成 ${id}。`,
+    text: `${id}「${requirement.title}」已确认（${at}），批准版本 v${String(approved.approvedVersion)}，共 ${String(requirement.reviews.length)} 轮评审。可以按推荐拆任务，拆出来的任务把 requirement 填成 ${id}。`,
   }
 }
 

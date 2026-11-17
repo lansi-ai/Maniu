@@ -32,6 +32,30 @@ describe('需求 schema', () => {
     expect(requirement.closed_at).toBeUndefined()
   })
 
+  it('旧 YAML 没有版本、评审与过审字段时照常解析，读侧给空数组与未定义', () => {
+    const requirement = Requirement.parse(VALID)
+    expect(requirement.versions).toEqual([])
+    expect(requirement.reviews).toEqual([])
+    expect(requirement.approved_at).toBeUndefined()
+    expect(requirement.approved_version).toBeUndefined()
+  })
+
+  it('版本快照与评审轮次按形状校验，过审字段可省', () => {
+    const withHistory = Requirement.parse({
+      ...VALID,
+      versions: [{ n: 1, at: '2026-11-13T10:00:00+08:00', note: '初稿' }, { n: 2, at: '2026-11-13T11:00:00+08:00' }],
+      reviews: [{ round: 1, at: '2026-11-13T10:30:00+08:00', report: 'requirements/REQ-01/reviews/R1.md', sessionId: 'session-1' }],
+      approved_at: '2026-11-13T12:00:00+08:00',
+      approved_version: 2,
+    })
+    expect(withHistory.versions).toHaveLength(2)
+    expect(withHistory.reviews[0]).toMatchObject({ round: 1, report: 'requirements/REQ-01/reviews/R1.md' })
+    expect(withHistory.approved_version).toBe(2)
+    expect(Requirement.safeParse({ ...VALID, versions: [{ n: 0, at: '2026-11-13T10:00:00+08:00' }] }).success).toBe(false)
+    expect(Requirement.safeParse({ ...VALID, reviews: [{ round: 1, at: '昨天', report: 'x.md' }] }).success).toBe(false)
+    expect(Requirement.safeParse({ ...VALID, approved_version: 0 }).success).toBe(false)
+  })
+
   it('编号必须是 REQ- 加两位以上数字', () => {
     expect(Requirement.safeParse({ ...VALID, id: 'REQ-02' }).success).toBe(true)
     expect(Requirement.safeParse({ ...VALID, id: 'REQ-100' }).success).toBe(true)

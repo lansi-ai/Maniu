@@ -4,7 +4,7 @@
  * 与 `proposal_approve`、`contract_sign` 同档：模型拿不到这三条命令，
  * 所以这里只测命令面本身；工具面的缺席由 `surface.spec.ts` 钉住。
  */
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -13,7 +13,7 @@ import { afterAll, describe, expect, it } from 'vitest'
 import { createRequirementApproveCommand } from '../src/commands/requirement-approve.js'
 import { createRequirementCloseCommand } from '../src/commands/requirement-close.js'
 import { createRequirementReleaseCommand } from '../src/commands/requirement-release.js'
-import { loadRequirement, saveRequirement } from '../src/kernel/requirement-store.js'
+import { loadRequirement, requirementVersionPath, saveRequirement } from '../src/kernel/requirement-store.js'
 import { saveTask } from '../src/kernel/task-store.js'
 import { Requirement } from '../src/schema/spec.js'
 import type { RequirementState, TaskState } from '../src/schema/spec.js'
@@ -45,6 +45,17 @@ function writeRequirement(root: string, state: RequirementState = 'draft', withD
   return requirement
 }
 
+function addReview(root: string, round = 1): void {
+  const requirement = loadRequirement(root, 'REQ-01')
+  const relative = `requirements/REQ-01/reviews/R${String(round)}.md`
+  mkdirSync(join(root, 'requirements', 'REQ-01', 'reviews'), { recursive: true })
+  writeFileSync(join(root, relative), '# 评审报告\n', 'utf8')
+  saveRequirement(root, {
+    ...requirement,
+    reviews: [...requirement.reviews, { round, at: AT, report: relative }],
+  })
+}
+
 function writeTask(root: string, id: string, state: TaskState, requirement = 'REQ-01'): void {
   saveTask(root, {
     id,
@@ -69,16 +80,52 @@ const release = (root: string, raw: string) => createRequirementReleaseCommand(r
 const close = (root: string, raw: string) => createRequirementCloseCommand(root, () => AT).handler({ rawInput: raw })
 
 describe('需求确认命令', () => {
-  it('起草态且正文存在：状态与确认时刻写入，正文与候选不变', () => {
+  it('起草态、有正文且有一轮评审：写状态、确认时刻与批准版本，旧需求补 v1', () => {
     const root = makeSpec()
     const before = writeRequirement(root)
+    addReview(root)
+
+    const result = approve(root, 'REQ-01')
+    expect(result).toMatchObject({ kind: 'success' })
+    expect(result.kind === 'success' ? result.text : '').toContain('批准版本 v1')
+    const after = loadRequirement(root, 'REQ-01')
+    expect(after.state).toBe('confirmed')
+    expect(after.confirmed_at).toBe(AT)
+    expect(after.approved_at).toBe(AT)
+    expect(after.approved_version).toBe(1)
+    expect(after.versions).toEqual([{ n: 1, at: AT }])
+    expect(readFileSync(requirementVersionPath(root, 'REQ-01', 1), 'utf8')).toBe('# 佣金改造\n')
+    expect({ ...after, state: 'draft', confirmed_at: undefined, approved_at: undefined, approved_version: undefined, versions: [], reviews: [] }).toEqual(before)
+  })
+
+  it('至少一轮评审才允许过审，没有评审时拒绝且状态不动', () => {
+    const root = makeSpec()
+    writeRequirement(root)
+
+    const result = approve(root, 'REQ-01')
+    expect(result).toMatchObject({ kind: 'error' })
+    expect(result.kind === 'error' ? result.text : '').toContain('还没有评审记录')
+    expect(loadRequirement(root, 'REQ-01').state).toBe('draft')
+  })
+
+  it('已有版本时批准版本指向当前正文；正文与最新快照不一致时追加一版', () => {
+    const root = makeSpec()
+    writeRequirement(root)
+    mkdirSync(join(root, 'requirements', 'REQ-01', 'versions'), { recursive: true })
+    writeFileSync(requirementVersionPath(root, 'REQ-01', 1), '# 旧正文\n', 'utf8')
+    saveRequirement(root, {
+      ...loadRequirement(root, 'REQ-01'),
+      versions: [{ n: 1, at: '2026-11-13T10:00:00+08:00' }],
+    })
+    addReview(root)
+    writeFileSync(join(root, 'requirements', 'REQ-01.md'), '# 新正文\n', 'utf8')
 
     const result = approve(root, 'REQ-01')
     expect(result).toMatchObject({ kind: 'success' })
     const after = loadRequirement(root, 'REQ-01')
-    expect(after.state).toBe('confirmed')
-    expect(after.confirmed_at).toBe(AT)
-    expect({ ...after, state: 'draft', confirmed_at: undefined }).toEqual(before)
+    expect(after.approved_version).toBe(2)
+    expect(after.versions.map(version => version.n)).toEqual([1, 2])
+    expect(readFileSync(requirementVersionPath(root, 'REQ-01', 2), 'utf8')).toBe('# 新正文\n')
   })
 
   it('正文不存在时拒绝确认', () => {

@@ -1,0 +1,13 @@
+id: REQ-01
+title: 需求评审与版本留存示例
+state: draft
+options: []
+opened_at: 2026-11-17T09:00:00+08:00
+versions:
+  - n: 1
+    at: 2026-11-17T09:00:00+08:00
+    note: 初稿
+reviews:
+  - round: 1
+    at: 2026-11-17T10:30:00+08:00
+    report: requirements/REQ-01/reviews/R1.md

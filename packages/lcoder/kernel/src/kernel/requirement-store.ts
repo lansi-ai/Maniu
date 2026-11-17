@@ -13,7 +13,7 @@ import { dirname, join } from 'node:path'
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml'
 
 import { Requirement } from '../schema/spec.js'
-import type { RequirementOption } from '../schema/spec.js'
+import type { RequirementOption, RequirementVersion } from '../schema/spec.js'
 import { listFiles, matchPattern } from '../schema/validate.js'
 
 /** 需求编号的唯一形态：`REQ-` 加两位以上数字。 */
@@ -80,6 +80,44 @@ export function requirementPath(root: string, id: string): string {
  */
 export function requirementDocPath(root: string, id: string): string {
   return join(root, REQUIREMENTS_DIR, `${id}.md`)
+}
+
+/**
+ * 需求版本快照文件的落点。
+ * @param root - 规格根。
+ * @param id - 需求编号。
+ * @param version - 版本号。
+ * @returns `requirements/<id>/versions/v<n>.md` 的绝对路径。
+ */
+export function requirementVersionPath(root: string, id: string, version: number): string {
+  return join(root, REQUIREMENTS_DIR, id, 'versions', `v${String(version)}.md`)
+}
+
+/**
+ * 需求评审报告文件的落点。
+ * @param root - 规格根。
+ * @param id - 需求编号。
+ * @param round - 评审轮次。
+ * @returns `requirements/<id>/reviews/R<n>.md` 的绝对路径。
+ */
+export function requirementReviewPath(root: string, id: string, round: number): string {
+  return join(root, REQUIREMENTS_DIR, id, 'reviews', `R${String(round)}.md`)
+}
+
+/**
+ * 评审记录里的报告路径：相对 `.spec` 根目录，统一用 `/` 分隔。
+ * @param id - 需求编号。
+ * @param round - 评审轮次。
+ * @returns 如 `requirements/REQ-01/reviews/R1.md` 的相对路径。
+ */
+export function requirementReviewRelativePath(id: string, round: number): string {
+  return `${REQUIREMENTS_DIR}/${id}/reviews/R${String(round)}.md`
+}
+
+/** 建目录并写文本；版本快照与评审报告共用这一个落盘口。 */
+function writeText(path: string, text: string): void {
+  mkdirSync(dirname(path), { recursive: true })
+  writeFileSync(path, text, 'utf8')
 }
 
 /**
@@ -151,7 +189,7 @@ export interface RequirementDraft {
 }
 
 /**
- * 建一条新需求：分配编号，先写正文再写元数据，任一步失败回滚已写的那份。
+ * 建一条新需求：分配编号，先写正文与 v1 快照，再写元数据，任一步失败回滚已写的文件。
  *
  * 编号只增不覆盖：目标文件已存在就拒绝，避免把别人的需求悄悄替换掉。
  * @param root - 规格根。
@@ -162,12 +200,20 @@ export function createRequirement(root: string, input: RequirementDraftInput): R
   const id = nextRequirementId(listRequirementIds(root))
   const yamlPath = requirementPath(root, id)
   const documentPath = requirementDocPath(root, id)
+  const versionPath = requirementVersionPath(root, id, 1)
   if (existsSync(yamlPath) || existsSync(documentPath)) {
     throw new Error(`需求编号 ${id} 已被占用；先清理占用它的文件再起草`)
   }
 
   mkdirSync(dirname(yamlPath), { recursive: true })
   writeFileSync(documentPath, input.content, 'utf8')
+  const version: RequirementVersion = { n: 1, at: input.opened_at }
+  try {
+    writeText(versionPath, input.content)
+  } catch (error) {
+    rmSync(documentPath, { force: true })
+    throw error
+  }
   const requirement: Requirement = {
     id,
     title: input.title,
@@ -175,11 +221,14 @@ export function createRequirement(root: string, input: RequirementDraftInput): R
     options: [...(input.options ?? [])],
     ...(input.recommendation === undefined ? {} : { recommendation: input.recommendation }),
     opened_at: input.opened_at,
+    versions: [version],
+    reviews: [],
   }
   try {
     saveRequirement(root, requirement)
   } catch (error) {
-    // 元数据写失败时删掉刚写的正文：留下半截需求比什么都不留更难收拾。
+    // 元数据写失败时删掉刚写的正文与快照：留下半截需求比什么都不留更难收拾。
+    rmSync(versionPath, { force: true })
     rmSync(documentPath, { force: true })
     throw error
   }
@@ -188,5 +237,218 @@ export function createRequirement(root: string, input: RequirementDraftInput): R
     yamlPath,
     documentPath,
     characters: input.content.trim().length,
+  }
+}
+
+/** 一次改稿所需的输入。 */
+export interface RequirementRevisionInput {
+  /** 新的完整 Markdown 正文；调用方已确认去空白后非空。 */
+  readonly content: string
+  readonly at: string
+  /** 这一版的说明；缺省表示没有特别说明。 */
+  readonly note?: string
+}
+
+/** 一次改稿的落盘结果。 */
+export interface RequirementRevision {
+  readonly requirement: Requirement
+  /** 这次写下的版本号。 */
+  readonly version: number
+  readonly documentPath: string
+  /** 这一版快照的绝对路径。 */
+  readonly snapshotPath: string
+  /** 改稿前是否先补录了旧正文的 v1。 */
+  readonly backfilled: boolean
+}
+
+/** 确保某个正文有一份对应快照后的版本表；`created` 是本次新建的文件，供失败回滚。 */
+interface EnsuredVersions {
+  readonly versions: RequirementVersion[]
+  readonly version: number
+  readonly created: string[]
+}
+
+/**
+ * 确保当前正文有一份对应快照：没有版本时补 v1，快照文件缺失时补写，
+ * 正文与最新快照不一致时追加一版。改稿与过审共用这一条保障。
+ */
+function ensureCurrentVersion(
+  root: string,
+  id: string,
+  requirement: Requirement,
+  document: string,
+  at: string,
+): EnsuredVersions {
+  const versions = [...requirement.versions]
+  const created: string[] = []
+  const latest = versions[versions.length - 1]
+
+  if (latest === undefined) {
+    const path = requirementVersionPath(root, id, 1)
+    writeText(path, document)
+    created.push(path)
+    versions.push({ n: 1, at })
+    return { versions, version: 1, created }
+  }
+
+  const snapshotPath = requirementVersionPath(root, id, latest.n)
+  const snapshot = existsSync(snapshotPath) && statSync(snapshotPath).isFile()
+    ? readFileSync(snapshotPath, 'utf8')
+    : undefined
+  if (snapshot === undefined) {
+    writeText(snapshotPath, document)
+    created.push(snapshotPath)
+    return { versions, version: latest.n, created }
+  }
+  if (snapshot !== document) {
+    const n = latest.n + 1
+    const path = requirementVersionPath(root, id, n)
+    writeText(path, document)
+    created.push(path)
+    versions.push({ n, at })
+    return { versions, version: n, created }
+  }
+  return { versions, version: latest.n, created }
+}
+
+/**
+ * 改一条需求的正文：先确保当前正文有版本快照（旧需求补 v1），
+ * 再把新正文写成下一个版本，最后写元数据。
+ *
+ * 文件全部写完才写 YAML；任一步失败都还原正文并删掉本次新建的快照，
+ * 不让磁盘留下「正文换了但版本表没记」或反过来的半截。
+ * @param root - 规格根。
+ * @param id - 需求编号。
+ * @param input - 新正文、时刻与可选说明。
+ * @returns 落盘后的需求、版本号与快照路径。
+ */
+export function reviseRequirement(root: string, id: string, input: RequirementRevisionInput): RequirementRevision {
+  const requirement = loadRequirement(root, id)
+  const documentPath = requirementDocPath(root, id)
+  const previous = readRequirementDocument(root, id)
+  if (previous === undefined) {
+    throw new Error(`${id} 还没有正文（${documentPath} 不存在或为空）；先补正文再改稿`)
+  }
+
+  const backfilled = requirement.versions.length === 0
+  const created: string[] = []
+  try {
+    const ensured = ensureCurrentVersion(root, id, requirement, previous, input.at)
+    created.push(...ensured.created)
+    const next = ensured.versions.reduce((max, version) => Math.max(max, version.n), 0) + 1
+    const snapshotPath = requirementVersionPath(root, id, next)
+    const versions = [
+      ...ensured.versions,
+      { n: next, at: input.at, ...(input.note === undefined ? {} : { note: input.note }) },
+    ]
+    writeFileSync(documentPath, input.content, 'utf8')
+    writeText(snapshotPath, input.content)
+    created.push(snapshotPath)
+    const revised: Requirement = { ...requirement, versions }
+    saveRequirement(root, revised)
+    return { requirement: revised, version: next, documentPath, snapshotPath, backfilled }
+  } catch (error) {
+    writeFileSync(documentPath, previous, 'utf8')
+    for (const path of created) rmSync(path, { force: true })
+    throw error
+  }
+}
+
+/** 一次评审落盘所需的输入。 */
+export interface RequirementReviewInput {
+  /** 评审报告的 Markdown 正文。 */
+  readonly report: string
+  readonly at: string
+  /** 产出这轮评审的会话号；缺省表示没有会话来源。 */
+  readonly sessionId?: string
+}
+
+/** 一次评审落盘的结果。 */
+export interface RequirementReviewResult {
+  readonly requirement: Requirement
+  readonly round: number
+  readonly reportPath: string
+  /** 落进 YAML 的规格根相对路径。 */
+  readonly relativeReport: string
+}
+
+/**
+ * 追加一轮评审：先写报告文件，再把轮次记进 YAML；YAML 失败时删掉报告。
+ *
+ * 只追加 `reviews`，不改状态与正文——评审只出报告，改稿由需求分析师另一条工具做。
+ * @param root - 规格根。
+ * @param id - 需求编号。
+ * @param input - 报告正文、时刻与可选会话号。
+ * @returns 落盘后的需求、轮次与报告路径。
+ */
+export function recordRequirementReview(root: string, id: string, input: RequirementReviewInput): RequirementReviewResult {
+  const requirement = loadRequirement(root, id)
+  const round = requirement.reviews.reduce((max, review) => Math.max(max, review.round), 0) + 1
+  const reportPath = requirementReviewPath(root, id, round)
+  const relativeReport = requirementReviewRelativePath(id, round)
+  writeText(reportPath, input.report)
+
+  const reviewed: Requirement = {
+    ...requirement,
+    reviews: [
+      ...requirement.reviews,
+      {
+        round,
+        at: input.at,
+        report: relativeReport,
+        ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }),
+      },
+    ],
+  }
+  try {
+    saveRequirement(root, reviewed)
+  } catch (error) {
+    rmSync(reportPath, { force: true })
+    throw error
+  }
+  return { requirement: reviewed, round, reportPath, relativeReport }
+}
+
+/** 一次过审落盘的结果。 */
+export interface RequirementApproval {
+  readonly requirement: Requirement
+  /** `approved_version` 指向的版本号。 */
+  readonly approvedVersion: number
+}
+
+/**
+ * 人过审：确保当前正文有对应快照，再写状态、过审时刻与批准版本。
+ *
+ * 旧需求没有版本表时补录 v1；已有版本但快照文件缺失时补写同一版；
+ * 正文与最新快照不一致时追加一版，保证 `approved_version` 指的是当前正文。
+ * @param root - 规格根。
+ * @param id - 需求编号。
+ * @param at - 过审时刻。
+ * @returns 落盘后的需求与批准版本号。
+ */
+export function approveRequirement(root: string, id: string, at: string): RequirementApproval {
+  const requirement = loadRequirement(root, id)
+  const document = readRequirementDocument(root, id)
+  if (document === undefined) {
+    throw new Error(`${id} 还没有正文（${requirementDocPath(root, id)} 不存在或为空）；先补正文再过审`)
+  }
+
+  const created: string[] = []
+  try {
+    const ensured = ensureCurrentVersion(root, id, requirement, document, at)
+    created.push(...ensured.created)
+    const approved: Requirement = {
+      ...requirement,
+      versions: ensured.versions,
+      state: 'confirmed',
+      confirmed_at: at,
+      approved_at: at,
+      approved_version: ensured.version,
+    }
+    saveRequirement(root, approved)
+    return { requirement: approved, approvedVersion: ensured.version }
+  } catch (error) {
+    for (const path of created) rmSync(path, { force: true })
+    throw error
   }
 }

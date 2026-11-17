@@ -117,8 +117,8 @@ describe('掩码自检', () => {
 })
 
 describe('空看板工具面', () => {
-  it('只放开立项需要的读取、建任务与立项落盘能力，外加出方案与起草需求', () => {
-    expect(UNSCOPEED_SURFACE).toEqual(['file_read', 'file_list', 'project_draft', 'spec_query', 'spec_draft', 'task_read', 'task_draft', 'proposal_draft', 'requirement_draft', 'git_status', 'git_diff'])
+  it('只放开立项需要的读取、建任务与立项落盘能力，外加出方案、起草与改写需求', () => {
+    expect(UNSCOPEED_SURFACE).toEqual(['file_read', 'file_list', 'project_draft', 'spec_query', 'spec_draft', 'task_read', 'task_draft', 'proposal_draft', 'requirement_draft', 'requirement_revise', 'requirement_review_draft', 'git_status', 'git_diff'])
     expect(UNSCOPEED_SURFACE).not.toContain('file_edit')
     expect(UNSCOPEED_SURFACE).not.toContain('cmd_run')
     expect(UNSCOPEED_SURFACE).not.toContain('spec_bind')
@@ -153,13 +153,14 @@ describe('空看板工具面', () => {
 })
 
 describe('角色天花板', () => {
-  it('实施角色等于全集去掉只对研发经理与立项角色开放的工具', () => {
+  it('实施角色等于全集去掉只对特定角色开放的工具', () => {
+    const roleOnly = ['role_draft', 'requirement_draft', 'requirement_revise', 'requirement_review_draft']
     expect([...ROLE_TOOLS.dev].sort()).toEqual(
-      allToolNames().filter(name => name !== 'role_draft' && name !== 'requirement_draft'),
+      allToolNames().filter(name => !roleOnly.includes(name)),
     )
   })
 
-  it('requirement_draft 只进立项角色，终态不可见，三条需求命令永远不在工具面', () => {
+  it('requirement_draft 只进需求分析师，终态不可见，三条需求命令永远不在工具面', () => {
     expect(ROLE_TOOLS.intake).toContain('requirement_draft')
     for (const role of ROLES) {
       if (role === 'intake') continue
@@ -173,6 +174,27 @@ describe('角色天花板', () => {
       }
     }
     for (const tools of Object.values(ROLE_TOOLS)) expect(tools).not.toContain('requirement_approve')
+  })
+
+  it('改稿只进需求分析师，评审只进项目经理，两者都不含过审能力', () => {
+    expect(ROLE_TOOLS.intake).toContain('requirement_revise')
+    expect(ROLE_TOOLS.pm).toContain('requirement_review_draft')
+    for (const role of ROLES) {
+      if (role !== 'intake') expect(ROLE_TOOLS[role]).not.toContain('requirement_revise')
+      if (role !== 'pm') expect(ROLE_TOOLS[role]).not.toContain('requirement_review_draft')
+    }
+    expect(allowedTools('drafting', 'intake')).toContain('requirement_revise')
+    expect(allowedTools(null, 'intake')).toContain('requirement_revise')
+    expect(allowedTools('drafting', 'pm')).toContain('requirement_review_draft')
+    expect(allowedTools(null, 'pm')).toContain('requirement_review_draft')
+    expect(allowedTools('closed', 'intake')).not.toContain('requirement_revise')
+    expect(allowedTools('closed', 'pm')).not.toContain('requirement_review_draft')
+
+    for (const state of [...STATES, null] as const) {
+      for (const role of ROLES) {
+        expect(allowedTools(state, role)).not.toContain('requirement_approve')
+      }
+    }
   })
 
   it('立项、架构、产品、评审四个角色都动不了代码与命令', () => {
