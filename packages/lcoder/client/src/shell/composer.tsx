@@ -2,6 +2,8 @@
 
 import { useRef, useState } from 'react'
 import type { JSX, RefObject } from 'react'
+import { Button } from '@heroui/react'
+import { Plus } from 'lucide-react'
 import type { Translate } from '../locale.ts'
 import {
   attachmentsReady, checkImageCandidate, formatBytes, formatTokens, promptIsEmpty, uploadedFile,
@@ -259,16 +261,17 @@ export function Composer({
             void addFiles(files)
           }}
         />
-        <button
-          type="button"
-          className="pill pill-icon"
+        <Button
+          isIconOnly
+          className="attach-trigger"
           data-testid="attach"
-          title={t('chat.attach')}
+          variant="outline"
+          size="sm"
           aria-label={t('chat.attach')}
-          onClick={() => { inputRef.current?.click() }}
+          onPress={() => { inputRef.current?.click() }}
         >
-          +
-        </button>
+          <Plus aria-hidden="true" />
+        </Button>
         <textarea
           ref={composerRef}
           data-testid="composer"

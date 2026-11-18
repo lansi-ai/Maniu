@@ -2,6 +2,8 @@
 
 import { useState } from 'react'
 import type { JSX } from 'react'
+import { Button } from '@heroui/react'
+import { ChevronDown } from 'lucide-react'
 import type { Translate } from '../locale.ts'
 import { cloudErrorKey, cloudFace, type CloudErrorInfo, type CloudState } from './cloud.ts'
 import { estimateRange, usd } from './format.ts'
@@ -54,14 +56,16 @@ export function AccountMenu({ state, t, onPersonalCenter, onChanged }: AccountMe
 
   return (
     <div className="account-entry">
-      <button
-        type="button"
-        className="account-button lg-sheen"
+      <Button
+        className="account-button"
         data-testid="account-button"
         aria-expanded={open}
         aria-label={t('account.menuTitle')}
-        onClick={() => { setOpen(value => !value); setConfirmLogout(false); setError(null) }}
+        variant="ghost"
+        size="sm"
+        onPress={() => { setOpen(value => !value); setConfirmLogout(false); setError(null) }}
       >
+        <span className="account-status" data-online="true" aria-hidden="true" />
         <span className="account-avatar" aria-hidden="true">{initial}</span>
         <span className="account-button-text">
           <span className="account-button-name">{name}</span>
@@ -69,7 +73,8 @@ export function AccountMenu({ state, t, onPersonalCenter, onChanged }: AccountMe
             {quota === null ? t('account.signedIn') : `${t('account.remaining')} ${usd(quota.availableMicroUsd)}`}
           </span>
         </span>
-      </button>
+        <ChevronDown className="account-caret" aria-hidden="true" />
+      </Button>
 
       {open && (
         <>

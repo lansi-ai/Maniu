@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import type { JSX, RefObject } from 'react'
+import { Button } from '@heroui/react'
 import type { EventOutcome } from '../contract.ts'
 import type { Translate } from '../locale.ts'
 import type {
@@ -108,9 +109,15 @@ export function ChatView({
       <aside className="sidebar lg-glass">
         <div className="sidebar-head">
           <span>{t('chat.sessions')}</span>
-          <button type="button" className="pill lg-sheen lg-lift" data-testid="new-session" onClick={onCreate}>
+          <Button
+            className="new-session-btn"
+            data-testid="new-session"
+            variant="secondary"
+            size="sm"
+            onPress={onCreate}
+          >
             {t('chat.newSession')}
-          </button>
+          </Button>
         </div>
         <ul className="session-list" data-testid="session-list">
           {sessions.map(session => (

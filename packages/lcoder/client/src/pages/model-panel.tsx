@@ -54,7 +54,7 @@ export function ModelPanel({ t }: ModelPanelProps): JSX.Element {
   const currentLabel = snapshot === null ? undefined : defaultLabelOf(snapshot)
 
   return (
-    <section className="model-section lg-glass-card" aria-label={t('settings.models')} data-testid="settings-models">
+    <section className="model-section bento-card bento-wide" aria-label={t('settings.models')} data-testid="settings-models">
       <header className="settings-section-head">
         <div>
           <h3>{t('settings.models')}</h3>

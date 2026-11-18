@@ -213,19 +213,21 @@ html[data-theme='liquid-glass'] body {
   padding: 8px;
 }
 
-.gate-card {
+#root .gate-card.card {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 14px;
   width: min(470px, 100%);
-  padding: 32px 28px;
-  border: 1px solid rgb(255 255 255 / 0.1);
-  border-radius: 18px;
-  background-color: rgb(24 24 27 / 0.8);
-  box-shadow: 0 20px 60px -20px rgb(0 0 0 / 0.8);
+  padding: 34px 28px;
+  border: 1px solid rgb(255 255 255 / 0.12);
+  border-radius: 20px;
+  background-color: rgb(24 24 27 / 0.82);
+  box-shadow: 0 24px 64px -20px rgb(0 0 0 / 0.85), inset 0 1px 0 rgb(255 255 255 / 0.06);
   color: #f4f4f5;
   text-align: center;
+  backdrop-filter: blur(16px) saturate(130%);
+  -webkit-backdrop-filter: blur(16px) saturate(130%);
 }
 
 .gate-card h1 { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: 0.01em; }
@@ -712,6 +714,34 @@ html[data-theme='liquid-glass'] body {
 .attach-remove { border: 0; background: transparent; color: var(--lg-muted); cursor: pointer; font-size: 15px; padding: 0 2px; }
 .attach-remove:hover { color: var(--lg-ink); }
 .attach-limits { font-size: 10px; color: var(--lg-faint); }
+
+/* HeroUI 按钮替换旧的灰白原生控件：新会话与附件入口走暗黑 flat / bordered 变体。 */
+#root .new-session-btn {
+  min-height: 28px;
+  padding: 4px 12px;
+  border: 1px solid rgb(99 102 241 / 0.32);
+  border-radius: 999px;
+  background: rgb(99 102 241 / 0.16);
+  color: #c7d2fe;
+  font-size: 12px;
+  font-weight: 600;
+  transition: background-color 160ms ease, border-color 160ms ease;
+}
+#root .new-session-btn:hover { background: rgb(99 102 241 / 0.26); border-color: rgb(99 102 241 / 0.5); color: #e0e7ff; }
+
+#root .attach-trigger {
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  flex: 0 0 34px;
+  padding: 0;
+  border-radius: 999px;
+  border-color: var(--border);
+  background: rgb(255 255 255 / 0.04);
+  color: var(--foreground);
+}
+#root .attach-trigger:hover { background: rgb(255 255 255 / 0.1); border-color: rgb(99 102 241 / 0.5); }
+#root .attach-trigger svg { width: 18px; height: 18px; }
 .pill-mini { padding: 4px 10px; font-size: 11px; }
 .composer-problem { margin: 0; }
 

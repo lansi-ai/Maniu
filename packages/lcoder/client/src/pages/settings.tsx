@@ -1,8 +1,10 @@
-/** 设置页：只读模型服务、外观、语言、手动更新与关于。 */
+/** 设置页：只读模型服务、外观、字体、语言、手动更新与关于。 */
 
 import { useEffect, useState } from 'react'
 import type { JSX } from 'react'
-import type { MessageKey, Translate } from '../locale.ts'
+import { Button, Card, ListBox, Select, Separator, Switch } from '@heroui/react'
+import { Globe, Info, Moon, Palette, RefreshCw, Sun, Type } from 'lucide-react'
+import type { LocaleId, MessageKey, Translate } from '../locale.ts'
 import { APPEARANCES, FONTS, type AppearanceId, type FontId, type PreferencesHandle } from '../prefs.ts'
 import { ModelPanel } from './model-panel.tsx'
 
@@ -25,10 +27,16 @@ const FONT_KEY: Readonly<Record<FontId, MessageKey>> = {
   modern: 'settings.fontModern',
 }
 
+/** 语言词典键。 */
+const LOCALE_KEY: Readonly<Record<LocaleId, MessageKey>> = {
+  zh: 'settings.languageZh',
+  en: 'settings.languageEn',
+}
+
 /**
  * 设置页。
  * @param props - 词典与偏好。
- * @returns 整页设置。
+ * @returns Bento 分组卡片；外观、字体与语言直接写回 prefs。
  */
 export function SettingsPage({ t, prefs }: SettingsPageProps): JSX.Element {
   const [version, setVersion] = useState<string | null>(null)
@@ -41,8 +49,13 @@ export function SettingsPage({ t, prefs }: SettingsPageProps): JSX.Element {
     }).catch(() => undefined)
   }, [])
 
+  const selectFont = (key: unknown): void => {
+    if (key !== 'system' && key !== 'modern') return
+    prefs.setFont(key)
+  }
+
   return (
-    <section className="page" data-testid="page-settings">
+    <section className="page settings-page" data-testid="page-settings">
       <header className="page-head">
         <div>
           <h2>{t('settings.title')}</h2>
@@ -50,100 +63,183 @@ export function SettingsPage({ t, prefs }: SettingsPageProps): JSX.Element {
         </div>
       </header>
 
-      <ModelPanel t={t} />
+      <div className="bento-grid">
+        <ModelPanel t={t} />
 
-      <section className="settings-section lg-glass-card" data-testid="settings-appearance">
-        <header className="settings-section-head">
-          <div>
-            <h3>{t('settings.appearance')}</h3>
-            <p>{t('settings.skinHint')}</p>
-          </div>
-        </header>
-        <div className="settings-row">
-          <span className="settings-label">{t('settings.skin')}</span>
-          <div className="settings-chips" role="group" aria-label={t('settings.skin')}>
-            {APPEARANCES.map(appearance => (
-              <button
-                key={appearance}
-                type="button"
-                className={prefs.skin === appearance ? 'settings-chip active' : 'settings-chip'}
-                data-testid={`settings-appearance-${appearance}`}
-                aria-pressed={prefs.skin === appearance}
-                onClick={() => { prefs.setSkin(appearance) }}
+        <Card className="bento-card bento-appearance" data-testid="settings-appearance">
+          <Card.Header className="bento-card-head">
+            <span className="bento-icon bento-icon-accent" aria-hidden="true"><Palette /></span>
+            <div className="bento-heading">
+              <Card.Title>{t('settings.appearance')}</Card.Title>
+              <Card.Description>{t('settings.skinHint')}</Card.Description>
+            </div>
+            <div className="appearance-quick" role="group" aria-label={t('settings.skin')}>
+              <Button
+                isIconOnly
+                size="sm"
+                variant="ghost"
+                className={prefs.skin === 'light' ? 'quick-mode gradient-primary' : 'quick-mode'}
+                data-testid="settings-quick-light"
+                aria-label={t('settings.appearanceLight')}
+                onPress={() => { prefs.setSkin('light') }}
               >
-                {t(APPEARANCE_KEY[appearance])}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="settings-row">
-          <span className="settings-label">{t('settings.font')}</span>
-          <div className="settings-chips" role="group" aria-label={t('settings.font')}>
-            {FONTS.map(font => (
-              <button
-                key={font}
-                type="button"
-                className={prefs.font === font ? 'settings-chip active' : 'settings-chip'}
-                data-testid={`settings-font-${font}`}
-                aria-pressed={prefs.font === font}
-                onClick={() => { prefs.setFont(font) }}
+                <Sun />
+              </Button>
+              <Button
+                isIconOnly
+                size="sm"
+                variant="ghost"
+                className={prefs.skin === 'dark' ? 'quick-mode gradient-primary' : 'quick-mode'}
+                data-testid="settings-quick-dark"
+                aria-label={t('settings.appearanceDark')}
+                onPress={() => { prefs.setSkin('dark') }}
               >
-                {t(FONT_KEY[font])}
-              </button>
-            ))}
-          </div>
-        </div>
-        <p className="settings-muted">{t('settings.fontHint')}</p>
-        <div className="settings-row">
-          <span className="settings-label">{t('settings.language')}</span>
-          <div className="settings-chips" role="group" aria-label={t('settings.language')}>
-            <button
-              type="button"
-              className={prefs.locale === 'zh' ? 'settings-chip active' : 'settings-chip'}
-              data-testid="settings-locale-zh"
-              aria-pressed={prefs.locale === 'zh'}
-              onClick={() => { prefs.setLocale('zh') }}
-            >
-              {t('settings.languageZh')}
-            </button>
-            <button
-              type="button"
-              className={prefs.locale === 'en' ? 'settings-chip active' : 'settings-chip'}
-              data-testid="settings-locale-en"
-              aria-pressed={prefs.locale === 'en'}
-              onClick={() => { prefs.setLocale('en') }}
-            >
-              {t('settings.languageEn')}
-            </button>
-          </div>
-        </div>
-        <p className="settings-muted">{t('settings.languageHint')}</p>
-      </section>
+                <Moon />
+              </Button>
+            </div>
+          </Card.Header>
+          <Separator className="bento-divider" />
+          <Card.Content className="bento-card-body">
+            <div className="bento-row">
+              <span className="settings-label">{t('settings.skin')}</span>
+              <div className="bento-segments" role="group" aria-label={t('settings.skin')}>
+                {APPEARANCES.map(appearance => (
+                  <Button
+                    key={appearance}
+                    className={
+                      prefs.skin === appearance
+                        ? 'bento-segment active gradient-primary'
+                        : 'bento-segment'
+                    }
+                    data-testid={`settings-appearance-${appearance}`}
+                    aria-pressed={prefs.skin === appearance}
+                    variant={prefs.skin === appearance ? 'primary' : 'secondary'}
+                    size="sm"
+                    onPress={() => { prefs.setSkin(appearance) }}
+                  >
+                    {t(APPEARANCE_KEY[appearance])}
+                  </Button>
+                ))}
+              </div>
+            </div>
+            <div className="bento-row">
+              <span className="settings-label">{t('settings.appearanceSystem')}</span>
+              <Switch
+                className="bento-switch"
+                size="lg"
+                isSelected={prefs.skin === 'system'}
+                onChange={(selected) => { prefs.setSkin(selected ? 'system' : 'dark') }}
+              >
+                <Switch.Control><Switch.Thumb /></Switch.Control>
+                <Switch.Content data-testid="settings-follow-system" aria-label={t('settings.appearanceSystem')} />
+              </Switch>
+            </div>
+          </Card.Content>
+        </Card>
 
-      <section className="settings-section lg-glass-card" data-testid="settings-update">
-        <header className="settings-section-head">
-          <div>
-            <h3>{t('settings.update')}</h3>
-            <p>{t('settings.updateHint')}</p>
-          </div>
-        </header>
-        <div className="settings-row">
-          <span className="settings-label" data-testid="settings-version">
-            {version === null ? t('settings.loading') : t('settings.updateCurrent', { version })}
-          </span>
-        </div>
-        <p className="settings-muted" data-testid="settings-update-state">{t('settings.updateManual')}</p>
-      </section>
+        <Card className="bento-card bento-font" data-testid="settings-font-card">
+          <Card.Header className="bento-card-head">
+            <span className="bento-icon bento-icon-violet" aria-hidden="true"><Type /></span>
+            <div className="bento-heading">
+              <Card.Title>{t('settings.font')}</Card.Title>
+              <Card.Description>{t('settings.fontHint')}</Card.Description>
+            </div>
+          </Card.Header>
+          <Separator className="bento-divider" />
+          <Card.Content className="bento-card-body">
+            <Select
+              className="bento-select"
+              data-testid="settings-font-select"
+              value={prefs.font}
+              onChange={selectFont}
+              aria-label={t('settings.font')}
+              variant="secondary"
+            >
+              <Select.Trigger>
+                <Select.Value />
+                <Select.Indicator />
+              </Select.Trigger>
+              <Select.Popover>
+                <ListBox>
+                  {FONTS.map(font => (
+                    <ListBox.Item key={font} id={font} data-testid={`settings-font-${font}`}>
+                      {t(FONT_KEY[font])}
+                    </ListBox.Item>
+                  ))}
+                </ListBox>
+              </Select.Popover>
+            </Select>
+          </Card.Content>
+        </Card>
 
-      <section className="settings-section lg-glass-card" data-testid="settings-about">
-        <header className="settings-section-head">
-          <div>
-            <h3>{t('settings.about')}</h3>
-            <p>{version === null ? t('settings.loading') : t('settings.aboutVersion', { version })}</p>
-          </div>
-        </header>
-        {hostUrl === null ? null : <p className="settings-muted">{t('settings.aboutHost', { url: hostUrl })}</p>}
-      </section>
+        <Card className="bento-card bento-language" data-testid="settings-language-card">
+          <Card.Header className="bento-card-head">
+            <span className="bento-icon bento-icon-teal" aria-hidden="true"><Globe /></span>
+            <div className="bento-heading">
+              <Card.Title>{t('settings.language')}</Card.Title>
+              <Card.Description>{t('settings.languageHint')}</Card.Description>
+            </div>
+          </Card.Header>
+          <Separator className="bento-divider" />
+          <Card.Content className="bento-card-body">
+            <div className="bento-row">
+              <span className="settings-label">{t('settings.language')}</span>
+              <div className="bento-segments" role="group" aria-label={t('settings.language')}>
+                {(['zh', 'en'] as const).map(locale => (
+                  <Button
+                    key={locale}
+                    className={
+                      prefs.locale === locale
+                        ? 'bento-segment active gradient-primary'
+                        : 'bento-segment'
+                    }
+                    data-testid={`settings-locale-${locale}`}
+                    aria-pressed={prefs.locale === locale}
+                    variant={prefs.locale === locale ? 'primary' : 'secondary'}
+                    size="sm"
+                    onPress={() => { prefs.setLocale(locale) }}
+                  >
+                    {t(LOCALE_KEY[locale])}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          </Card.Content>
+        </Card>
+
+        <Card className="bento-card bento-update" data-testid="settings-update">
+          <Card.Header className="bento-card-head">
+            <span className="bento-icon bento-icon-amber" aria-hidden="true"><RefreshCw /></span>
+            <div className="bento-heading">
+              <Card.Title>{t('settings.update')}</Card.Title>
+              <Card.Description>{t('settings.updateHint')}</Card.Description>
+            </div>
+          </Card.Header>
+          <Separator className="bento-divider" />
+          <Card.Content className="bento-card-body">
+            <div className="bento-row">
+              <span className="settings-label" data-testid="settings-version">
+                {version === null ? t('settings.loading') : t('settings.updateCurrent', { version })}
+              </span>
+            </div>
+            <p className="settings-muted" data-testid="settings-update-state">{t('settings.updateManual')}</p>
+          </Card.Content>
+        </Card>
+
+        <Card className="bento-card bento-about" data-testid="settings-about">
+          <Card.Header className="bento-card-head">
+            <span className="bento-icon bento-icon-slate" aria-hidden="true"><Info /></span>
+            <div className="bento-heading">
+              <Card.Title>{t('settings.about')}</Card.Title>
+              <Card.Description>{version === null ? t('settings.loading') : t('settings.aboutVersion', { version })}</Card.Description>
+            </div>
+          </Card.Header>
+          <Separator className="bento-divider" />
+          <Card.Content className="bento-card-body">
+            {hostUrl === null ? null : <p className="settings-muted">{t('settings.aboutHost', { url: hostUrl })}</p>}
+          </Card.Content>
+        </Card>
+      </div>
     </section>
   )
 }

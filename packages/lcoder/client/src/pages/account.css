@@ -1,32 +1,44 @@
 /* 账号面：登录页、顶栏账号入口与个人中心。 */
 
-/* 欢迎屏。 */
-.welcome-card {
+/* 欢迎屏：暗黑 HeroUI 磨砂浮岛。 */
+#root .welcome-card.card {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
   width: min(520px, 100%);
-  padding: 42px 34px 32px;
+  padding: 44px 34px 34px;
+  border: 1px solid rgb(255 255 255 / 0.12);
+  border-radius: 24px;
+  background: rgb(24 24 27 / 0.72);
+  box-shadow: 0 32px 80px -28px rgb(0 0 0 / 0.85), inset 0 1px 0 rgb(255 255 255 / 0.08);
+  color: var(--foreground);
   text-align: center;
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
 }
-.welcome-card h1 { margin: 0; font-size: 30px; font-weight: 650; letter-spacing: 0.01em; }
+.welcome-card h1 { margin: 0; font-size: 32px; font-weight: 650; letter-spacing: 0.01em; color: var(--foreground); }
 .welcome-mark {
   display: grid;
   place-items: center;
   width: 66px;
   height: 66px;
-  border-radius: 22px;
-  background: var(--lg-fill-accent);
-  color: var(--lg-on-accent);
+  border-radius: 20px;
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  color: #ffffff;
   font-size: 30px;
   font-weight: 700;
-  box-shadow: 0 22px 46px -20px rgba(10, 79, 196, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.42);
+  box-shadow: 0 22px 46px -20px rgb(99 102 241 / 0.85), inset 0 1px 0 rgb(255 255 255 / 0.3);
 }
-.welcome-slogan { margin: 0; font-size: 15px; color: var(--lg-ink-2); }
-.welcome-body { margin: 0; font-size: 13px; line-height: 1.66; color: var(--lg-muted); max-width: 40em; }
-.welcome-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 6px; }
-.welcome-hint { margin: 2px 0 0; font-size: 11px; color: var(--lg-faint); }
+.welcome-slogan { margin: 0; font-size: 15px; color: #e4e4e7; }
+.welcome-body { margin: 0; font-size: 13px; line-height: 1.66; color: #a1a1aa; max-width: 40em; }
+.welcome-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 8px; }
+#root .welcome-actions .button { min-height: 42px; padding: 0 22px; border-radius: 999px; }
+#root .welcome-skip.button { border-color: rgb(255 255 255 / 0.18); background: rgb(255 255 255 / 0.06); color: #e4e4e7; }
+#root .welcome-skip.button:hover { background: rgb(255 255 255 / 0.12); }
+.welcome-hint { margin: 4px 0 0; font-size: 11px; color: #71717a; }
 
 /* 登录页：整屏主区，左侧品牌与标语、右侧登录卡，背后是网格与代码氛围层。 */
 .login-screen {
@@ -111,7 +123,7 @@
   font-size: 11px;
   line-height: 1;
   letter-spacing: 0.3em;
-  color: var(--lg-muted);
+  color: #a1a1aa;
 }
 
 .login-hero-title {
@@ -120,7 +132,7 @@
   font-weight: 600;
   line-height: 1.05;
   letter-spacing: -0.02em;
-  background-image: linear-gradient(104deg, var(--lg-accent), var(--lg-brand-2));
+  background-image: linear-gradient(104deg, #818cf8, #c084fc);
   background-clip: text;
   color: transparent;
   opacity: 0.8;
@@ -135,7 +147,7 @@
   font-weight: 600;
   line-height: 1.3;
   letter-spacing: 0.04em;
-  color: var(--lg-ink-2);
+  color: #e4e4e7;
   opacity: 0.82;
   transform: translate3d(calc(var(--login-px, 0) * 18px), calc(var(--login-py, 0) * 16px), 0);
   transition: opacity 320ms var(--lg-ease), transform 220ms var(--lg-ease);
@@ -147,52 +159,52 @@
   margin-top: 22px;
   max-width: 30em;
   font: 500 12px / 1.8 var(--lg-font-mono);
-  color: var(--lg-muted);
+  color: #a1a1aa;
   white-space: pre;
   text-align: left;
 }
 .login-hero-code-line { display: block; }
-.login-hero-code-note { color: var(--lg-faint); }
+.login-hero-code-note { color: #71717a; }
 
-/* 登录卡：闲置缓慢起伏，指针视差与悬停抬升都只用 transform/translate。 */
-.login-card {
+/* 登录卡：HeroUI Card 磨砂浮岛，闲置缓慢起伏，指针视差只用 transform/translate。 */
+#root .login-card.card {
   display: flex;
   flex-direction: column;
-  gap: 15px;
+  gap: 18px;
   width: 100%;
   min-width: 0;
-  padding: 26px 26px 22px;
-  background: var(--lg-fill-card-airy);
+  padding: 28px 28px 24px;
+  border: 1px solid rgb(255 255 255 / 0.12);
+  border-radius: 22px;
+  background: rgb(24 24 27 / 0.72);
+  box-shadow: 0 32px 80px -28px rgb(0 0 0 / 0.85), inset 0 1px 0 rgb(255 255 255 / 0.08);
+  color: var(--foreground);
   animation: login-bob 11s ease-in-out infinite alternate;
   transform: translate3d(calc(var(--login-px, 0) * 14px), calc(var(--login-py, 0) * 12px), 0);
   transition: transform 140ms var(--lg-ease), box-shadow 260ms var(--lg-ease);
   will-change: translate;
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
 }
-.login-card:hover {
+#root .login-card:hover {
   transform: translate3d(calc(var(--login-px, 0) * 14px), calc(var(--login-py, 0) * 12px - 3px), 0);
-  box-shadow: var(--lg-shadow-float), var(--lg-highlight), 0 14px 30px -18px rgba(16, 24, 40, 0.28);
+  box-shadow: 0 38px 90px -28px rgb(0 0 0 / 0.9), inset 0 1px 0 rgb(255 255 255 / 0.12);
 }
 
 /* 玻璃高光随指针轻移：卡面与控件各一层，落在背景之上、内容之下，只动 transform 与 opacity。 */
-.login-card::before,
-.login-control::before,
-.login-phone::before,
-.login-tabs::before {
+.login-card::before {
   content: '';
   position: absolute;
   inset: 0;
   z-index: -1;
   border-radius: inherit;
   pointer-events: none;
-  background: radial-gradient(60% 52% at 50% 42%, rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0) 72%);
-  opacity: 0;
+  background: radial-gradient(60% 52% at 50% 42%, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0) 72%);
+  opacity: 0.22;
+  mix-blend-mode: soft-light;
   transform: translate3d(calc(var(--login-px, 0) * 40px), calc(var(--login-py, 0) * 30px), 0);
   transition: opacity 220ms var(--lg-ease), transform 200ms var(--lg-ease);
 }
-.login-card::before { opacity: 0.34; mix-blend-mode: soft-light; }
-.login-control:hover::before,
-.login-phone:hover::before,
-.login-tabs:hover::before { opacity: 0.5; }
 
 .login-card-head { display: flex; align-items: center; gap: 12px; margin-bottom: 2px; }
 
@@ -201,49 +213,75 @@
   display: grid;
   place-items: center;
   flex: none;
-  width: 34px;
-  height: 34px;
-  border-radius: 11px;
-  background: linear-gradient(145deg, rgba(60, 123, 255, 0.9), rgba(111, 214, 224, 0.9) 68%, rgba(169, 155, 255, 0.9));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7), 0 6px 16px rgba(60, 110, 220, 0.22);
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  box-shadow: 0 8px 20px -8px rgb(99 102 241 / 0.8), inset 0 1px 0 rgb(255 255 255 / 0.3);
 }
 .login-card-mark > span {
-  width: 14px;
-  height: 12px;
-  border: 1.6px solid rgba(255, 255, 255, 0.95);
+  width: 15px;
+  height: 13px;
+  border: 1.8px solid rgba(255, 255, 255, 0.95);
   border-bottom: 0;
   border-radius: 8px 8px 4px 4px;
 }
 .login-card-heading { min-width: 0; }
-.login-card-title { margin: 0; font-size: 19px; font-weight: 600; letter-spacing: -0.01em; }
-.login-card-subtitle { margin: 3px 0 0; font-size: 12px; color: var(--lg-muted); }
+.login-card-title { margin: 0; font-size: 20px; font-weight: 650; letter-spacing: -0.01em; color: var(--foreground); }
+.login-card-subtitle { margin: 3px 0 0; font-size: 12px; color: var(--muted); }
+
+/* 胶囊页签：HeroUI Tabs 的槽位改成暗黑分段容器。 */
+#root .login-tabs.tabs { width: 100%; }
+#root .login-tabs .tabs__list {
+  display: flex;
+  gap: 2px;
+  width: 100%;
+  padding: 4px;
+  border: 1px solid rgb(255 255 255 / 0.1);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.05);
+}
+#root .login-tabs .tabs__tab {
+  flex: 1;
+  min-height: 34px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+  transition: background-color 160ms ease, color 160ms ease;
+}
+#root .login-tabs .tabs__tab:hover { color: var(--foreground); }
+#root .login-tabs .tabs__tab[data-selected='true'] {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  box-shadow: 0 6px 18px -8px rgb(99 102 241 / 0.85);
+  color: #ffffff;
+  font-weight: 600;
+}
 
 /* 协议行：真实勾选控件；本期不参与校验与发码拦截。 */
 .login-agree {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
+  gap: 9px;
   font-size: 11px;
   line-height: 1.6;
-  color: var(--lg-muted);
+  color: var(--muted);
 }
 .login-agree-box {
   position: relative;
   flex: none;
-  width: 13px;
-  height: 13px;
+  width: 14px;
+  height: 14px;
   margin: 2px 0 0;
-  border: 1px solid color-mix(in srgb, var(--lg-ink) 35%, transparent);
+  border: 1px solid rgb(255 255 255 / 0.32);
   border-radius: 4px;
-  background: color-mix(in srgb, var(--lg-ink) 4%, white);
+  background: rgb(255 255 255 / 0.06);
   appearance: none;
   cursor: pointer;
   transition: background-color 140ms ease, border-color 140ms ease;
 }
-.login-agree-box:checked {
-  border-color: var(--lg-ink);
-  background: var(--lg-ink);
-}
+.login-agree-box:checked { border-color: #6366f1; background: #6366f1; }
 .login-agree-box:checked::after {
   content: '';
   position: absolute;
@@ -251,136 +289,77 @@
   top: 0.5px;
   width: 4.5px;
   height: 8px;
-  border: solid var(--lg-on-accent);
+  border: solid #ffffff;
   border-width: 0 1.6px 1.6px 0;
   transform: rotate(45deg);
 }
-.login-agree-box:hover { border-color: color-mix(in srgb, var(--lg-ink) 55%, transparent); }
+.login-agree-box:hover { border-color: rgb(255 255 255 / 0.55); }
 .login-agree-box:focus-visible { outline: 2px solid var(--login-focus-ring); outline-offset: 2px; }
 .login-agree-text { min-width: 0; }
-.login-agree-link {
-  color: var(--lg-ink-2);
-  border-bottom: 1px solid color-mix(in srgb, var(--lg-ink-2) 30%, transparent);
-}
+.login-agree-link { color: #c7d2fe; border-bottom: 1px solid rgb(199 210 254 / 0.4); }
 
-.login-tabs {
-  position: relative;
-  display: inline-flex;
-  gap: 2px;
-  padding: 3px;
-  border: 1px solid var(--lg-line);
-  border-radius: var(--lg-radius-control);
-  background: var(--lg-fill-control);
-  box-shadow: var(--lg-highlight-card);
-  backdrop-filter: blur(var(--lg-blur-soft)) saturate(var(--lg-saturate));
-  animation: login-bob-soft 11s ease-in-out infinite alternate;
-  animation-delay: -1.6s;
-}
+.login-form { display: flex; flex-direction: column; gap: 15px; }
+.login-field { display: flex; flex-direction: column; gap: 7px; }
+.login-field-label { font-size: 12px; font-weight: 500; color: #d4d4d8; }
 
-.login-tab {
-  flex: 1;
-  border: 0;
-  border-radius: var(--lg-radius-control);
-  background: transparent;
-  color: var(--lg-muted);
-  padding: 6px 10px;
-  font-size: 13px;
-  cursor: pointer;
-  transition: background-color 160ms ease, color 160ms ease;
+/* HeroUI Input / InputGroup：暗黑半透明填充，聚焦与错误态用强调色与危险色描边。 */
+#root .login-phone.input-group,
+#root .login-input.input {
+  min-height: 42px;
+  border: 1px solid rgb(255 255 255 / 0.12);
+  border-radius: 12px;
+  background: rgb(255 255 255 / 0.05);
+  color: var(--foreground);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.04);
+  backdrop-filter: blur(12px) saturate(130%);
+  -webkit-backdrop-filter: blur(12px) saturate(130%);
+  transition: border-color 160ms ease, background-color 160ms ease;
 }
-.login-tab:hover { color: var(--lg-ink); }
-.login-tab.active {
-  background: var(--lg-fill-control-hover);
-  box-shadow: var(--lg-highlight-card);
-  backdrop-filter: blur(var(--lg-blur-soft)) saturate(var(--lg-saturate));
-  color: var(--lg-ink);
-  font-weight: 600;
+#root .login-phone.input-group:hover,
+#root .login-input.input:hover { background: rgb(255 255 255 / 0.08); border-color: rgb(255 255 255 / 0.2); }
+#root .login-phone.input-group:focus-within,
+#root .login-input.input:focus-within {
+  border-color: rgb(99 102 241 / 0.7);
+  box-shadow: 0 0 0 2px rgb(99 102 241 / 0.18);
 }
-
-.login-form { display: flex; flex-direction: column; gap: 14px; }
-.login-field { display: flex; flex-direction: column; gap: 6px; }
-.login-field label { font-size: 12px; color: var(--lg-muted); }
-
-/* 输入控件：包裹层承担玻璃与镜面边，内层输入保持无边框；悬停轻抬并加深阴影。 */
-.login-control,
-.login-phone {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  border: 1px solid var(--lg-line);
-  border-radius: 13px;
-  background: var(--lg-fill-control);
-  box-shadow: var(--lg-highlight-card);
-  backdrop-filter: blur(var(--lg-blur-soft)) saturate(var(--lg-saturate));
-  padding: 0 12px;
-  transition: border-color 160ms ease, transform 220ms var(--lg-ease), box-shadow 220ms var(--lg-ease);
-}
-
-.login-control:hover,
-.login-phone:hover {
-  transform: translate3d(calc(var(--login-px, 0) * 6px), calc(var(--login-py, 0) * 4px - 3px), 0);
-  box-shadow: var(--lg-highlight-card), 0 8px 18px -12px rgba(16, 24, 40, 0.28);
-}
-
-.login-control:focus-within,
-.login-phone:focus-within {
-  border-color: var(--login-focus-ring);
-  box-shadow: var(--lg-highlight-card), 0 0 0 2px var(--login-focus-halo), 0 8px 18px -12px rgba(16, 24, 40, 0.28);
-}
-.login-control.invalid,
-.login-phone.invalid { border-color: var(--lg-danger); }
-.login-control.invalid:focus-within,
-.login-phone.invalid:focus-within { border-color: var(--lg-danger); }
-
-.login-control input,
-.login-phone input {
-  flex: 1;
-  min-width: 0;
-  border: 0;
-  background: transparent;
-  color: var(--lg-ink);
-  padding: 9px 0;
-  font-size: 14px;
-  outline: none;
-}
-.login-prefix { color: var(--lg-muted); font-size: 13px; border-right: 1px solid var(--lg-line-hair); padding-right: 8px; }
+#root .login-phone.invalid,
+#root .login-input.invalid { border-color: rgb(248 113 113 / 0.7); }
+#root .login-phone.invalid:focus-within,
+#root .login-input.invalid:focus-within { box-shadow: 0 0 0 2px rgb(248 113 113 / 0.18); }
+#root .login-phone input,
+#root .login-input.input input,
+#root .login-input.input { font-size: 14px; color: var(--foreground); }
+#root .login-input.input::placeholder { color: var(--muted); }
+.login-prefix { color: #a1a1aa; font-size: 13px; padding-left: 12px; border-right: 1px solid rgb(255 255 255 / 0.12); padding-right: 10px; }
 
 .login-code-row { display: flex; gap: 8px; }
-.login-code-row .login-control { flex: 1; min-width: 0; }
-/* 发送码：控件尺寸的玻璃胶囊，与输入框同一套填充、镜面边与内高光。 */
-.login-code-row .pill {
-  position: relative;
-  overflow: hidden;
-  border: 1px solid var(--lg-line);
-  border-radius: var(--lg-radius-control);
-  background: var(--lg-fill-control);
-  box-shadow: var(--lg-highlight-card);
-  backdrop-filter: blur(var(--lg-blur-soft)) saturate(var(--lg-saturate));
-  animation: login-bob-soft 8s ease-in-out infinite alternate;
-  animation-delay: -2.4s;
-  transition: transform 220ms var(--lg-ease), box-shadow 220ms var(--lg-ease), background-color 160ms ease;
+.login-code-row .login-input { flex: 1; min-width: 0; }
+#root .login-send-code.button {
+  min-height: 42px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border-color: rgb(255 255 255 / 0.16);
+  background: rgb(255 255 255 / 0.06);
+  color: #c7d2fe;
+  font-size: 12px;
   white-space: nowrap;
+  transition: background-color 160ms ease, border-color 160ms ease;
 }
-.login-code-row .pill:hover {
-  background: var(--lg-fill-control-hover);
-  transform: translate3d(calc(var(--login-px, 0) * 6px), calc(var(--login-py, 0) * 4px - 3px), 0);
-  box-shadow: var(--lg-highlight-card), 0 10px 20px -12px rgba(16, 24, 40, 0.3);
-}
+#root .login-send-code.button:hover { background: rgb(99 102 241 / 0.18); border-color: rgb(99 102 241 / 0.45); color: #e0e7ff; }
 
-.login-field-error { margin: 0; font-size: 12px; color: var(--lg-danger); }
-.login-hint { margin: 0; font-size: 12px; color: var(--lg-muted); }
+.login-field-error { margin: 0; font-size: 12px; color: #fca5a5; }
+.login-hint { margin: 0; font-size: 12px; color: #a1a1aa; }
 
 .login-error {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 9px 12px;
-  border: 1px solid rgba(180, 35, 24, 0.24);
+  gap: 3px;
+  padding: 10px 12px;
+  border: 1px solid rgb(248 113 113 / 0.28);
   border-radius: 12px;
-  background: var(--lg-fill-subtle);
+  background: rgb(248 113 113 / 0.1);
   font-size: 12px;
-  color: var(--lg-danger);
+  color: #fca5a5;
 }
 .login-error strong { font-size: 12px; font-weight: 600; }
 /* 请求号：更淡、等宽、表格数字，便于对日志。 */
@@ -388,38 +367,22 @@
   font-family: var(--lg-font-mono);
   font-variant-numeric: tabular-nums;
   font-size: 11px;
-  color: var(--lg-muted);
-  opacity: 0.78;
+  color: #a1a1aa;
+  opacity: 0.85;
 }
 
-/* 提交键：强调色也走半透明玻璃，背后光流仍能透出。 */
-.login-submit,
-.login-submit:hover {
-  margin-top: 4px;
-  border-color: rgba(255, 255, 255, 0.46);
-  background: linear-gradient(146deg,
-    color-mix(in srgb, var(--lg-accent) 90%, transparent) 0%,
-    color-mix(in srgb, var(--lg-accent-strong) 78%, transparent) 52%,
-    color-mix(in srgb, var(--lg-accent-strong) 70%, transparent) 100%);
-  color: var(--lg-on-accent);
-  box-shadow: 0 18px 34px -18px color-mix(in srgb, var(--lg-accent) 46%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.4);
-  backdrop-filter: blur(18px) saturate(160%);
-  animation: login-bob-soft 10s ease-in-out infinite alternate;
-  animation-delay: -3.2s;
+/* 提交键：HeroUI Button + 靛紫渐变微光。 */
+#root .login-submit.button {
+  margin-top: 6px;
+  min-height: 44px;
+  border: 1px solid rgb(255 255 255 / 0.18);
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffffff;
 }
-.login-submit::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  border-radius: inherit;
-  pointer-events: none;
-  background: radial-gradient(54% 62% at 50% 38%, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0) 74%);
-  opacity: 0.32;
-  transform: translate3d(calc(var(--login-px, 0) * 28px), calc(var(--login-py, 0) * 18px), 0);
-  transition: opacity 220ms var(--lg-ease), transform 200ms var(--lg-ease);
-}
-.login-submit:hover::before { opacity: 0.6; }
+#root .login-submit.button:hover { filter: brightness(1.06); }
+#root .login-submit.button:disabled { opacity: 0.55; cursor: not-allowed; }
 
 /* 闲置漂浮：只动 translate（与 transform 分开合成），不产生布局跳动。 */
 @keyframes login-bob {
@@ -452,78 +415,99 @@
 @media (prefers-reduced-motion: reduce) {
   .login-hero-title,
   .login-hero-slogan,
-  .login-tab,
   .login-card,
   .login-card:hover,
-  .login-control,
-  .login-control:hover,
-  .login-phone,
-  .login-phone:hover,
-  .login-code-row .pill,
-  .login-code-row .pill:hover,
+  .login-send-code,
+  .login-send-code:hover,
   .login-submit,
   .login-submit:hover { animation: none; translate: none; transform: none; transition: none; }
-  .login-card::before,
-  .login-control::before,
-  .login-phone::before,
-  .login-tabs::before,
-  .login-submit::before { transform: none; transition: none; }
+  .login-card::before { transform: none; transition: none; }
 }
 
-/* 顶栏账号入口。 */
+/* 顶栏账号入口：暗黑半透明信息胶囊。位于 titlebar 的 no-drag 岛内，保持无 backdrop-filter。 */
 .account-entry { position: relative; -webkit-app-region: no-drag; }
 
-.account-button {
+#root .account-button {
   display: flex;
   align-items: center;
-  gap: 8px;
-  max-width: 220px;
-  padding: 4px 10px 4px 4px;
-  border: 1px solid var(--lg-line);
-  border-radius: var(--lg-radius-control);
-  background: var(--lg-fill-control);
-  cursor: pointer;
+  gap: 9px;
+  max-width: 236px;
+  min-height: 36px;
+  padding: 4px 10px 4px 7px;
+  border: 1px solid rgb(255 255 255 / 0.12);
+  border-radius: 999px;
+  background: rgb(39 39 42 / 0.82);
+  color: var(--foreground);
+  box-shadow: 0 8px 22px -14px rgb(0 0 0 / 0.9), inset 0 1px 0 rgb(255 255 255 / 0.07);
+  -webkit-app-region: no-drag;
+  transition: background-color 160ms ease, border-color 160ms ease;
 }
-.account-button:hover { background: var(--lg-fill-control-hover); }
+#root .account-button:hover {
+  background: rgb(52 52 58 / 0.92);
+  border-color: rgb(255 255 255 / 0.2);
+}
+
+.account-status {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 7px;
+  border-radius: 50%;
+  background: #34d399;
+  box-shadow: 0 0 0 3px rgb(52 211 153 / 0.18), 0 0 8px rgb(52 211 153 / 0.55);
+}
 
 .account-avatar {
   display: grid;
   place-items: center;
-  width: 26px;
-  height: 26px;
-  flex: 0 0 26px;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
   border-radius: 50%;
-  background: var(--lg-fill-accent);
-  color: var(--lg-on-accent);
-  font-size: 12px;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: #ffffff;
+  font-size: 11px;
   font-weight: 700;
 }
 
-.account-button-text { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; }
-.account-button-name { font-size: 12px; color: var(--lg-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 150px; }
-.account-button-meta { font-size: 10px; color: var(--lg-muted); }
+.account-button-text { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; line-height: 1.25; }
+.account-button-name { font-size: 12px; font-weight: 600; color: #fafafa; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 138px; }
+.account-button-meta { font-size: 10.5px; color: #d4d4d8; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 138px; }
+.account-caret { width: 12px; height: 12px; flex: 0 0 12px; color: #a1a1aa; }
 
 .account-scrim { position: fixed; inset: 0; z-index: 20; }
 
-.account-pop {
+#root .account-pop {
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
   z-index: 21;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  width: 268px;
-  padding: 14px;
-  border-radius: var(--lg-radius-card);
+  gap: 10px;
+  width: 272px;
+  padding: 16px;
+  border: 1px solid rgb(255 255 255 / 0.12);
+  border-radius: 16px;
+  background: rgb(24 24 27 / 0.96);
+  box-shadow: 0 22px 56px -22px rgb(0 0 0 / 0.9);
+  color: var(--foreground);
 }
 
-.account-pop-head { display: flex; flex-direction: column; gap: 2px; }
-.account-pop-head strong { font-size: 13px; }
-.account-pop-head span { font-size: 11px; color: var(--lg-muted); }
-.account-pop-estimate { margin: 0; font-size: 11px; color: var(--lg-muted); }
+.account-pop-head { display: flex; flex-direction: column; gap: 3px; }
+.account-pop-head strong { font-size: 14px; color: #fafafa; }
+.account-pop-head span { font-size: 11px; color: #d4d4d8; font-variant-numeric: tabular-nums; }
+.account-pop-estimate { margin: 0; font-size: 11px; color: #a1a1aa; }
 .account-pop-actions { display: flex; flex-wrap: wrap; gap: 6px; }
-.account-pop-actions .pill { padding: 6px 12px; font-size: 12px; }
+.account-pop-actions .pill {
+  padding: 6px 12px;
+  font-size: 12px;
+  border-color: rgb(255 255 255 / 0.12);
+  background: rgb(255 255 255 / 0.08);
+  color: #e4e4e7;
+}
+.account-pop-actions .pill:hover { background: rgb(255 255 255 / 0.14); color: #ffffff; }
+.account-pop-actions .pill.danger { color: #fca5a5; border-color: rgb(248 113 113 / 0.3); }
+.account-pop-actions .pill.danger:hover { background: rgb(248 113 113 / 0.14); color: #fca5a5; }
 
 .pill.danger {
   border-color: rgba(180, 35, 24, 0.32);

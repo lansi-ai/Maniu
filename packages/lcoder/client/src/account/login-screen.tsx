@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import type { JSX, RefObject } from 'react'
+import { Button, Card, Input, InputGroup, Tabs } from '@heroui/react'
 import type { MessageKey, Translate } from '../locale.ts'
 import { cloudErrorKey, cloudFace, type CloudErrorInfo } from './cloud.ts'
 import { PaperWater } from '../theme/paper-water.tsx'
@@ -121,13 +122,13 @@ export interface LoginScreenProps {
 /**
  * 登录页。
  * @param props - 词典与登录成功回调。
- * @returns 品牌区与表单。
+ * @returns 品牌区与 HeroUI 磨砂浮岛表单。
  */
 export function LoginScreen({ t, onAuthenticated }: LoginScreenProps): JSX.Element {
   /** 指针跟随只写主区上的 CSS 变量，各层用 transform 消费。 */
   const rootRef = useRef<HTMLElement | null>(null)
   usePointerFollow(rootRef)
-  /** 卡面用边缘折射，页签、输入框与按钮沿用轻量 backdrop-filter。 */
+  /** 卡面用边缘折射，输入框与按钮沿用轻量 backdrop-filter。 */
   const refraction = useRefractionFilter({ blur: 8, strength: 1 })
   const [tab, setTab] = useState<LoginTab>('sms')
   const [phone, setPhone] = useState('')
@@ -207,6 +208,14 @@ export function LoginScreen({ t, onAuthenticated }: LoginScreenProps): JSX.Eleme
     await onAuthenticated()
   }
 
+  const selectTab = (key: unknown): void => {
+    if (key !== 'sms' && key !== 'password' && key !== 'register') return
+    setTab(key)
+    setError(null)
+    setHint(null)
+    setFieldErrors({})
+  }
+
   const tabLabel = tab === 'register' ? t('login.registerTab') : t('login.title')
   const cardTitle = tab === 'register' ? t('login.cardTitleRegister') : t('login.cardTitle')
   const cardSubtitle = tab === 'register' ? t('login.cardSubtitleRegister') : t('login.cardSubtitle')
@@ -230,10 +239,10 @@ export function LoginScreen({ t, onAuthenticated }: LoginScreenProps): JSX.Eleme
           </div>
         </section>
 
-        <section
-          className="login-card lg-glass"
+        <Card
+          className="login-card"
           data-testid="login-card"
-          ref={refraction.ref}
+          ref={(element) => { refraction.ref.current = element }}
           style={refraction.style}
         >
           {refraction.defs}
@@ -245,31 +254,34 @@ export function LoginScreen({ t, onAuthenticated }: LoginScreenProps): JSX.Eleme
             </div>
           </div>
 
-          <div className="login-tabs" role="tablist" aria-label={tabLabel}>
-            {(['sms', 'password', 'register'] as const).map(item => (
-              <button
-                key={item}
-                type="button"
-                role="tab"
-                data-testid={`login-tab-${item}`}
-                aria-selected={tab === item}
-                className={tab === item ? 'login-tab active' : 'login-tab'}
-                onClick={() => { setTab(item); setError(null); setHint(null); setFieldErrors({}) }}
-              >
-                {t(item === 'sms' ? 'login.smsTab' : item === 'password' ? 'login.passwordTab' : 'login.registerTab')}
-              </button>
-            ))}
-          </div>
+          <Tabs
+            className="login-tabs"
+            selectedKey={tab}
+            onSelectionChange={selectTab}
+            aria-label={tabLabel}
+          >
+            <Tabs.List>
+              {(['sms', 'password', 'register'] as const).map(item => (
+                <Tabs.Tab key={item} id={item} data-testid={`login-tab-${item}`}>
+                  {t(item === 'sms' ? 'login.smsTab' : item === 'password' ? 'login.passwordTab' : 'login.registerTab')}
+                </Tabs.Tab>
+              ))}
+            </Tabs.List>
+          </Tabs>
 
           <form
             className="login-form"
             onSubmit={(event) => { event.preventDefault(); void submit() }}
           >
             <div className="login-field">
-              <label htmlFor="lcoder-login-phone">{t('login.phone')}</label>
-              <div className={fieldErrors.phone === undefined ? 'login-phone' : 'login-phone invalid'}>
-                <span className="login-prefix">+86</span>
-                <input
+              <label htmlFor="lcoder-login-phone" className="login-field-label">{t('login.phone')}</label>
+              <InputGroup
+                className={fieldErrors.phone === undefined ? 'login-phone' : 'login-phone invalid'}
+                variant="secondary"
+                fullWidth
+              >
+                <InputGroup.Prefix className="login-prefix">+86</InputGroup.Prefix>
+                <InputGroup.Input
                   id="lcoder-login-phone"
                   data-testid="login-phone"
                   type="tel"
@@ -285,64 +297,65 @@ export function LoginScreen({ t, onAuthenticated }: LoginScreenProps): JSX.Eleme
                     clearFieldError('phone')
                   }}
                 />
-              </div>
+              </InputGroup>
               {fieldErrors.phone === undefined ? null : <p className="login-field-error">{t(fieldErrors.phone)}</p>}
             </div>
 
             {tab === 'password' && (
               <div className="login-field">
-                <label htmlFor="lcoder-login-password">{t('login.password')}</label>
-                <div className={fieldErrors.password === undefined ? 'login-control' : 'login-control invalid'}>
-                  <input
-                    id="lcoder-login-password"
-                    data-testid="login-password"
-                    className="login-entry"
-                    type="password"
-                    autoComplete="current-password"
-                    value={password}
-                    aria-invalid={fieldErrors.password !== undefined}
-                    onChange={(event) => {
-                      setPassword(event.target.value)
-                      clearFieldError('password')
-                    }}
-                  />
-                </div>
+                <label htmlFor="lcoder-login-password" className="login-field-label">{t('login.password')}</label>
+                <Input
+                  className={fieldErrors.password === undefined ? 'login-input' : 'login-input invalid'}
+                  data-testid="login-password"
+                  id="lcoder-login-password"
+                  type="password"
+                  autoComplete="current-password"
+                  value={password}
+                  variant="secondary"
+                  fullWidth
+                  aria-invalid={fieldErrors.password !== undefined}
+                  onChange={(event) => {
+                    setPassword(event.target.value)
+                    clearFieldError('password')
+                  }}
+                />
                 {fieldErrors.password === undefined ? null : <p className="login-field-error">{t(fieldErrors.password)}</p>}
               </div>
             )}
 
             {tab !== 'password' && (
               <div className="login-field">
-                <label htmlFor="lcoder-login-code">{t('login.code')}</label>
+                <label htmlFor="lcoder-login-code" className="login-field-label">{t('login.code')}</label>
                 <div className="login-code-row">
-                  <div className={fieldErrors.code === undefined ? 'login-control' : 'login-control invalid'}>
-                    <input
-                      id="lcoder-login-code"
-                      data-testid="login-code"
-                      className="login-entry"
-                      type="text"
-                      inputMode="numeric"
-                      autoComplete="one-time-code"
-                      maxLength={6}
-                      value={code}
-                      aria-invalid={fieldErrors.code !== undefined}
-                      onChange={(event) => {
-                        setCode(event.target.value.replace(/\D/g, ''))
-                        clearFieldError('code')
-                      }}
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    className="pill"
+                  <Input
+                    className={fieldErrors.code === undefined ? 'login-input' : 'login-input invalid'}
+                    data-testid="login-code"
+                    id="lcoder-login-code"
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    maxLength={6}
+                    value={code}
+                    variant="secondary"
+                    fullWidth
+                    aria-invalid={fieldErrors.code !== undefined}
+                    onChange={(event) => {
+                      setCode(event.target.value.replace(/\D/g, ''))
+                      clearFieldError('code')
+                    }}
+                  />
+                  <Button
+                    className="login-send-code"
                     data-testid="login-send-code"
-                    disabled={busy !== undefined || countdown > 0}
-                    onClick={() => { void sendCode() }}
+                    variant="outline"
+                    size="sm"
+                    isDisabled={busy !== undefined || countdown > 0}
+                    onPress={() => { void sendCode() }}
                   >
                     {busy === 'send'
                       ? t('login.sendingCode')
                       : countdown > 0 ? t('login.resendIn', { seconds: countdown }) : t('login.sendCode')}
-                  </button>
+                  </Button>
                 </div>
                 {fieldErrors.code === undefined ? null : <p className="login-field-error">{t(fieldErrors.code)}</p>}
               </div>
@@ -350,22 +363,22 @@ export function LoginScreen({ t, onAuthenticated }: LoginScreenProps): JSX.Eleme
 
             {tab === 'register' && (
               <div className="login-field">
-                <label htmlFor="lcoder-login-new-password">{t('login.password')}</label>
-                <div className={fieldErrors.password === undefined ? 'login-control' : 'login-control invalid'}>
-                  <input
-                    id="lcoder-login-new-password"
-                    data-testid="login-new-password"
-                    className="login-entry"
-                    type="password"
-                    autoComplete="new-password"
-                    value={password}
-                    aria-invalid={fieldErrors.password !== undefined}
-                    onChange={(event) => {
-                      setPassword(event.target.value)
-                      clearFieldError('password')
-                    }}
-                  />
-                </div>
+                <label htmlFor="lcoder-login-new-password" className="login-field-label">{t('login.password')}</label>
+                <Input
+                  className={fieldErrors.password === undefined ? 'login-input' : 'login-input invalid'}
+                  data-testid="login-new-password"
+                  id="lcoder-login-new-password"
+                  type="password"
+                  autoComplete="new-password"
+                  value={password}
+                  variant="secondary"
+                  fullWidth
+                  aria-invalid={fieldErrors.password !== undefined}
+                  onChange={(event) => {
+                    setPassword(event.target.value)
+                    clearFieldError('password')
+                  }}
+                />
                 <span className="login-hint">{t('login.passwordHint')}</span>
                 {fieldErrors.password === undefined ? null : <p className="login-field-error">{t(fieldErrors.password)}</p>}
               </div>
@@ -395,13 +408,19 @@ export function LoginScreen({ t, onAuthenticated }: LoginScreenProps): JSX.Eleme
               </span>
             </div>
 
-            <button type="submit" className="pill pill-accent lg-lift lg-sheen login-submit" data-testid="login-submit" disabled={busy !== undefined}>
+            <Button
+              type="submit"
+              className="gradient-primary login-submit"
+              data-testid="login-submit"
+              fullWidth
+              isDisabled={busy !== undefined}
+            >
               {busy === 'submit'
                 ? t('login.submitting')
                 : tab === 'register' ? t('login.submitRegister') : t('login.submitLogin')}
-            </button>
+            </Button>
           </form>
-        </section>
+        </Card>
       </div>
     </main>
   )

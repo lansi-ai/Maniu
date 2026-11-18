@@ -142,8 +142,11 @@ export const WATER_TONES: Readonly<Record<WaterToneId, WaterTone>> = {
   },
 }
 
-/** 皮肤到色调：浅色皮肤用雾彩或桃青，暗色皮肤用夜航或冰川，未知皮肤回落雾彩。 */
+/** 皮肤到色调：浅色外观用雾彩或桃青，暗色外观用夜航或冰川，未知皮肤回落雾彩。 */
 const SKIN_TONES: Readonly<Record<string, WaterToneId>> = {
+  light: 'mist',
+  dark: 'nocturne',
+  system: 'nocturne',
   'liquid-glass': 'mist',
   rose: 'peach',
   neon: 'nocturne',
