@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import type { JSX } from 'react'
+import { Button } from '@heroui/react'
 import type { ProposalRow, RequirementChangeRow, RequirementDocRow } from '../spec/rows.ts'
 import { readWorkspaceText } from '../spec/files.ts'
 import { changedEntries, diffLines } from '../spec/diff.ts'
@@ -116,7 +117,7 @@ export function ProposalCompare(props: ProposalCompareProps): JSX.Element {
                 : t('compare.modeRevise', { target: change.target ?? '', version: change.baseVersion ?? 0 })}
             </p>
           </div>
-          <button type="button" className="pill" data-testid="compare-close" onClick={props.onClose}>{t('compare.close')}</button>
+          <Button variant="secondary" data-testid="compare-close" onPress={props.onClose}>{t('compare.close')}</Button>
         </div>
         <div className="compare-scroll">
           <section className="detail-section">
@@ -194,24 +195,22 @@ export function ProposalCompare(props: ProposalCompareProps): JSX.Element {
           )}
         </div>
         <div className="compare-actions">
-          <button
-            type="button"
-            className="pill pill-accent"
+          <Button
+            variant="primary"
             data-testid="compare-approve"
-            disabled={busy !== null}
-            onClick={() => { void decide('approve') }}
+            isDisabled={busy !== null}
+            onPress={() => { void decide('approve') }}
           >
             {t('compare.approve')}
-          </button>
-          <button
-            type="button"
-            className="pill"
+          </Button>
+          <Button
+            variant="secondary"
             data-testid="compare-reject"
-            disabled={busy !== null}
-            onClick={() => { void decide('reject') }}
+            isDisabled={busy !== null}
+            onPress={() => { void decide('reject') }}
           >
             {t('compare.reject')}
-          </button>
+          </Button>
           {result !== null && !result.ok && (
             <p className="problem" data-testid="compare-result">{result.text}</p>
           )}

@@ -98,7 +98,8 @@ async function press(testId: string, within: Element = container): Promise<void>
 }
 
 async function choose(testId: string, value: string, within: Element = container): Promise<void> {
-  const select = within.querySelector(`[data-testid="${testId}"]`) as HTMLSelectElement | null
+  // HeroUI Select 的根节点是 div，选中态由内部隐藏的原生 select 承载。
+  const select = within.querySelector(`[data-testid="${testId}"] select`) as HTMLSelectElement | null
   expect(select).not.toBeNull()
   await act(async () => {
     if (select === null) return
@@ -106,6 +107,12 @@ async function choose(testId: string, value: string, within: Element = container
     select.dispatchEvent(new Event('change', { bubbles: true }))
     await new Promise(resolve => setTimeout(resolve, 0))
   })
+}
+
+function autoInput(within: Element): HTMLInputElement {
+  const input = within.querySelector('[data-testid="flow-auto"] input[type="checkbox"]') as HTMLInputElement | null
+  if (input === null) throw new Error('missing flow-auto switch')
+  return input
 }
 
 function commandLines(): string[] {
@@ -123,8 +130,8 @@ describe('流程配置节渲染', () => {
     expect(kinds).toEqual(['intake', 'review', 'revise', 'split'])
     const reviewRoles = [...nodeBlock('review').querySelectorAll('[data-testid="flow-role-item"]')].map(node => node.getAttribute('data-role'))
     expect(reviewRoles).toEqual(['maniu-pm'])
-    expect((nodeBlock('review').querySelector('[data-testid="flow-auto"]') as HTMLInputElement).checked).toBe(true)
-    expect((nodeBlock('revise').querySelector('[data-testid="flow-auto"]') as HTMLInputElement).checked).toBe(false)
+    expect(autoInput(nodeBlock('review')).checked).toBe(true)
+    expect(autoInput(nodeBlock('revise')).checked).toBe(false)
   })
 
   it('有 flow.yaml 时按配置渲染并标明使用项目配置', () => {
@@ -132,13 +139,13 @@ describe('流程配置节渲染', () => {
     expect(element('flow-source')?.textContent).toBe('当前使用项目配置')
     const reviewRoles = [...nodeBlock('review').querySelectorAll('[data-testid="flow-role-item"]')].map(node => node.getAttribute('data-role'))
     expect(reviewRoles).toEqual(['maniu-pm', 'deputy-pm'])
-    expect((nodeBlock('review').querySelector('[data-testid="flow-auto"]') as HTMLInputElement).checked).toBe(false)
+    expect(autoInput(nodeBlock('review')).checked).toBe(false)
     expect(nodeBlock('review').textContent).toContain('副项目经理')
   })
 
   it('岗位候选含内置 preset 与名册岗位，已选岗位不再出现在候选里', () => {
     render(projectionOf())
-    const options = [...nodeBlock('review').querySelectorAll('[data-testid="flow-role-add"] option')].map(node => node.getAttribute('value'))
+    const options = [...nodeBlock('review').querySelectorAll('[data-testid="flow-role-add"] select option')].map(node => node.getAttribute('value'))
     expect(options).toContain('maniu-review')
     expect(options).toContain('deputy-pm')
     expect(options).not.toContain('maniu-pm')
@@ -161,7 +168,7 @@ describe('编辑与保存', () => {
       .toEqual(['deputy-pm', 'maniu-pm'])
 
     // 关掉评审的自动衔接。
-    const auto = nodeBlock('review').querySelector('[data-testid="flow-auto"]') as HTMLInputElement
+    const auto = autoInput(nodeBlock('review'))
     await act(async () => {
       auto.click()
       await new Promise(resolve => setTimeout(resolve, 0))

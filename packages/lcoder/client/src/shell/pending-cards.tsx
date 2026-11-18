@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import type { JSX } from 'react'
+import { Button, Card, Chip } from '@heroui/react'
 import type { Translate } from '../locale.ts'
 import { renderMarkdown } from '../markdown/markdown.tsx'
 import type { EventOutcome } from '../contract.ts'
@@ -42,34 +43,32 @@ function ApprovalCard({ t, interaction, onAnswer }: {
     }).finally(() => { setBusy(null) })
   }
   return (
-    <section className="pending-card" role="dialog" aria-label={t('chat.approvalTitle')} data-testid="approval-card">
+    <Card className="pending-card" role="dialog" aria-label={t('chat.approvalTitle')} data-testid="approval-card">
       <header className="pending-head">
         <h4>{t('chat.approvalTitle')}</h4>
-        <span className="pill" data-testid="approval-tool">{view.toolName}</span>
+        <Chip size="sm" variant="secondary" data-testid="approval-tool">{view.toolName}</Chip>
       </header>
       {view.reason === undefined ? null : <p className="pending-reason" data-testid="approval-reason">{view.reason}</p>}
       <div className="pending-actions">
-        <button
-          type="button"
-          className="pill"
+        <Button
+          variant="secondary"
           data-testid="approval-deny"
-          disabled={busy !== null}
-          onClick={() => { settle(false) }}
+          isDisabled={busy !== null}
+          onPress={() => { settle(false) }}
         >
           {busy === 'deny' ? t('chat.answering') : t('chat.reject')}
-        </button>
-        <button
-          type="button"
-          className="pill pill-accent"
+        </Button>
+        <Button
+          variant="primary"
           data-testid="approval-allow"
-          disabled={busy !== null}
-          onClick={() => { settle(true) }}
+          isDisabled={busy !== null}
+          onPress={() => { settle(true) }}
         >
           {busy === 'allow' ? t('chat.answering') : t('chat.allowOnce')}
-        </button>
+        </Button>
       </div>
       {error === null ? null : <p className="pending-error" data-testid="approval-error">{t('chat.approvalFailed', { detail: error })}</p>}
-    </section>
+    </Card>
   )
 }
 
@@ -101,7 +100,7 @@ function QuestionCard({ t, interaction, onAnswer }: {
     }).finally(() => { setBusy(false) })
   }
   return (
-    <section className="pending-card pending-question" role="dialog" aria-label={t('chat.questionTitle')} data-testid="question-card">
+    <Card className="pending-card pending-question" role="dialog" aria-label={t('chat.questionTitle')} data-testid="question-card">
       <header className="pending-head"><h4>{t('chat.questionTitle')}</h4></header>
       <div className="question-list">
         {questions.map((question) => {
@@ -144,19 +143,18 @@ function QuestionCard({ t, interaction, onAnswer }: {
         })}
       </div>
       <div className="pending-actions">
-        <button
-          type="button"
-          className="pill pill-accent"
+        <Button
+          variant="primary"
           data-testid="question-submit"
-          disabled={answer === null || busy}
-          onClick={submit}
+          isDisabled={answer === null || busy}
+          onPress={submit}
         >
           {busy ? t('chat.answering') : t('chat.questionSubmit')}
-        </button>
+        </Button>
       </div>
       {answer === null ? <p className="pending-hint">{t('chat.questionRequired')}</p> : null}
       {error === null ? null : <p className="pending-error" data-testid="question-error">{t('chat.questionFailed', { detail: error })}</p>}
-    </section>
+    </Card>
   )
 }
 

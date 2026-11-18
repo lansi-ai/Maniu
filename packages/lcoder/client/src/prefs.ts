@@ -141,7 +141,7 @@ export function welcomeSeen(storage: PreferenceStorage | undefined): boolean {
  *
  * skin 字段值保持三态原文写入 `data-skin`；实际生效主题解析 system 后落到
  * `.dark` / `.light` 类，供 Tailwind 与 HeroUI 读取。`data-theme` 保持
- * `liquid-glass` 不变，旧渲染器的 `--lg-*` token 仍由 index.html 提供。
+ * `liquid-glass` 作为惰性属性，外观由根元素上的 `dark` / `light` 类承载。
  * @param preferences - 当前偏好。
  */
 export function applyPreferences(preferences: Preferences): void {

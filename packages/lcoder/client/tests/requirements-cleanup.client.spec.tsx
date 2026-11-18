@@ -77,21 +77,11 @@ describe('需求页头清理', () => {
 })
 
 describe('强调色按钮前景', () => {
-  it('常态、悬停、按下、聚焦与禁用统一使用官方强调色前景', () => {
+  it('官方 HeroUI 按钮承载强调色前景，旧胶囊样式已移除', () => {
     const styles = source('../src/styles.css')
-    const rule = /#root \.pill-accent,[\s\S]*?\{[\s\S]*?\}/u.exec(styles)?.[0] ?? ''
-    for (const selector of [
-      '#root .pill-accent,',
-      '#root .pill-accent:hover,',
-      '#root .pill-accent:active,',
-      '#root .pill-accent:focus,',
-      '#root .pill-accent:focus-visible,',
-      '#root .pill-accent:disabled,',
-      '#root .segmented button.active',
-    ]) {
-      expect(rule).toContain(selector)
-    }
-    expect(rule).toContain('color: var(--accent-foreground);')
+    expect(styles).not.toContain('pill-accent')
+    expect(styles).toContain('#root .segmented button.active')
+    expect(styles).toContain('color: var(--accent-foreground);')
     expect(source('../src/index.css')).toContain('@import "@heroui/styles";')
   })
 })

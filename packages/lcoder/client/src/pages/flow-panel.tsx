@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import type { JSX } from 'react'
+import { Button } from '@heroui/react'
 import type { ProjectScope } from '../workspace/use-workspaces.ts'
 import type { SpecProjection } from '../spec/load.ts'
 import { runCommand } from '../commands/run.ts'
@@ -60,9 +61,9 @@ export function FlowPanel(props: FlowPanelProps): JSX.Element {
       onClose={props.onClose}
       head={<h3>流程状态</h3>}
       actions={(
-        <button type="button" className="pill" data-testid="flow-refresh" disabled={busy} onClick={() => { void refresh() }}>
+        <Button variant="secondary" data-testid="flow-refresh" isDisabled={busy} onPress={() => { void refresh() }}>
           {busy ? '求值中…' : '重跑判定'}
-        </button>
+        </Button>
       )}
     >
 

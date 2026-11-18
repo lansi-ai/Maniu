@@ -77,7 +77,7 @@ function AttachmentChip({ attachment, t, onRemove, onRetry }: {
         ? <span className="attach-state attach-failed">{t('chat.attachFailed', { detail: attachment.error ?? '' })}</span>
         : null}
       {attachment.kind === 'file' && attachment.status === 'failed'
-        ? <button type="button" className="pill pill-mini" data-testid="attach-retry" onClick={() => { onRetry(attachment.id) }}>{t('chat.attachRetry')}</button>
+        ? <Button size="sm" variant="secondary" data-testid="attach-retry" onPress={() => { onRetry(attachment.id) }}>{t('chat.attachRetry')}</Button>
         : null}
       <button type="button" className="attach-remove" aria-label={t('chat.attachRemove')} data-testid="attach-remove" onClick={() => { onRemove(attachment.id) }}>
         ×

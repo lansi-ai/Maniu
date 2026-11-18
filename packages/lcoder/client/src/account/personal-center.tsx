@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import type { JSX } from 'react'
+import { Button, Card } from '@heroui/react'
 import type { Translate } from '../locale.ts'
 import { cloudErrorKey, cloudFace, type CloudErrorInfo, type CloudState, type CloudUsageItem } from './cloud.ts'
 import { estimateRange, estimateReasonKey, stamp, statusKey, usageStatusKey, usd, usdPrecise } from './format.ts'
@@ -83,12 +84,12 @@ export function PersonalCenter({ state, t, onBack }: PersonalCenterProps): JSX.E
           <p className="page-sub">{user?.displayName ?? user?.phoneMasked ?? t('account.signedIn')}</p>
         </div>
         <div className="page-actions">
-          <button type="button" className="pill" data-testid="account-back" onClick={onBack}>← {t('account.back')}</button>
+          <Button variant="secondary" data-testid="account-back" onPress={onBack}>← {t('account.back')}</Button>
         </div>
       </header>
 
       <div className="pc-grid">
-        <section className="pc-card">
+        <Card className="pc-card">
           <h4>{t('account.profile')}</h4>
           {signedIn && user !== null ? (
             <>
@@ -99,9 +100,9 @@ export function PersonalCenter({ state, t, onBack }: PersonalCenterProps): JSX.E
               <Row label={t('account.lastLogin')} value={stamp(user.lastLoginAt)} />
             </>
           ) : <p className="pc-muted">{t('account.profileUnavailable')}</p>}
-        </section>
+        </Card>
 
-        <section className="pc-card">
+        <Card className="pc-card">
           <h4>{t('account.balance')}</h4>
           {signedIn && quota !== null ? (
             <>
@@ -111,9 +112,9 @@ export function PersonalCenter({ state, t, onBack }: PersonalCenterProps): JSX.E
               <Row label={t('account.reserved')} value={usd(quota.reservedMicroUsd)} />
             </>
           ) : <p className="pc-muted">{t('account.balanceUnavailable')}</p>}
-        </section>
+        </Card>
 
-        <section className="pc-card">
+        <Card className="pc-card">
           <h4>{t('account.estimate')}</h4>
           <p className={available ? 'pc-estimate' : 'pc-estimate pc-muted'}>{estimateRange(estimate, t)}</p>
           {estimate !== null && estimate.available ? (
@@ -131,10 +132,10 @@ export function PersonalCenter({ state, t, onBack }: PersonalCenterProps): JSX.E
               )}
             </>
           ) : <p className="pc-muted">{t(estimateReasonKey(estimate?.unavailableReason ?? null))}</p>}
-        </section>
+        </Card>
       </div>
 
-      <section className="pc-card" data-testid="account-usage">
+      <Card className="pc-card" data-testid="account-usage">
         <h4>{t('account.usage')}</h4>
         {!signedIn ? <p className="pc-muted">{t('account.signedIn')}</p> : (
           <>
@@ -162,15 +163,15 @@ export function PersonalCenter({ state, t, onBack }: PersonalCenterProps): JSX.E
             )}
             {cursor === null ? null : (
               <div className="pc-actions">
-                <button type="button" className="pill" disabled={loading} onClick={() => { void loadPage(cursor) }}>
+                <Button variant="secondary" isDisabled={loading} onPress={() => { void loadPage(cursor) }}>
                   {loading ? t('account.usageLoading') : t('account.usageMore')}
-                </button>
+                </Button>
               </div>
             )}
             {loading && items.length === 0 && error === null ? <p className="pc-muted">{t('account.usageLoading')}</p> : null}
           </>
         )}
-      </section>
+      </Card>
     </section>
   )
 }

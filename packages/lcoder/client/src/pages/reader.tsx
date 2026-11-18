@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { CSSProperties, JSX, PointerEvent as ReactPointerEvent } from 'react'
+import { Button } from '@heroui/react'
 import { readWorkspaceText } from '../spec/files.ts'
 import { renderMarkdown } from '../markdown/markdown.tsx'
 
@@ -142,11 +143,11 @@ export function ReaderOverlay(props: ReaderOverlayProps): JSX.Element {
             <p>Esc 关闭 · +/− 缩放 · Ctrl+滚轮缩放 · 放大后可拖动平移</p>
           </div>
           <div className="reader-tools">
-            <button type="button" className="pill" aria-label="缩小" disabled={zoom <= ZOOM_MIN} onClick={() => { zoomBy(-ZOOM_STEP) }}>−</button>
+            <Button size="sm" variant="ghost" aria-label="缩小" isDisabled={zoom <= ZOOM_MIN} onPress={() => { zoomBy(-ZOOM_STEP) }}>−</Button>
             <span data-testid="reader-zoom">{`${String(zoom)}%`}</span>
-            <button type="button" className="pill" aria-label="放大" disabled={zoom >= ZOOM_MAX} onClick={() => { zoomBy(ZOOM_STEP) }}>+</button>
-            <button type="button" className="pill" onClick={resetZoom}>重置</button>
-            <button type="button" className="pill pill-accent" data-testid="reader-close" onClick={props.onClose}>关闭</button>
+            <Button size="sm" variant="ghost" aria-label="放大" isDisabled={zoom >= ZOOM_MAX} onPress={() => { zoomBy(ZOOM_STEP) }}>+</Button>
+            <Button size="sm" variant="secondary" onPress={resetZoom}>重置</Button>
+            <Button size="sm" variant="primary" data-testid="reader-close" onPress={props.onClose}>关闭</Button>
           </div>
         </div>
         <div

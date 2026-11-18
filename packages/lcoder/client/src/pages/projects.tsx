@@ -2,6 +2,8 @@
 
 import { useState } from 'react'
 import type { JSX } from 'react'
+import { Button, Card, Input } from '@heroui/react'
+import { FolderGit2 } from 'lucide-react'
 import type { ProjectScope, WorkspaceRow } from '../workspace/use-workspaces.ts'
 import { openWorkspace, pickDirectory } from '../workspace/use-workspaces.ts'
 
@@ -65,42 +67,58 @@ export function ProjectsPage(props: ProjectsPageProps): JSX.Element {
         </div>
       </header>
 
-      <div className="project-open">
-        <label className="field-label" htmlFor="project-path">打开仓库</label>
-        <div className="project-open-row">
-          <input
-            id="project-path"
-            data-testid="project-path"
-            value={path}
-            placeholder="输入仓库绝对路径"
-            onChange={(event) => { setPath(event.target.value) }}
-            onKeyDown={(event) => { if (event.key === 'Enter') void submit() }}
-          />
-          <button type="button" className="pill" data-testid="project-browse" onClick={() => { void browse() }}>浏览…</button>
-          <button type="button" className="pill pill-accent" data-testid="project-open" disabled={busy} onClick={() => { void submit() }}>
-            {busy ? '打开中…' : '打开'}
-          </button>
-        </div>
-        {failure !== null && <p className="notice" data-testid="project-error">{failure}</p>}
-        {props.error !== null && <p className="notice">{props.error}</p>}
-      </div>
+      <Card className="project-open">
+        <Card.Header className="project-open-head">
+          <span className="project-open-icon" aria-hidden="true"><FolderGit2 /></span>
+          <Card.Title>打开仓库</Card.Title>
+        </Card.Header>
+        <Card.Content className="project-open-body">
+          <div className="project-open-row">
+            <Input
+              id="project-path"
+              data-testid="project-path"
+              value={path}
+              placeholder="输入仓库绝对路径"
+              aria-label="打开仓库"
+              variant="secondary"
+              onChange={(event) => { setPath(event.target.value) }}
+              onKeyDown={(event) => { if (event.key === 'Enter') void submit() }}
+            />
+            <Button variant="secondary" data-testid="project-browse" onPress={() => { void browse() }}>浏览…</Button>
+            <Button variant="primary" data-testid="project-open" isDisabled={busy} onPress={() => { void submit() }}>
+              {busy ? '打开中…' : '打开'}
+            </Button>
+          </div>
+          {failure !== null && <p className="notice" data-testid="project-error">{failure}</p>}
+          {props.error !== null && <p className="notice">{props.error}</p>}
+        </Card.Content>
+      </Card>
 
       <ul className="project-list" data-testid="project-list">
-        {props.items.map(workspace => (
-          <li key={workspace.workspaceId}>
-            <button
-              type="button"
-              className={workspace.workspaceId === props.current?.workspaceId ? 'project-card active' : 'project-card'}
-              data-testid="project-item"
-              data-workspace-id={workspace.workspaceId}
-              onClick={() => { props.onSelect(workspace) }}
-            >
-              <span className="project-title">{workspace.title}</span>
-              <span className="project-path">{workspace.path}</span>
-              <span className="project-meta">{workspace.sessionIds.length} 个会话</span>
-            </button>
-          </li>
-        ))}
+        {props.items.map((workspace) => {
+          const active = workspace.workspaceId === props.current?.workspaceId
+          return (
+            <li key={workspace.workspaceId}>
+              <button
+                type="button"
+                className="project-card-shell"
+                data-testid="project-item"
+                data-workspace-id={workspace.workspaceId}
+                aria-current={active ? 'true' : undefined}
+                onClick={() => { props.onSelect(workspace) }}
+              >
+                <Card className={active ? 'project-card active' : 'project-card'}>
+                  <span className="project-card-head">
+                    <span className="project-card-icon" aria-hidden="true"><FolderGit2 /></span>
+                    <span className="project-title">{workspace.title}</span>
+                  </span>
+                  <span className="project-path">{workspace.path}</span>
+                  <span className="project-meta">{workspace.sessionIds.length} 个会话</span>
+                </Card>
+              </button>
+            </li>
+          )
+        })}
       </ul>
       {props.items.length === 0 && <p className="empty" data-testid="project-empty">还没有登记过项目。输入路径打开一个仓库。</p>}
     </section>

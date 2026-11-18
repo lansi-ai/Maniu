@@ -498,22 +498,6 @@
 .account-pop-head span { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .account-pop-estimate { margin: 0; font-size: 11px; color: var(--muted); }
 .account-pop-actions { display: flex; flex-wrap: wrap; gap: 6px; }
-.account-pop-actions .pill {
-  padding: 6px 12px;
-  font-size: 12px;
-  border-color: var(--border);
-  background: var(--surface-secondary);
-  color: var(--foreground);
-}
-.account-pop-actions .pill:hover { background: var(--surface-hover); color: var(--foreground); }
-.account-pop-actions .pill.danger { color: var(--danger-soft-foreground); border-color: color-mix(in oklab, var(--danger) 30%, transparent); }
-.account-pop-actions .pill.danger:hover { background: color-mix(in oklab, var(--danger) 14%, transparent); color: var(--danger-soft-foreground); }
-
-.pill.danger {
-  border-color: color-mix(in oklab, var(--danger) 32%, transparent);
-  color: var(--danger);
-}
-.pill.danger:hover { background: color-mix(in oklab, var(--danger) 12%, transparent); color: var(--danger); }
 
 /* 个人中心。 */
 .pc-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
