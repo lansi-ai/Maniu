@@ -22,7 +22,7 @@ export interface TitlebarProps {
 /**
  * 标题栏。
  * @param props - 词典、宿主态、项目、窗口状态与账号回调。
- * @returns 深色静态命中条；控件区显式 no-drag，窗口按钮带图标与配色。
+ * @returns 官方背景色静态命中条；控件区显式 no-drag，窗口按钮带图标与配色。
  */
 export function Titlebar({
   t, host, project, windowState, cloud, onPersonalCenter, onCloudChanged,

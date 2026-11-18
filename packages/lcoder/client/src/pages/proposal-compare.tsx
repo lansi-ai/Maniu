@@ -106,7 +106,7 @@ export function ProposalCompare(props: ProposalCompareProps): JSX.Element {
 
   return (
     <div className="compare-layer" data-testid="proposal-compare" data-proposal-id={props.proposal.id}>
-      <div className="compare-panel lg-glass" role="dialog" aria-modal="true" aria-label={props.proposal.title}>
+      <div className="compare-panel" role="dialog" aria-modal="true" aria-label={props.proposal.title}>
         <div className="compare-bar">
           <div>
             <h3 data-testid="compare-title">{props.proposal.title}</h3>

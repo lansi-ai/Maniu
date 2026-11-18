@@ -15,7 +15,7 @@ export interface WelcomeScreenProps {
 /**
  * 欢迎屏。
  * @param props - 词典与两个入口。
- * @returns 暗黑 HeroUI 磨砂浮岛首屏。
+ * @returns 官方表面浮岛首屏，随明暗主题取色。
  */
 export function WelcomeScreen({ t, onSignIn, onSkip }: WelcomeScreenProps): JSX.Element {
   return (

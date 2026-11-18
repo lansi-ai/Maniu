@@ -20,7 +20,7 @@ kind: "package-reference"
 - `src/spec/`：`.spec` 文件投影（任务、规则、契约、方案、需求、交付物、联调组、岗位、流程配置、项目与本地密钥），全部经宿主 `workspaceFiles` 读取；方案投影含需求变更载荷。
 - `src/pages/`：需求、任务（六列看板/列表、详情、附件）、项目、项目信息（数据库密码按 `passwordRef` 从内存里的 `.spec/local.yaml` 揭示；流程配置节经`/flow_save`写`.spec/flow.yaml`）、人才库（内置角色并入全局库、只读查看详情、下发宿主preset、老项目自动补projectId）、设置；详情抽屉统一带放大/还原（放大铺满工作区并独立滚动）；Markdown 渲染器与全屏阅读器。需求详情状态先行：标题/徽标/指引/随状态操作栏置顶，阶段chips、正文与报告折叠摘要。
 - `src/commands/run.ts`：人机命令只走 `commands.execute`，主进程对命令名再做一层白名单；`src/flow/config.ts`提供流程配置模型与`/flow_save`序列化，需求页四类操作按配置逐岗推进，一节点一浮卡，评审按最新轮署名根判定完成，auto落盘续岗、人工等「下一岗位」；立项浮卡回合结束未落盘时等人工「确认需求」，经`session/prompt`发指令后继续轮询等落盘。新建需求入口不受禁立项影响，描述随首条消息后台发起分析师会话；新建与改稿走分析-文档-确认-提案四步，提案落盘后浮卡等「去对比」打开对比视图，确认与拒绝走人机命令；基于此版本新建复用新建提案通道。
-- `src/index.css`：主题底座与 `--lg-*` token、`--lg-*` 基元、环境背景层；旧皮肤映射已移除。
+- `src/index.css`：主题底座消费 `@heroui/styles` 官方语义 token，复用其 light/dark 两套皮肤；仅保留项目字体与细滚动条，拖拽覆盖层透明且无背景滤镜。
 - `src/theme/paper-water.tsx` / `refraction-glass.tsx`：登录页浅雾彩水流（按皮肤取色、无 WebGL 静态回退、减动效停帧）与卡面 SVG 折射（唯一 id、按尺寸与 DPR 重建）；控件仍是轻量 `backdrop-filter` 玻璃。
 - `src/contract.ts`：`window.lcoder` 窄 IPC 契约，与主进程同名同形。
 - 渲染端无 Node、无 `fetch`、无宿主 cookie；所有宿主访问经 preload 暴露的 IPC。

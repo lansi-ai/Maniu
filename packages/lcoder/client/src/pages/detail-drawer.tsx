@@ -106,7 +106,7 @@ export function DetailDrawer(props: DetailDrawerProps): JSX.Element {
   return (
     <aside
       ref={ref}
-      className={expanded ? 'detail-drawer lg-glass is-expanded' : 'detail-drawer lg-glass'}
+      className={expanded ? 'detail-drawer is-expanded' : 'detail-drawer'}
       data-testid={props.testId}
       data-expanded={expanded ? 'true' : 'false'}
       {...props.attributes}

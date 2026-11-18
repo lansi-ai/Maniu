@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-/** 需求页头不再显示来源行与投影诊断块；强调色按钮在默认蓝皮肤下为白字。 */
+/** 需求页头不再显示来源行与投影诊断块；强调色按钮统一使用官方强调色前景。 */
 import { readFileSync } from 'node:fs'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
@@ -77,7 +77,7 @@ describe('需求页头清理', () => {
 })
 
 describe('强调色按钮前景', () => {
-  it('默认蓝皮肤下为白字并覆盖常态、悬停、按下、聚焦与禁用', () => {
+  it('常态、悬停、按下、聚焦与禁用统一使用官方强调色前景', () => {
     const styles = source('../src/styles.css')
     const rule = /#root \.pill-accent,[\s\S]*?\{[\s\S]*?\}/u.exec(styles)?.[0] ?? ''
     for (const selector of [
@@ -91,7 +91,7 @@ describe('强调色按钮前景', () => {
     ]) {
       expect(rule).toContain(selector)
     }
-    expect(rule).toContain('color: var(--lg-on-accent);')
-    expect(source('../src/index.css')).toContain('--lg-on-accent: #ffffff;')
+    expect(rule).toContain('color: var(--accent-foreground);')
+    expect(source('../src/index.css')).toContain('@import "@heroui/styles";')
   })
 })

@@ -173,7 +173,7 @@ const ProcessGroup = memo(function ProcessGroup({ row, tools, t }: {
     ? t('chat.processTools', { count: toolCount })
     : t('chat.processThinking', { count: thoughtCount })
   return (
-    <section className="process-group lg-frost" data-testid="process-group" data-open={open ? 'true' : 'false'}>
+    <section className="process-group" data-testid="process-group" data-open={open ? 'true' : 'false'}>
       <button type="button" className="process-head" aria-expanded={open} onClick={() => { setOpen(value => !value) }}>
         <span className="process-title">{title}</span>
         {toolCount > 0 && thoughtCount > 0
@@ -300,7 +300,7 @@ const AssistantRow = memo(function AssistantRow({ row, t }: {
 }): JSX.Element {
   return (
     <div className="message-line" data-kind="assistant">
-      <article className="message assistant lg-frost" data-testid="message-assistant">
+      <article className="message assistant" data-testid="message-assistant">
         <div className="markdown-body">{renderMarkdown(row.text)}</div>
       </article>
       <CopyButton text={row.text} testId="copy-assistant" t={t} />
@@ -379,7 +379,7 @@ export function ChatTranscript({
       })}
       {thinking && <ThinkingRow reasoning={chat.liveReasoning} t={t} />}
       {chat.liveText !== '' && (
-        <article className="message assistant live lg-frost" data-testid="message-assistant" data-live="true">
+        <article className="message assistant live" data-testid="message-assistant" data-live="true">
           {chat.liveText}
         </article>
       )}

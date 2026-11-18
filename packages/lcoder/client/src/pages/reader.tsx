@@ -135,7 +135,7 @@ export function ReaderOverlay(props: ReaderOverlayProps): JSX.Element {
 
   return (
     <div className="reader-layer" data-testid="markdown-reader" data-reader-path={props.path} data-reader-status={loaded.status}>
-      <div className="reader-panel lg-glass" role="dialog" aria-modal="true" aria-label={props.path} tabIndex={-1} ref={rootRef}>
+      <div className="reader-panel" role="dialog" aria-modal="true" aria-label={props.path} tabIndex={-1} ref={rootRef}>
         <div className="reader-bar">
           <div className="reader-head">
             <h3 data-testid="reader-path">{props.path}</h3>
