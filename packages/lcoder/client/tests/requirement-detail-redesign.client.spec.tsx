@@ -85,8 +85,25 @@ const REPORT_TEXT = `# 评审结论
 
 ${'评审意见正文。'.repeat(40)}`
 
+const STRUCTURED_REPORT = `# 评审报告
+
+## 摘要
+
+需求目标清楚，主要缺口是代发订单边界。
+
+## 结论
+
+需要修改。
+
+## 待改项
+
+- 位置：正文「范围」。建议补上代发订单不参与佣金。优先级：高
+- 位置：验收口径。建议写清异常返回码。优先级：低`
+
+let reportText = REPORT_TEXT
+
 async function fakeCall(namespace: string, method: string, args: Record<string, unknown>): Promise<unknown> {
-  if (namespace === 'workspaceFiles' && method === 'read') return { ok: true, value: { text: REPORT_TEXT } }
+  if (namespace === 'workspaceFiles' && method === 'read') return { ok: true, value: { text: reportText } }
   if (namespace === 'commands' && method === 'execute') {
     commands.push(String(args.line))
     return commandError === null
@@ -101,6 +118,7 @@ beforeEach(() => {
   Object.defineProperty(window, 'lcoder', { configurable: true, value: { call: vi.fn(fakeCall) } })
   commands = []
   commandError = null
+  reportText = REPORT_TEXT
   container = document.createElement('div')
   document.body.append(container)
   root = createRoot(container)
@@ -362,7 +380,7 @@ describe('正文默认折叠', () => {
 })
 
 describe('评审报告摘要卡', () => {
-  it('结论摘录截取首 120 字，全文展开后才渲染', async () => {
+  it('非结构化报告仍截取首 120 字，全文展开后才渲染', async () => {
     await renderDetail(DRAFT, callsOf())
     const excerpt = element('requirement-report-excerpt')
     expect(excerpt?.textContent?.length).toBe(121)
@@ -371,6 +389,44 @@ describe('评审报告摘要卡', () => {
     expect(element('requirement-report-body')).toBeNull()
     await press('requirement-report-toggle')
     expect(element('requirement-report-body')?.textContent).toContain('评审意见正文')
+  })
+
+  it('结构化报告渲染摘要卡与待改项徽标，展开后仍可读原始 Markdown', async () => {
+    reportText = STRUCTURED_REPORT
+    await renderDetail(DRAFT, callsOf())
+    expect(element('requirement-report-summary-card')?.textContent).toContain('摘要')
+    expect(element('requirement-report-summary-text')?.textContent).toContain('代发订单边界')
+    const todos = container.querySelectorAll('[data-testid="requirement-report-todo"]')
+    expect(todos).toHaveLength(2)
+    const badges = container.querySelectorAll('[data-testid="requirement-report-priority"]')
+    expect(Array.from(badges).map(badge => badge.textContent)).toEqual(['高', '低'])
+    expect(badges[0]?.className).toContain('priority-high')
+    expect(badges[1]?.className).toContain('priority-low')
+    expect(element('requirement-report-excerpt')).toBeNull()
+    await press('requirement-report-toggle')
+    expect(element('requirement-report-body')?.textContent).toContain('位置：验收口径')
+  })
+
+  it('报告摘要时刻按可读格式展示', async () => {
+    await renderDetail(DRAFT, callsOf())
+    expect(element('requirement-report-summary')?.textContent).toContain('2026-11-17 10:30')
+  })
+})
+
+describe('详情页去冗余', () => {
+  it('候选做法、推荐、讨论历史与阶段进度里的关联任务都不再渲染', async () => {
+    const row: RequirementDocRow = {
+      ...DRAFT,
+      options: [{ name: '加参数', summary: '改动小' }],
+      recommendation: '推荐加参数',
+    }
+    await renderDetail(row, callsOf(), { tasks: [TASK] })
+    expect(element('requirement-options')).toBeNull()
+    expect(element('requirement-recommendation')).toBeNull()
+    expect(element('requirement-history')).toBeNull()
+    expect(element('requirement-timeline-split')).toBeNull()
+    expect(element('requirement-related')).not.toBeNull()
+    expect(container.querySelectorAll('[data-testid="requirement-related-task"]')).toHaveLength(1)
   })
 })
 

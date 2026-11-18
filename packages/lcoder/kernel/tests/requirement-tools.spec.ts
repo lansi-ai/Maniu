@@ -12,6 +12,7 @@ import {
   createRequirement,
   requirementReviewPath,
   requirementVersionPath,
+  reviewStaleReason,
   reviseRequirement,
   saveRequirement,
 } from '../src/kernel/requirement-store.js'
@@ -164,6 +165,7 @@ describe('需求评审', () => {
     expect(first).toMatchObject({ requirement_id: 'REQ-01', round: 1, report_path: 'requirements/REQ-01/reviews/R1.md' })
     expect(readFileSync(requirementReviewPath(spec, 'REQ-01', 1), 'utf8')).toContain('缺口')
 
+    reviseRequirement(spec, 'REQ-01', { content: '# 佣金改造\n\n已补齐代发边界。', at: '2099-01-01T00:00:00Z' })
     const second = await callTool(spec, 'requirement_review_draft', {
       id: 'REQ-01',
       report: '# 第 2 轮评审\n\n补充后再看。',
@@ -174,7 +176,7 @@ describe('需求评审', () => {
     expect(requirement.state).toBe('draft')
     expect(requirement.reviews.map(review => review.round)).toEqual([1, 2])
     expect(requirement.reviews[1]?.report).toBe('requirements/REQ-01/reviews/R2.md')
-    expect(readFileSync(join(spec, 'requirements', 'REQ-01.md'), 'utf8')).toBe(CONTENT)
+    expect(readFileSync(join(spec, 'requirements', 'REQ-01.md'), 'utf8')).toBe('# 佣金改造\n\n已补齐代发边界。')
   })
 
   it('评审落盘记产出会话的 preset 署名；没有会话事实时不写 role', async () => {
@@ -184,6 +186,7 @@ describe('需求评审', () => {
     await callTool(spec, 'requirement_review_draft', { id: 'REQ-01', report: '# 署名评审' }, {
       agent: { session: { header: { id: 'session-review-1', agentPreset: 'maniu-pm' } } },
     })
+    reviseRequirement(spec, 'REQ-01', { content: '# 佣金改造\n\n已改稿。', at: '2099-01-01T00:00:00Z' })
     await callTool(spec, 'requirement_review_draft', { id: 'REQ-01', report: '# 无会话来源' })
 
     const requirement = read(spec, 'REQ-01')
@@ -208,6 +211,60 @@ describe('需求评审', () => {
     await expect(callTool(spec, 'requirement_review_draft', { id: 'REQ-01', report: '  ' }))
       .rejects.toThrow(/非空的 report/)
     expect(read(spec, 'REQ-01').reviews).toEqual([])
+  })
+})
+
+describe('评审轮次门禁', () => {
+  const VERSION_AT = '2026-11-17T10:00:00+08:00'
+  const REVIEW_AT = '2026-11-17T11:00:00+08:00'
+
+  function requirementOf(versions: readonly { n: number; at: string }[], reviews: readonly { round: number; at: string }[]) {
+    return {
+      versions: versions.map(version => ({ ...version })),
+      reviews: reviews.map(review => ({ ...review, report: `requirements/REQ-01/reviews/R${String(review.round)}.md` })),
+    }
+  }
+
+  it('无评审或旧数据无版本表都放行', () => {
+    expect(reviewStaleReason(requirementOf([{ n: 1, at: VERSION_AT }], []))).toBeUndefined()
+    expect(reviewStaleReason(requirementOf([], [{ round: 1, at: REVIEW_AT }]))).toBeUndefined()
+  })
+
+  it('最新版本不晚于最新评审就拒绝，按 n 与 round 取而不是按数组顺序', () => {
+    const stale = requirementOf(
+      [{ n: 2, at: VERSION_AT }, { n: 1, at: '2026-11-17T12:00:00+08:00' }],
+      [{ round: 2, at: REVIEW_AT }, { round: 1, at: '2026-11-17T09:00:00+08:00' }],
+    )
+    expect(reviewStaleReason(stale)).toContain('上一轮评审后正文未改稿')
+    const fresh = requirementOf([{ n: 2, at: '2026-11-17T12:00:00+08:00' }], [{ round: 1, at: REVIEW_AT }])
+    expect(reviewStaleReason(fresh)).toBeUndefined()
+  })
+
+  it('工具在上一轮评审后没有新版本时拒绝追加，不留报告文件', async () => {
+    const { spec } = makeRepo()
+    await call(spec, { title: '佣金改造', content: CONTENT })
+    await callTool(spec, 'requirement_review_draft', { id: 'REQ-01', report: '# 第 1 轮' })
+
+    await expect(callTool(spec, 'requirement_review_draft', { id: 'REQ-01', report: '# 重复评审' }))
+      .rejects.toThrow(/上一轮评审后正文未改稿/)
+    expect(existsSync(requirementReviewPath(spec, 'REQ-01', 2))).toBe(false)
+    expect(read(spec, 'REQ-01').reviews.map(review => review.round)).toEqual([1])
+
+    reviseRequirement(spec, 'REQ-01', { content: '# 佣金改造\n\n改稿。', at: '2099-01-01T00:00:00Z' })
+    expect((await callTool(spec, 'requirement_review_draft', { id: 'REQ-01', report: '# 第 2 轮' })).round).toBe(2)
+  })
+
+  it('旧需求没有版本表时连续两轮评审照常追加', async () => {
+    const { spec } = makeRepo()
+    saveRequirement(spec, Requirement.parse({
+      id: 'REQ-01',
+      title: '旧需求',
+      opened_at: '2026-11-13T09:00:00+08:00',
+    }))
+    writeFileSync(join(spec, 'requirements', 'REQ-01.md'), CONTENT, 'utf8')
+
+    expect((await callTool(spec, 'requirement_review_draft', { id: 'REQ-01', report: '# 第 1 轮' })).round).toBe(1)
+    expect((await callTool(spec, 'requirement_review_draft', { id: 'REQ-01', report: '# 第 2 轮' })).round).toBe(2)
   })
 })
 

@@ -1,6 +1,6 @@
-/** 需求详情：状态先行的头部三区（标题/指引/操作）、阶段 chips、折叠正文与评审报告摘要、候选、推荐、关联任务与讨论历史。 */
+/** 需求详情：状态先行的头部三区（标题/指引/操作）、阶段 chips、折叠正文与结构化评审报告、关联任务。 */
 
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { JSX } from 'react'
 import type { ProjectScope } from '../workspace/use-workspaces.ts'
 import type { SpecProjection } from '../spec/load.ts'
@@ -8,11 +8,11 @@ import type { RequirementDocRow, RequirementReviewRow, RequirementSplitPlanEntry
 import type { SessionSummary } from '../store.ts'
 import { requirementStateLabel } from '../spec/board.ts'
 import { readWorkspaceText } from '../spec/files.ts'
-import { readDiscussionHistory, type DiscussionHistory } from '../discussion/history.ts'
 import { runCommand, type CommandOutcome } from '../commands/run.ts'
 import { missingReviewRoles } from '../flow/config.ts'
 import { renderMarkdown } from '../markdown/markdown.tsx'
 import { translate, type MessageKey, type Translate } from '../locale.ts'
+import { formatTimestamp, parseReviewReport, type ReviewPriority } from './requirement-report.ts'
 import { DetailDrawer } from './detail-drawer.tsx'
 
 const zhText: Translate = (key, params) => translate('zh', key, params)
@@ -36,6 +36,12 @@ const GUIDE_KEY: Readonly<Record<DetailState, MessageKey>> = {
   released: 'requirement.guide.released',
   closed: 'requirement.guide.closed',
   unknown: 'requirement.guide.unknown',
+}
+
+const PRIORITY_KEY: Readonly<Record<ReviewPriority, MessageKey>> = {
+  high: 'requirement.priority.high',
+  medium: 'requirement.priority.medium',
+  low: 'requirement.priority.low',
 }
 
 /** 内联评审报告的读取状态。 */
@@ -98,15 +104,12 @@ export interface RequirementDetailProps {
 export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
   const t = props.t ?? zhText
   const row = props.row
-  const [history, setHistory] = useState<DiscussionHistory | null>(null)
-  const [historyBusy, setHistoryBusy] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
   const [result, setResult] = useState<CommandOutcome | null>(null)
   const [ignored, setIgnored] = useState<ReadonlySet<string>>(() => new Set())
   const [assigns, setAssigns] = useState<Readonly<Record<string, CommandOutcome>>>({})
   const [bodyExpanded, setBodyExpanded] = useState(false)
   const [reportExpanded, setReportExpanded] = useState(false)
-  const [historyOpen, setHistoryOpen] = useState(false)
   const related = props.projection.tasks.filter(task => task.requirement === row.id || task.proposal === row.id)
 
   const state: DetailState = row.state === 'draft' || row.state === 'confirmed' || row.state === 'released' || row.state === 'closed'
@@ -207,23 +210,8 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
       ? t('requirement.approveNeedsFlow', { roles: missingRoles.map(roleLabel).join('、') })
       : undefined
 
-  const loadHistory = useCallback(async () => {
-    if (historyBusy) return
-    setHistoryBusy(true)
-    try {
-      setHistory(await readDiscussionHistory(props.project.path, props.sessions, row.id))
-    } catch (cause: unknown) {
-      setHistory({
-        status: 'failed',
-        groups: [],
-        message: cause instanceof Error ? cause.message : String(cause),
-      })
-    } finally {
-      setHistoryBusy(false)
-    }
-  }, [historyBusy, props.project.path, props.sessions, row.id])
-
   const preview = previewOf(row.text)
+  const parsedReport = report.status === 'ready' ? parseReviewReport(report.text) : undefined
   const bodyEmpty = row.text.trim() === ''
 
   return (
@@ -353,21 +341,27 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
         <ul className="timeline-chips">
           <li data-testid="requirement-timeline-opened">
             <span className="tag">{t('requirement.timelineOpened')}</span>
-            <span className="time">{row.openedAt ?? '—'}</span>
+            <span className="time">{formatTimestamp(row.openedAt ?? '—')}</span>
           </li>
           {row.reviews.map(review => (
-            <li key={`review-${String(review.round)}`} data-testid="requirement-timeline-review" data-round={review.round}>
+            <li
+              key={`review-${String(review.round)}`}
+              className="chip-link"
+              data-testid="requirement-timeline-review"
+              data-round={review.round}
+              data-path={specPath(review.report)}
+              role="button"
+              tabIndex={0}
+              aria-label={t('requirement.timelineReview', { round: review.round })}
+              onClick={() => { props.onOpenReader(specPath(review.report)) }}
+              onKeyDown={(event) => {
+                if (event.key !== 'Enter' && event.key !== ' ') return
+                event.preventDefault()
+                props.onOpenReader(specPath(review.report))
+              }}
+            >
               <span className="tag">{t('requirement.timelineReview', { round: review.round })}</span>
-              <span className="time">{review.at}</span>
-              <button
-                type="button"
-                className="link-button"
-                data-testid="requirement-open-report"
-                data-path={specPath(review.report)}
-                onClick={() => { props.onOpenReader(specPath(review.report)) }}
-              >
-                {t('requirement.openReport')}
-              </button>
+              <span className="time">{formatTimestamp(review.at)}</span>
             </li>
           ))}
           {row.reviews.length === 0 && (
@@ -376,7 +370,7 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
           {row.versions.map(version => (
             <li key={`version-${String(version.n)}`} data-testid="requirement-timeline-version" data-version={version.n}>
               <span className="tag">{t('requirement.timelineVersion', { n: version.n })}</span>
-              <span className="time">{version.at}</span>
+              <span className="time">{formatTimestamp(version.at)}</span>
               <button
                 type="button"
                 className="link-button"
@@ -394,21 +388,11 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
           )}
           <li data-testid="requirement-timeline-approved">
             <span className="tag">{t('requirement.timelineApproved')}</span>
-            <span className="time">{row.approvedAt ?? '—'}</span>
+            <span className="time">{formatTimestamp(row.approvedAt ?? '—')}</span>
             <span>{row.approvedVersion === undefined
               ? t('requirement.notApproved')
               : t('requirement.timelineApprovedVersion', { n: row.approvedVersion })}</span>
           </li>
-          {related.map(task => (
-            <li key={`split-${task.id}`} data-testid="requirement-timeline-split" data-task-id={task.id}>
-              <span className="tag">{t('requirement.timelineSplit')}</span>
-              <span className="mono">{task.id}</span>
-              <span className="time">{task.openedAt ?? '—'}</span>
-            </li>
-          ))}
-          {related.length === 0 && (
-            <li className="empty" data-testid="requirement-timeline-split-empty">{t('requirement.noSplit')}</li>
-          )}
         </ul>
       </section>
 
@@ -470,8 +454,8 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                   </button>
                 </div>
               </div>
-              <p className="detail-line requirement-report-summary" data-testid="requirement-report-summary">
-                <span className="time">{latestReview.at}</span>
+              <div className="requirement-report-summary" data-testid="requirement-report-summary">
+                <span className="time">{formatTimestamp(latestReview.at)}</span>
                 {report.status === 'loading' && (
                   <span data-testid="requirement-report-loading">{t('requirement.reportLoading')}</span>
                 )}
@@ -480,82 +464,77 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                     {t('requirement.reportFailed', { detail: report.message })}
                   </span>
                 )}
-                {report.status === 'ready' && (
+                {report.status === 'ready' && parsedReport !== undefined && (
                   <>
-                    <span className="requirement-excerpt-label">{t('requirement.reportExcerpt')}</span>
-                    <span data-testid="requirement-report-excerpt">{excerptOf(report.text)}</span>
+                    {parsedReport.summary !== '' && (
+                      <div className="requirement-report-card card-summary" data-testid="requirement-report-summary-card">
+                        <span className="requirement-card-label">{t('requirement.reportSummary')}</span>
+                        <p className="requirement-card-text" data-testid="requirement-report-summary-text">{parsedReport.summary}</p>
+                      </div>
+                    )}
+                    {parsedReport.todos.length > 0 && (
+                      <div className="requirement-report-card card-todos" data-testid="requirement-report-todos">
+                        <span className="requirement-card-label">{t('requirement.reportTodos')}</span>
+                        <ul className="requirement-todo-list">
+                          {parsedReport.todos.map((todo, index) => (
+                            <li
+                              key={`todo-${String(index)}`}
+                              className="requirement-todo"
+                              data-testid="requirement-report-todo"
+                              data-priority={todo.priority ?? ''}
+                            >
+                              {todo.priority !== undefined && (
+                                <span className={`priority-badge priority-${todo.priority}`} data-testid="requirement-report-priority">
+                                  {t(PRIORITY_KEY[todo.priority])}
+                                </span>
+                              )}
+                              <span className="requirement-todo-text">{todo.text}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {parsedReport.summary === '' && parsedReport.todos.length === 0 && (
+                      <>
+                        <span className="requirement-excerpt-label">{t('requirement.reportExcerpt')}</span>
+                        <span data-testid="requirement-report-excerpt">{excerptOf(report.text)}</span>
+                      </>
+                    )}
                   </>
                 )}
-              </p>
+              </div>
               {reportExpanded && report.status === 'ready' && (
                 <div className="markdown-body tall" data-testid="requirement-report-body">{renderMarkdown(report.text)}</div>
               )}
               {historyReviews.length > 0 && (
-                <div className="requirement-report-history">
-                  <button
-                    type="button"
-                    className="link-button"
-                    data-testid="requirement-report-history-toggle"
-                    aria-expanded={historyOpen}
-                    onClick={() => { setHistoryOpen(current => !current) }}
-                  >
-                    {historyOpen
-                      ? t('requirement.reportHistoryCollapse')
-                      : t('requirement.reportHistory', { count: historyReviews.length })}
-                  </button>
-                  {historyOpen && (
-                    <ul className="plain-list compact">
-                      {historyReviews.map(review => (
-                        <li key={review.round} data-testid="requirement-review-history-item" data-round={review.round}>
-                          <span>
-                            {t('requirement.timelineReview', { round: review.round })}
-                            <span className="time">{review.at}</span>
-                          </span>
-                          <button
-                            type="button"
-                            className="link-button"
-                            data-testid="requirement-open-report"
-                            data-path={specPath(review.report)}
-                            onClick={() => { props.onOpenReader(specPath(review.report)) }}
-                          >
-                            {t('requirement.openReport')}
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
+                <ul className="requirement-report-history plain-list compact">
+                  {historyReviews.map(review => (
+                    <li key={review.round} data-testid="requirement-review-history-item" data-round={review.round}>
+                      <span>
+                        {t('requirement.timelineReview', { round: review.round })}
+                        <span className="time">{formatTimestamp(review.at)}</span>
+                      </span>
+                      <button
+                        type="button"
+                        className="link-button"
+                        data-testid="requirement-open-report"
+                        data-path={specPath(review.report)}
+                        onClick={() => { props.onOpenReader(specPath(review.report)) }}
+                      >
+                        {t('requirement.openReport')}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
               )}
             </>
           )}
       </section>
 
-      {row.options.length > 0 && (
-        <section className="detail-section" data-testid="requirement-options">
-          <h4>候选做法</h4>
-          <ul className="plain-list compact">
-            {row.options.map(option => (
-              <li key={option.name}>
-                <strong>{option.name}</strong>
-                <span>{option.summary}</span>
-                {option.cost !== undefined && <em>{option.cost}</em>}
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {row.recommendation !== undefined && (
-        <section className="detail-section" data-testid="requirement-recommendation">
-          <h4>推荐</h4>
-          <p className="detail-line">{row.recommendation}</p>
-        </section>
-      )}
-
       {plan !== undefined && (
         <section className="detail-section" data-testid="requirement-split-plan">
           <h4>{t('requirement.splitPlanTitle')}</h4>
-          <p className="detail-note">{t('requirement.splitPlanAt', { at: plan.at })}</p>
+          <p className="detail-note">{t('requirement.splitPlanAt', { at: formatTimestamp(plan.at) })}</p>
           <div className="table-wrap">
             <table className="data-table">
               <thead>
@@ -679,26 +658,6 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
           )}
       </section>
 
-      <section className="detail-section" data-testid="requirement-history">
-        <div className="detail-drawer-head">
-          <h4>讨论历史</h4>
-          <button type="button" className="pill" data-testid="requirement-history-load" disabled={historyBusy} onClick={() => { void loadHistory() }}>
-            {historyBusy ? '读取中…' : history === null ? '读取讨论历史' : '重读'}
-          </button>
-        </div>
-        {history === null && <p className="empty">按参会身份与需求编号聚合讨论会话。</p>}
-        {history !== null && history.groups.length === 0 && (
-          <p className={history.status === 'failed' ? 'problem' : 'empty'} data-testid="requirement-history-empty">{history.message}</p>
-        )}
-        {history !== null && history.groups.map(group => (
-          <div key={group.roleId} className="history-round" data-testid="requirement-history-round" data-role={group.roleId}>
-            <h5>{group.roleName}</h5>
-            {group.statements.map((statement, index) => (
-              <p key={`${group.roleId}-${String(index)}`} className="detail-line">{statement}</p>
-            ))}
-          </div>
-        ))}
-      </section>
     </DetailDrawer>
   )
 }

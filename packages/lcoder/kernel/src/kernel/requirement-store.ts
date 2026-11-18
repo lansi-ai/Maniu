@@ -391,6 +391,26 @@ export interface RequirementReviewResult {
 }
 
 /**
+ * 追加评审前的改稿门禁：上一轮评审后没有新版本落盘时给出拒绝原因。
+ *
+ * 版本取 `n` 最大的一条、评审取 `round` 最大的一条，按时刻比较；版本时刻不晚于
+ * 评审时刻就说明报告针对的正文没有变过，再评一轮只是重复。`versions` 为空是
+ * 没有版本表的旧数据，无法比较，放宽允许；没有评审时第一轮也允许。
+ * @param requirement - 已读回的需求，只消费 `versions` 与 `reviews`。
+ * @returns 可追加时返回 undefined；否则返回可读的中文拒绝原因。
+ */
+export function reviewStaleReason(requirement: Pick<Requirement, 'versions' | 'reviews'>): string | undefined {
+  const { versions, reviews } = requirement
+  if (reviews.length === 0 || versions.length === 0) return undefined
+  const latestVersion = versions.reduce((best, version) => version.n > best.n ? version : best)
+  const latestReview = reviews.reduce((best, review) => review.round > best.round ? review : best)
+  if (Date.parse(latestVersion.at) <= Date.parse(latestReview.at)) {
+    return '上一轮评审后正文未改稿，请先用修改需求产出新版本再评审'
+  }
+  return undefined
+}
+
+/**
  * 追加一轮评审：先写报告文件，再把轮次记进 YAML；YAML 失败时删掉报告。
  *
  * 只追加 `reviews`，不改状态与正文——评审只出报告，改稿由需求分析师另一条工具做。

@@ -411,23 +411,27 @@
 .filter-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 0 4px; }
 
 /* 需求详情头部三区：标题徽标编号、指引句、随状态操作栏；顶栏常驻不随主体滚动。 */
-.requirement-hero { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.requirement-hero { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .requirement-title-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.requirement-title { margin: 0; font-size: 20px; font-weight: 650; line-height: 1.35; color: var(--lg-ink); overflow-wrap: anywhere; }
+.requirement-title { margin: 0; font-size: 21px; font-weight: 700; line-height: 1.3; color: var(--lg-ink); overflow-wrap: anywhere; }
 .requirement-id { font-size: 11px; color: var(--lg-faint); }
-.state-badge { font-weight: 600; }
-.state-badge.state-draft { color: var(--lg-accent); border-color: var(--lg-accent); }
-.state-badge.state-confirmed { color: var(--lg-ok); border-color: var(--lg-ok); }
+.state-badge { font-weight: 600; letter-spacing: 0.02em; }
+.state-badge.state-draft { color: var(--lg-accent); border-color: var(--lg-accent); background: var(--lg-fill-accent-soft); }
+.state-badge.state-confirmed { color: var(--lg-ok); border-color: var(--lg-ok); background: var(--lg-fill-subtle); }
 .state-badge.state-released,
 .state-badge.state-closed,
 .state-badge.state-unknown { color: var(--lg-muted); border-color: var(--lg-line); }
 .requirement-guide { margin: 0; font-size: 12px; line-height: 1.6; color: var(--lg-ink-2); }
-.requirement-ops { margin: 2px 0 0; }
-.requirement-ops .pill { padding: 5px 12px; font-size: 12px; }
+.requirement-ops {
+  margin: 6px 0 2px;
+  padding-top: 8px;
+  border-top: 1px solid var(--lg-line-hair);
+}
+.requirement-ops .pill { padding: 6px 13px; font-size: 12px; }
 .requirement-hero .detail-note { margin: 2px 0 0; }
 .requirement-hero .detail-line { margin: 2px 0 0; }
 
-/* 阶段进度横排 chips：创建/评审/版本/过审/拆分，报告与快照入口留在 chip 内。 */
+/* 阶段进度横排 chips：创建/评审/版本/过审，评审 chip 本身可点开报告。 */
 .timeline-chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; font-size: 12px; }
 .timeline-chips li {
   display: inline-flex;
@@ -439,22 +443,63 @@
   border-radius: 999px;
   background: var(--lg-fill-row);
 }
+.timeline-chips li.chip-link { cursor: pointer; transition: border-color 160ms ease, background-color 160ms ease; }
+.timeline-chips li.chip-link:hover { border-color: var(--lg-accent); background: var(--lg-fill-accent-soft); }
+.timeline-chips li.chip-link:focus-visible { outline: 2px solid var(--lg-accent); outline-offset: 2px; }
 .timeline-chips .tag { font-size: 11px; padding: 1px 7px; }
 .timeline-chips .time { color: var(--lg-faint); font-size: 11px; overflow-wrap: anywhere; }
 .timeline-chips .link-button { font-size: 11px; }
 .timeline-chips li.empty { padding: 3px 2px; border: 0; background: none; color: var(--lg-faint); font-size: 12px; }
 
-/* 正文折叠预览与评审报告摘要卡：默认只占一小块，展开后才渲染全文。 */
+/* 正文折叠预览与评审报告卡片：摘要卡 + 待改项徽标，展开才渲染原始 Markdown。 */
 .requirement-preview { max-height: 150px; overflow: hidden; }
 .requirement-preview h1,
 .requirement-preview h2,
 .requirement-preview h3 { margin: 8px 0 4px; font-size: 14px; }
-.requirement-report-summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; }
-.requirement-report-summary .time { color: var(--lg-faint); font-size: 11px; overflow-wrap: anywhere; }
-.requirement-excerpt-label { color: var(--lg-faint); font-size: 11px; flex: 0 0 auto; }
+.requirement-report-summary { display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
+.requirement-report-summary .time { color: var(--lg-faint); font-size: 11px; }
+.requirement-excerpt-label { color: var(--lg-faint); font-size: 11px; }
+.requirement-report-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--lg-line-hair);
+  border-radius: 12px;
+  background: var(--lg-fill-raised);
+}
+.requirement-report-card.card-summary { border-left: 3px solid var(--lg-accent); background: var(--lg-fill-accent-soft); }
+.requirement-report-card.card-todos { border-left: 3px solid var(--lg-muted); }
+.requirement-card-label { font-size: 11px; font-weight: 600; color: var(--lg-muted); }
+.requirement-card-text { margin: 0; font-size: 13px; line-height: 1.6; color: var(--lg-ink-2); overflow-wrap: anywhere; }
+.requirement-todo-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.requirement-todo { display: flex; align-items: baseline; gap: 8px; padding: 6px 8px; border-radius: 10px; background: var(--lg-fill-row); }
+.requirement-todo-text { font-size: 12px; line-height: 1.6; color: var(--lg-ink-2); overflow-wrap: anywhere; }
+.priority-badge {
+  flex: 0 0 auto;
+  padding: 1px 7px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.priority-badge.priority-high { color: var(--lg-danger); }
+.priority-badge.priority-medium { color: var(--lg-accent); }
+.priority-badge.priority-low { color: var(--lg-muted); }
 .requirement-report-history { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
 .requirement-report-history .link-button { font-size: 12px; }
 .requirement-report-history .time { color: var(--lg-faint); font-size: 11px; margin-left: 6px; }
+
+@media (max-width: 700px) {
+  .detail-drawer { width: min(560px, 92vw); }
+  .requirement-title { font-size: 18px; }
+  .requirement-ops { gap: 6px; }
+  .requirement-ops .pill { padding: 5px 10px; font-size: 11px; }
+  .timeline-chips { gap: 4px; }
+  .requirement-report-card { padding: 8px 10px; }
+  .requirement-todo { flex-wrap: wrap; gap: 4px; }
+}
 
 .prompt-preview {
   max-height: 320px;

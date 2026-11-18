@@ -71,6 +71,15 @@ describe('需求评审提示词', () => {
     expect(prompt).toContain('3. 需求角度：')
     expect(prompt).toContain('4. 技术实现角度：')
   })
+
+  it('报告固定摘要/结论/待改项三段，待改项写明位置、建议与优先级', () => {
+    const prompt = buildReviewPrompt({ id: 'REQ-01', title: '待评审需求' }, '# 正文\n\n内容')
+    expect(prompt).toContain('## 摘要')
+    expect(prompt).toContain('## 结论')
+    expect(prompt).toContain('## 待改项')
+    expect(prompt).toContain('可执行的修改建议与优先级（高/中/低）')
+    expect(prompt).toContain('不改名、不合并')
+  })
 })
 
 describe('新建需求提示词', () => {
@@ -79,6 +88,8 @@ describe('新建需求提示词', () => {
     expect(prompt).toContain('希望支持订单导出')
     expect(prompt).toContain('只登记这一条')
     expect(prompt).toContain('一句话业务目标')
+    expect(prompt).toContain('不超过 16 字的短业务短语')
+    expect(prompt).toContain('场景加手段长句')
     expect(prompt).toContain('不用文档名')
     expect(prompt).toContain('冲突/重复')
     expect(prompt).toContain('影响面')
@@ -182,6 +193,7 @@ describe('内置角色人设源', () => {
     expect(PROFILE).toContain('用户确认后按顺序落盘，只用专用工具，不用通用写文件能力：')
     expect(PROFILE).toContain('project_draft 登记 .spec/project.yaml')
     expect(PROFILE).toContain('requirement_draft 登记需求')
+    expect(PROFILE).toContain('title 用不超过 16 字的短业务短语')
     expect(PROFILE).toContain('失败就照实报四件事')
     expect(PROFILE).toContain('不签契约、不推进任务状态、不改业务代码、不跑命令、不提交、不推送、不部署。')
   })
