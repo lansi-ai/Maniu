@@ -5,7 +5,7 @@ import type { DesktopLocaleId, DesktopPreferences } from './contract.ts'
 
 /** 默认偏好；字段缺失、未知或文件损坏时逐项回落到这里。 */
 export const DEFAULT_DESKTOP_PREFERENCES: DesktopPreferences = {
-  skin: 'liquid-glass',
+  skin: 'dark',
   font: 'system',
   locale: 'zh',
   lastPickedDirectory: null,
@@ -21,7 +21,7 @@ export function isDesktopLocale(value: unknown): value is DesktopLocaleId {
 }
 
 /**
- * 判定任意值是已知皮肤。
+ * 判定任意值是已知外观。
  * @param value - 来自磁盘或 IPC 的值。
  * @returns value 是 `DesktopPreferences['skin']` 时为 true。
  */

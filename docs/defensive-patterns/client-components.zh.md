@@ -389,6 +389,8 @@ useEffect(() => {
 - 不在范围内：运行期计算的值（量到的 gutter、进度百分比）可以进 `style`，组件局部自定义属性也可以承载布局值。[组件规则](../web-styling.zh.md#component-rules) 正家负责 token、CSS Module 与 class name 规则。
 - 例外：新增构建分支或新的内联形态在落地前于 review 中说明理由，由所属包的规则决定是否保留。
 - 修法：把样式切换移进用 `className` 切换的 CSS Module class，base64 交给构建链写进 CSS，并从 TSX 模块里删掉大文本常量。
+- 例外：`packages/lcoder/client` 是 CSS Module 专属规则的限定例外，可使用 HeroUI v3 与 Tailwind v4；所有 `packages/client/*` 包继续用 CSS Module 与 `--dsw-*` token。
+- 拖拽区红线：所有带 `-webkit-app-region: drag` 的区域——`titlebar`、`window-gutter`、`titlebar-pad`、`gate-drag`——严禁使用 `backdrop-blur`、`backdrop-filter` 或 `-webkit-backdrop-filter`，只能用纯色或不带背景滤镜的静态半透明填充。带滤镜的拖拽区会让 Windows 无边框窗口拖动停滞。非拖拽浮层（抽屉遮罩、面板、搜索框、Tooltip、Popover、浮岛）可以使用 `backdrop-blur-md`。
 
 组件切换 class name 与 data 属性，呈现由 CSS Module 负责：
 

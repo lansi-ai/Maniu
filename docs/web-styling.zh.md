@@ -41,6 +41,13 @@
 
 混合输入设备上，鼠标预览可以出现，而基于主指针的 CSS 悬停样式保持关闭。键盘焦点和快捷键提示根据实际键盘交互显示，不依赖这些能力查询；共享行为见 [Menu 与输入方式](../packages/client/ui-primitives/README.zh.md#input-modality)。
 
+<a id="lcoder-client-exception"></a>
+## LCoder client 例外
+
+`packages/lcoder/client` 是上文“不得添加组件库或 Tailwind”规则的唯一正式例外：它可以使用 HeroUI v3 与 Tailwind v4，因为它是正从旧渲染器迁移中的 LCoder 桌面外壳。该例外仅适用于这个包。所有 `packages/client/*` 包继续遵守 CSS Modules 与 `--dsw-*` token 规则，`ui-theme` / `ui-primitives` 目录仍是上游客户端的唯一权威；把 HeroUI 或 Tailwind 带入上游客户端包仍属违规。
+
+拖拽区红线：所有带 `-webkit-app-region: drag` 的区域——`titlebar`、`window-gutter`、`titlebar-pad`、`gate-drag`——严禁使用 `backdrop-blur`、`backdrop-filter` 或 `-webkit-backdrop-filter`。只能用纯色或不带背景滤镜的静态半透明填充；带滤镜的拖拽区会让 Windows 无边框窗口拖动停滞。非拖拽浮层（抽屉遮罩、面板、搜索框、Tooltip、Popover、浮岛）可以使用 `backdrop-blur-md`。
+
 <a id="corner-radii-and-settings-cards"></a>
 ## 圆角与设置卡片
 

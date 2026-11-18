@@ -96,10 +96,10 @@ export interface WindowStateInfo {
 /** 界面语言；主进程菜单与托盘跟随同一个值。 */
 export type DesktopLocaleId = 'zh' | 'en'
 
-/** 四套皮肤；与渲染端 `SkinId` 同一组字面量。 */
-export const DESKTOP_SKINS = ['liquid-glass', 'neon', 'silver', 'rose'] as const
+/** 三态外观；与渲染端三态取值同一组字面量，字段名 skin 保持 IPC 契约不变。 */
+export const DESKTOP_SKINS = ['light', 'dark', 'system'] as const
 
-/** 皮肤标识。 */
+/** 外观标识。 */
 export type DesktopSkinId = (typeof DESKTOP_SKINS)[number]
 
 /** 两套字体；与渲染端 `FontId` 同一组字面量。 */
