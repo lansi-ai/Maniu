@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import type { JSX } from 'react'
+import { Button, Card, Separator } from '@heroui/react'
 import type { Translate } from '../locale.ts'
 import { loadModelSettings, type ModelSnapshot } from '../settings/model-settings.ts'
 import { loadPresetTools } from '../talents/api.ts'
@@ -156,181 +157,206 @@ export function TalentForm(props: TalentFormProps): JSX.Element {
 
       {problem === null ? null : <p className="problem" data-testid="talent-form-problem">{problem}</p>}
 
-      <div className="talent-form-grid">
-        <label className="talent-field">
-          <span>{t('talents.name')}</span>
-          <input
-            className="settings-input"
-            data-testid="talent-name"
-            value={name}
-            maxLength={80}
-            placeholder={t('talents.namePlaceholder')}
-            onChange={(event) => { setName(event.target.value) }}
-          />
-        </label>
-        <label className="talent-field">
-          <span>{t('talents.basePreset')}</span>
-          <select
-            className="settings-select"
-            data-testid="talent-base-preset"
-            value={basePreset}
-            onChange={(event) => { setBasePreset(event.target.value) }}
-          >
-            <option value="">{t('talents.basePresetFollow')}</option>
-            {catalog.presets.map(preset => (
-              <option key={preset.id} value={preset.id} disabled={preset.broken !== undefined}>
-                {preset.name ?? preset.id}{preset.broken === undefined ? '' : ` · ${t('talents.presetBroken')}`}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-
-      <label className="talent-field">
-        <span>{t('talents.description')}</span>
-        <input
-          className="settings-input"
-          data-testid="talent-description"
-          value={description}
-          maxLength={2000}
-          placeholder={t('talents.descriptionPlaceholder')}
-          onChange={(event) => { setDescription(event.target.value) }}
-        />
-      </label>
-
-      <label className="talent-field">
-        <span>{t('talents.persona')}</span>
-        <textarea
-          className="settings-input talent-persona"
-          data-testid="talent-persona"
-          value={persona}
-          rows={4}
-          placeholder={t('talents.personaPlaceholder')}
-          onChange={(event) => { setPersona(event.target.value) }}
-        />
-      </label>
-
-      <div className="talent-form-grid">
-        <div className="talent-field">
-          <span>{t('talents.plugins')}</span>
-          <input
-            className="settings-input"
-            data-testid="talent-plugin-filter"
-            value={filter}
-            placeholder={t('talents.pluginsFilter')}
-            onChange={(event) => { setFilter(event.target.value) }}
-          />
-          <div className="talent-checks" data-testid="talent-plugins">
-            {visiblePlugins.map(plugin => (
-              <label key={plugin.name} className="talent-check">
-                <input
-                  type="checkbox"
-                  checked={selectedNames.includes(plugin.name)}
-                  onChange={() => {
-                    setPlugins(current => current.some(row => row.name === plugin.name)
-                      ? current.filter(row => row.name !== plugin.name)
-                      : [...current, { name: plugin.name }])
-                  }}
-                />
-                <span className="mono">{plugin.name}</span>
-                {plugin.version === undefined ? null : <em>{plugin.version}</em>}
-              </label>
-            ))}
-            {visiblePlugins.length === 0 ? <p className="empty">{t('talents.pluginsEmpty')}</p> : null}
+      <Card className="talent-form-group">
+        <Card.Header className="talent-form-group-head">
+          <Card.Title>{t('talents.name')}</Card.Title>
+          <Card.Description>{t('talents.namePlaceholder')}</Card.Description>
+        </Card.Header>
+        <Separator />
+        <Card.Content className="talent-form-group-body">
+          <div className="talent-form-grid">
+            <label className="talent-field">
+              <span>{t('talents.name')}</span>
+              <input
+                className="settings-input"
+                data-testid="talent-name"
+                value={name}
+                maxLength={80}
+                placeholder={t('talents.namePlaceholder')}
+                onChange={(event) => { setName(event.target.value) }}
+              />
+            </label>
+            <label className="talent-field">
+              <span>{t('talents.basePreset')}</span>
+              <select
+                className="settings-select"
+                data-testid="talent-base-preset"
+                value={basePreset}
+                onChange={(event) => { setBasePreset(event.target.value) }}
+              >
+                <option value="">{t('talents.basePresetFollow')}</option>
+                {catalog.presets.map(preset => (
+                  <option key={preset.id} value={preset.id} disabled={preset.broken !== undefined}>
+                    {preset.name ?? preset.id}{preset.broken === undefined ? '' : ` · ${t('talents.presetBroken')}`}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
-          <p className="settings-muted">{t('talents.pluginsHint')}</p>
-        </div>
-
-        <div className="talent-field">
-          <span>{t('talents.tools')}</span>
-          {basePreset === '' ? <p className="empty">{t('talents.toolsNeedBase')}</p> : null}
-          {toolsProblem === null ? null : <p className="problem">{t('talents.toolsUnavailable', { detail: toolsProblem })}</p>}
-          <div className="talent-checks" data-testid="talent-tools">
-            {tools.map(tool => (
-              <label key={tool.name} className="talent-check" title={tool.description}>
-                <input
-                  type="checkbox"
-                  checked={selectedTools.includes(tool.name)}
-                  onChange={() => { setSelectedTools(current => toggle(current, tool.name)) }}
-                />
-                <span className="mono">{tool.name}</span>
-              </label>
-            ))}
-            {basePreset !== '' && tools.length === 0 && toolsProblem === null
-              ? <p className="empty">{t('talents.toolsEmpty')}</p> : null}
-          </div>
-          <p className="settings-muted">{t('talents.toolsHint')}</p>
-        </div>
-      </div>
-
-      <div className="talent-form-grid">
-        <div className="talent-field">
-          <span>{t('talents.model')}</span>
-          <select
-            className="settings-select"
-            data-testid="talent-model-provider"
-            value={provider}
-            onChange={(event) => {
-              const next = event.target.value
-              setProvider(next)
-              const row = providers.find(item => item.provider === next)
-              setModelId(row?.models[0]?.id ?? '')
-            }}
-          >
-            <option value="">{t('talents.modelFollow')}</option>
-            {providers.map(row => <option key={row.provider} value={row.provider}>{row.displayName}</option>)}
-            {provider !== '' && !providers.some(row => row.provider === provider)
-              ? <option value={provider}>{provider}</option> : null}
-          </select>
-          <select
-            className="settings-select"
-            data-testid="talent-model-id"
-            value={modelId}
-            disabled={provider === ''}
-            onChange={(event) => { setModelId(event.target.value) }}
-          >
-            {providerModels.map(model => <option key={model.id} value={model.id}>{model.name}</option>)}
-            {modelId !== '' && !providerModels.some(model => model.id === modelId)
-              ? <option value={modelId}>{modelId}</option> : null}
-          </select>
-          <p className="settings-muted">{modelError === null ? t('talents.modelHint') : t('talents.modelUnavailable', { detail: modelError })}</p>
-        </div>
-
-        <div className="talent-field">
-          <span>{t('talents.budget')}</span>
-          <label className="talent-inline">
-            <span>{t('talents.budgetCost')}</span>
+          <label className="talent-field">
+            <span>{t('talents.description')}</span>
             <input
               className="settings-input"
-              data-testid="talent-budget-cost"
-              inputMode="numeric"
-              value={cost}
-              placeholder={t('talents.budgetOptional')}
-              onChange={(event) => { setCost(event.target.value) }}
+              data-testid="talent-description"
+              value={description}
+              maxLength={2000}
+              placeholder={t('talents.descriptionPlaceholder')}
+              onChange={(event) => { setDescription(event.target.value) }}
             />
           </label>
-          <label className="talent-inline">
-            <span>{t('talents.budgetRequests')}</span>
-            <input
-              className="settings-input"
-              data-testid="talent-budget-requests"
-              inputMode="numeric"
-              value={requests}
-              placeholder={t('talents.budgetOptional')}
-              onChange={(event) => { setRequests(event.target.value) }}
+          <label className="talent-field">
+            <span>{t('talents.persona')}</span>
+            <textarea
+              className="settings-input talent-persona"
+              data-testid="talent-persona"
+              value={persona}
+              rows={4}
+              placeholder={t('talents.personaPlaceholder')}
+              onChange={(event) => { setPersona(event.target.value) }}
             />
           </label>
-          <p className="settings-muted">{t('talents.budgetHint')}</p>
-        </div>
-      </div>
+        </Card.Content>
+      </Card>
+
+      <Card className="talent-form-group">
+        <Card.Header className="talent-form-group-head">
+          <Card.Title>{t('talents.plugins')}</Card.Title>
+          <Card.Description>{t('talents.tools')}</Card.Description>
+        </Card.Header>
+        <Separator />
+        <Card.Content className="talent-form-group-body">
+          <div className="talent-form-grid">
+            <div className="talent-field">
+              <span>{t('talents.plugins')}</span>
+              <input
+                className="settings-input"
+                data-testid="talent-plugin-filter"
+                value={filter}
+                placeholder={t('talents.pluginsFilter')}
+                onChange={(event) => { setFilter(event.target.value) }}
+              />
+              <div className="talent-checks" data-testid="talent-plugins">
+                {visiblePlugins.map(plugin => (
+                  <label key={plugin.name} className="talent-check">
+                    <input
+                      type="checkbox"
+                      checked={selectedNames.includes(plugin.name)}
+                      onChange={() => {
+                        setPlugins(current => current.some(row => row.name === plugin.name)
+                          ? current.filter(row => row.name !== plugin.name)
+                          : [...current, { name: plugin.name }])
+                      }}
+                    />
+                    <span className="mono">{plugin.name}</span>
+                    {plugin.version === undefined ? null : <em>{plugin.version}</em>}
+                  </label>
+                ))}
+                {visiblePlugins.length === 0 ? <p className="empty">{t('talents.pluginsEmpty')}</p> : null}
+              </div>
+              <p className="settings-muted">{t('talents.pluginsHint')}</p>
+            </div>
+
+            <div className="talent-field">
+              <span>{t('talents.tools')}</span>
+              {basePreset === '' ? <p className="empty">{t('talents.toolsNeedBase')}</p> : null}
+              {toolsProblem === null ? null : <p className="problem">{t('talents.toolsUnavailable', { detail: toolsProblem })}</p>}
+              <div className="talent-checks" data-testid="talent-tools">
+                {tools.map(tool => (
+                  <label key={tool.name} className="talent-check" title={tool.description}>
+                    <input
+                      type="checkbox"
+                      checked={selectedTools.includes(tool.name)}
+                      onChange={() => { setSelectedTools(current => toggle(current, tool.name)) }}
+                    />
+                    <span className="mono">{tool.name}</span>
+                  </label>
+                ))}
+                {basePreset !== '' && tools.length === 0 && toolsProblem === null
+                  ? <p className="empty">{t('talents.toolsEmpty')}</p> : null}
+              </div>
+              <p className="settings-muted">{t('talents.toolsHint')}</p>
+            </div>
+          </div>
+        </Card.Content>
+      </Card>
+
+      <Card className="talent-form-group">
+        <Card.Header className="talent-form-group-head">
+          <Card.Title>{t('talents.model')}</Card.Title>
+          <Card.Description>{t('talents.budget')}</Card.Description>
+        </Card.Header>
+        <Separator />
+        <Card.Content className="talent-form-group-body">
+          <div className="talent-form-grid">
+            <div className="talent-field">
+              <span>{t('talents.model')}</span>
+              <select
+                className="settings-select"
+                data-testid="talent-model-provider"
+                value={provider}
+                onChange={(event) => {
+                  const next = event.target.value
+                  setProvider(next)
+                  const row = providers.find(item => item.provider === next)
+                  setModelId(row?.models[0]?.id ?? '')
+                }}
+              >
+                <option value="">{t('talents.modelFollow')}</option>
+                {providers.map(row => <option key={row.provider} value={row.provider}>{row.displayName}</option>)}
+                {provider !== '' && !providers.some(row => row.provider === provider)
+                  ? <option value={provider}>{provider}</option> : null}
+              </select>
+              <select
+                className="settings-select"
+                data-testid="talent-model-id"
+                value={modelId}
+                disabled={provider === ''}
+                onChange={(event) => { setModelId(event.target.value) }}
+              >
+                {providerModels.map(model => <option key={model.id} value={model.id}>{model.name}</option>)}
+                {modelId !== '' && !providerModels.some(model => model.id === modelId)
+                  ? <option value={modelId}>{modelId}</option> : null}
+              </select>
+              <p className="settings-muted">{modelError === null ? t('talents.modelHint') : t('talents.modelUnavailable', { detail: modelError })}</p>
+            </div>
+
+            <div className="talent-field">
+              <span>{t('talents.budget')}</span>
+              <label className="talent-inline">
+                <span>{t('talents.budgetCost')}</span>
+                <input
+                  className="settings-input"
+                  data-testid="talent-budget-cost"
+                  inputMode="numeric"
+                  value={cost}
+                  placeholder={t('talents.budgetOptional')}
+                  onChange={(event) => { setCost(event.target.value) }}
+                />
+              </label>
+              <label className="talent-inline">
+                <span>{t('talents.budgetRequests')}</span>
+                <input
+                  className="settings-input"
+                  data-testid="talent-budget-requests"
+                  inputMode="numeric"
+                  value={requests}
+                  placeholder={t('talents.budgetOptional')}
+                  onChange={(event) => { setRequests(event.target.value) }}
+                />
+              </label>
+              <p className="settings-muted">{t('talents.budgetHint')}</p>
+            </div>
+          </div>
+        </Card.Content>
+      </Card>
 
       <div className="talent-actions">
-        <button type="button" className="pill" data-testid="talent-cancel" disabled={busy} onClick={props.onCancel}>
+        <Button variant="secondary" data-testid="talent-cancel" isDisabled={busy} onPress={props.onCancel}>
           {t('talents.cancel')}
-        </button>
-        <button type="button" className="pill pill-accent" data-testid="talent-save" disabled={busy} onClick={() => { void save() }}>
+        </Button>
+        <Button variant="primary" data-testid="talent-save" isDisabled={busy} onPress={() => { void save() }}>
           {busy ? t('talents.saving') : t('talents.save')}
-        </button>
+        </Button>
       </div>
     </section>
   )

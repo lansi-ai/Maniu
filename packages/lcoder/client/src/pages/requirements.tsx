@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { JSX } from 'react'
+import { Button, Card, Chip, SearchField, SearchFieldClearButton, SearchFieldGroup, SearchFieldInput, Separator, Table, Tabs } from '@heroui/react'
+import { Plus, RefreshCw, Sparkles } from 'lucide-react'
 import type { ProjectScope } from '../workspace/use-workspaces.ts'
 import type { SpecProjection } from '../spec/load.ts'
 import type { SessionSummary } from '../store.ts'
@@ -52,6 +54,14 @@ const OP_TITLE_KEY: Readonly<Record<OpKind, MessageKey>> = {
   review: 'requirement.opTitle.review',
   revise: 'requirement.opTitle.revise',
   split: 'requirement.opTitle.split',
+}
+
+/** 需求状态到 HeroUI Chip 语义色的映射；文案仍走 board 的词典标签。 */
+function stateChipColor(value: string): 'default' | 'accent' | 'success' | 'warning' {
+  if (value === 'draft') return 'warning'
+  if (value === 'confirmed') return 'accent'
+  if (value === 'released') return 'success'
+  return 'default'
 }
 
 /** 岗位解析不了时的节点默认 preset；正常配置都能解析到岗位自己的 preset。 */
@@ -173,6 +183,22 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
       return `${row.id} ${row.title ?? ''} ${row.text}`.toLowerCase().includes(query)
     })
   }, [props.projection.requirements, state, text])
+
+  // 状态胶囊的数量角标从全量投影统计，不受搜索词影响；这只改呈现，不参与过滤。
+  const stateTabs = useMemo(() => {
+    const all = props.projection.requirements
+    return [
+      { id: 'all', label: '全部', count: all.length },
+      { id: 'draft', label: '草稿', count: all.filter(row => row.state === 'draft').length },
+      { id: 'confirmed', label: '已确认', count: all.filter(row => row.state === 'confirmed').length },
+      { id: 'released', label: '已上线', count: all.filter(row => row.state === 'released').length },
+      { id: 'closed', label: '已关闭', count: all.filter(row => row.state === 'closed').length },
+    ]
+  }, [props.projection.requirements])
+
+  const selectState = (key: unknown): void => {
+    setState(key === 'all' ? '' : typeof key === 'string' ? key : '')
+  }
 
   const active = rows.find(row => row.id === selected) ?? null
   const detailTask = taskId === null ? undefined : props.projection.tasks.find(task => task.id === taskId)
@@ -636,52 +662,65 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
 
   return (
     <section className="page" data-testid="page-requirements">
-      <header className="page-head">
+      <header className="page-head requirements-head">
         <div>
           <h2>需求</h2>
         </div>
-        <div className="page-actions">
-          <input
-            className="search"
+        <div className="page-actions requirements-toolbar">
+          <SearchField
+            className="req-search"
             data-testid="requirement-search"
             value={text}
-            placeholder="搜索需求"
-            onChange={(event) => { setText(event.target.value) }}
-          />
-          <select
-            className="select"
-            data-testid="requirement-state"
-            value={state}
-            onChange={(event) => { setState(event.target.value) }}
+            onChange={setText}
+            aria-label="搜索需求"
+            variant="secondary"
           >
-            <option value="">全部状态</option>
-            <option value="draft">草稿</option>
-            <option value="confirmed">已确认</option>
-            <option value="released">已上线</option>
-            <option value="closed">已关闭</option>
-          </select>
-          <button type="button" className="pill" data-testid="requirement-reload" onClick={props.onReload}>
+            <SearchFieldGroup>
+              <SearchFieldInput placeholder="搜索需求" />
+              <SearchFieldClearButton />
+            </SearchFieldGroup>
+          </SearchField>
+          <Tabs
+            className="req-state-tabs"
+            data-testid="requirement-state"
+            selectedKey={state === '' ? 'all' : state}
+            onSelectionChange={selectState}
+            aria-label="状态筛选"
+          >
+            <Tabs.List>
+              {stateTabs.map(item => (
+                <Tabs.Tab key={item.id} id={item.id}>
+                  {item.label}<span className="tab-count">{item.count}</span>
+                </Tabs.Tab>
+              ))}
+            </Tabs.List>
+          </Tabs>
+          <Button
+            variant="secondary"
+            data-testid="requirement-reload"
+            onPress={props.onReload}
+          >
+            <RefreshCw size={14} className={props.loading ? 'req-spin' : undefined} />
             {props.loading ? '读取中…' : '刷新'}
-          </button>
-          <button
-            type="button"
-            className="pill pill-accent"
+          </Button>
+          <Button
+            variant="primary"
             data-testid="intake-open"
-            disabled={props.project === null || blockedIntake || busyOf('intake', null)}
-            title={blockedIntake ? t('requirement.intakeBlocked') : undefined}
-            onClick={() => { setWizard(true) }}
+            isDisabled={props.project === null || blockedIntake || busyOf('intake', null)}
+            {...(blockedIntake ? { title: t('requirement.intakeBlocked') } : {})}
+            onPress={() => { setWizard(true) }}
           >
             {props.intakeResult === null ? '立项向导' : '立项结果'}
-          </button>
-          <button
-            type="button"
-            className="pill pill-accent"
+          </Button>
+          <Button
+            variant="primary"
             data-testid="requirement-new-open"
-            disabled={props.project === null || busyOf('create', null)}
-            onClick={() => { setCreateOpen(true) }}
+            isDisabled={props.project === null || busyOf('create', null)}
+            onPress={() => { setCreateOpen(true) }}
           >
+            <Plus size={14} />
             {t('requirement.new')}
-          </button>
+          </Button>
         </div>
       </header>
 
@@ -717,138 +756,151 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
       )}
 
       {props.project !== null && pendingChanges.length > 0 && (
-        <section className="pending-proposals lg-glass-card" data-testid="requirement-pending-proposals">
-          <h3>{t('requirement.pendingTitle')}</h3>
-          <ul className="plain-list compact">
-            {pendingChanges.map(({ proposal, change }) => (
-              <li key={proposal.id} data-testid="requirement-pending-proposal" data-proposal-id={proposal.id}>
-                <div className="pending-proposal-body">
-                  <strong>{proposal.title}</strong>
-                  <span className="tag">
-                    {change.mode === 'new' ? t('requirement.pendingNew') : t('requirement.pendingTarget', { target: change.target ?? '' })}
-                  </span>
-                  <p className="detail-note">
-                    {change.analysis.length > 120 ? `${change.analysis.slice(0, 120)}…` : change.analysis}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  className="pill pill-accent"
-                  data-testid="requirement-pending-open"
-                  data-proposal-id={proposal.id}
-                  onClick={() => { setCompareId(proposal.id) }}
-                >
-                  {t('requirement.pendingOpen')}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
+        <Card className="pending-proposals lg-glass-card" data-testid="requirement-pending-proposals">
+          <Card.Header className="pending-proposals-head">
+            <Card.Title>{t('requirement.pendingTitle')}</Card.Title>
+            <Chip size="sm" variant="soft" color="warning">{pendingChanges.length}</Chip>
+          </Card.Header>
+          <Separator />
+          <Card.Content>
+            <ul className="plain-list compact">
+              {pendingChanges.map(({ proposal, change }) => (
+                <li key={proposal.id} data-testid="requirement-pending-proposal" data-proposal-id={proposal.id}>
+                  <div className="pending-proposal-body">
+                    <strong>{proposal.title}</strong>
+                    <Chip size="sm" variant="secondary">
+                      {change.mode === 'new' ? t('requirement.pendingNew') : t('requirement.pendingTarget', { target: change.target ?? '' })}
+                    </Chip>
+                    <p className="detail-note">
+                      {change.analysis.length > 120 ? `${change.analysis.slice(0, 120)}…` : change.analysis}
+                    </p>
+                  </div>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    data-testid="requirement-pending-open"
+                    data-proposal-id={proposal.id}
+                    onPress={() => { setCompareId(proposal.id) }}
+                  >
+                    {t('requirement.pendingOpen')}
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          </Card.Content>
+        </Card>
       )}
 
       {props.project !== null && (
-        <div className="split">
-          <div className="table-wrap lg-glass-card">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th scope="col">编号</th>
-                  <th scope="col">标题</th>
-                  <th scope="col">状态</th>
-                  <th scope="col">{t('requirement.colOpened')}</th>
-                  <th scope="col">{t('requirement.colActions')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row) => {
-                  const related = relatedOf(row.id)
-                  return (
-                    <tr
-                      key={row.id}
-                      data-testid="requirement-row"
-                      data-requirement-id={row.id}
-                      className={row.id === selected ? 'selected' : undefined}
-                      tabIndex={0}
-                      onClick={() => { setSelected(row.id) }}
-                      onKeyDown={(event) => { if (event.key === 'Enter') setSelected(row.id) }}
-                    >
-                      <td className="mono">{row.id}</td>
-                      <td>{row.title ?? row.id}</td>
-                      <td><span className="tag">{requirementStateLabel(row.state)}</span></td>
-                      <td className="mono">{row.openedAt?.slice(0, 10) ?? '—'}</td>
-                      <td>
-                        <div className="row-actions">
-                          {row.state === 'draft' && (
-                            <>
+        <div className="requirements-workspace">
+          <div className="table-wrap lg-glass-card requirements-table">
+            <Table aria-label="需求列表" className="requirements-table-root">
+              <Table.Content>
+                <Table.Header>
+                  <Table.Column isRowHeader>编号</Table.Column>
+                  <Table.Column>标题</Table.Column>
+                  <Table.Column>状态</Table.Column>
+                  <Table.Column>{t('requirement.colOpened')}</Table.Column>
+                  <Table.Column>{t('requirement.colActions')}</Table.Column>
+                </Table.Header>
+                <Table.Body>
+                  {rows.map((row) => {
+                    const related = relatedOf(row.id)
+                    return (
+                      <Table.Row
+                        key={row.id}
+                        data-testid="requirement-row"
+                        data-requirement-id={row.id}
+                        className={row.id === selected ? 'selected' : ''}
+                        onAction={() => { setSelected(row.id) }}
+                      >
+                        <Table.Cell className="mono">{row.id}</Table.Cell>
+                        <Table.Cell>{row.title ?? row.id}</Table.Cell>
+                        <Table.Cell>
+                          <Chip size="sm" variant="soft" color={stateChipColor(row.state ?? '')}>
+                            {requirementStateLabel(row.state)}
+                          </Chip>
+                        </Table.Cell>
+                        <Table.Cell className="mono">{row.openedAt?.slice(0, 10) ?? '—'}</Table.Cell>
+                        <Table.Cell>
+                          <div className="row-actions requirement-row-actions">
+                            {row.state === 'draft' && (
+                              <>
+                                <button
+                                  type="button"
+                                  className="pill"
+                                  data-testid="requirement-op-review"
+                                  disabled={busyOf('review', row.id)}
+                                  onClick={(event) => { event.stopPropagation(); void review(row) }}
+                                >
+                                  {t('requirement.opReview')}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="pill"
+                                  data-testid="requirement-op-revise"
+                                  disabled={busyOf('revise', row.id)}
+                                  onClick={(event) => { event.stopPropagation(); void revise(row) }}
+                                >
+                                  {t('requirement.opRevise')}
+                                </button>
+                              </>
+                            )}
+                            {row.state === 'confirmed' && related.length === 0 && (
                               <button
                                 type="button"
                                 className="pill"
-                                data-testid="requirement-op-review"
-                                disabled={busyOf('review', row.id)}
-                                onClick={(event) => { event.stopPropagation(); void review(row) }}
+                                data-testid="requirement-op-split"
+                                disabled={busyOf('split', row.id)}
+                                onClick={(event) => { event.stopPropagation(); void split(row) }}
                               >
-                                {t('requirement.opReview')}
+                                {t('requirement.opSplit')}
                               </button>
+                            )}
+                            {related.length > 0 && (
                               <button
                                 type="button"
                                 className="pill"
-                                data-testid="requirement-op-revise"
-                                disabled={busyOf('revise', row.id)}
-                                onClick={(event) => { event.stopPropagation(); void revise(row) }}
+                                data-testid="requirement-op-tasks"
+                                onClick={(event) => { event.stopPropagation(); props.onOpenTasks(row.id) }}
                               >
-                                {t('requirement.opRevise')}
+                                {t('requirement.opTasks')}
                               </button>
-                            </>
-                          )}
-                          {row.state === 'confirmed' && related.length === 0 && (
-                            <button
-                              type="button"
-                              className="pill"
-                              data-testid="requirement-op-split"
-                              disabled={busyOf('split', row.id)}
-                              onClick={(event) => { event.stopPropagation(); void split(row) }}
-                            >
-                              {t('requirement.opSplit')}
-                            </button>
-                          )}
-                          {related.length > 0 && (
-                            <button
-                              type="button"
-                              className="pill"
-                              data-testid="requirement-op-tasks"
-                              onClick={(event) => { event.stopPropagation(); props.onOpenTasks(row.id) }}
-                            >
-                              {t('requirement.opTasks')}
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+                            )}
+                          </div>
+                        </Table.Cell>
+                      </Table.Row>
+                    )
+                  })}
+                </Table.Body>
+              </Table.Content>
+            </Table>
             {rows.length === 0 && <p className="empty" data-testid="requirement-empty">{props.loading ? '读取中…' : '没有匹配的需求。'}</p>}
           </div>
 
           {active !== null && (
-            <RequirementDetail
-              key={active.id}
-              row={active}
-              project={props.project}
-              projection={props.projection}
-              sessions={props.sessions}
-              onClose={() => { setSelected(null) }}
-              onOpenTask={setTaskId}
-              onOpenReader={setReaderPath}
-              onReload={props.onReload}
-              onSplit={() => split(active)}
-              onReview={() => review(active)}
-              onRevise={() => revise(active)}
-              onCreateBased={() => createBased(active)}
-              onOpenTasks={() => { props.onOpenTasks(active.id) }}
-              t={t}
-            />
+            <>
+              <div className="requirement-detail-scrim" aria-hidden="true" onClick={() => { setSelected(null) }} />
+              <div className="requirement-detail-layer">
+                <RequirementDetail
+                  key={active.id}
+                  row={active}
+                  project={props.project}
+                  projection={props.projection}
+                  sessions={props.sessions}
+                  onClose={() => { setSelected(null) }}
+                  onOpenTask={setTaskId}
+                  onOpenReader={setReaderPath}
+                  onReload={props.onReload}
+                  onSplit={() => split(active)}
+                  onReview={() => review(active)}
+                  onRevise={() => revise(active)}
+                  onCreateBased={() => createBased(active)}
+                  onOpenTasks={() => { props.onOpenTasks(active.id) }}
+                  t={t}
+                />
+              </div>
+            </>
           )}
         </div>
       )}
@@ -897,14 +949,14 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
             onChange={(event) => { setCreateText(event.target.value) }}
           />
           <div className="action-row">
-            <button
-              type="button"
-              className="pill pill-accent"
+            <Button
+              variant="primary"
               data-testid="requirement-new-start"
-              onClick={() => { void createStart(createText) }}
+              onPress={() => { void createStart(createText) }}
             >
+              <Sparkles size={14} />
               {t('requirement.newStart')}
-            </button>
+            </Button>
           </div>
         </DetailDrawer>
       )}
