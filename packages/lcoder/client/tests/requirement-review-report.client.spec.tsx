@@ -152,7 +152,7 @@ describe('内联评审报告', () => {
     const section = element('requirement-review-report')
     expect(section?.getAttribute('data-round')).toBe('2')
     expect(reads).toEqual([{ scope: 'session-scope', path: '.spec/requirements/REQ-01/reviews/R2.md' }])
-    expect(element('requirement-report-summary')?.textContent).toContain('2026-11-17T11:00:00+08:00')
+    expect(element('requirement-report-summary')?.textContent).toContain('2026-11-17 11:00')
     expect(element('requirement-report-excerpt')?.textContent).toContain('评审结论 .spec/requirements/REQ-01/reviews/R2.md')
     expect(element('requirement-report-body')).toBeNull()
 
@@ -179,14 +179,14 @@ describe('内联评审报告', () => {
     expect(element('requirement-report-body')?.textContent).toContain('R3.md')
   })
 
-  it('历史轮次默认收起，展开后逐轮可打开报告', async () => {
+  it('历史轮次逐轮可打开报告，时刻按可读格式展示', async () => {
     const calls = callsOf()
     await renderDetail(REVIEWED, calls)
-    expect(element('requirement-review-history-item')).toBeNull()
-    await press('requirement-report-history-toggle')
+    expect(element('requirement-report-history-toggle')).toBeNull()
     const items = container.querySelectorAll('[data-testid="requirement-review-history-item"]')
     expect(items).toHaveLength(1)
     expect(items[0]?.getAttribute('data-round')).toBe('1')
+    expect(items[0]?.textContent).toContain('2026-11-17 10:00')
     await pressSelector('[data-testid="requirement-review-history-item"][data-round="1"] [data-testid="requirement-open-report"]')
     expect(calls.readers).toEqual(['.spec/requirements/REQ-01/reviews/R1.md'])
   })

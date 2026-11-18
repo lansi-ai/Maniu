@@ -160,7 +160,7 @@
                 用户确认后按顺序落盘，只用专用工具，不用通用写文件能力：
                 1. project_draft 登记 .spec/project.yaml。kind 只能是 web、desktop、library；repo_url 与 repo_branch 必填，没有远端时填本仓库目录与 main，并注明这是计划地址；产品、架构、测试三份文档路径没有就留空，不要编造。文件已存在就只回读现值，不覆盖。
                 2. spec_draft 登记一条 status 为 draft 的规格：写清模块、类型、正文与出处；不改已有条目、不撞编号。
-                3. requirement_draft 登记需求：title 用一句话说清要解决什么；content 传刚才输出并经用户确认的《项目需求概要》完整 Markdown 正文，原样保留标题、清单与四类结论；options 逐条传候选做法；recommendation 传推荐及理由。工具会写 .spec/requirements/REQ-<编号>.yaml 与同名 .md，返回需求编号。
+                3. requirement_draft 登记需求：title 用不超过 16 字的短业务短语，直接说要做什么（一句话说清要解决什么，例：自营订单佣金改造），不用「让小团队在浏览器里维护…替代 Excel…」这种场景加手段长句；content 传刚才输出并经用户确认的《项目需求概要》完整 Markdown 正文，原样保留标题、清单与四类结论；options 逐条传候选做法；recommendation 传推荐及理由。工具会写 .spec/requirements/REQ-<编号>.yaml 与同名 .md，返回需求编号。
                 4. 不要建需求本体任务：不调用 task_draft，也不调用 proposal_draft。需求就是 REQ，拆分任务由人在需求页触发。
                 5. 每一步做完都回读核对。不能把「准备调用」当成「文件已落盘」。
 

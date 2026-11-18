@@ -187,8 +187,11 @@ export function buildReviewPrompt(
 
 要求：
 - 用 requirement_review_draft 落盘：参数 id 为 ${requirement.id}，report 是完整 Markdown 报告；每条意见写清位置与可执行的修改建议。
+- 报告固定三个二级小节，按顺序用原标题，不改名、不合并、不新增同级小节：
+  1. ## 摘要：两三句给出整体判断与最关键的问题。
+  2. ## 结论：给出「可以确认」或「需要修改」。
+  3. ## 待改项：每条用列表项，写清位置、可执行的修改建议与优先级（高/中/低）；没有待改项写「无」。
 - 只读查看需求正文与仓库事实；不改需求正文、不改状态、不签契约、不推进任务、不调用过审命令。
-- 结尾给出结论：可以确认，或需要修改（列出必须修改项）。
 - 输出完停下，不自行改稿，也不自行过审。
 
 《需求正文》：
@@ -263,7 +266,7 @@ export function buildRequirementCreatePrompt(
     : `- 本需求基于已确认需求 ${base.id}（${base.title}）v${String(base.version)}：调用 requirement_propose 时 target 为 ${base.id}，base_version 为 ${String(base.version)}；确认态需求只能这样作为新需求的依据，不能改稿。`
   return `新建需求：请为本项目登记一条新需求，只登记这一条，不做整项目立项。
 
-标题口径：需求标题（requirement_propose 的 title）用一句话业务目标（例：让验收方免登录确认交付物），不用文档名；文档标题留在正文 H1。
+标题口径：需求标题（requirement_propose 的 title）用不超过 16 字的短业务短语，直接说要做什么（一句话业务目标，例：自营订单佣金改造），不用文档名；不要「让小团队在浏览器里维护…替代 Excel…」这种场景加手段长句；文档标题留在正文 H1。
 
 用户描述：
 """

@@ -141,37 +141,35 @@ function callsOf(): DetailCalls {
 }
 
 describe('需求详情阶段时间线', () => {
-  it('列出创建、评审、版本、过审与拆分，全部只读', async () => {
+  it('列出创建、评审、版本与过审，时刻可读且不再拆出关联任务', async () => {
     await renderDetail(ROW, callsOf())
 
-    expect(element('requirement-timeline-opened')?.textContent).toContain('2026-11-17T09:00:00+08:00')
+    expect(element('requirement-timeline-opened')?.textContent).toContain('2026-11-17 09:00')
 
     const reviews = container.querySelectorAll('[data-testid="requirement-timeline-review"]')
     expect(reviews).toHaveLength(1)
     expect(reviews[0]?.textContent).toContain('评审 R1')
-    expect(reviews[0]?.textContent).toContain('2026-11-17T10:30:00+08:00')
+    expect(reviews[0]?.textContent).toContain('2026-11-17 10:30')
 
     const versions = container.querySelectorAll('[data-testid="requirement-timeline-version"]')
     expect(versions).toHaveLength(2)
     expect(versions[0]?.textContent).toContain('版本 v1')
     expect(versions[1]?.textContent).toContain('版本 v2')
-    expect(versions[1]?.textContent).toContain('2026-11-17T11:00:00+08:00')
+    expect(versions[1]?.textContent).toContain('2026-11-17 11:00')
 
     const approved = element('requirement-timeline-approved')
-    expect(approved?.textContent).toContain('2026-11-17T12:00:00+08:00')
+    expect(approved?.textContent).toContain('2026-11-17 12:00')
     expect(approved?.textContent).toContain('批准版本 v2')
 
-    const split = container.querySelectorAll('[data-testid="requirement-timeline-split"]')
-    expect(split).toHaveLength(1)
-    expect(split[0]?.textContent).toContain('T-01')
-    expect(split[0]?.textContent).toContain('2026-11-17T13:00:00+08:00')
+    expect(container.querySelectorAll('[data-testid="requirement-timeline-split"]')).toHaveLength(0)
+    expect(element('requirement-timeline-split-empty')).toBeNull()
   })
 
-  it('打开报告与版本快照走 .spec 相对路径', async () => {
+  it('点击评审 chip 直接打开报告，版本快照仍走独立入口', async () => {
     const calls = callsOf()
     await renderDetail(ROW, calls)
 
-    await pressSelector('[data-testid="requirement-open-report"]')
+    await pressSelector('[data-testid="requirement-timeline-review"]')
     expect(calls.readers).toEqual(['.spec/requirements/REQ-01/reviews/R1.md'])
 
     await pressSelector('[data-testid="requirement-open-version"][data-version="1"]')
