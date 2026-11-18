@@ -78,15 +78,20 @@ function projectionOf(
 
 let container: HTMLDivElement
 let root: Root
+let commands: string[]
+let commandError: string | null
 
 const REPORT_TEXT = `# 评审结论
 
 ${'评审意见正文。'.repeat(40)}`
 
-async function fakeCall(namespace: string, method: string): Promise<unknown> {
+async function fakeCall(namespace: string, method: string, args: Record<string, unknown>): Promise<unknown> {
   if (namespace === 'workspaceFiles' && method === 'read') return { ok: true, value: { text: REPORT_TEXT } }
   if (namespace === 'commands' && method === 'execute') {
-    return { ok: true, value: { result: { kind: 'success', text: 'REQ-01 已过审' } } }
+    commands.push(String(args.line))
+    return commandError === null
+      ? { ok: true, value: { result: { kind: 'success', text: 'REQ-01 已过审' } } }
+      : { ok: true, value: { result: { kind: 'error', text: commandError } } }
   }
   throw new Error(`未预期调用 ${namespace}/${method}`)
 }
@@ -94,6 +99,8 @@ async function fakeCall(namespace: string, method: string): Promise<unknown> {
 beforeEach(() => {
   Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', { configurable: true, value: true })
   Object.defineProperty(window, 'lcoder', { configurable: true, value: { call: vi.fn(fakeCall) } })
+  commands = []
+  commandError = null
   container = document.createElement('div')
   document.body.append(container)
   root = createRoot(container)
@@ -382,6 +389,55 @@ describe('阶段进度 chips', () => {
       await new Promise(resolve => setTimeout(resolve, 0))
     })
     expect(calls.readers).toEqual(['.spec/requirements/REQ-01/versions/v2.md'])
+  })
+})
+
+describe('发布与关闭通道', () => {
+  it('四态有无矩阵：draft 只有关闭，confirmed 上线加关闭，released 只有关闭，closed 无写操作', async () => {
+    await renderDetail(DRAFT, callsOf())
+    expect(element('requirement-close')).not.toBeNull()
+    expect(element('requirement-release')).toBeNull()
+
+    const confirmed: RequirementDocRow = { ...DRAFT, state: 'confirmed' }
+    await renderDetail(confirmed, callsOf())
+    expect(element('requirement-release')).not.toBeNull()
+    expect(element('requirement-close')).not.toBeNull()
+
+    const released: RequirementDocRow = { ...DRAFT, state: 'released' }
+    await renderDetail(released, callsOf())
+    expect(element('requirement-release')).toBeNull()
+    expect(element('requirement-close')).not.toBeNull()
+
+    const closed: RequirementDocRow = { ...DRAFT, state: 'closed' }
+    await renderDetail(closed, callsOf())
+    expect(element('requirement-release')).toBeNull()
+    expect(element('requirement-close')).toBeNull()
+    expect(element('requirement-approve')).toBeNull()
+  })
+
+  it('关闭与上线点击走对应人机命令字符串并展示回执', async () => {
+    await renderDetail(DRAFT, callsOf())
+    await press('requirement-close')
+    expect(commands).toEqual(['/requirement_close REQ-01'])
+    expect(element('requirement-action-result')?.getAttribute('data-ok')).toBe('true')
+
+    const confirmed: RequirementDocRow = { ...DRAFT, state: 'confirmed' }
+    await renderDetail(confirmed, callsOf())
+    await press('requirement-release')
+    expect(commands[commands.length - 1]).toBe('/requirement_release REQ-01')
+  })
+
+  it('kernel 拒绝时按钮仍可点，失败给可读提示', async () => {
+    commandError = 'REQ-01 已上线，是终态，不再关闭；要记录后续变更请另开一条需求'
+    const released: RequirementDocRow = { ...DRAFT, state: 'released' }
+    await renderDetail(released, callsOf())
+    const close = element('requirement-close') as HTMLButtonElement
+    expect(close.disabled).toBe(false)
+    await press('requirement-close')
+    expect(commands).toEqual(['/requirement_close REQ-01'])
+    const result = element('requirement-action-result')
+    expect(result?.getAttribute('data-ok')).toBe('false')
+    expect(result?.textContent).toContain('不再关闭')
   })
 })
 

@@ -146,6 +146,8 @@ export const ZH = {
   'requirement.guide.closed': '已关闭：可查看任务或基于此版本新建。',
   'requirement.guide.unknown': '状态未知：可刷新投影，或在阅读器中查看正文。',
   'requirement.opApprove': '确认需求',
+  'requirement.opRelease': '上线',
+  'requirement.opClose': '关闭',
   'requirement.opCreateBased': '基于此版本新建',
   'requirement.opReload': '刷新',
   'requirement.opOpenBody': '在阅读器中打开正文',

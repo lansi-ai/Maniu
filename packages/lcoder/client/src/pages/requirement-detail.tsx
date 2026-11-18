@@ -90,7 +90,8 @@ export interface RequirementDetailProps {
  * 画出需求详情。
  *
  * 头部三区置顶：需求标题加状态徽标与编号、状态驱动的指引句、随状态变化的操作栏；
- * 确认态与终态不渲染确认按钮。正文与评审报告默认折叠成摘要，展开后才渲染全文。
+ * 确认态与终态不渲染确认按钮。上线/关闭按状态枚举渲染，前置条件由 kernel 人机命令
+ * 自身校验，失败回执直接展示。正文与评审报告默认折叠成摘要，展开后才渲染全文。
  * @param props - 需求、项目、投影与会话列表。
  * @returns 详情面板。
  */
@@ -299,6 +300,28 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
             {(state === 'confirmed' || state === 'released' || state === 'closed') && related.length > 0 && (
               <button type="button" className="pill" data-testid="requirement-detail-tasks" onClick={props.onOpenTasks}>
                 {t('requirement.opTasks')}
+              </button>
+            )}
+            {state === 'confirmed' && (
+              <button
+                type="button"
+                className="pill"
+                data-testid="requirement-release"
+                disabled={busy !== null}
+                onClick={() => { void execute('release', `/requirement_release ${row.id}`) }}
+              >
+                {t('requirement.opRelease')}
+              </button>
+            )}
+            {(state === 'draft' || state === 'confirmed' || state === 'released') && (
+              <button
+                type="button"
+                className="pill"
+                data-testid="requirement-close"
+                disabled={busy !== null}
+                onClick={() => { void execute('close', `/requirement_close ${row.id}`) }}
+              >
+                {t('requirement.opClose')}
               </button>
             )}
             <button type="button" className="pill" data-testid="requirement-detail-reload" onClick={props.onReload}>

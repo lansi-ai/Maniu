@@ -148,6 +148,8 @@ export const EN: Readonly<Record<MessageKey, string>> = {
   'requirement.guide.closed': 'Closed: view tasks or file a new requirement based on this version.',
   'requirement.guide.unknown': 'Unknown state: refresh the projection or read the document in the reader.',
   'requirement.opApprove': 'Approve requirement',
+  'requirement.opRelease': 'Release',
+  'requirement.opClose': 'Close',
   'requirement.opCreateBased': 'New from this version',
   'requirement.opReload': 'Refresh',
   'requirement.opOpenBody': 'Open document in reader',
