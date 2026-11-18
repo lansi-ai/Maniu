@@ -2800,7 +2800,7 @@ tracks:
 
     - id: T-250
       title: 需求详情状态先行与操作置顶重构
-      status: doing
+      status: done
       face: 用户端
       type: 开发
       owner: lance
@@ -2808,7 +2808,7 @@ tracks:
       date: '2026-11-18'
       dep: [T-249]
       inferred: false
-      note: "B 级详情页 UX 重构，来源是用户 2026-11-18 截图三条反馈：没突出重点不知该干什么、标题不突出混乱、操作通道不全（已确认态仍显示确认按钮且修改需求对确认态必失败）。签核口径全折叠摘要式。头部三区：需求 title 大标题加状态徽标（draft 蓝 confirmed 绿终态灰）加 REQ 编号小字；state 驱动指引句；操作栏置顶随状态变化——draft 给评审/修改需求提案/确认需求（未配齐禁用加原因），confirmed 给拆分任务/基于此版本新建提案/查看任务且不再出现确认按钮，终态给查看任务/基于此版本新建；次级刷新与阅读器打开正文。阶段进度 timeline 上移头部下方紧凑横排 chips（创建/评审 Rn/版本 vN/过审/拆分）带打开报告与快照入口。正文默认折叠预览首几行加展开全文与阅读器，文档自带 H1 不再抢页面标题。评审报告默认折叠摘要卡（轮次/时间/结论摘录/打开报告/展开 inline），历史轮次列表保留可展开。版本 chips 逐版开快照。关联任务与讨论历史置底不变。范围 requirement-detail.tsx 与词典与样式与测试及 client README 双语；不改 kernel 与状态机与云合同。验收 typecheck、packages/lcoder vitest、改动文件 oxlint、verify-client-ui-i18n、test:docs；组件测试覆盖四态操作栏、已确认无确认按钮、指引句、报告默认折叠与展开、正文预览折叠、标题来源 row.title、timeline chips。工作树 pool-slot-2 到 lcoder/t250-detail-redesign，端口 9823 与 9831 与 9832。2026-11-18 09:10 监督窗口登记。2026-11-18 09:15 派工成功，实现线会话 36fb008f。"
+      note: "B 级详情页 UX 重构，来源是用户 2026-11-18 截图三条反馈：没突出重点不知该干什么、标题不突出混乱、操作通道不全（已确认态仍显示确认按钮且修改需求对确认态必失败）。签核口径全折叠摘要式。头部三区：需求 title 大标题加状态徽标（draft 蓝 confirmed 绿终态灰）加 REQ 编号小字；state 驱动指引句；操作栏置顶随状态变化——draft 给评审/修改需求提案/确认需求（未配齐禁用加原因），confirmed 给拆分任务/基于此版本新建提案/查看任务且不再出现确认按钮，终态给查看任务/基于此版本新建；次级刷新与阅读器打开正文。阶段进度 timeline 上移头部下方紧凑横排 chips（创建/评审 Rn/版本 vN/过审/拆分）带打开报告与快照入口。正文默认折叠预览首几行加展开全文与阅读器，文档自带 H1 不再抢页面标题。评审报告默认折叠摘要卡（轮次/时间/结论摘录/打开报告/展开 inline），历史轮次列表保留可展开。版本 chips 逐版开快照。关联任务与讨论历史置底不变。范围 requirement-detail.tsx 与词典与样式与测试及 client README 双语；不改 kernel 与状态机与云合同。验收 typecheck、packages/lcoder vitest、改动文件 oxlint、verify-client-ui-i18n、test:docs；组件测试覆盖四态操作栏、已确认无确认按钮、指引句、报告默认折叠与展开、正文预览折叠、标题来源 row.title、timeline chips。工作树 pool-slot-2 到 lcoder/t250-detail-redesign，端口 9823 与 9831 与 9832。2026-11-18 09:10 监督窗口登记。2026-11-18 09:15 派工成功，实现线会话 36fb008f。2026-11-18 10:35 监督窗口核验并收口（含补口笔：操作栏补发布/关闭通道，纠正监督契约枚举遗漏）。独立复跑 typecheck 五项、vitest 一百五十九文件一千六百五十四例、oxlint 零错零警、i18n 与 test:docs 全过；合入后主检 build 八项 check 两项与同组门禁全绿。真机走查 confirmed（靶 4：无确认按钮、有上线/关闭/基于新建、指引句、报告摘要卡 164 字展开 7683、正文折叠双向 1524 对 152）与 draft（靶 3：业务标题、评审/改稿/关闭、无上线、确认可用）；released/closed 由组件测试覆盖（靶仓无该态需求，如实披露）。截图留用户审。已合入主线、release pool-slot-2、删分支。"
 
     - id: T-251
       title: 图标主体放大去留白

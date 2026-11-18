@@ -48,6 +48,20 @@
 
 误判披露：监督窗口首轮独立门禁误跑在基提交（实现会话为 snapshot 归因临时检出基线），结果作废并重跑真分支；oxlint 首轮因参数未传 lint 全仓触预存红，限定文件后零错零警。
 
+## T-250 详情页重构走查（2026-11-18）
+
+| 判据 | 结果 | 证据 |
+|---|---|---|
+| 标题来源 row.title 大标题＋状态徽标＋编号 | ✅ | requirement-detail-title/id；draft 靶 3 业务标题、confirmed 靶 4 |
+| 状态指引句 | ✅ | draft/confirmed 文案与签核一致 |
+| 操作栏随状态且通道不缩减 | ✅ | confirmed 无确认按钮、有上线/关闭/基于新建；draft 有评审/改稿/关闭、无上线；补口笔补发布/关闭 |
+| 正文默认折叠＋双向展开 | ✅ | 预览 152 字 ↔ 全文 1524 字，toggle 文案切换 |
+| 评审报告默认摘要卡＋展开 | ✅ | 摘要 164 字 ↔ 展开 7683 字 |
+| timeline 横排 chips 上移 | ✅ | 组件测试＋走查 DOM |
+| released/closed 操作栏 | ⚪ 组件测试覆盖 | 靶仓无该态需求，真机未走查（披露） |
+
+截图：C:/Users/Administrator/AppData/Local/Temp/t250-confirmed.png、t250-draft.png。
+
 ## 复现命令（人工可复核）
 
 - 起实例：`lcoder\scripts\start-all.cmd -Fast`（renderer 9822）。
