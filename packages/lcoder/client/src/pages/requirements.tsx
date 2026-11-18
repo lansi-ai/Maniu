@@ -295,18 +295,20 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
   }
 
   // 新建需求后台发起：描述随首条消息发给需求分析师，不跳转对话；完成看需求条数增量，提案期间浮卡等待对比。
-  const createStart = async (description: string): Promise<void> => {
+  // 基于已确认需求新建也走这里：提示词带 target 与 base_version，完成判定与浮卡通道不变。
+  const launchCreate = async (prompt: string): Promise<{ readonly ok: boolean; readonly message: string }> => {
     setOpNotice(null)
     let answer: { readonly ok: boolean; readonly message: string; readonly sessionId?: string }
     try {
-      answer = await props.onStartSession(buildRequirementCreatePrompt(description), INTAKE_PRESET_ID)
+      answer = await props.onStartSession(prompt, INTAKE_PRESET_ID)
     } catch (cause: unknown) {
-      setOpNotice(cause instanceof Error ? cause.message : String(cause))
-      return
+      const message = cause instanceof Error ? cause.message : String(cause)
+      setOpNotice(message)
+      return { ok: false, message }
     }
     if (!answer.ok) {
       setOpNotice(answer.message)
-      return
+      return answer
     }
     setWatches(current => [...current, {
       key: `create-${String(Date.now())}`,
@@ -325,8 +327,21 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
       roleSig: null,
       deadline: Date.now() + OP_TIMEOUT_MS,
     }])
-    setCreateOpen(false)
-    setCreateText('')
+    return answer
+  }
+
+  const createStart = async (description: string): Promise<void> => {
+    const answer = await launchCreate(buildRequirementCreatePrompt(description))
+    if (answer.ok) {
+      setCreateOpen(false)
+      setCreateText('')
+    }
+  }
+
+  /** 基于此版本新建：确认态与终态需求的改动通道，取最新版本号作基线，后台发起不跳转。 */
+  const createBased = (row: RequirementDocRow): Promise<{ readonly ok: boolean; readonly message: string }> => {
+    const baseVersion = row.versions.reduce((max, version) => Math.max(max, version.n), 0) || 1
+    return launchCreate(buildRequirementCreatePrompt('', { id: row.id, title: row.title ?? row.id, version: baseVersion }))
   }
 
   const review = (row: RequirementDocRow) => startNode('review', row)
@@ -828,7 +843,9 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
               onOpenReader={setReaderPath}
               onReload={props.onReload}
               onSplit={() => split(active)}
+              onReview={() => review(active)}
               onRevise={() => revise(active)}
+              onCreateBased={() => createBased(active)}
               onOpenTasks={() => { props.onOpenTasks(active.id) }}
               t={t}
             />

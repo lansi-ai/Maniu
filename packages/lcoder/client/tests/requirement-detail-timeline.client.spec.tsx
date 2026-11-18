@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-/** T-238：需求详情的只读阶段时间线，以及「至少一轮评审」才可确认。 */
+/** T-238 阶段时间线（T-250 起为头部下方横排 chips），以及「至少一轮评审」才可确认。 */
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -117,7 +117,9 @@ async function renderDetail(row: RequirementDocRow, calls: DetailCalls): Promise
         onOpenReader={(path) => { calls.readers.push(path) }}
         onReload={() => {}}
         onSplit={calls.split}
+        onReview={async () => ({ ok: true, message: 'ok' })}
         onRevise={async () => ({ ok: true, message: 'ok' })}
+        onCreateBased={async () => ({ ok: true, message: 'ok' })}
         onOpenTasks={calls.tasksOpened}
       />,
     )

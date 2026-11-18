@@ -247,13 +247,20 @@ ${body}
  * 用户描述随首条消息发出（可为空，空时先问用户）；需求分析师用 `requirement_propose`
  * （mode new）写待确认提案，人对比确认后需求本体才落盘。
  * @param description - 用户在抽屉里输入的需求描述；空白表示没有提供。
+ * @param base - 依据的已确认需求与版本号；给出时提案必须带 target 与 base_version。
  * @returns 可直接发送给需求分析师会话的提示词。
  */
-export function buildRequirementCreatePrompt(description: string): string {
+export function buildRequirementCreatePrompt(
+  description: string,
+  base?: { readonly id: string; readonly title: string; readonly version: number },
+): string {
   const trimmed = description.trim()
   const userText = trimmed === ''
     ? '（用户没有提供描述：先用 ask_user_question 问用户想登记一条什么需求，一次只问一个问题。）'
     : trimmed
+  const baseLine = base === undefined
+    ? '- 若本需求基于某条已确认需求，用 target 与 base_version 记录依据（该需求编号与版本号）；确认态需求只能这样作为新需求的依据，不能改稿。'
+    : `- 本需求基于已确认需求 ${base.id}（${base.title}）v${String(base.version)}：调用 requirement_propose 时 target 为 ${base.id}，base_version 为 ${String(base.version)}；确认态需求只能这样作为新需求的依据，不能改稿。`
   return `新建需求：请为本项目登记一条新需求，只登记这一条，不做整项目立项。
 
 用户描述：
@@ -274,7 +281,7 @@ ${userText}
 第三步，用 ask_user_question 请用户确认文档方向，一次只问一个问题；用户确认后才进入下一步。
 
 第四步，确认后调用 requirement_propose：mode 为 new，content 是完整新正文，analysis 是需求层分析结论。
-- 若本需求基于某条已确认需求，用 target 与 base_version 记录依据（该需求编号与版本号）；确认态需求只能这样作为新需求的依据，不能改稿。
+${baseLine}
 - 不调用 requirement_draft；需求本体由人在界面对比确认后才落盘。
 - 不做整项目立项、不写 .spec/project.yaml、不动其他需求、不签契约、不推进任何状态。
 - 写完提案回报提案编号与分析结论，然后停下。`

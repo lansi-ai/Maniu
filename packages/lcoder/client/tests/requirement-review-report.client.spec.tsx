@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-/** T-242：需求详情内联渲染最新一轮评审报告；失败可退回阅读器；报告旁动作仍受评审门槛。 */
+/** T-242 内联评审报告（T-250 起默认折叠摘要卡）：取数通道、展开渲染、失败退回阅读器；确认与改稿在顶部操作栏。 */
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
@@ -118,7 +118,9 @@ async function renderDetail(row: RequirementDocRow, calls: DetailCalls): Promise
         onOpenReader={(path) => { calls.readers.push(path) }}
         onReload={() => {}}
         onSplit={async () => ({ ok: true, message: 'ok' })}
+        onReview={async () => ({ ok: true, message: 'ok' })}
         onRevise={calls.revise}
+        onCreateBased={async () => ({ ok: true, message: 'ok' })}
         onOpenTasks={() => {}}
       />,
     )
@@ -135,17 +137,34 @@ async function press(testId: string): Promise<void> {
   })
 }
 
+async function pressSelector(selector: string): Promise<void> {
+  const node = container.querySelector(selector)
+  expect(node).not.toBeNull()
+  await act(async () => {
+    ;(node as HTMLElement).click()
+    await new Promise(resolve => setTimeout(resolve, 0))
+  })
+}
+
 describe('内联评审报告', () => {
-  it('渲染最新一轮报告，取数走作用域会话与 .spec 相对路径', async () => {
+  it('默认折叠成摘要卡，展开后才渲染全文；取数走作用域会话与 .spec 相对路径', async () => {
     await renderDetail(REVIEWED, callsOf())
     const section = element('requirement-review-report')
     expect(section?.getAttribute('data-round')).toBe('2')
     expect(reads).toEqual([{ scope: 'session-scope', path: '.spec/requirements/REQ-01/reviews/R2.md' }])
+    expect(element('requirement-report-summary')?.textContent).toContain('2026-11-17T11:00:00+08:00')
+    expect(element('requirement-report-excerpt')?.textContent).toContain('评审结论 .spec/requirements/REQ-01/reviews/R2.md')
+    expect(element('requirement-report-body')).toBeNull()
+
+    await press('requirement-report-toggle')
     expect(element('requirement-report-body')?.textContent).toContain('评审结论 .spec/requirements/REQ-01/reviews/R2.md')
     expect(element('requirement-report-body')?.querySelector('h1')).not.toBeNull()
+
+    await press('requirement-report-toggle')
+    expect(element('requirement-report-body')).toBeNull()
   })
 
-  it('轮次增加后重读新报告', async () => {
+  it('轮次增加后重读新报告，摘要与展开正文都换新', async () => {
     const calls = callsOf()
     await renderDetail(REVIEWED, calls)
     const next: RequirementDocRow = {
@@ -155,7 +174,21 @@ describe('内联评审报告', () => {
     await renderDetail(next, calls)
     expect(element('requirement-review-report')?.getAttribute('data-round')).toBe('3')
     expect(reads[reads.length - 1]?.path).toBe('.spec/requirements/REQ-01/reviews/R3.md')
+    expect(element('requirement-report-excerpt')?.textContent).toContain('R3.md')
+    await press('requirement-report-toggle')
     expect(element('requirement-report-body')?.textContent).toContain('R3.md')
+  })
+
+  it('历史轮次默认收起，展开后逐轮可打开报告', async () => {
+    const calls = callsOf()
+    await renderDetail(REVIEWED, calls)
+    expect(element('requirement-review-history-item')).toBeNull()
+    await press('requirement-report-history-toggle')
+    const items = container.querySelectorAll('[data-testid="requirement-review-history-item"]')
+    expect(items).toHaveLength(1)
+    expect(items[0]?.getAttribute('data-round')).toBe('1')
+    await pressSelector('[data-testid="requirement-review-history-item"][data-round="1"] [data-testid="requirement-open-report"]')
+    expect(calls.readers).toEqual(['.spec/requirements/REQ-01/reviews/R1.md'])
   })
 
   it('读取失败给可读错误，并保留阅读器打开入口', async () => {
@@ -170,34 +203,36 @@ describe('内联评审报告', () => {
     expect(calls.readers).toEqual(['.spec/requirements/REQ-01/reviews/R2.md'])
   })
 
-  it('未评审时不显示报告区，也不发读取请求', async () => {
+  it('未评审时给空态文案，也不发读取请求', async () => {
     await renderDetail(UNREVIEWED, callsOf())
-    expect(element('requirement-review-report')).toBeNull()
+    expect(element('requirement-report-empty')?.textContent).toContain('还没有评审报告')
+    expect(element('requirement-report-summary')).toBeNull()
     expect(reads).toHaveLength(0)
   })
 })
 
-describe('报告旁的动作', () => {
+describe('顶部操作栏的确认与改稿', () => {
   it('确认需求仍走人机命令，成功后展示回执', async () => {
     await renderDetail(REVIEWED, callsOf())
-    const approve = element('requirement-report-approve') as HTMLButtonElement
+    const approve = element('requirement-approve') as HTMLButtonElement
     expect(approve.disabled).toBe(false)
-    await press('requirement-report-approve')
+    await press('requirement-approve')
     expect(commands).toEqual(['/requirement_approve REQ-01'])
     expect(element('requirement-action-result')?.textContent).toContain('REQ-01 已过审')
   })
 
-  it('已确认状态的报告旁不能再确认，也不能再改稿', async () => {
+  it('已确认状态不再渲染确认与改稿按钮，改动走基于此版本新建', async () => {
     const confirmed: RequirementDocRow = { ...REVIEWED, state: 'confirmed' }
     await renderDetail(confirmed, callsOf())
-    expect((element('requirement-report-approve') as HTMLButtonElement).disabled).toBe(true)
-    expect((element('requirement-report-revise') as HTMLButtonElement).disabled).toBe(true)
+    expect(element('requirement-approve')).toBeNull()
+    expect(element('requirement-detail-revise')).toBeNull()
+    expect(element('requirement-detail-create-based')).not.toBeNull()
   })
 
   it('修改需求交给页面级改稿发起', async () => {
     const calls = callsOf()
     await renderDetail(REVIEWED, calls)
-    await press('requirement-report-revise')
+    await press('requirement-detail-revise')
     expect(calls.revise).toHaveBeenCalledTimes(1)
     expect(element('requirement-action-result')?.textContent).toContain('改稿指令已发送')
   })

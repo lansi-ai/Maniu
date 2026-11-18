@@ -1,7 +1,7 @@
-/** 流程配置的渲染端模型：预制回落、节点查找、岗位到 preset 的折算与 `/flow_save` 序列化。 */
+/** 流程配置的渲染端模型：预制回落、节点查找、岗位到 preset 的折算、过审配齐判定与 `/flow_save` 序列化。 */
 
 import type { MessageKey, Translate } from '../locale.ts'
-import type { FlowConfigRow, FlowNodeKind, FlowNodeRow, JobRoleRow } from '../spec/rows.ts'
+import type { FlowConfigRow, FlowNodeKind, FlowNodeRow, JobRoleRow, RequirementReviewRow } from '../spec/rows.ts'
 import { isBuiltinTalentPreset } from '../talents/model.ts'
 
 /** 节点的固定展示与执行顺序；配置文件里的节点按这个顺序归一。 */
@@ -99,6 +99,39 @@ export function presetRoot(presetId: string): string | undefined {
  */
 export function entryRoot(roleId: string, roster: readonly JobRoleRow[]): string | undefined {
   return presetRoot(roleId) ?? roster.find(entry => entry.id === roleId)?.inherits
+}
+
+/**
+ * 配齐过审还缺哪些评审岗位：与 kernel `requirement_approve` 同口径——
+ * 有 flow.yaml 且配置了 review 节点时，按配置顺序为每个条目消费一轮根相等的署名评审，
+ * 一轮只消费给一个条目；无署名或非内置 preset 的轮不可消费。没有配置文件时不要求配齐。
+ * @param flow - 投影里的 flow.yaml；缺省表示没有配置。
+ * @param roster - 投影里的岗位名册。
+ * @param reviews - 需求已有的评审轮次。
+ * @returns 无轮可消费的岗位 id，按配置顺序；没有 review 节点或已配齐时为空数组。
+ */
+export function missingReviewRoles(
+  flow: FlowConfigRow | null | undefined,
+  roster: readonly JobRoleRow[],
+  reviews: readonly RequirementReviewRow[],
+): string[] {
+  const review = flow?.nodes.find(node => node.node === 'review')
+  if (review === undefined) return []
+  const pool = reviews
+    .flatMap((entry) => {
+      const signRoot = entry.role === undefined ? undefined : presetRoot(entry.role)
+      return signRoot === undefined ? [] : [{ round: entry.round, root: signRoot }]
+    })
+    .sort((left, right) => left.round - right.round)
+  const consumed = new Set<number>()
+  const missing: string[] = []
+  for (const id of review.roles) {
+    const root = entryRoot(id, roster)
+    const match = pool.find(item => !consumed.has(item.round) && item.root === root)
+    if (match === undefined) missing.push(id)
+    else consumed.add(match.round)
+  }
+  return missing
 }
 
 /**

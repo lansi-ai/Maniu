@@ -106,6 +106,17 @@ describe('新建需求提示词', () => {
     expect(prompt).toContain('target 与 base_version')
     expect(prompt).toContain('确认态需求只能这样作为新需求的依据，不能改稿')
   })
+
+  it('基于此版本新建：提示词钉住依据需求与版本号，描述可空先问用户', () => {
+    const prompt = buildRequirementCreatePrompt('', { id: 'REQ-01', title: '佣金改造', version: 2 })
+    expect(prompt).toContain('用户没有提供描述')
+    expect(prompt).toContain('基于已确认需求 REQ-01（佣金改造）v2')
+    expect(prompt).toContain('mode 为 new')
+    expect(prompt).toContain('target 为 REQ-01')
+    expect(prompt).toContain('base_version 为 2')
+    expect(prompt).toContain('确认态需求只能这样作为新需求的依据，不能改稿')
+    expect(prompt).not.toContain('mode 为 revise')
+  })
 })
 
 describe('需求改稿提示词（提案流程）', () => {
