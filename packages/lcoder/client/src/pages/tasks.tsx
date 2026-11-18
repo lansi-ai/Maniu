@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import type { JSX } from 'react'
+import { Button, Card, Chip, Input, ListBox, Select, Table, Tabs } from '@heroui/react'
 import type { ProjectScope } from '../workspace/use-workspaces.ts'
 import type { SpecProjection } from '../spec/load.ts'
 import type { TaskRow } from '../spec/rows.ts'
@@ -60,6 +61,23 @@ export function TasksPage(props: TasksPageProps): JSX.Element {
   const active = rows.find(row => row.id === selected) ?? null
   const update = (patch: Partial<TaskFilter>): void => { setFilter(current => ({ ...current, ...patch })) }
 
+  const selectView = (key: unknown): void => {
+    if (key !== 'board' && key !== 'list') return
+    setView(key)
+  }
+  const selectGrade = (key: unknown): void => {
+    if (key !== 'all' && key !== 'A' && key !== 'B' && key !== 'C') return
+    update({ grade: key === 'all' ? '' : key })
+  }
+  const selectSession = (key: unknown): void => {
+    if (typeof key !== 'string') return
+    update({ session: key === 'all' ? '' : key })
+  }
+  const selectRole = (key: unknown): void => {
+    if (typeof key !== 'string') return
+    update({ role: key === 'all' ? '' : key })
+  }
+
   return (
     <section className="page" data-testid="page-tasks">
       <header className="page-head">
@@ -67,52 +85,91 @@ export function TasksPage(props: TasksPageProps): JSX.Element {
           <h2>任务</h2>
           <p className="page-sub">{rows.length} 条任务 · {BOARD_COLUMNS.length} 列看板</p>
         </div>
-        <div className="page-actions">
-          <input
-            className="search"
+        <div className="page-actions task-toolbar">
+          <Input
+            className="toolbar-search"
             data-testid="task-search"
             value={filter.text}
             placeholder="搜索任务"
+            variant="secondary"
             onChange={(event) => { update({ text: event.target.value }) }}
           />
-          <select className="select" data-testid="task-grade" value={filter.grade} onChange={(event) => { update({ grade: event.target.value }) }}>
-            <option value="">全部等级</option>
-            <option value="A">A</option>
-            <option value="B">B</option>
-            <option value="C">C</option>
-          </select>
-          <select className="select" data-testid="task-session" value={filter.session} onChange={(event) => { update({ session: event.target.value }) }}>
-            <option value="">全部会话</option>
-            {props.sessions.map(session => (
-              <option key={session.sessionId} value={session.sessionId}>{session.sessionId.slice(0, 8)}</option>
-            ))}
-          </select>
-          <select className="select" data-testid="task-role" value={filter.role} onChange={(event) => { update({ role: event.target.value }) }}>
-            <option value="">全部岗位</option>
-            {roles.map(role => <option key={role} value={role}>{role}</option>)}
-          </select>
-          <div className="segmented" role="group" aria-label="任务视图">
-            <button type="button" data-testid="task-view-board" className={view === 'board' ? 'active' : undefined} onClick={() => { setView('board') }}>看板</button>
-            <button type="button" data-testid="task-view-list" className={view === 'list' ? 'active' : undefined} onClick={() => { setView('list') }}>列表</button>
-          </div>
-          <button type="button" className="pill" data-testid="task-reload" onClick={props.onReload}>
+          <Select
+            className="toolbar-select"
+            data-testid="task-grade"
+            value={filter.grade === '' ? 'all' : filter.grade}
+            onChange={selectGrade}
+            aria-label="全部等级"
+            variant="secondary"
+          >
+            <Select.Trigger><Select.Value /><Select.Indicator /></Select.Trigger>
+            <Select.Popover>
+              <ListBox>
+                <ListBox.Item key="all" id="all">全部等级</ListBox.Item>
+                <ListBox.Item key="A" id="A">A</ListBox.Item>
+                <ListBox.Item key="B" id="B">B</ListBox.Item>
+                <ListBox.Item key="C" id="C">C</ListBox.Item>
+              </ListBox>
+            </Select.Popover>
+          </Select>
+          <Select
+            className="toolbar-select"
+            data-testid="task-session"
+            value={filter.session === '' ? 'all' : filter.session}
+            onChange={selectSession}
+            aria-label="全部会话"
+            variant="secondary"
+          >
+            <Select.Trigger><Select.Value /><Select.Indicator /></Select.Trigger>
+            <Select.Popover>
+              <ListBox>
+                <ListBox.Item key="all" id="all">全部会话</ListBox.Item>
+                {props.sessions.map(session => (
+                  <ListBox.Item key={session.sessionId} id={session.sessionId}>{session.sessionId.slice(0, 8)}</ListBox.Item>
+                ))}
+              </ListBox>
+            </Select.Popover>
+          </Select>
+          <Select
+            className="toolbar-select"
+            data-testid="task-role"
+            value={filter.role === '' ? 'all' : filter.role}
+            onChange={selectRole}
+            aria-label="全部岗位"
+            variant="secondary"
+          >
+            <Select.Trigger><Select.Value /><Select.Indicator /></Select.Trigger>
+            <Select.Popover>
+              <ListBox>
+                <ListBox.Item key="all" id="all">全部岗位</ListBox.Item>
+                {roles.map(role => <ListBox.Item key={role} id={role}>{role}</ListBox.Item>)}
+              </ListBox>
+            </Select.Popover>
+          </Select>
+          <Tabs className="toolbar-tabs" selectedKey={view} onSelectionChange={selectView} aria-label="任务视图">
+            <Tabs.List>
+              <Tabs.Tab key="board" id="board" data-testid="task-view-board">看板</Tabs.Tab>
+              <Tabs.Tab key="list" id="list" data-testid="task-view-list">列表</Tabs.Tab>
+            </Tabs.List>
+          </Tabs>
+          <Button variant="secondary" data-testid="task-reload" onPress={props.onReload}>
             {props.loading ? '读取中…' : '刷新'}
-          </button>
-          <button type="button" className="pill" data-testid="flow-open" disabled={props.project === null} onClick={() => { setFlowOpen(true) }}>流程</button>
+          </Button>
+          <Button variant="secondary" data-testid="flow-open" isDisabled={props.project === null} onPress={() => { setFlowOpen(true) }}>流程</Button>
         </div>
       </header>
 
       {props.requirementFilter !== null && (
         <div className="filter-bar" data-testid="task-requirement-filter">
-          <span className="tag">{t('task.requirementFilter', { id: props.requirementFilter })}</span>
-          <button
-            type="button"
-            className="link-button"
+          <Chip variant="soft" color="accent">{t('task.requirementFilter', { id: props.requirementFilter })}</Chip>
+          <Button
+            variant="ghost"
+            size="sm"
             data-testid="task-requirement-filter-clear"
-            onClick={props.onClearRequirementFilter}
+            onPress={props.onClearRequirementFilter}
           >
             {t('task.clearRequirementFilter')}
-          </button>
+          </Button>
         </div>
       )}
 
@@ -120,22 +177,22 @@ export function TasksPage(props: TasksPageProps): JSX.Element {
       {props.error !== null && <pre className="problem" data-testid="task-problems">{props.error}</pre>}
 
       {props.project !== null && view === 'board' && (
-        <div className="board" data-testid="task-board">
+        <div className="board task-board-bento" data-testid="task-board">
           {BOARD_COLUMNS.map((column) => {
             const columnRows = rows.filter(row => boardColumnOf(row) === column.id)
             return (
-              <div className="board-column" key={column.id} data-testid="task-column" data-column={column.id}>
-                <div className="board-head">
-                  <span>{column.label}</span>
+              <Card className="board-column" key={column.id} data-testid="task-column" data-column={column.id}>
+                <Card.Header className="board-head">
+                  <Card.Title>{column.label}</Card.Title>
                   <span className="count">{columnRows.length}</span>
-                </div>
-                <div className="board-body">
+                </Card.Header>
+                <Card.Content className="board-body">
                   {columnRows.map(row => (
                     <TaskCard key={row.id} task={row} running={running} selected={row.id === selected} onOpen={setSelected} />
                   ))}
                   {columnRows.length === 0 && <p className="empty">空</p>}
-                </div>
-              </div>
+                </Card.Content>
+              </Card>
             )
           })}
         </div>
@@ -143,40 +200,38 @@ export function TasksPage(props: TasksPageProps): JSX.Element {
 
       {props.project !== null && view === 'list' && (
         <div className="table-wrap lg-glass-card" data-testid="task-list">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th scope="col">编号</th>
-                <th scope="col">标题</th>
-                <th scope="col">列</th>
-                <th scope="col">需求/方案</th>
-                <th scope="col">轨</th>
-                <th scope="col">依赖</th>
-                <th scope="col">开立</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map(row => (
-                <tr
-                  key={row.id}
-                  data-testid="task-row"
-                  data-task-id={row.id}
-                  className={row.id === selected ? 'selected' : undefined}
-                  tabIndex={0}
-                  onClick={() => { setSelected(row.id) }}
-                  onKeyDown={(event) => { if (event.key === 'Enter') setSelected(row.id) }}
-                >
-                  <td className="mono">{row.id}</td>
-                  <td>{row.title}</td>
-                  <td><span className="tag">{columnLabelOf(row)}</span></td>
-                  <td>{row.requirement ?? row.proposal ?? '—'}</td>
-                  <td>{row.track ?? '—'}</td>
-                  <td>{row.dependsOn.length === 0 ? '—' : row.dependsOn.join('、')}</td>
-                  <td className="mono">{row.openedAt?.slice(0, 10) ?? '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <Table aria-label="任务列表" className="task-table">
+            <Table.Content>
+              <Table.Header>
+                <Table.Column isRowHeader>编号</Table.Column>
+                <Table.Column>标题</Table.Column>
+                <Table.Column>列</Table.Column>
+                <Table.Column>需求/方案</Table.Column>
+                <Table.Column>轨</Table.Column>
+                <Table.Column>依赖</Table.Column>
+                <Table.Column>开立</Table.Column>
+              </Table.Header>
+              <Table.Body>
+                {rows.map(row => (
+                  <Table.Row
+                    key={row.id}
+                    data-testid="task-row"
+                    data-task-id={row.id}
+                    className={row.id === selected ? 'selected' : ''}
+                    onAction={() => { setSelected(row.id) }}
+                  >
+                    <Table.Cell className="mono">{row.id}</Table.Cell>
+                    <Table.Cell>{row.title}</Table.Cell>
+                    <Table.Cell><Chip size="sm" variant="secondary">{columnLabelOf(row)}</Chip></Table.Cell>
+                    <Table.Cell>{row.requirement ?? row.proposal ?? '—'}</Table.Cell>
+                    <Table.Cell>{row.track ?? '—'}</Table.Cell>
+                    <Table.Cell>{row.dependsOn.length === 0 ? '—' : row.dependsOn.join('、')}</Table.Cell>
+                    <Table.Cell className="mono">{row.openedAt?.slice(0, 10) ?? '—'}</Table.Cell>
+                  </Table.Row>
+                ))}
+              </Table.Body>
+            </Table.Content>
+          </Table>
           {rows.length === 0 && <p className="empty" data-testid="task-empty">没有匹配的任务。</p>}
         </div>
       )}
@@ -235,16 +290,16 @@ function TaskCard(props: {
     >
       <span className="task-card-head">
         <span className="mono">{props.task.id}</span>
-        <span className="tag">{props.task.grade}</span>
+        <Chip size="sm" variant="soft" color="accent">{props.task.grade}</Chip>
       </span>
       <span className="task-card-title">{props.task.title}</span>
       <span className="task-card-tags">
-        <span className="tag">{STATE_LABELS[props.task.state] ?? props.task.state}</span>
-        {props.task.requirement !== undefined && <span className="tag">{props.task.requirement}</span>}
-        {props.task.track !== undefined && <span className="tag">轨 {props.task.track}</span>}
-        {props.task.role !== undefined && <span className="tag">岗位 {props.task.role}</span>}
-        {status === 'running' && <span className="tag tag-ok">运行中</span>}
-        {status === 'queued' && <span className="tag tag-warn">已认领</span>}
+        <Chip size="sm" variant="secondary">{STATE_LABELS[props.task.state] ?? props.task.state}</Chip>
+        {props.task.requirement !== undefined && <Chip size="sm" variant="secondary">{props.task.requirement}</Chip>}
+        {props.task.track !== undefined && <Chip size="sm" variant="secondary">轨 {props.task.track}</Chip>}
+        {props.task.role !== undefined && <Chip size="sm" variant="secondary">岗位 {props.task.role}</Chip>}
+        {status === 'running' && <Chip size="sm" variant="soft" color="success">运行中</Chip>}
+        {status === 'queued' && <Chip size="sm" variant="soft" color="warning">已认领</Chip>}
       </span>
     </button>
   )

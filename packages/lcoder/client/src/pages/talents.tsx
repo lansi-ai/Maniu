@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import type { JSX } from 'react'
+import { Button, Card, Chip, Separator } from '@heroui/react'
 import type { MessageKey, Translate } from '../locale.ts'
 import type { SessionSummary } from '../store.ts'
 import type { ProjectScope } from '../workspace/use-workspaces.ts'
@@ -115,77 +116,100 @@ export function TalentsPage(props: TalentsPageProps): JSX.Element {
     const model = row.config.model === undefined
       ? t('talents.modelFollow')
       : `${row.config.model.provider}/${row.config.model.modelId}`
+    const coreRole = row.config.basePreset ?? row.config.plugins?.[0]?.name ?? t('talents.modelFollow')
+    const skills = row.config.plugins?.slice(0, 3).map(plugin => plugin.name) ?? []
     return (
       <article
         key={row.id}
-        className="info-card lg-glass-card talent-card"
+        className="talent-card-shell"
         data-testid="talent-card"
         data-talent-id={row.id}
         data-scope={row.scope}
       >
-        <div className="detail-drawer-head">
-          <h3>{row.name}</h3>
-          <span className="tag">{row.createdBy === 'ai' ? t('talents.sourceAi') : t('talents.sourceUser')}</span>
-        </div>
-        {row.description === '' ? null : <p className="detail-line">{row.description}</p>}
-        <dl className="talent-meta">
-          <div><dt>{t('talents.creator')}</dt><dd>{creatorOf(row)}</dd></div>
-          <div><dt>{t('talents.model')}</dt><dd>{model}</dd></div>
-          <div><dt>{t('talents.sessions')}</dt><dd>{String(sessionsOf(row))}</dd></div>
-        </dl>
-        {!talents.applied.has(row.id) && applyError === undefined
-          ? <p className="empty">{t('talents.applying')}</p>
-          : null}
-        {applyError === undefined ? null : <p className="problem">{t('talents.applyFailed', { detail: applyError })}</p>}
-        {actionError === undefined ? null : <p className="problem">{actionError}</p>}
-        {refs === undefined ? null : (
-          <p className="problem" data-testid="talent-delete-blocked">
-            {t('talents.deleteReferenced', { count: refs.length, sessions: refs.slice(0, 3).join('、') })}
-          </p>
-        )}
-        {confirming === row.id ? (
-          <div className="talent-actions">
-            <span className="detail-line">{t('talents.deleteConfirm')}</span>
-            <button type="button" className="pill" data-testid="talent-delete-cancel" onClick={() => { setConfirming(null) }}>
-              {t('talents.cancel')}
-            </button>
-            <button
-              type="button"
-              className="pill pill-accent"
-              data-testid="talent-delete-confirm"
-              disabled={talents.busy}
-              onClick={() => { void confirmDelete(row) }}
+        <Card className="info-card lg-glass-card talent-card talent-bento">
+          <Card.Header className="talent-card-head">
+            <span className="talent-avatar" aria-hidden="true">{row.name.slice(0, 1)}</span>
+            <div className="talent-heading">
+              <Card.Title>{row.name}</Card.Title>
+              <span className="talent-role" title={coreRole}>{coreRole}</span>
+            </div>
+            <Chip
+              className="tag"
+              size="sm"
+              variant="soft"
+              color={row.createdBy === 'ai' ? 'accent' : 'default'}
             >
-              {t('talents.delete')}
-            </button>
-          </div>
-        ) : (
-          <div className="talent-actions">
-            {row.canManage ? (
+              {row.createdBy === 'ai' ? t('talents.sourceAi') : t('talents.sourceUser')}
+            </Chip>
+          </Card.Header>
+          <Card.Content className="talent-card-content">
+            {row.description === '' ? null : <p className="detail-line">{row.description}</p>}
+            {skills.length > 0 && (
+              <div className="talent-skills">
+                {skills.map(name => (
+                  <Chip key={name} size="sm" variant="secondary" title={name}>{name}</Chip>
+                ))}
+              </div>
+            )}
+            <Separator className="talent-divider" />
+            <dl className="talent-meta">
+              <div><dt>{t('talents.creator')}</dt><dd>{creatorOf(row)}</dd></div>
+              <div><dt>{t('talents.model')}</dt><dd>{model}</dd></div>
+              <div><dt>{t('talents.sessions')}</dt><dd>{String(sessionsOf(row))}</dd></div>
+            </dl>
+            {!talents.applied.has(row.id) && applyError === undefined
+              ? <p className="empty">{t('talents.applying')}</p>
+              : null}
+            {applyError === undefined ? null : <p className="problem">{t('talents.applyFailed', { detail: applyError })}</p>}
+            {actionError === undefined ? null : <p className="problem">{actionError}</p>}
+            {refs === undefined ? null : (
+              <p className="problem" data-testid="talent-delete-blocked">
+                {t('talents.deleteReferenced', { count: refs.length, sessions: refs.slice(0, 3).join('、') })}
+              </p>
+            )}
+          </Card.Content>
+          <Card.Footer className="talent-actions">
+            {confirming === row.id ? (
               <>
-                <button
-                  type="button"
-                  className="pill"
-                  data-testid="talent-edit"
-                  onClick={() => { setEditing({ scope: row.scope, row }) }}
-                >
-                  {t('talents.edit')}
-                </button>
-                <button
-                  type="button"
-                  className="pill"
-                  data-testid="talent-delete"
-                  disabled={talents.busy}
-                  onClick={() => { void askDelete(row) }}
+                <span className="detail-line">{t('talents.deleteConfirm')}</span>
+                <Button size="sm" variant="secondary" data-testid="talent-delete-cancel" onPress={() => { setConfirming(null) }}>
+                  {t('talents.cancel')}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="primary"
+                  data-testid="talent-delete-confirm"
+                  isDisabled={talents.busy}
+                  onPress={() => { void confirmDelete(row) }}
                 >
                   {t('talents.delete')}
-                </button>
+                </Button>
+              </>
+            ) : row.canManage ? (
+              <>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  data-testid="talent-edit"
+                  onPress={() => { setEditing({ scope: row.scope, row }) }}
+                >
+                  {t('talents.edit')}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  data-testid="talent-delete"
+                  isDisabled={talents.busy}
+                  onPress={() => { void askDelete(row) }}
+                >
+                  {t('talents.delete')}
+                </Button>
               </>
             ) : (
               <span className="settings-muted" data-testid="talent-cannot-manage">{t('talents.cannotManage')}</span>
             )}
-          </div>
-        )}
+          </Card.Footer>
+        </Card>
       </article>
     )
   }
@@ -195,37 +219,48 @@ export function TalentsPage(props: TalentsPageProps): JSX.Element {
     return (
       <article
         key={row.id}
-        className="info-card lg-glass-card talent-card builtin-card"
+        className="talent-card-shell"
         data-testid="builtin-card"
         data-builtin-id={row.id}
         onClick={() => { openBuiltin(row.id) }}
       >
-        <div className="detail-drawer-head">
-          <h3>{row.name ?? row.id}</h3>
-          <div className="builtin-tags">
-            <span className="tag" data-testid="builtin-source">{t('talents.sourceBuiltin')}</span>
-            {row.isDefault ? <span className="tag">{t('talents.defaultRole')}</span> : null}
-          </div>
-        </div>
-        {row.description === undefined || row.description === '' ? null : <p className="detail-line">{row.description}</p>}
-        <dl className="talent-meta">
-          <div><dt>{t('talents.sessions')}</dt><dd data-testid="builtin-sessions">{String(sessionsOfPreset(row.id))}</dd></div>
-          <div><dt>{t('talents.model')}</dt><dd>{t('talents.modelGlobal')}</dd></div>
-        </dl>
-        {row.broken === undefined ? null : (
-          <p className="problem" data-testid="builtin-broken">{t('talents.builtinBroken', { detail: row.broken })}</p>
-        )}
-        {actionError === undefined ? null : <p className="problem">{actionError}</p>}
-        <div className="talent-actions">
-          <button
-            type="button"
-            className="pill"
-            data-testid="builtin-detail-open"
-            onClick={(event) => { event.stopPropagation(); openBuiltin(row.id) }}
-          >
-            {t('talents.detail')}
-          </button>
-        </div>
+        <Card className="info-card lg-glass-card talent-card builtin-card talent-bento">
+          <Card.Header className="talent-card-head">
+            <span className="talent-avatar talent-avatar-builtin" aria-hidden="true">{(row.name ?? row.id).slice(0, 1)}</span>
+            <div className="talent-heading">
+              <Card.Title>{row.name ?? row.id}</Card.Title>
+              <span className="talent-role mono" title={row.id}>{row.id}</span>
+            </div>
+            <div className="builtin-tags">
+              <Chip className="tag" size="sm" variant="soft" color="accent" data-testid="builtin-source">
+                {t('talents.sourceBuiltin')}
+              </Chip>
+              {row.isDefault ? <Chip size="sm" variant="secondary">{t('talents.defaultRole')}</Chip> : null}
+            </div>
+          </Card.Header>
+          <Card.Content className="talent-card-content">
+            {row.description === undefined || row.description === '' ? null : <p className="detail-line">{row.description}</p>}
+            <Separator className="talent-divider" />
+            <dl className="talent-meta">
+              <div><dt>{t('talents.sessions')}</dt><dd data-testid="builtin-sessions">{String(sessionsOfPreset(row.id))}</dd></div>
+              <div><dt>{t('talents.model')}</dt><dd>{t('talents.modelGlobal')}</dd></div>
+            </dl>
+            {row.broken === undefined ? null : (
+              <p className="problem" data-testid="builtin-broken">{t('talents.builtinBroken', { detail: row.broken })}</p>
+            )}
+            {actionError === undefined ? null : <p className="problem">{actionError}</p>}
+          </Card.Content>
+          <Card.Footer className="talent-actions">
+            <button
+              type="button"
+              className="pill"
+              data-testid="builtin-detail-open"
+              onClick={(event) => { event.stopPropagation(); openBuiltin(row.id) }}
+            >
+              {t('talents.detail')}
+            </button>
+          </Card.Footer>
+        </Card>
       </article>
     )
   }
@@ -384,15 +419,14 @@ export function TalentsPage(props: TalentsPageProps): JSX.Element {
           <div>
             <h3>{t('talents.global')}</h3>
           </div>
-          <button
-            type="button"
-            className="pill pill-accent"
+          <Button
+            variant="primary"
             data-testid="talent-create-global"
-            disabled={!canCreate}
-            onClick={() => { setEditing({ scope: 'global', row: null }) }}
+            isDisabled={!canCreate}
+            onPress={() => { setEditing({ scope: 'global', row: null }) }}
           >
             {t('talents.createGlobal')}
-          </button>
+          </Button>
         </header>
         {talents.builtinsError === null ? null : (
           <p className="problem" data-testid="talents-builtin-error">
@@ -405,7 +439,7 @@ export function TalentsPage(props: TalentsPageProps): JSX.Element {
           : null}
         {talents.builtins.length + rows.length === 0
           ? null
-          : <div className="info-grid" data-testid="talent-list-global">
+          : <div className="info-grid talent-bento-grid" data-testid="talent-list-global">
             {talents.builtins.map(builtinCard)}
             {rows.map(card)}
           </div>}
@@ -429,9 +463,9 @@ export function TalentsPage(props: TalentsPageProps): JSX.Element {
         <div>
           <h2>{t('talents.title')}</h2>
         </div>
-        <button type="button" className="pill" data-testid="talent-reload" onClick={() => { talents.reload() }}>
+        <Button variant="secondary" data-testid="talent-reload" onPress={() => { talents.reload() }}>
           {t('talents.reload')}
-        </button>
+        </Button>
       </header>
 
       {talents.error === null ? null : (
@@ -464,15 +498,14 @@ export function TalentsPage(props: TalentsPageProps): JSX.Element {
             <h3>{t('talents.project')}</h3>
           </div>
           {hasProjectId ? (
-            <button
-              type="button"
-              className="pill pill-accent"
+            <Button
+              variant="primary"
               data-testid="talent-create-project"
-              disabled={!canCreate}
-              onClick={() => { setEditing({ scope: 'project', row: null }) }}
+              isDisabled={!canCreate}
+              onPress={() => { setEditing({ scope: 'project', row: null }) }}
             >
               {t('talents.createProject')}
-            </button>
+            </Button>
           ) : null}
         </header>
         {!projectReady ? <p className="empty" data-testid="talent-project-missing">{t('talents.projectMissing')}</p> : null}
@@ -497,7 +530,7 @@ export function TalentsPage(props: TalentsPageProps): JSX.Element {
         {hasProjectId ? (
           talents.projectTalents.length === 0
             ? <p className="empty" data-testid="talent-empty-project">{t('talents.emptyProject')}</p>
-            : <div className="info-grid" data-testid="talent-list-project">{talents.projectTalents.map(card)}</div>
+            : <div className="info-grid talent-bento-grid" data-testid="talent-list-project">{talents.projectTalents.map(card)}</div>
         ) : null}
       </section>
 

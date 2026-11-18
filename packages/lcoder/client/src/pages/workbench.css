@@ -632,3 +632,112 @@
 .talent-check { display: flex; align-items: center; gap: 8px; color: var(--lg-ink-2); font-size: 12px; }
 .talent-check em { font-style: normal; color: var(--lg-faint); }
 .session-talent { margin-left: auto; padding: 1px 6px; border: 1px solid var(--lg-line-hair); border-radius: 999px; font-size: 10px; color: var(--lg-muted); }
+
+/* ── T-257 批次 2：HeroUI v3 Bento 人才卡 ─────────────────────────── */
+.talent-bento-grid { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+.talent-bento {
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid var(--separator);
+  border-radius: 18px;
+  background: color-mix(in oklab, var(--surface-secondary) 92%, transparent);
+  box-shadow: 0 18px 40px -30px rgb(0 0 0 / 0.7);
+  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+.talent-bento:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in oklab, var(--accent) 45%, var(--separator));
+  box-shadow: 0 24px 48px -26px color-mix(in oklab, var(--accent) 45%, transparent);
+}
+.talent-card-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 16px 12px;
+}
+.talent-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  box-shadow: 0 8px 20px -10px rgb(99 102 241 / 0.8);
+  color: #fff;
+  font-size: 18px;
+  font-weight: 600;
+}
+.talent-avatar-builtin { background: linear-gradient(135deg, #0ea5e9, #14b8a6); box-shadow: 0 8px 20px -10px rgb(14 165 233 / 0.7); }
+.talent-heading { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.talent-heading h3 { margin: 0; font-size: 15px; line-height: 1.3; overflow-wrap: anywhere; }
+.talent-role { font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.talent-card-content { display: flex; flex-direction: column; gap: 8px; padding: 0 16px 12px; }
+.talent-skills { display: flex; flex-wrap: wrap; gap: 6px; }
+.talent-divider { margin: 4px 0; }
+.talent-bento [data-slot='card-footer'] { padding: 12px 16px 16px; border-top: 1px solid var(--separator); }
+
+/* ── T-257 批次 2：HeroUI v3 立项向导 ─────────────────────────────── */
+.intake-role-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.intake-role-row .detail-note { margin: 0; }
+.intake-section { margin-bottom: 12px; border-color: var(--separator); border-radius: 14px; }
+.intake-section [data-slot='card-header'] { padding: 12px 16px 8px; }
+.intake-section [data-slot='card-content'] { padding: 10px 16px 16px; }
+.intake-mode-tabs [role='tablist'] { border-radius: 999px; padding: 3px; background: var(--surface-tertiary); }
+
+/* ── T-257 批次 2：HeroUI v3 人才表单分组 ─────────────────────────── */
+.talent-form-group { border-color: var(--separator); border-radius: 16px; background: color-mix(in oklab, var(--surface-secondary) 80%, transparent); }
+.talent-form-group [data-slot='card-header'] { padding: 14px 16px 8px; }
+.talent-form-group [data-slot='card-content'] { padding: 12px 16px 16px; }
+.talent-form-group [data-slot='card-title'] { font-size: 14px; }
+
+/* ── T-257 批次 2：HeroUI v3 任务工具栏与看板 ─────────────────────── */
+.task-toolbar .toolbar-search { width: 190px; }
+.task-toolbar .toolbar-select { width: 128px; }
+.task-toolbar .toolbar-tabs [role='tablist'] { border-radius: 999px; padding: 3px; background: var(--surface-tertiary); }
+.task-board-bento .board-column {
+  border: 1px solid var(--separator);
+  border-radius: 16px;
+  background: color-mix(in oklab, var(--surface-secondary) 88%, transparent);
+  overflow: hidden;
+}
+.task-board-bento .board-column [data-slot='card-header'] { padding: 12px 12px 8px; }
+.task-board-bento .board-column [data-slot='card-title'] { font-size: 13px; }
+.task-board-bento .board-column [data-slot='card-content'] { padding: 4px 8px 10px; }
+.task-table [data-slot='table-row'] { cursor: pointer; }
+.task-table [data-slot='table-row'].selected { background: color-mix(in oklab, var(--accent) 12%, transparent); }
+
+/* ── T-257 批次 2：HeroUI v3 需求页与磨砂滑出详情 ─────────────────── */
+.requirements-head { align-items: center; }
+.requirements-toolbar { gap: 10px; }
+.req-search { width: 220px; }
+.req-state-tabs [role='tablist'] { border-radius: 999px; padding: 3px; background: var(--surface-tertiary); gap: 2px; }
+.req-state-tabs [role='tab'] { border-radius: 999px; font-size: 12px; }
+.tab-count {
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--accent) 16%, transparent);
+  font-size: 10px;
+}
+.requirements-workspace { position: relative; flex: 1; display: flex; min-height: 0; }
+.requirements-table { flex: 1; min-width: 0; border-radius: 16px; }
+.requirement-row-actions { opacity: 0.4; transition: opacity 140ms ease; }
+.requirements-table [data-slot='table-row']:hover .requirement-row-actions,
+.requirements-table [data-slot='table-row'].selected .requirement-row-actions { opacity: 1; }
+.requirement-detail-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: color-mix(in oklab, var(--background) 55%, transparent);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: req-scrim-in 180ms ease both;
+}
+.requirement-detail-layer { display: contents; }
+.requirement-detail-layer .detail-drawer { animation: req-drawer-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.req-spin { animation: req-spin 1s linear infinite; }
+@keyframes req-scrim-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes req-drawer-in { from { transform: translateX(28px); opacity: 0.4; } to { transform: translateX(0); opacity: 1; } }
+@keyframes req-spin { to { transform: rotate(360deg); } }
