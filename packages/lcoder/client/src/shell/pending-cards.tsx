@@ -42,7 +42,7 @@ function ApprovalCard({ t, interaction, onAnswer }: {
     }).finally(() => { setBusy(null) })
   }
   return (
-    <section className="pending-card lg-glass-card" role="dialog" aria-label={t('chat.approvalTitle')} data-testid="approval-card">
+    <section className="pending-card" role="dialog" aria-label={t('chat.approvalTitle')} data-testid="approval-card">
       <header className="pending-head">
         <h4>{t('chat.approvalTitle')}</h4>
         <span className="pill" data-testid="approval-tool">{view.toolName}</span>
@@ -101,7 +101,7 @@ function QuestionCard({ t, interaction, onAnswer }: {
     }).finally(() => { setBusy(false) })
   }
   return (
-    <section className="pending-card lg-glass-card pending-question" role="dialog" aria-label={t('chat.questionTitle')} data-testid="question-card">
+    <section className="pending-card pending-question" role="dialog" aria-label={t('chat.questionTitle')} data-testid="question-card">
       <header className="pending-head"><h4>{t('chat.questionTitle')}</h4></header>
       <div className="question-list">
         {questions.map((question) => {

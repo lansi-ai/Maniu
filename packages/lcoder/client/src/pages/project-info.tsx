@@ -55,7 +55,7 @@ export function ProjectInfoPage(props: ProjectInfoPageProps): JSX.Element {
 
       {props.project !== null && (
         <div className="info-grid">
-          <section className="info-card lg-glass-card">
+          <section className="info-card">
             <h3>仓库</h3>
             <dl className="kv">
               <dt>项目</dt><dd>{props.project.title}</dd>
@@ -67,7 +67,7 @@ export function ProjectInfoPage(props: ProjectInfoPageProps): JSX.Element {
             </dl>
           </section>
 
-          <section className="info-card lg-glass-card">
+          <section className="info-card">
             <h3>文档入口</h3>
             <dl className="kv">
               <dt>产品</dt><dd className="mono">{docsOf(info, 'product')}</dd>
@@ -88,7 +88,7 @@ export function ProjectInfoPage(props: ProjectInfoPageProps): JSX.Element {
             {...(props.presetNames === undefined ? {} : { presetNames: props.presetNames })}
           />
 
-          <section className="info-card lg-glass-card wide">
+          <section className="info-card wide">
             <h3>环境</h3>
             {(info?.environments ?? []).length === 0 && <p className="empty">`.spec/project.yaml` 没有声明环境。</p>}
             <ul className="plain-list">
@@ -210,7 +210,7 @@ function FlowConfigSection(props: FlowConfigSectionProps): JSX.Element {
   }
 
   return (
-    <section className="info-card lg-glass-card wide" data-testid="flow-config-section">
+    <section className="info-card wide" data-testid="flow-config-section">
       <h3>{t('flow.sectionTitle')}</h3>
       <p className="detail-note" data-testid="flow-source" data-configured={configured ? 'true' : 'false'}>
         {t(configured ? 'flow.sourceFile' : 'flow.sourcePreset')}

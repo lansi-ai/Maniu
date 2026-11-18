@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react'
 import type { JSX, RefObject } from 'react'
-import { Button } from '@heroui/react'
+import { Button, ListBox, Select } from '@heroui/react'
 import { Plus } from 'lucide-react'
 import type { Translate } from '../locale.ts'
 import {
@@ -215,6 +215,11 @@ export function Composer({
     setModelBusy(false)
   }
 
+  const selectModel = (key: unknown): void => {
+    if (typeof key !== 'string') return
+    void pickModel(key)
+  }
+
   const selectionKey = selection === undefined ? '' : `${selection.provider}\u0000${selection.model}`
   const knownSelection = models.some(item => `${item.provider}\u0000${item.model}` === selectionKey)
   const selectedOption = models.find(item => `${item.provider}\u0000${item.model}` === selectionKey)
@@ -300,26 +305,32 @@ export function Composer({
         </button>
       </div>
       <div className="composer-meta">
-        <label className="model-chip" data-testid="model-chip" data-source={selection?.source ?? 'none'}>
+        <div className="model-chip" data-testid="model-chip" data-source={selection?.source ?? 'none'}>
           <span className="model-chip-label">{t('chat.modelLabel')}</span>
-          <select
+          <Select
             className="model-chip-select"
             data-testid="model-chip-select"
             value={selectValue}
-            disabled={models.length === 0 || modelBusy || modelBlocked}
+            onChange={selectModel}
+            isDisabled={models.length === 0 || modelBusy || modelBlocked}
             aria-label={t('chat.modelLabel')}
-            onChange={(event) => { void pickModel(event.target.value) }}
+            variant="secondary"
           >
-            {selection !== undefined && !knownSelection
-              ? <option value={selectionKey}>{selectionLabel}</option>
-              : null}
-            {models.map(option => (
-              <option key={`${option.provider}\u0000${option.model}`} value={`${option.provider}\u0000${option.model}`}>
-                {option.providerName} · {option.modelName}
-              </option>
-            ))}
-          </select>
-        </label>
+            <Select.Trigger><Select.Value /><Select.Indicator /></Select.Trigger>
+            <Select.Popover>
+              <ListBox>
+                {selection !== undefined && !knownSelection
+                  ? <ListBox.Item key={selectionKey} id={selectionKey}>{selectionLabel}</ListBox.Item>
+                  : null}
+                {models.map(option => (
+                  <ListBox.Item key={`${option.provider}\u0000${option.model}`} id={`${option.provider}\u0000${option.model}`}>
+                    {option.providerName} · {option.modelName}
+                  </ListBox.Item>
+                ))}
+              </ListBox>
+            </Select.Popover>
+          </Select>
+        </div>
         <span className="context-usage" data-testid="context-usage" data-known={usage.used === undefined ? 'false' : 'true'}>
           {usageText}
         </span>

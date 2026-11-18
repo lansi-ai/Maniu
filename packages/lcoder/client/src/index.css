@@ -43,6 +43,60 @@
     --accent: #4f46e5;
     --accent-foreground: #ffffff;
     --link: #4338ca;
+
+    /* 遗留样式表仍在消费的 --lg-* token：保留定义于明暗两套，旧皮肤映射已移除。 */
+    --lg-base-a: #f3f6fc;
+    --lg-base-b: #e1e9f5;
+    --lg-ambient-blue: rgba(104, 160, 255, 0.52);
+    --lg-ambient-violet: rgba(166, 138, 255, 0.44);
+    --lg-ambient-teal: rgba(92, 212, 198, 0.38);
+    --lg-ambient-rose: rgba(255, 148, 190, 0.34);
+    --lg-ambient-warm: rgba(255, 196, 136, 0.3);
+    --lg-font: -apple-system, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+    --lg-font-mono: "Cascadia Code", "SF Mono", "JetBrains Mono", Consolas, ui-monospace, monospace;
+    --lg-ink: #16191f;
+    --lg-ink-2: #2f3540;
+    --lg-muted: #59616f;
+    --lg-faint: #6b7482;
+    --lg-on-accent: #ffffff;
+    --lg-accent: #0a5fe0;
+    --lg-accent-strong: #084aad;
+    --lg-brand-2: #7b5cf0;
+    --lg-danger: #b42318;
+    --lg-ok: #0d7a5c;
+    --lg-line: rgba(255, 255, 255, 0.58);
+    --lg-line-hair: rgba(24, 34, 52, 0.08);
+    --lg-line-bright: rgba(255, 255, 255, 0.96);
+    --lg-fill-panel: linear-gradient(158deg, rgba(255, 255, 255, 0.62) 0%, rgba(255, 255, 255, 0.36) 46%, rgba(232, 240, 253, 0.38) 100%);
+    --lg-fill-card: linear-gradient(160deg, rgba(255, 255, 255, 0.72) 0%, rgba(255, 255, 255, 0.44) 58%, rgba(238, 244, 255, 0.4) 100%);
+    --lg-fill-card-airy: linear-gradient(160deg, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0.26) 58%, rgba(238, 244, 255, 0.24) 100%);
+    --lg-fill-control: linear-gradient(160deg, rgba(255, 255, 255, 0.66), rgba(255, 255, 255, 0.34));
+    --lg-fill-control-hover: linear-gradient(160deg, rgba(255, 255, 255, 0.88), rgba(255, 255, 255, 0.52));
+    --lg-fill-accent: linear-gradient(146deg, #2f80f0 0%, #0a5fe0 52%, #0a4fc4 100%);
+    --lg-fill-accent-soft: linear-gradient(150deg, rgba(96, 156, 255, 0.34), rgba(120, 176, 255, 0.2));
+    --lg-fill-subtle: rgba(255, 255, 255, 0.5);
+    --lg-fill-raised: rgba(255, 255, 255, 0.72);
+    --lg-fill-row: rgba(255, 255, 255, 0.42);
+    --lg-fill-head: rgba(255, 255, 255, 0.55);
+    --lg-fill-code: rgba(255, 255, 255, 0.6);
+    --lg-fill-blockquote: rgba(255, 255, 255, 0.38);
+    --lg-scrim-thumb: rgba(64, 86, 120, 0.22);
+    --lg-scrim-thumb-hover: rgba(64, 86, 120, 0.34);
+    --lg-selection: rgba(10, 95, 224, 0.18);
+    --lg-blur: 36px;
+    --lg-blur-soft: 30px;
+    --lg-saturate: 190%;
+    --lg-shadow-float: 0 28px 68px -28px rgba(38, 54, 88, 0.42), 0 10px 28px -16px rgba(38, 54, 88, 0.26);
+    --lg-shadow-card: 0 14px 36px -20px rgba(38, 54, 88, 0.34), 0 4px 12px -8px rgba(38, 54, 88, 0.2);
+    --lg-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.96), inset 1px 0 0 rgba(255, 255, 255, 0.74);
+    --lg-highlight-card: inset 0 1px 0 rgba(255, 255, 255, 0.92), inset 1px 0 0 rgba(255, 255, 255, 0.6);
+    --lg-radius-panel: 26px;
+    --lg-radius-bar: 18px;
+    --lg-radius-card: 18px;
+    --lg-radius-control: 999px;
+    --lg-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+    --lg-dur-lift: 180ms;
+    --lg-dur-sheen: 900ms;
   }
 
   .dark {
@@ -62,6 +116,48 @@
     --accent: #6366f1;
     --accent-foreground: #ffffff;
     --link: #a5b4fc;
+
+    /* 暗色沿用 HeroUI 语义色，遗留样式表不需要知道当前是哪套皮肤。 */
+    --lg-base-a: #09090b;
+    --lg-base-b: #18181b;
+    --lg-ambient-blue: rgba(99, 102, 241, 0.22);
+    --lg-ambient-violet: rgba(139, 92, 246, 0.2);
+    --lg-ambient-teal: rgba(45, 212, 191, 0.14);
+    --lg-ambient-rose: rgba(244, 114, 182, 0.12);
+    --lg-ambient-warm: rgba(251, 191, 36, 0.08);
+    --lg-ink: #f4f4f5;
+    --lg-ink-2: #d4d4d8;
+    --lg-muted: #a1a1aa;
+    --lg-faint: #71717a;
+    --lg-on-accent: #ffffff;
+    --lg-accent: #6366f1;
+    --lg-accent-strong: #4f46e5;
+    --lg-brand-2: #8b5cf6;
+    --lg-danger: #f87171;
+    --lg-ok: #34d399;
+    --lg-line: rgba(255, 255, 255, 0.12);
+    --lg-line-hair: rgba(255, 255, 255, 0.08);
+    --lg-line-bright: rgba(255, 255, 255, 0.24);
+    --lg-fill-panel: linear-gradient(158deg, rgb(24 24 27 / 0.92), rgb(9 9 11 / 0.88));
+    --lg-fill-card: linear-gradient(160deg, rgb(39 39 42 / 0.88), rgb(24 24 27 / 0.82));
+    --lg-fill-card-airy: linear-gradient(160deg, rgb(39 39 42 / 0.6), rgb(24 24 27 / 0.5));
+    --lg-fill-control: linear-gradient(160deg, rgb(39 39 42 / 0.9), rgb(24 24 27 / 0.86));
+    --lg-fill-control-hover: linear-gradient(160deg, rgb(63 63 70 / 0.92), rgb(39 39 42 / 0.88));
+    --lg-fill-accent: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    --lg-fill-accent-soft: linear-gradient(150deg, rgb(99 102 241 / 0.26), rgb(139 92 246 / 0.18));
+    --lg-fill-subtle: rgb(255 255 255 / 0.06);
+    --lg-fill-raised: rgb(255 255 255 / 0.09);
+    --lg-fill-row: rgb(255 255 255 / 0.04);
+    --lg-fill-head: rgb(255 255 255 / 0.07);
+    --lg-fill-code: rgb(255 255 255 / 0.08);
+    --lg-fill-blockquote: rgb(255 255 255 / 0.04);
+    --lg-scrim-thumb: rgb(255 255 255 / 0.2);
+    --lg-scrim-thumb-hover: rgb(255 255 255 / 0.32);
+    --lg-selection: rgb(99 102 241 / 0.3);
+    --lg-shadow-float: 0 28px 68px -28px rgb(0 0 0 / 0.7), 0 10px 28px -16px rgb(0 0 0 / 0.5);
+    --lg-shadow-card: 0 14px 36px -20px rgb(0 0 0 / 0.6), 0 4px 12px -8px rgb(0 0 0 / 0.4);
+    --lg-highlight: inset 0 1px 0 rgb(255 255 255 / 0.08), inset 1px 0 0 rgb(255 255 255 / 0.04);
+    --lg-highlight-card: inset 0 1px 0 rgb(255 255 255 / 0.06), inset 1px 0 0 rgb(255 255 255 / 0.03);
   }
 }
 
@@ -86,8 +182,8 @@
  */
 
 /* 底色与环境层：暗黑下不再透出浅蓝紫渐层。 */
-html.dark[data-theme='liquid-glass'],
-html.dark[data-theme='liquid-glass'] body { background: var(--background); }
+html.dark,
+html.dark body { background: var(--background); }
 
 .dark .ambient-layer { background: var(--background); }
 .dark .ambient-blob { opacity: 0.12; }
@@ -200,4 +296,112 @@ html.dark #root .composer select:focus-visible { outline-color: rgb(99 102 241 /
   background: linear-gradient(135deg, #6366f1, #8b5cf6);
   border-color: transparent;
   box-shadow: 0 8px 20px -10px rgb(99 102 241 / 0.8);
+}
+
+/* 自托管 Inter：字体偏好仍可用，旧多皮肤映射已移除。 */
+@font-face {
+  font-family: 'Inter Variable';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('./assets/InterVariable.woff2') format('woff2-variations');
+}
+
+:root[data-font='modern'] {
+  --lg-font: 'Inter Variable', Inter, 'Segoe UI Variable Text', 'Segoe UI', 'Microsoft YaHei', system-ui, sans-serif;
+}
+
+/* 环境层：固定在最底层，所有页面共享，不参与命中测试。 */
+.ambient-layer {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  background:
+    radial-gradient(120% 80% at 50% -12%, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0) 62%),
+    linear-gradient(180deg, var(--lg-base-a) 0%, var(--lg-base-b) 100%);
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+.ambient-blob {
+  position: absolute;
+  width: 64vmax;
+  height: 64vmax;
+  border-radius: 50%;
+  opacity: 0.85;
+  will-change: transform;
+}
+.ambient-blob.blob-a { top: -26vmax; left: -18vmax; background: radial-gradient(circle at 50% 50%, var(--lg-ambient-blue) 0%, rgba(104, 160, 255, 0) 64%); animation: lg-drift-a 38s var(--lg-ease) infinite alternate; }
+.ambient-blob.blob-b { top: -18vmax; right: -22vmax; background: radial-gradient(circle at 50% 50%, var(--lg-ambient-violet) 0%, rgba(166, 138, 255, 0) 62%); animation: lg-drift-b 46s var(--lg-ease) infinite alternate; }
+.ambient-blob.blob-c { bottom: -30vmax; left: 6vmax; background: radial-gradient(circle at 50% 50%, var(--lg-ambient-teal) 0%, rgba(92, 212, 198, 0) 62%); animation: lg-drift-c 52s var(--lg-ease) infinite alternate; }
+.ambient-blob.blob-d { right: -16vmax; bottom: -28vmax; background: radial-gradient(circle at 50% 50%, var(--lg-ambient-rose) 0%, rgba(255, 148, 190, 0) 60%); animation: lg-drift-d 42s var(--lg-ease) infinite alternate; }
+.ambient-blob.blob-e { top: 24vmax; left: 26vmax; background: radial-gradient(circle at 50% 50%, var(--lg-ambient-warm) 0%, rgba(255, 196, 136, 0) 58%); animation: lg-drift-e 34s var(--lg-ease) infinite alternate; }
+
+.ambient-grain {
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23g)' opacity='0.55'/%3E%3C/svg%3E");
+  background-size: 180px 180px;
+  mix-blend-mode: soft-light;
+  opacity: 0.34;
+}
+
+@keyframes lg-drift-a { from { transform: translate3d(-4%, -3%, 0) scale(1); } to { transform: translate3d(12%, 8%, 0) scale(1.16); } }
+@keyframes lg-drift-b { from { transform: translate3d(4%, -2%, 0) scale(1.08); } to { transform: translate3d(-10%, 10%, 0) scale(0.94); } }
+@keyframes lg-drift-c { from { transform: translate3d(-6%, 4%, 0) scale(0.96); } to { transform: translate3d(10%, -8%, 0) scale(1.14); } }
+@keyframes lg-drift-d { from { transform: translate3d(6%, 6%, 0) scale(1.02); } to { transform: translate3d(-12%, -6%, 0) scale(1.18); } }
+@keyframes lg-drift-e { from { transform: translate3d(-8%, -6%, 0) scale(0.9); } to { transform: translate3d(8%, 8%, 0) scale(1.1); } }
+
+.app[data-running='true'] .ambient-blob { animation-play-state: paused; }
+.app[data-running='true'] *,
+.app[data-running='true'] *::before,
+.app[data-running='true'] *::after {
+  backdrop-filter: none !important;
+  mix-blend-mode: normal !important;
+}
+.app[data-running='true'] .thinking-dots i,
+.app[data-running='true'] .message.live::after { animation: none !important; }
+
+/* 玻璃基元：面板、静态磨砂与交互反馈，供仍在使用它们的壳组件消费。 */
+.lg-glass {
+  position: relative;
+  background: var(--lg-fill-panel);
+  border: 1px solid var(--lg-line);
+  border-radius: var(--lg-radius-panel);
+  box-shadow: var(--lg-shadow-float), var(--lg-highlight);
+  backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-saturate));
+}
+.lg-frost {
+  position: relative;
+  background: var(--lg-fill-card), var(--lg-fill-raised);
+  border: 1px solid var(--lg-line);
+  border-radius: var(--lg-radius-card);
+  box-shadow: var(--lg-shadow-card), var(--lg-highlight-card);
+  backdrop-filter: none;
+}
+.lg-sheen { position: relative; overflow: hidden; isolation: isolate; }
+.lg-sheen::after {
+  content: '';
+  position: absolute;
+  inset: -60% -80%;
+  background: linear-gradient(100deg, rgba(255, 255, 255, 0) 38%, rgba(255, 255, 255, 0.62) 50%, rgba(255, 255, 255, 0) 62%);
+  opacity: 0;
+  transform: translate3d(-55%, 0, 0);
+  transition: transform var(--lg-dur-sheen) var(--lg-ease), opacity 220ms ease;
+  pointer-events: none;
+}
+.lg-sheen:hover::after,
+.lg-sheen:focus-visible::after { opacity: 0.7; transform: translate3d(55%, 0, 0); }
+.lg-lift { transition: transform var(--lg-dur-lift) var(--lg-ease); }
+.lg-lift:hover { transform: translateY(-1.5px); }
+.lg-lift:active { transform: translateY(0) scale(0.994); }
+
+@media (prefers-reduced-motion: reduce) {
+  .ambient-blob { animation: none !important; }
+  .lg-sheen::after { display: none; }
+  .lg-lift,
+  .lg-lift:hover,
+  .lg-lift:active { transform: none; transition: none; }
 }

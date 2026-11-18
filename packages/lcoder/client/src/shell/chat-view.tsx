@@ -159,21 +159,39 @@ export function ChatView({
                   if (event.key === 'Escape') { setEditing(false) }
                 }}
               />
-              <button type="button" className="pill pill-mini" data-testid="session-rename-save" onClick={() => { void commitRename() }}>
+              <Button
+                className="rename-action"
+                variant="primary"
+                size="sm"
+                data-testid="session-rename-save"
+                onPress={() => { void commitRename() }}
+              >
                 {t('chat.renameSave')}
-              </button>
-              <button type="button" className="pill pill-mini" data-testid="session-rename-cancel" onClick={() => { setEditing(false) }}>
+              </Button>
+              <Button
+                className="rename-action"
+                variant="secondary"
+                size="sm"
+                data-testid="session-rename-cancel"
+                onPress={() => { setEditing(false) }}
+              >
                 {t('chat.renameCancel')}
-              </button>
+              </Button>
               {renameProblem === null ? null : <span className="rename-problem">{renameProblem}</span>}
             </div>
           ) : (
             <>
               <span data-testid="active-session">{headTitle}</span>
               {active === null ? null : (
-                <button type="button" className="pill pill-mini" data-testid="session-rename" onClick={beginRename}>
+                <Button
+                  className="rename-action"
+                  variant="secondary"
+                  size="sm"
+                  data-testid="session-rename"
+                  onPress={beginRename}
+                >
                   {t('chat.rename')}
-                </button>
+                </Button>
               )}
               {running ? <span className="running" data-testid="session-running">{t('chat.running')}</span> : null}
             </>

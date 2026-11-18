@@ -88,7 +88,7 @@ export function PersonalCenter({ state, t, onBack }: PersonalCenterProps): JSX.E
       </header>
 
       <div className="pc-grid">
-        <section className="pc-card lg-glass-card">
+        <section className="pc-card">
           <h4>{t('account.profile')}</h4>
           {signedIn && user !== null ? (
             <>
@@ -101,7 +101,7 @@ export function PersonalCenter({ state, t, onBack }: PersonalCenterProps): JSX.E
           ) : <p className="pc-muted">{t('account.profileUnavailable')}</p>}
         </section>
 
-        <section className="pc-card lg-glass-card">
+        <section className="pc-card">
           <h4>{t('account.balance')}</h4>
           {signedIn && quota !== null ? (
             <>
@@ -113,7 +113,7 @@ export function PersonalCenter({ state, t, onBack }: PersonalCenterProps): JSX.E
           ) : <p className="pc-muted">{t('account.balanceUnavailable')}</p>}
         </section>
 
-        <section className="pc-card lg-glass-card">
+        <section className="pc-card">
           <h4>{t('account.estimate')}</h4>
           <p className={available ? 'pc-estimate' : 'pc-estimate pc-muted'}>{estimateRange(estimate, t)}</p>
           {estimate !== null && estimate.available ? (
@@ -134,7 +134,7 @@ export function PersonalCenter({ state, t, onBack }: PersonalCenterProps): JSX.E
         </section>
       </div>
 
-      <section className="pc-card lg-glass-card" data-testid="account-usage">
+      <section className="pc-card" data-testid="account-usage">
         <h4>{t('account.usage')}</h4>
         {!signedIn ? <p className="pc-muted">{t('account.signedIn')}</p> : (
           <>

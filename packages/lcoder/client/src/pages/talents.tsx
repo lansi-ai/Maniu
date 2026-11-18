@@ -126,7 +126,7 @@ export function TalentsPage(props: TalentsPageProps): JSX.Element {
         data-talent-id={row.id}
         data-scope={row.scope}
       >
-        <Card className="info-card lg-glass-card talent-card talent-bento">
+        <Card className="info-card talent-card talent-bento">
           <Card.Header className="talent-card-head">
             <span className="talent-avatar" aria-hidden="true">{row.name.slice(0, 1)}</span>
             <div className="talent-heading">
@@ -224,7 +224,7 @@ export function TalentsPage(props: TalentsPageProps): JSX.Element {
         data-builtin-id={row.id}
         onClick={() => { openBuiltin(row.id) }}
       >
-        <Card className="info-card lg-glass-card talent-card builtin-card talent-bento">
+        <Card className="info-card talent-card builtin-card talent-bento">
           <Card.Header className="talent-card-head">
             <span className="talent-avatar talent-avatar-builtin" aria-hidden="true">{(row.name ?? row.id).slice(0, 1)}</span>
             <div className="talent-heading">
