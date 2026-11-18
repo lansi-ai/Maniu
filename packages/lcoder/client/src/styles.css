@@ -2,7 +2,7 @@
 
 * { box-sizing: border-box; }
 
-html, body, #root { height: 100%; margin: 0; }
+html, body, #root { height: 100%; margin: 0; min-width: 0; overflow-x: hidden; }
 
 /* 不透明根：消息区等大面积容器直接消费官方 background token。 */
 html { background: var(--background); }
@@ -44,8 +44,10 @@ html body {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  min-width: 0;
   height: 100%;
   padding: 12px;
+  overflow-x: hidden;
 }
 
 /* 门禁态（登录、欢迎、启动中、云端不可用）到边：水流与卡片铺满窗口，没有标题栏留白。 */

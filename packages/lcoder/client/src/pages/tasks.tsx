@@ -148,10 +148,18 @@ export function TasksPage(props: TasksPageProps): JSX.Element {
             </Select.Popover>
           </Select>
           <Tabs className="toolbar-tabs" selectedKey={view} onSelectionChange={selectView} aria-label="任务视图">
-            <Tabs.List>
-              <Tabs.Tab key="board" id="board" data-testid="task-view-board">看板</Tabs.Tab>
-              <Tabs.Tab key="list" id="list" data-testid="task-view-list">列表</Tabs.Tab>
-            </Tabs.List>
+            <Tabs.ListContainer>
+              <Tabs.List aria-label="任务视图">
+                <Tabs.Tab key="board" id="board" data-testid="task-view-board" className="relative z-10">
+                  <Tabs.Indicator />
+                  看板
+                </Tabs.Tab>
+                <Tabs.Tab key="list" id="list" data-testid="task-view-list" className="relative z-10">
+                  <Tabs.Indicator />
+                  列表
+                </Tabs.Tab>
+              </Tabs.List>
+            </Tabs.ListContainer>
           </Tabs>
           <Button variant="secondary" data-testid="task-reload" onPress={props.onReload}>
             {props.loading ? '读取中…' : '刷新'}

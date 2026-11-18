@@ -687,13 +687,16 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
             onSelectionChange={selectState}
             aria-label="状态筛选"
           >
-            <Tabs.List>
-              {stateTabs.map(item => (
-                <Tabs.Tab key={item.id} id={item.id} className="whitespace-nowrap shrink-0">
-                  {item.label}<span className="tab-count">{item.count}</span>
-                </Tabs.Tab>
-              ))}
-            </Tabs.List>
+            <Tabs.ListContainer>
+              <Tabs.List aria-label="状态筛选">
+                {stateTabs.map(item => (
+                  <Tabs.Tab key={item.id} id={item.id} className="relative z-10 whitespace-nowrap shrink-0">
+                    <Tabs.Indicator />
+                    {item.label}<span className="tab-count">{item.count}</span>
+                  </Tabs.Tab>
+                ))}
+              </Tabs.List>
+            </Tabs.ListContainer>
           </Tabs>
           <Button
             variant="secondary"
