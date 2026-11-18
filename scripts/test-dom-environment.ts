@@ -4,6 +4,13 @@ import { afterAll, beforeEach } from 'vitest'
 const original = Object.getOwnPropertyDescriptor(globalThis, 'ResizeObserver')
 let installed = false
 
+// React Aria's SelectionIndicator (Tabs.Indicator) queries element animations on
+// selection change; jsdom has no Web Animations implementation.
+const originalGetAnimations = typeof Element === 'undefined'
+  ? undefined
+  : Object.getOwnPropertyDescriptor(Element.prototype, 'getAnimations')
+let installedGetAnimations = false
+
 class TestResizeObserver implements ResizeObserver {
   private readonly targets = new Set<Element>()
 
@@ -32,10 +39,19 @@ beforeEach(() => {
     Object.defineProperty(globalThis, 'ResizeObserver', { configurable: true, writable: true, value: TestResizeObserver })
     installed = true
   }
+  if (typeof Element !== 'undefined' && typeof Element.prototype.getAnimations !== 'function') {
+    Object.defineProperty(Element.prototype, 'getAnimations', { configurable: true, writable: true, value: () => [] })
+    installedGetAnimations = true
+  }
 })
 
 afterAll(() => {
-  if (!installed) return
-  if (original === undefined) Reflect.deleteProperty(globalThis, 'ResizeObserver')
-  else Object.defineProperty(globalThis, 'ResizeObserver', original)
+  if (installed) {
+    if (original === undefined) Reflect.deleteProperty(globalThis, 'ResizeObserver')
+    else Object.defineProperty(globalThis, 'ResizeObserver', original)
+  }
+  if (installedGetAnimations) {
+    if (originalGetAnimations === undefined) Reflect.deleteProperty(Element.prototype, 'getAnimations')
+    else Object.defineProperty(Element.prototype, 'getAnimations', originalGetAnimations)
+  }
 })

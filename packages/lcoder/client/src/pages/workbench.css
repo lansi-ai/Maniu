@@ -1,7 +1,7 @@
 /* M2 工作台样式：消费 @heroui/styles 的官方语义 token。 */
 
 /* 壳：左侧导航 + 内容。 */
-.shell { position: relative; z-index: 1; flex: 1; display: flex; gap: 12px; min-width: 0; min-height: 0; }
+.shell { position: relative; z-index: 1; flex: 1; display: flex; gap: 12px; min-width: 0; min-height: 0; overflow-x: hidden; }
 
 .nav {
   display: flex;
@@ -56,7 +56,7 @@
   border-top: 1px solid var(--separator);
 }
 
-.shell-body { flex: 1; display: flex; gap: 12px; min-width: 0; min-height: 0; }
+.shell-body { flex: 1; display: flex; gap: 12px; min-width: 0; min-height: 0; overflow-x: hidden; }
 
 /* 页：整页玻璃，内部自己滚动。 */
 .page {
@@ -775,11 +775,31 @@
 
 /* ── T-257 批次 2：HeroUI v3 需求页与磨砂滑出详情 ─────────────────── */
 .requirements-head { align-items: center; }
-.requirements-toolbar { gap: 10px; flex-wrap: wrap; min-width: 0; }
-.req-search { width: 220px; max-width: 100%; }
+.requirements-toolbar { gap: 8px; flex-wrap: wrap; min-width: 0; }
+.req-search { flex: 0 1 180px; max-width: 100%; }
 .req-state-tabs { max-width: 100%; }
-.req-state-tabs [role='tablist'] { border-radius: 999px; padding: 3px; background: var(--surface-tertiary); gap: 2px; flex-wrap: wrap; }
-.req-state-tabs [role='tab'] { border-radius: 999px; font-size: 12px; white-space: nowrap; flex: 0 0 auto; }
+.req-state-tabs [role='tablist'] {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  width: auto;
+  min-width: 0;
+  border-radius: 999px;
+  padding: 3px;
+  background: var(--surface-tertiary);
+  gap: 2px;
+}
+/* 覆盖 HeroUI .tabs__tab 的 w-full/h-8/px-4，避免标签被撑成竖排椭圆；z-index 由官方规则提供，指示器可见。 */
+.req-state-tabs [role='tab'],
+.toolbar-tabs [role='tab'],
+.intake-mode-tabs [role='tab'] {
+  width: auto;
+  flex: 0 0 auto;
+  height: 28px;
+  padding-inline: 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  white-space: nowrap;
+}
 .tab-count {
   margin-left: 6px;
   padding: 0 6px;
