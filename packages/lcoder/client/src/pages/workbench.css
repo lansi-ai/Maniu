@@ -84,7 +84,7 @@
 .page-sub { margin: 4px 0 0; font-size: 12px; color: var(--muted); }
 .page-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
-.search, .select, .project-open input {
+.search, .project-open input {
   border: 1px solid var(--border);
   border-radius: 999px;
   background: var(--field-background);
@@ -96,7 +96,7 @@
 
 .search { width: 180px; }
 .search::placeholder { color: var(--muted); }
-.search:focus, .select:focus, .project-open input:focus { border-color: var(--accent); }
+.search:focus, .project-open input:focus { border-color: var(--accent); }
 
 .segmented {
   display: inline-flex;
@@ -867,15 +867,4 @@
 .project-path { color: var(--muted); }
 .project-meta { color: var(--muted); }
 
-/* 轻量紧凑暗色筛选器：压掉 HeroUI 触发器的厚重边框与投影。 */
-.task-toolbar .toolbar-select [data-slot='select-trigger'] {
-  min-height: 34px;
-  padding: 6px 10px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: color-mix(in oklab, var(--surface-secondary) 88%, transparent);
-  box-shadow: none;
-  color: var(--foreground);
-  font-size: 12px;
-}
-.task-toolbar .toolbar-select { width: auto; min-width: 112px; }
+.task-toolbar .toolbar-select { width: auto; min-width: 124px; }
