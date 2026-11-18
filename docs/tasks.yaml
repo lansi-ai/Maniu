@@ -2798,6 +2798,18 @@ tracks:
       inferred: false
       note: "A 级契约扩展，来源是用户 2026-11-17 要求需求页可新建需求且不必走整项目立项，经三轮口径修订签核 v3：新建与改稿都通过与需求分析师对话完成，无手动写盘表单；分析师只做需求层分析（与现有需求冲突/重复、影响面大小、优先级建议，明禁代码层判断），按需求大小出文档（小需求短文档大需求完整文档），提问卡请用户确认文档方向后调新模型工具 requirement_propose 写提案 .spec/proposals/P-xx.yaml（requirement_change 载荷 mode new/revise、目标 REQ、基线版本、完整新正文），此时需求本体不落盘；界面出待确认需求变更卡与对比视图（revise 旧正文对新正文逐条目差异加全文对照，new 新条目全文，附分析结论），人点确认走人机命令 proposal_approve 扩展分支调 createRequirement 或 reviseRequirement 落盘（note 记溯源），拒绝则提案 rejected 需求不动；落盘后进入既有评审配齐过审流程。红线：模型只能提案不能落需求本体，落盘只被人机命令触发，状态机零新边，revise 提案目标须 draft，确认态只能 new 基于其版本。kernel 改 requirement_propose 工具仅 intake 面、proposal schema 可选 requirement_change、proposal_approve 应用分支与拒绝路径（缺则补人机拒绝命令）、测试；client 改新建入口抽屉（描述输入随首条消息）、新建与改稿提示词（分析-文档-确认-提案四步）、待确认卡与对比视图、浮卡新建类与提案等待态加去对比入口、词典；双源文档同步。浮卡完成判定新建看需求条数增改稿看版本增，提案待确认期间等待态。验收 typecheck、kernel 与 packages/lcoder vitest、改动文件 oxlint、verify-client-ui-i18n、test:docs、snapshot 按政策核归因；组件测试覆盖入口不受禁立项影响、描述随首条消息、限定指令不含整项目立项与代码判断、提案不落需求本体、对比视图差异与确认拒绝、浮卡等待态；真机全链留监督窗口复验。工作树 pool-slot-1 到 lcoder/t249-req-proposal，端口 9824 与 9833 与 9834。2026-11-17 22:30 监督窗口登记。2026-11-17 22:35 派工成功，实现线会话 4339ec93。2026-11-18 00:45 监督窗口核验并收口。三笔提交（kernel 提案工具与批准驳回命令、client 新建入口与对比确认、双源文档）。独立复跑真分支门禁 typecheck 五项、vitest 一百五十八文件一千六百二十九例、限定文件 oxlint 零错零警、i18n 一千三百一十八文件、test:docs 二十一项全过（首轮误跑基提交作废已披露）；snapshot 红经基线全量对照 totals 与失败集完全一致坐实预存环境性。真机靶仓 4 全链通过：新建描述随首条消息、分析师判小需求并问文档详略、提案态需求本体未落盘、对比视图含需求层分析与新正文、确认落盘 v1 note 对话新建、提案清零绿卡、评审 R1、过审批准 v1。已合入主线、release pool-slot-1、删分支。"
 
+    - id: T-250
+      title: 需求详情状态先行与操作置顶重构
+      status: doing
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-18'
+      date: '2026-11-18'
+      dep: [T-249]
+      inferred: false
+      note: "B 级详情页 UX 重构，来源是用户 2026-11-18 截图三条反馈：没突出重点不知该干什么、标题不突出混乱、操作通道不全（已确认态仍显示确认按钮且修改需求对确认态必失败）。签核口径全折叠摘要式。头部三区：需求 title 大标题加状态徽标（draft 蓝 confirmed 绿终态灰）加 REQ 编号小字；state 驱动指引句；操作栏置顶随状态变化——draft 给评审/修改需求提案/确认需求（未配齐禁用加原因），confirmed 给拆分任务/基于此版本新建提案/查看任务且不再出现确认按钮，终态给查看任务/基于此版本新建；次级刷新与阅读器打开正文。阶段进度 timeline 上移头部下方紧凑横排 chips（创建/评审 Rn/版本 vN/过审/拆分）带打开报告与快照入口。正文默认折叠预览首几行加展开全文与阅读器，文档自带 H1 不再抢页面标题。评审报告默认折叠摘要卡（轮次/时间/结论摘录/打开报告/展开 inline），历史轮次列表保留可展开。版本 chips 逐版开快照。关联任务与讨论历史置底不变。范围 requirement-detail.tsx 与词典与样式与测试及 client README 双语；不改 kernel 与状态机与云合同。验收 typecheck、packages/lcoder vitest、改动文件 oxlint、verify-client-ui-i18n、test:docs；组件测试覆盖四态操作栏、已确认无确认按钮、指引句、报告默认折叠与展开、正文预览折叠、标题来源 row.title、timeline chips。工作树 pool-slot-2 到 lcoder/t250-detail-redesign，端口 9823 与 9831 与 9832。2026-11-18 09:10 监督窗口登记。"
+
 
 milestones:
 - name: MVP-0 工作台本地跑通
