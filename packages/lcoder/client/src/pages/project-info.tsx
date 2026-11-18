@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import type { JSX } from 'react'
+import { Button, Card, ListBox, Select, Separator, Switch } from '@heroui/react'
 import type { Translate } from '../locale.ts'
 import type { ProjectScope } from '../workspace/use-workspaces.ts'
 import type { SpecProjection } from '../spec/load.ts'
@@ -44,9 +45,9 @@ export function ProjectInfoPage(props: ProjectInfoPageProps): JSX.Element {
           <p className="page-sub">{props.project?.path ?? '未选择项目'}</p>
         </div>
         <div className="page-actions">
-          <button type="button" className="pill" data-testid="project-info-reload" onClick={props.onReload}>
+          <Button variant="secondary" data-testid="project-info-reload" onPress={props.onReload}>
             {props.loading ? '读取中…' : '刷新'}
-          </button>
+          </Button>
         </div>
       </header>
 
@@ -55,30 +56,35 @@ export function ProjectInfoPage(props: ProjectInfoPageProps): JSX.Element {
 
       {props.project !== null && (
         <div className="info-grid">
-          <section className="info-card">
-            <h3>仓库</h3>
-            <dl className="kv">
-              <dt>项目</dt><dd>{props.project.title}</dd>
-              <dt>路径</dt><dd className="mono">{props.project.path}</dd>
-              <dt>作用域会话</dt><dd className="mono">{props.project.scopeSessionId}</dd>
-              <dt>类型</dt><dd>{info?.kind ?? '—'}</dd>
-              <dt>分支</dt><dd>{info?.branch ?? '—'}</dd>
-              <dt>远端</dt><dd className="mono">{info === null || info.repoUrl === '' ? '—' : info.repoUrl}</dd>
-            </dl>
-          </section>
+          <Card className="info-card">
+            <Card.Header><Card.Title>仓库</Card.Title></Card.Header>
+            <Card.Content>
+              <dl className="kv">
+                <dt>项目</dt><dd>{props.project.title}</dd>
+                <dt>路径</dt><dd className="mono">{props.project.path}</dd>
+                <dt>作用域会话</dt><dd className="mono">{props.project.scopeSessionId}</dd>
+                <dt>类型</dt><dd>{info?.kind ?? '—'}</dd>
+                <dt>分支</dt><dd>{info?.branch ?? '—'}</dd>
+                <dt>远端</dt><dd className="mono">{info === null || info.repoUrl === '' ? '—' : info.repoUrl}</dd>
+              </dl>
+            </Card.Content>
+          </Card>
 
-          <section className="info-card">
-            <h3>文档入口</h3>
-            <dl className="kv">
-              <dt>产品</dt><dd className="mono">{docsOf(info, 'product')}</dd>
-              <dt>架构</dt><dd className="mono">{docsOf(info, 'architecture')}</dd>
-              <dt>测试</dt><dd className="mono">{docsOf(info, 'tests')}</dd>
-            </dl>
-            <h3>轨</h3>
-            <p className="detail-line">
-              {info === null || info.tracks.length === 0 ? '未追加轨' : info.tracks.map(track => `${track.name}（${track.id}）`).join('、')}
-            </p>
-          </section>
+          <Card className="info-card">
+            <Card.Header><Card.Title>文档入口</Card.Title></Card.Header>
+            <Card.Content>
+              <dl className="kv">
+                <dt>产品</dt><dd className="mono">{docsOf(info, 'product')}</dd>
+                <dt>架构</dt><dd className="mono">{docsOf(info, 'architecture')}</dd>
+                <dt>测试</dt><dd className="mono">{docsOf(info, 'tests')}</dd>
+              </dl>
+              <Separator className="info-divider" />
+              <h4 className="info-subtitle">轨</h4>
+              <p className="detail-line">
+                {info === null || info.tracks.length === 0 ? '未追加轨' : info.tracks.map(track => `${track.name}（${track.id}）`).join('、')}
+              </p>
+            </Card.Content>
+          </Card>
 
           <FlowConfigSection
             t={props.t}
@@ -88,53 +94,55 @@ export function ProjectInfoPage(props: ProjectInfoPageProps): JSX.Element {
             {...(props.presetNames === undefined ? {} : { presetNames: props.presetNames })}
           />
 
-          <section className="info-card wide">
-            <h3>环境</h3>
-            {(info?.environments ?? []).length === 0 && <p className="empty">`.spec/project.yaml` 没有声明环境。</p>}
-            <ul className="plain-list">
-              {(info?.environments ?? []).map((env) => {
-                const database = env.database
-                const shown = revealed[env.id] === true
-                const secret = database === undefined ? undefined : props.projection.secrets[database.passwordRef]
-                return (
-                  <li key={env.id}>
-                    <strong>{env.label}</strong>
-                    {env.server !== undefined && <span>服务器：{env.server}</span>}
-                    {database !== undefined && (
-                      <span>
-                        数据库：{database.user}@{database.host}
-                        {database.port === undefined ? '' : `:${database.port}`}/{database.name}
-                      </span>
-                    )}
-                    {database !== undefined && (
-                      <span className="secret-row">
-                        <span>{props.t('project.password')}</span>
-                        <code className="secret-value" data-testid="project-secret-value" data-env={env.id}>
-                          {shown ? (secret ?? props.t('project.passwordUnset')) : '••••••'}
-                        </code>
-                        <button
-                          type="button"
-                          className="pill"
-                          data-testid="project-secret-toggle"
-                          data-env={env.id}
-                          aria-pressed={shown}
-                          onClick={() => { toggleReveal(env.id) }}
-                        >
-                          {shown ? props.t('project.hidePassword') : props.t('project.revealPassword')}
-                        </button>
-                      </span>
-                    )}
-                    {database !== undefined && (
-                      <em>
-                        {props.t('project.passwordRef')} {database.passwordRef} · {props.t('project.secretNote')}
-                      </em>
-                    )}
-                    {env.note !== undefined && <em>{env.note}</em>}
-                  </li>
-                )
-              })}
-            </ul>
-          </section>
+          <Card className="info-card wide">
+            <Card.Header><Card.Title>环境</Card.Title></Card.Header>
+            <Card.Content>
+              {(info?.environments ?? []).length === 0 && <p className="empty">`.spec/project.yaml` 没有声明环境。</p>}
+              <ul className="plain-list">
+                {(info?.environments ?? []).map((env) => {
+                  const database = env.database
+                  const shown = revealed[env.id] === true
+                  const secret = database === undefined ? undefined : props.projection.secrets[database.passwordRef]
+                  return (
+                    <li key={env.id}>
+                      <strong>{env.label}</strong>
+                      {env.server !== undefined && <span>服务器：{env.server}</span>}
+                      {database !== undefined && (
+                        <span>
+                          数据库：{database.user}@{database.host}
+                          {database.port === undefined ? '' : `:${database.port}`}/{database.name}
+                        </span>
+                      )}
+                      {database !== undefined && (
+                        <span className="secret-row">
+                          <span>{props.t('project.password')}</span>
+                          <code className="secret-value" data-testid="project-secret-value" data-env={env.id}>
+                            {shown ? (secret ?? props.t('project.passwordUnset')) : '••••••'}
+                          </code>
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            data-testid="project-secret-toggle"
+                            data-env={env.id}
+                            aria-pressed={shown}
+                            onPress={() => { toggleReveal(env.id) }}
+                          >
+                            {shown ? props.t('project.hidePassword') : props.t('project.revealPassword')}
+                          </Button>
+                        </span>
+                      )}
+                      {database !== undefined && (
+                        <em>
+                          {props.t('project.passwordRef')} {database.passwordRef} · {props.t('project.secretNote')}
+                        </em>
+                      )}
+                      {env.note !== undefined && <em>{env.note}</em>}
+                    </li>
+                  )
+                })}
+              </ul>
+            </Card.Content>
+          </Card>
         </div>
       )}
     </section>
@@ -210,117 +218,123 @@ function FlowConfigSection(props: FlowConfigSectionProps): JSX.Element {
   }
 
   return (
-    <section className="info-card wide" data-testid="flow-config-section">
-      <h3>{t('flow.sectionTitle')}</h3>
-      <p className="detail-note" data-testid="flow-source" data-configured={configured ? 'true' : 'false'}>
-        {t(configured ? 'flow.sourceFile' : 'flow.sourcePreset')}
-      </p>
-      {nodes.map(node => (
-        <div key={node.node} className="flow-node" data-testid="flow-node" data-node={node.node}>
-          <h4>{t(`flow.node.${node.node}`)}</h4>
-          <p className="detail-line">{t('flow.roles')}</p>
-          <ol className="plain-list compact">
-            {node.roles.map((role, index) => (
-              <li key={`${role}-${String(index)}`} data-testid="flow-role-item" data-role={role}>
-                <span>{flowRoleLabel(role, labelCtx)}</span>
-                <span className="row-actions">
-                  <button
-                    type="button"
-                    className="link-button"
-                    data-testid="flow-role-up"
-                    disabled={busy || index === 0}
-                    onClick={() => {
-                      update(node.node, current => ({ ...current, roles: swapRoles(current.roles, index, index - 1) }))
-                    }}
-                  >
-                    {t('flow.roleUp')}
-                  </button>
-                  <button
-                    type="button"
-                    className="link-button"
-                    data-testid="flow-role-down"
-                    disabled={busy || index === node.roles.length - 1}
-                    onClick={() => {
-                      update(node.node, current => ({ ...current, roles: swapRoles(current.roles, index, index + 1) }))
-                    }}
-                  >
-                    {t('flow.roleDown')}
-                  </button>
-                  <button
-                    type="button"
-                    className="link-button"
-                    data-testid="flow-role-remove"
-                    disabled={busy}
-                    onClick={() => {
-                      update(node.node, current => ({ ...current, roles: current.roles.filter((_, i) => i !== index) }))
-                    }}
-                  >
-                    {t('flow.roleRemove')}
-                  </button>
-                </span>
-              </li>
-            ))}
-          </ol>
-          <div className="row-actions">
-            <select
-              className="select"
-              data-testid="flow-role-add"
-              value=""
-              disabled={busy}
-              aria-label={t('flow.addRole')}
-              onChange={(event) => {
-                const id = event.target.value
-                if (id === '') return
-                update(node.node, current => ({ ...current, roles: [...current.roles, id] }))
-              }}
-            >
-              <option value="">{t('flow.addPlaceholder')}</option>
-              {candidates.filter(candidate => !node.roles.includes(candidate.id)).map(candidate => (
-                <option key={candidate.id} value={candidate.id}>{candidate.label}（{candidate.id}）</option>
-              ))}
-            </select>
-            <label className="detail-line" title={t('flow.autoHint')}>
-              <input
-                type="checkbox"
-                data-testid="flow-auto"
-                checked={node.auto}
-                disabled={busy}
-                onChange={(event) => {
-                  const auto = event.target.checked
-                  update(node.node, current => ({ ...current, auto }))
-                }}
-              />
-              {t('flow.auto')}
-            </label>
-          </div>
-        </div>
-      ))}
-      {emptyRoles && <p className="detail-note" data-testid="flow-empty-roles">{t('flow.emptyRoles')}</p>}
-      <div className="action-row">
-        <button
-          type="button"
-          className="pill pill-accent"
-          data-testid="flow-save"
-          disabled={busy || emptyRoles}
-          onClick={() => { void execute(flowSaveLine(nodes)) }}
-        >
-          {busy ? t('flow.saving') : t('flow.save')}
-        </button>
-        <button
-          type="button"
-          className="pill"
-          data-testid="flow-reset"
-          disabled={busy}
-          onClick={() => { void execute('/flow_save preset') }}
-        >
-          {t('flow.reset')}
-        </button>
-      </div>
-      {result !== null && (
-        <p className={result.ok ? 'detail-line' : 'problem'} data-testid="flow-result" data-ok={result.ok ? 'true' : 'false'}>
-          {result.text}
+    <Card className="info-card wide" data-testid="flow-config-section">
+      <Card.Header><Card.Title>{t('flow.sectionTitle')}</Card.Title></Card.Header>
+      <Card.Content>
+        <p className="detail-note" data-testid="flow-source" data-configured={configured ? 'true' : 'false'}>
+          {t(configured ? 'flow.sourceFile' : 'flow.sourcePreset')}
         </p>
-      )}
-    </section>
+        {nodes.map(node => (
+          <div key={node.node} className="flow-node" data-testid="flow-node" data-node={node.node}>
+            <h4>{t(`flow.node.${node.node}`)}</h4>
+            <p className="detail-line">{t('flow.roles')}</p>
+            <ol className="plain-list compact">
+              {node.roles.map((role, index) => (
+                <li key={`${role}-${String(index)}`} data-testid="flow-role-item" data-role={role}>
+                  <span>{flowRoleLabel(role, labelCtx)}</span>
+                  <span className="row-actions">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      data-testid="flow-role-up"
+                      isDisabled={busy || index === 0}
+                      onPress={() => {
+                        update(node.node, current => ({ ...current, roles: swapRoles(current.roles, index, index - 1) }))
+                      }}
+                    >
+                      {t('flow.roleUp')}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      data-testid="flow-role-down"
+                      isDisabled={busy || index === node.roles.length - 1}
+                      onPress={() => {
+                        update(node.node, current => ({ ...current, roles: swapRoles(current.roles, index, index + 1) }))
+                      }}
+                    >
+                      {t('flow.roleDown')}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      data-testid="flow-role-remove"
+                      isDisabled={busy}
+                      onPress={() => {
+                        update(node.node, current => ({ ...current, roles: current.roles.filter((_, i) => i !== index) }))
+                      }}
+                    >
+                      {t('flow.roleRemove')}
+                    </Button>
+                  </span>
+                </li>
+              ))}
+            </ol>
+            <div className="row-actions">
+              <Select
+                className="flow-role-select"
+                data-testid="flow-role-add"
+                value=""
+                isDisabled={busy}
+                placeholder={t('flow.addPlaceholder')}
+                aria-label={t('flow.addRole')}
+                onChange={(key) => {
+                  if (typeof key !== 'string' || key === '') return
+                  update(node.node, current => ({ ...current, roles: [...current.roles, key] }))
+                }}
+              >
+                <Select.Trigger><Select.Value /><Select.Indicator /></Select.Trigger>
+                <Select.Popover>
+                  <ListBox>
+                    {candidates.filter(candidate => !node.roles.includes(candidate.id)).map(candidate => (
+                      <ListBox.Item key={candidate.id} id={candidate.id} textValue={`${candidate.label}（${candidate.id}）`}>
+                        {candidate.label}（{candidate.id}）
+                      </ListBox.Item>
+                    ))}
+                  </ListBox>
+                </Select.Popover>
+              </Select>
+              <span className="flow-auto-wrap" title={t('flow.autoHint')}>
+                <Switch
+                  className="flow-auto"
+                  isSelected={node.auto}
+                  isDisabled={busy}
+                  onChange={(selected) => {
+                    update(node.node, current => ({ ...current, auto: selected }))
+                  }}
+                >
+                  <Switch.Control><Switch.Thumb /></Switch.Control>
+                  <Switch.Content data-testid="flow-auto">{t('flow.auto')}</Switch.Content>
+                </Switch>
+              </span>
+            </div>
+          </div>
+        ))}
+        {emptyRoles && <p className="detail-note" data-testid="flow-empty-roles">{t('flow.emptyRoles')}</p>}
+        <div className="action-row">
+          <Button
+            variant="primary"
+            data-testid="flow-save"
+            isDisabled={busy || emptyRoles}
+            onPress={() => { void execute(flowSaveLine(nodes)) }}
+          >
+            {busy ? t('flow.saving') : t('flow.save')}
+          </Button>
+          <Button
+            variant="secondary"
+            data-testid="flow-reset"
+            isDisabled={busy}
+            onPress={() => { void execute('/flow_save preset') }}
+          >
+            {t('flow.reset')}
+          </Button>
+        </div>
+        {result !== null && (
+          <p className={result.ok ? 'detail-line' : 'problem'} data-testid="flow-result" data-ok={result.ok ? 'true' : 'false'}>
+            {result.text}
+          </p>
+        )}
+      </Card.Content>
+    </Card>
   )
 }

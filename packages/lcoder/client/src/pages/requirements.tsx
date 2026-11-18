@@ -745,9 +745,9 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
       {props.project !== null && props.error !== null && (
         <p className="read-error" data-testid="requirement-read-error">
           <span>读取失败：{props.error.split('\n')[0]}</span>
-          <button type="button" className="pill" data-testid="requirement-retry" disabled={props.loading} onClick={props.onReload}>
+          <Button size="sm" variant="secondary" data-testid="requirement-retry" isDisabled={props.loading} onPress={props.onReload}>
             {props.loading ? '读取中…' : '重试'}
-          </button>
+          </Button>
         </p>
       )}
 
@@ -826,46 +826,46 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
                           <div className="row-actions requirement-row-actions">
                             {row.state === 'draft' && (
                               <>
-                                <button
-                                  type="button"
-                                  className="pill"
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
                                   data-testid="requirement-op-review"
-                                  disabled={busyOf('review', row.id)}
-                                  onClick={(event) => { event.stopPropagation(); void review(row) }}
+                                  isDisabled={busyOf('review', row.id)}
+                                  onPress={() => { void review(row) }}
                                 >
                                   {t('requirement.opReview')}
-                                </button>
-                                <button
-                                  type="button"
-                                  className="pill"
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
                                   data-testid="requirement-op-revise"
-                                  disabled={busyOf('revise', row.id)}
-                                  onClick={(event) => { event.stopPropagation(); void revise(row) }}
+                                  isDisabled={busyOf('revise', row.id)}
+                                  onPress={() => { void revise(row) }}
                                 >
                                   {t('requirement.opRevise')}
-                                </button>
+                                </Button>
                               </>
                             )}
                             {row.state === 'confirmed' && related.length === 0 && (
-                              <button
-                                type="button"
-                                className="pill"
+                              <Button
+                                size="sm"
+                                variant="ghost"
                                 data-testid="requirement-op-split"
-                                disabled={busyOf('split', row.id)}
-                                onClick={(event) => { event.stopPropagation(); void split(row) }}
+                                isDisabled={busyOf('split', row.id)}
+                                onPress={() => { void split(row) }}
                               >
                                 {t('requirement.opSplit')}
-                              </button>
+                              </Button>
                             )}
                             {related.length > 0 && (
-                              <button
-                                type="button"
-                                className="pill"
+                              <Button
+                                size="sm"
+                                variant="ghost"
                                 data-testid="requirement-op-tasks"
-                                onClick={(event) => { event.stopPropagation(); props.onOpenTasks(row.id) }}
+                                onPress={() => { props.onOpenTasks(row.id) }}
                               >
                                 {t('requirement.opTasks')}
-                              </button>
+                              </Button>
                             )}
                           </div>
                         </Table.Cell>

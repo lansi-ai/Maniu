@@ -262,45 +262,9 @@ html body {
   cursor: pointer;
 }
 
-/* 胶囊控件。 */
-.pill {
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--field-background);
-  color: var(--foreground);
-  padding: 7px 16px;
-  line-height: 1.2;
-  cursor: pointer;
-  transition: transform 160ms ease, background-color 160ms ease, color 160ms ease;
-}
-
-.pill:hover { background: var(--surface-hover); color: var(--foreground); }
-.pill:active { transform: scale(0.98); }
-
-.pill-accent {
-  border-color: color-mix(in oklab, var(--accent) 46%, transparent);
-  background: var(--accent);
-  color: var(--accent-foreground);
-  box-shadow: 0 14px 30px -16px color-mix(in oklab, var(--accent) 72%, transparent);
-}
-
-.pill-accent:hover { background: var(--accent); color: var(--accent-foreground); }
-
-/* `#root button` 的 color:inherit 优先级更高；强调色按钮统一用强调色前景（默认蓝皮肤为白字）。 */
-#root .pill-accent,
-#root .pill-accent:hover,
-#root .pill-accent:active,
-#root .pill-accent:focus,
-#root .pill-accent:focus-visible,
-#root .pill-accent:disabled,
+/* 分段控件激活态沿用官方强调色前景。 */
 #root .segmented button.active {
   color: var(--accent-foreground);
-}
-
-/* 禁用的强调按钮要看得出不可点：只改颜色不够，补透明度与光标。 */
-#root .pill-accent:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
 }
 
 /* 工作区：侧栏是一整块玻璃，聊天列直接浮在环境层上。 */
@@ -325,8 +289,6 @@ html body {
   font-size: 12px;
   color: var(--muted);
 }
-
-.sidebar-head .pill { padding: 5px 12px; font-size: 12px; }
 
 .session-list {
   flex: 1;
@@ -625,17 +587,6 @@ html body {
   outline-offset: 1px;
 }
 
-.composer .pill-accent {
-  padding: 8px 20px;
-  border-radius: 999px;
-}
-
-.composer .pill-accent:disabled {
-  opacity: 0.62;
-  cursor: default;
-  transform: none;
-}
-
 @media (max-width: 760px) {
   .sidebar { width: 200px; flex-basis: 200px; }
   .message { max-width: 88%; }
@@ -738,7 +689,6 @@ html body {
 .composer-row { display: flex; align-items: flex-end; gap: 10px; }
 .composer-row textarea { flex: 1; }
 .attach-input { display: none; }
-.pill-icon { width: 34px; height: 34px; padding: 0; border-radius: 999px; font-size: 17px; line-height: 1; }
 .attach-rail { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .attach-item {
   display: flex;
@@ -787,7 +737,6 @@ html body {
 }
 #root .attach-trigger:hover { background: var(--border); border-color: color-mix(in oklab, var(--accent) 50%, transparent); }
 #root .attach-trigger svg { width: 18px; height: 18px; }
-.pill-mini { padding: 4px 10px; font-size: 11px; }
 .composer-problem { margin: 0; }
 
 .composer-meta { display: flex; align-items: center; gap: 10px; padding: 0 4px; font-size: 11px; color: var(--muted); min-height: 18px; }
@@ -911,10 +860,8 @@ html body {
 .quit-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
 .pending-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .pending-head h4 { margin: 0; font-size: 13px; font-weight: 600; color: var(--foreground); }
-.pending-head .pill { padding: 3px 10px; font-size: 11px; }
 .pending-reason { margin: 0; font-size: 12px; color: var(--foreground); line-height: 1.6; white-space: pre-wrap; }
 .pending-actions { display: flex; justify-content: flex-end; gap: 8px; }
-.pending-actions .pill { padding: 6px 14px; font-size: 12px; }
 .pending-error { margin: 0; font-size: 11px; color: var(--danger); white-space: pre-wrap; }
 .pending-hint { margin: 0; font-size: 11px; color: var(--muted); }
 .question-list { display: flex; flex-direction: column; gap: 12px; }

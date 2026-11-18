@@ -184,7 +184,6 @@
   font-size: 12px;
 }
 .model-model-row .model-name { flex: 1; }
-.model-model-row .pill { padding: 4px 12px; font-size: 11px; }
 
 @media (max-width: 1000px) {
   #root .bento-appearance,

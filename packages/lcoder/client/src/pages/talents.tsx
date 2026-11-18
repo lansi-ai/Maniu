@@ -251,14 +251,14 @@ export function TalentsPage(props: TalentsPageProps): JSX.Element {
             {actionError === undefined ? null : <p className="problem">{actionError}</p>}
           </Card.Content>
           <Card.Footer className="talent-actions">
-            <button
-              type="button"
-              className="pill"
+            <Button
+              size="sm"
+              variant="secondary"
               data-testid="builtin-detail-open"
-              onClick={(event) => { event.stopPropagation(); openBuiltin(row.id) }}
+              onPress={() => { openBuiltin(row.id) }}
             >
               {t('talents.detail')}
-            </button>
+            </Button>
           </Card.Footer>
         </Card>
       </article>
@@ -325,15 +325,15 @@ export function TalentsPage(props: TalentsPageProps): JSX.Element {
                             {t(summaryKey).split('\n').map(line => <li key={line}>{line}</li>)}
                           </ul>
                         )}
-                      <button
-                        type="button"
-                        className="pill"
+                      <Button
+                        size="sm"
+                        variant="secondary"
                         data-testid="builtin-persona-toggle"
                         aria-expanded={personaOpen}
-                        onClick={() => { setPersonaOpen(current => !current) }}
+                        onPress={() => { setPersonaOpen(current => !current) }}
                       >
                         {personaOpen ? t('talents.personaHideFull') : t('talents.personaShowFull')}
-                      </button>
+                      </Button>
                       {personaOpen ? <pre className="builtin-persona" data-testid="builtin-persona">{detail.persona}</pre> : null}
                     </>
                   )}

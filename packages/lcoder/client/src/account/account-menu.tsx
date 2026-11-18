@@ -92,28 +92,28 @@ export function AccountMenu({ state, t, onPersonalCenter, onChanged }: AccountMe
             )}
             {error === null ? null : <p className="notice">{t(cloudErrorKey(error.code), { code: error.code })}</p>}
             <div className="account-pop-actions">
-              <button
-                type="button"
-                className="pill"
+              <Button
+                size="sm"
+                variant="secondary"
                 data-testid="account-personal-center"
-                onClick={() => { setOpen(false); onPersonalCenter() }}
+                onPress={() => { setOpen(false); onPersonalCenter() }}
               >
                 {t('account.personalCenter')}
-              </button>
-              <button type="button" className="pill" data-testid="account-refresh" disabled={busy !== undefined} onClick={() => { void refresh() }}>
+              </Button>
+              <Button size="sm" variant="secondary" data-testid="account-refresh" isDisabled={busy !== undefined} onPress={() => { void refresh() }}>
                 {busy === 'refresh' ? t('account.refreshing') : t('account.refresh')}
-              </button>
+              </Button>
               {confirmLogout ? (
                 <>
-                  <button type="button" className="pill" onClick={() => { setConfirmLogout(false) }}>{t('account.cancel')}</button>
-                  <button type="button" className="pill danger" data-testid="account-logout-confirm" disabled={busy !== undefined} onClick={() => { void logout() }}>
+                  <Button size="sm" variant="ghost" onPress={() => { setConfirmLogout(false) }}>{t('account.cancel')}</Button>
+                  <Button size="sm" variant="danger" data-testid="account-logout-confirm" isDisabled={busy !== undefined} onPress={() => { void logout() }}>
                     {busy === 'logout' ? t('account.loggingOut') : t('account.confirmLogout')}
-                  </button>
+                  </Button>
                 </>
               ) : (
-                <button type="button" className="pill danger" data-testid="account-logout" disabled={busy !== undefined} onClick={() => { setConfirmLogout(true) }}>
+                <Button size="sm" variant="danger" data-testid="account-logout" isDisabled={busy !== undefined} onPress={() => { setConfirmLogout(true) }}>
                   {t('account.logout')}
-                </button>
+                </Button>
               )}
             </div>
           </section>

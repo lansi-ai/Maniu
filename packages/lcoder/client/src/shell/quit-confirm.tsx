@@ -1,6 +1,7 @@
 /** 关窗确认：主进程判定有回合在跑时才出现，取消或确认放弃后关窗。 */
 
 import type { JSX } from 'react'
+import { Button, Card } from '@heroui/react'
 import type { Translate } from '../locale.ts'
 
 /** 关窗确认属性。 */
@@ -20,18 +21,18 @@ export interface QuitConfirmProps {
 export function QuitConfirm({ t, running, onCancel, onConfirm }: QuitConfirmProps): JSX.Element {
   return (
     <div className="quit-backdrop" data-testid="quit-confirm-dialog">
-      <section className="quit-card" role="dialog" aria-modal="true" aria-labelledby="quit-confirm-title">
+      <Card className="quit-card" role="dialog" aria-modal="true" aria-labelledby="quit-confirm-title">
         <h3 id="quit-confirm-title">{t('quit.title')}</h3>
         <p>{t('quit.body', { count: running })}</p>
         <div className="quit-actions">
-          <button type="button" className="pill" data-testid="quit-confirm-cancel" onClick={onCancel}>
+          <Button variant="secondary" data-testid="quit-confirm-cancel" onPress={onCancel}>
             {t('quit.cancel')}
-          </button>
-          <button type="button" className="pill pill-accent" data-testid="quit-confirm-exit" onClick={onConfirm}>
+          </Button>
+          <Button variant="primary" data-testid="quit-confirm-exit" onPress={onConfirm}>
             {t('quit.exit')}
-          </button>
+          </Button>
         </div>
-      </section>
+      </Card>
     </div>
   )
 }

@@ -1,6 +1,7 @@
 /** 操作进度浮卡：后台操作的标题、岗位、步骤与状态色；可最小化成胶囊，查看对话自愿跳转。 */
 
 import type { JSX } from 'react'
+import { Button } from '@heroui/react'
 import type { Translate } from '../locale.ts'
 
 /** 浮卡三态：进行中蓝、完成绿、失败警示色。 */
@@ -95,35 +96,35 @@ export function OperationCards(props: OperationCardsProps): JSX.Element | null {
             <p className="op-status">{card.statusText}</p>
             <div className="op-actions">
               {card.awaitingConfirm === true && card.status === 'running' && props.onConfirmIntake !== undefined && (
-                <button
-                  type="button"
-                  className="pill pill-accent"
+                <Button
+                  size="sm"
+                  variant="primary"
                   data-testid="op-confirm-intake"
-                  onClick={() => { props.onConfirmIntake?.(card.key) }}
+                  onPress={() => { props.onConfirmIntake?.(card.key) }}
                 >
                   {props.t('op.confirmIntake')}
-                </button>
+                </Button>
               )}
               {card.compareProposalId !== undefined && card.status === 'running' && props.onCompare !== undefined && (
-                <button
-                  type="button"
-                  className="pill pill-accent"
+                <Button
+                  size="sm"
+                  variant="primary"
                   data-testid="op-go-compare"
                   data-proposal-id={card.compareProposalId}
-                  onClick={() => { props.onCompare?.(card.compareProposalId ?? '') }}
+                  onPress={() => { props.onCompare?.(card.compareProposalId ?? '') }}
                 >
                   {props.t('op.goCompare')}
-                </button>
+                </Button>
               )}
               {card.nextRoleLabel !== undefined && card.status === 'running' && props.onNextRole !== undefined && (
-                <button
-                  type="button"
-                  className="pill pill-accent"
+                <Button
+                  size="sm"
+                  variant="primary"
                   data-testid="op-next-role"
-                  onClick={() => { props.onNextRole?.(card.key) }}
+                  onPress={() => { props.onNextRole?.(card.key) }}
                 >
                   {props.t('op.nextRole')}
-                </button>
+                </Button>
               )}
               {sessionId !== null && (
                 <button
