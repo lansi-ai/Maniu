@@ -2,6 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import type { JSX } from 'react'
+import {
+  FileText, FolderGit2, Info, MessageSquare, Settings, SquareKanban, Users,
+  type LucideIcon,
+} from 'lucide-react'
 import type { CloseRequest, EventOutcome, HostEvent, HostState, HostWaterfall, HostWaterfallCancel } from '@maniu/desktop/contract'
 import { actionOfFrame, chatReducer, emptyChat, summaryOf, type ChatAction, type SessionSummary } from './store.ts'
 import { translate, type MessageKey, type Translate } from './locale.ts'
@@ -47,21 +51,22 @@ const WORKBENCH_PRESET = 'maniu-workbench'
 interface NavItem {
   readonly id: PageId
   readonly key: MessageKey
+  readonly icon: LucideIcon
 }
 
 /** 导航上组：对话与研发过程。 */
 const NAV_TOP: readonly NavItem[] = [
-  { id: 'chat', key: 'nav.chat' },
-  { id: 'requirements', key: 'nav.requirements' },
-  { id: 'tasks', key: 'nav.tasks' },
+  { id: 'chat', key: 'nav.chat', icon: MessageSquare },
+  { id: 'requirements', key: 'nav.requirements', icon: FileText },
+  { id: 'tasks', key: 'nav.tasks', icon: SquareKanban },
 ]
 
 /** 导航下组：项目与个人配置，贴底显示。 */
 const NAV_BOTTOM: readonly NavItem[] = [
-  { id: 'projects', key: 'nav.projects' },
-  { id: 'project-info', key: 'nav.projectInfo' },
-  { id: 'talents', key: 'nav.talents' },
-  { id: 'settings', key: 'nav.settings' },
+  { id: 'projects', key: 'nav.projects', icon: FolderGit2 },
+  { id: 'project-info', key: 'nav.projectInfo', icon: Info },
+  { id: 'talents', key: 'nav.talents', icon: Users },
+  { id: 'settings', key: 'nav.settings', icon: Settings },
 ]
 
 const PROJECT_KEY = 'lcoder.m2.project'
@@ -628,17 +633,23 @@ export function App(): JSX.Element {
     bottom: NAV_BOTTOM.map(item => ({ ...item, label: t(item.key) })),
   }), [t])
 
-  const navButton = (item: { readonly id: PageId; readonly label: string }): JSX.Element => (
-    <button
-      key={item.id}
-      type="button"
-      data-testid={`nav-${item.id}`}
-      className={page === item.id ? 'nav-item active lg-sheen' : 'nav-item lg-sheen'}
-      onClick={() => { setPage(item.id) }}
-    >
-      {item.label}
-    </button>
-  )
+  const navButton = (item: { readonly id: PageId; readonly label: string; readonly icon: LucideIcon }): JSX.Element => {
+    const Icon = item.icon
+    const selected = page === item.id
+    return (
+      <button
+        key={item.id}
+        type="button"
+        data-testid={`nav-${item.id}`}
+        className={selected ? 'nav-item active' : 'nav-item'}
+        aria-current={selected ? 'page' : undefined}
+        onClick={() => { setPage(item.id) }}
+      >
+        <Icon className="nav-icon" aria-hidden="true" />
+        <span className="nav-label">{item.label}</span>
+      </button>
+    )
+  }
 
   return (
     <div
@@ -646,15 +657,6 @@ export function App(): JSX.Element {
       {...(gateKind === 'booting' ? {} : { 'data-lcoder-state': gateKind })}
       data-running={busy ? 'true' : 'false'}
     >
-      <div className="ambient-layer" data-testid="ambient-layer" aria-hidden="true">
-        <span className="ambient-blob blob-a" />
-        <span className="ambient-blob blob-b" />
-        <span className="ambient-blob blob-c" />
-        <span className="ambient-blob blob-d" />
-        <span className="ambient-blob blob-e" />
-        <span className="ambient-grain" data-testid="ambient-grain" />
-      </div>
-
       <WindowGutter maximized={windowState.maximized} titlebar={gateKind === 'ready'} />
 
       {gateKind === 'ready' ? (
@@ -690,7 +692,7 @@ export function App(): JSX.Element {
 
       {gateKind === 'ready' && (
         <main className="shell" data-testid="workspace">
-          <nav className="nav lg-glass" data-testid="nav">
+          <nav className="nav" data-testid="nav">
             {nav.top.map(navButton)}
             <div className="nav-bottom">
               {nav.bottom.map(navButton)}

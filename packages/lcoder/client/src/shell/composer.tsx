@@ -241,7 +241,7 @@ export function Composer({
       })
 
   return (
-    <div className="composer lg-glass" data-testid="composer-shell">
+    <div className="composer" data-testid="composer-shell">
       {attachments.length > 0 && (
         <div className="attach-rail" data-testid="composer-attachments">
           {attachments.map(attachment => (
@@ -296,7 +296,7 @@ export function Composer({
         ) : null}
         <button
           type="button"
-          className="pill pill-accent lg-sheen lg-lift"
+          className="pill pill-accent"
           data-testid="send"
           disabled={!canSend}
           onClick={() => { void submit() }}

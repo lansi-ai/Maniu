@@ -9,14 +9,14 @@
   align-items: start;
 }
 
-/* HeroUI Card 浮岛：宽裕内边距、静态暗底、分隔线分区。 */
+/* HeroUI Card 浮岛：宽裕内边距、官方表面底、分隔线分区。 */
 #root .bento-card.card {
   gap: 0;
   padding: 22px 24px;
   border: 1px solid var(--border);
   border-radius: 20px;
   background: var(--surface-secondary);
-  box-shadow: 0 16px 40px -28px rgb(0 0 0 / 0.7);
+  box-shadow: var(--surface-shadow);
 }
 #root .bento-wide { grid-column: 1 / -1; }
 #root .bento-appearance { grid-column: span 7; }
@@ -37,14 +37,14 @@
   height: 36px;
   flex: 0 0 36px;
   border-radius: 11px;
-  border: 1px solid rgb(255 255 255 / 0.1);
+  border: 1px solid var(--border);
 }
 .bento-icon svg { width: 18px; height: 18px; }
-.bento-icon-accent { background: rgb(99 102 241 / 0.18); color: #a5b4fc; }
-.bento-icon-violet { background: rgb(139 92 246 / 0.18); color: #c4b5fd; }
-.bento-icon-teal { background: rgb(20 184 166 / 0.16); color: #5eead4; }
-.bento-icon-amber { background: rgb(245 158 11 / 0.16); color: #fcd34d; }
-.bento-icon-slate { background: rgb(148 163 184 / 0.16); color: #cbd5e1; }
+.bento-icon-accent { background: color-mix(in oklab, var(--accent) 18%, transparent); color: var(--accent-soft-foreground); }
+.bento-icon-violet { background: color-mix(in oklab, var(--accent) 30%, var(--surface)); color: var(--accent-soft-foreground); }
+.bento-icon-teal { background: var(--success-soft); color: var(--success-soft-foreground); }
+.bento-icon-amber { background: var(--warning-soft); color: var(--warning-soft-foreground); }
+.bento-icon-slate { background: var(--default-soft); color: var(--muted); }
 
 #root .bento-divider.separator { margin: 0 0 16px; background: var(--separator); }
 .bento-card-body { display: flex; flex-direction: column; gap: 14px; }
@@ -62,7 +62,7 @@
   padding: 4px;
   border: 1px solid var(--border);
   border-radius: 999px;
-  background: rgb(255 255 255 / 0.04);
+  background: color-mix(in oklab, var(--foreground) 4%, transparent);
 }
 #root .bento-segment.button {
   min-height: 32px;
@@ -74,13 +74,13 @@
   transition: background-color 160ms ease, color 160ms ease;
 }
 #root .bento-segment.button:hover { color: var(--foreground); }
-#root .bento-segment.button.active { font-weight: 600; box-shadow: 0 6px 18px -8px rgb(99 102 241 / 0.85); }
+#root .bento-segment.button.active { font-weight: 600; box-shadow: 0 6px 18px -8px color-mix(in oklab, var(--accent) 70%, transparent); }
 
 .appearance-quick { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid var(--border); border-radius: 999px; }
 #root .quick-mode.button { width: 28px; height: 28px; min-width: 28px; padding: 0; border-radius: 999px; color: var(--muted); }
 #root .quick-mode.button svg { width: 15px; height: 15px; }
 #root .quick-mode.button.active,
-#root .quick-mode.gradient-primary.button { color: #ffffff; }
+#root .quick-mode.gradient-primary.button { color: var(--accent-foreground); }
 
 /* HeroUI Switch 与 Select。 */
 #root .bento-switch.switch .switch__control { width: 40px; height: 22px; }
@@ -89,7 +89,7 @@
   min-height: 38px;
   border-radius: 10px;
   border-color: var(--border);
-  background: rgb(255 255 255 / 0.05);
+  background: color-mix(in oklab, var(--foreground) 5%, transparent);
   color: var(--foreground);
   font-size: 13px;
 }
@@ -126,7 +126,7 @@
   text-align: left;
   cursor: pointer;
 }
-.model-row-main:hover { background: rgb(255 255 255 / 0.05); }
+.model-row-main:hover { background: color-mix(in oklab, var(--foreground) 5%, transparent); }
 .model-row-name { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .model-name { font-size: 13px; color: var(--foreground); }
 .model-id { font-size: 11px; color: var(--muted); }
@@ -139,14 +139,14 @@
   padding: 2px 8px;
   border: 1px solid var(--border);
   border-radius: 999px;
-  background: rgb(255 255 255 / 0.05);
+  background: color-mix(in oklab, var(--foreground) 5%, transparent);
   color: var(--muted);
   font-size: 11px;
   white-space: nowrap;
 }
-.model-tag-ok { color: #6ee7b7; border-color: rgb(52 211 153 / 0.3); }
-.model-tag-warn { color: #fcd34d; border-color: rgb(251 191 36 / 0.3); }
-.model-tag-danger { color: #fca5a5; border-color: rgb(248 113 113 / 0.3); }
+.model-tag-ok { color: var(--success-soft-foreground); border-color: color-mix(in oklab, var(--success) 30%, transparent); }
+.model-tag-warn { color: var(--warning-soft-foreground); border-color: color-mix(in oklab, var(--warning) 30%, transparent); }
+.model-tag-danger { color: var(--danger-soft-foreground); border-color: color-mix(in oklab, var(--danger) 30%, transparent); }
 
 .model-editor {
   display: flex;
@@ -163,7 +163,7 @@
 .settings-input {
   border: 1px solid var(--border);
   border-radius: 12px;
-  background: rgb(255 255 255 / 0.05);
+  background: color-mix(in oklab, var(--foreground) 5%, transparent);
   color: var(--foreground);
   padding: 8px 12px;
   font-size: 13px;
@@ -180,7 +180,7 @@
   padding: 6px 10px;
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: rgb(255 255 255 / 0.04);
+  background: color-mix(in oklab, var(--foreground) 4%, transparent);
   font-size: 12px;
 }
 .model-model-row .model-name { flex: 1; }

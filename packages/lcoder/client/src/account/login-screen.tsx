@@ -122,7 +122,7 @@ export interface LoginScreenProps {
 /**
  * 登录页。
  * @param props - 词典与登录成功回调。
- * @returns 品牌区与 HeroUI 磨砂浮岛表单。
+ * @returns 品牌区与官方表面浮岛表单。
  */
 export function LoginScreen({ t, onAuthenticated }: LoginScreenProps): JSX.Element {
   /** 指针跟随只写主区上的 CSS 变量，各层用 transform 消费。 */

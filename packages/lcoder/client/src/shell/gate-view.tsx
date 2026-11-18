@@ -23,7 +23,7 @@ export interface GateViewProps {
 /**
  * 未放行时的整屏视图。
  * @param props - 门禁种类、宿主态、失败与动作。
- * @returns 深色居中的错误卡、欢迎屏或登录页。
+ * @returns 语义表面居中的错误卡、欢迎屏或登录页。
  */
 export function GateView({
   kind, t, host, failure, showWelcome, onRetry, onSignIn, onSkipWelcome, onAuthenticated,
@@ -36,7 +36,7 @@ export function GateView({
   }
   if (kind === 'cloud-error') {
     return (
-      <main className="center bg-zinc-950" data-testid="cloud-unavailable">
+      <main className="center bg-background text-foreground" data-testid="cloud-unavailable">
         <Card className="gate-card">
           <h1>{t('gate.cloudTitle')}</h1>
           <p>{t('gate.cloudBody')}</p>
@@ -47,7 +47,7 @@ export function GateView({
     )
   }
   return (
-    <main className="center bg-zinc-950" data-testid="gate-loading">
+    <main className="center bg-background text-foreground" data-testid="gate-loading">
       <Card className="gate-card">
         <h1>{t('gate.bootingTitle')}</h1>
         <p>{t('gate.bootingBody')}</p>

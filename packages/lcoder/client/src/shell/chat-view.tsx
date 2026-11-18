@@ -106,7 +106,7 @@ export function ChatView({
 
   return (
     <>
-      <aside className="sidebar lg-glass">
+      <aside className="sidebar">
         <div className="sidebar-head">
           <span>{t('chat.sessions')}</span>
           <Button
@@ -127,7 +127,7 @@ export function ChatView({
                 data-testid="session-item"
                 data-session-id={session.sessionId}
                 data-running={session.running ? 'true' : 'false'}
-                className={session.sessionId === active ? 'session active lg-sheen' : 'session lg-sheen'}
+                className={session.sessionId === active ? 'session active' : 'session'}
                 onClick={() => { onSelect(session.sessionId) }}
               >
                 <span className="dot" />
@@ -144,7 +144,7 @@ export function ChatView({
       </aside>
 
       <section className="chat">
-        <div className="chat-head lg-glass">
+        <div className="chat-head">
           {editing ? (
             <div className="rename-row">
               <input

@@ -65,7 +65,7 @@ describe('ChatTranscript 思考态', () => {
     expect(query('chat-thinking-reasoning')).toBeNull()
   })
 
-  it('正文一到就换成流式草稿，草稿不带玻璃卡', () => {
+  it('正文一到就换成流式草稿，草稿标记为 live', () => {
     render({
       ...emptyChat,
       attempt: { attemptId: 'a1', revision: 1, nextIndex: 4 },
@@ -74,16 +74,17 @@ describe('ChatTranscript 思考态', () => {
     expect(query('chat-thinking')).toBeNull()
     const live = element('message-assistant')
     expect(live.getAttribute('data-live')).toBe('true')
-    expect(live.className.includes('lg-glass-card')).toBe(false)
+    expect(live.classList.contains('message')).toBe(true)
     expect(live.textContent).toContain('结论')
   })
 
-  it('已提交正文用静态磨砂，不再挂玻璃卡', () => {
+  it('已提交正文用静态消息面，不再标记为 live', () => {
     render(chatWith([{ kind: 'assistant', id: 'a-1', text: '读完了' }]))
     const message = element('message-assistant')
     expect(message.getAttribute('data-live')).toBeNull()
-    expect(message.className.includes('lg-frost')).toBe(true)
-    expect(message.className.includes('lg-glass-card')).toBe(false)
+    expect(message.classList.contains('message')).toBe(true)
+    expect(message.classList.contains('assistant')).toBe(true)
+    expect(message.classList.contains('live')).toBe(false)
   })
 })
 
@@ -120,8 +121,8 @@ describe('ProcessGroup', () => {
     render(chatWith(rows))
     const group = element('process-group')
     expect(group.getAttribute('data-open')).toBe('false')
-    expect(group.className.includes('lg-frost')).toBe(true)
-    expect(group.className.includes('lg-glass-card')).toBe(false)
+    expect(group.classList.contains('process-group')).toBe(true)
+    expect(group.getAttribute('data-testid')).toBe('process-group')
     const list = group.querySelector<HTMLElement>('.process-list')
     expect(list?.hidden).toBe(true)
     expect(element('process-reasoning').textContent).toContain('先读文件')

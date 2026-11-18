@@ -79,7 +79,7 @@ export function AccountMenu({ state, t, onPersonalCenter, onChanged }: AccountMe
       {open && (
         <>
           <div className="account-scrim" onClick={() => { setOpen(false) }} />
-          <section className="account-pop lg-glass" data-testid="account-menu">
+          <section className="account-pop" data-testid="account-menu">
             <header className="account-pop-head">
               <strong>{name}</strong>
               <span>{quota === null ? t('account.signedIn') : `${t('account.remaining')} ${usd(quota.availableMicroUsd)}`}</span>
