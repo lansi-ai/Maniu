@@ -7,8 +7,8 @@ import {
 
 describe('sanitizeDesktopPreferences', () => {
   it('完整合法值原样保留', () => {
-    expect(sanitizeDesktopPreferences({ skin: 'rose', font: 'modern', locale: 'en', lastPickedDirectory: 'E:/repo' }))
-      .toEqual({ skin: 'rose', font: 'modern', locale: 'en', lastPickedDirectory: 'E:/repo' })
+    expect(sanitizeDesktopPreferences({ skin: 'dark', font: 'modern', locale: 'en', lastPickedDirectory: 'E:/repo' }))
+      .toEqual({ skin: 'dark', font: 'modern', locale: 'en', lastPickedDirectory: 'E:/repo' })
   })
 
   it('旧文件只有 locale 时，其余字段回默认', () => {
@@ -28,7 +28,7 @@ describe('sanitizeDesktopPreferences', () => {
 
   it('坏字段只回落自己，不污染其他字段', () => {
     expect(sanitizeDesktopPreferences({ skin: 'bogus', font: 'modern', locale: 'en', lastPickedDirectory: 'E:/repo' }))
-      .toEqual({ skin: 'liquid-glass', font: 'modern', locale: 'en', lastPickedDirectory: 'E:/repo' })
+      .toEqual({ skin: 'dark', font: 'modern', locale: 'en', lastPickedDirectory: 'E:/repo' })
     expect(sanitizeDesktopPreferences(null)).toEqual(DEFAULT_DESKTOP_PREFERENCES)
     expect(sanitizeDesktopPreferences('nope')).toEqual(DEFAULT_DESKTOP_PREFERENCES)
   })
@@ -36,8 +36,8 @@ describe('sanitizeDesktopPreferences', () => {
 
 describe('preferencePatchOf', () => {
   it('只接受已知字段', () => {
-    expect(preferencePatchOf({ skin: 'neon', font: 'modern', locale: 'en' }))
-      .toEqual({ skin: 'neon', font: 'modern', locale: 'en' })
+    expect(preferencePatchOf({ skin: 'light', font: 'modern', locale: 'en' }))
+      .toEqual({ skin: 'light', font: 'modern', locale: 'en' })
     expect(preferencePatchOf({ skin: 'bogus', font: 'modern' })).toEqual({ font: 'modern' })
     expect(preferencePatchOf({ extra: 'x' })).toEqual({})
     expect(preferencePatchOf(undefined)).toEqual({})
@@ -50,8 +50,8 @@ describe('preferencePatchOf', () => {
 
 describe('validators', () => {
   it('只认已知字面量', () => {
-    expect(isDesktopSkin('silver')).toBe(true)
-    expect(isDesktopSkin('frost')).toBe(false)
+    expect(isDesktopSkin('light')).toBe(true)
+    expect(isDesktopSkin('rose')).toBe(false)
     expect(isDesktopFont('system')).toBe(true)
     expect(isDesktopFont('mono')).toBe(false)
     expect(isDesktopLocale('en')).toBe(true)

@@ -31,7 +31,7 @@ export interface ChatViewProps {
   readonly selection: ChatModelSelectionView | undefined
   readonly availability: ChatModelAvailability
   readonly usage: ChatContextUsage
-  readonly composerRef: RefObject<HTMLTextAreaElement>
+  readonly composerRef: RefObject<HTMLTextAreaElement | null>
   /** 人才 preset id → 显示名；会话列表据此标注归属。 */
   readonly talentNames: Readonly<Record<string, string>>
   /** 等待人处理的审批与提问；在对话列内渲染，不再走右下浮层。 */

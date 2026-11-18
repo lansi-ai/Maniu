@@ -22,7 +22,7 @@ export interface ComposerProps {
   readonly selection: ChatModelSelectionView | undefined
   readonly availability: ChatModelAvailability
   readonly usage: ChatContextUsage
-  readonly composerRef: RefObject<HTMLTextAreaElement>
+  readonly composerRef: RefObject<HTMLTextAreaElement | null>
   readonly ensureSession: () => Promise<string | null>
   /** 发送一条提示；返回 true 表示宿主已接受，输入区据此清空。 */
   readonly onSend: (text: string, attachments: readonly ChatPendingAttachment[]) => Promise<boolean>

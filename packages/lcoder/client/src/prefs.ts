@@ -1,13 +1,13 @@
-/** 皮肤、字体与语言的本地偏好：读取、应用与持久化。 */
+/** 外观、字体与语言的本地偏好：读取、应用与持久化。 */
 
 import { useCallback, useEffect, useState } from 'react'
 import { isLocaleId, localeTag, type LocaleId } from './locale.ts'
 
-/** 四套皮肤；第一套是新客户端默认的流体玻璃。 */
-export const SKINS = ['liquid-glass', 'neon', 'silver', 'rose'] as const
+/** 三态外观；system 按系统配色实时解析。 */
+export const APPEARANCES = ['light', 'dark', 'system'] as const
 
-/** 皮肤标识。 */
-export type SkinId = (typeof SKINS)[number]
+/** 外观标识。 */
+export type AppearanceId = (typeof APPEARANCES)[number]
 
 /** 两套字体。 */
 export const FONTS = ['system', 'modern'] as const
@@ -15,13 +15,13 @@ export const FONTS = ['system', 'modern'] as const
 /** 字体标识。 */
 export type FontId = (typeof FONTS)[number]
 
-/** 默认皮肤。 */
-export const DEFAULT_SKIN: SkinId = 'liquid-glass'
+/** 默认外观：深邃暗黑。 */
+export const DEFAULT_APPEARANCE: AppearanceId = 'dark'
 
 /** 默认字体。 */
 export const DEFAULT_FONT: FontId = 'system'
 
-/** 本地存储键；只存标识，不存宿主侧设置。 */
+/** 本地存储键；只存标识，不存宿主侧设置。字段名 skin 保持与 IPC 载荷一致。 */
 export const PREFERENCE_KEYS = {
   skin: 'lcoder.skin',
   font: 'lcoder.font',
@@ -29,9 +29,9 @@ export const PREFERENCE_KEYS = {
   welcomeSeen: 'lcoder.welcome-seen',
 } as const
 
-/** 当前偏好。 */
+/** 当前偏好；skin 字段保留主进程契约名，取值是三态外观。 */
 export interface Preferences {
-  readonly skin: SkinId
+  readonly skin: AppearanceId
   readonly font: FontId
   readonly locale: LocaleId
 }
@@ -43,12 +43,12 @@ export interface PreferenceStorage {
 }
 
 /**
- * 判定任意值是已知皮肤。
+ * 判定任意值是已知外观。
  * @param value - 来自存储或调用的值。
- * @returns value 是 `SkinId` 时为 true。
+ * @returns value 是 `AppearanceId` 时为 true。
  */
-export function isSkinId(value: unknown): value is SkinId {
-  return typeof value === 'string' && SKINS.some(skin => skin === value)
+export function isAppearanceId(value: unknown): value is AppearanceId {
+  return typeof value === 'string' && APPEARANCES.some(appearance => appearance === value)
 }
 
 /**
@@ -94,7 +94,7 @@ export function readPreferences(storage: PreferenceStorage | undefined): Prefere
   const font = read(PREFERENCE_KEYS.font)
   const locale = read(PREFERENCE_KEYS.locale)
   return {
-    skin: isSkinId(skin) ? skin : DEFAULT_SKIN,
+    skin: isAppearanceId(skin) ? skin : DEFAULT_APPEARANCE,
     font: isFontId(font) ? font : DEFAULT_FONT,
     locale: isLocaleId(locale) ? locale : 'zh',
   }
@@ -138,6 +138,10 @@ export function welcomeSeen(storage: PreferenceStorage | undefined): boolean {
 
 /**
  * 把偏好写到根元素；只改 DOM，不触发持久化。
+ *
+ * skin 字段值保持三态原文写入 `data-skin`；实际生效主题解析 system 后落到
+ * `.dark` / `.light` 类，供 Tailwind 与 HeroUI 读取。`data-theme` 保持
+ * `liquid-glass` 不变，旧渲染器的 `--lg-*` token 仍由 index.html 提供。
  * @param preferences - 当前偏好。
  */
 export function applyPreferences(preferences: Preferences): void {
@@ -145,6 +149,15 @@ export function applyPreferences(preferences: Preferences): void {
   root.dataset.skin = preferences.skin
   root.dataset.font = preferences.font
   root.lang = localeTag(preferences.locale)
+  const systemDark = typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+    ? window.matchMedia('(prefers-color-scheme: dark)').matches
+    : true
+  const resolved: 'light' | 'dark' = preferences.skin === 'system'
+    ? (systemDark ? 'dark' : 'light')
+    : preferences.skin
+  root.classList.toggle('dark', resolved === 'dark')
+  root.classList.toggle('light', resolved === 'light')
+  root.style.colorScheme = resolved
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -160,7 +173,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 export function preferencesOf(value: unknown, fallback: Preferences): Preferences {
   if (!isRecord(value)) return fallback
   return {
-    skin: isSkinId(value.skin) ? value.skin : fallback.skin,
+    skin: isAppearanceId(value.skin) ? value.skin : fallback.skin,
     font: isFontId(value.font) ? value.font : fallback.font,
     locale: isLocaleId(value.locale) ? value.locale : fallback.locale,
   }
@@ -207,7 +220,7 @@ function persistPreference(patch: Partial<Preferences>, key: string, value: stri
 
 /** 偏好读取与写入面。 */
 export interface PreferencesHandle extends Preferences {
-  readonly setSkin: (skin: SkinId) => void
+  readonly setSkin: (skin: AppearanceId) => void
   readonly setFont: (font: FontId) => void
   readonly setLocale: (locale: LocaleId) => void
 }
@@ -223,6 +236,14 @@ export function usePreferences(): PreferencesHandle {
     applyPreferences(preferences)
   }, [preferences])
 
+  useEffect(() => {
+    if (preferences.skin !== 'system' || typeof window.matchMedia !== 'function') return
+    const media = window.matchMedia('(prefers-color-scheme: dark)')
+    const onChange = (): void => { applyPreferences(preferences) }
+    media.addEventListener('change', onChange)
+    return () => { media.removeEventListener('change', onChange) }
+  }, [preferences])
+
   const write = useCallback((key: string, value: string, patch: Partial<Preferences>) => {
     persistPreference(patch, key, value)
     setPreferences(current => ({ ...current, ...patch }))
@@ -230,7 +251,7 @@ export function usePreferences(): PreferencesHandle {
 
   return {
     ...preferences,
-    setSkin: useCallback((skin: SkinId) => { write(PREFERENCE_KEYS.skin, skin, { skin }) }, [write]),
+    setSkin: useCallback((skin: AppearanceId) => { write(PREFERENCE_KEYS.skin, skin, { skin }) }, [write]),
     setFont: useCallback((font: FontId) => { write(PREFERENCE_KEYS.font, font, { font }) }, [write]),
     setLocale: useCallback((locale: LocaleId) => { write(PREFERENCE_KEYS.locale, locale, { locale }) }, [write]),
   }

@@ -41,6 +41,13 @@ Global style sheets belong in `ui-theme/src/styles/`. Component styles live besi
 
 On a mixed-input device, a mouse preview can appear while the primary-pointer CSS hover style stays inactive. Keyboard focus and shortcut hints follow actual keyboard interaction independently of these capability queries; [Menu and input modality](../packages/client/ui-primitives/README.md#input-modality) define the shared behavior.
 
+<a id="lcoder-client-exception"></a>
+## LCoder client exception
+
+`packages/lcoder/client` is the one formal exception to the "no component library or Tailwind" rule above: it may use HeroUI v3 and Tailwind v4 because it is the LCoder desktop shell being migrated off the legacy renderer. The exception is scoped to that package only. Every `packages/client/*` package keeps the CSS Modules and `--dsw-*` token rules, and the `ui-theme` / `ui-primitives` catalog stays authoritative for upstream clients; bringing HeroUI or Tailwind into an upstream client package remains a violation.
+
+Drag-region red line: every region carrying `-webkit-app-region: drag` — `titlebar`, `window-gutter`, `titlebar-pad`, and `gate-drag` — must not use `backdrop-blur`, `backdrop-filter`, or `-webkit-backdrop-filter`. Use a solid color or a static semi-transparent fill with no backdrop filter; a filtered drag region stalls frameless-window dragging on Windows. Non-drag overlays (drawer masks, panels, search fields, tooltips, popovers, floating islands) may use `backdrop-blur-md`.
+
 <a id="corner-radii-and-settings-cards"></a>
 ## Corner radii and settings cards
 

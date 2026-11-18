@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import type { JSX } from 'react'
 import type { MessageKey, Translate } from '../locale.ts'
-import { FONTS, SKINS, type FontId, type PreferencesHandle, type SkinId } from '../prefs.ts'
+import { APPEARANCES, FONTS, type AppearanceId, type FontId, type PreferencesHandle } from '../prefs.ts'
 import { ModelPanel } from './model-panel.tsx'
 
 /** 设置页属性。 */
@@ -12,12 +12,11 @@ export interface SettingsPageProps {
   readonly prefs: PreferencesHandle
 }
 
-/** 皮肤词典键。 */
-const SKIN_KEY: Readonly<Record<SkinId, MessageKey>> = {
-  'liquid-glass': 'settings.skinLiquidGlass',
-  neon: 'settings.skinNeon',
-  silver: 'settings.skinSilver',
-  rose: 'settings.skinRose',
+/** 外观词典键。 */
+const APPEARANCE_KEY: Readonly<Record<AppearanceId, MessageKey>> = {
+  light: 'settings.appearanceLight',
+  dark: 'settings.appearanceDark',
+  system: 'settings.appearanceSystem',
 }
 
 /** 字体词典键。 */
@@ -63,17 +62,16 @@ export function SettingsPage({ t, prefs }: SettingsPageProps): JSX.Element {
         <div className="settings-row">
           <span className="settings-label">{t('settings.skin')}</span>
           <div className="settings-chips" role="group" aria-label={t('settings.skin')}>
-            {SKINS.map(skin => (
+            {APPEARANCES.map(appearance => (
               <button
-                key={skin}
+                key={appearance}
                 type="button"
-                className={prefs.skin === skin ? 'settings-chip active' : 'settings-chip'}
-                data-testid={`settings-skin-${skin}`}
-                aria-pressed={prefs.skin === skin}
-                onClick={() => { prefs.setSkin(skin) }}
+                className={prefs.skin === appearance ? 'settings-chip active' : 'settings-chip'}
+                data-testid={`settings-appearance-${appearance}`}
+                aria-pressed={prefs.skin === appearance}
+                onClick={() => { prefs.setSkin(appearance) }}
               >
-                <span className={`skin-swatch skin-swatch-${skin}`} aria-hidden="true" />
-                {t(SKIN_KEY[skin])}
+                {t(APPEARANCE_KEY[appearance])}
               </button>
             ))}
           </div>

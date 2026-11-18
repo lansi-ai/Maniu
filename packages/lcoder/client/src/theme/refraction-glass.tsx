@@ -36,7 +36,7 @@ export interface RefractionOptions {
 /** 折射玻璃的挂载结果。 */
 export interface RefractionLayer {
   /** 挂到承载 `backdrop-filter` 的元素上，用于测量尺寸。 */
-  readonly ref: RefObject<HTMLElement>
+  readonly ref: RefObject<HTMLElement | null>
   /** 交给该元素的内联样式；不支持折射时为空对象。 */
   readonly style: CSSProperties
   /** 放进该元素内的滤镜定义；尺寸未就绪时为 null。 */

@@ -3,6 +3,7 @@
 import { createRoot } from 'react-dom/client'
 import { App } from './app.tsx'
 import { applyPreferences, hydratePreferences } from './prefs.ts'
+import './index.css'
 import './theme/liquid-glass.css'
 import './theme/skins.css'
 import './styles.css'

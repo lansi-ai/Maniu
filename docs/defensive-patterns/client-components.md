@@ -387,6 +387,8 @@ Every build adjustment for a client package goes through the tsdown plugin for t
 - Not covered: a runtime-computed value such as a measured gutter or a progress percentage may enter `style`, and a component-local custom property may carry a layout value. [Component rules](../web-styling.md#component-rules) own the tokens, CSS Module, and class-name rules.
 - Exception: a new build branch or a new inline form is explained in review before it lands, and the owning package's rules decide whether it stays.
 - Fix: move the variant into a CSS Module class switched by `className`, keep base64 in CSS produced by the build chain, and delete the large text constant from the TSX module.
+- Exception: `packages/lcoder/client` is the scoped HeroUI v3 + Tailwind v4 exception to the CSS-Module-only rule; every `packages/client/*` package keeps CSS Modules and `--dsw-*` tokens.
+- Drag-region red line: every region carrying `-webkit-app-region: drag` — `titlebar`, `window-gutter`, `titlebar-pad`, and `gate-drag` — must not use `backdrop-blur`, `backdrop-filter`, or `-webkit-backdrop-filter`; use a solid color or a static semi-transparent fill with no backdrop filter. A filtered drag region stalls frameless-window dragging on Windows. Non-drag overlays (drawer masks, panels, search fields, tooltips, popovers, floating islands) may use `backdrop-blur-md`.
 
 The component switches class names and data attributes, and the CSS Module owns the presentation:
 

@@ -111,8 +111,8 @@ beforeEach(() => {
       appInfo: async () => ({ version: '0.0.0' }),
       update: async () => ({ kind: 'unavailable', version: '0.0.0', reason: 'no-feed' }),
       setLocale: async () => {},
-      readPreferences: async () => ({ skin: 'liquid-glass', font: 'system', locale: 'zh', lastPickedDirectory: null }),
-      writePreferences: async () => ({ skin: 'liquid-glass', font: 'system', locale: 'zh', lastPickedDirectory: null }),
+      readPreferences: async () => ({ skin: 'dark', font: 'system', locale: 'zh', lastPickedDirectory: null }),
+      writePreferences: async () => ({ skin: 'dark', font: 'system', locale: 'zh', lastPickedDirectory: null }),
       pickDirectory: async () => null,
     },
   })
