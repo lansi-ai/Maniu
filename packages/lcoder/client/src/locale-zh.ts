@@ -197,6 +197,7 @@ export const ZH = {
   'requirement.splitNote': '拆分由研发经理会话执行；岗位建议由人逐条确认后走 /task_assign，确认、上线、关闭走 kernel 人机命令。',
   'task.requirementFilter': '需求 {id}',
   'task.clearRequirementFilter': '清除筛选',
+  'task.emptyColumn': '这一列还没有任务',
   'intake.sessionTitle': '需求分析',
   'intake.roleName': '需求分析师',
   'intake.resultBackground': '立项会话在后台运行；进度与确认入口在需求页浮卡，落盘的需求会出现在需求列表。',

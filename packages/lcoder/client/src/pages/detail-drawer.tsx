@@ -2,6 +2,8 @@
 
 import { useLayoutEffect, useRef, useState } from 'react'
 import type { JSX, ReactNode } from 'react'
+import { Button } from '@heroui/react'
+import { Maximize2, Minimize2, X } from 'lucide-react'
 import { translate, type Translate } from '../locale.ts'
 
 /** 工作台页面尚未接入词典，抽屉按钮沿用中文键；新客户端页面可传入自己的取词函数。 */
@@ -30,30 +32,6 @@ interface ViewportRect {
   readonly width: number
   readonly height: number
 }
-
-const EXPAND_ICON = (
-  <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false">
-    <path
-      d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-    />
-  </svg>
-)
-
-const RESTORE_ICON = (
-  <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false">
-    <path
-      d="M6 2v4H2M14 6h-4V2M10 14v-4h4M2 10h4v4"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-    />
-  </svg>
-)
 
 /**
  * 详情抽屉外壳。
@@ -118,20 +96,31 @@ export function DetailDrawer(props: DetailDrawerProps): JSX.Element {
         <div className="detail-drawer-leading">{props.head}</div>
         <div className="detail-drawer-controls">
           {props.actions}
-          <button
-            type="button"
-            className="pill detail-drawer-icon"
+          <Button
+            isIconOnly
+            className="detail-drawer-icon"
+            variant="ghost"
+            size="sm"
             data-testid={`${props.testId}-expand`}
             aria-label={label}
             aria-pressed={expanded}
-            title={label}
-            onClick={() => { setExpanded(current => !current) }}
+            ref={(node) => { if (node !== null) node.title = label }}
+            onPress={() => { setExpanded(current => !current) }}
           >
-            {expanded ? RESTORE_ICON : EXPAND_ICON}
-          </button>
-          <button type="button" className="pill" data-testid={props.closeTestId} onClick={props.onClose}>
-            {t('drawer.close')}
-          </button>
+            {expanded ? <Minimize2 aria-hidden="true" /> : <Maximize2 aria-hidden="true" />}
+          </Button>
+          <Button
+            isIconOnly
+            className="detail-drawer-icon"
+            variant="ghost"
+            size="sm"
+            data-testid={props.closeTestId}
+            aria-label={t('drawer.close')}
+            onPress={props.onClose}
+          >
+            <X aria-hidden="true" />
+            <span className="sr-only">{t('drawer.close')}</span>
+          </Button>
         </div>
       </div>
       <div className="detail-drawer-body">{props.children}</div>

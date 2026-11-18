@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from 'react'
 import type { JSX } from 'react'
-import { Button, Card, Chip, Input, ListBox, Select, Table, Tabs } from '@heroui/react'
+import { Button, Card, Chip, EmptyState, Input, ListBox, Select, Table, Tabs } from '@heroui/react'
+import { Inbox } from 'lucide-react'
 import type { ProjectScope } from '../workspace/use-workspaces.ts'
 import type { SpecProjection } from '../spec/load.ts'
 import type { TaskRow } from '../spec/rows.ts'
@@ -183,14 +184,22 @@ export function TasksPage(props: TasksPageProps): JSX.Element {
             return (
               <Card className="board-column" key={column.id} data-testid="task-column" data-column={column.id}>
                 <Card.Header className="board-head">
-                  <Card.Title>{column.label}</Card.Title>
-                  <span className="count">{columnRows.length}</span>
+                  <span className="board-head-leading">
+                    <span className={`board-dot board-dot-${column.id}`} aria-hidden="true" />
+                    <Card.Title>{column.label}</Card.Title>
+                  </span>
+                  <Chip size="sm" variant="soft" className="count">{columnRows.length}</Chip>
                 </Card.Header>
                 <Card.Content className="board-body">
                   {columnRows.map(row => (
                     <TaskCard key={row.id} task={row} running={running} selected={row.id === selected} onOpen={setSelected} />
                   ))}
-                  {columnRows.length === 0 && <p className="empty">空</p>}
+                  {columnRows.length === 0 && (
+                    <EmptyState className="board-empty">
+                      <Inbox aria-hidden="true" />
+                      <p>{t('task.emptyColumn')}</p>
+                    </EmptyState>
+                  )}
                 </Card.Content>
               </Card>
             )
@@ -289,8 +298,8 @@ function TaskCard(props: {
       onClick={() => { props.onOpen(props.task.id) }}
     >
       <span className="task-card-head">
-        <span className="mono">{props.task.id}</span>
-        <Chip size="sm" variant="soft" color="accent">{props.task.grade}</Chip>
+        <span className="mono task-card-id">{props.task.id}</span>
+        <Chip size="sm" variant="soft" color="accent">等级 {props.task.grade}</Chip>
       </span>
       <span className="task-card-title">{props.task.title}</span>
       <span className="task-card-tags">

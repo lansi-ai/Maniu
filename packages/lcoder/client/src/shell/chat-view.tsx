@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import type { JSX, RefObject } from 'react'
-import { Button } from '@heroui/react'
+import { Button, Input } from '@heroui/react'
+import { Pencil } from 'lucide-react'
 import type { EventOutcome } from '../contract.ts'
 import type { Translate } from '../locale.ts'
 import type {
@@ -147,12 +148,13 @@ export function ChatView({
         <div className="chat-head">
           {editing ? (
             <div className="rename-row">
-              <input
+              <Input
                 className="rename-input"
                 data-testid="session-rename-input"
                 value={draft}
                 aria-label={t('chat.rename')}
                 autoFocus
+                variant="secondary"
                 onChange={(event) => { setDraft(event.target.value); setRenameProblem(null) }}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter') { event.preventDefault(); void commitRename() }
@@ -185,11 +187,12 @@ export function ChatView({
               {active === null ? null : (
                 <Button
                   className="rename-action"
-                  variant="secondary"
+                  variant="ghost"
                   size="sm"
                   data-testid="session-rename"
                   onPress={beginRename}
                 >
+                  <Pencil aria-hidden="true" />
                   {t('chat.rename')}
                 </Button>
               )}
