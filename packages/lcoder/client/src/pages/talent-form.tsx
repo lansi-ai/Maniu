@@ -145,7 +145,7 @@ export function TalentForm(props: TalentFormProps): JSX.Element {
   }
 
   return (
-    <section className="talent-form lg-glass-card" data-testid="talent-form" data-scope={scope}>
+    <section className="talent-form" data-testid="talent-form" data-scope={scope}>
       <header className="settings-section-head">
         <div>
           <h3>{initial === null

@@ -65,7 +65,7 @@ export function ProjectsPage(props: ProjectsPageProps): JSX.Element {
         </div>
       </header>
 
-      <div className="project-open lg-glass-card">
+      <div className="project-open">
         <label className="field-label" htmlFor="project-path">打开仓库</label>
         <div className="project-open-row">
           <input
@@ -90,7 +90,7 @@ export function ProjectsPage(props: ProjectsPageProps): JSX.Element {
           <li key={workspace.workspaceId}>
             <button
               type="button"
-              className={workspace.workspaceId === props.current?.workspaceId ? 'project-card lg-glass-card lg-sheen active' : 'project-card lg-glass-card lg-sheen'}
+              className={workspace.workspaceId === props.current?.workspaceId ? 'project-card active' : 'project-card'}
               data-testid="project-item"
               data-workspace-id={workspace.workspaceId}
               onClick={() => { props.onSelect(workspace) }}

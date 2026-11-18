@@ -756,7 +756,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
       )}
 
       {props.project !== null && pendingChanges.length > 0 && (
-        <Card className="pending-proposals lg-glass-card" data-testid="requirement-pending-proposals">
+        <Card className="pending-proposals" data-testid="requirement-pending-proposals">
           <Card.Header className="pending-proposals-head">
             <Card.Title>{t('requirement.pendingTitle')}</Card.Title>
             <Chip size="sm" variant="soft" color="warning">{pendingChanges.length}</Chip>
@@ -793,7 +793,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
 
       {props.project !== null && (
         <div className="requirements-workspace">
-          <div className="table-wrap lg-glass-card requirements-table">
+          <div className="table-wrap requirements-table">
             <Table aria-label="需求列表" className="requirements-table-root">
               <Table.Content>
                 <Table.Header>

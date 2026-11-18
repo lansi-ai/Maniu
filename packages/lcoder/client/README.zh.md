@@ -13,14 +13,14 @@ kind: "package-reference"
 - `src/app.tsx`：登录门禁、会话列表、聊天与工作台导航；欢迎屏与登录页在门禁内切换；审批/提问卡在对话页排进消息列、其他页走右下浮层；立项会话的首条指令整行不渲染、标题固定为「需求分析」；需求页的立项入口只对空项目开放，进入会话前还会再拒一次；运行中关窗的确认层由主进程 `lcoder:close-request` 触发。
 - `src/account/`：验证码/密码登录、注册、退出与令牌刷新、个人中心与用量分页；令牌始终留在宿主凭据里。
 - `src/pages/settings.tsx`、`src/settings/model-settings.ts`：模型服务首版只读（provider、密钥三态与默认模型可见）、皮肤、字体、语言与手动更新说明；`src/prefs.ts` 持久化本地偏好。
-- `src/locale-zh.ts` / `src/locale-en.ts`：新壳与 M3 新增文案的双语词典；`src/theme/skins.css` 提供霓虹/冷银/粉樱三套皮肤与自托管 Inter。
+- `src/locale-zh.ts` / `src/locale-en.ts`：新壳与 M3 新增文案的双语词典；自托管 Inter 字体定义在 `src/index.css`。
 - `src/prefs.ts`：皮肤、字体与语言以主进程 userData 的偏好文件为权威值，localStorage 只作渲染端缓存；启动时先经 `lcoder:preferences-read` 取回落盘值再挂载，点击即经 `lcoder:preferences-write` 同步落盘。
 - `src/store.ts`：`session.follow` 三帧（snapshot / event / assistant-stream）的纯折叠；按 seq 检测缺口并要求重开快照，折叠会话标题、投影水位、按回合收敛的过程组与工具结果摘要；入口 `session.list` + `api-session/*` 事件。
 - `src/chat/`：审批/提问回执编码（`approvalOutcome` / `questionOutcome` 原样发回宿主结果）、模型与上下文用量判定、图片上限与提示词拼装、附件读取与 `session/attachment` 预览、`session/control` 投影流。
 - `src/spec/`：`.spec` 文件投影（任务、规则、契约、方案、需求、交付物、联调组、岗位、流程配置、项目与本地密钥），全部经宿主 `workspaceFiles` 读取；方案投影含需求变更载荷。
 - `src/pages/`：需求、任务（六列看板/列表、详情、附件）、项目、项目信息（数据库密码按 `passwordRef` 从内存里的 `.spec/local.yaml` 揭示；流程配置节经`/flow_save`写`.spec/flow.yaml`）、人才库（内置角色并入全局库、只读查看详情、下发宿主preset、老项目自动补projectId）、设置；详情抽屉统一带放大/还原（放大铺满工作区并独立滚动）；Markdown 渲染器与全屏阅读器。需求详情状态先行：标题/徽标/指引/随状态操作栏置顶，阶段chips、正文与报告折叠摘要。
 - `src/commands/run.ts`：人机命令只走 `commands.execute`，主进程对命令名再做一层白名单；`src/flow/config.ts`提供流程配置模型与`/flow_save`序列化，需求页四类操作按配置逐岗推进，一节点一浮卡，评审按最新轮署名根判定完成，auto落盘续岗、人工等「下一岗位」；立项浮卡回合结束未落盘时等人工「确认需求」，经`session/prompt`发指令后继续轮询等落盘。新建需求入口不受禁立项影响，描述随首条消息后台发起分析师会话；新建与改稿走分析-文档-确认-提案四步，提案落盘后浮卡等「去对比」打开对比视图，确认与拒绝走人机命令；基于此版本新建复用新建提案通道。
-- `src/theme/liquid-glass.css`：新客户端主题底座，集中 `--lg-*` token、环境背景层与 `.lg-glass` / `.lg-sheen` / `.lg-lift` 基元；其余样式只消费这些变量。
+- `src/index.css`：主题底座与 `--lg-*` token、`--lg-*` 基元、环境背景层；旧皮肤映射已移除。
 - `src/theme/paper-water.tsx` / `refraction-glass.tsx`：登录页浅雾彩水流（按皮肤取色、无 WebGL 静态回退、减动效停帧）与卡面 SVG 折射（唯一 id、按尺寸与 DPR 重建）；控件仍是轻量 `backdrop-filter` 玻璃。
 - `src/contract.ts`：`window.lcoder` 窄 IPC 契约，与主进程同名同形。
 - 渲染端无 Node、无 `fetch`、无宿主 cookie；所有宿主访问经 preload 暴露的 IPC。

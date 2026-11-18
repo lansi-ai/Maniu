@@ -199,7 +199,7 @@ export function TasksPage(props: TasksPageProps): JSX.Element {
       )}
 
       {props.project !== null && view === 'list' && (
-        <div className="table-wrap lg-glass-card" data-testid="task-list">
+        <div className="table-wrap task-table-wrap" data-testid="task-list">
           <Table aria-label="任务列表" className="task-table">
             <Table.Content>
               <Table.Header>
@@ -282,7 +282,7 @@ function TaskCard(props: {
   return (
     <button
       type="button"
-      className={props.selected ? 'task-card lg-glass-card lg-sheen active' : 'task-card lg-glass-card lg-sheen'}
+      className={props.selected ? 'task-card active' : 'task-card'}
       data-testid="task-card"
       data-task-id={props.task.id}
       data-run-status={status}

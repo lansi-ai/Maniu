@@ -92,6 +92,6 @@ describe('强调色按钮前景', () => {
       expect(rule).toContain(selector)
     }
     expect(rule).toContain('color: var(--lg-on-accent);')
-    expect(source('../src/theme/liquid-glass.css')).toContain('--lg-on-accent: #ffffff;')
+    expect(source('../src/index.css')).toContain('--lg-on-accent: #ffffff;')
   })
 })

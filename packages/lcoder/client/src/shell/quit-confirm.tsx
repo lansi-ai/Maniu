@@ -20,7 +20,7 @@ export interface QuitConfirmProps {
 export function QuitConfirm({ t, running, onCancel, onConfirm }: QuitConfirmProps): JSX.Element {
   return (
     <div className="quit-backdrop" data-testid="quit-confirm-dialog">
-      <section className="quit-card lg-glass-card" role="dialog" aria-modal="true" aria-labelledby="quit-confirm-title">
+      <section className="quit-card" role="dialog" aria-modal="true" aria-labelledby="quit-confirm-title">
         <h3 id="quit-confirm-title">{t('quit.title')}</h3>
         <p>{t('quit.body', { count: running })}</p>
         <div className="quit-actions">
