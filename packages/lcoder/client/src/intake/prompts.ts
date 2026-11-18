@@ -263,6 +263,8 @@ export function buildRequirementCreatePrompt(
     : `- 本需求基于已确认需求 ${base.id}（${base.title}）v${String(base.version)}：调用 requirement_propose 时 target 为 ${base.id}，base_version 为 ${String(base.version)}；确认态需求只能这样作为新需求的依据，不能改稿。`
   return `新建需求：请为本项目登记一条新需求，只登记这一条，不做整项目立项。
 
+标题口径：需求标题（requirement_propose 的 title）用一句话业务目标（例：让验收方免登录确认交付物），不用文档名；文档标题留在正文 H1。
+
 用户描述：
 """
 ${userText}

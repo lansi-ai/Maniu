@@ -78,6 +78,8 @@ describe('新建需求提示词', () => {
     const prompt = buildRequirementCreatePrompt('希望支持订单导出')
     expect(prompt).toContain('希望支持订单导出')
     expect(prompt).toContain('只登记这一条')
+    expect(prompt).toContain('一句话业务目标')
+    expect(prompt).toContain('不用文档名')
     expect(prompt).toContain('冲突/重复')
     expect(prompt).toContain('影响面')
     expect(prompt).toContain('优先级')

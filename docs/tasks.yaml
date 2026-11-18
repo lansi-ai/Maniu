@@ -2822,6 +2822,18 @@ tracks:
       inferred: false
       note: "C 级资产修改（用户点名本窗直修，记录原因），来源是用户 2026-11-18 要求图标主体太小与边框留白太大要去掉留白。现状圆角浅色背景块铺满画布、牛主体约占 65% 四周留白约 17%。改法背景块与主体形象不变，主体等比放大到背景块约 94% 居中；windows 与 base 画布留白去除（base 外层透明边距一并裁掉铺满），macos 保留平台图标网格外层透明边距但块内主体同样放大；SVG 源同步替换嵌入位图与变换防再渲染漂移；tray 渲染脚本兼容性核过。验收先出预览图给用户视觉签核再落盘；落盘后 tray 测试与定向门禁绿。范围 apps/desktop/resources 三 png 三 svg；不改代码契约。2026-11-18 09:40 监督窗口登记并自修。2026-11-18 10:05 用户视觉签核选 98% 更满后落盘收口：三 png 主体等比放大 1.42 倍至背景块 98% 居中并以圆角背景掩膜裁剪（四角透明、肩部顺圆角收边），base 顺带裁掉外层透明边距铺满 1024，macos 保留平台网格外边距块内放大；三 svg 重写为恒等变换嵌入新位图防再渲染漂移；render:tray-icon 重出 tray-windows.ico 七尺寸；tray 测试三例绿。预览与落盘件留用户审。已提交主线。2026-11-18 10:20 用户报启动后仍旧图标，排查坐实运行壳是 packages/lcoder/desktop（窗口 appIconPath 与托盘 trayIconPath 取本包 resources/maniu-*.ico），首修误改 apps/desktop/resources 旧壳路径；已用新 png 重生成 maniu-windows.ico 七尺寸与 maniu-tray.ico 四尺寸、并把新 png/svg 拷入本包 resources 作源同步，重启实例后托盘 48px 抽验为撑满新牛；Windows 图标缓存亦已深度清理（explorer 重启）。纠正与二次落盘已提交。"
 
+    - id: T-252
+      title: 新建需求标题口径为业务一句话
+      status: done
+      face: 用户端
+      type: 修复
+      owner: lance
+      created: '2026-11-18'
+      date: '2026-11-18'
+      dep: [T-249]
+      inferred: false
+      note: "C 级提示词口径修复（用户签核后本窗直修，记录原因），来源是 T-250 走查发现靶 4 需求标题为文档名（项目需求概要 V0.1）而靶 3 旧链为业务一句话：T-249 新建链把提案标题当需求标题且提示词未约束命名。改 buildRequirementCreatePrompt 加标题口径行（需求标题即 proposal title 用一句话业务目标、不用文档名、文档标题留正文 H1），补提示词测试钉住；不改 kernel（createRequirement 仍取 proposal.title）、不改存量靶仓数据。验收 typecheck、定向 vitest（intake-prompts）、改动文件 oxlint。2026-11-18 10:50 登记并自修。2026-11-18 10:55 收口：新建提示词加标题口径行并补两条钉住断言；typecheck 五项、intake-prompts 十三例、oxlint 零过；已提交主线。存量靶仓数据不动。"
+
 
 milestones:
 - name: MVP-0 工作台本地跑通
