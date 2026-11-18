@@ -1,93 +1,124 @@
-/* 设置页：模型服务、外观、语言、更新与关于。 */
+/* 设置页：Bento 分组卡片（模型服务、外观、字体、语言、更新与关于）。 */
 
-.settings-section,
-.model-section {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 16px 18px;
+.settings-page { display: block; }
+
+.bento-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
 }
 
-.settings-section-head h3 { margin: 0; font-size: 15px; font-weight: 600; }
-.settings-section-head p { margin: 4px 0 0; font-size: 12px; color: var(--lg-muted); }
-.settings-muted { margin: 0; font-size: 12px; color: var(--lg-muted); }
-.model-hint { margin: 0; font-size: 11px; color: var(--lg-faint); }
+/* HeroUI Card 浮岛：宽裕内边距、静态暗底、分隔线分区。 */
+#root .bento-card.card {
+  gap: 0;
+  padding: 22px 24px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--surface-secondary);
+  box-shadow: 0 16px 40px -28px rgb(0 0 0 / 0.7);
+}
+#root .bento-wide { grid-column: 1 / -1; }
+#root .bento-appearance { grid-column: span 7; }
+#root .bento-font { grid-column: span 5; }
+#root .bento-language { grid-column: span 5; }
+#root .bento-update { grid-column: span 7; }
+#root .bento-about { grid-column: 1 / -1; }
 
-.settings-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
-.settings-label { font-size: 13px; color: var(--lg-ink); }
+.bento-card-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.bento-heading { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+#root .bento-card-head .card__title { font-size: 15px; font-weight: 600; color: var(--foreground); }
+#root .bento-card-head .card__description { font-size: 12px; color: var(--muted); }
 
-.settings-chips { display: inline-flex; gap: 4px; flex-wrap: wrap; }
-.settings-chip {
+.bento-icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  border-radius: 11px;
+  border: 1px solid rgb(255 255 255 / 0.1);
+}
+.bento-icon svg { width: 18px; height: 18px; }
+.bento-icon-accent { background: rgb(99 102 241 / 0.18); color: #a5b4fc; }
+.bento-icon-violet { background: rgb(139 92 246 / 0.18); color: #c4b5fd; }
+.bento-icon-teal { background: rgb(20 184 166 / 0.16); color: #5eead4; }
+.bento-icon-amber { background: rgb(245 158 11 / 0.16); color: #fcd34d; }
+.bento-icon-slate { background: rgb(148 163 184 / 0.16); color: #cbd5e1; }
+
+#root .bento-divider.separator { margin: 0 0 16px; background: var(--separator); }
+.bento-card-body { display: flex; flex-direction: column; gap: 14px; }
+.bento-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.settings-label { font-size: 13px; font-weight: 500; color: var(--foreground); }
+.settings-section-head h3 { margin: 0; font-size: 15px; font-weight: 600; color: var(--foreground); }
+.settings-section-head p { margin: 4px 0 0; font-size: 12px; color: var(--muted); }
+.settings-muted { margin: 0; font-size: 12px; line-height: 1.6; color: var(--muted); }
+.model-hint { margin: 0; font-size: 11px; color: var(--muted); }
+
+/* 分段胶囊：外观三态与语言。 */
+.bento-segments {
   display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  border: 1px solid var(--lg-line);
-  border-radius: var(--lg-radius-control);
-  background: var(--lg-fill-control);
-  color: var(--lg-ink-2);
+  gap: 3px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.04);
+}
+#root .bento-segment.button {
+  min-height: 32px;
+  padding: 5px 14px;
+  border-radius: 999px;
   font-size: 12px;
-  cursor: pointer;
+  font-weight: 500;
+  color: var(--muted);
+  transition: background-color 160ms ease, color 160ms ease;
 }
-.settings-chip:hover { background: var(--lg-fill-control-hover); color: var(--lg-ink); }
-.settings-chip.active {
-  border-color: var(--lg-line-bright);
-  background: var(--lg-fill-accent-soft);
-  color: var(--lg-ink);
-  font-weight: 600;
-}
+#root .bento-segment.button:hover { color: var(--foreground); }
+#root .bento-segment.button.active { font-weight: 600; box-shadow: 0 6px 18px -8px rgb(99 102 241 / 0.85); }
 
-.skin-swatch {
-  width: 12px;
-  height: 12px;
-  flex: 0 0 12px;
-  border-radius: 50%;
-  border: 1px solid var(--lg-line-bright);
-}
-.skin-swatch-liquid-glass { background: conic-gradient(from 210deg, #2f80f0, #8cc7ff, #eef4ff, #2f80f0); }
-.skin-swatch-neon { background: conic-gradient(from 210deg, #22d3ee, #f472b6, #22d3ee); }
-.skin-swatch-silver { background: conic-gradient(from 210deg, #7dd3fc, #a3e635, #7dd3fc); }
-.skin-swatch-rose { background: conic-gradient(from 210deg, #d21c72, #a21caf, #d21c72); }
+.appearance-quick { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid var(--border); border-radius: 999px; }
+#root .quick-mode.button { width: 28px; height: 28px; min-width: 28px; padding: 0; border-radius: 999px; color: var(--muted); }
+#root .quick-mode.button svg { width: 15px; height: 15px; }
+#root .quick-mode.button.active,
+#root .quick-mode.gradient-primary.button { color: #ffffff; }
 
-.settings-select,
-.settings-input {
-  border: 1px solid var(--lg-line);
-  border-radius: 12px;
-  background: var(--lg-fill-control);
-  color: var(--lg-ink);
-  padding: 8px 12px;
+/* HeroUI Switch 与 Select。 */
+#root .bento-switch.switch .switch__control { width: 40px; height: 22px; }
+#root .bento-select.select { min-width: 220px; }
+#root .bento-select .select__trigger {
+  min-height: 38px;
+  border-radius: 10px;
+  border-color: var(--border);
+  background: rgb(255 255 255 / 0.05);
+  color: var(--foreground);
   font-size: 13px;
-  outline: none;
 }
-.settings-select:focus,
-.settings-input:focus { border-color: var(--lg-accent); }
 
 /* 默认模型区。 */
 .model-default {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 12px 14px;
-  border: 1px solid var(--lg-line-hair);
+  gap: 8px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
   border-radius: 14px;
-  background: var(--lg-fill-row);
+  background: var(--surface-tertiary);
 }
-.model-default h4 { margin: 0; font-size: 13px; }
+.model-default h4 { margin: 0; font-size: 13px; color: var(--foreground); }
 .model-default-row { display: flex; gap: 8px; flex-wrap: wrap; }
-.model-default-row .settings-select { flex: 1; min-width: 220px; }
 
 /* provider 行。 */
 .model-group { display: flex; flex-direction: column; gap: 6px; }
-.model-group-title { font-size: 11px; letter-spacing: 0.04em; color: var(--lg-faint); padding: 6px 2px 0; }
+.model-group-title { font-size: 11px; letter-spacing: 0.04em; color: var(--muted); padding: 6px 2px 0; }
 
-.model-row { border: 1px solid var(--lg-line-hair); border-radius: 14px; background: var(--lg-fill-row); }
+.model-row { border: 1px solid var(--border); border-radius: 14px; background: var(--surface-tertiary); }
 .model-row-main {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   width: 100%;
-  padding: 10px 14px;
+  padding: 11px 14px;
   border: 0;
   border-radius: 14px;
   background: transparent;
@@ -95,42 +126,51 @@
   text-align: left;
   cursor: pointer;
 }
-.model-row-main:hover { background: var(--lg-fill-subtle); }
-.model-row-name { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-.model-name { font-size: 13px; color: var(--lg-ink); }
-.model-id { font-size: 11px; color: var(--lg-faint); }
+.model-row-main:hover { background: rgb(255 255 255 / 0.05); }
+.model-row-name { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.model-name { font-size: 13px; color: var(--foreground); }
+.model-id { font-size: 11px; color: var(--muted); }
 .model-row-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
-.model-chevron { color: var(--lg-muted); font-size: 11px; }
+.model-chevron { color: var(--muted); font-size: 11px; }
 
 .model-tag {
   display: inline-flex;
   align-items: center;
   padding: 2px 8px;
-  border: 1px solid var(--lg-line-hair);
-  border-radius: var(--lg-radius-control);
-  background: var(--lg-fill-subtle);
-  color: var(--lg-ink-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.05);
+  color: var(--muted);
   font-size: 11px;
   white-space: nowrap;
 }
-.model-tag-ok { color: var(--lg-ok); border-color: rgba(13, 122, 92, 0.3); }
-.model-tag-warn { color: #8a5a00; border-color: rgba(138, 90, 0, 0.3); }
-.model-tag-danger { color: var(--lg-danger); border-color: rgba(180, 35, 24, 0.3); }
-
-:root[data-skin='neon'] .tag-warn,
-:root[data-skin='silver'] .model-tag-warn { color: #fbbf24; border-color: rgba(251, 191, 36, 0.32); }
+.model-tag-ok { color: #6ee7b7; border-color: rgb(52 211 153 / 0.3); }
+.model-tag-warn { color: #fcd34d; border-color: rgb(251 191 36 / 0.3); }
+.model-tag-danger { color: #fca5a5; border-color: rgb(248 113 113 / 0.3); }
 
 .model-editor {
   display: flex;
   flex-direction: column;
   gap: 10px;
   padding: 4px 14px 14px;
-  border-top: 1px solid var(--lg-line-hair);
+  border-top: 1px solid var(--separator);
 }
 .model-field { display: flex; flex-direction: column; gap: 6px; }
-.model-label { font-size: 12px; color: var(--lg-muted); }
+.model-label { font-size: 12px; color: var(--muted); }
 .model-key-row { display: flex; gap: 8px; flex-wrap: wrap; }
-.model-key-row .settings-input { flex: 1; min-width: 180px; }
+
+.settings-select,
+.settings-input {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgb(255 255 255 / 0.05);
+  color: var(--foreground);
+  padding: 8px 12px;
+  font-size: 13px;
+  outline: none;
+}
+.settings-select:focus,
+.settings-input:focus { border-color: var(--accent); }
 
 .model-model-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .model-model-row {
@@ -138,10 +178,17 @@
   align-items: center;
   gap: 8px;
   padding: 6px 10px;
-  border: 1px solid var(--lg-line-hair);
+  border: 1px solid var(--border);
   border-radius: 10px;
-  background: var(--lg-fill-subtle);
+  background: rgb(255 255 255 / 0.04);
   font-size: 12px;
 }
 .model-model-row .model-name { flex: 1; }
 .model-model-row .pill { padding: 4px 12px; font-size: 11px; }
+
+@media (max-width: 1000px) {
+  #root .bento-appearance,
+  #root .bento-font,
+  #root .bento-language,
+  #root .bento-update { grid-column: 1 / -1; }
+}
