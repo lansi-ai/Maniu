@@ -2834,6 +2834,18 @@ tracks:
       inferred: false
       note: "C 级提示词口径修复（用户签核后本窗直修，记录原因），来源是 T-250 走查发现靶 4 需求标题为文档名（项目需求概要 V0.1）而靶 3 旧链为业务一句话：T-249 新建链把提案标题当需求标题且提示词未约束命名。改 buildRequirementCreatePrompt 加标题口径行（需求标题即 proposal title 用一句话业务目标、不用文档名、文档标题留正文 H1），补提示词测试钉住；不改 kernel（createRequirement 仍取 proposal.title）、不改存量靶仓数据。验收 typecheck、定向 vitest（intake-prompts）、改动文件 oxlint。2026-11-18 10:50 登记并自修。2026-11-18 10:55 收口：新建提示词加标题口径行并补两条钉住断言；typecheck 五项、intake-prompts 十三例、oxlint 零过；已提交主线。存量靶仓数据不动。"
 
+    - id: T-253
+      title: 需求详情页聚焦评审与去冗余（九条反馈）
+      status: doing
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-18'
+      date: '2026-11-18'
+      dep: [T-252]
+      inferred: false
+      note: "A 级混合改动（kernel 评审门禁 + client 展示），来源是用户 2026-11-18 对需求详情页的九条反馈，逐条口径如下。一 标题看不懂要简短，立项与新建提示词把标题口径收紧为短业务短语（建议不超过 16 字，去掉场景与手段细节），文档标题仍留正文 H1，不改存量数据。二 详情页删除候选做法与推荐两个 section，kernel 的 options 与 recommendation 字段及提示词不动，只去展示。三 删除讨论历史 section 与相关读取逻辑。四 评审门禁，kernel 的 requirement_review_draft 增加检查，若最新正文版本快照时刻不晚于上一轮评审时刻（上一轮指出的修改未应用），拒绝追加下一轮评审并给可读提示，避免对未改动正文反复评审；监督裁决，不改 schema、用版本快照与评审时间戳比较实现，用户可纠偏。五 评审报告结构化，评审提示词要求报告含摘要、结论与按高/中/低分级的待改项（每项写位置与可执行建议），详情页把摘要与待改项渲染成直观卡片、优先级用徽标；report 仍是完整 Markdown，不新增 schema 字段，渲染层解析固定小节标题。六 阶段进度 chips 移除关联任务项，关联任务只在独立 section 保留。七 评审 chip 本身可点击打开报告，去掉右侧独立的打开报告按钮。八 所有时间戳统一格式化为可读格式。九 整页样式优化，收紧留白、突出操作栏与状态、报告卡片层次更清晰。门禁 typecheck 五项、kernel 与 packages/lcoder vitest、改动文件 oxlint、i18n、test:docs；单测覆盖评审门禁未改稿拒绝与改稿后放行、时间格式化、结构化报告解析、各 section 移除；真机最多一次启动做定向 DOM 断言，不截图。工作树 pool-slot-1 到 lcoder/t253-detail-review，端口 9822 与 9829 与 9830。2026-11-18 监督窗口登记。create_chat_session 派工工具在本会话工具集不可用，按纪律改由独立实现会话在预热工作树完成，监督窗口独立复跑门禁与真机断言，原因记此。"
+
 
 milestones:
 - name: MVP-0 工作台本地跑通
