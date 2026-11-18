@@ -199,6 +199,7 @@ export const EN: Readonly<Record<MessageKey, string>> = {
   'requirement.splitNote': 'The engineering manager session performs the split; a human confirms each role suggestion through /task_assign, while approval, release, and close use kernel commands.',
   'task.requirementFilter': 'Requirement {id}',
   'task.clearRequirementFilter': 'Clear filter',
+  'task.emptyColumn': 'No tasks in this column yet',
   'intake.sessionTitle': 'Requirement analysis',
   'intake.roleName': 'Requirements analyst',
   'intake.resultBackground': 'The intake session runs in the background; progress and the confirm entry live on the requirements page floating card, and filed requirements appear in the list.',

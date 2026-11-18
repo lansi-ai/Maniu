@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import type { JSX } from 'react'
+import { Button, Chip, Separator } from '@heroui/react'
 import type { ProjectScope } from '../workspace/use-workspaces.ts'
 import type { SpecProjection } from '../spec/load.ts'
 import type { RequirementDocRow, RequirementReviewRow, RequirementSplitPlanEntryRow } from '../spec/rows.ts'
@@ -42,6 +43,22 @@ const PRIORITY_KEY: Readonly<Record<ReviewPriority, MessageKey>> = {
   high: 'requirement.priority.high',
   medium: 'requirement.priority.medium',
   low: 'requirement.priority.low',
+}
+
+/** 状态徽标的语义色；state-* 类名保留给现有选择器。 */
+const STATE_CHIP_COLOR: Readonly<Record<DetailState, 'accent' | 'success' | 'warning' | 'default'>> = {
+  draft: 'accent',
+  confirmed: 'success',
+  released: 'warning',
+  closed: 'default',
+  unknown: 'default',
+}
+
+/** 评审待改项优先级的语义色。 */
+const PRIORITY_CHIP_COLOR: Readonly<Record<ReviewPriority, 'danger' | 'warning' | 'default'>> = {
+  high: 'danger',
+  medium: 'warning',
+  low: 'default',
 }
 
 /** 内联评审报告的读取状态。 */
@@ -224,105 +241,111 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
         <div className="requirement-hero">
           <div className="requirement-title-row">
             <h2 className="requirement-title" data-testid="requirement-detail-title">{row.title ?? row.id}</h2>
-            <span className={`tag state-badge state-${state}`} data-testid="requirement-state-badge">
+            <Chip
+              size="sm"
+              variant="soft"
+              color={STATE_CHIP_COLOR[state]}
+              className={`tag state-badge state-${state}`}
+              data-testid="requirement-state-badge"
+            >
               {requirementStateLabel(row.state)}
-            </span>
+            </Chip>
           </div>
           <span className="mono requirement-id" data-testid="requirement-detail-id">{row.id}</span>
           <p className="requirement-guide" data-testid="requirement-guide">{t(GUIDE_KEY[state])}</p>
           <div className="action-row requirement-ops" data-testid="requirement-actions">
             {state === 'draft' && (
               <>
-                <button
-                  type="button"
-                  className="pill"
+                <Button
+                  variant="secondary"
+                  size="sm"
                   data-testid="requirement-detail-review"
-                  disabled={busy !== null}
-                  onClick={() => { void startOp('review', props.onReview) }}
+                  isDisabled={busy !== null}
+                  onPress={() => { void startOp('review', props.onReview) }}
                 >
                   {t('requirement.opReview')}
-                </button>
-                <button
-                  type="button"
-                  className="pill"
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
                   data-testid="requirement-detail-revise"
-                  disabled={busy !== null}
-                  onClick={() => { void startOp('revise', props.onRevise) }}
+                  isDisabled={busy !== null}
+                  onPress={() => { void startOp('revise', props.onRevise) }}
                 >
                   {t('requirement.opRevise')}
-                </button>
-                <button
-                  type="button"
-                  className="pill pill-accent"
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
                   data-testid="requirement-approve"
-                  disabled={!canApprove || busy !== null}
-                  title={approveReason}
-                  onClick={() => { void execute('approve', `/requirement_approve ${row.id}`) }}
+                  isDisabled={!canApprove || busy !== null}
+                  ref={(node) => { if (node !== null) node.title = approveReason ?? '' }}
+                  onPress={() => { void execute('approve', `/requirement_approve ${row.id}`) }}
                 >
                   {t('requirement.opApprove')}
-                </button>
+                </Button>
               </>
             )}
             {state === 'confirmed' && related.length === 0 && (
-              <button
-                type="button"
-                className="pill pill-accent"
+              <Button
+                variant="primary"
+                size="sm"
                 data-testid="requirement-split"
-                disabled={busy !== null}
-                onClick={() => { void startOp('split', props.onSplit) }}
+                isDisabled={busy !== null}
+                onPress={() => { void startOp('split', props.onSplit) }}
               >
                 {t('requirement.opSplit')}
-              </button>
+              </Button>
             )}
             {(state === 'confirmed' || state === 'released' || state === 'closed') && (
-              <button
-                type="button"
-                className="pill"
+              <Button
+                variant="secondary"
+                size="sm"
                 data-testid="requirement-detail-create-based"
-                disabled={busy !== null}
-                onClick={() => { void startOp('createBased', props.onCreateBased) }}
+                isDisabled={busy !== null}
+                onPress={() => { void startOp('createBased', props.onCreateBased) }}
               >
                 {t('requirement.opCreateBased')}
-              </button>
+              </Button>
             )}
             {(state === 'confirmed' || state === 'released' || state === 'closed') && related.length > 0 && (
-              <button type="button" className="pill" data-testid="requirement-detail-tasks" onClick={props.onOpenTasks}>
+              <Button variant="ghost" size="sm" data-testid="requirement-detail-tasks" onPress={props.onOpenTasks}>
                 {t('requirement.opTasks')}
-              </button>
+              </Button>
             )}
             {state === 'confirmed' && (
-              <button
-                type="button"
-                className="pill"
+              <Button
+                variant="primary"
+                size="sm"
                 data-testid="requirement-release"
-                disabled={busy !== null}
-                onClick={() => { void execute('release', `/requirement_release ${row.id}`) }}
+                isDisabled={busy !== null}
+                onPress={() => { void execute('release', `/requirement_release ${row.id}`) }}
               >
                 {t('requirement.opRelease')}
-              </button>
+              </Button>
             )}
             {(state === 'draft' || state === 'confirmed' || state === 'released') && (
-              <button
-                type="button"
-                className="pill"
+              <Button
+                variant="secondary"
+                size="sm"
                 data-testid="requirement-close"
-                disabled={busy !== null}
-                onClick={() => { void execute('close', `/requirement_close ${row.id}`) }}
+                isDisabled={busy !== null}
+                onPress={() => { void execute('close', `/requirement_close ${row.id}`) }}
               >
                 {t('requirement.opClose')}
-              </button>
+              </Button>
             )}
-            <button type="button" className="pill" data-testid="requirement-detail-reload" onClick={props.onReload}>
+            <Button variant="ghost" size="sm" data-testid="requirement-detail-reload" onPress={props.onReload}>
               {t('requirement.opReload')}
-            </button>
-            <button
-              type="button"
-              className="pill"
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
               data-testid="requirement-open-reader"
-              onClick={() => { props.onOpenReader(`.spec/requirements/${row.id}.md`) }}
+              onPress={() => { props.onOpenReader(`.spec/requirements/${row.id}.md`) }}
             >
               {t('requirement.opOpenBody')}
-            </button>
+            </Button>
           </div>
           {state === 'draft' && approveReason !== undefined && (
             <p className="detail-note" data-testid="requirement-approve-hint">{approveReason}</p>
@@ -340,7 +363,7 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
         <h4>{t('requirement.timeline')}</h4>
         <ul className="timeline-chips">
           <li data-testid="requirement-timeline-opened">
-            <span className="tag">{t('requirement.timelineOpened')}</span>
+            <Chip size="sm" variant="soft" className="tag">{t('requirement.timelineOpened')}</Chip>
             <span className="time">{formatTimestamp(row.openedAt ?? '—')}</span>
           </li>
           {row.reviews.map(review => (
@@ -360,7 +383,7 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                 props.onOpenReader(specPath(review.report))
               }}
             >
-              <span className="tag">{t('requirement.timelineReview', { round: review.round })}</span>
+              <Chip size="sm" variant="soft" color="accent" className="tag">{t('requirement.timelineReview', { round: review.round })}</Chip>
               <span className="time">{formatTimestamp(review.at)}</span>
             </li>
           ))}
@@ -369,25 +392,25 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
           )}
           {row.versions.map(version => (
             <li key={`version-${String(version.n)}`} data-testid="requirement-timeline-version" data-version={version.n}>
-              <span className="tag">{t('requirement.timelineVersion', { n: version.n })}</span>
+              <Chip size="sm" variant="soft" className="tag">{t('requirement.timelineVersion', { n: version.n })}</Chip>
               <span className="time">{formatTimestamp(version.at)}</span>
-              <button
-                type="button"
-                className="link-button"
+              <Button
+                variant="ghost"
+                size="sm"
                 data-testid="requirement-open-version"
                 data-version={version.n}
                 data-path={`.spec/requirements/${row.id}/versions/v${String(version.n)}.md`}
-                onClick={() => { props.onOpenReader(`.spec/requirements/${row.id}/versions/v${String(version.n)}.md`) }}
+                onPress={() => { props.onOpenReader(`.spec/requirements/${row.id}/versions/v${String(version.n)}.md`) }}
               >
                 {t('requirement.openSnapshot')}
-              </button>
+              </Button>
             </li>
           ))}
           {row.versions.length === 0 && (
             <li className="empty" data-testid="requirement-timeline-version-empty">{t('requirement.noVersions')}</li>
           )}
           <li data-testid="requirement-timeline-approved">
-            <span className="tag">{t('requirement.timelineApproved')}</span>
+            <Chip size="sm" variant="soft" className="tag">{t('requirement.timelineApproved')}</Chip>
             <span className="time">{formatTimestamp(row.approvedAt ?? '—')}</span>
             <span>{row.approvedVersion === undefined
               ? t('requirement.notApproved')
@@ -397,18 +420,19 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
       </section>
 
       <section className="detail-section" data-testid="requirement-document">
+        <Separator className="detail-divider" />
         <div className="detail-drawer-head">
           <h4>{t('requirement.bodyTitle')}</h4>
           {!bodyEmpty && preview.truncated && (
-            <button
-              type="button"
-              className="pill"
+            <Button
+              variant="ghost"
+              size="sm"
               data-testid="requirement-body-toggle"
               aria-expanded={bodyExpanded}
-              onClick={() => { setBodyExpanded(current => !current) }}
+              onPress={() => { setBodyExpanded(current => !current) }}
             >
               {bodyExpanded ? t('requirement.collapse') : t('requirement.expand')}
-            </button>
+            </Button>
           )}
         </div>
         {bodyEmpty
@@ -423,6 +447,7 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
         data-testid="requirement-review-report"
         {...(latestReview === null ? {} : { 'data-round': latestReview.round })}
       >
+        <Separator className="detail-divider" />
         {latestReview === null || reportPath === null
           ? (
             <>
@@ -435,23 +460,23 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
               <div className="detail-drawer-head">
                 <h4>{t('requirement.reportTitle', { round: latestReview.round })}</h4>
                 <div className="row-actions">
-                  <button
-                    type="button"
-                    className="pill"
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     data-testid="requirement-report-open"
-                    onClick={() => { props.onOpenReader(reportPath) }}
+                    onPress={() => { props.onOpenReader(reportPath) }}
                   >
                     {t('requirement.openReport')}
-                  </button>
-                  <button
-                    type="button"
-                    className="pill"
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     data-testid="requirement-report-toggle"
                     aria-expanded={reportExpanded}
-                    onClick={() => { setReportExpanded(current => !current) }}
+                    onPress={() => { setReportExpanded(current => !current) }}
                   >
                     {reportExpanded ? t('requirement.collapse') : t('requirement.expand')}
-                  </button>
+                  </Button>
                 </div>
               </div>
               <div className="requirement-report-summary" data-testid="requirement-report-summary">
@@ -484,9 +509,15 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                               data-priority={todo.priority ?? ''}
                             >
                               {todo.priority !== undefined && (
-                                <span className={`priority-badge priority-${todo.priority}`} data-testid="requirement-report-priority">
+                                <Chip
+                                  size="sm"
+                                  variant="soft"
+                                  color={PRIORITY_CHIP_COLOR[todo.priority]}
+                                  className={`priority-badge priority-${todo.priority}`}
+                                  data-testid="requirement-report-priority"
+                                >
                                   {t(PRIORITY_KEY[todo.priority])}
-                                </span>
+                                </Chip>
                               )}
                               <span className="requirement-todo-text">{todo.text}</span>
                             </li>
@@ -514,15 +545,15 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                         {t('requirement.timelineReview', { round: review.round })}
                         <span className="time">{formatTimestamp(review.at)}</span>
                       </span>
-                      <button
-                        type="button"
-                        className="link-button"
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         data-testid="requirement-open-report"
                         data-path={specPath(review.report)}
-                        onClick={() => { props.onOpenReader(specPath(review.report)) }}
+                        onPress={() => { props.onOpenReader(specPath(review.report)) }}
                       >
                         {t('requirement.openReport')}
-                      </button>
+                      </Button>
                     </li>
                   ))}
                 </ul>
@@ -533,6 +564,7 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
 
       {plan !== undefined && (
         <section className="detail-section" data-testid="requirement-split-plan">
+          <Separator className="detail-divider" />
           <h4>{t('requirement.splitPlanTitle')}</h4>
           <p className="detail-note">{t('requirement.splitPlanAt', { at: formatTimestamp(plan.at) })}</p>
           <div className="table-wrap">
@@ -557,30 +589,30 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                       <td>{entry.reason ?? '—'}</td>
                       <td>
                         {ignored.has(entry.task)
-                          ? <span className="tag" data-testid="requirement-split-plan-status" data-ok="ignored">{t('requirement.roleIgnored')}</span>
+                          ? <Chip size="sm" variant="soft" className="tag" data-testid="requirement-split-plan-status" data-ok="ignored">{t('requirement.roleIgnored')}</Chip>
                           : outcome === undefined
                             ? (
                               <div className="row-actions">
-                                <button
-                                  type="button"
-                                  className="pill"
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
                                   data-testid="requirement-split-plan-confirm"
                                   data-task-id={entry.task}
-                                  disabled={busy !== null}
-                                  onClick={() => { void assign(entry) }}
+                                  isDisabled={busy !== null}
+                                  onPress={() => { void assign(entry) }}
                                 >
                                   {t('requirement.confirmRole')}
-                                </button>
-                                <button
-                                  type="button"
-                                  className="link-button"
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
                                   data-testid="requirement-split-plan-ignore"
                                   data-task-id={entry.task}
-                                  disabled={busy !== null}
-                                  onClick={() => { ignore(entry.task) }}
+                                  isDisabled={busy !== null}
+                                  onPress={() => { ignore(entry.task) }}
                                 >
                                   {t('requirement.ignoreRole')}
-                                </button>
+                                </Button>
                               </div>
                             )
                             : (
@@ -594,26 +626,26 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                             )}
                         {!done && outcome !== undefined && (
                           <div className="row-actions">
-                            <button
-                              type="button"
-                              className="link-button"
+                            <Button
+                              variant="ghost"
+                              size="sm"
                               data-testid="requirement-split-plan-retry"
                               data-task-id={entry.task}
-                              disabled={busy !== null}
-                              onClick={() => { void assign(entry) }}
+                              isDisabled={busy !== null}
+                              onPress={() => { void assign(entry) }}
                             >
                               {t('requirement.confirmRole')}
-                            </button>
-                            <button
-                              type="button"
-                              className="link-button"
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
                               data-testid="requirement-split-plan-ignore"
                               data-task-id={entry.task}
-                              disabled={busy !== null}
-                              onClick={() => { ignore(entry.task) }}
+                              isDisabled={busy !== null}
+                              onPress={() => { ignore(entry.task) }}
                             >
                               {t('requirement.ignoreRole')}
-                            </button>
+                            </Button>
                           </div>
                         )}
                       </td>
@@ -626,21 +658,22 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
           {planDone && (
             <p className="detail-note" data-testid="requirement-split-plan-done">
               <span>{t('requirement.splitPlanDone')}</span>
-              <button type="button" className="link-button" data-testid="requirement-split-plan-tasks" onClick={props.onOpenTasks}>
+              <Button variant="ghost" size="sm" data-testid="requirement-split-plan-tasks" onPress={props.onOpenTasks}>
                 {t('requirement.splitPlanGoTasks')}
-              </button>
+              </Button>
             </p>
           )}
         </section>
       )}
 
       <section className="detail-section" data-testid="requirement-related">
+        <Separator className="detail-divider" />
         <div className="detail-drawer-head">
           <h4>关联任务</h4>
           {related.length > 0 && (
-            <button type="button" className="pill" data-testid="requirement-view-tasks" onClick={props.onOpenTasks}>
+            <Button variant="ghost" size="sm" data-testid="requirement-view-tasks" onPress={props.onOpenTasks}>
               {t('requirement.opTasks')}
-            </button>
+            </Button>
           )}
         </div>
         {related.length === 0
@@ -649,9 +682,9 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
             <ul className="plain-list compact">
               {related.map(task => (
                 <li key={task.id}>
-                  <button type="button" className="link-button" data-testid="requirement-related-task" onClick={() => { props.onOpenTask(task.id) }}>
+                  <Button variant="ghost" size="sm" data-testid="requirement-related-task" onPress={() => { props.onOpenTask(task.id) }}>
                     <span className="mono">{task.id}</span> {task.title}
-                  </button>
+                  </Button>
                 </li>
               ))}
             </ul>

@@ -207,8 +207,10 @@
   color: var(--foreground);
 }
 .task-card.active { border-color: color-mix(in oklab, var(--accent) 50%, transparent); box-shadow: 0 0 0 2px color-mix(in oklab, var(--accent) 16%, transparent), var(--surface-shadow); }
+/* 任务卡三级排版：编号/等级 → 加粗标题 → 状态/轨/岗位语义标签。 */
 .task-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.task-card-title { font-size: 13px; line-height: 1.42; font-weight: 550; }
+.task-card-id { font-size: 11px; color: var(--muted); }
+.task-card-title { font-size: 13px; line-height: 1.42; font-weight: 600; color: var(--foreground); }
 .task-card-tags { display: flex; flex-wrap: wrap; gap: 4px; }
 
 /* 任务速览抽屉。 */
@@ -285,6 +287,9 @@
   flex-direction: column;
   overflow: hidden;
   z-index: 3;
+  border-left: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: var(--overlay-shadow);
 }
 
 /* 放大态由外壳测量宿主页面的可见矩形后内联定位，这里只收掉右、下锚点。 */
@@ -296,12 +301,26 @@
 .detail-drawer-leading { min-width: 0; }
 .detail-drawer-controls { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .detail-drawer-body { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 0 18px 24px; }
-.detail-drawer-icon { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 0; }
+.detail-drawer-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  padding: 0;
+  border-radius: 8px;
+}
+.detail-drawer-icon svg { width: 15px; height: 15px; }
 .detail-drawer h3 { margin: 8px 0 4px; font-size: 17px; line-height: 1.4; }
 .detail-section { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--separator); }
 .detail-section h4 { margin: 0 0 8px; font-size: 13px; color: var(--muted); }
 .detail-section h5 { margin: 10px 0 4px; font-size: 12px; color: var(--muted); }
 .detail-section + .detail-section { margin-top: 18px; }
+/* 带 Separator 的分区不再叠边框，靠语义分隔线区分正文、报告与关联信息。 */
+.detail-section:has(> .detail-divider) { border-top: 0; padding-top: 0; }
+.detail-divider { margin-bottom: 10px; border-color: var(--separator); }
+.task-detail-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 
 .plain-list.compact { gap: 4px; }
 .plain-list.compact li { padding: 5px 8px; }
@@ -714,18 +733,45 @@
   background: color-mix(in oklab, var(--surface-secondary) 88%, transparent);
   overflow: hidden;
 }
-.task-board-bento .board-column [data-slot='card-header'] { padding: 12px 12px 8px; }
+/* 列头横排：左侧状态圆点 + 列名，右侧计数 Chip，不再竖排堆叠。 */
+.task-board-bento .board-column [data-slot='card-header'] {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 12px 8px;
+}
 .task-board-bento .board-column [data-slot='card-title'] { font-size: 13px; }
 .task-board-bento .board-column [data-slot='card-content'] { padding: 4px 8px 10px; }
+.board-head-leading { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.board-dot { width: 7px; height: 7px; flex: 0 0 7px; border-radius: 50%; background: var(--muted); }
+.board-dot-drafting, .board-dot-closed { background: var(--muted); }
+.board-dot-discussion { background: var(--accent); }
+.board-dot-contracted { background: var(--warning); }
+.board-dot-implementing, .board-dot-verifying { background: var(--success); }
+.board-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 24px 8px;
+  color: var(--muted);
+  text-align: center;
+}
+.board-empty svg { width: 20px; height: 20px; }
+.board-empty p { margin: 0; font-size: 12px; }
 .task-table [data-slot='table-row'] { cursor: pointer; }
 .task-table [data-slot='table-row'].selected { background: color-mix(in oklab, var(--accent) 12%, transparent); }
 
 /* ── T-257 批次 2：HeroUI v3 需求页与磨砂滑出详情 ─────────────────── */
 .requirements-head { align-items: center; }
-.requirements-toolbar { gap: 10px; }
-.req-search { width: 220px; }
-.req-state-tabs [role='tablist'] { border-radius: 999px; padding: 3px; background: var(--surface-tertiary); gap: 2px; }
-.req-state-tabs [role='tab'] { border-radius: 999px; font-size: 12px; }
+.requirements-toolbar { gap: 10px; flex-wrap: wrap; min-width: 0; }
+.req-search { width: 220px; max-width: 100%; }
+.req-state-tabs { max-width: 100%; }
+.req-state-tabs [role='tablist'] { border-radius: 999px; padding: 3px; background: var(--surface-tertiary); gap: 2px; flex-wrap: wrap; }
+.req-state-tabs [role='tab'] { border-radius: 999px; font-size: 12px; white-space: nowrap; flex: 0 0 auto; }
 .tab-count {
   margin-left: 6px;
   padding: 0 6px;

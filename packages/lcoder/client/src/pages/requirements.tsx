@@ -689,7 +689,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
           >
             <Tabs.List>
               {stateTabs.map(item => (
-                <Tabs.Tab key={item.id} id={item.id}>
+                <Tabs.Tab key={item.id} id={item.id} className="whitespace-nowrap shrink-0">
                   {item.label}<span className="tab-count">{item.count}</span>
                 </Tabs.Tab>
               ))}

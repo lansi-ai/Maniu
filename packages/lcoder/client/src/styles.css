@@ -399,14 +399,19 @@ html body {
   align-items: center;
   gap: 8px;
   flex: 0 0 auto;
-  height: 44px;
+  height: 52px;
   padding: 0 16px;
+  border: 1px solid var(--border);
   border-radius: 14px;
+  background: var(--surface);
+  box-shadow: var(--surface-shadow);
   color: var(--muted);
   font-size: 12px;
 }
 
 .chat-head span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-head [data-testid='active-session'] { color: var(--foreground); font-size: 14px; font-weight: 600; }
+.chat-head .rename-action { gap: 6px; }
 
 .messages {
   flex: 1;
@@ -445,7 +450,25 @@ html body {
 
 .message-line[data-kind='user'] { justify-content: flex-end; }
 
-.message.assistant { align-self: flex-start; color: var(--foreground); }
+/* 助手正文走 HeroUI 语义表面卡：浅色由官方 --surface 给白卡与投影，深色随官方 token 自动转深。 */
+.message.assistant {
+  align-self: flex-start;
+  border: 1px solid var(--border);
+  background: color-mix(in oklab, var(--surface) 78%, var(--surface-secondary));
+  box-shadow: var(--surface-shadow);
+  color: var(--foreground);
+}
+/* 左侧柔和标识条，和右侧强调色用户气泡区分；纯装饰，不占正文文本。 */
+.message.assistant::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 12px;
+  bottom: 12px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: color-mix(in oklab, var(--accent) 55%, transparent);
+}
 
 /* 复制按钮：图标化，悬停或键盘聚焦时露出；复制成功换勾并闪一下。 */
 .copy-button {
@@ -589,7 +612,7 @@ html body {
 
 /* 输入区焦点沿用登录页口径：整条胶囊给中性环，控件本身不再画蓝色 outline。 */
 .composer:focus-within {
-  outline: 2px solid color-mix(in srgb, var(--foreground) 22%, transparent);
+  outline: 2px solid color-mix(in oklab, var(--accent) 55%, transparent);
   outline-offset: 2px;
 }
 
@@ -629,12 +652,20 @@ html body {
 .message .markdown-body { font-size: 14px; color: var(--foreground); }
 .message .markdown-body p:first-child { margin-top: 0; }
 .message .markdown-body p:last-child { margin-bottom: 0; }
+/* 聊天正文里的代码块、引用与表格按语义表面重排，明暗双主题沿用官方 token。 */
+.message .markdown-body pre { background: var(--field-background); box-shadow: var(--surface-shadow); }
+.message .markdown-body blockquote { border-left-color: var(--accent); background: var(--field-background); }
+.message .markdown-body th { background: var(--field-background); }
 
+/* 过程组是一枚语义卡片行：默认折叠，组头独占一行，明细留在 DOM 里靠 hidden 收起。 */
 .process-group {
   align-self: flex-start;
   width: min(86%, 760px);
   padding: 8px 12px;
+  border: 1px solid var(--border);
   border-radius: 16px;
+  background: color-mix(in oklab, var(--surface) 82%, var(--surface-secondary));
+  box-shadow: var(--surface-shadow);
   font-size: 12px;
 }
 .process-head {
@@ -644,11 +675,14 @@ html body {
   width: 100%;
   padding: 2px 0;
   border: 0;
+  border-radius: 8px;
   background: transparent;
   color: var(--muted);
   cursor: pointer;
   text-align: left;
 }
+.process-head:hover { color: var(--foreground); }
+.process-head:focus-visible { outline: 2px solid color-mix(in oklab, var(--accent) 55%, transparent); outline-offset: 2px; }
 .process-title { color: var(--foreground); }
 .process-sub { color: var(--muted); }
 .process-chevron { margin-left: auto; color: var(--muted); }
@@ -690,8 +724,17 @@ html body {
   color: var(--foreground);
 }
 
-/* 输入区：附件轨道 + 一行输入 + 模型与用量。 */
-.composer { flex-direction: column; align-items: stretch; gap: 8px; padding: 10px 12px 8px; }
+/* 输入区浮岛卡片：官方表面 + 字段底色，聚焦环沿用中性 token。 */
+.composer {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  padding: 10px 12px 8px;
+  border: 1px solid var(--border);
+  background: var(--field-background);
+  box-shadow: var(--surface-shadow);
+}
+.composer textarea { background: var(--surface); border-radius: 8px; padding: 6px 8px; }
 .composer-row { display: flex; align-items: flex-end; gap: 10px; }
 .composer-row textarea { flex: 1; }
 .attach-input { display: none; }

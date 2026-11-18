@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import type { JSX } from 'react'
+import { Button, Chip, Separator } from '@heroui/react'
 import type { SpecProjection } from '../spec/load.ts'
 import type { ContractRow, TaskRow } from '../spec/rows.ts'
 import type { ProjectScope } from '../workspace/use-workspaces.ts'
@@ -69,10 +70,10 @@ export function TaskDetail(props: TaskDetailProps): JSX.Element {
       onClose={props.onClose}
       attributes={{ 'data-task-id': task.id }}
       head={(
-        <div>
+        <div className="task-detail-head">
           <span className="mono">{task.id}</span>
-          <span className="tag">{task.grade}</span>
-          <span className="tag">{STATE_LABELS[task.state] ?? task.state}</span>
+          <Chip size="sm" variant="soft" color="accent">{task.grade}</Chip>
+          <Chip size="sm" variant="soft">{STATE_LABELS[task.state] ?? task.state}</Chip>
         </div>
       )}
     >
@@ -80,11 +81,13 @@ export function TaskDetail(props: TaskDetailProps): JSX.Element {
 
       <section className="detail-section" data-testid="task-description">
         <h4>说明</h4>
+        <Separator className="detail-divider" />
         {task.description.trim() === '' ? <p className="empty">（没有描述）</p> : <div className="markdown-body">{renderMarkdown(task.description)}</div>}
       </section>
 
       <section className="detail-section" data-testid="task-contract-section">
         <h4>契约</h4>
+        <Separator className="detail-divider" />
         {contract === undefined
           ? <p className="empty" data-testid="task-contract-missing">还没有契约（`.spec/contracts/{task.id}.contract.yaml`）。</p>
           : (
@@ -112,6 +115,7 @@ export function TaskDetail(props: TaskDetailProps): JSX.Element {
 
       <section className="detail-section" data-testid="task-scope">
         <h4>范围与证据</h4>
+        <Separator className="detail-divider" />
         <dl className="kv">
           <dt>允许路径</dt><dd data-testid="task-paths">{task.paths.length === 0 ? '—' : task.paths.join('、')}</dd>
           <dt>不可逆动作</dt><dd>{task.irreversible.length === 0 ? '—' : task.irreversible.join('、')}</dd>
@@ -126,6 +130,7 @@ export function TaskDetail(props: TaskDetailProps): JSX.Element {
 
       <section className="detail-section" data-testid="task-deliverable">
         <h4>交付物</h4>
+        <Separator className="detail-divider" />
         {task.deliverable === undefined
           ? <p className="empty">没有交付索引。</p>
           : (
@@ -134,7 +139,7 @@ export function TaskDetail(props: TaskDetailProps): JSX.Element {
               <ul className="plain-list compact">
                 {task.deliverable.docs.map(doc => (
                   <li key={doc}>
-                    <button type="button" className="link-button" data-testid="task-doc" onClick={() => { props.onOpenDoc(doc) }}>{doc}</button>
+                    <Button variant="ghost" size="sm" data-testid="task-doc" onPress={() => { props.onOpenDoc(doc) }}>{doc}</Button>
                   </li>
                 ))}
                 {task.deliverable.commands.map(command => <li key={command}><code>{command}</code></li>)}
@@ -145,6 +150,7 @@ export function TaskDetail(props: TaskDetailProps): JSX.Element {
 
       <section className="detail-section" data-testid="task-attachments">
         <h4>附件</h4>
+        <Separator className="detail-divider" />
         {task.attachments.length === 0
           ? <p className="empty">没有附件。</p>
           : (
@@ -159,6 +165,7 @@ export function TaskDetail(props: TaskDetailProps): JSX.Element {
 
       <section className="detail-section" data-testid="task-schedule">
         <h4>调度建议</h4>
+        <Separator className="detail-divider" />
         <p className="detail-line" data-testid="schedule-verdict" data-verdict={schedule.verdict}>
           判定：<strong>{schedule.verdict}</strong>
           {schedule.chosen === undefined ? '' : ` · ${schedule.chosen.slice(0, 8)}`}
@@ -172,31 +179,32 @@ export function TaskDetail(props: TaskDetailProps): JSX.Element {
             </li>
           ))}
         </ul>
-        <button
-          type="button"
-          className="pill"
+        <Button
+          variant="secondary"
+          size="sm"
           data-testid="schedule-record"
-          disabled={busy !== null}
-          onClick={() => {
+          isDisabled={busy !== null}
+          onPress={() => {
             void execute('schedule', `/task_schedule ${task.id} ${JSON.stringify({ verdict: schedule.verdict, reasons: schedule.reasons })}`)
           }}
         >
           记录调度判定
-        </button>
+        </Button>
         <p className="detail-note">待审批/队列信息不在窄 IPC 面内，判定按会话忙闲与认领历史给出。</p>
       </section>
 
       <section className="detail-section" data-testid="task-actions">
         <h4>动作（命令通道）</h4>
+        <Separator className="detail-divider" />
         <div className="action-row">
-          <button type="button" className="pill" data-testid="task-sign" disabled={busy !== null || contract === undefined} onClick={() => { void execute('sign', `/contract_sign ${task.id}`) }}>签署契约</button>
-          <button type="button" className="pill" data-testid="task-bind" disabled={busy !== null} onClick={() => { void execute('bind', `/task_bind ${task.id}`) }}>认领到当前会话</button>
-          <button type="button" className="pill" data-testid="task-contract" disabled={busy !== null || contract === undefined} onClick={() => { void execute('contract', `/task_contract ${task.id}`) }}>确认契约签约</button>
-          <button type="button" className="pill" data-testid="task-split-ready" disabled={busy !== null} onClick={() => { void execute('ready', `/task_split_ready ${task.id}`) }}>推进到待开发</button>
+          <Button variant="primary" size="sm" data-testid="task-sign" isDisabled={busy !== null || contract === undefined} onPress={() => { void execute('sign', `/contract_sign ${task.id}`) }}>签署契约</Button>
+          <Button variant="secondary" size="sm" data-testid="task-bind" isDisabled={busy !== null} onPress={() => { void execute('bind', `/task_bind ${task.id}`) }}>认领到当前会话</Button>
+          <Button variant="secondary" size="sm" data-testid="task-contract" isDisabled={busy !== null || contract === undefined} onPress={() => { void execute('contract', `/task_contract ${task.id}`) }}>确认契约签约</Button>
+          <Button variant="secondary" size="sm" data-testid="task-split-ready" isDisabled={busy !== null} onPress={() => { void execute('ready', `/task_split_ready ${task.id}`) }}>推进到待开发</Button>
         </div>
         <div className="action-row">
           <input className="search" data-testid="task-role-input" value={role} placeholder="岗位 id" onChange={(event) => { setRole(event.target.value) }} />
-          <button type="button" className="pill" data-testid="task-assign" disabled={busy !== null || role.trim() === ''} onClick={() => { void execute('assign', `/task_assign ${task.id} ${role.trim()}`) }}>分配岗位</button>
+          <Button variant="secondary" size="sm" data-testid="task-assign" isDisabled={busy !== null || role.trim() === ''} onPress={() => { void execute('assign', `/task_assign ${task.id} ${role.trim()}`) }}>分配岗位</Button>
         </div>
         {result !== null && (
           <p className={result.ok ? 'detail-line' : 'problem'} data-testid="task-action-result" data-ok={result.ok ? 'true' : 'false'}>

@@ -290,19 +290,26 @@ export function Composer({
           }}
         />
         {running ? (
-          <button type="button" className="pill" data-testid="stop" onClick={onStop}>
+          <Button
+            className="composer-stop"
+            variant="danger-soft"
+            size="sm"
+            data-testid="stop"
+            onPress={onStop}
+          >
             {t('chat.stop')}
-          </button>
+          </Button>
         ) : null}
-        <button
-          type="button"
-          className="pill pill-accent"
+        <Button
+          className="composer-send"
+          variant="primary"
+          size="sm"
           data-testid="send"
-          disabled={!canSend}
-          onClick={() => { void submit() }}
+          isDisabled={!canSend}
+          onPress={() => { void submit() }}
         >
           {sending ? t('chat.sending') : t('chat.send')}
-        </button>
+        </Button>
       </div>
       <div className="composer-meta">
         <div className="model-chip" data-testid="model-chip" data-source={selection?.source ?? 'none'}>
