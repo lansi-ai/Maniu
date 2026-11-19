@@ -48,6 +48,7 @@ function review(round: number, role?: string): RequirementReview {
     at: '2026-11-17T10:00:00+08:00',
     report: `requirements/REQ-01/reviews/R${String(round)}.md`,
     ...(role === undefined ? {} : { role }),
+    decision: 'rejected',
   }
 }
 

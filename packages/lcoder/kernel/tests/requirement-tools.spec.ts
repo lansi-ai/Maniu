@@ -6,8 +6,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { afterAll, describe, expect, it } from 'vitest'
-import { parse as parseYaml } from 'yaml'
+import { parse as parseYaml, stringify as stringifyYaml } from 'yaml'
 
+import { flowConfigPath } from '../src/kernel/flow-config.js'
 import {
   createRequirement,
   decideRequirementReview,
@@ -45,6 +46,17 @@ function call(spec: string, args: Record<string, unknown>): Promise<Record<strin
 function read(spec: string, id: string): Requirement {
   return Requirement.parse(parseYaml(readFileSync(join(spec, 'requirements', `${id}.yaml`), 'utf8')))
 }
+
+/** 写一份 review 节点按给定岗位配齐的 flow.yaml。 */
+function writeReviewFlow(spec: string, roles: readonly string[] = ['maniu-pm', 'maniu-manager']): void {
+  mkdirSync(spec, { recursive: true })
+  writeFileSync(flowConfigPath(spec), stringifyYaml({
+    nodes: [{ node: 'review', roles: [...roles], auto: true }],
+  }), 'utf8')
+}
+
+/** 带 preset 署名的工具调用上下文。 */
+const asRole = (role: string) => ({ agent: { session: { header: { agentPreset: role } } } })
 
 const CONTENT = '# 佣金改造\n\n自营订单不该按下限兜底，代发订单保持现状。'
 
@@ -279,6 +291,34 @@ describe('评审轮次门禁', () => {
     ))).toContain('已采纳但正文未改稿')
   })
 
+  it('传 options 时按多岗 flow 放行缺口岗位，单参数与缺 role 仍走严格判定', () => {
+    const { spec } = makeRepo()
+    writeReviewFlow(spec)
+    const requirement = {
+      versions: [{ n: 1, at: VERSION_AT }],
+      reviews: [{ round: 1, at: REVIEW_AT, report: 'requirements/REQ-01/reviews/R1.md', role: 'maniu-pm' }],
+    }
+
+    // manager 还没署名：缺口岗位放行，已评过的 pm 与未传 role 的单参数调用仍拦截。
+    expect(reviewStaleReason(requirement, { root: spec, role: 'maniu-manager' })).toBeUndefined()
+    expect(reviewStaleReason(requirement, { root: spec, role: 'maniu-pm' })).toContain('上一轮评审后正文未改稿')
+    expect(reviewStaleReason(requirement, { root: spec })).toContain('上一轮评审后正文未改稿')
+    expect(reviewStaleReason(requirement)).toContain('上一轮评审后正文未改稿')
+
+    // flow.yaml 读不懂时降级为严格判定，未决评审不会因配置错误被放行。
+    writeFileSync(flowConfigPath(spec), 'nodes: [', 'utf8')
+    expect(reviewStaleReason(requirement, { root: spec, role: 'maniu-manager' })).toContain('上一轮评审后正文未改稿')
+  })
+
+  it('没有文件流程配置时即便传了 preset 署名仍走严格判定', () => {
+    const { spec } = makeRepo()
+    const requirement = {
+      versions: [{ n: 1, at: VERSION_AT }],
+      reviews: [{ round: 1, at: REVIEW_AT, report: 'requirements/REQ-01/reviews/R1.md' }],
+    }
+    expect(reviewStaleReason(requirement, { root: spec, role: 'maniu-pm' })).toContain('上一轮评审后正文未改稿')
+  })
+
   it('工具在上一轮评审后没有新版本时拒绝追加，不留报告文件', async () => {
     const { spec } = makeRepo()
     await call(spec, { title: '佣金改造', content: CONTENT })
@@ -318,6 +358,57 @@ describe('评审轮次门禁', () => {
       .rejects.toThrow(/上一轮评审后正文未改稿/)
     decideRequirementReview(spec, 'REQ-01', { round: 1, decision: 'rejected', at: '2026-11-17T12:00:00+08:00' })
     expect((await callTool(spec, 'requirement_review_draft', { id: 'REQ-01', report: '# 第 2 轮' })).round).toBe(2)
+  })
+})
+
+describe('多岗会审评审门禁', () => {
+  async function multiRoleRepo(): Promise<string> {
+    const { spec } = makeRepo()
+    await call(spec, { title: '佣金改造', content: CONTENT })
+    writeReviewFlow(spec)
+    return spec
+  }
+
+  it('pm 落 R1 未决后，manager 可接着落 R2', async () => {
+    const spec = await multiRoleRepo()
+    const first = await callTool(spec, 'requirement_review_draft', { id: 'REQ-01', report: '# pm 评审' }, asRole('maniu-pm'))
+    expect(first.round).toBe(1)
+
+    const second = await callTool(spec, 'requirement_review_draft', { id: 'REQ-01', report: '# manager 评审' }, asRole('maniu-manager'))
+    expect(second.round).toBe(2)
+    expect(read(spec, 'REQ-01').reviews.map(review => review.role)).toEqual(['maniu-pm', 'maniu-manager'])
+  })
+
+  it('pm 未改稿就重复落报告仍被拦', async () => {
+    const spec = await multiRoleRepo()
+    await callTool(spec, 'requirement_review_draft', { id: 'REQ-01', report: '# pm 评审' }, asRole('maniu-pm'))
+
+    await expect(callTool(spec, 'requirement_review_draft', { id: 'REQ-01', report: '# pm 重复' }, asRole('maniu-pm')))
+      .rejects.toThrow(/上一轮评审后正文未改稿/)
+    expect(read(spec, 'REQ-01').reviews.map(review => review.round)).toEqual([1])
+  })
+
+  it('全岗评齐但未处置时，再评一轮被拦', async () => {
+    const spec = await multiRoleRepo()
+    await callTool(spec, 'requirement_review_draft', { id: 'REQ-01', report: '# pm 评审' }, asRole('maniu-pm'))
+    await callTool(spec, 'requirement_review_draft', { id: 'REQ-01', report: '# manager 评审' }, asRole('maniu-manager'))
+
+    await expect(callTool(spec, 'requirement_review_draft', { id: 'REQ-01', report: '# 第三轮' }, asRole('maniu-manager')))
+      .rejects.toThrow(/上一轮评审后正文未改稿/)
+    expect(read(spec, 'REQ-01').reviews.map(review => review.round)).toEqual([1, 2])
+  })
+
+  it('全岗评齐后改稿把两轮一并标采纳，允许下一轮评审', async () => {
+    const spec = await multiRoleRepo()
+    await callTool(spec, 'requirement_review_draft', { id: 'REQ-01', report: '# pm 评审' }, asRole('maniu-pm'))
+    await callTool(spec, 'requirement_review_draft', { id: 'REQ-01', report: '# manager 评审' }, asRole('maniu-manager'))
+
+    const at = '2099-01-01T00:00:00Z'
+    reviseRequirement(spec, 'REQ-01', { content: '# 佣金改造\n\n两岗意见已采纳。', at })
+    expect(read(spec, 'REQ-01').reviews.map(review => review.decision)).toEqual(['accepted', 'accepted'])
+
+    const next = await callTool(spec, 'requirement_review_draft', { id: 'REQ-01', report: '# 新一轮' }, asRole('maniu-pm'))
+    expect(next.round).toBe(3)
   })
 })
 

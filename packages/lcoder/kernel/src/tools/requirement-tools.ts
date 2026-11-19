@@ -260,11 +260,11 @@ export function createRequirementTools(rootInput: RootInput): ToolDefinition[] {
         if (readRequirementDocument(root, id) === undefined) {
           throw new Error(`${id} 还没有正文（${requirementDocPath(root, id)} 不存在或为空）；先补正文再评审`)
         }
-        const stale = reviewStaleReason(requirement)
-        if (stale !== undefined) throw new Error(stale)
-
         const sessionId = exec.agent?.session.header.id
         const role = exec.agent?.session.header.agentPreset
+        const stale = reviewStaleReason(requirement, { root, role })
+        if (stale !== undefined) throw new Error(stale)
+
         const review = recordRequirementReview(root, id, {
           report: args.report,
           at: new Date().toISOString(),

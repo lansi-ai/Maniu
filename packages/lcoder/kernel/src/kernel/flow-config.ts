@@ -145,8 +145,27 @@ export function missingReviewSignatures(root: string, config: FlowConfig, review
   return missing
 }
 
+/**
+ * 当前版本周期还缺哪些配置岗位的内置根：在 `missingReviewSignatures` 的缺口条目上再取根，
+ * 供评审落盘的重复门禁判断调用方是否仍需为这一版补报告。
+ * @param root - 规格根（`.spec`），用于解析名册岗位的继承根。
+ * @param config - 流程配置。
+ * @param reviews - 当前版本周期内的评审轮次。
+ * @returns 缺口岗位的内置根集合；没有 review 节点或已配齐时为空集合。
+ */
+export function missingReviewRootSet(root: string, config: FlowConfig, reviews: readonly RequirementReview[]): Set<BuiltinRoleId> {
+  const missing = missingReviewSignatures(root, config, reviews)
+  const roles = loadRoles(root)
+  const roots = new Set<BuiltinRoleId>()
+  for (const id of missing) {
+    const role = entryRootOf(id, roles)
+    if (role !== undefined) roots.add(role)
+  }
+  return roots
+}
+
 /** 内置 preset 的内置根；不是内置 preset 时为 undefined。 */
-function presetBuiltinRoot(presetId: string): BuiltinRoleId | undefined {
+export function presetBuiltinRoot(presetId: string): BuiltinRoleId | undefined {
   if (!presetId.startsWith(BUILTIN_PRESET_PREFIX)) return undefined
   const role = presetId.slice(BUILTIN_PRESET_PREFIX.length)
   return isBuiltinRole(role) ? role : undefined

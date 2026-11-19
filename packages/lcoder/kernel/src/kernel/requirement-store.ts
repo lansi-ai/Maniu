@@ -15,6 +15,7 @@ import { parse as parseYaml, stringify as stringifyYaml } from 'yaml'
 import { Requirement, RequirementSplitPlan } from '../schema/spec.js'
 import type { RequirementOption, RequirementReview, RequirementVersion } from '../schema/spec.js'
 import { listFiles, matchPattern } from '../schema/validate.js'
+import { loadFlowConfig, missingReviewRootSet, presetBuiltinRoot } from './flow-config.js'
 
 /** 需求编号的唯一形态：`REQ-` 加两位以上数字。 */
 const REQUIREMENT_ID = /^REQ-\d{2,}$/
@@ -404,10 +405,19 @@ export interface RequirementReviewResult {
  * 未决轮次必须先处置——放弃本轮意见（`rejected`）可直接复评；采纳并修改需求会改稿并产出
  * 晚于该轮的版本，届时才允许下一轮。已采纳但没产出新版本仍要拦。旧数据的未决轮次没有
  * 版本表可比，同样要求先处置；没有评审时第一轮允许。
+ *
+ * 传 `options` 时，有文件流程配置且 review 节点配了多岗时开一个例外：当前版本周期内
+ * 配置岗位还缺这个调用方的署名时，允许它接着落本轮报告，各岗位评齐后才回到严格判定。
+ * `root` 或 `role` 缺失、没有文件配置、流程配置读不懂或没有 review 节点时一律走严格判定，
+ * 不会因读配置失败而放行重复评审。
  * @param requirement - 已读回的需求，只消费 `versions` 与 `reviews`。
+ * @param options - 规格根与调用方 preset 署名；不传时行为与单参数调用一致。
  * @returns 可追加时返回 undefined；否则返回可读的中文拒绝原因。
  */
-export function reviewStaleReason(requirement: Pick<Requirement, 'versions' | 'reviews'>): string | undefined {
+export function reviewStaleReason(
+  requirement: Pick<Requirement, 'versions' | 'reviews'>,
+  options?: { readonly root?: string; readonly role?: string | undefined },
+): string | undefined {
   const { versions, reviews } = requirement
   if (reviews.length === 0) return undefined
   const latestReview = reviews.reduce((best, review) => review.round > best.round ? review : best)
@@ -415,6 +425,24 @@ export function reviewStaleReason(requirement: Pick<Requirement, 'versions' | 'r
     ? undefined
     : versions.reduce((best, version) => version.n > best.n ? version : best)
   const changedAfterReview = latestVersion !== undefined && Date.parse(latestVersion.at) > Date.parse(latestReview.at)
+
+  if (options?.root !== undefined && options.role !== undefined) {
+    try {
+      const flow = loadFlowConfig(options.root)
+      if (flow.source === 'file' && flow.config.nodes.some(node => node.node === 'review')) {
+        const currentVersionReviews = latestVersion === undefined
+          ? reviews
+          : reviews.filter(review => Date.parse(review.at) >= Date.parse(latestVersion.at))
+        const callerRoot = presetBuiltinRoot(options.role)
+        if (callerRoot !== undefined
+          && missingReviewRootSet(options.root, flow.config, currentVersionReviews).has(callerRoot)) {
+          return undefined
+        }
+      }
+    } catch (_error: unknown) {
+      // 流程配置读不懂或岗位解析失败：降级为严格判定，不因配置错误放行重复评审。
+    }
+  }
 
   if (latestReview.decision === 'rejected') return undefined
   if (latestReview.decision === 'accepted') {
