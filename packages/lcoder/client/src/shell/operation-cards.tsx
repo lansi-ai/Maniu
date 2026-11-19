@@ -2,6 +2,7 @@
 
 import type { JSX } from 'react'
 import { Button } from '@heroui/react'
+import { AlertTriangle, CheckCircle2, Loader2, Minus, X } from 'lucide-react'
 import type { Translate } from '../locale.ts'
 
 /** 浮卡三态：进行中蓝、完成绿、失败警示色。 */
@@ -33,6 +34,17 @@ export interface OperationCardView {
   readonly awaitingConfirm?: boolean
   /** 提案已写未确认：卡上画「去对比」按钮，打开对比视图而不跳对话。 */
   readonly compareProposalId?: string
+}
+
+/**
+ * 状态图标：运行中旋转、完成绿勾、失败警示；颜色由卡的状态类决定。
+ * @param props - 浮卡状态。
+ * @returns 状态图标。
+ */
+function StatusIcon({ status }: { readonly status: OperationStatus }): JSX.Element {
+  if (status === 'running') return <Loader2 className="op-status-icon op-spin" size={16} aria-hidden="true" />
+  if (status === 'done') return <CheckCircle2 className="op-status-icon" size={16} aria-hidden="true" />
+  return <AlertTriangle className="op-status-icon" size={16} aria-hidden="true" />
 }
 
 /** 浮卡列表属性。 */
@@ -87,8 +99,37 @@ export function OperationCards(props: OperationCardsProps): JSX.Element | null {
         return (
           <article key={card.key} className={`op-card op-${card.status}`} data-testid={testId} data-op-key={card.key}>
             <header className="op-head">
-              <h3>{card.title}</h3>
-              <p className="op-sub">{card.roleLabel} · {card.sourceLabel}</p>
+              <StatusIcon status={card.status} />
+              <div className="op-heading">
+                <h3>{card.title}</h3>
+                <p className="op-sub">{card.roleLabel} · {card.sourceLabel}</p>
+              </div>
+              <div className="op-head-actions">
+                <Button
+                  isIconOnly
+                  size="sm"
+                  variant="ghost"
+                  className="op-icon-button"
+                  data-testid="op-minimize"
+                  aria-label={props.t('op.minimize')}
+                  onPress={() => { props.onToggleMinimize(card.key) }}
+                >
+                  <Minus aria-hidden="true" />
+                </Button>
+                {card.status !== 'running' && (
+                  <Button
+                    isIconOnly
+                    size="sm"
+                    variant="ghost"
+                    className="op-icon-button"
+                    data-testid={card.status === 'failed' ? 'requirement-op-timeout-reload' : 'op-close'}
+                    aria-label={card.status === 'failed' ? props.t('requirement.opTimeoutReload') : props.t('op.close')}
+                    onPress={() => { props.onClose(card.key) }}
+                  >
+                    <X aria-hidden="true" />
+                  </Button>
+                )}
+              </div>
             </header>
             <ol className="op-steps">
               {card.steps.map((step, index) => (
@@ -129,35 +170,17 @@ export function OperationCards(props: OperationCardsProps): JSX.Element | null {
                 </Button>
               )}
               {sessionId !== null && (
-                <button
-                  type="button"
-                  className="link-button"
+                <Button
+                  size="sm"
+                  variant="ghost"
                   data-testid={card.status === 'failed' ? 'requirement-op-timeout-session' : 'op-view-session'}
-                  onClick={() => {
+                  onPress={() => {
                     if (card.awaitingConfirm === true && props.onViewSummary !== undefined) props.onViewSummary(card.key)
                     else props.onOpenSession(sessionId)
                   }}
                 >
                   {card.awaitingConfirm === true ? props.t('op.viewSummary') : props.t('op.viewSession')}
-                </button>
-              )}
-              <button
-                type="button"
-                className="link-button"
-                data-testid="op-minimize"
-                onClick={() => { props.onToggleMinimize(card.key) }}
-              >
-                {props.t('op.minimize')}
-              </button>
-              {card.status !== 'running' && (
-                <button
-                  type="button"
-                  className="link-button"
-                  data-testid={card.status === 'failed' ? 'requirement-op-timeout-reload' : 'op-close'}
-                  onClick={() => { props.onClose(card.key) }}
-                >
-                  {card.status === 'failed' ? props.t('requirement.opTimeoutReload') : props.t('op.close')}
-                </button>
+                </Button>
               )}
             </div>
           </article>

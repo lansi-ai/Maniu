@@ -73,7 +73,7 @@ describe('操作进度浮卡', () => {
     expect(element('operation-cards')).toBeNull()
   })
 
-  it('进行中卡给标题、岗位子标题、来源标注与蓝色边框', () => {
+  it('进行中卡给标题、岗位子标题、来源标注与状态色指示', () => {
     render([cardOf()])
     const card = element('requirement-op-running')
     expect(card?.className).toContain('op-running')
@@ -96,7 +96,7 @@ describe('操作进度浮卡', () => {
     expect(onToggleMinimize).toHaveBeenCalledWith('review-REQ-01-1')
   })
 
-  it('完成卡绿色边框、四步全完成、可关闭', () => {
+  it('完成卡状态色指示、四步全完成、可关闭', () => {
     render([cardOf({
       status: 'done',
       statusText: '评审完成：REQ-01 的最新报告已在详情中展示。',
@@ -114,7 +114,7 @@ describe('操作进度浮卡', () => {
     expect(onClose).toHaveBeenCalledWith('review-REQ-01-1')
   })
 
-  it('失败卡警示色边框，保留打开会话与手动刷新入口', () => {
+  it('失败卡警示色指示，保留打开会话与手动刷新入口', () => {
     render([cardOf({
       status: 'failed',
       statusText: '等待超时：REQ-01 的操作仍未见结果，可打开会话查看进度或手动刷新。',
@@ -184,7 +184,7 @@ describe('操作进度浮卡', () => {
     expect(element('op-next-role')).toBeNull()
   })
 
-  it('等待确认卡给确认需求按钮与查看概要入口，边框沿用进行中蓝', () => {
+  it('等待确认卡给确认需求按钮与查看概要入口，状态色沿用进行中', () => {
     const onConfirmIntake = vi.fn()
     act(() => {
       root.render(

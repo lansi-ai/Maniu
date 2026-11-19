@@ -179,7 +179,7 @@ describe('对话页待处理卡', () => {
 })
 
 describe('非对话页浮层', () => {
-  it('显示时卡片留在右下浮层', () => {
+  it('显示时卡片在居中浮层', () => {
     render(<PendingLayer visible t={t} items={[QUESTION]} onAnswer={vi.fn(async () => ({ ok: true as const }))} />)
     expect(container.querySelector('.pending-layer')).not.toBeNull()
     expect(element('question-card')).not.toBeNull()

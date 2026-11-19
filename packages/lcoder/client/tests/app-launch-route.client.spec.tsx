@@ -196,7 +196,7 @@ describe('立项后台发起不跳转', () => {
     expect(localStorage.getItem(SESSION_KEY)).toBeNull()
     expect(followOpens()).toHaveLength(0)
     expect(element('intake-wizard')).toBeNull()
-    expect(element('requirement-op-running')?.textContent).toContain('需求调研进行中')
+    expect(element('requirement-op-running')?.textContent).toContain('正在进行需求调研')
   })
 })
 

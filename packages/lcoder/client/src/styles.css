@@ -600,6 +600,7 @@ html body {
 @media (prefers-reduced-motion: reduce) {
   .message.live::after { animation: none; opacity: 1; }
   .thinking-dots i { animation: none; opacity: 0.7; }
+  .op-status-icon.op-spin { animation: none; }
 }
 
 /* 对话正文：过程组、工具卡、附件与输入区。 */
@@ -779,28 +780,72 @@ html body {
 .rename-problem { color: var(--danger); font-size: 11px; }
 .chat-head .running { color: var(--success); font-size: 11px; }
 
-/* 等待人处理的交互浮在页面上，不挤占正文；对话页改用聊天列里的卡片。 */
-.pending-layer { position: absolute; right: 18px; bottom: 118px; z-index: 6; width: min(420px, 60%); pointer-events: none; }
-.pending-layer .pending-card { pointer-events: auto; }
-.pending-card { padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+/* 等待人处理的交互：非对话页在视口居中聚焦；对话页改用聊天列里的卡片。 */
+.pending-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: color-mix(in oklab, var(--backdrop) 45%, transparent);
+  backdrop-filter: blur(4px);
+}
+.pending-layer .pending-stack { width: min(560px, 92vw); max-height: 82vh; overflow: auto; pointer-events: auto; }
+.pending-card {
+  padding: 20px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--overlay);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow: var(--overlay-shadow);
+}
 
-/* 后台操作进度浮卡：右下角堆叠，状态色边框，可最小化成胶囊。 */
-.op-layer { position: absolute; right: 18px; bottom: 18px; z-index: 6; display: flex; flex-direction: column; gap: 8px; width: min(340px, 60%); }
-.op-card { padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
-.op-card.op-running { border-color: var(--accent); }
-.op-card.op-done { border-color: var(--success); }
-.op-card.op-failed { border-color: var(--warning); }
-.op-head h3 { margin: 0; font-size: 13px; }
+/* 后台操作进度浮卡：右下角堆叠，HeroUI 卡片风格配状态色指示条，可最小化成胶囊。 */
+.op-layer { position: absolute; right: 18px; bottom: 18px; z-index: 10; display: flex; flex-direction: column; gap: 8px; width: min(320px, 88vw); }
+.op-card {
+  position: relative;
+  padding: 12px 14px 12px 17px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--overlay);
+  box-shadow: var(--overlay-shadow);
+  overflow: hidden;
+}
+.op-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--muted); }
+.op-card.op-running::before { background: var(--accent); }
+.op-card.op-done::before { background: var(--success); }
+.op-card.op-failed::before { background: var(--warning); }
+.op-head { display: flex; align-items: center; gap: 10px; }
+.op-status-icon { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; color: var(--muted); }
+.op-card.op-running .op-status-icon { color: var(--accent); }
+.op-card.op-done .op-status-icon { color: var(--success); }
+.op-card.op-failed .op-status-icon { color: var(--warning); }
+.op-status-icon.op-spin { animation: op-spin 1s linear infinite; }
+@keyframes op-spin { to { transform: rotate(360deg); } }
+.op-heading { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.op-head h3 { margin: 0; font-size: 13px; font-weight: 600; color: var(--foreground); }
 .op-sub { margin: 0; font-size: 11px; color: var(--muted); }
-.op-steps { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 3px; }
-.op-steps li { position: relative; padding-left: 14px; font-size: 12px; color: var(--foreground); }
-.op-steps li::before { content: ''; position: absolute; left: 2px; top: 5px; width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
-.op-steps li.op-step-done::before { background: var(--success); }
-.op-steps li.op-step-active::before { background: var(--accent); }
-.op-steps li.op-step-failed::before { background: var(--warning); }
-.op-status { margin: 0; font-size: 12px; color: var(--foreground); }
-.op-actions { display: flex; gap: 10px; flex-wrap: wrap; }
-.op-capsule { display: flex; align-items: center; gap: 6px; align-self: flex-end; padding: 4px 12px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); font-size: 12px; cursor: pointer; }
+.op-head-actions { flex: 0 0 auto; display: flex; align-items: center; gap: 2px; }
+.op-icon-button { min-width: 26px; width: 26px; height: 26px; }
+.op-steps { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.op-steps li { position: relative; padding-left: 18px; font-size: 12px; line-height: 1.5; color: var(--muted); }
+.op-steps li:not(:last-child)::after { content: ''; position: absolute; left: 3px; top: 12px; bottom: -6px; width: 1px; background: var(--border); }
+.op-steps li::before { content: ''; position: absolute; left: 0; top: 4px; width: 7px; height: 7px; border-radius: 50%; background: var(--field-background); border: 1px solid var(--border); }
+.op-steps li.op-step-done { color: var(--foreground); }
+.op-steps li.op-step-done::before { background: var(--success); border-color: var(--success); }
+.op-steps li.op-step-active { color: var(--foreground); font-weight: 600; }
+.op-steps li.op-step-active::before { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.op-steps li.op-step-failed { color: var(--danger); }
+.op-steps li.op-step-failed::before { background: var(--warning); border-color: var(--warning); }
+.op-status { margin: 0; font-size: 12px; line-height: 1.5; color: var(--muted); }
+.op-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.op-capsule { display: flex; align-items: center; gap: 8px; align-self: flex-end; padding: 6px 14px; border: 1px solid var(--border); border-radius: 999px; background: var(--overlay); box-shadow: var(--overlay-shadow); color: var(--foreground); font-size: 12px; cursor: pointer; }
 .op-capsule.op-running { border-color: var(--accent); }
 .op-capsule.op-done { border-color: var(--success); }
 .op-capsule.op-failed { border-color: var(--warning); }
@@ -873,29 +918,33 @@ html body {
 .question-header { font-size: 11px; color: var(--muted); }
 .question-text { margin: 0; font-size: 13px; color: var(--foreground); }
 .question-detail { font-size: 12px; color: var(--foreground); max-height: 220px; overflow: auto; }
-.question-options { display: flex; flex-wrap: wrap; gap: 6px; }
+.question-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
 .option {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 6px 10px;
+  gap: 4px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--field-background);
+  color: var(--foreground);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+.option:hover { border-color: color-mix(in oklab, var(--accent) 55%, var(--border)); background: color-mix(in oklab, var(--accent) 8%, var(--field-background)); }
+.option small { color: var(--muted); font-size: 11px; }
+.option-on { border-color: var(--accent); background: var(--accent-soft); color: var(--foreground); box-shadow: inset 0 0 0 1px var(--accent); }
+.question-custom {
+  width: 100%;
   border: 1px solid var(--border);
   border-radius: 10px;
   background: var(--field-background);
   color: var(--foreground);
   font: inherit;
-  font-size: 12px;
-  text-align: left;
-  cursor: pointer;
-}
-.option small { color: var(--muted); font-size: 10px; }
-.option-on { border-color: var(--accent); background: var(--accent-soft); color: var(--foreground); }
-.question-custom {
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--field-background);
-  color: var(--foreground);
-  font: inherit;
-  font-size: 12px;
-  padding: 5px 8px;
+  font-size: 13px;
+  padding: 10px 12px;
 }
