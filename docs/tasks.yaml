@@ -2977,6 +2977,17 @@ tracks:
       dep: [T-264]
       inferred: false
       note: "B 级精确修复，来源用户 2026-11-19 一次性两项要求，不改业务逻辑 IPC 与 Electron 拖拽红线。监督已只读核实全部根因属实。第一部分去掉需求页表格上方多余立项禁用提示，requirements.tsx 删第 730 至 744 行整块 props.project 非 null 且 blockedIntake 的 p.detail-note data-testid requirement-intake-blocked 含查看 REQ 按钮，删第 534 行 const firstRequirement 仅在该块使用已无引用，保留第 709 至 714 行立项向导按钮 isDisabled 逻辑与 blockedIntake 时 title t('requirement.intakeBlocked') 悬停提示；locale-zh.ts 第 48 行与 locale-en.ts 第 50 行删已无引用的 requirement.intakeBlockedOpen，保留 requirement.intakeBlocked 仍用于按钮 title；tests/intake-result.client.spec.tsx 第 211 至 219 行用例去掉 requirement-intake-blocked 与 requirement-intake-blocked-open 断言与点击，改为断言 intake-open 禁用且 open.getAttribute('title') 包含不能再做立项分析，并断言 element('requirement-intake-blocked') 为 null，保留空项目断言。第二部分修浅色模式 HeroUI 主按钮与危险按钮文字变黑的全局权重冲突，styles.css 第 18 至 19 行 #root button textarea font inherit color inherit 的 ID 权重覆盖 HeroUI .button 类权重前景色，改为 #root button:not(.button) textarea 保持原生自定义 button 继承，并加 #root .button font inherit 只继承字体不覆盖前景色，使 variant primary 与 danger 用官方 accent-foreground 与 danger-foreground 白字；保留 styles.css 第 268 行 #root .segmented button.active color var(--accent-foreground) 供 requirements-cleanup 测试校验。监督已核查 account.css 与 settings.css 与 workbench.css 其它 #root button 覆盖均为有意的次要样式 welcome-skip 与 quick-mode 且 active 已设 accent-foreground，无误覆盖 primary 与 danger，无需改动。门禁 typecheck vitest packages/lcoder 改动文件默认配置 oxlint verify-client-ui-i18n build:artifacts 加 build:check，Electron 实窗深浅两模式核验需求页不再显示立项禁用提示且浅色下新建需求立项向导确认需求发送打开退出登录等主操作危险按钮清晰白字且深色无回归。2026-11-19 监督窗口登记并派工。"
+    - id: T-266
+      title: worktree claim 纯台账变化跳过全量构建
+      status: doing
+      face: 工程
+      type: 修复
+      owner: lance
+      created: '2026-11-19'
+      date: '2026-11-19'
+      dep: []
+      inferred: false
+      note: "B 级构建脚本优化，来源用户 2026-11-19 反馈 claim 慢并采纳监督推荐（改脚本方案）。根因监督已核实，worktree.ps1 的 claim 在 746 至 759 行用 artifactCommit 与当前 HEAD 比较，监督每批登记任务都提交 docs/tasks.yaml 与 docs/tasks-html/index.html 使 HEAD 前进，Get-ChangedPaths 得到的改动含 lcoder 与 apps/desktop 之外的 docs 文件，第 751 行 outside 计数大于零就把 buildKind 判为 full 触发全量 build:artifacts 八门，而这两个文件是纯台账数据不参与任何构建 gate，排除不降低产物新鲜度。实测 install 通常零至十二秒构建四十七至二百一十四秒，T-265 的二百一十四秒是机器负载异常而非常态。修复方式，在 746 行取到 changed 后先过滤掉纯台账路径 docs/tasks.yaml 与 docs/tasks-html/index.html 得到 codeChanged，用 codeChanged.Count 判零决定是否 buildKind none 真正跳过；注意不能只从 outside 排除 docs 而保留 changed 判定，那样会退化成 layered 分层重建而非跳过；不能整个 docs 目录都排除，只排除这两个具体文件最小改动。改完验证三场景，仅台账变化时 claim 构建跳过，有 lcoder 代码变化时走分层或全量按原规则，缺产物基线时仍全量。门禁，脚本改动相关测试若存在则跑，worktree.ps1 语法检查与 help 输出，用一个临时槽位实测 claim 确认纯台账跳过且产物仍可用，不破坏 release 与 warm。严守不改产品源码与业务流程，不改锁与互斥机制。2026-11-19 监督窗口登记并派工。"
 
 
 milestones:
