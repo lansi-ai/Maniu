@@ -15,7 +15,7 @@ const PROJECT: ProjectScope = {
   scopeSessionId: 'session-scope',
 }
 
-function task(id: string, title: string): TaskRow {
+function task(id: string, title: string, role?: string): TaskRow {
   return {
     id,
     title,
@@ -30,6 +30,7 @@ function task(id: string, title: string): TaskRow {
     irreversible: [],
     requirement: 'REQ-01',
     openedAt: '2026-11-17T13:00:00+08:00',
+    ...(role === undefined ? {} : { role }),
   }
 }
 
@@ -50,9 +51,12 @@ const ROW: RequirementDocRow = {
   },
 }
 
-function projectionOf(roles: SpecProjection['roles'] = [{ id: 'vue', name: 'Vue 工程师', inherits: 'dev' }]): SpecProjection {
+function projectionOf(
+  roles: SpecProjection['roles'] = [{ id: 'vue', name: 'Vue 工程师', inherits: 'dev' }],
+  tasks: readonly TaskRow[] = [task('T-01', '需求页'), task('T-02', '接口')],
+): SpecProjection {
   return {
-    tasks: [task('T-01', '需求页'), task('T-02', '接口')],
+    tasks,
     rules: [],
     contracts: [],
     proposals: [],
@@ -96,13 +100,16 @@ function element(testId: string): Element | null {
   return container.querySelector(`[data-testid="${testId}"]`)
 }
 
-function renderDetail(calls: { readonly reload: () => void; readonly openTasks: () => void }): void {
+function renderDetail(
+  calls: { readonly reload: () => void; readonly openTasks: () => void },
+  tasks?: readonly TaskRow[],
+): void {
   act(() => {
     root.render(
       <RequirementDetail
         row={ROW}
         project={PROJECT}
-        projection={projectionOf()}
+        projection={projectionOf(undefined, tasks)}
         sessions={[]}
         onClose={() => {}}
         onOpenTask={() => {}}
@@ -184,5 +191,34 @@ describe('拆分岗位建议表', () => {
     expect(reload).not.toHaveBeenCalled()
     expect(element('requirement-split-plan-done')).toBeNull()
     expect(container.querySelector('[data-testid="requirement-split-plan-retry"][data-task-id="T-01"]')).not.toBeNull()
+  })
+
+  it('磁盘任务已有岗位时回显已分配语义标签，不再显示确认分配按钮', () => {
+    mockCommand(SUCCESS)
+    renderDetail({ reload: () => {}, openTasks: () => {} }, [task('T-01', '需求页', 'vue'), task('T-02', '接口')])
+
+    const assignedRow = container.querySelector('[data-testid="requirement-split-plan-row"][data-task-id="T-01"]')
+    const chip = assignedRow?.querySelector('[data-testid="requirement-split-plan-assigned"]')
+    expect(chip).not.toBeNull()
+    expect(chip?.getAttribute('data-role')).toBe('vue')
+    expect(chip?.textContent).toContain('已分配')
+    expect(chip?.textContent).toContain('Vue 工程师（vue）')
+    expect(chip?.getAttribute('data-task-id')).toBe('T-01')
+    expect(assignedRow?.querySelector('[data-testid="requirement-split-plan-confirm"]')).toBeNull()
+    expect(assignedRow?.querySelector('[data-testid="requirement-split-plan-ignore"]')).toBeNull()
+
+    const pendingRow = container.querySelector('[data-testid="requirement-split-plan-row"][data-task-id="T-02"]')
+    expect(pendingRow?.querySelector('[data-testid="requirement-split-plan-assigned"]')).toBeNull()
+    expect(pendingRow?.querySelector('[data-testid="requirement-split-plan-confirm"]')).not.toBeNull()
+    expect(pendingRow?.querySelector('[data-testid="requirement-split-plan-ignore"]')).not.toBeNull()
+  })
+
+  it('重开详情从投影持久化回显已分配，并把该条计入建议已处理', () => {
+    mockCommand(SUCCESS)
+    renderDetail({ reload: () => {}, openTasks: () => {} }, [task('T-01', '需求页', 'vue'), task('T-02', '接口', 'dev')])
+
+    expect(container.querySelectorAll('[data-testid="requirement-split-plan-assigned"]')).toHaveLength(2)
+    expect(container.querySelectorAll('[data-testid="requirement-split-plan-confirm"]')).toHaveLength(0)
+    expect(element('requirement-split-plan-done')).not.toBeNull()
   })
 })

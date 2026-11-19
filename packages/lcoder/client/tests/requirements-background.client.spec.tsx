@@ -225,15 +225,31 @@ describe('后台发起与完成判定', () => {
     expect(element('requirement-op-success')?.textContent).toContain('拆分完成')
   })
 
-  it('拆分完成也以关联任务出现为判据', async () => {
+  it('拆分完成也以会话回合结束后的关联任务增量为判据', async () => {
     const h = harness()
     h.render(projectionOf([CONFIRMED]))
     await press('requirement-op-split')
 
     await tick(4000)
-    h.render(projectionOf([CONFIRMED], [task('T-01', 'REQ-02')]))
+    h.render(projectionOf([CONFIRMED], [task('T-01', 'REQ-02')]), false, {
+      sessions: [{ sessionId: 'session-op-1', updatedAt: 1, running: false, blank: false }],
+    })
     await act(async () => { await Promise.resolve() })
     expect(element('requirement-op-success')?.textContent).toContain('拆分完成')
+  })
+
+  it('会话仍在跑时第一条任务落盘不提前报拆分完成', async () => {
+    const h = harness()
+    h.render(projectionOf([CONFIRMED]))
+    await press('requirement-op-split')
+
+    await tick(4000)
+    h.render(projectionOf([CONFIRMED], [task('T-01', 'REQ-02')]), false, {
+      sessions: [{ sessionId: 'session-op-1', updatedAt: 1, running: true, blank: false }],
+    })
+    await act(async () => { await Promise.resolve() })
+    expect(element('requirement-op-running')).not.toBeNull()
+    expect(element('requirement-op-success')).toBeNull()
   })
 
   it('发起失败清忙碌并给可读提示，不启动轮询', async () => {
@@ -350,5 +366,38 @@ describe('超时提示与入口', () => {
     h.render(projectionOf([DRAFT]), false, { awaitingAnswer: false })
     await tick(5 * 60 * 1000)
     expect(element('requirement-op-timeout')?.textContent).toContain('等待超时')
+  })
+})
+
+describe('后台会话恢复提示', () => {
+  it('刷新后有在跑但不在本地浮卡的会话时给查看对话入口', async () => {
+    const h = harness()
+    h.render(projectionOf([DRAFT]), false, {
+      sessions: [{ sessionId: 'session-bg-1', updatedAt: 1, running: true, blank: false }],
+    })
+    const notice = element('requirement-background-recovery')
+    expect(notice).not.toBeNull()
+    expect(notice?.textContent).toContain('有后台任务正在运行')
+    await press('requirement-background-recovery-open')
+    expect(h.openSession).toHaveBeenCalledWith('session-bg-1')
+  })
+
+  it('会话已经在本地浮卡里时不重复提示', async () => {
+    const h = harness()
+    h.render(projectionOf([DRAFT]))
+    await press('requirement-op-review')
+    h.render(projectionOf([DRAFT]), false, {
+      sessions: [{ sessionId: 'session-op-1', updatedAt: 1, running: true, blank: false }],
+    })
+    expect(element('requirement-background-recovery')).toBeNull()
+    expect(element('requirement-op-running')).not.toBeNull()
+  })
+
+  it('没有在跑的会话时不显示提示', () => {
+    const h = harness()
+    h.render(projectionOf([DRAFT]), false, {
+      sessions: [{ sessionId: 'session-bg-1', updatedAt: 1, running: false, blank: false }],
+    })
+    expect(element('requirement-background-recovery')).toBeNull()
   })
 })

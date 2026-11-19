@@ -251,6 +251,13 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
     }
   }
 
+  /** 拆分回合明确结束：会话在册且不在跑；仅凭任务增量不足以判定拆分完成。 */
+  const splitTurnEndedOf = (watch: OpWatch): boolean => {
+    if (watch.sessionId === null) return false
+    const session = props.sessions.find(item => item.sessionId === watch.sessionId)
+    return session !== undefined && !session.running && !session.blank
+  }
+
   /** 发起节点里的某一岗；成功登记基线，失败首岗只给提示、后续岗转失败卡。 */
   const launchRole = async (run: OpRun, roleIndex: number): Promise<{ readonly ok: boolean; readonly message: string }> => {
     const roleId = run.roles[roleIndex]
@@ -383,8 +390,8 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
   const split = (row: RequirementDocRow) => startNode('split', row)
 
   // 完成判定以投影里的磁盘事实为准：评审见增轮（有配置时最新一轮署名根须等于当前条目根）、
-  // 改稿见增版、拆分见关联任务或计划出现/更新、立项与新建需求见需求条数增量。落盘后按 auto 决定自动发起下一岗还是停下等人。
-  // 提案被拒绝时本次操作已无产物可等，立即收口成取消卡，不空转到超时。
+  // 改稿见增版、拆分见岗位建议落盘或会话回合结束后关联任务增加、立项与新建需求见需求条数增量。
+  // 落盘后按 auto 决定自动发起下一岗还是停下等人；提案被拒绝时立即收口成取消卡，不空转到超时。
   useEffect(() => {
     if (watches.length === 0) return
     const cancelledWatches = watches.filter(watch => rejectedProposalOf(watch) !== undefined)
@@ -407,7 +414,8 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
       const related = props.projection.tasks.filter(
         task => task.requirement === row.id || task.proposal === row.id,
       ).length
-      return related > watch.related || (row.splitPlan !== undefined && row.splitPlan.at !== watch.planAt)
+      const planLanded = row.splitPlan !== undefined && row.splitPlan.at !== watch.planAt
+      return planLanded || (related > watch.related && splitTurnEndedOf(watch))
     })
     if (doneWatches.length === 0 && cancelledWatches.length === 0) return
     setWatches(current => current.filter(item => !doneWatches.includes(item) && !cancelledWatches.includes(item)))
@@ -452,7 +460,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
     }
     if (finishedNow.length > 0) setFinished(current => [...current, ...finishedNow])
     props.onReload()
-  }, [watches, props.projection, props.onReload])
+  }, [watches, props.projection, props.onReload, props.sessions])
 
   // 固定间隔轮询投影；读取中不叠加请求，卸载或无操作时清理；超时转失败卡。
   // 交互期（等待人工确认概要，或全局有待答/待审批交互）不判定到期，并顺延 deadline，
@@ -586,6 +594,10 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
   const summarySessionId = summaryKey === null
     ? null
     : watches.find(item => item.key === summaryKey)?.sessionId ?? null
+  // 会话在跑但本地没有对应浮卡：刷新或切项目后给出恢复入口，已在浮卡里的会话不重复提示。
+  const recoverySessions = props.sessions.filter(
+    session => session.running && !watches.some(watch => watch.sessionId === session.sessionId),
+  )
 
   const cards = useMemo<readonly OperationCardView[]>(() => {
     const labelCtx = {
@@ -790,6 +802,24 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
 
       {opNotice !== null && (
         <p className="problem" data-testid="requirement-op-result">{t('requirement.opFailed', { detail: opNotice })}</p>
+      )}
+
+      {recoverySessions.length > 0 && (
+        <p className="requirement-recovery" data-testid="requirement-background-recovery">
+          <span>{t('requirement.backgroundRunning', { count: recoverySessions.length })}</span>
+          {recoverySessions.map(session => (
+            <Button
+              key={session.sessionId}
+              size="sm"
+              variant="ghost"
+              data-testid="requirement-background-recovery-open"
+              data-session-id={session.sessionId}
+              onPress={() => { props.onOpenSession(session.sessionId) }}
+            >
+              {t('requirement.viewConversation')}
+            </Button>
+          ))}
+        </p>
       )}
 
       {props.project !== null && pendingChanges.length > 0 && (
