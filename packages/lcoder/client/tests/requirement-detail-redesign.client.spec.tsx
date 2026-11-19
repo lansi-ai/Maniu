@@ -111,7 +111,13 @@ const STRUCTURED_REPORT = `# 评审报告
 let reportText = REPORT_TEXT
 
 async function fakeCall(namespace: string, method: string, args: Record<string, unknown>): Promise<unknown> {
-  if (namespace === 'workspaceFiles' && method === 'read') return { ok: true, value: { text: reportText } }
+  if (namespace === 'workspaceFiles' && method === 'read') {
+    const path = String(args.path)
+    if (path.includes('/versions/')) {
+      return { ok: true, value: { text: path.includes('v1.md') ? '旧版正文' : '新版正文' } }
+    }
+    return { ok: true, value: { text: reportText } }
+  }
   if (namespace === 'commands' && method === 'execute') {
     commands.push(String(args.line))
     return commandError === null
@@ -232,9 +238,34 @@ describe('四态操作栏与指引句', () => {
     const calls = callsOf()
     await renderDetail(confirmed, calls, { tasks: [TASK] })
     expect(element('requirement-split')).toBeNull()
+    expect(element('requirement-split-again')).not.toBeNull()
     expect(element('requirement-detail-tasks')).not.toBeNull()
     await press('requirement-detail-tasks')
     expect(calls.tasksOpened).toHaveBeenCalledTimes(1)
+  })
+
+  it('confirmed 半截拆分无岗位建议时保留补充拆分入口，点击重新发拆分', async () => {
+    const confirmed: RequirementDocRow = { ...DRAFT, state: 'confirmed' }
+    const calls = callsOf()
+    await renderDetail(confirmed, calls, { tasks: [TASK] })
+    const again = element('requirement-split-again') as HTMLButtonElement
+    expect(again.getAttribute('data-testid')).toBe('requirement-split-again')
+    expect(again.disabled).toBe(false)
+    await press('requirement-split-again')
+    expect(calls.split).toHaveBeenCalledTimes(1)
+    expect(element('requirement-action-result')?.textContent).toContain('拆分指令已发送')
+  })
+
+  it('有岗位建议时不再重复给补充拆分入口', async () => {
+    const confirmed: RequirementDocRow = {
+      ...DRAFT,
+      state: 'confirmed',
+      splitPlan: { at: '2026-11-17T15:00:00+08:00', entries: [{ task: 'T-01', role: 'dev' }] },
+    }
+    await renderDetail(confirmed, callsOf(), { tasks: [TASK] })
+    expect(element('requirement-split-again')).toBeNull()
+    expect(element('requirement-detail-tasks')).not.toBeNull()
+    expect(element('requirement-split-plan')).not.toBeNull()
   })
 
   it('released 与 closed 给查看任务与基于此版本新建，没有确认/拆分/改稿', async () => {
@@ -472,6 +503,36 @@ describe('阶段进度 chips', () => {
       await new Promise(resolve => setTimeout(resolve, 0))
     })
     expect(calls.readers).toEqual(['.spec/requirements/REQ-01/versions/v2.md'])
+  })
+})
+
+describe('版本对照只读入口', () => {
+  it('两个版本时给对比上一版，双栏展示 v(n-1)→v(n) 差异且不写盘', async () => {
+    await renderDetail(DRAFT, callsOf())
+    const compareButton = container.querySelector('[data-testid="requirement-compare-version"][data-version="2"]')
+    expect(compareButton).not.toBeNull()
+    await press('requirement-compare-version')
+
+    const layer = element('requirement-version-compare')
+    expect(layer).not.toBeNull()
+    expect(layer?.getAttribute('data-version')).toBe('2')
+    expect(element('requirement-version-compare-loading') ?? element('requirement-version-compare-old')).not.toBeNull()
+
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 0)) })
+    expect(element('requirement-version-compare-old')?.textContent).toContain('旧版正文')
+    expect(element('requirement-version-compare-new')?.textContent).toContain('新版正文')
+    expect(element('requirement-version-compare-old')?.querySelector('.compare-line.removed')).not.toBeNull()
+    expect(element('requirement-version-compare-new')?.querySelector('.compare-line.added')).not.toBeNull()
+    expect(commands).toEqual([])
+
+    await press('requirement-version-compare-close')
+    expect(element('requirement-version-compare')).toBeNull()
+  })
+
+  it('只有一个版本时不显示对比入口', async () => {
+    const row: RequirementDocRow = { ...DRAFT, versions: [{ n: 1, at: '2026-11-17T09:00:00+08:00' }] }
+    await renderDetail(row, callsOf())
+    expect(element('requirement-compare-version')).toBeNull()
   })
 })
 

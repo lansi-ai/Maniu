@@ -856,6 +856,20 @@
 .requirement-row-actions { opacity: 0.4; transition: opacity 140ms ease; }
 .requirements-table [data-slot='table-row']:hover .requirement-row-actions,
 .requirements-table [data-slot='table-row'].selected .requirement-row-actions { opacity: 1; }
+/* 后台会话恢复提示：轻量中性条，运行态用官方 success 语义色，不写死色值。 */
+.requirement-recovery {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 0 4px 12px;
+  padding: 7px 12px;
+  border: 1px solid color-mix(in oklab, var(--success) 28%, var(--border));
+  border-radius: 12px;
+  background: var(--surface-secondary);
+  color: var(--foreground);
+  font-size: 12px;
+}
 .requirement-detail-scrim {
   position: absolute;
   inset: 0;

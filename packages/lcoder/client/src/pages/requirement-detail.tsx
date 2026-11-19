@@ -9,6 +9,7 @@ import type { SpecProjection } from '../spec/load.ts'
 import type { RequirementDocRow, RequirementReviewRow, RequirementSplitPlanEntryRow } from '../spec/rows.ts'
 import type { SessionSummary } from '../store.ts'
 import { requirementStateLabel } from '../spec/board.ts'
+import { diffLines, type DiffLine } from '../spec/diff.ts'
 import { readWorkspaceText } from '../spec/files.ts'
 import { runCommand, type CommandOutcome } from '../commands/run.ts'
 import { canApproveRequirement, canReviewRequirement } from './requirement-gate.ts'
@@ -90,6 +91,13 @@ type ReportState =
   | { readonly status: 'ready'; readonly text: string }
   | { readonly status: 'failed'; readonly message: string }
 
+/** 版本快照只读对照的读取状态。 */
+type VersionDiffState =
+  | { readonly status: 'idle' }
+  | { readonly status: 'loading' }
+  | { readonly status: 'ready'; readonly lines: readonly DiffLine[] }
+  | { readonly status: 'failed'; readonly message: string }
+
 /** 评审报告与版本快照在阅读器里的仓库相对路径。 */
 function specPath(relative: string): string {
   return `.spec/${relative.replace(/^\.?[\\/]/, '').replace(/^\.spec[\\/]/, '')}`
@@ -99,6 +107,11 @@ function specPath(relative: string): string {
 function excerptOf(text: string): string {
   const trimmed = text.trim()
   return trimmed.length > EXCERPT_CHARS ? `${trimmed.slice(0, EXCERPT_CHARS)}…` : trimmed
+}
+
+/** 版本对照的单栏：旧栏去掉新增行，新栏去掉删除行。 */
+function compareColumn(lines: readonly DiffLine[], side: 'old' | 'new'): readonly DiffLine[] {
+  return lines.filter(line => side === 'old' ? line.kind !== 'added' : line.kind !== 'removed')
 }
 
 /** 需求详情属性。 */
@@ -158,6 +171,8 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
     : row.reviews.filter(review => review.round !== latestReview.round).sort((left, right) => right.round - left.round)
   const reportPath = latestReview === null ? null : specPath(latestReview.report)
   const [report, setReport] = useState<ReportState>({ status: 'loading' })
+  const [compareVersion, setCompareVersion] = useState<number | null>(null)
+  const [versionDiff, setVersionDiff] = useState<VersionDiffState>({ status: 'idle' })
 
   // 内联报告与阅读器走同一条宿主文件通道；轮次或项目变化时重读，卸载后不再落状态。
   useEffect(() => {
@@ -177,6 +192,46 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
       })
     return () => { disposed = true }
   }, [reportPath, props.project.scopeSessionId])
+
+  // 版本对照只读：读 v(n-1) 与 v(n) 两份快照做逐行差异，不写回规格库。
+  useEffect(() => {
+    if (compareVersion === null) return
+    let disposed = false
+    setVersionDiff({ status: 'loading' })
+    const prevPath = `.spec/requirements/${row.id}/versions/v${String(compareVersion - 1)}.md`
+    const nextPath = `.spec/requirements/${row.id}/versions/v${String(compareVersion)}.md`
+    void Promise.all([
+      readWorkspaceText(props.project.scopeSessionId, prevPath, REPORT_LINES),
+      readWorkspaceText(props.project.scopeSessionId, nextPath, REPORT_LINES),
+    ]).then(([prev, next]) => {
+      if (disposed) return
+      if (!prev.ok) {
+        setVersionDiff({ status: 'failed', message: `${prev.error.code}: ${prev.error.message}` })
+        return
+      }
+      if (!next.ok) {
+        setVersionDiff({ status: 'failed', message: `${next.error.code}: ${next.error.message}` })
+        return
+      }
+      setVersionDiff({ status: 'ready', lines: diffLines(prev.text, next.text) })
+    }).catch((cause: unknown) => {
+      if (disposed) return
+      setVersionDiff({ status: 'failed', message: cause instanceof Error ? cause.message : String(cause) })
+    })
+    return () => { disposed = true }
+  }, [compareVersion, row.id, props.project.scopeSessionId])
+
+  // 对照层按 Esc 关闭，与提案对比层一致。
+  useEffect(() => {
+    if (compareVersion === null) return
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape') return
+      event.stopPropagation()
+      setCompareVersion(null)
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => { window.removeEventListener('keydown', onKey, true) }
+  }, [compareVersion])
 
   const execute = async (kind: string, line: string): Promise<void> => {
     if (busy !== null) return
@@ -225,9 +280,10 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
   }
 
   const plan = row.splitPlan
-  const planDone = plan !== undefined && plan.entries.every(
-    entry => ignored.has(entry.task) || assigns[entry.task]?.ok === true,
-  )
+  const planDone = plan !== undefined && plan.entries.every(entry =>
+    ignored.has(entry.task)
+    || assigns[entry.task]?.ok === true
+    || props.projection.tasks.find(task => task.id === entry.task)?.role !== undefined)
   const roleLabel = (id: string): string => {
     const name = props.projection.roles.find(role => role.id === id)?.name
     return name === undefined ? id : `${name}（${id}）`
@@ -323,544 +379,633 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
   }
 
   return (
-    <DetailDrawer
-      testId="requirement-detail"
-      closeTestId="requirement-detail-close"
-      onClose={props.onClose}
-      attributes={{ 'data-requirement-id': row.id }}
-      actions={(
-        <div className="requirement-quick-tools" data-testid="requirement-quick-tools">
-          <Button
-            isIconOnly
-            className="detail-drawer-icon"
-            variant="ghost"
-            size="sm"
-            data-testid="requirement-detail-reload"
-            aria-label={t('requirement.opReload')}
-            ref={(node) => { if (node !== null) node.title = t('requirement.opReload') }}
-            onPress={props.onReload}
-          >
-            <RotateCw aria-hidden="true" />
-          </Button>
-          <Button
-            isIconOnly
-            className="detail-drawer-icon"
-            variant="ghost"
-            size="sm"
-            data-testid="requirement-open-reader"
-            aria-label={t('requirement.opOpenBody')}
-            ref={(node) => { if (node !== null) node.title = t('requirement.opOpenBody') }}
-            onPress={() => { props.onOpenReader(`.spec/requirements/${row.id}.md`) }}
-          >
-            <FileText aria-hidden="true" />
-          </Button>
-        </div>
-      )}
-      head={(
-        <div className="requirement-hero">
-          <div className="requirement-title-row">
-            <h2 className="requirement-title" data-testid="requirement-detail-title">{row.title ?? row.id}</h2>
-            <Chip
+    <>
+      <DetailDrawer
+        testId="requirement-detail"
+        closeTestId="requirement-detail-close"
+        onClose={props.onClose}
+        attributes={{ 'data-requirement-id': row.id }}
+        actions={(
+          <div className="requirement-quick-tools" data-testid="requirement-quick-tools">
+            <Button
+              isIconOnly
+              className="detail-drawer-icon"
+              variant="ghost"
               size="sm"
-              variant="soft"
-              color={STATE_CHIP_COLOR[state]}
-              className={`tag state-badge state-${state}`}
-              data-testid="requirement-state-badge"
+              data-testid="requirement-detail-reload"
+              aria-label={t('requirement.opReload')}
+              ref={(node) => { if (node !== null) node.title = t('requirement.opReload') }}
+              onPress={props.onReload}
             >
-              {requirementStateLabel(row.state)}
-            </Chip>
-          </div>
-          <span className="mono requirement-id" data-testid="requirement-detail-id">{row.id}</span>
-          <p className="requirement-guide" data-testid="requirement-guide">{guide}</p>
-          <div className="action-row requirement-ops" data-testid="requirement-actions">
-            {state === 'draft' && (
-              <>
-                <Button
-                  variant={phase === 'unreviewed' ? 'primary' : 'secondary'}
-                  size="sm"
-                  data-testid="requirement-detail-review"
-                  data-variant={phase === 'unreviewed' ? 'primary' : 'secondary'}
-                  data-phase={phase}
-                  isDisabled={!reviewGate.ok || busy !== null}
-                  ref={(node) => {
-                    if (node === null) return
-                    node.title = reviewBlockReason ?? t(phase === 'unreviewed' ? 'requirement.opReviewTitleStart' : 'requirement.opReviewTitleAgain')
-                  }}
-                  onPress={() => { void startOp('review', props.onReview) }}
-                >
-                  {reviewLabel}
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  data-testid="requirement-detail-revise"
-                  isDisabled={busy !== null}
-                  ref={(node) => { if (node !== null) node.title = t('requirement.opReviseTitle') }}
-                  onPress={() => { void startOp('revise', props.onRevise) }}
-                >
-                  {t('requirement.opRevise')}
-                </Button>
-                <Button
-                  variant={phase === 'pending' || !canApprove ? 'secondary' : 'primary'}
-                  size="sm"
-                  data-testid="requirement-approve"
-                  data-variant={phase === 'pending' || !canApprove ? 'secondary' : 'primary'}
-                  isDisabled={!canApprove || busy !== null}
-                  ref={(node) => { if (node !== null) node.title = approveReason ?? '' }}
-                  onPress={() => { void execute('approve', `/requirement_approve ${row.id}`) }}
-                >
-                  {t('requirement.opApprove')}
-                </Button>
-              </>
-            )}
-            {state === 'confirmed' && related.length === 0 && (
-              <Button
-                variant="primary"
-                size="sm"
-                data-testid="requirement-split"
-                isDisabled={busy !== null}
-                onPress={() => { void startOp('split', props.onSplit) }}
-              >
-                {t('requirement.opSplit')}
-              </Button>
-            )}
-            {(state === 'confirmed' || state === 'released' || state === 'closed') && (
-              <Button
-                variant="secondary"
-                size="sm"
-                data-testid="requirement-detail-create-based"
-                isDisabled={busy !== null}
-                onPress={() => { void startOp('createBased', props.onCreateBased) }}
-              >
-                {t('requirement.opCreateBased')}
-              </Button>
-            )}
-            {(state === 'confirmed' || state === 'released' || state === 'closed') && related.length > 0 && (
-              <Button variant="ghost" size="sm" data-testid="requirement-detail-tasks" onPress={props.onOpenTasks}>
-                {t('requirement.opTasks')}
-              </Button>
-            )}
-            {state === 'confirmed' && (
-              <Button
-                variant="primary"
-                size="sm"
-                data-testid="requirement-release"
-                isDisabled={busy !== null}
-                onPress={() => { void execute('release', `/requirement_release ${row.id}`) }}
-              >
-                {t('requirement.opRelease')}
-              </Button>
-            )}
-            {(state === 'draft' || state === 'confirmed' || state === 'released') && (
-              <Button
-                variant="danger-soft"
-                size="sm"
-                className="requirement-close"
-                data-testid="requirement-close"
-                isDisabled={busy !== null}
-                ref={(node) => { if (node !== null) node.title = t('requirement.opCloseTitle') }}
-                onPress={() => { void execute('close', `/requirement_close ${row.id}`) }}
-              >
-                {t('requirement.opClose')}
-              </Button>
-            )}
-          </div>
-          {state === 'draft' && approveReason !== undefined && (
-            <p className="detail-note" data-testid="requirement-approve-hint">{approveReason}</p>
-          )}
-          {state === 'draft' && phase === 'pending' && reviewPendingReason !== undefined && (
-            <p className="detail-warning" data-testid="requirement-review-pending-reason">{reviewPendingReason}</p>
-          )}
-          {state === 'draft' && phase === 'pending' && pendingReviseProposal && (
-            <p className="detail-warning" data-testid="requirement-review-proposal-hint">{t('requirement.reviewPendingProposal')}</p>
-          )}
-          {result !== null && (
-            <p className={result.ok ? 'detail-line' : 'problem'} data-testid="requirement-action-result" data-ok={result.ok ? 'true' : 'false'}>
-              {result.text}
-            </p>
-          )}
-          {phaseHint !== undefined && (
-            <p className="detail-note" data-testid="requirement-phase-hint">{phaseHint}</p>
-          )}
-        </div>
-      )}
-    >
-      <section className="detail-section" data-testid="requirement-timeline">
-        <h4>{t('requirement.timeline')}</h4>
-        <ul className="timeline-chips">
-          <li data-testid="requirement-timeline-opened">
-            <Chip size="sm" variant="soft" className="tag">{t('requirement.timelineOpened')}</Chip>
-            <span className="time">{formatTimestamp(row.openedAt ?? '—')}</span>
-          </li>
-          {row.reviews.map(review => (
-            <li
-              key={`review-${String(review.round)}`}
-              className="chip-link"
-              data-testid="requirement-timeline-review"
-              data-round={review.round}
-              data-path={specPath(review.report)}
-              role="button"
-              tabIndex={0}
-              aria-label={t('requirement.timelineReview', { round: review.round })}
-              onClick={() => { props.onOpenReader(specPath(review.report)) }}
-              onKeyDown={(event) => {
-                if (event.key !== 'Enter' && event.key !== ' ') return
-                event.preventDefault()
-                props.onOpenReader(specPath(review.report))
-              }}
+              <RotateCw aria-hidden="true" />
+            </Button>
+            <Button
+              isIconOnly
+              className="detail-drawer-icon"
+              variant="ghost"
+              size="sm"
+              data-testid="requirement-open-reader"
+              aria-label={t('requirement.opOpenBody')}
+              ref={(node) => { if (node !== null) node.title = t('requirement.opOpenBody') }}
+              onPress={() => { props.onOpenReader(`.spec/requirements/${row.id}.md`) }}
             >
-              <Chip size="sm" variant="soft" color="accent" className="tag">{t('requirement.timelineReview', { round: review.round })}</Chip>
-              {decisionChip(review, 'requirement-timeline-review-status')}
-              <span className="time">{formatTimestamp(review.at)}</span>
-            </li>
-          ))}
-          {row.reviews.length === 0 && (
-            <li className="empty" data-testid="requirement-timeline-review-empty">{t('requirement.noReviews')}</li>
-          )}
-          {row.versions.map(version => (
-            <li key={`version-${String(version.n)}`} data-testid="requirement-timeline-version" data-version={version.n}>
-              <Chip size="sm" variant="soft" className="tag">{t('requirement.timelineVersion', { n: version.n })}</Chip>
-              <span className="time">{formatTimestamp(version.at)}</span>
-              <Button
-                variant="ghost"
+              <FileText aria-hidden="true" />
+            </Button>
+          </div>
+        )}
+        head={(
+          <div className="requirement-hero">
+            <div className="requirement-title-row">
+              <h2 className="requirement-title" data-testid="requirement-detail-title">{row.title ?? row.id}</h2>
+              <Chip
                 size="sm"
-                data-testid="requirement-open-version"
-                data-version={version.n}
-                data-path={`.spec/requirements/${row.id}/versions/v${String(version.n)}.md`}
-                onPress={() => { props.onOpenReader(`.spec/requirements/${row.id}/versions/v${String(version.n)}.md`) }}
+                variant="soft"
+                color={STATE_CHIP_COLOR[state]}
+                className={`tag state-badge state-${state}`}
+                data-testid="requirement-state-badge"
               >
-                {t('requirement.openSnapshot')}
-              </Button>
-            </li>
-          ))}
-          {row.versions.length === 0 && (
-            <li className="empty" data-testid="requirement-timeline-version-empty">{t('requirement.noVersions')}</li>
-          )}
-          <li data-testid="requirement-timeline-approved">
-            <Chip size="sm" variant="soft" className="tag">{t('requirement.timelineApproved')}</Chip>
-            <span className="time">{formatTimestamp(row.approvedAt ?? '—')}</span>
-            <span>{row.approvedVersion === undefined
-              ? t('requirement.notApproved')
-              : t('requirement.timelineApprovedVersion', { n: row.approvedVersion })}</span>
-          </li>
-        </ul>
-      </section>
-
-      <section
-        className="detail-section"
-        data-testid="requirement-review-report"
-        {...(latestReview === null ? {} : { 'data-round': latestReview.round })}
-      >
-        <Separator className="detail-divider" />
-        {latestReview === null || reportPath === null
-          ? (
-            <>
-              <h4>{t('requirement.reportHeading')}</h4>
-              <p className="empty" data-testid="requirement-report-empty">{t('requirement.reportEmpty')}</p>
-            </>
-          )
-          : (
-            <>
-              <div className="detail-drawer-head">
-                <div className="row-actions">
-                  <h4>{t('requirement.reportTitle', { round: latestReview.round })}</h4>
-                  {decisionChip(latestReview, 'requirement-review-status')}
-                </div>
-                <div className="row-actions">
+                {requirementStateLabel(row.state)}
+              </Chip>
+            </div>
+            <span className="mono requirement-id" data-testid="requirement-detail-id">{row.id}</span>
+            <p className="requirement-guide" data-testid="requirement-guide">{guide}</p>
+            <div className="action-row requirement-ops" data-testid="requirement-actions">
+              {state === 'draft' && (
+                <>
                   <Button
-                    variant="ghost"
+                    variant={phase === 'unreviewed' ? 'primary' : 'secondary'}
                     size="sm"
-                    data-testid="requirement-report-open"
-                    onPress={() => { props.onOpenReader(reportPath) }}
+                    data-testid="requirement-detail-review"
+                    data-variant={phase === 'unreviewed' ? 'primary' : 'secondary'}
+                    data-phase={phase}
+                    isDisabled={!reviewGate.ok || busy !== null}
+                    ref={(node) => {
+                      if (node === null) return
+                      node.title = reviewBlockReason ?? t(phase === 'unreviewed' ? 'requirement.opReviewTitleStart' : 'requirement.opReviewTitleAgain')
+                    }}
+                    onPress={() => { void startOp('review', props.onReview) }}
                   >
-                    {t('requirement.openReport')}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    data-testid="requirement-report-toggle"
-                    aria-expanded={reportExpanded}
-                    onPress={() => { setReportExpanded(current => !current) }}
-                  >
-                    {reportExpanded ? t('requirement.collapse') : t('requirement.expand')}
-                  </Button>
-                </div>
-              </div>
-              <div className="requirement-report-summary" data-testid="requirement-report-summary">
-                <span className="time">{formatTimestamp(latestReview.at)}</span>
-                {report.status === 'loading' && (
-                  <span data-testid="requirement-report-loading">{t('requirement.reportLoading')}</span>
-                )}
-                {report.status === 'failed' && (
-                  <span className="problem" data-testid="requirement-report-failed">
-                    {t('requirement.reportFailed', { detail: report.message })}
-                  </span>
-                )}
-                {report.status === 'ready' && parsedReport !== undefined && (
-                  <>
-                    {parsedReport.summary !== '' && (
-                      <div className="requirement-report-card card-summary" data-testid="requirement-report-summary-card">
-                        <span className="requirement-card-label">{t('requirement.reportSummary')}</span>
-                        <p className="requirement-card-text" data-testid="requirement-report-summary-text">{parsedReport.summary}</p>
-                      </div>
-                    )}
-                    {parsedReport.todos.length > 0 && (
-                      <div className="requirement-report-card card-todos" data-testid="requirement-report-todos">
-                        <div className="detail-drawer-head">
-                          <span className="requirement-card-label">{t('requirement.reportTodos')}</span>
-                          <span className="requirement-todo-summary" data-testid="requirement-todo-summary">
-                            {t('requirement.todoStats', {
-                              high: String(priorityCounts.high),
-                              medium: String(priorityCounts.medium),
-                              low: String(priorityCounts.low),
-                            })}
-                          </span>
-                        </div>
-                        <ul className="requirement-todo-list">
-                          {parsedReport.todos.map((todo, index) => {
-                            const expanded = expandedTodos.has(index)
-                            return (
-                              <li
-                                key={`todo-${String(index)}`}
-                                className="requirement-todo"
-                                data-testid="requirement-report-todo"
-                                data-priority={todo.priority ?? ''}
-                              >
-                                <div className="requirement-todo-main">
-                                  {todo.priority !== undefined && (
-                                    <Chip
-                                      size="sm"
-                                      variant="soft"
-                                      color={PRIORITY_CHIP_COLOR[todo.priority]}
-                                      className={`priority-badge priority-${todo.priority}`}
-                                      data-testid="requirement-report-priority"
-                                    >
-                                      {t(PRIORITY_KEY[todo.priority])}
-                                    </Chip>
-                                  )}
-                                  <span className="requirement-todo-text">{expanded ? todo.text : todo.summary}</span>
-                                </div>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="requirement-todo-toggle"
-                                  data-testid="requirement-todo-toggle"
-                                  aria-expanded={expanded}
-                                  onPress={() => { toggleTodo(index) }}
-                                >
-                                  {expanded ? t('requirement.collapse') : t('requirement.todoDetails')}
-                                </Button>
-                              </li>
-                            )
-                          })}
-                        </ul>
-                      </div>
-                    )}
-                    {parsedReport.summary === '' && parsedReport.todos.length === 0 && (
-                      <>
-                        <span className="requirement-excerpt-label">{t('requirement.reportExcerpt')}</span>
-                        <span data-testid="requirement-report-excerpt">{excerptOf(report.text)}</span>
-                      </>
-                    )}
-                  </>
-                )}
-              </div>
-              {reportExpanded && report.status === 'ready' && (
-                <div className="markdown-body tall" data-testid="requirement-report-body">{renderMarkdown(report.text)}</div>
-              )}
-              {phase === 'pending' && (
-                <div className="requirement-review-decision" data-testid="requirement-review-decision">
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    data-testid="requirement-review-accept"
-                    isDisabled={busy !== null}
-                    ref={(node) => { if (node !== null) node.title = t('requirement.reviewAcceptTitle') }}
-                    onPress={() => { void startOp('reviewAccept', props.onRevise) }}
-                  >
-                    {t('requirement.reviewAccept')}
+                    {reviewLabel}
                   </Button>
                   <Button
                     variant="secondary"
                     size="sm"
-                    data-testid="requirement-review-reject"
+                    data-testid="requirement-detail-revise"
                     isDisabled={busy !== null}
-                    ref={(node) => { if (node !== null) node.title = t('requirement.reviewRejectTitle') }}
-                    onPress={() => { void execute('reviewReject', `/requirement_review_decide ${row.id} ${latestReview.round} rejected`) }}
+                    ref={(node) => { if (node !== null) node.title = t('requirement.opReviseTitle') }}
+                    onPress={() => { void startOp('revise', props.onRevise) }}
                   >
-                    {t('requirement.reviewReject')}
+                    {t('requirement.opRevise')}
                   </Button>
-                  <p className="detail-note" data-testid="requirement-review-accept-hint">{t('requirement.reviewAcceptHint')}</p>
-                </div>
+                  <Button
+                    variant={phase === 'pending' || !canApprove ? 'secondary' : 'primary'}
+                    size="sm"
+                    data-testid="requirement-approve"
+                    data-variant={phase === 'pending' || !canApprove ? 'secondary' : 'primary'}
+                    isDisabled={!canApprove || busy !== null}
+                    ref={(node) => { if (node !== null) node.title = approveReason ?? '' }}
+                    onPress={() => { void execute('approve', `/requirement_approve ${row.id}`) }}
+                  >
+                    {t('requirement.opApprove')}
+                  </Button>
+                </>
               )}
-              {historyReviews.length > 0 && (
-                <ul className="requirement-report-history plain-list compact">
-                  {historyReviews.map(review => (
-                    <li key={review.round} data-testid="requirement-review-history-item" data-round={review.round}>
-                      <span>
-                        {t('requirement.timelineReview', { round: review.round })}
-                        {decisionChip(review, 'requirement-review-history-status')}
-                        <span className="time">{formatTimestamp(review.at)}</span>
-                      </span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        data-testid="requirement-open-report"
-                        data-path={specPath(review.report)}
-                        onPress={() => { props.onOpenReader(specPath(review.report)) }}
-                      >
-                        {t('requirement.openReport')}
-                      </Button>
-                      {decisionOf(review) === 'pending' && (
+              {state === 'confirmed' && related.length === 0 && (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  data-testid="requirement-split"
+                  isDisabled={busy !== null}
+                  onPress={() => { void startOp('split', props.onSplit) }}
+                >
+                  {t('requirement.opSplit')}
+                </Button>
+              )}
+              {state === 'confirmed' && related.length > 0 && plan === undefined && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  data-testid="requirement-split-again"
+                  isDisabled={busy !== null}
+                  ref={(node) => { if (node !== null) node.title = t('requirement.opSplitAgainTitle') }}
+                  onPress={() => { void startOp('split', props.onSplit) }}
+                >
+                  {t('requirement.opSplitAgain')}
+                </Button>
+              )}
+              {(state === 'confirmed' || state === 'released' || state === 'closed') && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  data-testid="requirement-detail-create-based"
+                  isDisabled={busy !== null}
+                  onPress={() => { void startOp('createBased', props.onCreateBased) }}
+                >
+                  {t('requirement.opCreateBased')}
+                </Button>
+              )}
+              {(state === 'confirmed' || state === 'released' || state === 'closed') && related.length > 0 && (
+                <Button variant="ghost" size="sm" data-testid="requirement-detail-tasks" onPress={props.onOpenTasks}>
+                  {t('requirement.opTasks')}
+                </Button>
+              )}
+              {state === 'confirmed' && (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  data-testid="requirement-release"
+                  isDisabled={busy !== null}
+                  onPress={() => { void execute('release', `/requirement_release ${row.id}`) }}
+                >
+                  {t('requirement.opRelease')}
+                </Button>
+              )}
+              {(state === 'draft' || state === 'confirmed' || state === 'released') && (
+                <Button
+                  variant="danger-soft"
+                  size="sm"
+                  className="requirement-close"
+                  data-testid="requirement-close"
+                  isDisabled={busy !== null}
+                  ref={(node) => { if (node !== null) node.title = t('requirement.opCloseTitle') }}
+                  onPress={() => { void execute('close', `/requirement_close ${row.id}`) }}
+                >
+                  {t('requirement.opClose')}
+                </Button>
+              )}
+            </div>
+            {state === 'draft' && approveReason !== undefined && (
+              <p className="detail-note" data-testid="requirement-approve-hint">{approveReason}</p>
+            )}
+            {state === 'draft' && phase === 'pending' && reviewPendingReason !== undefined && (
+              <p className="detail-warning" data-testid="requirement-review-pending-reason">{reviewPendingReason}</p>
+            )}
+            {state === 'draft' && phase === 'pending' && pendingReviseProposal && (
+              <p className="detail-warning" data-testid="requirement-review-proposal-hint">{t('requirement.reviewPendingProposal')}</p>
+            )}
+            {result !== null && (
+              <p className={result.ok ? 'detail-line' : 'problem'} data-testid="requirement-action-result" data-ok={result.ok ? 'true' : 'false'}>
+                {result.text}
+              </p>
+            )}
+            {phaseHint !== undefined && (
+              <p className="detail-note" data-testid="requirement-phase-hint">{phaseHint}</p>
+            )}
+          </div>
+        )}
+      >
+        <section className="detail-section" data-testid="requirement-timeline">
+          <h4>{t('requirement.timeline')}</h4>
+          <ul className="timeline-chips">
+            <li data-testid="requirement-timeline-opened">
+              <Chip size="sm" variant="soft" className="tag">{t('requirement.timelineOpened')}</Chip>
+              <span className="time">{formatTimestamp(row.openedAt ?? '—')}</span>
+            </li>
+            {row.reviews.map(review => (
+              <li
+                key={`review-${String(review.round)}`}
+                className="chip-link"
+                data-testid="requirement-timeline-review"
+                data-round={review.round}
+                data-path={specPath(review.report)}
+                role="button"
+                tabIndex={0}
+                aria-label={t('requirement.timelineReview', { round: review.round })}
+                onClick={() => { props.onOpenReader(specPath(review.report)) }}
+                onKeyDown={(event) => {
+                  if (event.key !== 'Enter' && event.key !== ' ') return
+                  event.preventDefault()
+                  props.onOpenReader(specPath(review.report))
+                }}
+              >
+                <Chip size="sm" variant="soft" color="accent" className="tag">{t('requirement.timelineReview', { round: review.round })}</Chip>
+                {decisionChip(review, 'requirement-timeline-review-status')}
+                <span className="time">{formatTimestamp(review.at)}</span>
+              </li>
+            ))}
+            {row.reviews.length === 0 && (
+              <li className="empty" data-testid="requirement-timeline-review-empty">{t('requirement.noReviews')}</li>
+            )}
+            {row.versions.map(version => (
+              <li key={`version-${String(version.n)}`} data-testid="requirement-timeline-version" data-version={version.n}>
+                <Chip size="sm" variant="soft" className="tag">{t('requirement.timelineVersion', { n: version.n })}</Chip>
+                <span className="time">{formatTimestamp(version.at)}</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  data-testid="requirement-open-version"
+                  data-version={version.n}
+                  data-path={`.spec/requirements/${row.id}/versions/v${String(version.n)}.md`}
+                  onPress={() => { props.onOpenReader(`.spec/requirements/${row.id}/versions/v${String(version.n)}.md`) }}
+                >
+                  {t('requirement.openSnapshot')}
+                </Button>
+                {version.n >= 2 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    data-testid="requirement-compare-version"
+                    data-version={version.n}
+                    onPress={() => { setCompareVersion(version.n) }}
+                  >
+                    {t('requirement.comparePreviousVersion')}
+                  </Button>
+                )}
+              </li>
+            ))}
+            {row.versions.length === 0 && (
+              <li className="empty" data-testid="requirement-timeline-version-empty">{t('requirement.noVersions')}</li>
+            )}
+            <li data-testid="requirement-timeline-approved">
+              <Chip size="sm" variant="soft" className="tag">{t('requirement.timelineApproved')}</Chip>
+              <span className="time">{formatTimestamp(row.approvedAt ?? '—')}</span>
+              <span>{row.approvedVersion === undefined
+                ? t('requirement.notApproved')
+                : t('requirement.timelineApprovedVersion', { n: row.approvedVersion })}</span>
+            </li>
+          </ul>
+        </section>
+
+        <section
+          className="detail-section"
+          data-testid="requirement-review-report"
+          {...(latestReview === null ? {} : { 'data-round': latestReview.round })}
+        >
+          <Separator className="detail-divider" />
+          {latestReview === null || reportPath === null
+            ? (
+              <>
+                <h4>{t('requirement.reportHeading')}</h4>
+                <p className="empty" data-testid="requirement-report-empty">{t('requirement.reportEmpty')}</p>
+              </>
+            )
+            : (
+              <>
+                <div className="detail-drawer-head">
+                  <div className="row-actions">
+                    <h4>{t('requirement.reportTitle', { round: latestReview.round })}</h4>
+                    {decisionChip(latestReview, 'requirement-review-status')}
+                  </div>
+                  <div className="row-actions">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      data-testid="requirement-report-open"
+                      onPress={() => { props.onOpenReader(reportPath) }}
+                    >
+                      {t('requirement.openReport')}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      data-testid="requirement-report-toggle"
+                      aria-expanded={reportExpanded}
+                      onPress={() => { setReportExpanded(current => !current) }}
+                    >
+                      {reportExpanded ? t('requirement.collapse') : t('requirement.expand')}
+                    </Button>
+                  </div>
+                </div>
+                <div className="requirement-report-summary" data-testid="requirement-report-summary">
+                  <span className="time">{formatTimestamp(latestReview.at)}</span>
+                  {report.status === 'loading' && (
+                    <span data-testid="requirement-report-loading">{t('requirement.reportLoading')}</span>
+                  )}
+                  {report.status === 'failed' && (
+                    <span className="problem" data-testid="requirement-report-failed">
+                      {t('requirement.reportFailed', { detail: report.message })}
+                    </span>
+                  )}
+                  {report.status === 'ready' && parsedReport !== undefined && (
+                    <>
+                      {parsedReport.summary !== '' && (
+                        <div className="requirement-report-card card-summary" data-testid="requirement-report-summary-card">
+                          <span className="requirement-card-label">{t('requirement.reportSummary')}</span>
+                          <p className="requirement-card-text" data-testid="requirement-report-summary-text">{parsedReport.summary}</p>
+                        </div>
+                      )}
+                      {parsedReport.todos.length > 0 && (
+                        <div className="requirement-report-card card-todos" data-testid="requirement-report-todos">
+                          <div className="detail-drawer-head">
+                            <span className="requirement-card-label">{t('requirement.reportTodos')}</span>
+                            <span className="requirement-todo-summary" data-testid="requirement-todo-summary">
+                              {t('requirement.todoStats', {
+                                high: String(priorityCounts.high),
+                                medium: String(priorityCounts.medium),
+                                low: String(priorityCounts.low),
+                              })}
+                            </span>
+                          </div>
+                          <ul className="requirement-todo-list">
+                            {parsedReport.todos.map((todo, index) => {
+                              const expanded = expandedTodos.has(index)
+                              return (
+                                <li
+                                  key={`todo-${String(index)}`}
+                                  className="requirement-todo"
+                                  data-testid="requirement-report-todo"
+                                  data-priority={todo.priority ?? ''}
+                                >
+                                  <div className="requirement-todo-main">
+                                    {todo.priority !== undefined && (
+                                      <Chip
+                                        size="sm"
+                                        variant="soft"
+                                        color={PRIORITY_CHIP_COLOR[todo.priority]}
+                                        className={`priority-badge priority-${todo.priority}`}
+                                        data-testid="requirement-report-priority"
+                                      >
+                                        {t(PRIORITY_KEY[todo.priority])}
+                                      </Chip>
+                                    )}
+                                    <span className="requirement-todo-text">{expanded ? todo.text : todo.summary}</span>
+                                  </div>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="requirement-todo-toggle"
+                                    data-testid="requirement-todo-toggle"
+                                    aria-expanded={expanded}
+                                    onPress={() => { toggleTodo(index) }}
+                                  >
+                                    {expanded ? t('requirement.collapse') : t('requirement.todoDetails')}
+                                  </Button>
+                                </li>
+                              )
+                            })}
+                          </ul>
+                        </div>
+                      )}
+                      {parsedReport.summary === '' && parsedReport.todos.length === 0 && (
+                        <>
+                          <span className="requirement-excerpt-label">{t('requirement.reportExcerpt')}</span>
+                          <span data-testid="requirement-report-excerpt">{excerptOf(report.text)}</span>
+                        </>
+                      )}
+                    </>
+                  )}
+                </div>
+                {reportExpanded && report.status === 'ready' && (
+                  <div className="markdown-body tall" data-testid="requirement-report-body">{renderMarkdown(report.text)}</div>
+                )}
+                {phase === 'pending' && (
+                  <div className="requirement-review-decision" data-testid="requirement-review-decision">
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      data-testid="requirement-review-accept"
+                      isDisabled={busy !== null}
+                      ref={(node) => { if (node !== null) node.title = t('requirement.reviewAcceptTitle') }}
+                      onPress={() => { void startOp('reviewAccept', props.onRevise) }}
+                    >
+                      {t('requirement.reviewAccept')}
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      data-testid="requirement-review-reject"
+                      isDisabled={busy !== null}
+                      ref={(node) => { if (node !== null) node.title = t('requirement.reviewRejectTitle') }}
+                      onPress={() => { void execute('reviewReject', `/requirement_review_decide ${row.id} ${latestReview.round} rejected`) }}
+                    >
+                      {t('requirement.reviewReject')}
+                    </Button>
+                    <p className="detail-note" data-testid="requirement-review-accept-hint">{t('requirement.reviewAcceptHint')}</p>
+                  </div>
+                )}
+                {historyReviews.length > 0 && (
+                  <ul className="requirement-report-history plain-list compact">
+                    {historyReviews.map(review => (
+                      <li key={review.round} data-testid="requirement-review-history-item" data-round={review.round}>
+                        <span>
+                          {t('requirement.timelineReview', { round: review.round })}
+                          {decisionChip(review, 'requirement-review-history-status')}
+                          <span className="time">{formatTimestamp(review.at)}</span>
+                        </span>
                         <Button
                           variant="ghost"
                           size="sm"
-                          data-testid="requirement-review-history-reject"
-                          data-round={review.round}
-                          isDisabled={busy !== null}
-                          ref={(node) => { if (node !== null) node.title = t('requirement.reviewRejectHistoryTitle') }}
-                          onPress={() => { void execute(`reviewReject-${String(review.round)}`, `/requirement_review_decide ${row.id} ${review.round} rejected`) }}
+                          data-testid="requirement-open-report"
+                          data-path={specPath(review.report)}
+                          onPress={() => { props.onOpenReader(specPath(review.report)) }}
                         >
-                          {t('requirement.reviewRejectHistory')}
+                          {t('requirement.openReport')}
                         </Button>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </>
-          )}
-      </section>
-
-      {plan !== undefined && (
-        <section className="detail-section" data-testid="requirement-split-plan">
-          <Separator className="detail-divider" />
-          <h4>{t('requirement.splitPlanTitle')}</h4>
-          <p className="detail-note">{t('requirement.splitPlanAt', { at: formatTimestamp(plan.at) })}</p>
-          <div className="table-wrap">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th scope="col">{t('requirement.splitPlanTask')}</th>
-                  <th scope="col">{t('requirement.splitPlanRole')}</th>
-                  <th scope="col">{t('requirement.splitPlanReason')}</th>
-                  <th scope="col">{t('requirement.splitPlanAction')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {plan.entries.map((entry) => {
-                  const task = props.projection.tasks.find(item => item.id === entry.task)
-                  const outcome = assigns[entry.task]
-                  const done = ignored.has(entry.task) || outcome?.ok === true
-                  return (
-                    <tr key={entry.task} data-testid="requirement-split-plan-row" data-task-id={entry.task}>
-                      <td><span className="mono">{entry.task}</span> {task?.title ?? ''}</td>
-                      <td>{roleLabel(entry.role)}</td>
-                      <td>{entry.reason ?? '—'}</td>
-                      <td>
-                        {ignored.has(entry.task)
-                          ? <Chip size="sm" variant="soft" className="tag" data-testid="requirement-split-plan-status" data-ok="ignored">{t('requirement.roleIgnored')}</Chip>
-                          : outcome === undefined
-                            ? (
-                              <div className="row-actions">
-                                <Button
-                                  variant="secondary"
-                                  size="sm"
-                                  data-testid="requirement-split-plan-confirm"
-                                  data-task-id={entry.task}
-                                  isDisabled={busy !== null}
-                                  onPress={() => { void assign(entry) }}
-                                >
-                                  {t('requirement.confirmRole')}
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  data-testid="requirement-split-plan-ignore"
-                                  data-task-id={entry.task}
-                                  isDisabled={busy !== null}
-                                  onPress={() => { ignore(entry.task) }}
-                                >
-                                  {t('requirement.ignoreRole')}
-                                </Button>
-                              </div>
-                            )
-                            : (
-                              <span
-                                className={outcome.ok ? 'detail-line' : 'problem'}
-                                data-testid="requirement-split-plan-status"
-                                data-ok={outcome.ok ? 'true' : 'false'}
-                              >
-                                {outcome.text}
-                              </span>
-                            )}
-                        {!done && outcome !== undefined && (
-                          <div className="row-actions">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              data-testid="requirement-split-plan-retry"
-                              data-task-id={entry.task}
-                              isDisabled={busy !== null}
-                              onPress={() => { void assign(entry) }}
-                            >
-                              {t('requirement.confirmRole')}
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              data-testid="requirement-split-plan-ignore"
-                              data-task-id={entry.task}
-                              isDisabled={busy !== null}
-                              onPress={() => { ignore(entry.task) }}
-                            >
-                              {t('requirement.ignoreRole')}
-                            </Button>
-                          </div>
+                        {decisionOf(review) === 'pending' && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            data-testid="requirement-review-history-reject"
+                            data-round={review.round}
+                            isDisabled={busy !== null}
+                            ref={(node) => { if (node !== null) node.title = t('requirement.reviewRejectHistoryTitle') }}
+                            onPress={() => { void execute(`reviewReject-${String(review.round)}`, `/requirement_review_decide ${row.id} ${review.round} rejected`) }}
+                          >
+                            {t('requirement.reviewRejectHistory')}
+                          </Button>
                         )}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-          {planDone && (
-            <p className="detail-note" data-testid="requirement-split-plan-done">
-              <span>{t('requirement.splitPlanDone')}</span>
-              <Button variant="ghost" size="sm" data-testid="requirement-split-plan-tasks" onPress={props.onOpenTasks}>
-                {t('requirement.splitPlanGoTasks')}
-              </Button>
-            </p>
-          )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </>
+            )}
         </section>
-      )}
 
-      <section className="detail-section" data-testid="requirement-related">
-        <Separator className="detail-divider" />
-        <div className="detail-drawer-head">
-          <h4>关联任务</h4>
-          {related.length > 0 && (
-            <Button variant="ghost" size="sm" data-testid="requirement-view-tasks" onPress={props.onOpenTasks}>
-              {t('requirement.opTasks')}
-            </Button>
-          )}
+        {plan !== undefined && (
+          <section className="detail-section" data-testid="requirement-split-plan">
+            <Separator className="detail-divider" />
+            <h4>{t('requirement.splitPlanTitle')}</h4>
+            <p className="detail-note">{t('requirement.splitPlanAt', { at: formatTimestamp(plan.at) })}</p>
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th scope="col">{t('requirement.splitPlanTask')}</th>
+                    <th scope="col">{t('requirement.splitPlanRole')}</th>
+                    <th scope="col">{t('requirement.splitPlanReason')}</th>
+                    <th scope="col">{t('requirement.splitPlanAction')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {plan.entries.map((entry) => {
+                    const task = props.projection.tasks.find(item => item.id === entry.task)
+                    const outcome = assigns[entry.task]
+                    const diskRole = task?.role
+                    const done = diskRole !== undefined || ignored.has(entry.task) || outcome?.ok === true
+                    return (
+                      <tr key={entry.task} data-testid="requirement-split-plan-row" data-task-id={entry.task}>
+                        <td><span className="mono">{entry.task}</span> {task?.title ?? ''}</td>
+                        <td>{roleLabel(entry.role)}</td>
+                        <td>{entry.reason ?? '—'}</td>
+                        <td>
+                          {diskRole !== undefined
+                            ? (
+                              <Chip
+                                size="sm"
+                                variant="soft"
+                                color="success"
+                                className="tag"
+                                data-testid="requirement-split-plan-assigned"
+                                data-task-id={entry.task}
+                                data-role={diskRole}
+                              >
+                                {t('requirement.roleAssigned', { role: roleLabel(diskRole) })}
+                              </Chip>
+                            )
+                            : ignored.has(entry.task)
+                              ? <Chip size="sm" variant="soft" className="tag" data-testid="requirement-split-plan-status" data-ok="ignored">{t('requirement.roleIgnored')}</Chip>
+                              : outcome === undefined
+                                ? (
+                                  <div className="row-actions">
+                                    <Button
+                                      variant="secondary"
+                                      size="sm"
+                                      data-testid="requirement-split-plan-confirm"
+                                      data-task-id={entry.task}
+                                      isDisabled={busy !== null}
+                                      onPress={() => { void assign(entry) }}
+                                    >
+                                      {t('requirement.confirmRole')}
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      data-testid="requirement-split-plan-ignore"
+                                      data-task-id={entry.task}
+                                      isDisabled={busy !== null}
+                                      onPress={() => { ignore(entry.task) }}
+                                    >
+                                      {t('requirement.ignoreRole')}
+                                    </Button>
+                                  </div>
+                                )
+                                : (
+                                  <span
+                                    className={outcome.ok ? 'detail-line' : 'problem'}
+                                    data-testid="requirement-split-plan-status"
+                                    data-ok={outcome.ok ? 'true' : 'false'}
+                                  >
+                                    {outcome.text}
+                                  </span>
+                                )}
+                          {diskRole === undefined && !done && outcome !== undefined && (
+                            <div className="row-actions">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                data-testid="requirement-split-plan-retry"
+                                data-task-id={entry.task}
+                                isDisabled={busy !== null}
+                                onPress={() => { void assign(entry) }}
+                              >
+                                {t('requirement.confirmRole')}
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                data-testid="requirement-split-plan-ignore"
+                                data-task-id={entry.task}
+                                isDisabled={busy !== null}
+                                onPress={() => { ignore(entry.task) }}
+                              >
+                                {t('requirement.ignoreRole')}
+                              </Button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+            {planDone && (
+              <p className="detail-note" data-testid="requirement-split-plan-done">
+                <span>{t('requirement.splitPlanDone')}</span>
+                <Button variant="ghost" size="sm" data-testid="requirement-split-plan-tasks" onPress={props.onOpenTasks}>
+                  {t('requirement.splitPlanGoTasks')}
+                </Button>
+              </p>
+            )}
+          </section>
+        )}
+
+        <section className="detail-section" data-testid="requirement-related">
+          <Separator className="detail-divider" />
+          <div className="detail-drawer-head">
+            <h4>关联任务</h4>
+            {related.length > 0 && (
+              <Button variant="ghost" size="sm" data-testid="requirement-view-tasks" onPress={props.onOpenTasks}>
+                {t('requirement.opTasks')}
+              </Button>
+            )}
+          </div>
+          {related.length === 0
+            ? <p className="empty">还没有拆出任务。</p>
+            : (
+              <ul className="plain-list compact">
+                {related.map(task => (
+                  <li key={task.id}>
+                    <Button variant="ghost" size="sm" data-testid="requirement-related-task" onPress={() => { props.onOpenTask(task.id) }}>
+                      <span className="mono">{task.id}</span> {task.title}
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+        </section>
+
+      </DetailDrawer>
+      {compareVersion !== null && (
+        <div className="compare-layer" data-testid="requirement-version-compare" data-version={compareVersion}>
+          <div className="compare-panel" role="dialog" aria-modal="true" aria-label={t('requirement.versionCompareTitle')}>
+            <div className="compare-bar">
+              <div>
+                <h3>{t('requirement.versionCompareTitle')}</h3>
+                <p className="compare-sub">{t('requirement.versionCompareRange', { from: compareVersion - 1, to: compareVersion })}</p>
+              </div>
+              <Button variant="secondary" data-testid="requirement-version-compare-close" onPress={() => { setCompareVersion(null) }}>
+                {t('compare.close')}
+              </Button>
+            </div>
+            <div className="compare-scroll">
+              {versionDiff.status === 'loading' && (
+                <p className="empty" data-testid="requirement-version-compare-loading">{t('compare.loading')}</p>
+              )}
+              {versionDiff.status === 'failed' && (
+                <p className="problem" data-testid="requirement-version-compare-failed">
+                  {t('requirement.versionCompareFailed', { detail: versionDiff.message })}
+                </p>
+              )}
+              {versionDiff.status === 'ready' && (
+                <div className="compare-columns">
+                  <div className="compare-col" data-testid="requirement-version-compare-old">
+                    <h5>{t('requirement.timelineVersion', { n: compareVersion - 1 })}</h5>
+                    <div className="compare-text">
+                      {compareColumn(versionDiff.lines, 'old').map((line, index) => (
+                        <div key={index} className={line.kind === 'removed' ? 'compare-line removed' : 'compare-line'}>
+                          {line.text === '' ? ' ' : line.text}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="compare-col" data-testid="requirement-version-compare-new">
+                    <h5>{t('requirement.timelineVersion', { n: compareVersion })}</h5>
+                    <div className="compare-text">
+                      {compareColumn(versionDiff.lines, 'new').map((line, index) => (
+                        <div key={index} className={line.kind === 'added' ? 'compare-line added' : 'compare-line'}>
+                          {line.text === '' ? ' ' : line.text}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
-        {related.length === 0
-          ? <p className="empty">还没有拆出任务。</p>
-          : (
-            <ul className="plain-list compact">
-              {related.map(task => (
-                <li key={task.id}>
-                  <Button variant="ghost" size="sm" data-testid="requirement-related-task" onPress={() => { props.onOpenTask(task.id) }}>
-                    <span className="mono">{task.id}</span> {task.title}
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          )}
-      </section>
-
-    </DetailDrawer>
+      )}
+    </>
   )
 }

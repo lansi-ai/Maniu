@@ -117,13 +117,15 @@ function renderPage(
   projection: SpecProjection,
   calls: StartCall[],
   onOpenTasks: (id: string) => void = () => {},
+  sessions: readonly SessionSummary[] = [],
+  onOpenSession: (id: string) => void = () => {},
 ): void {
   act(() => {
     root.render(
       <RequirementsPage
         project={PROJECT}
         projection={projection}
-        sessions={[]}
+        sessions={sessions}
         loading={false}
         error={null}
         intakeResult={null}
@@ -134,7 +136,7 @@ function renderPage(
           calls.push(preset === undefined ? { prompt } : { prompt, preset })
           return { ok: true, message: 'ok' }
         }}
-        onOpenSession={() => {}}
+        onOpenSession={onOpenSession}
         onOpenTasks={onOpenTasks}
       />,
     )
@@ -267,5 +269,32 @@ describe('交互期不误杀超时', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+})
+
+describe('后台会话恢复入口', () => {
+  it('在跑的游离会话给出提示与查看对话入口，未跟踪会话不提示', async () => {
+    const opened: string[] = []
+    renderPage(
+      projectionOf([DRAFT], []),
+      [],
+      () => {},
+      [{ sessionId: 'session-orphan', updatedAt: 1, running: true, blank: false }],
+      (id) => { opened.push(id) },
+    )
+    expect(element('requirement-background-recovery')?.textContent).toContain('有后台任务正在运行')
+    const entry = element('requirement-background-recovery-open')
+    expect(entry?.getAttribute('data-session-id')).toBe('session-orphan')
+    expect(entry?.textContent).toContain('查看对话')
+    await press('requirement-background-recovery-open')
+    expect(opened).toEqual(['session-orphan'])
+
+    renderPage(
+      projectionOf([DRAFT], []),
+      [],
+      () => {},
+      [{ sessionId: 'session-idle', updatedAt: 1, running: false, blank: false }],
+    )
+    expect(element('requirement-background-recovery')).toBeNull()
   })
 })

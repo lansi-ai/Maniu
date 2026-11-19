@@ -15,7 +15,7 @@ const PROJECT: ProjectScope = {
   scopeSessionId: 'session-scope',
 }
 
-function task(id: string, requirement?: string): TaskRow {
+function task(id: string, requirement?: string, role?: string): TaskRow {
   return {
     id,
     title: `任务 ${id}`,
@@ -29,6 +29,7 @@ function task(id: string, requirement?: string): TaskRow {
     paths: [],
     irreversible: [],
     ...(requirement === undefined ? {} : { requirement }),
+    ...(role === undefined ? {} : { role }),
   }
 }
 
@@ -114,5 +115,31 @@ describe('任务页需求过滤', () => {
     renderPage(null)
     expect(element('task-requirement-filter')).toBeNull()
     expect(ids('task-card', 'data-task-id')).toEqual(['T-01', 'T-02', 'T-03'])
+  })
+
+  it('任务卡片从投影回显已持久化岗位，无需本会话重新分配', () => {
+    const projection: SpecProjection = {
+      ...PROJECTION,
+      tasks: [task('T-01', 'REQ-01', 'vue'), task('T-02', 'REQ-02')],
+    }
+    act(() => {
+      root.render(
+        <TasksPage
+          project={PROJECT}
+          projection={projection}
+          sessions={[]}
+          loading={false}
+          error={null}
+          onReload={() => {}}
+          requirementFilter={null}
+          onClearRequirementFilter={() => {}}
+        />,
+      )
+    })
+    const cards = [...container.querySelectorAll('[data-testid="task-card"]')]
+    const assigned = cards.find(card => card.getAttribute('data-task-id') === 'T-01')
+    const unassigned = cards.find(card => card.getAttribute('data-task-id') === 'T-02')
+    expect(assigned?.textContent).toContain('岗位 vue')
+    expect(unassigned?.textContent).not.toContain('岗位')
   })
 })
