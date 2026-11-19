@@ -1,8 +1,9 @@
-/** 立项向导与结果页：选择档位、预览指令、发送并在结果里查看新需求。 */
+/** 立项向导与结果页：选择档位、发送并在结果里查看新需求。 */
 
 import { useEffect, useMemo, useState } from 'react'
 import type { JSX } from 'react'
-import { Button, Card, Chip, Separator, Tabs } from '@heroui/react'
+import { Button, Card, Separator } from '@heroui/react'
+import { Check, FileSearch, FolderGit2, Rocket, Sparkles, UserCheck } from 'lucide-react'
 import type { ProjectScope } from '../workspace/use-workspaces.ts'
 import type { SpecProjection } from '../spec/load.ts'
 import { buildIntakePrompt, type IntakeMode } from '../intake/prompts.ts'
@@ -83,8 +84,7 @@ export function IntakeWizard(props: IntakeWizardProps): JSX.Element {
     }
   }
 
-  const selectMode = (key: unknown): void => {
-    if (key !== 'fresh' && key !== 'onboarding') return
+  const selectMode = (key: IntakeMode): void => {
     setMode(key)
   }
 
@@ -99,107 +99,124 @@ export function IntakeWizard(props: IntakeWizardProps): JSX.Element {
       onClose={props.onClose}
       head={<h3>立项向导</h3>}
     >
-      <div className="intake-role-row" data-testid="intake-role">
-        <Chip variant="soft" color="accent" size="sm">{t('intake.roleName')}</Chip>
-        <span className="detail-note">{t('intake.roleLabel', { name: rosterName ?? t('intake.roleName') })}</span>
-      </div>
+      <div className="intake-container">
+        <div className="intake-role-row" data-testid="intake-role">
+          <span className="intake-role-avatar" aria-hidden="true"><UserCheck size={18} /></span>
+          <div className="intake-role-body">
+            <span className="intake-role-name">{rosterName ?? t('intake.roleName')}</span>
+            <span className="intake-role-creator">{t('intake.creatorLabel', { creator: t('intake.creatorBuiltin') })}</span>
+          </div>
+        </div>
 
-      {started === null && blocked && (
-        <Card className="intake-section" data-testid="intake-blocked">
-          <Card.Header><Card.Title>项目已有内容</Card.Title></Card.Header>
-          <Separator />
-          <Card.Content>
-            <p className="detail-line">{t('intake.blocked')}</p>
-            <div className="detail-drawer-head">
-              <Button variant="secondary" data-testid="intake-blocked-open" onPress={props.onClose}>
-                {t('intake.blockedOpen')}
-              </Button>
-            </div>
-          </Card.Content>
-        </Card>
-      )}
-
-      {started === null && !blocked && (
-        <>
-          <Card className="intake-section">
-            <Card.Header><Card.Title>项目</Card.Title></Card.Header>
+        {started === null && blocked && (
+          <Card className="intake-section" data-testid="intake-blocked">
+            <Card.Header><Card.Title>项目已有内容</Card.Title></Card.Header>
             <Separator />
             <Card.Content>
-              <dl className="kv">
-                <dt>名称</dt><dd>{props.project.title}</dd>
-                <dt>路径</dt><dd className="mono">{props.project.path}</dd>
-              </dl>
+              <p className="detail-line">{t('intake.blocked')}</p>
+              <div className="detail-drawer-head">
+                <Button variant="secondary" data-testid="intake-blocked-open" onPress={props.onClose}>
+                  {t('intake.blockedOpen')}
+                </Button>
+              </div>
             </Card.Content>
           </Card>
+        )}
 
-          <Card className="intake-section">
-            <Card.Header><Card.Title>档位</Card.Title></Card.Header>
-            <Separator />
-            <Card.Content>
-              <Tabs
-                className="intake-mode-tabs"
-                selectedKey={mode}
-                onSelectionChange={selectMode}
-                aria-label="立项档位"
-              >
-                <Tabs.List>
-                  <Tabs.Tab key="fresh" id="fresh" data-testid="intake-mode-fresh">全新项目</Tabs.Tab>
-                  <Tabs.Tab key="onboarding" id="onboarding" data-testid="intake-mode-onboarding">已有资料</Tabs.Tab>
-                </Tabs.List>
-              </Tabs>
-              <p className="detail-note">指令会发送到一条新的需求分析师会话；模型先做 7 问访谈，出《项目需求概要》等你回复「确认需求」后才落盘。</p>
-            </Card.Content>
-          </Card>
-
-          <details className="intake-prompt-details" data-testid="intake-prompt-details">
-            <summary>{t('intake.promptToggle')}</summary>
-            <Card className="intake-section">
-              <Card.Header><Card.Title>{t('intake.promptTitle')}</Card.Title></Card.Header>
-              <Separator />
+        {started === null && !blocked && (
+          <>
+            <Card className="intake-section intake-project-card">
               <Card.Content>
-                <pre className="prompt-preview" data-testid="intake-prompt">{prompt}</pre>
+                <div className="intake-project-row">
+                  <span className="intake-project-icon" aria-hidden="true"><FolderGit2 size={18} /></span>
+                  <div className="intake-project-meta">
+                    <span className="intake-project-name">{props.project.title}</span>
+                    <span className="intake-project-path mono">{props.project.path}</span>
+                  </div>
+                </div>
               </Card.Content>
             </Card>
-          </details>
 
-          {failure !== null && <p className="problem" data-testid="intake-error">{failure}</p>}
-          <div className="detail-drawer-head">
-            <Button variant="primary" data-testid="intake-start" isDisabled={busy} onPress={() => { void start() }}>
-              {busy ? '发送中…' : '开始立项'}
-            </Button>
-          </div>
-        </>
-      )}
+            <Card className="intake-section">
+              <Card.Header><Card.Title>档位</Card.Title></Card.Header>
+              <Separator />
+              <Card.Content>
+                <div className="intake-mode-grid" role="radiogroup" aria-label="立项档位">
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={mode === 'fresh'}
+                    data-testid="intake-mode-fresh"
+                    className={mode === 'fresh' ? 'intake-mode-card selected' : 'intake-mode-card'}
+                    onClick={() => { selectMode('fresh') }}
+                  >
+                    <span className="intake-mode-icon" aria-hidden="true"><Rocket size={18} /></span>
+                    <span className="intake-mode-text">
+                      <span className="intake-mode-title">{t('intake.modeFreshTitle')}</span>
+                      <span className="intake-mode-desc">{t('intake.modeFreshDesc')}</span>
+                    </span>
+                    <Check className="intake-mode-check" size={16} aria-hidden="true" />
+                  </button>
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={mode === 'onboarding'}
+                    data-testid="intake-mode-onboarding"
+                    className={mode === 'onboarding' ? 'intake-mode-card selected' : 'intake-mode-card'}
+                    onClick={() => { selectMode('onboarding') }}
+                  >
+                    <span className="intake-mode-icon" aria-hidden="true"><FileSearch size={18} /></span>
+                    <span className="intake-mode-text">
+                      <span className="intake-mode-title">{t('intake.modeOnboardingTitle')}</span>
+                      <span className="intake-mode-desc">{t('intake.modeOnboardingDesc')}</span>
+                    </span>
+                    <Check className="intake-mode-check" size={16} aria-hidden="true" />
+                  </button>
+                </div>
+                <p className="intake-mode-hint">{t('intake.modeFlowHint')}</p>
+              </Card.Content>
+            </Card>
 
-      {started !== null && (
-        <Card className="intake-section" data-testid="intake-result">
-          <Card.Header><Card.Title>结果</Card.Title></Card.Header>
-          <Separator />
-          <Card.Content>
-            <p className="detail-line" data-testid="intake-result-message">{started.message}</p>
-            <div className="detail-drawer-head">
-              <Button variant="secondary" data-testid="intake-result-refresh" onPress={props.onReload}>刷新需求</Button>
-              {blocked ? null : (
-                <Button variant="secondary" data-testid="intake-restart" onPress={props.onClearResult}>重新立项</Button>
-              )}
+            {failure !== null && <p className="problem" data-testid="intake-error">{failure}</p>}
+            <div className="intake-actions">
+              <Button variant="primary" data-testid="intake-start" isDisabled={busy} onPress={() => { void start() }}>
+                <Sparkles size={16} aria-hidden="true" />
+                {busy ? t('intake.sending') : t('intake.start')}
+              </Button>
             </div>
-            {latest === undefined
-              ? <p className="empty" data-testid="intake-result-empty">还没有需求；等模型落盘后点「刷新需求」。</p>
-              : (
-                <ul className="plain-list compact" data-testid="intake-result-requirements">
-                  {props.projection.requirements.slice(-3).reverse().map(row => (
-                    <li key={row.id}>
-                      <button type="button" className="link-button" data-testid="intake-result-requirement" data-requirement-id={row.id} onClick={() => { props.onOpenRequirement(row.id) }}>
-                        <span className="mono">{row.id}</span> {row.title ?? row.id}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            <p className="detail-note">{t('intake.resultBackground')}</p>
-          </Card.Content>
-        </Card>
-      )}
+          </>
+        )}
+
+        {started !== null && (
+          <Card className="intake-section" data-testid="intake-result">
+            <Card.Header><Card.Title>结果</Card.Title></Card.Header>
+            <Separator />
+            <Card.Content>
+              <p className="detail-line" data-testid="intake-result-message">{started.message}</p>
+              <div className="detail-drawer-head">
+                <Button variant="secondary" data-testid="intake-result-refresh" onPress={props.onReload}>刷新需求</Button>
+                {blocked ? null : (
+                  <Button variant="secondary" data-testid="intake-restart" onPress={props.onClearResult}>重新立项</Button>
+                )}
+              </div>
+              {latest === undefined
+                ? <p className="empty" data-testid="intake-result-empty">还没有需求；等模型落盘后点「刷新需求」。</p>
+                : (
+                  <ul className="plain-list compact" data-testid="intake-result-requirements">
+                    {props.projection.requirements.slice(-3).reverse().map(row => (
+                      <li key={row.id}>
+                        <button type="button" className="link-button" data-testid="intake-result-requirement" data-requirement-id={row.id} onClick={() => { props.onOpenRequirement(row.id) }}>
+                          <span className="mono">{row.id}</span> {row.title ?? row.id}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              <p className="detail-note">{t('intake.resultBackground')}</p>
+            </Card.Content>
+          </Card>
+        )}
+      </div>
     </DetailDrawer>
   )
 }
