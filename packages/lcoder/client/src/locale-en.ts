@@ -47,7 +47,6 @@ export const EN: Readonly<Record<MessageKey, string>> = {
   'flow.projectMissing': 'Select a project first',
   'flow.startSent': 'Instruction sent to session {id}; the model will interview first and only write files after the requirement is confirmed.',
   'requirement.intakeBlocked': 'This project already has requirements or tasks; intake analysis is not available.',
-  'requirement.intakeBlockedOpen': 'View {id}',
   'requirement.colOpened': 'Created',
   'requirement.colActions': 'Actions',
   'requirement.opReview': 'Review',

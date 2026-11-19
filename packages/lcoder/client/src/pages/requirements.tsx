@@ -531,7 +531,6 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
 
   // 立项分析只对空项目开放；已有结果时仍允许打开结果页回看，但不允许开新立项。
   const blockedIntake = hasIntakeWork(props.projection) && props.intakeResult === null
-  const firstRequirement = props.projection.requirements[0]
 
   // 待确认的需求变更：起草态且带载荷的提案；对比视图只对这些提案开放。
   const pendingChanges = props.projection.proposals.flatMap(proposal =>
@@ -706,15 +705,16 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
             <RefreshCw size={14} className={props.loading ? 'req-spin' : undefined} />
             {props.loading ? '读取中…' : '刷新'}
           </Button>
-          <Button
-            variant="primary"
-            data-testid="intake-open"
-            isDisabled={props.project === null || blockedIntake || busyOf('intake', null)}
-            {...(blockedIntake ? { title: t('requirement.intakeBlocked') } : {})}
-            onPress={() => { setWizard(true) }}
-          >
-            {props.intakeResult === null ? '立项向导' : '立项结果'}
-          </Button>
+          <span title={blockedIntake ? t('requirement.intakeBlocked') : undefined}>
+            <Button
+              variant="primary"
+              data-testid="intake-open"
+              isDisabled={props.project === null || blockedIntake || busyOf('intake', null)}
+              onPress={() => { setWizard(true) }}
+            >
+              {props.intakeResult === null ? '立项向导' : '立项结果'}
+            </Button>
+          </span>
           <Button
             variant="primary"
             data-testid="requirement-new-open"
@@ -726,22 +726,6 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
           </Button>
         </div>
       </header>
-
-      {props.project !== null && blockedIntake && (
-        <p className="detail-note" data-testid="requirement-intake-blocked">
-          <span>{t('requirement.intakeBlocked')}</span>
-          {firstRequirement === undefined ? null : (
-            <button
-              type="button"
-              className="link-button"
-              data-testid="requirement-intake-blocked-open"
-              onClick={() => { setSelected(firstRequirement.id) }}
-            >
-              {t('requirement.intakeBlockedOpen', { id: firstRequirement.id })}
-            </button>
-          )}
-        </p>
-      )}
 
       {props.project === null && <p className="empty" data-testid="requirement-no-project">先在「切换项目」里打开一个仓库。</p>}
 
