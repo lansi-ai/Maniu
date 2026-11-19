@@ -34,6 +34,28 @@ describe('立项提示词', () => {
     expect(prompt).not.toContain('测试用例：')
     expect(prompt).not.toContain('七个问题依次覆盖')
   })
+
+  it('全新项目附初步想法时带上想法原文并跳过第 1 问，不盲猜', () => {
+    const prompt = buildIntakePrompt(PROJECT, 'fresh', '做一个团队人员名单维护工具')
+    expect(prompt).toContain('全新项目立项：')
+    expect(prompt).toContain('第 0 步 先看清仓库')
+    expect(prompt).toContain('用户已说明的项目初步想法（第 1 问已答）')
+    expect(prompt).toContain('做一个团队人员名单维护工具')
+    expect(prompt).toContain('跳过第 1 问')
+    expect(prompt).toContain('不要盲猜')
+    expect(prompt).toContain('第 2 问（主要给谁使用）')
+    expect(prompt).toContain('验收标准')
+    expect(prompt).toContain('生成贴合该业务的选项逐题追问')
+  })
+
+  it('不传想法或想法为空白时输出与旧版二参调用一致，不附想法段落', () => {
+    const withoutIdea = buildIntakePrompt(PROJECT, 'fresh')
+    const blankIdea = buildIntakePrompt(PROJECT, 'fresh', '   ')
+    expect(blankIdea).toBe(withoutIdea)
+    expect(withoutIdea).toContain('第 0 步 先看清仓库')
+    expect(withoutIdea).not.toContain('用户已说明的项目初步想法')
+    expect(withoutIdea).not.toContain('跳过第 1 问')
+  })
 })
 
 describe('研发经理拆分提示词', () => {
@@ -204,5 +226,11 @@ describe('内置角色人设源', () => {
     expect(PROFILE).toContain('title 用不超过 16 字的短业务短语')
     expect(PROFILE).toContain('失败就照实报四件事')
     expect(PROFILE).toContain('不签契约、不推进任务状态、不改业务代码、不跑命令、不提交、不推送、不部署。')
+  })
+
+  it('首条消息带初步想法时第 1 问视为已答，不按目录名盲猜重问', () => {
+    expect(PROFILE).toContain('首条立项消息若附带「用户已说明的项目初步想法（第 1 问已答）」，第 1 问视为已答')
+    expect(PROFILE).toContain('严禁按仓库文件夹名盲猜软件类别重问第 1 问')
+    expect(PROFILE).toContain('直接围绕用户想法从第 2 问起生成贴合业务的选项')
   })
 })

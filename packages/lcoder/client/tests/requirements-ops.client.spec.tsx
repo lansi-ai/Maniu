@@ -254,6 +254,13 @@ describe('交互期不误杀超时', () => {
         await vi.advanceTimersByTimeAsync(0)
       })
       await act(async () => {
+        const idea = element('intake-idea-input') as HTMLTextAreaElement
+        // oxlint-disable-next-line typescript/unbound-method -- 原生 value setter 要用 call 绑定到该输入框。
+        const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set
+        setter?.call(idea, '做一个团队人员名单维护工具')
+        idea.dispatchEvent(new Event('input', { bubbles: true }))
+      })
+      await act(async () => {
         ;(element('intake-start') as HTMLElement).click()
         await vi.advanceTimersByTimeAsync(0)
       })

@@ -833,6 +833,21 @@
 .intake-mode-check { position: absolute; top: 13px; right: 12px; color: var(--accent); opacity: 0; transition: opacity 160ms ease; }
 .intake-mode-card.selected .intake-mode-check { opacity: 1; }
 .intake-mode-hint { margin: 12px 0 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.intake-idea-hint { margin: 0 0 10px; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.intake-idea-input {
+  width: 100%;
+  min-height: 84px;
+  resize: vertical;
+  padding: 10px 12px;
+  border: 1px solid var(--separator);
+  border-radius: 10px;
+  background: var(--surface-secondary);
+  color: var(--foreground);
+  font: inherit;
+  line-height: 1.5;
+}
+.intake-idea-input::placeholder { color: var(--muted); }
+.intake-idea-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .intake-actions { display: flex; justify-content: flex-end; padding-top: 4px; }
 @media (max-width: 560px) {
   .intake-mode-grid { grid-template-columns: 1fr; }

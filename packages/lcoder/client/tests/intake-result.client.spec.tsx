@@ -72,6 +72,18 @@ function element(testId: string): Element | null {
   return container.querySelector(`[data-testid="${testId}"]`)
 }
 
+/** 在全新项目档的想法输入框里填一句，解锁开始按钮。 */
+async function fillIdea(): Promise<void> {
+  const node = element('intake-idea-input') as HTMLTextAreaElement
+  expect(node).not.toBeNull()
+  await act(async () => {
+    // oxlint-disable-next-line typescript/unbound-method -- 原生 value setter 要用 call 绑定到该输入框。
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set
+    setter?.call(node, '做一个团队人员名单维护工具')
+    node.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+}
+
 function Harness(): JSX.Element {
   const [result, setResult] = useState<IntakeResult | null>(null)
   const [open, setOpen] = useState(true)
@@ -105,6 +117,7 @@ describe('立项结果视图文案', () => {
         <Harness />,
       )
     })
+    await fillIdea()
     await press('intake-start')
     const note = element('intake-result')?.textContent ?? ''
     expect(note).toContain('后台运行')
@@ -118,6 +131,7 @@ describe('立项结果提升到 App 级', () => {
     await act(async () => { root.render(<Harness />) })
     expect(element('intake-start')).not.toBeNull()
 
+    await fillIdea()
     await press('intake-start')
     expect(element('intake-result')).not.toBeNull()
     expect(element('intake-result-message')?.textContent).toContain('session-1')
