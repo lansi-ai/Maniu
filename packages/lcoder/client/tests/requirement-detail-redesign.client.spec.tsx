@@ -105,8 +105,8 @@ const STRUCTURED_REPORT = `# 评审报告
 
 ## 待改项
 
-- 位置：正文「范围」。建议补上代发订单不参与佣金。优先级：高
-- 位置：验收口径。建议写清异常返回码。优先级：低`
+- 位置：验收口径。建议写清异常返回码。优先级：低
+- 位置：正文「范围」。建议补上代发订单不参与佣金。优先级：高`
 
 let reportText = REPORT_TEXT
 
@@ -263,7 +263,7 @@ describe('四态操作栏与指引句', () => {
 })
 
 describe('头部标题三区', () => {
-  it('大标题取 row.title，状态徽标与 REQ 编号同排；文档自带 H1 不抢页面标题', async () => {
+  it('大标题取 row.title，状态徽标与 REQ 编号同排；正文预览已移除，阅读器入口仍在', async () => {
     await renderDetail(DRAFT, callsOf())
     const title = element('requirement-detail-title')
     expect(title?.textContent).toBe('佣金改造')
@@ -271,7 +271,8 @@ describe('头部标题三区', () => {
     expect(element('requirement-state-badge')?.textContent).toBe('草稿')
     expect(element('requirement-state-badge')?.className).toContain('state-draft')
     expect(element('requirement-detail-id')?.textContent).toBe('REQ-01')
-    expect(element('requirement-document-preview')?.querySelector('h1')?.textContent).toBe('文档自带大标题')
+    expect(element('requirement-document')).toBeNull()
+    expect(element('requirement-open-reader')).not.toBeNull()
   })
 
   it('缺标题时回退需求编号', async () => {
@@ -356,38 +357,15 @@ describe('确认需求的配齐口径', () => {
   })
 })
 
-describe('正文默认折叠', () => {
-  it('长正文只预览首几行，展开后才渲染全文，可再收起', async () => {
+describe('正文预览板块已移除', () => {
+  it('详情不再渲染正文预览或展开开关，仍可从快速工具打开阅读器', async () => {
     await renderDetail(DRAFT, callsOf())
-    const preview = element('requirement-document-preview')
-    expect(preview).not.toBeNull()
-    expect(preview?.textContent).toContain('第 1 行')
-    expect(preview?.textContent).not.toContain('第 12 行')
-    expect(element('requirement-document-body')).toBeNull()
-    expect(element('requirement-body-toggle')?.textContent).toBe('展开全文')
-
-    await press('requirement-body-toggle')
+    expect(element('requirement-document')).toBeNull()
     expect(element('requirement-document-preview')).toBeNull()
-    expect(element('requirement-document-body')?.textContent).toContain('第 12 行')
-    expect(element('requirement-body-toggle')?.textContent).toBe('收起')
-
-    await press('requirement-body-toggle')
-    expect(element('requirement-document-preview')).not.toBeNull()
     expect(element('requirement-document-body')).toBeNull()
-  })
-
-  it('短正文直接全量渲染，不画展开开关', async () => {
-    const row: RequirementDocRow = { ...DRAFT, text: '短正文' }
-    await renderDetail(row, callsOf())
+    expect(element('requirement-document-empty')).toBeNull()
     expect(element('requirement-body-toggle')).toBeNull()
-    expect(element('requirement-document-body')?.textContent).toContain('短正文')
-  })
-
-  it('正文缺失给空态', async () => {
-    const row: RequirementDocRow = { ...DRAFT, text: '   ' }
-    await renderDetail(row, callsOf())
-    expect(element('requirement-document-empty')?.textContent).toContain('正文缺失')
-    expect(element('requirement-body-toggle')).toBeNull()
+    expect(element('requirement-open-reader')).not.toBeNull()
   })
 })
 
@@ -417,6 +395,43 @@ describe('评审报告摘要卡', () => {
     expect(element('requirement-report-excerpt')).toBeNull()
     await press('requirement-report-toggle')
     expect(element('requirement-report-body')?.textContent).toContain('位置：验收口径')
+  })
+
+  it('待改项按优先级排序，默认只显示摘要与统计徽标', async () => {
+    reportText = STRUCTURED_REPORT
+    await renderDetail(DRAFT, callsOf())
+    const todos = container.querySelectorAll('[data-testid="requirement-report-todo"]')
+    expect(Array.from(todos).map(node => node.getAttribute('data-priority'))).toEqual(['high', 'low'])
+    expect(element('requirement-todo-summary')?.textContent).toBe('高 1 · 中 0 · 低 1')
+    expect(Array.from(todos).map(node => node.querySelector('.requirement-todo-text')?.textContent)).toEqual([
+      '位置：正文「范围」。',
+      '位置：验收口径。',
+    ])
+    expect(element('requirement-report-todos')?.textContent).not.toContain('建议补上代发订单不参与佣金')
+    expect(todos[0]?.querySelector('[data-testid="requirement-todo-toggle"]')?.textContent).toBe('查看详情')
+  })
+
+  it('点开待改项才显示完整建议，再点收起回到摘要', async () => {
+    reportText = STRUCTURED_REPORT
+    await renderDetail(DRAFT, callsOf())
+    const first = container.querySelector('[data-testid="requirement-report-todo"]') as HTMLElement
+    const toggle = first.querySelector('[data-testid="requirement-todo-toggle"]') as HTMLElement
+    expect(toggle.getAttribute('aria-expanded')).toBe('false')
+
+    await act(async () => {
+      toggle.click()
+      await new Promise(resolve => setTimeout(resolve, 0))
+    })
+    expect(first.querySelector('.requirement-todo-text')?.textContent).toBe('位置：正文「范围」。建议补上代发订单不参与佣金。优先级：高')
+    expect(toggle.textContent).toBe('收起')
+    expect(toggle.getAttribute('aria-expanded')).toBe('true')
+
+    await act(async () => {
+      toggle.click()
+      await new Promise(resolve => setTimeout(resolve, 0))
+    })
+    expect(first.querySelector('.requirement-todo-text')?.textContent).toBe('位置：正文「范围」。')
+    expect(toggle.textContent).toBe('查看详情')
   })
 
   it('报告摘要时刻按可读格式展示', async () => {

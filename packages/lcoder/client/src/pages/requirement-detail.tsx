@@ -1,4 +1,4 @@
-/** 需求详情：状态先行的头部三区（标题/指引/操作）、阶段 chips、折叠正文与结构化评审报告、关联任务。 */
+/** 需求详情：状态先行的头部三区（标题/指引/操作）、阶段 chips、结构化评审报告与待改项摘要、关联任务。 */
 
 import { useEffect, useState } from 'react'
 import type { JSX } from 'react'
@@ -21,10 +21,6 @@ const zhText: Translate = (key, params) => translate('zh', key, params)
 
 /** 内联评审报告的单次行数上限；与阅读器一致。 */
 const REPORT_LINES = 5000
-
-/** 正文折叠预览的行数与字数上限，取先到者。 */
-const PREVIEW_LINES = 6
-const PREVIEW_CHARS = 200
 
 /** 评审报告结论摘录的字数上限。 */
 const EXCERPT_CHARS = 120
@@ -99,13 +95,6 @@ function specPath(relative: string): string {
   return `.spec/${relative.replace(/^\.?[\\/]/, '').replace(/^\.spec[\\/]/, '')}`
 }
 
-/** 正文折叠预览：首 6 行或 200 字取先到；是否截断决定是否画展开开关。 */
-function previewOf(text: string): { readonly text: string; readonly truncated: boolean } {
-  const byLines = text.split('\n').slice(0, PREVIEW_LINES).join('\n')
-  const preview = byLines.length > PREVIEW_CHARS ? byLines.slice(0, PREVIEW_CHARS) : byLines
-  return { text: preview, truncated: preview.length < text.length }
-}
-
 /** 评审报告结论摘录：首 120 字，超出补省略号。 */
 function excerptOf(text: string): string {
   const trimmed = text.trim()
@@ -141,7 +130,7 @@ export interface RequirementDetailProps {
  *
  * 头部三区置顶：需求标题加状态徽标与编号、状态驱动的指引句、随状态变化的操作栏；
  * 确认态与终态不渲染确认按钮。上线/关闭按状态枚举渲染，前置条件由 kernel 人机命令
- * 自身校验，失败回执直接展示。正文与评审报告默认折叠成摘要，展开后才渲染全文。
+ * 自身校验，失败回执直接展示。评审报告默认折叠成摘要，待改项先显示精简摘要，逐条展开后才渲染完整建议。
  * @param props - 需求、项目、投影与会话列表。
  * @returns 详情面板。
  */
@@ -152,7 +141,7 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
   const [result, setResult] = useState<CommandOutcome | null>(null)
   const [ignored, setIgnored] = useState<ReadonlySet<string>>(() => new Set())
   const [assigns, setAssigns] = useState<Readonly<Record<string, CommandOutcome>>>({})
-  const [bodyExpanded, setBodyExpanded] = useState(false)
+  const [expandedTodos, setExpandedTodos] = useState<ReadonlySet<number>>(() => new Set())
   const [reportExpanded, setReportExpanded] = useState(false)
   const related = props.projection.tasks.filter(task => task.requirement === row.id || task.proposal === row.id)
 
@@ -309,9 +298,22 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
     )
   }
 
-  const preview = previewOf(row.text)
   const parsedReport = report.status === 'ready' ? parseReviewReport(report.text) : undefined
-  const bodyEmpty = row.text.trim() === ''
+  const priorityCounts = (parsedReport?.todos ?? []).reduce<Record<ReviewPriority, number>>(
+    (counts, todo) => {
+      if (todo.priority !== undefined) counts[todo.priority] += 1
+      return counts
+    },
+    { high: 0, medium: 0, low: 0 },
+  )
+  const toggleTodo = (index: number): void => {
+    setExpandedTodos((current) => {
+      const next = new Set(current)
+      if (next.has(index)) next.delete(index)
+      else next.add(index)
+      return next
+    })
+  }
 
   return (
     <DetailDrawer
@@ -537,29 +539,6 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
         </ul>
       </section>
 
-      <section className="detail-section" data-testid="requirement-document">
-        <Separator className="detail-divider" />
-        <div className="detail-drawer-head">
-          <h4>{t('requirement.bodyTitle')}</h4>
-          {!bodyEmpty && preview.truncated && (
-            <Button
-              variant="ghost"
-              size="sm"
-              data-testid="requirement-body-toggle"
-              aria-expanded={bodyExpanded}
-              onPress={() => { setBodyExpanded(current => !current) }}
-            >
-              {bodyExpanded ? t('requirement.collapse') : t('requirement.expand')}
-            </Button>
-          )}
-        </div>
-        {bodyEmpty
-          ? <p className="empty" data-testid="requirement-document-empty">{t('requirement.bodyEmpty')}</p>
-          : bodyExpanded || !preview.truncated
-            ? <div className="markdown-body tall" data-testid="requirement-document-body">{renderMarkdown(row.text)}</div>
-            : <div className="markdown-body requirement-preview" data-testid="requirement-document-preview">{renderMarkdown(preview.text)}</div>}
-      </section>
-
       <section
         className="detail-section"
         data-testid="requirement-review-report"
@@ -620,29 +599,53 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                     )}
                     {parsedReport.todos.length > 0 && (
                       <div className="requirement-report-card card-todos" data-testid="requirement-report-todos">
-                        <span className="requirement-card-label">{t('requirement.reportTodos')}</span>
+                        <div className="detail-drawer-head">
+                          <span className="requirement-card-label">{t('requirement.reportTodos')}</span>
+                          <span className="requirement-todo-summary" data-testid="requirement-todo-summary">
+                            {t('requirement.todoStats', {
+                              high: String(priorityCounts.high),
+                              medium: String(priorityCounts.medium),
+                              low: String(priorityCounts.low),
+                            })}
+                          </span>
+                        </div>
                         <ul className="requirement-todo-list">
-                          {parsedReport.todos.map((todo, index) => (
-                            <li
-                              key={`todo-${String(index)}`}
-                              className="requirement-todo"
-                              data-testid="requirement-report-todo"
-                              data-priority={todo.priority ?? ''}
-                            >
-                              {todo.priority !== undefined && (
-                                <Chip
+                          {parsedReport.todos.map((todo, index) => {
+                            const expanded = expandedTodos.has(index)
+                            return (
+                              <li
+                                key={`todo-${String(index)}`}
+                                className="requirement-todo"
+                                data-testid="requirement-report-todo"
+                                data-priority={todo.priority ?? ''}
+                              >
+                                <div className="requirement-todo-main">
+                                  {todo.priority !== undefined && (
+                                    <Chip
+                                      size="sm"
+                                      variant="soft"
+                                      color={PRIORITY_CHIP_COLOR[todo.priority]}
+                                      className={`priority-badge priority-${todo.priority}`}
+                                      data-testid="requirement-report-priority"
+                                    >
+                                      {t(PRIORITY_KEY[todo.priority])}
+                                    </Chip>
+                                  )}
+                                  <span className="requirement-todo-text">{expanded ? todo.text : todo.summary}</span>
+                                </div>
+                                <Button
+                                  variant="ghost"
                                   size="sm"
-                                  variant="soft"
-                                  color={PRIORITY_CHIP_COLOR[todo.priority]}
-                                  className={`priority-badge priority-${todo.priority}`}
-                                  data-testid="requirement-report-priority"
+                                  className="requirement-todo-toggle"
+                                  data-testid="requirement-todo-toggle"
+                                  aria-expanded={expanded}
+                                  onPress={() => { toggleTodo(index) }}
                                 >
-                                  {t(PRIORITY_KEY[todo.priority])}
-                                </Chip>
-                              )}
-                              <span className="requirement-todo-text">{todo.text}</span>
-                            </li>
-                          ))}
+                                  {expanded ? t('requirement.collapse') : t('requirement.todoDetails')}
+                                </Button>
+                              </li>
+                            )
+                          })}
                         </ul>
                       </div>
                     )}
