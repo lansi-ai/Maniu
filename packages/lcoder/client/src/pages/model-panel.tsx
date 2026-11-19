@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import type { JSX } from 'react'
+import { Button, Card, Chip, Separator } from '@heroui/react'
+import { ChevronDown, Cpu } from 'lucide-react'
 import type { Translate } from '../locale.ts'
 import { loadModelSettings, rowStatus, type ModelSnapshot, type ProviderRow } from '../settings/model-settings.ts'
 
@@ -19,13 +21,14 @@ function defaultLabelOf(snapshot: ModelSnapshot): string | undefined {
 }
 
 /**
- * 模型服务面板：首版只读，写入能力仍在宿主与 `model-settings.ts` 里。
+ * 模型服务面板：服务列表默认折叠，展开后按官方/其他分组列出 provider 明细。
  * @param props - 词典。
- * @returns 默认模型摘要与分组行表。
+ * @returns 默认模型摘要与可折叠的分组行表。
  */
 export function ModelPanel({ t }: ModelPanelProps): JSX.Element {
   const [snapshot, setSnapshot] = useState<ModelSnapshot | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
+  const [expanded, setExpanded] = useState(false)
 
   const reload = useCallback(async (): Promise<void> => {
     const next = await loadModelSettings()
@@ -52,47 +55,65 @@ export function ModelPanel({ t }: ModelPanelProps): JSX.Element {
     ].filter(group => group.rows.length > 0)
 
   const currentLabel = snapshot === null ? undefined : defaultLabelOf(snapshot)
+  const currentText = currentLabel === undefined ? t('settings.defaultUnset') : t('settings.defaultCurrent', { model: currentLabel })
 
   return (
-    <section className="model-section bento-card bento-wide" aria-label={t('settings.models')} data-testid="settings-models">
-      <header className="settings-section-head">
-        <div>
-          <h3>{t('settings.models')}</h3>
-          <p>{t('settings.modelsHint')}</p>
+    <Card className="bento-card bento-wide" aria-label={t('settings.models')} data-testid="settings-models">
+      <Card.Header className="bento-card-head">
+        <span className="bento-icon bento-icon-accent" aria-hidden="true"><Cpu /></span>
+        <div className="bento-heading">
+          <Card.Title>{t('settings.models')}</Card.Title>
+          <Card.Description>{t('settings.modelsHintShort')}</Card.Description>
         </div>
-      </header>
+        <div className="bento-head-actions">
+          <Chip size="sm" variant="soft" color="accent" data-testid="settings-default-model-chip">{currentText}</Chip>
+          <Button
+            size="sm"
+            variant="secondary"
+            className="bento-toggle"
+            data-testid="settings-models-toggle"
+            aria-expanded={expanded}
+            onPress={() => { setExpanded(value => !value) }}
+          >
+            {expanded ? t('settings.modelsCollapse') : t('settings.modelsExpand', { count: snapshot?.rows.length ?? 0 })}
+            <ChevronDown className={expanded ? 'bento-chevron expanded' : 'bento-chevron'} size={14} aria-hidden="true" />
+          </Button>
+        </div>
+      </Card.Header>
+      <Separator className="bento-divider" />
+      <Card.Content className="bento-card-body">
+        {loadError !== null ? <p className="notice" data-testid="settings-models-error">{t('settings.loadError', { detail: loadError })}</p> : null}
+        {snapshot === null && loadError === null ? <p className="settings-muted">{t('settings.loading')}</p> : null}
 
-      {loadError !== null ? <p className="notice" data-testid="settings-models-error">{t('settings.loadError', { detail: loadError })}</p> : null}
-      {snapshot === null && loadError === null ? <p className="settings-muted">{t('settings.loading')}</p> : null}
+        {snapshot !== null && snapshot.status === 'ready' ? (
+          <>
+            {snapshot.credentialError !== null ? (
+              <p className="settings-muted">{t('settings.credentialsError', { detail: snapshot.credentialError })}</p>
+            ) : null}
+            <p className="settings-muted" data-testid="settings-models-readonly">{t('settings.readOnly')}</p>
 
-      {snapshot !== null && snapshot.status === 'ready' ? (
-        <>
-          {snapshot.credentialError !== null ? (
-            <p className="settings-muted">{t('settings.credentialsError', { detail: snapshot.credentialError })}</p>
-          ) : null}
-          <p className="settings-muted" data-testid="settings-models-readonly">{t('settings.readOnly')}</p>
-
-          <div className="model-default" data-testid="settings-default-model">
-            <div>
+            <div className="model-default" data-testid="settings-default-model">
               <h4>{t('settings.defaultModel')}</h4>
-              <p className="settings-muted">
-                {currentLabel === undefined ? t('settings.defaultUnset') : t('settings.defaultCurrent', { model: currentLabel })}
-              </p>
+              <p className="settings-muted">{currentText}</p>
             </div>
-          </div>
 
-          {groups.length === 0 ? <p className="settings-muted" data-testid="settings-no-providers">{t('settings.noProviders')}</p> : null}
-          {groups.map(group => (
-            <div key={group.id} className="model-group">
-              <div className="model-group-title">{group.title}</div>
-              {group.rows.map(row => (
-                <ProviderRowView key={`${row.provider}:${row.revision}`} row={row} t={t} />
-              ))}
-            </div>
-          ))}
-        </>
-      ) : null}
-    </section>
+            {expanded ? (
+              <>
+                {groups.length === 0 ? <p className="settings-muted" data-testid="settings-no-providers">{t('settings.noProviders')}</p> : null}
+                {groups.map(group => (
+                  <div key={group.id} className="model-group">
+                    <div className="model-group-title">{group.title}</div>
+                    {group.rows.map(row => (
+                      <ProviderRowView key={`${row.provider}:${row.revision}`} row={row} t={t} />
+                    ))}
+                  </div>
+                ))}
+              </>
+            ) : null}
+          </>
+        ) : null}
+      </Card.Content>
+    </Card>
   )
 }
 

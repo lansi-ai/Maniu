@@ -1,12 +1,13 @@
 /* 设置页：Bento 分组卡片（模型服务、外观、字体、语言、更新与关于）。 */
 
-.settings-page { display: block; }
+.settings-page { display: block; max-width: 1120px; margin: 0 auto; padding: 6px 10px 28px; }
+.settings-page .page-head { margin-bottom: 16px; }
 
 .bento-grid {
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr));
   gap: 16px;
-  align-items: start;
+  align-items: stretch;
 }
 
 /* HeroUI Card 浮岛：宽裕内边距、官方表面底、分隔线分区。 */
@@ -25,8 +26,12 @@
 #root .bento-update { grid-column: span 7; }
 #root .bento-about { grid-column: 1 / -1; }
 
-.bento-card-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
-.bento-heading { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.bento-card-head { display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.bento-heading { display: flex; flex-direction: column; text-align: left; gap: 2px; min-width: 0; flex: 1; }
+.bento-head-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+#root .bento-toggle.button { min-height: 32px; padding: 5px 12px; border-radius: 999px; font-size: 12px; }
+.bento-chevron { transition: transform 160ms ease; }
+.bento-chevron.expanded { transform: rotate(180deg); }
 #root .bento-card-head .card__title { font-size: 15px; font-weight: 600; color: var(--foreground); }
 #root .bento-card-head .card__description { font-size: 12px; color: var(--muted); }
 
@@ -74,25 +79,12 @@
   transition: background-color 160ms ease, color 160ms ease;
 }
 #root .bento-segment.button:hover { color: var(--foreground); }
-#root .bento-segment.button.active { font-weight: 600; box-shadow: 0 6px 18px -8px color-mix(in oklab, var(--accent) 70%, transparent); }
-
-.appearance-quick { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid var(--border); border-radius: 999px; }
-#root .quick-mode.button { width: 28px; height: 28px; min-width: 28px; padding: 0; border-radius: 999px; color: var(--muted); }
-#root .quick-mode.button svg { width: 15px; height: 15px; }
-#root .quick-mode.button.active,
-#root .quick-mode.gradient-primary.button { color: var(--accent-foreground); }
+#root .bento-segment.button.active,
+#root .bento-segment.button.active:hover { color: var(--accent-foreground); font-weight: 600; box-shadow: 0 6px 18px -8px color-mix(in oklab, var(--accent) 70%, transparent); }
 
 /* HeroUI Switch 与 Select。 */
 #root .bento-switch.switch .switch__control { width: 40px; height: 22px; }
-#root .bento-select.select { min-width: 220px; }
-#root .bento-select .select__trigger {
-  min-height: 38px;
-  border-radius: 10px;
-  border-color: var(--border);
-  background: color-mix(in oklab, var(--foreground) 5%, transparent);
-  color: var(--foreground);
-  font-size: 13px;
-}
+#root .bento-select.select { width: 220px; }
 
 /* 默认模型区。 */
 .model-default {
