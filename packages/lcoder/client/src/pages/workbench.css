@@ -581,20 +581,6 @@
   .requirement-todo { flex-wrap: wrap; gap: 4px; }
 }
 
-.prompt-preview {
-  max-height: 320px;
-  overflow: auto;
-  margin: 0;
-  padding: 10px 12px;
-  border: 1px solid var(--separator);
-  border-radius: 12px;
-  background: var(--surface-secondary);
-  color: var(--foreground);
-  font-size: 11px;
-  line-height: 1.55;
-  white-space: pre-wrap;
-}
-
 .attachment-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .attachment-thumb {
   width: 104px;
@@ -759,17 +745,98 @@
 .talent-divider { margin: 4px 0; }
 .talent-bento [data-slot='card-footer'] { padding: 12px 16px 16px; border-top: 1px solid var(--separator); }
 
-/* ── T-257 批次 2：HeroUI v3 立项向导 ─────────────────────────────── */
-.intake-role-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
-.intake-role-row .detail-note { margin: 0; }
-.intake-section { margin-bottom: 12px; border-color: var(--separator); border-radius: 14px; }
+/* ── T-257 批次 2 / T-276：HeroUI v3 立项向导 ─────────────────────── */
+.intake-container { width: 100%; max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; padding-top: 8px; }
+.intake-role-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--separator);
+  border-radius: 16px;
+  background: linear-gradient(135deg, var(--accent-soft), var(--surface-secondary));
+}
+.intake-role-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 42px;
+  height: 42px;
+  border: 1px solid color-mix(in oklab, var(--accent) 28%, transparent);
+  border-radius: 13px;
+  background: var(--accent-soft);
+  color: var(--accent-soft-foreground);
+}
+.intake-role-body { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.intake-role-name { color: var(--foreground); font-size: 15px; font-weight: 600; }
+.intake-role-creator {
+  align-self: flex-start;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--accent) 12%, transparent);
+  color: var(--muted);
+  font-size: 11px;
+}
+.intake-section { border-color: var(--separator); border-radius: 14px; }
 .intake-section [data-slot='card-header'] { padding: 12px 16px 8px; }
 .intake-section [data-slot='card-content'] { padding: 10px 16px 16px; }
-.intake-mode-tabs [role='tablist'] { border-radius: 999px; padding: 3px; background: var(--surface-tertiary); }
-.intake-prompt-details { margin-bottom: 12px; }
-.intake-prompt-details > summary { cursor: pointer; padding: 6px 2px; color: var(--muted); font-size: 12px; }
-.intake-prompt-details > summary:hover { color: var(--foreground); }
-.intake-prompt-details[open] > summary { margin-bottom: 8px; }
+.intake-project-row { display: flex; align-items: center; gap: 12px; }
+.intake-project-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--surface-tertiary);
+  color: var(--accent);
+}
+.intake-project-meta { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.intake-project-name { color: var(--foreground); font-size: 14px; font-weight: 600; }
+.intake-project-path { color: var(--muted); overflow-wrap: anywhere; }
+.intake-mode-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.intake-mode-card {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--separator);
+  border-radius: 14px;
+  background: var(--surface-secondary);
+  color: var(--foreground);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 160ms ease, background-color 160ms ease, transform 160ms ease;
+}
+.intake-mode-card:hover { border-color: color-mix(in oklab, var(--accent) 45%, var(--separator)); }
+.intake-mode-card:active { transform: scale(0.99); }
+.intake-mode-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.intake-mode-card.selected { border-color: var(--accent); background: var(--accent-soft); }
+.intake-mode-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: var(--surface-tertiary);
+  color: var(--accent);
+}
+.intake-mode-card.selected .intake-mode-icon { background: color-mix(in oklab, var(--accent) 16%, transparent); }
+.intake-mode-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1; }
+.intake-mode-title { color: var(--foreground); font-size: 14px; font-weight: 600; }
+.intake-mode-desc { color: var(--muted); font-size: 12px; line-height: 1.5; }
+.intake-mode-check { position: absolute; top: 13px; right: 12px; color: var(--accent); opacity: 0; transition: opacity 160ms ease; }
+.intake-mode-card.selected .intake-mode-check { opacity: 1; }
+.intake-mode-hint { margin: 12px 0 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.intake-actions { display: flex; justify-content: flex-end; padding-top: 4px; }
+@media (max-width: 560px) {
+  .intake-mode-grid { grid-template-columns: 1fr; }
+}
 
 /* ── T-257 批次 2：HeroUI v3 人才表单分组 ─────────────────────────── */
 .talent-form-group { border-color: var(--separator); border-radius: 16px; background: color-mix(in oklab, var(--surface-secondary) 80%, transparent); }
@@ -836,8 +903,7 @@
 }
 /* 覆盖 HeroUI .tabs__tab 的 w-full/h-8/px-4，避免标签被撑成竖排椭圆；z-index 由官方规则提供，指示器可见。 */
 .req-state-tabs [role='tab'],
-.toolbar-tabs [role='tab'],
-.intake-mode-tabs [role='tab'] {
+.toolbar-tabs [role='tab'] {
   width: auto;
   flex: 0 0 auto;
   height: 28px;

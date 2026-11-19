@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-/** 立项向导的角色标识与准入阻塞：不再展示人设段落，非空项目只给阻塞提示。 */
+/** 立项向导的角色名片、档位切换与准入阻塞：不再展示人设段落与内部指令预览。 */
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -59,6 +59,7 @@ function stub(answer: unknown): ReturnType<typeof vi.fn> {
 async function render(props: {
   readonly projection?: SpecProjection
   readonly onClose?: () => void
+  readonly onStart?: (prompt: string) => Promise<{ readonly ok: boolean; readonly message: string }>
 } = {}): Promise<void> {
   await act(async () => {
     root.render(
@@ -68,7 +69,7 @@ async function render(props: {
         result={null}
         onClearResult={() => {}}
         onClose={props.onClose ?? (() => {})}
-        onStart={async () => ({ ok: true, message: 'ok' })}
+        onStart={props.onStart ?? (async () => ({ ok: true, message: 'ok' }))}
         onOpenRequirement={() => {}}
         onReload={() => {}}
       />,
@@ -81,21 +82,25 @@ function element(testId: string): Element | null {
   return container.querySelector(`[data-testid="${testId}"]`)
 }
 
-describe('立项向导的角色标识', () => {
-  it('一行标识取人才库名册里的显示名，不再渲染角色人设段落', async () => {
+describe('立项向导的角色名片', () => {
+  it('显示人才库名册里的显示名与创建者，不重复两次角色名', async () => {
     const call = stub({ ok: true, value: { presets: [{ id: 'maniu-intake', name: '产品需求分析', isDefault: false }] } })
     await render()
     expect(call).toHaveBeenCalledWith('agentPresets', 'list', {})
-    expect(element('intake-role')?.textContent).toContain('产品需求分析')
+    const role = element('intake-role')
+    expect(role?.textContent).toContain('产品需求分析')
+    expect(role?.textContent).toContain('慢牛 Maniu')
+    expect(role?.textContent?.match(/产品需求分析/g)?.length).toBe(1)
     expect(element('intake-persona-section')).toBeNull()
     expect(element('intake-persona')).toBeNull()
     expect(container.textContent).not.toContain('角色人设')
   })
 
-  it('名册读不到时回退词典里的角色名', async () => {
+  it('名册读不到时回退词典里的角色名，仍显示内置创建者', async () => {
     stub({ ok: false, error: { code: 'lcoder/host-not-ready', message: '宿主尚未就绪' } })
     await render()
     expect(element('intake-role')?.textContent).toContain('需求分析师')
+    expect(element('intake-role')?.textContent).toContain('慢牛 Maniu')
   })
 })
 
@@ -112,17 +117,46 @@ describe('非空项目的立项阻塞', () => {
   })
 })
 
-describe('指令预览默认折叠', () => {
-  it('首屏只给折叠摘要，指令正文留在折叠区 DOM 内', async () => {
+describe('内部指令预览已移除', () => {
+  it('不再渲染折叠区与内部指令正文', async () => {
     stub({ ok: true, value: { presets: [] } })
     await render()
-    const details = element('intake-prompt-details') as HTMLDetailsElement
-    expect(details).not.toBeNull()
-    expect(details.open).toBe(false)
-    expect(details.querySelector('summary')?.textContent).toContain('高级')
-    const prompt = element('intake-prompt')
-    expect(prompt).not.toBeNull()
-    expect(details.contains(prompt)).toBe(true)
-    expect(prompt?.textContent).toContain('项目')
+    expect(element('intake-prompt-details')).toBeNull()
+    expect(element('intake-prompt')).toBeNull()
+    expect(container.textContent).not.toContain('指令预览')
+  })
+})
+
+describe('档位切换与立项发送', () => {
+  it('默认全新项目档，点开始立项发送全新项目提示词', async () => {
+    stub({ ok: true, value: { presets: [] } })
+    let sent = ''
+    const onStart = vi.fn(async (prompt: string) => {
+      sent = prompt
+      return { ok: true, message: 'ok' }
+    })
+    await render({ onStart })
+    expect((element('intake-mode-fresh') as HTMLElement).getAttribute('aria-checked')).toBe('true')
+    expect((element('intake-mode-onboarding') as HTMLElement).getAttribute('aria-checked')).toBe('false')
+    expect(element('intake-start')).not.toBeNull()
+    act(() => { (element('intake-start') as HTMLElement).click() })
+    expect(onStart).toHaveBeenCalledTimes(1)
+    expect(sent).toContain('全新项目立项：')
+  })
+
+  it('切到已有资料档后点开始立项发送已有资料提示词', async () => {
+    stub({ ok: true, value: { presets: [] } })
+    let sent = ''
+    const onStart = vi.fn(async (prompt: string) => {
+      sent = prompt
+      return { ok: true, message: 'ok' }
+    })
+    await render({ onStart })
+    act(() => { (element('intake-mode-onboarding') as HTMLElement).click() })
+    expect((element('intake-mode-onboarding') as HTMLElement).getAttribute('aria-checked')).toBe('true')
+    expect((element('intake-mode-fresh') as HTMLElement).getAttribute('aria-checked')).toBe('false')
+    act(() => { (element('intake-start') as HTMLElement).click() })
+    expect(onStart).toHaveBeenCalledTimes(1)
+    expect(sent).toContain('已有资料立项：')
   })
 })
