@@ -289,13 +289,13 @@ describe('四态操作栏与指引句', () => {
     expect(element('requirement-split')).toBeNull()
     expect(element('requirement-detail-create-based')).toBeNull()
     expect(element('requirement-detail-reload')).not.toBeNull()
-    expect(element('requirement-open-reader')).not.toBeNull()
+    expect(element('requirement-document-body')).not.toBeNull()
     expect(element('requirement-guide')?.textContent).toContain('状态未知')
   })
 })
 
 describe('头部标题三区', () => {
-  it('大标题取 row.title，状态徽标与 REQ 编号同排；正文内联在详情主区，阅读器入口仍在', async () => {
+  it('大标题取 row.title，状态徽标与 REQ 编号同排；正文内联在详情主区，首屏即可读', async () => {
     await renderDetail(DRAFT, callsOf())
     const title = element('requirement-detail-title')
     expect(title?.textContent).toBe('佣金改造')
@@ -307,7 +307,7 @@ describe('头部标题三区', () => {
     expect(body).not.toBeNull()
     expect(body?.className).toContain('markdown-body')
     expect(body?.querySelector('h1')?.textContent).toContain('文档自带大标题')
-    expect(element('requirement-open-reader')).not.toBeNull()
+    expect(element('requirement-open-reader')).toBeNull()
   })
 
   it('缺标题时回退需求编号', async () => {
@@ -393,7 +393,7 @@ describe('确认需求的配齐口径', () => {
 })
 
 describe('当前正文内联在详情主区', () => {
-  it('打开即可读完整 Markdown 正文，不再需要折叠开关，仍可从快速工具打开全屏阅读器', async () => {
+  it('打开即可读完整 Markdown 正文，不再需要折叠开关，也不再叠一层全屏阅读器入口', async () => {
     await renderDetail(DRAFT, callsOf())
     const body = element('requirement-document-body')
     expect(body).not.toBeNull()
@@ -403,7 +403,7 @@ describe('当前正文内联在详情主区', () => {
     expect(element('requirement-document-preview')).toBeNull()
     expect(element('requirement-document-empty')).toBeNull()
     expect(element('requirement-body-toggle')).toBeNull()
-    expect(element('requirement-open-reader')).not.toBeNull()
+    expect(element('requirement-open-reader')).toBeNull()
   })
 })
 
@@ -645,13 +645,13 @@ describe('评审三态驱动的主次操作', () => {
     expect((element('requirement-approve') as HTMLButtonElement).getAttribute('data-variant')).toBe('primary')
   })
 
-  it('刷新与查看原文收进右上角工具组，不混在核心操作栏', async () => {
+  it('刷新收进右上角工具组，当前正文不再有重复的全屏阅读器入口', async () => {
     await renderDetail(DRAFT, callsOf())
     const tools = element('requirement-quick-tools')
     expect(tools).not.toBeNull()
     expect(tools?.closest('.detail-drawer-bar')).not.toBeNull()
     expect(tools?.querySelector('[data-testid="requirement-detail-reload"]')).not.toBeNull()
-    expect(tools?.querySelector('[data-testid="requirement-open-reader"]')).not.toBeNull()
+    expect(tools?.querySelector('[data-testid="requirement-open-reader"]')).toBeNull()
     expect(element('requirement-actions')?.querySelector('[data-testid="requirement-detail-reload"]')).toBeNull()
   })
 })
@@ -671,12 +671,12 @@ describe('后台发起与次级动作', () => {
     expect(element('requirement-action-result')?.textContent).toContain('新建指令已发送')
   })
 
-  it('刷新与阅读器打开正文是常驻次级动作', async () => {
+  it('刷新是常驻次级动作，当前正文首屏可读且不再叠全屏阅读器入口', async () => {
     const calls = callsOf()
     await renderDetail(DRAFT, calls)
     await press('requirement-detail-reload')
     expect(calls.reload).toHaveBeenCalledTimes(1)
-    await press('requirement-open-reader')
-    expect(calls.readers).toEqual(['.spec/requirements/REQ-01.md'])
+    expect(element('requirement-document-body')?.textContent).toContain('这是正文的第 1 行')
+    expect(element('requirement-open-reader')).toBeNull()
   })
 })

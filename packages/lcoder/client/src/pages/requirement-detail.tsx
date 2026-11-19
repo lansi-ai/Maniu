@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { JSX } from 'react'
 import { Button, Chip, Separator } from '@heroui/react'
-import { FileText, RotateCw, Sparkles } from 'lucide-react'
+import { RotateCw, Sparkles } from 'lucide-react'
 import type { ProjectScope } from '../workspace/use-workspaces.ts'
 import type { SpecProjection } from '../spec/load.ts'
 import type { ProposalRow, RequirementChangeRow, RequirementDocRow, RequirementReviewRow, RequirementSplitPlanEntryRow } from '../spec/rows.ts'
@@ -424,6 +424,7 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
       <DetailDrawer
         testId="requirement-detail"
         closeTestId="requirement-detail-close"
+        defaultExpanded
         onClose={props.onClose}
         attributes={{ 'data-requirement-id': row.id }}
         actions={(
@@ -439,18 +440,6 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
               onPress={props.onReload}
             >
               <RotateCw aria-hidden="true" />
-            </Button>
-            <Button
-              isIconOnly
-              className="detail-drawer-icon"
-              variant="ghost"
-              size="sm"
-              data-testid="requirement-open-reader"
-              aria-label={t('requirement.opOpenBody')}
-              ref={(node) => { if (node !== null) node.title = t('requirement.opOpenBody') }}
-              onPress={() => { props.onOpenReader(`.spec/requirements/${row.id}.md`) }}
-            >
-              <FileText aria-hidden="true" />
             </Button>
           </div>
         )}

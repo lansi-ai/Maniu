@@ -36,6 +36,7 @@ interface RenderOptions {
   readonly t?: Translate
   readonly onClose?: () => void
   readonly actions?: JSX.Element
+  readonly defaultExpanded?: boolean
 }
 
 function render(options: RenderOptions = {}): void {
@@ -55,6 +56,7 @@ function render(options: RenderOptions = {}): void {
           onClose={options.onClose ?? (() => undefined)}
           head={<h3>样例标题</h3>}
           {...options.actions === undefined ? {} : { actions: options.actions }}
+          {...options.defaultExpanded === undefined ? {} : { defaultExpanded: options.defaultExpanded }}
           attributes={{ 'data-sample': 'yes' }}
         >
           <input data-testid="sample-input" />
@@ -104,6 +106,19 @@ describe('DetailDrawer', () => {
     expect(aside?.style.left).toBe('10px')
     expect(aside?.style.width).toBe('900px')
     expect(aside?.style.height).toBe('600px')
+    toggle()
+    expect(aside?.getAttribute('data-expanded')).toBe('false')
+    expect(button?.getAttribute('aria-label')).toBe('放大')
+    expect(aside?.style.position).toBe('')
+  })
+
+  it('defaultExpanded 让抽屉打开即放大，仍可还原回右栏', () => {
+    render({ defaultExpanded: true })
+    const aside = container.querySelector<HTMLElement>('[data-testid="sample-drawer"]')
+    const button = container.querySelector<HTMLElement>('[data-testid="sample-drawer-expand"]')
+    expect(aside?.getAttribute('data-expanded')).toBe('true')
+    expect(aside?.classList.contains('is-expanded')).toBe(true)
+    expect(button?.getAttribute('aria-label')).toBe('还原')
     toggle()
     expect(aside?.getAttribute('data-expanded')).toBe('false')
     expect(button?.getAttribute('aria-label')).toBe('放大')

@@ -22,6 +22,8 @@ export interface DetailDrawerProps {
   readonly actions?: ReactNode
   /** 透传给 aside 的 `data-*` 属性。 */
   readonly attributes?: Readonly<Record<string, string>>
+  /** 打开即铺满工作区可见区；默认 false 不影响任务详情等其它抽屉。 */
+  readonly defaultExpanded?: boolean
   readonly children: ReactNode
 }
 
@@ -45,7 +47,7 @@ interface ViewportRect {
 export function DetailDrawer(props: DetailDrawerProps): JSX.Element {
   const t = props.t ?? zhText
   const ref = useRef<HTMLElement>(null)
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useState(props.defaultExpanded === true)
   const [rect, setRect] = useState<ViewportRect | null>(null)
 
   useLayoutEffect(() => {

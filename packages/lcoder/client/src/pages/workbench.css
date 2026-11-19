@@ -306,8 +306,8 @@
   container-type: inline-size;
 }
 
-/* 放大态由外壳测量宿主页面的可见矩形后内联定位，这里只收掉右、下锚点。 */
-.detail-drawer.is-expanded { right: auto; bottom: auto; }
+/* 放大态：宿主测量出可见矩形后由外壳内联 fixed 定位覆盖；未测量（如 jsdom）时兜底铺满。 */
+.detail-drawer.is-expanded { inset: 0; width: 100%; }
 
 .detail-drawer-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 /* 顶栏常驻：主体是唯一的滚动容器，放大时控制条仍然可见可点。 */
@@ -446,6 +446,10 @@
 }
 .document-body table,
 .reader-doc table { min-width: 520px; }
+.document-body h1,
+.reader-doc h1 { text-wrap: balance; }
+.document-body table th:first-child,
+.document-body table td:first-child { white-space: nowrap; width: 1%; }
 
 /* 阅读器：盖住内容区的玻璃层，正文按缩放系数排版。 */
 .reader-layer {
