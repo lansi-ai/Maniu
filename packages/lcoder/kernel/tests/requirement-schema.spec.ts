@@ -56,6 +56,31 @@ describe('需求 schema', () => {
     expect(Requirement.safeParse({ ...VALID, approved_version: 0 }).success).toBe(false)
   })
 
+  it('评审决定字段都可省，旧评审照常解析；写了就按三态与正版本号校验', () => {
+    const legacy = Requirement.parse({
+      ...VALID,
+      reviews: [{ round: 1, at: '2026-11-13T10:30:00+08:00', report: 'requirements/REQ-01/reviews/R1.md' }],
+    })
+    expect(legacy.reviews[0]?.decision).toBeUndefined()
+    expect(legacy.reviews[0]?.decided_at).toBeUndefined()
+    expect(legacy.reviews[0]?.applied_version).toBeUndefined()
+    expect(legacy.reviews[0]?.decision_note).toBeUndefined()
+
+    const base = { round: 1, at: '2026-11-13T10:30:00+08:00', report: 'r.md' }
+    const decided = Requirement.parse({
+      ...VALID,
+      reviews: [{ ...base, decision: 'accepted', decided_at: '2026-11-13T12:00:00+08:00', applied_version: 2, decision_note: '采纳' }],
+    })
+    expect(decided.reviews[0]).toMatchObject({ decision: 'accepted', applied_version: 2, decision_note: '采纳' })
+    for (const decision of ['pending', 'accepted', 'rejected'] as const) {
+      expect(Requirement.safeParse({ ...VALID, reviews: [{ ...base, decision }] }).success).toBe(true)
+    }
+    expect(Requirement.safeParse({ ...VALID, reviews: [{ ...base, decision: 'unknown' }] }).success).toBe(false)
+    expect(Requirement.safeParse({ ...VALID, reviews: [{ ...base, decided_at: '昨天' }] }).success).toBe(false)
+    expect(Requirement.safeParse({ ...VALID, reviews: [{ ...base, applied_version: 0 }] }).success).toBe(false)
+    expect(Requirement.safeParse({ ...VALID, reviews: [{ ...base, decision_note: '' }] }).success).toBe(false)
+  })
+
   it('编号必须是 REQ- 加两位以上数字', () => {
     expect(Requirement.safeParse({ ...VALID, id: 'REQ-02' }).success).toBe(true)
     expect(Requirement.safeParse({ ...VALID, id: 'REQ-100' }).success).toBe(true)

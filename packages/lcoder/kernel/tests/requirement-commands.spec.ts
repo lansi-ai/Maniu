@@ -13,7 +13,8 @@ import { afterAll, describe, expect, it } from 'vitest'
 import { createRequirementApproveCommand } from '../src/commands/requirement-approve.js'
 import { createRequirementCloseCommand } from '../src/commands/requirement-close.js'
 import { createRequirementReleaseCommand } from '../src/commands/requirement-release.js'
-import { loadRequirement, requirementVersionPath, saveRequirement } from '../src/kernel/requirement-store.js'
+import { createRequirementReviewDecideCommand } from '../src/commands/requirement-review-decide.js'
+import { loadRequirement, requirementVersionPath, reviewStaleReason, saveRequirement } from '../src/kernel/requirement-store.js'
 import { saveTask } from '../src/kernel/task-store.js'
 import { Requirement } from '../src/schema/spec.js'
 import type { RequirementState, TaskState } from '../src/schema/spec.js'
@@ -78,6 +79,7 @@ const AT = '2026-11-13T12:00:00+08:00'
 const approve = (root: string, raw: string) => createRequirementApproveCommand(root, () => AT).handler({ rawInput: raw })
 const release = (root: string, raw: string) => createRequirementReleaseCommand(root, () => AT).handler({ rawInput: raw })
 const close = (root: string, raw: string) => createRequirementCloseCommand(root, () => AT).handler({ rawInput: raw })
+const decide = (root: string, raw: string) => createRequirementReviewDecideCommand(root, () => AT).handler({ rawInput: raw })
 
 describe('需求确认命令', () => {
   it('起草态、有正文且有一轮评审：写状态、确认时刻与批准版本，旧需求补 v1', () => {
@@ -251,3 +253,85 @@ describe('需求关闭命令', () => {
     expect(result.kind === 'error' ? result.text : '').toContain('非法的需求编号')
   })
 })
+
+describe('需求评审处置命令', () => {
+  it('放弃本轮意见后正文不改也能复评，备注照写', () => {
+    const root = makeSpec()
+    writeRequirement(root)
+    addReview(root)
+
+    const result = decide(root, 'REQ-01 1 rejected 边界另议')
+    expect(result).toMatchObject({ kind: 'success' })
+    expect(result.kind === 'success' ? result.text : '').toContain('放弃')
+    const review = loadRequirement(root, 'REQ-01').reviews[0]
+    expect(review).toMatchObject({
+      round: 1, decision: 'rejected', decided_at: AT, decision_note: '边界另议',
+    })
+    expect(review?.applied_version).toBeUndefined()
+    expect(reviewStaleReason(loadRequirement(root, 'REQ-01'))).toBeUndefined()
+  })
+
+  it('采纳时关联晚于该轮的正文版本，写进 applied_version', () => {
+    const root = makeSpec()
+    writeRequirement(root)
+    addReview(root)
+    saveRequirement(root, {
+      ...loadRequirement(root, 'REQ-01'),
+      versions: [
+        { n: 1, at: '2026-11-13T10:00:00+08:00' },
+        { n: 2, at: '2026-11-13T13:00:00+08:00' },
+      ],
+    })
+
+    const result = decide(root, 'REQ-01 1 accepted')
+    expect(result).toMatchObject({ kind: 'success' })
+    expect(result.kind === 'success' ? result.text : '').toContain('关联正文 v2')
+    const review = loadRequirement(root, 'REQ-01').reviews[0]
+    expect(review).toMatchObject({ decision: 'accepted', decided_at: AT, applied_version: 2 })
+    expect(reviewStaleReason(loadRequirement(root, 'REQ-01'))).toBeUndefined()
+  })
+
+  it('采纳但没有新版本时不写 applied_version，复评仍被拦', () => {
+    const root = makeSpec()
+    writeRequirement(root)
+    addReview(root)
+
+    expect(decide(root, 'REQ-01 1 accepted')).toMatchObject({ kind: 'success' })
+    const requirement = loadRequirement(root, 'REQ-01')
+    expect(requirement.reviews[0]?.applied_version).toBeUndefined()
+    expect(reviewStaleReason(requirement)).toContain('已采纳但正文未改稿')
+  })
+
+  it('需求不存在、非起草态、轮次不存在都报错且不改文件', () => {
+    const root = makeSpec()
+    writeRequirement(root)
+    addReview(root)
+
+    expect(decide(root, 'REQ-09 1 rejected')).toMatchObject({ kind: 'error' })
+    expect(decide(root, 'REQ-01 2 rejected')).toMatchObject({ kind: 'error' })
+    expect(decide(root, 'REQ-01 1 rejected')).toMatchObject({ kind: 'success' })
+    expect(loadRequirement(root, 'REQ-01').reviews[0]?.decision).toBe('rejected')
+
+    saveRequirement(root, { ...loadRequirement(root, 'REQ-01'), state: 'confirmed' })
+    expect(decide(root, 'REQ-01 1 accepted')).toMatchObject({ kind: 'error' })
+    expect(resultText(decide(root, 'REQ-01 1 accepted'))).toContain('只有起草态')
+  })
+
+  it('参数缺失或取值非法都报人话', () => {
+    const root = makeSpec()
+    writeRequirement(root)
+    addReview(root)
+
+    expect(resultText(decide(root, ''))).toContain('需要需求编号')
+    expect(resultText(decide(root, 'REQ-01 1'))).toContain('需要需求编号')
+    expect(resultText(decide(root, 'REQ-1 1 accepted'))).toContain('非法的需求编号')
+    expect(resultText(decide(root, 'REQ-01 x accepted'))).toContain('正整数')
+    expect(resultText(decide(root, 'REQ-01 0 accepted'))).toContain('正整数')
+    expect(resultText(decide(root, 'REQ-01 1 maybe'))).toContain('accepted 或 rejected')
+    expect(loadRequirement(root, 'REQ-01').reviews[0]?.decision).toBeUndefined()
+  })
+})
+
+function resultText(result: { readonly kind: string; readonly text?: string }): string {
+  return result.text ?? ''
+}

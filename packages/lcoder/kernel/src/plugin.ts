@@ -21,6 +21,7 @@ import { createProposalRejectCommand } from './commands/proposal-reject.js'
 import { createRequirementApproveCommand } from './commands/requirement-approve.js'
 import { createRequirementCloseCommand } from './commands/requirement-close.js'
 import { createRequirementReleaseCommand } from './commands/requirement-release.js'
+import { createRequirementReviewDecideCommand } from './commands/requirement-review-decide.js'
 import { createTaskAssignCommand } from './commands/task-assign.js'
 import { createTaskBindCommand } from './commands/task-bind.js'
 import { createTaskContractCommand } from './commands/task-contract.js'
@@ -191,6 +192,7 @@ export function apply(ctx: PluginContext, config: LcoderConfig = {}): void {
     createRequirementApproveCommand(rootInput),
     createRequirementReleaseCommand(rootInput),
     createRequirementCloseCommand(rootInput),
+    createRequirementReviewDecideCommand(rootInput),
     createDeployCommand(rootInput),
   ]
   for (const command of commands) {

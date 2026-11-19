@@ -13,7 +13,7 @@ import { dirname, join } from 'node:path'
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml'
 
 import { Requirement, RequirementSplitPlan } from '../schema/spec.js'
-import type { RequirementOption, RequirementVersion } from '../schema/spec.js'
+import type { RequirementOption, RequirementReview, RequirementVersion } from '../schema/spec.js'
 import { listFiles, matchPattern } from '../schema/validate.js'
 
 /** 需求编号的唯一形态：`REQ-` 加两位以上数字。 */
@@ -360,7 +360,14 @@ export function reviseRequirement(root: string, id: string, input: RequirementRe
     writeFileSync(documentPath, input.content, 'utf8')
     writeText(snapshotPath, input.content)
     created.push(snapshotPath)
-    const revised: Requirement = { ...requirement, versions }
+    // 改稿就是「采纳并修改需求」：把所有还没处置的轮次一并标已采纳，关联这次写下的版本；
+    // 已终态的轮次不动。reviews 与 versions 在同一次 saveRequirement 里落盘。
+    const reviews = requirement.reviews.map(review =>
+      review.decision === undefined || review.decision === 'pending'
+        ? { ...review, decision: 'accepted' as const, decided_at: input.at, applied_version: next }
+        : review,
+    )
+    const revised: Requirement = { ...requirement, versions, reviews }
     saveRequirement(root, revised)
     return { requirement: revised, version: next, documentPath, snapshotPath, backfilled }
   } catch (error) {
@@ -391,23 +398,34 @@ export interface RequirementReviewResult {
 }
 
 /**
- * 追加评审前的改稿门禁：上一轮评审后没有新版本落盘时给出拒绝原因。
+ * 追加评审前的重复门禁：上一轮意见还没处置、且正文没改过时给出拒绝原因。
  *
- * 版本取 `n` 最大的一条、评审取 `round` 最大的一条，按时刻比较；版本时刻不晚于
- * 评审时刻就说明报告针对的正文没有变过，再评一轮只是重复。`versions` 为空是
- * 没有版本表的旧数据，无法比较，放宽允许；没有评审时第一轮也允许。
+ * 取 `round` 最大的评审与 `n` 最大的版本比较时刻：版本不晚于评审就说明报告针对的正文没变过。
+ * 未决轮次必须先处置——放弃本轮意见（`rejected`）可直接复评；采纳并修改需求会改稿并产出
+ * 晚于该轮的版本，届时才允许下一轮。已采纳但没产出新版本仍要拦。旧数据的未决轮次没有
+ * 版本表可比，同样要求先处置；没有评审时第一轮允许。
  * @param requirement - 已读回的需求，只消费 `versions` 与 `reviews`。
  * @returns 可追加时返回 undefined；否则返回可读的中文拒绝原因。
  */
 export function reviewStaleReason(requirement: Pick<Requirement, 'versions' | 'reviews'>): string | undefined {
   const { versions, reviews } = requirement
-  if (reviews.length === 0 || versions.length === 0) return undefined
-  const latestVersion = versions.reduce((best, version) => version.n > best.n ? version : best)
+  if (reviews.length === 0) return undefined
   const latestReview = reviews.reduce((best, review) => review.round > best.round ? review : best)
-  if (Date.parse(latestVersion.at) <= Date.parse(latestReview.at)) {
-    return '上一轮评审后正文未改稿，请先用修改需求产出新版本再评审'
+  const latestVersion = versions.length === 0
+    ? undefined
+    : versions.reduce((best, version) => version.n > best.n ? version : best)
+  const changedAfterReview = latestVersion !== undefined && Date.parse(latestVersion.at) > Date.parse(latestReview.at)
+
+  if (latestReview.decision === 'rejected') return undefined
+  if (latestReview.decision === 'accepted') {
+    return changedAfterReview
+      ? undefined
+      : `上一轮评审（R${String(latestReview.round)}）已采纳但正文未改稿，请用修改需求产出新版本后再发起下一轮评审`
   }
-  return undefined
+  // 缺省与 pending 都是未决：必须先改稿或放弃，否则再评一轮只是重复。
+  return changedAfterReview
+    ? undefined
+    : `上一轮评审（R${String(latestReview.round)}）尚未处理：请先「采纳并修改需求」产出新版本，或「放弃本轮意见」后再发起下一轮评审（上一轮评审后正文未改稿）`
 }
 
 /**
@@ -446,6 +464,83 @@ export function recordRequirementReview(root: string, id: string, input: Require
     throw error
   }
   return { requirement: reviewed, round, reportPath, relativeReport }
+}
+
+/** 一次评审处置所需的输入。 */
+export interface RequirementReviewDecisionInput {
+  /** 要处置的轮次。 */
+  readonly round: number
+  /** 采纳或放弃本轮意见；未决不该由这条命令制造。 */
+  readonly decision: 'accepted' | 'rejected'
+  /** 处置时刻。 */
+  readonly at: string
+  /** 处置理由；缺省表示没写。 */
+  readonly note?: string
+}
+
+/** 一次评审处置的落盘结果。 */
+export interface RequirementReviewDecisionResult {
+  readonly requirement: Requirement
+  readonly round: number
+  readonly decision: 'accepted' | 'rejected'
+  /** 采纳时关联的正文版本号；没有晚于该轮的正文版本时缺省。 */
+  readonly appliedVersion?: number
+}
+
+/**
+ * 人处置一轮评审：把决定写进该轮记录，不碰正文与其他轮次。
+ *
+ * 采纳时若已有晚于该轮的正文版本，把 `applied_version` 指向其中版本号最大的一版；
+ * 放弃时清掉可能残留的 `applied_version`，避免决定与关联版本自相矛盾。
+ * @param root - 规格根。
+ * @param id - 需求编号。
+ * @param input - 轮次、决定、时刻与可选理由。
+ * @returns 落盘后的需求、轮次、决定与关联的正文版本号。
+ */
+export function decideRequirementReview(
+  root: string,
+  id: string,
+  input: RequirementReviewDecisionInput,
+): RequirementReviewDecisionResult {
+  const requirement = loadRequirement(root, id)
+  const target = requirement.reviews.find(review => review.round === input.round)
+  if (target === undefined) {
+    throw new Error(`${id} 没有第 ${String(input.round)} 轮评审，无法处置`)
+  }
+
+  let appliedVersion: number | undefined
+  if (input.decision === 'accepted') {
+    for (const version of requirement.versions) {
+      if (Date.parse(version.at) > Date.parse(target.at)
+        && (appliedVersion === undefined || version.n > appliedVersion)) {
+        appliedVersion = version.n
+      }
+    }
+  }
+
+  const reviews = requirement.reviews.map((review) => {
+    if (review.round !== input.round) return review
+    const decided: RequirementReview = {
+      round: review.round,
+      at: review.at,
+      report: review.report,
+      ...(review.sessionId === undefined ? {} : { sessionId: review.sessionId }),
+      ...(review.role === undefined ? {} : { role: review.role }),
+      decision: input.decision,
+      decided_at: input.at,
+      ...(input.note === undefined ? {} : { decision_note: input.note }),
+      ...(appliedVersion === undefined ? {} : { applied_version: appliedVersion }),
+    }
+    return decided
+  })
+  const decidedRequirement: Requirement = { ...requirement, reviews }
+  saveRequirement(root, decidedRequirement)
+  return {
+    requirement: decidedRequirement,
+    round: input.round,
+    decision: input.decision,
+    ...(appliedVersion === undefined ? {} : { appliedVersion }),
+  }
 }
 
 /**

@@ -169,7 +169,7 @@ describe('角色天花板', () => {
     expect(allowedTools('drafting', 'intake')).toContain('requirement_draft')
     expect(allowedTools('closed', 'intake')).not.toContain('requirement_draft')
     for (const state of [...STATES, null] as const) {
-      for (const name of ['requirement_approve', 'requirement_release', 'requirement_close']) {
+      for (const name of ['requirement_approve', 'requirement_release', 'requirement_close', 'requirement_review_decide']) {
         expect(allowedTools(state, null)).not.toContain(name)
       }
     }
@@ -197,6 +197,7 @@ describe('角色天花板', () => {
     for (const state of [...STATES, null] as const) {
       for (const role of ROLES) {
         expect(allowedTools(state, role)).not.toContain('requirement_approve')
+        expect(allowedTools(state, role)).not.toContain('requirement_review_decide')
       }
     }
   })
