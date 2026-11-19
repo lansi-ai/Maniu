@@ -13,6 +13,7 @@ import { hasIntakeWork } from '../intake/eligibility.ts'
 import { buildIntakeFollowupPrompt, buildManagerSplitPrompt, buildRequirementCreatePrompt, buildReviewPrompt, buildRevisePrompt, BUILTIN_SPLIT_TRACKS } from '../intake/prompts.ts'
 import { INTAKE_PRESET_ID, MANAGER_PRESET_ID, PM_PRESET_ID } from '../talents/model.ts'
 import { entryRoot, flowNodeOf, flowRoleLabel, flowRoleSource, presetOfRole, presetRoot } from '../flow/config.ts'
+import { canReviewRequirement } from './requirement-gate.ts'
 import { translate, type MessageKey, type Translate } from '../locale.ts'
 import { OperationCards, type OperationCardView, type OperationStep, type OperationStepState } from '../shell/operation-cards.tsx'
 import { RequirementDetail } from './requirement-detail.tsx'
@@ -112,6 +113,8 @@ interface FinishedOp extends OpRun {
   readonly status: 'done' | 'failed'
   /** 已落盘的岗位数；失败时指向出事的那一岗。 */
   readonly landed: number
+  /** 提案被拒绝而收口的操作：按完成关卡，但状态文案说明是被拒绝。 */
+  readonly cancelled?: boolean
 }
 
 /** 需求页属性。 */
@@ -376,9 +379,12 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
 
   // 完成判定以投影里的磁盘事实为准：评审见增轮（有配置时最新一轮署名根须等于当前条目根）、
   // 改稿见增版、拆分见关联任务或计划出现/更新、立项与新建需求见需求条数增量。落盘后按 auto 决定自动发起下一岗还是停下等人。
+  // 提案被拒绝时本次操作已无产物可等，立即收口成取消卡，不空转到超时。
   useEffect(() => {
     if (watches.length === 0) return
+    const cancelledWatches = watches.filter(watch => rejectedProposalOf(watch) !== undefined)
     const doneWatches = watches.filter((watch) => {
+      if (cancelledWatches.includes(watch)) return false
       if (watch.kind === 'intake' || watch.kind === 'create') return props.projection.requirements.length > watch.requirements
       const row = props.projection.requirements.find(item => item.id === watch.requirementId)
       if (row === undefined) return false
@@ -398,9 +404,19 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
       ).length
       return related > watch.related || (row.splitPlan !== undefined && row.splitPlan.at !== watch.planAt)
     })
-    if (doneWatches.length === 0) return
-    setWatches(current => current.filter(item => !doneWatches.includes(item)))
-    const finishedNow: FinishedOp[] = []
+    if (doneWatches.length === 0 && cancelledWatches.length === 0) return
+    setWatches(current => current.filter(item => !doneWatches.includes(item) && !cancelledWatches.includes(item)))
+    const finishedNow: FinishedOp[] = cancelledWatches.map(watch => ({
+      key: watch.key,
+      kind: watch.kind,
+      requirementId: watch.requirementId,
+      roles: watch.roles,
+      auto: watch.auto,
+      sessionId: watch.sessionId,
+      status: 'done',
+      landed: watch.roleIndex,
+      cancelled: true,
+    }))
     for (const watch of doneWatches) {
       const next = watch.roleIndex + 1
       if (next >= watch.roles.length) {
@@ -481,6 +497,19 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
     return props.projection.proposals.find((proposal) => {
       const change = proposal.requirementChange
       if (proposal.decision !== 'draft' || change === undefined) return false
+      if (watch.proposalIds.includes(proposal.id)) return false
+      return watch.kind === 'create'
+        ? change.mode === 'new'
+        : change.mode === 'revise' && change.target === watch.requirementId
+    })
+  }
+
+  // 提案被拒绝：本次操作的产物不再可能落盘，浮卡立即收口，不等需求条数/版本增量或超时。
+  const rejectedProposalOf = (watch: OpWatch): ProposalRow | undefined => {
+    if (watch.kind !== 'create' && watch.kind !== 'revise') return undefined
+    return props.projection.proposals.find((proposal) => {
+      const change = proposal.requirementChange
+      if (proposal.decision !== 'rejected' || change === undefined) return false
       if (watch.proposalIds.includes(proposal.id)) return false
       return watch.kind === 'create'
         ? change.mode === 'new'
@@ -632,7 +661,9 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
       ...finished.map(item => viewOf(
         item, Math.min(item.landed, item.roles.length - 1), item.sessionId, item.status,
         item.status === 'done'
-          ? t(OP_DONE_KEY[item.kind], { id: idTextOf(item) })
+          ? item.cancelled === true
+            ? t('requirement.proposalRejected')
+            : t(OP_DONE_KEY[item.kind], { id: idTextOf(item) })
           : t('requirement.opTimeout', { id: idTextOf(item) }),
         false,
       )),
@@ -793,6 +824,17 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
                 <Table.Body>
                   {rows.map((row) => {
                     const related = relatedOf(row.id)
+                    const reviewGate = canReviewRequirement({
+                      reviews: row.reviews,
+                      versions: row.versions,
+                      flow,
+                      roster: props.projection.roles,
+                    })
+                    const reviewBlockReason = reviewGate.ok
+                      ? undefined
+                      : reviewGate.block.reason === 'pending'
+                        ? t('requirement.reviewBlockedPending', { round: reviewGate.block.round })
+                        : t('requirement.reviewBlockedRepeat', { round: reviewGate.block.round })
                     return (
                       <Table.Row
                         key={row.id}
@@ -817,7 +859,8 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
                                   size="sm"
                                   variant="ghost"
                                   data-testid="requirement-op-review"
-                                  isDisabled={busyOf('review', row.id)}
+                                  isDisabled={busyOf('review', row.id) || !reviewGate.ok}
+                                  ref={(node) => { if (node !== null) node.title = reviewBlockReason ?? '' }}
                                   onPress={() => { void review(row) }}
                                 >
                                   {t('requirement.opReview')}

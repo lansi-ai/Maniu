@@ -20,6 +20,7 @@ function review(round: number, role?: string): RequirementReviewRow {
     round,
     at: '2026-11-17T10:00:00+08:00',
     report: `requirements/REQ-01/reviews/R${String(round)}.md`,
+    decision: 'rejected',
     ...(role === undefined ? {} : { role }),
   }
 }
@@ -238,5 +239,44 @@ describe('岗位到 preset 的折算', () => {
     h.render(projectionOf([review(1), review(2)]))
     await settle()
     expect(element('requirement-op-success')?.textContent).toContain('评审完成')
+  })
+})
+
+describe('表格行内评审按钮接入共享门禁', () => {
+  const pending = (round: number, role?: string): RequirementReviewRow => ({
+    round,
+    at: '2026-11-17T10:00:00+08:00',
+    report: `requirements/REQ-01/reviews/R${String(round)}.md`,
+    ...(role === undefined ? {} : { role }),
+  })
+
+  it('多岗会审只到一岗时行内评审可用；评齐且有未决轮次时禁用并给原因', () => {
+    const h = harness()
+    h.render(projectionOf([pending(1, 'maniu-pm')], TWO_ROLES_AUTO))
+    expect((element('requirement-op-review') as HTMLButtonElement).disabled).toBe(false)
+
+    h.render(projectionOf([pending(1, 'maniu-pm'), pending(2, 'maniu-pm')], TWO_ROLES_AUTO))
+    const blocked = element('requirement-op-review') as HTMLButtonElement
+    expect(blocked.disabled).toBe(true)
+    expect(blocked.title).toContain('R2 评审尚未处理')
+    expect(h.started).toHaveLength(0)
+  })
+
+  it('无流程配置时未决评审拦重复发起，正文改过之后放行', () => {
+    const h = harness()
+    h.render(projectionOf([pending(1)]))
+    const blocked = element('requirement-op-review') as HTMLButtonElement
+    expect(blocked.disabled).toBe(true)
+    expect(blocked.title).toContain('R1 评审尚未处理')
+
+    const revised: RequirementDocRow = {
+      ...draftOf([pending(1)]),
+      versions: [
+        { n: 1, at: '2026-11-17T09:00:00+08:00' },
+        { n: 2, at: '2026-11-17T12:00:00+08:00' },
+      ],
+    }
+    h.render({ ...projectionOf([]), requirements: [revised] })
+    expect((element('requirement-op-review') as HTMLButtonElement).disabled).toBe(false)
   })
 })

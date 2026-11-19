@@ -201,10 +201,10 @@ ${body}
 }
 
 /**
- * 生成需求改稿提示词：分析-文档-确认-提案四步，落盘走提案而不是直接改正文。
+ * 生成需求改稿提示词：分析-文档-确认-落版四步，改稿直接写下一个版本。
  *
- * 基线是当前正文与最近评审报告；需求分析师用 `requirement_propose`（mode revise）
- * 写待确认提案，人对比确认后新正文才落成新版本。
+ * 基线是当前正文与最近评审报告；需求分析师用 `requirement_revise` 把完整新正文写成
+ * 新版本，内核自动保留历史版本快照并把未决评审闭环，无需人再对比确认。
  * @param requirement - 需求编号与标题。
  * @param document - 当前需求正文。
  * @param reviewReport - 最近一份评审报告相对 `.spec` 的路径。
@@ -221,7 +221,7 @@ export function buildRevisePrompt(
   const report = reviewReport === undefined || reviewReport.trim() === ''
     ? '这条需求还没有评审报告：按正文自身的问题做必要修订，不要编造评审意见。'
     : `最近一份评审报告：.spec/${reviewReport.replace(/^\.?[\\/]/, '').replace(/^\.spec[\\/]/, '')}`
-  return `需求改稿：请修订需求 ${requirement.id}（${requirement.title}）的正文，出一份待确认提案。
+  return `需求改稿：请修订需求 ${requirement.id}（${requirement.title}）的正文，直接写入新版本 v${String(baseVersion + 1)}。
 
 执行身份：你是这条需求的需求分析师。
 ${report}
@@ -231,12 +231,12 @@ ${report}
 第一步，需求层分析：用 file_read 读评审报告，逐条处理其中的意见；结合当前正文分析与现有需求的冲突/重复、影响面大小，给出优先级建议。只做需求层分析，明确禁止代码层判断：不评估技术实现方案，不给代码结论。
 第二步，按需求大小出文档：小改动出短文档（目标、范围、验收几条即可），大改动出完整文档；保留用户已确认的内容，被评审否定的部分要改，并在正文里回应评审意见；需要收缩范围时写明理由。
 第三步，用 ask_user_question 请用户确认文档方向，一次只问一个问题；用户确认后才进入下一步。
-第四步，确认后调用 requirement_propose：mode 为 revise，target 为 ${requirement.id}，base_version 为 ${String(baseVersion)}，content 是完整新正文（不是差异片段），analysis 是需求层分析结论。
+第四步，确认后调用 requirement_revise：id 为 ${requirement.id}，content 是完整新正文（不是差异片段）；内核会把正文记为下一个版本，自动保留历史快照并闭环未决评审。
 
 边界：
-- 不调用 requirement_revise 直接落盘；新正文由人在界面对比确认后才落成新版本。
+- 不调用 requirement_propose 出提案；改稿由 requirement_revise 直接落新版本，无需人再对比确认。
 - 只处理这一条需求：不改状态、不签不批、不推进任务、不改其他需求、不写 .spec/project.yaml。
-- 写完提案回报提案编号、改了哪些段落，以及哪些评审意见保留待议，然后停下。
+- 写完回报新版本号、改了哪些段落，以及哪些评审意见保留待议，然后停下。
 
 《当前需求正文》：
 """
