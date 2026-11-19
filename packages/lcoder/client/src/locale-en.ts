@@ -166,6 +166,8 @@ export const EN: Readonly<Record<MessageKey, string>> = {
   'requirement.reportExcerpt': 'Conclusion excerpt',
   'requirement.reportSummary': 'Summary',
   'requirement.reportTodos': 'Required changes',
+  'requirement.todoStats': 'High {high} · Medium {medium} · Low {low}',
+  'requirement.todoDetails': 'View details',
   'requirement.priority.high': 'High',
   'requirement.priority.medium': 'Medium',
   'requirement.priority.low': 'Low',

@@ -52,6 +52,56 @@ describe('parseReviewReport', () => {
     expect(parsed.todos[2]?.text).not.toContain('1. ')
   })
 
+  it('每条待改项都有精简摘要，摘要去掉优先级标记但正文保留', () => {
+    const parsed = parseReviewReport(REPORT)
+    expect(parsed.todos.map(todo => todo.summary)).toEqual([
+      '位置：正文「范围」一节。',
+      '位置：验收口径。',
+      '位置：背景。',
+    ])
+    for (const todo of parsed.todos) {
+      expect(todo.summary).not.toContain('优先级')
+      expect(todo.summary).not.toContain('【')
+      expect(todo.summary.length).toBeGreaterThan(0)
+      expect(todo.summary.length).toBeLessThanOrEqual(73)
+    }
+    expect(parsed.todos[0]?.text).toContain('优先级：高')
+    expect(parsed.todos[1]?.text).toContain('【中】')
+  })
+
+  it('待改项按高、中、低、无优先级稳定排序，同级保持原报告顺序', () => {
+    const parsed = parseReviewReport(`## 待改项
+
+- 甲项待改。优先级：低
+- 乙项待改。优先级：高
+- 丙项待改。【中】
+- 丁项待改。
+- 戊项待改。优先级：中
+- 己项待改。优先级：高
+- 庚项待改。`)
+    expect(parsed.todos.map(todo => todo.text)).toEqual([
+      '乙项待改。优先级：高',
+      '己项待改。优先级：高',
+      '丙项待改。【中】',
+      '戊项待改。优先级：中',
+      '甲项待改。优先级：低',
+      '丁项待改。',
+      '庚项待改。',
+    ])
+    expect(parsed.todos.map(todo => todo.summary)).toEqual([
+      '乙项待改。', '己项待改。', '丙项待改。', '戊项待改。', '甲项待改。', '丁项待改。', '庚项待改。',
+    ])
+  })
+
+  it('摘要首句超过 72 字时按字数截断并补省略号', () => {
+    const parsed = parseReviewReport(`## 待改项
+
+- ${'很长的建议内容'.repeat(12)}。后续说明。优先级：高`)
+    expect(parsed.todos[0]?.summary.endsWith('…')).toBe(true)
+    expect(parsed.todos[0]?.summary.length).toBe(73)
+    expect(parsed.todos[0]?.text).toContain('后续说明')
+  })
+
   it('没有固定小节时两段都为空，不走卡片渲染', () => {
     expect(parseReviewReport('普通报告\n\n只是一段文字。')).toEqual({ summary: '', todos: [] })
   })

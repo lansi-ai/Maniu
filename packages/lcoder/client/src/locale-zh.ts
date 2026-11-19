@@ -164,6 +164,8 @@ export const ZH = {
   'requirement.reportExcerpt': '结论摘录',
   'requirement.reportSummary': '摘要',
   'requirement.reportTodos': '待改项',
+  'requirement.todoStats': '高 {high} · 中 {medium} · 低 {low}',
+  'requirement.todoDetails': '查看详情',
   'requirement.priority.high': '高',
   'requirement.priority.medium': '中',
   'requirement.priority.low': '低',
