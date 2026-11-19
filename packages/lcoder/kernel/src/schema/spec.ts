@@ -467,6 +467,14 @@ export const RequirementReview = z.object({
   sessionId: z.string().min(1).optional(),
   /** 产出这轮评审的会话 preset id（署名）；旧数据缺省，配齐过审时按未署名计。 */
   role: z.string().min(1).optional(),
+  /** 人对本轮意见的处置；缺省与 `pending` 都表示还没处理。 */
+  decision: z.enum(['pending', 'accepted', 'rejected']).optional(),
+  /** 人处置本轮的时刻；旧数据缺省。 */
+  decided_at: IsoDateTime.optional(),
+  /** 采纳本轮意见后产出的新版本号；旧数据与放弃轮次缺省。 */
+  applied_version: z.number().int().positive().optional(),
+  /** 处置理由；缺省表示没写。 */
+  decision_note: z.string().min(1).optional(),
 })
 export type RequirementReview = z.infer<typeof RequirementReview>
 

@@ -10,6 +10,7 @@ import { parse as parseYaml } from 'yaml'
 
 import {
   createRequirement,
+  decideRequirementReview,
   requirementReviewPath,
   requirementVersionPath,
   reviewStaleReason,
@@ -52,6 +53,7 @@ describe('需求工具', () => {
     const names = createRequirementTools(makeRepo().spec).map(entry => entry.name)
     expect(names).toEqual(['requirement_draft', 'requirement_review_draft', 'requirement_revise', 'requirement_propose', 'requirement_split_plan'])
     expect(names).not.toContain('requirement_approve')
+    expect(names).not.toContain('requirement_review_decide')
     expect(names).not.toContain('task_assign')
     expect(names).not.toContain('proposal_approve')
     expect(names).not.toContain('proposal_reject')
@@ -218,26 +220,63 @@ describe('评审轮次门禁', () => {
   const VERSION_AT = '2026-11-17T10:00:00+08:00'
   const REVIEW_AT = '2026-11-17T11:00:00+08:00'
 
-  function requirementOf(versions: readonly { n: number; at: string }[], reviews: readonly { round: number; at: string }[]) {
+  function requirementOf(
+    versions: readonly { n: number; at: string }[],
+    reviews: readonly { round: number; at: string; decision?: 'pending' | 'accepted' | 'rejected' }[],
+  ) {
     return {
       versions: versions.map(version => ({ ...version })),
-      reviews: reviews.map(review => ({ ...review, report: `requirements/REQ-01/reviews/R${String(review.round)}.md` })),
+      reviews: reviews.map(review => ({
+        ...review,
+        report: `requirements/REQ-01/reviews/R${String(review.round)}.md`,
+      })),
     }
   }
 
-  it('无评审或旧数据无版本表都放行', () => {
+  it('没有评审时放行首轮', () => {
     expect(reviewStaleReason(requirementOf([{ n: 1, at: VERSION_AT }], []))).toBeUndefined()
-    expect(reviewStaleReason(requirementOf([], [{ round: 1, at: REVIEW_AT }]))).toBeUndefined()
   })
 
-  it('最新版本不晚于最新评审就拒绝，按 n 与 round 取而不是按数组顺序', () => {
+  it('未决评审且正文没改过时拦截，保留旧口径字样', () => {
+    const reason = reviewStaleReason(requirementOf([{ n: 1, at: VERSION_AT }], [{ round: 1, at: REVIEW_AT }]))
+    expect(reason).toContain('R1')
+    expect(reason).toContain('上一轮评审后正文未改稿')
+    // 显式的 pending 与缺省同义
+    expect(reviewStaleReason(requirementOf(
+      [{ n: 1, at: VERSION_AT }],
+      [{ round: 1, at: REVIEW_AT, decision: 'pending' }],
+    ))).toContain('上一轮评审后正文未改稿')
+    // 旧数据没有版本表可比，同样要求先处置
+    expect(reviewStaleReason(requirementOf([], [{ round: 1, at: REVIEW_AT }]))).toContain('上一轮评审后正文未改稿')
+  })
+
+  it('未决但正文已改稿时按原语义放行，按 n 与 round 取而不是按数组顺序', () => {
+    const fresh = requirementOf([{ n: 2, at: '2026-11-17T12:00:00+08:00' }], [{ round: 1, at: REVIEW_AT }])
+    expect(reviewStaleReason(fresh)).toBeUndefined()
+    // 最新版本（按 n 取）不晚于最新评审（按 round 取）就拦截
     const stale = requirementOf(
       [{ n: 2, at: VERSION_AT }, { n: 1, at: '2026-11-17T12:00:00+08:00' }],
       [{ round: 2, at: REVIEW_AT }, { round: 1, at: '2026-11-17T09:00:00+08:00' }],
     )
     expect(reviewStaleReason(stale)).toContain('上一轮评审后正文未改稿')
-    const fresh = requirementOf([{ n: 2, at: '2026-11-17T12:00:00+08:00' }], [{ round: 1, at: REVIEW_AT }])
-    expect(reviewStaleReason(fresh)).toBeUndefined()
+  })
+
+  it('放弃本轮意见后允许复评，不再看正文有没有改', () => {
+    expect(reviewStaleReason(requirementOf(
+      [{ n: 1, at: VERSION_AT }],
+      [{ round: 1, at: REVIEW_AT, decision: 'rejected' }],
+    ))).toBeUndefined()
+  })
+
+  it('采纳且已有晚于该轮的正文版本时允许复评，采纳但没改稿仍拦截', () => {
+    expect(reviewStaleReason(requirementOf(
+      [{ n: 2, at: '2026-11-17T12:00:00+08:00' }],
+      [{ round: 1, at: REVIEW_AT, decision: 'accepted' }],
+    ))).toBeUndefined()
+    expect(reviewStaleReason(requirementOf(
+      [{ n: 1, at: VERSION_AT }],
+      [{ round: 1, at: REVIEW_AT, decision: 'accepted' }],
+    ))).toContain('已采纳但正文未改稿')
   })
 
   it('工具在上一轮评审后没有新版本时拒绝追加，不留报告文件', async () => {
@@ -252,9 +291,20 @@ describe('评审轮次门禁', () => {
 
     reviseRequirement(spec, 'REQ-01', { content: '# 佣金改造\n\n改稿。', at: '2099-01-01T00:00:00Z' })
     expect((await callTool(spec, 'requirement_review_draft', { id: 'REQ-01', report: '# 第 2 轮' })).round).toBe(2)
+    expect(read(spec, 'REQ-01').reviews[0]).toMatchObject({ decision: 'accepted', applied_version: 2 })
   })
 
-  it('旧需求没有版本表时连续两轮评审照常追加', async () => {
+  it('放弃本轮意见后同一份正文也能再评一轮', async () => {
+    const { spec } = makeRepo()
+    await call(spec, { title: '佣金改造', content: CONTENT })
+    await callTool(spec, 'requirement_review_draft', { id: 'REQ-01', report: '# 第 1 轮' })
+    decideRequirementReview(spec, 'REQ-01', { round: 1, decision: 'rejected', at: '2026-11-17T12:00:00+08:00' })
+
+    expect((await callTool(spec, 'requirement_review_draft', { id: 'REQ-01', report: '# 第 2 轮' })).round).toBe(2)
+    expect(read(spec, 'REQ-01').reviews.map(review => review.decision)).toEqual(['rejected', undefined])
+  })
+
+  it('旧需求没有版本表时未决评审拦住第二轮，放弃后放行', async () => {
     const { spec } = makeRepo()
     saveRequirement(spec, Requirement.parse({
       id: 'REQ-01',
@@ -264,6 +314,9 @@ describe('评审轮次门禁', () => {
     writeFileSync(join(spec, 'requirements', 'REQ-01.md'), CONTENT, 'utf8')
 
     expect((await callTool(spec, 'requirement_review_draft', { id: 'REQ-01', report: '# 第 1 轮' })).round).toBe(1)
+    await expect(callTool(spec, 'requirement_review_draft', { id: 'REQ-01', report: '# 重复评审' }))
+      .rejects.toThrow(/上一轮评审后正文未改稿/)
+    decideRequirementReview(spec, 'REQ-01', { round: 1, decision: 'rejected', at: '2026-11-17T12:00:00+08:00' })
     expect((await callTool(spec, 'requirement_review_draft', { id: 'REQ-01', report: '# 第 2 轮' })).round).toBe(2)
   })
 })
@@ -320,6 +373,27 @@ describe('需求改稿', () => {
     await expect(callTool(spec, 'requirement_revise', { id: 'REQ-01', content: REVISED }))
       .rejects.toThrow(/只有起草态/)
     expect(readFileSync(join(spec, 'requirements', 'REQ-01.md'), 'utf8')).toBe(CONTENT)
+  })
+
+  it('改稿把待处理评审标为采纳并关联新版本，已终态轮次不动', async () => {
+    const { spec } = makeRepo()
+    await call(spec, { title: '佣金改造', content: CONTENT })
+    await callTool(spec, 'requirement_review_draft', { id: 'REQ-01', report: '# 第 1 轮' })
+    decideRequirementReview(spec, 'REQ-01', {
+      round: 1, decision: 'rejected', at: '2026-11-17T12:00:00+08:00', note: '不采纳',
+    })
+    await callTool(spec, 'requirement_review_draft', { id: 'REQ-01', report: '# 第 2 轮' })
+
+    const at = '2026-11-18T10:00:00+08:00'
+    const result = reviseRequirement(spec, 'REQ-01', { content: REVISED, at })
+
+    const reviews = read(spec, 'REQ-01').reviews
+    expect(reviews[0]).toMatchObject({ round: 1, decision: 'rejected', decision_note: '不采纳' })
+    expect(reviews[0]?.applied_version).toBeUndefined()
+    expect(reviews[1]).toMatchObject({
+      round: 2, decision: 'accepted', decided_at: at, applied_version: result.version,
+    })
+    expect(reviews[1]?.report).toBe('requirements/REQ-01/reviews/R2.md')
   })
 })
 
