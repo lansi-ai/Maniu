@@ -470,6 +470,17 @@
 }
 .requirement-hero .detail-note { margin: 2px 0 0; }
 .requirement-hero .detail-line { margin: 2px 0 0; }
+/* 待处置评审的醒目提醒与单独置右的作废关闭，避免与确认需求等权。 */
+.detail-warning { margin: 2px 0 0; font-size: 11px; color: var(--warning); }
+.requirement-ops .requirement-close { margin-left: auto; }
+/* 右上角紧凑工具组：刷新与查看原文不进核心流程操作栏。 */
+.requirement-quick-tools { display: inline-flex; align-items: center; gap: 2px; }
+/* 评审结论徽标与处置动作。 */
+.requirement-review-status { font-weight: 600; }
+.requirement-review-decision { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
+.requirement-review-decision .detail-note { margin: 0; }
+.requirement-report-history li { flex-wrap: wrap; align-items: center; gap: 6px; }
+.requirement-report-history li > span { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 
 /* 阶段进度横排 chips：创建/评审/版本/过审，评审 chip 本身可点开报告。 */
 .timeline-chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; font-size: 12px; }

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import type { JSX } from 'react'
 import { Button, Chip, Separator } from '@heroui/react'
+import { FileText, RotateCw } from 'lucide-react'
 import type { ProjectScope } from '../workspace/use-workspaces.ts'
 import type { SpecProjection } from '../spec/load.ts'
 import type { RequirementDocRow, RequirementReviewRow, RequirementSplitPlanEntryRow } from '../spec/rows.ts'
@@ -30,6 +31,32 @@ const EXCERPT_CHARS = 120
 
 /** 详情页的操作口径按四态加未知态分流；未知态只留次级动作。 */
 type DetailState = 'draft' | 'confirmed' | 'released' | 'closed' | 'unknown'
+
+/** 一轮评审的人工处置；旧数据没有 decision 字段时按待处理看待。 */
+type ReviewDecision = 'pending' | 'accepted' | 'rejected'
+
+/** 起草态的三段交互：未评审、最新一轮待处置、最新一轮已处置。 */
+type ReviewPhase = 'unreviewed' | ReviewDecision
+
+function decisionOf(review: RequirementReviewRow): ReviewDecision {
+  return review.decision === 'accepted' || review.decision === 'rejected' ? review.decision : 'pending'
+}
+
+const DECISION_CHIP_COLOR: Readonly<Record<ReviewDecision, 'warning' | 'success' | 'default'>> = {
+  pending: 'warning',
+  accepted: 'success',
+  rejected: 'default',
+}
+
+/** 评审结论徽标文案：采纳且已关联版本时点出版本号。 */
+function decisionLabel(t: Translate, review: RequirementReviewRow): string {
+  const decision = decisionOf(review)
+  if (decision === 'pending') return t('requirement.decision.pending')
+  if (decision === 'rejected') return t('requirement.decision.rejected')
+  return review.appliedVersion === undefined
+    ? t('requirement.decision.accepted')
+    : t('requirement.decision.acceptedVersion', { version: review.appliedVersion })
+}
 
 const GUIDE_KEY: Readonly<Record<DetailState, MessageKey>> = {
   draft: 'requirement.guide.draft',
@@ -218,6 +245,25 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
   }
 
   const reviewed = row.reviews.length > 0
+  const phase: ReviewPhase = latestReview === null ? 'unreviewed' : decisionOf(latestReview)
+  const acceptedVersion = latestReview === null || decisionOf(latestReview) !== 'accepted'
+    ? undefined
+    : latestReview.appliedVersion ?? row.versions.reduce<number | undefined>(
+      (best, version) => version.n > latestReview.round && (best === undefined || version.n > best) ? version.n : best,
+      undefined,
+    )
+  const pendingReviseProposal = props.projection.proposals.some(proposal =>
+    proposal.decision === 'draft'
+    && proposal.requirementChange?.mode === 'revise'
+    && proposal.requirementChange.target === row.id)
+  const reviewPendingReason = latestReview === null
+    ? undefined
+    : t('requirement.reviewPendingReason', { round: latestReview.round })
+  const reviewLabel = phase === 'unreviewed'
+    ? t('requirement.opReviewStart')
+    : phase === 'pending'
+      ? t('requirement.opReview')
+      : t('requirement.opReviewAgain')
   const missingRoles = missingReviewRoles(props.projection.flow, props.projection.roles, row.reviews)
   const approveReady = reviewed && missingRoles.length === 0
   const canApprove = state === 'draft' && approveReady
@@ -226,6 +272,42 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
     : missingRoles.length > 0
       ? t('requirement.approveNeedsFlow', { roles: missingRoles.map(roleLabel).join('、') })
       : undefined
+  const draftGuide = phase === 'unreviewed'
+    ? t('requirement.guide.draft')
+    : phase === 'pending' && latestReview !== null
+      ? t('requirement.guide.reviewPending', { round: latestReview.round })
+      : phase === 'accepted' && acceptedVersion !== undefined
+        ? t('requirement.guide.reviewAccepted', { version: acceptedVersion })
+        : phase === 'accepted'
+          ? t('requirement.guide.reviewAcceptedPlain')
+          : phase === 'rejected' && latestReview !== null
+            ? t('requirement.guide.reviewRejected', { round: latestReview.round })
+            : t('requirement.guide.draft')
+  const guide = state === 'draft' ? draftGuide : t(GUIDE_KEY[state])
+  const phaseHint = state !== 'draft'
+    ? undefined
+    : phase === 'unreviewed'
+      ? t('requirement.phaseHint.start')
+      : phase === 'pending'
+        ? t('requirement.phaseHint.pending')
+        : t('requirement.phaseHint.reviewAgain')
+
+  /** 评审结论徽标：报告卡、阶段 chips 与历史轮次共用同一口径。 */
+  const decisionChip = (review: RequirementReviewRow, testId: string): JSX.Element => {
+    const decision = decisionOf(review)
+    return (
+      <Chip
+        size="sm"
+        variant="soft"
+        color={DECISION_CHIP_COLOR[decision]}
+        className="tag requirement-review-status"
+        data-testid={testId}
+        data-decision={decision}
+      >
+        {decisionLabel(t, review)}
+      </Chip>
+    )
+  }
 
   const preview = previewOf(row.text)
   const parsedReport = report.status === 'ready' ? parseReviewReport(report.text) : undefined
@@ -237,6 +319,34 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
       closeTestId="requirement-detail-close"
       onClose={props.onClose}
       attributes={{ 'data-requirement-id': row.id }}
+      actions={(
+        <div className="requirement-quick-tools" data-testid="requirement-quick-tools">
+          <Button
+            isIconOnly
+            className="detail-drawer-icon"
+            variant="ghost"
+            size="sm"
+            data-testid="requirement-detail-reload"
+            aria-label={t('requirement.opReload')}
+            ref={(node) => { if (node !== null) node.title = t('requirement.opReload') }}
+            onPress={props.onReload}
+          >
+            <RotateCw aria-hidden="true" />
+          </Button>
+          <Button
+            isIconOnly
+            className="detail-drawer-icon"
+            variant="ghost"
+            size="sm"
+            data-testid="requirement-open-reader"
+            aria-label={t('requirement.opOpenBody')}
+            ref={(node) => { if (node !== null) node.title = t('requirement.opOpenBody') }}
+            onPress={() => { props.onOpenReader(`.spec/requirements/${row.id}.md`) }}
+          >
+            <FileText aria-hidden="true" />
+          </Button>
+        </div>
+      )}
       head={(
         <div className="requirement-hero">
           <div className="requirement-title-row">
@@ -252,32 +362,40 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
             </Chip>
           </div>
           <span className="mono requirement-id" data-testid="requirement-detail-id">{row.id}</span>
-          <p className="requirement-guide" data-testid="requirement-guide">{t(GUIDE_KEY[state])}</p>
+          <p className="requirement-guide" data-testid="requirement-guide">{guide}</p>
           <div className="action-row requirement-ops" data-testid="requirement-actions">
             {state === 'draft' && (
               <>
                 <Button
-                  variant="secondary"
+                  variant={phase === 'unreviewed' ? 'primary' : 'secondary'}
                   size="sm"
                   data-testid="requirement-detail-review"
-                  isDisabled={busy !== null}
+                  data-variant={phase === 'unreviewed' ? 'primary' : 'secondary'}
+                  data-phase={phase}
+                  isDisabled={phase === 'pending' || busy !== null}
+                  ref={(node) => {
+                    if (node === null) return
+                    node.title = reviewPendingReason ?? t(phase === 'unreviewed' ? 'requirement.opReviewTitleStart' : 'requirement.opReviewTitleAgain')
+                  }}
                   onPress={() => { void startOp('review', props.onReview) }}
                 >
-                  {t('requirement.opReview')}
+                  {reviewLabel}
                 </Button>
                 <Button
                   variant="secondary"
                   size="sm"
                   data-testid="requirement-detail-revise"
                   isDisabled={busy !== null}
+                  ref={(node) => { if (node !== null) node.title = t('requirement.opReviseTitle') }}
                   onPress={() => { void startOp('revise', props.onRevise) }}
                 >
                   {t('requirement.opRevise')}
                 </Button>
                 <Button
-                  variant="primary"
+                  variant={phase === 'pending' || !canApprove ? 'secondary' : 'primary'}
                   size="sm"
                   data-testid="requirement-approve"
+                  data-variant={phase === 'pending' || !canApprove ? 'secondary' : 'primary'}
                   isDisabled={!canApprove || busy !== null}
                   ref={(node) => { if (node !== null) node.title = approveReason ?? '' }}
                   onPress={() => { void execute('approve', `/requirement_approve ${row.id}`) }}
@@ -326,36 +444,35 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
             )}
             {(state === 'draft' || state === 'confirmed' || state === 'released') && (
               <Button
-                variant="secondary"
+                variant="danger-soft"
                 size="sm"
+                className="requirement-close"
                 data-testid="requirement-close"
                 isDisabled={busy !== null}
+                ref={(node) => { if (node !== null) node.title = t('requirement.opCloseTitle') }}
                 onPress={() => { void execute('close', `/requirement_close ${row.id}`) }}
               >
                 {t('requirement.opClose')}
               </Button>
             )}
-            <Button variant="ghost" size="sm" data-testid="requirement-detail-reload" onPress={props.onReload}>
-              {t('requirement.opReload')}
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              data-testid="requirement-open-reader"
-              onPress={() => { props.onOpenReader(`.spec/requirements/${row.id}.md`) }}
-            >
-              {t('requirement.opOpenBody')}
-            </Button>
           </div>
           {state === 'draft' && approveReason !== undefined && (
             <p className="detail-note" data-testid="requirement-approve-hint">{approveReason}</p>
+          )}
+          {state === 'draft' && phase === 'pending' && reviewPendingReason !== undefined && (
+            <p className="detail-warning" data-testid="requirement-review-pending-reason">{reviewPendingReason}</p>
+          )}
+          {state === 'draft' && phase === 'pending' && pendingReviseProposal && (
+            <p className="detail-warning" data-testid="requirement-review-proposal-hint">{t('requirement.reviewPendingProposal')}</p>
           )}
           {result !== null && (
             <p className={result.ok ? 'detail-line' : 'problem'} data-testid="requirement-action-result" data-ok={result.ok ? 'true' : 'false'}>
               {result.text}
             </p>
           )}
-          <p className="detail-note">{t('requirement.splitNote')}</p>
+          {phaseHint !== undefined && (
+            <p className="detail-note" data-testid="requirement-phase-hint">{phaseHint}</p>
+          )}
         </div>
       )}
     >
@@ -384,6 +501,7 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
               }}
             >
               <Chip size="sm" variant="soft" color="accent" className="tag">{t('requirement.timelineReview', { round: review.round })}</Chip>
+              {decisionChip(review, 'requirement-timeline-review-status')}
               <span className="time">{formatTimestamp(review.at)}</span>
             </li>
           ))}
@@ -458,7 +576,10 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
           : (
             <>
               <div className="detail-drawer-head">
-                <h4>{t('requirement.reportTitle', { round: latestReview.round })}</h4>
+                <div className="row-actions">
+                  <h4>{t('requirement.reportTitle', { round: latestReview.round })}</h4>
+                  {decisionChip(latestReview, 'requirement-review-status')}
+                </div>
                 <div className="row-actions">
                   <Button
                     variant="ghost"
@@ -537,12 +658,38 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
               {reportExpanded && report.status === 'ready' && (
                 <div className="markdown-body tall" data-testid="requirement-report-body">{renderMarkdown(report.text)}</div>
               )}
+              {phase === 'pending' && (
+                <div className="requirement-review-decision" data-testid="requirement-review-decision">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    data-testid="requirement-review-accept"
+                    isDisabled={busy !== null}
+                    ref={(node) => { if (node !== null) node.title = t('requirement.reviewAcceptTitle') }}
+                    onPress={() => { void startOp('reviewAccept', props.onRevise) }}
+                  >
+                    {t('requirement.reviewAccept')}
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    data-testid="requirement-review-reject"
+                    isDisabled={busy !== null}
+                    ref={(node) => { if (node !== null) node.title = t('requirement.reviewRejectTitle') }}
+                    onPress={() => { void execute('reviewReject', `/requirement_review_decide ${row.id} ${latestReview.round} rejected`) }}
+                  >
+                    {t('requirement.reviewReject')}
+                  </Button>
+                  <p className="detail-note" data-testid="requirement-review-accept-hint">{t('requirement.reviewAcceptHint')}</p>
+                </div>
+              )}
               {historyReviews.length > 0 && (
                 <ul className="requirement-report-history plain-list compact">
                   {historyReviews.map(review => (
                     <li key={review.round} data-testid="requirement-review-history-item" data-round={review.round}>
                       <span>
                         {t('requirement.timelineReview', { round: review.round })}
+                        {decisionChip(review, 'requirement-review-history-status')}
                         <span className="time">{formatTimestamp(review.at)}</span>
                       </span>
                       <Button
@@ -554,6 +701,19 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                       >
                         {t('requirement.openReport')}
                       </Button>
+                      {decisionOf(review) === 'pending' && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          data-testid="requirement-review-history-reject"
+                          data-round={review.round}
+                          isDisabled={busy !== null}
+                          ref={(node) => { if (node !== null) node.title = t('requirement.reviewRejectHistoryTitle') }}
+                          onPress={() => { void execute(`reviewReject-${String(review.round)}`, `/requirement_review_decide ${row.id} ${review.round} rejected`) }}
+                        >
+                          {t('requirement.reviewRejectHistory')}
+                        </Button>
+                      )}
                     </li>
                   ))}
                 </ul>

@@ -49,6 +49,63 @@ describe('需求投影', () => {
     expect(row?.approvedVersion).toBeUndefined()
   })
 
+  it('透传评审处置三态、决定时刻、关联版本与备注，非法枚举和版本号丢弃', () => {
+    const row = requirementTextToRow('REQ-04.yaml', [
+      'id: REQ-04',
+      'title: 处置投影',
+      'reviews:',
+      '  - round: 1',
+      '    at: 2026-11-17T09:00:00+08:00',
+      '    report: requirements/REQ-04/reviews/R1.md',
+      '    decision: pending',
+      '  - round: 2',
+      '    at: 2026-11-17T10:00:00+08:00',
+      '    report: requirements/REQ-04/reviews/R2.md',
+      '    decision: accepted',
+      '    decided_at: 2026-11-17T11:00:00+08:00',
+      '    applied_version: 3',
+      '    decision_note: 采纳建议',
+      '  - round: 3',
+      '    at: 2026-11-17T12:00:00+08:00',
+      '    report: requirements/REQ-04/reviews/R3.md',
+      '    decision: rejected',
+      '  - round: 4',
+      '    at: 2026-11-17T13:00:00+08:00',
+      '    report: requirements/REQ-04/reviews/R4.md',
+      '    decision: unknown',
+      '    applied_version: 0',
+    ].join('\n'))
+
+    expect(row?.reviews).toEqual([
+      {
+        round: 1,
+        at: '2026-11-17T09:00:00+08:00',
+        report: 'requirements/REQ-04/reviews/R1.md',
+        decision: 'pending',
+      },
+      {
+        round: 2,
+        at: '2026-11-17T10:00:00+08:00',
+        report: 'requirements/REQ-04/reviews/R2.md',
+        decision: 'accepted',
+        decidedAt: '2026-11-17T11:00:00+08:00',
+        appliedVersion: 3,
+        decisionNote: '采纳建议',
+      },
+      {
+        round: 3,
+        at: '2026-11-17T12:00:00+08:00',
+        report: 'requirements/REQ-04/reviews/R3.md',
+        decision: 'rejected',
+      },
+      {
+        round: 4,
+        at: '2026-11-17T13:00:00+08:00',
+        report: 'requirements/REQ-04/reviews/R4.md',
+      },
+    ])
+  })
+
   it('读不懂的版本或评审条目跳过，不影响其余字段', () => {
     const row = requirementTextToRow('REQ-03.yaml', [
       'id: REQ-03',
