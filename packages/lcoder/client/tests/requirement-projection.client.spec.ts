@@ -41,6 +41,25 @@ describe('需求投影', () => {
     expect(row?.approvedVersion).toBe(2)
   })
 
+  it('评审透传报告依据的正文基线，旧评审缺字段时保持缺省', () => {
+    const row = requirementTextToRow('REQ-05.yaml', [
+      'id: REQ-05',
+      'title: 基线投影',
+      'reviews:',
+      '  - round: 1',
+      '    at: 2026-11-18T10:00:00+08:00',
+      '    report: requirements/REQ-05/reviews/R1.md',
+      '    base_content: |',
+      '      # 旧正文',
+      '      原始段落。',
+      '  - round: 2',
+      '    at: 2026-11-18T11:00:00+08:00',
+      '    report: requirements/REQ-05/reviews/R2.md',
+    ].join('\n'))
+    expect(row?.reviews[0]?.baseContent).toBe('# 旧正文\n原始段落。\n')
+    expect(row?.reviews[1]?.baseContent).toBeUndefined()
+  })
+
   it('旧 YAML 缺字段时给空数组与未定义，不报故障', () => {
     const row = requirementTextToRow('REQ-02.yaml', 'id: REQ-02\ntitle: 旧需求\nstate: draft')
     expect(row?.versions).toEqual([])

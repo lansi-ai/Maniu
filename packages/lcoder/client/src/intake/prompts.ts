@@ -255,6 +255,46 @@ ${body}
 }
 
 /**
+ * 生成「修改当前草稿」提示词：严格按用户说明拟稿，只生成提案，不直接写正文、不要求版本号。
+ *
+ * 评审记录不决定这条流程是否可用，也不在这里处理；AI 只按用户给出的修改说明产出完整新正文，
+ * 宿主把提案绑定到调用时实际读到的当前正文作为基线，应用仍由人点「应用修改」完成。
+ * @param requirement - 需求编号与标题。
+ * @param document - 当前草稿正文，作为唯一修改底稿。
+ * @param note - 用户填写的修改说明；调用方已确认去空白后非空。
+ * @returns 可直接发送给草稿修改会话的提示词。
+ */
+export function buildRequirementPatchPrompt(
+  requirement: { readonly id: string; readonly title: string },
+  document: string,
+  note: string,
+): string {
+  const body = bodyOf(document)
+  return `修改需求：请按用户说明修改需求 ${requirement.id}（${requirement.title}）的当前草稿正文，生成一份待确认的修改提案。
+
+ 执行身份：你是这条需求的草稿修改角色，只能生成修改提案，不能直接写需求正文。
+
+ 用户修改说明（本次改动的唯一范围）：
+ """
+ ${note.trim()}
+ """
+
+ 要求：
+ - 只按上面的说明改动：说明里没提的内容原样保留，不要自行找问题、不要扩大范围、不要重写你没被要求改的段落。
+ - 按需要收缩或补充的地方，直接产出改好的**完整新正文**（不是差异片段），风格、标题层级与原文保持一致。
+ - 调用 requirement_patch_propose：target 为 ${requirement.id}，content 为完整新正文，analysis 写清这次改了什么与为什么。
+ - 基线由宿主绑定：不要给版本号、版本摘要或快照路径；本操作不生成新版本，也不覆盖历史版本。
+ - 不直接写正文：不要调用 requirement_revise、requirement_draft、requirement_propose、file_edit 或任何写文件的工具；不改状态、不处置评审、不动其他需求与 .spec 文件。
+ - 说明不清时用 ask_user_question 一次只问一个问题，确认后再产出提案。
+ - 落盘后把提案编号、改了哪些段落讲给用户，并说明需人在界面点「应用修改」才会更新当前草稿，然后停下。
+
+ 《当前草稿正文》（唯一修改底稿）：
+ """
+ ${body}
+ """`
+}
+
+/**
  * 生成新建需求提示词：分析-文档-确认-提案四步，只登记一条新需求，不做整项目立项。
  *
  * 用户描述随首条消息发出（可为空，空时先问用户）；需求分析师用 `requirement_propose`

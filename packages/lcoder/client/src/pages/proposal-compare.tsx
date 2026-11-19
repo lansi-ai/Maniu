@@ -1,4 +1,4 @@
-/** 提案对比视图：new 给新条目全文，revise 给逐条目差异加全文对照；确认与拒绝走人机命令。 */
+/** 提案对比视图：new 给新条目全文，revise 与 patch 给逐条目差异加全文对照；确认与拒绝走人机命令。patch 的基线是提案绑定的当前草稿正文。 */
 
 import { useEffect, useMemo, useState } from 'react'
 import type { JSX } from 'react'
@@ -47,12 +47,22 @@ export function ProposalCompare(props: ProposalCompareProps): JSX.Element {
   const baselinePath = change.mode === 'revise' && change.target !== undefined && change.baseVersion !== undefined
     ? `.spec/requirements/${change.target}/versions/v${String(change.baseVersion)}.md`
     : null
-  const [baseline, setBaseline] = useState<BaselineState>({ status: 'loading' })
+  const [baseline, setBaseline] = useState<BaselineState>(() =>
+    change.mode === 'patch' && change.baseContent !== undefined
+      ? { status: 'ready', text: change.baseContent }
+      : { status: 'loading' })
   const [busy, setBusy] = useState<'approve' | 'reject' | null>(null)
   const [result, setResult] = useState<CommandOutcome | null>(null)
 
-  // 基线快照与阅读器走同一条宿主文件通道；读不到时退回当前正文，卸载后不再落状态。
+  // patch 的基线就是提案生成时宿主绑定的当前草稿正文，不读旧 vN.md 快照。
+  // revise 的基线快照与阅读器走同一条宿主文件通道；读不到时退回当前正文，卸载后不再落状态。
   useEffect(() => {
+    if (change.mode === 'patch') {
+      setBaseline(change.baseContent === undefined
+        ? { status: 'fallback', text: targetRow?.text ?? '' }
+        : { status: 'ready', text: change.baseContent })
+      return
+    }
     if (baselinePath === null) return
     let disposed = false
     setBaseline({ status: 'loading' })
@@ -66,7 +76,7 @@ export function ProposalCompare(props: ProposalCompareProps): JSX.Element {
         if (!disposed) setBaseline({ status: 'fallback', text: fallback })
       })
     return () => { disposed = true }
-  }, [baselinePath, props.scopeSessionId, targetRow?.text])
+  }, [baselinePath, change.mode, change.baseContent, props.scopeSessionId, targetRow?.text])
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
@@ -80,7 +90,7 @@ export function ProposalCompare(props: ProposalCompareProps): JSX.Element {
 
   const baselineText = baseline.status === 'loading' ? null : baseline.text
   const diff = useMemo(
-    () => change.mode === 'revise' && baselineText !== null ? diffLines(baselineText, change.content) : null,
+    () => change.mode !== 'new' && baselineText !== null ? diffLines(baselineText, change.content) : null,
     [change.mode, change.content, baselineText],
   )
   const entries = diff === null ? [] : changedEntries(diff)
@@ -114,7 +124,9 @@ export function ProposalCompare(props: ProposalCompareProps): JSX.Element {
             <p className="compare-sub" data-testid="compare-mode">
               {props.proposal.id} · {change.mode === 'new'
                 ? t('compare.modeNew')
-                : t('compare.modeRevise', { target: change.target ?? '', version: change.baseVersion ?? 0 })}
+                : change.mode === 'patch'
+                  ? t('compare.modePatch', { target: change.target ?? '' })
+                  : t('compare.modeRevise', { target: change.target ?? '', version: change.baseVersion ?? 0 })}
             </p>
           </div>
           <Button variant="secondary" data-testid="compare-close" onPress={props.onClose}>{t('compare.close')}</Button>
@@ -132,7 +144,7 @@ export function ProposalCompare(props: ProposalCompareProps): JSX.Element {
             </section>
           )}
 
-          {change.mode === 'revise' && (
+          {change.mode !== 'new' && (
             <>
               <section className="detail-section" data-testid="compare-entries">
                 <h4>{t('compare.entries')}</h4>
@@ -169,7 +181,9 @@ export function ProposalCompare(props: ProposalCompareProps): JSX.Element {
                   : (
                     <div className="compare-columns">
                       <div className="compare-col" data-testid="compare-old">
-                        <h5>{t('compare.oldBody', { version: change.baseVersion ?? 0 })}</h5>
+                        <h5>{change.mode === 'patch'
+                          ? t('compare.patchOldBody')
+                          : t('compare.oldBody', { version: change.baseVersion ?? 0 })}</h5>
                         <div className="compare-text">
                           {columnOf(diff, 'old').map((line, index) => (
                             <div key={index} className={line.kind === 'removed' ? 'compare-line removed' : 'compare-line'}>
@@ -201,7 +215,7 @@ export function ProposalCompare(props: ProposalCompareProps): JSX.Element {
             isDisabled={busy !== null}
             onPress={() => { void decide('approve') }}
           >
-            {t('compare.approve')}
+            {change.mode === 'patch' ? t('compare.apply') : t('compare.approve')}
           </Button>
           <Button
             variant="secondary"
@@ -211,6 +225,9 @@ export function ProposalCompare(props: ProposalCompareProps): JSX.Element {
           >
             {t('compare.reject')}
           </Button>
+          {change.mode === 'patch' && (
+            <p className="detail-note" data-testid="compare-apply-hint">{t('compare.applyHint')}</p>
+          )}
           {result !== null && !result.ok && (
             <p className="problem" data-testid="compare-result">{result.text}</p>
           )}

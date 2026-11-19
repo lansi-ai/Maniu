@@ -133,9 +133,13 @@ function decide(
   }
 
   const decisionText = result.decision === 'accepted' ? '采纳' : '放弃'
+  // patch 原地改正文不写版本：采纳时没有可关联的版本，明确说明而不是静默指向错位的旧版本。
+  const baselineNote = result.baselineChanged === true
+    ? '本轮报告依据的正文已被原地修改，没有对应的新版本可关联；报告仍按其原依据正文保留。'
+    : ''
   return {
     kind: 'success',
-    text: `${parsed.id} 第 ${String(result.round)} 轮评审已标为${decisionText}（${at}）${result.appliedVersion === undefined ? '' : `，关联正文 v${String(result.appliedVersion)}`}。${result.decision === 'accepted' ? '正文已按本轮意见改稿，可以发起下一轮评审。' : '本轮意见已放弃，可以发起下一轮评审。'}`,
+    text: `${parsed.id} 第 ${String(result.round)} 轮评审已标为${decisionText}（${at}）${result.appliedVersion === undefined ? '' : `，关联正文 v${String(result.appliedVersion)}`}。${baselineNote}${result.decision === 'accepted' ? '正文已按本轮意见改稿，可以发起下一轮评审。' : '本轮意见已放弃，可以发起下一轮评审。'}`,
   }
 }
 

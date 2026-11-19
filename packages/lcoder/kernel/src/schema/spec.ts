@@ -380,7 +380,8 @@ export type ProposalOption = z.infer<typeof ProposalOption>
  * `content` 是完整新正文，`analysis` 是需求层分析结论（与现有需求的冲突/重复、影响面、优先级建议）。
  * `revise` 必须给 `target` 与 `base_version`；`new` 两者可省，给出时须成对，
  * 记录「基于哪条需求的哪一版」——确认态需求只能作为 new 的依据，不能被改稿。
- * 「目标存在且起草态、基线版本存在」由写盘侧查，schema 只校形态。
+ * `patch` 绑定 `target` 与生成时读到的实际正文 `base_content`，只在原地更新草稿正文，不增版本。
+ * 「目标存在且起草态、基线存在」由写盘侧查，schema 只校形态。
  */
 export const RequirementChange = z.discriminatedUnion('mode', [
   z
@@ -402,6 +403,18 @@ export const RequirementChange = z.discriminatedUnion('mode', [
     mode: z.literal('revise'),
     target: RequirementId,
     base_version: z.number().int().positive(),
+    content: z.string().min(1),
+    analysis: z.string().min(1),
+  }),
+  /**
+   * 修改当前草稿：`base_content` 是提案生成时宿主实际读到的草稿正文，由写盘侧填入，
+   * 模型不提供版本号或摘要。批准只在原地更新正文——不增版本、不写快照、不处置评审、不改状态；
+   * 应用前内核重新比对当前正文与它，不一致即拒并保留提案待重新生成。
+   */
+  z.object({
+    mode: z.literal('patch'),
+    target: RequirementId,
+    base_content: z.string().min(1),
     content: z.string().min(1),
     analysis: z.string().min(1),
   }),
@@ -463,6 +476,12 @@ export const RequirementReview = z.object({
   at: IsoDateTime,
   /** 报告文件相对 `.spec` 根目录的路径，如 `requirements/REQ-01/reviews/R1.md`。 */
   report: z.string().min(1),
+  /**
+   * 落盘这轮报告时读到的正文全文：报告依据的正文基线。
+   * 草稿修改（patch）原地改正文不写版本，靠它判断报告是否仍对应当前正文。
+   * 旧评审记录缺省，判定时回退到版本时间戳，不破坏已有数据。
+   */
+  base_content: z.string().min(1).optional(),
   /** 产出这轮评审的会话号；缺省表示不是从会话里落的。 */
   sessionId: z.string().min(1).optional(),
   /** 产出这轮评审的会话 preset id（署名）；旧数据缺省，配齐过审时按未署名计。 */

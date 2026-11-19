@@ -10,8 +10,8 @@ import type { SessionSummary } from '../store.ts'
 import type { ProposalRow, RequirementDocRow, RequirementReviewRow } from '../spec/rows.ts'
 import { requirementStateLabel } from '../spec/board.ts'
 import { hasIntakeWork } from '../intake/eligibility.ts'
-import { buildIntakeFollowupPrompt, buildManagerSplitPrompt, buildRequirementCreatePrompt, buildReviewPrompt, buildRevisePrompt, BUILTIN_SPLIT_TRACKS } from '../intake/prompts.ts'
-import { INTAKE_PRESET_ID, MANAGER_PRESET_ID, PM_PRESET_ID } from '../talents/model.ts'
+import { buildIntakeFollowupPrompt, buildManagerSplitPrompt, buildRequirementCreatePrompt, buildRequirementPatchPrompt, buildReviewPrompt, buildRevisePrompt, BUILTIN_SPLIT_TRACKS } from '../intake/prompts.ts'
+import { INTAKE_PRESET_ID, MANAGER_PRESET_ID, PM_PRESET_ID, REQUIREMENT_EDITOR_PRESET_ID } from '../talents/model.ts'
 import { entryRoot, flowNodeOf, flowRoleLabel, flowRoleSource, presetOfRole, presetRoot } from '../flow/config.ts'
 import { canReviewRequirement } from './requirement-gate.ts'
 import { translate, type MessageKey, type Translate } from '../locale.ts'
@@ -31,14 +31,15 @@ const zhText: Translate = (key, params) => translate('zh', key, params)
 const OP_POLL_MS = 4000
 const OP_TIMEOUT_MS = 5 * 60 * 1000
 
-/** 五类后台操作；立项调研与新建需求都走后台浮卡，不强制跳转对话。 */
-type OpKind = 'intake' | 'create' | 'review' | 'revise' | 'split'
+/** 六类后台操作；立项调研、新建需求与草稿修改都走后台浮卡，不强制跳转对话。 */
+type OpKind = 'intake' | 'create' | 'review' | 'revise' | 'patch' | 'split'
 
 const OP_RUNNING_KEY: Readonly<Record<OpKind, MessageKey>> = {
   intake: 'requirement.opRunning.intake',
   create: 'requirement.opRunning.create',
   review: 'requirement.opRunning.review',
   revise: 'requirement.opRunning.revise',
+  patch: 'requirement.opRunning.patch',
   split: 'requirement.opRunning.split',
 }
 
@@ -47,6 +48,7 @@ const OP_DONE_KEY: Readonly<Record<OpKind, MessageKey>> = {
   create: 'requirement.opDone.create',
   review: 'requirement.opDone.review',
   revise: 'requirement.opDone.revise',
+  patch: 'requirement.opDone.patch',
   split: 'requirement.opDone.split',
 }
 
@@ -55,6 +57,7 @@ const OP_TITLE_KEY: Readonly<Record<OpKind, MessageKey>> = {
   create: 'requirement.opTitle.create',
   review: 'requirement.opTitle.review',
   revise: 'requirement.opTitle.revise',
+  patch: 'requirement.opTitle.patch',
   split: 'requirement.opTitle.split',
 }
 
@@ -72,6 +75,7 @@ const OP_PRESET: Readonly<Record<OpKind, string>> = {
   create: INTAKE_PRESET_ID,
   review: PM_PRESET_ID,
   revise: INTAKE_PRESET_ID,
+  patch: REQUIREMENT_EDITOR_PRESET_ID,
   split: MANAGER_PRESET_ID,
 }
 
@@ -163,6 +167,10 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
   const [wizard, setWizard] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
   const [createText, setCreateText] = useState('')
+  // 顶部「修改需求」：只收集修改说明；提交非空说明才发起草稿修改会话，取消不写数据。
+  const [modifyOpen, setModifyOpen] = useState(false)
+  const [modifyText, setModifyText] = useState('')
+  const [modifyRow, setModifyRow] = useState<RequirementDocRow | null>(null)
   const [compareId, setCompareId] = useState<string | null>(null)
   // 正在就地预览概要的浮卡键；会话号从对应 watch 上取，避免把会话号塞进卡片外观。
   const [summaryKey, setSummaryKey] = useState<string | null>(null)
@@ -385,6 +393,58 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
     return launchCreate(buildRequirementCreatePrompt('', { id: row.id, title: row.title ?? row.id, version: baseVersion }))
   }
 
+  /** 打开修改说明输入框：只记目标需求与清空输入，不启动会话、不写数据。 */
+  const openModify = (row: RequirementDocRow): void => {
+    setModifyRow(row)
+    setModifyText('')
+    setModifyOpen(true)
+  }
+
+  /** 草稿修改后台会话：按用户说明生成「修改当前草稿」提案；完成看提案批准或拒绝，不看版本增量。 */
+  const launchPatch = async (note: string, row: RequirementDocRow): Promise<{ readonly ok: boolean; readonly message: string }> => {
+    setOpNotice(null)
+    let answer: { readonly ok: boolean; readonly message: string; readonly sessionId?: string }
+    try {
+      answer = await props.onStartSession(
+        buildRequirementPatchPrompt({ id: row.id, title: row.title ?? row.id }, row.text, note),
+        REQUIREMENT_EDITOR_PRESET_ID,
+      )
+    } catch (cause: unknown) {
+      const message = cause instanceof Error ? cause.message : String(cause)
+      setOpNotice(message)
+      return { ok: false, message }
+    }
+    if (!answer.ok) {
+      setOpNotice(answer.message)
+      return answer
+    }
+    setWatches(current => [...current, {
+      key: `patch-${row.id}-${String(Date.now())}`,
+      kind: 'patch',
+      requirementId: row.id,
+      roles: [REQUIREMENT_EDITOR_PRESET_ID],
+      roleIndex: 0,
+      auto: false,
+      sessionId: answer.sessionId ?? null,
+      ...baselineOf(row.id),
+      roleSig: null,
+      deadline: Date.now() + OP_TIMEOUT_MS,
+    }])
+    return answer
+  }
+
+  /** 提交修改说明：去空白后非空才发起；空输入与取消都不发会话、不写数据。 */
+  const modifyStart = async (): Promise<void> => {
+    const note = modifyText.trim()
+    if (note === '' || modifyRow === null) return
+    const answer = await launchPatch(note, modifyRow)
+    if (answer.ok) {
+      setModifyOpen(false)
+      setModifyText('')
+      setModifyRow(null)
+    }
+  }
+
   const review = (row: RequirementDocRow) => startNode('review', row)
   const revise = (row: RequirementDocRow) => startNode('revise', row)
   const split = (row: RequirementDocRow) => startNode('split', row)
@@ -400,6 +460,14 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
       if (watch.kind === 'intake' || watch.kind === 'create') return props.projection.requirements.length > watch.requirements
       const row = props.projection.requirements.find(item => item.id === watch.requirementId)
       if (row === undefined) return false
+      if (watch.kind === 'patch') {
+        // 修改当前草稿不增版本、不改需求条数：提案被应用（approved）才算这次操作完成。
+        return props.projection.proposals.some(proposal =>
+          proposal.decision === 'approved'
+          && proposal.requirementChange?.mode === 'patch'
+          && proposal.requirementChange.target === watch.requirementId
+          && !watch.proposalIds.includes(proposal.id))
+      }
       if (watch.kind === 'review') {
         const fresh = row.reviews.filter(entry => entry.round > watch.reviewRound)
         if (fresh.length === 0) return false
@@ -514,29 +582,33 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
     return session !== undefined && !session.running && !session.blank
   }
 
-  // 提案等待对比：发起后新出现的起草态需求变更提案算本次操作的产物；新建看 new，改稿看目标的 revise。
+  /** 一次提案型操作产出的变更载荷是否对得上：新建看 new，改稿看 revise，草稿修改看 patch。 */
+  const changeMatchesWatch = (watch: OpWatch, change: NonNullable<ProposalRow['requirementChange']>): boolean => {
+    if (watch.kind === 'create') return change.mode === 'new'
+    if (watch.kind === 'revise') return change.mode === 'revise' && change.target === watch.requirementId
+    if (watch.kind === 'patch') return change.mode === 'patch' && change.target === watch.requirementId
+    return false
+  }
+
+  // 提案等待对比：发起后新出现的起草态需求变更提案算本次操作的产物。
   const pendingProposalOf = (watch: OpWatch): ProposalRow | undefined => {
-    if (watch.kind !== 'create' && watch.kind !== 'revise') return undefined
+    if (watch.kind !== 'create' && watch.kind !== 'revise' && watch.kind !== 'patch') return undefined
     return props.projection.proposals.find((proposal) => {
       const change = proposal.requirementChange
       if (proposal.decision !== 'draft' || change === undefined) return false
       if (watch.proposalIds.includes(proposal.id)) return false
-      return watch.kind === 'create'
-        ? change.mode === 'new'
-        : change.mode === 'revise' && change.target === watch.requirementId
+      return changeMatchesWatch(watch, change)
     })
   }
 
   // 提案被拒绝：本次操作的产物不再可能落盘，浮卡立即收口，不等需求条数/版本增量或超时。
   const rejectedProposalOf = (watch: OpWatch): ProposalRow | undefined => {
-    if (watch.kind !== 'create' && watch.kind !== 'revise') return undefined
+    if (watch.kind !== 'create' && watch.kind !== 'revise' && watch.kind !== 'patch') return undefined
     return props.projection.proposals.find((proposal) => {
       const change = proposal.requirementChange
       if (proposal.decision !== 'rejected' || change === undefined) return false
       if (watch.proposalIds.includes(proposal.id)) return false
-      return watch.kind === 'create'
-        ? change.mode === 'new'
-        : change.mode === 'revise' && change.target === watch.requirementId
+      return changeMatchesWatch(watch, change)
     })
   }
 
@@ -840,7 +912,11 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
                   <div className="pending-proposal-body">
                     <strong>{proposal.title}</strong>
                     <Chip size="sm" variant="secondary">
-                      {change.mode === 'new' ? t('requirement.pendingNew') : t('requirement.pendingTarget', { target: change.target ?? '' })}
+                      {change.mode === 'new'
+                        ? t('requirement.pendingNew')
+                        : change.mode === 'patch'
+                          ? t('requirement.pendingPatch', { target: change.target ?? '' })
+                          : t('requirement.pendingTarget', { target: change.target ?? '' })}
                     </Chip>
                     <p className="detail-note">
                       {change.analysis.length > 120 ? `${change.analysis.slice(0, 120)}…` : change.analysis}
@@ -882,6 +958,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
                       versions: row.versions,
                       flow,
                       roster: props.projection.roles,
+                      document: row.text,
                     })
                     const reviewBlockReason = reviewGate.ok
                       ? undefined
@@ -922,8 +999,8 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
                                   size="sm"
                                   variant="ghost"
                                   data-testid="requirement-op-revise"
-                                  isDisabled={busyOf('revise', row.id)}
-                                  onPress={() => { void revise(row) }}
+                                  isDisabled={busyOf('patch', row.id)}
+                                  onPress={() => { openModify(row) }}
                                 >
                                   {t('requirement.opRevise')}
                                 </Button>
@@ -978,6 +1055,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
                   onSplit={() => split(active)}
                   onReview={() => review(active)}
                   onRevise={() => revise(active)}
+                  onModifyRequest={() => { openModify(active) }}
                   onCreateBased={() => createBased(active)}
                   onOpenTasks={() => { props.onOpenTasks(active.id) }}
                   t={t}
@@ -1039,6 +1117,44 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
             >
               <Sparkles size={14} />
               {t('requirement.newStart')}
+            </Button>
+          </div>
+        </DetailDrawer>
+      )}
+
+      {modifyOpen && modifyRow !== null && props.project !== null && (
+        <DetailDrawer
+          testId="requirement-modify-drawer"
+          closeTestId="requirement-modify-close"
+          onClose={() => { setModifyOpen(false); setModifyRow(null) }}
+          head={<h3>{t('requirement.modifyDrawerTitle')}</h3>}
+          t={t}
+        >
+          <p className="detail-note">{t('requirement.modifyHint', { id: modifyRow.id })}</p>
+          <textarea
+            className="new-requirement-input"
+            data-testid="requirement-modify-note"
+            value={modifyText}
+            placeholder={t('requirement.modifyPlaceholder')}
+            rows={6}
+            onChange={(event) => { setModifyText(event.target.value) }}
+          />
+          <div className="action-row">
+            <Button
+              variant="primary"
+              data-testid="requirement-modify-start"
+              isDisabled={modifyText.trim() === ''}
+              onPress={() => { void modifyStart() }}
+            >
+              <Sparkles size={14} />
+              {t('requirement.modifyStart')}
+            </Button>
+            <Button
+              variant="secondary"
+              data-testid="requirement-modify-cancel"
+              onPress={() => { setModifyOpen(false); setModifyText(''); setModifyRow(null) }}
+            >
+              {t('requirement.modifyCancel')}
             </Button>
           </div>
         </DetailDrawer>

@@ -148,6 +148,28 @@ describe('提案对比视图', () => {
     expect(element('compare-mode')?.textContent).toContain('v2')
   })
 
+  it('patch：用提案绑定的当前草稿正文做基线，不读旧 vN.md，按钮为「应用修改」', async () => {
+    const callbacks = { reload: vi.fn(() => {}), close: vi.fn(() => {}) }
+    // 故意让宿主读快照返回另一份正文：patch 若去读 vN 就会显示错底稿。
+    readAnswer = { ok: true, text: '# 旧快照\n\n与基线无关' }
+    await renderCompare({
+      mode: 'patch', target: 'REQ-01', baseContent: OLD_BODY, content: NEW_BODY, analysis: '按用户说明改。',
+    }, callbacks)
+
+    expect(readPaths).toEqual([])
+    expect(element('compare-mode')?.textContent).toContain('修改 REQ-01 的当前草稿')
+    expect(element('compare-old')?.textContent).toContain('自营订单按下限兜底')
+    expect(element('compare-new')?.textContent).toContain('自营订单免佣')
+    expect(container.querySelectorAll('.compare-line.added').length).toBeGreaterThan(0)
+    expect(element('compare-approve')?.textContent).toContain('应用修改')
+    expect(element('compare-apply-hint')?.textContent).toContain('不生成新版本')
+    expect(element('compare-apply-hint')?.textContent).toContain('不处置评审意见')
+
+    await press('compare-approve')
+    expect(commandLines).toEqual(['/proposal_approve P-01'])
+    expect(callbacks.reload).toHaveBeenCalledTimes(1)
+  })
+
   it('拒绝走 /proposal_reject；失败时显示回执且不关闭', async () => {
     const callbacks = { reload: vi.fn(() => {}), close: vi.fn(() => {}) }
     commandAnswer = { ok: false, text: '决定态已经是 approved' }

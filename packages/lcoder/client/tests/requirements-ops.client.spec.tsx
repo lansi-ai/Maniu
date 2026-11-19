@@ -108,6 +108,15 @@ async function press(testId: string): Promise<void> {
   })
 }
 
+async function typeNote(value: string): Promise<void> {
+  const node = element('requirement-modify-note') as HTMLTextAreaElement
+  expect(node).not.toBeNull()
+  // oxlint-disable-next-line typescript/unbound-method -- 原生 value setter 要用 call 绑定到该输入框。
+  const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set
+  setter?.call(node, value)
+  node.dispatchEvent(new Event('input', { bubbles: true }))
+}
+
 interface StartCall {
   readonly prompt: string
   readonly preset?: string
@@ -176,18 +185,33 @@ describe('需求表操作分支', () => {
     expect(calls[0]?.prompt).toContain('不改需求正文')
   })
 
-  it('修改需求交给需求分析师，带编号、标题、正文与最近评审报告', async () => {
+  it('修改需求先打开说明输入框，提交非空说明后交给窄角色生成提案，不直接改正文', async () => {
     const calls: StartCall[] = []
     renderPage(projectionOf([DRAFT], []), calls)
 
     await press('requirement-op-revise')
+    expect(element('requirement-modify-drawer')).not.toBeNull()
+    expect(calls).toHaveLength(0)
+    await typeNote('把验收口径改成按实付金额计算')
+    await press('requirement-modify-start')
+
     expect(calls).toHaveLength(1)
-    expect(calls[0]?.preset).toBe('maniu-intake')
-    expect(calls[0]?.prompt).toContain('需求改稿：请修订需求 REQ-01（草稿需求）')
+    expect(calls[0]?.preset).toBe('maniu-requirement-editor')
+    expect(calls[0]?.prompt).toContain('修改需求：请按用户说明修改需求 REQ-01（草稿需求）')
     expect(calls[0]?.prompt).toContain('草稿正文')
-    expect(calls[0]?.prompt).toContain('.spec/requirements/REQ-01/reviews/R1.md')
-    expect(calls[0]?.prompt).toContain('requirement_revise')
-    expect(calls[0]?.prompt).toContain('不改状态')
+    expect(calls[0]?.prompt).toContain('把验收口径改成按实付金额计算')
+    expect(calls[0]?.prompt).toContain('requirement_patch_propose')
+    expect(calls[0]?.prompt).toContain('不要调用 requirement_revise')
+  })
+
+  it('取消修改说明不启动会话、不写数据', async () => {
+    const calls: StartCall[] = []
+    renderPage(projectionOf([DRAFT], []), calls)
+    await press('requirement-op-revise')
+    await typeNote('要改的点')
+    await press('requirement-modify-cancel')
+    expect(element('requirement-modify-drawer')).toBeNull()
+    expect(calls).toHaveLength(0)
   })
 
   it('已过审且没有关联任务时给拆分，交给研发经理', async () => {

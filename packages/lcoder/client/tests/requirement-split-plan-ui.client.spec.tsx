@@ -118,6 +118,7 @@ function renderDetail(
         onSplit={async () => ({ ok: true, message: 'ok' })}
         onReview={async () => ({ ok: true, message: 'ok' })}
         onRevise={async () => ({ ok: true, message: 'ok' })}
+        onModifyRequest={() => {}}
         onCreateBased={async () => ({ ok: true, message: 'ok' })}
         onOpenTasks={calls.openTasks}
       />,

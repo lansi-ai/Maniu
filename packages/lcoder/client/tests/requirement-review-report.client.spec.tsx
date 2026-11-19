@@ -99,6 +99,7 @@ function element(testId: string): Element | null {
 interface DetailCalls {
   readonly readers: string[]
   readonly revise: Mock<() => Promise<{ readonly ok: boolean; readonly message: string }>>
+  readonly modifyRequest: Mock<() => void>
   readonly reload: Mock<() => void>
 }
 
@@ -106,6 +107,7 @@ function callsOf(): DetailCalls {
   return {
     readers: [],
     revise: vi.fn(async () => ({ ok: true, message: '改稿指令已发送' })),
+    modifyRequest: vi.fn(),
     reload: vi.fn(),
   }
 }
@@ -129,6 +131,7 @@ async function renderDetail(
         onSplit={async () => ({ ok: true, message: 'ok' })}
         onReview={async () => ({ ok: true, message: 'ok' })}
         onRevise={calls.revise}
+        onModifyRequest={calls.modifyRequest}
         onCreateBased={async () => ({ ok: true, message: 'ok' })}
         onOpenTasks={() => {}}
       />,
@@ -242,12 +245,31 @@ describe('顶部操作栏的确认与改稿', () => {
     expect(element('requirement-detail-create-based')).not.toBeNull()
   })
 
-  it('修改需求交给页面级改稿发起', async () => {
+  it('报告依据正文被 patch 改动后卡片给出提示，依据未变时不提示', async () => {
+    const stale: RequirementDocRow = {
+      ...REVIEWED,
+      reviews: REVIEWED.reviews.map(review => ({ ...review, baseContent: '# 报告依据的原正文' })),
+    }
+    await renderDetail(stale, callsOf())
+    expect(element('requirement-report-baseline-changed')?.textContent).toContain('正文已变更')
+    expect(element('requirement-review-report')).not.toBeNull()
+
+    const same: RequirementDocRow = {
+      ...REVIEWED,
+      reviews: REVIEWED.reviews.map(review => ({ ...review, baseContent: REVIEWED.text })),
+    }
+    await renderDetail(same, callsOf())
+    expect(element('requirement-report-baseline-changed')).toBeNull()
+  })
+
+  it('顶部修改需求只请求打开说明输入框，不启动会话；待处置评审不挡它', async () => {
     const calls = callsOf()
     await renderDetail(REVIEWED, calls)
+    expect(element('requirement-detail-revise')).not.toBeNull()
     await press('requirement-detail-revise')
-    expect(calls.revise).toHaveBeenCalledTimes(1)
-    expect(element('requirement-action-result')?.textContent).toContain('改稿指令已发送')
+    expect(calls.modifyRequest).toHaveBeenCalledTimes(1)
+    expect(calls.revise).toHaveBeenCalledTimes(0)
+    expect(element('requirement-action-result')).toBeNull()
   })
 })
 
@@ -334,9 +356,9 @@ describe('评审结论三态与处置动作', () => {
       decision: 'draft',
       decidedAt: null,
       requirementChange: {
-        mode: 'revise',
+        mode: 'patch',
         target: 'REQ-01',
-        baseVersion: 2,
+        baseContent: '旧正文',
         content: '新正文',
         analysis: '分析',
       },

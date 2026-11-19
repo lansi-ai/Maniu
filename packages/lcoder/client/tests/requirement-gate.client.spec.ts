@@ -58,6 +58,33 @@ describe('canReviewRequirement', () => {
     expect(canReviewRequirement({ reviews: [R1('rejected')], versions: [V1], flow: null, roster: ROSTER })).toEqual({ ok: true })
   })
 
+  it('带基线时按报告依据正文与当前正文比对，patch 原地改正文也能识别', () => {
+    const based = (decision?: 'pending' | 'accepted'): RequirementReviewRow => ({
+      ...R1(decision), baseContent: '# 原正文',
+    })
+    expect(canReviewRequirement({
+      reviews: [based()], versions: [V1], flow: null, roster: ROSTER, document: '# 原正文',
+    })).toMatchObject({ ok: false, block: { reason: 'pending' } })
+    expect(canReviewRequirement({
+      reviews: [based()], versions: [V1], flow: null, roster: ROSTER, document: '# 改后的正文',
+    })).toEqual({ ok: true })
+    expect(canReviewRequirement({
+      reviews: [based('accepted')], versions: [V1], flow: null, roster: ROSTER, document: '# 改后的正文',
+    })).toEqual({ ok: true })
+    expect(canReviewRequirement({
+      reviews: [based('accepted')], versions: [V1], flow: null, roster: ROSTER, document: '# 原正文',
+    })).toMatchObject({ ok: false, block: { reason: 'repeat' } })
+  })
+
+  it('旧评审没有基线时即使传了当前正文仍回退版本时间戳口径', () => {
+    expect(canReviewRequirement({
+      reviews: [R1()], versions: [V1], flow: null, roster: ROSTER, document: '# 与版本表无关的新正文',
+    })).toMatchObject({ ok: false, block: { reason: 'pending' } })
+    expect(canReviewRequirement({
+      reviews: [R1()], versions: [V1, V2], flow: null, roster: ROSTER, document: '# 与版本表无关的新正文',
+    })).toEqual({ ok: true })
+  })
+
   it('多岗会审只署了一岗时允许继续评；两岗评齐且未决时拦重复评审', () => {
     const oneSigned = [R1(undefined, 'maniu-pm')]
     expect(canReviewRequirement({ reviews: oneSigned, versions: [V1], flow: FLOW_TWO, roster: ROSTER })).toEqual({ ok: true })

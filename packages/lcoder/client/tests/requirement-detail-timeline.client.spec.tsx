@@ -119,6 +119,7 @@ async function renderDetail(row: RequirementDocRow, calls: DetailCalls): Promise
         onSplit={calls.split}
         onReview={async () => ({ ok: true, message: 'ok' })}
         onRevise={async () => ({ ok: true, message: 'ok' })}
+        onModifyRequest={() => {}}
         onCreateBased={async () => ({ ok: true, message: 'ok' })}
         onOpenTasks={calls.tasksOpened}
       />,

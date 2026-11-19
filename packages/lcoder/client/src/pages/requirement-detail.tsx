@@ -128,8 +128,10 @@ export interface RequirementDetailProps {
   readonly onSplit: () => Promise<{ readonly ok: boolean; readonly message: string }>
   /** 发起评审节点；由需求页按流程配置逐岗推进。 */
   readonly onReview: () => Promise<{ readonly ok: boolean; readonly message: string }>
-  /** 发送改稿提案指令；起草态的「修改需求」走它。 */
+  /** 发送采纳评审意见后的改稿指令；报告卡「采纳意见并修改需求」走它。 */
   readonly onRevise: () => Promise<{ readonly ok: boolean; readonly message: string }>
+  /** 顶部「修改需求」只请求打开修改说明输入框，不启动会话、不写数据。 */
+  readonly onModifyRequest: () => void
   /** 基于此版本新建需求提案；确认态与终态的改动通道，后台发起不跳转。 */
   readonly onCreateBased: () => Promise<{ readonly ok: boolean; readonly message: string }>
   /** 跳到任务页并只显示本需求关联的任务。 */
@@ -170,6 +172,10 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
     ? []
     : row.reviews.filter(review => review.round !== latestReview.round).sort((left, right) => right.round - left.round)
   const reportPath = latestReview === null ? null : specPath(latestReview.report)
+  // 报告依据的正文与当前正文不一致（常见于 patch 原地修改）：报告仍按原依据正文保留。
+  const reportBaselineChanged = latestReview !== null
+    && latestReview.baseContent !== undefined
+    && latestReview.baseContent !== row.text
   const [report, setReport] = useState<ReportState>({ status: 'loading' })
   const [compareVersion, setCompareVersion] = useState<number | null>(null)
   const [versionDiff, setVersionDiff] = useState<VersionDiffState>({ status: 'idle' })
@@ -296,9 +302,9 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
       (best, version) => version.n > latestReview.round && (best === undefined || version.n > best) ? version.n : best,
       undefined,
     )
-  const pendingReviseProposal = props.projection.proposals.some(proposal =>
+  const pendingPatchProposal = props.projection.proposals.some(proposal =>
     proposal.decision === 'draft'
-    && proposal.requirementChange?.mode === 'revise'
+    && proposal.requirementChange?.mode === 'patch'
     && proposal.requirementChange.target === row.id)
   const reviewPendingReason = latestReview === null
     ? undefined
@@ -308,7 +314,7 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
     : phase === 'pending'
       ? t('requirement.opReview')
       : t('requirement.opReviewAgain')
-  const gateParams = { reviews: row.reviews, flow: props.projection.flow, roster: props.projection.roles }
+  const gateParams = { reviews: row.reviews, flow: props.projection.flow, roster: props.projection.roles, document: row.text }
   const reviewGate = canReviewRequirement({ ...gateParams, versions: row.versions })
   const approveGate = canApproveRequirement(gateParams)
   const canApprove = state === 'draft' && approveGate.ok
@@ -453,7 +459,7 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                     data-testid="requirement-detail-revise"
                     isDisabled={busy !== null}
                     ref={(node) => { if (node !== null) node.title = t('requirement.opReviseTitle') }}
-                    onPress={() => { void startOp('revise', props.onRevise) }}
+                    onPress={props.onModifyRequest}
                   >
                     {t('requirement.opRevise')}
                   </Button>
@@ -540,7 +546,7 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
             {state === 'draft' && phase === 'pending' && reviewPendingReason !== undefined && (
               <p className="detail-warning" data-testid="requirement-review-pending-reason">{reviewPendingReason}</p>
             )}
-            {state === 'draft' && phase === 'pending' && pendingReviseProposal && (
+            {state === 'draft' && pendingPatchProposal && (
               <p className="detail-warning" data-testid="requirement-review-proposal-hint">{t('requirement.reviewPendingProposal')}</p>
             )}
             {result !== null && (
@@ -668,6 +674,11 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                 </div>
                 <div className="requirement-report-summary" data-testid="requirement-report-summary">
                   <span className="time">{formatTimestamp(latestReview.at)}</span>
+                  {reportBaselineChanged && (
+                    <span className="detail-warning" data-testid="requirement-report-baseline-changed">
+                      {t('requirement.reportBaselineChanged', { round: latestReview.round })}
+                    </span>
+                  )}
                   {report.status === 'loading' && (
                     <span data-testid="requirement-report-loading">{t('requirement.reportLoading')}</span>
                   )}

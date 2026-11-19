@@ -6,7 +6,7 @@
  * 与 `contract_sign`、`task_contract` 同档纪律：模型不能给自己拍板，所以这条能力只在命令面，
  * 不在任何角色或状态的工具面里。
  */
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -197,6 +197,104 @@ describe('需求变更提案的批准应用', () => {
     expect(result.text ?? '').toContain('读不到提案目标 REQ-01')
     expect(read(root).decision).toBe('draft')
     expect(existsSync(join(root, 'requirements'))).toBe(false)
+  })
+
+  it('三种草稿状态（无评审 / 待处置 / 已有结论）应用一致：只改正文，评审与版本不动', () => {
+    type Review = NonNullable<ReturnType<typeof loadRequirement>['reviews']>[number]
+    const scenarios: readonly (readonly [string, Review[]])[] = [
+      ['无评审', []],
+      ['待处置评审', [{ round: 1, at: '2026-11-16T10:00:00+08:00', report: 'requirements/REQ-01/reviews/R1.md', decision: 'pending' as const }]],
+      ['已有结论', [
+        { round: 1, at: '2026-11-16T10:00:00+08:00', report: 'requirements/REQ-01/reviews/R1.md', decision: 'accepted' as const, applied_version: 1 },
+        { round: 2, at: '2026-11-16T11:00:00+08:00', report: 'requirements/REQ-01/reviews/R2.md', decision: 'rejected' as const },
+      ]],
+    ]
+    for (const [label, reviews] of scenarios) {
+      const root = makeSpec()
+      seedRequirement(root)
+      saveRequirement(root, { ...loadRequirement(root, 'REQ-01'), reviews })
+      writeChange(root, { mode: 'patch', target: 'REQ-01', base_content: CONTENT, content: REVISED, analysis: ANALYSIS })
+
+      const result = run(root, 'P-01')
+      expect(result.kind, label).toBe('success')
+      const requirement = loadRequirement(root, 'REQ-01')
+      expect(requirement.state, label).toBe('draft')
+      expect(requirement.versions.map(version => version.n), label).toEqual([1])
+      expect(requirement.reviews, label).toEqual(reviews)
+      expect(readFileSync(join(root, 'requirements', 'REQ-01.md'), 'utf8'), label).toBe(REVISED)
+      expect(existsSync(requirementVersionPath(root, 'REQ-01', 2)), label).toBe(false)
+    }
+  })
+
+  it('patch 提案批准：只更新当前正文，不增版本、不覆盖快照、不处置评审、不改状态', () => {
+    const root = makeSpec()
+    seedRequirement(root)
+    const seeded = {
+      ...loadRequirement(root, 'REQ-01'),
+      reviews: [
+        { round: 1, at: '2026-11-16T10:00:00+08:00', report: 'requirements/REQ-01/reviews/R1.md', decision: 'pending' as const },
+        { round: 2, at: '2026-11-16T11:00:00+08:00', report: 'requirements/REQ-01/reviews/R2.md', decision: 'accepted' as const, applied_version: 1 },
+      ],
+    }
+    saveRequirement(root, seeded)
+    writeChange(root, { mode: 'patch', target: 'REQ-01', base_content: CONTENT, content: REVISED, analysis: ANALYSIS })
+
+    const result = run(root, 'P-01')
+    expect(result).toMatchObject({ kind: 'success' })
+    expect(result.text ?? '').toContain('未生成新版本')
+    expect(result.text ?? '').toContain('未处置任何评审')
+
+    const requirement = loadRequirement(root, 'REQ-01')
+    expect(requirement.state).toBe('draft')
+    expect(requirement.versions).toEqual([{ n: 1, at: '2026-11-17T09:00:00+08:00' }])
+    expect(requirement.reviews).toEqual(seeded.reviews)
+    expect(readFileSync(join(root, 'requirements', 'REQ-01.md'), 'utf8')).toBe(REVISED)
+    expect(readFileSync(requirementVersionPath(root, 'REQ-01', 1), 'utf8')).toBe(CONTENT)
+    expect(existsSync(requirementVersionPath(root, 'REQ-01', 2))).toBe(false)
+    expect(read(root).decision).toBe('approved')
+  })
+
+  it('patch 正文已与基线不符：拒绝应用，保留提案提示重新生成', () => {
+    const root = makeSpec()
+    seedRequirement(root)
+    writeChange(root, { mode: 'patch', target: 'REQ-01', base_content: CONTENT, content: REVISED, analysis: ANALYSIS })
+    const drifted = '# 佣金改造\n\n被其他操作改过的正文。'
+    writeFileSync(join(root, 'requirements', 'REQ-01.md'), drifted, 'utf8')
+
+    const result = run(root, 'P-01')
+    expect(result).toMatchObject({ kind: 'error' })
+    expect(result.text ?? '').toContain('正文已与提案基线不一致')
+    expect(result.text ?? '').toContain('重新生成')
+    expect(read(root).decision).toBe('draft')
+    expect(readFileSync(join(root, 'requirements', 'REQ-01.md'), 'utf8')).toBe(drifted)
+  })
+
+  it('patch 提案生成后又有评审落盘：拒绝应用，避免报告基线错位', () => {
+    const root = makeSpec()
+    seedRequirement(root)
+    writeChange(root, { mode: 'patch', target: 'REQ-01', base_content: CONTENT, content: REVISED, analysis: ANALYSIS })
+    saveRequirement(root, {
+      ...loadRequirement(root, 'REQ-01'),
+      reviews: [{ round: 1, at: '2026-11-18T10:00:00+08:00', report: 'requirements/REQ-01/reviews/R1.md' }],
+    })
+
+    const result = run(root, 'P-01')
+    expect(result).toMatchObject({ kind: 'error' })
+    expect(result.text ?? '').toContain('评审落盘')
+    expect(read(root).decision).toBe('draft')
+    expect(readFileSync(join(root, 'requirements', 'REQ-01.md'), 'utf8')).toBe(CONTENT)
+  })
+
+  it('patch 目标已过审：拒绝应用，提案仍是 draft', () => {
+    const root = makeSpec()
+    seedRequirement(root, 'confirmed')
+    writeChange(root, { mode: 'patch', target: 'REQ-01', base_content: CONTENT, content: REVISED, analysis: ANALYSIS })
+
+    const result = run(root, 'P-01')
+    expect(result).toMatchObject({ kind: 'error' })
+    expect(result.text ?? '').toContain('只有起草态需求能应用修改')
+    expect(read(root).decision).toBe('draft')
+    expect(readFileSync(join(root, 'requirements', 'REQ-01.md'), 'utf8')).toBe(CONTENT)
   })
 
   it('已拍板的需求变更提案不再重复应用', () => {

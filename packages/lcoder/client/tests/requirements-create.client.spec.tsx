@@ -48,6 +48,23 @@ const REVISE_PROPOSAL: ProposalRow = {
   requirementChange: { mode: 'revise', target: 'REQ-01', baseVersion: 1, content: '# 佣金改造\n\n- 自营免佣', analysis: '按评审意见改稿。' },
 }
 
+const PATCH_PROPOSAL: ProposalRow = {
+  id: 'P-03',
+  title: '佣金改造修改',
+  problem: '按用户说明修改',
+  options: [],
+  recommendation: '建议采纳。',
+  decision: 'draft',
+  decidedAt: null,
+  requirementChange: {
+    mode: 'patch',
+    target: 'REQ-01',
+    baseContent: REQ.text,
+    content: '# 佣金改造\n\n- 自营免佣',
+    analysis: '按用户说明改了佣金口径。',
+  },
+}
+
 function projectionOf(requirements: readonly RequirementDocRow[], proposals: readonly ProposalRow[] = []): SpecProjection {
   return {
     tasks: [],
@@ -111,6 +128,17 @@ function typeDescription(value: string): void {
   const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set
   setter?.call(node, value)
   node.dispatchEvent(new Event('input', { bubbles: true }))
+}
+
+async function startModify(note: string): Promise<void> {
+  await press('requirement-op-revise')
+  const node = element('requirement-modify-note') as HTMLTextAreaElement
+  expect(node).not.toBeNull()
+  // oxlint-disable-next-line typescript/unbound-method -- 原生 value setter 要用 call 绑定到该输入框。
+  const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set
+  setter?.call(node, note)
+  node.dispatchEvent(new Event('input', { bubbles: true }))
+  await press('requirement-modify-start')
 }
 
 interface Harness {
@@ -228,27 +256,33 @@ describe('新建需求入口', () => {
 })
 
 describe('改稿提案等待态', () => {
-  it('修改需求发起后，revise 提案出现即等待对比；确认后版本增加转完成', async () => {
+  it('顶部入口先要修改说明，空说明不发起；提交后 patch 提案出现即等待对比，应用后转完成', async () => {
     const h = harness()
     h.render(projectionOf([REQ]))
     await press('requirement-op-revise')
-    expect(h.started).toHaveLength(1)
-    expect(h.started[0]?.prompt).toContain('requirement_revise')
-    expect(h.started[0]?.prompt).toContain('直接写入新版本 v2')
-    expect(h.started[0]?.prompt).not.toContain('mode 为 revise')
+    expect(element('requirement-modify-drawer')).not.toBeNull()
+    expect(h.started).toHaveLength(0)
+    await press('requirement-modify-start')
+    expect(h.started).toHaveLength(0)
 
-    h.render(projectionOf([REQ], [REVISE_PROPOSAL]))
+    await startModify('把佣金口径改成按实付金额计算')
+    expect(h.started).toHaveLength(1)
+    expect(h.started[0]?.preset).toBe('maniu-requirement-editor')
+    expect(h.started[0]?.prompt).toContain('requirement_patch_propose')
+    expect(h.started[0]?.prompt).toContain('把佣金口径改成按实付金额计算')
+    expect(h.started[0]?.prompt).toContain('不要调用 requirement_revise')
+    expect(element('requirement-modify-drawer')).toBeNull()
+
+    h.render(projectionOf([REQ], [PATCH_PROPOSAL]))
     expect(element('requirement-op-running')?.textContent).toContain('提案待你对比确认')
     await press('op-go-compare')
     expect(element('proposal-compare')).not.toBeNull()
     expect(element('compare-entries')).not.toBeNull()
+    expect(element('compare-approve')?.textContent).toContain('应用修改')
 
-    const revised: RequirementDocRow = {
-      ...REQ,
-      text: '# 佣金改造\n\n- 自营免佣',
-      versions: [...REQ.versions, { n: 2, at: '2026-11-17T12:00:00+08:00' }],
-    }
-    h.render(projectionOf([revised], [{ ...REVISE_PROPOSAL, decision: 'approved' }]))
+    // 应用只改正文，版本表不变；提案 approved 即这次操作完成。
+    const applied: RequirementDocRow = { ...REQ, text: '# 佣金改造\n\n- 自营免佣' }
+    h.render(projectionOf([applied], [{ ...PATCH_PROPOSAL, decision: 'approved' }]))
     expect(element('requirement-op-success')).not.toBeNull()
   })
 })
@@ -291,13 +325,13 @@ describe('提案被拒绝即收口浮卡', () => {
     expect(h.reload).toHaveBeenCalled()
   })
 
-  it('改稿提案变 rejected 时同样收口，不空转等版本增量', async () => {
+  it('修改提案变 rejected 时同样收口，不空转等版本增量', async () => {
     const h = harness()
     h.render(projectionOf([REQ]))
-    await press('requirement-op-revise')
+    await startModify('按说明改')
     expect(element('requirement-op-running')).not.toBeNull()
 
-    h.render(projectionOf([REQ], [{ ...REVISE_PROPOSAL, decision: 'rejected', decidedAt: '2026-11-17T12:00:00+08:00' }]))
+    h.render(projectionOf([REQ], [{ ...PATCH_PROPOSAL, decision: 'rejected', decidedAt: '2026-11-17T12:00:00+08:00' }]))
     expect(element('requirement-op-running')).toBeNull()
     expect(element('requirement-op-success')?.textContent).toContain('提案已被拒绝')
     expect(element('requirement-op-timeout')).toBeNull()
