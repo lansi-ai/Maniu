@@ -44,6 +44,7 @@ export const PRESET_ROLE_KEY: Readonly<Record<string, MessageKey>> = {
   'maniu-scheduler': 'op.roleName.scheduler',
   'maniu-flow': 'op.roleName.flow',
   'maniu-manager': 'op.roleName.manager',
+  'maniu-requirement-editor': 'op.roleName.requirementEditor',
 }
 
 /**

@@ -360,6 +360,9 @@ export const PM_PRESET_ID = 'maniu-pm'
 /** 需求拆分会话的 preset；研发经理拆任务并给出逐条岗位建议。 */
 export const MANAGER_PRESET_ID = 'maniu-manager'
 
+/** 草稿修改会话的 preset；只生成「修改当前草稿」提案，宿主执行层不给直接写正文的能力。 */
+export const REQUIREMENT_EDITOR_PRESET_ID = 'maniu-requirement-editor'
+
 /** 改名前的角色 preset 前缀；旧会话的 `agentPreset` 记录的仍是它。 */
 const RETIRED_PRESET_PREFIX = 'lcoder'
 

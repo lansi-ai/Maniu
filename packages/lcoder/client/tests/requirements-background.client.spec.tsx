@@ -4,7 +4,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { RequirementsPage } from '../src/pages/requirements.tsx'
-import type { RequirementDocRow, TaskRow } from '../src/spec/rows.ts'
+import type { ProposalRow, RequirementDocRow, TaskRow } from '../src/spec/rows.ts'
 import type { SpecProjection } from '../src/spec/load.ts'
 import type { ProjectScope } from '../src/workspace/use-workspaces.ts'
 import type { SessionSummary } from '../src/store.ts'
@@ -53,12 +53,16 @@ function task(id: string, requirement: string): TaskRow {
   }
 }
 
-function projectionOf(requirements: readonly RequirementDocRow[], tasks: readonly TaskRow[] = []): SpecProjection {
+function projectionOf(
+  requirements: readonly RequirementDocRow[],
+  tasks: readonly TaskRow[] = [],
+  proposals: readonly ProposalRow[] = [],
+): SpecProjection {
   return {
     tasks,
     rules: [],
     contracts: [],
-    proposals: [],
+    proposals,
     requirements,
     groups: [],
     roles: [],
@@ -107,6 +111,34 @@ async function press(testId: string): Promise<void> {
 
 async function tick(ms: number): Promise<void> {
   await act(async () => { await vi.advanceTimersByTimeAsync(ms) })
+}
+
+const PATCH_PROPOSAL: ProposalRow = {
+  id: 'P-01',
+  title: '修改当前草稿',
+  problem: '按用户说明修改',
+  options: [],
+  recommendation: '建议采纳。',
+  decision: 'draft',
+  decidedAt: null,
+  requirementChange: {
+    mode: 'patch',
+    target: 'REQ-01',
+    baseContent: DRAFT.text,
+    content: '# 改好的正文',
+    analysis: '按说明改。',
+  },
+}
+
+async function startModify(note: string): Promise<void> {
+  await press('requirement-op-revise')
+  const node = element('requirement-modify-note') as HTMLTextAreaElement
+  expect(node).not.toBeNull()
+  // oxlint-disable-next-line typescript/unbound-method -- 原生 value setter 要用 call 绑定到该输入框。
+  const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set
+  setter?.call(node, note)
+  node.dispatchEvent(new Event('input', { bubbles: true }))
+  await press('requirement-modify-start')
 }
 
 interface StartAnswer {
@@ -193,20 +225,18 @@ describe('后台发起与完成判定', () => {
     expect(h.reload).toHaveBeenCalledTimes(2)
   })
 
-  it('改稿完成以版本增量为判据', async () => {
+  it('草稿修改完成以提案被应用为判据，不靠版本增量', async () => {
     const h = harness()
     h.render(projectionOf([DRAFT]))
-    await press('requirement-op-revise')
-    expect(element('requirement-op-running')?.textContent).toContain('改稿进行中')
+    await startModify('按说明改')
+    expect(element('requirement-op-running')?.textContent).toContain('修改进行中')
 
     await tick(4000)
-    const revised: RequirementDocRow = {
-      ...DRAFT,
-      versions: [...DRAFT.versions, { n: 2, at: '2026-11-17T11:00:00+08:00' }],
-    }
-    h.render(projectionOf([revised]))
+    // 应用只改正文，版本表与 DRAFT 一致；提案 approved 即完成。
+    const applied: RequirementDocRow = { ...DRAFT, text: '# 改好的正文' }
+    h.render(projectionOf([applied], [], [{ ...PATCH_PROPOSAL, decision: 'approved' }]))
     await act(async () => { await Promise.resolve() })
-    expect(element('requirement-op-success')?.textContent).toContain('改稿完成')
+    expect(element('requirement-op-success')?.textContent).toContain('修改提案已处理')
   })
 
   it('拆分完成以拆分计划出现为判据', async () => {
@@ -311,7 +341,7 @@ describe('轮询纪律', () => {
     expect(element('requirement-op-timeout')).not.toBeNull()
     const before = h.reload.mock.calls.length
 
-    await press('requirement-op-revise')
+    await startModify('按说明改')
     await tick(4000)
     expect(h.reload.mock.calls.length).toBe(before + 1)
   })

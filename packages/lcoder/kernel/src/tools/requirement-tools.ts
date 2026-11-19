@@ -47,6 +47,9 @@ const PENDING_NOTE = '需求已落盘，状态 draft。把正文讲给用户；�
 /** 提案落盘后给模型的下一步口径：需求本体等人对比确认后才写。 */
 const PROPOSE_PENDING_NOTE = '提案已落盘，需求本体没有写。把提案正文与分析结论讲给用户，等人在界面对比确认（/proposal_approve）后才落需求本体；拒绝走 /proposal_reject。本工具不提供需求本体落盘与过审。'
 
+/** 草稿修改提案落盘后的口径：应用也只在原地更新当前草稿，不增版本、不处置评审。 */
+const PATCH_PENDING_NOTE = '修改提案已落盘，需求正文一个字都没改。把新正文与分析结论讲给用户，等人在界面对比后点「应用修改」（/proposal_approve）才会更新当前草稿；关闭或拒绝（/proposal_reject）都不改正文。应用不增加版本号、不写快照、不处置评审、不改状态。本工具不提供正文落盘与过审。'
+
 /**
  * 从正文推导提案标题：取第一个 Markdown 标题，其次第一个非空行（超长截断），都取不到用兜底标题。
  * @param content - 完整新正文。
@@ -257,17 +260,20 @@ export function createRequirementTools(rootInput: RootInput): ToolDefinition[] {
         if (requirement.state !== 'draft') {
           throw new Error(`${id} 现在在「${requirement.state}」，只有起草态需求能评审`)
         }
-        if (readRequirementDocument(root, id) === undefined) {
+        const document = readRequirementDocument(root, id)
+        if (document === undefined) {
           throw new Error(`${id} 还没有正文（${requirementDocPath(root, id)} 不存在或为空）；先补正文再评审`)
         }
         const sessionId = exec.agent?.session.header.id
         const role = exec.agent?.session.header.agentPreset
-        const stale = reviewStaleReason(requirement, { root, role })
+        // 把报告落盘时实际读到的正文绑到评审记录：报告依据从此可识别，不靠版本时间戳猜测。
+        const stale = reviewStaleReason(requirement, { root, role, document })
         if (stale !== undefined) throw new Error(stale)
 
         const review = recordRequirementReview(root, id, {
           report: args.report,
           at: new Date().toISOString(),
+          baseContent: document,
           ...(sessionId === undefined ? {} : { sessionId }),
           ...(role === undefined ? {} : { role }),
         })
@@ -419,6 +425,78 @@ export function createRequirementTools(rootInput: RootInput): ToolDefinition[] {
           base_version: change.base_version ?? null,
           decision: proposal.decision,
           note: PROPOSE_PENDING_NOTE,
+        }
+      },
+    }),
+    defineTool({
+      name: 'requirement_patch_propose',
+      description:
+        '把一条起草态需求正文的修改写成待确认提案 `.spec/proposals/P-<编号>.yaml`（requirement_change 的 patch 载荷），不写需求本体。target 是需求编号，content 是按用户说明改好的完整 Markdown 正文，analysis 是改动说明。宿主会把提案绑定到调用时实际读到的草稿正文作为基线，不接受模型给的版本号或摘要；目标必须是起草态且已有正文。落盘后由人在界面对比：只有点「应用修改」（/proposal_approve）才在原地更新当前草稿——不增版本、不写快照、不处置评审、不改状态；拒绝走 /proposal_reject。本工具不能写正文、不能过审。',
+      parameters: {
+        target: { type: 'string', required: true, description: '要修改的起草态需求编号，如 REQ-01' },
+        content: { type: 'string', required: true, description: '按用户说明改好的完整新正文，Markdown；去空白后必须非空' },
+        analysis: { type: 'string', required: true, description: '这次改了什么、为什么；不写代码层判断' },
+      },
+      output: { schema: { type: 'json' }, render: renderJson },
+      // oxlint-disable-next-line typescript/require-await -- execute 的契约要求返回 Promise（ToolDefinition.execute），这里是同步实现。
+      async execute(args, exec) {
+        const root = resolveRoot(rootInput, exec)
+        const content = args.content
+        if (content.trim() === '') throw new Error('requirement_patch_propose 需要非空的 content：完整新正文不能为空')
+        const analysis = args.analysis.trim()
+        if (analysis === '') throw new Error('requirement_patch_propose 需要非空的 analysis：说明这次改了什么与为什么')
+        const target = args.target.trim()
+        if (target === '') {
+          throw new Error('requirement_patch_propose 需要 target：指定要修改的起草态需求编号')
+        }
+        const id = assertRequirementId(target)
+        let requirement
+        try {
+          requirement = loadRequirement(root, id)
+        } catch (error: unknown) {
+          throw new Error(`读不到需求 ${id}（${requirementPath(root, id)}）：${errorMessage(error)}`)
+        }
+        if (requirement.state !== 'draft') {
+          throw new Error(`${id} 现在在「${requirement.state}」，只有起草态需求能生成修改提案`)
+        }
+        const baseContent = readRequirementDocument(root, id)
+        if (baseContent === undefined) {
+          throw new Error(`${id} 还没有正文（${requirementDocPath(root, id)} 不存在或为空）；先补正文再修改`)
+        }
+
+        // 基线由宿主读盘绑定，不信任模型给的版本号或摘要；change 里只放宿主确认过的正文。
+        const change: RequirementChange = {
+          mode: 'patch',
+          target: id,
+          base_content: baseContent,
+          content,
+          analysis,
+        }
+        const title = proposalTitleOf(content, requirement.title)
+        const existing = hasSpecRoot(root) ? listProposals(root) : []
+        const proposal: Proposal = {
+          id: nextProposalId(existing),
+          title,
+          problem: analysis,
+          options: [{
+            name: '修改当前草稿',
+            summary: title,
+            cost: '需人点「应用修改」才更新当前草稿，不生成新版本',
+          }],
+          recommendation: '建议按此正文更新当前草稿；由人对比确认后应用，不生成新版本。',
+          decision: 'draft',
+          decided_at: null,
+          opened_at: new Date().toISOString(),
+          requirement_change: change,
+        }
+        const path = saveProposal(root, proposal)
+        return {
+          proposal_id: proposal.id,
+          path,
+          mode: 'patch',
+          target: id,
+          decision: proposal.decision,
+          note: PATCH_PENDING_NOTE,
         }
       },
     }),

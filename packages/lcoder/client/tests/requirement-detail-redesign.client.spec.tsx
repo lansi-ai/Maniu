@@ -189,6 +189,7 @@ async function renderDetail(
         onSplit={calls.split}
         onReview={calls.review}
         onRevise={calls.revise}
+        onModifyRequest={() => {}}
         onCreateBased={calls.createBased}
         onOpenTasks={calls.tasksOpened}
       />,

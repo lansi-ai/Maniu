@@ -21,12 +21,14 @@ export function hasPendingReviews(reviews: readonly RequirementReviewRow[]): boo
   return reviews.some(isPending)
 }
 
-/** 门禁判定的输入：需求的评审、版本、流程配置与岗位名册。 */
+/** 门禁判定的输入：需求的评审、版本、流程配置、岗位名册与当前正文。 */
 export interface RequirementGateParams {
   readonly reviews: readonly RequirementReviewRow[]
   readonly versions: readonly RequirementVersionRow[]
   readonly flow: FlowConfigRow | null | undefined
   readonly roster: readonly JobRoleRow[]
+  /** 当前正文全文；评审带基线时用它判断是否已变，旧评审回退版本时间戳。 */
+  readonly document?: string
 }
 
 /** 发起评审被拦的原因。 */
@@ -55,12 +57,13 @@ export type ApproveGate = { readonly ok: true } | { readonly ok: false; readonly
 
 /**
  * 评审能否发起：没有评审、多岗会审仍有缺岗、上一轮已放弃或已采纳且正文改过，都允许；
- * 未决轮次未改稿或已处置但正文未改稿时拦重复评审。复用 `missingReviewRoles` 实现多岗同版本会审豁免。
+ * 未决轮次未改稿或已处置但正文未改稿时拦重复评审。带正文基线的评审按基线与当前正文比对，
+ * 旧评审回退版本时间戳。复用 `missingReviewRoles` 实现多岗同正文会审豁免。
  * @param params - 评审、版本与流程配置。
  * @returns 可发起时 ok 为 true，否则给出原因。
  */
 export function canReviewRequirement(params: RequirementGateParams): ReviewGate {
-  const { reviews, versions, flow, roster } = params
+  const { reviews, versions, flow, roster, document } = params
   if (reviews.length === 0) return { ok: true }
   if (missingReviewRoles(flow, roster, reviews).length > 0) return { ok: true }
   const latest = reviews.reduce((best, review) => review.round > best.round ? review : best)
@@ -68,7 +71,12 @@ export function canReviewRequirement(params: RequirementGateParams): ReviewGate 
     (best, version) => best === undefined || version.n > best.n ? version : best,
     undefined,
   )
-  const changedAfterReview = latestVersion !== undefined && Date.parse(latestVersion.at) > Date.parse(latest.at)
+  const bodyChanged = latest.baseContent !== undefined && document !== undefined
+    ? latest.baseContent !== document
+    : undefined
+  const changedAfterReview = bodyChanged === undefined
+    ? latestVersion !== undefined && Date.parse(latestVersion.at) > Date.parse(latest.at)
+    : bodyChanged
   if (latest.decision === 'rejected') return { ok: true }
   if (latest.decision === 'accepted') {
     return changedAfterReview ? { ok: true } : { ok: false, block: { reason: 'repeat', round: latest.round } }

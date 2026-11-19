@@ -66,7 +66,7 @@ export interface LcoderConfig {
   taskId?: string
   /**
    * 本插件实例所属角色，取值 `intake` / `architect` / `pm` / `dev` / `git` / `ops` / `review` /
-   * `scheduler` / `flow` / `manager`。
+   * `scheduler` / `flow` / `manager` / `requirement-editor`。
    * 角色是工具面的天花板：与任务状态允许的清单求交，只减不加。
    * 不给则不设天花板，保持只有状态一维的行为。每个角色 preset 各挂一行本插件，
    * 所以这一项由装配层的 preset 写死，不由会话运行时决定。

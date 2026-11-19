@@ -108,6 +108,20 @@ describe('提案批准态写失败的回滚', () => {
     expect(readFileSync(join(root, 'proposals', 'P-01.yaml'), 'utf8')).toContain('decision: draft')
   })
 
+  it('patch：提案批准态写失败时正文还原，不增版本、提案仍是 draft', () => {
+    const root = makeSpec()
+    createRequirement(root, { title: '佣金改造', content: CONTENT, opened_at: '2026-11-17T09:00:00+08:00' })
+    writeChange(root, { mode: 'patch', target: 'REQ-01', base_content: CONTENT, content: REVISED, analysis: '按说明改。' })
+    flags.failProposalWrite = true
+
+    const result = run(root)
+    expect(result).toMatchObject({ kind: 'error' })
+    expect(result.text ?? '').toContain('已回滚')
+    expect(readFileSync(join(root, 'requirements', 'REQ-01.md'), 'utf8')).toBe(CONTENT)
+    expect(loadRequirement(root, 'REQ-01').versions.map(version => version.n)).toEqual([1])
+    expect(readFileSync(join(root, 'proposals', 'P-01.yaml'), 'utf8')).toContain('decision: draft')
+  })
+
   it('回滚也失败时如实报未可信状态，请人核对', () => {
     const root = makeSpec()
     writeChange(root, { mode: 'new', content: CONTENT, analysis: '影响面集中在结算。' })

@@ -86,6 +86,8 @@ export interface RequirementReviewRow {
   readonly round: number
   readonly at: string
   readonly report: string
+  /** 落盘报告时读到的正文全文；报告依据的正文基线；旧数据缺省。 */
+  readonly baseContent?: string
   readonly sessionId?: string
   /** 产出这轮评审的会话 preset 署名；旧数据缺省。 */
   readonly role?: string
@@ -166,13 +168,15 @@ export interface ProposalRow {
   readonly requirementChange?: RequirementChangeRow
 }
 
-/** 提案携带的需求变更：new 登记新需求，revise 改稿既有需求；正文与分析结论都在载荷里。 */
+/** 提案携带的需求变更：new 登记新需求，revise 按版本改稿，patch 原地修改当前草稿。 */
 export interface RequirementChangeRow {
-  readonly mode: 'new' | 'revise'
-  /** revise 的目标需求编号；new 记录依据时才有。 */
+  readonly mode: 'new' | 'revise' | 'patch'
+  /** revise / patch 的目标需求编号；new 记录依据时才有。 */
   readonly target?: string
-  /** 基线版本号；与 target 成对。 */
+  /** 基线版本号；revise 必填，new 记录依据时与 target 成对。 */
   readonly baseVersion?: number
+  /** patch 的基线：提案生成时宿主实际读到的草稿正文；不是旧版本快照。 */
+  readonly baseContent?: string
   readonly content: string
   readonly analysis: string
 }
@@ -423,7 +427,7 @@ export function groupTextToRow(fileName: string, text: string): SchedulingGroupR
 }
 
 /**
- * 提案里的需求变更载荷 → 行；形状不合（缺 mode/正文/分析，revise 缺目标或基线，new 依据不成对）时缺省。
+ * 提案里的需求变更载荷 → 行；形状不合（缺 mode/正文/分析，revise 缺目标或基线，patch 缺目标或基线正文，new 依据不成对）时缺省。
  * @param value - YAML 里的 requirement_change 字段。
  * @returns 可展示的变更载荷；读不懂为 undefined。
  */
@@ -433,9 +437,15 @@ function requirementChangeOf(value: unknown): RequirementChangeRow | undefined {
   const mode = fields.mode
   const content = asText(fields.content)
   const analysis = asText(fields.analysis)
-  if ((mode !== 'new' && mode !== 'revise') || content === undefined || analysis === undefined) return undefined
+  if (mode !== 'new' && mode !== 'revise' && mode !== 'patch') return undefined
+  if (content === undefined || analysis === undefined) return undefined
   const target = asText(fields.target)
   const baseVersion = positiveInt(fields.base_version)
+  if (mode === 'patch') {
+    const baseContent = asText(fields.base_content)
+    if (target === undefined || baseContent === undefined) return undefined
+    return { mode, target, baseContent, content, analysis }
+  }
   if (mode === 'revise') {
     if (target === undefined || baseVersion === null) return undefined
     return { mode, target, baseVersion, content, analysis }
@@ -524,6 +534,7 @@ export function requirementTextToRow(fileName: string, text: string): Omit<Requi
     if (typeof round !== 'number' || !Number.isInteger(round) || round < 1 || at === undefined || report === undefined) return []
     const sessionId = asText(record?.sessionId)
     const role = asText(record?.role)
+    const baseContent = asText(record?.base_content)
     const rawDecision = asText(record?.decision)
     const decision: 'pending' | 'accepted' | 'rejected' | undefined =
       rawDecision === 'pending' || rawDecision === 'accepted' || rawDecision === 'rejected'
@@ -541,6 +552,7 @@ export function requirementTextToRow(fileName: string, text: string): Omit<Requi
       round,
       at,
       report,
+      ...(baseContent === undefined ? {} : { baseContent }),
       ...(sessionId === undefined ? {} : { sessionId }),
       ...(role === undefined ? {} : { role }),
       ...(decision === undefined ? {} : { decision }),

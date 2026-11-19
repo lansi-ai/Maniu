@@ -118,7 +118,7 @@ describe('掩码自检', () => {
 
 describe('空看板工具面', () => {
   it('只放开立项需要的读取、建任务与立项落盘能力，外加出方案、起草与改写需求', () => {
-    expect(UNSCOPEED_SURFACE).toEqual(['file_read', 'file_list', 'project_draft', 'spec_query', 'spec_draft', 'task_read', 'task_draft', 'proposal_draft', 'requirement_draft', 'requirement_revise', 'requirement_propose', 'requirement_review_draft', 'requirement_split_plan', 'git_status', 'git_diff'])
+    expect(UNSCOPEED_SURFACE).toEqual(['file_read', 'file_list', 'project_draft', 'spec_query', 'spec_draft', 'task_read', 'task_draft', 'proposal_draft', 'requirement_draft', 'requirement_revise', 'requirement_propose', 'requirement_patch_propose', 'requirement_review_draft', 'requirement_split_plan', 'git_status', 'git_diff'])
     expect(UNSCOPEED_SURFACE).not.toContain('file_edit')
     expect(UNSCOPEED_SURFACE).not.toContain('cmd_run')
     expect(UNSCOPEED_SURFACE).not.toContain('spec_bind')
@@ -154,7 +154,7 @@ describe('空看板工具面', () => {
 
 describe('角色天花板', () => {
   it('实施角色等于全集去掉只对特定角色开放的工具', () => {
-    const roleOnly = ['role_draft', 'requirement_draft', 'requirement_revise', 'requirement_propose', 'requirement_review_draft', 'requirement_split_plan']
+    const roleOnly = ['role_draft', 'requirement_draft', 'requirement_revise', 'requirement_propose', 'requirement_patch_propose', 'requirement_review_draft', 'requirement_split_plan']
     expect([...ROLE_TOOLS.dev].sort()).toEqual(
       allToolNames().filter(name => !roleOnly.includes(name)),
     )
@@ -216,6 +216,22 @@ describe('角色天花板', () => {
         expect(allowedTools(state, role)).not.toContain('requirement_propose')
       }
     }
+  })
+
+  it('草稿修改提案只进需求修改角色，该角色拿不到直接写正文的工具', () => {
+    expect(ROLE_TOOLS['requirement-editor']).toEqual(['file_read', 'file_list', 'spec_query', 'task_read', 'requirement_patch_propose'])
+    for (const role of ROLES) {
+      if (role === 'requirement-editor') continue
+      expect(ROLE_TOOLS[role]).not.toContain('requirement_patch_propose')
+    }
+    for (const state of [...STATES, null] as const) {
+      const tools = allowedTools(state, 'requirement-editor')
+      if (state !== 'closed') expect(tools).toContain('requirement_patch_propose')
+      for (const write of ['requirement_revise', 'requirement_draft', 'requirement_propose', 'file_edit', 'cmd_run', 'spec_draft', 'task_draft', 'proposal_draft', 'proposal_approve', 'requirement_approve']) {
+        expect(tools).not.toContain(write)
+      }
+    }
+    expect(allowedTools('closed', 'requirement-editor')).toEqual(['file_read', 'file_list', 'spec_query', 'task_read'])
   })
 
   it('方案批准与驳回永远不在模型工具面：任何状态任何角色都拿不到', () => {

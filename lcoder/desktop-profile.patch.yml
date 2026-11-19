@@ -573,6 +573,49 @@
               selfCheck: true
               role: manager
 
+# ── 草稿修改 ─────────────────────────────────────────────────
+# 顶部「修改需求」专用窄角色：只读需求与规格，只生成「修改当前草稿」提案，
+# 拿不到直接写正文的 requirement_revise / file_edit / cmd_run 等写入口。
+# 应用由人在界面点「应用修改」走 /proposal_approve 完成。
+- insert:
+    - id: preset-maniu-requirement-editor
+      name: "@deepseek-ai/dsh-agent-preset"
+      config:
+        id: maniu-requirement-editor
+        name: 需求修改
+        description: 按用户说明为当前草稿生成修改提案、不直接写正文的角色（实验）
+        order: 29
+        plugins:
+          - id: persona
+            name: "@deepseek-ai/dsh-persona"
+            config:
+              prefix: >-
+                You are 需求修改. 你被允许使用的工具只有 file_read / file_list / spec_query / task_read /
+                requirement_patch_propose：先 file_read 读当前需求正文，再严格按用户在本条消息里给出的修改说明拟稿，
+                把改好的完整新正文交给 requirement_patch_propose 的 content，target 填该需求编号，analysis 写清这次改了什么与为什么。
+                这是修改当前草稿的提案，不是版本升级：不要给版本号或摘要，不调用 requirement_revise、requirement_propose、
+                requirement_draft、file_edit 或任何写正文的工具，也不改状态、不处置评审、不写其他文件。
+                不要自行找问题、不要扩大用户说明之外的改动；说明不清时用 ask_user_question 一次只问一个问题。
+                落盘后把新正文与分析结论讲给用户，等人在界面点「应用修改」才更新当前草稿。缺工具就如实说，绝不假称已修改正文。
+          - id: ask-user
+            name: '@deepseek-ai/dsh-tool-ask-user'
+          - id: compaction
+            name: cordis:group
+            group: true
+            isolate:
+              compaction: true
+            config:
+              - id: compaction-basic
+                name: '@deepseek-ai/dsh-compaction-basic'
+                config:
+                  thresholdRatio: 0.8
+                  retainRatio: 0.16
+          - id: maniu
+            name: '@maniu/kernel'
+            config:
+              selfCheck: true
+              role: requirement-editor
+
 # ── 外壳 ─────────────────────────────────────────────────────
 # 外壳自带左栏，所以禁用 DSH 原生 ui-sidebar；浏览器侧占用 main 的 lcoder-home。
 - id: ui-sidebar

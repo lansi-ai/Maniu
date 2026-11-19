@@ -39,6 +39,33 @@ describe('提案的需求变更载荷投影', () => {
     })
   })
 
+  it('patch 载荷透传目标与生成时绑定的实际草稿正文，不读也不记版本号', () => {
+    const row = proposalTextToRow('P-01.yaml', yamlOf([
+      'mode: patch',
+      'target: REQ-01',
+      'base_content: |',
+      '    # 旧正文',
+      '    - 原口径',
+      'content: |',
+      '    # 新正文',
+      '    - 新口径',
+      'analysis: 按用户说明改。',
+    ]))
+    expect(row?.requirementChange).toEqual({
+      mode: 'patch',
+      target: 'REQ-01',
+      baseContent: '# 旧正文\n- 原口径\n',
+      content: '# 新正文\n- 新口径\n',
+      analysis: '按用户说明改。',
+    })
+    expect(row?.requirementChange?.baseVersion).toBeUndefined()
+  })
+
+  it('patch 缺目标或缺基线正文时载荷缺省', () => {
+    expect(proposalTextToRow('P-01.yaml', yamlOf(['mode: patch', 'content: 正文', 'analysis: 分析']))?.requirementChange).toBeUndefined()
+    expect(proposalTextToRow('P-01.yaml', yamlOf(['mode: patch', 'target: REQ-01', 'content: 正文', 'analysis: 分析']))?.requirementChange).toBeUndefined()
+  })
+
   it('new 载荷可无依据，也可成对记录依据', () => {
     const plain = proposalTextToRow('P-01.yaml', yamlOf(['mode: new', 'content: 正文', 'analysis: 分析']))
     expect(plain?.requirementChange).toEqual({ mode: 'new', content: '正文', analysis: '分析' })

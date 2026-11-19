@@ -378,11 +378,40 @@ export function reviseRequirement(root: string, id: string, input: RequirementRe
   }
 }
 
+/**
+ * 原地修改起草态需求的正文：只重写 `.md`，不增版本、不写快照、不改元数据与评审记录。
+ *
+ * 应用前重新核对目标仍是草稿、正文存在且与提案基线逐字一致；被其他操作改动则拒绝，
+ * 让调用方保留提案并提示重新生成。返回改写前的正文，供提案批准态写失败时回滚。
+ * @param root - 规格根。
+ * @param id - 需求编号。
+ * @param baseContent - 提案生成时宿主读到的草稿正文。
+ * @param content - 新的完整正文。
+ * @returns 改写前的正文原文。
+ */
+export function patchRequirementDraft(root: string, id: string, baseContent: string, content: string): string {
+  const requirement = loadRequirement(root, id)
+  if (requirement.state !== 'draft') {
+    throw new Error(`${id} 现在在「${requirement.state}」，只有起草态需求能原地修改正文`)
+  }
+  const current = readRequirementDocument(root, id)
+  if (current === undefined) {
+    throw new Error(`${id} 还没有正文（${requirementDocPath(root, id)} 不存在或为空）；先补正文再修改`)
+  }
+  if (current !== baseContent) {
+    throw new Error(`${id} 的正文已与提案基线不一致（可能已被其他操作改动）；请重新生成修改提案后再应用`)
+  }
+  writeFileSync(requirementDocPath(root, id), content, 'utf8')
+  return current
+}
+
 /** 一次评审落盘所需的输入。 */
 export interface RequirementReviewInput {
   /** 评审报告的 Markdown 正文。 */
   readonly report: string
   readonly at: string
+  /** 落盘这轮报告时读到的正文全文；报告依据的正文基线，旧数据可省。 */
+  readonly baseContent?: string
   /** 产出这轮评审的会话号；缺省表示没有会话来源。 */
   readonly sessionId?: string
   /** 产出这轮评审的会话 preset id（署名）；缺省表示旧式无署名评审。 */
@@ -399,40 +428,64 @@ export interface RequirementReviewResult {
 }
 
 /**
+ * 一轮评审是否带有正文基线，以及它是否仍对应给定的当前正文。
+ *
+ * 新评审落盘时写入 `base_content`；草稿修改（patch）原地改正文不写版本，靠正文全文比对
+ * 判断报告依据是否已变。旧评审没有基线字段时返回 undefined，由调用方回退版本时间戳判定。
+ * @param review - 一轮评审记录。
+ * @param document - 当前正文全文；读不到时同样回退。
+ * @returns 基线与当前正文相同为 true，不同为 false，无法按基线判定时为 undefined。
+ */
+function reviewBodyMatches(
+  review: Pick<RequirementReview, 'base_content'>,
+  document: string | undefined,
+): boolean | undefined {
+  if (review.base_content === undefined || document === undefined) return undefined
+  return review.base_content === document
+}
+
+/**
  * 追加评审前的重复门禁：上一轮意见还没处置、且正文没改过时给出拒绝原因。
  *
- * 取 `round` 最大的评审与 `n` 最大的版本比较时刻：版本不晚于评审就说明报告针对的正文没变过。
- * 未决轮次必须先处置——放弃本轮意见（`rejected`）可直接复评；采纳并修改需求会改稿并产出
- * 晚于该轮的版本，届时才允许下一轮。已采纳但没产出新版本仍要拦。旧数据的未决轮次没有
- * 版本表可比，同样要求先处置；没有评审时第一轮允许。
+ * 有正文基线时按「报告依据的正文是否仍等于当前正文」判定；草稿修改（patch）原地改正文
+ * 不写版本也能被识别。没有基线的旧记录回退到版本时间戳：版本不晚于评审就说明报告针对的
+ * 正文没变过。未决轮次必须先处置——放弃本轮意见（`rejected`）可直接复评；采纳并修改需求
+ * 会改稿并产出晚于该轮的版本，届时才允许下一轮。已采纳但正文没变仍要拦；没有评审时首轮允许。
  *
- * 传 `options` 时，有文件流程配置且 review 节点配了多岗时开一个例外：当前版本周期内
+ * 传 `options` 时，有文件流程配置且 review 节点配了多岗时开一个例外：当前正文周期内
  * 配置岗位还缺这个调用方的署名时，允许它接着落本轮报告，各岗位评齐后才回到严格判定。
  * `root` 或 `role` 缺失、没有文件配置、流程配置读不懂或没有 review 节点时一律走严格判定，
  * 不会因读配置失败而放行重复评审。
  * @param requirement - 已读回的需求，只消费 `versions` 与 `reviews`。
- * @param options - 规格根与调用方 preset 署名；不传时行为与单参数调用一致。
+ * @param options - 规格根、调用方 preset 署名与当前正文；不传时行为与单参数调用一致。
  * @returns 可追加时返回 undefined；否则返回可读的中文拒绝原因。
  */
 export function reviewStaleReason(
   requirement: Pick<Requirement, 'versions' | 'reviews'>,
-  options?: { readonly root?: string; readonly role?: string | undefined },
+  options?: { readonly root?: string; readonly role?: string | undefined; readonly document?: string },
 ): string | undefined {
   const { versions, reviews } = requirement
   if (reviews.length === 0) return undefined
+  const document = options?.document
   const latestReview = reviews.reduce((best, review) => review.round > best.round ? review : best)
   const latestVersion = versions.length === 0
     ? undefined
     : versions.reduce((best, version) => version.n > best.n ? version : best)
-  const changedAfterReview = latestVersion !== undefined && Date.parse(latestVersion.at) > Date.parse(latestReview.at)
+  const bodyMatches = reviewBodyMatches(latestReview, document)
+  const changedAfterReview = bodyMatches === undefined
+    ? latestVersion !== undefined && Date.parse(latestVersion.at) > Date.parse(latestReview.at)
+    : !bodyMatches
 
   if (options?.root !== undefined && options.role !== undefined) {
     try {
       const flow = loadFlowConfig(options.root)
       if (flow.source === 'file' && flow.config.nodes.some(node => node.node === 'review')) {
-        const currentVersionReviews = latestVersion === undefined
-          ? reviews
-          : reviews.filter(review => Date.parse(review.at) >= Date.parse(latestVersion.at))
+        const currentVersionReviews = reviews.filter((review) => {
+          const matches = reviewBodyMatches(review, document)
+          return matches === undefined
+            ? (latestVersion === undefined || Date.parse(review.at) >= Date.parse(latestVersion.at))
+            : matches
+        })
         const callerRoot = presetBuiltinRoot(options.role)
         if (callerRoot !== undefined
           && missingReviewRootSet(options.root, flow.config, currentVersionReviews).has(callerRoot)) {
@@ -480,6 +533,7 @@ export function recordRequirementReview(root: string, id: string, input: Require
         round,
         at: input.at,
         report: relativeReport,
+        ...(input.baseContent === undefined ? {} : { base_content: input.baseContent }),
         ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }),
         ...(input.role === undefined ? {} : { role: input.role }),
       },
@@ -511,19 +565,22 @@ export interface RequirementReviewDecisionResult {
   readonly requirement: Requirement
   readonly round: number
   readonly decision: 'accepted' | 'rejected'
-  /** 采纳时关联的正文版本号；没有晚于该轮的正文版本时缺省。 */
+  /** 采纳时关联的正文版本号；没有可关联的晚于该轮的版本时缺省。 */
   readonly appliedVersion?: number
+  /** 本轮报告依据的正文已被原地修改，当前正文没有对应版本；供命令给出明确回执。 */
+  readonly baselineChanged?: boolean
 }
 
 /**
  * 人处置一轮评审：把决定写进该轮记录，不碰正文与其他轮次。
  *
- * 采纳时若已有晚于该轮的正文版本，把 `applied_version` 指向其中版本号最大的一版；
- * 放弃时清掉可能残留的 `applied_version`，避免决定与关联版本自相矛盾。
+ * 采纳时关联晚于该轮的最新版本；新评审带正文基线时还要求该版本快照就是当前正文，
+ * 草稿修改（patch）原地改正文不写版本，因此不会被指向错位的旧版本。旧评审无基线时
+ * 保持原来的纯时间戳判定。放弃时清掉残留的 `applied_version`。
  * @param root - 规格根。
  * @param id - 需求编号。
  * @param input - 轮次、决定、时刻与可选理由。
- * @returns 落盘后的需求、轮次、决定与关联的正文版本号。
+ * @returns 落盘后的需求、轮次、决定、关联版本与基线是否已被原地改动。
  */
 export function decideRequirementReview(
   root: string,
@@ -535,14 +592,26 @@ export function decideRequirementReview(
   if (target === undefined) {
     throw new Error(`${id} 没有第 ${String(input.round)} 轮评审，无法处置`)
   }
+  const document = readRequirementDocument(root, id)
+  const baselineChanged = target.base_content !== undefined
+    && document !== undefined
+    && target.base_content !== document
 
   let appliedVersion: number | undefined
   if (input.decision === 'accepted') {
-    for (const version of requirement.versions) {
-      if (Date.parse(version.at) > Date.parse(target.at)
-        && (appliedVersion === undefined || version.n > appliedVersion)) {
-        appliedVersion = version.n
+    const versions = [...requirement.versions].sort((left, right) => right.n - left.n)
+    for (const version of versions) {
+      if (Date.parse(version.at) <= Date.parse(target.at)) continue
+      // 新评审按正文基线核准：只有快照就是当前正文的版本才是「据以改稿的版本」。
+      if (target.base_content !== undefined && document !== undefined) {
+        const snapshotPath = requirementVersionPath(root, id, version.n)
+        const snapshot = existsSync(snapshotPath) && statSync(snapshotPath).isFile()
+          ? readFileSync(snapshotPath, 'utf8')
+          : undefined
+        if (snapshot !== document) continue
       }
+      appliedVersion = version.n
+      break
     }
   }
 
@@ -552,6 +621,7 @@ export function decideRequirementReview(
       round: review.round,
       at: review.at,
       report: review.report,
+      ...(review.base_content === undefined ? {} : { base_content: review.base_content }),
       ...(review.sessionId === undefined ? {} : { sessionId: review.sessionId }),
       ...(review.role === undefined ? {} : { role: review.role }),
       decision: input.decision,
@@ -568,6 +638,7 @@ export function decideRequirementReview(
     round: input.round,
     decision: input.decision,
     ...(appliedVersion === undefined ? {} : { appliedVersion }),
+    ...(baselineChanged ? { baselineChanged: true } : {}),
   }
 }
 

@@ -61,9 +61,9 @@ const asRole = (role: string) => ({ agent: { session: { header: { agentPreset: r
 const CONTENT = '# 佣金改造\n\n自营订单不该按下限兜底，代发订单保持现状。'
 
 describe('需求工具', () => {
-  it('提供起草、评审、改稿、需求变更提案与拆分岗位建议五个工具，不含过审与分配能力', () => {
+  it('提供起草、评审、改稿、需求变更提案、草稿修改提案与拆分岗位建议六个工具，不含过审与分配能力', () => {
     const names = createRequirementTools(makeRepo().spec).map(entry => entry.name)
-    expect(names).toEqual(['requirement_draft', 'requirement_review_draft', 'requirement_revise', 'requirement_propose', 'requirement_split_plan'])
+    expect(names).toEqual(['requirement_draft', 'requirement_review_draft', 'requirement_revise', 'requirement_propose', 'requirement_patch_propose', 'requirement_split_plan'])
     expect(names).not.toContain('requirement_approve')
     expect(names).not.toContain('requirement_review_decide')
     expect(names).not.toContain('task_assign')
@@ -323,6 +323,8 @@ describe('评审轮次门禁', () => {
     const { spec } = makeRepo()
     await call(spec, { title: '佣金改造', content: CONTENT })
     await callTool(spec, 'requirement_review_draft', { id: 'REQ-01', report: '# 第 1 轮' })
+    // 报告落盘时把实际读到的正文绑成基线，后续 patch 才能识别报告依据。
+    expect(read(spec, 'REQ-01').reviews[0]?.base_content).toBe(CONTENT)
 
     await expect(callTool(spec, 'requirement_review_draft', { id: 'REQ-01', report: '# 重复评审' }))
       .rejects.toThrow(/上一轮评审后正文未改稿/)

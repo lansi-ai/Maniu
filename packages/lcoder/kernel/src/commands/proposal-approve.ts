@@ -19,6 +19,7 @@ import { assertProposalId, listProposals, loadProposal, proposalPath, savePropos
 import {
   createRequirement,
   loadRequirement,
+  patchRequirementDraft,
   readRequirementDocument,
   requirementDocPath,
   requirementVersionPath,
@@ -119,6 +120,9 @@ function approve(rootInput: RootInput, invocation: ProposalApproveInvocation, no
  */
 function applyChange(root: string, proposal: Proposal, change: RequirementChange, at: string): ProposalApproveResult {
   const approved: Proposal = { ...proposal, decision: 'approved', decided_at: at }
+  if (change.mode === 'patch') {
+    return applyPatch(root, proposal, change, approved, at)
+  }
   if (change.mode === 'new') {
     const note = change.target !== undefined && change.base_version !== undefined
       ? `基于 ${change.target} v${String(change.base_version)}`
@@ -179,6 +183,64 @@ function applyChange(root: string, proposal: Proposal, change: RequirementChange
   return {
     kind: 'success',
     text: `${proposal.id}「${proposal.title}」已批准：${change.target} 已改稿为 v${String(revision.version)}（${note}）。接下来走评审与过审。`,
+  }
+}
+
+/**
+ * 应用「修改当前草稿」提案：只重写正文，不增版本、不覆盖快照、不处置评审、不改状态。
+ *
+ * 正文必须与提案生成时宿主读到的基线逐字一致；提案生成后才落盘的评审会让报告基线错位，
+ * 同样拒绝并要求重新生成。提案批准态写失败时把正文还原到改写前，还原失败如实报告。
+ * @param root - 规格根。
+ * @param proposal - 起草态且带 patch 载荷的提案。
+ * @param change - patch 变更载荷。
+ * @param approved - 提案的批准态。
+ * @param at - 结论时刻，仅用于回执文案。
+ * @returns 命令结果。
+ */
+function applyPatch(
+  root: string,
+  proposal: Proposal,
+  change: Extract<RequirementChange, { mode: 'patch' }>,
+  approved: Proposal,
+  at: string,
+): ProposalApproveResult {
+  let before
+  try {
+    before = loadRequirement(root, change.target)
+  } catch (error: unknown) {
+    return { kind: 'error', text: `读不到提案目标 ${change.target}：${errorMessage(error)}；提案仍是 draft` }
+  }
+  if (before.state !== 'draft') {
+    return {
+      kind: 'error',
+      text: `${change.target} 现在在「${before.state}」，只有起草态需求能应用修改；提案仍是 draft`,
+    }
+  }
+  const laterReview = before.reviews.find(review => Date.parse(review.at) > Date.parse(proposal.opened_at))
+  if (laterReview !== undefined) {
+    return {
+      kind: 'error',
+      text: `${proposal.id} 生成后已有第 ${String(laterReview.round)} 轮评审落盘，报告基线可能已变；请重新发起修改生成新提案后再应用，提案仍是 draft`,
+    }
+  }
+
+  let previous
+  try {
+    previous = patchRequirementDraft(root, change.target, change.base_content, change.content)
+  } catch (error: unknown) {
+    return { kind: 'error', text: `${proposal.id} 的修改未应用：${errorMessage(error)}；提案仍是 draft，请重新生成` }
+  }
+  try {
+    saveProposal(root, approved)
+  } catch (error: unknown) {
+    return rollbackFailure(proposal.id, error, () => {
+      writeFileSync(requirementDocPath(root, change.target), previous, 'utf8')
+    })
+  }
+  return {
+    kind: 'success',
+    text: `${proposal.id}「${proposal.title}」已应用（${at}）：${change.target} 的当前草稿已更新，未生成新版本，也未处置任何评审意见。`,
   }
 }
 
