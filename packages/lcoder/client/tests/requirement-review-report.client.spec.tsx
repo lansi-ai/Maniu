@@ -4,7 +4,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
 import { RequirementDetail } from '../src/pages/requirement-detail.tsx'
-import type { RequirementDocRow } from '../src/spec/rows.ts'
+import type { ProposalRow, RequirementDocRow } from '../src/spec/rows.ts'
 import type { SpecProjection } from '../src/spec/load.ts'
 import type { ProjectScope } from '../src/workspace/use-workspaces.ts'
 
@@ -38,12 +38,12 @@ const UNREVIEWED: RequirementDocRow = {
   reviews: [],
 }
 
-function projectionOf(row: RequirementDocRow): SpecProjection {
+function projectionOf(row: RequirementDocRow, proposals: readonly ProposalRow[] = []): SpecProjection {
   return {
     tasks: [],
     rules: [],
     contracts: [],
-    proposals: [],
+    proposals,
     requirements: [row],
     groups: [],
     roles: [],
@@ -99,24 +99,33 @@ function element(testId: string): Element | null {
 interface DetailCalls {
   readonly readers: string[]
   readonly revise: Mock<() => Promise<{ readonly ok: boolean; readonly message: string }>>
+  readonly reload: Mock<() => void>
 }
 
 function callsOf(): DetailCalls {
-  return { readers: [], revise: vi.fn(async () => ({ ok: true, message: '改稿指令已发送' })) }
+  return {
+    readers: [],
+    revise: vi.fn(async () => ({ ok: true, message: '改稿指令已发送' })),
+    reload: vi.fn(),
+  }
 }
 
-async function renderDetail(row: RequirementDocRow, calls: DetailCalls): Promise<void> {
+async function renderDetail(
+  row: RequirementDocRow,
+  calls: DetailCalls,
+  proposals: readonly ProposalRow[] = [],
+): Promise<void> {
   act(() => {
     root.render(
       <RequirementDetail
         row={row}
         project={PROJECT}
-        projection={projectionOf(row)}
+        projection={projectionOf(row, proposals)}
         sessions={[]}
         onClose={() => {}}
         onOpenTask={() => {}}
         onOpenReader={(path) => { calls.readers.push(path) }}
-        onReload={() => {}}
+        onReload={calls.reload}
         onSplit={async () => ({ ok: true, message: 'ok' })}
         onReview={async () => ({ ok: true, message: 'ok' })}
         onRevise={calls.revise}
@@ -235,5 +244,100 @@ describe('顶部操作栏的确认与改稿', () => {
     await press('requirement-detail-revise')
     expect(calls.revise).toHaveBeenCalledTimes(1)
     expect(element('requirement-action-result')?.textContent).toContain('改稿指令已发送')
+  })
+})
+
+describe('评审结论三态与处置动作', () => {
+  it('待处理轮次在报告卡头与阶段 chips 带徽标，卡底给采纳与放弃', async () => {
+    await renderDetail(REVIEWED, callsOf())
+    const status = element('requirement-review-status')
+    expect(status?.getAttribute('data-decision')).toBe('pending')
+    expect(status?.textContent).toContain('待处理')
+    expect(element('requirement-timeline-review-status')?.textContent).toContain('待处理')
+    expect(element('requirement-review-accept')?.textContent).toContain('采纳意见并修改需求')
+    expect(element('requirement-review-reject')?.textContent).toContain('放弃本轮意见')
+    expect(element('requirement-review-accept-hint')?.textContent).toContain('去对比')
+  })
+
+  it('采纳意见走改稿回调，提示后台改稿后去对比确认落盘', async () => {
+    const calls = callsOf()
+    await renderDetail(REVIEWED, calls)
+    await press('requirement-review-accept')
+    expect(calls.revise).toHaveBeenCalledTimes(1)
+    expect(element('requirement-action-result')?.textContent).toContain('改稿指令已发送')
+  })
+
+  it('放弃本轮意见走 decide 命令并刷新投影；采纳生成新版后解锁复评', async () => {
+    const calls = callsOf()
+    await renderDetail(REVIEWED, calls)
+    await press('requirement-review-reject')
+    expect(commands).toEqual(['/requirement_review_decide REQ-01 2 rejected'])
+    expect(calls.reload).toHaveBeenCalledTimes(1)
+    expect(element('requirement-action-result')?.getAttribute('data-ok')).toBe('true')
+
+    const accepted: RequirementDocRow = {
+      ...REVIEWED,
+      versions: [...REVIEWED.versions, { n: 3, at: '2026-11-17T12:00:00+08:00' }],
+      reviews: [
+        {
+          round: 2,
+          at: '2026-11-17T11:00:00+08:00',
+          report: 'requirements/REQ-01/reviews/R2.md',
+          decision: 'accepted',
+          decidedAt: '2026-11-17T12:00:00+08:00',
+          appliedVersion: 3,
+        },
+        {
+          round: 1,
+          at: '2026-11-17T10:00:00+08:00',
+          report: 'requirements/REQ-01/reviews/R1.md',
+          decision: 'rejected',
+        },
+      ],
+    }
+    await renderDetail(accepted, calls)
+    expect(element('requirement-review-status')?.getAttribute('data-decision')).toBe('accepted')
+    expect(element('requirement-review-status')?.textContent).toContain('已采纳（→ v3）')
+    expect(element('requirement-review-decision')).toBeNull()
+    expect((element('requirement-detail-review') as HTMLButtonElement).disabled).toBe(false)
+    expect(element('requirement-guide')?.textContent).toContain('已生成 v3')
+  })
+
+  it('历史轮次逐轮展示结论徽标，待处理的可一键标记放弃', async () => {
+    const calls = callsOf()
+    await renderDetail(REVIEWED, calls)
+    const items = container.querySelectorAll('[data-testid="requirement-review-history-item"]')
+    expect(items).toHaveLength(1)
+    const historyStatus = items[0]?.querySelector('[data-testid="requirement-review-history-status"]')
+    expect(historyStatus?.getAttribute('data-decision')).toBe('pending')
+    const reject = items[0]?.querySelector('[data-testid="requirement-review-history-reject"]')
+    expect(reject).not.toBeNull()
+    await act(async () => {
+      ;(reject as HTMLElement).click()
+      await new Promise(resolve => setTimeout(resolve, 0))
+    })
+    expect(commands).toEqual(['/requirement_review_decide REQ-01 1 rejected'])
+    expect(calls.reload).toHaveBeenCalledTimes(1)
+  })
+
+  it('有待对比的改稿提案时，待处置原因之外补一条去对比提示', async () => {
+    const proposal: ProposalRow = {
+      id: 'P-01',
+      title: '改稿提案',
+      problem: '代发订单边界',
+      options: [],
+      recommendation: '补边界',
+      decision: 'draft',
+      decidedAt: null,
+      requirementChange: {
+        mode: 'revise',
+        target: 'REQ-01',
+        baseVersion: 2,
+        content: '新正文',
+        analysis: '分析',
+      },
+    }
+    await renderDetail(REVIEWED, callsOf(), [proposal])
+    expect(element('requirement-review-proposal-hint')?.textContent).toContain('去对比')
   })
 })

@@ -81,7 +81,7 @@ export interface RequirementVersionRow {
   readonly note?: string
 }
 
-/** 一轮评审报告。 */
+/** 一轮评审报告及其人工处置。 */
 export interface RequirementReviewRow {
   readonly round: number
   readonly at: string
@@ -89,6 +89,14 @@ export interface RequirementReviewRow {
   readonly sessionId?: string
   /** 产出这轮评审的会话 preset 署名；旧数据缺省。 */
   readonly role?: string
+  /** 人工处置；旧数据无此字段时按 pending 看待。 */
+  readonly decision?: 'pending' | 'accepted' | 'rejected'
+  /** 处置时刻。 */
+  readonly decidedAt?: string
+  /** 采纳意见后据以改稿的正文版本号。 */
+  readonly appliedVersion?: number
+  /** 处置备注。 */
+  readonly decisionNote?: string
 }
 
 /** 拆分计划里的一条岗位建议。 */
@@ -516,7 +524,30 @@ export function requirementTextToRow(fileName: string, text: string): Omit<Requi
     if (typeof round !== 'number' || !Number.isInteger(round) || round < 1 || at === undefined || report === undefined) return []
     const sessionId = asText(record?.sessionId)
     const role = asText(record?.role)
-    return [{ round, at, report, ...(sessionId === undefined ? {} : { sessionId }), ...(role === undefined ? {} : { role }) }]
+    const rawDecision = asText(record?.decision)
+    const decision: 'pending' | 'accepted' | 'rejected' | undefined =
+      rawDecision === 'pending' || rawDecision === 'accepted' || rawDecision === 'rejected'
+        ? rawDecision
+        : undefined
+    const decidedAt = asText(record?.decided_at)
+    const decisionNote = asText(record?.decision_note)
+    const rawAppliedVersion = record?.applied_version
+    const appliedVersion = typeof rawAppliedVersion === 'number'
+      && Number.isInteger(rawAppliedVersion)
+      && rawAppliedVersion > 0
+      ? rawAppliedVersion
+      : undefined
+    return [{
+      round,
+      at,
+      report,
+      ...(sessionId === undefined ? {} : { sessionId }),
+      ...(role === undefined ? {} : { role }),
+      ...(decision === undefined ? {} : { decision }),
+      ...(decidedAt === undefined ? {} : { decidedAt }),
+      ...(appliedVersion === undefined ? {} : { appliedVersion }),
+      ...(decisionNote === undefined ? {} : { decisionNote }),
+    }]
   })
   const approvedAt = asText(fields.approved_at)
   const rawApprovedVersion = fields.approved_version

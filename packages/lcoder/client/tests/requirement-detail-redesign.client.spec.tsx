@@ -46,7 +46,15 @@ const DRAFT: RequirementDocRow = {
     { n: 1, at: '2026-11-17T09:00:00+08:00' },
     { n: 2, at: '2026-11-17T11:00:00+08:00' },
   ],
-  reviews: [{ round: 1, at: '2026-11-17T10:30:00+08:00', report: 'requirements/REQ-01/reviews/R1.md', role: 'maniu-pm' }],
+  reviews: [{
+    round: 1,
+    at: '2026-11-17T10:30:00+08:00',
+    report: 'requirements/REQ-01/reviews/R1.md',
+    role: 'maniu-pm',
+    decision: 'accepted',
+    decidedAt: '2026-11-17T11:00:00+08:00',
+    appliedVersion: 2,
+  }],
 }
 
 const TWO_ROLE_FLOW: FlowConfigRow = {
@@ -193,14 +201,18 @@ async function press(testId: string): Promise<void> {
 }
 
 describe('四态操作栏与指引句', () => {
-  it('draft 给评审/修改需求/确认需求，指引待评审', async () => {
-    await renderDetail(DRAFT, callsOf())
-    expect(element('requirement-detail-review')).not.toBeNull()
+  it('draft 未评审时评审为主按钮，修改需求为次，确认需求禁用并说明原因', async () => {
+    await renderDetail({ ...DRAFT, reviews: [] }, callsOf())
+    const review = element('requirement-detail-review') as HTMLButtonElement
+    expect(review.disabled).toBe(false)
+    expect(review.getAttribute('data-variant')).toBe('primary')
+    expect(review.textContent).toContain('发起评审')
     expect(element('requirement-detail-revise')).not.toBeNull()
-    expect(element('requirement-approve')).not.toBeNull()
     expect(element('requirement-split')).toBeNull()
     expect(element('requirement-detail-create-based')).toBeNull()
     expect(element('requirement-guide')?.textContent).toContain('待评审')
+    expect((element('requirement-approve') as HTMLButtonElement).disabled).toBe(true)
+    expect(element('requirement-phase-hint')?.textContent).toContain('第 1 步')
   })
 
   it('confirmed 无关联任务给拆分与基于此版本新建，不再渲染确认按钮', async () => {
@@ -494,6 +506,66 @@ describe('发布与关闭通道', () => {
     const result = element('requirement-action-result')
     expect(result?.getAttribute('data-ok')).toBe('false')
     expect(result?.textContent).toContain('不再关闭')
+  })
+})
+
+describe('评审三态驱动的主次操作', () => {
+  const PENDING: RequirementDocRow = {
+    ...DRAFT,
+    reviews: [{ round: 1, at: '2026-11-17T10:30:00+08:00', report: 'requirements/REQ-01/reviews/R1.md', role: 'maniu-pm' }],
+  }
+  const REJECTED: RequirementDocRow = {
+    ...DRAFT,
+    reviews: [{
+      round: 1,
+      at: '2026-11-17T10:30:00+08:00',
+      report: 'requirements/REQ-01/reviews/R1.md',
+      role: 'maniu-pm',
+      decision: 'rejected',
+      decidedAt: '2026-11-17T11:00:00+08:00',
+    }],
+  }
+
+  it('最新一轮待处置时禁用再次评审并点名原因，确认降为次级', async () => {
+    const calls = callsOf()
+    await renderDetail(PENDING, calls)
+    const review = element('requirement-detail-review') as HTMLButtonElement
+    expect(review.disabled).toBe(true)
+    expect(review.title).toContain('R1 评审尚未处理')
+    expect(review.getAttribute('data-variant')).toBe('secondary')
+    expect(element('requirement-review-pending-reason')?.textContent).toContain('R1 评审尚未处理')
+    expect(element('requirement-guide')?.textContent).toContain('R1 评审已返回')
+    expect(element('requirement-phase-hint')?.textContent).toContain('第 2 步')
+    expect((element('requirement-approve') as HTMLButtonElement).getAttribute('data-variant')).toBe('secondary')
+    await press('requirement-detail-review')
+    expect(calls.review).not.toHaveBeenCalled()
+  })
+
+  it('已采纳生成新版后解锁复评，确认恢复主按钮', async () => {
+    await renderDetail(DRAFT, callsOf())
+    const review = element('requirement-detail-review') as HTMLButtonElement
+    expect(review.disabled).toBe(false)
+    expect(review.textContent).toContain('发起复评')
+    expect(review.getAttribute('data-variant')).toBe('secondary')
+    expect(element('requirement-guide')?.textContent).toContain('已生成 v2')
+    expect((element('requirement-approve') as HTMLButtonElement).getAttribute('data-variant')).toBe('primary')
+  })
+
+  it('已放弃时可重新评审或定稿，指引点名被放弃的轮次', async () => {
+    await renderDetail(REJECTED, callsOf())
+    expect((element('requirement-detail-review') as HTMLButtonElement).disabled).toBe(false)
+    expect(element('requirement-guide')?.textContent).toContain('已放弃 R1')
+    expect((element('requirement-approve') as HTMLButtonElement).getAttribute('data-variant')).toBe('primary')
+  })
+
+  it('刷新与查看原文收进右上角工具组，不混在核心操作栏', async () => {
+    await renderDetail(DRAFT, callsOf())
+    const tools = element('requirement-quick-tools')
+    expect(tools).not.toBeNull()
+    expect(tools?.closest('.detail-drawer-bar')).not.toBeNull()
+    expect(tools?.querySelector('[data-testid="requirement-detail-reload"]')).not.toBeNull()
+    expect(tools?.querySelector('[data-testid="requirement-open-reader"]')).not.toBeNull()
+    expect(element('requirement-actions')?.querySelector('[data-testid="requirement-detail-reload"]')).toBeNull()
   })
 })
 
