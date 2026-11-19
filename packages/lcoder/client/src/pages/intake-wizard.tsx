@@ -151,13 +151,16 @@ export function IntakeWizard(props: IntakeWizardProps): JSX.Element {
             </Card.Content>
           </Card>
 
-          <Card className="intake-section">
-            <Card.Header><Card.Title>指令预览</Card.Title></Card.Header>
-            <Separator />
-            <Card.Content>
-              <pre className="prompt-preview" data-testid="intake-prompt">{prompt}</pre>
-            </Card.Content>
-          </Card>
+          <details className="intake-prompt-details" data-testid="intake-prompt-details">
+            <summary>{t('intake.promptToggle')}</summary>
+            <Card className="intake-section">
+              <Card.Header><Card.Title>{t('intake.promptTitle')}</Card.Title></Card.Header>
+              <Separator />
+              <Card.Content>
+                <pre className="prompt-preview" data-testid="intake-prompt">{prompt}</pre>
+              </Card.Content>
+            </Card>
+          </details>
 
           {failure !== null && <p className="problem" data-testid="intake-error">{failure}</p>}
           <div className="detail-drawer-head">

@@ -22,6 +22,7 @@ import { ReaderOverlay } from './reader.tsx'
 import { IntakeWizard, type IntakeResult } from './intake-wizard.tsx'
 import { ProposalCompare } from './proposal-compare.tsx'
 import { DetailDrawer } from './detail-drawer.tsx'
+import { IntakeSummary } from './intake-summary.tsx'
 
 /** 工作台页面尚未全面接入词典，未传取词函数时沿用中文；新客户端可传入自己的取词函数。 */
 const zhText: Translate = (key, params) => translate('zh', key, params)
@@ -141,6 +142,8 @@ export interface RequirementsPageProps {
   readonly onOpenTasks: (requirementId: string) => void
   /** preset 名册显示名；浮卡子标题取它，读不到回退词典。 */
   readonly presetNames?: Readonly<Record<string, string>>
+  /** 当前是否有等待人工回答或审批的交互；交互期间暂停浮卡超时倒计时。 */
+  readonly awaitingAnswer?: boolean
   /** 取词函数；缺省为中文词典。 */
   readonly t?: Translate
 }
@@ -161,6 +164,8 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
   const [createOpen, setCreateOpen] = useState(false)
   const [createText, setCreateText] = useState('')
   const [compareId, setCompareId] = useState<string | null>(null)
+  // 正在就地预览概要的浮卡键；会话号从对应 watch 上取，避免把会话号塞进卡片外观。
+  const [summaryKey, setSummaryKey] = useState<string | null>(null)
   const [opNotice, setOpNotice] = useState<string | null>(null)
   const [watches, setWatches] = useState<readonly OpWatch[]>([])
   const [paused, setPaused] = useState<readonly PausedOp[]>([])
@@ -450,11 +455,21 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
   }, [watches, props.projection, props.onReload])
 
   // 固定间隔轮询投影；读取中不叠加请求，卸载或无操作时清理；超时转失败卡。
+  // 交互期（等待人工确认概要，或全局有待答/待审批交互）不判定到期，并顺延 deadline，
+  // 绝不在用户思考或答题途中误报超时；只在会话真正卡住时才走原超时逻辑。
   useEffect(() => {
     if (watches.length === 0) return
     const timer = setInterval(() => {
       const now = Date.now()
-      const expired = watches.filter(item => now >= item.deadline)
+      const interactive = (item: OpWatch): boolean => awaitingConfirmOf(item) || props.awaitingAnswer === true
+      const expired = watches.filter(item => now >= item.deadline && !interactive(item))
+      const frozen = watches.filter(item => now >= item.deadline && interactive(item))
+      if (frozen.length > 0) {
+        setWatches(current => current.map(item =>
+          frozen.some(entry => entry.key === item.key)
+            ? { ...item, deadline: now + OP_TIMEOUT_MS }
+            : item))
+      }
       if (expired.length > 0) {
         setWatches(current => current.filter(item => !expired.includes(item)))
         setFinished(current => [...current, ...expired.map(watch => ({
@@ -472,7 +487,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
       if (!loadingRef.current) props.onReload()
     }, OP_POLL_MS)
     return () => { clearInterval(timer) }
-  }, [watches, props.onReload])
+  }, [watches, props.onReload, props.sessions, props.awaitingAnswer, confirmSent, sawRunning, props.projection.requirements.length])
 
   /** 人工衔接：点「下一岗位」才发起下一岗。 */
   const nextRole = (key: string): void => {
@@ -567,6 +582,10 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
       ? [{ proposal, change: proposal.requirementChange }]
       : [])
   const compare = compareId === null ? undefined : pendingChanges.find(entry => entry.proposal.id === compareId)
+  // 概要预览的会话号从浮卡运行记录上取；卡被完成判定清掉后抽屉自然关闭。
+  const summarySessionId = summaryKey === null
+    ? null
+    : watches.find(item => item.key === summaryKey)?.sessionId ?? null
 
   const cards = useMemo<readonly OperationCardView[]>(() => {
     const labelCtx = {
@@ -1011,6 +1030,16 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
         />
       )}
 
+      {summarySessionId !== null && props.project !== null && (
+        <IntakeSummary
+          sessionId={summarySessionId}
+          onConfirm={() => { if (summaryKey !== null) void confirmIntake(summaryKey); setSummaryKey(null) }}
+          onOpenSession={() => { props.onOpenSession(summarySessionId); setSummaryKey(null) }}
+          onClose={() => { setSummaryKey(null) }}
+          t={t}
+        />
+      )}
+
       <OperationCards
         cards={cards}
         onToggleMinimize={toggleMinimize}
@@ -1018,6 +1047,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
         onClose={closeCard}
         onNextRole={nextRole}
         onCompare={(proposalId) => { setCompareId(proposalId) }}
+        onViewSummary={(key) => { setSummaryKey(key) }}
         {...(props.onConfirmIntake === undefined ? {} : { onConfirmIntake: (key: string) => { void confirmIntake(key) } })}
         t={t}
       />

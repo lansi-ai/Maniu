@@ -764,6 +764,10 @@
 .intake-section [data-slot='card-header'] { padding: 12px 16px 8px; }
 .intake-section [data-slot='card-content'] { padding: 10px 16px 16px; }
 .intake-mode-tabs [role='tablist'] { border-radius: 999px; padding: 3px; background: var(--surface-tertiary); }
+.intake-prompt-details { margin-bottom: 12px; }
+.intake-prompt-details > summary { cursor: pointer; padding: 6px 2px; color: var(--muted); font-size: 12px; }
+.intake-prompt-details > summary:hover { color: var(--foreground); }
+.intake-prompt-details[open] > summary { margin-bottom: 8px; }
 
 /* ── T-257 批次 2：HeroUI v3 人才表单分组 ─────────────────────────── */
 .talent-form-group { border-color: var(--separator); border-radius: 16px; background: color-mix(in oklab, var(--surface-secondary) 80%, transparent); }

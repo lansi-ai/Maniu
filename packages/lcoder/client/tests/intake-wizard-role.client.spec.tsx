@@ -111,3 +111,18 @@ describe('非空项目的立项阻塞', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('指令预览默认折叠', () => {
+  it('首屏只给折叠摘要，指令正文留在折叠区 DOM 内', async () => {
+    stub({ ok: true, value: { presets: [] } })
+    await render()
+    const details = element('intake-prompt-details') as HTMLDetailsElement
+    expect(details).not.toBeNull()
+    expect(details.open).toBe(false)
+    expect(details.querySelector('summary')?.textContent).toContain('高级')
+    const prompt = element('intake-prompt')
+    expect(prompt).not.toBeNull()
+    expect(details.contains(prompt)).toBe(true)
+    expect(prompt?.textContent).toContain('项目')
+  })
+})

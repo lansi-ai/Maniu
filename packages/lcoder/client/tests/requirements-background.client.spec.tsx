@@ -7,6 +7,7 @@ import { RequirementsPage } from '../src/pages/requirements.tsx'
 import type { RequirementDocRow, TaskRow } from '../src/spec/rows.ts'
 import type { SpecProjection } from '../src/spec/load.ts'
 import type { ProjectScope } from '../src/workspace/use-workspaces.ts'
+import type { SessionSummary } from '../src/store.ts'
 
 const PROJECT: ProjectScope = {
   workspaceId: 'workspace-1',
@@ -118,7 +119,10 @@ interface Harness {
   readonly reload: ReturnType<typeof vi.fn>
   readonly openSession: ReturnType<typeof vi.fn>
   readonly started: { readonly prompt: string; readonly preset?: string }[]
-  render(projection: SpecProjection, loading?: boolean): void
+  render(projection: SpecProjection, loading?: boolean, opts?: {
+    readonly awaitingAnswer?: boolean
+    readonly sessions?: readonly SessionSummary[]
+  }): void
 }
 
 function harness(
@@ -132,13 +136,13 @@ function harness(
     reload,
     openSession,
     started,
-    render(projection, loading = false) {
+    render(projection, loading = false, opts = {}) {
       act(() => {
         root.render(
           <RequirementsPage
             project={PROJECT}
             projection={projection}
-            sessions={[]}
+            sessions={opts.sessions ?? []}
             loading={loading}
             error={null}
             intakeResult={null}
@@ -152,6 +156,7 @@ function harness(
             }}
             onOpenSession={openSession}
             onOpenTasks={() => {}}
+            {...(opts.awaitingAnswer === undefined ? {} : { awaitingAnswer: opts.awaitingAnswer })}
           />,
         )
       })
@@ -328,5 +333,22 @@ describe('超时提示与入口', () => {
     expect(element('requirement-op-timeout')).not.toBeNull()
     expect(element('requirement-op-timeout-session')).toBeNull()
     expect(element('requirement-op-timeout-reload')).not.toBeNull()
+  })
+
+  it('有等待回答的交互时到点不误判超时，交互结束后才按原口径收口', async () => {
+    const h = harness()
+    h.render(projectionOf([DRAFT]))
+    await press('requirement-op-review')
+
+    // 全局待答交互非空：即便到点也保持进行中，并把 deadline 往后顺延。
+    h.render(projectionOf([DRAFT]), false, { awaitingAnswer: true })
+    await tick(5 * 60 * 1000 + 4000)
+    expect(element('requirement-op-running')).not.toBeNull()
+    expect(element('requirement-op-timeout')).toBeNull()
+
+    // 交互结束后，顺延后的 deadline 再到期才转失败卡。
+    h.render(projectionOf([DRAFT]), false, { awaitingAnswer: false })
+    await tick(5 * 60 * 1000)
+    expect(element('requirement-op-timeout')?.textContent).toContain('等待超时')
   })
 })
