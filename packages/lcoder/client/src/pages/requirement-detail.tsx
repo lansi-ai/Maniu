@@ -11,7 +11,7 @@ import type { SessionSummary } from '../store.ts'
 import { requirementStateLabel } from '../spec/board.ts'
 import { readWorkspaceText } from '../spec/files.ts'
 import { runCommand, type CommandOutcome } from '../commands/run.ts'
-import { missingReviewRoles } from '../flow/config.ts'
+import { canApproveRequirement, canReviewRequirement } from './requirement-gate.ts'
 import { renderMarkdown } from '../markdown/markdown.tsx'
 import { translate, type MessageKey, type Translate } from '../locale.ts'
 import { formatTimestamp, parseReviewReport, type ReviewPriority } from './requirement-report.ts'
@@ -233,7 +233,6 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
     return name === undefined ? id : `${name}（${id}）`
   }
 
-  const reviewed = row.reviews.length > 0
   const phase: ReviewPhase = latestReview === null ? 'unreviewed' : decisionOf(latestReview)
   const acceptedVersion = latestReview === null || decisionOf(latestReview) !== 'accepted'
     ? undefined
@@ -253,14 +252,22 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
     : phase === 'pending'
       ? t('requirement.opReview')
       : t('requirement.opReviewAgain')
-  const missingRoles = missingReviewRoles(props.projection.flow, props.projection.roles, row.reviews)
-  const approveReady = reviewed && missingRoles.length === 0
-  const canApprove = state === 'draft' && approveReady
-  const approveReason = !reviewed
-    ? t('requirement.approveNeedsReview')
-    : missingRoles.length > 0
-      ? t('requirement.approveNeedsFlow', { roles: missingRoles.map(roleLabel).join('、') })
-      : undefined
+  const gateParams = { reviews: row.reviews, flow: props.projection.flow, roster: props.projection.roles }
+  const reviewGate = canReviewRequirement({ ...gateParams, versions: row.versions })
+  const approveGate = canApproveRequirement(gateParams)
+  const canApprove = state === 'draft' && approveGate.ok
+  const reviewBlockReason = reviewGate.ok
+    ? undefined
+    : reviewGate.block.reason === 'pending'
+      ? t('requirement.reviewBlockedPending', { round: reviewGate.block.round })
+      : t('requirement.reviewBlockedRepeat', { round: reviewGate.block.round })
+  const approveReason = !approveGate.ok
+    ? approveGate.block.reason === 'noReview'
+      ? t('requirement.approveNeedsReview')
+      : approveGate.block.reason === 'pending'
+        ? t('requirement.approveBlockedPending', { rounds: (approveGate.block.rounds ?? []).map(round => `R${String(round)}`).join('、') })
+        : t('requirement.approveNeedsFlow', { roles: (approveGate.block.roles ?? []).map(roleLabel).join('、') })
+    : undefined
   const draftGuide = phase === 'unreviewed'
     ? t('requirement.guide.draft')
     : phase === 'pending' && latestReview !== null
@@ -374,10 +381,10 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                   data-testid="requirement-detail-review"
                   data-variant={phase === 'unreviewed' ? 'primary' : 'secondary'}
                   data-phase={phase}
-                  isDisabled={phase === 'pending' || busy !== null}
+                  isDisabled={!reviewGate.ok || busy !== null}
                   ref={(node) => {
                     if (node === null) return
-                    node.title = reviewPendingReason ?? t(phase === 'unreviewed' ? 'requirement.opReviewTitleStart' : 'requirement.opReviewTitleAgain')
+                    node.title = reviewBlockReason ?? t(phase === 'unreviewed' ? 'requirement.opReviewTitleStart' : 'requirement.opReviewTitleAgain')
                   }}
                   onPress={() => { void startOp('review', props.onReview) }}
                 >

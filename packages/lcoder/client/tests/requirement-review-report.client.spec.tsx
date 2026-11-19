@@ -222,7 +222,11 @@ describe('内联评审报告', () => {
 
 describe('顶部操作栏的确认与改稿', () => {
   it('确认需求仍走人机命令，成功后展示回执', async () => {
-    await renderDetail(REVIEWED, callsOf())
+    const resolved: RequirementDocRow = {
+      ...REVIEWED,
+      reviews: REVIEWED.reviews.map(review => ({ ...review, decision: 'accepted' as const })),
+    }
+    await renderDetail(resolved, callsOf())
     const approve = element('requirement-approve') as HTMLButtonElement
     expect(approve.disabled).toBe(false)
     await press('requirement-approve')

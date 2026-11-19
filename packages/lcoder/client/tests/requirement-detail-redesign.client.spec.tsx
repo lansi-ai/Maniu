@@ -330,7 +330,7 @@ describe('确认需求的配齐口径', () => {
       ...DRAFT,
       reviews: [
         ...DRAFT.reviews,
-        { round: 2, at: '2026-11-17T11:30:00+08:00', report: 'requirements/REQ-01/reviews/R2.md', role: 'maniu-manager' },
+        { round: 2, at: '2026-11-17T11:30:00+08:00', report: 'requirements/REQ-01/reviews/R2.md', role: 'maniu-manager', decision: 'accepted' },
       ],
     }
     await renderDetail(row, callsOf(), { flow: TWO_ROLE_FLOW })
@@ -349,7 +349,7 @@ describe('确认需求的配齐口径', () => {
       ...DRAFT,
       reviews: [
         ...DRAFT.reviews,
-        { round: 2, at: '2026-11-17T11:30:00+08:00', report: 'requirements/REQ-01/reviews/R2.md', role: 'maniu-manager' },
+        { round: 2, at: '2026-11-17T11:30:00+08:00', report: 'requirements/REQ-01/reviews/R2.md', role: 'maniu-manager', decision: 'accepted' },
       ],
     }
     await renderDetail(row, callsOf(), { flow, roles: ROSTER })
@@ -527,6 +527,7 @@ describe('发布与关闭通道', () => {
 describe('评审三态驱动的主次操作', () => {
   const PENDING: RequirementDocRow = {
     ...DRAFT,
+    versions: [{ n: 1, at: '2026-11-17T09:00:00+08:00' }],
     reviews: [{ round: 1, at: '2026-11-17T10:30:00+08:00', report: 'requirements/REQ-01/reviews/R1.md', role: 'maniu-pm' }],
   }
   const REJECTED: RequirementDocRow = {
@@ -552,6 +553,8 @@ describe('评审三态驱动的主次操作', () => {
     expect(element('requirement-guide')?.textContent).toContain('R1 评审已返回')
     expect(element('requirement-phase-hint')?.textContent).toContain('第 2 步')
     expect((element('requirement-approve') as HTMLButtonElement).getAttribute('data-variant')).toBe('secondary')
+    expect((element('requirement-approve') as HTMLButtonElement).disabled).toBe(true)
+    expect(element('requirement-approve-hint')?.textContent).toContain('未处理的评审')
     await press('requirement-detail-review')
     expect(calls.review).not.toHaveBeenCalled()
   })

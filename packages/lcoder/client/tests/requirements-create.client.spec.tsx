@@ -233,8 +233,9 @@ describe('改稿提案等待态', () => {
     h.render(projectionOf([REQ]))
     await press('requirement-op-revise')
     expect(h.started).toHaveLength(1)
-    expect(h.started[0]?.prompt).toContain('mode 为 revise')
-    expect(h.started[0]?.prompt).toContain('base_version 为 1')
+    expect(h.started[0]?.prompt).toContain('requirement_revise')
+    expect(h.started[0]?.prompt).toContain('直接写入新版本 v2')
+    expect(h.started[0]?.prompt).not.toContain('mode 为 revise')
 
     h.render(projectionOf([REQ], [REVISE_PROPOSAL]))
     expect(element('requirement-op-running')?.textContent).toContain('提案待你对比确认')
@@ -272,5 +273,33 @@ describe('待确认的需求变更卡', () => {
     const h = harness()
     h.render(projectionOf([REQ]))
     expect(element('requirement-pending-proposals')).toBeNull()
+  })
+})
+
+describe('提案被拒绝即收口浮卡', () => {
+  it('新建提案变 rejected 时立即收口完成卡，不等需求落盘或超时', async () => {
+    const h = harness()
+    h.render(projectionOf([REQ]))
+    await press('requirement-new-open')
+    await press('requirement-new-start')
+    expect(element('requirement-op-running')).not.toBeNull()
+
+    h.render(projectionOf([REQ], [{ ...NEW_PROPOSAL, decision: 'rejected', decidedAt: '2026-11-17T12:00:00+08:00' }]))
+    expect(element('requirement-op-running')).toBeNull()
+    expect(element('requirement-op-success')?.textContent).toContain('提案已被拒绝')
+    expect(element('requirement-op-timeout')).toBeNull()
+    expect(h.reload).toHaveBeenCalled()
+  })
+
+  it('改稿提案变 rejected 时同样收口，不空转等版本增量', async () => {
+    const h = harness()
+    h.render(projectionOf([REQ]))
+    await press('requirement-op-revise')
+    expect(element('requirement-op-running')).not.toBeNull()
+
+    h.render(projectionOf([REQ], [{ ...REVISE_PROPOSAL, decision: 'rejected', decidedAt: '2026-11-17T12:00:00+08:00' }]))
+    expect(element('requirement-op-running')).toBeNull()
+    expect(element('requirement-op-success')?.textContent).toContain('提案已被拒绝')
+    expect(element('requirement-op-timeout')).toBeNull()
   })
 })

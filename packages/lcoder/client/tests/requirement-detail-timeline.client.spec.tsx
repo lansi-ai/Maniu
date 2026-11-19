@@ -195,8 +195,12 @@ describe('确认需求的评审门槛', () => {
     expect(element('requirement-approve-hint')?.textContent).toContain('至少完成一轮评审')
   })
 
-  it('有一轮评审后可以确认', async () => {
-    await renderDetail(ROW, callsOf())
+  it('有一轮已处置的评审后可以确认', async () => {
+    const resolved: RequirementDocRow = {
+      ...ROW,
+      reviews: ROW.reviews.map(review => ({ ...review, decision: 'accepted' as const })),
+    }
+    await renderDetail(resolved, callsOf())
     const approve = element('requirement-approve') as HTMLButtonElement
     expect(approve.disabled).toBe(false)
     expect(element('requirement-approve-hint')).toBeNull()

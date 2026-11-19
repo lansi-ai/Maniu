@@ -132,8 +132,8 @@ describe('新建需求提示词', () => {
   })
 })
 
-describe('需求改稿提示词（提案流程）', () => {
-  it('四步走提案：基线是当前正文与最近评审报告，落盘走 requirement_propose revise', () => {
+describe('需求改稿提示词（直出新版本）', () => {
+  it('四步走直接落版：基线是当前正文与最近评审报告，改稿写 requirement_revise 新版本', () => {
     const prompt = buildRevisePrompt(
       { id: 'REQ-01', title: '待改稿需求' },
       '# 当前正文\n\n内容',
@@ -143,27 +143,30 @@ describe('需求改稿提示词（提案流程）', () => {
     expect(prompt).toContain('需求改稿：请修订需求 REQ-01（待改稿需求）')
     expect(prompt).toContain('.spec/requirements/REQ-01/reviews/R2.md')
     expect(prompt).toContain('当前正文版本号是 v3')
+    expect(prompt).toContain('直接写入新版本 v4')
     expect(prompt).toContain('冲突/重复')
     expect(prompt).toContain('影响面')
     expect(prompt).toContain('优先级')
     expect(prompt).toContain('明确禁止代码层判断')
     expect(prompt).toContain('ask_user_question')
     expect(prompt).toContain('一次只问一个问题')
-    expect(prompt).toContain('requirement_propose')
-    expect(prompt).toContain('mode 为 revise')
-    expect(prompt).toContain('target 为 REQ-01')
-    expect(prompt).toContain('base_version 为 3')
-    expect(prompt).toContain('不调用 requirement_revise 直接落盘')
+    expect(prompt).toContain('requirement_revise')
+    expect(prompt).toContain('id 为 REQ-01')
+    expect(prompt).toContain('内核会把正文记为下一个版本，自动保留历史快照并闭环未决评审')
+    expect(prompt).toContain('不调用 requirement_propose 出提案')
+    expect(prompt).not.toContain('mode 为 revise')
+    expect(prompt).not.toContain('待确认提案')
     expect(prompt).toContain('不改其他需求')
     expect(prompt).toContain('# 当前正文')
   })
 
-  it('没有评审报告时不编造意见；旧需求没有版本表按 v1', () => {
+  it('没有评审报告时不编造意见；旧需求没有版本表按 v1 出 v2', () => {
     const prompt = buildRevisePrompt({ id: 'REQ-02', title: '旧需求' }, '正文')
     expect(prompt).toContain('还没有评审报告')
     expect(prompt).toContain('不要编造评审意见')
     expect(prompt).toContain('当前正文版本号是 v1')
-    expect(prompt).toContain('base_version 为 1')
+    expect(prompt).toContain('直接写入新版本 v2')
+    expect(prompt).not.toContain('mode 为 revise')
   })
 })
 
@@ -185,6 +188,11 @@ describe('内置角色人设源', () => {
 
   it('需求分析师人设承载七问纪律与落盘顺序', () => {
     expect(PROFILE).toContain('You are 需求分析师.')
+    expect(PROFILE).toContain('修改草稿态需求时，先读最近的评审报告逐条处理')
+    expect(PROFILE).toContain('内核自动保留历史版本快照并闭环未决评审')
+    expect(PROFILE).toContain('新正文直接落成新版本 v(N+1)')
+    expect(PROFILE).toContain('基于已确认需求新建时')
+    expect(PROFILE).toContain('已确认需求只能作为新需求依据不改稿')
     expect(PROFILE).toContain('访谈规则：')
     expect(PROFILE).toContain('七个问题依次覆盖：')
     expect(PROFILE).toContain('1. 你想做一个什么软件？')

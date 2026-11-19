@@ -22,7 +22,7 @@ const DRAFT: RequirementDocRow = {
   state: 'draft',
   options: [],
   versions: [{ n: 1, at: '2026-11-17T09:00:00+08:00' }],
-  reviews: [{ round: 1, at: '2026-11-17T10:00:00+08:00', report: 'requirements/REQ-01/reviews/R1.md' }],
+  reviews: [{ round: 1, at: '2026-11-17T10:00:00+08:00', report: 'requirements/REQ-01/reviews/R1.md', decision: 'rejected' }],
 }
 
 const CONFIRMED: RequirementDocRow = {
@@ -176,7 +176,7 @@ describe('后台发起与完成判定', () => {
 
     const reviewed: RequirementDocRow = {
       ...DRAFT,
-      reviews: [...DRAFT.reviews, { round: 2, at: '2026-11-17T11:00:00+08:00', report: 'requirements/REQ-01/reviews/R2.md' }],
+      reviews: [...DRAFT.reviews, { round: 2, at: '2026-11-17T11:00:00+08:00', report: 'requirements/REQ-01/reviews/R2.md', decision: 'rejected' }],
     }
     h.render(projectionOf([reviewed]))
     await act(async () => { await Promise.resolve() })
