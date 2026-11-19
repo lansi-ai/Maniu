@@ -1,13 +1,13 @@
 // @vitest-environment jsdom
 /** 人才库页的权限分支、删除引用拦截、内置角色并入全局库与项目库未绑定态。 */
-import { act } from 'react'
+import { act, type JSX } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { translate, type MessageKey } from '../src/locale.ts'
 import { TalentsPage } from '../src/pages/talents.tsx'
 import type { SessionSummary } from '../src/store.ts'
 import type { BuiltinPresetView, TalentRow } from '../src/talents/model.ts'
-import type { BuiltinDetailState, TalentsHandle } from '../src/talents/use-talents.ts'
+import { useTalents, type BuiltinDetailState, type TalentsHandle } from '../src/talents/use-talents.ts'
 import type { ProjectScope } from '../src/workspace/use-workspaces.ts'
 
 const t = (key: MessageKey, params?: Readonly<Record<string, string | number>>): string =>
@@ -449,5 +449,76 @@ describe('内置人才并入全局库', () => {
     expect(drawer?.querySelector('[data-testid="builtin-tools-error"]')?.textContent)
       .toContain('the preset exposes no tool scope')
     expect(drawer?.querySelector('[data-testid="builtin-persona-summary"]')?.textContent).toContain('身份：项目经理')
+  })
+})
+
+describe('useTalents 宿主就绪时序', () => {
+  let calls: Array<{ readonly namespace: string; readonly method: string }> = []
+  let ready = false
+
+  /** 未就绪时任何宿主调用都回 host-not-ready，就绪后返回本机清单与内置名册。 */
+  function fakeCall(namespace: string, method: string): Promise<unknown> {
+    calls.push({ namespace, method })
+    if (!ready) return Promise.resolve({ ok: false, error: { code: 'lcoder/host-not-ready', message: '宿主尚未就绪' } })
+    if (namespace === 'agentTalents' && method === 'catalog') {
+      return Promise.resolve({ ok: true, value: { plugins: [{ name: '@deepseek-ai/dsh-persona' }], presets: [] } })
+    }
+    if (namespace === 'agentPresets' && method === 'list') {
+      return Promise.resolve({ ok: true, value: { presets: [{ id: 'maniu-pm', name: '项目经理' }] } })
+    }
+    return Promise.resolve({ ok: false, error: { code: 'unexpected', message: 'unexpected call' } })
+  }
+
+  beforeEach(() => {
+    calls = []
+    ready = false
+    Object.defineProperty(window, 'lcoder', { configurable: true, value: { call: vi.fn(fakeCall) } })
+  })
+
+  afterEach(() => {
+    Reflect.deleteProperty(window, 'lcoder')
+  })
+
+  async function flush(): Promise<void> {
+    await act(async () => { await Promise.resolve() })
+    await act(async () => { await Promise.resolve() })
+    await act(async () => { await Promise.resolve() })
+  }
+
+  function output(testId: string): string {
+    return container.querySelector(`[data-testid="${testId}"]`)?.textContent ?? ''
+  }
+
+  function Harness({ hostReady }: { readonly hostReady: boolean }): JSX.Element {
+    const talents = useTalents({ signedIn: false, projectPath: null, hostReady })
+    return (
+      <div>
+        <output data-testid="hook-catalog-error">{talents.catalogError ?? ''}</output>
+        <output data-testid="hook-builtins-error">{talents.builtinsError ?? ''}</output>
+        <output data-testid="hook-builtins-loading">{String(talents.builtinsLoading)}</output>
+        <output data-testid="hook-builtins">{talents.builtins.map(row => row.id).join(',')}</output>
+        <output data-testid="hook-catalog">{talents.catalog?.plugins.map(plugin => plugin.name).join(',') ?? ''}</output>
+      </div>
+    )
+  }
+
+  it('未就绪不发清单与内置请求、不残留 host-not-ready；就绪后自动加载并渲染', async () => {
+    await act(async () => { root.render(<Harness hostReady={false} />) })
+    await flush()
+    expect(calls).toHaveLength(0)
+    expect(output('hook-catalog-error')).toBe('')
+    expect(output('hook-builtins-error')).toBe('')
+    expect(output('hook-builtins-loading')).toBe('true')
+
+    ready = true
+    await act(async () => { root.render(<Harness hostReady={true} />) })
+    await flush()
+    expect(calls.filter(call => call.method === 'catalog')).toHaveLength(1)
+    expect(calls.filter(call => call.namespace === 'agentPresets' && call.method === 'list')).toHaveLength(1)
+    expect(output('hook-catalog-error')).toBe('')
+    expect(output('hook-builtins-error')).toBe('')
+    expect(output('hook-builtins-loading')).toBe('false')
+    expect(output('hook-builtins')).toBe('maniu-pm')
+    expect(output('hook-catalog')).toBe('@deepseek-ai/dsh-persona')
   })
 })

@@ -153,6 +153,7 @@ export function App(): JSX.Element {
   const talents = useTalents({
     signedIn: cloud.state?.signedIn === true,
     projectPath: project?.path ?? null,
+    hostReady: host.kind === 'ready',
   })
 
   const streamRef = useRef<string | null>(null)

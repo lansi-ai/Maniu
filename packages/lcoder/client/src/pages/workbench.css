@@ -165,6 +165,7 @@
 }
 .read-error span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .problem {
+  flex-shrink: 0;
   margin: 0 4px;
   padding: 8px 10px;
   border: 1px solid color-mix(in oklab, var(--danger) 24%, transparent);
@@ -729,6 +730,7 @@
 }
 .talent-card-head {
   display: flex;
+  flex-direction: row;
   align-items: center;
   justify-content: flex-start;
   gap: 12px;

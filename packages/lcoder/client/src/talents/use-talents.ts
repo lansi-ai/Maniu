@@ -18,6 +18,8 @@ export interface TalentsOptions {
   readonly signedIn: boolean
   /** 当前项目根目录；没有项目时只有全局库。 */
   readonly projectPath: string | null
+  /** 宿主是否已就绪；未就绪时挂起所有宿主/云端读取，就绪后自动加载。缺省为 true。 */
+  readonly hostReady?: boolean
 }
 
 /** 一个内置角色的详情：人设、插件组合与工具面各自留下失败原因。 */
@@ -74,11 +76,12 @@ export type TalentSessionRefs =
  * 摘要不变的人才不会重复下发；单条人才用单独一次调用，任何一条失败都只
  * 记在这条人才上。退出登录时尝试撤回全部已下发人才，仍有会话引用的由宿主
  * 拒绝，保留到下个会话结束后再清。
- * @param options - 登录态与当前项目路径。
+ * @param options - 登录态、项目路径与宿主就绪态。
  * @returns 页面使用的数据与动作。
  */
 export function useTalents(options: TalentsOptions): TalentsHandle {
   const { signedIn, projectPath } = options
+  const ready = options.hostReady ?? true
   const [catalog, setCatalog] = useState<TalentCatalogView | null>(null)
   const [catalogError, setCatalogError] = useState<string | null>(null)
   const [project, setProject] = useState<TalentProjectView | null>(null)
@@ -106,6 +109,7 @@ export function useTalents(options: TalentsOptions): TalentsHandle {
   const reload = useCallback(() => { setReloadSeq(current => current + 1) }, [])
 
   useEffect(() => {
+    if (!ready) return
     let disposed = false
     void loadCatalog().then((answer) => {
       if (disposed) return
@@ -118,9 +122,10 @@ export function useTalents(options: TalentsOptions): TalentsHandle {
       }
     })
     return () => { disposed = true }
-  }, [reloadSeq])
+  }, [ready, reloadSeq])
 
   useEffect(() => {
+    if (!ready) return
     let disposed = false
     setBuiltinsLoading(true)
     setBuiltinsError(null)
@@ -136,9 +141,10 @@ export function useTalents(options: TalentsOptions): TalentsHandle {
       setBuiltinsLoading(false)
     })
     return () => { disposed = true }
-  }, [reloadSeq])
+  }, [ready, reloadSeq])
 
   useEffect(() => {
+    if (!ready) return
     if (!signedIn || projectPath === null) {
       setProject(null)
       setProjectError(null)
@@ -171,11 +177,12 @@ export function useTalents(options: TalentsOptions): TalentsHandle {
       setProjectError(null)
     })
     return () => { disposed = true }
-  }, [signedIn, projectPath, reloadSeq])
+  }, [ready, signedIn, projectPath, reloadSeq])
 
   const identityPending = projectPath !== null && (project === null || project.path !== projectPath)
 
   useEffect(() => {
+    if (!ready) return
     if (!signedIn) {
       setGlobal([])
       setProjectTalents([])
@@ -212,7 +219,7 @@ export function useTalents(options: TalentsOptions): TalentsHandle {
       setLoading(false)
     })()
     return () => { disposed = true }
-  }, [signedIn, identityPending, project, reloadSeq])
+  }, [ready, signedIn, identityPending, project, reloadSeq])
 
   const reconcile = useCallback(async (rows: readonly TalentRow[]): Promise<void> => {
     const plan = planSync(appliedRef.current, rows)
@@ -271,9 +278,10 @@ export function useTalents(options: TalentsOptions): TalentsHandle {
   }, [reconcile])
 
   useEffect(() => {
+    if (!ready) return
     if (!signedIn || loading || error !== null) return
     void runSync([...global, ...projectTalents])
-  }, [signedIn, loading, error, global, projectTalents, runSync])
+  }, [ready, signedIn, loading, error, global, projectTalents, runSync])
 
   useEffect(() => {
     const was = signedInRef.current
