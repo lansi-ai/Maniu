@@ -218,6 +218,27 @@ describe('操作进度浮卡', () => {
     expect(element('op-confirm-intake')).toBeNull()
     expect(element('op-view-session')?.textContent).toBe('查看对话')
   })
+
+  it('提供就地概要回调时，「查看概要」走回调而非跳转对话', () => {
+    const onViewSummary = vi.fn()
+    act(() => {
+      root.render(
+        <OperationCards
+          cards={[cardOf({ awaitingConfirm: true })]}
+          onToggleMinimize={onToggleMinimize}
+          onOpenSession={onOpenSession}
+          onClose={onClose}
+          onConfirmIntake={vi.fn()}
+          onViewSummary={onViewSummary}
+          t={t}
+        />,
+      )
+    })
+    expect(element('op-view-session')?.textContent).toBe('查看概要')
+    press('op-view-session')
+    expect(onViewSummary).toHaveBeenCalledWith('review-REQ-01-1')
+    expect(onOpenSession).not.toHaveBeenCalled()
+  })
 })
 
 describe('提案等待对比浮卡', () => {

@@ -2,11 +2,12 @@
 /** T-238：需求表的创建时间与操作列，按状态给评审、改稿、拆分与查看任务。 */
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { RequirementsPage } from '../src/pages/requirements.tsx'
 import type { RequirementDocRow, TaskRow } from '../src/spec/rows.ts'
 import type { SpecProjection } from '../src/spec/load.ts'
 import type { ProjectScope } from '../src/workspace/use-workspaces.ts'
+import type { SessionSummary } from '../src/store.ts'
 
 const PROJECT: ProjectScope = {
   workspaceId: 'workspace-1',
@@ -214,5 +215,57 @@ describe('需求表操作分支', () => {
     expect(opened).toEqual(['REQ-03'])
     expect(calls).toHaveLength(0)
     expect(element('requirement-detail')).toBeNull()
+  })
+})
+
+describe('交互期不误杀超时', () => {
+  it('立项等待确认概要期间到点不转失败卡，确认入口保留', async () => {
+    vi.useFakeTimers()
+    try {
+      const sessions: readonly SessionSummary[] = [
+        { sessionId: 'session-intake-1', updatedAt: 1, running: false, blank: false },
+      ]
+      const renderWith = (list: readonly SessionSummary[]): void => {
+        act(() => {
+          root.render(
+            <RequirementsPage
+              project={PROJECT}
+              projection={projectionOf([], [])}
+              sessions={list}
+              loading={false}
+              error={null}
+              intakeResult={null}
+              onClearIntakeResult={() => {}}
+              onReload={() => {}}
+              onStartIntake={async () => ({ ok: true, message: 'ok', sessionId: 'session-intake-1' })}
+              onStartSession={async () => ({ ok: true, message: 'ok' })}
+              onConfirmIntake={async () => ({ ok: true, message: 'ok' })}
+              onOpenSession={() => {}}
+              onOpenTasks={() => {}}
+            />,
+          )
+        })
+      }
+      renderWith([])
+      await act(async () => {
+        ;(element('intake-open') as HTMLElement).click()
+        await vi.advanceTimersByTimeAsync(0)
+      })
+      await act(async () => {
+        ;(element('intake-start') as HTMLElement).click()
+        await vi.advanceTimersByTimeAsync(0)
+      })
+      expect(element('requirement-op-running')).not.toBeNull()
+
+      renderWith([{ ...sessions[0]!, running: true }])
+      renderWith(sessions)
+      await act(async () => { await vi.advanceTimersByTimeAsync(5 * 60 * 1000) })
+
+      expect(element('requirement-op-running')).not.toBeNull()
+      expect(element('requirement-op-timeout')).toBeNull()
+      expect(element('op-confirm-intake')?.textContent).toBe('确认需求')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

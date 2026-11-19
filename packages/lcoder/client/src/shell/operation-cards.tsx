@@ -47,6 +47,8 @@ export interface OperationCardsProps {
   readonly onConfirmIntake?: (key: string) => void
   /** 提案等待对比：点「去对比」打开该提案的对比视图。 */
   readonly onCompare?: (proposalId: string) => void
+  /** 立项等待确认：点「查看概要」在需求页内就地预览概要；未给时回退到打开会话。 */
+  readonly onViewSummary?: (key: string) => void
   readonly t: Translate
 }
 
@@ -131,7 +133,10 @@ export function OperationCards(props: OperationCardsProps): JSX.Element | null {
                   type="button"
                   className="link-button"
                   data-testid={card.status === 'failed' ? 'requirement-op-timeout-session' : 'op-view-session'}
-                  onClick={() => { props.onOpenSession(sessionId) }}
+                  onClick={() => {
+                    if (card.awaitingConfirm === true && props.onViewSummary !== undefined) props.onViewSummary(card.key)
+                    else props.onOpenSession(sessionId)
+                  }}
                 >
                   {card.awaitingConfirm === true ? props.t('op.viewSummary') : props.t('op.viewSession')}
                 </button>

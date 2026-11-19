@@ -745,6 +745,7 @@ export function App(): JSX.Element {
                 onStartSession={startSession}
                 onConfirmIntake={confirmIntake}
                 presetNames={flowRoleNames}
+                awaitingAnswer={pending.length > 0}
                 onOpenSession={openSession}
                 onOpenTasks={(requirementId) => {
                   setTaskRequirement(requirementId)
