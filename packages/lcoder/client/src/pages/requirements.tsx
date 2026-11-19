@@ -680,7 +680,9 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
               ? t('op.awaitProposal')
               : confirmSent.includes(watch.key)
                 ? t('op.confirmSent')
-                : t(OP_RUNNING_KEY[watch.kind], { id: idTextOf(watch) }),
+                : watch.kind === 'intake'
+                  ? t(OP_RUNNING_KEY[watch.kind])
+                  : t(OP_RUNNING_KEY[watch.kind], { id: idTextOf(watch) }),
           !awaiting && pendingProposal === undefined, undefined, awaiting, pendingProposal?.id,
         )
       }),
@@ -694,7 +696,9 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
         item.status === 'done'
           ? item.cancelled === true
             ? t('requirement.proposalRejected')
-            : t(OP_DONE_KEY[item.kind], { id: idTextOf(item) })
+            : item.kind === 'intake'
+              ? t(OP_DONE_KEY[item.kind])
+              : t(OP_DONE_KEY[item.kind], { id: idTextOf(item) })
           : t('requirement.opTimeout', { id: idTextOf(item) }),
         false,
       )),

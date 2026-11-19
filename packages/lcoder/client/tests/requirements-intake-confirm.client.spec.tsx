@@ -166,7 +166,7 @@ describe('等待确认态判定', () => {
     await startIntake(h)
     h.render(projectionOf([]), [sessionOf({ running: true })])
     expect(element('op-confirm-intake')).toBeNull()
-    expect(element('requirement-op-running')?.textContent).toContain('需求调研进行中')
+    expect(element('requirement-op-running')?.textContent).toContain('正在进行需求调研')
 
     h.render(projectionOf([]), [sessionOf({ running: false })])
     const card = element('requirement-op-running')
@@ -187,7 +187,7 @@ describe('等待确认态判定', () => {
 
     h.render(projectionOf([]), [sessionOf({ running: false, blank: true })])
     expect(element('op-confirm-intake')).toBeNull()
-    expect(element('requirement-op-running')?.textContent).toContain('需求调研进行中')
+    expect(element('requirement-op-running')?.textContent).toContain('正在进行需求调研')
   })
 
   it('会话从未跑过回合时不算回合结束，不进入等待确认态', async () => {
@@ -195,7 +195,7 @@ describe('等待确认态判定', () => {
     await startIntake(h)
     h.render(projectionOf([]), [sessionOf({ running: false })])
     expect(element('op-confirm-intake')).toBeNull()
-    expect(element('requirement-op-running')?.textContent).toContain('需求调研进行中')
+    expect(element('requirement-op-running')?.textContent).toContain('正在进行需求调研')
   })
 
   it('回合结束但需求已落盘时直接转完成卡，不出现确认入口', async () => {
