@@ -16,7 +16,7 @@ import { entryRoot, flowNodeOf, flowRoleLabel, flowRoleSource, presetOfRole, pre
 import { canReviewRequirement } from './requirement-gate.ts'
 import { translate, type MessageKey, type Translate } from '../locale.ts'
 import { OperationCards, type OperationCardView, type OperationStep, type OperationStepState } from '../shell/operation-cards.tsx'
-import { RequirementDetail } from './requirement-detail.tsx'
+import { RequirementDetail, type ModifyState } from './requirement-detail.tsx'
 import { TaskDetail } from './task-detail.tsx'
 import { ReaderOverlay } from './reader.tsx'
 import { IntakeWizard, type IntakeResult } from './intake-wizard.tsx'
@@ -167,11 +167,14 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
   const [wizard, setWizard] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
   const [createText, setCreateText] = useState('')
-  // 顶部「修改需求」：只收集修改说明；提交非空说明才发起草稿修改会话，取消不写数据。
+  // 「修改需求」收敛到同一详情：只收集修改说明；提交非空说明才发起草稿修改会话，取消不写数据。
   const [modifyOpen, setModifyOpen] = useState(false)
   const [modifyText, setModifyText] = useState('')
   const [modifyRow, setModifyRow] = useState<RequirementDocRow | null>(null)
+  const [patchError, setPatchError] = useState<string | null>(null)
   const [compareId, setCompareId] = useState<string | null>(null)
+  /** 打开详情前的焦点入口；关闭详情后归位。 */
+  const detailTriggerRef = useRef<HTMLElement | null>(null)
   // 正在就地预览概要的浮卡键；会话号从对应 watch 上取，避免把会话号塞进卡片外观。
   const [summaryKey, setSummaryKey] = useState<string | null>(null)
   const [opNotice, setOpNotice] = useState<string | null>(null)
@@ -393,10 +396,37 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
     return launchCreate(buildRequirementCreatePrompt('', { id: row.id, title: row.title ?? row.id, version: baseVersion }))
   }
 
-  /** 打开修改说明输入框：只记目标需求与清空输入，不启动会话、不写数据。 */
+  /** 打开详情并记住触发入口；关闭时把焦点交还它。 */
+  const openDetail = (row: RequirementDocRow): void => {
+    const active = document.activeElement
+    detailTriggerRef.current = active instanceof HTMLElement && active !== document.body ? active : null
+    setSelected(row.id)
+  }
+
+  /** 关闭详情：收起说明栏与差异、清空输入，不启动会话、不写数据，焦点归位。 */
+  const closeDetail = (): void => {
+    const id = selected
+    setSelected(null)
+    setModifyOpen(false)
+    setModifyRow(null)
+    setModifyText('')
+    setPatchError(null)
+    setCompareId(null)
+    const trigger = detailTriggerRef.current
+    detailTriggerRef.current = null
+    if (trigger !== null && trigger.isConnected) trigger.focus()
+    else if (id !== null) {
+      document.querySelector<HTMLElement>(`[data-testid="requirement-row"][data-requirement-id="${id}"]`)?.focus()
+    }
+  }
+
+  /** 同窗展开修改说明栏：先打开同一详情，再清空说明输入，不启动会话、不写数据。 */
   const openModify = (row: RequirementDocRow): void => {
+    openDetail(row)
     setModifyRow(row)
     setModifyText('')
+    setPatchError(null)
+    setCompareId(null)
     setModifyOpen(true)
   }
 
@@ -433,16 +463,22 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
     return answer
   }
 
-  /** 提交修改说明：去空白后非空才发起；空输入与取消都不发会话、不写数据。 */
+  /** 提交修改说明：去空白后非空才发起；留在详情等待提案，失败保留说明供重试。 */
   const modifyStart = async (): Promise<void> => {
     const note = modifyText.trim()
     if (note === '' || modifyRow === null) return
+    setPatchError(null)
     const answer = await launchPatch(note, modifyRow)
-    if (answer.ok) {
-      setModifyOpen(false)
-      setModifyText('')
-      setModifyRow(null)
-    }
+    if (!answer.ok) setPatchError(answer.message)
+  }
+
+  /** 应用成功后收起说明栏与差异；正文由投影刷新后重新渲染。 */
+  const patchApplied = (): void => {
+    setModifyOpen(false)
+    setModifyText('')
+    setModifyRow(null)
+    setPatchError(null)
+    setCompareId(null)
   }
 
   const review = (row: RequirementDocRow) => startNode('review', row)
@@ -662,6 +698,26 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
       ? [{ proposal, change: proposal.requirementChange }]
       : [])
   const compare = compareId === null ? undefined : pendingChanges.find(entry => entry.proposal.id === compareId)
+
+  // 同窗说明栏状态：待对比 patch 提案就绪 → 可查看差异；会话在跑 → 生成中；发起失败 → 可重试。
+  const activePatchWatch = active === null
+    ? undefined
+    : [...watches].reverse().find(watch => watch.kind === 'patch' && watch.requirementId === active.id)
+  const activePatchChange = active === null
+    ? undefined
+    : pendingChanges.find(entry => entry.change.mode === 'patch' && entry.change.target === active.id)
+  const modifyState: ModifyState = {
+    open: modifyOpen && modifyRow !== null && active !== null && modifyRow.id === active.id,
+    text: modifyText,
+    status: activePatchChange !== undefined
+      ? 'ready'
+      : activePatchWatch !== undefined
+        ? 'running'
+        : patchError !== null
+          ? 'failed'
+          : 'idle',
+    error: patchError ?? undefined,
+  }
   // 概要预览的会话号从浮卡运行记录上取；卡被完成判定清掉后抽屉自然关闭。
   const summarySessionId = summaryKey === null
     ? null
@@ -971,7 +1027,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
                         data-testid="requirement-row"
                         data-requirement-id={row.id}
                         className={row.id === selected ? 'selected' : ''}
-                        onAction={() => { setSelected(row.id) }}
+                        onAction={() => { openDetail(row) }}
                       >
                         <Table.Cell className="mono">{row.id}</Table.Cell>
                         <Table.Cell>{row.title ?? row.id}</Table.Cell>
@@ -1040,7 +1096,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
 
           {active !== null && (
             <>
-              <div className="requirement-detail-scrim" aria-hidden="true" onClick={() => { setSelected(null) }} />
+              <div className="requirement-detail-scrim" aria-hidden="true" onClick={closeDetail} />
               <div className="requirement-detail-layer">
                 <RequirementDetail
                   key={active.id}
@@ -1048,7 +1104,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
                   project={props.project}
                   projection={props.projection}
                   sessions={props.sessions}
-                  onClose={() => { setSelected(null) }}
+                  onClose={closeDetail}
                   onOpenTask={setTaskId}
                   onOpenReader={setReaderPath}
                   onReload={props.onReload}
@@ -1058,6 +1114,16 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
                   onModifyRequest={() => { openModify(active) }}
                   onCreateBased={() => createBased(active)}
                   onOpenTasks={() => { props.onOpenTasks(active.id) }}
+                  modify={modifyState}
+                  onModifyTextChange={setModifyText}
+                  onModifySubmit={() => { void modifyStart() }}
+                  onModifyCancel={() => { setModifyOpen(false); setModifyText(''); setModifyRow(null); setPatchError(null) }}
+                  patchProposal={compare ?? activePatchChange}
+                  diffOpen={compare !== undefined}
+                  onViewDiff={() => { setCompareId(activePatchChange?.proposal.id ?? compare?.proposal.id ?? null) }}
+                  onCloseDiff={() => { setCompareId(null) }}
+                  onApplied={patchApplied}
+                  readerOpen={readerPath !== null}
                   t={t}
                 />
               </div>
@@ -1122,45 +1188,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
         </DetailDrawer>
       )}
 
-      {modifyOpen && modifyRow !== null && props.project !== null && (
-        <DetailDrawer
-          testId="requirement-modify-drawer"
-          closeTestId="requirement-modify-close"
-          onClose={() => { setModifyOpen(false); setModifyRow(null) }}
-          head={<h3>{t('requirement.modifyDrawerTitle')}</h3>}
-          t={t}
-        >
-          <p className="detail-note">{t('requirement.modifyHint', { id: modifyRow.id })}</p>
-          <textarea
-            className="new-requirement-input"
-            data-testid="requirement-modify-note"
-            value={modifyText}
-            placeholder={t('requirement.modifyPlaceholder')}
-            rows={6}
-            onChange={(event) => { setModifyText(event.target.value) }}
-          />
-          <div className="action-row">
-            <Button
-              variant="primary"
-              data-testid="requirement-modify-start"
-              isDisabled={modifyText.trim() === ''}
-              onPress={() => { void modifyStart() }}
-            >
-              <Sparkles size={14} />
-              {t('requirement.modifyStart')}
-            </Button>
-            <Button
-              variant="secondary"
-              data-testid="requirement-modify-cancel"
-              onPress={() => { setModifyOpen(false); setModifyText(''); setModifyRow(null) }}
-            >
-              {t('requirement.modifyCancel')}
-            </Button>
-          </div>
-        </DetailDrawer>
-      )}
-
-      {compare !== undefined && props.project !== null && (
+      {compare !== undefined && selected === null && props.project !== null && (
         <ProposalCompare
           proposal={compare.proposal}
           change={compare.change}

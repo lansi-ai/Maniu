@@ -303,6 +303,7 @@
   border-left: 1px solid var(--border);
   background: var(--surface);
   box-shadow: var(--overlay-shadow);
+  container-type: inline-size;
 }
 
 /* 放大态由外壳测量宿主页面的可见矩形后内联定位，这里只收掉右、下锚点。 */
@@ -313,7 +314,7 @@
 .detail-drawer-bar { flex: 0 0 auto; padding: 16px 18px 8px; }
 .detail-drawer-leading { min-width: 0; }
 .detail-drawer-controls { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.detail-drawer-body { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 0 18px 24px; }
+.detail-drawer-body { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 0 18px 28px; }
 .detail-drawer-icon {
   display: inline-flex;
   align-items: center;
@@ -333,6 +334,41 @@
 /* 带 Separator 的分区不再叠边框，靠语义分隔线区分正文、报告与关联信息。 */
 .detail-section:has(> .detail-divider) { border-top: 0; padding-top: 0; }
 .detail-divider { margin-bottom: 10px; border-color: var(--separator); }
+
+/* 详情主区：正文常驻挂载，说明栏同窗展开；窄抽屉上下叠放，放大到宽窗后左右分栏。 */
+.requirement-detail-main { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.detail-content-pane { min-width: 0; }
+.modify-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 12px 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--overlay);
+  box-shadow: var(--overlay-shadow);
+}
+.modify-pane h4 { margin: 0; font-size: 15px; color: var(--foreground); }
+.modify-pane .new-requirement-input { width: 100%; resize: vertical; }
+.detail-diff-host {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--overlay);
+  box-shadow: var(--overlay-shadow);
+  overflow: hidden;
+}
+.detail-diff-host .compare-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; }
+
+@container (min-width: 900px) {
+  .requirement-detail-main { flex-direction: row; align-items: flex-start; }
+  .detail-content-pane { flex: 1 1 auto; min-width: 0; }
+  .modify-pane { flex: 0 0 340px; width: 340px; }
+  .detail-diff-host { flex: 1 1 auto; }
+}
 .task-detail-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 
 .plain-list.compact { gap: 4px; }
@@ -399,6 +435,18 @@
 .markdown-body hr { border: 0; border-top: 1px solid var(--separator); margin: 12px 0; }
 .markdown-body a { color: var(--accent); }
 
+/* 文档阅读表面：不透明主题底色，宽表只在文档区内横向滚动，不撑破弹窗或挤压说明栏。 */
+.document-body,
+.reader-doc {
+  padding: 12px 14px 20px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--overlay);
+  overflow-x: auto;
+}
+.document-body table,
+.reader-doc table { min-width: 520px; }
+
 /* 阅读器：盖住内容区的玻璃层，正文按缩放系数排版。 */
 .reader-layer {
   position: absolute;
@@ -419,7 +467,10 @@
   width: min(1040px, 96%);
   min-height: 0;
   padding: 14px 16px;
+  border: 1px solid var(--border);
   border-radius: 18px;
+  background: var(--overlay);
+  box-shadow: var(--overlay-shadow);
 }
 
 .reader-bar { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
@@ -574,6 +625,8 @@
 
 @media (max-width: 700px) {
   .detail-drawer { width: min(560px, 92vw); }
+  .requirement-detail-main { flex-direction: column; }
+  .modify-pane { flex: 0 0 auto; width: auto; }
   .requirement-title { font-size: 18px; }
   .requirement-ops { gap: 6px; }
   .timeline-chips { gap: 4px; }

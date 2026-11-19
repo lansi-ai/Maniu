@@ -190,7 +190,9 @@ describe('需求表操作分支', () => {
     renderPage(projectionOf([DRAFT], []), calls)
 
     await press('requirement-op-revise')
-    expect(element('requirement-modify-drawer')).not.toBeNull()
+    expect(element('requirement-detail')).not.toBeNull()
+    expect(element('requirement-modify-pane')).not.toBeNull()
+    expect(element('requirement-modify-drawer')).toBeNull()
     expect(calls).toHaveLength(0)
     await typeNote('把验收口径改成按实付金额计算')
     await press('requirement-modify-start')
@@ -204,14 +206,32 @@ describe('需求表操作分支', () => {
     expect(calls[0]?.prompt).toContain('不要调用 requirement_revise')
   })
 
-  it('取消修改说明不启动会话、不写数据', async () => {
+  it('取消修改说明只收起说明栏，详情保留、不启动会话不写数据', async () => {
     const calls: StartCall[] = []
     renderPage(projectionOf([DRAFT], []), calls)
     await press('requirement-op-revise')
     await typeNote('要改的点')
     await press('requirement-modify-cancel')
-    expect(element('requirement-modify-drawer')).toBeNull()
+    expect(element('requirement-modify-pane')).toBeNull()
+    expect(element('requirement-detail')).not.toBeNull()
     expect(calls).toHaveLength(0)
+  })
+
+  it('关闭详情后焦点返回打开前的触发入口', async () => {
+    renderPage(projectionOf([DRAFT], []), [])
+    // jsdom 中聚焦表格行内元素会触发 react-aria 的选择焦点缺陷，用表外哨兵入口代替。
+    const trigger = document.createElement('button')
+    trigger.textContent = '入口'
+    container.append(trigger)
+    trigger.focus()
+    expect(document.activeElement).toBe(trigger)
+
+    await press('requirement-row')
+    expect(element('requirement-detail')).not.toBeNull()
+
+    await press('requirement-detail-close')
+    expect(element('requirement-detail')).toBeNull()
+    expect(document.activeElement).toBe(trigger)
   })
 
   it('已过审且没有关联任务时给拆分，交给研发经理', async () => {

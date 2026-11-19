@@ -1,12 +1,12 @@
 /** 需求详情：状态先行的头部三区（标题/指引/操作）、阶段 chips、结构化评审报告与待改项摘要、关联任务。 */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { JSX } from 'react'
 import { Button, Chip, Separator } from '@heroui/react'
-import { FileText, RotateCw } from 'lucide-react'
+import { FileText, RotateCw, Sparkles } from 'lucide-react'
 import type { ProjectScope } from '../workspace/use-workspaces.ts'
 import type { SpecProjection } from '../spec/load.ts'
-import type { RequirementDocRow, RequirementReviewRow, RequirementSplitPlanEntryRow } from '../spec/rows.ts'
+import type { ProposalRow, RequirementChangeRow, RequirementDocRow, RequirementReviewRow, RequirementSplitPlanEntryRow } from '../spec/rows.ts'
 import type { SessionSummary } from '../store.ts'
 import { requirementStateLabel } from '../spec/board.ts'
 import { diffLines, type DiffLine } from '../spec/diff.ts'
@@ -17,6 +17,7 @@ import { renderMarkdown } from '../markdown/markdown.tsx'
 import { translate, type MessageKey, type Translate } from '../locale.ts'
 import { formatTimestamp, parseReviewReport, type ReviewPriority } from './requirement-report.ts'
 import { DetailDrawer } from './detail-drawer.tsx'
+import { ProposalDiff } from './proposal-compare.tsx'
 
 const zhText: Translate = (key, params) => translate('zh', key, params)
 
@@ -114,6 +115,16 @@ function compareColumn(lines: readonly DiffLine[], side: 'old' | 'new'): readonl
   return lines.filter(line => side === 'old' ? line.kind !== 'added' : line.kind !== 'removed')
 }
 
+/** 同窗说明栏的状态；由需求页按当前草稿修改会话与提案派生。 */
+export interface ModifyState {
+  readonly open: boolean
+  readonly text: string
+  readonly status: 'idle' | 'running' | 'failed' | 'ready'
+  readonly error?: string | undefined
+}
+
+const CLOSED_MODIFY: ModifyState = { open: false, text: '', status: 'idle' }
+
 /** 需求详情属性。 */
 export interface RequirementDetailProps {
   readonly row: RequirementDocRow
@@ -136,6 +147,21 @@ export interface RequirementDetailProps {
   readonly onCreateBased: () => Promise<{ readonly ok: boolean; readonly message: string }>
   /** 跳到任务页并只显示本需求关联的任务。 */
   readonly onOpenTasks: () => void
+  /** 同窗修改说明栏；缺省为关闭，保持不带修改流程的调用方行为不变。 */
+  readonly modify?: ModifyState | undefined
+  readonly onModifyTextChange?: (text: string) => void
+  readonly onModifySubmit?: () => void
+  /** 取消只收起说明栏，不启动会话、不写数据。 */
+  readonly onModifyCancel?: () => void
+  /** 当前需求待对比的 patch 提案；就绪时给「查看差异」。 */
+  readonly patchProposal?: ({ readonly proposal: ProposalRow; readonly change: RequirementChangeRow }) | undefined
+  readonly diffOpen?: boolean | undefined
+  readonly onViewDiff?: () => void
+  readonly onCloseDiff?: () => void
+  /** 应用成功后由需求页收起说明栏与差异、刷新正文。 */
+  readonly onApplied?: () => void
+  /** 阅读层打开时详情不抢 Esc。 */
+  readonly readerOpen?: boolean | undefined
   /** 取词函数；缺省为中文词典。 */
   readonly t?: Translate
 }
@@ -152,6 +178,8 @@ export interface RequirementDetailProps {
 export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
   const t = props.t ?? zhText
   const row = props.row
+  const modify = props.modify ?? CLOSED_MODIFY
+  const noteRef = useRef<HTMLTextAreaElement>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [result, setResult] = useState<CommandOutcome | null>(null)
   const [ignored, setIgnored] = useState<ReadonlySet<string>>(() => new Set())
@@ -227,17 +255,24 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
     return () => { disposed = true }
   }, [compareVersion, row.id, props.project.scopeSessionId])
 
-  // 对照层按 Esc 关闭，与提案对比层一致。
+  // 说明栏自动聚焦；收起后不残留焦点。
   useEffect(() => {
-    if (compareVersion === null) return
+    if (modify.open) noteRef.current?.focus()
+  }, [modify.open])
+
+  // Esc 分层退出：版本对照 → 差异 → 说明栏 → 详情；阅读层打开时交给阅读层处理。
+  useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
-      if (event.key !== 'Escape') return
+      if (event.key !== 'Escape' || props.readerOpen === true) return
       event.stopPropagation()
-      setCompareVersion(null)
+      if (compareVersion !== null) setCompareVersion(null)
+      else if (props.diffOpen === true) props.onCloseDiff?.()
+      else if (modify.open) props.onModifyCancel?.()
+      else props.onClose()
     }
     window.addEventListener('keydown', onKey, true)
     return () => { window.removeEventListener('keydown', onKey, true) }
-  }, [compareVersion])
+  }, [compareVersion, props.diffOpen, props.onClose, props.onCloseDiff, props.onModifyCancel, props.readerOpen, modify.open])
 
   const execute = async (kind: string, line: string): Promise<void> => {
     if (busy !== null) return
@@ -560,413 +595,484 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
           </div>
         )}
       >
-        <section className="detail-section" data-testid="requirement-timeline">
-          <h4>{t('requirement.timeline')}</h4>
-          <ul className="timeline-chips">
-            <li data-testid="requirement-timeline-opened">
-              <Chip size="sm" variant="soft" className="tag">{t('requirement.timelineOpened')}</Chip>
-              <span className="time">{formatTimestamp(row.openedAt ?? '—')}</span>
-            </li>
-            {row.reviews.map(review => (
-              <li
-                key={`review-${String(review.round)}`}
-                className="chip-link"
-                data-testid="requirement-timeline-review"
-                data-round={review.round}
-                data-path={specPath(review.report)}
-                role="button"
-                tabIndex={0}
-                aria-label={t('requirement.timelineReview', { round: review.round })}
-                onClick={() => { props.onOpenReader(specPath(review.report)) }}
-                onKeyDown={(event) => {
-                  if (event.key !== 'Enter' && event.key !== ' ') return
-                  event.preventDefault()
-                  props.onOpenReader(specPath(review.report))
-                }}
-              >
-                <Chip size="sm" variant="soft" color="accent" className="tag">{t('requirement.timelineReview', { round: review.round })}</Chip>
-                {decisionChip(review, 'requirement-timeline-review-status')}
-                <span className="time">{formatTimestamp(review.at)}</span>
-              </li>
-            ))}
-            {row.reviews.length === 0 && (
-              <li className="empty" data-testid="requirement-timeline-review-empty">{t('requirement.noReviews')}</li>
-            )}
-            {row.versions.map(version => (
-              <li key={`version-${String(version.n)}`} data-testid="requirement-timeline-version" data-version={version.n}>
-                <Chip size="sm" variant="soft" className="tag">{t('requirement.timelineVersion', { n: version.n })}</Chip>
-                <span className="time">{formatTimestamp(version.at)}</span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  data-testid="requirement-open-version"
-                  data-version={version.n}
-                  data-path={`.spec/requirements/${row.id}/versions/v${String(version.n)}.md`}
-                  onPress={() => { props.onOpenReader(`.spec/requirements/${row.id}/versions/v${String(version.n)}.md`) }}
-                >
-                  {t('requirement.openSnapshot')}
-                </Button>
-                {version.n >= 2 && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    data-testid="requirement-compare-version"
-                    data-version={version.n}
-                    onPress={() => { setCompareVersion(version.n) }}
-                  >
-                    {t('requirement.comparePreviousVersion')}
-                  </Button>
-                )}
-              </li>
-            ))}
-            {row.versions.length === 0 && (
-              <li className="empty" data-testid="requirement-timeline-version-empty">{t('requirement.noVersions')}</li>
-            )}
-            <li data-testid="requirement-timeline-approved">
-              <Chip size="sm" variant="soft" className="tag">{t('requirement.timelineApproved')}</Chip>
-              <span className="time">{formatTimestamp(row.approvedAt ?? '—')}</span>
-              <span>{row.approvedVersion === undefined
-                ? t('requirement.notApproved')
-                : t('requirement.timelineApprovedVersion', { n: row.approvedVersion })}</span>
-            </li>
-          </ul>
-        </section>
-
-        <section
-          className="detail-section"
-          data-testid="requirement-review-report"
-          {...(latestReview === null ? {} : { 'data-round': latestReview.round })}
+        <div
+          className={modify.open ? 'requirement-detail-main with-note' : 'requirement-detail-main'}
+          style={props.diffOpen === true ? { display: 'none' } : undefined}
         >
-          <Separator className="detail-divider" />
-          {latestReview === null || reportPath === null
-            ? (
-              <>
-                <h4>{t('requirement.reportHeading')}</h4>
-                <p className="empty" data-testid="requirement-report-empty">{t('requirement.reportEmpty')}</p>
-              </>
-            )
-            : (
-              <>
-                <div className="detail-drawer-head">
-                  <div className="row-actions">
-                    <h4>{t('requirement.reportTitle', { round: latestReview.round })}</h4>
-                    {decisionChip(latestReview, 'requirement-review-status')}
-                  </div>
-                  <div className="row-actions">
+          <div className="detail-content-pane">
+            <section className="detail-section requirement-document" data-testid="requirement-document">
+              <h4>{t('requirement.bodyTitle')}</h4>
+              <div className="markdown-body document-body" data-testid="requirement-document-body">
+                {row.text.trim() === ''
+                  ? <p className="empty">{t('requirement.bodyEmpty')}</p>
+                  : renderMarkdown(row.text)}
+              </div>
+            </section>
+            <section className="detail-section" data-testid="requirement-timeline">
+              <h4>{t('requirement.timeline')}</h4>
+              <ul className="timeline-chips">
+                <li data-testid="requirement-timeline-opened">
+                  <Chip size="sm" variant="soft" className="tag">{t('requirement.timelineOpened')}</Chip>
+                  <span className="time">{formatTimestamp(row.openedAt ?? '—')}</span>
+                </li>
+                {row.reviews.map(review => (
+                  <li
+                    key={`review-${String(review.round)}`}
+                    className="chip-link"
+                    data-testid="requirement-timeline-review"
+                    data-round={review.round}
+                    data-path={specPath(review.report)}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={t('requirement.timelineReview', { round: review.round })}
+                    onClick={() => { props.onOpenReader(specPath(review.report)) }}
+                    onKeyDown={(event) => {
+                      if (event.key !== 'Enter' && event.key !== ' ') return
+                      event.preventDefault()
+                      props.onOpenReader(specPath(review.report))
+                    }}
+                  >
+                    <Chip size="sm" variant="soft" color="accent" className="tag">{t('requirement.timelineReview', { round: review.round })}</Chip>
+                    {decisionChip(review, 'requirement-timeline-review-status')}
+                    <span className="time">{formatTimestamp(review.at)}</span>
+                  </li>
+                ))}
+                {row.reviews.length === 0 && (
+                  <li className="empty" data-testid="requirement-timeline-review-empty">{t('requirement.noReviews')}</li>
+                )}
+                {row.versions.map(version => (
+                  <li key={`version-${String(version.n)}`} data-testid="requirement-timeline-version" data-version={version.n}>
+                    <Chip size="sm" variant="soft" className="tag">{t('requirement.timelineVersion', { n: version.n })}</Chip>
+                    <span className="time">{formatTimestamp(version.at)}</span>
                     <Button
                       variant="ghost"
                       size="sm"
-                      data-testid="requirement-report-open"
-                      onPress={() => { props.onOpenReader(reportPath) }}
+                      data-testid="requirement-open-version"
+                      data-version={version.n}
+                      data-path={`.spec/requirements/${row.id}/versions/v${String(version.n)}.md`}
+                      onPress={() => { props.onOpenReader(`.spec/requirements/${row.id}/versions/v${String(version.n)}.md`) }}
                     >
-                      {t('requirement.openReport')}
+                      {t('requirement.openSnapshot')}
                     </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      data-testid="requirement-report-toggle"
-                      aria-expanded={reportExpanded}
-                      onPress={() => { setReportExpanded(current => !current) }}
-                    >
-                      {reportExpanded ? t('requirement.collapse') : t('requirement.expand')}
-                    </Button>
-                  </div>
-                </div>
-                <div className="requirement-report-summary" data-testid="requirement-report-summary">
-                  <span className="time">{formatTimestamp(latestReview.at)}</span>
-                  {reportBaselineChanged && (
-                    <span className="detail-warning" data-testid="requirement-report-baseline-changed">
-                      {t('requirement.reportBaselineChanged', { round: latestReview.round })}
-                    </span>
-                  )}
-                  {report.status === 'loading' && (
-                    <span data-testid="requirement-report-loading">{t('requirement.reportLoading')}</span>
-                  )}
-                  {report.status === 'failed' && (
-                    <span className="problem" data-testid="requirement-report-failed">
-                      {t('requirement.reportFailed', { detail: report.message })}
-                    </span>
-                  )}
-                  {report.status === 'ready' && parsedReport !== undefined && (
-                    <>
-                      {parsedReport.summary !== '' && (
-                        <div className="requirement-report-card card-summary" data-testid="requirement-report-summary-card">
-                          <span className="requirement-card-label">{t('requirement.reportSummary')}</span>
-                          <p className="requirement-card-text" data-testid="requirement-report-summary-text">{parsedReport.summary}</p>
-                        </div>
-                      )}
-                      {parsedReport.todos.length > 0 && (
-                        <div className="requirement-report-card card-todos" data-testid="requirement-report-todos">
-                          <div className="detail-drawer-head">
-                            <span className="requirement-card-label">{t('requirement.reportTodos')}</span>
-                            <span className="requirement-todo-summary" data-testid="requirement-todo-summary">
-                              {t('requirement.todoStats', {
-                                high: String(priorityCounts.high),
-                                medium: String(priorityCounts.medium),
-                                low: String(priorityCounts.low),
-                              })}
-                            </span>
-                          </div>
-                          <ul className="requirement-todo-list">
-                            {parsedReport.todos.map((todo, index) => {
-                              const expanded = expandedTodos.has(index)
-                              return (
-                                <li
-                                  key={`todo-${String(index)}`}
-                                  className="requirement-todo"
-                                  data-testid="requirement-report-todo"
-                                  data-priority={todo.priority ?? ''}
-                                >
-                                  <div className="requirement-todo-main">
-                                    {todo.priority !== undefined && (
-                                      <Chip
-                                        size="sm"
-                                        variant="soft"
-                                        color={PRIORITY_CHIP_COLOR[todo.priority]}
-                                        className={`priority-badge priority-${todo.priority}`}
-                                        data-testid="requirement-report-priority"
-                                      >
-                                        {t(PRIORITY_KEY[todo.priority])}
-                                      </Chip>
-                                    )}
-                                    <span className="requirement-todo-text">{expanded ? todo.text : todo.summary}</span>
-                                  </div>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="requirement-todo-toggle"
-                                    data-testid="requirement-todo-toggle"
-                                    aria-expanded={expanded}
-                                    onPress={() => { toggleTodo(index) }}
-                                  >
-                                    {expanded ? t('requirement.collapse') : t('requirement.todoDetails')}
-                                  </Button>
-                                </li>
-                              )
-                            })}
-                          </ul>
-                        </div>
-                      )}
-                      {parsedReport.summary === '' && parsedReport.todos.length === 0 && (
-                        <>
-                          <span className="requirement-excerpt-label">{t('requirement.reportExcerpt')}</span>
-                          <span data-testid="requirement-report-excerpt">{excerptOf(report.text)}</span>
-                        </>
-                      )}
-                    </>
-                  )}
-                </div>
-                {reportExpanded && report.status === 'ready' && (
-                  <div className="markdown-body tall" data-testid="requirement-report-body">{renderMarkdown(report.text)}</div>
+                    {version.n >= 2 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        data-testid="requirement-compare-version"
+                        data-version={version.n}
+                        onPress={() => { setCompareVersion(version.n) }}
+                      >
+                        {t('requirement.comparePreviousVersion')}
+                      </Button>
+                    )}
+                  </li>
+                ))}
+                {row.versions.length === 0 && (
+                  <li className="empty" data-testid="requirement-timeline-version-empty">{t('requirement.noVersions')}</li>
                 )}
-                {phase === 'pending' && (
-                  <div className="requirement-review-decision" data-testid="requirement-review-decision">
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      data-testid="requirement-review-accept"
-                      isDisabled={busy !== null}
-                      ref={(node) => { if (node !== null) node.title = t('requirement.reviewAcceptTitle') }}
-                      onPress={() => { void startOp('reviewAccept', props.onRevise) }}
-                    >
-                      {t('requirement.reviewAccept')}
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      data-testid="requirement-review-reject"
-                      isDisabled={busy !== null}
-                      ref={(node) => { if (node !== null) node.title = t('requirement.reviewRejectTitle') }}
-                      onPress={() => { void execute('reviewReject', `/requirement_review_decide ${row.id} ${latestReview.round} rejected`) }}
-                    >
-                      {t('requirement.reviewReject')}
-                    </Button>
-                    <p className="detail-note" data-testid="requirement-review-accept-hint">{t('requirement.reviewAcceptHint')}</p>
-                  </div>
-                )}
-                {historyReviews.length > 0 && (
-                  <ul className="requirement-report-history plain-list compact">
-                    {historyReviews.map(review => (
-                      <li key={review.round} data-testid="requirement-review-history-item" data-round={review.round}>
-                        <span>
-                          {t('requirement.timelineReview', { round: review.round })}
-                          {decisionChip(review, 'requirement-review-history-status')}
-                          <span className="time">{formatTimestamp(review.at)}</span>
-                        </span>
+                <li data-testid="requirement-timeline-approved">
+                  <Chip size="sm" variant="soft" className="tag">{t('requirement.timelineApproved')}</Chip>
+                  <span className="time">{formatTimestamp(row.approvedAt ?? '—')}</span>
+                  <span>{row.approvedVersion === undefined
+                    ? t('requirement.notApproved')
+                    : t('requirement.timelineApprovedVersion', { n: row.approvedVersion })}</span>
+                </li>
+              </ul>
+            </section>
+
+            <section
+              className="detail-section"
+              data-testid="requirement-review-report"
+              {...(latestReview === null ? {} : { 'data-round': latestReview.round })}
+            >
+              <Separator className="detail-divider" />
+              {latestReview === null || reportPath === null
+                ? (
+                  <>
+                    <h4>{t('requirement.reportHeading')}</h4>
+                    <p className="empty" data-testid="requirement-report-empty">{t('requirement.reportEmpty')}</p>
+                  </>
+                )
+                : (
+                  <>
+                    <div className="detail-drawer-head">
+                      <div className="row-actions">
+                        <h4>{t('requirement.reportTitle', { round: latestReview.round })}</h4>
+                        {decisionChip(latestReview, 'requirement-review-status')}
+                      </div>
+                      <div className="row-actions">
                         <Button
                           variant="ghost"
                           size="sm"
-                          data-testid="requirement-open-report"
-                          data-path={specPath(review.report)}
-                          onPress={() => { props.onOpenReader(specPath(review.report)) }}
+                          data-testid="requirement-report-open"
+                          onPress={() => { props.onOpenReader(reportPath) }}
                         >
                           {t('requirement.openReport')}
                         </Button>
-                        {decisionOf(review) === 'pending' && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            data-testid="requirement-review-history-reject"
-                            data-round={review.round}
-                            isDisabled={busy !== null}
-                            ref={(node) => { if (node !== null) node.title = t('requirement.reviewRejectHistoryTitle') }}
-                            onPress={() => { void execute(`reviewReject-${String(review.round)}`, `/requirement_review_decide ${row.id} ${review.round} rejected`) }}
-                          >
-                            {t('requirement.reviewRejectHistory')}
-                          </Button>
-                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          data-testid="requirement-report-toggle"
+                          aria-expanded={reportExpanded}
+                          onPress={() => { setReportExpanded(current => !current) }}
+                        >
+                          {reportExpanded ? t('requirement.collapse') : t('requirement.expand')}
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="requirement-report-summary" data-testid="requirement-report-summary">
+                      <span className="time">{formatTimestamp(latestReview.at)}</span>
+                      {reportBaselineChanged && (
+                        <span className="detail-warning" data-testid="requirement-report-baseline-changed">
+                          {t('requirement.reportBaselineChanged', { round: latestReview.round })}
+                        </span>
+                      )}
+                      {report.status === 'loading' && (
+                        <span data-testid="requirement-report-loading">{t('requirement.reportLoading')}</span>
+                      )}
+                      {report.status === 'failed' && (
+                        <span className="problem" data-testid="requirement-report-failed">
+                          {t('requirement.reportFailed', { detail: report.message })}
+                        </span>
+                      )}
+                      {report.status === 'ready' && parsedReport !== undefined && (
+                        <>
+                          {parsedReport.summary !== '' && (
+                            <div className="requirement-report-card card-summary" data-testid="requirement-report-summary-card">
+                              <span className="requirement-card-label">{t('requirement.reportSummary')}</span>
+                              <p className="requirement-card-text" data-testid="requirement-report-summary-text">{parsedReport.summary}</p>
+                            </div>
+                          )}
+                          {parsedReport.todos.length > 0 && (
+                            <div className="requirement-report-card card-todos" data-testid="requirement-report-todos">
+                              <div className="detail-drawer-head">
+                                <span className="requirement-card-label">{t('requirement.reportTodos')}</span>
+                                <span className="requirement-todo-summary" data-testid="requirement-todo-summary">
+                                  {t('requirement.todoStats', {
+                                    high: String(priorityCounts.high),
+                                    medium: String(priorityCounts.medium),
+                                    low: String(priorityCounts.low),
+                                  })}
+                                </span>
+                              </div>
+                              <ul className="requirement-todo-list">
+                                {parsedReport.todos.map((todo, index) => {
+                                  const expanded = expandedTodos.has(index)
+                                  return (
+                                    <li
+                                      key={`todo-${String(index)}`}
+                                      className="requirement-todo"
+                                      data-testid="requirement-report-todo"
+                                      data-priority={todo.priority ?? ''}
+                                    >
+                                      <div className="requirement-todo-main">
+                                        {todo.priority !== undefined && (
+                                          <Chip
+                                            size="sm"
+                                            variant="soft"
+                                            color={PRIORITY_CHIP_COLOR[todo.priority]}
+                                            className={`priority-badge priority-${todo.priority}`}
+                                            data-testid="requirement-report-priority"
+                                          >
+                                            {t(PRIORITY_KEY[todo.priority])}
+                                          </Chip>
+                                        )}
+                                        <span className="requirement-todo-text">{expanded ? todo.text : todo.summary}</span>
+                                      </div>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="requirement-todo-toggle"
+                                        data-testid="requirement-todo-toggle"
+                                        aria-expanded={expanded}
+                                        onPress={() => { toggleTodo(index) }}
+                                      >
+                                        {expanded ? t('requirement.collapse') : t('requirement.todoDetails')}
+                                      </Button>
+                                    </li>
+                                  )
+                                })}
+                              </ul>
+                            </div>
+                          )}
+                          {parsedReport.summary === '' && parsedReport.todos.length === 0 && (
+                            <>
+                              <span className="requirement-excerpt-label">{t('requirement.reportExcerpt')}</span>
+                              <span data-testid="requirement-report-excerpt">{excerptOf(report.text)}</span>
+                            </>
+                          )}
+                        </>
+                      )}
+                    </div>
+                    {reportExpanded && report.status === 'ready' && (
+                      <div className="markdown-body tall" data-testid="requirement-report-body">{renderMarkdown(report.text)}</div>
+                    )}
+                    {phase === 'pending' && (
+                      <div className="requirement-review-decision" data-testid="requirement-review-decision">
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          data-testid="requirement-review-accept"
+                          isDisabled={busy !== null}
+                          ref={(node) => { if (node !== null) node.title = t('requirement.reviewAcceptTitle') }}
+                          onPress={() => { void startOp('reviewAccept', props.onRevise) }}
+                        >
+                          {t('requirement.reviewAccept')}
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          data-testid="requirement-review-reject"
+                          isDisabled={busy !== null}
+                          ref={(node) => { if (node !== null) node.title = t('requirement.reviewRejectTitle') }}
+                          onPress={() => { void execute('reviewReject', `/requirement_review_decide ${row.id} ${latestReview.round} rejected`) }}
+                        >
+                          {t('requirement.reviewReject')}
+                        </Button>
+                        <p className="detail-note" data-testid="requirement-review-accept-hint">{t('requirement.reviewAcceptHint')}</p>
+                      </div>
+                    )}
+                    {historyReviews.length > 0 && (
+                      <ul className="requirement-report-history plain-list compact">
+                        {historyReviews.map(review => (
+                          <li key={review.round} data-testid="requirement-review-history-item" data-round={review.round}>
+                            <span>
+                              {t('requirement.timelineReview', { round: review.round })}
+                              {decisionChip(review, 'requirement-review-history-status')}
+                              <span className="time">{formatTimestamp(review.at)}</span>
+                            </span>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              data-testid="requirement-open-report"
+                              data-path={specPath(review.report)}
+                              onPress={() => { props.onOpenReader(specPath(review.report)) }}
+                            >
+                              {t('requirement.openReport')}
+                            </Button>
+                            {decisionOf(review) === 'pending' && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                data-testid="requirement-review-history-reject"
+                                data-round={review.round}
+                                isDisabled={busy !== null}
+                                ref={(node) => { if (node !== null) node.title = t('requirement.reviewRejectHistoryTitle') }}
+                                onPress={() => { void execute(`reviewReject-${String(review.round)}`, `/requirement_review_decide ${row.id} ${review.round} rejected`) }}
+                              >
+                                {t('requirement.reviewRejectHistory')}
+                              </Button>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </>
+                )}
+            </section>
+
+            {plan !== undefined && (
+              <section className="detail-section" data-testid="requirement-split-plan">
+                <Separator className="detail-divider" />
+                <h4>{t('requirement.splitPlanTitle')}</h4>
+                <p className="detail-note">{t('requirement.splitPlanAt', { at: formatTimestamp(plan.at) })}</p>
+                <div className="table-wrap">
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">{t('requirement.splitPlanTask')}</th>
+                        <th scope="col">{t('requirement.splitPlanRole')}</th>
+                        <th scope="col">{t('requirement.splitPlanReason')}</th>
+                        <th scope="col">{t('requirement.splitPlanAction')}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {plan.entries.map((entry) => {
+                        const task = props.projection.tasks.find(item => item.id === entry.task)
+                        const outcome = assigns[entry.task]
+                        const diskRole = task?.role
+                        const done = diskRole !== undefined || ignored.has(entry.task) || outcome?.ok === true
+                        return (
+                          <tr key={entry.task} data-testid="requirement-split-plan-row" data-task-id={entry.task}>
+                            <td><span className="mono">{entry.task}</span> {task?.title ?? ''}</td>
+                            <td>{roleLabel(entry.role)}</td>
+                            <td>{entry.reason ?? '—'}</td>
+                            <td>
+                              {diskRole !== undefined
+                                ? (
+                                  <Chip
+                                    size="sm"
+                                    variant="soft"
+                                    color="success"
+                                    className="tag"
+                                    data-testid="requirement-split-plan-assigned"
+                                    data-task-id={entry.task}
+                                    data-role={diskRole}
+                                  >
+                                    {t('requirement.roleAssigned', { role: roleLabel(diskRole) })}
+                                  </Chip>
+                                )
+                                : ignored.has(entry.task)
+                                  ? <Chip size="sm" variant="soft" className="tag" data-testid="requirement-split-plan-status" data-ok="ignored">{t('requirement.roleIgnored')}</Chip>
+                                  : outcome === undefined
+                                    ? (
+                                      <div className="row-actions">
+                                        <Button
+                                          variant="secondary"
+                                          size="sm"
+                                          data-testid="requirement-split-plan-confirm"
+                                          data-task-id={entry.task}
+                                          isDisabled={busy !== null}
+                                          onPress={() => { void assign(entry) }}
+                                        >
+                                          {t('requirement.confirmRole')}
+                                        </Button>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          data-testid="requirement-split-plan-ignore"
+                                          data-task-id={entry.task}
+                                          isDisabled={busy !== null}
+                                          onPress={() => { ignore(entry.task) }}
+                                        >
+                                          {t('requirement.ignoreRole')}
+                                        </Button>
+                                      </div>
+                                    )
+                                    : (
+                                      <span
+                                        className={outcome.ok ? 'detail-line' : 'problem'}
+                                        data-testid="requirement-split-plan-status"
+                                        data-ok={outcome.ok ? 'true' : 'false'}
+                                      >
+                                        {outcome.text}
+                                      </span>
+                                    )}
+                              {diskRole === undefined && !done && outcome !== undefined && (
+                                <div className="row-actions">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    data-testid="requirement-split-plan-retry"
+                                    data-task-id={entry.task}
+                                    isDisabled={busy !== null}
+                                    onPress={() => { void assign(entry) }}
+                                  >
+                                    {t('requirement.confirmRole')}
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    data-testid="requirement-split-plan-ignore"
+                                    data-task-id={entry.task}
+                                    isDisabled={busy !== null}
+                                    onPress={() => { ignore(entry.task) }}
+                                  >
+                                    {t('requirement.ignoreRole')}
+                                  </Button>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                {planDone && (
+                  <p className="detail-note" data-testid="requirement-split-plan-done">
+                    <span>{t('requirement.splitPlanDone')}</span>
+                    <Button variant="ghost" size="sm" data-testid="requirement-split-plan-tasks" onPress={props.onOpenTasks}>
+                      {t('requirement.splitPlanGoTasks')}
+                    </Button>
+                  </p>
+                )}
+              </section>
+            )}
+
+            <section className="detail-section" data-testid="requirement-related">
+              <Separator className="detail-divider" />
+              <div className="detail-drawer-head">
+                <h4>关联任务</h4>
+                {related.length > 0 && (
+                  <Button variant="ghost" size="sm" data-testid="requirement-view-tasks" onPress={props.onOpenTasks}>
+                    {t('requirement.opTasks')}
+                  </Button>
+                )}
+              </div>
+              {related.length === 0
+                ? <p className="empty">还没有拆出任务。</p>
+                : (
+                  <ul className="plain-list compact">
+                    {related.map(task => (
+                      <li key={task.id}>
+                        <Button variant="ghost" size="sm" data-testid="requirement-related-task" onPress={() => { props.onOpenTask(task.id) }}>
+                          <span className="mono">{task.id}</span> {task.title}
+                        </Button>
                       </li>
                     ))}
                   </ul>
                 )}
-              </>
-            )}
-        </section>
-
-        {plan !== undefined && (
-          <section className="detail-section" data-testid="requirement-split-plan">
-            <Separator className="detail-divider" />
-            <h4>{t('requirement.splitPlanTitle')}</h4>
-            <p className="detail-note">{t('requirement.splitPlanAt', { at: formatTimestamp(plan.at) })}</p>
-            <div className="table-wrap">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th scope="col">{t('requirement.splitPlanTask')}</th>
-                    <th scope="col">{t('requirement.splitPlanRole')}</th>
-                    <th scope="col">{t('requirement.splitPlanReason')}</th>
-                    <th scope="col">{t('requirement.splitPlanAction')}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {plan.entries.map((entry) => {
-                    const task = props.projection.tasks.find(item => item.id === entry.task)
-                    const outcome = assigns[entry.task]
-                    const diskRole = task?.role
-                    const done = diskRole !== undefined || ignored.has(entry.task) || outcome?.ok === true
-                    return (
-                      <tr key={entry.task} data-testid="requirement-split-plan-row" data-task-id={entry.task}>
-                        <td><span className="mono">{entry.task}</span> {task?.title ?? ''}</td>
-                        <td>{roleLabel(entry.role)}</td>
-                        <td>{entry.reason ?? '—'}</td>
-                        <td>
-                          {diskRole !== undefined
-                            ? (
-                              <Chip
-                                size="sm"
-                                variant="soft"
-                                color="success"
-                                className="tag"
-                                data-testid="requirement-split-plan-assigned"
-                                data-task-id={entry.task}
-                                data-role={diskRole}
-                              >
-                                {t('requirement.roleAssigned', { role: roleLabel(diskRole) })}
-                              </Chip>
-                            )
-                            : ignored.has(entry.task)
-                              ? <Chip size="sm" variant="soft" className="tag" data-testid="requirement-split-plan-status" data-ok="ignored">{t('requirement.roleIgnored')}</Chip>
-                              : outcome === undefined
-                                ? (
-                                  <div className="row-actions">
-                                    <Button
-                                      variant="secondary"
-                                      size="sm"
-                                      data-testid="requirement-split-plan-confirm"
-                                      data-task-id={entry.task}
-                                      isDisabled={busy !== null}
-                                      onPress={() => { void assign(entry) }}
-                                    >
-                                      {t('requirement.confirmRole')}
-                                    </Button>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      data-testid="requirement-split-plan-ignore"
-                                      data-task-id={entry.task}
-                                      isDisabled={busy !== null}
-                                      onPress={() => { ignore(entry.task) }}
-                                    >
-                                      {t('requirement.ignoreRole')}
-                                    </Button>
-                                  </div>
-                                )
-                                : (
-                                  <span
-                                    className={outcome.ok ? 'detail-line' : 'problem'}
-                                    data-testid="requirement-split-plan-status"
-                                    data-ok={outcome.ok ? 'true' : 'false'}
-                                  >
-                                    {outcome.text}
-                                  </span>
-                                )}
-                          {diskRole === undefined && !done && outcome !== undefined && (
-                            <div className="row-actions">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                data-testid="requirement-split-plan-retry"
-                                data-task-id={entry.task}
-                                isDisabled={busy !== null}
-                                onPress={() => { void assign(entry) }}
-                              >
-                                {t('requirement.confirmRole')}
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                data-testid="requirement-split-plan-ignore"
-                                data-task-id={entry.task}
-                                isDisabled={busy !== null}
-                                onPress={() => { ignore(entry.task) }}
-                              >
-                                {t('requirement.ignoreRole')}
-                              </Button>
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-            {planDone && (
-              <p className="detail-note" data-testid="requirement-split-plan-done">
-                <span>{t('requirement.splitPlanDone')}</span>
-                <Button variant="ghost" size="sm" data-testid="requirement-split-plan-tasks" onPress={props.onOpenTasks}>
-                  {t('requirement.splitPlanGoTasks')}
-                </Button>
-              </p>
-            )}
-          </section>
-        )}
-
-        <section className="detail-section" data-testid="requirement-related">
-          <Separator className="detail-divider" />
-          <div className="detail-drawer-head">
-            <h4>关联任务</h4>
-            {related.length > 0 && (
-              <Button variant="ghost" size="sm" data-testid="requirement-view-tasks" onPress={props.onOpenTasks}>
-                {t('requirement.opTasks')}
-              </Button>
-            )}
+            </section>
           </div>
-          {related.length === 0
-            ? <p className="empty">还没有拆出任务。</p>
-            : (
-              <ul className="plain-list compact">
-                {related.map(task => (
-                  <li key={task.id}>
-                    <Button variant="ghost" size="sm" data-testid="requirement-related-task" onPress={() => { props.onOpenTask(task.id) }}>
-                      <span className="mono">{task.id}</span> {task.title}
-                    </Button>
-                  </li>
-                ))}
-              </ul>
-            )}
-        </section>
-
+          {modify.open && (
+            <aside className="modify-pane" data-testid="requirement-modify-pane">
+              <h4>{t('requirement.modifyDrawerTitle')}</h4>
+              <p className="detail-note">{t('requirement.modifyHint', { id: row.id })}</p>
+              {modify.status === 'failed' && (
+                <p className="problem" data-testid="requirement-modify-failed">
+                  {t('requirement.modifyFailed', { detail: modify.error ?? '' })}
+                </p>
+              )}
+              <textarea
+                ref={noteRef}
+                className="new-requirement-input"
+                data-testid="requirement-modify-note"
+                value={modify.text}
+                placeholder={t('requirement.modifyPlaceholder')}
+                rows={8}
+                onChange={(event) => { props.onModifyTextChange?.(event.target.value) }}
+              />
+              <div className="action-row">
+                <Button
+                  variant="primary"
+                  data-testid="requirement-modify-start"
+                  isDisabled={modify.text.trim() === '' || modify.status === 'running'}
+                  onPress={() => { props.onModifySubmit?.() }}
+                >
+                  <Sparkles size={14} />
+                  {t('requirement.modifyStart')}
+                </Button>
+                <Button variant="secondary" data-testid="requirement-modify-cancel" onPress={() => { props.onModifyCancel?.() }}>
+                  {t('requirement.modifyCancel')}
+                </Button>
+              </div>
+              {modify.status === 'running' && (
+                <p className="detail-note" data-testid="requirement-modify-generating">{t('requirement.modifyGenerating')}</p>
+              )}
+              {modify.status === 'ready' && props.patchProposal !== undefined && (
+                <Button variant="secondary" data-testid="requirement-modify-view-diff" onPress={() => { props.onViewDiff?.() }}>
+                  {t('requirement.modifyViewDiff')}
+                </Button>
+              )}
+            </aside>
+          )}
+          {props.diffOpen === true && props.patchProposal !== undefined && (
+            <div className="detail-diff-host" data-testid="requirement-inline-compare">
+              <ProposalDiff
+                proposal={props.patchProposal.proposal}
+                change={props.patchProposal.change}
+                requirements={props.projection.requirements}
+                scopeSessionId={props.project.scopeSessionId}
+                onClose={() => { props.onCloseDiff?.() }}
+                onReload={props.onReload}
+                onApplied={props.onApplied}
+                closeLabel={t('compare.backToBody')}
+                t={t}
+              />
+            </div>
+          )}
+        </div>
       </DetailDrawer>
       {compareVersion !== null && (
         <div className="compare-layer" data-testid="requirement-version-compare" data-version={compareVersion}>
