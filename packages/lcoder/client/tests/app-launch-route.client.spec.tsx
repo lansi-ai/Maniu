@@ -148,6 +148,18 @@ async function press(testId: string): Promise<void> {
   await flush()
 }
 
+/** 全新项目立项需要先填一句想法才能开始。 */
+async function fillIdea(): Promise<void> {
+  const node = element('intake-idea-input') as HTMLTextAreaElement
+  expect(node).not.toBeNull()
+  await act(async () => {
+    // oxlint-disable-next-line typescript/unbound-method -- 原生 value setter 要用 call 绑定到该输入框。
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set
+    setter?.call(node, '做一个团队人员名单维护工具')
+    node.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+}
+
 async function renderApp(): Promise<void> {
   await act(async () => { root.render(<App />) })
   await flush()
@@ -188,6 +200,7 @@ describe('立项后台发起不跳转', () => {
     await renderApp()
     await press('nav-requirements')
     await press('intake-open')
+    await fillIdea()
     await press('intake-start')
 
     expect(element('page-requirements')).not.toBeNull()
@@ -206,6 +219,7 @@ describe('立项等待确认的宿主通道', () => {
     await renderApp()
     await press('nav-requirements')
     await press('intake-open')
+    await fillIdea()
     await press('intake-start')
     const sessionId = createdSessions[0]
     expect(sessionId).toBeDefined()

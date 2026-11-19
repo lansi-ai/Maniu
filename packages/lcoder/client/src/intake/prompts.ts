@@ -21,15 +21,25 @@ export type IntakeMode = 'fresh' | 'onboarding'
  * `maniu-intake` 人设承载；这里只给项目事实与第 0 步的读法，避免两处口径漂移。
  * @param project - 当前项目。
  * @param mode - 全新项目或已有资料。
+ * @param idea - 用户在向导里填的项目初步想法；仅全新项目档且非空时附到提示词。
  * @returns 可直接发送的提示词。
  */
-export function buildIntakePrompt(project: IntakeProject, mode: IntakeMode): string {
+export function buildIntakePrompt(project: IntakeProject, mode: IntakeMode, idea?: string): string {
   const head = mode === 'fresh' ? '全新项目立项：' : '已有资料立项：'
   const facts = `${project.name}（${project.path}，${project.branch}）`
   if (mode === 'fresh') {
+    const trimmedIdea = idea?.trim() ?? ''
+    const ideaNote = trimmedIdea === ''
+      ? ''
+      : `用户已说明的项目初步想法（第 1 问已答）："""
+${trimmedIdea}
+"""
+第 1 问"你想做一个什么软件"视为已答，跳过第 1 问：不要盲猜，也不要按仓库目录名猜软件类别；直接从第 2 问（主要给谁使用）及后续的核心功能、必须遵守的规则、验收标准开始，生成贴合该业务的选项逐题追问；用户描述里已经明确的信息跳过不重问。
+
+`
     return `${head}${facts}
 
-第 0 步 先看清仓库：
+${ideaNote}第 0 步 先看清仓库：
 - 用 file_list 看根目录与 .spec 是否存在，用 file_read 读实际存在的说明文档；不猜路径，不把不存在的文件说成已存在。
 - 能自己查到的技术信息（目录、仓库名、分支、现有文档）自己查，不要问不懂技术的用户。
 - 仓库是空的、没有远端、没有文档或测试，都不中止访谈：缺的项标「尚未提供」。`

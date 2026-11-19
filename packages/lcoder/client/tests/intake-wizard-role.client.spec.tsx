@@ -82,6 +82,16 @@ function element(testId: string): Element | null {
   return container.querySelector(`[data-testid="${testId}"]`)
 }
 
+/** 在想法输入框里输入一句话，触发 React 的受控更新。 */
+function typeIdea(value: string): void {
+  const node = element('intake-idea-input') as HTMLTextAreaElement
+  expect(node).not.toBeNull()
+  // oxlint-disable-next-line typescript/unbound-method -- 原生 value setter 要用 call 绑定到该输入框。
+  const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set
+  setter?.call(node, value)
+  node.dispatchEvent(new Event('input', { bubbles: true }))
+}
+
 describe('立项向导的角色名片', () => {
   it('显示人才库名册里的显示名与创建者，不重复两次角色名', async () => {
     const call = stub({ ok: true, value: { presets: [{ id: 'maniu-intake', name: '产品需求分析', isDefault: false }] } })
@@ -112,6 +122,7 @@ describe('非空项目的立项阻塞', () => {
     expect(element('intake-blocked')?.textContent).toContain('只对空项目开放')
     expect(element('intake-start')).toBeNull()
     expect(element('intake-prompt')).toBeNull()
+    expect(element('intake-idea-section')).toBeNull()
     act(() => { (element('intake-blocked-open') as HTMLElement).click() })
     expect(onClose).toHaveBeenCalledTimes(1)
   })
@@ -128,7 +139,7 @@ describe('内部指令预览已移除', () => {
 })
 
 describe('档位切换与立项发送', () => {
-  it('默认全新项目档，点开始立项发送全新项目提示词', async () => {
+  it('默认全新项目档：想法未填时开始禁用，填一句后解锁并把想法送进提示词', async () => {
     stub({ ok: true, value: { presets: [] } })
     let sent = ''
     const onStart = vi.fn(async (prompt: string) => {
@@ -138,13 +149,20 @@ describe('档位切换与立项发送', () => {
     await render({ onStart })
     expect((element('intake-mode-fresh') as HTMLElement).getAttribute('aria-checked')).toBe('true')
     expect((element('intake-mode-onboarding') as HTMLElement).getAttribute('aria-checked')).toBe('false')
-    expect(element('intake-start')).not.toBeNull()
+    expect(element('intake-idea-section')).not.toBeNull()
+    expect(element('intake-idea-input')).not.toBeNull()
+    expect((element('intake-start') as HTMLButtonElement).disabled).toBe(true)
+    act(() => { (element('intake-start') as HTMLElement).click() })
+    expect(onStart).not.toHaveBeenCalled()
+    act(() => { typeIdea('做一个团队人员名单维护工具') })
+    expect((element('intake-start') as HTMLButtonElement).disabled).toBe(false)
     act(() => { (element('intake-start') as HTMLElement).click() })
     expect(onStart).toHaveBeenCalledTimes(1)
     expect(sent).toContain('全新项目立项：')
+    expect(sent).toContain('做一个团队人员名单维护工具')
   })
 
-  it('切到已有资料档后点开始立项发送已有资料提示词', async () => {
+  it('切到已有资料档后想法可选填，点开始立项发送已有资料提示词', async () => {
     stub({ ok: true, value: { presets: [] } })
     let sent = ''
     const onStart = vi.fn(async (prompt: string) => {
@@ -155,6 +173,8 @@ describe('档位切换与立项发送', () => {
     act(() => { (element('intake-mode-onboarding') as HTMLElement).click() })
     expect((element('intake-mode-onboarding') as HTMLElement).getAttribute('aria-checked')).toBe('true')
     expect((element('intake-mode-fresh') as HTMLElement).getAttribute('aria-checked')).toBe('false')
+    expect(element('intake-idea-section')).toBeNull()
+    expect((element('intake-start') as HTMLButtonElement).disabled).toBe(false)
     act(() => { (element('intake-start') as HTMLElement).click() })
     expect(onStart).toHaveBeenCalledTimes(1)
     expect(sent).toContain('已有资料立项：')

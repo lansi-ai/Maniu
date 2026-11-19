@@ -1,6 +1,6 @@
 /** 立项向导与结果页：选择档位、发送并在结果里查看新需求。 */
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { JSX } from 'react'
 import { Button, Card, Separator } from '@heroui/react'
 import { Check, FileSearch, FolderGit2, Rocket, Sparkles, UserCheck } from 'lucide-react'
@@ -46,6 +46,7 @@ export interface IntakeWizardProps {
 export function IntakeWizard(props: IntakeWizardProps): JSX.Element {
   const t = props.t ?? zhText
   const [mode, setMode] = useState<IntakeMode>('fresh')
+  const [idea, setIdea] = useState('')
   const [busy, setBusy] = useState(false)
   const [failure, setFailure] = useState<string | null>(null)
   const [rosterName, setRosterName] = useState<string | null>(null)
@@ -61,23 +62,21 @@ export function IntakeWizard(props: IntakeWizardProps): JSX.Element {
     return () => { live = false }
   }, [])
 
-  const prompt = useMemo(() => buildIntakePrompt({
-    name: props.project.title,
-    path: props.project.path,
-    branch: props.projection.project?.branch ?? '—',
-    docs: {
-      product: props.projection.project?.docs.product ?? '',
-      architecture: props.projection.project?.docs.architecture ?? '',
-      tests: props.projection.project?.docs.tests ?? '',
-    },
-  }, mode), [mode, props.project.path, props.project.title, props.projection.project])
-
   const start = async (): Promise<void> => {
     if (busy) return
     setBusy(true)
     setFailure(null)
     try {
-      const answer = await props.onStart(prompt)
+      const answer = await props.onStart(buildIntakePrompt({
+        name: props.project.title,
+        path: props.project.path,
+        branch: props.projection.project?.branch ?? '—',
+        docs: {
+          product: props.projection.project?.docs.product ?? '',
+          architecture: props.projection.project?.docs.architecture ?? '',
+          tests: props.projection.project?.docs.tests ?? '',
+        },
+      }, mode, idea))
       if (!answer.ok) setFailure(answer.message)
     } finally {
       setBusy(false)
@@ -177,9 +176,27 @@ export function IntakeWizard(props: IntakeWizardProps): JSX.Element {
               </Card.Content>
             </Card>
 
+            {mode === 'fresh' && (
+              <Card className="intake-section" data-testid="intake-idea-section">
+                <Card.Header><Card.Title>{t('intake.ideaLabel')}</Card.Title></Card.Header>
+                <Separator />
+                <Card.Content>
+                  <p className="intake-idea-hint">{t('intake.ideaHint')}</p>
+                  <textarea
+                    className="intake-idea-input"
+                    data-testid="intake-idea-input"
+                    rows={3}
+                    value={idea}
+                    placeholder={t('intake.ideaPlaceholder')}
+                    onChange={(event) => { setIdea(event.target.value) }}
+                  />
+                </Card.Content>
+              </Card>
+            )}
+
             {failure !== null && <p className="problem" data-testid="intake-error">{failure}</p>}
             <div className="intake-actions">
-              <Button variant="primary" data-testid="intake-start" isDisabled={busy} onPress={() => { void start() }}>
+              <Button variant="primary" data-testid="intake-start" isDisabled={busy || (mode === 'fresh' && idea.trim() === '')} onPress={() => { void start() }}>
                 <Sparkles size={16} aria-hidden="true" />
                 {busy ? t('intake.sending') : t('intake.start')}
               </Button>

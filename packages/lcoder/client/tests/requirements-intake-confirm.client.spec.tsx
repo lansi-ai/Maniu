@@ -131,10 +131,23 @@ function harness(): Harness {
   return h
 }
 
+/** 全新项目立项需要先填一句想法才能开始。 */
+async function fillIdea(): Promise<void> {
+  const node = element('intake-idea-input') as HTMLTextAreaElement
+  expect(node).not.toBeNull()
+  await act(async () => {
+    // oxlint-disable-next-line typescript/unbound-method -- 原生 value setter 要用 call 绑定到该输入框。
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set
+    setter?.call(node, '做一个团队人员名单维护工具')
+    node.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+}
+
 /** 走真实入口后台发起立项：向导收起，浮卡接管。 */
 async function startIntake(h: Harness): Promise<void> {
   h.render(projectionOf([]), [])
   await press('intake-open')
+  await fillIdea()
   await press('intake-start')
   expect(element('intake-wizard')).toBeNull()
   expect(element('requirement-op-running')).not.toBeNull()
