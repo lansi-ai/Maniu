@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import type { JSX } from 'react'
 import { Button, Card, ListBox, Select, Separator, Switch } from '@heroui/react'
-import { Globe, Info, Moon, Palette, RefreshCw, Sun, Type } from 'lucide-react'
+import { Globe, Info, Palette, RefreshCw, Type } from 'lucide-react'
 import type { LocaleId, MessageKey, Translate } from '../locale.ts'
 import { APPEARANCES, FONTS, type AppearanceId, type FontId, type PreferencesHandle } from '../prefs.ts'
 import { ModelPanel } from './model-panel.tsx'
@@ -34,6 +34,20 @@ const LOCALE_KEY: Readonly<Record<LocaleId, MessageKey>> = {
 }
 
 /**
+ * 取宿主地址的基础地址，去掉查询串中的令牌。
+ * @param value - 宿主 IPC 返回的地址。
+ * @returns 仅含协议、主机与端口的地址。
+ */
+function hostOriginOf(value: string): string {
+  try {
+    return new URL(value).origin
+  } catch {
+    // 地址不是合法绝对 URL 时退回去掉查询串的原值，不显示令牌。
+    return value.split('?')[0] ?? value
+  }
+}
+
+/**
  * 设置页。
  * @param props - 词典与偏好。
  * @returns Bento 分组卡片；外观、字体与语言直接写回 prefs。
@@ -54,6 +68,8 @@ export function SettingsPage({ t, prefs }: SettingsPageProps): JSX.Element {
     prefs.setFont(key)
   }
 
+  const hostOrigin = hostUrl === null ? null : hostOriginOf(hostUrl)
+
   return (
     <section className="page settings-page" data-testid="page-settings">
       <header className="page-head">
@@ -73,30 +89,6 @@ export function SettingsPage({ t, prefs }: SettingsPageProps): JSX.Element {
               <Card.Title>{t('settings.appearance')}</Card.Title>
               <Card.Description>{t('settings.skinHint')}</Card.Description>
             </div>
-            <div className="appearance-quick" role="group" aria-label={t('settings.skin')}>
-              <Button
-                isIconOnly
-                size="sm"
-                variant="ghost"
-                className={prefs.skin === 'light' ? 'quick-mode gradient-primary' : 'quick-mode'}
-                data-testid="settings-quick-light"
-                aria-label={t('settings.appearanceLight')}
-                onPress={() => { prefs.setSkin('light') }}
-              >
-                <Sun />
-              </Button>
-              <Button
-                isIconOnly
-                size="sm"
-                variant="ghost"
-                className={prefs.skin === 'dark' ? 'quick-mode gradient-primary' : 'quick-mode'}
-                data-testid="settings-quick-dark"
-                aria-label={t('settings.appearanceDark')}
-                onPress={() => { prefs.setSkin('dark') }}
-              >
-                <Moon />
-              </Button>
-            </div>
           </Card.Header>
           <Separator className="bento-divider" />
           <Card.Content className="bento-card-body">
@@ -106,11 +98,7 @@ export function SettingsPage({ t, prefs }: SettingsPageProps): JSX.Element {
                 {APPEARANCES.map(appearance => (
                   <Button
                     key={appearance}
-                    className={
-                      prefs.skin === appearance
-                        ? 'bento-segment active gradient-primary'
-                        : 'bento-segment'
-                    }
+                    className={prefs.skin === appearance ? 'bento-segment active' : 'bento-segment'}
                     data-testid={`settings-appearance-${appearance}`}
                     aria-pressed={prefs.skin === appearance}
                     variant={prefs.skin === appearance ? 'primary' : 'secondary'}
@@ -147,28 +135,31 @@ export function SettingsPage({ t, prefs }: SettingsPageProps): JSX.Element {
           </Card.Header>
           <Separator className="bento-divider" />
           <Card.Content className="bento-card-body">
-            <Select
-              className="bento-select"
-              data-testid="settings-font-select"
-              value={prefs.font}
-              onChange={selectFont}
-              aria-label={t('settings.font')}
-              variant="secondary"
-            >
-              <Select.Trigger>
-                <Select.Value />
-                <Select.Indicator />
-              </Select.Trigger>
-              <Select.Popover>
-                <ListBox>
-                  {FONTS.map(font => (
-                    <ListBox.Item key={font} id={font} data-testid={`settings-font-${font}`}>
-                      {t(FONT_KEY[font])}
-                    </ListBox.Item>
-                  ))}
-                </ListBox>
-              </Select.Popover>
-            </Select>
+            <div className="bento-row">
+              <span className="settings-label">{t('settings.interfaceFont')}</span>
+              <Select
+                className="bento-select"
+                data-testid="settings-font-select"
+                value={prefs.font}
+                onChange={selectFont}
+                aria-label={t('settings.font')}
+                variant="secondary"
+              >
+                <Select.Trigger>
+                  <Select.Value />
+                  <Select.Indicator />
+                </Select.Trigger>
+                <Select.Popover>
+                  <ListBox>
+                    {FONTS.map(font => (
+                      <ListBox.Item key={font} id={font} data-testid={`settings-font-${font}`}>
+                        {t(FONT_KEY[font])}
+                      </ListBox.Item>
+                    ))}
+                  </ListBox>
+                </Select.Popover>
+              </Select>
+            </div>
           </Card.Content>
         </Card>
 
@@ -188,11 +179,7 @@ export function SettingsPage({ t, prefs }: SettingsPageProps): JSX.Element {
                 {(['zh', 'en'] as const).map(locale => (
                   <Button
                     key={locale}
-                    className={
-                      prefs.locale === locale
-                        ? 'bento-segment active gradient-primary'
-                        : 'bento-segment'
-                    }
+                    className={prefs.locale === locale ? 'bento-segment active' : 'bento-segment'}
                     data-testid={`settings-locale-${locale}`}
                     aria-pressed={prefs.locale === locale}
                     variant={prefs.locale === locale ? 'primary' : 'secondary'}
@@ -236,7 +223,9 @@ export function SettingsPage({ t, prefs }: SettingsPageProps): JSX.Element {
           </Card.Header>
           <Separator className="bento-divider" />
           <Card.Content className="bento-card-body">
-            {hostUrl === null ? null : <p className="settings-muted">{t('settings.aboutHost', { url: hostUrl })}</p>}
+            {hostOrigin === null ? null : (
+              <p className="settings-muted" data-testid="settings-about-host">{t('settings.aboutHost', { url: hostOrigin })}</p>
+            )}
           </Card.Content>
         </Card>
       </div>
