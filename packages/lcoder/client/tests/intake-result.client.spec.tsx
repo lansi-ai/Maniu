@@ -212,9 +212,8 @@ describe('非空项目的立项准入', () => {
     renderPage(WITH_REQUIREMENT, null)
     const open = element('intake-open') as HTMLButtonElement
     expect(open.disabled).toBe(true)
-    expect(element('requirement-intake-blocked')?.textContent).toContain('不能再做立项分析')
-    await press('requirement-intake-blocked-open')
-    expect(element('requirement-detail')).not.toBeNull()
+    expect(open.parentElement?.getAttribute('title')).toContain('不能再做立项分析')
+    expect(element('requirement-intake-blocked')).toBeNull()
     expect(element('intake-wizard')).toBeNull()
   })
 

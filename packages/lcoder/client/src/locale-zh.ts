@@ -45,7 +45,6 @@ export const ZH = {
   'flow.projectMissing': '先选择一个项目',
   'flow.startSent': '指令已发送到会话 {id}；模型会先访谈，确认需求后才落盘。',
   'requirement.intakeBlocked': '项目已有需求或任务，不能再做立项分析。',
-  'requirement.intakeBlockedOpen': '查看 {id}',
   'requirement.colOpened': '创建时间',
   'requirement.colActions': '操作',
   'requirement.opReview': '评审',
