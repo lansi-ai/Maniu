@@ -4,7 +4,8 @@
  * 为什么单独一条命令、不让 `requirement_draft` 顺带写：起草与确认是两件事——正文写得再细，
  * 确认与否是人的决定。与 `contract_sign`、`proposal_approve` 同一档纪律。
  *
- * 过审门槛：至少一轮评审，且当前正文有对应版本快照；有 `.spec/flow.yaml` 时
+ * 过审门槛：至少一轮评审，且所有轮次都已处置（采纳或放弃）——未决轮次要先由人
+ * 「采纳并修改需求」或「放弃本轮意见」；当前正文有对应版本快照。有 `.spec/flow.yaml` 时
  * 再加一条——review 节点按配置顺序逐条目消费评审轮：条目的根（内置 preset 的
  * 角色或名册岗位的 inherits）须等于该轮署名 preset 的内置根，一轮只消费给一个
  * 条目；旧式无署名轮不可消费。过审时写 `approved_at` 与
@@ -49,7 +50,7 @@ export function createRequirementApproveCommand(
 ): RequirementApproveDefinition {
   return {
     name: 'requirement_approve',
-    description: '确认一条起草态需求，把状态从起草改为已确认（要求正文已存在、至少一轮评审；有流程配置时评审节点按根匹配一轮一岗配齐）',
+    description: '确认一条起草态需求，把状态从起草改为已确认（要求正文已存在、至少一轮评审且全部已处置；有流程配置时评审节点按根匹配一轮一岗配齐）',
     input: { hint: '<需求编号>' },
     handler: invocation => approve(rootInput, invocation, now),
   }
@@ -103,6 +104,17 @@ function approve(
     return {
       kind: 'error',
       text: `${id} 还没有评审记录；过审前至少要有 1 轮评审（由项目经理用 requirement_review_draft 落报告）`,
+    }
+  }
+
+  const pending = requirement.reviews
+    .filter(review => review.decision === undefined || review.decision === 'pending')
+    .sort((left, right) => left.round - right.round)
+  if (pending.length > 0) {
+    const rounds = pending.map(review => `R${String(review.round)}`).join('、')
+    return {
+      kind: 'error',
+      text: `${id} 尚有未处理的评审（${rounds}），请先「采纳并修改需求」或「放弃本轮意见」后再确认定稿`,
     }
   }
 

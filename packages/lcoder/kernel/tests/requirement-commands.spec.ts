@@ -14,7 +14,7 @@ import { createRequirementApproveCommand } from '../src/commands/requirement-app
 import { createRequirementCloseCommand } from '../src/commands/requirement-close.js'
 import { createRequirementReleaseCommand } from '../src/commands/requirement-release.js'
 import { createRequirementReviewDecideCommand } from '../src/commands/requirement-review-decide.js'
-import { loadRequirement, requirementVersionPath, reviewStaleReason, saveRequirement } from '../src/kernel/requirement-store.js'
+import { loadRequirement, requirementVersionPath, reviseRequirement, reviewStaleReason, saveRequirement } from '../src/kernel/requirement-store.js'
 import { saveTask } from '../src/kernel/task-store.js'
 import { Requirement } from '../src/schema/spec.js'
 import type { RequirementState, TaskState } from '../src/schema/spec.js'
@@ -46,14 +46,19 @@ function writeRequirement(root: string, state: RequirementState = 'draft', withD
   return requirement
 }
 
-function addReview(root: string, round = 1): void {
+function addReview(root: string, round = 1, decision?: 'accepted' | 'rejected' | 'pending'): void {
   const requirement = loadRequirement(root, 'REQ-01')
   const relative = `requirements/REQ-01/reviews/R${String(round)}.md`
   mkdirSync(join(root, 'requirements', 'REQ-01', 'reviews'), { recursive: true })
   writeFileSync(join(root, relative), '# 评审报告\n', 'utf8')
   saveRequirement(root, {
     ...requirement,
-    reviews: [...requirement.reviews, { round, at: AT, report: relative }],
+    reviews: [...requirement.reviews, {
+      round,
+      at: AT,
+      report: relative,
+      ...(decision === undefined ? {} : { decision }),
+    }],
   })
 }
 
@@ -85,7 +90,7 @@ describe('需求确认命令', () => {
   it('起草态、有正文且有一轮评审：写状态、确认时刻与批准版本，旧需求补 v1', () => {
     const root = makeSpec()
     const before = writeRequirement(root)
-    addReview(root)
+    addReview(root, 1, 'accepted')
 
     const result = approve(root, 'REQ-01')
     expect(result).toMatchObject({ kind: 'success' })
@@ -110,6 +115,47 @@ describe('需求确认命令', () => {
     expect(loadRequirement(root, 'REQ-01').state).toBe('draft')
   })
 
+  it('有未决评审时拒绝过审，按轮次升序列出未处理轮次', () => {
+    const root = makeSpec()
+    writeRequirement(root)
+    addReview(root, 1)
+    addReview(root, 2, 'pending')
+
+    const result = approve(root, 'REQ-01')
+    expect(result).toMatchObject({ kind: 'error' })
+    const text = result.kind === 'error' ? result.text : ''
+    expect(text).toContain('尚有未处理的评审（R1、R2）')
+    expect(text).toContain('采纳并修改需求')
+    expect(text).toContain('放弃本轮意见')
+    expect(loadRequirement(root, 'REQ-01').state).toBe('draft')
+  })
+
+  it('全部评审已放弃时放行过审', () => {
+    const root = makeSpec()
+    writeRequirement(root)
+    addReview(root, 1, 'rejected')
+    addReview(root, 2, 'rejected')
+
+    expect(approve(root, 'REQ-01')).toMatchObject({ kind: 'success' })
+    expect(loadRequirement(root, 'REQ-01').state).toBe('confirmed')
+  })
+
+  it('改稿自动把未决轮次标为 accepted 后放行过审', () => {
+    const root = makeSpec()
+    writeRequirement(root)
+    addReview(root, 1, 'pending')
+
+    const revised = reviseRequirement(root, 'REQ-01', {
+      content: '# 佣金改造\n\n已采纳意见后改稿。\n',
+      at: '2026-11-13T13:00:00+08:00',
+    })
+    expect(revised.requirement.reviews[0]).toMatchObject({
+      decision: 'accepted', applied_version: revised.version,
+    })
+    expect(approve(root, 'REQ-01')).toMatchObject({ kind: 'success' })
+    expect(loadRequirement(root, 'REQ-01').state).toBe('confirmed')
+  })
+
   it('已有版本时批准版本指向当前正文；正文与最新快照不一致时追加一版', () => {
     const root = makeSpec()
     writeRequirement(root)
@@ -119,7 +165,7 @@ describe('需求确认命令', () => {
       ...loadRequirement(root, 'REQ-01'),
       versions: [{ n: 1, at: '2026-11-13T10:00:00+08:00' }],
     })
-    addReview(root)
+    addReview(root, 1, 'accepted')
     writeFileSync(join(root, 'requirements', 'REQ-01.md'), '# 新正文\n', 'utf8')
 
     const result = approve(root, 'REQ-01')
