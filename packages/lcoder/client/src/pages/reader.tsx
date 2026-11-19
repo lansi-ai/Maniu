@@ -74,13 +74,17 @@ export function ReaderOverlay(props: ReaderOverlayProps): JSX.Element {
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
+      // 说明栏等输入框聚焦时不接管缩放键；Esc 仍由最上层容器处理。
+      const target = event.target
+      const typing = target instanceof HTMLElement
+        && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
       switch (event.key) {
         case 'Escape': event.stopPropagation(); props.onClose(); break
         case '+':
-        case '=': zoomBy(ZOOM_STEP); break
+        case '=': if (typing) return; zoomBy(ZOOM_STEP); break
         case '-':
-        case '_': zoomBy(-ZOOM_STEP); break
-        case '0': resetZoom(); break
+        case '_': if (typing) return; zoomBy(-ZOOM_STEP); break
+        case '0': if (typing) return; resetZoom(); break
         default: return
       }
       event.preventDefault()
@@ -164,7 +168,7 @@ export function ReaderOverlay(props: ReaderOverlayProps): JSX.Element {
           {loaded.status === 'ready' && loaded.text.trim() === '' && <p className="empty" data-testid="reader-empty">文档为空。</p>}
           {loaded.status === 'ready' && loaded.text.trim() !== '' && (
             <article
-              className="reader-doc"
+              className="markdown-body reader-doc"
               data-testid="reader-doc"
               style={{ '--reader-zoom': zoom / ZOOM_BASE } as CSSProperties}
             >

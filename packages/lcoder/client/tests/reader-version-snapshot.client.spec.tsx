@@ -56,4 +56,26 @@ describe('版本快照阅读', () => {
     }
     expect(reads).toEqual(Object.keys(SNAPSHOTS).map(path => ({ scope: 'session-scope', path })))
   })
+
+  it('阅读器正文复用 markdown-body 语义排版与不透明表面类', async () => {
+    await open('.spec/requirements/REQ-01/versions/v2.md')
+    const doc = container.querySelector('[data-testid="reader-doc"]') as HTMLElement
+    expect(doc.className).toContain('markdown-body')
+    expect(doc.className).toContain('reader-doc')
+    expect(doc.querySelector('h1')?.textContent).toContain('版本二')
+    expect((container.querySelector('.reader-panel') as HTMLElement).className).toContain('reader-panel')
+  })
+
+  it('输入框聚焦时键入 + - = 0 不触发阅读器缩放', async () => {
+    await open('.spec/requirements/REQ-01/versions/v2.md')
+    const input = document.createElement('textarea')
+    container.append(input)
+    input.focus()
+    for (const key of ['+', '=', '-', '0']) {
+      act(() => { input.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true })) })
+    }
+    expect(container.querySelector('[data-testid="reader-zoom"]')?.textContent).toBe('100%')
+    act(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key: '+' })) })
+    expect(container.querySelector('[data-testid="reader-zoom"]')?.textContent).toBe('110%')
+  })
 })

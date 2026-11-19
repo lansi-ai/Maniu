@@ -295,7 +295,7 @@ describe('四态操作栏与指引句', () => {
 })
 
 describe('头部标题三区', () => {
-  it('大标题取 row.title，状态徽标与 REQ 编号同排；正文预览已移除，阅读器入口仍在', async () => {
+  it('大标题取 row.title，状态徽标与 REQ 编号同排；正文内联在详情主区，阅读器入口仍在', async () => {
     await renderDetail(DRAFT, callsOf())
     const title = element('requirement-detail-title')
     expect(title?.textContent).toBe('佣金改造')
@@ -303,7 +303,10 @@ describe('头部标题三区', () => {
     expect(element('requirement-state-badge')?.textContent).toBe('草稿')
     expect(element('requirement-state-badge')?.className).toContain('state-draft')
     expect(element('requirement-detail-id')?.textContent).toBe('REQ-01')
-    expect(element('requirement-document')).toBeNull()
+    const body = element('requirement-document-body')
+    expect(body).not.toBeNull()
+    expect(body?.className).toContain('markdown-body')
+    expect(body?.querySelector('h1')?.textContent).toContain('文档自带大标题')
     expect(element('requirement-open-reader')).not.toBeNull()
   })
 
@@ -389,12 +392,15 @@ describe('确认需求的配齐口径', () => {
   })
 })
 
-describe('正文预览板块已移除', () => {
-  it('详情不再渲染正文预览或展开开关，仍可从快速工具打开阅读器', async () => {
+describe('当前正文内联在详情主区', () => {
+  it('打开即可读完整 Markdown 正文，不再需要折叠开关，仍可从快速工具打开全屏阅读器', async () => {
     await renderDetail(DRAFT, callsOf())
-    expect(element('requirement-document')).toBeNull()
+    const body = element('requirement-document-body')
+    expect(body).not.toBeNull()
+    expect(body?.className).toContain('markdown-body')
+    expect(body?.textContent).toContain('这是正文的第 1 行')
+    expect(body?.textContent).toContain('这是正文的第 12 行')
     expect(element('requirement-document-preview')).toBeNull()
-    expect(element('requirement-document-body')).toBeNull()
     expect(element('requirement-document-empty')).toBeNull()
     expect(element('requirement-body-toggle')).toBeNull()
     expect(element('requirement-open-reader')).not.toBeNull()
@@ -494,8 +500,9 @@ describe('阶段进度 chips', () => {
     const calls = callsOf()
     await renderDetail(DRAFT, calls)
     const body = container.querySelector('.detail-drawer-body')
-    const sections = body?.querySelectorAll(':scope > section') ?? []
-    expect(sections[0]?.getAttribute('data-testid')).toBe('requirement-timeline')
+    const sections = body?.querySelectorAll('.detail-content-pane > section') ?? []
+    expect(sections[0]?.getAttribute('data-testid')).toBe('requirement-document')
+    expect(sections[1]?.getAttribute('data-testid')).toBe('requirement-timeline')
     expect(body?.querySelector('.timeline-chips')).not.toBeNull()
     expect(element('requirement-timeline-approved')?.textContent).toContain('尚未过审')
 
