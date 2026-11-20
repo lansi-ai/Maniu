@@ -30,6 +30,7 @@ export const BUILTIN_FLOW_PRESETS: readonly string[] = [
   'maniu-scheduler',
   'maniu-flow',
   'maniu-manager',
+  'maniu-prototype',
 ]
 
 /** 内置 preset 的词典回退键；名册显示名优先于它。 */
@@ -45,6 +46,7 @@ export const PRESET_ROLE_KEY: Readonly<Record<string, MessageKey>> = {
   'maniu-flow': 'op.roleName.flow',
   'maniu-manager': 'op.roleName.manager',
   'maniu-requirement-editor': 'op.roleName.requirementEditor',
+  'maniu-prototype': 'op.roleName.prototype',
 }
 
 /**

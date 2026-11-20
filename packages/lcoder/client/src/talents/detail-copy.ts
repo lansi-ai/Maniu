@@ -14,6 +14,7 @@ const PERSONA_SUMMARIES: Readonly<Record<string, MessageKey>> = {
   'maniu-scheduler': 'talents.personaSummary.maniu-scheduler',
   'maniu-flow': 'talents.personaSummary.maniu-flow',
   'maniu-manager': 'talents.personaSummary.maniu-manager',
+  'maniu-prototype': 'talents.personaSummary.maniu-prototype',
 }
 
 /** 工具面的白话说明；只影响显示，工具名与 schema 不变。 */
@@ -39,6 +40,7 @@ const TOOL_COPIES: Readonly<Record<string, MessageKey>> = {
   task_close: 'talents.tool.task_close',
   deliverable_draft: 'talents.tool.deliverable_draft',
   ask_user_question: 'talents.tool.ask_user_question',
+  prototype_draft: 'talents.tool.prototype_draft',
   subagent: 'talents.tool.subagent',
 }
 

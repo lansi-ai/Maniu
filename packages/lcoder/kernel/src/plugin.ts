@@ -31,6 +31,7 @@ import { createEditTools, spawnRunner } from './tools/edit-tools.js'
 import { createDeliverableTools } from './tools/deliverable-tools.js'
 import { createGitTools } from './tools/git-tools.js'
 import { createProjectTools } from './tools/project-tools.js'
+import { createPrototypeTools } from './tools/prototype-tools.js'
 import { createProposalTools } from './tools/proposal-tools.js'
 import { createRequirementTools } from './tools/requirement-tools.js'
 import { createRoleTools } from './tools/role-tools.js'
@@ -155,6 +156,7 @@ export function apply(ctx: PluginContext, config: LcoderConfig = {}): void {
     ...createRoleTools(rootInput),
     ...createProposalTools(rootInput),
     ...createRequirementTools(rootInput),
+    ...createPrototypeTools(rootInput),
     ...createGitTools(repoRootInput),
     ...createEditTools(rootInput, { run: spawnRunner, repoRoot: repoRootInput, scope: allowedPaths }),
   ]

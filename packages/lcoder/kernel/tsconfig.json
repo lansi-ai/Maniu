@@ -45,6 +45,9 @@
     },
     {
       "path": "../../typert/protocol"
+    },
+    {
+      "path": "../../web/web"
     }
   ]
 }

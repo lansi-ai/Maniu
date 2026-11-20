@@ -498,13 +498,60 @@ export const RequirementReview = z.object({
 export type RequirementReview = z.infer<typeof RequirementReview>
 
 /**
+ * 一条需求的 HTML 原型登记：HTML 本体在 `prototypes/<ID>/index.html`，
+ * 这里只记路径、生成时刻与生成时用的参考。
+ *
+ * 这是后加的可选字段：旧需求没有它照样解析，不触发持久化格式版本变更。
+ */
+/**
+ * 原型质量门禁的结果：通过项、失败项与关键词命中情况。
+ *
+ * 失败项只出现在返回给会话的回执里；落盘登记的都是通过后的记录。
+ */
+export const RequirementPrototypeQuality = z
+  .object({
+    passed: z.array(z.string()).default([]),
+    failed: z.array(z.object({ code: z.string().min(1), message: z.string().min(1) })).default([]),
+    keywordHitRate: z.number().min(0).max(1),
+    keywords: z.array(z.string()).default([]),
+    hits: z.array(z.string()).default([]),
+    misses: z.array(z.string()).default([]),
+  })
+  .strict()
+/** 原型质量门禁结果的展示类型。 */
+export type RequirementPrototypeQuality = z.infer<typeof RequirementPrototypeQuality>
+
+/**
+ * 一条需求的 HTML 原型登记：路径、生成时刻、参考与质量结果。
+ */
+export const RequirementPrototype = z
+  .object({
+    /** 规格根相对路径，形如 `prototypes/REQ-01/index.html`。 */
+    path: z.string().min(1),
+    /** 原型生成时刻。 */
+    generatedAt: IsoDateTime,
+    /** 生成时用的网页样式摘要；缺省表示没有参考网页。 */
+    referenceSummary: z.string().optional(),
+    /** 生成时用的参考图规格根相对路径；缺省为空数组。 */
+    references: z.array(z.string()).default([]),
+    /** 最近一次通过的质量校验结果；旧记录缺省。 */
+    quality: RequirementPrototypeQuality.optional(),
+    /** 人采纳的时刻；未采纳缺省。 */
+    adoptedAt: IsoDateTime.optional(),
+  })
+  .strict()
+/** 需求原型的展示类型。 */
+export type RequirementPrototype = z.infer<typeof RequirementPrototype>
+
+/**
  * `.spec/requirements/REQ-01.yaml`：一条需求的元数据，正文写在同名 `.md`。
  *
  * 正文不塞进 YAML：需求文档是给人读的 Markdown，与任务、方案共用「YAML 记事实、
  * 同名文件记正文」的约定。四个时刻都可缺省——只有对应状态真的到达过才写。
  *
  * `versions` 与 `reviews` 都缺省为空数组，旧文件照常解析；`approved_at` 与
- * `approved_version` 只在人过审时写，指向过审那一刻的正文版本。
+ * `approved_version` 只在人过审时写，指向过审那一刻的正文版本。`prototype`
+ * 是后加的可选登记，旧文件没有它照样解析。
  */
 export const Requirement = z
   .object({
@@ -527,6 +574,8 @@ export const Requirement = z
     approved_at: IsoDateTime.optional(),
     /** 人过审时锁定的正文版本号；未过审缺省。 */
     approved_version: z.number().int().positive().optional(),
+    /** HTML 原型登记；旧需求缺省，不影响解析。 */
+    prototype: RequirementPrototype.optional(),
   })
   .strict()
 export type Requirement = z.infer<typeof Requirement>
