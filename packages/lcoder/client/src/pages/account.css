@@ -371,15 +371,15 @@
   opacity: 0.85;
 }
 
-/* 提交键：HeroUI Button 强调渐变。 */
+/* 提交键：沿用 T-293 高对比反色胶囊主按钮，仅保留登录页布局细节。 */
 #root .login-submit.button {
   margin-top: 6px;
   min-height: 44px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
+  border: 1px solid transparent;
+  border-radius: 999px;
   font-size: 14px;
   font-weight: 600;
-  color: var(--accent-foreground);
+  color: var(--primary-pill-fg);
 }
 #root .login-submit.button:hover { filter: brightness(1.06); }
 #root .login-submit.button:disabled { opacity: 0.55; cursor: not-allowed; }

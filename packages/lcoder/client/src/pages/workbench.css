@@ -10,10 +10,10 @@
   width: 188px;
   flex: 0 0 188px;
   padding: 12px 10px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--glass-divider);
   border-radius: 18px;
-  background: var(--surface);
-  box-shadow: var(--surface-shadow);
+  background: var(--glass-surface);
+  box-shadow: none;
 }
 
 .nav-item {
@@ -35,15 +35,15 @@
 .nav-label { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .nav-item:hover {
-  background: var(--surface-secondary);
-  border-color: var(--border);
+  background: var(--glass-surface-elevated);
+  border-color: var(--glass-border);
   color: var(--foreground);
 }
 .nav-item:active { transform: scale(0.985); }
 .nav-item.active {
-  background: var(--accent-soft);
-  border-color: color-mix(in oklab, var(--accent) 32%, transparent);
-  color: var(--accent-soft-foreground);
+  background: var(--glass-surface-elevated);
+  border-color: var(--glass-border);
+  color: var(--foreground);
   font-weight: 600;
 }
 
@@ -80,7 +80,7 @@
   padding: 0 4px;
 }
 
-.page-head h2 { margin: 0; font-size: 18px; font-weight: 600; color: var(--foreground); }
+.page-head h2 { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: -0.02em; color: var(--foreground); }
 .page-sub { margin: 4px 0 0; font-size: 12px; color: var(--muted); }
 .page-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
@@ -144,9 +144,9 @@
 .tag {
   display: inline-block;
   padding: 1px 7px;
-  border: 1px solid var(--separator);
+  border: 1px solid var(--glass-border);
   border-radius: 999px;
-  background: var(--surface-secondary);
+  background: var(--glass-surface);
   font-size: 11px;
   color: var(--foreground);
   white-space: nowrap;
@@ -181,15 +181,15 @@
 /* 任务看板：六列横向滚动。 */
 .board { display: flex; gap: 10px; min-height: 0; overflow-x: auto; padding: 2px 4px 8px; align-items: stretch; }
 .board-column { flex: 0 0 236px; display: flex; flex-direction: column; gap: 8px; min-height: 220px; }
+/* 看板列头保持透明：边框与底色由外层 .board-column 单独提供，避免双层描边与模糊。 */
 .board-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 8px 12px;
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  background: var(--surface);
-  backdrop-filter: blur(12px) saturate(130%);
+  border: 0;
+  background: transparent;
+  box-shadow: none;
   font-size: 12px;
   font-weight: 600;
   color: var(--foreground);
@@ -522,12 +522,25 @@
 .requirement-title-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .requirement-title { margin: 0; font-size: 21px; font-weight: 700; line-height: 1.3; color: var(--foreground); overflow-wrap: anywhere; }
 .requirement-id { font-size: 11px; color: var(--muted); }
-.state-badge { font-weight: 600; letter-spacing: 0.02em; }
-.state-badge.state-draft { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
-.state-badge.state-confirmed { color: var(--success); border-color: var(--success); background: var(--surface-secondary); }
+.state-badge {
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.state-badge.state-draft {
+  color: var(--accent-soft-foreground);
+  border-color: color-mix(in oklab, var(--accent) 28%, transparent);
+  background: color-mix(in oklab, var(--accent) 12%, transparent);
+}
+.state-badge.state-confirmed {
+  color: var(--success);
+  border-color: color-mix(in oklab, var(--success) 28%, transparent);
+  background: color-mix(in oklab, var(--success) 12%, transparent);
+}
 .state-badge.state-released,
 .state-badge.state-closed,
-.state-badge.state-unknown { color: var(--muted); border-color: var(--border); }
+.state-badge.state-unknown { color: var(--foreground); border-color: var(--glass-border); background: var(--glass-surface); }
 .requirement-guide { margin: 0; font-size: 12px; line-height: 1.6; color: var(--foreground); }
 .requirement-ops {
   margin: 6px 0 2px;
@@ -1144,9 +1157,11 @@
 .task-toolbar .toolbar-select { width: 128px; }
 .task-toolbar .toolbar-tabs [role='tablist'] { border-radius: 999px; padding: 3px; background: var(--surface-tertiary); }
 .task-board-bento .board-column {
-  border: 1px solid var(--separator);
+  border: 1px solid var(--glass-border);
   border-radius: 16px;
-  background: color-mix(in oklab, var(--surface-secondary) 88%, transparent);
+  background: var(--glass-surface);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   overflow: hidden;
 }
 /* 列头横排：左侧状态圆点 + 列名，右侧计数 Chip，不再竖排堆叠。 */
@@ -1249,19 +1264,24 @@
 @keyframes req-drawer-in { from { transform: translateX(28px); opacity: 0.4; } to { transform: translateX(0); opacity: 1; } }
 @keyframes req-spin { to { transform: rotate(360deg); } }
 
-/* ── T-258 批次 3：暗黑卡片质感，替代已移除的浅色玻璃卡 ─────────────── */
+/* ── T-293 全站 Bento 卡片统一：纯净中性 Glass 表面 ─────────────────── */
 .table-wrap,
 .task-card,
+.board-column,
+.project-card-shell,
 .info-card,
+.settings-card,
 .pending-card,
 .quit-card,
 .talent-form,
 .pc-card {
-  border: 1px solid var(--border);
+  border: 1px solid var(--glass-border);
   border-radius: 16px;
-  background: color-mix(in oklab, var(--surface) 80%, transparent);
+  background: var(--glass-surface);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   color: var(--foreground);
-  box-shadow: var(--overlay-shadow);
+  box-shadow: var(--surface-shadow);
 }
 
 /* 看板列头由外层列卡提供边框与底色，自身不再叠第二层边框与背景模糊。 */
@@ -1285,3 +1305,9 @@
 .project-path { color: var(--muted); }
 
 .task-toolbar .toolbar-select { width: auto; min-width: 124px; }
+.task-toolbar .toolbar-select [data-slot='select-trigger'] {
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  background: var(--glass-surface);
+  box-shadow: none;
+}

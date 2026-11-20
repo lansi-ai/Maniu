@@ -36,28 +36,61 @@
 @layer base {
   :root {
     --app-font: -apple-system, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+
+    /* T-293 中性 Glass 表面：浅色。纯净中性，不含任何紫色调。 */
+    --glass-surface: rgba(255, 255, 255, 0.72);
+    --glass-surface-elevated: rgba(255, 255, 255, 0.86);
+    --glass-border: rgba(0, 0, 0, 0.06);
+    --glass-divider: rgba(0, 0, 0, 0.06);
+    --primary-pill-bg: #18181b;
+    --primary-pill-fg: #ffffff;
+    --primary-pill-hover: #27272a;
   }
 
   :root[data-font='modern'] {
     --app-font: 'Inter Variable', Inter, 'Segoe UI Variable Text', 'Segoe UI', 'Microsoft YaHei', system-ui, sans-serif;
   }
 
+  /* T-293 中性 Glass 表面：深色。与 HeroUI 的 .dark / data-theme 选择器保持一致。 */
+  .dark,
+  [data-theme="dark"] {
+    --glass-surface: rgba(24, 24, 27, 0.60);
+    --glass-surface-elevated: rgba(39, 39, 42, 0.72);
+    --glass-border: rgba(255, 255, 255, 0.10);
+    --glass-divider: rgba(255, 255, 255, 0.08);
+    --primary-pill-bg: #f4f4f5;
+    --primary-pill-fg: #09090b;
+    --primary-pill-hover: #e4e4e7;
+  }
+
   html { background: var(--background); }
   html body { color: var(--foreground); }
 }
 
-/* 强调按钮：基于官方 accent 派生，浅色与深色都可读。 */
+/* 强调按钮的胶囊外形；配色由下方未分层的高对比反色规则统一提供。 */
 @layer utilities {
   .gradient-primary {
-    background-image: linear-gradient(135deg, var(--accent), color-mix(in oklab, var(--accent) 72%, var(--foreground)));
-    background-color: transparent;
-    color: var(--accent-foreground);
-    box-shadow: 0 8px 24px -8px color-mix(in oklab, var(--accent) 60%, transparent);
+    border-radius: 999px;
+    background-image: none;
+    box-shadow: none;
   }
+}
 
-  .gradient-primary:hover {
-    box-shadow: 0 12px 30px -8px color-mix(in oklab, var(--accent) 70%, transparent);
-  }
+/*
+ * T-293 高对比反色实心胶囊主按钮。
+ * HeroUI 的 .button--primary 与未分层样式同层，此处用 #root 前缀提高优先级并写在 @import 之后，
+ * 覆盖其 --accent 派生色；danger / danger-soft 不在此选择器内，警示语义保持不变。
+ */
+#root .button--primary,
+#root .gradient-primary {
+  --button-bg: var(--primary-pill-bg);
+  --button-bg-hover: var(--primary-pill-hover);
+  --button-bg-pressed: var(--primary-pill-hover);
+  --button-fg: var(--primary-pill-fg);
+  border-radius: 999px;
+  border-color: transparent;
+  box-shadow: none;
+  font-weight: 600;
 }
 
 /* 全局细滚动条：直接用官方滚动条 token，去掉原生粗灰条。 */
