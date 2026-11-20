@@ -670,17 +670,7 @@ export function App(): JSX.Element {
     >
       <WindowGutter maximized={windowState.maximized} titlebar={gateKind === 'ready'} />
 
-      {gateKind === 'ready' ? (
-        <Titlebar
-          t={t}
-          host={host}
-          project={project}
-          windowState={windowState}
-          cloud={cloud.state}
-          onPersonalCenter={openAccount}
-          onCloudChanged={cloud.refresh}
-        />
-      ) : (
+      {gateKind !== 'ready' && (
         <GateChrome t={t} windowState={windowState} />
       )}
 
@@ -704,140 +694,161 @@ export function App(): JSX.Element {
       {gateKind === 'ready' && (
         <main className="shell" data-testid="workspace">
           <nav className="nav" data-testid="nav">
-            {nav.top.map(navButton)}
-            <div className="nav-bottom">
-              {nav.bottom.map(navButton)}
+            <div className="nav-header">
+              <span className="nav-avatar" aria-hidden="true" />
+              <span className="nav-head-text">
+                <span className="nav-brand">{project === null ? t('app.name') : project.title}</span>
+                <span className="nav-sub">{t('app.name')}</span>
+              </span>
+            </div>
+            <div className="nav-list window-no-drag">
+              {nav.top.map(navButton)}
+              <div className="nav-bottom">
+                {nav.bottom.map(navButton)}
+              </div>
             </div>
           </nav>
 
-          <div className="shell-body">
-            {page === 'chat' && (
-              <ChatView
-                t={t}
-                sessions={visibleSessions}
-                titles={titles}
-                active={active}
-                chat={chat}
-                notice={notice}
-                sending={sending}
-                running={running}
-                limits={limits}
-                models={catalogView.options}
-                selection={selection}
-                availability={availability}
-                usage={usage}
-                composerRef={composerRef}
-                talentNames={talents.presetNames}
-                pending={pending}
-                onAnswer={answer}
-                onSelect={selectSession}
-                onCreate={createSession}
-                onSend={send}
-                onStop={() => { void stop() }}
-                onRename={rename}
-                ensureSession={ensureSession}
-                onSelectModel={selectModel}
-              />
-            )}
+          <div className="shell-main">
+            <Titlebar
+              t={t}
+              host={host}
+              project={project}
+              windowState={windowState}
+              cloud={cloud.state}
+              onPersonalCenter={openAccount}
+              onCloudChanged={cloud.refresh}
+            />
 
-            {/* 需求页跨页保持挂载：后台操作的浮卡与轮询状态住在页内，卸载即丢；隐藏而非条件渲染。 */}
-            {/* display:contents 让 .page 仍是壳层的有效 flex 子项（flex:1 撑满），隐藏时才 none。 */}
-            <div style={page === 'requirements' ? { display: 'contents' } : { display: 'none' }} data-testid="requirements-host">
-              <RequirementsPage
-                project={project}
-                projection={projection.projection}
-                sessions={sessions}
-                loading={projection.loading}
-                error={projection.error}
-                intakeResult={intakeResult}
-                onClearIntakeResult={() => { setIntakeResult(null) }}
-                onReload={projection.reload}
-                onStartIntake={startIntake}
-                onStartSession={startSession}
-                onConfirmIntake={confirmIntake}
-                presetNames={flowRoleNames}
-                awaitingAnswer={pending.length > 0}
-                onOpenSession={openSession}
-                onOpenTasks={(requirementId) => {
-                  setTaskRequirement(requirementId)
-                  setPage('tasks')
-                }}
-                t={t}
-              />
+            <div className="shell-body">
+              {page === 'chat' && (
+                <ChatView
+                  t={t}
+                  sessions={visibleSessions}
+                  titles={titles}
+                  active={active}
+                  chat={chat}
+                  notice={notice}
+                  sending={sending}
+                  running={running}
+                  limits={limits}
+                  models={catalogView.options}
+                  selection={selection}
+                  availability={availability}
+                  usage={usage}
+                  composerRef={composerRef}
+                  talentNames={talents.presetNames}
+                  pending={pending}
+                  onAnswer={answer}
+                  onSelect={selectSession}
+                  onCreate={createSession}
+                  onSend={send}
+                  onStop={() => { void stop() }}
+                  onRename={rename}
+                  ensureSession={ensureSession}
+                  onSelectModel={selectModel}
+                />
+              )}
+
+              {/* 需求页跨页保持挂载：后台操作的浮卡与轮询状态住在页内，卸载即丢；隐藏而非条件渲染。 */}
+              {/* display:contents 让 .page 仍是壳层的有效 flex 子项（flex:1 撑满），隐藏时才 none。 */}
+              <div style={page === 'requirements' ? { display: 'contents' } : { display: 'none' }} data-testid="requirements-host">
+                <RequirementsPage
+                  project={project}
+                  projection={projection.projection}
+                  sessions={sessions}
+                  loading={projection.loading}
+                  error={projection.error}
+                  intakeResult={intakeResult}
+                  onClearIntakeResult={() => { setIntakeResult(null) }}
+                  onReload={projection.reload}
+                  onStartIntake={startIntake}
+                  onStartSession={startSession}
+                  onConfirmIntake={confirmIntake}
+                  presetNames={flowRoleNames}
+                  awaitingAnswer={pending.length > 0}
+                  onOpenSession={openSession}
+                  onOpenTasks={(requirementId) => {
+                    setTaskRequirement(requirementId)
+                    setPage('tasks')
+                  }}
+                  t={t}
+                />
+              </div>
+
+              {page === 'tasks' && (
+                <TasksPage
+                  project={project}
+                  projection={projection.projection}
+                  sessions={sessions}
+                  loading={projection.loading}
+                  error={projection.error}
+                  onReload={projection.reload}
+                  requirementFilter={taskRequirement}
+                  onClearRequirementFilter={() => { setTaskRequirement(null) }}
+                  t={t}
+                />
+              )}
+
+              {page === 'projects' && (
+                <ProjectsPage
+                  items={workspaces.items}
+                  current={project}
+                  error={projectNotice ?? workspaces.error}
+                  t={t}
+                  onSelect={(workspace) => { void chooseWorkspace(workspace) }}
+                  onOpened={(workspace) => { void chooseWorkspace(workspace) }}
+                />
+              )}
+
+              {page === 'project-info' && (
+                <ProjectInfoPage
+                  t={t}
+                  project={project}
+                  projection={projection.projection}
+                  loading={projection.loading}
+                  error={projection.error}
+                  onReload={projection.reload}
+                  presetNames={flowRoleNames}
+                />
+              )}
+
+              {page === 'settings' && (
+                <SettingsPage
+                  t={t}
+                  prefs={prefs}
+                />
+              )}
+
+              {page === 'account' && (
+                <PersonalCenter
+                  state={cloud.state}
+                  t={t}
+                  onBack={() => { setPage(returnPage) }}
+                />
+              )}
+
+              {page === 'talents' && (
+                <TalentsPage
+                  t={t}
+                  signedIn={cloud.state?.signedIn === true}
+                  userId={cloud.state?.user?.id ?? null}
+                  project={project}
+                  sessions={sessions}
+                  talents={talents}
+                />
+              )}
             </div>
 
-            {page === 'tasks' && (
-              <TasksPage
-                project={project}
-                projection={projection.projection}
-                sessions={sessions}
-                loading={projection.loading}
-                error={projection.error}
-                onReload={projection.reload}
-                requirementFilter={taskRequirement}
-                onClearRequirementFilter={() => { setTaskRequirement(null) }}
-                t={t}
-              />
-            )}
-
-            {page === 'projects' && (
-              <ProjectsPage
-                items={workspaces.items}
-                current={project}
-                error={projectNotice ?? workspaces.error}
-                t={t}
-                onSelect={(workspace) => { void chooseWorkspace(workspace) }}
-                onOpened={(workspace) => { void chooseWorkspace(workspace) }}
-              />
-            )}
-
-            {page === 'project-info' && (
-              <ProjectInfoPage
-                t={t}
-                project={project}
-                projection={projection.projection}
-                loading={projection.loading}
-                error={projection.error}
-                onReload={projection.reload}
-                presetNames={flowRoleNames}
-              />
-            )}
-
-            {page === 'settings' && (
-              <SettingsPage
-                t={t}
-                prefs={prefs}
-              />
-            )}
-
-            {page === 'account' && (
-              <PersonalCenter
-                state={cloud.state}
-                t={t}
-                onBack={() => { setPage(returnPage) }}
-              />
-            )}
-
-            {page === 'talents' && (
-              <TalentsPage
-                t={t}
-                signedIn={cloud.state?.signedIn === true}
-                userId={cloud.state?.user?.id ?? null}
-                project={project}
-                sessions={sessions}
-                talents={talents}
-              />
-            )}
+            <PendingLayer
+              visible={page !== 'chat'}
+              t={t}
+              items={pending}
+              sessions={sessions}
+              titles={titles}
+              onAnswer={answer}
+            />
           </div>
-
-          <PendingLayer
-            visible={page !== 'chat'}
-            t={t}
-            items={pending}
-            sessions={sessions}
-            titles={titles}
-            onAnswer={answer}
-          />
         </main>
       )}
 
