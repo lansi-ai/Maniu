@@ -12,7 +12,8 @@ import type {
 } from '../chat/composer.ts'
 import type { PendingInteraction } from '../chat/pending.ts'
 import type { ChatState, SessionSummary } from '../store.ts'
-import { currentPresetId, isIntakePreset } from '../talents/model.ts'
+import { currentPresetId } from '../talents/model.ts'
+import { isFlowSession, seedHiddenOf } from './session-groups.ts'
 import { Composer } from './composer.tsx'
 import { ChatTranscript } from './chat-transcript.tsx'
 import { PendingCards, type AnswerResult } from './pending-cards.tsx'
@@ -76,8 +77,14 @@ export function ChatView({
   ensureSession, onSelectModel,
 }: ChatViewProps): JSX.Element {
   const activeSession = sessions.find(item => item.sessionId === active) ?? null
-  // 立项会话的首条消息是整段指令；正文留在会话日志里，界面上整行不渲染。
-  const intake = activeSession !== null && isIntakePreset(activeSession.agentPreset)
+  const firstRow = chat.rows.find(row => row.kind === 'user')
+  const firstUserText = firstRow?.text ?? ''
+  // 后台流程的首条系统指令留在日志里，界面上整行收起，避免蓝底原文淹没正文。
+  const seedHidden = seedHiddenOf(activeSession, firstUserText)
+  const chatSessions = sessions.filter(session => !isFlowSession(session))
+  const flowSessions = sessions.filter(session => isFlowSession(session))
+  const [chatOpen, setChatOpen] = useState(true)
+  const [flowOpen, setFlowOpen] = useState(true)
   const headTitle = active === null
     ? t('chat.noSession')
     : activeSession === null ? active.slice(0, 8) : sessionLabel(activeSession, titles)
@@ -105,6 +112,54 @@ export function ChatView({
     }
   }
 
+  /** 一组会话：小标题带数量与折叠按钮，默认展开，既有 testid 保持不变。 */
+  const sessionGroup = (
+    kind: 'chat' | 'flow',
+    label: string,
+    items: readonly SessionSummary[],
+    open: boolean,
+    onToggle: () => void,
+  ): JSX.Element => (
+    <li className="session-group" data-testid={`session-group-${kind}`}>
+      <button
+        type="button"
+        className="session-group-head"
+        data-testid={`session-group-${kind}-head`}
+        aria-expanded={open}
+        onClick={onToggle}
+      >
+        <span className="session-group-label">{label}</span>
+        <span className="session-group-count">{items.length}</span>
+        <span className="session-group-chevron" aria-hidden="true">{open ? '▾' : '▸'}</span>
+      </button>
+      {!open ? null : (
+        <ul className="session-group-items">
+          {items.length === 0
+            ? <li className="session-group-empty">{kind === 'chat' ? t('chat.groupEmptyChat') : t('chat.groupEmptyFlow')}</li>
+            : items.map(session => (
+              <li key={session.sessionId}>
+                <button
+                  type="button"
+                  data-testid="session-item"
+                  data-session-id={session.sessionId}
+                  data-running={session.running ? 'true' : 'false'}
+                  className={session.sessionId === active ? 'session active' : 'session'}
+                  onClick={() => { onSelect(session.sessionId) }}
+                >
+                  <span className="dot" />
+                  <span className="label">{sessionLabel(session, titles)}</span>
+                  {session.agentPreset !== undefined && talentNames[currentPresetId(session.agentPreset)] !== undefined
+                    ? <span className="session-talent" data-testid="session-talent">{talentNames[currentPresetId(session.agentPreset)]}</span>
+                    : null}
+                  {session.running && <span className="running">{t('chat.running')}</span>}
+                </button>
+              </li>
+            ))}
+        </ul>
+      )}
+    </li>
+  )
+
   return (
     <>
       <aside className="sidebar">
@@ -121,25 +176,8 @@ export function ChatView({
           </Button>
         </div>
         <ul className="session-list" data-testid="session-list">
-          {sessions.map(session => (
-            <li key={session.sessionId}>
-              <button
-                type="button"
-                data-testid="session-item"
-                data-session-id={session.sessionId}
-                data-running={session.running ? 'true' : 'false'}
-                className={session.sessionId === active ? 'session active' : 'session'}
-                onClick={() => { onSelect(session.sessionId) }}
-              >
-                <span className="dot" />
-                <span className="label">{sessionLabel(session, titles)}</span>
-                {session.agentPreset !== undefined && talentNames[currentPresetId(session.agentPreset)] !== undefined
-                  ? <span className="session-talent" data-testid="session-talent">{talentNames[currentPresetId(session.agentPreset)]}</span>
-                  : null}
-                {session.running && <span className="running">{t('chat.running')}</span>}
-              </button>
-            </li>
-          ))}
+          {sessionGroup('chat', t('chat.groupChat'), chatSessions, chatOpen, () => { setChatOpen(value => !value) })}
+          {sessionGroup('flow', t('chat.groupFlow'), flowSessions, flowOpen, () => { setFlowOpen(value => !value) })}
         </ul>
         {notice !== null && <p className="notice" data-testid="notice">{notice}</p>}
       </aside>
@@ -205,7 +243,7 @@ export function ChatView({
           t={t}
           sessionId={active}
           chat={chat}
-          seedHidden={intake}
+          seedHidden={seedHidden}
           pendingCount={pending.length}
           pending={pending.length === 0 ? null : (
             <div className="chat-pending" data-testid="chat-pending">
