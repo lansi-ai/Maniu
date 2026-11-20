@@ -130,6 +130,17 @@ function element(testId: string): Element | null {
   return container.querySelector(`[data-testid="${testId}"]`)
 }
 
+/** 主提交按钮旁的计数徽标文本。 */
+function countText(kind: 'accepted' | 'questioned' | 'rejected'): string | null {
+  return container.querySelector(`[data-testid="requirement-review-count"][data-kind="${kind}"]`)?.textContent ?? null
+}
+
+/** 展开批量菜单并点击其中一项。 */
+async function applyBatch(action: string): Promise<void> {
+  await press('requirement-review-batch-trigger')
+  await pressSelector(`[data-testid="requirement-review-batch"][data-action="${action}"]`)
+}
+
 interface DetailCalls {
   readonly readers: string[]
   readonly revise: Mock<(decisions?: ReviewDecisions) => Promise<{ readonly ok: boolean; readonly message: string }>>
@@ -347,7 +358,10 @@ describe('评审结论三态与处置动作', () => {
     expect(tab?.getAttribute('data-decision')).toBe('pending')
     expect(tab?.textContent).toContain('待处理')
     expect(element('requirement-timeline-review-status')?.textContent).toContain('待处理')
-    expect(element('requirement-review-accept')?.textContent).toContain('按所选意见处理需求（采纳 0 · 疑问 0 · 拒绝 0）')
+    expect(element('requirement-review-accept')?.textContent).toContain('提交所选处理')
+    expect(countText('accepted')).toBe('采纳 0')
+    expect(countText('questioned')).toBe('待澄清 0')
+    expect(countText('rejected')).toBe('拒绝 0')
     expect(element('requirement-review-reject')?.textContent).toContain('整轮放弃（全部不改）')
     expect(element('requirement-review-at')?.textContent).toBe('2026-11-17 11:00')
     // 采纳走 requirement_revise 直接落新版本，「去顶部对比」的灰字提示已删除。
@@ -360,7 +374,9 @@ describe('评审结论三态与处置动作', () => {
     await renderDetail(REVIEWED, calls)
     const accept = element('requirement-review-accept') as HTMLButtonElement
     expect(accept.disabled).toBe(false)
-    expect(accept.textContent).toContain('采纳 3 · 疑问 0 · 拒绝 0')
+    expect(countText('accepted')).toBe('采纳 3')
+    expect(countText('questioned')).toBe('待澄清 0')
+    expect(countText('rejected')).toBe('拒绝 0')
     await press('requirement-review-accept')
     expect(calls.revise).toHaveBeenCalledTimes(1)
     expect(calls.revise.mock.calls[0]?.[0]).toEqual({
@@ -464,8 +480,14 @@ describe('结构化待改项表格与逐条裁决', () => {
     expect(element('requirement-report-body')).toBeNull()
   })
 
-  it('点击行在原位展开详情卡片，位置只出现一行紧凑灰字，问题与建议并排且无空洞', async () => {
+  it('点击行在原位展开详情卡片，位置只在卡片顶部出现一次，问题/建议/输入上下通栏', async () => {
     await renderDetail(REVIEWED, callsOf())
+    // 主表三列，不再有「涉及位置」列；位置只在展开卡片里出现一次。
+    const headers = Array.from(container.querySelectorAll('.review-todo-table thead th'))
+    expect(headers).toHaveLength(3)
+    expect(headers.some(th => (th.textContent ?? '').includes('涉及位置'))).toBe(false)
+    expect(container.querySelector('.review-todo-location')).toBeNull()
+
     const row = container.querySelector('[data-testid="requirement-review-todo-row"][data-index="0"]')
     expect(row?.className).not.toContain('is-expanded')
     expect(row?.querySelector('.review-todo-arrow svg')).not.toBeNull()
@@ -479,8 +501,10 @@ describe('结构化待改项表格与逐条裁决', () => {
     expect(row?.querySelector('.review-todo-arrow svg')).not.toBeNull()
     expect(row?.textContent).not.toContain('▾')
     expect(detail?.querySelector('.todo-detail-card')).not.toBeNull()
+    expect(detail?.querySelectorAll('.todo-detail-location-inline')).toHaveLength(1)
     expect(detail?.querySelector('.todo-detail-location-inline')?.textContent).toContain('正文「范围」一节')
-    // 原来的独立「涉及位置」块已删除；位置只以一行灰字辅助呈现，不重复占一格。
+    expect(detail?.querySelector('td')?.getAttribute('colspan')).toBe('3')
+    // 位置不重复占列，也不再作为 h6 分区出现。
     expect(Array.from(detail?.querySelectorAll('h6') ?? []).some(h => h.textContent?.includes('涉及位置'))).toBe(false)
     expect(detail?.querySelectorAll('.todo-detail-block')).toHaveLength(3)
     expect(detail?.textContent).toContain('⚠️问题说明')
@@ -505,7 +529,9 @@ describe('结构化待改项表格与逐条裁决', () => {
     await typeTextarea('[data-testid="requirement-review-todo-note"][data-index="2"]', '用表格列出边界')
 
     const accept = element('requirement-review-accept') as HTMLButtonElement
-    expect(accept.textContent).toContain('采纳 1 · 疑问 1 · 拒绝 1')
+    expect(countText('accepted')).toBe('采纳 1')
+    expect(countText('questioned')).toBe('待澄清 1')
+    expect(countText('rejected')).toBe('拒绝 1')
     expect(accept.getAttribute('data-accepted')).toBe('1')
     await press('requirement-review-accept')
     expect(calls.revise.mock.calls[0]?.[0]).toEqual({
@@ -526,20 +552,21 @@ describe('结构化待改项表格与逐条裁决', () => {
     expect((element('requirement-review-accept') as HTMLButtonElement).disabled).toBe(false)
   })
 
-  it('筛选胶囊过滤表格行，批量按钮一次性改写裁决', async () => {
+  it('分段筛选过滤表格行，批量菜单三项一次性改写裁决', async () => {
     await renderDetail(REVIEWED, callsOf())
     await pressSelector('[data-testid="requirement-review-filter"][data-priority="high"]')
     expect(container.querySelectorAll('[data-testid="requirement-review-todo-row"]')).toHaveLength(1)
     await pressSelector('[data-testid="requirement-review-filter"][data-priority="all"]')
     expect(container.querySelectorAll('[data-testid="requirement-review-todo-row"]')).toHaveLength(3)
 
-    await pressSelector('[data-testid="requirement-review-batch"][data-action="highOnly"]')
-    expect((element('requirement-review-accept') as HTMLButtonElement).textContent).toContain('采纳 1 · 疑问 0 · 拒绝 2')
-    await pressSelector('[data-testid="requirement-review-batch"][data-action="allReject"]')
+    await applyBatch('highOnly')
+    expect(countText('accepted')).toBe('采纳 1')
+    expect(countText('rejected')).toBe('拒绝 2')
+    await applyBatch('allReject')
     const accept = element('requirement-review-accept') as HTMLButtonElement
     expect(accept.disabled).toBe(true)
     expect(accept.title).toContain('若全部不改请点右侧放弃本轮意见')
-    await pressSelector('[data-testid="requirement-review-batch"][data-action="allAccept"]')
+    await applyBatch('allAccept')
     expect((element('requirement-review-accept') as HTMLButtonElement).disabled).toBe(false)
   })
 
@@ -590,14 +617,26 @@ describe('结构化待改项表格与逐条裁决', () => {
     expect(element('requirement-review-summary-bar')?.getAttribute('data-expanded')).toBe('false')
   })
 
-  it('批量操作按钮用 review-pill 胶囊外观，保留 testid 与 data-action', async () => {
+  it('批量裁决收进单个菜单，三项保留 testid 与 data-action，默认收起且可 Esc 关闭', async () => {
     await renderDetail(REVIEWED, callsOf())
+    const trigger = element('requirement-review-batch-trigger') as HTMLButtonElement
+    expect(trigger).not.toBeNull()
+    expect(trigger.getAttribute('aria-expanded')).toBe('false')
+    expect(container.querySelectorAll('[data-testid="requirement-review-batch"]')).toHaveLength(0)
+
+    await press('requirement-review-batch-trigger')
+    expect(trigger.getAttribute('aria-expanded')).toBe('true')
     const batch = Array.from(container.querySelectorAll('[data-testid="requirement-review-batch"]'))
     expect(batch.map(node => node.getAttribute('data-action'))).toEqual(['allAccept', 'highOnly', 'allReject'])
-    for (const node of batch) {
-      expect(node.classList.contains('review-pill')).toBe(true)
-      expect(node.classList.contains('link-button')).toBe(false)
-    }
+    for (const node of batch) expect(node.classList.contains('review-batch-menu-item')).toBe(true)
+    expect(container.querySelector('.review-batch-trigger svg')).not.toBeNull()
+
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+      await new Promise(resolve => setTimeout(resolve, 0))
+    })
+    expect(element('requirement-review-batch-trigger')?.getAttribute('aria-expanded')).toBe('false')
+    expect(container.querySelectorAll('[data-testid="requirement-review-batch"]')).toHaveLength(0)
   })
 
   it('待处理报告标签不再显示只读徽标，已处置轮次仍显示', async () => {
@@ -651,7 +690,8 @@ describe('评审表样式契约', () => {
     expect(css).toContain(".verdict-button.is-active[data-verdict='question']")
     expect(css).toContain('.review-todo-row.is-rejected .review-todo-title strong { text-decoration: line-through; }')
     expect(css).toContain('.review-todo-table tbody tr.todo-detail-row:hover { background: var(--surface); }')
-    expect(css).toContain('border-left: 3px solid var(--accent);')
+    expect(css).toMatch(/\.todo-detail-card \{[^}]*border: 1px solid var\(--border\);/)
+    expect(css).not.toMatch(/\.todo-detail-card \{[^}]*border-left/)
     expect(css).toContain('-webkit-line-clamp: 2;')
   })
 
@@ -661,5 +701,80 @@ describe('评审表样式契约', () => {
     expect(css).toContain('font-size: 13.5px; font-weight: 600;')
     expect(css).toContain('padding: 4px 10px;')
     expect(css).toContain('border-radius: 999px;')
+  })
+
+  it('黄色横幅只自带左边框且留底部间距，表格与卡片用中性容器不贯穿警示色条', () => {
+    expect(css).toContain('border-left: 4px solid var(--warning);')
+    expect(css).toMatch(/\.detail-warning \{[^}]*margin: 6px 0 10px;[^}]*\}/)
+    expect(css).not.toContain("detail-section[data-doc-active='true'][data-pending-report='true'] { box-shadow: inset 3px 0 0 var(--warning); }")
+    expect(css).toContain('.review-todo-table th:nth-child(3) { width: 200px; }')
+    expect(css).not.toContain('.review-todo-location')
+    expect(css).toContain('.review-segmented {')
+    expect(css).toContain('.review-batch-menu {')
+  })
+})
+
+describe('T-290 评审操作层级与展开布局', () => {
+  beforeEach(() => { reportText = STRUCTURED_REPORT })
+
+  it('操作栏只有一个主提交与一个次放弃，计数徽标在主按钮旁，元信息在另一侧', async () => {
+    reportText = STRUCTURED_REPORT
+    await renderDetail(REVIEWED, callsOf())
+    const actions = element('requirement-actions-review') as HTMLElement
+    expect(actions.querySelectorAll('[data-testid="requirement-review-accept"]')).toHaveLength(1)
+    expect(actions.querySelectorAll('[data-testid="requirement-review-reject"]')).toHaveLength(1)
+    const primary = actions.querySelector('.review-primary-action') as HTMLElement
+    expect(primary).not.toBeNull()
+    expect(primary.querySelector('[data-testid="requirement-review-accept"]')).not.toBeNull()
+    expect(primary.querySelectorAll('[data-testid="requirement-review-count"]')).toHaveLength(3)
+    expect(primary.querySelector('[data-testid="requirement-review-reject"]')).toBeNull()
+    const meta = actions.querySelector('.requirement-review-meta') as HTMLElement
+    expect(meta.querySelector('[data-testid="requirement-review-at"]')).not.toBeNull()
+    expect(meta.querySelector('[data-testid="requirement-report-markdown-toggle"]')).not.toBeNull()
+    expect(primary.compareDocumentPosition(meta) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('优先级筛选是连体分段控件，四项各带计数且只有一个选中', async () => {
+    reportText = STRUCTURED_REPORT
+    await renderDetail(REVIEWED, callsOf())
+    const segments = Array.from(container.querySelectorAll('[data-testid="requirement-review-filter"]'))
+    expect(segments).toHaveLength(4)
+    expect(segments.map(node => node.getAttribute('data-priority'))).toEqual(['all', 'high', 'medium', 'low'])
+    expect(segments.map(node => node.getAttribute('aria-pressed'))).toEqual(['true', 'false', 'false', 'false'])
+    expect(segments[0]?.textContent).toContain('全部 3')
+    expect(segments[1]?.textContent).toContain('高优 1')
+    expect(segments.every(node => node.classList.contains('review-segment'))).toBe(true)
+    expect(segments[0]?.parentElement?.classList.contains('review-segmented')).toBe(true)
+    await pressSelector('[data-testid="requirement-review-filter"][data-priority="medium"]')
+    const after = Array.from(container.querySelectorAll('[data-testid="requirement-review-filter"]'))
+    expect(after.map(node => node.getAttribute('aria-pressed'))).toEqual(['false', 'false', 'true', 'false'])
+  })
+
+  it('批量菜单默认收起，点击遮罩即关闭，三项不会常驻筛选行', async () => {
+    await renderDetail(REVIEWED, callsOf())
+    const toolbar = element('requirement-review-toolbar') as HTMLElement
+    expect(toolbar.querySelector('[data-testid="requirement-review-batch"]')).toBeNull()
+    await press('requirement-review-batch-trigger')
+    expect(toolbar.querySelectorAll('[data-testid="requirement-review-batch"]')).toHaveLength(3)
+    expect(element('requirement-review-batch-backdrop')).not.toBeNull()
+    await press('requirement-review-batch-backdrop')
+    expect(toolbar.querySelectorAll('[data-testid="requirement-review-batch"]')).toHaveLength(0)
+  })
+
+  it('三态互斥，点击裁决不触发展开，切到有疑问自动展开并聚焦输入', async () => {
+    await renderDetail(REVIEWED, callsOf())
+    const verdict = (option: string) => container.querySelector(`[data-testid="requirement-review-todo-verdict"][data-index="0"][data-verdict="${option}"]`)
+    await pressSelector('[data-testid="requirement-review-todo-verdict"][data-index="0"][data-verdict="accept"]')
+    expect(verdict('accept')?.classList.contains('is-active')).toBe(true)
+    await pressSelector('[data-testid="requirement-review-todo-verdict"][data-index="0"][data-verdict="reject"]')
+    expect(verdict('accept')?.classList.contains('is-active')).toBe(false)
+    expect(verdict('reject')?.classList.contains('is-active')).toBe(true)
+    expect(element('requirement-review-todo-detail')).toBeNull()
+    expect(element('requirement-review-todo-row')?.getAttribute('data-verdict')).toBe('reject')
+
+    await pressSelector('[data-testid="requirement-review-todo-verdict"][data-index="0"][data-verdict="question"]')
+    expect(element('requirement-review-todo-detail')?.getAttribute('data-index')).toBe('0')
+    const note = container.querySelector('[data-testid="requirement-review-todo-note"][data-index="0"]')
+    expect(document.activeElement).toBe(note)
   })
 })
