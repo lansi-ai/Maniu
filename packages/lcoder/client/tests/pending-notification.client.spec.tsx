@@ -147,7 +147,8 @@ describe('右下非阻塞通知', () => {
   })
 
   it('缺确定关联时显示来源会话不可用，不查历史', async () => {
-    renderLayer([{ ...QUESTION, sessionId: undefined, source: undefined }])
+    const { sessionId: _sessionId, source: _source, ...noSource } = QUESTION
+    renderLayer([noSource])
     expect(element('pending-notice-source').textContent).toBe('来源会话不可用')
     await press('pending-review')
     expect(call).not.toHaveBeenCalled()

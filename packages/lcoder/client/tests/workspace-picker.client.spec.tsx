@@ -127,7 +127,7 @@ describe('项目页新建项目入口', () => {
     await clickOpen()
     expect(call).toHaveBeenCalledWith('workspace', 'create', { request: { path: 'E:/repo' } })
     expect(onOpened).toHaveBeenCalledTimes(1)
-    expect(onOpened.mock.calls[0][0].workspaceId).toBe('w-new')
+    expect(onOpened.mock.calls[0]![0]!.workspaceId).toBe('w-new')
     expect(container.querySelector('[data-testid="project-error"]')).toBeNull()
   })
 
@@ -169,15 +169,15 @@ describe('项目页列表', () => {
       current: { workspaceId: 'w2', path: 'E:/two', title: 'Two', scopeSessionId: 's2' },
       items: [row('w1', 'One', 'E:/one'), row('w2', 'Two', 'E:/two'), row('w3', 'Three', 'E:/three')],
     })
-    const items = container.querySelectorAll('[data-testid="project-item"]')
+    const items = [...container.querySelectorAll('[data-testid="project-item"]')]
     expect(items).toHaveLength(3)
-    expect(items[0].getAttribute('data-workspace-id')).toBe('w2')
-    expect(items[0].getAttribute('data-current')).toBe('true')
-    expect(items[0].getAttribute('aria-current')).toBe('true')
-    expect(items[1].getAttribute('data-workspace-id')).toBe('w1')
-    expect(items[2].getAttribute('data-workspace-id')).toBe('w3')
-    expect(items[0].textContent).toContain(t('projects.currentBadge'))
-    expect(items[1].textContent).not.toContain(t('projects.currentBadge'))
+    expect(items[0]!.getAttribute('data-workspace-id')).toBe('w2')
+    expect(items[0]!.getAttribute('data-current')).toBe('true')
+    expect(items[0]!.getAttribute('aria-current')).toBe('true')
+    expect(items[1]!.getAttribute('data-workspace-id')).toBe('w1')
+    expect(items[2]!.getAttribute('data-workspace-id')).toBe('w3')
+    expect(items[0]!.textContent).toContain(t('projects.currentBadge'))
+    expect(items[1]!.textContent).not.toContain(t('projects.currentBadge'))
   })
 
   it('列表行只显示名称和路径，不显示会话数', () => {
@@ -194,7 +194,7 @@ describe('项目页列表', () => {
     renderPage({ items: [row('w1', 'One', 'E:/one')], onSelect })
     act(() => { element('project-item').click() })
     expect(onSelect).toHaveBeenCalledTimes(1)
-    expect(onSelect.mock.calls[0][0].workspaceId).toBe('w1')
+    expect(onSelect.mock.calls[0]![0]!.workspaceId).toBe('w1')
   })
 
   it('空列表显示走词典的空态', () => {
