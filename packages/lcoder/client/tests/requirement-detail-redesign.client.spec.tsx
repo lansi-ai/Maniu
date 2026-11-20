@@ -640,36 +640,50 @@ describe('评审三态驱动的主次操作', () => {
     }],
   }
 
-  it('最新一轮待处置时禁用再次评审并点名原因，确认降为次级', async () => {
+  it('最新一轮待处置时只保留醒目横幅，评审/改稿/确认都禁用并联动报告标签', async () => {
     const calls = callsOf()
     await renderDetail(PENDING, calls)
     const review = element('requirement-detail-review') as HTMLButtonElement
     expect(review.disabled).toBe(true)
     expect(review.title).toContain('R1 评审尚未处理')
     expect(review.getAttribute('data-variant')).toBe('secondary')
-    expect(element('requirement-review-pending-reason')?.textContent).toContain('R1 评审尚未处理')
+    const banner = element('requirement-review-pending-reason')
+    expect(banner?.textContent).toContain('R1 评审尚未处理')
+    expect(banner?.className).toContain('detail-warning')
+    // 待处置态不再叠加灰色的阶段提示与确认原因。
+    expect(element('requirement-phase-hint')).toBeNull()
+    expect(element('requirement-approve-hint')).toBeNull()
+    // 送审即锁定：原地修改需求也被禁用。
+    const revise = element('requirement-detail-revise') as HTMLButtonElement
+    expect(revise.disabled).toBe(true)
+    expect(revise.title).toContain('送审后已锁定')
     expect(element('requirement-guide')?.textContent).toContain('R1 评审已返回')
-    expect(element('requirement-phase-hint')?.textContent).toContain('第 2 步')
     expect((element('requirement-approve') as HTMLButtonElement).getAttribute('data-variant')).toBe('secondary')
     expect((element('requirement-approve') as HTMLButtonElement).disabled).toBe(true)
-    expect(element('requirement-approve-hint')?.textContent).toContain('未处理的评审')
+    // 文档栏默认联动到最新报告，正文/时间线/报告节点仍留在 DOM。
+    expect(element('requirement-doc-tab-review')?.getAttribute('data-active')).toBe('true')
+    expect(element('requirement-review-report')?.getAttribute('data-pending-report')).toBe('true')
+    expect(element('requirement-document-body')).not.toBeNull()
+    expect(element('requirement-timeline')).not.toBeNull()
     await press('requirement-detail-review')
     expect(calls.review).not.toHaveBeenCalled()
   })
 
-  it('已采纳生成新版后解锁复评，确认恢复主按钮', async () => {
+  it('已采纳生成新版后解锁复评与原地改稿，确认恢复主按钮', async () => {
     await renderDetail(DRAFT, callsOf())
     const review = element('requirement-detail-review') as HTMLButtonElement
     expect(review.disabled).toBe(false)
     expect(review.textContent).toContain('发起复评')
     expect(review.getAttribute('data-variant')).toBe('secondary')
+    expect((element('requirement-detail-revise') as HTMLButtonElement).disabled).toBe(false)
     expect(element('requirement-guide')?.textContent).toContain('已生成 v2')
     expect((element('requirement-approve') as HTMLButtonElement).getAttribute('data-variant')).toBe('primary')
   })
 
-  it('已放弃时可重新评审或定稿，指引点名被放弃的轮次', async () => {
+  it('已放弃时可重新评审或定稿，但原地改稿仍锁定', async () => {
     await renderDetail(REJECTED, callsOf())
     expect((element('requirement-detail-review') as HTMLButtonElement).disabled).toBe(false)
+    expect((element('requirement-detail-revise') as HTMLButtonElement).disabled).toBe(true)
     expect(element('requirement-guide')?.textContent).toContain('已放弃 R1')
     expect((element('requirement-approve') as HTMLButtonElement).getAttribute('data-variant')).toBe('primary')
   })
@@ -707,6 +721,37 @@ describe('后台发起与次级动作', () => {
     expect(calls.reload).toHaveBeenCalledTimes(1)
     expect(element('requirement-document-body')?.textContent).toContain('这是正文的第 1 行')
     expect(element('requirement-open-reader')).toBeNull()
+  })
+})
+
+describe('独立文档切换栏', () => {
+  it('草稿/版本/报告并列为标签，锁定版本与已处置报告给出只读徽标，正文与报告节点常驻 DOM', async () => {
+    await renderDetail(DRAFT, callsOf())
+    expect(element('requirement-doc-tabs')).not.toBeNull()
+    const draftTab = element('requirement-doc-tab-draft')
+    expect(draftTab?.textContent).toContain('当前草稿')
+    expect(draftTab?.getAttribute('data-active')).toBe('true')
+    expect(draftTab?.textContent).toContain('可修改')
+
+    const versionTabs = container.querySelectorAll('[data-testid="requirement-doc-tab-version"]')
+    expect(versionTabs).toHaveLength(2)
+    expect(versionTabs[0]?.textContent).toContain('已锁定')
+
+    const reportTabs = container.querySelectorAll('[data-testid="requirement-doc-tab-review"]')
+    expect(reportTabs).toHaveLength(1)
+    expect(reportTabs[0]?.getAttribute('data-decision')).toBe('accepted')
+    expect(reportTabs[0]?.textContent).toContain('已采纳')
+    expect(reportTabs[0]?.textContent).toContain('只读')
+
+    // 切换标签只切高亮，正文/时间线/报告节点仍在 DOM 供既有查询使用。
+    await act(async () => {
+      ;(versionTabs[0] as HTMLElement).click()
+      await new Promise(resolve => setTimeout(resolve, 0))
+    })
+    expect(versionTabs[0]?.getAttribute('data-active')).toBe('true')
+    expect(element('requirement-document-body')).not.toBeNull()
+    expect(element('requirement-review-report')).not.toBeNull()
+    expect(container.querySelectorAll('[data-testid="requirement-timeline-version"]')).toHaveLength(2)
   })
 })
 

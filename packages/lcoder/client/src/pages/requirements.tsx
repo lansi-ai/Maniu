@@ -13,7 +13,7 @@ import { hasIntakeWork } from '../intake/eligibility.ts'
 import { buildIntakeFollowupPrompt, buildManagerSplitPrompt, buildRequirementCreatePrompt, buildRequirementPatchPrompt, buildReviewPrompt, buildRevisePrompt, BUILTIN_SPLIT_TRACKS } from '../intake/prompts.ts'
 import { INTAKE_PRESET_ID, MANAGER_PRESET_ID, PM_PRESET_ID, REQUIREMENT_EDITOR_PRESET_ID } from '../talents/model.ts'
 import { entryRoot, flowNodeOf, flowRoleLabel, flowRoleSource, presetOfRole, presetRoot } from '../flow/config.ts'
-import { canReviewRequirement } from './requirement-gate.ts'
+import { canModifyDraft, canReviewRequirement } from './requirement-gate.ts'
 import { translate, type MessageKey, type Translate } from '../locale.ts'
 import { OperationCards, type OperationCardView, type OperationStep, type OperationStepState } from '../shell/operation-cards.tsx'
 import { RequirementDetail, type ModifyState, type RunningOpKind } from './requirement-detail.tsx'
@@ -1031,6 +1031,20 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
                       : reviewGate.block.reason === 'pending'
                         ? t('requirement.reviewBlockedPending', { round: reviewGate.block.round })
                         : t('requirement.reviewBlockedRepeat', { round: reviewGate.block.round })
+                    const modifyGate = canModifyDraft({
+                      reviews: row.reviews,
+                      versions: row.versions,
+                      flow,
+                      roster: props.projection.roles,
+                      document: row.text,
+                    })
+                    const modifyBlockReason = modifyGate.ok
+                      ? undefined
+                      : modifyGate.reason === 'pending'
+                        ? t('requirement.modifyBlockedPending')
+                        : modifyGate.reason === 'rejected'
+                          ? t('requirement.modifyBlockedRejected')
+                          : t('requirement.modifyBlockedNoNewVersion')
                     return (
                       <Table.Row
                         key={row.id}
@@ -1065,8 +1079,9 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
                                   size="sm"
                                   variant="ghost"
                                   data-testid="requirement-op-revise"
-                                  isDisabled={runningOpOf(row.id) !== null}
-                                  onPress={() => { openModify(row) }}
+                                  isDisabled={runningOpOf(row.id) !== null || !modifyGate.ok}
+                                  ref={(node) => { if (node !== null) node.title = modifyBlockReason ?? '' }}
+                                  onPress={() => { if (modifyGate.ok) openModify(row) }}
                                 >
                                   {t('requirement.opRevise')}
                                 </Button>

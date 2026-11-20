@@ -12,7 +12,7 @@ import { requirementStateLabel } from '../spec/board.ts'
 import { diffLines, type DiffLine } from '../spec/diff.ts'
 import { readWorkspaceText } from '../spec/files.ts'
 import { runCommand, type CommandOutcome } from '../commands/run.ts'
-import { canApproveRequirement, canReviewRequirement } from './requirement-gate.ts'
+import { canApproveRequirement, canModifyDraft, canReviewRequirement, type ModifyBlockReason } from './requirement-gate.ts'
 import { renderMarkdown } from '../markdown/markdown.tsx'
 import { translate, type MessageKey, type Translate } from '../locale.ts'
 import { formatTimestamp, parseReviewReport, type ReviewPriority } from './requirement-report.ts'
@@ -136,6 +136,13 @@ const OP_LOCKED_KEY: Readonly<Record<RunningOpKind, MessageKey>> = {
   split: 'requirement.opLocked.split',
 }
 
+/** 原地改稿被送审锁定门禁拦下时的提示文案。 */
+const MODIFY_BLOCK_KEY: Readonly<Record<ModifyBlockReason, MessageKey>> = {
+  pending: 'requirement.modifyBlockedPending',
+  rejected: 'requirement.modifyBlockedRejected',
+  noNewVersion: 'requirement.modifyBlockedNoNewVersion',
+}
+
 /** 需求详情属性。 */
 export interface RequirementDetailProps {
   readonly row: RequirementDocRow
@@ -199,6 +206,8 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
   const [assigns, setAssigns] = useState<Readonly<Record<string, CommandOutcome>>>({})
   const [expandedTodos, setExpandedTodos] = useState<ReadonlySet<number>>(() => new Set())
   const [reportExpanded, setReportExpanded] = useState(false)
+  /** 独立文档栏的用户选择；未选择时按阶段派生默认标签（待处置联动最新评审报告）。 */
+  const [docOverride, setDocOverride] = useState<string | null>(null)
   const related = props.projection.tasks.filter(task => task.requirement === row.id || task.proposal === row.id)
 
   // 在途后台操作与本地发起共用同一把互斥锁；查看差异不在锁内，供 patch 待裁决阶段对比。
@@ -215,6 +224,7 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
     (best, review) => best === null || review.round > best.round ? review : best,
     null,
   )
+  const latestRound = latestReview?.round
   const historyReviews = latestReview === null
     ? []
     : row.reviews.filter(review => review.round !== latestReview.round).sort((left, right) => right.round - left.round)
@@ -396,13 +406,17 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
             ? t('requirement.guide.reviewRejected', { round: latestReview.round })
             : t('requirement.guide.draft')
   const guide = state === 'draft' ? draftGuide : t(GUIDE_KEY[state])
-  const phaseHint = state !== 'draft'
+  // 待处置态只用高对比横幅提示，不再叠加灰色的确认原因与阶段提示。
+  const phaseHint = state !== 'draft' || phase === 'pending'
     ? undefined
     : phase === 'unreviewed'
       ? t('requirement.phaseHint.start')
-      : phase === 'pending'
-        ? t('requirement.phaseHint.pending')
-        : t('requirement.phaseHint.reviewAgain')
+      : t('requirement.phaseHint.reviewAgain')
+
+  // 未手动切换时，待处置评审联动到最新报告标签，其余状态落在当前草稿。
+  const activeDoc = docOverride ?? (phase === 'pending' && latestRound !== undefined ? `r${String(latestRound)}` : 'draft')
+  const modifyGate = canModifyDraft({ ...gateParams, versions: row.versions })
+  const modifyBlockReason = modifyGate.ok ? undefined : t(MODIFY_BLOCK_KEY[modifyGate.reason])
 
   /** 评审结论徽标：报告卡、阶段 chips 与历史轮次共用同一口径。 */
   const decisionChip = (review: RequirementReviewRow, testId: string): JSX.Element => {
@@ -500,9 +514,9 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                     variant="secondary"
                     size="sm"
                     data-testid="requirement-detail-revise"
-                    isDisabled={locked}
-                    ref={(node) => { if (node !== null) node.title = lockedHint ?? t('requirement.opReviseTitle') }}
-                    onPress={() => { if (!locked) props.onModifyRequest() }}
+                    isDisabled={locked || !modifyGate.ok}
+                    ref={(node) => { if (node !== null) node.title = lockedHint ?? modifyBlockReason ?? t('requirement.opReviseTitle') }}
+                    onPress={() => { if (!locked && modifyGate.ok) props.onModifyRequest() }}
                   >
                     {t('requirement.opRevise')}
                   </Button>
@@ -586,7 +600,7 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
             {lockedHint !== undefined && (
               <p className="detail-note" data-testid="requirement-op-locked-hint">{lockedHint}</p>
             )}
-            {state === 'draft' && approveReason !== undefined && (
+            {state === 'draft' && phase !== 'pending' && approveReason !== undefined && (
               <p className="detail-note" data-testid="requirement-approve-hint">{approveReason}</p>
             )}
             {state === 'draft' && phase === 'pending' && reviewPendingReason !== undefined && (
@@ -611,7 +625,67 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
           style={props.diffOpen === true ? { display: 'none' } : undefined}
         >
           <div className="detail-content-pane">
-            <section className="detail-section requirement-document" data-testid="requirement-document">
+            <div className="requirement-doc-tabs" data-testid="requirement-doc-tabs" role="tablist" aria-label={t('requirement.docTabsLabel')}>
+              <button
+                type="button"
+                className="requirement-doc-tab"
+                data-testid="requirement-doc-tab-draft"
+                data-kind="draft"
+                data-active={activeDoc === 'draft' ? 'true' : 'false'}
+                role="tab"
+                aria-selected={activeDoc === 'draft'}
+                onClick={() => { setDocOverride('draft') }}
+              >
+                <span>{t('requirement.docTabDraft')}</span>
+                <span className="requirement-doc-tab-badge" data-state={modifyGate.ok ? 'editable' : 'locked'}>
+                  {modifyGate.ok ? t('requirement.docTabEditable') : t('requirement.docTabLocked')}
+                </span>
+              </button>
+              {row.versions.map(version => (
+                <button
+                  key={`tab-version-${String(version.n)}`}
+                  type="button"
+                  className="requirement-doc-tab"
+                  data-testid="requirement-doc-tab-version"
+                  data-version={version.n}
+                  data-kind="version"
+                  data-active={activeDoc === `v${String(version.n)}` ? 'true' : 'false'}
+                  role="tab"
+                  aria-selected={activeDoc === `v${String(version.n)}`}
+                  onClick={() => { setDocOverride(`v${String(version.n)}`) }}
+                >
+                  <span>{t('requirement.timelineVersion', { n: version.n })}</span>
+                  <span className="requirement-doc-tab-badge" data-state="locked">{t('requirement.docTabLocked')}</span>
+                </button>
+              ))}
+              {row.reviews.map((review) => {
+                const key = `r${String(review.round)}`
+                return (
+                  <button
+                    key={`tab-review-${String(review.round)}`}
+                    type="button"
+                    className="requirement-doc-tab"
+                    data-testid="requirement-doc-tab-review"
+                    data-round={review.round}
+                    data-kind="report"
+                    data-decision={decisionOf(review)}
+                    data-active={activeDoc === key ? 'true' : 'false'}
+                    role="tab"
+                    aria-selected={activeDoc === key}
+                    onClick={() => { setDocOverride(key) }}
+                  >
+                    <span>{t('requirement.reportTitle', { round: review.round })}</span>
+                    <span className="requirement-doc-tab-badge" data-state={decisionOf(review)}>{decisionLabel(t, review)}</span>
+                    <span className="requirement-doc-tab-badge" data-state="locked">{t('requirement.docTabReadonly')}</span>
+                  </button>
+                )
+              })}
+            </div>
+            <section
+              className="detail-section requirement-document"
+              data-testid="requirement-document"
+              data-doc-active={activeDoc === 'draft' ? 'true' : 'false'}
+            >
               <h4>{t('requirement.bodyTitle')}</h4>
               <div className="markdown-body document-body" data-testid="requirement-document-body">
                 {row.text.trim() === ''
@@ -619,7 +693,11 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                   : renderMarkdown(row.text)}
               </div>
             </section>
-            <section className="detail-section" data-testid="requirement-timeline">
+            <section
+              className="detail-section"
+              data-testid="requirement-timeline"
+              data-doc-active={activeDoc.startsWith('v') ? 'true' : 'false'}
+            >
               <h4>{t('requirement.timeline')}</h4>
               <ul className="timeline-chips">
                 <li data-testid="requirement-timeline-opened">
@@ -694,6 +772,8 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
             <section
               className="detail-section"
               data-testid="requirement-review-report"
+              data-doc-active={activeDoc.startsWith('r') ? 'true' : 'false'}
+              data-pending-report={phase === 'pending' ? 'true' : 'false'}
               {...(latestReview === null ? {} : { 'data-round': latestReview.round })}
             >
               <Separator className="detail-divider" />

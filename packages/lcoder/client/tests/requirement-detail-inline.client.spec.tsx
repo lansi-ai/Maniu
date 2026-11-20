@@ -185,21 +185,23 @@ function modifyOf(partial: Partial<ModifyState>): ModifyState {
   return { open: true, text: '', status: 'idle', ...partial }
 }
 
-describe('草稿顶部入口三态一致', () => {
-  it('无评审、待处置、已有结论都显示同一个可点的修改需求入口', async () => {
+describe('草稿顶部入口按送审锁定门禁分流', () => {
+  it('无评审与已采纳产出未审新版时可改，待处置轮次锁定改稿入口', async () => {
     const withReviews: readonly RequirementDocRow[] = [
       { ...DRAFT, reviews: [] },
       { ...DRAFT, reviews: [{ round: 1, at: '2026-11-17T10:30:00+08:00', report: 'requirements/REQ-01/reviews/R1.md', role: 'maniu-pm' }] },
       { ...DRAFT, reviews: [{ round: 1, at: '2026-11-17T10:30:00+08:00', report: 'requirements/REQ-01/reviews/R1.md', role: 'maniu-pm', decision: 'accepted', appliedVersion: 2 }] },
     ]
-    for (const row of withReviews) {
+    const expectedDisabled = [false, true, false]
+    withReviews.forEach((row, index) => {
       render({ row })
       const revise = element('requirement-detail-revise') as HTMLButtonElement
       expect(revise).not.toBeNull()
-      expect(revise.disabled).toBe(false)
-      await press('requirement-detail-revise')
-    }
-    expect(calls.modifyRequest).toHaveBeenCalledTimes(3)
+      expect(revise.disabled).toBe(expectedDisabled[index])
+    })
+    // 当前停在已采纳且产出 v2 的可改状态，点击仍走打开说明栏回调。
+    await press('requirement-detail-revise')
+    expect(calls.modifyRequest).toHaveBeenCalledTimes(1)
   })
 
   it('非草稿与只读文档没有修改入口', () => {

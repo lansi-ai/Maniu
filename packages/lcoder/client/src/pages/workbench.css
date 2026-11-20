@@ -527,7 +527,17 @@
 .requirement-hero .detail-note { margin: 2px 0 0; }
 .requirement-hero .detail-line { margin: 2px 0 0; }
 /* 待处置评审的醒目提醒与单独置右的作废关闭，避免与确认需求等权。 */
-.detail-warning { margin: 2px 0 0; font-size: 11px; color: var(--warning); }
+.detail-warning {
+  margin: 6px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in oklab, var(--warning) 55%, transparent);
+  border-left: 4px solid var(--warning);
+  background: color-mix(in oklab, var(--warning) 16%, var(--surface));
+  color: var(--foreground);
+}
 .requirement-ops .requirement-close { margin-left: auto; }
 /* 右上角紧凑工具组：刷新与查看原文不进核心流程操作栏。 */
 .requirement-quick-tools { display: inline-flex; align-items: center; gap: 2px; }
@@ -537,6 +547,38 @@
 .requirement-review-decision .detail-note { margin: 0; }
 .requirement-report-history li { flex-wrap: wrap; align-items: center; gap: 6px; }
 .requirement-report-history li > span { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+
+/* 独立文档切换栏：草稿/版本/报告并列导航，正文、时间线与报告节点常驻 DOM 供既有查询使用。 */
+.requirement-doc-tabs { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 8px 0 4px; padding-bottom: 8px; border-bottom: 1px solid var(--separator); }
+.requirement-doc-tab {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--separator);
+  background: var(--surface-secondary);
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 160ms ease, background-color 160ms ease, color 160ms ease;
+}
+.requirement-doc-tab:hover { border-color: var(--accent); color: var(--foreground); }
+.requirement-doc-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.requirement-doc-tab[data-active='true'] { border-color: var(--accent); background: var(--accent-soft); color: var(--foreground); font-weight: 600; }
+.requirement-doc-tab[data-kind='report'][data-decision='pending'][data-active='true'] {
+  border-color: var(--warning);
+  background: color-mix(in oklab, var(--warning) 16%, var(--surface));
+}
+.requirement-doc-tab-badge { font-size: 10px; padding: 1px 6px; border-radius: 999px; border: 1px solid var(--separator); }
+.requirement-doc-tab-badge[data-state='editable'],
+.requirement-doc-tab-badge[data-state='accepted'] { color: var(--success); border-color: color-mix(in oklab, var(--success) 55%, transparent); }
+.requirement-doc-tab-badge[data-state='pending'] { color: var(--warning); border-color: color-mix(in oklab, var(--warning) 55%, transparent); }
+.requirement-doc-tab-badge[data-state='locked'],
+.requirement-doc-tab-badge[data-state='rejected'] { color: var(--muted); border-color: var(--separator); }
+.detail-section[data-doc-active='true'] { box-shadow: inset 3px 0 0 var(--accent); }
+.detail-section[data-doc-active='true'][data-pending-report='true'] { box-shadow: inset 3px 0 0 var(--warning); }
 
 /* 阶段进度横排 chips：创建/评审/版本/过审，评审 chip 本身可点开报告。 */
 .timeline-chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; font-size: 12px; }

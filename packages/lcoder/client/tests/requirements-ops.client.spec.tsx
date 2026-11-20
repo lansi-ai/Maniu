@@ -38,7 +38,7 @@ const DRAFT: RequirementDocRow = {
   state: 'draft',
   options: [],
   versions: [],
-  reviews: [{ round: 1, at: '2026-11-17T10:00:00+08:00', report: 'requirements/REQ-01/reviews/R1.md', decision: 'rejected' }],
+  reviews: [],
   openedAt: '2026-11-16T09:00:00+08:00',
 }
 

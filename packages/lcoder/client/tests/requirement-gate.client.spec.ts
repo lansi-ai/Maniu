@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
-/** T-272：评审与确认的共享门禁口径——多岗会审豁免、未决与改稿判据，与 kernel 保持一致。 */
+/** T-272：评审、确认与原地改稿的共享门禁口径——多岗会审豁免、送审即锁定，与 kernel 保持一致。 */
 import { describe, expect, it } from 'vitest'
 import {
   canApproveRequirement,
+  canModifyDraft,
   canReviewRequirement,
   hasPendingReviews,
 } from '../src/pages/requirement-gate.ts'
@@ -43,8 +44,14 @@ describe('canReviewRequirement', () => {
     if (!gate.ok) expect(gate.block).toEqual({ reason: 'pending', round: 1 })
   })
 
-  it('未处置但正文已改稿时允许复核', () => {
-    expect(canReviewRequirement({ reviews: [R1()], versions: [V1, V2], flow: null, roster: ROSTER })).toEqual({ ok: true })
+  it('未决轮次即便正文已改稿仍无条件阻塞：送审即锁定，须先处置本轮意见', () => {
+    const gate = canReviewRequirement({ reviews: [R1()], versions: [V1, V2], flow: null, roster: ROSTER })
+    expect(gate.ok).toBe(false)
+    if (!gate.ok) expect(gate.block).toEqual({ reason: 'pending', round: 1 })
+    // 显式 pending 与缺省同义。
+    const explicit = canReviewRequirement({ reviews: [R1('pending')], versions: [V1, V2], flow: null, roster: ROSTER })
+    expect(explicit.ok).toBe(false)
+    if (!explicit.ok) expect(explicit.block).toEqual({ reason: 'pending', round: 1 })
   })
 
   it('已采纳但正文未改稿时拦重复评审，已改稿时允许', () => {
@@ -65,9 +72,10 @@ describe('canReviewRequirement', () => {
     expect(canReviewRequirement({
       reviews: [based()], versions: [V1], flow: null, roster: ROSTER, document: '# 原正文',
     })).toMatchObject({ ok: false, block: { reason: 'pending' } })
+    // 未决评审即便基线正文已变，也须先处置本轮意见，不能据此放行新一轮。
     expect(canReviewRequirement({
       reviews: [based()], versions: [V1], flow: null, roster: ROSTER, document: '# 改后的正文',
-    })).toEqual({ ok: true })
+    })).toMatchObject({ ok: false, block: { reason: 'pending' } })
     expect(canReviewRequirement({
       reviews: [based('accepted')], versions: [V1], flow: null, roster: ROSTER, document: '# 改后的正文',
     })).toEqual({ ok: true })
@@ -76,12 +84,16 @@ describe('canReviewRequirement', () => {
     })).toMatchObject({ ok: false, block: { reason: 'repeat' } })
   })
 
-  it('旧评审没有基线时即使传了当前正文仍回退版本时间戳口径', () => {
+  it('旧评审没有基线时回退版本时间戳口径，但未决轮次仍无条件阻塞', () => {
     expect(canReviewRequirement({
       reviews: [R1()], versions: [V1], flow: null, roster: ROSTER, document: '# 与版本表无关的新正文',
     })).toMatchObject({ ok: false, block: { reason: 'pending' } })
     expect(canReviewRequirement({
       reviews: [R1()], versions: [V1, V2], flow: null, roster: ROSTER, document: '# 与版本表无关的新正文',
+    })).toMatchObject({ ok: false, block: { reason: 'pending' } })
+    // 已采纳分支仍按版本时间戳判断正文是否改过。
+    expect(canReviewRequirement({
+      reviews: [R1('accepted')], versions: [V1, V2], flow: null, roster: ROSTER, document: '# 与版本表无关的新正文',
     })).toEqual({ ok: true })
   })
 
@@ -92,6 +104,39 @@ describe('canReviewRequirement', () => {
     const gate = canReviewRequirement({ reviews: bothSigned, versions: [V1], flow: FLOW_TWO, roster: ROSTER })
     expect(gate.ok).toBe(false)
     if (!gate.ok) expect(gate.block).toEqual({ reason: 'pending', round: 2 })
+  })
+})
+
+describe('canModifyDraft', () => {
+  const params = (
+    reviews: readonly RequirementReviewRow[],
+    versions: readonly RequirementVersionRow[],
+  ) => ({ reviews, versions, flow: null, roster: ROSTER })
+
+  it('无评审时草稿从未送审，可以修改', () => {
+    expect(canModifyDraft(params([], [V1]))).toEqual({ ok: true })
+  })
+
+  it('最新一轮未决时送审即锁定，不可修改', () => {
+    expect(canModifyDraft(params([R1()], [V1]))).toEqual({ ok: false, reason: 'pending' })
+    expect(canModifyDraft(params([R1('pending')], [V1, V2]))).toEqual({ ok: false, reason: 'pending' })
+  })
+
+  it('已采纳且产出晚于该轮的新版本、未再送审时可修改', () => {
+    expect(canModifyDraft(params([R1('accepted')], [V1, V2]))).toEqual({ ok: true })
+  })
+
+  it('已采纳但没有新版本，或新版本已发起新一轮评审时不可修改', () => {
+    expect(canModifyDraft(params([R1('accepted')], [V1]))).toEqual({ ok: false, reason: 'noNewVersion' })
+    // 新一轮已送审 → 最新轮未决，回到 pending 锁定。
+    expect(canModifyDraft(params(
+      [R1('accepted'), { ...R1('pending'), round: 2 }],
+      [V1, V2],
+    ))).toEqual({ ok: false, reason: 'pending' })
+  })
+
+  it('已放弃本轮意见时不可修改，须重新发起评审', () => {
+    expect(canModifyDraft(params([R1('rejected')], [V1]))).toEqual({ ok: false, reason: 'rejected' })
   })
 })
 
