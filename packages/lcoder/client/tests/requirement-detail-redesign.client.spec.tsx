@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-/** T-250：需求详情状态先行——四态操作栏与指引句、标题三区、配齐禁用原因、正文与报告折叠、阶段 chips、后台发起通道。 */
+/** T-250：需求详情状态先行——四态操作栏与指引句、标题三区、配齐禁用原因、正文与报告折叠、阶段 chips、后台发起通道。T-286：四层重排，操作栏与正文随文档标签切换。 */
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
@@ -200,6 +200,15 @@ async function renderDetail(
 
 async function press(testId: string): Promise<void> {
   const node = element(testId)
+  expect(node).not.toBeNull()
+  await act(async () => {
+    ;(node as HTMLElement).click()
+    await new Promise(resolve => setTimeout(resolve, 0))
+  })
+}
+
+async function openTab(selector: string): Promise<void> {
+  const node = container.querySelector(selector)
   expect(node).not.toBeNull()
   await act(async () => {
     ;(node as HTMLElement).click()
@@ -437,20 +446,24 @@ describe('当前正文内联在详情主区', () => {
 })
 
 describe('评审报告摘要卡', () => {
-  it('非结构化报告仍截取首 120 字，全文展开后才渲染', async () => {
+  it('报告标签默认展开全文：结论摘录与摘要卡之上直接可读原始 Markdown，收起后才隐藏', async () => {
     await renderDetail(DRAFT, callsOf())
+    await openTab('[data-testid="requirement-doc-tab-review"]')
     const excerpt = element('requirement-report-excerpt')
     expect(excerpt?.textContent?.length).toBe(121)
     expect(excerpt?.textContent?.endsWith('…')).toBe(true)
     expect(element('requirement-report-summary')?.textContent).toContain('结论摘录')
+    expect(element('requirement-report-body')?.textContent).toContain('评审意见正文')
+    await press('requirement-report-toggle')
     expect(element('requirement-report-body')).toBeNull()
     await press('requirement-report-toggle')
     expect(element('requirement-report-body')?.textContent).toContain('评审意见正文')
   })
 
-  it('结构化报告渲染摘要卡与待改项徽标，展开后仍可读原始 Markdown', async () => {
+  it('结构化报告渲染摘要卡与待改项徽标，全文默认展开且仍可收起', async () => {
     reportText = STRUCTURED_REPORT
     await renderDetail(DRAFT, callsOf())
+    await openTab('[data-testid="requirement-doc-tab-review"]')
     expect(element('requirement-report-summary-card')?.textContent).toContain('摘要')
     expect(element('requirement-report-summary-text')?.textContent).toContain('代发订单边界')
     const todos = container.querySelectorAll('[data-testid="requirement-report-todo"]')
@@ -460,13 +473,15 @@ describe('评审报告摘要卡', () => {
     expect(badges[0]?.className).toContain('priority-high')
     expect(badges[1]?.className).toContain('priority-low')
     expect(element('requirement-report-excerpt')).toBeNull()
-    await press('requirement-report-toggle')
     expect(element('requirement-report-body')?.textContent).toContain('位置：验收口径')
+    await press('requirement-report-toggle')
+    expect(element('requirement-report-body')).toBeNull()
   })
 
   it('待改项按优先级排序，默认只显示摘要与统计徽标', async () => {
     reportText = STRUCTURED_REPORT
     await renderDetail(DRAFT, callsOf())
+    await openTab('[data-testid="requirement-doc-tab-review"]')
     const todos = container.querySelectorAll('[data-testid="requirement-report-todo"]')
     expect(Array.from(todos).map(node => node.getAttribute('data-priority'))).toEqual(['high', 'low'])
     expect(element('requirement-todo-summary')?.textContent).toBe('高 1 · 中 0 · 低 1')
@@ -481,6 +496,7 @@ describe('评审报告摘要卡', () => {
   it('点开待改项才显示完整建议，再点收起回到摘要', async () => {
     reportText = STRUCTURED_REPORT
     await renderDetail(DRAFT, callsOf())
+    await openTab('[data-testid="requirement-doc-tab-review"]')
     const first = container.querySelector('[data-testid="requirement-report-todo"]') as HTMLElement
     const toggle = first.querySelector('[data-testid="requirement-todo-toggle"]') as HTMLElement
     expect(toggle.getAttribute('aria-expanded')).toBe('false')
@@ -503,6 +519,7 @@ describe('评审报告摘要卡', () => {
 
   it('报告摘要时刻按可读格式展示', async () => {
     await renderDetail(DRAFT, callsOf())
+    await openTab('[data-testid="requirement-doc-tab-review"]')
     expect(element('requirement-report-summary')?.textContent).toContain('2026-11-17 10:30')
   })
 })
@@ -525,13 +542,18 @@ describe('详情页去冗余', () => {
 })
 
 describe('阶段进度 chips', () => {
-  it('横排 chips 紧跟头部，评审与版本带打开入口', async () => {
+  it('横排 chips 在文档阅读区之后，评审与版本带打开入口', async () => {
     const calls = callsOf()
     await renderDetail(DRAFT, calls)
     const body = container.querySelector('.detail-drawer-body')
-    const sections = body?.querySelectorAll('.detail-content-pane > section') ?? []
-    expect(sections[0]?.getAttribute('data-testid')).toBe('requirement-document')
-    expect(sections[1]?.getAttribute('data-testid')).toBe('requirement-timeline')
+    const pane = body?.querySelector('.detail-content-pane')
+    const order = Array.from(pane?.children ?? []).map(node => node.getAttribute('data-testid'))
+    expect(order.slice(0, 4)).toEqual([
+      'requirement-doc-tabs',
+      'requirement-actions',
+      'requirement-doc-pane',
+      'requirement-timeline',
+    ])
     expect(body?.querySelector('.timeline-chips')).not.toBeNull()
     expect(element('requirement-timeline-approved')?.textContent).toContain('尚未过审')
 
@@ -752,6 +774,105 @@ describe('独立文档切换栏', () => {
     expect(element('requirement-document-body')).not.toBeNull()
     expect(element('requirement-review-report')).not.toBeNull()
     expect(container.querySelectorAll('[data-testid="requirement-timeline-version"]')).toHaveLength(2)
+  })
+})
+
+describe('文档栏四层顺序与专属操作栏', () => {
+  const PENDING: RequirementDocRow = {
+    ...DRAFT,
+    versions: [{ n: 1, at: '2026-11-17T09:00:00+08:00' }],
+    reviews: [{ round: 1, at: '2026-11-17T10:30:00+08:00', report: 'requirements/REQ-01/reviews/R1.md', role: 'maniu-pm' }],
+  }
+
+  function hidden(element: Element | null): boolean {
+    return element?.hasAttribute('hidden') === true
+  }
+
+  it('全局头部、标签栏、文档操作栏、正文阅读区自上而下排列', async () => {
+    await renderDetail(DRAFT, callsOf())
+    const hero = container.querySelector('.requirement-hero') as HTMLElement
+    const tabs = element('requirement-doc-tabs') as HTMLElement
+    const actions = element('requirement-actions') as HTMLElement
+    const docPane = element('requirement-doc-pane') as HTMLElement
+    expect(hero.compareDocumentPosition(tabs) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(tabs.compareDocumentPosition(actions) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(actions.compareDocumentPosition(docPane) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(element('requirement-global-actions')?.closest('.requirement-hero')).not.toBeNull()
+    expect(element('requirement-close')?.closest('.requirement-hero')).not.toBeNull()
+    expect(element('requirement-actions')?.getAttribute('data-active-doc')).toBe('draft')
+  })
+
+  it('草稿标签只给评审/修改/确认三按钮，正文显示当前草稿', async () => {
+    await renderDetail(DRAFT, callsOf())
+    const draftGroup = element('requirement-actions-draft') as HTMLElement
+    expect(hidden(draftGroup)).toBe(false)
+    expect(element('requirement-detail-review')?.closest('[hidden]')).toBeNull()
+    expect(element('requirement-detail-revise')).not.toBeNull()
+    expect(element('requirement-approve')).not.toBeNull()
+    expect(element('requirement-actions-review')).toBeNull()
+    expect(element('requirement-actions-version')).toBeNull()
+    expect(hidden(element('requirement-document'))).toBe(false)
+    expect(hidden(element('requirement-review-report'))).toBe(true)
+  })
+
+  it('待处置报告标签只给采纳/放弃，草稿三按钮隐藏但仍在 DOM', async () => {
+    const calls = callsOf()
+    await renderDetail(PENDING, calls)
+    expect(element('requirement-actions-review')?.getAttribute('data-decision')).toBe('pending')
+    expect(element('requirement-review-accept')?.textContent).toContain('采纳意见并修改需求')
+    expect(element('requirement-review-reject')?.textContent).toContain('放弃本轮意见')
+    expect(hidden(element('requirement-actions-draft'))).toBe(true)
+    // 既有查询仍能拿到草稿按钮，只是当前标签下不可见。
+    expect(element('requirement-detail-review')).not.toBeNull()
+    expect(element('requirement-detail-revise')).not.toBeNull()
+    expect(element('requirement-approve')).not.toBeNull()
+    expect(hidden(element('requirement-document'))).toBe(true)
+    expect(hidden(element('requirement-review-report'))).toBe(false)
+    expect(element('requirement-review-report')?.getAttribute('data-round')).toBe('1')
+    expect(element('requirement-report-body')?.textContent).toContain('评审意见正文')
+
+    await press('requirement-review-reject')
+    expect(commands).toEqual(['/requirement_review_decide REQ-01 1 rejected'])
+  })
+
+  it('切回草稿标签只给草稿三按钮并隐藏报告区，待处置仍禁用', async () => {
+    await renderDetail(PENDING, callsOf())
+    await openTab('[data-testid="requirement-doc-tab-draft"]')
+    expect(hidden(element('requirement-actions-draft'))).toBe(false)
+    expect(element('requirement-actions-review')).toBeNull()
+    expect(element('requirement-review-decision')).toBeNull()
+    expect((element('requirement-detail-review') as HTMLButtonElement).disabled).toBe(true)
+    expect((element('requirement-detail-revise') as HTMLButtonElement).disabled).toBe(true)
+    expect(hidden(element('requirement-document'))).toBe(false)
+    expect(hidden(element('requirement-review-report'))).toBe(true)
+    expect(element('requirement-review-report')).not.toBeNull()
+  })
+
+  it('版本标签给对比上一版与只读说明，主阅读区渲染该版本快照', async () => {
+    await renderDetail(DRAFT, callsOf())
+    await openTab('[data-testid="requirement-doc-tab-version"][data-version="2"]')
+    const versionGroup = element('requirement-actions-version')
+    expect(versionGroup?.getAttribute('data-version')).toBe('2')
+    expect(versionGroup?.querySelector('[data-testid="requirement-compare-version"]')).not.toBeNull()
+    expect(versionGroup?.textContent).toContain('只读')
+    expect(hidden(element('requirement-actions-draft'))).toBe(true)
+    expect(hidden(element('requirement-document'))).toBe(true)
+    expect(element('requirement-version-document-body')?.textContent).toContain('新版正文')
+    // 时间线版本 chips 仍在 DOM 供既有查询。
+    expect(container.querySelectorAll('[data-testid="requirement-timeline-version"]')).toHaveLength(2)
+
+    await press('requirement-compare-version')
+    expect(element('requirement-version-compare')?.getAttribute('data-version')).toBe('2')
+  })
+
+  it('已处置报告标签只读：给结论徽标与只读说明，没有写操作按钮', async () => {
+    await renderDetail(DRAFT, callsOf())
+    await openTab('[data-testid="requirement-doc-tab-review"]')
+    expect(element('requirement-review-decided-status')?.textContent).toContain('已采纳')
+    expect(element('requirement-review-decided')?.textContent).toContain('只读')
+    expect(element('requirement-review-accept')).toBeNull()
+    expect(element('requirement-review-reject')).toBeNull()
+    expect(element('requirement-report-body')).not.toBeNull()
   })
 })
 

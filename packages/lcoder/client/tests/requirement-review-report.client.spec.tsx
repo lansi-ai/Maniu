@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-/** T-242 内联评审报告（T-250 起默认折叠摘要卡）：取数通道、展开渲染、失败退回阅读器；确认与改稿在顶部操作栏。 */
+/** T-242 内联评审报告（T-250 起默认折叠摘要卡）：取数通道、展开渲染、失败退回阅读器；确认与改稿在顶部操作栏。T-286：报告全文默认展开，操作栏随文档标签切换。 */
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
@@ -159,21 +159,21 @@ async function pressSelector(selector: string): Promise<void> {
 }
 
 describe('内联评审报告', () => {
-  it('默认折叠成摘要卡，展开后才渲染全文；取数走作用域会话与 .spec 相对路径', async () => {
+  it('报告标签默认展开全文，取数走作用域会话与 .spec 相对路径', async () => {
     await renderDetail(REVIEWED, callsOf())
     const section = element('requirement-review-report')
     expect(section?.getAttribute('data-round')).toBe('2')
     expect(reads).toEqual([{ scope: 'session-scope', path: '.spec/requirements/REQ-01/reviews/R2.md' }])
     expect(element('requirement-report-summary')?.textContent).toContain('2026-11-17 11:00')
     expect(element('requirement-report-excerpt')?.textContent).toContain('评审结论 .spec/requirements/REQ-01/reviews/R2.md')
-    expect(element('requirement-report-body')).toBeNull()
-
-    await press('requirement-report-toggle')
     expect(element('requirement-report-body')?.textContent).toContain('评审结论 .spec/requirements/REQ-01/reviews/R2.md')
     expect(element('requirement-report-body')?.querySelector('h1')).not.toBeNull()
 
     await press('requirement-report-toggle')
     expect(element('requirement-report-body')).toBeNull()
+
+    await press('requirement-report-toggle')
+    expect(element('requirement-report-body')?.textContent).toContain('评审结论 .spec/requirements/REQ-01/reviews/R2.md')
   })
 
   it('轮次增加后重读新报告，摘要与展开正文都换新', async () => {
@@ -187,7 +187,6 @@ describe('内联评审报告', () => {
     expect(element('requirement-review-report')?.getAttribute('data-round')).toBe('3')
     expect(reads[reads.length - 1]?.path).toBe('.spec/requirements/REQ-01/reviews/R3.md')
     expect(element('requirement-report-excerpt')?.textContent).toContain('R3.md')
-    await press('requirement-report-toggle')
     expect(element('requirement-report-body')?.textContent).toContain('R3.md')
   })
 
@@ -223,7 +222,7 @@ describe('内联评审报告', () => {
   })
 })
 
-describe('顶部操作栏的确认与改稿', () => {
+describe('文档操作栏的确认与改稿', () => {
   it('确认需求仍走人机命令，成功后展示回执', async () => {
     const resolved: RequirementDocRow = {
       ...REVIEWED,
@@ -262,7 +261,7 @@ describe('顶部操作栏的确认与改稿', () => {
     expect(element('requirement-report-baseline-changed')).toBeNull()
   })
 
-  it('待处置评审送审即锁定：顶部修改需求禁用，改走报告里的采纳/放弃', async () => {
+  it('待处置评审送审即锁定：文档操作栏的修改需求禁用，改走报告里的采纳/放弃', async () => {
     const calls = callsOf()
     await renderDetail(REVIEWED, calls)
     const revise = element('requirement-detail-revise') as HTMLButtonElement
@@ -278,6 +277,25 @@ describe('顶部操作栏的确认与改稿', () => {
 })
 
 describe('评审结论三态与处置动作', () => {
+  it('报告与草稿标签各自只给当前文档的动作，标签栏在操作栏上方', async () => {
+    await renderDetail(REVIEWED, callsOf())
+    const tabs = element('requirement-doc-tabs') as HTMLElement
+    const actions = element('requirement-actions') as HTMLElement
+    expect(tabs.compareDocumentPosition(actions) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(element('requirement-actions-review')?.getAttribute('data-round')).toBe('2')
+    expect(element('requirement-review-accept')).not.toBeNull()
+    expect(element('requirement-review-reject')).not.toBeNull()
+    expect(element('requirement-actions-draft')?.hasAttribute('hidden')).toBe(true)
+    expect(element('requirement-detail-review')?.closest('[hidden]')).not.toBeNull()
+
+    await pressSelector('[data-testid="requirement-doc-tab-draft"]')
+    expect(element('requirement-actions-review')).toBeNull()
+    expect(element('requirement-review-accept')).toBeNull()
+    expect(element('requirement-actions-draft')?.hasAttribute('hidden')).toBe(false)
+    expect(element('requirement-detail-review')).not.toBeNull()
+    expect(element('requirement-document-body')).not.toBeNull()
+  })
+
   it('待处理轮次在报告卡头与阶段 chips 带徽标，卡底给采纳与放弃', async () => {
     await renderDetail(REVIEWED, callsOf())
     const status = element('requirement-review-status')
