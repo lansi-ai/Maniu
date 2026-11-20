@@ -397,6 +397,36 @@ export function isBuiltinTalentPreset(presetId: string): boolean {
 }
 
 /**
+ * 判断一个会话是否属于后台流程：有已归一化的角色 id，且不是工作台默认聊天。
+ * @param presetId - 会话头记录的 preset id；旧会话可能是改名前的 `lcoder-*`。
+ * @returns 后台流程会话为 true。
+ */
+export function isFlowPreset(presetId: string | undefined): boolean {
+  if (presetId === undefined || presetId === '') return false
+  const id = currentPresetId(presetId)
+  return id !== '' && id !== WORKBENCH_PRESET_ID
+}
+
+/** 后台流程首条用户指令的系统模板开头。 */
+const FLOW_SEED_PREFIXES: readonly string[] = [
+  '需求评审：',
+  '需求改稿：',
+  '修改需求：',
+  '需求拆分：',
+  '需求调研接续：',
+  '新建需求：',
+]
+
+/**
+ * 判断一段用户指令是否是后台流程下发的系统种子。
+ * @param text - 首条用户消息正文。
+ * @returns 命中系统模板开头时为 true。
+ */
+export function isFlowSeedText(text: string): boolean {
+  return FLOW_SEED_PREFIXES.some(prefix => text.startsWith(prefix))
+}
+
+/**
  * 解析 `agentPresets/list` 的名册。
  * @param value - Remote 返回值。
  * @returns 每一行；结构不符时返回 undefined。

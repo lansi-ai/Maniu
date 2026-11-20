@@ -20,6 +20,7 @@ import { SettingsPage } from './pages/settings.tsx'
 import { TasksPage } from './pages/tasks.tsx'
 import { TalentsPage } from './pages/talents.tsx'
 import { ChatView } from './shell/chat-view.tsx'
+import { visibleSessionsOf } from './shell/session-groups.ts'
 import { PendingLayer, type AnswerResult } from './shell/pending-cards.tsx'
 import { GateChrome } from './shell/gate-chrome.tsx'
 import { GateView } from './shell/gate-view.tsx'
@@ -351,7 +352,9 @@ export function App(): JSX.Element {
 
   const createAndSelect = useCallback(async (): Promise<string | null> => {
     setNotice(null)
-    const answer = await window.lcoder.call('session', 'create', { request: {} })
+    const answer = await window.lcoder.call('session', 'create', {
+      request: project === null ? {} : { workspaceId: project.workspaceId },
+    })
     if (!answer.ok) {
       setNotice(`${answer.error.code}: ${answer.error.message}`)
       return null
@@ -369,13 +372,14 @@ export function App(): JSX.Element {
         updatedAt: Date.now(),
         running: false,
         blank: true,
+        ...(project === null ? {} : { cwd: project.path }),
         ...(typeof value.agentPreset === 'string' ? { agentPreset: value.agentPreset } : {}),
       },
     ]))
     selectSession(sessionId)
     await loadSessions()
     return sessionId
-  }, [loadSessions, selectSession])
+  }, [loadSessions, project, selectSession])
 
   const createSession = useCallback((): void => {
     if (sendingRef.current) return
@@ -510,6 +514,7 @@ export function App(): JSX.Element {
         updatedAt: Date.now(),
         running: false,
         blank: true,
+        cwd: project.path,
         agentPreset,
       },
     ]))
@@ -619,6 +624,11 @@ export function App(): JSX.Element {
   const running = active !== null && sessions.find(item => item.sessionId === active)?.running === true
   // 回合在跑或正文还在流时冻结背景漂移；两者都不是时恢复。
   const busy = running || chat.attempt !== null
+  // 对话页只显示当前项目的会话；需求页等后台观察仍读完整 sessions。
+  const visibleSessions = useMemo(
+    () => visibleSessionsOf(sessions, project, workspaces.items, active),
+    [active, project, sessions, workspaces.items],
+  )
 
   const gateKind: 'booting' | 'cloud-error' | 'signed-out' | 'ready' =
     host.kind !== 'ready'
@@ -704,7 +714,7 @@ export function App(): JSX.Element {
             {page === 'chat' && (
               <ChatView
                 t={t}
-                sessions={sessions}
+                sessions={visibleSessions}
                 titles={titles}
                 active={active}
                 chat={chat}
