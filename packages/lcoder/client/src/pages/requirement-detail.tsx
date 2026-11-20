@@ -266,6 +266,8 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
   const [reviewUi, setReviewUi] = useState<TodoVerdictState>(EMPTY_VERDICTS)
   /** 优先级筛选；默认全部。 */
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>('all')
+  /** 批量裁决菜单的展开态；点击外部或按 Esc 关闭。 */
+  const [batchMenuOpen, setBatchMenuOpen] = useState(false)
   const related = props.projection.tasks.filter(task => task.requirement === row.id || task.proposal === row.id)
 
   // 在途后台操作与本地发起共用同一把互斥锁；查看差异不在锁内，供 patch 待裁决阶段对比。
@@ -328,6 +330,7 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
     setReviewUi(EMPTY_VERDICTS)
     setShowRawMarkdown(false)
     setPriorityFilter('all')
+    setBatchMenuOpen(false)
     setSummaryExpanded(false)
     setNoteFocused(null)
   }, [reportPath])
@@ -384,19 +387,20 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
     if (modify.open) noteRef.current?.focus()
   }, [modify.open])
 
-  // Esc 分层退出：版本对照 → 差异 → 说明栏 → 详情；阅读层打开时交给阅读层处理。
+  // Esc 分层退出：批量菜单 → 版本对照 → 差异 → 说明栏 → 详情；阅读层打开时交给阅读层处理。
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
       if (event.key !== 'Escape' || props.readerOpen === true) return
       event.stopPropagation()
-      if (compareVersion !== null) setCompareVersion(null)
+      if (batchMenuOpen) setBatchMenuOpen(false)
+      else if (compareVersion !== null) setCompareVersion(null)
       else if (props.diffOpen === true) props.onCloseDiff?.()
       else if (modify.open) props.onModifyCancel?.()
       else props.onClose()
     }
     window.addEventListener('keydown', onKey, true)
     return () => { window.removeEventListener('keydown', onKey, true) }
-  }, [compareVersion, props.diffOpen, props.onClose, props.onCloseDiff, props.onModifyCancel, props.readerOpen, modify.open])
+  }, [batchMenuOpen, compareVersion, props.diffOpen, props.onClose, props.onCloseDiff, props.onModifyCancel, props.readerOpen, modify.open])
 
   const execute = async (kind: string, line: string): Promise<void> => {
     if (busy !== null) return
@@ -857,30 +861,39 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                   {decisionOf(activeReview) === 'pending'
                     ? (
                       <div className="requirement-review-decision" data-testid="requirement-review-decision">
-                        <Button
-                          variant="primary"
-                          size="sm"
-                          data-testid="requirement-review-accept"
-                          data-accepted={decisions.accepted.length}
-                          data-questioned={decisions.questioned.length}
-                          data-rejected={decisions.rejected.length}
-                          isDisabled={locked || !canAccept}
-                          ref={(node) => {
-                            if (node === null) return
-                            node.title = lockedHint ?? (!canAccept
-                              ? hasEmptyQuestion
-                                ? t('requirement.reviewAcceptQuestionRequired')
-                                : t('requirement.reviewAcceptDisabledTitle')
-                              : t('requirement.reviewAcceptTitle'))
-                          }}
-                          onPress={() => { void startOp('reviewAccept', props.onRevise, decisions) }}
-                        >
-                          {t('requirement.reviewAcceptAction', {
-                            accepted: decisions.accepted.length,
-                            questioned: decisions.questioned.length,
-                            rejected: decisions.rejected.length,
-                          })}
-                        </Button>
+                        <div className="review-primary-action">
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            data-testid="requirement-review-accept"
+                            data-accepted={decisions.accepted.length}
+                            data-questioned={decisions.questioned.length}
+                            data-rejected={decisions.rejected.length}
+                            isDisabled={locked || !canAccept}
+                            ref={(node) => {
+                              if (node === null) return
+                              node.title = lockedHint ?? (!canAccept
+                                ? hasEmptyQuestion
+                                  ? t('requirement.reviewAcceptQuestionRequired')
+                                  : t('requirement.reviewAcceptDisabledTitle')
+                                : t('requirement.reviewAcceptTitle'))
+                            }}
+                            onPress={() => { void startOp('reviewAccept', props.onRevise, decisions) }}
+                          >
+                            {t('requirement.reviewAcceptAction')}
+                          </Button>
+                          <span className="review-decision-counts">
+                            <span className="review-decision-count" data-testid="requirement-review-count" data-kind="accepted">
+                              {t('requirement.reviewCountAccepted', { count: decisions.accepted.length })}
+                            </span>
+                            <span className="review-decision-count" data-testid="requirement-review-count" data-kind="questioned">
+                              {t('requirement.reviewCountQuestioned', { count: decisions.questioned.length })}
+                            </span>
+                            <span className="review-decision-count" data-testid="requirement-review-count" data-kind="rejected">
+                              {t('requirement.reviewCountRejected', { count: decisions.rejected.length })}
+                            </span>
+                          </span>
+                        </div>
                         <Button
                           variant="secondary"
                           size="sm"
@@ -1037,12 +1050,12 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                                   </span>
                                 </div>
                                 <div className="review-todo-toolbar" data-testid="requirement-review-toolbar">
-                                  <div className="review-filter-pills" role="group" aria-label={t('requirement.reviewFilterLabel')}>
+                                  <div className="review-segmented" role="group" aria-label={t('requirement.reviewFilterLabel')}>
                                     {(['all', 'high', 'medium', 'low'] as const).map(priority => (
                                       <button
                                         key={priority}
                                         type="button"
-                                        className={`review-pill${priorityFilter === priority ? ' is-active' : ''}`}
+                                        className={`review-segment${priorityFilter === priority ? ' is-active' : ''}`}
                                         data-testid="requirement-review-filter"
                                         data-priority={priority}
                                         aria-pressed={priorityFilter === priority}
@@ -1057,31 +1070,52 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                                   <div className="review-batch-actions" role="group" aria-label={t('requirement.reviewBatchLabel')}>
                                     <button
                                       type="button"
-                                      className="review-pill review-batch-pill"
-                                      data-testid="requirement-review-batch"
-                                      data-action="allAccept"
-                                      onClick={() => { batchVerdict(() => 'accept') }}
+                                      className="review-batch-trigger"
+                                      data-testid="requirement-review-batch-trigger"
+                                      aria-expanded={batchMenuOpen}
+                                      aria-haspopup="menu"
+                                      onClick={() => { setBatchMenuOpen(current => !current) }}
                                     >
-                                      {t('requirement.reviewBatchAllAccept')}
+                                      {t('requirement.reviewBatchLabel')}
+                                      <ChevronDown size={14} aria-hidden="true" />
                                     </button>
-                                    <button
-                                      type="button"
-                                      className="review-pill review-batch-pill"
-                                      data-testid="requirement-review-batch"
-                                      data-action="highOnly"
-                                      onClick={() => { batchVerdict(todo => todo.priority === 'high' ? 'accept' : 'reject') }}
-                                    >
-                                      {t('requirement.reviewBatchHighOnly')}
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className="review-pill review-batch-pill"
-                                      data-testid="requirement-review-batch"
-                                      data-action="allReject"
-                                      onClick={() => { batchVerdict(() => 'reject') }}
-                                    >
-                                      {t('requirement.reviewBatchAllReject')}
-                                    </button>
+                                    {batchMenuOpen && (
+                                      <>
+                                        <div className="review-batch-backdrop" data-testid="requirement-review-batch-backdrop" onClick={() => { setBatchMenuOpen(false) }} />
+                                        <div className="review-batch-menu" role="menu">
+                                          <button
+                                            type="button"
+                                            role="menuitem"
+                                            className="review-batch-menu-item"
+                                            data-testid="requirement-review-batch"
+                                            data-action="allAccept"
+                                            onClick={() => { batchVerdict(() => 'accept'); setBatchMenuOpen(false) }}
+                                          >
+                                            {t('requirement.reviewBatchAllAccept')}
+                                          </button>
+                                          <button
+                                            type="button"
+                                            role="menuitem"
+                                            className="review-batch-menu-item"
+                                            data-testid="requirement-review-batch"
+                                            data-action="highOnly"
+                                            onClick={() => { batchVerdict(todo => todo.priority === 'high' ? 'accept' : 'reject'); setBatchMenuOpen(false) }}
+                                          >
+                                            {t('requirement.reviewBatchHighOnly')}
+                                          </button>
+                                          <button
+                                            type="button"
+                                            role="menuitem"
+                                            className="review-batch-menu-item"
+                                            data-testid="requirement-review-batch"
+                                            data-action="allReject"
+                                            onClick={() => { batchVerdict(() => 'reject'); setBatchMenuOpen(false) }}
+                                          >
+                                            {t('requirement.reviewBatchAllReject')}
+                                          </button>
+                                        </div>
+                                      </>
+                                    )}
                                   </div>
                                 </div>
                                 <div className="table-wrap review-todo-wrap" data-testid="requirement-review-todos">
@@ -1090,7 +1124,6 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                                       <tr>
                                         <th scope="col">{t(hasAnyCategory ? 'requirement.reviewColLevel' : 'requirement.reviewColLevelOnly')}</th>
                                         <th scope="col">{t('requirement.reviewColIssue')}</th>
-                                        <th scope="col">{t('requirement.reviewColLocation')}</th>
                                         <th scope="col">{t('requirement.reviewColVerdict')}</th>
                                       </tr>
                                     </thead>
@@ -1129,7 +1162,6 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                                                   <strong>{todo.title}</strong>
                                                 </span>
                                               </td>
-                                              <td className="review-todo-location" title={todo.location}>{todo.location || '—'}</td>
                                               <td className="review-todo-verdict" onClick={(event) => { event.stopPropagation() }}>
                                                 <div className="verdict-group" role="group" aria-label={t('requirement.reviewVerdictLabel')}>
                                                   {(['accept', 'reject', 'question'] as const).map(option => (
@@ -1154,7 +1186,7 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                                             </tr>
                                             {expanded && (
                                               <tr className="todo-detail-row" data-testid="requirement-review-todo-detail" data-index={index}>
-                                                <td colSpan={4}>
+                                                <td colSpan={3}>
                                                   <div className="todo-detail-card">
                                                     {todo.location !== '' && (
                                                       <p className="todo-detail-location-inline">
@@ -1162,7 +1194,7 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                                                       </p>
                                                     )}
                                                     <div className="todo-detail-grid">
-                                                      <section className="todo-detail-block">
+                                                      <section className="todo-detail-block todo-detail-problem">
                                                         <h6>{t('requirement.reviewTodoProblem')}</h6>
                                                         <p>{todo.problem || '—'}</p>
                                                       </section>

@@ -528,7 +528,7 @@
 .requirement-hero .detail-line { margin: 2px 0 0; }
 /* 待处置评审的醒目提醒与单独置右的作废关闭，避免与确认需求等权。 */
 .detail-warning {
-  margin: 6px 0 0;
+  margin: 6px 0 10px;
   font-size: 13px;
   font-weight: 600;
   padding: 8px 12px;
@@ -556,6 +556,25 @@
 .requirement-review-actions { flex: 1 1 auto; }
 .requirement-review-decision { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
 .requirement-review-decision .detail-note { margin: 0; }
+/* 顶部只有主提交与次放弃各一枚；三个数量是主按钮旁的中性徽标，不另起按钮或状态条。 */
+.review-primary-action { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.review-decision-counts { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.review-decision-count {
+  padding: 2px 8px;
+  border: 1px solid var(--separator);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.review-decision-count[data-kind='accepted'] { color: var(--success); border-color: color-mix(in oklab, var(--success) 45%, transparent); }
+.review-decision-count[data-kind='questioned'] {
+  color: var(--warning-foreground);
+  border-color: color-mix(in oklab, var(--warning) 45%, transparent);
+  background: color-mix(in oklab, var(--warning) 12%, var(--surface));
+}
+.review-decision-count[data-kind='rejected'] { color: var(--muted); }
 .requirement-report-history li { flex-wrap: wrap; align-items: center; gap: 6px; }
 .requirement-report-history li > span { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 
@@ -589,7 +608,7 @@
 .requirement-doc-tab-badge[data-state='locked'],
 .requirement-doc-tab-badge[data-state='rejected'] { color: var(--muted); border-color: var(--separator); }
 .detail-section[data-doc-active='true'] { box-shadow: inset 3px 0 0 var(--accent); }
-.detail-section[data-doc-active='true'][data-pending-report='true'] { box-shadow: inset 3px 0 0 var(--warning); }
+/* 待处置黄线只属于横幅自身；正文区不再叠加贯穿摘要、工具栏与表格的警示色条。 */
 
 /* 阶段进度横排 chips：创建/评审/版本/过审，评审 chip 本身可点开报告。 */
 .timeline-chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; font-size: 12px; }
@@ -658,25 +677,68 @@
   gap: 8px;
   margin: 10px 0 6px;
 }
-.review-filter-pills, .review-batch-actions, .verdict-group { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; }
-.review-pill {
-  padding: 3px 10px;
-  border: 1px solid var(--separator);
-  border-radius: 999px;
+/* 优先级筛选是一枚连体分段控件，不是四枚散胶囊。 */
+.review-segmented { display: inline-flex; align-items: stretch; border: 1px solid var(--separator); border-radius: 8px; overflow: hidden; background: var(--surface); }
+.review-segment {
+  padding: 4px 10px;
+  border: 0;
+  border-right: 1px solid var(--separator);
   background: var(--surface);
   color: var(--muted);
   font-size: 12px;
   cursor: pointer;
 }
-.review-pill:hover { border-color: var(--accent); color: var(--foreground); }
-.review-pill.is-active { border-color: var(--accent); background: var(--accent-soft); color: var(--foreground); font-weight: 600; }
+.review-segment:last-child { border-right: 0; }
+.review-segment:hover { color: var(--foreground); background: var(--accent-soft); }
+.review-segment.is-active { color: var(--foreground); background: var(--accent-soft); font-weight: 500; }
+/* 批量裁决收进单个菜单：外部点击与 Esc 关闭由组件处理。 */
+.review-batch-actions { position: relative; display: inline-flex; }
+.review-batch-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border: 1px solid var(--separator);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+.review-batch-trigger:hover, .review-batch-trigger[aria-expanded='true'] { border-color: var(--accent); color: var(--foreground); }
+.review-batch-trigger[aria-expanded='true'] { position: relative; z-index: 6; }
+.review-batch-backdrop { position: fixed; inset: 0; z-index: 4; }
+.review-batch-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 5;
+  min-width: 140px;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 8px 24px color-mix(in oklab, var(--foreground) 18%, transparent);
+}
+.review-batch-menu-item {
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--foreground);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.review-batch-menu-item:hover { background: var(--accent-soft); }
 .review-todo-wrap { overflow-x: auto; }
-.review-todo-table { table-layout: fixed; min-width: 640px; }
-.review-todo-table th:nth-child(1) { width: 128px; }
+.review-todo-table { table-layout: fixed; min-width: 520px; }
+.review-todo-table th:nth-child(1) { width: 120px; }
 .review-todo-table[data-has-category='false'] th:nth-child(1) { width: 76px; }
 .review-todo-table th:nth-child(2) { width: auto; }
-.review-todo-table th:nth-child(3) { width: 156px; }
-.review-todo-table th:nth-child(4) { width: 208px; }
+.review-todo-table th:nth-child(3) { width: 200px; }
 .review-todo-table tbody tr.review-todo-row { cursor: pointer; }
 .review-todo-table tbody tr:nth-child(even) { background: color-mix(in oklab, var(--muted) 6%, var(--surface)); }
 .review-todo-table tbody tr.review-todo-row.is-expanded { background: var(--accent-soft); }
@@ -711,19 +773,24 @@
 .review-todo-title-inner { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .review-todo-title strong { overflow: hidden; text-overflow: ellipsis; font-size: 13.5px; font-weight: 600; }
 .review-todo-arrow { flex: 0 0 auto; display: inline-flex; justify-content: center; width: 18px; color: var(--muted); }
-.review-todo-location { color: var(--muted); }
 .review-todo-verdict { cursor: default; }
+/* 三态连体分段：相邻边框重叠 1px，选中项抬升一层保证语义色边框完整。 */
+.verdict-group { display: inline-flex; align-items: center; gap: 0; }
 .verdict-button {
   padding: 4px 10px;
   border: 1px solid var(--separator);
-  border-radius: 999px;
+  border-radius: 0;
+  margin-left: -1px;
   background: var(--surface);
   color: var(--muted);
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
 }
-.verdict-button:hover { border-color: var(--accent); }
+.verdict-button:first-child { margin-left: 0; border-radius: 999px 0 0 999px; }
+.verdict-button:last-child { border-radius: 0 999px 999px 0; }
+.verdict-button.is-active { position: relative; z-index: 1; }
+.verdict-button:hover { border-color: var(--accent); color: var(--foreground); }
 .verdict-button.is-active[data-verdict='accept'] {
   border-color: var(--success);
   background: color-mix(in oklab, var(--success) 18%, var(--surface));
@@ -747,20 +814,30 @@
 .review-todo-table tbody tr.todo-detail-row { cursor: default; }
 .review-todo-table tbody tr.todo-detail-row:hover { background: var(--surface); }
 .todo-detail-row > td { height: auto; padding: 0; white-space: normal; background: var(--surface); }
+/* 展开卡片用中性边框，缩进归属父行；不与黄色提醒共用左框，也不铺大面积灰底。 */
 .todo-detail-card {
   margin: 4px 8px 8px 24px;
-  padding: 12px 16px;
+  padding: 12px 14px;
   border: 1px solid var(--border);
-  border-left: 3px solid var(--accent);
   border-radius: 10px;
   background: var(--surface);
 }
-.todo-detail-location-inline { margin: 0 0 8px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
-.todo-detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 16px; }
+.todo-detail-location-inline {
+  margin: 0 0 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--separator);
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+/* 问题与建议上下通栏，各自成块，避免半幅绿底另一侧留白。 */
+.todo-detail-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+.todo-detail-block { padding: 8px 10px; border-radius: 8px; }
 .todo-detail-block h6 { margin: 0 0 4px; font-size: 12px; color: var(--muted); }
 .todo-detail-block p { margin: 0; font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
-.todo-detail-suggestion { padding: 8px 10px; border-radius: 8px; background: color-mix(in oklab, var(--success) 12%, var(--surface)); }
-.todo-detail-note { grid-column: 1 / -1; }
+.todo-detail-problem { background: var(--surface-secondary); }
+.todo-detail-suggestion { background: color-mix(in oklab, var(--success) 10%, var(--surface)); }
+.todo-detail-note { grid-column: 1 / -1; padding: 0; }
 .todo-detail-note textarea { width: 100%; resize: vertical; box-sizing: border-box; font: inherit; font-size: 13px; }
 
 @media (max-width: 700px) {
@@ -770,6 +847,8 @@
   .requirement-title { font-size: 18px; }
   .requirement-ops { gap: 6px; }
   .timeline-chips { gap: 4px; }
+  .review-primary-action, .review-decision-counts { gap: 6px; }
+  .review-todo-toolbar { align-items: flex-start; }
 }
 
 .attachment-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }

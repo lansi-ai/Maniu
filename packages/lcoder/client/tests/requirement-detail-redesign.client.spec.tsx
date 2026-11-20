@@ -797,7 +797,8 @@ describe('文档栏四层顺序与专属操作栏', () => {
     const calls = callsOf()
     await renderDetail(PENDING, calls)
     expect(element('requirement-actions-review')?.getAttribute('data-decision')).toBe('pending')
-    expect(element('requirement-review-accept')?.textContent).toContain('按所选意见处理需求（采纳 0 · 疑问 0 · 拒绝 0）')
+    expect(element('requirement-review-accept')?.textContent).toContain('提交所选处理')
+    expect(element('requirement-review-count')?.textContent).toContain('采纳 0')
     expect(element('requirement-review-reject')?.textContent).toContain('整轮放弃（全部不改）')
     // 采纳走 requirement_revise 直接落新版本，不再有「去顶部对比」的灰字提示。
     expect(element('requirement-review-accept-hint')).toBeNull()
