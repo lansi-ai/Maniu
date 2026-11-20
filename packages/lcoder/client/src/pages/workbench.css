@@ -1388,6 +1388,9 @@
   background: color-mix(in oklab, var(--background) 55%, transparent);
 }
 .glass-modal .glass-modal-panel {
+  width: min(92vw, 880px);
+  max-width: min(92vw, 880px);
+  max-height: 86vh;
   border: 1px solid var(--glass-border);
   border-radius: 16px;
   background: var(--glass-surface-elevated);
