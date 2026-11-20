@@ -4,6 +4,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
 import { RequirementDetail } from '../src/pages/requirement-detail.tsx'
+import type { ReviewDecisions } from '../src/intake/prompts.ts'
 import type { ProposalRow, RequirementDocRow } from '../src/spec/rows.ts'
 import type { SpecProjection } from '../src/spec/load.ts'
 import type { ProjectScope } from '../src/workspace/use-workspaces.ts'
@@ -27,6 +28,25 @@ const REVIEWED: RequirementDocRow = {
     { round: 1, at: '2026-11-17T10:00:00+08:00', report: 'requirements/REQ-01/reviews/R1.md' },
   ],
 }
+
+/** 结构化报告：带分类、优先级与四要素，驱动紧凑表与逐条裁决。 */
+const STRUCTURED_REPORT = `## 摘要
+
+整体需要改，重点是边界与验收。
+
+## 待改项
+
+### 文档完备性
+
+- **代发订单边界未写清**。位置：正文「范围」一节。问题：只写了普通订单。建议：补上代发订单不参与佣金。优先级：高
+
+### 合理性
+
+- 位置：验收口径。问题：异常返回码缺失。建议：补一条异常返回码。【中】
+
+### 需求角度
+
+- 位置：背景。建议：删掉无关的竞品对比。优先级：低`
 
 const UNREVIEWED: RequirementDocRow = {
   id: 'REQ-02',
@@ -60,13 +80,14 @@ let root: Root
 let reads: { readonly scope: string; readonly path: string }[]
 let commands: string[]
 let failRead = false
+let reportText: string | null = null
 
 async function fakeCall(namespace: string, method: string, args: Record<string, unknown>): Promise<unknown> {
   if (namespace === 'workspaceFiles' && method === 'read') {
     const path = typeof args.path === 'string' ? args.path : ''
     reads.push({ scope: String(args.workspaceFileScopeId), path })
     if (failRead) return { ok: false, error: { code: 'ENOENT', message: '文件不存在' } }
-    return { ok: true, value: { text: `# 评审结论 ${path}` } }
+    return { ok: true, value: { text: reportText ?? `# 评审结论 ${path}` } }
   }
   if (namespace === 'commands' && method === 'execute') {
     commands.push(String(args.line))
@@ -80,6 +101,7 @@ beforeEach(() => {
   reads = []
   commands = []
   failRead = false
+  reportText = null
   Object.defineProperty(window, 'lcoder', { configurable: true, value: { call: vi.fn(fakeCall) } })
   container = document.createElement('div')
   document.body.append(container)
@@ -98,7 +120,7 @@ function element(testId: string): Element | null {
 
 interface DetailCalls {
   readonly readers: string[]
-  readonly revise: Mock<() => Promise<{ readonly ok: boolean; readonly message: string }>>
+  readonly revise: Mock<(decisions?: ReviewDecisions) => Promise<{ readonly ok: boolean; readonly message: string }>>
   readonly modifyRequest: Mock<() => void>
   readonly reload: Mock<() => void>
 }
@@ -154,6 +176,18 @@ async function pressSelector(selector: string): Promise<void> {
   expect(node).not.toBeNull()
   await act(async () => {
     ;(node as HTMLElement).click()
+    await new Promise(resolve => setTimeout(resolve, 0))
+  })
+}
+
+/** 走原生 setter 触发 React 的受控输入更新。 */
+async function typeTextarea(selector: string, value: string): Promise<void> {
+  const node = container.querySelector<HTMLTextAreaElement>(selector)
+  expect(node).not.toBeNull()
+  if (node === null) return
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set?.call(node, value)
+    node.dispatchEvent(new Event('input', { bubbles: true }))
     await new Promise(resolve => setTimeout(resolve, 0))
   })
 }
@@ -299,18 +333,27 @@ describe('评审结论三态与处置动作', () => {
     expect(tab?.getAttribute('data-decision')).toBe('pending')
     expect(tab?.textContent).toContain('待处理')
     expect(element('requirement-timeline-review-status')?.textContent).toContain('待处理')
-    expect(element('requirement-review-accept')?.textContent).toContain('采纳意见并修改需求')
-    expect(element('requirement-review-reject')?.textContent).toContain('放弃本轮意见')
+    expect(element('requirement-review-accept')?.textContent).toContain('按所选意见处理需求（采纳 0 · 疑问 0 · 拒绝 0）')
+    expect(element('requirement-review-reject')?.textContent).toContain('整轮放弃（全部不改）')
     expect(element('requirement-review-at')?.textContent).toBe('2026-11-17 11:00')
     // 采纳走 requirement_revise 直接落新版本，「去顶部对比」的灰字提示已删除。
     expect(element('requirement-review-accept-hint')).toBeNull()
   })
 
-  it('采纳意见走改稿回调，提示后台改稿后去对比确认落盘', async () => {
+  it('采纳意见走改稿回调，默认把全部条目作为采纳项传给 onRevise', async () => {
+    reportText = STRUCTURED_REPORT
     const calls = callsOf()
     await renderDetail(REVIEWED, calls)
+    const accept = element('requirement-review-accept') as HTMLButtonElement
+    expect(accept.disabled).toBe(false)
+    expect(accept.textContent).toContain('采纳 3 · 疑问 0 · 拒绝 0')
     await press('requirement-review-accept')
     expect(calls.revise).toHaveBeenCalledTimes(1)
+    expect(calls.revise.mock.calls[0]?.[0]).toEqual({
+      accepted: ['代发订单边界未写清', '验收口径', '背景'],
+      questioned: [],
+      rejected: [],
+    })
     expect(element('requirement-action-result')?.textContent).toContain('改稿指令已发送')
   })
 
@@ -388,5 +431,98 @@ describe('评审结论三态与处置动作', () => {
     }
     await renderDetail(REVIEWED, callsOf(), [proposal])
     expect(element('requirement-review-proposal-hint')?.textContent).toContain('去对比')
+  })
+})
+
+describe('结构化待改项表格与逐条裁决', () => {
+  beforeEach(() => { reportText = STRUCTURED_REPORT })
+
+  it('默认只渲染摘要条与单行紧凑表，不渲染 Markdown 文字墙与长问题正文', async () => {
+    await renderDetail(REVIEWED, callsOf())
+    expect(element('requirement-review-summary-bar')?.textContent).toContain('整体需要改，重点是边界与验收。')
+    expect(element('requirement-review-todos')).not.toBeNull()
+    expect(container.querySelectorAll('[data-testid="requirement-review-todo-row"]')).toHaveLength(3)
+    const firstRow = container.querySelector('[data-testid="requirement-review-todo-row"][data-index="0"]')
+    expect(firstRow?.textContent).toContain('代发订单边界未写清')
+    expect(firstRow?.textContent).toContain('文档完备性')
+    expect(container.textContent).not.toContain('补上代发订单不参与佣金')
+    expect(container.textContent).not.toContain('异常返回码缺失')
+    expect(element('requirement-report-body')).toBeNull()
+  })
+
+  it('点击行在原位展开详情行，展示位置、问题、建议与输入框', async () => {
+    await renderDetail(REVIEWED, callsOf())
+    await pressSelector('[data-testid="requirement-review-todo-row"][data-index="0"]')
+    const detail = element('requirement-review-todo-detail')
+    expect(detail?.className).toContain('todo-detail-row')
+    expect(detail?.getAttribute('data-index')).toBe('0')
+    expect(detail?.textContent).toContain('📍涉及位置')
+    expect(detail?.textContent).toContain('⚠️问题说明')
+    expect(detail?.textContent).toContain('💡修改建议')
+    expect(detail?.textContent).toContain('💬疑问或指定改法')
+    expect(detail?.textContent).toContain('正文「范围」一节')
+    expect(detail?.textContent).toContain('只写了普通订单')
+    expect(detail?.textContent).toContain('补上代发订单不参与佣金')
+    expect(detail?.querySelector('[data-testid="requirement-review-todo-note"]')).not.toBeNull()
+    await pressSelector('[data-testid="requirement-review-todo-row"][data-index="0"]')
+    expect(element('requirement-review-todo-detail')).toBeNull()
+  })
+
+  it('切换三态并把疑问与补充改法作为结构化 decisions 传给 onRevise', async () => {
+    const calls = callsOf()
+    await renderDetail(REVIEWED, calls)
+    await pressSelector('[data-testid="requirement-review-todo-verdict"][data-index="0"][data-verdict="reject"]')
+    await pressSelector('[data-testid="requirement-review-todo-verdict"][data-index="1"][data-verdict="question"]')
+    await typeTextarea('[data-testid="requirement-review-todo-note"][data-index="1"]', '必须补 500 返回码吗？')
+    await pressSelector('[data-testid="requirement-review-todo-row"][data-index="2"]')
+    await typeTextarea('[data-testid="requirement-review-todo-note"][data-index="2"]', '用表格列出边界')
+
+    const accept = element('requirement-review-accept') as HTMLButtonElement
+    expect(accept.textContent).toContain('采纳 1 · 疑问 1 · 拒绝 1')
+    expect(accept.getAttribute('data-accepted')).toBe('1')
+    await press('requirement-review-accept')
+    expect(calls.revise.mock.calls[0]?.[0]).toEqual({
+      accepted: ['背景（补充改法：用表格列出边界）'],
+      questioned: [{ item: '验收口径', question: '必须补 500 返回码吗？' }],
+      rejected: ['代发订单边界未写清'],
+    })
+  })
+
+  it('有疑问但未填写说明时主动作禁用并提示先填写', async () => {
+    const calls = callsOf()
+    await renderDetail(REVIEWED, calls)
+    await pressSelector('[data-testid="requirement-review-todo-verdict"][data-index="0"][data-verdict="question"]')
+    const accept = element('requirement-review-accept') as HTMLButtonElement
+    expect(accept.disabled).toBe(true)
+    expect(accept.title).toContain('有疑问的条目请先填写疑问或指定改法')
+    await typeTextarea('[data-testid="requirement-review-todo-note"][data-index="0"]', '请解释边界')
+    expect((element('requirement-review-accept') as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('筛选胶囊过滤表格行，批量按钮一次性改写裁决', async () => {
+    await renderDetail(REVIEWED, callsOf())
+    await pressSelector('[data-testid="requirement-review-filter"][data-priority="high"]')
+    expect(container.querySelectorAll('[data-testid="requirement-review-todo-row"]')).toHaveLength(1)
+    await pressSelector('[data-testid="requirement-review-filter"][data-priority="all"]')
+    expect(container.querySelectorAll('[data-testid="requirement-review-todo-row"]')).toHaveLength(3)
+
+    await pressSelector('[data-testid="requirement-review-batch"][data-action="highOnly"]')
+    expect((element('requirement-review-accept') as HTMLButtonElement).textContent).toContain('采纳 1 · 疑问 0 · 拒绝 2')
+    await pressSelector('[data-testid="requirement-review-batch"][data-action="allReject"]')
+    const accept = element('requirement-review-accept') as HTMLButtonElement
+    expect(accept.disabled).toBe(true)
+    expect(accept.title).toContain('若全部不改请点右侧放弃本轮意见')
+    await pressSelector('[data-testid="requirement-review-batch"][data-action="allAccept"]')
+    expect((element('requirement-review-accept') as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('切换 Markdown 原文后只显示全文，切回恢复结构化表', async () => {
+    await renderDetail(REVIEWED, callsOf())
+    await press('requirement-report-markdown-toggle')
+    expect(element('requirement-report-body')?.textContent).toContain('代发订单边界未写清')
+    expect(element('requirement-review-todos')).toBeNull()
+    await press('requirement-report-markdown-toggle')
+    expect(element('requirement-report-body')).toBeNull()
+    expect(element('requirement-review-todos')).not.toBeNull()
   })
 })

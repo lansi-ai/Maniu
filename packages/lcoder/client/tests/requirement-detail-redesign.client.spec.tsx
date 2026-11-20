@@ -466,22 +466,21 @@ describe('评审报告单份 Markdown', () => {
     expect(element('requirement-review-accept-hint')).toBeNull()
   })
 
-  it('结构化报告同样只保留一份全文，二级标题、列表与粗体按 Markdown 渲染', async () => {
+  it('结构化报告默认给摘要条与紧凑表格，Markdown 全文只在切换后渲染', async () => {
     reportText = STRUCTURED_REPORT
     await renderDetail(DRAFT, callsOf())
     await openTab('[data-testid="requirement-doc-tab-review"]')
+    expect(element('requirement-report-body')).toBeNull()
+    expect(element('requirement-review-summary-bar')?.textContent).toContain('主要缺口是')
+    expect(container.querySelectorAll('[data-testid="requirement-review-todo-row"]')).toHaveLength(2)
+    expect(container.textContent).not.toContain('建议补上代发订单不参与佣金')
+    // 切换后只显示一份 Markdown，不再同时画表格与文字墙。
+    await openTab('[data-testid="requirement-report-markdown-toggle"]')
     const body = element('requirement-report-body')
     expect(body?.querySelectorAll('h2')).toHaveLength(3)
     expect(body?.querySelector('h2')?.textContent).toBe('摘要')
-    expect(body?.querySelectorAll('li')).toHaveLength(2)
-    expect(body?.querySelector('strong')?.textContent).toBe('代发订单边界')
-    expect(body?.textContent).toContain('位置：验收口径')
     expect(body?.textContent).toContain('建议补上代发订单不参与佣金')
-    // 卡片墙与摘要卡不再出现，报告不会在页面上画两遍。
-    expect(element('requirement-report-todos')).toBeNull()
-    expect(element('requirement-report-summary-card')).toBeNull()
-    expect(container.querySelectorAll('[data-testid="requirement-report-todo"]')).toHaveLength(0)
-    expect(element('requirement-todo-summary')).toBeNull()
+    expect(element('requirement-review-todos')).toBeNull()
   })
 
   it('报告生成时间移入操作栏右侧，按可读格式展示', async () => {
@@ -798,8 +797,8 @@ describe('文档栏四层顺序与专属操作栏', () => {
     const calls = callsOf()
     await renderDetail(PENDING, calls)
     expect(element('requirement-actions-review')?.getAttribute('data-decision')).toBe('pending')
-    expect(element('requirement-review-accept')?.textContent).toContain('采纳意见并修改需求')
-    expect(element('requirement-review-reject')?.textContent).toContain('放弃本轮意见')
+    expect(element('requirement-review-accept')?.textContent).toContain('按所选意见处理需求（采纳 0 · 疑问 0 · 拒绝 0）')
+    expect(element('requirement-review-reject')?.textContent).toContain('整轮放弃（全部不改）')
     // 采纳走 requirement_revise 直接落新版本，不再有「去顶部对比」的灰字提示。
     expect(element('requirement-review-accept-hint')).toBeNull()
     expect(element('requirement-review-at')?.textContent).toBe('2026-11-17 10:30')
