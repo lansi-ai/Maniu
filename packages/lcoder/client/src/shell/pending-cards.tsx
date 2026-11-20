@@ -19,6 +19,9 @@ export interface PendingCardsProps {
   readonly t: Translate
   readonly items: readonly PendingInteraction[]
   readonly onAnswer: (interaction: PendingInteraction, outcome: EventOutcome) => Promise<AnswerResult>
+  /** 按交互 id 索引的提问草稿；由外层拥有，关闭弹窗不丢。缺省时卡片自管。 */
+  readonly drafts?: Readonly<Record<string, QuestionDrafts>>
+  readonly onDraftsChange?: (interactionId: string, next: QuestionDrafts) => void
 }
 
 /**
@@ -77,18 +80,23 @@ function ApprovalCard({ t, interaction, onAnswer }: {
  * @param props - 交互、词典与回执回调。
  * @returns 提问卡。
  */
-function QuestionCard({ t, interaction, onAnswer }: {
+function QuestionCard({ t, interaction, onAnswer, value, onChange }: {
   readonly t: Translate
   readonly interaction: PendingInteraction
   readonly onAnswer: PendingCardsProps['onAnswer']
+  readonly value: QuestionDrafts | undefined
+  readonly onChange: (next: QuestionDrafts) => void
 }): JSX.Element {
   const questions = questionsOf(interaction.request)
-  const [drafts, setDrafts] = useState<QuestionDrafts>(() => emptyDrafts(questions))
+  const [localDrafts, setLocalDrafts] = useState<QuestionDrafts>(() => emptyDrafts(questions))
+  const drafts = value ?? localDrafts
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const answer = answerBatch(questions, drafts)
   const update = (id: string, next: QuestionDraft): void => {
-    setDrafts(current => ({ ...current, [id]: next }))
+    const updated = { ...drafts, [id]: next }
+    if (value === undefined) setLocalDrafts(updated)
+    onChange(updated)
   }
   const submit = (): void => {
     const outcome = questionOutcome(questions, drafts)
@@ -163,34 +171,22 @@ function QuestionCard({ t, interaction, onAnswer }: {
  * @param props - 交互列表与回执回调。
  * @returns 卡片栈；没有交互时为空。
  */
-export function PendingCards({ t, items, onAnswer }: PendingCardsProps): JSX.Element | null {
+export function PendingCards({ t, items, onAnswer, drafts, onDraftsChange }: PendingCardsProps): JSX.Element | null {
   if (items.length === 0) return null
   return (
     <div className="pending-stack" data-testid="pending-stack">
       {items.map(interaction => interaction.kind === 'approval'
         ? <ApprovalCard key={interaction.id} t={t} interaction={interaction} onAnswer={onAnswer} />
-        : <QuestionCard key={interaction.id} t={t} interaction={interaction} onAnswer={onAnswer} />)}
-    </div>
-  )
-}
-
-/** 右下浮层属性。 */
-export interface PendingLayerProps extends PendingCardsProps {
-  /** 对话页把卡片放进聊天列，浮层只在其他页出现。 */
-  readonly visible: boolean
-}
-
-/**
- * 非对话页的等待交互浮层；对话页用聊天列里的卡片，避免同一请求画两份。
- * 浮层是视口居中的全屏遮罩，没有交互时必须整体不渲染，否则会挡住底层点击。
- * @param props - 是否显示、交互列表与回执回调。
- * @returns 浮层；隐藏或没有交互时为空。
- */
-export function PendingLayer({ visible, t, items, onAnswer }: PendingLayerProps): JSX.Element | null {
-  if (!visible || items.length === 0) return null
-  return (
-    <div className="pending-layer">
-      <PendingCards t={t} items={items} onAnswer={onAnswer} />
+        : (
+          <QuestionCard
+            key={interaction.id}
+            t={t}
+            interaction={interaction}
+            onAnswer={onAnswer}
+            value={drafts?.[interaction.id]}
+            onChange={(next) => { onDraftsChange?.(interaction.id, next) }}
+          />
+        ))}
     </div>
   )
 }

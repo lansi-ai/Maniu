@@ -1,8 +1,8 @@
 /** 审批与提问的回执编码：宿主只认这些原文。 */
 import { describe, expect, it } from 'vitest'
 import {
-  answerBatch, approvalOutcome, approvalViewOf, emptyDrafts, interactionOf, questionOutcome, questionsOf,
-  selectOption,
+  answerBatch, approvalOutcome, approvalViewOf, emptyDrafts, groupPending, interactionOf, questionOutcome,
+  questionsOf, selectOption, summaryOfInteraction, type PendingInteraction,
 } from '../src/chat/pending.ts'
 
 describe('interactionOf', () => {
@@ -82,5 +82,38 @@ describe('提问回执', () => {
 
   it('空问题列表不产生回执', () => {
     expect(questionOutcome([], {})).toBeNull()
+  })
+})
+
+describe('通知归组与摘要', () => {
+  const interaction = (id: string, extra: Partial<PendingInteraction> = {}): PendingInteraction => ({
+    id,
+    kind: 'question',
+    clientId: 'client-1',
+    eventId: id,
+    request: { questions: [{ id: 'q1', question: '选一个', options: [{ label: 'A' }] }] },
+    ...extra,
+  })
+
+  it('按确定关联的会话分组，无关联的进 unknown 组', () => {
+    const groups = groupPending([
+      interaction('a', { sessionId: 's1' }),
+      interaction('b', { sessionId: 's2' }),
+      interaction('c', { sessionId: 's1' }),
+      interaction('d'),
+    ])
+    expect(groups.map(group => group.key)).toEqual(['s1', 's2', 'unknown'])
+    expect(groups[0]?.sessionId).toBe('s1')
+    expect(groups[0]?.items.map(item => item.id)).toEqual(['a', 'c'])
+    expect(groups[2]?.sessionId).toBeNull()
+  })
+
+  it('摘要只读题目数与工具名，不读问题正文', () => {
+    expect(summaryOfInteraction(interaction('a'))).toEqual({ kind: 'question', count: 1 })
+    expect(summaryOfInteraction({
+      ...interaction('b'),
+      kind: 'approval',
+      request: { toolName: 'cmd_run' },
+    })).toEqual({ kind: 'approval', count: 0, toolName: 'cmd_run' })
   })
 })

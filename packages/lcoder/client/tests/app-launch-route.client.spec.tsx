@@ -3,7 +3,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { HostEvent } from '@maniu/desktop/contract'
+import type { HostEvent, HostWaterfall, HostWaterfallCancel } from '@maniu/desktop/contract'
 import { App } from '../src/app.tsx'
 
 const PROJECT_KEY = 'lcoder.m2.project'
@@ -37,6 +37,9 @@ let sessionItems: Record<string, unknown>[]
 let createdSessions: string[]
 let withRequirement = true
 let eventListener: ((event: HostEvent) => void) | null = null
+let waterfallListener: ((event: HostWaterfall) => void) | null = null
+let waterfallCancelListener: ((event: HostWaterfallCancel) => void) | null = null
+let eventResultMock: ReturnType<typeof vi.fn>
 
 async function fakeCall(namespace: string, method: string, args: Record<string, unknown>): Promise<unknown> {
   calls.push({ namespace, method, args })
@@ -80,6 +83,8 @@ beforeEach(() => {
   createdSessions = []
   withRequirement = true
   eventListener = null
+  waterfallListener = null
+  waterfallCancelListener = null
   localStorage.clear()
   localStorage.setItem(PROJECT_KEY, JSON.stringify(PROJECT))
   let streamSeq = 0
@@ -100,9 +105,15 @@ beforeEach(() => {
         eventListener = listener
         return () => {}
       },
-      onWaterfall: () => () => {},
-      onWaterfallCancel: () => () => {},
-      eventResult: async () => {},
+      onWaterfall: (listener: (event: HostWaterfall) => void) => {
+        waterfallListener = listener
+        return () => {}
+      },
+      onWaterfallCancel: (listener: (event: HostWaterfallCancel) => void) => {
+        waterfallCancelListener = listener
+        return () => {}
+      },
+      eventResult: eventResultMock = vi.fn(async () => {}),
       window: async () => {},
       onCloseRequest: () => () => {},
       confirmClose: async () => {},
@@ -262,3 +273,61 @@ describe('操作浮卡跨页存活', () => {
     expect(element('requirement-op-running')).not.toBeNull()
   })
 })
+
+describe('待回答交互的右下通知', () => {
+  const pushWaterfall = (eventId = 'wf-1'): void => {
+    act(() => {
+      waterfallListener?.({
+        name: 'user-questions/request',
+        clientId: 'client-1',
+        eventId,
+        request: { questions: [{ id: 'q1', question: '选一个', options: [{ label: 'A' }] }] },
+      })
+    })
+  }
+
+  it('非对话页收到提问只出右下通知，不切页不换会话不打断流', async () => {
+    await renderApp()
+    await press('nav-requirements')
+    pushWaterfall()
+
+    expect(element('page-requirements')).not.toBeNull()
+    expect(element('session-list')).toBeNull()
+    expect(followOpens()).toHaveLength(0)
+    expect(localStorage.getItem(SESSION_KEY)).toBeNull()
+    expect(element('pending-notifications')).not.toBeNull()
+    expect(queryElement('pending-dialog')).toBeNull()
+  })
+
+  it('点通知回答走单一 eventResult 路径，成功后通知消失', async () => {
+    await renderApp()
+    await press('nav-requirements')
+    pushWaterfall()
+    await press('pending-review')
+    expect(queryElement('pending-dialog')).not.toBeNull()
+
+    await press('question-option')
+    await press('question-submit')
+
+    expect(eventResultMock).toHaveBeenCalledWith('client-1', 'wf-1', {
+      kind: 'result',
+      value: { answers: [{ id: 'q1', selected: ['A'] }] },
+    })
+    expect(queryElement('pending-notifications')).toBeNull()
+    expect(queryElement('pending-dialog')).toBeNull()
+  })
+
+  it('事件撤回时移除对应通知', async () => {
+    await renderApp()
+    await press('nav-requirements')
+    pushWaterfall('wf-a')
+    pushWaterfall('wf-b')
+    expect(container.querySelectorAll('[data-testid="pending-notice-item"]')).toHaveLength(2)
+    act(() => { waterfallCancelListener?.({ eventId: 'wf-a' }) })
+    expect(container.querySelectorAll('[data-testid="pending-notice-item"]')).toHaveLength(1)
+  })
+})
+
+function queryElement(testId: string): Element | null {
+  return container.querySelector(`[data-testid="${testId}"]`)
+}

@@ -21,7 +21,7 @@ import { TasksPage } from './pages/tasks.tsx'
 import { TalentsPage } from './pages/talents.tsx'
 import { ChatView } from './shell/chat-view.tsx'
 import { visibleSessionsOf } from './shell/session-groups.ts'
-import { PendingLayer, type AnswerResult } from './shell/pending-cards.tsx'
+import { PendingLayer, type AnswerResult } from './shell/pending-notification.tsx'
 import { GateChrome } from './shell/gate-chrome.tsx'
 import { GateView } from './shell/gate-view.tsx'
 import { QuitConfirm } from './shell/quit-confirm.tsx'
@@ -829,7 +829,14 @@ export function App(): JSX.Element {
             )}
           </div>
 
-          <PendingLayer visible={page !== 'chat'} t={t} items={pending} onAnswer={answer} />
+          <PendingLayer
+            visible={page !== 'chat'}
+            t={t}
+            items={pending}
+            sessions={sessions}
+            titles={titles}
+            onAnswer={answer}
+          />
         </main>
       )}
 

@@ -6,7 +6,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ChatTranscript } from '../src/shell/chat-transcript.tsx'
 import { ChatView, type ChatViewProps } from '../src/shell/chat-view.tsx'
-import { PendingLayer } from '../src/shell/pending-cards.tsx'
+import { PendingLayer } from '../src/shell/pending-notification.tsx'
 import { interactionOf, type PendingInteraction } from '../src/chat/pending.ts'
 import { translate, type Translate } from '../src/locale.ts'
 import { emptyChat, type ChatRow, type ChatState, type SessionSummary } from '../src/store.ts'
@@ -178,16 +178,31 @@ describe('对话页待处理卡', () => {
   })
 })
 
-describe('非对话页浮层', () => {
-  it('显示时卡片在居中浮层', () => {
-    render(<PendingLayer visible t={t} items={[QUESTION]} onAnswer={vi.fn(async () => ({ ok: true as const }))} />)
+describe('非对话页通知', () => {
+  const layer = (visible: boolean) => (
+    <PendingLayer
+      visible={visible}
+      t={t}
+      items={[QUESTION]}
+      sessions={[]}
+      titles={{}}
+      onAnswer={vi.fn(async () => ({ ok: true as const }))}
+    />
+  )
+
+  it('显示时是右下角轻量通知，不直接画卡片', () => {
+    render(layer(true))
     expect(container.querySelector('.pending-layer')).not.toBeNull()
-    expect(element('question-card')).not.toBeNull()
+    expect(element('pending-notifications')).not.toBeNull()
+    expect(element('pending-review')).not.toBeNull()
+    expect(query('question-card')).toBeNull()
+    expect(element('pending-notice-source').textContent).toContain('来源会话不可用')
   })
 
-  it('对话页传 false 时不渲染浮层', () => {
-    render(<PendingLayer visible={false} t={t} items={[QUESTION]} onAnswer={vi.fn(async () => ({ ok: true as const }))} />)
+  it('对话页传 false 时不渲染通知', () => {
+    render(layer(false))
     expect(container.querySelector('.pending-layer')).toBeNull()
+    expect(query('pending-review')).toBeNull()
     expect(query('question-card')).toBeNull()
   })
 })
