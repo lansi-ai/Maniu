@@ -19,6 +19,7 @@ export const BUILTIN_ROLES = [
   'flow',
   'manager',
   'requirement-editor',
+  'prototype',
 ] as const
 
 /** 一个内置角色。 */

@@ -118,7 +118,7 @@ describe('掩码自检', () => {
 
 describe('空看板工具面', () => {
   it('只放开立项需要的读取、建任务与立项落盘能力，外加出方案、起草与改写需求', () => {
-    expect(UNSCOPEED_SURFACE).toEqual(['file_read', 'file_list', 'project_draft', 'spec_query', 'spec_draft', 'task_read', 'task_draft', 'proposal_draft', 'requirement_draft', 'requirement_revise', 'requirement_propose', 'requirement_patch_propose', 'requirement_review_draft', 'requirement_split_plan', 'git_status', 'git_diff'])
+    expect(UNSCOPEED_SURFACE).toEqual(['file_read', 'file_list', 'project_draft', 'spec_query', 'spec_draft', 'task_read', 'task_draft', 'proposal_draft', 'requirement_draft', 'requirement_revise', 'requirement_propose', 'requirement_patch_propose', 'requirement_review_draft', 'requirement_split_plan', 'prototype_draft', 'git_status', 'git_diff'])
     expect(UNSCOPEED_SURFACE).not.toContain('file_edit')
     expect(UNSCOPEED_SURFACE).not.toContain('cmd_run')
     expect(UNSCOPEED_SURFACE).not.toContain('spec_bind')
@@ -154,10 +154,24 @@ describe('空看板工具面', () => {
 
 describe('角色天花板', () => {
   it('实施角色等于全集去掉只对特定角色开放的工具', () => {
-    const roleOnly = ['role_draft', 'requirement_draft', 'requirement_revise', 'requirement_propose', 'requirement_patch_propose', 'requirement_review_draft', 'requirement_split_plan']
+    const roleOnly = ['role_draft', 'requirement_draft', 'requirement_revise', 'requirement_propose', 'requirement_patch_propose', 'requirement_review_draft', 'requirement_split_plan', 'prototype_draft']
     expect([...ROLE_TOOLS.dev].sort()).toEqual(
       allToolNames().filter(name => !roleOnly.includes(name)),
     )
+  })
+
+  it('原型设计师只拿到读取与 prototype_draft，没有代码、签署、过审与拆分类能力', () => {
+    expect(ROLES).toContain('prototype')
+    expect(ROLE_TOOLS.prototype).toEqual([
+      'file_read', 'file_list', 'spec_query', 'task_read', 'prototype_draft', 'ask_user_question',
+    ])
+    for (const tool of ['file_edit', 'cmd_run', 'contract_sign', 'task_close', 'requirement_approve', 'requirement_split_plan']) {
+      expect(ROLE_TOOLS.prototype).not.toContain(tool)
+      expect(allowedTools('implementing', 'prototype')).not.toContain(tool)
+    }
+    expect(allowedTools(null, 'prototype')).toContain('prototype_draft')
+    expect(allowedTools('drafting', 'prototype')).toContain('prototype_draft')
+    expect(allowedTools('closed', 'prototype')).not.toContain('prototype_draft')
   })
 
   it('requirement_draft 只进需求分析师，终态不可见，三条需求命令永远不在工具面', () => {

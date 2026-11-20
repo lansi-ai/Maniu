@@ -37,6 +37,7 @@ const TOOL_NAMES = [
   'git_status',
   'project_draft',
   'proposal_draft',
+  'prototype_draft',
   'requirement_draft',
   'requirement_patch_propose',
   'requirement_propose',
@@ -386,7 +387,7 @@ describe('插件装配', () => {
     expect(logged.mock.calls.map(call => String(call[0])).join('\n')).toContain('读任务状态失败')
   })
 
-  it('启动自检报出注册的二十五个工具，且没有掩码缺口', () => {
+  it('启动自检报出注册的二十六个工具，且没有掩码缺口', () => {
     const { spec } = makeRepo()
     const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
     const harness = makeHarness()
@@ -394,7 +395,7 @@ describe('插件装配', () => {
     harness.runEffects()
 
     const text = logged.mock.calls.map(call => String(call[0])).join('\n')
-    expect(text).toContain('已注册 25 个工具')
+    expect(text).toContain('已注册 26 个工具')
     expect(text).not.toContain('掩码声明了但未注册')
     expect(text).not.toContain('任何状态都看不到')
   })

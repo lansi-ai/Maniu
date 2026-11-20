@@ -23,6 +23,18 @@
       "types": "./lib/types/talents/policy.d.ts",
       "default": "./lib/talents-policy.js"
     },
+    "./prototype": {
+      "types": "./lib/types/prototype/plugin.d.ts",
+      "default": "./lib/prototype.js"
+    },
+    "./prototype/types": {
+      "types": "./lib/types/prototype/types.d.ts",
+      "default": "./lib/types/prototype/types.js"
+    },
+    "./prototype/summary": {
+      "types": "./lib/types/prototype/summary.d.ts",
+      "default": "./lib/types/prototype/summary.js"
+    },
     "./cloud/types": {
       "types": "./lib/types/cloud/types.d.ts",
       "default": "./lib/types/cloud/types.js"
@@ -45,6 +57,7 @@
   "files": [
     "lib/index.js",
     "lib/cloud.js",
+    "lib/prototype.js",
     "lib/talents.js",
     "lib/talents-policy.js",
     "lib/types/**/*.js",
@@ -72,6 +85,7 @@
   "devDependencies": {
     "@deepseek-ai/cordis": "workspace:~",
     "@deepseek-ai/dsh-agent": "workspace:*",
+    "@deepseek-ai/dsh-web": "workspace:*",
     "@deepseek-ai/dsh-agent-preset-registry": "workspace:*",
     "@deepseek-ai/dsh-app-boot": "workspace:*",
     "@deepseek-ai/dsh-llm-pi-ai": "workspace:*",

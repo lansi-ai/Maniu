@@ -19,6 +19,7 @@ import { formatTimestamp, parseReviewReport, type ReviewPriority, type ReviewTod
 import type { ReviewDecisions } from '../intake/prompts.ts'
 import { DetailDrawer } from './detail-drawer.tsx'
 import { ProposalDiff } from './proposal-compare.tsx'
+import { PrototypePanel } from './prototype-panel.tsx'
 
 const zhText: Translate = (key, params) => translate('zh', key, params)
 
@@ -174,7 +175,7 @@ export interface ModifyState {
 const CLOSED_MODIFY: ModifyState = { open: false, text: '', status: 'idle' }
 
 /** 会让详情业务按钮互斥锁定的在途操作类型；来自需求页当前需求的后台浮卡。 */
-export type RunningOpKind = 'review' | 'revise' | 'patch' | 'split'
+export type RunningOpKind = 'review' | 'revise' | 'patch' | 'split' | 'prototype'
 
 /** 在途操作对应的锁定提示文案。 */
 const OP_LOCKED_KEY: Readonly<Record<RunningOpKind, MessageKey>> = {
@@ -182,6 +183,7 @@ const OP_LOCKED_KEY: Readonly<Record<RunningOpKind, MessageKey>> = {
   revise: 'requirement.opLocked.revise',
   patch: 'requirement.opLocked.patch',
   split: 'requirement.opLocked.split',
+  prototype: 'requirement.opLocked.prototype',
 }
 
 /** 原地改稿被送审锁定门禁拦下时的提示文案。 */
@@ -230,6 +232,8 @@ export interface RequirementDetailProps {
   readonly readerOpen?: boolean | undefined
   /** 当前需求的在途后台操作；非空时锁定业务按钮，patch 待裁决阶段仍可查看差异。 */
   readonly runningOp?: RunningOpKind | null | undefined
+  /** 后台发起 maniu-prototype 会话生成原型；提示词由原型区拼好。 */
+  readonly onGeneratePrototype?: ((prompt: string) => Promise<{ readonly ok: boolean; readonly message: string }>) | undefined
   /** 取词函数；缺省为中文词典。 */
   readonly t?: Translate
 }
@@ -1497,6 +1501,17 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                   </ul>
                 )}
             </section>
+
+            {props.onGeneratePrototype !== undefined && (
+              <PrototypePanel
+                row={row}
+                scopeSessionId={props.project.scopeSessionId}
+                running={props.runningOp === 'prototype'}
+                onGenerate={props.onGeneratePrototype}
+                onReload={props.onReload}
+                t={t}
+              />
+            )}
           </div>
           {modify.open && (
             <aside className="modify-pane" data-testid="requirement-modify-pane">

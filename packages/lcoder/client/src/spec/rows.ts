@@ -114,6 +114,32 @@ export interface RequirementSplitPlanRow {
   readonly entries: readonly RequirementSplitPlanEntryRow[]
 }
 
+/** 原型质量校验结果的项目。 */
+export interface PrototypeQualityIssueRow {
+  readonly code: string
+  readonly message: string
+}
+
+/** 原型质量校验结果。 */
+export interface PrototypeQualityRow {
+  readonly passed: readonly string[]
+  readonly failed: readonly PrototypeQualityIssueRow[]
+  readonly keywordHitRate: number
+  readonly keywords: readonly string[]
+  readonly hits: readonly string[]
+  readonly misses: readonly string[]
+}
+
+/** 需求原型登记：HTML 本体在 .spec/prototypes/<编号>/index.html。 */
+export interface RequirementPrototypeRow {
+  readonly path: string
+  readonly generatedAt: string
+  readonly referenceSummary?: string
+  readonly references: readonly string[]
+  readonly quality?: PrototypeQualityRow
+  readonly adoptedAt?: string
+}
+
 /** 需求行（含正文）。 */
 export interface RequirementDocRow {
   readonly id: string
@@ -132,6 +158,8 @@ export interface RequirementDocRow {
   readonly approvedVersion?: number
   /** 拆分岗位建议；没有计划文件时缺省。 */
   readonly splitPlan?: RequirementSplitPlanRow
+  /** HTML 原型登记；旧需求缺省。 */
+  readonly prototype?: RequirementPrototypeRow
 }
 
 /** 规则行。 */
@@ -568,6 +596,38 @@ export function requirementTextToRow(fileName: string, text: string): Omit<Requi
     && rawApprovedVersion > 0
     ? rawApprovedVersion
     : undefined
+  const rawPrototype = recordOf(fields.prototype)
+  const prototypePath = rawPrototype === undefined ? undefined : asText(rawPrototype.path)
+  const prototypeGeneratedAt = rawPrototype === undefined ? undefined : asText(rawPrototype.generatedAt)
+  const prototypeReferenceSummary = rawPrototype === undefined ? undefined : asText(rawPrototype.referenceSummary)
+  const prototypeAdoptedAt = rawPrototype === undefined ? undefined : asText(rawPrototype.adoptedAt)
+  const rawQuality = recordOf(rawPrototype?.quality)
+  const rate = rawQuality?.keywordHitRate
+  const quality = rawQuality === undefined || typeof rate !== 'number' || !Number.isFinite(rate)
+    ? undefined
+    : {
+      passed: stringArray(rawQuality.passed),
+      failed: (Array.isArray(rawQuality.failed) ? rawQuality.failed : []).flatMap((entry: unknown) => {
+        const issue = recordOf(entry)
+        const code = asText(issue?.code)
+        const message = asText(issue?.message)
+        return code === undefined || message === undefined ? [] : [{ code, message }]
+      }),
+      keywordHitRate: rate,
+      keywords: stringArray(rawQuality.keywords),
+      hits: stringArray(rawQuality.hits),
+      misses: stringArray(rawQuality.misses),
+    }
+  const prototype = prototypePath === undefined || prototypeGeneratedAt === undefined
+    ? undefined
+    : {
+      path: prototypePath,
+      generatedAt: prototypeGeneratedAt,
+      ...(prototypeReferenceSummary === undefined ? {} : { referenceSummary: prototypeReferenceSummary }),
+      references: stringArray(rawPrototype?.references),
+      ...(quality === undefined ? {} : { quality }),
+      ...(prototypeAdoptedAt === undefined ? {} : { adoptedAt: prototypeAdoptedAt }),
+    }
   return {
     id: asText(fields.id) ?? fileName.replace(/\.yaml$/, ''),
     title,
@@ -582,6 +642,7 @@ export function requirementTextToRow(fileName: string, text: string): Omit<Requi
     reviews,
     ...(approvedAt === undefined ? {} : { approvedAt }),
     ...(approvedVersion === undefined ? {} : { approvedVersion }),
+    ...(prototype === undefined ? {} : { prototype }),
   }
 }
 

@@ -27,6 +27,7 @@ const CEILING: RoleCeiling = {
   flow: ['file_read'],
   manager: ['file_read'],
   'requirement-editor': ['file_read'],
+  prototype: ['file_read'],
 }
 
 function signals(strong: string[], medium: string[] = [], preferredPaths: string[] = []): RoleSignals {

@@ -11,7 +11,7 @@ import type { ProposalRow, RequirementDocRow, RequirementReviewRow } from '../sp
 import { requirementStateLabel } from '../spec/board.ts'
 import { hasIntakeWork } from '../intake/eligibility.ts'
 import { buildIntakeFollowupPrompt, buildManagerSplitPrompt, buildRequirementCreatePrompt, buildRequirementPatchPrompt, buildReviewPrompt, buildRevisePrompt, BUILTIN_SPLIT_TRACKS, type ReviewDecisions } from '../intake/prompts.ts'
-import { INTAKE_PRESET_ID, MANAGER_PRESET_ID, PM_PRESET_ID, REQUIREMENT_EDITOR_PRESET_ID } from '../talents/model.ts'
+import { INTAKE_PRESET_ID, MANAGER_PRESET_ID, PM_PRESET_ID, PROTOTYPE_PRESET_ID, REQUIREMENT_EDITOR_PRESET_ID } from '../talents/model.ts'
 import { entryRoot, flowNodeOf, flowRoleLabel, flowRoleSource, presetOfRole, presetRoot } from '../flow/config.ts'
 import { canModifyDraft, canReviewRequirement } from './requirement-gate.ts'
 import { translate, type MessageKey, type Translate } from '../locale.ts'
@@ -35,7 +35,7 @@ const OP_POLL_MS = 4000
 const OP_TIMEOUT_MS = 5 * 60 * 1000
 
 /** 六类后台操作；立项调研、新建需求与草稿修改都走后台浮卡，不强制跳转对话。 */
-type OpKind = 'intake' | 'create' | 'review' | 'revise' | 'patch' | 'split'
+type OpKind = 'intake' | 'create' | 'review' | 'revise' | 'patch' | 'split' | 'prototype'
 
 const OP_RUNNING_KEY: Readonly<Record<OpKind, MessageKey>> = {
   intake: 'requirement.opRunning.intake',
@@ -44,6 +44,7 @@ const OP_RUNNING_KEY: Readonly<Record<OpKind, MessageKey>> = {
   revise: 'requirement.opRunning.revise',
   patch: 'requirement.opRunning.patch',
   split: 'requirement.opRunning.split',
+  prototype: 'requirement.opRunning.prototype',
 }
 
 const OP_DONE_KEY: Readonly<Record<OpKind, MessageKey>> = {
@@ -53,6 +54,7 @@ const OP_DONE_KEY: Readonly<Record<OpKind, MessageKey>> = {
   revise: 'requirement.opDone.revise',
   patch: 'requirement.opDone.patch',
   split: 'requirement.opDone.split',
+  prototype: 'requirement.opDone.prototype',
 }
 
 const OP_TITLE_KEY: Readonly<Record<OpKind, MessageKey>> = {
@@ -62,6 +64,7 @@ const OP_TITLE_KEY: Readonly<Record<OpKind, MessageKey>> = {
   revise: 'requirement.opTitle.revise',
   patch: 'requirement.opTitle.patch',
   split: 'requirement.opTitle.split',
+  prototype: 'requirement.opTitle.prototype',
 }
 
 /** 需求状态到 HeroUI Chip 语义色的映射；文案仍走 board 的词典标签。 */
@@ -80,6 +83,7 @@ const OP_PRESET: Readonly<Record<OpKind, string>> = {
   revise: INTAKE_PRESET_ID,
   patch: REQUIREMENT_EDITOR_PRESET_ID,
   split: MANAGER_PRESET_ID,
+  prototype: PROTOTYPE_PRESET_ID,
 }
 
 /** 一次节点运行的身份：一节点一卡，卡内按岗位推进。 */
@@ -102,6 +106,8 @@ interface OpWatch extends OpRun {
   readonly versions: number
   readonly related: number
   readonly planAt: string | null
+  /** 发起原型生成时已有的原型生成时刻；完成看它是否变化。 */
+  readonly prototypeAt: string | null
   readonly requirements: number
   /** 发起时已有的提案编号；之后新出现的起草态需求变更提案算本次操作的产物。 */
   readonly proposalIds: readonly string[]
@@ -210,7 +216,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
       ?? paused.find(item => item.requirementId === requirementId)
     if (inFlight === undefined) return null
     const kind = inFlight.kind
-    return kind === 'review' || kind === 'revise' || kind === 'patch' || kind === 'split' ? kind : null
+    return kind === 'review' || kind === 'revise' || kind === 'patch' || kind === 'split' || kind === 'prototype' ? kind : null
   }
 
   const rows = useMemo(() => {
@@ -276,6 +282,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
       versions: row?.versions.length ?? 0,
       related: requirementId === null ? 0 : relatedOf(requirementId).length,
       planAt: row?.splitPlan?.at ?? null,
+      prototypeAt: row?.prototype?.generatedAt ?? null,
       requirements: props.projection.requirements.length,
       proposalIds: props.projection.proposals.map(item => item.id),
     }
@@ -360,6 +367,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
       versions: 0,
       related: 0,
       planAt: null,
+      prototypeAt: null,
       requirements: props.projection.requirements.length,
       proposalIds: props.projection.proposals.map(item => item.id),
       roleSig: null,
@@ -397,6 +405,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
       versions: 0,
       related: 0,
       planAt: null,
+      prototypeAt: null,
       requirements: props.projection.requirements.length,
       proposalIds: props.projection.proposals.map(item => item.id),
       roleSig: null,
@@ -508,6 +517,39 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
   const revise = (row: RequirementDocRow, decisions?: ReviewDecisions) => startNode('revise', row, decisions)
   const split = (row: RequirementDocRow) => startNode('split', row)
 
+  /** 原型生成后台会话：提示词由原型区拼好，固定派给 maniu-prototype 人才。 */
+  const generatePrototype = async (
+    row: RequirementDocRow,
+    prompt: string,
+  ): Promise<{ readonly ok: boolean; readonly message: string }> => {
+    setOpNotice(null)
+    let answer: { readonly ok: boolean; readonly message: string; readonly sessionId?: string }
+    try {
+      answer = await props.onStartSession(prompt, PROTOTYPE_PRESET_ID)
+    } catch (cause: unknown) {
+      const message = cause instanceof Error ? cause.message : String(cause)
+      setOpNotice(message)
+      return { ok: false, message }
+    }
+    if (!answer.ok) {
+      setOpNotice(answer.message)
+      return answer
+    }
+    setWatches(current => [...current, {
+      key: `prototype-${row.id}-${String(Date.now())}`,
+      kind: 'prototype',
+      requirementId: row.id,
+      roles: [PROTOTYPE_PRESET_ID],
+      roleIndex: 0,
+      auto: false,
+      sessionId: answer.sessionId ?? null,
+      ...baselineOf(row.id),
+      roleSig: null,
+      deadline: Date.now() + OP_TIMEOUT_MS,
+    }])
+    return answer
+  }
+
   // 完成判定以投影里的磁盘事实为准：评审见增轮（有配置时最新一轮署名根须等于当前条目根）、
   // 改稿见增版、拆分见岗位建议落盘或会话回合结束后关联任务增加、立项与新建需求见需求条数增量。
   // 落盘后按 auto 决定自动发起下一岗还是停下等人；提案被拒绝时立即收口成取消卡，不空转到超时。
@@ -538,6 +580,9 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
         return latest?.role !== undefined && presetRoot(latest.role) === watch.roleSig
       }
       if (watch.kind === 'revise') return row.versions.length > watch.versions
+      if (watch.kind === 'prototype') {
+        return row.prototype !== undefined && row.prototype.generatedAt !== watch.prototypeAt
+      }
       const related = props.projection.tasks.filter(
         task => task.requirement === row.id || task.proposal === row.id,
       ).length
@@ -1185,6 +1230,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
                   onApplied={patchApplied}
                   readerOpen={readerPath !== null}
                   runningOp={runningOpOf(active.id)}
+                  onGeneratePrototype={prompt => generatePrototype(active, prompt)}
                   t={t}
                 />
               </div>
