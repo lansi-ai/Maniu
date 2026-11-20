@@ -141,6 +141,8 @@ export function App(): JSX.Element {
   const [taskRequirement, setTaskRequirement] = useState<string | null>(null)
   const [projectNotice, setProjectNotice] = useState<string | null>(null)
   const [pending, setPending] = useState<readonly PendingInteraction[]>([])
+  // 作答弹窗的打开状态提升到 App：任务卡入口与中性兜底入口都经这里打开同一个弹窗。
+  const [answerIds, setAnswerIds] = useState<readonly string[] | null>(null)
   const [closeRequest, setCloseRequest] = useState<CloseRequest | null>(null)
   const [titles, setTitles] = useState<Readonly<Record<string, string>>>({})
   const [catalog, setCatalog] = useState<{ readonly value: unknown; readonly error: string | null }>({
@@ -294,7 +296,7 @@ export function App(): JSX.Element {
 
   useEffect(() => {
     const off = window.lcoder.onWaterfall((event: HostWaterfall) => {
-      const interaction = interactionOf(event.name, event.clientId, event.eventId, event.request)
+      const interaction = interactionOf(event.name, event.clientId, event.eventId, event.request, event.agentId)
       if (interaction === undefined) return
       // 审批/提问卡出现时先把排队中的流式帧落下去，卡片与工具卡不会差一帧先后。
       batcher.flush()
@@ -458,6 +460,11 @@ export function App(): JSX.Element {
     } catch (error: unknown) {
       return { ok: false, message: error instanceof Error ? error.message : String(error) }
     }
+  }, [])
+
+  /** 任务卡或中性兜底入口请求作答：接收要展示的交互 id 集合，弹窗留在 App 层打开。 */
+  const openAnswers = useCallback((ids: readonly string[]): void => {
+    if (ids.length > 0) setAnswerIds(ids)
   }, [])
 
   const selectModel = useCallback(async (provider: string, model: string): Promise<boolean> => {
@@ -767,6 +774,8 @@ export function App(): JSX.Element {
                   onConfirmIntake={confirmIntake}
                   presetNames={flowRoleNames}
                   awaitingAnswer={pending.length > 0}
+                  pending={pending}
+                  onAnswerPending={openAnswers}
                   onOpenSession={openSession}
                   onOpenTasks={(requirementId) => {
                     setTaskRequirement(requirementId)
@@ -844,9 +853,11 @@ export function App(): JSX.Element {
               visible={page !== 'chat'}
               t={t}
               items={pending}
+              answerIds={answerIds}
               sessions={sessions}
               titles={titles}
               onAnswer={answer}
+              onClose={() => { setAnswerIds(null) }}
             />
           </div>
         </main>

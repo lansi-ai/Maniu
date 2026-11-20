@@ -15,6 +15,9 @@ import { INTAKE_PRESET_ID, MANAGER_PRESET_ID, PM_PRESET_ID, REQUIREMENT_EDITOR_P
 import { entryRoot, flowNodeOf, flowRoleLabel, flowRoleSource, presetOfRole, presetRoot } from '../flow/config.ts'
 import { canModifyDraft, canReviewRequirement } from './requirement-gate.ts'
 import { translate, type MessageKey, type Translate } from '../locale.ts'
+import {
+  pendingForSession, questionCountForSession, unmappedPending, type PendingInteraction,
+} from '../chat/pending.ts'
 import { OperationCards, type OperationCardView, type OperationStep, type OperationStepState } from '../shell/operation-cards.tsx'
 import { RequirementDetail, type ModifyState, type RunningOpKind } from './requirement-detail.tsx'
 import { TaskDetail } from './task-detail.tsx'
@@ -150,6 +153,10 @@ export interface RequirementsPageProps {
   readonly presetNames?: Readonly<Record<string, string>>
   /** 当前是否有等待人工回答或审批的交互；交互期间暂停浮卡超时倒计时。 */
   readonly awaitingAnswer?: boolean
+  /** 待处理交互；按会话归属到对应任务卡，没有归属的走中性兜底入口。 */
+  readonly pending?: readonly PendingInteraction[]
+  /** 打开作答弹窗；参数是要在弹窗里展示的交互 id 集合。 */
+  readonly onAnswerPending?: (ids: readonly string[]) => void
   /** 取词函数；缺省为中文词典。 */
   readonly t?: Translate
 }
@@ -751,6 +758,13 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
     }
     const labelOf = (id: string): string => flowRoleLabel(id, labelCtx)
     const idOf = (run: OpRun, index: number): string => run.roles[index] ?? run.roles[run.roles.length - 1] ?? ''
+    // 一任务一张卡：提问按 agentId（与会话标识同值）字符串相等归到对应卡。
+    const pendingItems = props.pending ?? []
+    const withPending = (view: OperationCardView, sessionId: string | null): OperationCardView => {
+      if (sessionId === null) return view
+      const count = questionCountForSession(pendingItems, sessionId)
+      return count > 0 ? { ...view, pendingCount: count, pendingKey: sessionId } : view
+    }
     // 单岗节点沿用四步清单；多岗节点按岗位列步骤，末尾一步是整节点完成。
     // 等待确认时当前岗的工作已结束：单岗清单「岗位工作中」置完成，多岗清单当前岗置完成。
     // 提案已落盘等待对比时「产物落盘」也置完成：提案就是本次操作的产物，落需求本体等人确认。
@@ -816,7 +830,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
       ...watches.map((watch) => {
         const awaiting = awaitingConfirmOf(watch)
         const pendingProposal = pendingProposalOf(watch)
-        return viewOf(
+        return withPending(viewOf(
           watch, watch.roleIndex, watch.sessionId, 'running',
           awaiting
             ? t('op.awaitConfirm')
@@ -828,14 +842,14 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
                   ? t(OP_RUNNING_KEY[watch.kind])
                   : t(OP_RUNNING_KEY[watch.kind], { id: idTextOf(watch) }),
           !awaiting && pendingProposal === undefined, undefined, awaiting, pendingProposal?.id,
-        )
+        ), watch.sessionId)
       }),
-      ...paused.map(run => viewOf(
+      ...paused.map(run => withPending(viewOf(
         run, run.roleIndex, run.sessionId, 'running',
         t('op.awaitNext', { done: labelOf(idOf(run, run.roleIndex - 1)), next: labelOf(idOf(run, run.roleIndex)) }),
         false, labelOf(idOf(run, run.roleIndex)),
-      )),
-      ...finished.map(item => viewOf(
+      ), run.sessionId)),
+      ...finished.map(item => withPending(viewOf(
         item, Math.min(item.landed, item.roles.length - 1), item.sessionId, item.status,
         item.status === 'done'
           ? item.cancelled === true
@@ -845,9 +859,24 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
               : t(OP_DONE_KEY[item.kind], { id: idTextOf(item) })
           : t('requirement.opTimeout', { id: idTextOf(item) }),
         false,
-      )),
+      ), item.sessionId)),
     ]
-  }, [watches, paused, finished, minimizedKeys, confirmSent, sawRunning, props.presetNames, props.projection, props.sessions, t])
+  }, [
+    watches, paused, finished, minimizedKeys, confirmSent, sawRunning,
+    props.pending, props.presetNames, props.projection, props.sessions, t,
+  ])
+
+  // 没有挂到可见任务卡的交互走中性兜底入口，提问不丢；最小化卡里的提问也由这里承载。
+  const unmapped = unmappedPending(
+    props.pending ?? [],
+    cards.filter(card => !card.minimized).map(card => card.sessionId),
+  )
+  const answerPending = (sessionId: string): void => {
+    props.onAnswerPending?.(pendingForSession(props.pending ?? [], sessionId).map(item => item.id))
+  }
+  const answerUnmapped = (): void => {
+    props.onAnswerPending?.(unmapped.map(item => item.id))
+  }
 
   const toggleMinimize = (key: string) => {
     setMinimizedKeys(current => current.includes(key)
@@ -1251,6 +1280,18 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
         />
       )}
 
+      {unmapped.length > 0 && props.onAnswerPending !== undefined && (
+        <button
+          type="button"
+          className="pending-fallback"
+          data-testid="pending-fallback"
+          aria-label={t('pending.fallbackCount', { count: unmapped.length })}
+          onClick={answerUnmapped}
+        >
+          {t('pending.fallbackCount', { count: unmapped.length })}
+        </button>
+      )}
+
       <OperationCards
         cards={cards}
         onToggleMinimize={toggleMinimize}
@@ -1260,6 +1301,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
         onCompare={(proposalId) => { setCompareId(proposalId) }}
         onViewSummary={(key) => { setSummaryKey(key) }}
         {...(props.onConfirmIntake === undefined ? {} : { onConfirmIntake: (key: string) => { void confirmIntake(key) } })}
+        {...(props.onAnswerPending === undefined ? {} : { onAnswerRequest: answerPending })}
         t={t}
       />
     </section>

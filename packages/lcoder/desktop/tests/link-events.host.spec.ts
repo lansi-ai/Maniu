@@ -14,8 +14,19 @@ describe('waterfallOf', () => {
       name: 'approval/request',
       clientId: 'client-9',
       eventId: 'e-1',
+      agentId: 'agent-1',
       request: { toolName: 'cmd_run' },
     })
+  })
+
+  it('把 agentId 原样下发，渲染端据此归属会话', () => {
+    expect(waterfallOf({
+      type: 'waterfall',
+      event: 'user-questions/request',
+      eventId: 'e-q',
+      agentId: 'session-42',
+      request: { questions: [] },
+    }, 'c')).toMatchObject({ name: 'user-questions/request', agentId: 'session-42' })
   })
 
   it('拿不到代际时不发事件，免得回执挂在一个不存在的连接上', () => {
@@ -23,20 +34,23 @@ describe('waterfallOf', () => {
       type: 'waterfall',
       event: 'approval/request',
       eventId: 'e-1',
+      agentId: 'agent-1',
       request: {},
     }, undefined)).toBeUndefined()
   })
 
   it('只转发白名单里的两种 waterfall', () => {
-    expect(waterfallOf({ type: 'waterfall', event: 'plugin-manager/changed', eventId: 'e-1', request: {} }, 'c'))
+    expect(waterfallOf({ type: 'waterfall', event: 'plugin-manager/changed', eventId: 'e-1', agentId: 'a', request: {} }, 'c'))
       .toBeUndefined()
-    expect(waterfallOf({ type: 'waterfall', event: 'user-questions/request', eventId: 'e-2', request: { questions: [] } }, 'c'))
+    expect(waterfallOf({ type: 'waterfall', event: 'user-questions/request', eventId: 'e-2', agentId: 'a', request: { questions: [] } }, 'c'))
       .toMatchObject({ name: 'user-questions/request', eventId: 'e-2' })
   })
 
   it('形状不完整时拒绝', () => {
     expect(waterfallOf({ type: 'waterfall', event: 'approval/request' }, 'c')).toBeUndefined()
     expect(waterfallOf({ type: 'waterfall', event: 'approval/request', eventId: 'e', request: 'x' }, 'c')).toBeUndefined()
+    expect(waterfallOf({ type: 'waterfall', event: 'approval/request', eventId: 'e', agentId: 1, request: {} }, 'c')).toBeUndefined()
+    expect(waterfallOf({ type: 'waterfall', event: 'approval/request', eventId: 'e', request: {} }, 'c')).toBeUndefined()
     expect(waterfallOf({ type: 'emit' }, 'c')).toBeUndefined()
     expect(waterfallOf('nope', 'c')).toBeUndefined()
   })

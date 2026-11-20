@@ -178,31 +178,37 @@ describe('对话页待处理卡', () => {
   })
 })
 
-describe('非对话页通知', () => {
-  const layer = (visible: boolean) => (
+describe('非对话页作答弹窗', () => {
+  const layer = (visible: boolean, answerIds: readonly string[] | null = null) => (
     <PendingLayer
       visible={visible}
       t={t}
       items={[QUESTION]}
+      answerIds={answerIds}
       sessions={[]}
       titles={{}}
       onAnswer={vi.fn(async () => ({ ok: true as const }))}
+      onClose={vi.fn()}
     />
   )
 
-  it('显示时是右下角轻量通知，不直接画卡片', () => {
+  it('未受控打开时不画通知浮层，也不画弹窗', () => {
     render(layer(true))
-    expect(container.querySelector('.pending-layer')).not.toBeNull()
-    expect(element('pending-notifications')).not.toBeNull()
-    expect(element('pending-review')).not.toBeNull()
+    expect(query('pending-notifications')).toBeNull()
+    expect(document.querySelector('[data-testid="pending-dialog"]')).toBeNull()
     expect(query('question-card')).toBeNull()
-    expect(element('pending-notice-source').textContent).toContain('来源会话不可用')
   })
 
-  it('对话页传 false 时不渲染通知', () => {
-    render(layer(false))
-    expect(container.querySelector('.pending-layer')).toBeNull()
-    expect(query('pending-review')).toBeNull()
+  it('受控打开才画弹窗，传入的交互 id 决定展示哪张答题卡', () => {
+    render(layer(true, ['q1']))
+    expect(document.querySelector('[data-testid="pending-dialog"]')).not.toBeNull()
+    expect(document.querySelector('[data-testid="question-card"]')).not.toBeNull()
+    expect(document.querySelector('[data-testid="pending-dialog"]')?.getAttribute('aria-label')).toBe('待处理提问')
+  })
+
+  it('对话页传 false 时即使受控打开也不渲染弹窗', () => {
+    render(layer(false, ['q1']))
+    expect(document.querySelector('[data-testid="pending-dialog"]')).toBeNull()
     expect(query('question-card')).toBeNull()
   })
 })

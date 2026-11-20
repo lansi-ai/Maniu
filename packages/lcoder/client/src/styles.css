@@ -833,87 +833,45 @@ html body {
 .rename-problem { color: var(--danger); font-size: 11px; }
 .chat-head .running { color: var(--success); font-size: 11px; }
 
-/* 等待人处理的交互：非对话页在右下角轻量提醒；对话页改用聊天列里的卡片。 */
-.pending-layer {
-  position: absolute;
-  right: 18px;
-  bottom: 18px;
-  z-index: 20;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 8px;
-  width: min(360px, calc(100vw - 36px));
-  max-height: min(320px, 62vh);
-  overflow-y: auto;
-  pointer-events: none;
-}
-/* 有通知时把后台操作浮卡上移，两者互不遮挡。 */
-.shell:has(.pending-layer) .op-layer { bottom: min(360px, 58vh); }
-.pending-notice {
-  width: 100%;
-  padding: 12px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--warning);
-  border-radius: 14px;
-  background: var(--overlay);
-  box-shadow: var(--overlay-shadow);
-  pointer-events: auto;
-}
-.pending-notice-head { display: flex; align-items: center; gap: 8px; }
-.pending-notice-source { flex: 1; min-width: 0; font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pending-notice-count { flex: 0 0 auto; font-size: 11px; color: var(--muted); }
-.pending-sound-toggle {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-}
-.pending-sound-toggle[aria-pressed="true"] { color: var(--accent); }
-.pending-notice-operation { margin: 0; font-size: 11px; color: var(--muted); }
-.pending-notice-items { margin: 0; padding: 0 0 0 16px; display: flex; flex-direction: column; gap: 3px; font-size: 12px; }
-.pending-notice-item { line-height: 1.4; }
-.pending-review {
-  align-self: flex-start;
-  padding: 4px 12px;
-  border: 1px solid var(--accent);
-  border-radius: 8px;
-  background: transparent;
-  color: var(--accent);
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
-}
+/* 待处理提问入口只挂在对应任务卡上；没有可归属会话的走中性兜底按钮，不再画通知浮层。
+   作答弹窗经 portal 铺满整个视口，盖住标题栏与左右拖拽条；滤镜只落在弹窗自己身上。 */
 .pending-dialog-backdrop {
-  position: absolute;
+  position: fixed;
   inset: 0;
   z-index: 60;
   display: grid;
   place-items: center;
   padding: 24px;
-  background: color-mix(in oklab, var(--backdrop) 55%, transparent);
+  background: color-mix(in oklab, var(--background) 55%, transparent);
 }
 .pending-dialog {
   display: flex;
   flex-direction: column;
   width: min(680px, calc(100vw - 32px));
   max-height: calc(100vh - 48px);
-  border: 1px solid var(--border);
+  border: 1px solid var(--glass-border);
   border-radius: 18px;
-  background: var(--overlay);
-  box-shadow: var(--overlay-shadow);
+  background: var(--glass-surface-elevated);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  box-shadow: 0 1px 0 0 var(--glass-border) inset, 0 20px 48px -20px rgba(15, 23, 42, 0.14);
   overflow: hidden;
   outline: none;
+}
+.pending-fallback {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 12;
+  align-self: flex-end;
+  padding: 8px 14px;
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  background: var(--glass-surface-elevated);
+  color: var(--foreground);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
 }
 .pending-dialog-head {
   display: flex;
@@ -1002,6 +960,8 @@ html body {
 .op-steps li.op-step-active::before { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .op-steps li.op-step-failed { color: var(--danger); }
 .op-steps li.op-step-failed::before { background: var(--warning); border-color: var(--warning); }
+.op-steps li.op-step-answer { color: var(--warning); font-weight: 600; }
+.op-steps li.op-step-answer::before { background: var(--warning); border-color: var(--warning); box-shadow: 0 0 0 3px color-mix(in oklab, var(--warning) 16%, transparent); }
 .op-status { margin: 0; font-size: 12px; line-height: 1.5; color: var(--muted); }
 .op-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .op-capsule { display: flex; align-items: center; gap: 8px; align-self: flex-end; padding: 6px 14px; border: 1px solid var(--border); border-radius: 999px; background: var(--overlay); box-shadow: var(--overlay-shadow); color: var(--foreground); font-size: 12px; cursor: pointer; }

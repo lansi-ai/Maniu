@@ -61,6 +61,11 @@ export interface HostWaterfall {
   readonly name: string
   readonly clientId: string
   readonly eventId: string
+  /**
+   * 发起这次交互的 agent 标识；与会话标识是同一个值，wire 上是普通字符串。
+   * 渲染端用它做字符串相等归属，不从 clientId、问题内容或到达时间推断。
+   */
+  readonly agentId: string
   readonly request: object
 }
 
