@@ -125,6 +125,17 @@ export interface ModifyState {
 
 const CLOSED_MODIFY: ModifyState = { open: false, text: '', status: 'idle' }
 
+/** 会让详情业务按钮互斥锁定的在途操作类型；来自需求页当前需求的后台浮卡。 */
+export type RunningOpKind = 'review' | 'revise' | 'patch' | 'split'
+
+/** 在途操作对应的锁定提示文案。 */
+const OP_LOCKED_KEY: Readonly<Record<RunningOpKind, MessageKey>> = {
+  review: 'requirement.opLocked.review',
+  revise: 'requirement.opLocked.revise',
+  patch: 'requirement.opLocked.patch',
+  split: 'requirement.opLocked.split',
+}
+
 /** 需求详情属性。 */
 export interface RequirementDetailProps {
   readonly row: RequirementDocRow
@@ -162,6 +173,8 @@ export interface RequirementDetailProps {
   readonly onApplied?: () => void
   /** 阅读层打开时详情不抢 Esc。 */
   readonly readerOpen?: boolean | undefined
+  /** 当前需求的在途后台操作；非空时锁定业务按钮，patch 待裁决阶段仍可查看差异。 */
+  readonly runningOp?: RunningOpKind | null | undefined
   /** 取词函数；缺省为中文词典。 */
   readonly t?: Translate
 }
@@ -187,6 +200,12 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
   const [expandedTodos, setExpandedTodos] = useState<ReadonlySet<number>>(() => new Set())
   const [reportExpanded, setReportExpanded] = useState(false)
   const related = props.projection.tasks.filter(task => task.requirement === row.id || task.proposal === row.id)
+
+  // 在途后台操作与本地发起共用同一把互斥锁；查看差异不在锁内，供 patch 待裁决阶段对比。
+  const locked = busy !== null || (props.runningOp !== undefined && props.runningOp !== null)
+  const lockedHint = props.runningOp === undefined || props.runningOp === null
+    ? undefined
+    : t(OP_LOCKED_KEY[props.runningOp])
 
   const state: DetailState = row.state === 'draft' || row.state === 'confirmed' || row.state === 'released' || row.state === 'closed'
     ? row.state
@@ -468,10 +487,10 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                     data-testid="requirement-detail-review"
                     data-variant={phase === 'unreviewed' ? 'primary' : 'secondary'}
                     data-phase={phase}
-                    isDisabled={!reviewGate.ok || busy !== null}
+                    isDisabled={!reviewGate.ok || locked}
                     ref={(node) => {
                       if (node === null) return
-                      node.title = reviewBlockReason ?? t(phase === 'unreviewed' ? 'requirement.opReviewTitleStart' : 'requirement.opReviewTitleAgain')
+                      node.title = lockedHint ?? reviewBlockReason ?? t(phase === 'unreviewed' ? 'requirement.opReviewTitleStart' : 'requirement.opReviewTitleAgain')
                     }}
                     onPress={() => { void startOp('review', props.onReview) }}
                   >
@@ -481,9 +500,9 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                     variant="secondary"
                     size="sm"
                     data-testid="requirement-detail-revise"
-                    isDisabled={busy !== null}
-                    ref={(node) => { if (node !== null) node.title = t('requirement.opReviseTitle') }}
-                    onPress={props.onModifyRequest}
+                    isDisabled={locked}
+                    ref={(node) => { if (node !== null) node.title = lockedHint ?? t('requirement.opReviseTitle') }}
+                    onPress={() => { if (!locked) props.onModifyRequest() }}
                   >
                     {t('requirement.opRevise')}
                   </Button>
@@ -492,8 +511,8 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                     size="sm"
                     data-testid="requirement-approve"
                     data-variant={phase === 'pending' || !canApprove ? 'secondary' : 'primary'}
-                    isDisabled={!canApprove || busy !== null}
-                    ref={(node) => { if (node !== null) node.title = approveReason ?? '' }}
+                    isDisabled={!canApprove || locked}
+                    ref={(node) => { if (node !== null) node.title = lockedHint ?? approveReason ?? '' }}
                     onPress={() => { void execute('approve', `/requirement_approve ${row.id}`) }}
                   >
                     {t('requirement.opApprove')}
@@ -505,7 +524,7 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                   variant="primary"
                   size="sm"
                   data-testid="requirement-split"
-                  isDisabled={busy !== null}
+                  isDisabled={locked}
                   onPress={() => { void startOp('split', props.onSplit) }}
                 >
                   {t('requirement.opSplit')}
@@ -516,8 +535,8 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                   variant="secondary"
                   size="sm"
                   data-testid="requirement-split-again"
-                  isDisabled={busy !== null}
-                  ref={(node) => { if (node !== null) node.title = t('requirement.opSplitAgainTitle') }}
+                  isDisabled={locked}
+                  ref={(node) => { if (node !== null) node.title = lockedHint ?? t('requirement.opSplitAgainTitle') }}
                   onPress={() => { void startOp('split', props.onSplit) }}
                 >
                   {t('requirement.opSplitAgain')}
@@ -544,7 +563,7 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                   variant="primary"
                   size="sm"
                   data-testid="requirement-release"
-                  isDisabled={busy !== null}
+                  isDisabled={locked}
                   onPress={() => { void execute('release', `/requirement_release ${row.id}`) }}
                 >
                   {t('requirement.opRelease')}
@@ -556,14 +575,17 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                   size="sm"
                   className="requirement-close"
                   data-testid="requirement-close"
-                  isDisabled={busy !== null}
-                  ref={(node) => { if (node !== null) node.title = t('requirement.opCloseTitle') }}
+                  isDisabled={locked}
+                  ref={(node) => { if (node !== null) node.title = lockedHint ?? t('requirement.opCloseTitle') }}
                   onPress={() => { void execute('close', `/requirement_close ${row.id}`) }}
                 >
                   {t('requirement.opClose')}
                 </Button>
               )}
             </div>
+            {lockedHint !== undefined && (
+              <p className="detail-note" data-testid="requirement-op-locked-hint">{lockedHint}</p>
+            )}
             {state === 'draft' && approveReason !== undefined && (
               <p className="detail-note" data-testid="requirement-approve-hint">{approveReason}</p>
             )}
@@ -802,8 +824,8 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                           variant="primary"
                           size="sm"
                           data-testid="requirement-review-accept"
-                          isDisabled={busy !== null}
-                          ref={(node) => { if (node !== null) node.title = t('requirement.reviewAcceptTitle') }}
+                          isDisabled={locked}
+                          ref={(node) => { if (node !== null) node.title = lockedHint ?? t('requirement.reviewAcceptTitle') }}
                           onPress={() => { void startOp('reviewAccept', props.onRevise) }}
                         >
                           {t('requirement.reviewAccept')}
@@ -812,8 +834,8 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                           variant="secondary"
                           size="sm"
                           data-testid="requirement-review-reject"
-                          isDisabled={busy !== null}
-                          ref={(node) => { if (node !== null) node.title = t('requirement.reviewRejectTitle') }}
+                          isDisabled={locked}
+                          ref={(node) => { if (node !== null) node.title = lockedHint ?? t('requirement.reviewRejectTitle') }}
                           onPress={() => { void execute('reviewReject', `/requirement_review_decide ${row.id} ${latestReview.round} rejected`) }}
                         >
                           {t('requirement.reviewReject')}
@@ -845,8 +867,8 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                                 size="sm"
                                 data-testid="requirement-review-history-reject"
                                 data-round={review.round}
-                                isDisabled={busy !== null}
-                                ref={(node) => { if (node !== null) node.title = t('requirement.reviewRejectHistoryTitle') }}
+                                isDisabled={locked}
+                                ref={(node) => { if (node !== null) node.title = lockedHint ?? t('requirement.reviewRejectHistoryTitle') }}
                                 onPress={() => { void execute(`reviewReject-${String(review.round)}`, `/requirement_review_decide ${row.id} ${review.round} rejected`) }}
                               >
                                 {t('requirement.reviewRejectHistory')}

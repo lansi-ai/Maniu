@@ -431,3 +431,63 @@ describe('后台会话恢复提示', () => {
     expect(element('requirement-background-recovery')).toBeNull()
   })
 })
+
+describe('在途操作并发互斥锁定', () => {
+  it('评审在途时列表行与详情业务按钮全部锁定，落盘后恢复按门禁可用', async () => {
+    const h = harness()
+    h.render(projectionOf([DRAFT]))
+    await press('requirement-op-review')
+
+    // 列表行：发起评审与修改需求都按「该需求任意在途」禁用。
+    expect((element('requirement-op-review') as HTMLButtonElement).disabled).toBe(true)
+    expect((element('requirement-op-revise') as HTMLButtonElement).disabled).toBe(true)
+
+    // 详情：打开后评审/修改需求/确认需求/关闭全部锁定，并显示对应提示。
+    await press('requirement-row')
+    for (const id of ['requirement-detail-review', 'requirement-detail-revise', 'requirement-approve', 'requirement-close']) {
+      expect((element(id) as HTMLButtonElement).disabled).toBe(true)
+    }
+    expect(element('requirement-op-locked-hint')?.textContent).toContain('需求评审')
+    expect((element('requirement-detail-review') as HTMLButtonElement).title).toContain('需求评审')
+
+    // 锁定态点「修改需求」不展开说明栏。
+    await press('requirement-detail-revise')
+    expect(element('requirement-modify-pane')).toBeNull()
+
+    // 评审落盘后解除锁定，按钮恢复按各自门禁可用。
+    const reviewed: RequirementDocRow = {
+      ...DRAFT,
+      reviews: [...DRAFT.reviews, { round: 2, at: '2026-11-17T11:00:00+08:00', report: 'requirements/REQ-01/reviews/R2.md', decision: 'rejected' }],
+    }
+    h.render(projectionOf([reviewed]))
+    await act(async () => { await Promise.resolve() })
+    expect((element('requirement-op-review') as HTMLButtonElement).disabled).toBe(false)
+    expect((element('requirement-op-revise') as HTMLButtonElement).disabled).toBe(false)
+    expect((element('requirement-detail-review') as HTMLButtonElement).disabled).toBe(false)
+    expect((element('requirement-approve') as HTMLButtonElement).disabled).toBe(false)
+    expect(element('requirement-op-locked-hint')).toBeNull()
+  })
+
+  it('patch 提案待裁决时其它操作仍锁定，查看差异保持可点', async () => {
+    const h = harness()
+    h.render(projectionOf([DRAFT]))
+    await startModify('按说明改')
+    // 提案草稿已落盘但尚未被应用，watch 仍在（未 approved）：处于待裁决在途态。
+    h.render(projectionOf([DRAFT], [], [PATCH_PROPOSAL]))
+    await act(async () => { await Promise.resolve() })
+
+    expect(element('requirement-op-running')).not.toBeNull()
+    expect((element('requirement-detail-review') as HTMLButtonElement).disabled).toBe(true)
+    expect((element('requirement-detail-revise') as HTMLButtonElement).disabled).toBe(true)
+    expect((element('requirement-close') as HTMLButtonElement).disabled).toBe(true)
+    expect(element('requirement-op-locked-hint')?.textContent).toContain('修改提案')
+
+    // 待裁决阶段说明栏仍展开，查看差异例外不禁用。
+    expect(element('requirement-modify-pane')).not.toBeNull()
+    const viewDiff = element('requirement-modify-view-diff') as HTMLButtonElement
+    expect(viewDiff).not.toBeNull()
+    expect(viewDiff.disabled).toBe(false)
+    await press('requirement-modify-view-diff')
+    expect(element('requirement-inline-compare')).not.toBeNull()
+  })
+})
