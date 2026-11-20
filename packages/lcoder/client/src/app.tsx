@@ -785,6 +785,7 @@ export function App(): JSX.Element {
                 items={workspaces.items}
                 current={project}
                 error={projectNotice ?? workspaces.error}
+                t={t}
                 onSelect={(workspace) => { void chooseWorkspace(workspace) }}
                 onOpened={(workspace) => { void chooseWorkspace(workspace) }}
               />
