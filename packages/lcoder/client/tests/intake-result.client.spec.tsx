@@ -48,6 +48,8 @@ let root: Root
 
 beforeEach(() => {
   Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', { configurable: true, value: true })
+  // HeroUI Modal 的 react-aria 依赖在 jsdom 里调用 CSS.escape，需补最小实现。
+  Object.defineProperty(globalThis, 'CSS', { configurable: true, value: { escape: (value: string) => value.replace(/[^\w-]/g, '\\$&') } })
   container = document.createElement('div')
   document.body.append(container)
   root = createRoot(container)
@@ -60,7 +62,7 @@ afterEach(() => {
 
 /** 点一个 testid，并让异步状态更新落定。 */
 async function press(testId: string): Promise<void> {
-  const node = container.querySelector(`[data-testid="${testId}"]`)
+  const node = document.querySelector(`[data-testid="${testId}"]`)
   expect(node).not.toBeNull()
   await act(async () => {
     ;(node as HTMLElement).click()
@@ -69,7 +71,8 @@ async function press(testId: string): Promise<void> {
 }
 
 function element(testId: string): Element | null {
-  return container.querySelector(`[data-testid="${testId}"]`)
+  // HeroUI Modal 通过 React Aria Portal 挂到 document.body，不能只查挂载容器。
+  return document.querySelector(`[data-testid="${testId}"]`)
 }
 
 /** 在全新项目档的想法输入框里填一句，解锁开始按钮。 */
@@ -92,6 +95,7 @@ function Harness(): JSX.Element {
       <button type="button" data-testid="toggle" onClick={() => { setOpen(value => !value) }}>toggle</button>
       {open ? (
         <IntakeWizard
+          isOpen
           project={PROJECT}
           projection={PROJECTION}
           result={result}
@@ -167,7 +171,7 @@ describe('立项结果提升到 App 级', () => {
         />,
       )
     })
-    expect(element('intake-open')?.textContent).toBe('立项结果')
+    expect(element('intake-open')?.textContent).toBe('查看结果')
     await press('intake-open')
     expect(element('intake-result-message')?.textContent).toContain('session-1')
   })
@@ -235,7 +239,7 @@ describe('非空项目的立项准入', () => {
     renderPage(WITH_REQUIREMENT, { message: '指令已发送到会话 session-1', sessionId: 'session-1' })
     const open = element('intake-open') as HTMLButtonElement
     expect(open.disabled).toBe(false)
-    expect(open.textContent).toBe('立项结果')
+    expect(open.textContent).toBe('查看结果')
     await press('intake-open')
     expect(element('intake-result-message')?.textContent).toContain('session-1')
     expect(element('intake-restart')).toBeNull()

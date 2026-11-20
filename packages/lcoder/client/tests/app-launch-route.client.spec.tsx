@@ -77,6 +77,8 @@ async function fakeCall(namespace: string, method: string, args: Record<string, 
 
 beforeEach(() => {
   Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', { configurable: true, value: true })
+  // HeroUI Modal 的 react-aria 依赖在 jsdom 里调用 CSS.escape，需补最小实现。
+  Object.defineProperty(globalThis, 'CSS', { configurable: true, value: { escape: (value: string) => value.replace(/[^\w-]/g, '\\$&') } })
   calls = []
   streamOpens = []
   sessionItems = []
@@ -140,7 +142,8 @@ afterEach(() => {
 })
 
 function element(testId: string): Element | null {
-  return container.querySelector(`[data-testid="${testId}"]`)
+  // 立项向导的 HeroUI Modal 挂在 document.body 的 Portal 里，查询范围要覆盖整页。
+  return document.querySelector(`[data-testid="${testId}"]`)
 }
 
 async function flush(): Promise<void> {

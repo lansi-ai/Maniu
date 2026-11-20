@@ -922,7 +922,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
               isDisabled={props.project === null || blockedIntake || busyOf('intake', null)}
               onPress={() => { setWizard(true) }}
             >
-              {props.intakeResult === null ? '立项向导' : '立项结果'}
+              {props.intakeResult === null ? t('intake.entryStart') : t('intake.entryResult')}
             </Button>
           </span>
           <Button
@@ -1176,8 +1176,9 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
         />
       )}
 
-      {wizard && props.project !== null && (
+      {props.project !== null && (
         <IntakeWizard
+          isOpen={wizard}
           project={props.project}
           projection={props.projection}
           result={props.intakeResult}

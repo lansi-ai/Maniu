@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import type { JSX } from 'react'
-import { Button, Card, Separator } from '@heroui/react'
+import { Button, Card, Modal, Separator, useOverlayState } from '@heroui/react'
 import { Check, FileSearch, FolderGit2, Rocket, Sparkles, UserCheck } from 'lucide-react'
 import type { ProjectScope } from '../workspace/use-workspaces.ts'
 import type { SpecProjection } from '../spec/load.ts'
@@ -10,7 +10,6 @@ import { buildIntakePrompt, type IntakeMode } from '../intake/prompts.ts'
 import { hasIntakeWork } from '../intake/eligibility.ts'
 import { loadBuiltinPresets } from '../talents/api.ts'
 import { translate, type Translate } from '../locale.ts'
-import { DetailDrawer } from './detail-drawer.tsx'
 
 /** 立项会话的角色；人设是访谈纪律的唯一来源。 */
 const INTAKE_PRESET = 'maniu-intake'
@@ -26,6 +25,8 @@ export interface IntakeResult {
 
 /** 立项向导属性。 */
 export interface IntakeWizardProps {
+  /** 受控开关；关闭时父级只收起弹层，App 级立项结果保留供回看。 */
+  readonly isOpen: boolean
   readonly project: ProjectScope
   readonly projection: SpecProjection
   readonly result: IntakeResult | null
@@ -40,11 +41,15 @@ export interface IntakeWizardProps {
 
 /**
  * 画立项向导。
- * @param props - 项目、投影、提升到 App 的结果与发送回调。
- * @returns 向导抽屉。
+ * @param props - 开关、项目、投影、提升到 App 的结果与发送回调。
+ * @returns 受 isOpen 控制的居中 Modal。
  */
 export function IntakeWizard(props: IntakeWizardProps): JSX.Element {
   const t = props.t ?? zhText
+  const overlayState = useOverlayState({
+    isOpen: props.isOpen,
+    onOpenChange: (open) => { if (!open) props.onClose() },
+  })
   const [mode, setMode] = useState<IntakeMode>('fresh')
   const [idea, setIdea] = useState('')
   const [busy, setBusy] = useState(false)
@@ -92,148 +97,155 @@ export function IntakeWizard(props: IntakeWizardProps): JSX.Element {
   const latest = props.projection.requirements[props.projection.requirements.length - 1]
 
   return (
-    <DetailDrawer
-      testId="intake-wizard"
-      closeTestId="intake-close"
-      onClose={props.onClose}
-      head={<h3>立项向导</h3>}
-    >
-      <div className="intake-container">
-        <div className="intake-role-row" data-testid="intake-role">
-          <span className="intake-role-avatar" aria-hidden="true"><UserCheck size={18} /></span>
-          <div className="intake-role-body">
-            <span className="intake-role-name">{rosterName ?? t('intake.roleName')}</span>
-            <span className="intake-role-creator">{t('intake.creatorLabel', { creator: t('intake.creatorBuiltin') })}</span>
-          </div>
-        </div>
-
-        {started === null && blocked && (
-          <Card className="intake-section" data-testid="intake-blocked">
-            <Card.Header><Card.Title>项目已有内容</Card.Title></Card.Header>
-            <Separator />
-            <Card.Content>
-              <p className="detail-line">{t('intake.blocked')}</p>
-              <div className="detail-drawer-head">
-                <Button variant="secondary" data-testid="intake-blocked-open" onPress={props.onClose}>
-                  {t('intake.blockedOpen')}
-                </Button>
-              </div>
-            </Card.Content>
-          </Card>
-        )}
-
-        {started === null && !blocked && (
-          <>
-            <Card className="intake-section intake-project-card">
-              <Card.Content>
-                <div className="intake-project-row">
-                  <span className="intake-project-icon" aria-hidden="true"><FolderGit2 size={18} /></span>
-                  <div className="intake-project-meta">
-                    <span className="intake-project-name">{props.project.title}</span>
-                    <span className="intake-project-path mono">{props.project.path}</span>
+    <Modal.Root state={overlayState}>
+      <Modal.Backdrop isDismissable variant="transparent" className="glass-modal-backdrop">
+        <Modal.Container placement="center" size="lg" className="glass-modal">
+          <Modal.Dialog className="glass-modal-panel" data-testid="intake-wizard">
+            <Modal.Header>
+              <Modal.Heading>{t('intake.title')}</Modal.Heading>
+              <Modal.CloseTrigger data-testid="intake-close" aria-label={t('intake.close')} />
+            </Modal.Header>
+            <Modal.Body>
+              <div className="intake-container">
+                <div className="intake-role-row" data-testid="intake-role">
+                  <span className="intake-role-avatar" aria-hidden="true"><UserCheck size={18} /></span>
+                  <div className="intake-role-body">
+                    <span className="intake-role-name">{rosterName ?? t('intake.roleName')}</span>
+                    <span className="intake-role-creator">{t('intake.creatorLabel', { creator: t('intake.creatorBuiltin') })}</span>
                   </div>
                 </div>
-              </Card.Content>
-            </Card>
 
-            <Card className="intake-section">
-              <Card.Header><Card.Title>档位</Card.Title></Card.Header>
-              <Separator />
-              <Card.Content>
-                <div className="intake-mode-grid" role="radiogroup" aria-label="立项档位">
-                  <button
-                    type="button"
-                    role="radio"
-                    aria-checked={mode === 'fresh'}
-                    data-testid="intake-mode-fresh"
-                    className={mode === 'fresh' ? 'intake-mode-card selected' : 'intake-mode-card'}
-                    onClick={() => { selectMode('fresh') }}
-                  >
-                    <span className="intake-mode-icon" aria-hidden="true"><Rocket size={18} /></span>
-                    <span className="intake-mode-text">
-                      <span className="intake-mode-title">{t('intake.modeFreshTitle')}</span>
-                      <span className="intake-mode-desc">{t('intake.modeFreshDesc')}</span>
-                    </span>
-                    <Check className="intake-mode-check" size={16} aria-hidden="true" />
-                  </button>
-                  <button
-                    type="button"
-                    role="radio"
-                    aria-checked={mode === 'onboarding'}
-                    data-testid="intake-mode-onboarding"
-                    className={mode === 'onboarding' ? 'intake-mode-card selected' : 'intake-mode-card'}
-                    onClick={() => { selectMode('onboarding') }}
-                  >
-                    <span className="intake-mode-icon" aria-hidden="true"><FileSearch size={18} /></span>
-                    <span className="intake-mode-text">
-                      <span className="intake-mode-title">{t('intake.modeOnboardingTitle')}</span>
-                      <span className="intake-mode-desc">{t('intake.modeOnboardingDesc')}</span>
-                    </span>
-                    <Check className="intake-mode-check" size={16} aria-hidden="true" />
-                  </button>
-                </div>
-                <p className="intake-mode-hint">{t('intake.modeFlowHint')}</p>
-              </Card.Content>
-            </Card>
+                {started === null && blocked && (
+                  <Card className="intake-section" data-testid="intake-blocked">
+                    <Card.Header><Card.Title>{t('intake.blockedTitle')}</Card.Title></Card.Header>
+                    <Separator />
+                    <Card.Content>
+                      <p className="detail-line">{t('intake.blocked')}</p>
+                      <div className="detail-drawer-head">
+                        <Button variant="secondary" data-testid="intake-blocked-open" onPress={props.onClose}>
+                          {t('intake.blockedOpen')}
+                        </Button>
+                      </div>
+                    </Card.Content>
+                  </Card>
+                )}
 
-            {mode === 'fresh' && (
-              <Card className="intake-section" data-testid="intake-idea-section">
-                <Card.Header><Card.Title>{t('intake.ideaLabel')}</Card.Title></Card.Header>
-                <Separator />
-                <Card.Content>
-                  <p className="intake-idea-hint">{t('intake.ideaHint')}</p>
-                  <textarea
-                    className="intake-idea-input"
-                    data-testid="intake-idea-input"
-                    rows={3}
-                    value={idea}
-                    placeholder={t('intake.ideaPlaceholder')}
-                    onChange={(event) => { setIdea(event.target.value) }}
-                  />
-                </Card.Content>
-              </Card>
-            )}
+                {started === null && !blocked && (
+                  <>
+                    <Card className="intake-section intake-project-card">
+                      <Card.Content>
+                        <div className="intake-project-row">
+                          <span className="intake-project-icon" aria-hidden="true"><FolderGit2 size={18} /></span>
+                          <div className="intake-project-meta">
+                            <span className="intake-project-name">{props.project.title}</span>
+                            <span className="intake-project-path mono">{props.project.path}</span>
+                          </div>
+                        </div>
+                      </Card.Content>
+                    </Card>
 
-            {failure !== null && <p className="problem" data-testid="intake-error">{failure}</p>}
-            <div className="intake-actions">
-              <Button variant="primary" data-testid="intake-start" isDisabled={busy || (mode === 'fresh' && idea.trim() === '')} onPress={() => { void start() }}>
-                <Sparkles size={16} aria-hidden="true" />
-                {busy ? t('intake.sending') : t('intake.start')}
-              </Button>
-            </div>
-          </>
-        )}
+                    <Card className="intake-section">
+                      <Card.Header><Card.Title>{t('intake.levelTitle')}</Card.Title></Card.Header>
+                      <Separator />
+                      <Card.Content>
+                        <div className="intake-mode-grid" role="radiogroup" aria-label={t('intake.levelGroupLabel')}>
+                          <button
+                            type="button"
+                            role="radio"
+                            aria-checked={mode === 'fresh'}
+                            data-testid="intake-mode-fresh"
+                            className={mode === 'fresh' ? 'intake-mode-card selected' : 'intake-mode-card'}
+                            onClick={() => { selectMode('fresh') }}
+                          >
+                            <span className="intake-mode-icon" aria-hidden="true"><Rocket size={18} /></span>
+                            <span className="intake-mode-text">
+                              <span className="intake-mode-title">{t('intake.modeFreshTitle')}</span>
+                              <span className="intake-mode-desc">{t('intake.modeFreshDesc')}</span>
+                            </span>
+                            <Check className="intake-mode-check" size={16} aria-hidden="true" />
+                          </button>
+                          <button
+                            type="button"
+                            role="radio"
+                            aria-checked={mode === 'onboarding'}
+                            data-testid="intake-mode-onboarding"
+                            className={mode === 'onboarding' ? 'intake-mode-card selected' : 'intake-mode-card'}
+                            onClick={() => { selectMode('onboarding') }}
+                          >
+                            <span className="intake-mode-icon" aria-hidden="true"><FileSearch size={18} /></span>
+                            <span className="intake-mode-text">
+                              <span className="intake-mode-title">{t('intake.modeOnboardingTitle')}</span>
+                              <span className="intake-mode-desc">{t('intake.modeOnboardingDesc')}</span>
+                            </span>
+                            <Check className="intake-mode-check" size={16} aria-hidden="true" />
+                          </button>
+                        </div>
+                        <p className="intake-mode-hint">{t('intake.modeFlowHint')}</p>
+                      </Card.Content>
+                    </Card>
 
-        {started !== null && (
-          <Card className="intake-section" data-testid="intake-result">
-            <Card.Header><Card.Title>结果</Card.Title></Card.Header>
-            <Separator />
-            <Card.Content>
-              <p className="detail-line" data-testid="intake-result-message">{started.message}</p>
-              <div className="detail-drawer-head">
-                <Button variant="secondary" data-testid="intake-result-refresh" onPress={props.onReload}>刷新需求</Button>
-                {blocked ? null : (
-                  <Button variant="secondary" data-testid="intake-restart" onPress={props.onClearResult}>重新立项</Button>
+                    {mode === 'fresh' && (
+                      <Card className="intake-section" data-testid="intake-idea-section">
+                        <Card.Header><Card.Title>{t('intake.ideaLabel')}</Card.Title></Card.Header>
+                        <Separator />
+                        <Card.Content>
+                          <p className="intake-idea-hint">{t('intake.ideaHint')}</p>
+                          <textarea
+                            className="intake-idea-input"
+                            data-testid="intake-idea-input"
+                            rows={3}
+                            value={idea}
+                            placeholder={t('intake.ideaPlaceholder')}
+                            onChange={(event) => { setIdea(event.target.value) }}
+                          />
+                        </Card.Content>
+                      </Card>
+                    )}
+
+                    {failure !== null && <p className="problem" data-testid="intake-error">{failure}</p>}
+                    <div className="intake-actions">
+                      <Button variant="primary" data-testid="intake-start" isDisabled={busy || (mode === 'fresh' && idea.trim() === '')} onPress={() => { void start() }}>
+                        <Sparkles size={16} aria-hidden="true" />
+                        {busy ? t('intake.sending') : t('intake.start')}
+                      </Button>
+                    </div>
+                  </>
+                )}
+
+                {started !== null && (
+                  <Card className="intake-section" data-testid="intake-result">
+                    <Card.Header><Card.Title>{t('intake.resultTitle')}</Card.Title></Card.Header>
+                    <Separator />
+                    <Card.Content>
+                      <p className="detail-line" data-testid="intake-result-message">{started.message}</p>
+                      <div className="detail-drawer-head">
+                        <Button variant="secondary" data-testid="intake-result-refresh" onPress={props.onReload}>{t('intake.refresh')}</Button>
+                        {blocked ? null : (
+                          <Button variant="secondary" data-testid="intake-restart" onPress={props.onClearResult}>{t('intake.restart')}</Button>
+                        )}
+                      </div>
+                      {latest === undefined
+                        ? <p className="empty" data-testid="intake-result-empty">{t('intake.resultEmpty')}</p>
+                        : (
+                          <ul className="plain-list compact" data-testid="intake-result-requirements">
+                            {props.projection.requirements.slice(-3).reverse().map(row => (
+                              <li key={row.id}>
+                                <button type="button" className="link-button" data-testid="intake-result-requirement" data-requirement-id={row.id} onClick={() => { props.onOpenRequirement(row.id) }}>
+                                  <span className="mono">{row.id}</span> {row.title ?? row.id}
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      <p className="detail-note">{t('intake.resultBackground')}</p>
+                    </Card.Content>
+                  </Card>
                 )}
               </div>
-              {latest === undefined
-                ? <p className="empty" data-testid="intake-result-empty">还没有需求；等模型落盘后点「刷新需求」。</p>
-                : (
-                  <ul className="plain-list compact" data-testid="intake-result-requirements">
-                    {props.projection.requirements.slice(-3).reverse().map(row => (
-                      <li key={row.id}>
-                        <button type="button" className="link-button" data-testid="intake-result-requirement" data-requirement-id={row.id} onClick={() => { props.onOpenRequirement(row.id) }}>
-                          <span className="mono">{row.id}</span> {row.title ?? row.id}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              <p className="detail-note">{t('intake.resultBackground')}</p>
-            </Card.Content>
-          </Card>
-        )}
-      </div>
-    </DetailDrawer>
+            </Modal.Body>
+          </Modal.Dialog>
+        </Modal.Container>
+      </Modal.Backdrop>
+    </Modal.Root>
   )
 }

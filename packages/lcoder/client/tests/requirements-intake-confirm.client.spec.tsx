@@ -53,6 +53,8 @@ let root: Root
 beforeEach(() => {
   vi.useFakeTimers()
   Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', { configurable: true, value: true })
+  // HeroUI Modal 的 react-aria 依赖在 jsdom 里调用 CSS.escape，需补最小实现。
+  Object.defineProperty(globalThis, 'CSS', { configurable: true, value: { escape: (value: string) => value.replace(/[^\w-]/g, '\\$&') } })
   Object.defineProperty(window, 'lcoder', {
     configurable: true,
     value: { call: vi.fn(async () => ({ ok: true, value: {} })) },
@@ -70,7 +72,8 @@ afterEach(() => {
 })
 
 function element(testId: string): Element | null {
-  return container.querySelector(`[data-testid="${testId}"]`)
+  // 立项向导的 HeroUI Modal 挂在 document.body 的 Portal 里，查询范围要覆盖整页。
+  return document.querySelector(`[data-testid="${testId}"]`)
 }
 
 async function press(testId: string): Promise<void> {

@@ -39,6 +39,8 @@ let root: Root
 
 beforeEach(() => {
   Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', { configurable: true, value: true })
+  // HeroUI Modal 的 react-aria 依赖在 jsdom 里调用 CSS.escape，需补最小实现。
+  Object.defineProperty(globalThis, 'CSS', { configurable: true, value: { escape: (value: string) => value.replace(/[^\w-]/g, '\\$&') } })
   container = document.createElement('div')
   document.body.append(container)
   root = createRoot(container)
@@ -64,6 +66,7 @@ async function render(props: {
   await act(async () => {
     root.render(
       <IntakeWizard
+        isOpen
         project={PROJECT}
         projection={props.projection ?? EMPTY}
         result={null}
@@ -79,7 +82,8 @@ async function render(props: {
 }
 
 function element(testId: string): Element | null {
-  return container.querySelector(`[data-testid="${testId}"]`)
+  // HeroUI Modal 通过 React Aria Portal 挂到 document.body，不能只查挂载容器。
+  return document.querySelector(`[data-testid="${testId}"]`)
 }
 
 /** 在想法输入框里输入一句话，触发 React 的受控更新。 */
@@ -103,7 +107,7 @@ describe('立项向导的角色名片', () => {
     expect(role?.textContent?.match(/产品需求分析/g)?.length).toBe(1)
     expect(element('intake-persona-section')).toBeNull()
     expect(element('intake-persona')).toBeNull()
-    expect(container.textContent).not.toContain('角色人设')
+    expect(document.body.textContent).not.toContain('角色人设')
   })
 
   it('名册读不到时回退词典里的角色名，仍显示内置创建者', async () => {
@@ -128,13 +132,25 @@ describe('非空项目的立项阻塞', () => {
   })
 })
 
+describe('居中 Modal 的关闭入口', () => {
+  it('关闭按钮经 overlay 状态回调通知父级收起', async () => {
+    stub({ ok: true, value: { presets: [] } })
+    const onClose = vi.fn()
+    await render({ onClose })
+    expect(element('intake-wizard')).not.toBeNull()
+    expect(element('intake-close')).not.toBeNull()
+    act(() => { (element('intake-close') as HTMLElement).click() })
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+})
+
 describe('内部指令预览已移除', () => {
   it('不再渲染折叠区与内部指令正文', async () => {
     stub({ ok: true, value: { presets: [] } })
     await render()
     expect(element('intake-prompt-details')).toBeNull()
     expect(element('intake-prompt')).toBeNull()
-    expect(container.textContent).not.toContain('指令预览')
+    expect(document.body.textContent).not.toContain('指令预览')
   })
 })
 
