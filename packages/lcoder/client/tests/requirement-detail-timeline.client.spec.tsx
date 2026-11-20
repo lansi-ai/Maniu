@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-/** T-238 阶段时间线（T-250 起为头部下方横排 chips），以及「至少一轮评审」才可确认。T-286：时间线移到正文阅读区之后，正文随文档标签切换。 */
+/** T-238 阶段时间线（T-250 起为头部下方横排 chips），以及「至少一轮评审」才可确认。T-286：时间线移到正文阅读区之后，正文随文档标签切换。T-287：时间线节点保留但不再展示。 */
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -164,6 +164,8 @@ describe('需求详情阶段时间线', () => {
 
     expect(container.querySelectorAll('[data-testid="requirement-timeline-split"]')).toHaveLength(0)
     expect(element('requirement-timeline-split-empty')).toBeNull()
+    // 阶段进度不再在阅读区下方展示，节点保留供既有查询。
+    expect(element('requirement-timeline')?.hasAttribute('hidden')).toBe(true)
   })
 
   it('点击评审 chip 直接打开报告，版本快照仍走独立入口', async () => {
@@ -208,8 +210,8 @@ describe('文档标签驱动当前正文', () => {
     expect(element('requirement-actions-version')?.querySelector('[data-testid="requirement-compare-version"]')).not.toBeNull()
     expect(element('requirement-version-document-body')?.textContent).toContain('评审报告')
     expect(element('requirement-document')?.hasAttribute('hidden')).toBe(true)
-    // 时间线与既有 chips 仍是可查询的独立区块。
-    expect(element('requirement-timeline')).not.toBeNull()
+    // 时间线与既有 chips 仍是可查询的独立区块，只是不再展示。
+    expect(element('requirement-timeline')?.hasAttribute('hidden')).toBe(true)
     expect(container.querySelectorAll('[data-testid="requirement-timeline-version"]')).toHaveLength(2)
   })
 })

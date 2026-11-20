@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-/** T-242 内联评审报告（T-250 起默认折叠摘要卡）：取数通道、展开渲染、失败退回阅读器；确认与改稿在顶部操作栏。T-286：报告全文默认展开，操作栏随文档标签切换。 */
+/** T-242 内联评审报告：取数通道与失败提示；确认与改稿在文档操作栏。T-286：操作栏随文档标签切换。T-287：报告只渲染一份 Markdown，采纳/放弃与报告时间进操作栏。 */
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
@@ -159,24 +159,22 @@ async function pressSelector(selector: string): Promise<void> {
 }
 
 describe('内联评审报告', () => {
-  it('报告标签默认展开全文，取数走作用域会话与 .spec 相对路径', async () => {
+  it('报告标签直接渲染完整 Markdown，取数走作用域会话与 .spec 相对路径', async () => {
     await renderDetail(REVIEWED, callsOf())
     const section = element('requirement-review-report')
     expect(section?.getAttribute('data-round')).toBe('2')
     expect(reads).toEqual([{ scope: 'session-scope', path: '.spec/requirements/REQ-01/reviews/R2.md' }])
-    expect(element('requirement-report-summary')?.textContent).toContain('2026-11-17 11:00')
-    expect(element('requirement-report-excerpt')?.textContent).toContain('评审结论 .spec/requirements/REQ-01/reviews/R2.md')
-    expect(element('requirement-report-body')?.textContent).toContain('评审结论 .spec/requirements/REQ-01/reviews/R2.md')
-    expect(element('requirement-report-body')?.querySelector('h1')).not.toBeNull()
-
-    await press('requirement-report-toggle')
-    expect(element('requirement-report-body')).toBeNull()
-
-    await press('requirement-report-toggle')
-    expect(element('requirement-report-body')?.textContent).toContain('评审结论 .spec/requirements/REQ-01/reviews/R2.md')
+    const body = element('requirement-report-body')
+    expect(body?.textContent).toContain('评审结论 .spec/requirements/REQ-01/reviews/R2.md')
+    expect(body?.querySelector('h1')).not.toBeNull()
+    expect(body?.classList.contains('document-body')).toBe(true)
+    // 报告只画一遍：没有摘要卡、摘录与收起开关。
+    expect(element('requirement-report-summary')).toBeNull()
+    expect(element('requirement-report-excerpt')).toBeNull()
+    expect(element('requirement-report-toggle')).toBeNull()
   })
 
-  it('轮次增加后重读新报告，摘要与展开正文都换新', async () => {
+  it('轮次增加后重读新报告，全文换新', async () => {
     const calls = callsOf()
     await renderDetail(REVIEWED, calls)
     const next: RequirementDocRow = {
@@ -186,7 +184,6 @@ describe('内联评审报告', () => {
     await renderDetail(next, calls)
     expect(element('requirement-review-report')?.getAttribute('data-round')).toBe('3')
     expect(reads[reads.length - 1]?.path).toBe('.spec/requirements/REQ-01/reviews/R3.md')
-    expect(element('requirement-report-excerpt')?.textContent).toContain('R3.md')
     expect(element('requirement-report-body')?.textContent).toContain('R3.md')
   })
 
@@ -202,16 +199,15 @@ describe('内联评审报告', () => {
     expect(calls.readers).toEqual(['.spec/requirements/REQ-01/reviews/R1.md'])
   })
 
-  it('读取失败给可读错误，并保留阅读器打开入口', async () => {
+  it('读取失败给可读错误，正文不再渲染', async () => {
     failRead = true
     const calls = callsOf()
     await renderDetail(REVIEWED, calls)
     expect(element('requirement-report-failed')?.textContent).toContain('评审报告读取失败')
     expect(element('requirement-report-failed')?.textContent).toContain('ENOENT')
     expect(element('requirement-report-body')).toBeNull()
-
-    await press('requirement-report-open')
-    expect(calls.readers).toEqual(['.spec/requirements/REQ-01/reviews/R2.md'])
+    expect(element('requirement-report-open')).toBeNull()
+    expect(calls.readers).toEqual([])
   })
 
   it('未评审时给空态文案，也不发读取请求', async () => {
@@ -244,14 +240,15 @@ describe('文档操作栏的确认与改稿', () => {
     expect(element('requirement-detail-create-based')).not.toBeNull()
   })
 
-  it('报告依据正文被 patch 改动后卡片给出提示，依据未变时不提示', async () => {
+  it('报告依据正文被 patch 改动后不再叠加第二条黄色横幅，报告仍按原依据保留', async () => {
     const stale: RequirementDocRow = {
       ...REVIEWED,
       reviews: REVIEWED.reviews.map(review => ({ ...review, baseContent: '# 报告依据的原正文' })),
     }
     await renderDetail(stale, callsOf())
-    expect(element('requirement-report-baseline-changed')?.textContent).toContain('正文已变更')
     expect(element('requirement-review-report')).not.toBeNull()
+    expect(element('requirement-report-body')).not.toBeNull()
+    expect(element('requirement-report-baseline-changed')).toBeNull()
 
     const same: RequirementDocRow = {
       ...REVIEWED,
@@ -272,7 +269,7 @@ describe('文档操作栏的确认与改稿', () => {
     expect(calls.modifyRequest).not.toHaveBeenCalled()
     expect(calls.revise).not.toHaveBeenCalled()
     expect(element('requirement-action-result')).toBeNull()
-    expect(element('requirement-review-pending-reason')?.textContent).toContain('R2 评审尚未处理')
+    expect(element('requirement-review-pending-reason')?.textContent).toContain('R2 评审待处理')
   })
 })
 
@@ -296,15 +293,17 @@ describe('评审结论三态与处置动作', () => {
     expect(element('requirement-document-body')).not.toBeNull()
   })
 
-  it('待处理轮次在报告卡头与阶段 chips 带徽标，卡底给采纳与放弃', async () => {
+  it('待处理轮次的结论由标签徽标表达，操作栏只给采纳与放弃并标出报告时间', async () => {
     await renderDetail(REVIEWED, callsOf())
-    const status = element('requirement-review-status')
-    expect(status?.getAttribute('data-decision')).toBe('pending')
-    expect(status?.textContent).toContain('待处理')
+    const tab = element('requirement-doc-tab-review')
+    expect(tab?.getAttribute('data-decision')).toBe('pending')
+    expect(tab?.textContent).toContain('待处理')
     expect(element('requirement-timeline-review-status')?.textContent).toContain('待处理')
     expect(element('requirement-review-accept')?.textContent).toContain('采纳意见并修改需求')
     expect(element('requirement-review-reject')?.textContent).toContain('放弃本轮意见')
-    expect(element('requirement-review-accept-hint')?.textContent).toContain('去对比')
+    expect(element('requirement-review-at')?.textContent).toBe('2026-11-17 11:00')
+    // 采纳走 requirement_revise 直接落新版本，「去顶部对比」的灰字提示已删除。
+    expect(element('requirement-review-accept-hint')).toBeNull()
   })
 
   it('采纳意见走改稿回调，提示后台改稿后去对比确认落盘', async () => {
@@ -344,9 +343,11 @@ describe('评审结论三态与处置动作', () => {
       ],
     }
     await renderDetail(accepted, calls)
-    expect(element('requirement-review-status')?.getAttribute('data-decision')).toBe('accepted')
-    expect(element('requirement-review-status')?.textContent).toContain('已采纳（→ v3）')
+    const tab = element('requirement-doc-tab-review')
+    expect(tab?.getAttribute('data-decision')).toBe('accepted')
+    expect(tab?.textContent).toContain('已采纳（→ v3）')
     expect(element('requirement-review-decision')).toBeNull()
+    expect(element('requirement-review-status')).toBeNull()
     expect((element('requirement-detail-review') as HTMLButtonElement).disabled).toBe(false)
     expect(element('requirement-guide')?.textContent).toContain('已生成 v3')
   })

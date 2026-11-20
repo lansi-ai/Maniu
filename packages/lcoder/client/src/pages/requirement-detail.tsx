@@ -1,4 +1,4 @@
-/** 需求详情：全局头部 + 文档 Tab 栏 + 当前文档专属操作栏 + 正文阅读区；阶段 chips 与关联任务在阅读区之后。 */
+/** 需求详情：单行头部 + 文档 Tab 栏 + 当前文档专属操作栏 + 正文阅读区；关联任务在阅读区之后，阶段 chips 只保留 DOM。 */
 
 import { useEffect, useRef, useState } from 'react'
 import type { JSX } from 'react'
@@ -15,7 +15,7 @@ import { runCommand, type CommandOutcome } from '../commands/run.ts'
 import { canApproveRequirement, canModifyDraft, canReviewRequirement, type ModifyBlockReason } from './requirement-gate.ts'
 import { renderMarkdown } from '../markdown/markdown.tsx'
 import { translate, type MessageKey, type Translate } from '../locale.ts'
-import { formatTimestamp, parseReviewReport, type ReviewPriority } from './requirement-report.ts'
+import { formatTimestamp } from './requirement-report.ts'
 import { DetailDrawer } from './detail-drawer.tsx'
 import { ProposalDiff } from './proposal-compare.tsx'
 
@@ -23,9 +23,6 @@ const zhText: Translate = (key, params) => translate('zh', key, params)
 
 /** 内联评审报告的单次行数上限；与阅读器一致。 */
 const REPORT_LINES = 5000
-
-/** 评审报告结论摘录的字数上限。 */
-const EXCERPT_CHARS = 120
 
 /** 详情页的操作口径按四态加未知态分流；未知态只留次级动作。 */
 type DetailState = 'draft' | 'confirmed' | 'released' | 'closed' | 'unknown'
@@ -64,12 +61,6 @@ const GUIDE_KEY: Readonly<Record<DetailState, MessageKey>> = {
   unknown: 'requirement.guide.unknown',
 }
 
-const PRIORITY_KEY: Readonly<Record<ReviewPriority, MessageKey>> = {
-  high: 'requirement.priority.high',
-  medium: 'requirement.priority.medium',
-  low: 'requirement.priority.low',
-}
-
 /** 状态徽标的语义色；state-* 类名保留给现有选择器。 */
 const STATE_CHIP_COLOR: Readonly<Record<DetailState, 'accent' | 'success' | 'warning' | 'default'>> = {
   draft: 'accent',
@@ -77,13 +68,6 @@ const STATE_CHIP_COLOR: Readonly<Record<DetailState, 'accent' | 'success' | 'war
   released: 'warning',
   closed: 'default',
   unknown: 'default',
-}
-
-/** 评审待改项优先级的语义色。 */
-const PRIORITY_CHIP_COLOR: Readonly<Record<ReviewPriority, 'danger' | 'warning' | 'default'>> = {
-  high: 'danger',
-  medium: 'warning',
-  low: 'default',
 }
 
 /** 内联评审报告的读取状态；`path` 标明结果属于哪一份报告，切换轮次时不复用上一轮正文。 */
@@ -123,12 +107,6 @@ function versionPath(requirementId: string, version: number): string {
 /** 评审报告与版本快照在阅读器里的仓库相对路径。 */
 function specPath(relative: string): string {
   return `.spec/${relative.replace(/^\.?[\\/]/, '').replace(/^\.spec[\\/]/, '')}`
-}
-
-/** 评审报告结论摘录：首 120 字，超出补省略号。 */
-function excerptOf(text: string): string {
-  const trimmed = text.trim()
-  return trimmed.length > EXCERPT_CHARS ? `${trimmed.slice(0, EXCERPT_CHARS)}…` : trimmed
 }
 
 /** 版本对照的单栏：旧栏去掉新增行，新栏去掉删除行。 */
@@ -210,10 +188,10 @@ export interface RequirementDetailProps {
 /**
  * 画出需求详情。
  *
- * 四层自上而下：需求全局头部（标题、状态徽标、编号、状态级全局动作与待处置提醒）、
- * 文档 Tab 栏、当前选中文档的专属操作栏、当前文档正文。草稿、版本快照与各轮评审报告
- * 各自只展示自己的一份正文，非当前标签用 `hidden` 留在 DOM 供既有查询。评审报告默认
- * 展开全文，摘要卡与待改项列表列在正文之上；阶段 chips 与关联任务在阅读区之后展示。
+ * 四层自上而下：需求全局头部（单行标题、状态徽标、编号与状态级全局动作，外加至多一条
+ * 状态提示）、文档 Tab 栏、当前选中文档的专属操作栏、当前文档正文。草稿、版本快照与各轮
+ * 评审报告各自只展示自己的一份正文，非当前标签用 `hidden` 留在 DOM 供既有查询。评审报告
+ * 直接渲染全文 Markdown，不再另列摘要卡或待改项卡片墙；阶段 chips 保留 DOM 但不再展示。
  * @param props - 需求、项目、投影与会话列表。
  * @returns 详情面板。
  */
@@ -226,9 +204,6 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
   const [result, setResult] = useState<CommandOutcome | null>(null)
   const [ignored, setIgnored] = useState<ReadonlySet<string>>(() => new Set())
   const [assigns, setAssigns] = useState<Readonly<Record<string, CommandOutcome>>>({})
-  const [expandedTodos, setExpandedTodos] = useState<ReadonlySet<number>>(() => new Set())
-  /** 报告标签的全文默认展开；摘要与待改项列表始终在正文之上。 */
-  const [reportExpanded, setReportExpanded] = useState(true)
   /** 独立文档栏的用户选择；未选择时按阶段派生默认标签（待处置联动最新评审报告）。 */
   const [docOverride, setDocOverride] = useState<string | null>(null)
   const related = props.projection.tasks.filter(task => task.requirement === row.id || task.proposal === row.id)
@@ -262,10 +237,6 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
     ? row.reviews.find(review => review.round === Number(activeDoc.slice(1))) ?? latestReview
     : latestReview
   const reportPath = activeReview === null ? null : specPath(activeReview.report)
-  // 报告依据的正文与当前正文不一致（常见于 patch 原地修改）：报告仍按原依据正文保留。
-  const reportBaselineChanged = activeReview !== null
-    && activeReview.baseContent !== undefined
-    && activeReview.baseContent !== row.text
   const [report, setReport] = useState<ReportState>({ status: 'loading' })
   const [compareVersion, setCompareVersion] = useState<number | null>(null)
   const [versionDiff, setVersionDiff] = useState<VersionDiffState>({ status: 'idle' })
@@ -460,6 +431,10 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
             ? t('requirement.guide.reviewRejected', { round: latestReview.round })
             : t('requirement.guide.draft')
   const guide = state === 'draft' ? draftGuide : t(GUIDE_KEY[state])
+  /** 顶部只留一条状态提示：黄色横幅出现时不再复读灰色指引句。 */
+  const bannerVisible = state === 'draft' && phase === 'pending' && reviewPendingReason !== undefined
+  const proposalVisible = state === 'draft' && pendingPatchProposal
+  const showGuide = !bannerVisible && !proposalVisible
   // 待处置态只用高对比横幅提示，不再叠加灰色的确认原因与阶段提示。
   const phaseHint = state !== 'draft' || phase === 'pending'
     ? undefined
@@ -470,7 +445,7 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
   const modifyGate = canModifyDraft({ ...gateParams, versions: row.versions })
   const modifyBlockReason = modifyGate.ok ? undefined : t(MODIFY_BLOCK_KEY[modifyGate.reason])
 
-  /** 评审结论徽标：报告卡、阶段 chips 与历史轮次共用同一口径。 */
+  /** 评审结论徽标：阶段 chips 与历史轮次共用同一口径。 */
   const decisionChip = (review: RequirementReviewRow, testId: string): JSX.Element => {
     const decision = decisionOf(review)
     return (
@@ -491,22 +466,6 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
   const activeReport = reportPath !== null && report.status !== 'loading' && report.path === reportPath
     ? report
     : undefined
-  const parsedReport = activeReport?.status === 'ready' ? parseReviewReport(activeReport.text) : undefined
-  const priorityCounts = (parsedReport?.todos ?? []).reduce<Record<ReviewPriority, number>>(
-    (counts, todo) => {
-      if (todo.priority !== undefined) counts[todo.priority] += 1
-      return counts
-    },
-    { high: 0, medium: 0, low: 0 },
-  )
-  const toggleTodo = (index: number): void => {
-    setExpandedTodos((current) => {
-      const next = new Set(current)
-      if (next.has(index)) next.delete(index)
-      else next.add(index)
-      return next
-    })
-  }
 
   return (
     <>
@@ -545,81 +504,83 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
               >
                 {requirementStateLabel(row.state)}
               </Chip>
+              <span className="mono requirement-id" data-testid="requirement-detail-id">{row.id}</span>
+              <div className="action-row requirement-global-ops" data-testid="requirement-global-actions">
+                {state === 'confirmed' && related.length === 0 && (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    data-testid="requirement-split"
+                    isDisabled={locked}
+                    onPress={() => { void startOp('split', props.onSplit) }}
+                  >
+                    {t('requirement.opSplit')}
+                  </Button>
+                )}
+                {state === 'confirmed' && related.length > 0 && plan === undefined && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    data-testid="requirement-split-again"
+                    isDisabled={locked}
+                    ref={(node) => { if (node !== null) node.title = lockedHint ?? t('requirement.opSplitAgainTitle') }}
+                    onPress={() => { void startOp('split', props.onSplit) }}
+                  >
+                    {t('requirement.opSplitAgain')}
+                  </Button>
+                )}
+                {(state === 'confirmed' || state === 'released' || state === 'closed') && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    data-testid="requirement-detail-create-based"
+                    isDisabled={busy !== null}
+                    onPress={() => { void startOp('createBased', props.onCreateBased) }}
+                  >
+                    {t('requirement.opCreateBased')}
+                  </Button>
+                )}
+                {(state === 'confirmed' || state === 'released' || state === 'closed') && related.length > 0 && (
+                  <Button variant="ghost" size="sm" data-testid="requirement-detail-tasks" onPress={props.onOpenTasks}>
+                    {t('requirement.opTasks')}
+                  </Button>
+                )}
+                {state === 'confirmed' && (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    data-testid="requirement-release"
+                    isDisabled={locked}
+                    onPress={() => { void execute('release', `/requirement_release ${row.id}`) }}
+                  >
+                    {t('requirement.opRelease')}
+                  </Button>
+                )}
+                {(state === 'draft' || state === 'confirmed' || state === 'released') && (
+                  <Button
+                    variant="danger-soft"
+                    size="sm"
+                    className="requirement-close"
+                    data-testid="requirement-close"
+                    isDisabled={locked}
+                    ref={(node) => { if (node !== null) node.title = lockedHint ?? t('requirement.opCloseTitle') }}
+                    onPress={() => { void execute('close', `/requirement_close ${row.id}`) }}
+                  >
+                    {t('requirement.opClose')}
+                  </Button>
+                )}
+              </div>
             </div>
-            <span className="mono requirement-id" data-testid="requirement-detail-id">{row.id}</span>
-            <p className="requirement-guide" data-testid="requirement-guide">{guide}</p>
-            <div className="action-row requirement-global-ops" data-testid="requirement-global-actions">
-              {state === 'confirmed' && related.length === 0 && (
-                <Button
-                  variant="primary"
-                  size="sm"
-                  data-testid="requirement-split"
-                  isDisabled={locked}
-                  onPress={() => { void startOp('split', props.onSplit) }}
-                >
-                  {t('requirement.opSplit')}
-                </Button>
-              )}
-              {state === 'confirmed' && related.length > 0 && plan === undefined && (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  data-testid="requirement-split-again"
-                  isDisabled={locked}
-                  ref={(node) => { if (node !== null) node.title = lockedHint ?? t('requirement.opSplitAgainTitle') }}
-                  onPress={() => { void startOp('split', props.onSplit) }}
-                >
-                  {t('requirement.opSplitAgain')}
-                </Button>
-              )}
-              {(state === 'confirmed' || state === 'released' || state === 'closed') && (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  data-testid="requirement-detail-create-based"
-                  isDisabled={busy !== null}
-                  onPress={() => { void startOp('createBased', props.onCreateBased) }}
-                >
-                  {t('requirement.opCreateBased')}
-                </Button>
-              )}
-              {(state === 'confirmed' || state === 'released' || state === 'closed') && related.length > 0 && (
-                <Button variant="ghost" size="sm" data-testid="requirement-detail-tasks" onPress={props.onOpenTasks}>
-                  {t('requirement.opTasks')}
-                </Button>
-              )}
-              {state === 'confirmed' && (
-                <Button
-                  variant="primary"
-                  size="sm"
-                  data-testid="requirement-release"
-                  isDisabled={locked}
-                  onPress={() => { void execute('release', `/requirement_release ${row.id}`) }}
-                >
-                  {t('requirement.opRelease')}
-                </Button>
-              )}
-              {(state === 'draft' || state === 'confirmed' || state === 'released') && (
-                <Button
-                  variant="danger-soft"
-                  size="sm"
-                  className="requirement-close"
-                  data-testid="requirement-close"
-                  isDisabled={locked}
-                  ref={(node) => { if (node !== null) node.title = lockedHint ?? t('requirement.opCloseTitle') }}
-                  onPress={() => { void execute('close', `/requirement_close ${row.id}`) }}
-                >
-                  {t('requirement.opClose')}
-                </Button>
-              )}
-            </div>
+            {showGuide && (
+              <p className="requirement-guide" data-testid="requirement-guide">{guide}</p>
+            )}
             {lockedHint !== undefined && (
               <p className="detail-note" data-testid="requirement-op-locked-hint">{lockedHint}</p>
             )}
-            {state === 'draft' && phase === 'pending' && reviewPendingReason !== undefined && (
+            {bannerVisible && (
               <p className="detail-warning" data-testid="requirement-review-pending-reason">{reviewPendingReason}</p>
             )}
-            {state === 'draft' && pendingPatchProposal && (
+            {proposalVisible && (
               <p className="detail-warning" data-testid="requirement-review-proposal-hint">{t('requirement.reviewPendingProposal')}</p>
             )}
             {result !== null && (
@@ -754,7 +715,7 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
               </div>
               {activeDocKind === 'report' && activeReview !== null && (
                 <div
-                  className="requirement-op-group"
+                  className="requirement-op-group requirement-review-actions"
                   data-testid="requirement-actions-review"
                   data-round={activeReview.round}
                   data-decision={decisionOf(activeReview)}
@@ -782,7 +743,6 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                         >
                           {t('requirement.reviewReject')}
                         </Button>
-                        <p className="detail-note" data-testid="requirement-review-accept-hint">{t('requirement.reviewAcceptHint')}</p>
                       </div>
                     )
                     : (
@@ -793,6 +753,9 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                         </p>
                       </>
                     )}
+                  <span className="time requirement-review-at" data-testid="requirement-review-at">
+                    {formatTimestamp(activeReview.at)}
+                  </span>
                 </div>
               )}
               {activeVersion !== undefined && (
@@ -876,117 +839,18 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                   )
                   : (
                     <>
-                      <div className="detail-drawer-head">
-                        <div className="row-actions">
-                          <h4>{t('requirement.reportTitle', { round: activeReview.round })}</h4>
-                          {decisionChip(activeReview, 'requirement-review-status')}
+                      {activeReport === undefined && (
+                        <p className="empty" data-testid="requirement-report-loading">{t('requirement.reportLoading')}</p>
+                      )}
+                      {activeReport?.status === 'failed' && (
+                        <p className="problem" data-testid="requirement-report-failed">
+                          {t('requirement.reportFailed', { detail: activeReport.message })}
+                        </p>
+                      )}
+                      {activeReport?.status === 'ready' && (
+                        <div className="markdown-body document-body" data-testid="requirement-report-body">
+                          {renderMarkdown(activeReport.text)}
                         </div>
-                        <div className="row-actions">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            data-testid="requirement-report-open"
-                            onPress={() => { props.onOpenReader(reportPath) }}
-                          >
-                            {t('requirement.openReport')}
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            data-testid="requirement-report-toggle"
-                            aria-expanded={reportExpanded}
-                            onPress={() => { setReportExpanded(current => !current) }}
-                          >
-                            {reportExpanded ? t('requirement.collapse') : t('requirement.expand')}
-                          </Button>
-                        </div>
-                      </div>
-                      <div className="requirement-report-summary" data-testid="requirement-report-summary">
-                        <span className="time">{formatTimestamp(activeReview.at)}</span>
-                        {reportBaselineChanged && (
-                          <span className="detail-warning" data-testid="requirement-report-baseline-changed">
-                            {t('requirement.reportBaselineChanged', { round: activeReview.round })}
-                          </span>
-                        )}
-                        {activeReport === undefined && (
-                          <span data-testid="requirement-report-loading">{t('requirement.reportLoading')}</span>
-                        )}
-                        {activeReport?.status === 'failed' && (
-                          <span className="problem" data-testid="requirement-report-failed">
-                            {t('requirement.reportFailed', { detail: activeReport.message })}
-                          </span>
-                        )}
-                        {activeReport?.status === 'ready' && parsedReport !== undefined && (
-                          <>
-                            {parsedReport.summary !== '' && (
-                              <div className="requirement-report-card card-summary" data-testid="requirement-report-summary-card">
-                                <span className="requirement-card-label">{t('requirement.reportSummary')}</span>
-                                <p className="requirement-card-text" data-testid="requirement-report-summary-text">{parsedReport.summary}</p>
-                              </div>
-                            )}
-                            {parsedReport.todos.length > 0 && (
-                              <div className="requirement-report-card card-todos" data-testid="requirement-report-todos">
-                                <div className="detail-drawer-head">
-                                  <span className="requirement-card-label">{t('requirement.reportTodos')}</span>
-                                  <span className="requirement-todo-summary" data-testid="requirement-todo-summary">
-                                    {t('requirement.todoStats', {
-                                      high: String(priorityCounts.high),
-                                      medium: String(priorityCounts.medium),
-                                      low: String(priorityCounts.low),
-                                    })}
-                                  </span>
-                                </div>
-                                <ul className="requirement-todo-list">
-                                  {parsedReport.todos.map((todo, index) => {
-                                    const expanded = expandedTodos.has(index)
-                                    return (
-                                      <li
-                                        key={`todo-${String(index)}`}
-                                        className="requirement-todo"
-                                        data-testid="requirement-report-todo"
-                                        data-priority={todo.priority ?? ''}
-                                      >
-                                        <div className="requirement-todo-main">
-                                          {todo.priority !== undefined && (
-                                            <Chip
-                                              size="sm"
-                                              variant="soft"
-                                              color={PRIORITY_CHIP_COLOR[todo.priority]}
-                                              className={`priority-badge priority-${todo.priority}`}
-                                              data-testid="requirement-report-priority"
-                                            >
-                                              {t(PRIORITY_KEY[todo.priority])}
-                                            </Chip>
-                                          )}
-                                          <span className="requirement-todo-text">{expanded ? todo.text : todo.summary}</span>
-                                        </div>
-                                        <Button
-                                          variant="ghost"
-                                          size="sm"
-                                          className="requirement-todo-toggle"
-                                          data-testid="requirement-todo-toggle"
-                                          aria-expanded={expanded}
-                                          onPress={() => { toggleTodo(index) }}
-                                        >
-                                          {expanded ? t('requirement.collapse') : t('requirement.todoDetails')}
-                                        </Button>
-                                      </li>
-                                    )
-                                  })}
-                                </ul>
-                              </div>
-                            )}
-                            {parsedReport.summary === '' && parsedReport.todos.length === 0 && (
-                              <>
-                                <span className="requirement-excerpt-label">{t('requirement.reportExcerpt')}</span>
-                                <span data-testid="requirement-report-excerpt">{excerptOf(activeReport.text)}</span>
-                              </>
-                            )}
-                          </>
-                        )}
-                      </div>
-                      {reportExpanded && activeReport?.status === 'ready' && (
-                        <div className="markdown-body" data-testid="requirement-report-body">{renderMarkdown(activeReport.text)}</div>
                       )}
                       {historyReviews.length > 0 && (
                         <ul className="requirement-report-history plain-list compact">
@@ -1027,10 +891,11 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                   )}
               </section>
             </div>
-            {/* 阶段进度属全局信息，不随文档标签切换，放在正文阅读区之后。 */}
+            {/* 阶段进度属全局信息，不随文档标签切换；节点保留供既有查询，不再在阅读区下方展示。 */}
             <section
               className="detail-section"
               data-testid="requirement-timeline"
+              hidden
             >
               <h4>{t('requirement.timeline')}</h4>
               <ul className="timeline-chips">
