@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-/** T-250：需求详情状态先行——四态操作栏与指引句、标题三区、配齐禁用原因、正文与报告折叠、阶段 chips、后台发起通道。T-286：四层重排，操作栏与正文随文档标签切换。 */
+/** T-250：需求详情状态先行——四态操作栏与指引句、标题三区、配齐禁用原因、正文与报告折叠、阶段 chips、后台发起通道。T-286：四层重排，操作栏与正文随文档标签切换。T-287：头部压成单行，报告只画一份 Markdown，阶段 chips 收起。 */
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
@@ -97,7 +97,7 @@ const STRUCTURED_REPORT = `# 评审报告
 
 ## 摘要
 
-需求目标清楚，主要缺口是代发订单边界。
+需求目标清楚，主要缺口是**代发订单边界**。
 
 ## 结论
 
@@ -106,7 +106,7 @@ const STRUCTURED_REPORT = `# 评审报告
 ## 待改项
 
 - 位置：验收口径。建议写清异常返回码。优先级：低
-- 位置：正文「范围」。建议补上代发订单不参与佣金。优先级：高`
+- 位置：正文「范围」。建议补上**代发订单**不参与佣金。优先级：高`
 
 let reportText = REPORT_TEXT
 
@@ -332,8 +332,8 @@ describe('四态操作栏与指引句', () => {
   })
 })
 
-describe('头部标题三区', () => {
-  it('大标题取 row.title，状态徽标与 REQ 编号同排；正文内联在详情主区，首屏即可读', async () => {
+describe('头部单行标题', () => {
+  it('大标题取 row.title，状态徽标、REQ 编号与全局动作同排；正文内联在详情主区，首屏即可读', async () => {
     await renderDetail(DRAFT, callsOf())
     const title = element('requirement-detail-title')
     expect(title?.textContent).toBe('佣金改造')
@@ -341,6 +341,11 @@ describe('头部标题三区', () => {
     expect(element('requirement-state-badge')?.textContent).toBe('草稿')
     expect(element('requirement-state-badge')?.className).toContain('state-draft')
     expect(element('requirement-detail-id')?.textContent).toBe('REQ-01')
+    const titleRow = container.querySelector('.requirement-title-row') as HTMLElement
+    expect(titleRow).not.toBeNull()
+    for (const id of ['requirement-detail-title', 'requirement-state-badge', 'requirement-detail-id', 'requirement-global-actions', 'requirement-close']) {
+      expect(titleRow.contains(element(id))).toBe(true)
+    }
     const body = element('requirement-document-body')
     expect(body).not.toBeNull()
     expect(body?.className).toContain('markdown-body')
@@ -445,82 +450,45 @@ describe('当前正文内联在详情主区', () => {
   })
 })
 
-describe('评审报告摘要卡', () => {
-  it('报告标签默认展开全文：结论摘录与摘要卡之上直接可读原始 Markdown，收起后才隐藏', async () => {
+describe('评审报告单份 Markdown', () => {
+  it('报告标签直接渲染完整 Markdown，不再有摘要卡、收起开关与重复摘录', async () => {
     await renderDetail(DRAFT, callsOf())
     await openTab('[data-testid="requirement-doc-tab-review"]')
-    const excerpt = element('requirement-report-excerpt')
-    expect(excerpt?.textContent?.length).toBe(121)
-    expect(excerpt?.textContent?.endsWith('…')).toBe(true)
-    expect(element('requirement-report-summary')?.textContent).toContain('结论摘录')
-    expect(element('requirement-report-body')?.textContent).toContain('评审意见正文')
-    await press('requirement-report-toggle')
-    expect(element('requirement-report-body')).toBeNull()
-    await press('requirement-report-toggle')
-    expect(element('requirement-report-body')?.textContent).toContain('评审意见正文')
-  })
-
-  it('结构化报告渲染摘要卡与待改项徽标，全文默认展开且仍可收起', async () => {
-    reportText = STRUCTURED_REPORT
-    await renderDetail(DRAFT, callsOf())
-    await openTab('[data-testid="requirement-doc-tab-review"]')
-    expect(element('requirement-report-summary-card')?.textContent).toContain('摘要')
-    expect(element('requirement-report-summary-text')?.textContent).toContain('代发订单边界')
-    const todos = container.querySelectorAll('[data-testid="requirement-report-todo"]')
-    expect(todos).toHaveLength(2)
-    const badges = container.querySelectorAll('[data-testid="requirement-report-priority"]')
-    expect(Array.from(badges).map(badge => badge.textContent)).toEqual(['高', '低'])
-    expect(badges[0]?.className).toContain('priority-high')
-    expect(badges[1]?.className).toContain('priority-low')
+    const body = element('requirement-report-body')
+    expect(body?.className).toContain('markdown-body')
+    expect(body?.className).toContain('document-body')
+    expect(body?.querySelector('h1')?.textContent).toContain('评审结论')
+    expect(body?.textContent).toContain('评审意见正文')
+    expect(element('requirement-report-summary')).toBeNull()
     expect(element('requirement-report-excerpt')).toBeNull()
-    expect(element('requirement-report-body')?.textContent).toContain('位置：验收口径')
-    await press('requirement-report-toggle')
-    expect(element('requirement-report-body')).toBeNull()
+    expect(element('requirement-report-toggle')).toBeNull()
+    expect(element('requirement-report-open')).toBeNull()
+    expect(element('requirement-review-accept-hint')).toBeNull()
   })
 
-  it('待改项按优先级排序，默认只显示摘要与统计徽标', async () => {
+  it('结构化报告同样只保留一份全文，二级标题、列表与粗体按 Markdown 渲染', async () => {
     reportText = STRUCTURED_REPORT
     await renderDetail(DRAFT, callsOf())
     await openTab('[data-testid="requirement-doc-tab-review"]')
-    const todos = container.querySelectorAll('[data-testid="requirement-report-todo"]')
-    expect(Array.from(todos).map(node => node.getAttribute('data-priority'))).toEqual(['high', 'low'])
-    expect(element('requirement-todo-summary')?.textContent).toBe('高 1 · 中 0 · 低 1')
-    expect(Array.from(todos).map(node => node.querySelector('.requirement-todo-text')?.textContent)).toEqual([
-      '位置：正文「范围」。',
-      '位置：验收口径。',
-    ])
-    expect(element('requirement-report-todos')?.textContent).not.toContain('建议补上代发订单不参与佣金')
-    expect(todos[0]?.querySelector('[data-testid="requirement-todo-toggle"]')?.textContent).toBe('查看详情')
+    const body = element('requirement-report-body')
+    expect(body?.querySelectorAll('h2')).toHaveLength(3)
+    expect(body?.querySelector('h2')?.textContent).toBe('摘要')
+    expect(body?.querySelectorAll('li')).toHaveLength(2)
+    expect(body?.querySelector('strong')?.textContent).toBe('代发订单边界')
+    expect(body?.textContent).toContain('位置：验收口径')
+    expect(body?.textContent).toContain('建议补上代发订单不参与佣金')
+    // 卡片墙与摘要卡不再出现，报告不会在页面上画两遍。
+    expect(element('requirement-report-todos')).toBeNull()
+    expect(element('requirement-report-summary-card')).toBeNull()
+    expect(container.querySelectorAll('[data-testid="requirement-report-todo"]')).toHaveLength(0)
+    expect(element('requirement-todo-summary')).toBeNull()
   })
 
-  it('点开待改项才显示完整建议，再点收起回到摘要', async () => {
-    reportText = STRUCTURED_REPORT
+  it('报告生成时间移入操作栏右侧，按可读格式展示', async () => {
     await renderDetail(DRAFT, callsOf())
     await openTab('[data-testid="requirement-doc-tab-review"]')
-    const first = container.querySelector('[data-testid="requirement-report-todo"]') as HTMLElement
-    const toggle = first.querySelector('[data-testid="requirement-todo-toggle"]') as HTMLElement
-    expect(toggle.getAttribute('aria-expanded')).toBe('false')
-
-    await act(async () => {
-      toggle.click()
-      await new Promise(resolve => setTimeout(resolve, 0))
-    })
-    expect(first.querySelector('.requirement-todo-text')?.textContent).toBe('位置：正文「范围」。建议补上代发订单不参与佣金。优先级：高')
-    expect(toggle.textContent).toBe('收起')
-    expect(toggle.getAttribute('aria-expanded')).toBe('true')
-
-    await act(async () => {
-      toggle.click()
-      await new Promise(resolve => setTimeout(resolve, 0))
-    })
-    expect(first.querySelector('.requirement-todo-text')?.textContent).toBe('位置：正文「范围」。')
-    expect(toggle.textContent).toBe('查看详情')
-  })
-
-  it('报告摘要时刻按可读格式展示', async () => {
-    await renderDetail(DRAFT, callsOf())
-    await openTab('[data-testid="requirement-doc-tab-review"]')
-    expect(element('requirement-report-summary')?.textContent).toContain('2026-11-17 10:30')
+    expect(element('requirement-review-at')?.textContent).toBe('2026-11-17 10:30')
+    expect(element('requirement-review-at')?.closest('[data-testid="requirement-actions-review"]')).not.toBeNull()
   })
 })
 
@@ -542,7 +510,7 @@ describe('详情页去冗余', () => {
 })
 
 describe('阶段进度 chips', () => {
-  it('横排 chips 在文档阅读区之后，评审与版本带打开入口', async () => {
+  it('节点保留在文档阅读区之后但不再展示，评审与版本仍带打开入口', async () => {
     const calls = callsOf()
     await renderDetail(DRAFT, calls)
     const body = container.querySelector('.detail-drawer-body')
@@ -554,6 +522,7 @@ describe('阶段进度 chips', () => {
       'requirement-doc-pane',
       'requirement-timeline',
     ])
+    expect(element('requirement-timeline')?.hasAttribute('hidden')).toBe(true)
     expect(body?.querySelector('.timeline-chips')).not.toBeNull()
     expect(element('requirement-timeline-approved')?.textContent).toContain('尚未过审')
 
@@ -670,7 +639,8 @@ describe('评审三态驱动的主次操作', () => {
     expect(review.title).toContain('R1 评审尚未处理')
     expect(review.getAttribute('data-variant')).toBe('secondary')
     const banner = element('requirement-review-pending-reason')
-    expect(banner?.textContent).toContain('R1 评审尚未处理')
+    expect(banner?.textContent).toContain('R1 评审待处理')
+    expect(banner?.textContent).toContain('当前需求版本已锁定')
     expect(banner?.className).toContain('detail-warning')
     // 待处置态不再叠加灰色的阶段提示与确认原因。
     expect(element('requirement-phase-hint')).toBeNull()
@@ -679,7 +649,8 @@ describe('评审三态驱动的主次操作', () => {
     const revise = element('requirement-detail-revise') as HTMLButtonElement
     expect(revise.disabled).toBe(true)
     expect(revise.title).toContain('送审后已锁定')
-    expect(element('requirement-guide')?.textContent).toContain('R1 评审已返回')
+    // 顶部的灰色指引句在黄色横幅出现时不再复读。
+    expect(element('requirement-guide')).toBeNull()
     expect((element('requirement-approve') as HTMLButtonElement).getAttribute('data-variant')).toBe('secondary')
     expect((element('requirement-approve') as HTMLButtonElement).disabled).toBe(true)
     // 文档栏默认联动到最新报告，正文/时间线/报告节点仍留在 DOM。
@@ -788,7 +759,7 @@ describe('文档栏四层顺序与专属操作栏', () => {
     return element?.hasAttribute('hidden') === true
   }
 
-  it('全局头部、标签栏、文档操作栏、正文阅读区自上而下排列', async () => {
+  it('全局头部、标签栏、文档操作栏、正文阅读区自上而下排列，头部只占一行', async () => {
     await renderDetail(DRAFT, callsOf())
     const hero = container.querySelector('.requirement-hero') as HTMLElement
     const tabs = element('requirement-doc-tabs') as HTMLElement
@@ -797,8 +768,16 @@ describe('文档栏四层顺序与专属操作栏', () => {
     expect(hero.compareDocumentPosition(tabs) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(tabs.compareDocumentPosition(actions) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(actions.compareDocumentPosition(docPane) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    const titleRow = element('requirement-detail-title')?.parentElement as HTMLElement
+    expect(titleRow.className).toContain('requirement-title-row')
+    for (const id of ['requirement-detail-title', 'requirement-state-badge', 'requirement-detail-id', 'requirement-global-actions', 'requirement-close']) {
+      expect(titleRow.contains(element(id))).toBe(true)
+    }
     expect(element('requirement-global-actions')?.closest('.requirement-hero')).not.toBeNull()
     expect(element('requirement-close')?.closest('.requirement-hero')).not.toBeNull()
+    // 关闭按钮排在全局动作行的最末，标题行内没有独立占行的动作区。
+    const ops = element('requirement-global-actions') as HTMLElement
+    expect(ops.lastElementChild?.getAttribute('data-testid')).toBe('requirement-close')
     expect(element('requirement-actions')?.getAttribute('data-active-doc')).toBe('draft')
   })
 
@@ -821,6 +800,9 @@ describe('文档栏四层顺序与专属操作栏', () => {
     expect(element('requirement-actions-review')?.getAttribute('data-decision')).toBe('pending')
     expect(element('requirement-review-accept')?.textContent).toContain('采纳意见并修改需求')
     expect(element('requirement-review-reject')?.textContent).toContain('放弃本轮意见')
+    // 采纳走 requirement_revise 直接落新版本，不再有「去顶部对比」的灰字提示。
+    expect(element('requirement-review-accept-hint')).toBeNull()
+    expect(element('requirement-review-at')?.textContent).toBe('2026-11-17 10:30')
     expect(hidden(element('requirement-actions-draft'))).toBe(true)
     // 既有查询仍能拿到草稿按钮，只是当前标签下不可见。
     expect(element('requirement-detail-review')).not.toBeNull()

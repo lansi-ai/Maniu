@@ -507,7 +507,7 @@
 .row-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .filter-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 0 4px; }
 
-/* 需求详情头部三区：标题徽标编号、指引句、随状态操作栏；顶栏常驻不随主体滚动。 */
+/* 需求详情头部：标题、徽标、编号与状态级全局动作同一行，指引句最多一条；顶栏常驻不随主体滚动。 */
 .requirement-hero { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .requirement-title-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .requirement-title { margin: 0; font-size: 21px; font-weight: 700; line-height: 1.3; color: var(--foreground); overflow-wrap: anywhere; }
@@ -539,7 +539,7 @@
   color: var(--foreground);
 }
 /* 需求头部的状态级全局动作与文档操作栏分组；作废关闭单独置右。 */
-.requirement-global-ops { margin: 6px 0 0; }
+.requirement-global-ops { margin: 0 0 0 auto; }
 .requirement-global-ops .requirement-close,
 .requirement-ops .requirement-close { margin-left: auto; }
 .requirement-op-group { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
@@ -551,8 +551,10 @@
 .requirement-doc-readonly { color: var(--muted); font-size: 12px; }
 /* 右上角紧凑工具组：刷新与查看原文不进核心流程操作栏。 */
 .requirement-quick-tools { display: inline-flex; align-items: center; gap: 2px; }
-/* 评审结论徽标与处置动作。 */
+/* 评审结论徽标与处置动作；报告生成时间贴在本组右侧。 */
 .requirement-review-status { font-weight: 600; }
+.requirement-review-actions { flex: 1 1 auto; }
+.requirement-review-actions .requirement-review-at { margin-left: auto; color: var(--muted); font-size: 11px; }
 .requirement-review-decision { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
 .requirement-review-decision .detail-note { margin: 0; }
 .requirement-report-history li { flex-wrap: wrap; align-items: center; gap: 6px; }
@@ -610,71 +612,7 @@
 .timeline-chips .link-button { font-size: 11px; }
 .timeline-chips li.empty { padding: 3px 2px; border: 0; background: none; color: var(--muted); font-size: 12px; }
 
-/* 评审报告卡片：摘要卡 + 待改项徽标，展开才渲染原始 Markdown。 */
-.requirement-report-summary { display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
-.requirement-report-summary .time { color: var(--muted); font-size: 11px; }
-.requirement-excerpt-label { color: var(--muted); font-size: 11px; }
-.requirement-report-card {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 10px 12px;
-  border: 1px solid var(--separator);
-  border-radius: 12px;
-  background: var(--surface);
-}
-.requirement-report-card.card-summary { border-left: 3px solid var(--accent); background: var(--accent-soft); }
-.requirement-report-card.card-todos { border-left: 3px solid var(--muted); }
-.requirement-card-label { font-size: 11px; font-weight: 600; color: var(--muted); }
-.requirement-card-text { margin: 0; font-size: 13px; line-height: 1.6; color: var(--foreground); overflow-wrap: anywhere; }
-.requirement-todo-summary {
-  flex: 0 0 auto;
-  padding: 2px 8px;
-  border: 1px solid var(--separator);
-  border-radius: 999px;
-  background: var(--accent-soft);
-  color: var(--foreground);
-  font-size: 11px;
-  white-space: nowrap;
-}
-.requirement-todo-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.requirement-todo {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 6px 8px 6px 10px;
-  border-left: 3px solid var(--muted);
-  border-radius: 10px;
-  background: var(--surface-secondary);
-}
-.requirement-todo[data-priority='high'] {
-  border-left-color: var(--danger);
-  background: color-mix(in oklab, var(--danger) 10%, var(--surface-secondary));
-}
-.requirement-todo[data-priority='medium'] {
-  border-left-color: var(--warning);
-  background: color-mix(in oklab, var(--warning) 10%, var(--surface-secondary));
-}
-.requirement-todo[data-priority='low'] {
-  border-left-color: var(--muted);
-  background: color-mix(in oklab, var(--muted) 6%, var(--surface-secondary));
-}
-.requirement-todo-main { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
-.requirement-todo-text { font-size: 12px; line-height: 1.6; color: var(--foreground); overflow-wrap: anywhere; }
-.requirement-todo-toggle { flex: 0 0 auto; min-height: 0; padding: 0 4px; font-size: 11px; }
-.priority-badge {
-  flex: 0 0 auto;
-  padding: 1px 7px;
-  border: 1px solid currentColor;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 1.5;
-}
-.priority-badge.priority-high { color: var(--danger); background: color-mix(in oklab, var(--danger) 12%, transparent); }
-.priority-badge.priority-medium { color: var(--warning); background: color-mix(in oklab, var(--warning) 12%, transparent); }
-.priority-badge.priority-low { color: var(--muted); background: color-mix(in oklab, var(--muted) 10%, transparent); }
+/* 评审报告历史轮次只留打开入口与结论徽标；报告全文直接渲染 Markdown。 */
 .requirement-report-history { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
 .requirement-report-history .link-button { font-size: 12px; }
 .requirement-report-history .time { color: var(--muted); font-size: 11px; margin-left: 6px; }
@@ -686,8 +624,6 @@
   .requirement-title { font-size: 18px; }
   .requirement-ops { gap: 6px; }
   .timeline-chips { gap: 4px; }
-  .requirement-report-card { padding: 8px 10px; }
-  .requirement-todo { flex-wrap: wrap; gap: 4px; }
 }
 
 .attachment-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
