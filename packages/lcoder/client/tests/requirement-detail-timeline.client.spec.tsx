@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-/** T-238 阶段时间线（T-250 起为头部下方横排 chips），以及「至少一轮评审」才可确认。 */
+/** T-238 阶段时间线（T-250 起为头部下方横排 chips），以及「至少一轮评审」才可确认。T-286：时间线移到正文阅读区之后，正文随文档标签切换。 */
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -185,6 +185,32 @@ describe('需求详情阶段时间线', () => {
     await renderDetail(ROW, { readers: [], tasksOpened: opened, split: async () => ({ ok: true, message: 'ok' }) })
     await pressSelector('[data-testid="requirement-view-tasks"]')
     expect(opened).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('文档标签驱动当前正文', () => {
+  it('待处置报告标签只给采纳/放弃，切到版本标签渲染该版本快照', async () => {
+    const calls = callsOf()
+    await renderDetail(ROW, calls)
+
+    // 最新一轮待处置：默认落在报告标签，草稿动作隐藏但留在 DOM。
+    expect(element('requirement-review-decision')).not.toBeNull()
+    expect(element('requirement-actions-draft')?.hasAttribute('hidden')).toBe(true)
+    expect(element('requirement-review-report')?.hasAttribute('hidden')).toBe(false)
+    expect(element('requirement-actions')?.getAttribute('data-active-doc')).toBe('r1')
+
+    await pressSelector('[data-testid="requirement-doc-tab-draft"]')
+    expect(element('requirement-review-decision')).toBeNull()
+    expect(element('requirement-actions-draft')?.hasAttribute('hidden')).toBe(false)
+    expect(element('requirement-document-body')?.textContent).toContain('需求正文')
+
+    await pressSelector('[data-testid="requirement-doc-tab-version"][data-version="2"]')
+    expect(element('requirement-actions-version')?.querySelector('[data-testid="requirement-compare-version"]')).not.toBeNull()
+    expect(element('requirement-version-document-body')?.textContent).toContain('评审报告')
+    expect(element('requirement-document')?.hasAttribute('hidden')).toBe(true)
+    // 时间线与既有 chips 仍是可查询的独立区块。
+    expect(element('requirement-timeline')).not.toBeNull()
+    expect(container.querySelectorAll('[data-testid="requirement-timeline-version"]')).toHaveLength(2)
   })
 })
 

@@ -538,7 +538,17 @@
   background: color-mix(in oklab, var(--warning) 16%, var(--surface));
   color: var(--foreground);
 }
+/* 需求头部的状态级全局动作与文档操作栏分组；作废关闭单独置右。 */
+.requirement-global-ops { margin: 6px 0 0; }
+.requirement-global-ops .requirement-close,
 .requirement-ops .requirement-close { margin-left: auto; }
+.requirement-op-group { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.requirement-doc-actions { margin: 0 0 4px; padding-top: 0; border-top: 0; }
+.requirement-ops [hidden],
+.requirement-doc-pane > [hidden] { display: none; }
+.requirement-op-group .detail-note,
+.requirement-op-group .detail-line { flex: 1 0 100%; margin: 0; }
+.requirement-doc-readonly { color: var(--muted); font-size: 12px; }
 /* 右上角紧凑工具组：刷新与查看原文不进核心流程操作栏。 */
 .requirement-quick-tools { display: inline-flex; align-items: center; gap: 2px; }
 /* 评审结论徽标与处置动作。 */
