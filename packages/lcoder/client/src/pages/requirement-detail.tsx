@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
 import type { JSX } from 'react'
 import { Button, Chip, Separator } from '@heroui/react'
-import { RotateCw, Sparkles } from 'lucide-react'
+import { ChevronDown, ChevronRight, ChevronUp, RotateCw, Sparkles } from 'lucide-react'
 import type { ProjectScope } from '../workspace/use-workspaces.ts'
 import type { SpecProjection } from '../spec/load.ts'
 import type { ProposalRow, RequirementChangeRow, RequirementDocRow, RequirementReviewRow, RequirementSplitPlanEntryRow } from '../spec/rows.ts'
@@ -53,11 +53,11 @@ interface TodoVerdictState {
 
 const EMPTY_VERDICTS: TodoVerdictState = { verdicts: {}, notes: {}, expanded: null }
 
-/** 优先级徽标的语义色；未标注用中性色。 */
-const PRIORITY_COLOR: Readonly<Record<ReviewPriority | 'none', 'warning' | 'accent' | 'success' | 'default'>> = {
-  high: 'warning',
-  medium: 'accent',
-  low: 'success',
+/** 优先级徽标的语义色；高为危险红、中为警告琥珀、低与未标注为中性色，与三态裁决色互不混淆。 */
+const PRIORITY_COLOR: Readonly<Record<ReviewPriority | 'none', 'danger' | 'warning' | 'default'>> = {
+  high: 'danger',
+  medium: 'warning',
+  low: 'default',
   none: 'default',
 }
 
@@ -258,6 +258,10 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
   const [docOverride, setDocOverride] = useState<string | null>(null)
   /** 报告 Markdown 原文默认隐藏，只有结构化视图无法表达时才展开。 */
   const [showRawMarkdown, setShowRawMarkdown] = useState(false)
+  /** 核心摘要默认折叠到两行，点击摘要条展开全文。 */
+  const [summaryExpanded, setSummaryExpanded] = useState(false)
+  /** 当前聚焦的补充说明输入框；聚焦或已有内容时展开为多行。 */
+  const [noteFocused, setNoteFocused] = useState<number | null>(null)
   /** 待改项逐条裁决与展开行；切换报告时重置。 */
   const [reviewUi, setReviewUi] = useState<TodoVerdictState>(EMPTY_VERDICTS)
   /** 优先级筛选；默认全部。 */
@@ -324,6 +328,8 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
     setReviewUi(EMPTY_VERDICTS)
     setShowRawMarkdown(false)
     setPriorityFilter('all')
+    setSummaryExpanded(false)
+    setNoteFocused(null)
   }, [reportPath])
 
   // 版本快照正文与阅读器走同一条宿主文件通道；切到某个版本标签才读取该版本。
@@ -541,8 +547,13 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
   const parsedReport = activeReport?.status === 'ready' ? parseReviewReport(activeReport.text) : undefined
   const todos: readonly ReviewTodo[] = parsedReport?.todos ?? []
   const hasTodos = todos.length > 0
+  /** 整份报告都没有分类标题时，级别列退化为单列窄表头。 */
+  const hasAnyCategory = todos.some(todo => todo.category !== undefined && todo.category !== '')
 
   const verdictOf = (index: number): TodoVerdict => reviewUi.verdicts[index] ?? 'accept'
+  /** 默认单行；聚焦、已填内容或判为有疑问时展开为三行。 */
+  const noteRows = (index: number): number =>
+    noteFocused === index || (reviewUi.notes[index] ?? '') !== '' || verdictOf(index) === 'question' ? 3 : 1
 
   /** 按当前勾选汇总裁决；采纳项的补充改法直接拼进条目文本。 */
   const decisions: ReviewDecisions = {
@@ -768,7 +779,9 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                   >
                     <span>{t('requirement.reportTitle', { round: review.round })}</span>
                     <span className="requirement-doc-tab-badge" data-state={decisionOf(review)}>{decisionLabel(t, review)}</span>
-                    <span className="requirement-doc-tab-badge" data-state="locked">{t('requirement.docTabReadonly')}</span>
+                    {decisionOf(review) !== 'pending' && (
+                      <span className="requirement-doc-tab-badge" data-state="locked">{t('requirement.docTabReadonly')}</span>
+                    )}
                   </button>
                 )
               })}
@@ -888,9 +901,23 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                         </p>
                       </>
                     )}
-                  <span className="time requirement-review-at" data-testid="requirement-review-at">
-                    {formatTimestamp(activeReview.at)}
-                  </span>
+                  <div className="requirement-review-meta">
+                    {hasTodos && (
+                      <button
+                        type="button"
+                        className="link-button review-markdown-toggle"
+                        data-testid="requirement-report-markdown-toggle"
+                        onClick={() => { setShowRawMarkdown(current => !current) }}
+                      >
+                        {showRawMarkdown
+                          ? t('requirement.reviewMarkdownHide')
+                          : t('requirement.reviewMarkdownShow')}
+                      </button>
+                    )}
+                    <span className="time requirement-review-at" data-testid="requirement-review-at">
+                      {formatTimestamp(activeReview.at)}
+                    </span>
+                  </div>
                 </div>
               )}
               {activeVersion !== undefined && (
@@ -984,27 +1011,29 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                       )}
                       {activeReport?.status === 'ready' && (
                         <>
-                          {hasTodos && (
-                            <div className="review-report-topbar">
-                              <button
-                                type="button"
-                                className="link-button review-markdown-toggle"
-                                data-testid="requirement-report-markdown-toggle"
-                                onClick={() => { setShowRawMarkdown(current => !current) }}
-                              >
-                                {showRawMarkdown
-                                  ? t('requirement.reviewMarkdownHide')
-                                  : t('requirement.reviewMarkdownShow')}
-                              </button>
-                            </div>
-                          )}
                           {hasTodos && !showRawMarkdown
                             ? (
                               <>
-                                <div className="review-summary-bar" data-testid="requirement-review-summary-bar">
+                                <div
+                                  className={`review-summary-bar${summaryExpanded ? ' is-summary-expanded' : ''}`}
+                                  data-testid="requirement-review-summary-bar"
+                                  data-expanded={summaryExpanded ? 'true' : 'false'}
+                                  role="button"
+                                  tabIndex={0}
+                                  onClick={() => { setSummaryExpanded(current => !current) }}
+                                  onKeyDown={(event) => {
+                                    if (event.key === 'Enter' || event.key === ' ') {
+                                      event.preventDefault()
+                                      setSummaryExpanded(current => !current)
+                                    }
+                                  }}
+                                >
                                   <span className="review-summary-label">{t('requirement.reviewSummaryLabel')}</span>
                                   <span className="review-summary-text">
                                     {parsedReport?.summary === '' ? t('requirement.reviewSummaryEmpty') : parsedReport?.summary}
+                                  </span>
+                                  <span className="review-summary-toggle" data-testid="requirement-review-summary-toggle" aria-hidden="true">
+                                    {summaryExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                                   </span>
                                 </div>
                                 <div className="review-todo-toolbar" data-testid="requirement-review-toolbar">
@@ -1028,7 +1057,7 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                                   <div className="review-batch-actions" role="group" aria-label={t('requirement.reviewBatchLabel')}>
                                     <button
                                       type="button"
-                                      className="link-button"
+                                      className="review-pill review-batch-pill"
                                       data-testid="requirement-review-batch"
                                       data-action="allAccept"
                                       onClick={() => { batchVerdict(() => 'accept') }}
@@ -1037,7 +1066,7 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                                     </button>
                                     <button
                                       type="button"
-                                      className="link-button"
+                                      className="review-pill review-batch-pill"
                                       data-testid="requirement-review-batch"
                                       data-action="highOnly"
                                       onClick={() => { batchVerdict(todo => todo.priority === 'high' ? 'accept' : 'reject') }}
@@ -1046,7 +1075,7 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                                     </button>
                                     <button
                                       type="button"
-                                      className="link-button"
+                                      className="review-pill review-batch-pill"
                                       data-testid="requirement-review-batch"
                                       data-action="allReject"
                                       onClick={() => { batchVerdict(() => 'reject') }}
@@ -1056,10 +1085,10 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                                   </div>
                                 </div>
                                 <div className="table-wrap review-todo-wrap" data-testid="requirement-review-todos">
-                                  <table className="data-table review-todo-table">
+                                  <table className="data-table review-todo-table" data-has-category={hasAnyCategory ? 'true' : 'false'}>
                                     <thead>
                                       <tr>
-                                        <th scope="col">{t('requirement.reviewColLevel')}</th>
+                                        <th scope="col">{t(hasAnyCategory ? 'requirement.reviewColLevel' : 'requirement.reviewColLevelOnly')}</th>
                                         <th scope="col">{t('requirement.reviewColIssue')}</th>
                                         <th scope="col">{t('requirement.reviewColLocation')}</th>
                                         <th scope="col">{t('requirement.reviewColVerdict')}</th>
@@ -1072,7 +1101,7 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                                         return (
                                           <Fragment key={index}>
                                             <tr
-                                              className={`review-todo-row${verdict === 'reject' ? ' is-rejected' : ''}`}
+                                              className={`review-todo-row${verdict === 'reject' ? ' is-rejected' : ''}${expanded ? ' is-expanded' : ''}`}
                                               data-testid="requirement-review-todo-row"
                                               data-index={index}
                                               data-verdict={verdict}
@@ -1083,7 +1112,8 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                                                   size="sm"
                                                   variant="soft"
                                                   color={PRIORITY_COLOR[todo.priority ?? 'none']}
-                                                  className="tag review-todo-priority"
+                                                  className="review-todo-priority"
+                                                  data-priority={todo.priority ?? 'none'}
                                                 >
                                                   {t(priorityLabelKey(todo.priority))}
                                                 </Chip>
@@ -1093,7 +1123,9 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                                               </td>
                                               <td className="review-todo-title">
                                                 <span className="review-todo-title-inner">
-                                                  <span className="review-todo-arrow" aria-hidden="true">{expanded ? '▾' : '▸'}</span>
+                                                  <span className="review-todo-arrow" aria-hidden="true">
+                                                    {expanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+                                                  </span>
                                                   <strong>{todo.title}</strong>
                                                 </span>
                                               </td>
@@ -1104,7 +1136,7 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                                                     <button
                                                       key={option}
                                                       type="button"
-                                                      className={`verdict-button${verdict === option ? ' is-active' : ''}`}
+                                                      className={`verdict-button${verdict === option ? ` is-active is-active-${option}` : ''}`}
                                                       data-testid="requirement-review-todo-verdict"
                                                       data-index={index}
                                                       data-verdict={option}
@@ -1123,33 +1155,38 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                                             {expanded && (
                                               <tr className="todo-detail-row" data-testid="requirement-review-todo-detail" data-index={index}>
                                                 <td colSpan={4}>
-                                                  <div className="todo-detail-grid">
-                                                    <section className="todo-detail-block">
-                                                      <h6>{t('requirement.reviewTodoLocation')}</h6>
-                                                      <p>{todo.location || '—'}</p>
-                                                    </section>
-                                                    <section className="todo-detail-block">
-                                                      <h6>{t('requirement.reviewTodoProblem')}</h6>
-                                                      <p>{todo.problem || '—'}</p>
-                                                    </section>
-                                                    <section className="todo-detail-block todo-detail-suggestion">
-                                                      <h6>{t('requirement.reviewTodoSuggestion')}</h6>
-                                                      <p>{todo.suggestion || '—'}</p>
-                                                    </section>
-                                                    <section className="todo-detail-block todo-detail-note">
-                                                      <h6>{t('requirement.reviewTodoNote')}</h6>
-                                                      <textarea
-                                                        ref={index === reviewUi.expanded ? todoNoteRef : undefined}
-                                                        data-testid="requirement-review-todo-note"
-                                                        data-index={index}
-                                                        value={reviewUi.notes[index] ?? ''}
-                                                        rows={3}
-                                                        placeholder={verdict === 'question'
-                                                          ? t('requirement.reviewTodoQuestionPlaceholder')
-                                                          : t('requirement.reviewTodoNotePlaceholder')}
-                                                        onChange={(event) => { setNote(index, event.target.value) }}
-                                                      />
-                                                    </section>
+                                                  <div className="todo-detail-card">
+                                                    {todo.location !== '' && (
+                                                      <p className="todo-detail-location-inline">
+                                                        {t('requirement.reviewTodoLocation')} {todo.location}
+                                                      </p>
+                                                    )}
+                                                    <div className="todo-detail-grid">
+                                                      <section className="todo-detail-block">
+                                                        <h6>{t('requirement.reviewTodoProblem')}</h6>
+                                                        <p>{todo.problem || '—'}</p>
+                                                      </section>
+                                                      <section className="todo-detail-block todo-detail-suggestion">
+                                                        <h6>{t('requirement.reviewTodoSuggestion')}</h6>
+                                                        <p>{todo.suggestion || '—'}</p>
+                                                      </section>
+                                                      <section className="todo-detail-block todo-detail-note">
+                                                        <h6>{t('requirement.reviewTodoNote')}</h6>
+                                                        <textarea
+                                                          ref={index === reviewUi.expanded ? todoNoteRef : undefined}
+                                                          data-testid="requirement-review-todo-note"
+                                                          data-index={index}
+                                                          value={reviewUi.notes[index] ?? ''}
+                                                          rows={noteRows(index)}
+                                                          placeholder={verdict === 'question'
+                                                            ? t('requirement.reviewTodoQuestionPlaceholder')
+                                                            : t('requirement.reviewTodoNotePlaceholder')}
+                                                          onFocus={() => { setNoteFocused(index) }}
+                                                          onBlur={() => { setNoteFocused(current => current === index ? null : current) }}
+                                                          onChange={(event) => { setNote(index, event.target.value) }}
+                                                        />
+                                                      </section>
+                                                    </div>
                                                   </div>
                                                 </td>
                                               </tr>

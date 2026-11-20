@@ -31,8 +31,8 @@ const ITEM_LINE = /^\s*(?:[-*+]|\d+[.)])\s+/u
 const PRIORITY_LABEL = /(?:优先级\s*[:：]?\s*)(高|中|低)|[【\[]\s*(高|中|低)\s*[】\]]/u
 /** 摘要里去掉全部优先级标记；与 PRIORITY_LABEL 同源，但不保留 exec 的 lastIndex 状态。 */
 const PRIORITY_MARK = new RegExp(PRIORITY_LABEL, 'gu')
-/** 三级分类子标题：`### 文档完备性`。 */
-const CATEGORY_HEADING = /^###\s+(.+?)\s*$/u
+/** 分类子标题：`### 文档完备性` 或更细的 `#### 边界与例外`。 */
+const CATEGORY_HEADING = /^#{3,4}\s+(.+?)\s*$/u
 /** 无 Markdown 标记的分类子标题：纯中文/字母短行，不含冒号与优先级标记。 */
 const CATEGORY_PLAIN = /^[\u4e00-\u9fa5A-Za-z（）()、\s]{2,16}$/u
 /** 评审固定维度：即使紧跟在上一条之后也按分类标题切分。 */

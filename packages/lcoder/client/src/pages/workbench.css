@@ -551,10 +551,9 @@
 .requirement-doc-readonly { color: var(--muted); font-size: 12px; }
 /* 右上角紧凑工具组：刷新与查看原文不进核心流程操作栏。 */
 .requirement-quick-tools { display: inline-flex; align-items: center; gap: 2px; }
-/* 评审结论徽标与处置动作；报告生成时间贴在本组右侧。 */
+/* 评审结论徽标与处置动作；报告时间与 Markdown 切换收进本组右侧的紧凑元信息组。 */
 .requirement-review-status { font-weight: 600; }
 .requirement-review-actions { flex: 1 1 auto; }
-.requirement-review-actions .requirement-review-at { margin-left: auto; color: var(--muted); font-size: 11px; }
 .requirement-review-decision { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
 .requirement-review-decision .detail-note { margin: 0; }
 .requirement-report-history li { flex-wrap: wrap; align-items: center; gap: 6px; }
@@ -618,7 +617,8 @@
 .requirement-report-history .time { color: var(--muted); font-size: 11px; margin-left: 6px; }
 
 /* 结构化评审视图：摘要条、筛选/批量工具栏、单行紧凑表与行内详情。 */
-.review-report-topbar { display: flex; justify-content: flex-end; margin: 2px 0 6px; }
+.requirement-review-meta { display: inline-flex; align-items: center; gap: 12px; margin-left: auto; }
+.requirement-review-meta .requirement-review-at { color: var(--muted); font-size: 11px; }
 .review-markdown-toggle { font-size: 12px; }
 .review-summary-bar {
   display: flex;
@@ -629,9 +629,27 @@
   border-radius: 10px;
   background: var(--surface-secondary);
   font-size: 13px;
+  cursor: pointer;
 }
+.review-summary-bar:hover { border-color: var(--accent); }
 .review-summary-label { flex: 0 0 auto; color: var(--muted); font-weight: 600; }
-.review-summary-text { min-width: 0; line-height: 1.5; }
+.review-summary-text {
+  min-width: 0;
+  flex: 1 1 auto;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+.review-summary-bar.is-summary-expanded .review-summary-text {
+  display: block;
+  -webkit-line-clamp: unset;
+  line-clamp: unset;
+  overflow: visible;
+}
+.review-summary-toggle { flex: 0 0 auto; display: inline-flex; align-items: center; color: var(--muted); }
 .review-todo-toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -652,17 +670,19 @@
 }
 .review-pill:hover { border-color: var(--accent); color: var(--foreground); }
 .review-pill.is-active { border-color: var(--accent); background: var(--accent-soft); color: var(--foreground); font-weight: 600; }
-.review-batch-actions .link-button { font-size: 12px; }
 .review-todo-wrap { overflow-x: auto; }
 .review-todo-table { table-layout: fixed; min-width: 640px; }
 .review-todo-table th:nth-child(1) { width: 128px; }
+.review-todo-table[data-has-category='false'] th:nth-child(1) { width: 76px; }
 .review-todo-table th:nth-child(2) { width: auto; }
 .review-todo-table th:nth-child(3) { width: 156px; }
 .review-todo-table th:nth-child(4) { width: 208px; }
 .review-todo-table tbody tr.review-todo-row { cursor: pointer; }
+.review-todo-table tbody tr:nth-child(even) { background: color-mix(in oklab, var(--muted) 6%, var(--surface)); }
+.review-todo-table tbody tr.review-todo-row.is-expanded { background: var(--accent-soft); }
 .review-todo-table td {
-  height: 34px;
-  padding: 6px 8px;
+  height: 42px;
+  padding: 8px 10px;
   line-height: 20px;
   white-space: nowrap;
   overflow: hidden;
@@ -670,26 +690,72 @@
   vertical-align: middle;
 }
 .review-todo-level { white-space: nowrap !important; }
-.review-todo-priority { margin-right: 4px; }
+.review-todo-priority { margin-right: 4px; font-weight: 600; }
+.review-todo-priority[data-priority='high'] {
+  border-color: color-mix(in oklab, var(--danger) 55%, transparent);
+  background: color-mix(in oklab, var(--danger) 16%, var(--surface));
+  color: var(--danger);
+}
+.review-todo-priority[data-priority='medium'] {
+  border-color: color-mix(in oklab, var(--warning) 55%, transparent);
+  background: color-mix(in oklab, var(--warning) 16%, var(--surface));
+  color: var(--warning-foreground);
+}
+.review-todo-priority[data-priority='low'],
+.review-todo-priority[data-priority='none'] {
+  border-color: var(--separator);
+  background: var(--surface-secondary);
+  color: var(--muted);
+}
 .review-todo-category { color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; }
 .review-todo-title-inner { display: flex; align-items: center; gap: 6px; min-width: 0; }
-.review-todo-title strong { overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
-.review-todo-arrow { flex: 0 0 auto; color: var(--muted); font-size: 11px; }
+.review-todo-title strong { overflow: hidden; text-overflow: ellipsis; font-size: 13.5px; font-weight: 600; }
+.review-todo-arrow { flex: 0 0 auto; display: inline-flex; justify-content: center; width: 18px; color: var(--muted); }
 .review-todo-location { color: var(--muted); }
 .review-todo-verdict { cursor: default; }
 .verdict-button {
-  padding: 2px 7px;
+  padding: 4px 10px;
   border: 1px solid var(--separator);
-  border-radius: 8px;
+  border-radius: 999px;
   background: var(--surface);
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
+  font-weight: 500;
   cursor: pointer;
 }
 .verdict-button:hover { border-color: var(--accent); }
-.verdict-button.is-active { border-color: var(--accent); background: var(--accent-soft); color: var(--foreground); font-weight: 600; }
-.review-todo-row.is-rejected { opacity: 0.5; }
-.todo-detail-row > td { height: auto; padding: 10px 12px; white-space: normal; background: var(--surface-secondary); }
+.verdict-button.is-active[data-verdict='accept'] {
+  border-color: var(--success);
+  background: color-mix(in oklab, var(--success) 18%, var(--surface));
+  color: var(--success);
+  font-weight: 600;
+}
+.verdict-button.is-active[data-verdict='reject'] {
+  border-color: var(--danger);
+  background: color-mix(in oklab, var(--danger) 16%, var(--surface));
+  color: var(--danger);
+  font-weight: 600;
+}
+.verdict-button.is-active[data-verdict='question'] {
+  border-color: var(--warning);
+  background: color-mix(in oklab, var(--warning) 18%, var(--surface));
+  color: var(--warning-foreground);
+  font-weight: 600;
+}
+.review-todo-row.is-rejected { opacity: 0.62; }
+.review-todo-row.is-rejected .review-todo-title strong { text-decoration: line-through; }
+.review-todo-table tbody tr.todo-detail-row { cursor: default; }
+.review-todo-table tbody tr.todo-detail-row:hover { background: var(--surface); }
+.todo-detail-row > td { height: auto; padding: 0; white-space: normal; background: var(--surface); }
+.todo-detail-card {
+  margin: 4px 8px 8px 24px;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 10px;
+  background: var(--surface);
+}
+.todo-detail-location-inline { margin: 0 0 8px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
 .todo-detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 16px; }
 .todo-detail-block h6 { margin: 0 0 4px; font-size: 12px; color: var(--muted); }
 .todo-detail-block p { margin: 0; font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
