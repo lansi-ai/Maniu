@@ -16,7 +16,7 @@ import { entryRoot, flowNodeOf, flowRoleLabel, flowRoleSource, presetOfRole, pre
 import { canReviewRequirement } from './requirement-gate.ts'
 import { translate, type MessageKey, type Translate } from '../locale.ts'
 import { OperationCards, type OperationCardView, type OperationStep, type OperationStepState } from '../shell/operation-cards.tsx'
-import { RequirementDetail, type ModifyState } from './requirement-detail.tsx'
+import { RequirementDetail, type ModifyState, type RunningOpKind } from './requirement-detail.tsx'
 import { TaskDetail } from './task-detail.tsx'
 import { ReaderOverlay } from './reader.tsx'
 import { IntakeWizard, type IntakeResult } from './intake-wizard.tsx'
@@ -193,6 +193,16 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
   const busyOf = (kind: OpKind, requirementId: string | null) =>
     watches.some(item => item.kind === kind && item.requirementId === requirementId)
     || paused.some(item => item.kind === kind && item.requirementId === requirementId)
+
+  /** 该需求是否有任意在途操作：浮卡在跑或人工衔接暂停都算，供列表行与详情做互斥锁定。 */
+  // 草稿修改提案落盘待裁决时 watch 仍在，因此 patch 也返回非空；查看差异不在此锁内。
+  const runningOpOf = (requirementId: string): RunningOpKind | null => {
+    const inFlight = watches.find(item => item.requirementId === requirementId)
+      ?? paused.find(item => item.requirementId === requirementId)
+    if (inFlight === undefined) return null
+    const kind = inFlight.kind
+    return kind === 'review' || kind === 'revise' || kind === 'patch' || kind === 'split' ? kind : null
+  }
 
   const rows = useMemo(() => {
     const query = text.trim().toLowerCase()
@@ -1045,7 +1055,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
                                   size="sm"
                                   variant="ghost"
                                   data-testid="requirement-op-review"
-                                  isDisabled={busyOf('review', row.id) || !reviewGate.ok}
+                                  isDisabled={runningOpOf(row.id) !== null || !reviewGate.ok}
                                   ref={(node) => { if (node !== null) node.title = reviewBlockReason ?? '' }}
                                   onPress={() => { void review(row) }}
                                 >
@@ -1055,7 +1065,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
                                   size="sm"
                                   variant="ghost"
                                   data-testid="requirement-op-revise"
-                                  isDisabled={busyOf('patch', row.id)}
+                                  isDisabled={runningOpOf(row.id) !== null}
                                   onPress={() => { openModify(row) }}
                                 >
                                   {t('requirement.opRevise')}
@@ -1067,7 +1077,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
                                 size="sm"
                                 variant="ghost"
                                 data-testid="requirement-op-split"
-                                isDisabled={busyOf('split', row.id)}
+                                isDisabled={runningOpOf(row.id) !== null}
                                 onPress={() => { void split(row) }}
                               >
                                 {t('requirement.opSplit')}
@@ -1124,6 +1134,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
                   onCloseDiff={() => { setCompareId(null) }}
                   onApplied={patchApplied}
                   readerOpen={readerPath !== null}
+                  runningOp={runningOpOf(active.id)}
                   t={t}
                 />
               </div>

@@ -3,7 +3,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
-import { RequirementDetail } from '../src/pages/requirement-detail.tsx'
+import { RequirementDetail, type RunningOpKind } from '../src/pages/requirement-detail.tsx'
 import type { FlowConfigRow, JobRoleRow, RequirementDocRow, TaskRow } from '../src/spec/rows.ts'
 import type { SpecProjection } from '../src/spec/load.ts'
 import type { ProjectScope } from '../src/workspace/use-workspaces.ts'
@@ -205,6 +205,35 @@ async function press(testId: string): Promise<void> {
     ;(node as HTMLElement).click()
     await new Promise(resolve => setTimeout(resolve, 0))
   })
+}
+
+async function renderLockedDetail(
+  row: RequirementDocRow,
+  extra: { readonly runningOp?: RunningOpKind | null; readonly onModifyRequest?: () => void } = {},
+): Promise<void> {
+  const calls = callsOf()
+  act(() => {
+    root.render(
+      <RequirementDetail
+        row={row}
+        project={PROJECT}
+        projection={projectionOf([row])}
+        sessions={[]}
+        onClose={() => {}}
+        onOpenTask={() => {}}
+        onOpenReader={() => {}}
+        onReload={calls.reload}
+        onSplit={calls.split}
+        onReview={calls.review}
+        onRevise={calls.revise}
+        onModifyRequest={extra.onModifyRequest ?? (() => {})}
+        onCreateBased={calls.createBased}
+        onOpenTasks={calls.tasksOpened}
+        runningOp={extra.runningOp}
+      />,
+    )
+  })
+  await act(async () => { await Promise.resolve() })
 }
 
 describe('四态操作栏与指引句', () => {
@@ -678,5 +707,45 @@ describe('后台发起与次级动作', () => {
     expect(calls.reload).toHaveBeenCalledTimes(1)
     expect(element('requirement-document-body')?.textContent).toContain('这是正文的第 1 行')
     expect(element('requirement-open-reader')).toBeNull()
+  })
+})
+
+describe('在途操作互斥锁定', () => {
+  it('runningOp 非空时详情业务按钮全部锁定并给出对应提示', async () => {
+    await renderLockedDetail(DRAFT, { runningOp: 'review' })
+    for (const id of ['requirement-detail-review', 'requirement-detail-revise', 'requirement-approve', 'requirement-close']) {
+      expect((element(id) as HTMLButtonElement).disabled).toBe(true)
+    }
+    expect(element('requirement-op-locked-hint')?.textContent).toContain('需求评审')
+    expect((element('requirement-detail-review') as HTMLButtonElement).title).toContain('需求评审')
+  })
+
+  it('四种在途操作给出各自的提示文案', async () => {
+    const cases = [
+      ['review', '需求评审'],
+      ['revise', '需求改稿'],
+      ['patch', '修改提案'],
+      ['split', '需求拆分'],
+    ] as const
+    for (const [kind, word] of cases) {
+      await renderLockedDetail(DRAFT, { runningOp: kind })
+      expect(element('requirement-op-locked-hint')?.textContent).toContain(word)
+    }
+  })
+
+  it('未传 runningOp 时行为不变，点修改需求仍走回调', async () => {
+    const onModifyRequest = vi.fn()
+    await renderLockedDetail(DRAFT, { onModifyRequest })
+    expect((element('requirement-detail-review') as HTMLButtonElement).disabled).toBe(false)
+    expect(element('requirement-op-locked-hint')).toBeNull()
+    await press('requirement-detail-revise')
+    expect(onModifyRequest).toHaveBeenCalledTimes(1)
+  })
+
+  it('锁定时点修改需求不触发打开说明栏回调', async () => {
+    const onModifyRequest = vi.fn()
+    await renderLockedDetail(DRAFT, { runningOp: 'review', onModifyRequest })
+    await press('requirement-detail-revise')
+    expect(onModifyRequest).not.toHaveBeenCalled()
   })
 })
