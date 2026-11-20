@@ -10,13 +10,15 @@
   align-items: stretch;
 }
 
-/* HeroUI Card 浮岛：宽裕内边距、官方表面底、分隔线分区。 */
+/* HeroUI Card 浮岛：T-293 统一为纯净中性 Glass 表面。 */
 #root .bento-card.card {
   gap: 0;
   padding: 22px 24px;
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  background: var(--surface-secondary);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  background: var(--glass-surface);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   box-shadow: var(--surface-shadow);
 }
 #root .bento-wide { grid-column: 1 / -1; }
@@ -32,7 +34,7 @@
 #root .bento-toggle.button { min-height: 32px; padding: 5px 12px; border-radius: 999px; font-size: 12px; }
 .bento-chevron { transition: transform 160ms ease; }
 .bento-chevron.expanded { transform: rotate(180deg); }
-#root .bento-card-head .card__title { font-size: 15px; font-weight: 600; color: var(--foreground); }
+#root .bento-card-head .card__title { font-size: 15px; font-weight: 600; letter-spacing: -0.02em; color: var(--foreground); }
 #root .bento-card-head .card__description { font-size: 12px; color: var(--muted); }
 
 .bento-icon {
@@ -55,7 +57,7 @@
 .bento-card-body { display: flex; flex-direction: column; gap: 14px; }
 .bento-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .settings-label { font-size: 13px; font-weight: 500; color: var(--foreground); }
-.settings-section-head h3 { margin: 0; font-size: 15px; font-weight: 600; color: var(--foreground); }
+.settings-section-head h3 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: -0.02em; color: var(--foreground); }
 .settings-section-head p { margin: 4px 0 0; font-size: 12px; color: var(--muted); }
 .settings-muted { margin: 0; font-size: 12px; line-height: 1.6; color: var(--muted); }
 .model-hint { margin: 0; font-size: 11px; color: var(--muted); }
@@ -129,10 +131,10 @@
   display: inline-flex;
   align-items: center;
   padding: 2px 8px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--glass-border);
   border-radius: 999px;
-  background: color-mix(in oklab, var(--foreground) 5%, transparent);
-  color: var(--muted);
+  background: var(--glass-surface);
+  color: var(--foreground);
   font-size: 11px;
   white-space: nowrap;
 }
@@ -160,6 +162,13 @@
   padding: 8px 12px;
   font-size: 13px;
   outline: none;
+}
+/* T-293 原生 select 全胶囊：仅统一外观，保留受控 value/onChange 与 data-testid。 */
+.settings-select {
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  background: var(--glass-surface);
+  padding-inline: 14px;
 }
 .settings-select:focus,
 .settings-input:focus { border-color: var(--accent); }
