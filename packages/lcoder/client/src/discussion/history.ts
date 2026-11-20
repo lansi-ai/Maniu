@@ -36,14 +36,20 @@ function textOf(value: unknown): string {
   return ''
 }
 
-interface MessageRow {
+/** 会话历史里的一条消息；角色只区分用户发言、助手回复与上下文。 */
+export interface SessionMessage {
   readonly role: 'user' | 'assistant' | 'context'
   readonly text: string
 }
 
-function messagesOf(records: unknown): MessageRow[] {
+/**
+ * 把 `session/events` 的记录解析成消息，供讨论聚合与待回答弹窗共用。
+ * @param records - `session/events` 返回的 `records`。
+ * @returns 非空文本消息；格式不符时为空数组。
+ */
+export function messagesOf(records: unknown): SessionMessage[] {
   if (!Array.isArray(records)) return []
-  const out: MessageRow[] = []
+  const out: SessionMessage[] = []
   for (const record of records) {
     if (!isRecord(record) || record.type !== 'event' || !isRecord(record.event)) continue
     const event = record.event
@@ -70,13 +76,13 @@ function messagesOf(records: unknown): MessageRow[] {
   return out
 }
 
-function mentions(messages: readonly MessageRow[], requirement: string): boolean {
+function mentions(messages: readonly SessionMessage[], requirement: string): boolean {
   const escaped = requirement.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')
   const pattern = new RegExp(`(?:^|[^A-Za-z0-9-])${escaped}(?![0-9])`, 'u')
   return messages.some(message => pattern.test(message.text))
 }
 
-function markerOf(messages: readonly MessageRow[]): { readonly id: string; readonly name: string } | undefined {
+function markerOf(messages: readonly SessionMessage[]): { readonly id: string; readonly name: string } | undefined {
   const pattern = new RegExp(`${ROLE_MARKER}([^（\\n]+)（([^）\\n]+)）`, 'u')
   for (const message of messages) {
     const match = pattern.exec(message.text)
@@ -110,7 +116,12 @@ function isDiscussionSession(session: SessionSummary): boolean {
   return roleOfPreset(session.agentPreset) !== undefined
 }
 
-async function readMessages(sessionId: string): Promise<MessageRow[] | null> {
+/**
+ * 读取一条会话的近期消息；失败时返回 null，由调用方决定如何呈现。
+ * @param sessionId - 会话标识。
+ * @returns 消息列表；读取失败或格式不对时为 null。
+ */
+export async function readMessages(sessionId: string): Promise<SessionMessage[] | null> {
   const answer = await window.lcoder.call('session', 'events', {
     request: { address: { kind: 'session', sessionId }, maxMessages: 200 },
   })

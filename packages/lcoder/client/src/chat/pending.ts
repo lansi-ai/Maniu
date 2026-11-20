@@ -10,6 +10,15 @@ export interface HostWaterfallRequest {
   readonly request: Record<string, unknown>
 }
 
+/** 一条等待人处理的交互的可选来源事实；只有调用方握有确定关联时才填写。 */
+export interface PendingSource {
+  /** 后台操作的标题。 */
+  readonly title: string
+  /** 岗位身份与来源标签，缺项不填。 */
+  readonly roleLabel?: string
+  readonly sourceLabel?: string
+}
+
 /** 一条等待人处理的交互。 */
 export interface PendingInteraction {
   readonly id: string
@@ -17,6 +26,12 @@ export interface PendingInteraction {
   readonly clientId: string
   readonly eventId: string
   readonly request: Record<string, unknown>
+  /**
+   * 确定关联的会话标识；waterfall 帧不携带会话身份，缺关联时必须留空。
+   * 不得由 clientId、问题内容或到达时间推断。
+   */
+  readonly sessionId?: string
+  readonly source?: PendingSource
 }
 
 /** 审批卡要显示的内容。 */
@@ -198,4 +213,53 @@ export function questionOutcome(
  */
 export function cancelledEventId(value: unknown): string | undefined {
   return isRecord(value) && typeof value.eventId === 'string' ? value.eventId : undefined
+}
+
+/** 按确定关联的会话归组后的待处理交互；`sessionId` 为 null 表示来源不可用。 */
+export interface PendingGroup {
+  /** 稳定的分组键；无关联会话时为固定值 `unknown`。 */
+  readonly key: string
+  readonly sessionId: string | null
+  readonly items: readonly PendingInteraction[]
+}
+
+/**
+ * 把待处理交互按会话分组；没有确定会话关联的交互统一进 `unknown` 组。
+ * @param items - 当前全部待处理交互。
+ * @returns 按首次出现顺序排列的分组。
+ */
+export function groupPending(items: readonly PendingInteraction[]): PendingGroup[] {
+  const groups = new Map<string, PendingInteraction[]>()
+  for (const item of items) {
+    const key = item.sessionId === undefined || item.sessionId === '' ? 'unknown' : item.sessionId
+    const current = groups.get(key)
+    if (current === undefined) groups.set(key, [item])
+    else current.push(item)
+  }
+  return [...groups.entries()].map(([key, group]) => ({
+    key,
+    sessionId: key === 'unknown' ? null : key,
+    items: group,
+  }))
+}
+
+/** 一条交互用于通知摘要的事实。 */
+export interface InteractionSummary {
+  readonly kind: 'approval' | 'question'
+  /** 提问数；审批恒为 0。 */
+  readonly count: number
+  /** 审批的工具名；提问为 undefined。 */
+  readonly toolName?: string
+}
+
+/**
+ * 提取通知摘要；不读取问题正文，只数题目数与审批工具名。
+ * @param interaction - 待处理交互。
+ * @returns 摘要事实。
+ */
+export function summaryOfInteraction(interaction: PendingInteraction): InteractionSummary {
+  if (interaction.kind === 'approval') {
+    return { kind: 'approval', count: 0, toolName: approvalViewOf(interaction.request).toolName }
+  }
+  return { kind: 'question', count: questionsOf(interaction.request).length }
 }

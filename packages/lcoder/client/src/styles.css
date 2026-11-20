@@ -799,18 +799,124 @@ html body {
 .rename-problem { color: var(--danger); font-size: 11px; }
 .chat-head .running { color: var(--success); font-size: 11px; }
 
-/* 等待人处理的交互：非对话页在视口居中聚焦；对话页改用聊天列里的卡片。 */
+/* 等待人处理的交互：非对话页在右下角轻量提醒；对话页改用聊天列里的卡片。 */
 .pending-layer {
-  position: fixed;
+  position: absolute;
+  right: 18px;
+  bottom: 18px;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  width: min(360px, calc(100vw - 36px));
+  max-height: min(320px, 62vh);
+  overflow-y: auto;
+  pointer-events: none;
+}
+/* 有通知时把后台操作浮卡上移，两者互不遮挡。 */
+.shell:has(.pending-layer) .op-layer { bottom: min(360px, 58vh); }
+.pending-notice {
+  width: 100%;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--warning);
+  border-radius: 14px;
+  background: var(--overlay);
+  box-shadow: var(--overlay-shadow);
+  pointer-events: auto;
+}
+.pending-notice-head { display: flex; align-items: center; gap: 8px; }
+.pending-notice-source { flex: 1; min-width: 0; font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pending-notice-count { flex: 0 0 auto; font-size: 11px; color: var(--muted); }
+.pending-sound-toggle {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.pending-sound-toggle[aria-pressed="true"] { color: var(--accent); }
+.pending-notice-operation { margin: 0; font-size: 11px; color: var(--muted); }
+.pending-notice-items { margin: 0; padding: 0 0 0 16px; display: flex; flex-direction: column; gap: 3px; font-size: 12px; }
+.pending-notice-item { line-height: 1.4; }
+.pending-review {
+  align-self: flex-start;
+  padding: 4px 12px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.pending-dialog-backdrop {
+  position: absolute;
   inset: 0;
-  z-index: 30;
+  z-index: 60;
   display: grid;
   place-items: center;
   padding: 24px;
-  background: color-mix(in oklab, var(--backdrop) 45%, transparent);
-  backdrop-filter: blur(4px);
+  background: color-mix(in oklab, var(--backdrop) 55%, transparent);
 }
-.pending-layer .pending-stack { width: min(560px, 92vw); max-height: 82vh; overflow: auto; pointer-events: auto; }
+.pending-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(680px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--overlay);
+  box-shadow: var(--overlay-shadow);
+  overflow: hidden;
+  outline: none;
+}
+.pending-dialog-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.pending-dialog-head h2 { flex: 1; margin: 0; font-size: 15px; }
+.pending-dialog-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.pending-dialog-history {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.history-row { display: flex; flex-direction: column; gap: 3px; }
+.history-row.history-user { padding-left: 10px; border-left: 2px solid var(--accent); }
+.history-row.history-assistant { padding-left: 10px; border-left: 2px solid var(--success); }
+.history-role { font-size: 11px; color: var(--muted); }
+.history-text { font-size: 13px; line-height: 1.5; }
+.pending-dialog-answers { max-height: 45%; overflow-y: auto; padding: 12px 18px 18px; border-top: 1px solid var(--border); }
+.pending-dialog-answers .pending-card { box-shadow: none; }
 .pending-card {
   padding: 20px 22px;
   display: flex;
