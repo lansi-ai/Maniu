@@ -7,12 +7,14 @@
 #   lcoder\scripts\rebuild.cmd                 # 自动判断哪几层过期，只重建过期的
 #   lcoder\scripts\rebuild.cmd workspace       # 只重建外壳（刷新页面即生效）
 #   lcoder\scripts\rebuild.cmd kernel          # 只重建 kernel（要重启实例）
+#   lcoder\scripts\rebuild.cmd client          # 只重建自研客户端（vite build，刷新窗口即生效）
 #   lcoder\scripts\rebuild.cmd desktop         # 只重建桌面主进程（要重启实例）
+#   lcoder\scripts\rebuild.cmd lcoder-desktop  # 只重建自研桌面端 preload（要重启实例）
 #   lcoder\scripts\rebuild.cmd profile         # 只重拷装配源运行副本（要重启实例）
 #   lcoder\scripts\rebuild.cmd all             # 全量 build:artifacts 加 build:check（连上游）
-#   lcoder\scripts\rebuild.cmd workspace -DryRun  # 只说过期了哪几层，不真的构建
+#   lcoder\scripts\rebuild.cmd client -DryRun  # 只说客户端是否过期，不真的构建
 param(
-  [ValidateSet('auto', 'workspace', 'kernel', 'desktop', 'profile', 'all')]
+  [ValidateSet('auto', 'workspace', 'kernel', 'client', 'desktop', 'lcoder-desktop', 'profile', 'all')]
   [string]$Layer = 'auto',
   [switch]$DryRun
 )
@@ -62,10 +64,13 @@ $profileLocal = @"
 "@
 
 # 每一层：源码目录、产物文件、重建命令、生效方式。
+# script/label 可选：没有 bundle 脚本的包用它们给出等价的窄重建命令；缺省仍走 `run bundle`。
 $layers = @(
-  @{ name = 'kernel';    source = 'packages\lcoder\kernel\src';    artifact = 'packages\lcoder\kernel\lib\index.js';    filter = '@maniu/kernel';    note = 'kernel 在宿主进程里加载：要重启实例' },
-  @{ name = 'workspace'; source = 'packages\lcoder\workspace\src'; artifact = 'packages\lcoder\workspace\lib\client.js'; filter = '@maniu/workspace'; note = '外壳产物由宿主直出：刷新页面即生效，不用重启' },
-  @{ name = 'desktop';   source = 'apps\desktop\src';              artifact = 'apps\desktop\lib\main.js';              filter = '@deepseek-ai/dsh-desktop'; note = '主进程/preload 改动：要重启实例' }
+  @{ name = 'kernel';    source = 'packages\lcoder\kernel\src';    artifact = 'packages\lcoder\kernel\lib\index.js';         filter = '@maniu/kernel';    note = 'kernel 在宿主进程里加载：要重启实例' },
+  @{ name = 'workspace'; source = 'packages\lcoder\workspace\src'; artifact = 'packages\lcoder\workspace\lib\client.js';    filter = '@maniu/workspace'; note = '外壳产物由宿主直出：刷新页面即生效，不用重启' },
+  @{ name = 'client';    source = 'packages\lcoder\client\src';    artifact = 'packages\lcoder\client\lib\dist\index.html'; filter = '@maniu/client';    script = @('--filter', '@maniu/client', 'exec', 'vite', 'build'); label = '@maniu/client vite build'; note = '新客户端产物由桌面端直出：刷新窗口即生效，不用重启' },
+  @{ name = 'desktop';   source = 'apps\desktop\src';              artifact = 'apps\desktop\lib\main.js';                  filter = '@deepseek-ai/dsh-desktop'; note = '主进程/preload 改动：要重启实例' },
+  @{ name = 'lcoder-desktop'; source = 'packages\lcoder\desktop\src'; artifact = 'packages\lcoder\desktop\lib\preload.cjs'; filter = '@maniu/desktop'; note = '桌面主进程/preload 改动：要重启桌面实例' }
 )
 
 # 原生命令往 stderr 写提示时，PS 5.1 在 Stop 偏好下会抛 NativeCommandError（哪怕退出码 0）。
@@ -234,10 +239,10 @@ if ($Layer -eq 'all') {
 $plan = if ($Layer -eq 'auto') { Get-Stale } else { @($Layer) }
 
 if ($plan.Count -eq 0) {
-  if ($DryRun) { Write-Host '三层产物都是最新的，装配副本与 profile 依赖未校验（-DryRun 不落盘）。' -ForegroundColor Green; exit 0 }
+  if ($DryRun) { Write-Host '各层产物都是最新的，装配副本与 profile 依赖未校验（-DryRun 不落盘）。' -ForegroundColor Green; exit 0 }
   # 预热/warm 会走到这条「产物已最新」的短路；profile 依赖仍要保障，否则新树启动仍是原版 DSH。
   if (-not (Sync-Profile)) { exit 1 }
-  Write-Host '三层产物都是最新的，装配副本与 profile 依赖已校验。要强制全量就加 all。' -ForegroundColor Green
+  Write-Host '各层产物都是最新的，装配副本与 profile 依赖已校验。要强制全量就加 all。' -ForegroundColor Green
   exit 0
 }
 Write-Host ('本次要重建：' + ($plan -join '、')) -ForegroundColor Yellow
@@ -248,7 +253,11 @@ foreach ($name in $plan) {
   # 变量名不能叫 $layer：PowerShell 变量名大小写不敏感，会和带 ValidateSet 的参数 $Layer 撞上。
   $target = $layers | Where-Object { $_.name -eq $name } | Select-Object -First 1
   if ($null -eq $target) { Write-Host ("✗ 不认识的层：" + $name) -ForegroundColor Red; exit 1 }
-  if (-not (Invoke-Native ($target.filter + ' bundle') @('--filter', $target.filter, 'run', 'bundle') $root)) { exit 1 }
+  if ($target.ContainsKey('script')) {
+    if (-not (Invoke-Native $target.label $target.script $root)) { exit 1 }
+  } else {
+    if (-not (Invoke-Native ($target.filter + ' bundle') @('--filter', $target.filter, 'run', 'bundle') $root)) { exit 1 }
+  }
   Write-Host ('  ' + $target.note) -ForegroundColor DarkGray
 }
 

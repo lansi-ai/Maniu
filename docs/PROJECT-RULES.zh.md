@@ -78,6 +78,8 @@
 - C 级指最多两个文件，且不碰契约、持久化、包边界、宿主面、profile 或云端；拿不准就升级。
 - 同一条用户消息里的 C 级修复合并为一个任务、一次构建、一次合入；不要一项开一个窗口。
 - 不得跳过 typecheck、定向用例或触及面的检查；只免除重复的全量运行、与改动无关的产物重建与 M3/C4。
+- **LCoder 单包快车道（不触碰上游文件）**：C 级（≤3 文件、包内局部）跑 `lcoder\scripts\fast-check.cmd -Specs <触及的 spec>` —— 单包 typecheck、`oxlint packages/lcoder`、定向 spec 与单包 rebuild；禁止整仓 build:artifacts、整仓 `pnpm typecheck`、整仓 `pnpm lint` 与全量 vitest。B 级（仅触及 `packages/lcoder/*` 且不改跨包公共契约）跑 `lcoder\scripts\fast-check.cmd` —— 触及子包 typecheck、oxlint、触及子包 vitest、单包 rebuild；改客户端词典时加 `verify-client-ui-i18n`。
+- **整仓门禁**（`build:artifacts` + `build:check` + 整仓 `pnpm typecheck`）仅在 A 级里程碑/发版前、触碰 `lcoder/contact-surface.txt` 中的上游文件、或修改跨包构建导出面时运行。
 
 ### 开工流程（A/B 类）
 
@@ -91,6 +93,7 @@
 - [ ] `pnpm typecheck` 全绿
 - [ ] `pnpm lint` 全绿
 - [ ] `pnpm exec vitest run packages/lcoder` 全绿；改上游共享面时跑全仓 `pnpm test`
+- [ ] 仅触及 LCoder 的改动走上面的单包快车道（`fast-check.cmd`），不跑整仓门禁；只有那里列出的 A 级/上游接触/导出面变更才要求整仓门禁
 - [ ] C 级按上面的快修通道执行：定向用例替代全量 `packages/lcoder` 运行
 - [ ] 文档或包 README 变更时 `pnpm run test:docs` 全绿
 - [ ] 开发证据：门禁命令输出记录在 `docs/tasks.yaml` 的任务 note 或提交说明；`.spec/evidence` 只服务产品任务
