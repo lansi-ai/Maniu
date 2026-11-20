@@ -53,6 +53,7 @@ async function browse(): Promise<void> {
 
 function typePath(value: string): void {
   const input = element('project-path') as HTMLInputElement
+  // oxlint-disable-next-line typescript/unbound-method -- 原生 value setter 要用 call 绑定到该输入框。
   const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
   act(() => {
     setter?.call(input, value)

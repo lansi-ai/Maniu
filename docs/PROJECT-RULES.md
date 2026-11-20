@@ -78,6 +78,8 @@ The grade matches the `grade` field in the development ledger `docs/tasks.yaml`.
 - C grade means at most two files and no contract, persistence, package boundary, host surface, profile, or cloud change. Grade up when in doubt.
 - Batch the C fixes from one user message into one task, one build, and one merge; do not open a window per item.
 - Never skip typecheck, targeted specs, or the check for the touched surface. Only duplicated full-suite runs, artifact rebuilds unrelated to the change, and M3/C4 are dropped.
+- **LCoder single-package fast lane (no upstream file touched):** grade C (≤3 files, local to one package) runs `lcoder\scripts\fast-check.cmd -Specs <touched spec>` — single-package typecheck, `oxlint packages/lcoder`, the targeted spec, and the single-package rebuild; full-repo build:artifacts, whole-repo `pnpm typecheck`, whole-repo `pnpm lint`, and full vitest are forbidden. Grade B (only `packages/lcoder/*`, no cross-package public contract change) runs `lcoder\scripts\fast-check.cmd` — touched-package typecheck, oxlint, touched-package vitest, single-package rebuild; add `verify-client-ui-i18n` when client dictionaries change.
+- **Full-repo gate** (`build:artifacts` + `build:check` + whole-repo `pnpm typecheck`) runs only before an A-grade milestone or release, when a file listed in `lcoder/contact-surface.txt` is touched, or when the cross-package build export surface changes.
 
 ### Start process (grades A/B)
 
@@ -91,6 +93,7 @@ The grade matches the `grade` field in the development ledger `docs/tasks.yaml`.
 - [ ] `pnpm typecheck` is green
 - [ ] `pnpm lint` is green
 - [ ] `pnpm exec vitest run packages/lcoder` is green; run the repository-wide `pnpm test` when an upstream shared surface changes
+- [ ] LCoder-only changes follow the single-package fast lane above (`fast-check.cmd`), not the full-repo gates; the full-repo gate is required only for the A-grade, upstream-contact, or export-surface cases listed there
 - [ ] Grade C follows the fast lane above: targeted specs replace the full `packages/lcoder` run
 - [ ] `pnpm run test:docs` is green when documents or package READMEs change
 - [ ] Development evidence: gate output is recorded in the `docs/tasks.yaml` task note or the commit message; `.spec/evidence` serves product tasks only
