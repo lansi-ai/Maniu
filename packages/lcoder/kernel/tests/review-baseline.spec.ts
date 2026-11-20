@@ -92,8 +92,8 @@ describe('评审正文基线', () => {
     // 正文未变 → 待处置评审仍拦重复评审。
     expect(reviewStaleReason(loadRequirement(spec, 'REQ-01'), { document: B1 })).toContain('上一轮评审后正文未改稿')
     patchRequirementDraft(spec, 'REQ-01', B1, B2)
-    // 正文已变 → 报告依据不再是当前正文，允许重新评审。
-    expect(reviewStaleReason(loadRequirement(spec, 'REQ-01'), { document: B2 })).toBeUndefined()
+    // 正文已变但最新轮仍待处置：送审即锁定，须先处置本轮意见，不能凭正文变化放行复评。
+    expect(reviewStaleReason(loadRequirement(spec, 'REQ-01'), { document: B2 })).toContain('尚未处理')
 
     // 已采纳但正文未改仍拦；已采纳且被 patch 改过则放行。
     const accepted = requirementOf(B1)

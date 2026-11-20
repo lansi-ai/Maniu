@@ -23,7 +23,7 @@ const DRAFT: RequirementDocRow = {
   state: 'draft',
   options: [],
   versions: [{ n: 1, at: '2026-11-17T09:00:00+08:00' }],
-  reviews: [{ round: 1, at: '2026-11-17T10:00:00+08:00', report: 'requirements/REQ-01/reviews/R1.md', decision: 'rejected' }],
+  reviews: [],
 }
 
 const CONFIRMED: RequirementDocRow = {
@@ -462,8 +462,10 @@ describe('在途操作并发互斥锁定', () => {
     h.render(projectionOf([reviewed]))
     await act(async () => { await Promise.resolve() })
     expect((element('requirement-op-review') as HTMLButtonElement).disabled).toBe(false)
-    expect((element('requirement-op-revise') as HTMLButtonElement).disabled).toBe(false)
+    // 新一轮已送审并被放弃：可复评可定稿，但送审即锁定，原地改稿仍不可用。
+    expect((element('requirement-op-revise') as HTMLButtonElement).disabled).toBe(true)
     expect((element('requirement-detail-review') as HTMLButtonElement).disabled).toBe(false)
+    expect((element('requirement-detail-revise') as HTMLButtonElement).disabled).toBe(true)
     expect((element('requirement-approve') as HTMLButtonElement).disabled).toBe(false)
     expect(element('requirement-op-locked-hint')).toBeNull()
   })

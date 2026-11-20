@@ -262,15 +262,23 @@ describe('评审轮次门禁', () => {
     expect(reviewStaleReason(requirementOf([], [{ round: 1, at: REVIEW_AT }]))).toContain('上一轮评审后正文未改稿')
   })
 
-  it('未决但正文已改稿时按原语义放行，按 n 与 round 取而不是按数组顺序', () => {
+  it('未决轮次即便正文已改稿也无条件拦截：送审即锁定，先处置再复评', () => {
     const fresh = requirementOf([{ n: 2, at: '2026-11-17T12:00:00+08:00' }], [{ round: 1, at: REVIEW_AT }])
-    expect(reviewStaleReason(fresh)).toBeUndefined()
-    // 最新版本（按 n 取）不晚于最新评审（按 round 取）就拦截
+    expect(reviewStaleReason(fresh)).toContain('R1')
+    expect(reviewStaleReason(fresh)).toContain('尚未处理')
+    // 显式 pending 与缺省同义。
+    const explicit = requirementOf(
+      [{ n: 2, at: '2026-11-17T12:00:00+08:00' }],
+      [{ round: 1, at: REVIEW_AT, decision: 'pending' }],
+    )
+    expect(reviewStaleReason(explicit)).toContain('尚未处理')
+    // 按 n 与 round 取最新版本与最新轮；最新的未决轮次决定拒绝原因。
     const stale = requirementOf(
       [{ n: 2, at: VERSION_AT }, { n: 1, at: '2026-11-17T12:00:00+08:00' }],
       [{ round: 2, at: REVIEW_AT }, { round: 1, at: '2026-11-17T09:00:00+08:00' }],
     )
-    expect(reviewStaleReason(stale)).toContain('上一轮评审后正文未改稿')
+    expect(reviewStaleReason(stale)).toContain('R2')
+    expect(reviewStaleReason(stale)).toContain('尚未处理')
   })
 
   it('放弃本轮意见后允许复评，不再看正文有没有改', () => {

@@ -262,14 +262,18 @@ describe('顶部操作栏的确认与改稿', () => {
     expect(element('requirement-report-baseline-changed')).toBeNull()
   })
 
-  it('顶部修改需求只请求打开说明输入框，不启动会话；待处置评审不挡它', async () => {
+  it('待处置评审送审即锁定：顶部修改需求禁用，改走报告里的采纳/放弃', async () => {
     const calls = callsOf()
     await renderDetail(REVIEWED, calls)
-    expect(element('requirement-detail-revise')).not.toBeNull()
+    const revise = element('requirement-detail-revise') as HTMLButtonElement
+    expect(revise).not.toBeNull()
+    expect(revise.disabled).toBe(true)
+    expect(revise.title).toContain('送审后已锁定')
     await press('requirement-detail-revise')
-    expect(calls.modifyRequest).toHaveBeenCalledTimes(1)
-    expect(calls.revise).toHaveBeenCalledTimes(0)
+    expect(calls.modifyRequest).not.toHaveBeenCalled()
+    expect(calls.revise).not.toHaveBeenCalled()
     expect(element('requirement-action-result')).toBeNull()
+    expect(element('requirement-review-pending-reason')?.textContent).toContain('R2 评审尚未处理')
   })
 })
 

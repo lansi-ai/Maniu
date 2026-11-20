@@ -262,13 +262,14 @@ describe('表格行内评审按钮接入共享门禁', () => {
     expect(h.started).toHaveLength(0)
   })
 
-  it('无流程配置时未决评审拦重复发起，正文改过之后放行', () => {
+  it('无流程配置时未决评审恒拦重复发起：送审即锁定，正文改过也不放行', () => {
     const h = harness()
     h.render(projectionOf([pending(1)]))
     const blocked = element('requirement-op-review') as HTMLButtonElement
     expect(blocked.disabled).toBe(true)
     expect(blocked.title).toContain('R1 评审尚未处理')
 
+    // 即便正文已改稿（新增晚于评审的版本），未决轮次仍无条件锁定，不放行新一轮。
     const revised: RequirementDocRow = {
       ...draftOf([pending(1)]),
       versions: [
@@ -277,6 +278,9 @@ describe('表格行内评审按钮接入共享门禁', () => {
       ],
     }
     h.render({ ...projectionOf([]), requirements: [revised] })
-    expect((element('requirement-op-review') as HTMLButtonElement).disabled).toBe(false)
+    const stillBlocked = element('requirement-op-review') as HTMLButtonElement
+    expect(stillBlocked.disabled).toBe(true)
+    expect(stillBlocked.title).toContain('R1 评审尚未处理')
+    expect(h.started).toHaveLength(0)
   })
 })
