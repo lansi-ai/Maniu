@@ -10,7 +10,7 @@ import type { SessionSummary } from '../store.ts'
 import type { ProposalRow, RequirementDocRow, RequirementReviewRow } from '../spec/rows.ts'
 import { requirementStateLabel } from '../spec/board.ts'
 import { hasIntakeWork } from '../intake/eligibility.ts'
-import { buildIntakeFollowupPrompt, buildManagerSplitPrompt, buildRequirementCreatePrompt, buildRequirementPatchPrompt, buildReviewPrompt, buildRevisePrompt, BUILTIN_SPLIT_TRACKS } from '../intake/prompts.ts'
+import { buildIntakeFollowupPrompt, buildManagerSplitPrompt, buildRequirementCreatePrompt, buildRequirementPatchPrompt, buildReviewPrompt, buildRevisePrompt, BUILTIN_SPLIT_TRACKS, type ReviewDecisions } from '../intake/prompts.ts'
 import { INTAKE_PRESET_ID, MANAGER_PRESET_ID, PM_PRESET_ID, REQUIREMENT_EDITOR_PRESET_ID } from '../talents/model.ts'
 import { entryRoot, flowNodeOf, flowRoleLabel, flowRoleSource, presetOfRole, presetRoot } from '../flow/config.ts'
 import { canModifyDraft, canReviewRequirement } from './requirement-gate.ts'
@@ -87,6 +87,8 @@ interface OpRun {
   readonly requirementId: string | null
   readonly roles: readonly string[]
   readonly auto: boolean
+  /** 改稿节点携带的用户逐条裁决；其它节点不带。 */
+  readonly decisions?: ReviewDecisions | undefined
 }
 
 /** 当前岗位的磁盘事实基线；完成判定只看投影相对基线的增量。 */
@@ -245,7 +247,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
     )
   }
 
-  const promptOf = (kind: OpKind, row: RequirementDocRow | null): string => {
+  const promptOf = (kind: OpKind, row: RequirementDocRow | null, decisions?: ReviewDecisions): string => {
     if (row === null) {
       return buildIntakeFollowupPrompt({ name: props.project?.title ?? '', path: props.project?.path ?? '' })
     }
@@ -254,7 +256,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
     if (kind === 'revise') {
       const sorted = [...row.reviews].sort((left, right) => left.round - right.round)
       const baseVersion = row.versions.reduce((max, version) => Math.max(max, version.n), 0) || 1
-      return buildRevisePrompt(requirement, row.text, sorted[sorted.length - 1]?.report, baseVersion)
+      return buildRevisePrompt(requirement, row.text, sorted[sorted.length - 1]?.report, baseVersion, decisions)
     }
     return splitPromptOf(row)
   }
@@ -290,7 +292,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
     setOpNotice(null)
     let answer: { readonly ok: boolean; readonly message: string; readonly sessionId?: string }
     try {
-      answer = await props.onStartSession(promptOf(run.kind, row), preset)
+      answer = await props.onStartSession(promptOf(run.kind, row, run.decisions), preset)
     } catch (cause: unknown) {
       const message = cause instanceof Error ? cause.message : String(cause)
       setOpNotice(message)
@@ -318,10 +320,14 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
     return answer
   }
 
-  const startNode = (kind: 'review' | 'revise' | 'split', row: RequirementDocRow): Promise<{ readonly ok: boolean; readonly message: string }> => {
+  const startNode = (
+    kind: 'review' | 'revise' | 'split',
+    row: RequirementDocRow,
+    decisions?: ReviewDecisions,
+  ): Promise<{ readonly ok: boolean; readonly message: string }> => {
     const node = flowNodeOf(flow, kind)
     return launchRole(
-      { key: `${kind}-${row.id}-${String(Date.now())}`, kind, requirementId: row.id, roles: node.roles, auto: node.auto },
+      { key: `${kind}-${row.id}-${String(Date.now())}`, kind, requirementId: row.id, roles: node.roles, auto: node.auto, decisions },
       0,
     )
   }
@@ -492,7 +498,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
   }
 
   const review = (row: RequirementDocRow) => startNode('review', row)
-  const revise = (row: RequirementDocRow) => startNode('revise', row)
+  const revise = (row: RequirementDocRow, decisions?: ReviewDecisions) => startNode('revise', row, decisions)
   const split = (row: RequirementDocRow) => startNode('split', row)
 
   // 完成判定以投影里的磁盘事实为准：评审见增轮（有配置时最新一轮署名根须等于当前条目根）、
@@ -1135,7 +1141,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
                   onReload={props.onReload}
                   onSplit={() => split(active)}
                   onReview={() => review(active)}
-                  onRevise={() => revise(active)}
+                  onRevise={decisions => revise(active, decisions)}
                   onModifyRequest={() => { openModify(active) }}
                   onCreateBased={() => createBased(active)}
                   onOpenTasks={() => { props.onOpenTasks(active.id) }}

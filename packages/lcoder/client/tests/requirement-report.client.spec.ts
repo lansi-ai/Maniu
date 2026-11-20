@@ -112,3 +112,67 @@ describe('parseReviewReport', () => {
     expect(parsed.todos[0]?.priority).toBeUndefined()
   })
 })
+
+describe('parseReviewReport 四要素与分类', () => {
+  const STRUCTURED = `## 摘要
+
+整体需要改。
+
+## 待改项
+
+### 文档完备性
+
+- **代发订单边界未写清**。位置：正文「范围」一节。问题：只写了普通订单的佣金规则。建议：补上代发订单不参与佣金。优先级：高
+
+### 合理性
+
+- 位置：验收口径。问题：异常返回码缺失。建议：补一条异常返回码。【中】
+
+需求角度
+- 位置：背景。建议：删掉无关的竞品对比。优先级：低`
+
+  it('拆出标题、位置、问题与建议，标题取开头加粗并去掉星号与优先级标记', () => {
+    const parsed = parseReviewReport(STRUCTURED)
+    expect(parsed.todos).toHaveLength(3)
+    const [first] = parsed.todos
+    expect(first?.title).toBe('代发订单边界未写清')
+    expect(first?.location).toBe('正文「范围」一节')
+    expect(first?.problem).toBe('只写了普通订单的佣金规则')
+    expect(first?.suggestion).toBe('补上代发订单不参与佣金')
+    expect(first?.priority).toBe('high')
+    expect(first?.text).toContain('优先级：高')
+  })
+
+  it('分类子标题写入 category 并延续到后续条目直到下一个分类', () => {
+    const parsed = parseReviewReport(STRUCTURED)
+    expect(parsed.todos.map(todo => todo.category)).toEqual(['文档完备性', '合理性', '需求角度'])
+  })
+
+  it('无加粗时用破折号前或第一句作标题，缺字段时留空串', () => {
+    const parsed = parseReviewReport(`## 待改项
+
+- 核心问题未点明——位置：标题。建议换短一点。优先级：中
+- 位置：验收。建议补异常码。`)
+    const [first, second] = parsed.todos
+    expect(first?.title).toBe('核心问题未点明')
+    expect(first?.location).toBe('标题')
+    expect(first?.suggestion).toBe('换短一点')
+    expect(first?.problem).toBe('')
+    expect(second?.title).toBe('验收')
+    expect(second?.category).toBeUndefined()
+  })
+
+  it('旧格式仍产出非空 title，并向后续条目延续分类', () => {
+    const parsed = parseReviewReport(`## 待改项
+
+文档完备性
+- 位置：正文「范围」一节。建议写清代发订单不参与。优先级：高
+- 位置：验收口径。建议补一条异常返回码。
+  续行：说明重试次数。【中】`)
+    expect(parsed.todos).toHaveLength(2)
+    expect(parsed.todos.every(todo => todo.category === '文档完备性')).toBe(true)
+    expect(parsed.todos[0]?.title).toBe('正文「范围」一节')
+    expect(parsed.todos[0]?.text).not.toContain('续行：说明重试次数')
+    expect(parsed.todos[1]?.text).toContain('续行：说明重试次数')
+  })
+})

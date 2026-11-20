@@ -617,6 +617,86 @@
 .requirement-report-history .link-button { font-size: 12px; }
 .requirement-report-history .time { color: var(--muted); font-size: 11px; margin-left: 6px; }
 
+/* 结构化评审视图：摘要条、筛选/批量工具栏、单行紧凑表与行内详情。 */
+.review-report-topbar { display: flex; justify-content: flex-end; margin: 2px 0 6px; }
+.review-markdown-toggle { font-size: 12px; }
+.review-summary-bar {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--separator);
+  border-radius: 10px;
+  background: var(--surface-secondary);
+  font-size: 13px;
+}
+.review-summary-label { flex: 0 0 auto; color: var(--muted); font-weight: 600; }
+.review-summary-text { min-width: 0; line-height: 1.5; }
+.review-todo-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 10px 0 6px;
+}
+.review-filter-pills, .review-batch-actions, .verdict-group { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.review-pill {
+  padding: 3px 10px;
+  border: 1px solid var(--separator);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+.review-pill:hover { border-color: var(--accent); color: var(--foreground); }
+.review-pill.is-active { border-color: var(--accent); background: var(--accent-soft); color: var(--foreground); font-weight: 600; }
+.review-batch-actions .link-button { font-size: 12px; }
+.review-todo-wrap { overflow-x: auto; }
+.review-todo-table { table-layout: fixed; min-width: 640px; }
+.review-todo-table th:nth-child(1) { width: 128px; }
+.review-todo-table th:nth-child(2) { width: auto; }
+.review-todo-table th:nth-child(3) { width: 156px; }
+.review-todo-table th:nth-child(4) { width: 208px; }
+.review-todo-table tbody tr.review-todo-row { cursor: pointer; }
+.review-todo-table td {
+  height: 34px;
+  padding: 6px 8px;
+  line-height: 20px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+.review-todo-level { white-space: nowrap !important; }
+.review-todo-priority { margin-right: 4px; }
+.review-todo-category { color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; }
+.review-todo-title-inner { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.review-todo-title strong { overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+.review-todo-arrow { flex: 0 0 auto; color: var(--muted); font-size: 11px; }
+.review-todo-location { color: var(--muted); }
+.review-todo-verdict { cursor: default; }
+.verdict-button {
+  padding: 2px 7px;
+  border: 1px solid var(--separator);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+.verdict-button:hover { border-color: var(--accent); }
+.verdict-button.is-active { border-color: var(--accent); background: var(--accent-soft); color: var(--foreground); font-weight: 600; }
+.review-todo-row.is-rejected { opacity: 0.5; }
+.todo-detail-row > td { height: auto; padding: 10px 12px; white-space: normal; background: var(--surface-secondary); }
+.todo-detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 16px; }
+.todo-detail-block h6 { margin: 0 0 4px; font-size: 12px; color: var(--muted); }
+.todo-detail-block p { margin: 0; font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
+.todo-detail-suggestion { padding: 8px 10px; border-radius: 8px; background: color-mix(in oklab, var(--success) 12%, var(--surface)); }
+.todo-detail-note { grid-column: 1 / -1; }
+.todo-detail-note textarea { width: 100%; resize: vertical; box-sizing: border-box; font: inherit; font-size: 13px; }
+
 @media (max-width: 700px) {
   .detail-drawer { width: min(560px, 92vw); }
   .requirement-detail-main { flex-direction: column; }

@@ -1,6 +1,6 @@
 /** 需求详情：单行头部 + 文档 Tab 栏 + 当前文档专属操作栏 + 正文阅读区；关联任务在阅读区之后，阶段 chips 只保留 DOM。 */
 
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import type { JSX } from 'react'
 import { Button, Chip, Separator } from '@heroui/react'
 import { RotateCw, Sparkles } from 'lucide-react'
@@ -15,7 +15,8 @@ import { runCommand, type CommandOutcome } from '../commands/run.ts'
 import { canApproveRequirement, canModifyDraft, canReviewRequirement, type ModifyBlockReason } from './requirement-gate.ts'
 import { renderMarkdown } from '../markdown/markdown.tsx'
 import { translate, type MessageKey, type Translate } from '../locale.ts'
-import { formatTimestamp } from './requirement-report.ts'
+import { formatTimestamp, parseReviewReport, type ReviewPriority, type ReviewTodo } from './requirement-report.ts'
+import type { ReviewDecisions } from '../intake/prompts.ts'
 import { DetailDrawer } from './detail-drawer.tsx'
 import { ProposalDiff } from './proposal-compare.tsx'
 
@@ -35,6 +36,54 @@ type ReviewPhase = 'unreviewed' | ReviewDecision
 
 function decisionOf(review: RequirementReviewRow): ReviewDecision {
   return review.decision === 'accepted' || review.decision === 'rejected' ? review.decision : 'pending'
+}
+
+/** 待改项逐条裁决：默认采纳，拒绝行弱化，有疑问需填写说明。 */
+type TodoVerdict = 'accept' | 'reject' | 'question'
+
+/** 优先级筛选胶囊的取值；`all` 不过滤。 */
+type PriorityFilter = 'all' | ReviewPriority
+
+/** 逐条裁决的界面状态，按待改项在报告里的下标索引。 */
+interface TodoVerdictState {
+  readonly verdicts: Readonly<Record<number, TodoVerdict>>
+  readonly notes: Readonly<Record<number, string>>
+  readonly expanded: number | null
+}
+
+const EMPTY_VERDICTS: TodoVerdictState = { verdicts: {}, notes: {}, expanded: null }
+
+/** 优先级徽标的语义色；未标注用中性色。 */
+const PRIORITY_COLOR: Readonly<Record<ReviewPriority | 'none', 'warning' | 'accent' | 'success' | 'default'>> = {
+  high: 'warning',
+  medium: 'accent',
+  low: 'success',
+  none: 'default',
+}
+
+/** 优先级徽标文案的词典键；未标注也给出可读文本。 */
+function priorityLabelKey(priority: ReviewPriority | undefined): MessageKey {
+  return priority === 'high'
+    ? 'requirement.todoPriorityHigh'
+    : priority === 'medium'
+      ? 'requirement.todoPriorityMedium'
+      : priority === 'low'
+        ? 'requirement.todoPriorityLow'
+        : 'requirement.todoPriorityNone'
+}
+
+/** 优先级筛选胶囊的词典键。 */
+const FILTER_KEY: Readonly<Record<Exclude<PriorityFilter, 'all'>, MessageKey>> = {
+  high: 'requirement.reviewFilter.high',
+  medium: 'requirement.reviewFilter.medium',
+  low: 'requirement.reviewFilter.low',
+}
+
+/** 三态裁决按钮的词典键。 */
+const VERDICT_KEY: Readonly<Record<TodoVerdict, MessageKey>> = {
+  accept: 'requirement.reviewVerdict.accept',
+  reject: 'requirement.reviewVerdict.reject',
+  question: 'requirement.reviewVerdict.question',
 }
 
 const DECISION_CHIP_COLOR: Readonly<Record<ReviewDecision, 'warning' | 'success' | 'default'>> = {
@@ -156,8 +205,8 @@ export interface RequirementDetailProps {
   readonly onSplit: () => Promise<{ readonly ok: boolean; readonly message: string }>
   /** 发起评审节点；由需求页按流程配置逐岗推进。 */
   readonly onReview: () => Promise<{ readonly ok: boolean; readonly message: string }>
-  /** 发送采纳评审意见后的改稿指令；报告卡「采纳意见并修改需求」走它。 */
-  readonly onRevise: () => Promise<{ readonly ok: boolean; readonly message: string }>
+  /** 发送采纳评审意见后的改稿指令；报告表主动作带上用户逐条裁决。 */
+  readonly onRevise: (decisions?: ReviewDecisions) => Promise<{ readonly ok: boolean; readonly message: string }>
   /** 顶部「修改需求」只请求打开修改说明输入框，不启动会话、不写数据。 */
   readonly onModifyRequest: () => void
   /** 基于此版本新建需求提案；确认态与终态的改动通道，后台发起不跳转。 */
@@ -200,12 +249,19 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
   const row = props.row
   const modify = props.modify ?? CLOSED_MODIFY
   const noteRef = useRef<HTMLTextAreaElement>(null)
+  const todoNoteRef = useRef<HTMLTextAreaElement>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [result, setResult] = useState<CommandOutcome | null>(null)
   const [ignored, setIgnored] = useState<ReadonlySet<string>>(() => new Set())
   const [assigns, setAssigns] = useState<Readonly<Record<string, CommandOutcome>>>({})
   /** 独立文档栏的用户选择；未选择时按阶段派生默认标签（待处置联动最新评审报告）。 */
   const [docOverride, setDocOverride] = useState<string | null>(null)
+  /** 报告 Markdown 原文默认隐藏，只有结构化视图无法表达时才展开。 */
+  const [showRawMarkdown, setShowRawMarkdown] = useState(false)
+  /** 待改项逐条裁决与展开行；切换报告时重置。 */
+  const [reviewUi, setReviewUi] = useState<TodoVerdictState>(EMPTY_VERDICTS)
+  /** 优先级筛选；默认全部。 */
+  const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>('all')
   const related = props.projection.tasks.filter(task => task.requirement === row.id || task.proposal === row.id)
 
   // 在途后台操作与本地发起共用同一把互斥锁；查看差异不在锁内，供 patch 待裁决阶段对比。
@@ -262,6 +318,13 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
       })
     return () => { disposed = true }
   }, [reportPath, props.project.scopeSessionId])
+
+  // 切换报告轮次时清空逐条裁决、展开行与筛选，避免把上一轮的勾选带到新一轮。
+  useEffect(() => {
+    setReviewUi(EMPTY_VERDICTS)
+    setShowRawMarkdown(false)
+    setPriorityFilter('all')
+  }, [reportPath])
 
   // 版本快照正文与阅读器走同一条宿主文件通道；切到某个版本标签才读取该版本。
   useEffect(() => {
@@ -342,13 +405,22 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
     }
   }
 
-  /** 后台发起一类操作：结果落回执条，忙碌期间不叠加第二次发起。 */
-  const startOp = async (kind: string, run: () => Promise<{ readonly ok: boolean; readonly message: string }>): Promise<void> => {
+  /**
+   * 后台发起一类操作：结果落回执条，忙碌期间不叠加第二次发起。
+   * @param kind - 操作标识，用于互斥锁。
+   * @param run - 实际发起函数；可接收随操作透传的参数（改稿的逐条裁决）。
+   * @param arg - 透传给 run 的参数；零参操作省略。
+   */
+  const startOp = async <T,>(
+    kind: string,
+    run: (arg?: T) => Promise<{ readonly ok: boolean; readonly message: string }>,
+    arg?: T,
+  ): Promise<void> => {
     if (busy !== null) return
     setBusy(kind)
     setResult(null)
     try {
-      const answer = await run()
+      const answer = await run(arg)
       setResult({ ok: answer.ok, text: answer.message })
     } finally {
       setBusy(null)
@@ -466,6 +538,55 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
   const activeReport = reportPath !== null && report.status !== 'loading' && report.path === reportPath
     ? report
     : undefined
+  const parsedReport = activeReport?.status === 'ready' ? parseReviewReport(activeReport.text) : undefined
+  const todos: readonly ReviewTodo[] = parsedReport?.todos ?? []
+  const hasTodos = todos.length > 0
+
+  const verdictOf = (index: number): TodoVerdict => reviewUi.verdicts[index] ?? 'accept'
+
+  /** 按当前勾选汇总裁决；采纳项的补充改法直接拼进条目文本。 */
+  const decisions: ReviewDecisions = {
+    accepted: todos.flatMap((todo, index) => {
+      if (verdictOf(index) !== 'accept') return []
+      const note = (reviewUi.notes[index] ?? '').trim()
+      return [`${todo.title}${note === '' ? '' : `（补充改法：${note}）`}`]
+    }),
+    questioned: todos.flatMap((todo, index) => verdictOf(index) === 'question'
+      ? [{ item: todo.title, question: (reviewUi.notes[index] ?? '').trim() }]
+      : []),
+    rejected: todos.flatMap((todo, index) => verdictOf(index) === 'reject' ? [todo.title] : []),
+  }
+  const hasEmptyQuestion = decisions.questioned.some(entry => entry.question === '')
+  const canAccept = decisions.accepted.length + decisions.questioned.length > 0 && !hasEmptyQuestion
+
+  const countByPriority = (priority: ReviewPriority | 'all'): number => priority === 'all'
+    ? todos.length
+    : todos.filter(todo => todo.priority === priority).length
+  const visibleTodos = todos
+    .map((todo, index) => ({ todo, index }))
+    .filter(({ todo }) => priorityFilter === 'all' || todo.priority === priorityFilter)
+
+  const setVerdict = (index: number, verdict: TodoVerdict): void => {
+    setReviewUi(current => ({ ...current, verdicts: { ...current.verdicts, [index]: verdict } }))
+  }
+  const setNote = (index: number, note: string): void => {
+    setReviewUi(current => ({ ...current, notes: { ...current.notes, [index]: note } }))
+  }
+  const toggleExpanded = (index: number): void => {
+    setReviewUi(current => ({ ...current, expanded: current.expanded === index ? null : index }))
+  }
+  const batchVerdict = (verdictFor: (todo: ReviewTodo) => TodoVerdict): void => {
+    const verdicts: Record<number, TodoVerdict> = {}
+    todos.forEach((todo, index) => { verdicts[index] = verdictFor(todo) })
+    setReviewUi(current => ({ ...current, verdicts, expanded: null }))
+  }
+
+  // 切到「有疑问」时把焦点交给说明输入框，省去再点一次。
+  useEffect(() => {
+    const index = reviewUi.expanded
+    if (index === null || verdictOf(index) !== 'question') return
+    todoNoteRef.current?.focus()
+  }, [reviewUi.expanded, reviewUi.verdicts])
 
   return (
     <>
@@ -727,11 +848,25 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                           variant="primary"
                           size="sm"
                           data-testid="requirement-review-accept"
-                          isDisabled={locked}
-                          ref={(node) => { if (node !== null) node.title = lockedHint ?? t('requirement.reviewAcceptTitle') }}
-                          onPress={() => { void startOp('reviewAccept', props.onRevise) }}
+                          data-accepted={decisions.accepted.length}
+                          data-questioned={decisions.questioned.length}
+                          data-rejected={decisions.rejected.length}
+                          isDisabled={locked || !canAccept}
+                          ref={(node) => {
+                            if (node === null) return
+                            node.title = lockedHint ?? (!canAccept
+                              ? hasEmptyQuestion
+                                ? t('requirement.reviewAcceptQuestionRequired')
+                                : t('requirement.reviewAcceptDisabledTitle')
+                              : t('requirement.reviewAcceptTitle'))
+                          }}
+                          onPress={() => { void startOp('reviewAccept', props.onRevise, decisions) }}
                         >
-                          {t('requirement.reviewAccept')}
+                          {t('requirement.reviewAcceptAction', {
+                            accepted: decisions.accepted.length,
+                            questioned: decisions.questioned.length,
+                            rejected: decisions.rejected.length,
+                          })}
                         </Button>
                         <Button
                           variant="secondary"
@@ -741,7 +876,7 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                           ref={(node) => { if (node !== null) node.title = lockedHint ?? t('requirement.reviewRejectTitle') }}
                           onPress={() => { void execute('reviewReject', `/requirement_review_decide ${row.id} ${activeReview.round} rejected`) }}
                         >
-                          {t('requirement.reviewReject')}
+                          {t('requirement.reviewRejectAction')}
                         </Button>
                       </div>
                     )
@@ -848,9 +983,191 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                         </p>
                       )}
                       {activeReport?.status === 'ready' && (
-                        <div className="markdown-body document-body" data-testid="requirement-report-body">
-                          {renderMarkdown(activeReport.text)}
-                        </div>
+                        <>
+                          {hasTodos && (
+                            <div className="review-report-topbar">
+                              <button
+                                type="button"
+                                className="link-button review-markdown-toggle"
+                                data-testid="requirement-report-markdown-toggle"
+                                onClick={() => { setShowRawMarkdown(current => !current) }}
+                              >
+                                {showRawMarkdown
+                                  ? t('requirement.reviewMarkdownHide')
+                                  : t('requirement.reviewMarkdownShow')}
+                              </button>
+                            </div>
+                          )}
+                          {hasTodos && !showRawMarkdown
+                            ? (
+                              <>
+                                <div className="review-summary-bar" data-testid="requirement-review-summary-bar">
+                                  <span className="review-summary-label">{t('requirement.reviewSummaryLabel')}</span>
+                                  <span className="review-summary-text">
+                                    {parsedReport?.summary === '' ? t('requirement.reviewSummaryEmpty') : parsedReport?.summary}
+                                  </span>
+                                </div>
+                                <div className="review-todo-toolbar" data-testid="requirement-review-toolbar">
+                                  <div className="review-filter-pills" role="group" aria-label={t('requirement.reviewFilterLabel')}>
+                                    {(['all', 'high', 'medium', 'low'] as const).map(priority => (
+                                      <button
+                                        key={priority}
+                                        type="button"
+                                        className={`review-pill${priorityFilter === priority ? ' is-active' : ''}`}
+                                        data-testid="requirement-review-filter"
+                                        data-priority={priority}
+                                        aria-pressed={priorityFilter === priority}
+                                        onClick={() => { setPriorityFilter(priority) }}
+                                      >
+                                        {priority === 'all'
+                                          ? t('requirement.reviewFilterAll', { count: countByPriority('all') })
+                                          : t(FILTER_KEY[priority], { count: countByPriority(priority) })}
+                                      </button>
+                                    ))}
+                                  </div>
+                                  <div className="review-batch-actions" role="group" aria-label={t('requirement.reviewBatchLabel')}>
+                                    <button
+                                      type="button"
+                                      className="link-button"
+                                      data-testid="requirement-review-batch"
+                                      data-action="allAccept"
+                                      onClick={() => { batchVerdict(() => 'accept') }}
+                                    >
+                                      {t('requirement.reviewBatchAllAccept')}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="link-button"
+                                      data-testid="requirement-review-batch"
+                                      data-action="highOnly"
+                                      onClick={() => { batchVerdict(todo => todo.priority === 'high' ? 'accept' : 'reject') }}
+                                    >
+                                      {t('requirement.reviewBatchHighOnly')}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="link-button"
+                                      data-testid="requirement-review-batch"
+                                      data-action="allReject"
+                                      onClick={() => { batchVerdict(() => 'reject') }}
+                                    >
+                                      {t('requirement.reviewBatchAllReject')}
+                                    </button>
+                                  </div>
+                                </div>
+                                <div className="table-wrap review-todo-wrap" data-testid="requirement-review-todos">
+                                  <table className="data-table review-todo-table">
+                                    <thead>
+                                      <tr>
+                                        <th scope="col">{t('requirement.reviewColLevel')}</th>
+                                        <th scope="col">{t('requirement.reviewColIssue')}</th>
+                                        <th scope="col">{t('requirement.reviewColLocation')}</th>
+                                        <th scope="col">{t('requirement.reviewColVerdict')}</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {visibleTodos.map(({ todo, index }) => {
+                                        const verdict = verdictOf(index)
+                                        const expanded = reviewUi.expanded === index
+                                        return (
+                                          <Fragment key={index}>
+                                            <tr
+                                              className={`review-todo-row${verdict === 'reject' ? ' is-rejected' : ''}`}
+                                              data-testid="requirement-review-todo-row"
+                                              data-index={index}
+                                              data-verdict={verdict}
+                                              onClick={() => { toggleExpanded(index) }}
+                                            >
+                                              <td className="review-todo-level">
+                                                <Chip
+                                                  size="sm"
+                                                  variant="soft"
+                                                  color={PRIORITY_COLOR[todo.priority ?? 'none']}
+                                                  className="tag review-todo-priority"
+                                                >
+                                                  {t(priorityLabelKey(todo.priority))}
+                                                </Chip>
+                                                {todo.category !== undefined && (
+                                                  <span className="review-todo-category">{todo.category}</span>
+                                                )}
+                                              </td>
+                                              <td className="review-todo-title">
+                                                <span className="review-todo-title-inner">
+                                                  <span className="review-todo-arrow" aria-hidden="true">{expanded ? '▾' : '▸'}</span>
+                                                  <strong>{todo.title}</strong>
+                                                </span>
+                                              </td>
+                                              <td className="review-todo-location" title={todo.location}>{todo.location || '—'}</td>
+                                              <td className="review-todo-verdict" onClick={(event) => { event.stopPropagation() }}>
+                                                <div className="verdict-group" role="group" aria-label={t('requirement.reviewVerdictLabel')}>
+                                                  {(['accept', 'reject', 'question'] as const).map(option => (
+                                                    <button
+                                                      key={option}
+                                                      type="button"
+                                                      className={`verdict-button${verdict === option ? ' is-active' : ''}`}
+                                                      data-testid="requirement-review-todo-verdict"
+                                                      data-index={index}
+                                                      data-verdict={option}
+                                                      aria-pressed={verdict === option}
+                                                      onClick={() => {
+                                                        setVerdict(index, option)
+                                                        if (option === 'question') setReviewUi(current => ({ ...current, expanded: index }))
+                                                      }}
+                                                    >
+                                                      {t(VERDICT_KEY[option])}
+                                                    </button>
+                                                  ))}
+                                                </div>
+                                              </td>
+                                            </tr>
+                                            {expanded && (
+                                              <tr className="todo-detail-row" data-testid="requirement-review-todo-detail" data-index={index}>
+                                                <td colSpan={4}>
+                                                  <div className="todo-detail-grid">
+                                                    <section className="todo-detail-block">
+                                                      <h6>{t('requirement.reviewTodoLocation')}</h6>
+                                                      <p>{todo.location || '—'}</p>
+                                                    </section>
+                                                    <section className="todo-detail-block">
+                                                      <h6>{t('requirement.reviewTodoProblem')}</h6>
+                                                      <p>{todo.problem || '—'}</p>
+                                                    </section>
+                                                    <section className="todo-detail-block todo-detail-suggestion">
+                                                      <h6>{t('requirement.reviewTodoSuggestion')}</h6>
+                                                      <p>{todo.suggestion || '—'}</p>
+                                                    </section>
+                                                    <section className="todo-detail-block todo-detail-note">
+                                                      <h6>{t('requirement.reviewTodoNote')}</h6>
+                                                      <textarea
+                                                        ref={index === reviewUi.expanded ? todoNoteRef : undefined}
+                                                        data-testid="requirement-review-todo-note"
+                                                        data-index={index}
+                                                        value={reviewUi.notes[index] ?? ''}
+                                                        rows={3}
+                                                        placeholder={verdict === 'question'
+                                                          ? t('requirement.reviewTodoQuestionPlaceholder')
+                                                          : t('requirement.reviewTodoNotePlaceholder')}
+                                                        onChange={(event) => { setNote(index, event.target.value) }}
+                                                      />
+                                                    </section>
+                                                  </div>
+                                                </td>
+                                              </tr>
+                                            )}
+                                          </Fragment>
+                                        )
+                                      })}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </>
+                            )
+                            : (
+                              <div className="markdown-body document-body" data-testid="requirement-report-body">
+                                {renderMarkdown(activeReport.text)}
+                              </div>
+                            )}
+                        </>
                       )}
                       {historyReviews.length > 0 && (
                         <ul className="requirement-report-history plain-list compact">

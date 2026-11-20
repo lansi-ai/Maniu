@@ -211,14 +211,36 @@ ${body}
 }
 
 /**
+ * 用户对逐条评审意见的裁决；由评审报告的紧凑表格逐条收集，随改稿指令传给 AI。
+ *
+ * 三数组都按报告里的条目文本记录：`accepted` 含用户补充改法时直接拼进条目文本，
+ * `questioned` 的 `question` 是用户填写的疑问或指定改法。
+ */
+export interface ReviewDecisions {
+  readonly accepted: readonly string[]
+  readonly questioned: readonly { readonly item: string; readonly question: string }[]
+  readonly rejected: readonly string[]
+}
+
+/** 把一组条目文本编号成清单；空组回退成一句「无」。 */
+function decisionList(items: readonly string[]): string {
+  return items.length === 0
+    ? '无。'
+    : items.map((item, index) => `${String(index + 1)}. ${item}`).join('\n')
+}
+
+/**
  * 生成需求改稿提示词：分析-文档-确认-落版四步，改稿直接写下一个版本。
  *
  * 基线是当前正文与最近评审报告；需求分析师用 `requirement_revise` 把完整新正文写成
  * 新版本，内核自动保留历史版本快照并把未决评审闭环，无需人再对比确认。
+ * 传入 `decisions` 时，AI 只处理用户勾选采纳与有疑问的条目，被拒条目正文原样保留；
+ * 有疑问时先逐条用 ask_user_question 解释并征询方案，等用户确认后才进入改稿。
  * @param requirement - 需求编号与标题。
  * @param document - 当前需求正文。
  * @param reviewReport - 最近一份评审报告相对 `.spec` 的路径。
  * @param baseVersion - 当前正文的版本号；旧需求没有版本表时按 1。
+ * @param decisions - 可选的用户逐条裁决；不传时行为与旧版一致。
  * @returns 可直接发送给需求分析师会话的提示词。
  */
 export function buildRevisePrompt(
@@ -226,19 +248,38 @@ export function buildRevisePrompt(
   document: string,
   reviewReport?: string,
   baseVersion = 1,
+  decisions?: ReviewDecisions,
 ): string {
   const body = bodyOf(document)
   const report = reviewReport === undefined || reviewReport.trim() === ''
     ? '这条需求还没有评审报告：按正文自身的问题做必要修订，不要编造评审意见。'
     : `最近一份评审报告：.spec/${reviewReport.replace(/^\.?[\\/]/, '').replace(/^\.spec[\\/]/, '')}`
+  const decisionBlock = decisions === undefined
+    ? ''
+    : `
+【用户对逐条评审意见的裁决】
+只处理下面列出的条目，不要自行重新解释或扩大范围；评审报告里未列出的意见不主动新增改动。
+用户确认采纳的条目（含补充改法）：
+${decisionList(decisions.accepted)}
+用户明确拒绝、禁止修改的条目（这些条目的正文必须原样保留，一个字都不要改）：
+${decisionList(decisions.rejected)}
+用户有疑问的条目：
+${decisions.questioned.length === 0
+  ? '无。'
+  : decisions.questioned.map((entry, index) => `${String(index + 1)}. 条目：${entry.item}\n   用户疑问：${entry.question}`).join('\n')}
+`
+  const questionStep = decisions !== undefined && decisions.questioned.length > 0
+    ? `第零步（先于下面四步，必须最先做）：用 ask_user_question 针对上面每一条疑问逐一给出解释和可选方案，一次只问一条，选项至少覆盖「维持原样」「按评审建议改」「按用户指定改法改」；等用户确认是否修改以及怎么改之后，才进入下面的四步。用户未确认前不得调用 requirement_revise 落版。
+`
+    : ''
   return `需求改稿：请修订需求 ${requirement.id}（${requirement.title}）的正文，直接写入新版本 v${String(baseVersion + 1)}。
 
 执行身份：你是这条需求的需求分析师。
 ${report}
 基线：当前正文（附在末尾）与最近评审报告；当前正文版本号是 v${String(baseVersion)}。
-
+${decisionBlock}
 按四步走：
-第一步，需求层分析：用 file_read 读评审报告，逐条处理其中的意见；结合当前正文分析与现有需求的冲突/重复、影响面大小，给出优先级建议。只做需求层分析，明确禁止代码层判断：不评估技术实现方案，不给代码结论。
+${questionStep}第一步，需求层分析：用 file_read 读评审报告，逐条处理其中的意见；结合当前正文分析与现有需求的冲突/重复、影响面大小，给出优先级建议。只做需求层分析，明确禁止代码层判断：不评估技术实现方案，不给代码结论。
 第二步，按需求大小出文档：小改动出短文档（目标、范围、验收几条即可），大改动出完整文档；保留用户已确认的内容，被评审否定的部分要改，并在正文里回应评审意见；需要收缩范围时写明理由。
 第三步，用 ask_user_question 请用户确认文档方向，一次只问一个问题；用户确认后才进入下一步。
 第四步，确认后调用 requirement_revise：id 为 ${requirement.id}，content 是完整新正文（不是差异片段）；内核会把正文记为下一个版本，自动保留历史快照并闭环未决评审。

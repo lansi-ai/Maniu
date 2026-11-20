@@ -190,6 +190,44 @@ describe('需求改稿提示词（直出新版本）', () => {
     expect(prompt).toContain('直接写入新版本 v2')
     expect(prompt).not.toContain('mode 为 revise')
   })
+
+  it('不传裁决时提示词与旧版一致，不含裁决小节', () => {
+    const plain = buildRevisePrompt({ id: 'REQ-01', title: '需求' }, '正文', 'r.md', 2)
+    expect(plain).not.toContain('用户对逐条评审意见的裁决')
+    expect(plain).not.toContain('第零步')
+  })
+
+  it('带裁决时列出采纳与禁止修改条目，补充改法随条目进入提示词', () => {
+    const prompt = buildRevisePrompt({ id: 'REQ-01', title: '需求' }, '正文', 'r.md', 2, {
+      accepted: ['补上代发订单不参与佣金（补充改法：用表格列清）', '删掉竞品对比'],
+      questioned: [],
+      rejected: ['改标题措辞'],
+    })
+    expect(prompt).toContain('用户对逐条评审意见的裁决')
+    expect(prompt).toContain('用户确认采纳的条目（含补充改法）')
+    expect(prompt).toContain('1. 补上代发订单不参与佣金（补充改法：用表格列清）')
+    expect(prompt).toContain('2. 删掉竞品对比')
+    expect(prompt).toContain('用户明确拒绝、禁止修改的条目')
+    expect(prompt).toContain('正文必须原样保留')
+    expect(prompt).toContain('1. 改标题措辞')
+    expect(prompt).not.toContain('第零步')
+  })
+
+  it('有疑问时要求第一步逐条 ask_user_question 解释并给方案，等确认后才改稿', () => {
+    const prompt = buildRevisePrompt({ id: 'REQ-01', title: '需求' }, '正文', 'r.md', 2, {
+      accepted: [],
+      questioned: [{ item: '异常返回码', question: '是否真的要加 500 的返回码？' }],
+      rejected: [],
+    })
+    expect(prompt).toContain('第零步（先于下面四步，必须最先做）')
+    expect(prompt).toContain('ask_user_question')
+    expect(prompt).toContain('维持原样')
+    expect(prompt).toContain('按评审建议改')
+    expect(prompt).toContain('按用户指定改法改')
+    expect(prompt).toContain('用户未确认前不得调用 requirement_revise 落版')
+    expect(prompt).toContain('条目：异常返回码')
+    expect(prompt).toContain('用户疑问：是否真的要加 500 的返回码？')
+  })
 })
 
 describe('内置角色人设源', () => {
