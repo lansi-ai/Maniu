@@ -37,11 +37,27 @@
   :root {
     --app-font: -apple-system, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
 
-    /* T-293 中性 Glass 表面：浅色。纯净中性，不含任何紫色调。 */
-    --glass-surface: rgba(255, 255, 255, 0.72);
-    --glass-surface-elevated: rgba(255, 255, 255, 0.86);
-    --glass-border: rgba(0, 0, 0, 0.06);
+    /* T-294 中性 Glass 与环境光：浅色。纯净中性，不含任何紫色调。 */
+    --glass-shell: rgba(255, 255, 255, 0.52);
+    --glass-surface: rgba(255, 255, 255, 0.62);
+    --glass-surface-elevated: rgba(255, 255, 255, 0.88);
+    --glass-border: rgba(255, 255, 255, 0.65);
+    --glass-outline: rgba(15, 23, 42, 0.06);
     --glass-divider: rgba(0, 0, 0, 0.06);
+    --glass-card-shadow: 0 1px 0 0 var(--glass-border) inset, 0 8px 24px -12px rgba(15, 23, 42, 0.08);
+    --glass-shell-shadow: 0 1px 0 0 var(--glass-border) inset, 0 20px 48px -20px rgba(15, 23, 42, 0.12);
+    --glass-nav-active: rgba(15, 23, 42, 0.06);
+    --glass-nav-hover: rgba(15, 23, 42, 0.03);
+    --glass-slot: rgba(15, 23, 42, 0.04);
+    --glass-slot-active-bg: #ffffff;
+    --glass-slot-active-fg: #09090b;
+    --glass-slot-active-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    --glass-inset-soft: rgba(15, 23, 42, 0.03);
+    --ambient-bg-color: #f3f4f6;
+    --ambient-bg-image:
+      radial-gradient(at 8% 35%, rgba(251, 146, 60, 0.22) 0px, transparent 52%),
+      radial-gradient(at 88% 18%, rgba(148, 163, 184, 0.25) 0px, transparent 55%),
+      radial-gradient(at 82% 82%, rgba(253, 186, 116, 0.16) 0px, transparent 50%);
     --primary-pill-bg: #18181b;
     --primary-pill-fg: #ffffff;
     --primary-pill-hover: #27272a;
@@ -51,13 +67,27 @@
     --app-font: 'Inter Variable', Inter, 'Segoe UI Variable Text', 'Segoe UI', 'Microsoft YaHei', system-ui, sans-serif;
   }
 
-  /* T-293 中性 Glass 表面：深色。与 HeroUI 的 .dark / data-theme 选择器保持一致。 */
+  /* T-294 中性 Glass 与环境光：深色。与 HeroUI 的 .dark / data-theme 选择器保持一致。 */
   .dark,
   [data-theme="dark"] {
-    --glass-surface: rgba(24, 24, 27, 0.60);
-    --glass-surface-elevated: rgba(39, 39, 42, 0.72);
+    --glass-shell: rgba(24, 24, 27, 0.52);
+    --glass-surface: rgba(24, 24, 27, 0.58);
+    --glass-surface-elevated: rgba(39, 39, 42, 0.78);
     --glass-border: rgba(255, 255, 255, 0.10);
+    --glass-outline: rgba(255, 255, 255, 0.07);
     --glass-divider: rgba(255, 255, 255, 0.08);
+    --glass-nav-active: rgba(255, 255, 255, 0.10);
+    --glass-nav-hover: rgba(255, 255, 255, 0.05);
+    --glass-slot: rgba(255, 255, 255, 0.06);
+    --glass-slot-active-bg: rgba(255, 255, 255, 0.14);
+    --glass-slot-active-fg: #ffffff;
+    --glass-slot-active-shadow: none;
+    --glass-inset-soft: rgba(255, 255, 255, 0.04);
+    --ambient-bg-color: #09090b;
+    --ambient-bg-image:
+      radial-gradient(at 8% 35%, rgba(234, 88, 12, 0.14) 0px, transparent 52%),
+      radial-gradient(at 88% 18%, rgba(100, 116, 139, 0.16) 0px, transparent 55%),
+      radial-gradient(at 82% 82%, rgba(217, 119, 6, 0.10) 0px, transparent 50%);
     --primary-pill-bg: #f4f4f5;
     --primary-pill-fg: #09090b;
     --primary-pill-hover: #e4e4e7;
@@ -77,12 +107,13 @@
 }
 
 /*
- * T-293 高对比反色实心胶囊主按钮。
+ * T-294 高对比反色实心胶囊主按钮。
  * HeroUI 的 .button--primary 与未分层样式同层，此处用 #root 前缀提高优先级并写在 @import 之后，
  * 覆盖其 --accent 派生色；danger / danger-soft 不在此选择器内，警示语义保持不变。
+ * 分段项和标签页虽然也带 primary 变体，但必须保持浮起胶囊而非反色实心块，故排除在外。
  */
-#root .button--primary,
-#root .gradient-primary {
+#root .button--primary:not(.bento-segment):not([role='tab']),
+#root .gradient-primary:not(.bento-segment):not([role='tab']) {
   --button-bg: var(--primary-pill-bg);
   --button-bg-hover: var(--primary-pill-hover);
   --button-bg-pressed: var(--primary-pill-hover);

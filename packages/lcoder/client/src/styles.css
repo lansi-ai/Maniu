@@ -58,6 +58,13 @@ html body {
   padding: 0;
 }
 
+/* T-294 就绪态环境光弥散画布：只铺背景色与渐变，不给任何拖拽区元素加滤镜。
+   玻璃容器叠在其上取 backdrop-filter 采样；门禁态不铺，保持原样。 */
+.app[data-lcoder-state='ready'] {
+  background-color: var(--ambient-bg-color);
+  background-image: var(--ambient-bg-image);
+}
+
 /* 窗口透明边的拖拽条：只占最外一条 7px 窄带，不覆盖标题栏控件。
    最外 0–4px 留给缩放边，顶部补到标题栏上缘（12px），左右只在标题栏高度带内。
    门禁态窗口按钮 z-index 40 更高；标题栏控件与账号菜单都在窄带之外。 */
@@ -266,9 +273,9 @@ html body {
   cursor: pointer;
 }
 
-/* 分段控件激活态沿用官方强调色前景。 */
+/* 分段控件激活态：白底浮起胶囊的前景色由 glass token 提供。 */
 #root .segmented button.active {
-  color: var(--accent-foreground);
+  color: var(--glass-slot-active-fg);
 }
 
 /* 工作区：侧栏是一整块玻璃，聊天列直接浮在环境层上。 */
