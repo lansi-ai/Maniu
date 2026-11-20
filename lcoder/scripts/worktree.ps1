@@ -744,19 +744,26 @@ function Invoke-Claim {
     $buildKind = 'none'
   } else {
     $changed = Get-ChangedPaths $target $meta.artifactCommit $head
-    # 台账/看板数据不参与任何构建 gate，从变化集合中剔除后再决定构建方式。
-    $codeChanged = @($changed | Where-Object { $_ -ne 'docs/tasks.yaml' -and $_ -ne 'docs/tasks-html/index.html' })
+    # 台账/看板与文档、认知资产不参与任何构建 gate，从变化集合中剔除后再决定构建方式。
+    $codeChanged = @($changed | Where-Object {
+      $_ -notlike 'docs/*' -and
+      $_ -notlike 'aoci*.txt' -and
+      $_ -notlike '.aoci/*' -and
+      $_ -notlike '*.md'
+    })
     if ($codeChanged.Count -eq 0) {
       $buildKind = 'none'
       $buildReason = if ($changed.Count -eq 0) { '提交树没有变化' } else { '仅台账/看板变化' }
     } else {
-      $outside = @($codeChanged | Where-Object { -not ($_ -like 'lcoder/*' -or $_ -like 'apps/desktop/*') })
+      # 分层重建（rebuild.cmd auto）覆盖 kernel、workspace、client、lcoder-desktop、desktop、profile 六层，
+      # 因此 packages/lcoder/* 与 lcoder/*、apps/desktop/* 一样可走分层，不必全量。
+      $outside = @($codeChanged | Where-Object { -not ($_ -like 'packages/lcoder/*' -or $_ -like 'lcoder/*' -or $_ -like 'apps/desktop/*') })
       if ($outside.Count -gt 0) {
         $buildKind = 'full'
-        $buildReason = ('改动触及 lcoder/ 与 apps/desktop/ 之外（' + $outside.Count + ' 个文件，如 ' + $outside[0] + '）')
+        $buildReason = ('改动触及二开源码目录之外（' + $outside.Count + ' 个文件，如 ' + $outside[0] + '）')
       } else {
         $buildKind = 'layered'
-        $buildReason = ('只有 ' + $codeChanged.Count + ' 个 lcoder/apps/desktop 文件变化')
+        $buildReason = ('只有 ' + $codeChanged.Count + ' 个二开源码文件变化（lcoder/ 与 packages/lcoder/ 与 apps/desktop/）')
       }
     }
   }
