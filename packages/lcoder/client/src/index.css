@@ -46,7 +46,7 @@
     --glass-divider: rgba(0, 0, 0, 0.06);
     --glass-card-shadow: 0 1px 0 0 var(--glass-border) inset, 0 8px 24px -12px rgba(15, 23, 42, 0.08);
     --glass-shell-shadow: 0 1px 0 0 var(--glass-border) inset, 0 20px 48px -20px rgba(15, 23, 42, 0.12);
-    --glass-nav-active: rgba(15, 23, 42, 0.06);
+    --glass-nav-active: rgba(15, 23, 42, 0.07);
     --glass-nav-hover: rgba(15, 23, 42, 0.03);
     --glass-slot: rgba(15, 23, 42, 0.04);
     --glass-slot-active-bg: #ffffff;
@@ -76,7 +76,7 @@
     --glass-border: rgba(255, 255, 255, 0.10);
     --glass-outline: rgba(255, 255, 255, 0.07);
     --glass-divider: rgba(255, 255, 255, 0.08);
-    --glass-nav-active: rgba(255, 255, 255, 0.10);
+    --glass-nav-active: rgba(255, 255, 255, 0.12);
     --glass-nav-hover: rgba(255, 255, 255, 0.05);
     --glass-slot: rgba(255, 255, 255, 0.06);
     --glass-slot-active-bg: rgba(255, 255, 255, 0.14);

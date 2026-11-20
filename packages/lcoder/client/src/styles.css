@@ -45,10 +45,10 @@ html body {
   z-index: 1;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 0;
   min-width: 0;
   height: 100%;
-  padding: 12px;
+  padding: 0;
   overflow-x: hidden;
 }
 
@@ -147,20 +147,20 @@ html body {
 .gate-window-buttons button:focus-visible { filter: brightness(1.25); }
 .gate-window-buttons button:active { transform: scale(0.92); }
 
-/* 标题栏：唯一实色拖拽面。三个覆盖层透明且无模糊，整条标题栏可拖，控件区 no-drag。
-   配色走官方语义 token，窗控按钮用 warning / success / danger 三色圆形图标。 */
+/* 右侧顶栏拖拽面：整条可拖，控件区 no-drag；不画背景滤镜，玻璃底由 .shell-main 提供。
+   窗控按钮用 warning / success / danger 三色圆形图标。 */
 .titlebar {
   position: relative;
   z-index: 20;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 46px;
+  height: 52px;
   flex: 0 0 auto;
-  padding: 0 10px 0 0;
-  border-bottom: 1px solid var(--separator);
+  padding: 0 18px;
+  border-bottom: 1px solid var(--glass-divider);
   border-radius: 0;
-  background-color: var(--background);
+  background-color: transparent;
   color: var(--foreground);
   -webkit-app-region: drag;
   backdrop-filter: none;
