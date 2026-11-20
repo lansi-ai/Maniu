@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
-/** T-291：右下待回答通知与带会话上下文的回答弹窗。 */
+/** T-298：作答弹窗由任务卡入口受控打开；通知浮层删除，草稿跨重开保留，遮罩/Esc/关闭统一回 App。 */
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { act, useState } from 'react'
 import type { JSX } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
@@ -7,12 +9,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { EventOutcome } from '@maniu/desktop/contract'
 import type { AnswerResult } from '../src/shell/pending-cards.tsx'
 import { PendingLayer } from '../src/shell/pending-notification.tsx'
-import { playPendingTone } from '../src/shell/pending-sound.ts'
 import type { PendingInteraction } from '../src/chat/pending.ts'
 import { translate, type Translate } from '../src/locale.ts'
 import type { SessionSummary } from '../src/store.ts'
-
-vi.mock('../src/shell/pending-sound.ts', () => ({ playPendingTone: vi.fn() }))
 
 const t: Translate = (key, params) => translate('zh', key, params)
 const SESSIONS: readonly SessionSummary[] = [
@@ -28,15 +27,13 @@ const QUESTION: PendingInteraction = {
   eventId: 'e1',
   request: { questions: [{ id: 'q1', question: '选一个', options: [{ label: 'A' }, { label: 'B' }] }] },
   sessionId: 's1',
-  source: { title: '评审需求 REQ-01', roleLabel: '项目经理', sourceLabel: '需求分析师' },
 }
-const APPROVAL: PendingInteraction = {
+const SECOND: PendingInteraction = {
+  ...QUESTION,
   id: 'e2',
-  kind: 'approval',
-  clientId: 'c1',
   eventId: 'e2',
-  request: { toolName: 'cmd_run' },
   sessionId: 's2',
+  request: { questions: [{ id: 'q2', question: '再选一个', options: [{ label: 'X' }] }] },
 }
 
 const RECORDS = [
@@ -49,6 +46,7 @@ let root: Root
 let historyResult: unknown
 let call: ReturnType<typeof vi.fn>
 let updateItems: (items: readonly PendingInteraction[]) => void
+let openIds: (ids: readonly string[] | null) => void
 
 function renderLayer(
   items: readonly PendingInteraction[],
@@ -57,21 +55,32 @@ function renderLayer(
 ): void {
   function Harness(): JSX.Element {
     const [current, setCurrent] = useState<readonly PendingInteraction[]>(items)
+    const [ids, setIds] = useState<readonly string[] | null>(null)
     updateItems = setCurrent
+    openIds = setIds
     const answer = async (interaction: PendingInteraction, outcome: EventOutcome): Promise<AnswerResult> => {
       const result = await onAnswer(interaction, outcome)
       if (result.ok) setCurrent(list => list.filter(item => item.id !== interaction.id))
       return result
     }
     return (
-      <PendingLayer visible t={t} items={current} sessions={SESSIONS} titles={TITLES} onAnswer={answer} />
+      <PendingLayer
+        visible
+        t={t}
+        items={current}
+        answerIds={ids}
+        sessions={SESSIONS}
+        titles={TITLES}
+        onAnswer={answer}
+        onClose={() => { setIds(null) }}
+      />
     )
   }
   act(() => { root.render(<Harness />) })
 }
 
 function query(testId: string): HTMLElement | null {
-  return container.querySelector<HTMLElement>(`[data-testid="${testId}"]`)
+  return document.querySelector<HTMLElement>(`[data-testid="${testId}"]`)
 }
 function element(testId: string): HTMLElement {
   const node = query(testId)
@@ -79,7 +88,7 @@ function element(testId: string): HTMLElement {
   return node as HTMLElement
 }
 function all(testId: string): HTMLElement[] {
-  return [...container.querySelectorAll<HTMLElement>(`[data-testid="${testId}"]`)]
+  return [...document.querySelectorAll<HTMLElement>(`[data-testid="${testId}"]`)]
 }
 async function flush(): Promise<void> {
   for (let index = 0; index < 6; index += 1) {
@@ -103,6 +112,10 @@ async function typeInto(node: HTMLInputElement, value: string): Promise<void> {
     node.dispatchEvent(new Event('input', { bubbles: true }))
   })
 }
+async function open(ids: readonly string[]): Promise<void> {
+  await act(async () => { openIds(ids) })
+  await flush()
+}
 
 beforeEach(() => {
   Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', { configurable: true, value: true })
@@ -112,8 +125,6 @@ beforeEach(() => {
     return { ok: true, value: {} }
   })
   Object.defineProperty(window, 'lcoder', { configurable: true, value: { call } })
-  localStorage.clear()
-  vi.mocked(playPendingTone).mockClear()
   container = document.createElement('div')
   document.body.append(container)
   root = createRoot(container)
@@ -122,47 +133,34 @@ beforeEach(() => {
 afterEach(() => {
   act(() => { root.unmount() })
   container.remove()
+  document.querySelectorAll('.pending-dialog-backdrop').forEach(node => node.remove())
   Reflect.deleteProperty(window, 'lcoder')
 })
 
-describe('右下非阻塞通知', () => {
-  it('显示会话标题、操作来源与摘要，不抢焦点也不自动开弹窗', () => {
+describe('通知浮层已删除', () => {
+  it('未打开时不画弹窗，也不画任何右下通知卡', () => {
     renderLayer([QUESTION])
-    expect(query('pending-review')).not.toBeNull()
     expect(query('pending-dialog')).toBeNull()
+    expect(query('pending-notifications')).toBeNull()
+    expect(query('pending-notice')).toBeNull()
     expect(query('question-card')).toBeNull()
-    expect(element('pending-notice-source').textContent).toBe('评审会话')
-    expect(element('pending-notice-operation').textContent).toContain('评审需求 REQ-01')
-    expect(element('pending-notice-count').textContent).toBe('1 项待处理')
-    expect(element('pending-notice-item').textContent).toContain('待回答 1 题')
-    expect(document.activeElement?.getAttribute('data-testid')).not.toBe('pending-review')
   })
 
-  it('并行两个会话按确定 sessionId 分成两条通知', () => {
-    renderLayer([QUESTION, APPROVAL])
-    expect(all('pending-notice')).toHaveLength(2)
-    expect(all('pending-notice').map(node => node.getAttribute('data-session-id'))).toEqual(['s1', 's2'])
-    expect(all('pending-notice-source').map(node => node.textContent)).toEqual(['评审会话', '立项会话'])
-    expect(element('pending-notice-source').textContent).toBe('评审会话')
-  })
-
-  it('缺确定关联时显示来源会话不可用，不查历史', async () => {
-    const { sessionId: _sessionId, source: _source, ...noSource } = QUESTION
-    renderLayer([noSource])
-    expect(element('pending-notice-source').textContent).toBe('来源会话不可用')
-    await press('pending-review')
-    expect(call).not.toHaveBeenCalled()
-    expect(element('pending-dialog-history').textContent).toContain('无法确定来源会话')
-    expect(query('question-card')).not.toBeNull()
+  it('并行两个会话不会各自冒出通知，只有受控打开才出现弹窗', async () => {
+    renderLayer([QUESTION, SECOND])
+    expect(all('pending-notice')).toHaveLength(0)
+    expect(query('pending-dialog')).toBeNull()
+    await open(['e1', 'e2'])
+    expect(query('pending-dialog')).not.toBeNull()
+    expect(all('question-card')).toHaveLength(2)
   })
 })
 
 describe('带会话上下文弹窗', () => {
-  it('点通知打开弹窗，读 session/events 并标出用户与助手发言', async () => {
+  it('受控打开后读 session/events 并标出用户与助手发言', async () => {
     renderLayer([QUESTION])
-    await press('pending-review')
-    await flush()
-    expect(element('pending-dialog')).not.toBeNull()
+    await open(['e1'])
+    expect(query('pending-dialog')).not.toBeNull()
     expect(call).toHaveBeenCalledWith('session', 'events', {
       request: { address: { kind: 'session', sessionId: 's1' }, maxMessages: 200 },
     })
@@ -170,45 +168,50 @@ describe('带会话上下文弹窗', () => {
     expect(element('pending-dialog-history').textContent).toContain('已开始评审')
     expect(all('history-row').map(node => node.getAttribute('data-role'))).toEqual(['user', 'assistant'])
     expect(query('question-card')).not.toBeNull()
+    expect(element('pending-dialog').getAttribute('aria-label')).toContain('评审会话')
   })
 
-  it('关闭重开保留草稿，Escape 关闭后焦点回到通知控件', async () => {
+  it('关闭重开保留草稿；关闭、Escape 与遮罩点击都回 App 关闭', async () => {
     renderLayer([QUESTION])
-    const trigger = await press('pending-review')
+    await open(['e1'])
     expect(document.activeElement).toBe(element('pending-dialog'))
     await typeInto(element('question-custom') as HTMLInputElement, '我的补充')
     await press('pending-dialog-close')
     expect(query('pending-dialog')).toBeNull()
-    expect(document.activeElement).toBe(trigger)
-    await press('pending-review')
+    await open(['e1'])
     expect((element('question-custom') as HTMLInputElement).value).toBe('我的补充')
 
     await act(async () => {
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
     })
+    await flush()
+    expect(query('pending-dialog')).toBeNull()
+
+    await open(['e1'])
+    await press('pending-dialog-backdrop')
     expect(query('pending-dialog')).toBeNull()
   })
 
-  it('回答成功后移除交互并关闭弹窗', async () => {
+  it('回答成功后交互被移除，弹窗自动关闭', async () => {
     const onAnswer = vi.fn(async () => ({ ok: true as const }))
     renderLayer([QUESTION], onAnswer)
-    await press('pending-review')
+    await open(['e1'])
     await press('question-option')
     await press('question-submit')
     expect(onAnswer).toHaveBeenCalledTimes(1)
-    expect(query('pending-notifications')).toBeNull()
     expect(query('pending-dialog')).toBeNull()
+    expect(query('question-card')).toBeNull()
   })
 
   it('回答失败保留弹窗、草稿与可读错误，可重试', async () => {
     const onAnswer = vi.fn(async () => ({ ok: false as const, message: '回执失败' }))
     renderLayer([QUESTION], onAnswer)
-    await press('pending-review')
+    await open(['e1'])
     await press('question-option')
     await typeInto(element('question-custom') as HTMLInputElement, '补充内容')
     await press('question-submit')
     expect(element('question-error').textContent).toContain('回执失败')
-    expect(element('pending-dialog')).not.toBeNull()
+    expect(query('pending-dialog')).not.toBeNull()
     expect((element('question-custom') as HTMLInputElement).value).toBe('补充内容')
     await press('question-submit')
     expect(onAnswer).toHaveBeenCalledTimes(2)
@@ -217,42 +220,51 @@ describe('带会话上下文弹窗', () => {
   it('历史加载失败时保留回答控件', async () => {
     historyResult = { ok: false, error: { code: 'oops', message: 'oops' } }
     renderLayer([QUESTION])
-    await press('pending-review')
+    await open(['e1'])
     expect(element('pending-history-error')).not.toBeNull()
     expect(query('question-card')).not.toBeNull()
   })
 
-  it('交互被取消时关闭弹窗与通知', async () => {
+  it('交互被取消（撤回）时移除并关闭弹窗', async () => {
     renderLayer([QUESTION])
-    await press('pending-review')
+    await open(['e1'])
     expect(query('pending-dialog')).not.toBeNull()
     act(() => { updateItems([]) })
+    await flush()
     expect(query('pending-dialog')).toBeNull()
-    expect(query('pending-notifications')).toBeNull()
+  })
+
+  it('中性兜底可把没有可归属会话的提问放进来，标题与历史走中性文案', async () => {
+    const { sessionId: _sessionId, ...noSource } = QUESTION
+    renderLayer([noSource])
+    await open(['e1'])
+    expect(query('pending-dialog')).not.toBeNull()
+    expect(element('pending-dialog').getAttribute('aria-label')).toBe('待处理提问')
+    expect(element('pending-dialog-history').textContent).not.toContain('来源会话不可用')
+    expect(query('question-card')).not.toBeNull()
+    expect(call).not.toHaveBeenCalled()
+  })
+
+  it('混着多个会话的中性兜底不读任一会话历史，答题卡仍可用', async () => {
+    renderLayer([QUESTION, SECOND])
+    await open(['e1', 'e2'])
+    expect(element('pending-dialog').getAttribute('aria-label')).toBe('待处理提问')
+    expect(all('question-card')).toHaveLength(2)
+    expect(call).not.toHaveBeenCalled()
+    expect(document.body.textContent).not.toContain('来源会话不可用')
   })
 })
 
-describe('音效开关', () => {
-  it('默认静音；开启后新交互只响一次，更新与关开弹窗不重播', async () => {
-    renderLayer([QUESTION])
-    expect(playPendingTone).not.toHaveBeenCalled()
-    expect(element('pending-sound-toggle').getAttribute('aria-pressed')).toBe('false')
-
-    await press('pending-sound-toggle')
-    expect(element('pending-sound-toggle').getAttribute('aria-pressed')).toBe('true')
-    expect(playPendingTone).not.toHaveBeenCalled()
-
-    const fresh: PendingInteraction = { ...QUESTION, id: 'e3', eventId: 'e3' }
-    act(() => { updateItems([QUESTION, fresh]) })
-    await flush()
-    expect(playPendingTone).toHaveBeenCalledTimes(1)
-
-    act(() => { updateItems([QUESTION, { ...fresh, request: { questions: [] } }]) })
-    await flush()
-    expect(playPendingTone).toHaveBeenCalledTimes(1)
-
-    await press('pending-review')
-    await press('pending-dialog-close')
-    expect(playPendingTone).toHaveBeenCalledTimes(1)
+describe('样式红线', () => {
+  it('弹窗用 Glass 表面并盖过标题栏，拖拽区无滤镜，通知浮层样式已删', () => {
+    const styles = readFileSync(resolve(process.cwd(), 'packages/lcoder/client/src/styles.css'), 'utf8')
+    const index = readFileSync(resolve(process.cwd(), 'packages/lcoder/client/src/index.css'), 'utf8')
+    expect(styles).not.toContain('.pending-layer')
+    expect(styles).not.toContain('.shell:has(.pending-layer) .op-layer')
+    expect(styles).toContain('position: fixed;\n  inset: 0;\n  z-index: 60;')
+    expect(styles).toContain('background: var(--glass-surface-elevated);')
+    expect(styles).toContain('backdrop-filter: blur(20px) saturate(140%);')
+    expect(index).toContain('.window-gutter,\n  .titlebar-pad,\n  .gate-drag {')
+    expect(index).toContain('backdrop-filter: none;')
   })
 })

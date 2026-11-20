@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 /** 窗口拖拽层：三条 aria-hidden 空轨道加标题栏拖拽垫，只补命中区域，不包住也不需要页面控件。 */
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -144,5 +146,21 @@ describe('WindowGutter', () => {
     expect(pad()?.style.top).toBe('0px')
     expect(pad()?.style.left).toBe('0px')
     expect(pad()?.style.width).toBe('2298px')
+  })
+})
+
+describe('拖拽区滤镜红线', () => {
+  it('拖拽层与标题栏都不加背景滤镜，作答弹窗也不把滤镜挂到它们身上', () => {
+    const index = readFileSync(resolve(process.cwd(), 'packages/lcoder/client/src/index.css'), 'utf8')
+    const styles = readFileSync(resolve(process.cwd(), 'packages/lcoder/client/src/styles.css'), 'utf8')
+    expect(index).toContain('.window-gutter,\n  .titlebar-pad,\n  .gate-drag {')
+    expect(index).toContain('backdrop-filter: none;')
+    for (const selector of ['.window-gutter', '.titlebar-pad', '.gate-drag', '.titlebar']) {
+      expect(styles).toContain(`${selector} {`)
+      expect(styles).toContain('backdrop-filter: none;')
+    }
+    expect(styles).toContain('.pending-dialog {')
+    expect(styles).toContain('backdrop-filter: blur(20px) saturate(140%);')
+    expect(styles).not.toContain('.pending-layer')
   })
 })

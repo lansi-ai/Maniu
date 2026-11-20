@@ -277,37 +277,44 @@ describe('操作浮卡跨页存活', () => {
   })
 })
 
-describe('待回答交互的右下通知', () => {
-  const pushWaterfall = (eventId = 'wf-1'): void => {
+describe('任务卡里的待回答入口', () => {
+  const pushWaterfall = (eventId = 'wf-1', agentId = 'session-without-card'): void => {
     act(() => {
       waterfallListener?.({
         name: 'user-questions/request',
         clientId: 'client-1',
         eventId,
+        agentId,
         request: { questions: [{ id: 'q1', question: '选一个', options: [{ label: 'A' }] }] },
       })
     })
   }
 
-  it('非对话页收到提问只出右下通知，不切页不换会话不打断流', async () => {
+  it('提问并入对应任务卡，不切页不换会话不打断流，没有右下通知', async () => {
     await renderApp()
     await press('nav-requirements')
-    pushWaterfall()
+    await press('requirement-op-review')
+    const sessionId = createdSessions[0]
+    expect(sessionId).toBeDefined()
+    pushWaterfall('wf-1', sessionId)
 
     expect(element('page-requirements')).not.toBeNull()
     expect(element('session-list')).toBeNull()
     expect(followOpens()).toHaveLength(0)
     expect(localStorage.getItem(SESSION_KEY)).toBeNull()
-    expect(element('pending-notifications')).not.toBeNull()
-    expect(queryElement('pending-dialog')).toBeNull()
+    expect(element('op-pending-count')?.textContent).toContain('待你回答 1 题')
+    expect(element('op-answer-pending')).not.toBeNull()
+    expect(document.querySelector('[data-testid="pending-notifications"]')).toBeNull()
+    expect(document.querySelector('[data-testid="pending-dialog"]')).toBeNull()
   })
 
-  it('点通知回答走单一 eventResult 路径，成功后通知消失', async () => {
+  it('点任务卡回答走单一 eventResult 路径，成功后卡片待回答数清零且弹窗关闭', async () => {
     await renderApp()
     await press('nav-requirements')
-    pushWaterfall()
-    await press('pending-review')
-    expect(queryElement('pending-dialog')).not.toBeNull()
+    await press('requirement-op-review')
+    pushWaterfall('wf-1', createdSessions[0])
+    await press('op-answer-pending')
+    expect(document.querySelector('[data-testid="pending-dialog"]')).not.toBeNull()
 
     await press('question-option')
     await press('question-submit')
@@ -316,21 +323,29 @@ describe('待回答交互的右下通知', () => {
       kind: 'result',
       value: { answers: [{ id: 'q1', selected: ['A'] }] },
     })
-    expect(queryElement('pending-notifications')).toBeNull()
-    expect(queryElement('pending-dialog')).toBeNull()
+    expect(document.querySelector('[data-testid="op-pending-count"]')).toBeNull()
+    expect(document.querySelector('[data-testid="pending-dialog"]')).toBeNull()
   })
 
-  it('事件撤回时移除对应通知', async () => {
+  it('无法归属到任务卡的提问走中性兜底入口，文案不含来源不可用', async () => {
     await renderApp()
     await press('nav-requirements')
-    pushWaterfall('wf-a')
-    pushWaterfall('wf-b')
-    expect(container.querySelectorAll('[data-testid="pending-notice-item"]')).toHaveLength(2)
+    pushWaterfall('wf-orphan')
+    expect(element('pending-fallback')?.textContent).toContain('有 1 条提问待处理')
+    expect(document.body.textContent).not.toContain('来源会话不可用')
+    await press('pending-fallback')
+    expect(document.querySelector('[data-testid="pending-dialog"]')?.getAttribute('aria-label')).toBe('待处理提问')
+  })
+
+  it('事件撤回时移除对应提问，卡片待回答入口消失', async () => {
+    await renderApp()
+    await press('nav-requirements')
+    await press('requirement-op-review')
+    pushWaterfall('wf-a', createdSessions[0])
+    expect(element('op-answer-pending')).not.toBeNull()
     act(() => { waterfallCancelListener?.({ eventId: 'wf-a' }) })
-    expect(container.querySelectorAll('[data-testid="pending-notice-item"]')).toHaveLength(1)
+    await flush()
+    expect(document.querySelector('[data-testid="op-pending-count"]')).toBeNull()
+    expect(document.querySelector('[data-testid="op-answer-pending"]')).toBeNull()
   })
 })
-
-function queryElement(testId: string): Element | null {
-  return container.querySelector(`[data-testid="${testId}"]`)
-}

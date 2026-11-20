@@ -282,3 +282,80 @@ describe('提案等待对比浮卡', () => {
     expect(element('op-go-compare')).toBeNull()
   })
 })
+
+describe('任务卡内的待回答入口', () => {
+  it('有待回答题目时高亮一项并画回答按钮，回调带 pendingKey', () => {
+    const onAnswerRequest = vi.fn()
+    act(() => {
+      root.render(
+        <OperationCards
+          cards={[cardOf({ pendingCount: 2, pendingKey: 'session-1' })]}
+          onToggleMinimize={onToggleMinimize}
+          onOpenSession={onOpenSession}
+          onClose={onClose}
+          onAnswerRequest={onAnswerRequest}
+          t={t}
+        />,
+      )
+    })
+    expect(element('op-pending-count')?.textContent).toBe('待你回答 2 题')
+    expect(element('op-pending-count')?.className).toContain('op-step-answer')
+    expect(element('op-answer-pending')?.textContent).toBe('回答')
+    press('op-answer-pending')
+    expect(onAnswerRequest).toHaveBeenCalledWith('session-1')
+  })
+
+  it('没有待回答题目或没有回调时不画回答入口', () => {
+    const onAnswerRequest = vi.fn()
+    act(() => {
+      root.render(
+        <OperationCards
+          cards={[cardOf({ pendingCount: 0, pendingKey: 'session-1' })]}
+          onToggleMinimize={onToggleMinimize}
+          onOpenSession={onOpenSession}
+          onClose={onClose}
+          onAnswerRequest={onAnswerRequest}
+          t={t}
+        />,
+      )
+    })
+    expect(element('op-pending-count')).toBeNull()
+    expect(element('op-answer-pending')).toBeNull()
+    act(() => {
+      root.render(
+        <OperationCards
+          cards={[cardOf({ pendingCount: 1, pendingKey: 'session-1' })]}
+          onToggleMinimize={onToggleMinimize}
+          onOpenSession={onOpenSession}
+          onClose={onClose}
+          t={t}
+        />,
+      )
+    })
+    expect(element('op-pending-count')?.textContent).toBe('待你回答 1 题')
+    expect(element('op-answer-pending')).toBeNull()
+  })
+
+  it('多任务并行时回答按钮各带各的会话标识', () => {
+    const onAnswerRequest = vi.fn()
+    act(() => {
+      root.render(
+        <OperationCards
+          cards={[
+            cardOf({ pendingCount: 1, pendingKey: 'session-1' }),
+            cardOf({ key: 'intake-2', pendingCount: 3, pendingKey: 'session-2' }),
+          ]}
+          onToggleMinimize={onToggleMinimize}
+          onOpenSession={onOpenSession}
+          onClose={onClose}
+          onAnswerRequest={onAnswerRequest}
+          t={t}
+        />,
+      )
+    })
+    const buttons = [...container.querySelectorAll('[data-testid="op-answer-pending"]')]
+    expect(buttons).toHaveLength(2)
+    act(() => { (buttons[1] as HTMLElement).click() })
+    expect(onAnswerRequest).toHaveBeenCalledWith('session-2')
+  })
+})

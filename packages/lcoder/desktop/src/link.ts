@@ -126,7 +126,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * 把一帧 waterfall 折成渲染端事件。
  *
  * 事件代际来自同一代 `$events` 开场的 ready 帧，waterfall 帧里没有 `clientId`；
- * 缺代际或事件不在白名单时返回 undefined。
+ * 会话身份取自帧里的 `agentId`，原样下发给渲染端做归属。缺代际、缺会话身份或
+ * 事件不在白名单时返回 undefined。
  * @param value - `$events` 的一帧。
  * @param clientId - 本次连接的事件代际。
  * @returns 渲染端事件，或 undefined。
@@ -134,8 +135,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 export function waterfallOf(value: unknown, clientId: string | undefined): HostWaterfall | undefined {
   if (clientId === undefined || !isRecord(value) || value.type !== 'waterfall') return undefined
   if (typeof value.event !== 'string' || !FORWARDED_WATERFALLS.has(value.event)
-    || typeof value.eventId !== 'string' || !isRecord(value.request)) return undefined
-  return { name: value.event, clientId, eventId: value.eventId, request: value.request }
+    || typeof value.eventId !== 'string' || typeof value.agentId !== 'string'
+    || !isRecord(value.request)) return undefined
+  return { name: value.event, clientId, eventId: value.eventId, agentId: value.agentId, request: value.request }
 }
 
 /**

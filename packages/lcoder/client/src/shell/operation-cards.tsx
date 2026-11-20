@@ -34,6 +34,10 @@ export interface OperationCardView {
   readonly awaitingConfirm?: boolean
   /** 提案已写未确认：卡上画「去对比」按钮，打开对比视图而不跳对话。 */
   readonly compareProposalId?: string
+  /** 该操作会话名下待回答的题目数；大于零时卡上高亮并给「回答」入口。 */
+  readonly pendingCount?: number
+  /** 打开作答弹窗时交给回调的标识；与会话标识同值。 */
+  readonly pendingKey?: string
 }
 
 /**
@@ -61,6 +65,8 @@ export interface OperationCardsProps {
   readonly onCompare?: (proposalId: string) => void
   /** 立项等待确认：点「查看概要」在需求页内就地预览概要；未给时回退到打开会话。 */
   readonly onViewSummary?: (key: string) => void
+  /** 有待回答题目时点「回答」打开作答弹窗；回调收到该卡的 pendingKey。 */
+  readonly onAnswerRequest?: (key: string) => void
   readonly t: Translate
 }
 
@@ -135,9 +141,25 @@ export function OperationCards(props: OperationCardsProps): JSX.Element | null {
               {card.steps.map((step, index) => (
                 <li key={`${card.key}-${String(index)}`} className={`op-step-${step.state}`}>{step.label}</li>
               ))}
+              {card.pendingCount !== undefined && card.pendingCount > 0 ? (
+                <li className="op-step-answer" data-testid="op-pending-count">
+                  {props.t('op.pendingCount', { count: card.pendingCount })}
+                </li>
+              ) : null}
             </ol>
             <p className="op-status">{card.statusText}</p>
             <div className="op-actions">
+              {card.pendingCount !== undefined && card.pendingCount > 0
+                && card.pendingKey !== undefined && props.onAnswerRequest !== undefined && (
+                <Button
+                  size="sm"
+                  variant="primary"
+                  data-testid="op-answer-pending"
+                  onPress={() => { props.onAnswerRequest?.(card.pendingKey ?? '') }}
+                >
+                  {props.t('op.answerPending')}
+                </Button>
+              )}
               {card.awaitingConfirm === true && card.status === 'running' && props.onConfirmIntake !== undefined && (
                 <Button
                   size="sm"

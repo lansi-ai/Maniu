@@ -27,8 +27,8 @@ export interface PendingInteraction {
   readonly eventId: string
   readonly request: Record<string, unknown>
   /**
-   * 确定关联的会话标识；waterfall 帧不携带会话身份，缺关联时必须留空。
-   * 不得由 clientId、问题内容或到达时间推断。
+   * 发起交互的会话标识，取自 waterfall 帧的 agentId（与会话标识同值）。
+   * 只做字符串相等归属；缺关联时必须留空，不得由 clientId、问题内容或到达时间推断。
    */
   readonly sessionId?: string
   readonly source?: PendingSource
@@ -76,6 +76,7 @@ function localized(value: unknown): string | undefined {
  * @param clientId - 事件代际。
  * @param eventId - 本次事件标识。
  * @param request - 宿主给的请求载荷。
+ * @param agentId - 发起交互的 agent 标识，与会话标识同值；缺省时不归属到任何会话。
  * @returns 审批或提问；其他事件不画卡片。
  */
 export function interactionOf(
@@ -83,15 +84,18 @@ export function interactionOf(
   clientId: string,
   eventId: string,
   request: unknown,
+  agentId?: string,
 ): PendingInteraction | undefined {
   if (!isRecord(request)) return undefined
   if (name !== 'approval/request' && name !== 'user-questions/request') return undefined
+  const sessionId = typeof agentId === 'string' && agentId !== '' ? agentId : undefined
   return {
     id: eventId,
     kind: name === 'approval/request' ? 'approval' : 'question',
     clientId,
     eventId,
     request,
+    ...(sessionId === undefined ? {} : { sessionId }),
   }
 }
 
@@ -215,7 +219,10 @@ export function cancelledEventId(value: unknown): string | undefined {
   return isRecord(value) && typeof value.eventId === 'string' ? value.eventId : undefined
 }
 
-/** 按确定关联的会话归组后的待处理交互；`sessionId` 为 null 表示来源不可用。 */
+/** 没有可归属会话的交互统一进这个分组键；不承载任何来源判断。 */
+export const UNMAPPED_GROUP_KEY = 'unknown'
+
+/** 按确定关联的会话归组后的待处理交互；`sessionId` 为 null 表示没有可归属的会话。 */
 export interface PendingGroup {
   /** 稳定的分组键；无关联会话时为固定值 `unknown`。 */
   readonly key: string
@@ -231,16 +238,73 @@ export interface PendingGroup {
 export function groupPending(items: readonly PendingInteraction[]): PendingGroup[] {
   const groups = new Map<string, PendingInteraction[]>()
   for (const item of items) {
-    const key = item.sessionId === undefined || item.sessionId === '' ? 'unknown' : item.sessionId
+    const key = item.sessionId === undefined || item.sessionId === '' ? UNMAPPED_GROUP_KEY : item.sessionId
     const current = groups.get(key)
     if (current === undefined) groups.set(key, [item])
     else current.push(item)
   }
   return [...groups.entries()].map(([key, group]) => ({
     key,
-    sessionId: key === 'unknown' ? null : key,
+    sessionId: key === UNMAPPED_GROUP_KEY ? null : key,
     items: group,
   }))
+}
+
+/**
+ * 一条交互的可归属会话标识；没有关联时返回 null。
+ * @param item - 待处理交互。
+ * @returns 会话标识或 null。
+ */
+export function sessionOfInteraction(item: PendingInteraction): string | null {
+  return item.sessionId === undefined || item.sessionId === '' ? null : item.sessionId
+}
+
+/**
+ * 取某个会话名下的全部待处理交互；归属只用 sessionId 字符串相等判断。
+ * @param items - 当前全部待处理交互。
+ * @param sessionId - 目标会话标识。
+ * @returns 该会话的交互，保持原顺序。
+ */
+export function pendingForSession(
+  items: readonly PendingInteraction[],
+  sessionId: string,
+): readonly PendingInteraction[] {
+  return items.filter(item => item.sessionId === sessionId)
+}
+
+/**
+ * 数某个会话名下还没回答的题目数；审批不计入题目。
+ * @param items - 当前全部待处理交互。
+ * @param sessionId - 目标会话标识。
+ * @returns 待回答题目总数。
+ */
+export function questionCountForSession(
+  items: readonly PendingInteraction[],
+  sessionId: string,
+): number {
+  let count = 0
+  for (const item of items) {
+    if (item.sessionId === sessionId && item.kind === 'question') count += questionsOf(item.request).length
+  }
+  return count
+}
+
+/**
+ * 找出没有挂到任何已知会话卡上的交互：缺 agentId 或会话没有对应任务卡。
+ * 这些交互由中性兜底入口承载，确保提问不丢、可达。
+ * @param items - 当前全部待处理交互。
+ * @param mappedSessionIds - 当前可见任务卡占用的会话标识。
+ * @returns 未归属的交互，保持原顺序。
+ */
+export function unmappedPending(
+  items: readonly PendingInteraction[],
+  mappedSessionIds: readonly (string | null)[],
+): readonly PendingInteraction[] {
+  const mapped = new Set(mappedSessionIds.filter((id): id is string => id !== null && id !== ''))
+  return items.filter((item) => {
+    const sessionId = sessionOfInteraction(item)
+    return sessionId === null || !mapped.has(sessionId)
+  })
 }
 
 /** 一条交互用于通知摘要的事实。 */
