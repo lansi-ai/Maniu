@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { JSX } from 'react'
 import { Button } from '@heroui/react'
 import type { ProposalRow, RequirementChangeRow, RequirementDocRow } from '../spec/rows.ts'
-import { readWorkspaceText } from '../spec/files.ts'
+import { readWorkspaceText, WORKSPACE_READ_LINES } from '../spec/files.ts'
 import { changedEntries, diffLines } from '../spec/diff.ts'
 import type { DiffLine } from '../spec/diff.ts'
 import { runCommand, type CommandOutcome } from '../commands/run.ts'
@@ -14,7 +14,7 @@ import { translate, type Translate } from '../locale.ts'
 const zhText: Translate = (key, params) => translate('zh', key, params)
 
 /** 基线快照的单次读取行数上限；与阅读器一致。 */
-const BASELINE_LINES = 5000
+const BASELINE_LINES = WORKSPACE_READ_LINES
 
 /** 基线正文的读取状态；快照读不到时退回当前正文。 */
 type BaselineState =

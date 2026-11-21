@@ -10,7 +10,7 @@ import type { ProposalRow, RequirementChangeRow, RequirementDocRow, RequirementR
 import type { SessionSummary } from '../store.ts'
 import { requirementStateLabel } from '../spec/board.ts'
 import { diffLines, type DiffLine } from '../spec/diff.ts'
-import { readWorkspaceText } from '../spec/files.ts'
+import { readWorkspaceText, WORKSPACE_READ_LINES } from '../spec/files.ts'
 import { runCommand, type CommandOutcome } from '../commands/run.ts'
 import { canApproveRequirement, canModifyDraft, canReviewRequirement, type ModifyBlockReason } from './requirement-gate.ts'
 import { renderMarkdown } from '../markdown/markdown.tsx'
@@ -24,7 +24,7 @@ import { PrototypePanel } from './prototype-panel.tsx'
 const zhText: Translate = (key, params) => translate('zh', key, params)
 
 /** 内联评审报告的单次行数上限；与阅读器一致。 */
-const REPORT_LINES = 5000
+const REPORT_LINES = WORKSPACE_READ_LINES
 
 /** 详情页的操作口径按四态加未知态分流；未知态只留次级动作。 */
 type DetailState = 'draft' | 'confirmed' | 'released' | 'closed' | 'unknown'

@@ -87,6 +87,18 @@ describe('prototype/uploadRef 与 clear', () => {
     expect(existsSync(join(spec, 'prototypes', id))).toBe(false)
   })
 
+  it('采纳把采纳时刻写进需求 YAML 的 prototype 登记', async () => {
+    const { controller, spec, id } = make()
+    const tool = createPrototypeTools(spec).find(item => item.name === 'prototype_draft')
+    if (tool === undefined) throw new Error('no tool')
+    const good = '<!doctype html><html><head><title>Remote 测试</title></head><body><nav>导航</nav><h1>Remote 测试</h1><section><ul><li>Remote 测试</li></ul></section><footer>页脚</footer></body></html>'
+    await tool.execute({ requirement: id, html: good }, {} as Parameters<typeof tool.execute>[1])
+
+    const adopted = await controller.adopt({ sessionId: SessionId('s1'), requirementId: id })
+    expect(adopted).toEqual({ ok: true, value: { ok: true } })
+    expect(typeof loadRequirement(spec, id).prototype?.adoptedAt).toBe('string')
+  })
+
   it('cold 会话没有工作区时显式失败', async () => {
     const ctx = new Context()
     ctx.provide('sessions', { get: () => undefined } as never)
