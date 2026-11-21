@@ -92,14 +92,14 @@ export function PrototypePanel(props: PrototypePanelProps): JSX.Element {
   useEffect(() => {
     if (lastOpenedHtml.current === undefined || html === undefined || html === lastOpenedHtml.current) return
     lastOpenedHtml.current = html
-    void Promise.resolve(window.lcoder?.openPrototypePreview(html)).catch((cause: unknown) => {
+    void Promise.resolve(window.lcoder?.openPrototypePreview?.(html)).catch((cause: unknown) => {
       setPreviewError(cause instanceof Error ? cause.message : String(cause))
     })
   }, [html])
 
   // 独立预览窗口的点选上报：只接元素信息，不反向给原型任何宿主数据。
   useEffect(() => {
-    const unsubscribe = window.lcoder?.onPrototypeSelection((info) => {
+    const unsubscribe = window.lcoder?.onPrototypeSelection?.((info) => {
       setSelection(info)
       setInstruction('')
       setPatchNote(undefined)
@@ -187,7 +187,7 @@ export function PrototypePanel(props: PrototypePanelProps): JSX.Element {
     setPreviewError(undefined)
     lastOpenedHtml.current = html
     try {
-      await window.lcoder?.openPrototypePreview(html)
+      await window.lcoder?.openPrototypePreview?.(html)
     } catch (cause: unknown) {
       setPreviewError(cause instanceof Error ? cause.message : String(cause))
     }
