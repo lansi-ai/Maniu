@@ -50,7 +50,7 @@ const HTML2 = HTML.replace('页脚', '原型测试需求 一段正文 页脚')
 
 describe('prototype_draft', () => {
   it('只注册一个工具，落盘 HTML 并登记到需求的可选 prototype 字段', async () => {
-    expect(createPrototypeTools('x').map(tool => tool.name)).toEqual(['prototype_draft'])
+    expect(createPrototypeTools('x').map(tool => tool.name)).toEqual(['prototype_draft', 'prototype_patch'])
     const { spec, id } = makeSpec()
     const result = await call(spec, {
       requirement: id,
@@ -159,5 +159,86 @@ describe('Requirement.prototype 的向后兼容', () => {
       prototype: { path: 'prototypes/REQ-01/index.html', generatedAt: '2026-01-02T00:00:00.000Z' },
     })
     expect(parsed.prototype?.references).toEqual([])
+  })
+})
+
+describe('prototype_patch', () => {
+  const SECTION_PATH = 'body:nth-child(2) > section.features:nth-child(3)'
+
+  function patch(spec: string, args: Record<string, unknown>) {
+    const tool = createPrototypeTools(spec).find(item => item.name === 'prototype_patch')
+    if (tool === undefined) throw new Error('没有 prototype_patch')
+    return callTool(tool, args)
+  }
+
+  async function seeded(): Promise<{ spec: string; id: string }> {
+    const seededSpec = makeSpec()
+    await call(seededSpec.spec, { requirement: seededSpec.id, html: HTML })
+    return seededSpec
+  }
+
+  it('按 domPath 只替换目标元素，重新校验后落盘并刷新生成时刻', async () => {
+    const { spec, id } = await seeded()
+    const result = await patch(spec, {
+      requirement: id,
+      domPath: SECTION_PATH,
+      instruction: '多加一条列表项',
+      newHtml: '<section class="features"><ul><li>一段正文</li><li>原型测试需求</li></ul></section>',
+    })
+    expect(result.ok).toBe(true)
+    const text = readFileSync(join(spec, 'prototypes', id, 'index.html'), 'utf8')
+    expect(text).toContain('<li>原型测试需求</li>')
+    expect(text).toContain('<nav>导航</nav>')
+    expect(text).toContain('<footer>页脚</footer>')
+    expect(result.domPath).toBe(SECTION_PATH)
+    expect(loadRequirement(spec, id).prototype?.generatedAt).toBe(result.generated_at)
+  })
+
+  it('newCss 只改目标元素的 style，其它元素不变', async () => {
+    const { spec, id } = await seeded()
+    const result = await patch(spec, {
+      requirement: id,
+      domPath: SECTION_PATH,
+      instruction: '改颜色',
+      newCss: 'color: #ff0000; font-size: 18px',
+    })
+    expect(result.ok).toBe(true)
+    const text = readFileSync(join(spec, 'prototypes', id, 'index.html'), 'utf8')
+    expect(text).toContain('<section class="features" style="color: #ff0000; font-size: 18px">')
+    expect(text).toContain('<nav>导航</nav>')
+  })
+
+  it('找不到 domPath、缺少原型、两个替换字段都填或都不填都拒绝且不写文件', async () => {
+    const { spec, id } = await seeded()
+    const before = readFileSync(join(spec, 'prototypes', id, 'index.html'), 'utf8')
+    await expect(patch(spec, { requirement: id, domPath: 'body > div', instruction: 'x', newHtml: '<div>a</div>' })).rejects.toThrow(/找不到元素/)
+    await expect(patch(spec, { requirement: id, domPath: SECTION_PATH, instruction: 'x', newHtml: '<div>a</div>', newCss: 'color: red' })).rejects.toThrow(/只需要/)
+    await expect(patch(spec, { requirement: id, domPath: SECTION_PATH, instruction: 'x' })).rejects.toThrow(/只需要/)
+    const fresh = makeSpec()
+    await expect(patch(fresh.spec, { requirement: fresh.id, domPath: SECTION_PATH, instruction: 'x', newHtml: '<div>a</div>' })).rejects.toThrow(/还没有原型/)
+    expect(readFileSync(join(spec, 'prototypes', id, 'index.html'), 'utf8')).toBe(before)
+  })
+
+  it('非法 newHtml 与注入式 newCss 拒绝，不写半成品', async () => {
+    const { spec, id } = await seeded()
+    const before = readFileSync(join(spec, 'prototypes', id, 'index.html'), 'utf8')
+    await expect(patch(spec, { requirement: id, domPath: SECTION_PATH, instruction: 'x', newHtml: '<div><script>alert(1)</script></div>' })).rejects.toThrow(/脚本/)
+    await expect(patch(spec, { requirement: id, domPath: SECTION_PATH, instruction: 'x', newHtml: '<div>a</div><div>b</div>' })).rejects.toThrow(/只能替换一个元素/)
+    await expect(patch(spec, { requirement: id, domPath: SECTION_PATH, instruction: 'x', newCss: 'background: url(https://evil.test/x)' })).rejects.toThrow(/newCss/)
+    expect(readFileSync(join(spec, 'prototypes', id, 'index.html'), 'utf8')).toBe(before)
+  })
+
+  it('patch 后质量门禁不通过时返回结构化失败且不落盘', async () => {
+    const { spec, id } = await seeded()
+    const result = await patch(spec, {
+      requirement: id,
+      domPath: SECTION_PATH,
+      instruction: '改成普通段落',
+      newHtml: '<p>原型测试需求</p>',
+    })
+    expect(result.ok).toBe(false)
+    const failed = result.failed as readonly { code: string }[]
+    expect(failed.map(item => item.code)).toContain('MISSING_SECTIONS')
+    expect(readFileSync(join(spec, 'prototypes', id, 'index.html'), 'utf8')).toBe(HTML)
   })
 })

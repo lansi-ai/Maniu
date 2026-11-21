@@ -4,7 +4,8 @@ import { contextBridge, ipcRenderer } from 'electron'
 import { IPC_CHANNELS } from './contract.ts'
 import type {
   CloseRequest, DesktopLocaleId, DesktopPreferences, DirectoryPickResult, EventOutcome, HostEvent, HostState,
-  HostWaterfall, HostWaterfallCancel, LcoderApi, RemoteResult, StreamFrame, UpdateCheck, WindowStateInfo,
+  HostWaterfall, HostWaterfallCancel, LcoderApi, PrototypeSelectionInfo, RemoteResult, StreamFrame, UpdateCheck,
+  WindowStateInfo,
 } from './contract.ts'
 
 function onHostState(listener: (state: HostState) => void): () => void {
@@ -49,6 +50,12 @@ function onCloseRequest(listener: (request: CloseRequest) => void): () => void {
   return () => { ipcRenderer.removeListener(IPC_CHANNELS.closeRequest, handler) }
 }
 
+function onPrototypeSelection(listener: (info: PrototypeSelectionInfo) => void): () => void {
+  const handler = (_event: Electron.IpcRendererEvent, info: PrototypeSelectionInfo): void => { listener(info) }
+  ipcRenderer.on(IPC_CHANNELS.prototypeSelection, handler)
+  return () => { ipcRenderer.removeListener(IPC_CHANNELS.prototypeSelection, handler) }
+}
+
 const api: LcoderApi = {
   hostState: onHostState,
   hostStateNow: () => ipcRenderer.invoke(IPC_CHANNELS.hostStateNow) as Promise<HostState>,
@@ -79,6 +86,8 @@ const api: LcoderApi = {
     if (!answer.ok) throw new Error(answer.message)
     return answer.path
   },
+  openPrototypePreview: html => ipcRenderer.invoke(IPC_CHANNELS.prototypePreviewOpen, html) as Promise<void>,
+  onPrototypeSelection,
 }
 
 contextBridge.exposeInMainWorld('lcoder', api)

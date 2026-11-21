@@ -23,6 +23,12 @@ export const IPC_CHANNELS = {
   preferencesRead: 'lcoder:preferences-read',
   preferencesWrite: 'lcoder:preferences-write',
   pickDirectory: 'lcoder:pick-directory',
+  /** 主窗请求打开独立原型预览窗口。 */
+  prototypePreviewOpen: 'lcoder:prototype-preview-open',
+  /** 预览窗口把点选元素上报给主进程。 */
+  prototypeSelectionReport: 'lcoder:prototype-selection-report',
+  /** 主进程把点选元素转发给主窗渲染端。 */
+  prototypeSelection: 'lcoder:prototype-selection',
 } as const
 
 /** 宿主子进程生命周期状态。 */
@@ -144,6 +150,16 @@ export type DirectoryPickResult =
   | { readonly ok: true; readonly path: string | null }
   | { readonly ok: false; readonly message: string }
 
+/** 独立预览窗口点选元素的上报信息；只含元素自身，不含宿主或页面外数据。 */
+export interface PrototypeSelectionInfo {
+  /** 从 body 到元素的 DOM 路径；元素级修改按它定位。 */
+  readonly domPath: string
+  /** 元素的 outerHTML（已剥掉脚本与事件属性并截断）。 */
+  readonly html: string
+  /** 关键计算样式，形如 `color: #333; font-size: 16px`。 */
+  readonly css: string
+}
+
 /** preload 暴露给渲染端的完整面。 */
 export interface LcoderApi {
   /** 订阅宿主状态；返回取消订阅函数。 */
@@ -192,4 +208,8 @@ export interface LcoderApi {
    * @returns 选中的目录；取消返回 null，打不开时抛错而不是当作取消。
    */
   pickDirectory(defaultPath?: string): Promise<string | null>
+  /** 在独立沙箱窗口里交互预览一份 HTML 原型；只由主窗口调用。 */
+  openPrototypePreview(html: string): Promise<void>
+  /** 订阅独立预览窗口的元素点选上报；返回取消订阅函数。 */
+  onPrototypeSelection(listener: (info: PrototypeSelectionInfo) => void): () => void
 }
