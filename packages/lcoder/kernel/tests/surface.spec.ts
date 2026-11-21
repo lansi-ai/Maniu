@@ -118,7 +118,7 @@ describe('掩码自检', () => {
 
 describe('空看板工具面', () => {
   it('只放开立项需要的读取、建任务与立项落盘能力，外加出方案、起草与改写需求', () => {
-    expect(UNSCOPEED_SURFACE).toEqual(['file_read', 'file_list', 'project_draft', 'spec_query', 'spec_draft', 'task_read', 'task_draft', 'proposal_draft', 'requirement_draft', 'requirement_revise', 'requirement_propose', 'requirement_patch_propose', 'requirement_review_draft', 'requirement_split_plan', 'prototype_draft', 'git_status', 'git_diff'])
+    expect(UNSCOPEED_SURFACE).toEqual(['file_read', 'file_list', 'project_draft', 'spec_query', 'spec_draft', 'task_read', 'task_draft', 'proposal_draft', 'requirement_draft', 'requirement_revise', 'requirement_propose', 'requirement_patch_propose', 'requirement_review_draft', 'requirement_split_plan', 'prototype_draft', 'prototype_patch', 'git_status', 'git_diff'])
     expect(UNSCOPEED_SURFACE).not.toContain('file_edit')
     expect(UNSCOPEED_SURFACE).not.toContain('cmd_run')
     expect(UNSCOPEED_SURFACE).not.toContain('spec_bind')
@@ -154,7 +154,7 @@ describe('空看板工具面', () => {
 
 describe('角色天花板', () => {
   it('实施角色等于全集去掉只对特定角色开放的工具', () => {
-    const roleOnly = ['role_draft', 'requirement_draft', 'requirement_revise', 'requirement_propose', 'requirement_patch_propose', 'requirement_review_draft', 'requirement_split_plan', 'prototype_draft']
+    const roleOnly = ['role_draft', 'requirement_draft', 'requirement_revise', 'requirement_propose', 'requirement_patch_propose', 'requirement_review_draft', 'requirement_split_plan', 'prototype_draft', 'prototype_patch']
     expect([...ROLE_TOOLS.dev].sort()).toEqual(
       allToolNames().filter(name => !roleOnly.includes(name)),
     )
@@ -163,7 +163,7 @@ describe('角色天花板', () => {
   it('原型设计师只拿到读取与 prototype_draft，没有代码、签署、过审与拆分类能力', () => {
     expect(ROLES).toContain('prototype')
     expect(ROLE_TOOLS.prototype).toEqual([
-      'file_read', 'file_list', 'spec_query', 'task_read', 'prototype_draft', 'ask_user_question',
+      'file_read', 'file_list', 'spec_query', 'task_read', 'prototype_draft', 'prototype_patch', 'ask_user_question',
     ])
     for (const tool of ['file_edit', 'cmd_run', 'contract_sign', 'task_close', 'requirement_approve', 'requirement_split_plan']) {
       expect(ROLE_TOOLS.prototype).not.toContain(tool)
@@ -172,6 +172,20 @@ describe('角色天花板', () => {
     expect(allowedTools(null, 'prototype')).toContain('prototype_draft')
     expect(allowedTools('drafting', 'prototype')).toContain('prototype_draft')
     expect(allowedTools('closed', 'prototype')).not.toContain('prototype_draft')
+  })
+
+  it('元素级 prototype_patch 只在需求阶段可见，只进原型设计师角色，终态不可见', () => {
+    for (const state of ['drafting', 'contracted', 'implementing', 'verifying'] as TaskState[]) {
+      expect(SURFACE[state]).toContain('prototype_patch')
+      expect(allowedTools(state, 'prototype')).toContain('prototype_patch')
+    }
+    expect(SURFACE.closed).not.toContain('prototype_patch')
+    expect(allowedTools(null, 'prototype')).toContain('prototype_patch')
+    for (const role of ROLES) {
+      if (role === 'prototype') continue
+      expect(ROLE_TOOLS[role]).not.toContain('prototype_patch')
+    }
+    for (const state of STATES) expect(allowedTools(state, 'dev')).not.toContain('prototype_patch')
   })
 
   it('requirement_draft 只进需求分析师，终态不可见，三条需求命令永远不在工具面', () => {

@@ -1,15 +1,18 @@
 /** 窄 IPC 注册：校验载荷后转给 link / 窗口；渲染端拿不到宿主 cookie。 */
 
 import { dialog, ipcMain, type BrowserWindow, type IpcMainInvokeEvent, type OpenDialogOptions } from 'electron'
+import { Buffer } from 'node:buffer'
 import { statSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { IPC_CHANNELS } from './contract.ts'
 import type {
-  DesktopPreferences, DirectoryPickResult, EventOutcome, HostState, UpdateCheck, WindowAction, WindowStateInfo,
+  DesktopPreferences, DirectoryPickResult, EventOutcome, HostState, PrototypeSelectionInfo, UpdateCheck,
+  WindowAction, WindowStateInfo,
 } from './contract.ts'
 import { DESKTOP_MESSAGES, fillDesktop, readDesktopPreferences, writeDesktopPreferences } from './desktop-locale.ts'
 import { isDesktopLocale, preferencePatchOf } from './preferences.ts'
 import type { HostLink } from './link.ts'
+import { createPrototypePreviewWindow, MAX_PROTOTYPE_PREVIEW_BYTES, prototypePreviewDataUrl } from './window.ts'
 
 interface IpcDependencies {
   readonly link: () => HostLink | undefined
@@ -67,6 +70,24 @@ function windowAction(value: unknown): WindowAction | undefined {
   return value === 'minimize' || value === 'toggle-maximize' || value === 'close' ? value : undefined
 }
 
+/**
+ * 校验预览窗口的元素上报：只收 domPath/html/css 三个受限长度的字符串。
+ * @param value - `lcoder:prototype-selection-report` 的载荷。
+ * @returns 规格化后的元素信息；非法载荷返回 undefined。
+ */
+function selectionInfoOf(value: unknown): PrototypeSelectionInfo | undefined {
+  if (!isRecord(value)
+    || typeof value.domPath !== 'string' || value.domPath === '' || value.domPath.length > 2000
+    || typeof value.html !== 'string' || typeof value.css !== 'string') {
+    return undefined
+  }
+  return {
+    domPath: value.domPath.slice(0, 2000),
+    html: value.html.slice(0, 8000),
+    css: value.css.slice(0, 4000),
+  }
+}
+
 function isDirectory(path: string): boolean {
   try {
     return statSync(path).isDirectory()
@@ -110,6 +131,9 @@ function pickerDefaultPath(value: unknown): string | undefined {
  * @param deps - 当前连接、应用信息与主窗口读取器。
  */
 export function registerIpc(deps: IpcDependencies): void {
+  /** 当前独立预览窗口；元素级修改后复用它重载，不堆积多个窗口。 */
+  let prototypePreview: BrowserWindow | undefined
+
   ipcMain.handle(IPC_CHANNELS.call, async (_event: IpcMainInvokeEvent, value: unknown) => {
     const request = callRequest(value)
     if (request === undefined) return { ok: false, error: { code: 'lcoder/bad-request', message: '调用参数不合法' } }
@@ -185,6 +209,31 @@ export function registerIpc(deps: IpcDependencies): void {
     const next = writeDesktopPreferences(preferencePatchOf(value))
     deps.applyLocale(next.locale)
     return next
+  })
+  ipcMain.handle(IPC_CHANNELS.prototypePreviewOpen, (_event: IpcMainInvokeEvent, value: unknown) => {
+    if (typeof value !== 'string' || value.trim() === '') throw new Error('lcoder: 预览 HTML 不合法')
+    if (Buffer.byteLength(value, 'utf8') > MAX_PROTOTYPE_PREVIEW_BYTES) {
+      throw new Error('lcoder: 预览 HTML 超过上限')
+    }
+    const parent = deps.window()
+    if (prototypePreview !== undefined && !prototypePreview.isDestroyed()) {
+      // 原型被元素级修改后，渲染端重开同一窗口即可看到最新 HTML。
+      void prototypePreview.loadURL(prototypePreviewDataUrl(value))
+      return
+    }
+    const preview = createPrototypePreviewWindow(value)
+    // 设为主窗的子窗：关主窗时预览一并销毁，关停逻辑仍只看主窗，预览关窗不影响主窗。
+    if (parent !== undefined && !parent.isDestroyed()) preview.setParentWindow(parent)
+    prototypePreview = preview
+    preview.once('closed', () => { prototypePreview = undefined })
+  })
+  ipcMain.handle(IPC_CHANNELS.prototypeSelectionReport, (_event: IpcMainInvokeEvent, value: unknown) => {
+    const info = selectionInfoOf(value)
+    if (info === undefined) throw new Error('lcoder: 选中元素信息不合法')
+    const target = deps.window()
+    if (target !== undefined && !target.isDestroyed()) {
+      target.webContents.send(IPC_CHANNELS.prototypeSelection, info)
+    }
   })
 }
 

@@ -106,6 +106,29 @@ describe('原型提示词', () => {
     expect(prompt).toContain('只重做「主视觉区」区块')
     expect(prompt).toContain('其它区块的内容与结构保持不变')
   })
+
+  it('元素修改模式带 domPath、元素 HTML/CSS 与指令，要求调用 prototype_patch', () => {
+    const prompt = buildPrototypePrompt({
+      requirementId: 'REQ-01',
+      requirementTitle: '登录改造',
+      requirementText: '邮箱登录与验证码入口。',
+      summary: undefined,
+      refs: [],
+      patch: {
+        domPath: 'body:nth-child(2) > button:nth-child(3)',
+        html: '<button class="submit">登录</button>',
+        css: 'color: #333; font-size: 16px',
+        instruction: '把按钮改成主色',
+      },
+    })
+    expect(prompt).toContain('元素级修改')
+    expect(prompt).toContain('body:nth-child(2) > button:nth-child(3)')
+    expect(prompt).toContain('<button class="submit">登录</button>')
+    expect(prompt).toContain('color: #333; font-size: 16px')
+    expect(prompt).toContain('把按钮改成主色')
+    expect(prompt).toContain('prototype_patch')
+    expect(prompt).not.toContain('prototype_draft')
+  })
 })
 
 describe('原型投影', () => {

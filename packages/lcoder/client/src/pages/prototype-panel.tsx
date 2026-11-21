@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { ChangeEvent, JSX } from 'react'
 import { Button, Separator } from '@heroui/react'
 
+import type { PrototypeSelectionInfo } from '../contract.ts'
 import type { PrototypeStyleSummary, UnaryCall } from '../prototype/remote.ts'
 import { adoptPrototype, clearPrototype, prefetchStyle, readPrototypeHtml, uploadPrototypeRef } from '../prototype/remote.ts'
 import { buildPrototypePrompt, PROTOTYPE_SECTIONS } from '../prototype/prompt.ts'
@@ -56,6 +57,12 @@ export function PrototypePanel(props: PrototypePanelProps): JSX.Element {
   const [previewError, setPreviewError] = useState<string | undefined>(undefined)
   const [generatingSection, setGeneratingSection] = useState<PrototypeSection | undefined>(undefined)
   const [lastRedone, setLastRedone] = useState<PrototypeSection | undefined>(undefined)
+  const [selection, setSelection] = useState<PrototypeSelectionInfo | undefined>(undefined)
+  const [instruction, setInstruction] = useState('')
+  const [patching, setPatching] = useState(false)
+  const [patchNote, setPatchNote] = useState<string | undefined>(undefined)
+  /** 已交给独立窗口的 HTML；html 变化时据此刷新同一个窗口。 */
+  const lastOpenedHtml = useRef<string | undefined>(undefined)
 
   const registration = props.row.prototype
   const quality = registration?.quality
@@ -80,6 +87,25 @@ export function PrototypePanel(props: PrototypePanelProps): JSX.Element {
       })
     return () => { disposed = true }
   }, [registration?.path, registration?.generatedAt, props.scopeSessionId])
+
+  // 元素级修改后 html 变化：若已开过独立窗口，复用它刷新，不堆积多个窗口。
+  useEffect(() => {
+    if (lastOpenedHtml.current === undefined || html === undefined || html === lastOpenedHtml.current) return
+    lastOpenedHtml.current = html
+    void Promise.resolve(window.lcoder?.openPrototypePreview(html)).catch((cause: unknown) => {
+      setPreviewError(cause instanceof Error ? cause.message : String(cause))
+    })
+  }, [html])
+
+  // 独立预览窗口的点选上报：只接元素信息，不反向给原型任何宿主数据。
+  useEffect(() => {
+    const unsubscribe = window.lcoder?.onPrototypeSelection((info) => {
+      setSelection(info)
+      setInstruction('')
+      setPatchNote(undefined)
+    })
+    return () => { unsubscribe?.() }
+  }, [])
 
   // 投影刷新后把已落盘的参考图补回列表；内存里已有的按路径去重，不覆盖缩略图。
   useEffect(() => {
@@ -153,6 +179,49 @@ export function PrototypePanel(props: PrototypePanelProps): JSX.Element {
       setGenError(cause instanceof Error ? cause.message : String(cause))
     } finally {
       setGeneratingSection(undefined)
+    }
+  }
+
+  const doOpenWindow = async (): Promise<void> => {
+    if (html === undefined) return
+    setPreviewError(undefined)
+    lastOpenedHtml.current = html
+    try {
+      await window.lcoder?.openPrototypePreview(html)
+    } catch (cause: unknown) {
+      setPreviewError(cause instanceof Error ? cause.message : String(cause))
+    }
+  }
+
+  const applyPatch = async (): Promise<void> => {
+    if (selection === undefined || instruction.trim() === '' || props.running || patching) return
+    setPatching(true)
+    setPatchNote(undefined)
+    setGenError(undefined)
+    try {
+      const prompt = buildPrototypePrompt({
+        requirementId: props.row.id,
+        requirementTitle: props.row.title ?? props.row.id,
+        requirementText: props.row.text,
+        summary,
+        refs,
+        patch: {
+          domPath: selection.domPath,
+          html: selection.html,
+          css: selection.css,
+          instruction: instruction.trim(),
+        },
+      })
+      const answer = await props.onGenerate(prompt)
+      if (!answer.ok) setGenError(answer.message)
+      else {
+        setPatchNote(t('prototype.selectionSent'))
+        setInstruction('')
+      }
+    } catch (cause: unknown) {
+      setGenError(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setPatching(false)
     }
   }
 
@@ -399,6 +468,12 @@ export function PrototypePanel(props: PrototypePanelProps): JSX.Element {
           : (
             <>
               <p className="detail-note" data-testid="prototype-generated-at">{t('prototype.generatedAt', { at: formatTimestamp(registration.generatedAt) })}</p>
+              <div className="prototype-window-actions">
+                <Button size="sm" variant="secondary" data-testid="prototype-open-window" isDisabled={html === undefined} onPress={() => { void doOpenWindow() }}>
+                  {t('prototype.openWindow')}
+                </Button>
+                <span className="detail-note" data-testid="prototype-window-note">{t('prototype.windowNote')}</span>
+              </div>
               {previewError !== undefined && <p className="problem" data-testid="prototype-preview-error">{previewError}</p>}
               {html === undefined
                 ? <p className="empty" data-testid="prototype-preview-loading">{t('prototype.previewLoading')}</p>
@@ -415,6 +490,32 @@ export function PrototypePanel(props: PrototypePanelProps): JSX.Element {
             </>
           )}
       </div>
+
+      {selection !== undefined && (
+        <div className="prototype-selection-card" data-testid="prototype-selection-card">
+          <span className="prototype-subtitle">{t('prototype.selectionTitle')}</span>
+          <p className="mono" data-testid="prototype-selection-path">{t('prototype.selectionCard', { domPath: selection.domPath })}</p>
+          <div className="prototype-selection-row">
+            <input
+              className="prototype-selection-input"
+              data-testid="prototype-selection-instruction"
+              value={instruction}
+              placeholder={t('prototype.selectionInstruction')}
+              onChange={event => setInstruction(event.target.value)}
+            />
+            <Button
+              size="sm"
+              variant="primary"
+              data-testid="prototype-selection-apply"
+              isDisabled={props.running || patching || instruction.trim() === ''}
+              onPress={() => { void applyPatch() }}
+            >
+              {patching ? t('prototype.selectionApplying') : t('prototype.selectionApply')}
+            </Button>
+          </div>
+          {patchNote !== undefined && <p className="detail-note" data-testid="prototype-selection-status">{patchNote}</p>}
+        </div>
+      )}
 
       {(localError !== undefined || genError !== undefined) && (
         <p className="problem" data-testid="prototype-error">

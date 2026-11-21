@@ -156,6 +156,7 @@ export function apply(ctx: PluginContext, config: LcoderConfig = {}): void {
     ...createRoleTools(rootInput),
     ...createProposalTools(rootInput),
     ...createRequirementTools(rootInput),
+    // 原型面包含 prototype_draft 与元素级 prototype_patch，两者一并注册，可见性交给 surface 白名单。
     ...createPrototypeTools(rootInput),
     ...createGitTools(repoRootInput),
     ...createEditTools(rootInput, { run: spawnRunner, repoRoot: repoRootInput, scope: allowedPaths }),

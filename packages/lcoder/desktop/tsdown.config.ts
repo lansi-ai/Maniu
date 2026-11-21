@@ -2,7 +2,10 @@ import { defineConfig } from 'tsdown'
 
 /** Sandboxed Electron preloads run as CommonJS even though the package is ESM. */
 export default defineConfig([{
-  entry: { preload: 'lib/types/preload.js' },
+  entry: {
+    preload: 'lib/types/preload.js',
+    'prototype-preview-preload': 'lib/types/prototype-preview-preload.js',
+  },
   outDir: 'lib',
   format: ['cjs'],
   codeSplitting: false,
