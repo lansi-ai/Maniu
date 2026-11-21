@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-/** 专用 preload：只暴露 reportSelection；点选检查器高亮、拦截页面行为并上报元素信息。 */
+/** 专用 preload：默认不干预原型交互；Alt 点击或选择模式才选中并上报元素信息。 */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { IPC_CHANNELS } from '../src/contract.ts'
 import type { PrototypeSelectionInfo } from '../src/contract.ts'
@@ -14,18 +14,34 @@ await import('../src/prototype-preview-preload.ts')
 
 const exposedEntry = electron.exposeInMainWorld.mock.calls.find(call => call[0] === 'lcoderPrototypePreview')
 
-beforeEach(() => {
-  vi.clearAllMocks()
-  electron.invoke.mockResolvedValue(undefined)
-  document.body.innerHTML = '<div id="app"><section class="hero"><button id="go">Go</button></section></div>'
-  // preload 在 DOM 已就绪时也会安装检查器；重复派发是空操作。
-  document.dispatchEvent(new Event('DOMContentLoaded'))
-})
-
 function exposed(): Record<string, (info: PrototypeSelectionInfo) => Promise<void>> {
   if (exposedEntry === undefined) throw new Error('没有暴露专用预览 API')
   return exposedEntry[1] as Record<string, (info: PrototypeSelectionInfo) => Promise<void>>
 }
+
+function toggle(): HTMLButtonElement {
+  const button = document.querySelector<HTMLButtonElement>('[data-testid="prototype-preview-select-mode"]')
+  if (button === null) throw new Error('没有选择模式开关')
+  return button
+}
+
+/** 还原跨用例保留的交互状态：按键、选择模式、提交抑制与高亮。 */
+function resetInteractions(): void {
+  window.dispatchEvent(new KeyboardEvent('keyup', { key: 'Alt' }))
+  if (toggle().getAttribute('aria-pressed') === 'true') toggle().click()
+  document.body.innerHTML = '<div id="app"><section class="hero"><button id="go">Go</button></section></div>'
+  const button = document.querySelector<HTMLElement>('#go')
+  if (button === null) throw new Error('missing button')
+  button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+}
+
+beforeEach(() => {
+  vi.clearAllMocks()
+  electron.invoke.mockResolvedValue(undefined)
+  resetInteractions()
+  // preload 在 DOM 已就绪时也会安装检查器；重复派发是空操作。
+  document.dispatchEvent(new Event('DOMContentLoaded'))
+})
 
 describe('prototype-preview-preload', () => {
   it('只暴露 reportSelection，并经专用通道上报元素信息', async () => {
@@ -38,16 +54,29 @@ describe('prototype-preview-preload', () => {
     expect(electron.invoke).toHaveBeenCalledExactlyOnceWith(IPC_CHANNELS.prototypeSelectionReport, info)
   })
 
-  it('hover 高亮元素；点击拦截原型行为并上报 DOM 路径与元素片段', () => {
+  it('普通点击不拦截、不上报，原型自身监听照常收到', () => {
     const button = document.querySelector<HTMLElement>('#go')
     if (button === null) throw new Error('missing button')
-    button.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }))
-    expect(button.style.getPropertyValue('outline')).toContain('2px solid')
+    const seen: string[] = []
+    button.addEventListener('click', () => seen.push('go'))
 
     const click = new MouseEvent('click', { bubbles: true, cancelable: true })
     button.dispatchEvent(click)
-    expect(click.defaultPrevented).toBe(true)
 
+    expect(click.defaultPrevented).toBe(false)
+    expect(seen).toEqual(['go'])
+    expect(electron.invoke).not.toHaveBeenCalled()
+  })
+
+  it('Alt+Click 拦截并上报元素信息，DOM 路径、片段与样式正确且保持高亮', () => {
+    const button = document.querySelector<HTMLElement>('#go')
+    if (button === null) throw new Error('missing button')
+
+    const click = new MouseEvent('click', { bubbles: true, cancelable: true, altKey: true })
+    button.dispatchEvent(click)
+
+    expect(click.defaultPrevented).toBe(true)
+    expect(button.style.getPropertyValue('outline')).toContain('2px solid')
     expect(electron.invoke).toHaveBeenCalledTimes(1)
     const [channel, info] = electron.invoke.mock.calls[0] as [string, PrototypeSelectionInfo]
     expect(channel).toBe(IPC_CHANNELS.prototypeSelectionReport)
@@ -57,22 +86,84 @@ describe('prototype-preview-preload', () => {
     expect(typeof info.css).toBe('string')
   })
 
+  it('注入可见悬浮提示条；点开关本身不上报，开启后普通点击选中，关闭后恢复可交互', () => {
+    const bar = document.querySelector<HTMLElement>('[data-testid="prototype-preview-hint"]')
+    if (bar === null) throw new Error('没有悬浮提示条')
+    expect(bar.textContent).toContain('按住 Alt 点击元素选中')
+    expect(bar.style.position).toBe('fixed')
+    expect(bar.style.zIndex).toBe('2147483647')
+    expect(toggle().textContent).toContain('选择模式')
+
+    const button = document.querySelector<HTMLElement>('#go')
+    if (button === null) throw new Error('missing button')
+
+    toggle().click()
+    expect(electron.invoke).not.toHaveBeenCalled()
+    expect(toggle().getAttribute('aria-pressed')).toBe('true')
+
+    const selectClick = new MouseEvent('click', { bubbles: true, cancelable: true })
+    button.dispatchEvent(selectClick)
+    expect(selectClick.defaultPrevented).toBe(true)
+    expect(electron.invoke).toHaveBeenCalledTimes(1)
+
+    toggle().click()
+    expect(toggle().getAttribute('aria-pressed')).toBe('false')
+    expect(electron.invoke).toHaveBeenCalledTimes(1)
+
+    const normalClick = new MouseEvent('click', { bubbles: true, cancelable: true })
+    button.dispatchEvent(normalClick)
+    expect(normalClick.defaultPrevented).toBe(false)
+    expect(electron.invoke).toHaveBeenCalledTimes(1)
+  })
+
+  it('普通悬停不高亮；Alt 按住或选择模式下悬停高亮', () => {
+    const button = document.querySelector<HTMLElement>('#go')
+    if (button === null) throw new Error('missing button')
+
+    button.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }))
+    expect(button.style.getPropertyValue('outline')).toBe('')
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Alt' }))
+    button.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }))
+    expect(button.style.getPropertyValue('outline')).toContain('2px solid')
+
+    window.dispatchEvent(new KeyboardEvent('keyup', { key: 'Alt' }))
+    expect(button.style.getPropertyValue('outline')).toBe('')
+
+    toggle().click()
+    button.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }))
+    expect(button.style.getPropertyValue('outline')).toContain('2px solid')
+  })
+
+  it('普通提交放行；只有选中动作触发的提交才拦截', () => {
+    document.body.innerHTML = '<form id="f"><button id="b">提交</button></form>'
+    const form = document.querySelector<HTMLFormElement>('#f')
+    if (form === null) throw new Error('missing form')
+
+    const normal = new Event('submit', { bubbles: true, cancelable: true })
+    form.dispatchEvent(normal)
+    expect(normal.defaultPrevented).toBe(false)
+
+    const button = document.querySelector<HTMLElement>('#b')
+    if (button === null) throw new Error('missing button')
+    button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, altKey: true }))
+
+    const selected = new Event('submit', { bubbles: true, cancelable: true })
+    form.dispatchEvent(selected)
+    expect(selected.defaultPrevented).toBe(true)
+
+    const after = new Event('submit', { bubbles: true, cancelable: true })
+    form.dispatchEvent(after)
+    expect(after.defaultPrevented).toBe(false)
+  })
+
   it('上报前剥掉脚本与事件属性，不给模型灌入可执行内容', () => {
     document.body.innerHTML = '<div id="x" onclick="alert(1)"><script>alert(2)</script><span>hi</span></div>'
     const target = document.querySelector<HTMLElement>('#x')
     if (target === null) throw new Error('missing target')
-    target.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+    target.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, altKey: true }))
     const info = electron.invoke.mock.calls[0]?.[1] as PrototypeSelectionInfo
     expect(info.html).not.toContain('<script')
     expect(info.html).not.toContain('onclick')
-  })
-
-  it('表单提交同样被拦截，原型自身导航不干扰点选', () => {
-    document.body.innerHTML = '<form id="f"><button id="b">提交</button></form>'
-    const form = document.querySelector<HTMLFormElement>('#f')
-    if (form === null) throw new Error('missing form')
-    const submit = new Event('submit', { bubbles: true, cancelable: true })
-    form.dispatchEvent(submit)
-    expect(submit.defaultPrevented).toBe(true)
   })
 })
