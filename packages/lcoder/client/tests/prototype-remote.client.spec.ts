@@ -2,7 +2,8 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import { buildPrototypePrompt, styleSummaryText } from '../src/prototype/prompt.ts'
-import { prefetchStyle, uploadPrototypeRef, clearPrototype, adoptPrototype } from '../src/prototype/remote.ts'
+import { prefetchStyle, uploadPrototypeRef, clearPrototype, adoptPrototype, readPrototypeHtml } from '../src/prototype/remote.ts'
+import { WORKSPACE_READ_LINES } from '../src/spec/files.ts'
 import { requirementTextToRow } from '../src/spec/rows.ts'
 
 const YAML = [
@@ -37,7 +38,7 @@ describe('原型 Remote', () => {
     }))
     const result = await prefetchStyle('https://example.com', call)
     expect(result).toMatchObject({ title: '示例', colors: ['#123456'], font: 'Inter' })
-    expect(call).toHaveBeenCalledWith('prototype', 'prefetch', { url: 'https://example.com' })
+    expect(call).toHaveBeenCalledWith('prototype', 'prefetch', { input: { url: 'https://example.com' } })
   })
 
   it('非法 URL 的失败回执抛带 code 的错误', async () => {
@@ -48,11 +49,29 @@ describe('原型 Remote', () => {
   it('上传、采纳与清除都走原型命名空间的窄方法', async () => {
     const call = vi.fn(async () => ({ ok: true as const, value: { path: 'prototypes/REQ-01/refs/a.png', bytes: 3 } }))
     expect(await uploadPrototypeRef('s1', 'REQ-01', 'a.png', 'YWJj', call)).toEqual({ path: 'prototypes/REQ-01/refs/a.png', bytes: 3 })
-    expect(call).toHaveBeenCalledWith('prototype', 'uploadRef', expect.objectContaining({ sessionId: 's1', requirementId: 'REQ-01' }))
+    expect(call).toHaveBeenCalledWith('prototype', 'uploadRef', {
+      input: { sessionId: 's1', requirementId: 'REQ-01', name: 'a.png', data: 'YWJj' },
+    })
     await adoptPrototype('s1', 'REQ-01', call)
-    expect(call).toHaveBeenCalledWith('prototype', 'adopt', { sessionId: 's1', requirementId: 'REQ-01' })
+    expect(call).toHaveBeenCalledWith('prototype', 'adopt', { input: { sessionId: 's1', requirementId: 'REQ-01' } })
     await clearPrototype('s1', 'REQ-01', call)
-    expect(call).toHaveBeenCalledWith('prototype', 'clear', { sessionId: 's1', requirementId: 'REQ-01' })
+    expect(call).toHaveBeenCalledWith('prototype', 'clear', { input: { sessionId: 's1', requirementId: 'REQ-01' } })
+  })
+
+  it('原型 HTML 按宿主上限读取，不超过 maxLines', async () => {
+    const call = vi.fn(async () => ({ ok: true as const, value: { text: '<html></html>' } }))
+    const html = await readPrototypeHtml('s1', {
+      path: 'prototypes/REQ-01/index.html',
+      generatedAt: '2026-11-20T00:00:00.000Z',
+      references: [],
+    }, call)
+    expect(html).toBe('<html></html>')
+    expect(call).toHaveBeenCalledWith('workspaceFiles', 'read', {
+      workspaceFileScopeId: 's1',
+      path: '.spec/prototypes/REQ-01/index.html',
+      range: { offset: 1, limit: WORKSPACE_READ_LINES },
+    })
+    expect(WORKSPACE_READ_LINES).toBeLessThanOrEqual(5000)
   })
 })
 

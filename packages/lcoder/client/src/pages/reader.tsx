@@ -3,14 +3,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { CSSProperties, JSX, PointerEvent as ReactPointerEvent } from 'react'
 import { Button } from '@heroui/react'
-import { readWorkspaceText } from '../spec/files.ts'
+import { readWorkspaceText, WORKSPACE_READ_LINES } from '../spec/files.ts'
 import { renderMarkdown } from '../markdown/markdown.tsx'
 
 const ZOOM_MIN = 50
 const ZOOM_MAX = 200
 const ZOOM_STEP = 10
 const ZOOM_BASE = 100
-const DOC_LINES = 5000
+const DOC_LINES = WORKSPACE_READ_LINES
 
 type Loaded =
   | { readonly status: 'loading' }

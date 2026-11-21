@@ -54,8 +54,12 @@ export function PrototypePanel(props: PrototypePanelProps): JSX.Element {
   const [confirmClear, setConfirmClear] = useState(false)
   const [html, setHtml] = useState<string | undefined>(undefined)
   const [previewError, setPreviewError] = useState<string | undefined>(undefined)
+  const [generatingSection, setGeneratingSection] = useState<PrototypeSection | undefined>(undefined)
+  const [lastRedone, setLastRedone] = useState<PrototypeSection | undefined>(undefined)
 
   const registration = props.row.prototype
+  const quality = registration?.quality
+  const adoptReady = quality !== undefined && quality.failed.length === 0 && quality.misses.length === 0
   const call = props.call
   const defaultCall: UnaryCall = (namespace, method, args) => window.lcoder.call(namespace, method, args)
   const invoke = call ?? defaultCall
@@ -129,18 +133,27 @@ export function PrototypePanel(props: PrototypePanelProps): JSX.Element {
   }
 
   const doGenerate = async (section?: PrototypeSection): Promise<void> => {
-    if (props.running || busy !== null) return
+    if (props.running || busy !== null || generatingSection !== undefined) return
     setGenError(undefined)
-    const prompt = buildPrototypePrompt({
-      requirementId: props.row.id,
-      requirementTitle: props.row.title ?? props.row.id,
-      requirementText: props.row.text,
-      summary,
-      refs,
-      ...(section === undefined ? {} : { section }),
-    })
-    const answer = await props.onGenerate(prompt)
-    if (!answer.ok) setGenError(answer.message)
+    setLastRedone(undefined)
+    if (section !== undefined) setGeneratingSection(section)
+    try {
+      const prompt = buildPrototypePrompt({
+        requirementId: props.row.id,
+        requirementTitle: props.row.title ?? props.row.id,
+        requirementText: props.row.text,
+        summary,
+        refs,
+        ...(section === undefined ? {} : { section }),
+      })
+      const answer = await props.onGenerate(prompt)
+      if (!answer.ok) setGenError(answer.message)
+      else if (section !== undefined) setLastRedone(section)
+    } catch (cause: unknown) {
+      setGenError(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setGeneratingSection(undefined)
+    }
   }
 
   const doAdopt = async (): Promise<void> => {
@@ -296,11 +309,36 @@ export function PrototypePanel(props: PrototypePanelProps): JSX.Element {
       {registration !== undefined && (
         <div className="prototype-section-tools" data-testid="prototype-section-tools">
           <span className="prototype-subtitle">{t('prototype.regenerateSection')}</span>
-          {PROTOTYPE_SECTIONS.map(section => (
-            <Button key={section} size="sm" variant="ghost" data-testid="prototype-regenerate-section" data-section={section} isDisabled={props.running || busy !== null} onPress={() => { void doGenerate(section) }}>
-              {section}
-            </Button>
-          ))}
+          <div className="prototype-section-chips" role="group" aria-label={t('prototype.regenerateSection')}>
+            {PROTOTYPE_SECTIONS.map((section) => {
+              const active = generatingSection === section
+              return (
+                <Button
+                  key={section}
+                  size="sm"
+                  variant="outline"
+                  className="prototype-section-chip"
+                  data-testid="prototype-regenerate-section"
+                  data-section={section}
+                  data-state={active ? 'running' : 'idle'}
+                  isDisabled={props.running || busy !== null || generatingSection !== undefined}
+                  onPress={() => { void doGenerate(section) }}
+                >
+                  {active ? t('prototype.sectionRedoing') : section}
+                </Button>
+              )
+            })}
+          </div>
+          {generatingSection !== undefined && (
+            <span className="prototype-hint-running" data-testid="prototype-section-status">
+              {t('prototype.sectionStatus', { section: generatingSection })}
+            </span>
+          )}
+          {generatingSection === undefined && lastRedone !== undefined && (
+            <span className="prototype-hint-done" data-testid="prototype-section-done">
+              {t('prototype.sectionDone', { section: lastRedone })}
+            </span>
+          )}
         </div>
       )}
 
@@ -324,6 +362,33 @@ export function PrototypePanel(props: PrototypePanelProps): JSX.Element {
               {t('prototype.keywordsMiss', { words: registration.quality.misses.join('、') })}
             </p>
           )}
+          <div className="prototype-quality-next" data-testid="prototype-quality-next" data-recommend={adoptReady ? 'adopt' : 'regenerate'}>
+            <p className="detail-note" data-testid="prototype-quality-guide">
+              {adoptReady
+                ? t('prototype.qualityNextAdopt')
+                : t('prototype.qualityNextRegenerate', { count: registration.quality.misses.length })}
+            </p>
+            <div className="prototype-quality-actions">
+              <Button
+                variant={adoptReady ? 'primary' : 'secondary'}
+                size="sm"
+                data-testid="prototype-quality-adopt"
+                isDisabled={busy !== null || registration.adoptedAt !== undefined}
+                onPress={() => { void doAdopt() }}
+              >
+                {t('prototype.adopt')}
+              </Button>
+              <Button
+                variant={adoptReady ? 'secondary' : 'primary'}
+                size="sm"
+                data-testid="prototype-quality-regenerate"
+                isDisabled={props.running || busy !== null}
+                onPress={() => { void doGenerate() }}
+              >
+                {t('prototype.regenerate')}
+              </Button>
+            </div>
+          </div>
         </div>
       )}
 

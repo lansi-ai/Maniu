@@ -1415,3 +1415,39 @@
   background: var(--glass-surface);
   box-shadow: none;
 }
+
+/* 原型区块重做：把五个区块做成带边框与 hover 的胶囊，明确可点。 */
+.prototype-section-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
+.prototype-section-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+#root .prototype-section-chip.button {
+  --button-bg: var(--surface-secondary);
+  --button-bg-hover: var(--accent-soft);
+  --button-fg: var(--foreground);
+  min-height: 28px;
+  height: auto;
+  padding: 4px 12px;
+  border: 1px solid var(--separator);
+  border-radius: 999px;
+  background: var(--surface-secondary);
+  color: var(--foreground);
+  font-size: 12px;
+  box-shadow: none;
+  cursor: pointer;
+  transition: border-color 160ms ease, background-color 160ms ease, color 160ms ease;
+}
+#root .prototype-section-chip.button:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+#root .prototype-section-chip.button[data-state='running'] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+#root .prototype-section-chip.button:disabled { cursor: not-allowed; opacity: 0.55; }
+.prototype-hint-running,
+.prototype-hint-done { font-size: 11px; color: var(--muted); }
+.prototype-hint-done { color: var(--success); }
+
+/* 质量校验结果后的行动引导：主推动作的按钮有明确视觉权重。 */
+.prototype-quality-next { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--glass-divider); }
+.prototype-quality-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }

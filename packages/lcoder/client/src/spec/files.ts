@@ -19,6 +19,13 @@ export const FLOW_FILE = `${SPEC_DIR}/flow.yaml`
 /** 单页行数；任务与规则都是几十行的量级。 */
 export const PAGE_LINES = 500
 
+/**
+ * 单次 `workspaceFiles.read` 允许的最大行数。
+ * 宿主 `maxLines` 默认就是 5000，超过会被 `gateway/bad-request` 拒绝；
+ * 长文档（需求正文、报告、原型 HTML）统一按这个口径分页读取。
+ */
+export const WORKSPACE_READ_LINES = 5000
+
 /** 一次文件读取失败。 */
 export interface SpecFailure {
   readonly code: string

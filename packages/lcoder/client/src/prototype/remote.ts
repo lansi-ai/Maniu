@@ -1,6 +1,13 @@
 /** 原型 Remote 的浏览器侧面：只走主进程的窄 IPC，不让渲染端直连网络或写磁盘。 */
 
 import type { RemoteResult } from '../contract.ts'
+import { WORKSPACE_READ_LINES } from '../spec/files.ts'
+
+/*
+ * 宿主生成的 strict descriptor 里，这些原型方法的唯一参数名是 `input`，
+ * 所以线上字段必须包一层 `{ input }`，与 `cloudFace` 的 `{ input }` / `{ query }` 一致；
+ * 直接把入参字段摊在顶层会被 `assertExactArguments` 判为 unexpected。
+ */
 
 /** 一元调用；测试可注入假传输。 */
 export type UnaryCall = (namespace: string, method: string, args: object) => Promise<RemoteResult>
@@ -70,7 +77,7 @@ export async function prefetchStyle(
   url: string,
   call: UnaryCall = (namespace, method, args) => window.lcoder.call(namespace, method, args),
 ): Promise<PrototypeStyleSummary> {
-  const answer = await call('prototype', 'prefetch', { url })
+  const answer = await call('prototype', 'prefetch', { input: { url } })
   const value = unwrap<Record<string, unknown>>(answer, '样式摘要回执缺少字段')
   const urlText = text(value.url)
   const title = text(value.title)
@@ -107,7 +114,7 @@ export async function uploadPrototypeRef(
   base64: string,
   call: UnaryCall = (namespace, method, args) => window.lcoder.call(namespace, method, args),
 ): Promise<PrototypeRefReceipt> {
-  const answer = await call('prototype', 'uploadRef', { sessionId, requirementId, name, data: base64 })
+  const answer = await call('prototype', 'uploadRef', { input: { sessionId, requirementId, name, data: base64 } })
   const value = unwrap<Record<string, unknown>>(answer, '上传回执缺少字段')
   const path = text(value.path)
   if (path === undefined) throw new Error('上传回执缺少 path')
@@ -125,7 +132,7 @@ export async function clearPrototype(
   requirementId: string,
   call: UnaryCall = (namespace, method, args) => window.lcoder.call(namespace, method, args),
 ): Promise<void> {
-  const answer = await call('prototype', 'clear', { sessionId, requirementId })
+  const answer = await call('prototype', 'clear', { input: { sessionId, requirementId } })
   unwrap<Record<string, unknown>>(answer, '清除回执缺少字段')
 }
 
@@ -140,7 +147,7 @@ export async function adoptPrototype(
   requirementId: string,
   call: UnaryCall = (namespace, method, args) => window.lcoder.call(namespace, method, args),
 ): Promise<void> {
-  const answer = await call('prototype', 'adopt', { sessionId, requirementId })
+  const answer = await call('prototype', 'adopt', { input: { sessionId, requirementId } })
   unwrap<Record<string, unknown>>(answer, '采纳回执缺少字段')
 }
 
@@ -160,7 +167,7 @@ export async function readPrototypeHtml(
   const answer = await call('workspaceFiles', 'read', {
     workspaceFileScopeId: sessionId,
     path: `.spec/${relative}`,
-    range: { offset: 1, limit: 20000 },
+    range: { offset: 1, limit: WORKSPACE_READ_LINES },
   })
   if (!answer.ok) throw new Error(`${answer.error.code}: ${answer.error.message}`)
   if (!isRecord(answer.value) || typeof answer.value.text !== 'string') throw new Error('原型 HTML 回执缺少正文')

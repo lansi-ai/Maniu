@@ -148,18 +148,39 @@ describe('PrototypePanel', () => {
     expect(prompt).toContain('prototype_draft')
   })
 
+  it('区块重做在发起中显示进行中状态，完成后给出该区块的回执', async () => {
+    let resolveGenerate: ((answer: { readonly ok: boolean; readonly message: string }) => void) | undefined
+    const generate = vi.fn((_prompt: string) => new Promise<{ readonly ok: boolean; readonly message: string }>((resolve) => {
+      resolveGenerate = resolve
+    }))
+    const h = harness(REGISTERED)
+    await render({ ...h.props, onGenerate: generate })
+    const chip = container.querySelector<HTMLElement>('[data-testid="prototype-regenerate-section"][data-section="顶部导航"]')
+    if (chip === null) throw new Error('missing section chip')
+    await act(async () => { chip.click() })
+
+    expect(generate).toHaveBeenCalledTimes(1)
+    expect(chip.getAttribute('data-state')).toBe('running')
+    expect(container.querySelector('[data-testid="prototype-section-status"]')?.textContent).toContain('顶部导航')
+    expect(String(generate.mock.calls[0]?.[0] ?? '')).toContain('只重做「顶部导航」区块')
+
+    await act(async () => { resolveGenerate?.({ ok: true, message: '会话已发起' }) })
+    expect(container.querySelector('[data-testid="prototype-section-status"]')).toBeNull()
+    expect(container.querySelector('[data-testid="prototype-section-done"]')?.textContent).toContain('顶部导航')
+  })
+
   it('采纳写回执；清除需二次确认后才调用宿主接口', async () => {
     const h = harness(REGISTERED)
     await render(h.props)
     await click('prototype-adopt')
-    expect(h.call).toHaveBeenCalledWith('prototype', 'adopt', expect.objectContaining({ requirementId: 'REQ-01' }))
+    expect(h.call).toHaveBeenCalledWith('prototype', 'adopt', { input: { sessionId: 'session-scope', requirementId: 'REQ-01' } })
 
     expect(container.querySelector('[data-testid="prototype-clear-confirm"]')).toBeNull()
     await click('prototype-clear')
     expect(container.querySelector('[data-testid="prototype-clear-confirm"]')).not.toBeNull()
     expect(h.call).not.toHaveBeenCalledWith('prototype', 'clear', expect.anything())
     await click('prototype-clear-yes')
-    expect(h.call).toHaveBeenCalledWith('prototype', 'clear', expect.objectContaining({ requirementId: 'REQ-01' }))
+    expect(h.call).toHaveBeenCalledWith('prototype', 'clear', { input: { sessionId: 'session-scope', requirementId: 'REQ-01' } })
   })
 
   it('展示质量结果与关键词命中情况', async () => {
@@ -168,6 +189,44 @@ describe('PrototypePanel', () => {
     expect(container.querySelector('[data-testid="prototype-quality"]')?.getAttribute('data-ok')).toBe('true')
     const keywords = container.querySelector('[data-testid="prototype-keywords"]')?.textContent ?? ''
     expect(keywords).toContain('2/2')
+  })
+
+  it('质量校验达标时主推采纳', async () => {
+    const h = harness(REGISTERED)
+    await render(h.props)
+    expect(container.querySelector('[data-testid="prototype-quality-next"]')?.getAttribute('data-recommend')).toBe('adopt')
+    const guide = container.querySelector('[data-testid="prototype-quality-guide"]')?.textContent ?? ''
+    expect(guide).toContain('采纳')
+    await click('prototype-quality-adopt')
+    expect(h.call).toHaveBeenCalledWith('prototype', 'adopt', { input: { sessionId: 'session-scope', requirementId: 'REQ-01' } })
+  })
+
+  it('关键词未命中较多时主推重新生成并提示可补参考', async () => {
+    const missed: RequirementDocRow = {
+      ...ROW,
+      prototype: {
+        path: 'prototypes/REQ-01/index.html',
+        generatedAt: '2026-11-20T00:00:00.000Z',
+        references: [],
+        quality: {
+          passed: ['parseable', 'sections', 'no-unsafe-markup'],
+          failed: [],
+          keywordHitRate: 0.5,
+          keywords: ['登录改造', '邮箱登录'],
+          hits: ['登录改造'],
+          misses: ['邮箱登录'],
+        },
+      },
+    }
+    const h = harness(missed)
+    await render(h.props)
+    expect(container.querySelector('[data-testid="prototype-quality-next"]')?.getAttribute('data-recommend')).toBe('regenerate')
+    const guide = container.querySelector('[data-testid="prototype-quality-guide"]')?.textContent ?? ''
+    expect(guide).toContain('1')
+    expect(guide).toContain('参考')
+    await click('prototype-quality-regenerate')
+    expect(h.generate).toHaveBeenCalledTimes(1)
+    expect(String(h.generate.mock.calls[0]?.[0] ?? '')).not.toContain('区块级重生成')
   })
 
   it('生成失败显示可读错误', async () => {
