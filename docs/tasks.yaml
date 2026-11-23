@@ -2,7 +2,7 @@
 # 旧版 .spec 任务原文归档在 lcoder/archive/spec-dev-2026-11-03/。
 project: LCoder
 iteration: MVP-0 工作台本地跑通
-updated: '2026-11-08'
+updated: '2026-11-22'
 generator: scripts/build-tasks-html.py
 tracks:
 - id: lcoder
@@ -3395,6 +3395,94 @@ tracks:
       dep: []
       inferred: false
       note: "B 级局部交互修复，来源用户 2026-11-21 实窗反馈：独立预览窗口里原型无法交互，点新建删除等按钮都没反应只能点选元素。根因确认：desktop/src/prototype-preview-preload.ts 的 onClick L113 至 121 对所有 click 做 preventDefault 加 stopPropagation，onSubmit L123 至 126 对所有 submit 同样拦截，为做点选把原型自身全部交互禁掉了。修复方案：默认让原型完全可交互不拦截；改用 Alt 加点击作为临时选择（按住 Alt 才拦截并上报），并注入一个可见悬浮提示条开关可切换持久选择模式并说明 Alt 加点击用法；提示条自身元素在 click 拦截里排除；submit 在被选择动作触发时（Alt 点击了 submit 按钮或选择模式下）才阻止，用短标志传递；hover 高亮只在 Alt 按住或选择模式开启时显示。严守安全红线：contextBridge 仍只暴露 reportSelection 一个方法不加新方法不加新 IPC 通道，检查器仍在隔离世界，原型页面拿不到宿主能力。同步更新 prototype-preview-preload.host.spec.ts 既有断言（原断言所有点击与提交都被拦截需改为：普通点击不拦截且不上报且原型行为可发生，Alt 加点击才拦截并上报且高亮，选择模式开关生效，submit 仅在被选择动作触发时拦截，提示条点击不误触选中）。验收：普通点击新建删除等按钮原型正常响应，Alt 加点击能选中元素上报，可见提示条可切换模式，安全红线不破，既有 testid 保留。门禁至少 typecheck 相关 vitest build artifacts 与 build check 且必须 CDP 实窗探针验证原型按钮可点。未经授权不提交不推送。2026-11-21 监督窗口定位并登记。2026-11-21 监督窗口收口。根因确认为 prototype-preview-preload.ts onClick L113 至 121 与 onSubmit L123 至 126 对所有 click submit 做 preventDefault 加 stopPropagation 把原型自身交互全禁掉。修复改交互模型为默认完全可交互：普通 click submit hover 不触发检查器不改变原型行为；选中条件 isSelectionClick 为 altKey 或 altHeld 或 selectionMode 仅此类点击拦截加高亮加 report(target)；注入固定定位提示条 data testid prototype-preview-hint 与开关 prototype-preview-select-mode 挂 documentElement 含 Alt 文案与选择模式切换且提示条自身点击在拦截逻辑提前 return 不误报选中；keydown keyup blur 跟踪 Alt 失焦复位；hover 高亮仅 Alt 按住或选择模式时生效；suppressSubmit 短生命周期标志每次点击复位仅选中动作置位且 setTimeout 0 兜底清除 onSubmit 仅标志置位时拦截；report safeHtml domPathOf cssOf domPath 结构与上报内容完全未改；JSDoc 同步为默认可交互。测试同步更新 host spec 覆盖普通点击不拦截可达不上报原型监听收到 Alt 加点击拦截上报高亮选择模式开关生效点开关不上报 submit 普通放行选中触发拦截 hover 条件高亮提示条存在可见并保留只暴露 reportSelection 与剥脚本两测意图。安全证据：contextBridge 仅 exposeInMainWorld 一次仅有 reportSelection 无新方法无新 IPC 通道 IPC_CHANNELS 未改检查器函数均在 preload 闭包局部未挂页面 window；CDP 实测预览窗 Object.keys window.lcoderPrototypePreview 等于 reportSelection 且无 lcoder process require；既有 testid 未改仅提示条新增两 testid。门禁实现线与监督复跑 desktop vitest 12 文件 69 例与 typecheck 五门与 i18n 1318 与 build artifacts 八门与 build check 二门全退出 0 git diff check 0；合入主线无冲突；合入后主检出重建 desktop preload prototype-preview-preload.cjs 8.89kB 含新 inspector 并重启实例主窗 CDP 探针 PASS lcoder 注入 missingMethods 空 appState ready workspace nav titlebar 齐全 bodyLen 24574。CDP 实窗探针由实现会话在 worktree 独立预览窗跑到 13/13 断言 PASS：普通点击新建按钮原型文本变化 defaultPrevented false 不上报、Alt 加点击拦截加高亮且主窗收到上报、选择模式开普通点击删除被拦截关后恢复、安全仅 reportSelection 无 lcoder process require。未单独 CDP 验证 submit 拦截实窗路径（单测已覆盖）。默认未 push。"
+    - id: T-304
+      title: "演进 Phase 1a：内核新增 requirement_amend 支持 confirmed 需求 S 级轻量修补与升级护栏"
+      status: done
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-22'
+      date: '2026-11-22'
+      dep: []
+      inferred: false
+      note: "A 级（触及 kernel 需求状态机边界与新模型工具），来源 lcoder/product-report-evolution.md（2026-11-22 定稿）Phase 1。2026-11-22 由 t304-kernel（Gemini 4 Hydrogen High）完成实现并经协调者复核收口：14 文件 +744/-23，零上游改动。核心交付：spec.ts 新增可选 RequirementAmendment、amendCount 与 amendments（旧 YAML 100% 兼容）；requirement-store.ts 新增 amendRequirement（仅 confirmed 需求可写，保持 state/versions/reviews 不变，更新正文并在文末追加 `## 变更记录` + `- [S级微调] YYYY-MM-DD <summary>`，YAML 写失败回滚 .md，REQUIREMENT_AMEND_CONSISTENCY_THRESHOLD=5 触发 needsConsistencyCheck 提醒）；requirement-tools.ts 新增 requirement_amend 与 evaluateAmendEscalation（S_GRADE_MAX_FILES=3，触发 new_track/architecture_change 拒绝写盘返回 escalateTo L，触发 irreversible/schema_or_permission_change/超 3 文件返回 escalateTo M）；surface.ts 纳入 fail-closed 白名单（排除 closed，ROLE_TOOLS 仅授权 intake），desktop-profile.patch.yml 同步 maniu-intake 人设，中英 README 同步。实跑门禁全绿：typecheck 5/5、build:artifacts 8/8、build:check 2/2、vitest packages/lcoder 178/178 文件 1981/1981 用例、oxlint 0 error/0 warning、git diff --check 0、文档配对与包裹校验 0。未 commit/push。"
+    - id: T-305
+      title: "演进 Phase 1b：前端统一「提变更 / 加功能」分流弹窗与 S/M/L 自动路由"
+      status: done
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-22'
+      date: '2026-11-22'
+      dep: [T-304]
+      inferred: false
+      note: "B 级（client 弹窗与提示词路由），来源 lcoder/product-report-evolution.md Phase 1。2026-11-22 由 t305-client（Gemini 4 Hydrogen High）完成实现并经协调者复核收口：13 文件（新增 4 + 修改 9，双语词典各 +64 严格对称），零上游改动。核心交付：新增 intake/change-triage.ts（四维 S/M/L 纯函数与 isTriageLevelAllowed，纯 MessageKey 零硬编码）；新增 pages/change-triage-modal.tsx（复用 HeroUI Modal + .glass-modal 居中弹窗，展示文档影响说明并支持手动改选级别）；requirements.tsx 顶栏（change-triage-open）与 requirement-detail.tsx（confirmed/released 入口 requirement-detail-change-triage 与 amendCount>0 标签 requirement-amend-count）统一接入；prompts.ts 新增 buildRequirementAmendPrompt / buildRequirementDeltaPrompt / buildRequirementMilestonePrompt，打通 draft/S/M/L 四通道后台浮卡路由（S 级监听 amendCount 收口并尊重 requirement_amend 的 escalateTo 护栏）；spec/rows.ts 透传 amendCount 与 amendments。实跑门禁全绿：verify-client-ui-i18n（1318 文件）、vitest packages/lcoder/client/tests（55 文件 539 例）、typecheck 5/5、oxlint 0 error/0 warning、client tsc+tsdown build、verify-no-unknown-casts（client 0 违规）、git diff --check 0。视觉观感待实窗验收，未 commit/push。"
+    - id: T-306
+      title: "演进 Phase 3a-1：任务看板默认 4 列结果视图降噪与 Pro 工程明细折叠"
+      status: todo
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-22'
+      date: ''
+      dep: []
+      inferred: false
+      note: "B 级（client 视图重构），来源 lcoder/product-report-evolution.md Phase 3a。落点：packages/lcoder/client/src/pages/tasks.tsx、task-detail.tsx、spec/board.ts、双语词典。范围：任务页默认展示 4 列结果语言（待开工 / AI 开发中 / 等你验收 / 已完成），内核底层 6 列状态机与契约哈希、P1/P3/P4 检查明细 100% 保留并收纳在任务详情「工程治理明细」与显式 Pro 视图开关中，卡片用一句话展示当前进度而非工程状态枚举。"
+    - id: T-307
+      title: "演进 Phase 3a-2：安全任务幕后自动流转（sign-gate 默认自治）与失败熔断/安全点撤回"
+      status: todo
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-22'
+      date: ''
+      dep: [T-306]
+      inferred: false
+      note: "A 级（触及 kernel 自动化流转与安全护栏），来源 lcoder/product-report-evolution.md Phase 3a。落点：packages/lcoder/kernel/src/kernel/task-store.ts、sign-gate.ts、automation.ts、client/src/pages/tasks.tsx。范围：需求拆出任务后提供「开始自动开发」一键入口，利用既有 AI 自签三重闸门对无不可逆项的安全任务自动完成起草契约、自签、绑定、编码与快车道门禁直到停在「等你验收」；补齐两条护栏——单任务自测连续失败上限（默认 3 次）熔断吹哨（换思路重试 / 回滚 / 人工介入），以及任务开工前本地安全基线点一键撤回（严守不 git push、不强覆盖远端红线）。"
+    - id: T-308
+      title: "演进 Phase 2：图文双生立项与原型点选修改受控回写需求正文"
+      status: todo
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-22'
+      date: ''
+      dep: [T-305]
+      inferred: false
+      note: "A 级（跨 kernel 与 client），来源 lcoder/product-report-evolution.md Phase 2（待 Phase 1 + 3a 实测后排期）。落点：packages/lcoder/client/src/pages/requirement-detail.tsx、prototype-panel.tsx、kernel/src/tools/prototype-tools.ts。范围：立项完成时自动接力 maniu-prototype 生成首版可交互原型；原型点选元素修改区分纯视觉/布局微调（只改原型）与字段/交互/规则变更（生成针对 REQ-xx.md 的受控 Diff 同步摘要与一键撤销同步按钮），严守 REQ-xx.md 为唯一契约真相源、禁止静默覆写精修规则。"
+    - id: T-309
+      title: "演进 Phase 3b：分层托管一键实窗试玩、人话验收清单与指哪打回重修"
+      status: todo
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-22'
+      date: ''
+      dep: [T-307]
+      inferred: false
+      note: "A 级（跨 desktop 主进程、kernel 与 client），来源 lcoder/product-report-evolution.md Phase 3b（待 Phase 1 + 3a 实测后排期）。落点：packages/lcoder/desktop/src/、client/src/pages/task-detail.tsx、kernel/src/kernel/task-store.ts。范围：等你验收卡片提供「启动试玩」（UI 类项目由桌面宿主托管进程生命周期、端口避让、关窗/退出清理子进程树与报错回传 AI 修复；非 UI 类项目展示交互式试跑验证卡）；详情页提供人话验收清单与「这里有问题，继续改」（支持 verifying 携带用户反馈退回 implementing 返工重修）。"
+    - id: T-310
+      title: "新增原型库（菜单人才库下方）：内置 4 套组件素材库、实时沙箱预览、自定义库管理与原型生成选用"
+      status: done
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-22'
+      date: '2026-11-22'
+      dep: []
+      inferred: false
+      note: "B 级（client 新导航页 + 素材库模型与提示词注入），来源用户 2026-11-22 需求确认。2026-11-22 由 t310-proto-lib（Gemini 4 Hydrogen High）完成实现并经协调者复核收口，零上游改动。核心交付：新增 prototype/libraries.ts（内置 4 套零 JS 零外链素材库 heroui-glass / enterprise-admin / minimal-linear / mobile-card，localStorage 容错持久化 + 自定义库增删改复制 + 同页订阅 Hook usePrototypeLibraryState）；新增 pages/prototype-library.tsx（左侧导航人才库正下方「原型库」页，含卡片列表、色板条、iframe sandbox=\"\" 实时沙箱组件预览、Design Tokens/组件规范展示、HeroUI Glass Modal 新建/复制/编辑与二次确认删除）；app.tsx PageId 新增 prototype-library 并将 onOpenPrototypeLibrary 透传给 RequirementsPage；prototype-panel.tsx 新增素材库选择器（prototype-library-select）与一键跳转（prototype-library-manage）；prompt.ts buildPrototypePrompt 注入所选素材库 Design Tokens 与组件规范（含 patch 模式与默认回退兼容）；locale-zh/en 对称补词、workbench.css 补齐样式；新增 prototype-library.client.spec.ts 与 prototype-library-page.client.spec.tsx。实跑门禁全绿：verify-client-ui-i18n（1318 文件）、tsc -b 0 errors、oxlint（11 文件 0 warning 0 error）、tsdown + Vite lib/dist 构建成功、vitest packages/lcoder/client/tests（57 文件 552 例全绿）、git diff --check 0。视觉观感待实窗验收，未 commit/push。"
+    - id: T-311
+      title: 需求详情按工作面切换与历史记录抽屉与原型预览前置
+      status: doing
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-23'
+      date: '2026-11-23'
+      dep: []
+      inferred: false
+      note: "B 级纯 client 多文件 UI 重构，来源用户 2026-11-23 独立工单：把需求列表与详情从全量版本评审平铺加超长垂直瀑布重构为聚焦当前待办阶段的工作面视图。复用可靠 AOCI 认知未重读 overview，开工前读 AGENTS 与 PROJECT-RULES 与 architecture 与 defensive-patterns client-components 与 kernel client desktop README（本会话已读）。监督只读核实现状与工单一致：requirement-detail.tsx L296 至 307 phase 与 activeDoc 混杂 docOverride 派生存档报告标签，L199 至 247 RequirementDetailProps 无 initialHistoryOpen，L637 至 652 actions 插槽仅 requirement-detail-reload，L782 至 839 requirement-doc-tabs 把 draft 与全部 versions 与全部 reviews 横向平铺，L1003 至 1558 doc pane 下 timeline L1330 至 1395 与 split-plan L1397 至 1521 与 related L1523 至 1546 与 PrototypePanel L1548 至 1558 竖向瀑布堆叠，L1619 至 1669 有 requirement-version-compare 双栏对比弹窗由 compareVersion 驱动；requirements.tsx L1431 至 1434 列表行仅编号标题状态 Chip 立项时间操作且 openDetail row 无版本徽标；prototype-panel.tsx L291 至 563 中 library-bar L291 与 inputs L337 与 actions L421 与 section-tools L450 与 quality L486 全部排在 preview L535 之前。范围一 requirements.tsx：列表行新增可点击版本号徽标 data-testid requirement-row-version 取 row.versions 最大版本号无记录显示 v1；点击徽标 stopPropagation 阻止整行并打开详情设 historyOpen 或 initialHistoryOpen 直接弹历史抽屉；关闭详情或切换需求重置初始标志。范围二 requirement-detail.tsx：新增可选 initialHistoryOpen 属性打开时历史抽屉置开；解耦工作面状态与历史抽屉状态定义工作面类型 body review prototype tasks 替代原 activeDoc 顶栏混排逻辑，默认工作面当 phase pending 且有评审时默认 review 否则 body，review 标签仅 row.reviews.length 大于 0 时渲染且 pending 带高亮待裁决徽标，tasks 标签仅 state 为 confirmed released closed 或 related.length 大于 0 或 plan 存在时渲染草稿期隐藏；用 HeroUI 原生 Tabs 或既有 tablist tab 样式实现工作面切换各面独立渲染避免 4 区同时瀑布；split-plan 归入 tasks 面顶部展示待确认岗位仍保留操作；actions 插槽在 requirement-detail-reload 旁新增历史记录按钮 data-testid requirement-history-trigger 文案动态历史记录 vN 或 vN 点 RN；新建历史记录抽屉或 Modal data-testid requirement-history-drawer 把原内联 timeline 迁入按时间倒序展示版本快照 vN 与评审报告 RN，点击 vN 抽屉内展开只读 Markdown 快照复用 versionDoc 与 markdown-body，点对比上一版打开既有 requirement-version-compare，点击 RN 抽屉内展开只读评审报告复用 readWorkspaceText；操作按钮按阶段收敛仅 body 面与顶部全局区展示当前阶段可用操作。范围三 prototype-panel.tsx：预览区含 prototype-open-window 与 selection-card 与采纳清除生成与质量提示置顶；新增 configOpen 状态默认 registration undefined 无原型时展开 true 有原型时收起 false 且生成完成后自动收起；收起时提供 prototype-config-toggle 按钮展开 library-bar 与 inputs；保留全部既有 testid 与 iframe sandbox 空安全属性。范围四 locale-zh en 补工作面标签历史按钮抽屉标题空态快照切换列表版本徽标原型生成配置折叠文案中英键集合完全一致英文 sentence case 不硬编码。范围五 workbench.css 新增工作面顶栏历史抽屉与配置折叠样式复用 glass token 中性无紫；拖拽区红线严禁在 titlebar window-gutter titlebar-pad gate-drag nav-header shell 等含 app-region drag 元素或祖先添加修改 backdrop-filter。范围六更新受影响单测 requirement-detail-redesign 与 requirement-detail-timeline 与 requirement-detail-inline 与 requirement-review-report 与 prototype-panel 与 requirements-ops 等并补四新测：列表版本徽标直达详情弹历史且不误触其他行操作、纯草稿隐藏评审处理与关联任务且 pending 评审默认进评审处理、历史抽屉查看 vN 快照与只读 RN 与对比上一版、原型已有原型默认收起生成配置且点重新生成配置展开。不要碰上游文件与 kernel desktop 与 spec schema 与状态机不放宽 data-testid 元素仍在必须保留不改 iframe sandbox。门禁仅快车道 lcoder scripts fast-check.cmd -Scope client 与 pnpm run verify-client-ui-i18n 严禁整仓 build artifacts 与整仓 typecheck 与整仓 lint 与全量 vitest 只报告实际命令结果。稳定后一次 aoci_maintain 有候选用 aoci_update_entry 按 Guide 读证据提交完整批次至 aligned 单列 AOCI 状态。未经授权不提交不推送。2026-11-23 监督窗口读规则核实现状并登记。"
 
 
 milestones:
