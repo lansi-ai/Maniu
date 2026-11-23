@@ -8,6 +8,22 @@
 /** 摘要总字符上限。 */
 export const MAX_SUMMARY_CHARS = 4000
 
+/**
+ * 原型失败的机器可读分类。
+ *
+ * 每个码都在 `errors.ts` 里登记进 `RemoteErrorDetailsMap`，所以它同时是
+ * typert wire 上的稳定错误码，界面按 `answer.error.code` 分支。
+ */
+export type PrototypeErrorCode =
+  | 'PROTOTYPE/NO_WORKSPACE'
+  | 'PROTOTYPE/NO_STAGED'
+  | 'PROTOTYPE/SNAPSHOT_NOT_FOUND'
+  | 'PROTOTYPE/REQUIREMENT_BASELINE_CONFLICT'
+  | 'PROTOTYPE/INVALID_URL'
+  | 'PROTOTYPE/WEB_UNAVAILABLE'
+  | 'PROTOTYPE/UNSUPPORTED_CONTENT'
+  | 'PROTOTYPE/FAILED'
+
 /** 原型相关的结构化失败；`code` 供界面与 Remote 回执分支。 */
 export class PrototypeError extends Error {
   override name = 'PrototypeError'
@@ -16,7 +32,7 @@ export class PrototypeError extends Error {
    * @param message - 人能读的原因。
    * @param code - 机器可读的分类。
    */
-  constructor(message: string, readonly code: string) {
+  constructor(message: string, readonly code: PrototypeErrorCode) {
     super(message)
   }
 }
@@ -162,8 +178,8 @@ function readableText(html: string): string {
 /** 从内联样式里挑出出现次数最多、足够具体的颜色值。 */
 function collectColors(html: string): string[] {
   const found = [...html.matchAll(/#(?:[0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})\b/gi)]
-    .map(match => (match[0] ?? '').toLowerCase())
-    .concat([...html.matchAll(/\b(?:rgb|rgba|hsl)\([^)]*\)/gi)].map(match => (match[0] ?? '').toLowerCase()))
+    .map(match => match[0].toLowerCase())
+    .concat([...html.matchAll(/\b(?:rgb|rgba|hsl)\([^)]*\)/gi)].map(match => match[0].toLowerCase()))
   const counts = new Map<string, number>()
   for (const color of found) counts.set(color, (counts.get(color) ?? 0) + 1)
   return [...counts.entries()]
@@ -211,9 +227,9 @@ function boundSummary(summary: StyleSummary): StyleSummary {
   const fixed = [
     summary.url,
     summary.title,
-    summary.font ?? '',
-    summary.layout ?? '',
-    summary.buttonStyle ?? '',
+    summary.font,
+    summary.layout,
+    summary.buttonStyle,
     ...summary.headings,
     ...summary.colors,
   ].join('')

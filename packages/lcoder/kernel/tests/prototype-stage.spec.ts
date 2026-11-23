@@ -17,6 +17,7 @@ import {
 } from '../src/prototype/store.js'
 import type { StagedPrototype } from '../src/prototype/types.js'
 import { createPrototypeTools } from '../src/tools/prototype-tools.js'
+import { rejectsWithCode } from './prototype-remote-assert.js'
 
 const dirs: string[] = []
 afterAll(() => {
@@ -307,54 +308,50 @@ describe('discard、快照恢复与路径穿越拒绝', () => {
     expect(listSnapshots(spec, id)).toHaveLength(3)
   })
 
-  it('快照编号的路径穿越与越界形态被拒，控制器只回结构化失败', async () => {
+  it('快照编号的路径穿越与越界形态被拒，控制器只抛 RemoteError', async () => {
     const { spec, id, repo } = makeSpec()
     for (const value of ['..', '../secret', 'a/b', 'C:\\secret', 'snapshot.html', '']) {
       expect(() => prototypeSnapshotPath(spec, id, value)).toThrow()
     }
     const controller = makeController(repo)
     const sessionId = SessionId('s1')
-    const answer = await controller.restoreSnapshot({ sessionId, requirementId: id, snapshotId: '../secret' })
-    expect(answer).toMatchObject({ ok: false, error: { code: 'PROTOTYPE/FAILED' } })
+    await rejectsWithCode(
+      controller.restoreSnapshot({ sessionId, requirementId: id, snapshotId: '../secret' }),
+      'PROTOTYPE/FAILED',
+    )
     expect(existsSync(join(spec, 'prototypes', id, 'history'))).toBe(false)
   })
 })
 
-describe('5 个暂存 Remote 的统一 { input } 契约', () => {
-  it('getStaged / commitStaged / discardStaged / listSnapshots / restoreSnapshot 都经失败包装', async () => {
+describe('5 个暂存 Remote 回裸值，失败抛 RemoteError', () => {
+  it('getStaged / commitStaged / discardStaged / listSnapshots / restoreSnapshot 都不再套结果信封', async () => {
     const { spec, id, repo } = makeSpec()
     const controller = makeController(repo)
     const sessionId = SessionId('s1')
 
     const empty = await controller.getStaged({ sessionId, requirementId: id })
-    expect(empty).toEqual({ ok: true, value: { staged: null, committedHtml: null } })
+    expect(empty).toEqual({ staged: null, committedHtml: null })
 
-    const noStaged = await controller.commitStaged({ sessionId, requirementId: id })
-    expect(noStaged).toMatchObject({ ok: false, error: { code: 'PROTOTYPE/NO_STAGED' } })
+    await rejectsWithCode(controller.commitStaged({ sessionId, requirementId: id }), 'PROTOTYPE/NO_STAGED')
 
     writeCommitted(spec, id, HTML)
     writeStagedPrototype(spec, id, stage(id, HTML))
     const staged = await controller.getStaged({ sessionId, requirementId: id })
-    expect(staged).toMatchObject({ ok: true, value: { staged: { requirementId: id, html: HTML } } })
+    expect(staged).toMatchObject({ staged: { requirementId: id, html: HTML } })
 
     const committed = await controller.commitStaged({ sessionId, requirementId: id })
-    expect(committed.ok).toBe(true)
+    expect(committed.requirementSync).toBe('none')
     const snapshots = await controller.listSnapshots({ sessionId, requirementId: id })
-    expect(snapshots.ok).toBe(true)
-    if (snapshots.ok) expect(snapshots.value.snapshots).toHaveLength(1)
+    expect(snapshots.snapshots).toHaveLength(1)
 
     const discarded = await controller.discardStaged({ sessionId, requirementId: id })
-    expect(discarded).toEqual({ ok: true, value: { ok: true } })
+    expect(discarded).toEqual({ ok: true })
     expect(readStagedPrototype(spec, id)).toBeNull()
 
-    if (snapshots.ok && snapshots.value.snapshots[0] !== undefined) {
-      const restored = await controller.restoreSnapshot({
-        sessionId,
-        requirementId: id,
-        snapshotId: snapshots.value.snapshots[0].snapshotId,
-      })
-      expect(restored.ok).toBe(true)
-    }
+    const snapshotId = snapshots.snapshots[0]?.snapshotId
+    if (snapshotId === undefined) throw new Error('提交后应当有一份快照')
+    const restored = await controller.restoreSnapshot({ sessionId, requirementId: id, snapshotId })
+    expect(restored.html).toBe(HTML)
   })
 })
 

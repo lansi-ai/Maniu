@@ -696,6 +696,121 @@ const _maniu_kernel_lcoderCloud_usage_result$schema = () => (_maniu_kernel_lcode
   'nextCursor': z.union([z.literal(null), z.string()]).readonly(),
 }).readonly(),
 })]))
+let _maniu_kernel_prototype_adopt_parameter_0$schema$value
+const _maniu_kernel_prototype_adopt_parameter_0$schema = () => (_maniu_kernel_prototype_adopt_parameter_0$schema$value ??= z.object({
+  'sessionId': z.string().readonly(),
+  'requirementId': z.string().readonly(),
+}))
+let _maniu_kernel_prototype_adopt_result$schema$value
+const _maniu_kernel_prototype_adopt_result$schema = () => (_maniu_kernel_prototype_adopt_result$schema$value ??= z.object({
+  'ok': z.literal(true).readonly(),
+}))
+let _maniu_kernel_prototype_clear_parameter_0$schema$value
+const _maniu_kernel_prototype_clear_parameter_0$schema = () => (_maniu_kernel_prototype_clear_parameter_0$schema$value ??= z.object({
+  'sessionId': z.string().readonly(),
+  'requirementId': z.string().readonly(),
+}))
+let _maniu_kernel_prototype_clear_result$schema$value
+const _maniu_kernel_prototype_clear_result$schema = () => (_maniu_kernel_prototype_clear_result$schema$value ??= z.object({
+  'ok': z.literal(true).readonly(),
+}))
+let _maniu_kernel_prototype_commitStaged_parameter_0$schema$value
+const _maniu_kernel_prototype_commitStaged_parameter_0$schema = () => (_maniu_kernel_prototype_commitStaged_parameter_0$schema$value ??= z.object({
+  'applyRequirementDiff': z.boolean().readonly().optional(),
+  'requirementAmendMode': z.union([z.literal("patch"), z.literal("amend")]).readonly().optional(),
+  'sessionId': z.string().readonly(),
+  'requirementId': z.string().readonly(),
+}))
+let _maniu_kernel_prototype_commitStaged_result$schema$value
+const _maniu_kernel_prototype_commitStaged_result$schema = () => (_maniu_kernel_prototype_commitStaged_result$schema$value ??= z.object({
+  'committedAt': z.string().readonly(),
+  'snapshotId': z.string().readonly().optional(),
+  'requirementSync': z.union([z.literal("none"), z.literal("patched"), z.literal("amended"), z.literal("skipped_pending"), z.literal("skipped_locked")]).readonly(),
+  'message': z.string().readonly().optional(),
+}))
+let _maniu_kernel_prototype_discardStaged_parameter_0$schema$value
+const _maniu_kernel_prototype_discardStaged_parameter_0$schema = () => (_maniu_kernel_prototype_discardStaged_parameter_0$schema$value ??= z.object({
+  'sessionId': z.string().readonly(),
+  'requirementId': z.string().readonly(),
+}))
+let _maniu_kernel_prototype_discardStaged_result$schema$value
+const _maniu_kernel_prototype_discardStaged_result$schema = () => (_maniu_kernel_prototype_discardStaged_result$schema$value ??= z.object({
+  'ok': z.literal(true).readonly(),
+}))
+let _maniu_kernel_prototype_getStaged_parameter_0$schema$value
+const _maniu_kernel_prototype_getStaged_parameter_0$schema = () => (_maniu_kernel_prototype_getStaged_parameter_0$schema$value ??= z.object({
+  'sessionId': z.string().readonly(),
+  'requirementId': z.string().readonly(),
+}))
+let _maniu_kernel_prototype_getStaged_result$schema$value
+const _maniu_kernel_prototype_getStaged_result$schema = () => (_maniu_kernel_prototype_getStaged_result$schema$value ??= z.object({
+  'staged': z.union([z.literal(null), z.object({
+  'requirementId': z.string().readonly(),
+  'html': z.string().readonly(),
+  'changeKind': z.union([z.literal("visual"), z.literal("business")]).readonly(),
+  'summary': z.array(z.string()).readonly().describe('1–4 条给人读的改动摘要。'),
+  'changedDomPaths': z.array(z.string()).readonly(),
+  'requirementDiff': z.union([z.undefined(), z.object({
+  'baseContent': z.string().readonly(),
+  'proposedContent': z.string().readonly(),
+  'summary': z.string().readonly(),
+})]).readonly().optional(),
+  'createdAt': z.string().readonly(),
+})]).readonly(),
+  'committedHtml': z.union([z.literal(null), z.string()]).readonly(),
+}))
+let _maniu_kernel_prototype_listSnapshots_parameter_0$schema$value
+const _maniu_kernel_prototype_listSnapshots_parameter_0$schema = () => (_maniu_kernel_prototype_listSnapshots_parameter_0$schema$value ??= z.object({
+  'sessionId': z.string().readonly(),
+  'requirementId': z.string().readonly(),
+}))
+let _maniu_kernel_prototype_listSnapshots_result$schema$value
+const _maniu_kernel_prototype_listSnapshots_result$schema = () => (_maniu_kernel_prototype_listSnapshots_result$schema$value ??= z.object({
+  'snapshots': z.array(z.object({
+  'snapshotId': z.string().readonly(),
+  'createdAt': z.string().readonly(),
+  'bytes': z.number().readonly(),
+})).readonly(),
+}))
+let _maniu_kernel_prototype_prefetch_parameter_0$schema$value
+const _maniu_kernel_prototype_prefetch_parameter_0$schema = () => (_maniu_kernel_prototype_prefetch_parameter_0$schema$value ??= z.object({
+  'url': z.string().readonly(),
+}))
+let _maniu_kernel_prototype_prefetch_result$schema$value
+const _maniu_kernel_prototype_prefetch_result$schema = () => (_maniu_kernel_prototype_prefetch_result$schema$value ??= z.object({
+  'url': z.string().readonly(),
+  'title': z.string().readonly(),
+  'headings': z.array(z.string()).readonly(),
+  'text': z.string().readonly(),
+  'colors': z.array(z.string()).readonly(),
+  'font': z.string().readonly().describe('空串表示未识别；Remote 边界不接受 `undefined`。'),
+  'layout': z.string().readonly(),
+  'buttonStyle': z.string().readonly(),
+  'truncated': z.boolean().readonly(),
+}))
+let _maniu_kernel_prototype_restoreSnapshot_parameter_0$schema$value
+const _maniu_kernel_prototype_restoreSnapshot_parameter_0$schema = () => (_maniu_kernel_prototype_restoreSnapshot_parameter_0$schema$value ??= z.object({
+  'snapshotId': z.string().readonly(),
+  'sessionId': z.string().readonly(),
+  'requirementId': z.string().readonly(),
+}))
+let _maniu_kernel_prototype_restoreSnapshot_result$schema$value
+const _maniu_kernel_prototype_restoreSnapshot_result$schema = () => (_maniu_kernel_prototype_restoreSnapshot_result$schema$value ??= z.object({
+  'restoredAt': z.string().readonly(),
+  'html': z.string().readonly(),
+}))
+let _maniu_kernel_prototype_uploadRef_parameter_0$schema$value
+const _maniu_kernel_prototype_uploadRef_parameter_0$schema = () => (_maniu_kernel_prototype_uploadRef_parameter_0$schema$value ??= z.object({
+  'sessionId': z.string().readonly(),
+  'requirementId': z.string().readonly(),
+  'name': z.string().readonly(),
+  'data': z.string().readonly(),
+}))
+let _maniu_kernel_prototype_uploadRef_result$schema$value
+const _maniu_kernel_prototype_uploadRef_result$schema = () => (_maniu_kernel_prototype_uploadRef_result$schema$value ??= z.object({
+  'path': z.string().readonly(),
+  'bytes': z.number().readonly(),
+}))
 let _maniu_kernel_agentTalents_applyTalents_parameter_0_strict$schema$value
 const _maniu_kernel_agentTalents_applyTalents_parameter_0_strict$schema = () => (_maniu_kernel_agentTalents_applyTalents_parameter_0_strict$schema$value ??= z.strictObject({
   'talents': z.array(z.strictObject({
@@ -833,6 +948,55 @@ const _maniu_kernel_lcoderCloud_usage_parameter_0_strict$schema = () => (_maniu_
   'from': z.string().readonly().optional(),
   'to': z.string().readonly().optional(),
   'modelId': z.string().readonly().optional(),
+}))
+let _maniu_kernel_prototype_adopt_parameter_0_strict$schema$value
+const _maniu_kernel_prototype_adopt_parameter_0_strict$schema = () => (_maniu_kernel_prototype_adopt_parameter_0_strict$schema$value ??= z.strictObject({
+  'sessionId': z.string().readonly(),
+  'requirementId': z.string().readonly(),
+}))
+let _maniu_kernel_prototype_clear_parameter_0_strict$schema$value
+const _maniu_kernel_prototype_clear_parameter_0_strict$schema = () => (_maniu_kernel_prototype_clear_parameter_0_strict$schema$value ??= z.strictObject({
+  'sessionId': z.string().readonly(),
+  'requirementId': z.string().readonly(),
+}))
+let _maniu_kernel_prototype_commitStaged_parameter_0_strict$schema$value
+const _maniu_kernel_prototype_commitStaged_parameter_0_strict$schema = () => (_maniu_kernel_prototype_commitStaged_parameter_0_strict$schema$value ??= z.strictObject({
+  'applyRequirementDiff': z.boolean().readonly().optional(),
+  'requirementAmendMode': z.union([z.literal("patch"), z.literal("amend")]).readonly().optional(),
+  'sessionId': z.string().readonly(),
+  'requirementId': z.string().readonly(),
+}))
+let _maniu_kernel_prototype_discardStaged_parameter_0_strict$schema$value
+const _maniu_kernel_prototype_discardStaged_parameter_0_strict$schema = () => (_maniu_kernel_prototype_discardStaged_parameter_0_strict$schema$value ??= z.strictObject({
+  'sessionId': z.string().readonly(),
+  'requirementId': z.string().readonly(),
+}))
+let _maniu_kernel_prototype_getStaged_parameter_0_strict$schema$value
+const _maniu_kernel_prototype_getStaged_parameter_0_strict$schema = () => (_maniu_kernel_prototype_getStaged_parameter_0_strict$schema$value ??= z.strictObject({
+  'sessionId': z.string().readonly(),
+  'requirementId': z.string().readonly(),
+}))
+let _maniu_kernel_prototype_listSnapshots_parameter_0_strict$schema$value
+const _maniu_kernel_prototype_listSnapshots_parameter_0_strict$schema = () => (_maniu_kernel_prototype_listSnapshots_parameter_0_strict$schema$value ??= z.strictObject({
+  'sessionId': z.string().readonly(),
+  'requirementId': z.string().readonly(),
+}))
+let _maniu_kernel_prototype_prefetch_parameter_0_strict$schema$value
+const _maniu_kernel_prototype_prefetch_parameter_0_strict$schema = () => (_maniu_kernel_prototype_prefetch_parameter_0_strict$schema$value ??= z.strictObject({
+  'url': z.string().readonly(),
+}))
+let _maniu_kernel_prototype_restoreSnapshot_parameter_0_strict$schema$value
+const _maniu_kernel_prototype_restoreSnapshot_parameter_0_strict$schema = () => (_maniu_kernel_prototype_restoreSnapshot_parameter_0_strict$schema$value ??= z.strictObject({
+  'snapshotId': z.string().readonly(),
+  'sessionId': z.string().readonly(),
+  'requirementId': z.string().readonly(),
+}))
+let _maniu_kernel_prototype_uploadRef_parameter_0_strict$schema$value
+const _maniu_kernel_prototype_uploadRef_parameter_0_strict$schema = () => (_maniu_kernel_prototype_uploadRef_parameter_0_strict$schema$value ??= z.strictObject({
+  'sessionId': z.string().readonly(),
+  'requirementId': z.string().readonly(),
+  'name': z.string().readonly(),
+  'data': z.string().readonly(),
 }))
 
 export const TYPERT_REMOTE = createTypertRemoteInfo({
@@ -1424,6 +1588,294 @@ export const TYPERT_REMOTE = createTypertRemoteInfo({
         jsonSchema: {"oneOf":[{"type":"object","properties":{"ok":{"type":"boolean","const":false},"error":{"type":"object","properties":{"code":{"type":"string","description":"云端 `error.code`，或客户端侧补的 `offline` / `needs_login` / `guest_missing`。"},"message":{"type":"string","description":"面向人的一句话；不含令牌、手机号明文与上游原文。"},"requestId":{"type":"string","description":"服务端请求号；只用于诊断展示。"},"retryAfterSeconds":{"type":"number","description":"429/402 的 Retry-After 秒数。"},"status":{"type":"number","description":"HTTP 状态码；网络失败时缺省。"}},"required":["code","message"],"additionalProperties":true}},"required":["ok","error"],"additionalProperties":true},{"type":"object","properties":{"ok":{"type":"boolean","const":true},"value":{"type":"object","properties":{"items":{"type":"array","items":{"type":"object","properties":{"requestId":{"type":"string"},"source":{"type":"string","enum":["user","guest"]},"model":{"type":"string"},"promptTokens":{"type":"number"},"cachedTokens":{"type":"number"},"completionTokens":{"type":"number"},"costMicroUsd":{"type":"number"},"absorbedMicroUsd":{"type":"number"},"status":{"type":"string","enum":["settled","failed","reserved","released"]},"createdAt":{"type":"string"}},"required":["requestId","source","model","promptTokens","cachedTokens","completionTokens","costMicroUsd","status","createdAt"],"additionalProperties":true}},"nextCursor":{"oneOf":[{"type":"null","const":null},{"type":"string"}]}},"required":["items","nextCursor"],"additionalProperties":true}},"required":["ok","value"],"additionalProperties":true}]},
       },
       sourceLocation: {"file":"packages/lcoder/kernel/src/cloud/controller.ts","line":143,"column":9},
+    },
+    'prototype/adopt': {
+      service: 'prototype',
+      description: '采纳一条需求的原型：在登记上写采纳时刻。',
+      invocation: { kind: 'direct' },
+      parameters: [
+        {
+          name: 'input',
+          description: '会话号与需求编号。',
+          source: 'json',
+          codec: {
+            mode: 'strict',
+            typeSymbol: '@maniu/kernel/prototype/types#PrototypeAdoptInput',
+            create: _maniu_kernel_prototype_adopt_parameter_0$schema,
+            jsonSchema: {"type":"object","properties":{"sessionId":{"type":"string"},"requirementId":{"type":"string"}},"required":["sessionId","requirementId"],"additionalProperties":true},
+          },
+          strictCodec: {
+            mode: 'strict',
+            typeSymbol: '@maniu/kernel/prototype/types#PrototypeAdoptInput',
+            create: _maniu_kernel_prototype_adopt_parameter_0_strict$schema,
+            jsonSchema: {"type":"object","properties":{"sessionId":{"type":"string"},"requirementId":{"type":"string"}},"required":["sessionId","requirementId"],"additionalProperties":false},
+          },
+        },
+      ],
+      result: {
+        mode: 'strict',
+        typeSymbol: '@maniu/kernel/prototype/types#PrototypeOkValue',
+        create: _maniu_kernel_prototype_adopt_result$schema,
+        description: '成功标记。',
+        jsonSchema: {"type":"object","properties":{"ok":{"type":"boolean","const":true}},"required":["ok"],"additionalProperties":true},
+      },
+      sourceLocation: {"file":"packages/lcoder/kernel/src/prototype/controller.ts","line":106,"column":3},
+    },
+    'prototype/clear': {
+      service: 'prototype',
+      description: '清除一条需求的原型字段与目录。',
+      invocation: { kind: 'direct' },
+      parameters: [
+        {
+          name: 'input',
+          description: '会话号与需求编号。',
+          source: 'json',
+          codec: {
+            mode: 'strict',
+            typeSymbol: '@maniu/kernel/prototype/types#PrototypeClearInput',
+            create: _maniu_kernel_prototype_clear_parameter_0$schema,
+            jsonSchema: {"type":"object","properties":{"sessionId":{"type":"string"},"requirementId":{"type":"string"}},"required":["sessionId","requirementId"],"additionalProperties":true},
+          },
+          strictCodec: {
+            mode: 'strict',
+            typeSymbol: '@maniu/kernel/prototype/types#PrototypeClearInput',
+            create: _maniu_kernel_prototype_clear_parameter_0_strict$schema,
+            jsonSchema: {"type":"object","properties":{"sessionId":{"type":"string"},"requirementId":{"type":"string"}},"required":["sessionId","requirementId"],"additionalProperties":false},
+          },
+        },
+      ],
+      result: {
+        mode: 'strict',
+        typeSymbol: '@maniu/kernel/prototype/types#PrototypeOkValue',
+        create: _maniu_kernel_prototype_clear_result$schema,
+        description: '成功标记。',
+        jsonSchema: {"type":"object","properties":{"ok":{"type":"boolean","const":true}},"required":["ok"],"additionalProperties":true},
+      },
+      sourceLocation: {"file":"packages/lcoder/kernel/src/prototype/controller.ts","line":90,"column":3},
+    },
+    'prototype/commitStaged': {
+      service: 'prototype',
+      description: '提交暂存：归档旧版、写回正式版，并按需求状态受控同步正文。',
+      invocation: { kind: 'direct' },
+      parameters: [
+        {
+          name: 'input',
+          description: '会话号、需求编号与可选的正文回写开关。',
+          source: 'json',
+          codec: {
+            mode: 'strict',
+            typeSymbol: '@maniu/kernel/prototype/types#PrototypeCommitStagedInput',
+            create: _maniu_kernel_prototype_commitStaged_parameter_0$schema,
+            jsonSchema: {"type":"object","properties":{"applyRequirementDiff":{"type":"boolean"},"requirementAmendMode":{"type":"string","enum":["patch","amend"]},"sessionId":{"type":"string"},"requirementId":{"type":"string"}},"required":["sessionId","requirementId"],"additionalProperties":true},
+          },
+          strictCodec: {
+            mode: 'strict',
+            typeSymbol: '@maniu/kernel/prototype/types#PrototypeCommitStagedInput',
+            create: _maniu_kernel_prototype_commitStaged_parameter_0_strict$schema,
+            jsonSchema: {"type":"object","properties":{"applyRequirementDiff":{"type":"boolean"},"requirementAmendMode":{"type":"string","enum":["patch","amend"]},"sessionId":{"type":"string"},"requirementId":{"type":"string"}},"required":["sessionId","requirementId"],"additionalProperties":false},
+          },
+        },
+      ],
+      result: {
+        mode: 'strict',
+        typeSymbol: '@maniu/kernel/prototype/types#PrototypeCommitResult',
+        create: _maniu_kernel_prototype_commitStaged_result$schema,
+        description: '提交时刻、归档编号与正文同步结果。',
+        jsonSchema: {"type":"object","properties":{"committedAt":{"type":"string"},"snapshotId":{"type":"string"},"requirementSync":{"type":"string","enum":["none","patched","amended","skipped_pending","skipped_locked"]},"message":{"type":"string"}},"required":["committedAt","requirementSync"],"additionalProperties":true},
+      },
+      sourceLocation: {"file":"packages/lcoder/kernel/src/prototype/controller.ts","line":141,"column":3},
+    },
+    'prototype/discardStaged': {
+      service: 'prototype',
+      description: '丢弃一条需求的暂存原型；正式版与需求正文不受影响。',
+      invocation: { kind: 'direct' },
+      parameters: [
+        {
+          name: 'input',
+          description: '会话号与需求编号。',
+          source: 'json',
+          codec: {
+            mode: 'strict',
+            typeSymbol: '@maniu/kernel/prototype/types#PrototypeScopeInput',
+            create: _maniu_kernel_prototype_discardStaged_parameter_0$schema,
+            jsonSchema: {"type":"object","properties":{"sessionId":{"type":"string"},"requirementId":{"type":"string"}},"required":["sessionId","requirementId"],"additionalProperties":true},
+          },
+          strictCodec: {
+            mode: 'strict',
+            typeSymbol: '@maniu/kernel/prototype/types#PrototypeScopeInput',
+            create: _maniu_kernel_prototype_discardStaged_parameter_0_strict$schema,
+            jsonSchema: {"type":"object","properties":{"sessionId":{"type":"string"},"requirementId":{"type":"string"}},"required":["sessionId","requirementId"],"additionalProperties":false},
+          },
+        },
+      ],
+      result: {
+        mode: 'strict',
+        typeSymbol: '@maniu/kernel/prototype/types#PrototypeOkValue',
+        create: _maniu_kernel_prototype_discardStaged_result$schema,
+        description: '成功标记。',
+        jsonSchema: {"type":"object","properties":{"ok":{"type":"boolean","const":true}},"required":["ok"],"additionalProperties":true},
+      },
+      sourceLocation: {"file":"packages/lcoder/kernel/src/prototype/controller.ts","line":156,"column":3},
+    },
+    'prototype/getStaged': {
+      service: 'prototype',
+      description: '读一条需求的暂存原型与当前正式版 HTML。',
+      invocation: { kind: 'direct' },
+      parameters: [
+        {
+          name: 'input',
+          description: '会话号与需求编号。',
+          source: 'json',
+          codec: {
+            mode: 'strict',
+            typeSymbol: '@maniu/kernel/prototype/types#PrototypeScopeInput',
+            create: _maniu_kernel_prototype_getStaged_parameter_0$schema,
+            jsonSchema: {"type":"object","properties":{"sessionId":{"type":"string"},"requirementId":{"type":"string"}},"required":["sessionId","requirementId"],"additionalProperties":true},
+          },
+          strictCodec: {
+            mode: 'strict',
+            typeSymbol: '@maniu/kernel/prototype/types#PrototypeScopeInput',
+            create: _maniu_kernel_prototype_getStaged_parameter_0_strict$schema,
+            jsonSchema: {"type":"object","properties":{"sessionId":{"type":"string"},"requirementId":{"type":"string"}},"required":["sessionId","requirementId"],"additionalProperties":false},
+          },
+        },
+      ],
+      result: {
+        mode: 'strict',
+        typeSymbol: '@maniu/kernel/prototype/types#PrototypeStagedView',
+        create: _maniu_kernel_prototype_getStaged_result$schema,
+        description: '暂存视图；没有暂存或没有正式版时对应字段为 null。',
+        jsonSchema: {"type":"object","properties":{"staged":{"oneOf":[{"type":"null","const":null},{"type":"object","properties":{"requirementId":{"type":"string"},"html":{"type":"string"},"changeKind":{"type":"string","enum":["visual","business"]},"summary":{"type":"array","items":{"type":"string"},"description":"1–4 条给人读的改动摘要。"},"changedDomPaths":{"type":"array","items":{"type":"string"}},"requirementDiff":{"type":"object","properties":{"baseContent":{"type":"string"},"proposedContent":{"type":"string"},"summary":{"type":"string"}},"required":["baseContent","proposedContent","summary"],"additionalProperties":true},"createdAt":{"type":"string"}},"required":["requirementId","html","changeKind","summary","changedDomPaths","createdAt"],"additionalProperties":true}]},"committedHtml":{"oneOf":[{"type":"null","const":null},{"type":"string"}]}},"required":["staged","committedHtml"],"additionalProperties":true},
+      },
+      sourceLocation: {"file":"packages/lcoder/kernel/src/prototype/controller.ts","line":122,"column":3},
+    },
+    'prototype/listSnapshots': {
+      service: 'prototype',
+      description: '列出一条需求的历史快照，按时间倒序、最多 10 条。',
+      invocation: { kind: 'direct' },
+      parameters: [
+        {
+          name: 'input',
+          description: '会话号与需求编号。',
+          source: 'json',
+          codec: {
+            mode: 'strict',
+            typeSymbol: '@maniu/kernel/prototype/types#PrototypeScopeInput',
+            create: _maniu_kernel_prototype_listSnapshots_parameter_0$schema,
+            jsonSchema: {"type":"object","properties":{"sessionId":{"type":"string"},"requirementId":{"type":"string"}},"required":["sessionId","requirementId"],"additionalProperties":true},
+          },
+          strictCodec: {
+            mode: 'strict',
+            typeSymbol: '@maniu/kernel/prototype/types#PrototypeScopeInput',
+            create: _maniu_kernel_prototype_listSnapshots_parameter_0_strict$schema,
+            jsonSchema: {"type":"object","properties":{"sessionId":{"type":"string"},"requirementId":{"type":"string"}},"required":["sessionId","requirementId"],"additionalProperties":false},
+          },
+        },
+      ],
+      result: {
+        mode: 'strict',
+        typeSymbol: '@maniu/kernel/prototype/types#PrototypeListSnapshotsValue',
+        create: _maniu_kernel_prototype_listSnapshots_result$schema,
+        description: '快照元数据列表。',
+        jsonSchema: {"type":"object","properties":{"snapshots":{"type":"array","items":{"type":"object","properties":{"snapshotId":{"type":"string"},"createdAt":{"type":"string"},"bytes":{"type":"number"}},"required":["snapshotId","createdAt","bytes"],"additionalProperties":true}}},"required":["snapshots"],"additionalProperties":true},
+      },
+      sourceLocation: {"file":"packages/lcoder/kernel/src/prototype/controller.ts","line":172,"column":3},
+    },
+    'prototype/prefetch': {
+      service: 'prototype',
+      description: '抓一个网页 URL，只回样式摘要。非 HTML 正文没有样式可抽取，按失败处理。',
+      invocation: { kind: 'direct' },
+      parameters: [
+        {
+          name: 'input',
+          description: '网页 URL。',
+          source: 'json',
+          codec: {
+            mode: 'strict',
+            typeSymbol: '@maniu/kernel/prototype/types#PrototypePrefetchInput',
+            create: _maniu_kernel_prototype_prefetch_parameter_0$schema,
+            jsonSchema: {"type":"object","properties":{"url":{"type":"string"}},"required":["url"],"additionalProperties":true},
+          },
+          strictCodec: {
+            mode: 'strict',
+            typeSymbol: '@maniu/kernel/prototype/types#PrototypePrefetchInput',
+            create: _maniu_kernel_prototype_prefetch_parameter_0_strict$schema,
+            jsonSchema: {"type":"object","properties":{"url":{"type":"string"}},"required":["url"],"additionalProperties":false},
+          },
+        },
+      ],
+      result: {
+        mode: 'strict',
+        typeSymbol: '@maniu/kernel/prototype/summary#StyleSummary',
+        create: _maniu_kernel_prototype_prefetch_result$schema,
+        description: '结构化摘要。',
+        jsonSchema: {"type":"object","properties":{"url":{"type":"string"},"title":{"type":"string"},"headings":{"type":"array","items":{"type":"string"}},"text":{"type":"string"},"colors":{"type":"array","items":{"type":"string"}},"font":{"type":"string","description":"空串表示未识别；Remote 边界不接受 `undefined`。"},"layout":{"type":"string"},"buttonStyle":{"type":"string"},"truncated":{"type":"boolean"}},"required":["url","title","headings","text","colors","font","layout","buttonStyle","truncated"],"additionalProperties":true},
+      },
+      sourceLocation: {"file":"packages/lcoder/kernel/src/prototype/controller.ts","line":57,"column":3},
+    },
+    'prototype/restoreSnapshot': {
+      service: 'prototype',
+      description: '恢复一份历史快照：当前正式版先归档，再把快照写回并刷新 YAML 登记。',
+      invocation: { kind: 'direct' },
+      parameters: [
+        {
+          name: 'input',
+          description: '会话号、需求编号与快照编号。',
+          source: 'json',
+          codec: {
+            mode: 'strict',
+            typeSymbol: '@maniu/kernel/prototype/types#PrototypeRestoreSnapshotInput',
+            create: _maniu_kernel_prototype_restoreSnapshot_parameter_0$schema,
+            jsonSchema: {"type":"object","properties":{"snapshotId":{"type":"string"},"sessionId":{"type":"string"},"requirementId":{"type":"string"}},"required":["snapshotId","sessionId","requirementId"],"additionalProperties":true},
+          },
+          strictCodec: {
+            mode: 'strict',
+            typeSymbol: '@maniu/kernel/prototype/types#PrototypeRestoreSnapshotInput',
+            create: _maniu_kernel_prototype_restoreSnapshot_parameter_0_strict$schema,
+            jsonSchema: {"type":"object","properties":{"snapshotId":{"type":"string"},"sessionId":{"type":"string"},"requirementId":{"type":"string"}},"required":["snapshotId","sessionId","requirementId"],"additionalProperties":false},
+          },
+        },
+      ],
+      result: {
+        mode: 'strict',
+        typeSymbol: '@maniu/kernel/prototype/types#PrototypeRestoreSnapshotValue',
+        create: _maniu_kernel_prototype_restoreSnapshot_result$schema,
+        description: '恢复时刻与恢复后的 HTML。',
+        jsonSchema: {"type":"object","properties":{"restoredAt":{"type":"string"},"html":{"type":"string"}},"required":["restoredAt","html"],"additionalProperties":true},
+      },
+      sourceLocation: {"file":"packages/lcoder/kernel/src/prototype/controller.ts","line":188,"column":3},
+    },
+    'prototype/uploadRef': {
+      service: 'prototype',
+      description: '把一张参考图写进会话工作区的原型 refs 目录。',
+      invocation: { kind: 'direct' },
+      parameters: [
+        {
+          name: 'input',
+          description: '会话号、需求编号、文件名与 base64 字节。',
+          source: 'json',
+          codec: {
+            mode: 'strict',
+            typeSymbol: '@maniu/kernel/prototype/types#PrototypeUploadInput',
+            create: _maniu_kernel_prototype_uploadRef_parameter_0$schema,
+            jsonSchema: {"type":"object","properties":{"sessionId":{"type":"string"},"requirementId":{"type":"string"},"name":{"type":"string"},"data":{"type":"string"}},"required":["sessionId","requirementId","name","data"],"additionalProperties":true},
+          },
+          strictCodec: {
+            mode: 'strict',
+            typeSymbol: '@maniu/kernel/prototype/types#PrototypeUploadInput',
+            create: _maniu_kernel_prototype_uploadRef_parameter_0_strict$schema,
+            jsonSchema: {"type":"object","properties":{"sessionId":{"type":"string"},"requirementId":{"type":"string"},"name":{"type":"string"},"data":{"type":"string"}},"required":["sessionId","requirementId","name","data"],"additionalProperties":false},
+          },
+        },
+      ],
+      result: {
+        mode: 'strict',
+        typeSymbol: '@maniu/kernel/prototype/types#PrototypeRefValue',
+        create: _maniu_kernel_prototype_uploadRef_result$schema,
+        description: '规格根相对路径与字节数。',
+        jsonSchema: {"type":"object","properties":{"path":{"type":"string"},"bytes":{"type":"number"}},"required":["path","bytes"],"additionalProperties":true},
+      },
+      sourceLocation: {"file":"packages/lcoder/kernel/src/prototype/controller.ts","line":75,"column":3},
     },
   },
 }, z)

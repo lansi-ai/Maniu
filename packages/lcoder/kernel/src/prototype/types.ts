@@ -3,12 +3,6 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
 
 import { z } from 'zod'
 
-
-/** 原型调用的结构化结果；业务失败走 `ok: false`，不抛到界面。 */
-export type PrototypeResult<T> =
-  | { readonly ok: true; readonly value: T }
-  | { readonly ok: false; readonly error: { readonly code: string; readonly message: string } }
-
 /** 网页 URL 预取的输入。 */
 export interface PrototypePrefetchInput {
   readonly url: string
