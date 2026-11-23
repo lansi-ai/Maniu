@@ -306,6 +306,77 @@ function Get-CloudApiLogTail {
   return @($tail | ForEach-Object { Hide-SecretText -Text ([string]$_) -Secrets $Secrets })
 }
 
+# 检测 5081 端口上运行中的本地云仓 API 是否落后于当前磁盘源码/配置；只认属于 $Repo 的进程，绝不动其他进程。
+function Test-CloudApiStale {
+  param(
+    [Parameter(Mandatory = $true)][string]$Repo,
+    [int]$Port = 5081,
+    [string]$EnvFile = ''
+  )
+  $empty = @{ Stale = $false; Owners = @(); Reason = '' }
+  if (-not (Test-Path -LiteralPath $Repo)) { return $empty }
+  $repoFull = [System.IO.Path]::GetFullPath($Repo).TrimEnd('\') + '\'
+  $owners = @(Get-PortOwnerProcesses -Port $Port | Where-Object {
+    $exe = [string]$_.ExecutablePath
+    $cmd = [string]$_.CommandLine
+    ($exe -and $exe.StartsWith($repoFull, [System.StringComparison]::OrdinalIgnoreCase)) -or
+    ($cmd -and $cmd.IndexOf($repoFull, [System.StringComparison]::OrdinalIgnoreCase) -ge 0)
+  })
+  if ($owners.Count -eq 0) { return $empty }
+
+  $oldestStart = $null
+  foreach ($proc in $owners) {
+    $started = $proc.CreationDate
+    if ($null -eq $started) {
+      $p = Get-Process -Id ([int]$proc.ProcessId) -ErrorAction SilentlyContinue
+      if ($null -ne $p) { $started = $p.StartTime }
+    }
+    if ($null -ne $started -and ($null -eq $oldestStart -or $started -lt $oldestStart)) {
+      $oldestStart = $started
+    }
+  }
+  if ($null -eq $oldestStart) { return $empty }
+
+  $newestTime = [datetime]::MinValue
+  $newestLabel = ''
+  $srcDir = Join-Path $Repo 'src'
+  if (Test-Path -LiteralPath $srcDir) {
+    $srcFiles = Get-ChildItem -LiteralPath $srcDir -Recurse -File -ErrorAction SilentlyContinue | Where-Object {
+      $_.FullName -notmatch '\\(bin|obj)\\' -and $_.Extension -in @('.cs', '.csproj', '.json', '.props', '.targets')
+    }
+    foreach ($f in $srcFiles) {
+      if ($f.LastWriteTime -gt $newestTime) {
+        $newestTime = $f.LastWriteTime
+        $newestLabel = $f.FullName.Substring($repoFull.Length)
+      }
+    }
+  }
+  $apiExe = Join-Path $Repo 'src\Api\bin\Debug\net10.0\Api.exe'
+  if (Test-Path -LiteralPath $apiExe) {
+    $exeItem = Get-Item -LiteralPath $apiExe -ErrorAction SilentlyContinue
+    if ($null -ne $exeItem -and $exeItem.LastWriteTime -gt $newestTime) {
+      $newestTime = $exeItem.LastWriteTime
+      $newestLabel = 'src\Api\bin\Debug\net10.0\Api.exe'
+    }
+  }
+  if ($EnvFile -and (Test-Path -LiteralPath $EnvFile)) {
+    $envItem = Get-Item -LiteralPath $EnvFile -ErrorAction SilentlyContinue
+    if ($null -ne $envItem -and $envItem.LastWriteTime -gt $newestTime) {
+      $newestTime = $envItem.LastWriteTime
+      $newestLabel = (Split-Path -Leaf $EnvFile)
+    }
+  }
+
+  if ($newestTime -gt $oldestStart) {
+    return @{
+      Stale = $true
+      Owners = $owners
+      Reason = ("{0} 更新于 {1}，晚于当前进程启动时间 {2}" -f $newestLabel, $newestTime.ToString('HH:mm:ss'), $oldestStart.ToString('HH:mm:ss'))
+    }
+  }
+  return @{ Stale = $false; Owners = $owners; Reason = '' }
+}
+
 # 1 秒一轮轮询 /health，直到可用、进程退出或超时。失败分支打印日志路径与脱敏尾行。
 # @returns @{ Ready = bool }
 function Wait-CloudApiReady {
@@ -817,6 +888,19 @@ if ($SkipCloudCheck) {
   Write-Host ("云端：跳过探测（-SkipCloudCheck），待注入地址 {0}" -f $CloudApi) -ForegroundColor DarkYellow
 } else {
   $probe = Test-CloudApiAvailable -HealthUrl $cloudHealthUrl
+  if ($probe.Available -and $StartCloudApi -and $cloudApiPort -eq 5081) {
+    $envFileCheck = if ($PSBoundParameters.ContainsKey('CloudEnvFile')) { $CloudEnvFile } else { Join-Path $CloudRepo '.env' }
+    $stale = Test-CloudApiStale -Repo $CloudRepo -Port 5081 -EnvFile $envFileCheck
+    if ($stale.Stale) {
+      Write-Host ("云端：检测到本地 API 已有新版本（{0}），停掉旧进程（PID {1}）并启动新版本。" -f $stale.Reason, (($stale.Owners | ForEach-Object { $_.ProcessId }) -join ',')) -ForegroundColor Yellow
+      Stop-RepoProcessTrees -Processes $stale.Owners
+      for ($waitTick = 0; $waitTick -lt 25; $waitTick++) {
+        if (-not (Test-PortListening -Port 5081)) { break }
+        Start-Sleep -Milliseconds 200
+      }
+      $probe = @{ Available = $false; Detail = '旧版本地 API 已停止，准备启动新版本' }
+    }
+  }
   if (-not $probe.Available -and $StartCloudApi) {
     # -StartCloudApi：探测不成时改为拉起本地 API，成功后才回到下面的成功分支。
     Write-Host ("云端：探测 {0} 失败（{1}）；-StartCloudApi 已启用，拉起本地 API。" -f $cloudHealthUrl, $probe.Detail) -ForegroundColor Yellow

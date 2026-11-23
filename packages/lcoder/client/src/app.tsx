@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import type { JSX } from 'react'
 import {
-  FileText, FolderGit2, Info, MessageSquare, Settings, SquareKanban, Users,
+  FileText, FolderGit2, Info, LayoutTemplate, MessageSquare, Settings, SquareKanban, Users,
   type LucideIcon,
 } from 'lucide-react'
 import type { CloseRequest, EventOutcome, HostEvent, HostState, HostWaterfall, HostWaterfallCancel } from '@maniu/desktop/contract'
@@ -19,6 +19,7 @@ import { RequirementsPage } from './pages/requirements.tsx'
 import { SettingsPage } from './pages/settings.tsx'
 import { TasksPage } from './pages/tasks.tsx'
 import { TalentsPage } from './pages/talents.tsx'
+import { PrototypeLibraryPage } from './pages/prototype-library.tsx'
 import { ChatView } from './shell/chat-view.tsx'
 import { visibleSessionsOf } from './shell/session-groups.ts'
 import { PendingLayer, type AnswerResult } from './shell/pending-notification.tsx'
@@ -44,7 +45,7 @@ import { INTAKE_CONFIRM_PROMPT } from './intake/prompts.ts'
 import { titleIntakeSession } from './intake/session-title.ts'
 
 /** 工作台页面。 */
-type PageId = 'chat' | 'requirements' | 'tasks' | 'projects' | 'project-info' | 'talents' | 'settings' | 'account'
+type PageId = 'chat' | 'requirements' | 'tasks' | 'projects' | 'project-info' | 'talents' | 'prototype-library' | 'settings' | 'account'
 
 /** 新会话默认使用的角色；工作台作用域会话靠它拿到人机命令面。 */
 const WORKBENCH_PRESET = 'maniu-workbench'
@@ -67,6 +68,7 @@ const NAV_BOTTOM: readonly NavItem[] = [
   { id: 'projects', key: 'nav.projects', icon: FolderGit2 },
   { id: 'project-info', key: 'nav.projectInfo', icon: Info },
   { id: 'talents', key: 'nav.talents', icon: Users },
+  { id: 'prototype-library', key: 'nav.prototypeLibrary', icon: LayoutTemplate },
   { id: 'settings', key: 'nav.settings', icon: Settings },
 ]
 
@@ -781,6 +783,7 @@ export function App(): JSX.Element {
                     setTaskRequirement(requirementId)
                     setPage('tasks')
                   }}
+                  onOpenPrototypeLibrary={() => { setPage('prototype-library') }}
                   t={t}
                 />
               </div>
@@ -846,6 +849,10 @@ export function App(): JSX.Element {
                   sessions={sessions}
                   talents={talents}
                 />
+              )}
+
+              {page === 'prototype-library' && (
+                <PrototypeLibraryPage t={t} />
               )}
             </div>
 

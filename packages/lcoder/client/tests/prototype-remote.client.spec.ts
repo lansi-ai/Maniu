@@ -89,7 +89,7 @@ describe('原型提示词', () => {
     })
     expect(prompt).toContain('邮箱登录与验证码入口')
     expect(prompt).toContain('prototypes/REQ-01/refs/a.png')
-    expect(prompt).toContain('零 JavaScript')
+    expect(prompt).toContain('自包含内联 `<script>`')
     expect(prompt).toContain('prototype_draft')
     expect(styleSummaryText(undefined)).toContain('没有网页样式参考')
   })

@@ -10,6 +10,9 @@ import { parse as parseYaml, stringify as stringifyYaml } from 'yaml'
 
 import { flowConfigPath } from '../src/kernel/flow-config.js'
 import {
+  REQUIREMENT_AMEND_CONSISTENCY_THRESHOLD,
+  S_GRADE_MAX_FILES,
+  amendRequirement,
   createRequirement,
   decideRequirementReview,
   requirementReviewPath,
@@ -61,9 +64,9 @@ const asRole = (role: string) => ({ agent: { session: { header: { agentPreset: r
 const CONTENT = '# 佣金改造\n\n自营订单不该按下限兜底，代发订单保持现状。'
 
 describe('需求工具', () => {
-  it('提供起草、评审、改稿、需求变更提案、草稿修改提案与拆分岗位建议六个工具，不含过审与分配能力', () => {
+  it('提供起草、评审、改稿、需求变更提案、草稿修改提案、拆分岗位建议与 S 级轻量修补七个工具，不含过审与分配能力', () => {
     const names = createRequirementTools(makeRepo().spec).map(entry => entry.name)
-    expect(names).toEqual(['requirement_draft', 'requirement_review_draft', 'requirement_revise', 'requirement_propose', 'requirement_patch_propose', 'requirement_split_plan'])
+    expect(names).toEqual(['requirement_draft', 'requirement_review_draft', 'requirement_revise', 'requirement_propose', 'requirement_patch_propose', 'requirement_split_plan', 'requirement_amend'])
     expect(names).not.toContain('requirement_approve')
     expect(names).not.toContain('requirement_review_decide')
     expect(names).not.toContain('task_assign')
@@ -511,5 +514,271 @@ describe('需求落盘回滚', () => {
     expect(existsSync(join(spec, 'requirements', 'REQ-01.md'))).toBe(false)
     expect(existsSync(join(spec, 'requirements', 'REQ-01.yaml'))).toBe(false)
     expect(existsSync(requirementVersionPath(spec, 'REQ-01', 1))).toBe(false)
+  })
+})
+
+describe('已确认需求 S 级轻量修补（requirement_amend）', () => {
+  function seedConfirmed(spec: string, options: { withNewFields?: boolean } = {}): void {
+    mkdirSync(join(spec, 'requirements'), { recursive: true })
+    writeFileSync(join(spec, 'requirements', 'REQ-01.md'), CONTENT, 'utf8')
+    const base = {
+      id: 'REQ-01',
+      title: '佣金改造',
+      state: 'confirmed' as const,
+      opened_at: '2026-11-13T09:00:00+08:00',
+      confirmed_at: '2026-11-14T10:00:00+08:00',
+      approved_at: '2026-11-14T10:00:00+08:00',
+      approved_version: 1,
+      versions: [{ n: 1, at: '2026-11-13T09:00:00+08:00' }],
+      reviews: [{
+        round: 1,
+        at: '2026-11-13T10:00:00+08:00',
+        report: 'requirements/REQ-01/reviews/R1.md',
+        decision: 'rejected' as const,
+      }],
+    }
+    if (options.withNewFields === false) {
+      // 直接写旧版 YAML，不含 amendCount 与 amendments 字段。
+      writeFileSync(join(spec, 'requirements', 'REQ-01.yaml'), stringifyYaml(base), 'utf8')
+      return
+    }
+    saveRequirement(spec, Requirement.parse(base))
+  }
+
+  it('正常 S 级修补保持 confirmed、不重走评审、不新建 REQ，更新正文并在文末追加 [S级微调] 日志', async () => {
+    const { spec } = makeRepo()
+    seedConfirmed(spec)
+
+    const updatedBody = '# 佣金改造\n\n自营订单不该按下限兜底，报销表单新增发票号字段。'
+    const result = await callTool(spec, 'requirement_amend', {
+      id: 'REQ-01',
+      summary: '报销表单新增发票号字段',
+      content: updatedBody,
+      affected_files: ['src/form.tsx', 'src/form.spec.ts'],
+    }, asRole('maniu-intake'))
+
+    expect(result).toMatchObject({
+      ok: true,
+      requirement_id: 'REQ-01',
+      state: 'confirmed',
+      amendCount: 1,
+      consistencyThreshold: REQUIREMENT_AMEND_CONSISTENCY_THRESHOLD,
+      needsConsistencyCheck: false,
+    })
+    expect(String(result.changelogEntry)).toMatch(/^- \[S级微调\] \d{4}-\d{2}-\d{2} 报销表单新增发票号字段$/)
+    expect(readdirSync(join(spec, 'requirements')).filter(name => /^REQ-\d+\.yaml$/.test(name))).toEqual(['REQ-01.yaml'])
+
+    const doc = readFileSync(join(spec, 'requirements', 'REQ-01.md'), 'utf8')
+    expect(doc).toContain('报销表单新增发票号字段')
+    expect(doc).toContain('## 变更记录')
+    expect(doc).toContain(String(result.changelogEntry))
+    expect(doc.endsWith('\n')).toBe(true)
+
+    const requirement = read(spec, 'REQ-01')
+    expect(requirement.state).toBe('confirmed')
+    expect(requirement.approved_version).toBe(1)
+    expect(requirement.versions).toHaveLength(1)
+    expect(requirement.reviews).toHaveLength(1)
+    expect(requirement.amendCount).toBe(1)
+    expect(requirement.amendments).toHaveLength(1)
+    expect(requirement.amendments?.[0]).toMatchObject({
+      summary: '报销表单新增发票号字段',
+      files: ['src/form.tsx', 'src/form.spec.ts'],
+      actor: 'maniu-intake',
+    })
+  })
+
+  it('连续多次修补不重复生成变更记录标题，且保留历史 [S级微调] 行', () => {
+    const { spec } = makeRepo()
+    seedConfirmed(spec)
+
+    const first = amendRequirement(spec, 'REQ-01', {
+      content: '# 佣金改造\n\n第一次微调正文。',
+      summary: '新增发票号字段',
+      at: '2026-11-22T10:00:00+08:00',
+    })
+    const docAfterFirst = readFileSync(join(spec, 'requirements', 'REQ-01.md'), 'utf8')
+    expect(first.amendCount).toBe(1)
+
+    // 场景 A：调用方带着上次已含变更记录的全文再修补。
+    const second = amendRequirement(spec, 'REQ-01', {
+      content: docAfterFirst.replace('第一次微调正文。', '第二次微调正文。'),
+      summary: '调整提交按钮文案',
+      at: '2026-11-22T11:00:00+08:00',
+    })
+    expect(second.amendCount).toBe(2)
+
+    // 场景 B：调用方只给新正文（未带旧变更记录区块），历史记录仍应保留。
+    const third = amendRequirement(spec, 'REQ-01', {
+      content: '# 佣金改造\n\n第三次微调正文。',
+      summary: '补充必填提示',
+      at: '2026-11-22T12:00:00+08:00',
+    })
+    expect(third.amendCount).toBe(3)
+
+    const finalDoc = readFileSync(join(spec, 'requirements', 'REQ-01.md'), 'utf8')
+    expect(finalDoc.match(/^## 变更记录$/gm)).toHaveLength(1)
+    expect(finalDoc).toContain('- [S级微调] 2026-11-22 新增发票号字段')
+    expect(finalDoc).toContain('- [S级微调] 2026-11-22 调整提交按钮文案')
+    expect(finalDoc).toContain('- [S级微调] 2026-11-22 补充必填提示')
+  })
+
+  it('旧 YAML 无 amendCount 与 amendments 字段时兼容可读且可从 1 累加', async () => {
+    const { spec } = makeRepo()
+    seedConfirmed(spec, { withNewFields: false })
+
+    const legacy = read(spec, 'REQ-01')
+    expect(legacy.amendCount).toBeUndefined()
+    expect(legacy.amendments).toBeUndefined()
+
+    const result = await callTool(spec, 'requirement_amend', {
+      id: 'REQ-01',
+      summary: '兼容旧需求微调',
+      content: '# 佣金改造\n\n兼容旧 YAML 的正文更新。',
+    })
+    expect(result).toMatchObject({ ok: true, amendCount: 1, state: 'confirmed' })
+    expect(read(spec, 'REQ-01').amendCount).toBe(1)
+  })
+
+  it('非 confirmed 状态（draft / released / closed）或需求不存在时拒绝写入，磁盘不动', async () => {
+    const { spec } = makeRepo()
+    await expect(callTool(spec, 'requirement_amend', {
+      id: 'REQ-99',
+      summary: '不存在',
+      content: CONTENT,
+    })).rejects.toThrow(/读不到需求 REQ-99/)
+
+    seedConfirmed(spec)
+    for (const state of ['draft', 'released', 'closed'] as const) {
+      saveRequirement(spec, { ...read(spec, 'REQ-01'), state })
+      await expect(callTool(spec, 'requirement_amend', {
+        id: 'REQ-01',
+        summary: '尝试越权微调',
+        content: '# 篡改后的正文',
+      })).rejects.toThrow(/只有已确认（confirmed）的需求/)
+      expect(readFileSync(join(spec, 'requirements', 'REQ-01.md'), 'utf8')).toBe(CONTENT)
+      expect(read(spec, 'REQ-01').amendCount).toBeUndefined()
+    }
+  })
+
+  it('元数据写失败时还原正文，不留半成品', () => {
+    const { spec } = makeRepo()
+    seedConfirmed(spec)
+
+    expect(() => amendRequirement(spec, 'REQ-01', {
+      content: '# 佣金改造\n\n坏时间写入测试',
+      summary: '坏时间',
+      at: '昨天',
+    })).toThrow()
+    expect(readFileSync(join(spec, 'requirements', 'REQ-01.md'), 'utf8')).toBe(CONTENT)
+    expect(read(spec, 'REQ-01').amendCount).toBeUndefined()
+  })
+
+  it('运行时升级护栏：触碰不可逆、超文件上限、权限/schema 破坏或新轨/架构变更时拒绝写盘并给出 M/L 级升级建议', async () => {
+    const { spec } = makeRepo()
+    seedConfirmed(spec)
+    const beforeYaml = readFileSync(join(spec, 'requirements', 'REQ-01.yaml'), 'utf8')
+
+    // 1. 不可逆项非空 -> 升级 M
+    const irreversibleRes = await callTool(spec, 'requirement_amend', {
+      id: 'REQ-01',
+      summary: '删除历史账单字段',
+      content: '# 改正文',
+      irreversible: ['删除数据库 bill_archive 列'],
+    })
+    expect(irreversibleRes).toMatchObject({
+      ok: false,
+      rejected: true,
+      requirement_id: 'REQ-01',
+      escalateTo: 'M',
+    })
+    expect(String(irreversibleRes.reason)).toContain('不可逆')
+
+    // 2. 影响文件数超过 S 级上限（> 3） -> 升级 M
+    const tooManyFilesRes = await callTool(spec, 'requirement_amend', {
+      id: 'REQ-01',
+      summary: '跨多模块修改',
+      content: '# 改正文',
+      affected_files: ['a.ts', 'b.ts', 'c.ts', 'd.ts'],
+    })
+    expect(tooManyFilesRes).toMatchObject({ ok: false, rejected: true, escalateTo: 'M' })
+    expect(String(tooManyFilesRes.reason)).toContain(String(S_GRADE_MAX_FILES))
+
+    // 3. 权限模型 / 数据 schema 破坏性变更 -> 升级 M
+    const schemaRes = await callTool(spec, 'requirement_amend', {
+      id: 'REQ-01',
+      summary: '重构角色权限模型',
+      content: '# 改正文',
+      schema_or_permission_change: true,
+    })
+    expect(schemaRes).toMatchObject({ ok: false, rejected: true, escalateTo: 'M' })
+
+    // 4. 引入新交付轨 -> 升级 L
+    const newTrackRes = await callTool(spec, 'requirement_amend', {
+      id: 'REQ-01',
+      summary: '新增桌面客户端',
+      content: '# 改正文',
+      new_track: 'desktop',
+    })
+    expect(newTrackRes).toMatchObject({ ok: false, rejected: true, escalateTo: 'L' })
+
+    // 5. 架构级变更（与 M 级触发项并存时优先升级 L） -> 升级 L
+    const archRes = await callTool(spec, 'requirement_amend', {
+      id: 'REQ-01',
+      summary: '架构重构并改多文件',
+      content: '# 改正文',
+      architecture_change: true,
+      affected_files: ['1.ts', '2.ts', '3.ts', '4.ts'],
+    })
+    expect(archRes).toMatchObject({ ok: false, rejected: true, escalateTo: 'L' })
+    expect((archRes.reasons as string[]).length).toBe(2)
+
+    // 任何升级拦截都不写盘
+    expect(readFileSync(join(spec, 'requirements', 'REQ-01.md'), 'utf8')).toBe(CONTENT)
+    expect(readFileSync(join(spec, 'requirements', 'REQ-01.yaml'), 'utf8')).toBe(beforeYaml)
+
+    // 边界：恰好 3 个文件且无红线时允许通过
+    const boundaryOk = await callTool(spec, 'requirement_amend', {
+      id: 'REQ-01',
+      summary: '恰好触及 3 个文件微调',
+      content: '# 佣金改造\n\n三文件边界放行。',
+      affected_files: ['a.ts', 'b.ts', 'c.ts', 'a.ts'],
+    })
+    expect(boundaryOk).toMatchObject({ ok: true, amendCount: 1 })
+  })
+
+  it('累计修补达到默认阈值（5 次）时明确返回 needsConsistencyCheck: true 与核对提醒', async () => {
+    const { spec } = makeRepo()
+    seedConfirmed(spec)
+
+    for (let i = 1; i < REQUIREMENT_AMEND_CONSISTENCY_THRESHOLD; i += 1) {
+      const step = await callTool(spec, 'requirement_amend', {
+        id: 'REQ-01',
+        summary: `微调 ${String(i)}`,
+        content: `# 佣金改造\n\n第 ${String(i)} 次微调正文。`,
+      })
+      expect(step).toMatchObject({
+        ok: true,
+        amendCount: i,
+        needsConsistencyCheck: false,
+      })
+      expect(step.consistencyNote).toBeUndefined()
+    }
+
+    const fifth = await callTool(spec, 'requirement_amend', {
+      id: 'REQ-01',
+      summary: '微调 5',
+      content: '# 佣金改造\n\n第 5 次微调正文。',
+    })
+    expect(fifth).toMatchObject({
+      ok: true,
+      amendCount: 5,
+      consistencyThreshold: 5,
+      needsConsistencyCheck: true,
+    })
+    expect(String(fifth.consistencyNote)).toContain('一致性核对')
+    expect(String(fifth.note)).toContain('一致性核对')
+    expect(read(spec, 'REQ-01').amendCount).toBe(5)
+    expect(read(spec, 'REQ-01').amendments).toHaveLength(5)
   })
 })

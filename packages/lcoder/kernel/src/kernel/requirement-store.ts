@@ -13,7 +13,7 @@ import { dirname, join } from 'node:path'
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml'
 
 import { Requirement, RequirementSplitPlan } from '../schema/spec.js'
-import type { RequirementOption, RequirementReview, RequirementVersion } from '../schema/spec.js'
+import type { RequirementAmendment, RequirementOption, RequirementReview, RequirementVersion } from '../schema/spec.js'
 import { listFiles, matchPattern } from '../schema/validate.js'
 import { loadFlowConfig, missingReviewRootSet, presetBuiltinRoot } from './flow-config.js'
 
@@ -708,5 +708,273 @@ export function approveRequirement(root: string, id: string, at: string): Requir
   } catch (error) {
     for (const path of created) rmSync(path, { force: true })
     throw error
+  }
+}
+
+/** S 级轻量修补允许触及的最大文件数。 */
+export const S_GRADE_MAX_FILES = 3
+
+/** 同一已确认需求累计 S 级修补达到该次数时，提醒进行轻量一致性核对。 */
+export const REQUIREMENT_AMEND_CONSISTENCY_THRESHOLD = 5
+
+/** 触发 S 级运行时升级护栏时的建议升级目标等级。 */
+export type AmendEscalationLevel = 'M' | 'L'
+
+/** 一条运行时升级护栏触发明细。 */
+export interface AmendEscalationViolation {
+  readonly code: 'new_track' | 'architecture_change' | 'irreversible' | 'schema_or_permission_change' | 'too_many_files'
+  readonly level: AmendEscalationLevel
+  readonly message: string
+}
+
+/** S 级轻量修补运行时升级护栏的判定输入。 */
+export interface AmendEscalationInput {
+  readonly affectedFiles?: readonly string[]
+  readonly irreversible?: readonly string[]
+  readonly newTrack?: string
+  readonly architectureChange?: boolean
+  readonly schemaOrPermissionChange?: boolean
+}
+
+/** S 级轻量修补运行时升级护栏的判定结果。 */
+export type AmendEscalationResult =
+  | {
+    readonly allowed: true
+    readonly violations: readonly []
+    readonly reasons: readonly []
+  }
+  | {
+    readonly allowed: false
+    readonly escalateTo: AmendEscalationLevel
+    readonly violations: readonly AmendEscalationViolation[]
+    readonly reasons: readonly string[]
+  }
+
+/**
+ * 评估一次轻量修补声明是否触碰 S 级红线，决定是否必须熔断升级为 M 级或 L 级流程。
+ *
+ * 新交付轨或跨端架构变更直接升为 L 级；不可逆变更、核心权限/数据 schema 破坏性变更、
+ * 或影响文件数超过 `S_GRADE_MAX_FILES`（3 个）升为 M 级。
+ * @param input - 修补前声明的影响范围与风险标志。
+ * @returns 是否允许按 S 级执行；拒绝时附带目标级别与全部原因。
+ */
+export function evaluateAmendEscalation(input: AmendEscalationInput): AmendEscalationResult {
+  const violations: AmendEscalationViolation[] = []
+  const newTrack = input.newTrack?.trim() ?? ''
+  if (newTrack !== '') {
+    violations.push({
+      code: 'new_track',
+      level: 'L',
+      message: `涉及引入新交付轨（${newTrack}），超出 S 级局部微调范围，建议升级为 L 级独立需求处理`,
+    })
+  }
+  if (input.architectureChange === true) {
+    violations.push({
+      code: 'architecture_change',
+      level: 'L',
+      message: '涉及跨端或架构级变更，超出 S 级局部微调范围，建议升级为 L 级架构演进流程',
+    })
+  }
+
+  const irreversible = (input.irreversible ?? []).map(item => item.trim()).filter(item => item !== '')
+  if (irreversible.length > 0) {
+    violations.push({
+      code: 'irreversible',
+      level: 'M',
+      message: `涉及不可逆变更（${irreversible.join('、')}），禁止走 S 级免评审通道，建议升级为 M 级增量评审`,
+    })
+  }
+  if (input.schemaOrPermissionChange === true) {
+    violations.push({
+      code: 'schema_or_permission_change',
+      level: 'M',
+      message: '涉及核心权限模型、主状态机或持久化数据 schema 破坏性变更，禁止走 S 级免评审通道，建议升级为 M 级增量评审',
+    })
+  }
+
+  const files = [...new Set((input.affectedFiles ?? []).map(item => item.trim()).filter(item => item !== ''))]
+  if (files.length > S_GRADE_MAX_FILES) {
+    violations.push({
+      code: 'too_many_files',
+      level: 'M',
+      message: `预计影响文件数（${String(files.length)} 个）超过 S 级上限（${String(S_GRADE_MAX_FILES)} 个），建议升级为 M 级增量评审`,
+    })
+  }
+
+  if (violations.length === 0) {
+    return { allowed: true, violations: [], reasons: [] }
+  }
+  const escalateTo: AmendEscalationLevel = violations.some(violation => violation.level === 'L') ? 'L' : 'M'
+  return {
+    allowed: false,
+    escalateTo,
+    violations,
+    reasons: violations.map(violation => violation.message),
+  }
+}
+
+const CHANGELOG_HEADING = /^##\s+变更记录\s*$/m
+
+/** 提取已有正文里的 `## 变更记录` 区块，避免再次修补时丢失历史记录。 */
+function extractChangelogSection(markdown: string): string | undefined {
+  const match = CHANGELOG_HEADING.exec(markdown)
+  if (match === null) return undefined
+  const afterHeading = markdown.slice(match.index + match[0].length)
+  const nextSection = /\n##\s+/.exec(afterHeading)
+  const endOffset = nextSection === null ? markdown.length : match.index + match[0].length + nextSection.index
+  return markdown.slice(match.index, endOffset).trimEnd()
+}
+
+/** 把 ISO 8601 时间规整成 `YYYY-MM-DD` 日期串，并先于写盘检查时间合法性。 */
+function changelogDateOf(at: string): string {
+  const parsed = Date.parse(at)
+  if (Number.isNaN(parsed)) {
+    throw new Error(`需要可解析的 ISO 8601 时间：${at}`)
+  }
+  return /^\d{4}-\d{2}-\d{2}/.test(at) ? at.slice(0, 10) : new Date(parsed).toISOString().slice(0, 10)
+}
+
+/** 更新正文并在文末 `## 变更记录` 区追加一条结构化 `[S级微调]` 记录。 */
+function appendAmendChangelog(
+  content: string,
+  previous: string,
+  at: string,
+  summary: string,
+): { readonly document: string; readonly entry: string } {
+  const entry = `- [S级微调] ${changelogDateOf(at)} ${summary}`
+  const normalized = content.replace(/\r\n/g, '\n')
+  const match = CHANGELOG_HEADING.exec(normalized)
+
+  if (match !== null) {
+    const afterHeadingStart = match.index + match[0].length
+    const afterHeading = normalized.slice(afterHeadingStart)
+    const nextSection = /\n##\s+/.exec(afterHeading)
+    const sectionEnd = nextSection === null ? normalized.length : afterHeadingStart + nextSection.index
+    const before = normalized.slice(0, sectionEnd).trimEnd()
+    const rest = normalized.slice(sectionEnd).replace(/^\n+/, '')
+    const head = before === normalized.slice(0, afterHeadingStart).trimEnd()
+      ? `${before}\n\n${entry}`
+      : `${before}\n${entry}`
+    const document = rest === '' ? `${head}\n` : `${head}\n\n${rest.trimEnd()}\n`
+    return { document, entry }
+  }
+
+  const priorSection = extractChangelogSection(previous.replace(/\r\n/g, '\n'))
+  const body = normalized.trimEnd()
+  const section = priorSection === undefined
+    ? `## 变更记录\n\n${entry}`
+    : `${priorSection}\n${entry}`
+  return { document: `${body}\n\n${section}\n`, entry }
+}
+
+/** 对已确认需求执行 S 级轻量修补的输入。 */
+export interface RequirementAmendInput {
+  /** 更新后的完整 Markdown 正文；去空白后必须非空。 */
+  readonly content: string
+  /** 本次 S 级微调的一句话摘要。 */
+  readonly summary: string
+  /** 修补时刻（ISO 8601）。 */
+  readonly at: string
+  /** 本次声明影响的文件清单；可选。 */
+  readonly files?: readonly string[]
+  /** 发起修补的会话 preset 署名；可选。 */
+  readonly actor?: string
+  /** 累计补丁一致性核对阈值；缺省取 `REQUIREMENT_AMEND_CONSISTENCY_THRESHOLD`。 */
+  readonly consistencyThreshold?: number
+}
+
+/** 一次 S 级轻量修补的落盘结果。 */
+export interface RequirementAmendResult {
+  readonly requirement: Requirement
+  readonly documentPath: string
+  readonly amendCount: number
+  readonly needsConsistencyCheck: boolean
+  readonly consistencyThreshold: number
+  readonly consistencyNote?: string
+  readonly changelogEntry: string
+}
+
+/**
+ * 对 `confirmed` 状态需求执行 S 级轻量修补：保持 `state: 'confirmed'` 不变、
+ * 不重走评审、不新建需求，也不增加正文快照版本；只更新 `.md` 正文并在文末变更记录区
+ * 追加 `[S级微调]` 行，同时在 YAML 累加补丁计数与摘要。
+ *
+ * 非 `confirmed` 状态或缺少正文直接拒绝，任何一步写盘失败还原 `.md` 原文，不留半成品。
+ * @param root - 规格根。
+ * @param id - 需求编号。
+ * @param input - 新正文、摘要、时刻及可选范围元数据。
+ * @returns 落盘后的需求、补丁计数、一致性核对提醒及写入的变更记录行。
+ */
+export function amendRequirement(
+  root: string,
+  id: string,
+  input: RequirementAmendInput,
+): RequirementAmendResult {
+  assertRequirementId(id)
+  const summary = input.summary.trim()
+  if (summary === '') {
+    throw new Error('requirement_amend 需要非空的 summary：写明本次 S 级微调的一句话摘要')
+  }
+  if (input.content.trim() === '') {
+    throw new Error('requirement_amend 需要非空的 content：更新后的需求正文不能为空')
+  }
+  const threshold = input.consistencyThreshold ?? REQUIREMENT_AMEND_CONSISTENCY_THRESHOLD
+  if (!Number.isInteger(threshold) || threshold < 1) {
+    throw new Error(`一致性核对阈值必须是正整数，收到：${String(threshold)}`)
+  }
+
+  const requirement = loadRequirement(root, id)
+  if (requirement.state !== 'confirmed') {
+    throw new Error(`${id} 现在在「${requirement.state}」，只有已确认（confirmed）的需求才能执行 S 级轻量修补`)
+  }
+
+  const documentPath = requirementDocPath(root, id)
+  const previous = readRequirementDocument(root, id)
+  if (previous === undefined) {
+    throw new Error(`${id} 还没有正文（${documentPath} 不存在或为空）；先补正文再修补`)
+  }
+
+  const { document: nextDocument, entry: changelogEntry } = appendAmendChangelog(
+    input.content,
+    previous,
+    input.at,
+    summary,
+  )
+  const files = [...new Set((input.files ?? []).map(item => item.trim()).filter(item => item !== ''))]
+  const actor = input.actor?.trim()
+  const amendment: RequirementAmendment = {
+    at: input.at,
+    summary,
+    ...(files.length > 0 ? { files } : {}),
+    ...(actor !== undefined && actor !== '' ? { actor } : {}),
+  }
+  const amendCount = Math.max(requirement.amendCount ?? 0, requirement.amendments?.length ?? 0) + 1
+  const amended = Requirement.parse({
+    ...requirement,
+    amendCount,
+    amendments: [...(requirement.amendments ?? []), amendment],
+  })
+
+  writeFileSync(documentPath, nextDocument, 'utf8')
+  try {
+    saveRequirement(root, amended)
+  } catch (error) {
+    writeFileSync(documentPath, previous, 'utf8')
+    throw error
+  }
+
+  const needsConsistencyCheck = amendCount >= threshold
+  const consistencyNote = needsConsistencyCheck
+    ? `累计已执行 ${String(amendCount)} 次 S 级轻量修补（达到阈值 ${String(threshold)} 次），建议对 ${id} 正文与规格规则做一次轻量一致性核对，避免补丁叠加产生前后矛盾。`
+    : undefined
+
+  return {
+    requirement: amended,
+    documentPath,
+    amendCount,
+    needsConsistencyCheck,
+    consistencyThreshold: threshold,
+    ...(consistencyNote === undefined ? {} : { consistencyNote }),
+    changelogEntry,
   }
 }

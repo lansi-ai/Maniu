@@ -544,14 +544,32 @@ export const RequirementPrototype = z
 export type RequirementPrototype = z.infer<typeof RequirementPrototype>
 
 /**
+ * 一次 S 级轻量修补的摘要记录：只记时刻、摘要，以及可选的影响文件清单与操作者。
+ *
+ * 旧需求 YAML 缺省 `amendCount` 与 `amendments`，照常解析。
+ */
+export const RequirementAmendment = z
+  .object({
+    at: IsoDateTime,
+    summary: z.string().min(1),
+    /** 本次修补声明的影响文件清单；缺省表示未附带清单。 */
+    files: z.array(z.string().min(1)).optional(),
+    /** 执行修补的会话 preset 署名；缺省表示无会话来源。 */
+    actor: z.string().min(1).optional(),
+  })
+  .strict()
+/** S 级轻量修补摘要记录的展示类型。 */
+export type RequirementAmendment = z.infer<typeof RequirementAmendment>
+
+/**
  * `.spec/requirements/REQ-01.yaml`：一条需求的元数据，正文写在同名 `.md`。
  *
  * 正文不塞进 YAML：需求文档是给人读的 Markdown，与任务、方案共用「YAML 记事实、
  * 同名文件记正文」的约定。四个时刻都可缺省——只有对应状态真的到达过才写。
  *
  * `versions` 与 `reviews` 都缺省为空数组，旧文件照常解析；`approved_at` 与
- * `approved_version` 只在人过审时写，指向过审那一刻的正文版本。`prototype`
- * 是后加的可选登记，旧文件没有它照样解析。
+ * `approved_version` 只在人过审时写，指向过审那一刻的正文版本。`prototype`、
+ * `amendCount` 与 `amendments` 是后加的可选登记，旧文件没有它们照样解析。
  */
 export const Requirement = z
   .object({
@@ -576,6 +594,10 @@ export const Requirement = z
     approved_version: z.number().int().positive().optional(),
     /** HTML 原型登记；旧需求缺省，不影响解析。 */
     prototype: RequirementPrototype.optional(),
+    /** 累计 S 级轻量修补次数；旧需求缺省，不影响解析。 */
+    amendCount: z.number().int().min(0).optional(),
+    /** S 级轻量修补历史摘要；旧需求缺省，不影响解析。 */
+    amendments: z.array(RequirementAmendment).optional(),
   })
   .strict()
 export type Requirement = z.infer<typeof Requirement>

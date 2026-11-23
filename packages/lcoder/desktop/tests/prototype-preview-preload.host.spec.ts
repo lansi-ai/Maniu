@@ -166,4 +166,20 @@ describe('prototype-preview-preload', () => {
     expect(info.html).not.toContain('<script')
     expect(info.html).not.toContain('onclick')
   })
+
+  it('原型运行期抛错时在提示条显示可见报错，点击关闭不触发元素上报', () => {
+    const banner = document.querySelector<HTMLElement>('[data-testid="prototype-preview-error"]')
+    const text = document.querySelector<HTMLElement>('[data-testid="prototype-preview-error-text"]')
+    const dismiss = document.querySelector<HTMLButtonElement>('[data-testid="prototype-preview-error-dismiss"]')
+    if (banner === null || text === null || dismiss === null) throw new Error('缺少运行时报错提示节点')
+
+    window.dispatchEvent(new ErrorEvent('error', { message: 'TypeError: Cannot set properties of null' }))
+    expect(banner.style.display).toBe('flex')
+    expect(text.textContent).toContain('原型脚本报错')
+    expect(text.textContent).toContain('TypeError: Cannot set properties of null')
+
+    dismiss.click()
+    expect(banner.style.display).toBe('none')
+    expect(electron.invoke).not.toHaveBeenCalled()
+  })
 })

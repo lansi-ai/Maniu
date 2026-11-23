@@ -10,7 +10,19 @@ import type { SessionSummary } from '../store.ts'
 import type { ProposalRow, RequirementDocRow, RequirementReviewRow } from '../spec/rows.ts'
 import { requirementStateLabel } from '../spec/board.ts'
 import { hasIntakeWork } from '../intake/eligibility.ts'
-import { buildIntakeFollowupPrompt, buildManagerSplitPrompt, buildRequirementCreatePrompt, buildRequirementPatchPrompt, buildReviewPrompt, buildRevisePrompt, BUILTIN_SPLIT_TRACKS, type ReviewDecisions } from '../intake/prompts.ts'
+import {
+  buildIntakeFollowupPrompt,
+  buildManagerSplitPrompt,
+  buildRequirementAmendPrompt,
+  buildRequirementCreatePrompt,
+  buildRequirementDeltaPrompt,
+  buildRequirementMilestonePrompt,
+  buildRequirementPatchPrompt,
+  buildReviewPrompt,
+  buildRevisePrompt,
+  BUILTIN_SPLIT_TRACKS,
+  type ReviewDecisions,
+} from '../intake/prompts.ts'
 import { INTAKE_PRESET_ID, MANAGER_PRESET_ID, PM_PRESET_ID, PROTOTYPE_PRESET_ID, REQUIREMENT_EDITOR_PRESET_ID } from '../talents/model.ts'
 import { entryRoot, flowNodeOf, flowRoleLabel, flowRoleSource, presetOfRole, presetRoot } from '../flow/config.ts'
 import { canModifyDraft, canReviewRequirement } from './requirement-gate.ts'
@@ -19,10 +31,12 @@ import {
   pendingForSession, questionCountForSession, unmappedPending, type PendingInteraction,
 } from '../chat/pending.ts'
 import { OperationCards, type OperationCardView, type OperationStep, type OperationStepState } from '../shell/operation-cards.tsx'
+import { useOpLiveFeeds, type OpLiveFeed } from '../shell/op-live-feed.ts'
 import { RequirementDetail, type ModifyState, type RunningOpKind } from './requirement-detail.tsx'
 import { TaskDetail } from './task-detail.tsx'
 import { ReaderOverlay } from './reader.tsx'
 import { IntakeWizard, type IntakeResult } from './intake-wizard.tsx'
+import { ChangeTriageModal, type ChangeTriageConfirmPayload } from './change-triage-modal.tsx'
 import { ProposalCompare } from './proposal-compare.tsx'
 import { DetailDrawer } from './detail-drawer.tsx'
 import { IntakeSummary } from './intake-summary.tsx'
@@ -34,8 +48,8 @@ const zhText: Translate = (key, params) => translate('zh', key, params)
 const OP_POLL_MS = 4000
 const OP_TIMEOUT_MS = 5 * 60 * 1000
 
-/** 六类后台操作；立项调研、新建需求与草稿修改都走后台浮卡，不强制跳转对话。 */
-type OpKind = 'intake' | 'create' | 'review' | 'revise' | 'patch' | 'split' | 'prototype'
+/** 后台操作类型；立项调研、新建需求、草稿修改与 S/M/L 变更通道都走后台浮卡，不强制跳转对话。 */
+type OpKind = 'intake' | 'create' | 'review' | 'revise' | 'patch' | 'amend' | 'delta' | 'milestone' | 'split' | 'prototype'
 
 const OP_RUNNING_KEY: Readonly<Record<OpKind, MessageKey>> = {
   intake: 'requirement.opRunning.intake',
@@ -43,6 +57,9 @@ const OP_RUNNING_KEY: Readonly<Record<OpKind, MessageKey>> = {
   review: 'requirement.opRunning.review',
   revise: 'requirement.opRunning.revise',
   patch: 'requirement.opRunning.patch',
+  amend: 'requirement.opRunning.amend',
+  delta: 'requirement.opRunning.delta',
+  milestone: 'requirement.opRunning.milestone',
   split: 'requirement.opRunning.split',
   prototype: 'requirement.opRunning.prototype',
 }
@@ -53,6 +70,9 @@ const OP_DONE_KEY: Readonly<Record<OpKind, MessageKey>> = {
   review: 'requirement.opDone.review',
   revise: 'requirement.opDone.revise',
   patch: 'requirement.opDone.patch',
+  amend: 'requirement.opDone.amend',
+  delta: 'requirement.opDone.delta',
+  milestone: 'requirement.opDone.milestone',
   split: 'requirement.opDone.split',
   prototype: 'requirement.opDone.prototype',
 }
@@ -63,6 +83,9 @@ const OP_TITLE_KEY: Readonly<Record<OpKind, MessageKey>> = {
   review: 'requirement.opTitle.review',
   revise: 'requirement.opTitle.revise',
   patch: 'requirement.opTitle.patch',
+  amend: 'requirement.opTitle.amend',
+  delta: 'requirement.opTitle.delta',
+  milestone: 'requirement.opTitle.milestone',
   split: 'requirement.opTitle.split',
   prototype: 'requirement.opTitle.prototype',
 }
@@ -82,6 +105,9 @@ const OP_PRESET: Readonly<Record<OpKind, string>> = {
   review: PM_PRESET_ID,
   revise: INTAKE_PRESET_ID,
   patch: REQUIREMENT_EDITOR_PRESET_ID,
+  amend: INTAKE_PRESET_ID,
+  delta: INTAKE_PRESET_ID,
+  milestone: INTAKE_PRESET_ID,
   split: MANAGER_PRESET_ID,
   prototype: PROTOTYPE_PRESET_ID,
 }
@@ -108,6 +134,8 @@ interface OpWatch extends OpRun {
   readonly planAt: string | null
   /** 发起原型生成时已有的原型生成时刻；完成看它是否变化。 */
   readonly prototypeAt: string | null
+  /** 发起 S 级轻量修补时已有的补丁计数；完成看它是否增加。 */
+  readonly amendCount: number
   readonly requirements: number
   /** 发起时已有的提案编号；之后新出现的起草态需求变更提案算本次操作的产物。 */
   readonly proposalIds: readonly string[]
@@ -123,6 +151,13 @@ interface PausedOp extends OpRun {
   readonly sessionId: string | null
 }
 
+/** 失败卡的具体原因：区分真实超时、模型输出超限、会话报错与回合结束未落盘。 */
+type OpFailReason =
+  | { readonly kind: 'timeout' }
+  | { readonly kind: 'max-tokens' }
+  | { readonly kind: 'error'; readonly message: string }
+  | { readonly kind: 'ended' }
+
 /** 已结束的操作卡：完成保持绿色、失败给警示色，直到用户关闭。 */
 interface FinishedOp extends OpRun {
   readonly sessionId: string | null
@@ -131,6 +166,10 @@ interface FinishedOp extends OpRun {
   readonly landed: number
   /** 提案被拒绝而收口的操作：按完成关卡，但状态文案说明是被拒绝。 */
   readonly cancelled?: boolean
+  /** 失败原因；未设置时按等待超时处理。 */
+  readonly failReason?: OpFailReason
+  /** 失败瞬间保留的最后一段实时输出，方便用户在卡上直接看到停在哪里。 */
+  readonly liveFeed?: OpLiveFeed
 }
 
 /** 需求页属性。 */
@@ -155,6 +194,8 @@ export interface RequirementsPageProps {
   readonly onConfirmIntake?: (sessionId: string) => Promise<{ readonly ok: boolean; readonly message: string }>
   /** 跳到任务页并只显示该需求关联的任务。 */
   readonly onOpenTasks: (requirementId: string) => void
+  /** 跳到原型库页面预览或管理组件素材库。 */
+  readonly onOpenPrototypeLibrary?: (() => void) | undefined
   /** preset 名册显示名；浮卡子标题取它，读不到回退词典。 */
   readonly presetNames?: Readonly<Record<string, string>>
   /** 当前是否有等待人工回答或审批的交互；交互期间暂停浮卡超时倒计时。 */
@@ -180,6 +221,8 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
   const [taskId, setTaskId] = useState<string | null>(null)
   const [readerPath, setReaderPath] = useState<string | null>(null)
   const [wizard, setWizard] = useState(false)
+  const [triageOpen, setTriageOpen] = useState(false)
+  const [triageTargetId, setTriageTargetId] = useState<string | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
   const [createText, setCreateText] = useState('')
   // 「修改需求」收敛到同一详情：只收集修改说明；提交非空说明才发起草稿修改会话，取消不写数据。
@@ -199,8 +242,15 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
   const [minimizedKeys, setMinimizedKeys] = useState<readonly string[]>([])
   // 已发确认指令的立项卡键：回合再次跑起来前不重复进入等待确认态，防止连发。
   const [confirmSent, setConfirmSent] = useState<readonly string[]>([])
-  // 见过回合跑起来的立项卡键：刚发起尚未开跑的会话不算「回合结束」，不进入等待确认态。
+  // 见过回合跑起来的操作卡键：刚发起尚未开跑的会话不算「回合结束」，不误判等待确认或异常结束。
   const [sawRunning, setSawRunning] = useState<readonly string[]>([])
+  // 记录会话结束后等待落盘投影追平的宽限轮次；满 2 轮仍未见产物再立即报错收口。
+  const endedGraceRef = useRef<Map<string, number>>(new Map())
+  const watchSessionIds = useMemo(
+    () => watches.flatMap(item => item.sessionId === null ? [] : [item.sessionId]),
+    [watches],
+  )
+  const liveFeeds = useOpLiveFeeds(watchSessionIds)
   const loadingRef = useRef(props.loading)
   loadingRef.current = props.loading
   const flow = props.projection.flow
@@ -216,7 +266,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
       ?? paused.find(item => item.requirementId === requirementId)
     if (inFlight === undefined) return null
     const kind = inFlight.kind
-    return kind === 'review' || kind === 'revise' || kind === 'patch' || kind === 'split' || kind === 'prototype' ? kind : null
+    return kind === 'review' || kind === 'revise' || kind === 'patch' || kind === 'split' || kind === 'prototype' || kind === 'amend' || kind === 'delta' ? kind : null
   }
 
   const rows = useMemo(() => {
@@ -283,6 +333,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
       related: requirementId === null ? 0 : relatedOf(requirementId).length,
       planAt: row?.splitPlan?.at ?? null,
       prototypeAt: row?.prototype?.generatedAt ?? null,
+      amendCount: row?.amendCount ?? row?.amendments?.length ?? 0,
       requirements: props.projection.requirements.length,
       proposalIds: props.projection.proposals.map(item => item.id),
     }
@@ -368,6 +419,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
       related: 0,
       planAt: null,
       prototypeAt: null,
+      amendCount: 0,
       requirements: props.projection.requirements.length,
       proposalIds: props.projection.proposals.map(item => item.id),
       roleSig: null,
@@ -406,11 +458,143 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
       related: 0,
       planAt: null,
       prototypeAt: null,
+      amendCount: 0,
       requirements: props.projection.requirements.length,
       proposalIds: props.projection.proposals.map(item => item.id),
       roleSig: null,
       deadline: Date.now() + OP_TIMEOUT_MS,
     }])
+    return answer
+  }
+
+  const openChangeTriage = (targetId: string | null): void => {
+    setTriageTargetId(targetId)
+    setTriageOpen(true)
+  }
+
+  const launchTriageSession = async (
+    kind: 'amend' | 'delta' | 'milestone',
+    requirementId: string | null,
+    prompt: string,
+  ): Promise<{ readonly ok: boolean; readonly message: string }> => {
+    setOpNotice(null)
+    let answer: { readonly ok: boolean; readonly message: string; readonly sessionId?: string }
+    try {
+      answer = await props.onStartSession(prompt, INTAKE_PRESET_ID)
+    } catch (cause: unknown) {
+      const message = cause instanceof Error ? cause.message : String(cause)
+      setOpNotice(message)
+      return { ok: false, message }
+    }
+    if (!answer.ok) {
+      setOpNotice(answer.message)
+      return answer
+    }
+    setWatches(current => [...current, {
+      key: `${kind}-${requirementId ?? 'new'}-${String(Date.now())}`,
+      kind,
+      requirementId,
+      roles: [INTAKE_PRESET_ID],
+      roleIndex: 0,
+      auto: false,
+      sessionId: answer.sessionId ?? null,
+      ...baselineOf(requirementId),
+      roleSig: null,
+      deadline: Date.now() + OP_TIMEOUT_MS,
+    }])
+    return answer
+  }
+
+  const confirmChangeTriage = async (
+    payload: ChangeTriageConfirmPayload,
+  ): Promise<{ readonly ok: boolean; readonly message: string }> => {
+    const targetRow = payload.targetId === null
+      ? undefined
+      : props.projection.requirements.find(item => item.id === payload.targetId)
+    const extraTracks = (props.projection.project?.tracks ?? []).map(track => `${track.id}（${track.name}）`)
+    const allTracks = [...BUILTIN_SPLIT_TRACKS, ...extraTracks]
+
+    if (payload.actionKind === 'draft_patch') {
+      if (targetRow === undefined || targetRow.state !== 'draft') {
+        return { ok: false, message: t('triage.reason.draftTarget') }
+      }
+      const modifyGate = canModifyDraft({
+        reviews: targetRow.reviews,
+        versions: targetRow.versions,
+        flow: props.projection.flow,
+        roster: props.projection.roles,
+      })
+      if (!modifyGate.ok) {
+        return { ok: false, message: t('triage.draftLockedReason') }
+      }
+      openDetail(targetRow)
+      setModifyRow(targetRow)
+      setModifyText(payload.description)
+      setPatchError(null)
+      setCompareId(null)
+      setModifyOpen(true)
+      const answer = await launchPatch(payload.description, targetRow)
+      if (!answer.ok) setPatchError(answer.message)
+      else setTriageOpen(false)
+      return answer
+    }
+
+    if (payload.actionKind === 'amend') {
+      if (targetRow === undefined || targetRow.state !== 'confirmed') {
+        return { ok: false, message: t('triage.sDisabledReason') }
+      }
+      const activeTasks = relatedOf(targetRow.id)
+        .filter(task => task.state !== 'closed')
+        .map(task => ({ id: task.id, title: task.title, state: task.state }))
+      const prompt = buildRequirementAmendPrompt(
+        { id: targetRow.id, title: targetRow.title ?? targetRow.id },
+        targetRow.text,
+        payload.description,
+        {
+          activeTasks,
+          tracks: allTracks,
+          amendCount: targetRow.amendCount ?? targetRow.amendments?.length ?? 0,
+        },
+      )
+      const answer = await launchTriageSession('amend', targetRow.id, prompt)
+      if (answer.ok) setTriageOpen(false)
+      return answer
+    }
+
+    if (payload.actionKind === 'delta') {
+      if (targetRow === undefined) {
+        return { ok: false, message: t('triage.mDisabledReason') }
+      }
+      const baseVersion = targetRow.versions.reduce((max, version) => Math.max(max, version.n), 0) || 1
+      const prompt = buildRequirementDeltaPrompt(
+        { id: targetRow.id, title: targetRow.title ?? targetRow.id, version: baseVersion },
+        targetRow.text,
+        payload.description,
+      )
+      const answer = await launchTriageSession('delta', targetRow.id, prompt)
+      if (answer.ok) setTriageOpen(false)
+      return answer
+    }
+
+    const maxReq = props.projection.requirements.reduce((best, item) => {
+      const digits = /^REQ-(\d+)$/.exec(item.id)?.[1]
+      return digits === undefined ? best : Math.max(best, Number.parseInt(digits, 10))
+    }, 0)
+    const nextRequirementId = `REQ-${String(maxReq + 1).padStart(2, '0')}`
+    const base = targetRow === undefined
+      ? undefined
+      : {
+        id: targetRow.id,
+        title: targetRow.title ?? targetRow.id,
+        version: targetRow.versions.reduce((max, version) => Math.max(max, version.n), 0) || 1,
+      }
+    const prompt = buildRequirementMilestonePrompt(payload.description, {
+      ...(base === undefined ? {} : { base }),
+      tracks: allTracks,
+      nextRequirementId,
+    })
+    const answer = await launchTriageSession('milestone', null, prompt)
+    if (answer.ok) setTriageOpen(false)
     return answer
   }
 
@@ -558,9 +742,14 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
     const cancelledWatches = watches.filter(watch => rejectedProposalOf(watch) !== undefined)
     const doneWatches = watches.filter((watch) => {
       if (cancelledWatches.includes(watch)) return false
-      if (watch.kind === 'intake' || watch.kind === 'create') return props.projection.requirements.length > watch.requirements
+      if (watch.kind === 'intake' || watch.kind === 'create' || watch.kind === 'delta' || watch.kind === 'milestone') {
+        return props.projection.requirements.length > watch.requirements
+      }
       const row = props.projection.requirements.find(item => item.id === watch.requirementId)
       if (row === undefined) return false
+      if (watch.kind === 'amend') {
+        return (row.amendCount ?? row.amendments?.length ?? 0) > watch.amendCount
+      }
       if (watch.kind === 'patch') {
         // 修改当前草稿不增版本、不改需求条数：提案被应用（approved）才算这次操作完成。
         return props.projection.proposals.some(proposal =>
@@ -634,40 +823,117 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
     props.onReload()
   }, [watches, props.projection, props.onReload, props.sessions])
 
-  // 固定间隔轮询投影；读取中不叠加请求，卸载或无操作时清理；超时转失败卡。
-  // 交互期（等待人工确认概要，或全局有待答/待审批交互）不判定到期，并顺延 deadline，
-  // 绝不在用户思考或答题途中误报超时；只在会话真正卡住时才走原超时逻辑。
+  // 固定间隔轮询投影；读取中不叠加请求，卸载或无操作时清理；超时或回合异常终止转失败卡。
+  // 交互期（等待人工确认概要、待对比提案、或全局有待答/待审批交互）以及岗位仍在运行/持续输出时不误判超时，并顺延 deadline；
+  // max-tokens 截断自动续跑已下沉到 Harness 插件层（@maniu/kernel），若同回合续跑结束后仍未落盘，经 1 轮投影补读确认后立即报明确原因。
   useEffect(() => {
-    if (watches.length === 0) return
+    if (watches.length === 0) {
+      endedGraceRef.current.clear()
+      return
+    }
     const timer = setInterval(() => {
       const now = Date.now()
-      const interactive = (item: OpWatch): boolean => awaitingConfirmOf(item) || props.awaitingAnswer === true
-      const expired = watches.filter(item => now >= item.deadline && !interactive(item))
-      const frozen = watches.filter(item => now >= item.deadline && interactive(item))
+      const sessionOf = (item: OpWatch): SessionSummary | undefined =>
+        item.sessionId === null ? undefined : props.sessions.find(entry => entry.sessionId === item.sessionId)
+      const feedOf = (item: OpWatch): OpLiveFeed | undefined =>
+        item.sessionId === null ? undefined : liveFeeds[item.sessionId]
+      const interactive = (item: OpWatch): boolean =>
+        awaitingConfirmOf(item) || props.awaitingAnswer === true || pendingProposalOf(item) !== undefined
+      const activeWork = (item: OpWatch): boolean => {
+        const session = sessionOf(item)
+        if (session?.running === true) return true
+        const feed = feedOf(item)
+        if (feed === undefined) return false
+        return feed.phase !== 'connecting' && feed.phase !== 'idle' && (now - feed.lastActivityAt) < OP_TIMEOUT_MS
+      }
+      const keepAlive = (item: OpWatch): boolean => interactive(item) || activeWork(item)
+
+      const earlyFailed: { readonly watch: OpWatch; readonly reason: OpFailReason }[] = []
+      let needGraceReload = false
+      for (const item of watches) {
+        if (interactive(item) || activeWork(item)) {
+          endedGraceRef.current.delete(item.key)
+          continue
+        }
+        const feed = feedOf(item)
+        const session = sessionOf(item)
+        const turnEnd = feed?.turnEnd
+        let terminal: OpFailReason | undefined
+        if (turnEnd?.kind === 'max-tokens') {
+          terminal = { kind: 'max-tokens' }
+        } else if (turnEnd?.kind === 'error') {
+          terminal = { kind: 'error', message: turnEnd.message }
+        } else if (sawRunning.includes(item.key) && session !== undefined && !session.running && !session.blank) {
+          terminal = { kind: 'ended' }
+        }
+        if (terminal === undefined) {
+          endedGraceRef.current.delete(item.key)
+          continue
+        }
+        const seen = (endedGraceRef.current.get(item.key) ?? 0) + 1
+        endedGraceRef.current.set(item.key, seen)
+        if (seen >= 2) {
+          endedGraceRef.current.delete(item.key)
+          earlyFailed.push({ watch: item, reason: terminal })
+        } else {
+          needGraceReload = true
+        }
+      }
+
+      const earlyKeys = new Set(earlyFailed.map(entry => entry.watch.key))
+      const expired = watches.filter(item => !earlyKeys.has(item.key) && now >= item.deadline && !keepAlive(item))
+      const frozen = watches.filter(item => !earlyKeys.has(item.key) && now >= item.deadline && keepAlive(item))
       if (frozen.length > 0) {
         setWatches(current => current.map(item =>
           frozen.some(entry => entry.key === item.key)
             ? { ...item, deadline: now + OP_TIMEOUT_MS }
             : item))
       }
-      if (expired.length > 0) {
-        setWatches(current => current.filter(item => !expired.includes(item)))
-        setFinished(current => [...current, ...expired.map(watch => ({
-          key: watch.key,
-          kind: watch.kind,
-          requirementId: watch.requirementId,
-          roles: watch.roles,
-          auto: watch.auto,
-          sessionId: watch.sessionId,
-          status: 'failed' as const,
-          landed: watch.roleIndex,
-        }))])
+      if (earlyFailed.length > 0 || expired.length > 0) {
+        const dropKeys = new Set([...earlyKeys, ...expired.map(item => item.key)])
+        setWatches(current => current.filter(item => !dropKeys.has(item.key)))
+        setFinished(current => [
+          ...current,
+          ...earlyFailed.map(({ watch, reason }) => {
+            const feed = feedOf(watch)
+            return {
+              key: watch.key,
+              kind: watch.kind,
+              requirementId: watch.requirementId,
+              roles: watch.roles,
+              auto: watch.auto,
+              sessionId: watch.sessionId,
+              status: 'failed' as const,
+              landed: watch.roleIndex,
+              failReason: reason,
+              ...(feed === undefined ? {} : { liveFeed: feed }),
+            }
+          }),
+          ...expired.map((watch) => {
+            const feed = feedOf(watch)
+            return {
+              key: watch.key,
+              kind: watch.kind,
+              requirementId: watch.requirementId,
+              roles: watch.roles,
+              auto: watch.auto,
+              sessionId: watch.sessionId,
+              status: 'failed' as const,
+              landed: watch.roleIndex,
+              failReason: { kind: 'timeout' } as const,
+              ...(feed === undefined ? {} : { liveFeed: feed }),
+            }
+          }),
+        ])
         return
       }
-      if (!loadingRef.current) props.onReload()
+      if (needGraceReload || !loadingRef.current) props.onReload()
     }, OP_POLL_MS)
     return () => { clearInterval(timer) }
-  }, [watches, props.onReload, props.sessions, props.awaitingAnswer, confirmSent, sawRunning, props.projection.requirements.length])
+  }, [
+    watches, props.onReload, props.sessions, props.awaitingAnswer,
+    confirmSent, sawRunning, props.projection.requirements.length, props.projection.proposals, liveFeeds,
+  ])
 
   /** 人工衔接：点「下一岗位」才发起下一岗。 */
   const nextRole = (key: string): void => {
@@ -686,9 +952,10 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
     return session !== undefined && !session.running && !session.blank
   }
 
-  /** 一次提案型操作产出的变更载荷是否对得上：新建看 new，改稿看 revise，草稿修改看 patch。 */
+  /** 一次提案型操作产出的变更载荷是否对得上：新建与独立立项看 new，增量修订看基于目标需求的 new，改稿看 revise，草稿修改看 patch。 */
   const changeMatchesWatch = (watch: OpWatch, change: NonNullable<ProposalRow['requirementChange']>): boolean => {
-    if (watch.kind === 'create') return change.mode === 'new'
+    if (watch.kind === 'create' || watch.kind === 'milestone') return change.mode === 'new'
+    if (watch.kind === 'delta') return change.mode === 'new' && (change.target === undefined || change.target === watch.requirementId)
     if (watch.kind === 'revise') return change.mode === 'revise' && change.target === watch.requirementId
     if (watch.kind === 'patch') return change.mode === 'patch' && change.target === watch.requirementId
     return false
@@ -696,7 +963,9 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
 
   // 提案等待对比：发起后新出现的起草态需求变更提案算本次操作的产物。
   const pendingProposalOf = (watch: OpWatch): ProposalRow | undefined => {
-    if (watch.kind !== 'create' && watch.kind !== 'revise' && watch.kind !== 'patch') return undefined
+    if (watch.kind !== 'create' && watch.kind !== 'delta' && watch.kind !== 'milestone' && watch.kind !== 'revise' && watch.kind !== 'patch') {
+      return undefined
+    }
     return props.projection.proposals.find((proposal) => {
       const change = proposal.requirementChange
       if (proposal.decision !== 'draft' || change === undefined) return false
@@ -707,7 +976,9 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
 
   // 提案被拒绝：本次操作的产物不再可能落盘，浮卡立即收口，不等需求条数/版本增量或超时。
   const rejectedProposalOf = (watch: OpWatch): ProposalRow | undefined => {
-    if (watch.kind !== 'create' && watch.kind !== 'revise' && watch.kind !== 'patch') return undefined
+    if (watch.kind !== 'create' && watch.kind !== 'delta' && watch.kind !== 'milestone' && watch.kind !== 'revise' && watch.kind !== 'patch') {
+      return undefined
+    }
     return props.projection.proposals.find((proposal) => {
       const change = proposal.requirementChange
       if (proposal.decision !== 'rejected' || change === undefined) return false
@@ -716,12 +987,12 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
     })
   }
 
-  // 记录每张立项卡是否见过回合在跑；卡结束后清掉标记。
+  // 记录每张操作卡是否见过回合在跑；卡结束后清掉标记。
   useEffect(() => {
     const keys = new Set(watches.map(item => item.key))
     const kept = sawRunning.filter(key => keys.has(key))
     const fresh = watches
-      .filter(watch => watch.kind === 'intake' && watch.sessionId !== null && !kept.includes(watch.key)
+      .filter(watch => watch.sessionId !== null && !kept.includes(watch.key)
         && props.sessions.find(item => item.sessionId === watch.sessionId)?.running === true)
       .map(watch => watch.key)
     if (kept.length !== sawRunning.length || fresh.length > 0) setSawRunning([...kept, ...fresh])
@@ -852,6 +1123,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
       nextRoleLabel?: string,
       awaiting = false,
       compareProposalId?: string,
+      liveFeed?: OpLiveFeed,
     ): OperationCardView => {
       const roleId = idOf(run, current)
       return {
@@ -867,14 +1139,32 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
         ...(nextRoleLabel === undefined ? {} : { nextRoleLabel }),
         ...(awaiting ? { awaitingConfirm: true } : {}),
         ...(compareProposalId === undefined ? {} : { compareProposalId }),
+        ...(liveFeed === undefined ? {} : { liveFeed }),
       }
     }
+    const failStatusOf = (item: FinishedOp, idText: string): string => {
+      const reason = item.failReason
+      if (reason?.kind === 'max-tokens') return t('requirement.opFailedMaxTokens', { id: idText })
+      if (reason?.kind === 'error') {
+        const detail = reason.message !== '' ? reason.message : t('requirement.opTimeout', { id: idText })
+        return t('requirement.opFailedError', { id: idText, detail })
+      }
+      if (reason?.kind === 'ended') return t('requirement.opFailedEnded', { id: idText })
+      return t('requirement.opTimeout', { id: idText })
+    }
     const idTextOf = (run: OpRun): string =>
-      run.requirementId ?? t(run.kind === 'create' ? 'requirement.opTitle.create' : 'requirement.opTitle.intake')
+      run.requirementId ?? t(
+        run.kind === 'create'
+          ? 'requirement.opTitle.create'
+          : run.kind === 'milestone'
+            ? 'requirement.opTitle.milestone'
+            : 'requirement.opTitle.intake',
+      )
     return [
       ...watches.map((watch) => {
         const awaiting = awaitingConfirmOf(watch)
         const pendingProposal = pendingProposalOf(watch)
+        const feed = watch.sessionId === null ? undefined : liveFeeds[watch.sessionId]
         return withPending(viewOf(
           watch, watch.roleIndex, watch.sessionId, 'running',
           awaiting
@@ -887,6 +1177,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
                   ? t(OP_RUNNING_KEY[watch.kind])
                   : t(OP_RUNNING_KEY[watch.kind], { id: idTextOf(watch) }),
           !awaiting && pendingProposal === undefined, undefined, awaiting, pendingProposal?.id,
+          !awaiting && pendingProposal === undefined ? feed : undefined,
         ), watch.sessionId)
       }),
       ...paused.map(run => withPending(viewOf(
@@ -902,12 +1193,12 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
             : item.kind === 'intake'
               ? t(OP_DONE_KEY[item.kind])
               : t(OP_DONE_KEY[item.kind], { id: idTextOf(item) })
-          : t('requirement.opTimeout', { id: idTextOf(item) }),
-        false,
+          : failStatusOf(item, idTextOf(item)),
+        false, undefined, false, undefined, item.status === 'failed' ? item.liveFeed : undefined,
       ), item.sessionId)),
     ]
   }, [
-    watches, paused, finished, minimizedKeys, confirmSent, sawRunning,
+    watches, paused, finished, minimizedKeys, confirmSent, sawRunning, liveFeeds,
     props.pending, props.presetNames, props.projection, props.sessions, t,
   ])
 
@@ -999,6 +1290,15 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
               {props.intakeResult === null ? t('intake.entryStart') : t('intake.entryResult')}
             </Button>
           </span>
+          <Button
+            variant="secondary"
+            data-testid="change-triage-open"
+            isDisabled={props.project === null}
+            onPress={() => { openChangeTriage(null) }}
+          >
+            <Sparkles size={14} aria-hidden="true" />
+            {t('triage.openButton')}
+          </Button>
           <Button
             variant="primary"
             data-testid="requirement-new-open"
@@ -1229,8 +1529,11 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
                   onCloseDiff={() => { setCompareId(null) }}
                   onApplied={patchApplied}
                   readerOpen={readerPath !== null}
+                  triageOpen={triageOpen}
                   runningOp={runningOpOf(active.id)}
+                  onChangeTriage={() => { openChangeTriage(active.id) }}
                   onGeneratePrototype={prompt => generatePrototype(active, prompt)}
+                  onOpenPrototypeLibrary={props.onOpenPrototypeLibrary}
                   t={t}
                 />
               </div>
@@ -1262,6 +1565,20 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
           onStart={intakeStart}
           onOpenRequirement={(id) => { setWizard(false); setSelected(id) }}
           onReload={props.onReload}
+          t={t}
+        />
+      )}
+
+      {props.project !== null && (
+        <ChangeTriageModal
+          isOpen={triageOpen}
+          requirements={props.projection.requirements}
+          tasks={props.projection.tasks}
+          tracks={props.projection.project?.tracks ?? []}
+          projectKind={props.projection.project?.kind}
+          initialTargetId={triageTargetId}
+          onClose={() => { setTriageOpen(false) }}
+          onConfirm={confirmChangeTriage}
           t={t}
         />
       )}

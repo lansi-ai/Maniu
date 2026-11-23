@@ -64,6 +64,8 @@ kind: "package-reference"
 
 `requirement_split_plan` 只有 `manager` 角色看得见：它要求需求已是 `confirmed`，并接收非空的 `tasks` 数组，每项含 `task`、`role` 与可选的 `reason`，把需求编号、生成时刻与逐条建议写进 `.spec/requirements/<编号>/split-plan.yaml`，覆盖上一份计划。每个任务必须存在、通过 `Task.requirement` 回指该需求且仍在 `drafting`；每个岗位必须能按 `.spec/roles.yaml` 或内置角色 id 解析，同一条任务只能出现一次。它不建任务、不分配、不改状态；分配仍由人经 `/task_assign` 完成。
 
+`requirement_amend` 只有 `intake` 角色在非 `closed` 状态下看得见：它对已确认（`confirmed`）需求执行 S 级轻量修补，保持 `state` 为 `confirmed` 不变、不重走评审、不新建 `REQ-xx`。它更新 `REQ-<编号>.md` 正文并在文末 `## 变更记录` 追加 `- [S级微调] <日期> <摘要>`，同时在 YAML 累加可选的 `amendCount` 与 `amendments`；累计达到一致性核对阈值（默认 5 次）时返回 `needsConsistencyCheck: true` 及核对提醒。非 `confirmed` 状态或缺失正文会拒绝写盘，触及不可逆变更（`irreversible` 非空）、影响文件超过 3 个、`schema_or_permission_change`、引入新轨（`new_track`）或 `architecture_change` 时在写盘前拦截并返回结构化拒绝原因与 `escalateTo`（`M` 或 `L`）升级建议。
+
 `/requirement_approve` 要求至少一轮评审、所有轮次都已处置，且当前正文有对应版本快照；它把起草态需求推到 `confirmed`，写 `confirmed_at`、`approved_at` 与 `approved_version`。`pending` 或未决轮次会按轮次列出并拦住过审，`accepted` 与 `rejected` 不拦；`requirement_revise` 会自动闭环未决轮次。存在 `.spec/flow.yaml` 且配置了 `review` 节点时再加一条：按配置顺序为每个条目消费一轮根匹配的署名评审，一轮只消费给一个条目——条目的根是内置 preset 的角色或名册岗位的 `inherits`，评审轮的根是署名 preset 的内置根；因此 `maniu-pm` 加一个继承 pm 的岗位需要两轮独立评审。无署名的旧轮与非内置 preset 的署名不可消费；拒绝时列出无轮可消费的条目。没有该文件时保持至少一轮的旧门槛。没有版本记录的需求先补 v1；正文与最新快照不一致时追加一版，保证 `approved_version` 指的就是过审的正文。`/requirement_release` 只在至少一条任务通过 `Task.requirement` 回指且这些任务全部 `closed` 时推到 `released`，否则报出未关闭的任务编号；`/requirement_close` 关闭起草或已确认的需求，并拒绝已上线的需求——它是终态。客户端投影按同一目录把每份 YAML 与同名正文合成一行，并把 `versions`、`reviews`、`approved_at` 与 `approved_version` 透传出去；`requirements/<编号>/split-plan.yaml` 存在时一并读入，缺失不报错。
 
 `deliverable_draft` 用必填的 `summary`、至少一条仓库相对路径的 `docs` 与可空的 `commands`，把一条任务的交付物登记成 `.spec/deliverables/<任务编号>.yaml`。每条 `docs` 必须在仓库根下解析成真实文件；绝对路径、`..` 与不存在的文件都被拒。工具按任务覆盖写，保留首次 `created_at` 并刷新 `updated_at`；它只登记索引，工程文档本身仍用 `file_edit` 写。`task_close` 在 P1、P3、P4 之后跑 D1：A 级、通用轨、或标题描述命中基础框架、脚手架、架构、技术选型的任务，必须有一份摘要非空、至少一条文档的可读索引，否则收口把 `.spec/deliverables/<任务编号>.yaml` 作为下一步报出来。普通任务不受影响。只有 `dev`、`architect` 与 `ops` 看得见这个工具，且从 `contracted` 起才可见。
@@ -98,7 +100,7 @@ kind: "package-reference"
 | `src/kernel/task-store.ts` | 任务对象、迁移与落盘 |
 | `src/kernel/requirement-store.ts` | 需求对象、编号分配、版本快照、评审记录与决定、拆分岗位建议与多文件写入 |
 | `src/tools/spec-tools.ts`、`src/tools/task-tools.ts`、`src/tools/edit-tools.ts` | 模型工具 |
-| `src/tools/requirement-tools.ts` | 模型可调用的 `requirement_draft`、`requirement_revise`、`requirement_propose`、`requirement_review_draft` 与 `requirement_split_plan` |
+| `src/tools/requirement-tools.ts` | 模型可调用的 `requirement_draft`、`requirement_revise`、`requirement_propose`、`requirement_patch_propose`、`requirement_amend`、`requirement_review_draft` 与 `requirement_split_plan` |
 | `src/tools/deliverable-tools.ts` | 模型可调用的 `deliverable_draft` |
 | `src/kernel/deliverable-store.ts`, `src/schema/deliverable.ts` | 交付索引的读写与必须交付判定 |
 | `src/commands/requirement-approve.ts`、`src/commands/requirement-release.ts`、`src/commands/requirement-close.ts`、`src/commands/requirement-review-decide.ts` | 四条只进命令面的需求命令：状态流转与评审处置 |

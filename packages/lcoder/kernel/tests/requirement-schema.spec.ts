@@ -38,6 +38,25 @@ describe('需求 schema', () => {
     expect(requirement.reviews).toEqual([])
     expect(requirement.approved_at).toBeUndefined()
     expect(requirement.approved_version).toBeUndefined()
+    expect(requirement.amendCount).toBeUndefined()
+    expect(requirement.amendments).toBeUndefined()
+  })
+
+  it('S 级轻量修补字段按可选形状校验，不影响旧 YAML 兼容', () => {
+    const amended = Requirement.parse({
+      ...VALID,
+      state: 'confirmed',
+      amendCount: 2,
+      amendments: [
+        { at: '2026-11-22T10:00:00+08:00', summary: '表单新增发票号字段', files: ['src/form.tsx'], actor: 'maniu-intake' },
+        { at: '2026-11-22T11:00:00+08:00', summary: '调整提示文案' },
+      ],
+    })
+    expect(amended.amendCount).toBe(2)
+    expect(amended.amendments).toHaveLength(2)
+    expect(Requirement.safeParse({ ...VALID, amendCount: -1 }).success).toBe(false)
+    expect(Requirement.safeParse({ ...VALID, amendments: [{ at: '昨天', summary: 'x' }] }).success).toBe(false)
+    expect(Requirement.safeParse({ ...VALID, amendments: [{ at: '2026-11-22T10:00:00+08:00', summary: '' }] }).success).toBe(false)
   })
 
   it('版本快照与评审轮次按形状校验，过审字段可省', () => {

@@ -19,8 +19,10 @@ import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 
 import type { Proposal, Requirement, RequirementChange, RequirementOption, RequirementSplitPlanEntry, Task } from '../schema/spec.js'
 import {
+  amendRequirement,
   assertRequirementId,
   createRequirement,
+  evaluateAmendEscalation,
   loadRequirement,
   readRequirementDocument,
   recordRequirementReview,
@@ -174,9 +176,10 @@ function splitPlanEntriesOf(
 }
 
 /**
- * 建需求工具：起草、评审、改稿、需求变更提案与拆分岗位建议五条模型写入口；可见性由角色天花板收窄。
+ * 建需求工具：起草、评审、改稿、需求变更提案、已确认需求 S 级修补与拆分岗位建议；可见性由角色天花板收窄。
  * @param rootInput - 规格根解析（按会话工作区）。
- * @returns `requirement_draft`、`requirement_review_draft`、`requirement_revise`、`requirement_propose` 与 `requirement_split_plan` 工具定义。
+ * @returns `requirement_draft`、`requirement_review_draft`、`requirement_revise`、`requirement_propose`、
+ * `requirement_patch_propose`、`requirement_amend` 与 `requirement_split_plan` 工具定义。
  */
 export function createRequirementTools(rootInput: RootInput): ToolDefinition[] {
   return [
@@ -553,6 +556,116 @@ export function createRequirementTools(rootInput: RootInput): ToolDefinition[] {
           at,
           tasks: entries.map(entry => ({ task: entry.task, role: entry.role, reason: entry.reason ?? null })),
           note: '岗位建议已落盘。本工具不创建任务、不分配岗位、不改任务状态；请在界面上逐条确认，分配经 /task_assign 由人执行。',
+        }
+      },
+    }),
+    defineTool({
+      name: 'requirement_amend',
+      description:
+        '对已确认（confirmed）需求执行 S 级轻量修补：保持 state 为 confirmed 不变、不重走评审、不新建 REQ-xx，直接更新 `.spec/requirements/<编号>.md` 正文并在文末 `## 变更记录` 区追加一行 `[S级微调]`（带日期与摘要），同时累加补丁计数。非 confirmed 状态或缺少正文一律拒绝。运行前校验 S 级升级护栏：涉及不可逆变更（irreversible 非空）、影响文件超过 3 个、核心权限/数据 schema 破坏性变更（schema_or_permission_change）、引入新轨（new_track）或跨端架构变更（architecture_change）时，拒绝写盘并返回结构化拒绝原因与 escalateTo（M 或 L）升级建议。累计补丁达到 5 次时返回一致性核对提醒（needsConsistencyCheck: true）。',
+      parameters: {
+        id: { type: 'string', required: true, description: '需求编号，如 REQ-01；必须处于 confirmed 状态' },
+        summary: { type: 'string', required: true, description: '一句话摘要，说明本次 S 级微调改了什么（如：报销表单新增发票号字段）' },
+        content: { type: 'string', required: true, description: '更新后的完整需求正文，Markdown；去空白后必须非空' },
+        affected_files: {
+          type: 'array',
+          description: '本次微调预计触及的文件路径列表；S 级上限 3 个文件，超出将触发升级 M 级护栏',
+          items: { type: 'string' },
+        },
+        irreversible: {
+          type: 'array',
+          description: '涉及的不可逆变更项（如删表、破坏性迁移、外部生产变更）；S 级必须为空，非空将触发升级 M 级护栏',
+          items: { type: 'string' },
+        },
+        new_track: {
+          type: 'string',
+          description: '若引入了尚未启用的新交付轨/新端（如 desktop），填写轨标识；S 级禁止引入新轨，触发将建议升级 L 级',
+        },
+        architecture_change: {
+          type: 'boolean',
+          description: '是否涉及跨端或架构级重大变更；为 true 时拒绝 S 级并建议升级 L 级',
+        },
+        schema_or_permission_change: {
+          type: 'boolean',
+          description: '是否涉及核心权限模型、主状态机或持久化数据 schema 破坏性变更；为 true 时拒绝 S 级并建议升级 M 级',
+        },
+      },
+      output: { schema: { type: 'json' }, render: renderJson },
+      // oxlint-disable-next-line typescript/require-await -- execute 的契约要求返回 Promise（ToolDefinition.execute），这里是同步实现。
+      async execute(args, exec) {
+        const root = resolveRoot(rootInput, exec)
+        const id = assertRequirementId(args.id.trim())
+        const summary = args.summary.trim()
+        if (summary === '') {
+          throw new Error('requirement_amend 需要非空的 summary：写明本次 S 级微调的一句话摘要')
+        }
+        if (args.content.trim() === '') {
+          throw new Error('requirement_amend 需要非空的 content：更新后的需求正文去空白后不能为空')
+        }
+
+        let requirement
+        try {
+          requirement = loadRequirement(root, id)
+        } catch (error: unknown) {
+          throw new Error(`读不到需求 ${id}（${requirementPath(root, id)}）：${errorMessage(error)}`)
+        }
+        if (requirement.state !== 'confirmed') {
+          throw new Error(`${id} 现在在「${requirement.state}」，只有已确认（confirmed）的需求才能执行 S 级轻量修补`)
+        }
+        if (readRequirementDocument(root, id) === undefined) {
+          throw new Error(`${id} 还没有正文（${requirementDocPath(root, id)} 不存在或为空）；先补正文再修补`)
+        }
+
+        const escalation = evaluateAmendEscalation({
+          ...(args.affected_files === undefined ? {} : { affectedFiles: args.affected_files }),
+          ...(args.irreversible === undefined ? {} : { irreversible: args.irreversible }),
+          ...(args.new_track === undefined ? {} : { newTrack: args.new_track }),
+          ...(args.architecture_change === undefined ? {} : { architectureChange: args.architecture_change }),
+          ...(args.schema_or_permission_change === undefined
+            ? {}
+            : { schemaOrPermissionChange: args.schema_or_permission_change }),
+        })
+        if (!escalation.allowed) {
+          return {
+            ok: false,
+            rejected: true,
+            requirement_id: id,
+            state: requirement.state,
+            escalateTo: escalation.escalateTo,
+            reasons: [...escalation.reasons],
+            violations: escalation.violations.map(violation => ({
+              code: violation.code,
+              level: violation.level,
+              message: violation.message,
+            })),
+            reason: escalation.reasons.join('；'),
+            note: `触发 S 级运行时升级护栏，已拒绝按 S 级写入磁盘；请升级为 ${escalation.escalateTo} 级流程处理。`,
+          }
+        }
+
+        const files = [...new Set((args.affected_files ?? []).map(item => item.trim()).filter(item => item !== ''))]
+        const actor = exec.agent?.session.header.agentPreset
+        const result = amendRequirement(root, id, {
+          content: args.content,
+          summary,
+          at: new Date().toISOString(),
+          ...(files.length > 0 ? { files } : {}),
+          ...(actor === undefined ? {} : { actor }),
+        })
+
+        return {
+          ok: true,
+          requirement_id: id,
+          path: result.documentPath,
+          state: result.requirement.state,
+          amendCount: result.amendCount,
+          consistencyThreshold: result.consistencyThreshold,
+          needsConsistencyCheck: result.needsConsistencyCheck,
+          ...(result.consistencyNote === undefined ? {} : { consistencyNote: result.consistencyNote }),
+          changelogEntry: result.changelogEntry,
+          note: result.needsConsistencyCheck
+            ? `${result.consistencyNote ?? ''} 本次 S 级轻量修补已写入正文与变更记录，状态保持 confirmed。`
+            : '已按 S 级轻量修补更新需求正文并追加变更记录，状态保持 confirmed，未重走评审。',
         }
       },
     }),

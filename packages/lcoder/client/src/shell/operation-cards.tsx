@@ -1,9 +1,10 @@
 /** 操作进度浮卡：后台操作的标题、岗位、步骤与状态色；可最小化成胶囊，查看对话自愿跳转。 */
 
-import type { JSX } from 'react'
+import { useEffect, useRef, type JSX } from 'react'
 import { Button } from '@heroui/react'
 import { AlertTriangle, CheckCircle2, Loader2, Minus, X } from 'lucide-react'
 import type { Translate } from '../locale.ts'
+import type { OpLiveFeed } from './op-live-feed.ts'
 
 /** 浮卡三态：进行中蓝、完成绿、失败警示色。 */
 export type OperationStatus = 'running' | 'done' | 'failed'
@@ -38,6 +39,94 @@ export interface OperationCardView {
   readonly pendingCount?: number
   /** 打开作答弹窗时交给回调的标识；与会话标识同值。 */
   readonly pendingKey?: string
+  /** 后台会话的实时过程与最新输出；运行中持续更新，失败时可留作最后现场。 */
+  readonly liveFeed?: OpLiveFeed
+}
+
+function formatLiveSize(chars: number): string {
+  if (chars >= 1024) return `${(chars / 1024).toFixed(1)} KB`
+  return `${String(chars)} B`
+}
+
+function livePhaseLabel(feed: OpLiveFeed, t: Translate): string {
+  const prefix = feed.step > 0 ? t('op.live.stepPrefix', { step: feed.step }) : ''
+  switch (feed.phase) {
+    case 'connecting':
+      return t('op.live.connecting')
+    case 'thinking':
+      return `${prefix}${t('op.live.thinking')}`
+    case 'streaming':
+      return `${prefix}${t('op.live.streaming')}`
+    case 'tool-streaming': {
+      const tool = feed.toolName ?? 'tool'
+      if (feed.toolChars !== undefined && feed.toolChars > 0) {
+        return `${prefix}${t('op.live.toolStreamingChars', { tool, size: formatLiveSize(feed.toolChars) })}`
+      }
+      return `${prefix}${t('op.live.toolStreaming', { tool })}`
+    }
+    case 'tool-running': {
+      const tool = feed.toolName ?? 'tool'
+      if (feed.toolDetail !== undefined && feed.toolDetail !== '') {
+        return `${prefix}${t('op.live.toolRunningDetail', { tool, detail: feed.toolDetail })}`
+      }
+      return `${prefix}${t('op.live.toolRunning', { tool })}`
+    }
+    case 'retrying': {
+      const attempt = feed.retryAttempt ?? 1
+      if (feed.retryMax !== undefined && feed.retryMax !== null) {
+        return t('op.live.retryingMax', { attempt, max: feed.retryMax })
+      }
+      return t('op.live.retrying', { attempt })
+    }
+    case 'auto-continuing':
+      return `${prefix}${t('op.autoContinuing')}`
+    case 'idle':
+      return `${prefix}${t('op.live.idle')}`
+  }
+}
+
+/**
+ * 浮卡内嵌的实时输出面板：展示当前阶段/工具与滚动中的最新输出片段。
+ * @param props - 实时进度快照、卡片状态与文案函数。
+ * @returns 实时过程面板；非运行且无输出内容时不渲染。
+ */
+function OpLivePanel({
+  feed,
+  status,
+  t,
+}: {
+  readonly feed: OpLiveFeed
+  readonly status: OperationStatus
+  readonly t: Translate
+}): JSX.Element | null {
+  const bodyRef = useRef<HTMLDivElement>(null)
+  const hasContent = feed.snippet !== '' || (feed.lastToolNote !== undefined && feed.lastToolNote !== '')
+  useEffect(() => {
+    const node = bodyRef.current
+    if (node !== null) node.scrollTop = node.scrollHeight
+  }, [feed.snippet, feed.lastToolNote, feed.phase, feed.toolChars])
+
+  if (status === 'done') return null
+  if (status === 'failed' && !hasContent) return null
+
+  const bodyText = feed.snippet !== ''
+    ? feed.snippet
+    : feed.lastToolNote !== undefined && feed.lastToolNote !== ''
+      ? feed.lastToolNote
+      : t('op.live.empty')
+
+  return (
+    <section className="op-live" data-testid="op-live-panel" aria-label={t('op.live.title')}>
+      <div className="op-live-head">
+        {status === 'running' && <span className="op-live-pulse" aria-hidden="true" />}
+        <span className="op-live-phase" data-testid="op-live-phase">{livePhaseLabel(feed, t)}</span>
+      </div>
+      <div ref={bodyRef} className="op-live-body" data-testid="op-live-output">{bodyText}</div>
+      {feed.snippet !== '' && feed.lastToolNote !== undefined && feed.lastToolNote !== '' && (
+        <p className="op-live-tool-note" data-testid="op-live-tool-note">{feed.lastToolNote}</p>
+      )}
+    </section>
+  )
 }
 
 /**
@@ -148,6 +237,9 @@ export function OperationCards(props: OperationCardsProps): JSX.Element | null {
               ) : null}
             </ol>
             <p className="op-status">{card.statusText}</p>
+            {card.liveFeed !== undefined && (
+              <OpLivePanel feed={card.liveFeed} status={card.status} t={props.t} />
+            )}
             <div className="op-actions">
               {card.pendingCount !== undefined && card.pendingCount > 0
                 && card.pendingKey !== undefined && props.onAnswerRequest !== undefined && (

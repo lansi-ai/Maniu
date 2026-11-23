@@ -359,3 +359,52 @@ describe('任务卡内的待回答入口', () => {
     expect(onAnswerRequest).toHaveBeenCalledWith('session-2')
   })
 })
+
+describe('浮卡实时工作过程面板', () => {
+  it('进行中卡展示实时阶段、工具写入大小与最新输出片段', () => {
+    render([cardOf({
+      liveFeed: {
+        phase: 'tool-streaming',
+        step: 2,
+        toolName: 'prototype_draft',
+        toolChars: 2048,
+        snippet: '正在生成多页 SPA 原型，包含概览、报销列表与新建弹窗。',
+        lastToolNote: '已读取 REQ-01.md',
+        lastActivityAt: 1000,
+      },
+    })])
+    expect(element('op-live-panel')).not.toBeNull()
+    expect(element('op-live-phase')?.textContent).toContain('第 2 步')
+    expect(element('op-live-phase')?.textContent).toContain('prototype_draft')
+    expect(element('op-live-phase')?.textContent).toContain('2.0 KB')
+    expect(element('op-live-output')?.textContent).toContain('多页 SPA 原型')
+    expect(element('op-live-tool-note')?.textContent).toContain('REQ-01.md')
+  })
+
+  it('完成卡不显示实时面板；失败卡保留最后输出以便排查', () => {
+    render([cardOf({
+      status: 'done',
+      liveFeed: {
+        phase: 'idle',
+        step: 2,
+        snippet: '已完成。',
+        lastActivityAt: 1000,
+      },
+    })])
+    expect(element('op-live-panel')).toBeNull()
+
+    render([cardOf({
+      status: 'failed',
+      statusText: '输出超限',
+      liveFeed: {
+        phase: 'idle',
+        step: 6,
+        snippet: '正在写入最终原型内容…',
+        lastActivityAt: 1000,
+        turnEnd: { kind: 'max-tokens' },
+      },
+    })])
+    expect(element('op-live-panel')).not.toBeNull()
+    expect(element('op-live-output')?.textContent).toContain('正在写入最终原型内容')
+  })
+})

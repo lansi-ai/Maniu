@@ -382,3 +382,163 @@ ${baseLine}
 - 不做整项目立项、不写 .spec/project.yaml、不动其他需求、不签契约、不推进任何状态。
 - 写完提案回报提案编号与分析结论，然后停下。`
 }
+
+/** S 级轻量微调提示词的上下文可选项。 */
+export interface RequirementAmendPromptOptions {
+  /** 与目标需求关联且尚未收口的在途任务。 */
+  readonly activeTasks?: readonly { readonly id: string; readonly title: string; readonly state: string }[]
+  /** 可用交付轨的显示文本。 */
+  readonly tracks?: readonly string[]
+  /** 当前已累计的 S 级修补次数。 */
+  readonly amendCount?: number
+}
+
+/**
+ * 生成 S 级轻量微调提示词：指导 `maniu-intake` 调用 `requirement_amend` 并遵守运行时升级护栏。
+ *
+ * 允许在保持 `confirmed` 状态、不重走评审、不新建 `REQ-xx` 的前提下直接更新需求正文并追加 `[S级微调]`
+ * 变更记录；若触及超 3 文件、不可逆变更、权限/schema 破坏性变更或新轨/跨端架构变更，必须遵循
+ * `requirement_amend` 返回的 `escalateTo`（`M` 或 `L`）停止写盘并告知用户。
+ * @param requirement - 已确认的目标需求编号与标题。
+ * @param document - 当前需求正文。
+ * @param description - 用户输入的一句话局部微调诉求。
+ * @param options - 可选的在途任务、交付轨与已累计补丁数。
+ * @returns 可直接发送给 `maniu-intake` 后台会话的提示词。
+ */
+export function buildRequirementAmendPrompt(
+  requirement: { readonly id: string; readonly title: string },
+  document: string,
+  description: string,
+  options?: RequirementAmendPromptOptions,
+): string {
+  const body = bodyOf(document)
+  const trimmed = description.trim()
+  const requestText = trimmed === ''
+    ? '（用户尚未写明具体微调内容：先用 ask_user_question 询问要微调的字段、文案或细节，一次只问一个问题。）'
+    : trimmed
+  const activeTasks = options?.activeTasks ?? []
+  const taskLine = activeTasks.length === 0
+    ? '- 关联任务：当前没有在途任务。若本次微调需要代码落地，在完成需求修补后用 task_draft 新建一条 grade 为 C、state 为 drafting、requirement 为 ' + requirement.id + ' 的 C 级快修任务。'
+    : `- 关联在途任务：${activeTasks.map(task => `${task.id}（${task.title}，${task.state}）`).join('、')}。若本次微调属于上述在途任务同一功能面，请在回报中明确建议关联到该在途任务；若已有任务与本次微调不匹配，用 task_draft 新建一条 grade 为 C、requirement 为 ${requirement.id} 的 C 级快修任务。`
+  const tracksLine = options?.tracks !== undefined && options.tracks.length > 0
+    ? `- 新建 C 级快修任务时 track 只能取：${options.tracks.join('、')}。`
+    : ''
+  const countLine = options?.amendCount !== undefined && options.amendCount >= 4
+    ? `- 一致性提醒：该需求已累计 ${String(options.amendCount)} 次 S 级修补，本次若触发 needsConsistencyCheck: true，务必向用户提醒对正文与规格规则做轻量一致性核对。`
+    : ''
+
+  return `S 级轻量微调：请对已确认需求 ${requirement.id}（${requirement.title}）执行 S 级局部微调。
+
+用户诉求：
+"""
+${requestText}
+"""
+
+执行身份：你是本项目的需求分析师（maniu-intake）。按以下规则执行：
+1. 先用 file_read / task_read 确认需求正文与关联任务状态，明确本次只做局部微调。
+2. 调用 requirement_amend：
+   - id 为 ${requirement.id}，summary 用一句话概括本次微调，content 为更新后的完整 Markdown 正文（保留原有章节结构，不要删除既定业务规则）。
+   - 必须如实填写范围与风险参数：affected_files（预计影响文件路径列表，最多 3 个）、irreversible（不可逆变更项，S 级必须为空）、new_track / architecture_change / schema_or_permission_change。
+3. **严格遵守运行时升级护栏**：
+   - 若你评估或 requirement_amend 工具返回 rejected: true 与 escalateTo（'M' 或 'L'）——例如预计触及超过 3 个文件、涉及不可逆变更、涉及核心权限或数据 schema 变更、或需要引入新轨/跨端架构变更——**必须立即停止写盘**，严禁强行以 S 级写入，直接把工具返回的 escalateTo 级别与拒绝原因清楚告知用户，建议改走 M 级增量修订或 L 级独立立项。
+4. 保持需求状态为 confirmed，不重走评审，不新建 REQ-xx，不改动历史评审报告。
+${taskLine}
+${tracksLine}
+${countLine}
+5. 边界：不调用 file_edit、cmd_run，不签契约，不推进任务状态；完成后回报修改摘要、变更记录行与关联/新建任务结果，然后停下。
+
+《当前需求正文》（${requirement.id}）：
+"""
+${body}
+"""`
+}
+
+/**
+ * 生成 M 级增量修订提示词：围绕差异章节起草增量修订提案，不推翻已完成的老任务。
+ * @param requirement - 目标需求编号、标题与基线版本号。
+ * @param document - 当前需求正文。
+ * @param description - 用户输入的一句话功能扩充或规则变更诉求。
+ * @returns 可直接发送给 `maniu-intake` 后台会话的提示词。
+ */
+export function buildRequirementDeltaPrompt(
+  requirement: { readonly id: string; readonly title: string; readonly version?: number },
+  document: string,
+  description: string,
+): string {
+  const body = bodyOf(document)
+  const baseVersion = requirement.version ?? 1
+  const trimmed = description.trim()
+  const requestText = trimmed === ''
+    ? '（用户尚未写明具体变更内容：先用 ask_user_question 询问要扩充的功能或要调整的核心规则，一次只问一个问题。）'
+    : trimmed
+
+  return `M 级增量修订（Feature Delta）：请围绕需求 ${requirement.id}（${requirement.title}）v${String(baseVersion)} 起草一份增量修订提案。
+
+用户诉求：
+"""
+${requestText}
+"""
+
+执行身份：你是本项目的需求分析师（maniu-intake）。按以下规则执行：
+1. 增量修订原则：**只围绕本次差异章节起草修订提案**（说明新增/调整的功能规则、数据口径、权限边界与增量验收标准），不要重写未涉及的既有章节，更**不要推翻或改动已完成的老任务与历史基线**。
+2. 用 file_read / task_read 读清 ${requirement.id} 的现状与已拆任务，如有关键口径歧义，用 ask_user_question 一次只问一个问题确认后再落提案。
+3. 确认方向后调用 requirement_propose：
+   - mode 为 new，target 为 ${requirement.id}，base_version 为 ${String(baseVersion)}（记录所依据的基线版本）。
+   - content 写清本次增量修订的完整提案正文（突出差异章节与增量范围，标注后续只需拆出 1–2 条 B 级增量任务）。
+   - analysis 写清影响面分析、与既有规则的兼容性及“保留老任务不动、仅拆增量任务”的建议。
+4. 边界：不调用 requirement_amend、requirement_draft 或 file_edit，不推翻历史已完成任务，不写代码或签契约；提案落盘后回报提案编号与差异摘要，等待用户在界面对比确认（/proposal_approve）。
+
+《基线需求正文》（${requirement.id} v${String(baseVersion)}）：
+"""
+${body}
+"""`
+}
+
+/** L 级独立里程碑立项提示词的可选项。 */
+export interface RequirementMilestonePromptOptions {
+  /** 若用户从某条需求页发起，可附带该需求作为参考依据。 */
+  readonly base?: { readonly id: string; readonly title: string; readonly version: number }
+  /** 当前项目已配置的交付轨显示文本。 */
+  readonly tracks?: readonly string[]
+  /** 建议的下一里程碑需求编号（如 REQ-02）。 */
+  readonly nextRequirementId?: string
+}
+
+/**
+ * 生成 L 级独立里程碑立项提示词：发起独立新需求提案（如 `REQ-02`），明确不打断当前在途开发。
+ * @param description - 用户输入的一句话跨端/新轨/架构级扩展诉求。
+ * @param options - 可选的参考需求、现有交付轨与下一个需求编号提示。
+ * @returns 可直接发送给 `maniu-intake` 后台会话的提示词。
+ */
+export function buildRequirementMilestonePrompt(
+  description: string,
+  options?: RequirementMilestonePromptOptions,
+): string {
+  const trimmed = description.trim()
+  const requestText = trimmed === ''
+    ? '（用户尚未写明新模块/新端诉求：先用 ask_user_question 询问目标平台、新模块范围与核心场景，一次只问一个问题。）'
+    : trimmed
+  const nextId = options?.nextRequirementId ?? 'REQ-02'
+  const tracksText = options?.tracks !== undefined && options.tracks.length > 0
+    ? options.tracks.join('、')
+    : '（读取 .spec/project.yaml 获取当前已登记交付轨）'
+  const baseLine = options?.base === undefined
+    ? '- 本提案为独立新需求里程碑，不绑定或修改任何已有需求的在途正文；如确需参考既有需求作为依据，可用 target 与 base_version 注明。'
+    : `- 若需记录与 ${options.base.id}（${options.base.title}）v${String(options.base.version)} 的演进关联，可在 requirement_propose 中附带 target: ${options.base.id} 与 base_version: ${String(options.base.version)}，但绝对不改动 ${options.base.id} 的正文与在途任务。`
+
+  return `L 级独立里程碑立项：请为本项目起草一条独立的新需求提案（如 ${nextId}），用于承载跨端、新交付轨或架构级大模块扩展。
+
+用户诉求：
+"""
+${requestText}
+"""
+
+执行身份：你是本项目的需求分析师（maniu-intake）。按以下规则执行：
+1. **明确隔离在途开发**：首先向用户明确说明——本次扩展属于 L 级独立里程碑（将作为独立需求如 ${nextId} 立项），**不会打断、修改或阻塞当前正在进行的需求与在途开发任务**。
+2. 读清当前仓库事实：用 file_read 读 .spec/project.yaml 与 .spec/requirements 下已有需求。当前已知轨参考：${tracksText}；分析本需求是否需要引入新交付轨（如 desktop 桌面端等），并说明后续将由架构阶段在 .spec/project.yaml 正式登记新轨与复用边界。
+3. 需求分析与完整成文：补齐新里程碑的目标、背景、功能范围、跨端/模块复用边界与验收口径；有关键选型或范围未决时，用 ask_user_question 一次只问一个问题确认。
+4. 确认后调用 requirement_propose：
+   - mode 为 new，title 用不超过 16 字的短业务短语，content 为完整独立新需求正文，analysis 写清与现有需求的解耦关系、新轨需求与独立验收建议。
+${baseLine}
+5. 边界：不调用 requirement_draft、requirement_amend 或 file_edit，不改写 .spec/project.yaml，不打断当前在途任务；写完提案后回报提案编号与立项摘要，等待用户在界面对比确认。`
+}

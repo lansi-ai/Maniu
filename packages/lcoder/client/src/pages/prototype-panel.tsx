@@ -8,15 +8,20 @@ import { useEffect, useRef, useState } from 'react'
 import type { ChangeEvent, JSX } from 'react'
 import { Button, Separator } from '@heroui/react'
 
-import type { PrototypeSelectionInfo } from '../contract.ts'
+import type { LcoderApi, PrototypeSelectionInfo } from '../contract.ts'
 import type { PrototypeStyleSummary, UnaryCall } from '../prototype/remote.ts'
 import { adoptPrototype, clearPrototype, prefetchStyle, readPrototypeHtml, uploadPrototypeRef } from '../prototype/remote.ts'
 import { buildPrototypePrompt, PROTOTYPE_SECTIONS } from '../prototype/prompt.ts'
 import type { PrototypeRefView, PrototypeSection } from '../prototype/prompt.ts'
+import { resolveLibraryCopy, resolvePrototypeLibrary, usePrototypeLibraryState } from '../prototype/libraries.ts'
 import { readImageBase64 } from '../chat/attachments.ts'
 import type { RequirementDocRow } from '../spec/rows.ts'
 import { formatTimestamp } from './requirement-report.ts'
 import { translate, type Translate } from '../locale.ts'
+
+function lcoderBridge(): Partial<LcoderApi> | undefined {
+  return 'lcoder' in window ? window.lcoder : undefined
+}
 
 const zhText: Translate = (key, params) => translate('zh', key, params)
 
@@ -31,6 +36,7 @@ export interface PrototypePanelProps {
     prompt: string,
   ) => Promise<{ readonly ok: boolean; readonly message: string }>
   readonly onReload: () => void
+  readonly onManageLibraries?: (() => void) | undefined
   readonly call?: UnaryCall | undefined
   readonly t?: Translate | undefined
 }
@@ -61,8 +67,25 @@ export function PrototypePanel(props: PrototypePanelProps): JSX.Element {
   const [instruction, setInstruction] = useState('')
   const [patching, setPatching] = useState(false)
   const [patchNote, setPatchNote] = useState<string | undefined>(undefined)
+  const libraryState = usePrototypeLibraryState()
+  const [selectedLibraryId, setSelectedLibraryId] = useState<string>(libraryState.defaultLibraryId)
+  const lastDefaultLibraryRef = useRef<string>(libraryState.defaultLibraryId)
   /** 已交给独立窗口的 HTML；html 变化时据此刷新同一个窗口。 */
   const lastOpenedHtml = useRef<string | undefined>(undefined)
+
+  useEffect(() => {
+    if (lastDefaultLibraryRef.current !== libraryState.defaultLibraryId) {
+      lastDefaultLibraryRef.current = libraryState.defaultLibraryId
+      setSelectedLibraryId(libraryState.defaultLibraryId)
+      return
+    }
+    if (!libraryState.libraries.some(lib => lib.id === selectedLibraryId)) {
+      setSelectedLibraryId(libraryState.defaultLibraryId)
+    }
+  }, [libraryState.defaultLibraryId, libraryState.libraries, selectedLibraryId])
+
+  const selectedLibrary = resolvePrototypeLibrary(selectedLibraryId, libraryState)
+  const selectedLibraryCopy = resolveLibraryCopy(selectedLibrary, t)
 
   const registration = props.row.prototype
   const quality = registration?.quality
@@ -92,14 +115,14 @@ export function PrototypePanel(props: PrototypePanelProps): JSX.Element {
   useEffect(() => {
     if (lastOpenedHtml.current === undefined || html === undefined || html === lastOpenedHtml.current) return
     lastOpenedHtml.current = html
-    void Promise.resolve(window.lcoder?.openPrototypePreview?.(html)).catch((cause: unknown) => {
+    void Promise.resolve(lcoderBridge()?.openPrototypePreview?.(html)).catch((cause: unknown) => {
       setPreviewError(cause instanceof Error ? cause.message : String(cause))
     })
   }, [html])
 
   // 独立预览窗口的点选上报：只接元素信息，不反向给原型任何宿主数据。
   useEffect(() => {
-    const unsubscribe = window.lcoder?.onPrototypeSelection?.((info) => {
+    const unsubscribe = lcoderBridge()?.onPrototypeSelection?.((info) => {
       setSelection(info)
       setInstruction('')
       setPatchNote(undefined)
@@ -112,7 +135,7 @@ export function PrototypePanel(props: PrototypePanelProps): JSX.Element {
     if (registration === undefined) return
     setRefs((current) => {
       const known = new Set(current.map(ref => ref.path))
-      const persisted = (registration.references ?? [])
+      const persisted = registration.references
         .map(path => ({ path, name: path.split('/').pop() ?? path }))
         .filter(ref => !known.has(ref.path))
       return persisted.length === 0 ? current : [...current, ...persisted]
@@ -170,6 +193,7 @@ export function PrototypePanel(props: PrototypePanelProps): JSX.Element {
         requirementText: props.row.text,
         summary,
         refs,
+        library: { ...selectedLibrary, name: selectedLibraryCopy.name, summary: selectedLibraryCopy.summary },
         ...(section === undefined ? {} : { section }),
       })
       const answer = await props.onGenerate(prompt)
@@ -187,7 +211,7 @@ export function PrototypePanel(props: PrototypePanelProps): JSX.Element {
     setPreviewError(undefined)
     lastOpenedHtml.current = html
     try {
-      await window.lcoder?.openPrototypePreview?.(html)
+      await lcoderBridge()?.openPrototypePreview?.(html)
     } catch (cause: unknown) {
       setPreviewError(cause instanceof Error ? cause.message : String(cause))
     }
@@ -205,6 +229,7 @@ export function PrototypePanel(props: PrototypePanelProps): JSX.Element {
         requirementText: props.row.text,
         summary,
         refs,
+        library: { ...selectedLibrary, name: selectedLibraryCopy.name, summary: selectedLibraryCopy.summary },
         patch: {
           domPath: selection.domPath,
           html: selection.html,
@@ -263,6 +288,52 @@ export function PrototypePanel(props: PrototypePanelProps): JSX.Element {
       <h4>{t('prototype.title')}</h4>
       <p className="detail-note" data-testid="prototype-hint">{t('prototype.hint')}</p>
 
+      <div className="prototype-library-bar" data-testid="prototype-library-bar">
+        <div className="prototype-library-head">
+          <span className="prototype-subtitle">{t('prototype.libraryTitle')}</span>
+          <Button
+            size="sm"
+            variant="ghost"
+            data-testid="prototype-library-manage"
+            onPress={() => { props.onManageLibraries?.() }}
+          >
+            {t('prototype.libraryManage')}
+          </Button>
+        </div>
+        <div className="prototype-library-controls">
+          <select
+            className="prototype-library-select"
+            data-testid="prototype-library-select"
+            aria-label={t('prototype.libraryTitle')}
+            value={selectedLibrary.id}
+            onChange={(event) => { setSelectedLibraryId(event.target.value) }}
+          >
+            {libraryState.libraries.map((lib) => {
+              const copy = resolveLibraryCopy(lib, t)
+              const label = lib.id === libraryState.defaultLibraryId
+                ? t('prototype.libraryDefaultOption', { name: copy.name })
+                : copy.name
+              return <option key={lib.id} value={lib.id}>{label}</option>
+            })}
+          </select>
+          <div className="prototype-library-meta">
+            <div className="proto-lib-palette">
+              {selectedLibrary.palette.slice(0, 5).map((color, index) => (
+                <span
+                  key={`${selectedLibrary.id}-dot-${String(index)}`}
+                  className="proto-lib-swatch"
+                  style={{ backgroundColor: color }}
+                  title={color}
+                />
+              ))}
+            </div>
+            {selectedLibraryCopy.summary !== '' && (
+              <span className="detail-note" data-testid="prototype-library-summary">{selectedLibraryCopy.summary}</span>
+            )}
+          </div>
+        </div>
+      </div>
+
       <div className="prototype-inputs">
         <div className="prototype-refs" data-testid="prototype-refs">
           <span className="prototype-subtitle">{t('prototype.refTitle')}</span>
@@ -312,7 +383,7 @@ export function PrototypePanel(props: PrototypePanelProps): JSX.Element {
               data-testid="prototype-url-input"
               value={url}
               placeholder={t('prototype.urlPlaceholder')}
-              onChange={event => setUrl(event.target.value)}
+              onChange={(event) => { setUrl(event.target.value) }}
             />
             <Button size="sm" variant="secondary" data-testid="prototype-url-prefetch" isDisabled={busy !== null || url.trim() === ''} onPress={() => { void doPrefetch() }}>
               {busy === 'prefetch' ? t('prototype.urlPrefetching') : t('prototype.urlPrefetch')}
@@ -501,7 +572,7 @@ export function PrototypePanel(props: PrototypePanelProps): JSX.Element {
               data-testid="prototype-selection-instruction"
               value={instruction}
               placeholder={t('prototype.selectionInstruction')}
-              onChange={event => setInstruction(event.target.value)}
+              onChange={(event) => { setInstruction(event.target.value) }}
             />
             <Button
               size="sm"

@@ -38,6 +38,11 @@ import { createRoleTools } from './tools/role-tools.js'
 import { createSpecTools } from './tools/spec-tools.js'
 import { createTaskTools } from './tools/task-tools.js'
 import { allowedTools, checkSurface, parseRole } from './kernel/surface.js'
+import {
+  maybeRecoverMaxTokens,
+  resolveMaxTokensAutoContinue,
+  type RecoveryAgentLike,
+} from './kernel/max-tokens-recovery.js'
 import { hasSpecRoot, resolveRoot, sessionSpecRoot } from './kernel/spec-root.js'
 import type { RootInput, SpecRootContext } from './kernel/spec-root.js'
 import { listTasks, pickTaskForSession } from './kernel/task-store.js'
@@ -73,6 +78,11 @@ export interface LcoderConfig {
    * 所以这一项由装配层的 preset 写死，不由会话运行时决定。
    */
   role?: string
+  /**
+   * 单回合命中 `max-tokens` 截断时自动通过 `agent.steer()` 续跑的最大次数。
+   * 缺省为 1；设为 0 表示关闭自动续跑。
+   */
+  maxTokensAutoContinue?: number
 }
 
 interface ToolRegistry {
@@ -97,6 +107,10 @@ interface PluginContext {
    */
   commands: CommandRegistry
   effect?(callback: () => () => void, label?: string): void
+  on?(
+    event: 'agent/turn-stopping',
+    listener: (payload: { readonly agent: RecoveryAgentLike; readonly turn: number }) => void,
+  ): () => void
 }
 
 /** 注册人机命令所需的最小面；形状与 dsh-commands 的 `register` 一致。 */
@@ -106,8 +120,9 @@ interface CommandRegistry {
 }
 
 export function apply(ctx: PluginContext, config: LcoderConfig = {}): void {
-  // 角色在装载时就校验：配错名字要立刻响，不能静默按「无角色」装配出一个能力更大的会话。
+  // 角色与自动续跑上限在装载时即校验：配错要立刻响，不静默退化。
   const role = parseRole(config.role)
+  const maxAutoContinues = resolveMaxTokensAutoContinue(config.maxTokensAutoContinue)
   // 备案根：没有会话 cwd 时（headless、启动自检）落在进程工作目录的 `.spec` 下，
   // 而不是工作目录本身——规格库是一个隐藏目录，`tasks/` 与 `spec/` 都在它里面。
   const fallbackRoot = config.root ?? join(process.cwd(), '.spec')
@@ -202,6 +217,13 @@ export function apply(ctx: PluginContext, config: LcoderConfig = {}): void {
     const mount = () => ctx.commands.register(command)
     if (ctx.effect) ctx.effect(mount, `lcoder.command(${command.name})`)
     else mount()
+  }
+
+  // Harness 层 max-tokens 截断恢复：在回合即将停止时按持久化事件快照决定是否同回合 steer 续跑一次。
+  if (maxAutoContinues > 0 && typeof ctx.on === 'function') {
+    ctx.on('agent/turn-stopping', (payload) => {
+      maybeRecoverMaxTokens(payload, { role: role ?? undefined, maxAutoContinues })
+    })
   }
 
   if (config.selfCheck ?? true) {

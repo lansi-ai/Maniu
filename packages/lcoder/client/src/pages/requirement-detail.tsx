@@ -175,7 +175,7 @@ export interface ModifyState {
 const CLOSED_MODIFY: ModifyState = { open: false, text: '', status: 'idle' }
 
 /** 会让详情业务按钮互斥锁定的在途操作类型；来自需求页当前需求的后台浮卡。 */
-export type RunningOpKind = 'review' | 'revise' | 'patch' | 'split' | 'prototype'
+export type RunningOpKind = 'review' | 'revise' | 'patch' | 'split' | 'prototype' | 'amend' | 'delta'
 
 /** 在途操作对应的锁定提示文案。 */
 const OP_LOCKED_KEY: Readonly<Record<RunningOpKind, MessageKey>> = {
@@ -184,6 +184,8 @@ const OP_LOCKED_KEY: Readonly<Record<RunningOpKind, MessageKey>> = {
   patch: 'requirement.opLocked.patch',
   split: 'requirement.opLocked.split',
   prototype: 'requirement.opLocked.prototype',
+  amend: 'requirement.opLocked.amend',
+  delta: 'requirement.opLocked.delta',
 }
 
 /** 原地改稿被送审锁定门禁拦下时的提示文案。 */
@@ -234,6 +236,12 @@ export interface RequirementDetailProps {
   readonly runningOp?: RunningOpKind | null | undefined
   /** 后台发起 maniu-prototype 会话生成原型；提示词由原型区拼好。 */
   readonly onGeneratePrototype?: ((prompt: string) => Promise<{ readonly ok: boolean; readonly message: string }>) | undefined
+  /** 跳转到原型库页面预览或管理组件素材库。 */
+  readonly onOpenPrototypeLibrary?: (() => void) | undefined
+  /** 从当前详情页打开统一「提变更 / 加功能」分流弹窗。 */
+  readonly onChangeTriage?: (() => void) | undefined
+  /** 统一分流弹窗打开期间不抢 Esc。 */
+  readonly triageOpen?: boolean | undefined
   /** 取词函数；缺省为中文词典。 */
   readonly t?: Translate
 }
@@ -283,6 +291,7 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
   const state: DetailState = row.state === 'draft' || row.state === 'confirmed' || row.state === 'released' || row.state === 'closed'
     ? row.state
     : 'unknown'
+  const amendCount = row.amendCount ?? row.amendments?.length ?? 0
 
   const latestReview = row.reviews.reduce<RequirementReviewRow | null>(
     (best, review) => best === null || review.round > best.round ? review : best,
@@ -391,10 +400,10 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
     if (modify.open) noteRef.current?.focus()
   }, [modify.open])
 
-  // Esc 分层退出：批量菜单 → 版本对照 → 差异 → 说明栏 → 详情；阅读层打开时交给阅读层处理。
+  // Esc 分层退出：批量菜单 → 版本对照 → 差异 → 说明栏 → 详情；阅读层与分流弹窗打开时不抢 Esc。
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
-      if (event.key !== 'Escape' || props.readerOpen === true) return
+      if (event.key !== 'Escape' || props.readerOpen === true || props.triageOpen === true) return
       event.stopPropagation()
       if (batchMenuOpen) setBatchMenuOpen(false)
       else if (compareVersion !== null) setCompareVersion(null)
@@ -404,7 +413,17 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
     }
     window.addEventListener('keydown', onKey, true)
     return () => { window.removeEventListener('keydown', onKey, true) }
-  }, [batchMenuOpen, compareVersion, props.diffOpen, props.onClose, props.onCloseDiff, props.onModifyCancel, props.readerOpen, modify.open])
+  }, [
+    batchMenuOpen,
+    compareVersion,
+    props.diffOpen,
+    props.onClose,
+    props.onCloseDiff,
+    props.onModifyCancel,
+    props.readerOpen,
+    props.triageOpen,
+    modify.open,
+  ])
 
   const execute = async (kind: string, line: string): Promise<void> => {
     if (busy !== null) return
@@ -645,6 +664,18 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                 {requirementStateLabel(row.state)}
               </Chip>
               <span className="mono requirement-id" data-testid="requirement-detail-id">{row.id}</span>
+              {amendCount > 0 && (
+                <Chip
+                  size="sm"
+                  variant="soft"
+                  color={amendCount >= 5 ? 'warning' : 'default'}
+                  className="tag"
+                  data-testid="requirement-amend-count"
+                  ref={(node) => { if (node !== null) node.title = amendCount >= 5 ? t('requirement.amendCountCheckTitle') : t('requirement.amendCountTitle') }}
+                >
+                  {t('requirement.amendCountChip', { count: amendCount })}
+                </Chip>
+              )}
               <div className="action-row requirement-global-ops" data-testid="requirement-global-actions">
                 {state === 'confirmed' && related.length === 0 && (
                   <Button
@@ -667,6 +698,18 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                     onPress={() => { void startOp('split', props.onSplit) }}
                   >
                     {t('requirement.opSplitAgain')}
+                  </Button>
+                )}
+                {(state === 'confirmed' || state === 'released') && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    data-testid="requirement-detail-change-triage"
+                    isDisabled={locked}
+                    onPress={() => { props.onChangeTriage?.() }}
+                  >
+                    <Sparkles size={14} aria-hidden="true" />
+                    {t('triage.openButton')}
                   </Button>
                 )}
                 {(state === 'confirmed' || state === 'released' || state === 'closed') && (
@@ -1509,6 +1552,7 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                 running={props.runningOp === 'prototype'}
                 onGenerate={props.onGeneratePrototype}
                 onReload={props.onReload}
+                onManageLibraries={props.onOpenPrototypeLibrary}
                 t={t}
               />
             )}

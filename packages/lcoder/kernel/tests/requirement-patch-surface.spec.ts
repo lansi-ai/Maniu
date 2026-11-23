@@ -114,6 +114,7 @@ describe('草稿修改会话的宿主执行层', () => {
       'requirement_revise',
       'requirement_draft',
       'requirement_propose',
+      'requirement_amend',
       'requirement_review_draft',
       'requirement_split_plan',
       'file_edit',

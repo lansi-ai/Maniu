@@ -140,6 +140,14 @@ export interface RequirementPrototypeRow {
   readonly adoptedAt?: string
 }
 
+/** 需求的一次 S 级轻量修补记录。 */
+export interface RequirementAmendmentRow {
+  readonly at: string
+  readonly summary: string
+  readonly files?: readonly string[]
+  readonly actor?: string
+}
+
 /** 需求行（含正文）。 */
 export interface RequirementDocRow {
   readonly id: string
@@ -160,6 +168,10 @@ export interface RequirementDocRow {
   readonly splitPlan?: RequirementSplitPlanRow
   /** HTML 原型登记；旧需求缺省。 */
   readonly prototype?: RequirementPrototypeRow
+  /** 累计 S 级轻量修补次数；旧需求缺省。 */
+  readonly amendCount?: number
+  /** S 级轻量修补历史摘要；旧需求缺省。 */
+  readonly amendments?: readonly RequirementAmendmentRow[]
 }
 
 /** 规则行。 */
@@ -628,6 +640,21 @@ export function requirementTextToRow(fileName: string, text: string): Omit<Requi
       ...(quality === undefined ? {} : { quality }),
       ...(prototypeAdoptedAt === undefined ? {} : { adoptedAt: prototypeAdoptedAt }),
     }
+  const amendCount = nonNegativeInt(fields.amendCount)
+  const amendments: RequirementAmendmentRow[] = (Array.isArray(fields.amendments) ? fields.amendments : []).flatMap((entry: unknown) => {
+    const record = recordOf(entry)
+    const at = asText(record?.at)
+    const summary = asText(record?.summary)
+    if (at === undefined || summary === undefined) return []
+    const files = stringArray(record?.files).filter(item => item !== '')
+    const actor = asText(record?.actor)
+    return [{
+      at,
+      summary,
+      ...(files.length > 0 ? { files } : {}),
+      ...(actor === undefined ? {} : { actor }),
+    }]
+  })
   return {
     id: asText(fields.id) ?? fileName.replace(/\.yaml$/, ''),
     title,
@@ -643,6 +670,8 @@ export function requirementTextToRow(fileName: string, text: string): Omit<Requi
     ...(approvedAt === undefined ? {} : { approvedAt }),
     ...(approvedVersion === undefined ? {} : { approvedVersion }),
     ...(prototype === undefined ? {} : { prototype }),
+    ...(amendCount === null ? {} : { amendCount }),
+    ...(amendments.length > 0 ? { amendments } : {}),
   }
 }
 

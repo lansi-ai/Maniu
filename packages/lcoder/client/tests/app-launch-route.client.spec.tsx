@@ -179,8 +179,13 @@ async function renderApp(): Promise<void> {
   await flush()
 }
 
+/** 仅统计对话页激活型 follow（activate: true）；操作浮卡为展示实时输出而开的被动只读流（activate: false）不切会话。 */
 function followOpens(): CallRecord[] {
-  return streamOpens.filter(item => item.namespace === 'session' && item.method === 'follow')
+  return streamOpens.filter((item) => {
+    if (item.namespace !== 'session' || item.method !== 'follow') return false
+    const req = item.args.request as Record<string, unknown> | undefined
+    return req?.activate !== false
+  })
 }
 
 describe('评审后台发起', () => {

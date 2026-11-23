@@ -13,6 +13,7 @@ export {
   ProjectInfo,
   ProjectTrack,
   Requirement,
+  RequirementAmendment,
   RequirementOption,
   RequirementSplitPlan,
   RequirementSplitPlanEntry,

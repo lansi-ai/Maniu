@@ -28,7 +28,7 @@ import type { BuiltinRoleId } from '../schema/roles.js'
  * 签署是人机命令（`ctx.commands`，不经过模型回合），见 docs/cookbook/adding-a-tool.md。
  */
 export const SURFACE: Readonly<Record<TaskState, readonly string[]>> = {
-  drafting: ['file_read', 'file_list', 'project_draft', 'spec_query', 'spec_draft', 'spec_bind', 'task_read', 'task_draft', 'contract_draft', 'proposal_draft', 'requirement_draft', 'requirement_revise', 'requirement_propose', 'requirement_patch_propose', 'requirement_review_draft', 'requirement_split_plan', 'prototype_draft', 'prototype_patch', 'git_status', 'git_diff', 'role_draft'],
+  drafting: ['file_read', 'file_list', 'project_draft', 'spec_query', 'spec_draft', 'spec_bind', 'task_read', 'task_draft', 'contract_draft', 'proposal_draft', 'requirement_draft', 'requirement_revise', 'requirement_propose', 'requirement_patch_propose', 'requirement_amend', 'requirement_review_draft', 'requirement_split_plan', 'prototype_draft', 'prototype_patch', 'git_status', 'git_diff', 'role_draft'],
   contracted: [
     'file_read',
     'file_list',
@@ -43,6 +43,7 @@ export const SURFACE: Readonly<Record<TaskState, readonly string[]>> = {
     'requirement_revise',
     'requirement_propose',
     'requirement_patch_propose',
+    'requirement_amend',
     'requirement_review_draft',
     'requirement_split_plan',
     'git_status',
@@ -71,6 +72,7 @@ export const SURFACE: Readonly<Record<TaskState, readonly string[]>> = {
     'requirement_revise',
     'requirement_propose',
     'requirement_patch_propose',
+    'requirement_amend',
     'requirement_review_draft',
     'requirement_split_plan',
     'git_status',
@@ -99,6 +101,7 @@ export const SURFACE: Readonly<Record<TaskState, readonly string[]>> = {
     'requirement_revise',
     'requirement_propose',
     'requirement_patch_propose',
+    'requirement_amend',
     'requirement_review_draft',
     'requirement_split_plan',
     'git_status',
@@ -149,6 +152,7 @@ export const UNSCOPEED_SURFACE: readonly string[] = [
   'requirement_revise',
   'requirement_propose',
   'requirement_patch_propose',
+  'requirement_amend',
   'requirement_review_draft',
   'requirement_split_plan',
   'prototype_draft',
@@ -174,12 +178,12 @@ export const ROLES: readonly RoleId[] = BUILTIN_ROLES
  * 与 `SURFACE` 求交后才进模型视野，所以这张表只会让能力变少，不会越过状态：
  * `contract_sign` 不在任何一行里，它是人机命令（见文件头那条注意）。
  * `dev` 这一行必须等于 `allToolNames()` 去掉只对特定角色开放的 `role_draft`、`requirement_draft`、
- * `requirement_revise`、`requirement_propose`、`requirement_patch_propose`、`requirement_review_draft`
+ * `requirement_revise`、`requirement_propose`、`requirement_patch_propose`、`requirement_amend`、`requirement_review_draft`
  * `requirement_split_plan` 与 `prototype_draft`、`prototype_patch`，否则新增工具会静默地对实施角色隐身，`surface.spec.ts` 用一条断言钉住这个等式。
  */
 export const ROLE_TOOLS: Readonly<Record<RoleId, readonly string[]>> = {
-  /** 立项/需求分析师：读产品文档、列目录、读规格、读任务，起草需求、按评审报告改稿并出需求变更提案。 */
-  intake: ['file_read', 'file_list', 'project_draft', 'spec_query', 'spec_draft', 'task_read', 'task_draft', 'requirement_draft', 'requirement_revise', 'requirement_propose'],
+  /** 立项/需求分析师：读产品文档、列目录、读规格、读任务，起草需求、按评审报告改稿、出需求变更提案，以及对已确认需求执行 S 级轻量修补。 */
+  intake: ['file_read', 'file_list', 'project_draft', 'spec_query', 'spec_draft', 'task_read', 'task_draft', 'requirement_draft', 'requirement_revise', 'requirement_propose', 'requirement_amend'],
   /** 架构/契约：加上给规格条目绑落点和起草契约，仍然动不了代码。 */
   architect: ['file_read', 'file_list', 'spec_query', 'spec_bind', 'task_read', 'task_draft', 'contract_draft', 'deliverable_draft'],
   /** 项目经理：谈需求、出方案、拆任务并出评审报告；不给改稿、不给契约、不给改代码。 */

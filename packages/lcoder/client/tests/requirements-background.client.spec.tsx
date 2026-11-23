@@ -397,6 +397,114 @@ describe('超时提示与入口', () => {
     await tick(5 * 60 * 1000)
     expect(element('requirement-op-timeout')?.textContent).toContain('等待超时')
   })
+
+  it('岗位会话仍在运行（running: true）时超过 5 分钟不误报超时', async () => {
+    const h = harness()
+    h.render(projectionOf([DRAFT]))
+    await press('requirement-op-review')
+
+    h.render(projectionOf([DRAFT]), false, {
+      sessions: [{ sessionId: 'session-op-1', updatedAt: 100, running: true, blank: false }],
+    })
+    await tick(6 * 60 * 1000)
+    expect(element('requirement-op-running')).not.toBeNull()
+    expect(element('requirement-op-timeout')).toBeNull()
+  })
+
+  it('后台会话通过被动流实时展示最新输出，且遇到 max-tokens 终止时不必白等 5 分钟', async () => {
+    let streamListener: ((streamId: string, frame: { kind: 'item'; value: unknown }) => void) | null = null
+    Object.defineProperty(window, 'lcoder', {
+      configurable: true,
+      value: {
+        call: vi.fn(async () => ({ ok: true, value: { text: '# 评审报告' } })),
+        openStream: vi.fn(async () => 'live-stream-1'),
+        cancelStream: vi.fn(async () => undefined),
+        onStreamFrame: vi.fn((listener: (streamId: string, frame: { kind: 'item'; value: unknown }) => void) => {
+          streamListener = listener
+          return () => { streamListener = null }
+        }),
+      },
+    })
+
+    const h = harness()
+    h.render(projectionOf([DRAFT]))
+    await press('requirement-op-review')
+    await tick(10)
+
+    act(() => {
+      streamListener?.('live-stream-1', {
+        kind: 'item',
+        value: {
+          type: 'assistant-stream',
+          frame: {
+            type: 'chunk',
+            attemptId: 'a1',
+            revision: 1,
+            index: 0,
+            chunk: { type: 'text-delta', index: 0, text: '正在核对 REQ-01 的验收口径与边界条件。' },
+          },
+        },
+      })
+    })
+    await tick(200)
+    expect(element('op-live-output')?.textContent).toContain('正在核对 REQ-01 的验收口径')
+
+    act(() => {
+      streamListener?.('live-stream-1', {
+        kind: 'item',
+        value: {
+          type: 'event',
+          event: { type: 'turn/end', seq: 9, time: Date.now(), data: { turn: 1, reason: { kind: 'max-tokens' } } },
+        },
+      })
+    })
+    await tick(200)
+    // 经过 1 轮投影补读宽限后立即报输出超限，不空等 5 分钟。
+    await tick(8000)
+    expect(element('requirement-op-running')).toBeNull()
+    expect(element('requirement-op-timeout')?.textContent).toContain('输出超限')
+    expect(element('op-live-output')?.textContent).toContain('正在核对 REQ-01 的验收口径')
+  })
+
+  it('Harness 注入截断续跑事件时浮卡实时提示已自动续跑并保持运行态', async () => {
+    let streamListener: ((streamId: string, frame: { kind: 'item'; value: unknown }) => void) | null = null
+    Object.defineProperty(window, 'lcoder', {
+      configurable: true,
+      value: {
+        call: vi.fn(async () => ({ ok: true, value: { text: '# 评审报告' } })),
+        openStream: vi.fn(async () => 'live-stream-2'),
+        cancelStream: vi.fn(async () => undefined),
+        onStreamFrame: vi.fn((listener: (streamId: string, frame: { kind: 'item'; value: unknown }) => void) => {
+          streamListener = listener
+          return () => { streamListener = null }
+        }),
+      },
+    })
+    const h = harness()
+    h.render(projectionOf([DRAFT]))
+    await press('requirement-op-review')
+    await tick(10)
+
+    act(() => {
+      streamListener?.('live-stream-2', {
+        kind: 'item',
+        value: {
+          type: 'event',
+          event: {
+            type: 'user/message',
+            seq: 10,
+            time: Date.now(),
+            data: { source: { kind: 'maniu-max-tokens-recovery' }, content: [{ type: 'text', text: 'continue' }] },
+          },
+        },
+      })
+    })
+    await tick(200)
+    expect(element('op-live-phase')?.textContent).toContain('自动发起精简续跑')
+    await tick(8000)
+    expect(element('requirement-op-running')).not.toBeNull()
+    expect(element('requirement-op-timeout')).toBeNull()
+  })
 })
 
 describe('后台会话恢复提示', () => {

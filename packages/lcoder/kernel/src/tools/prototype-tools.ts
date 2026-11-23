@@ -60,12 +60,24 @@ function safeName(value: string): string {
   return value.replace(/[^A-Za-z0-9_-]/g, '')
 }
 
-/** 扫描 HTML 的结构标签；与质量门禁同一类机械判定，不做任意正则改写整页。 */
+/** 扫描 HTML 的结构标签；跳过 `<script>` / `<style>` 内部正文，避免比较符号干扰标签栈。 */
 function scanTags(html: string): TagToken[] {
   const tokens: TagToken[] = []
+  const rawRanges: { readonly start: number; readonly end: number }[] = []
+  for (const block of html.matchAll(/<(script|style)\b[^>]*>([\s\S]*?)<\/\1\s*>/gi)) {
+    const full = block[0]
+    const start = block.index
+    const openEnd = full.indexOf('>')
+    const closeStart = full.lastIndexOf('</')
+    if (openEnd >= 0 && closeStart > openEnd) {
+      rawRanges.push({ start: start + openEnd + 1, end: start + closeStart })
+    }
+  }
+  const insideRaw = (index: number): boolean => rawRanges.some(range => index >= range.start && index < range.end)
   for (const match of html.matchAll(/<\/?([a-zA-Z][a-zA-Z0-9-]*)\b[^>]*>/g)) {
     const raw = match[0] ?? ''
     const start = match.index ?? 0
+    if (insideRaw(start)) continue
     tokens.push({ start, end: start + raw.length, closing: raw.startsWith('</'), tag: (match[1] ?? '').toLowerCase(), raw })
   }
   return tokens

@@ -95,6 +95,11 @@ let altHeld = false
 let selectionMode = false
 let suppressSubmit = false
 let hintBar: HTMLElement | undefined
+let errorBanner: HTMLElement | undefined
+let errorText: HTMLElement | undefined
+let errorCount = 0
+let lastErrorPaintAt = 0
+const ERROR_THROTTLE_MS = 200
 
 function clearHighlight(): void {
   if (highlighted === undefined) return
@@ -175,11 +180,41 @@ function selectModeLabel(): string {
   return selectionMode ? '选择模式：开' : '选择模式：关'
 }
 
+/** 把原型脚本的运行时报错节流展示到顶部提示条，避免点击无反应却静默无提示。 */
+function recordRuntimeError(message: string): void {
+  errorCount += 1
+  const now = Date.now()
+  if (errorCount > 1 && now - lastErrorPaintAt < ERROR_THROTTLE_MS) return
+  lastErrorPaintAt = now
+  if (errorBanner === undefined || errorText === undefined) return
+  const clean = message.trim() === '' ? '未知脚本错误' : message.trim().slice(0, 140)
+  const suffix = errorCount > 1 ? `（已发生 ${String(errorCount)} 次）` : ''
+  errorText.textContent = `原型脚本报错${suffix}：${clean}`
+  errorBanner.style.display = 'flex'
+}
+
+function onWindowError(event: ErrorEvent): void {
+  const detail = event.message !== ''
+    ? event.message
+    : event.error instanceof Error
+      ? event.error.message
+      : '运行期异常'
+  recordRuntimeError(detail)
+}
+
+function onUnhandledRejection(event: PromiseRejectionEvent): void {
+  const reason: unknown = event.reason
+  const detail = reason instanceof Error ? reason.message : String(reason)
+  recordRuntimeError(detail)
+}
+
 /** 注入固定定位的提示条；挂在 documentElement 上，原型替换 body 内容也不会移除它。 */
 function installHint(): HTMLElement {
   const bar = document.createElement('div')
   bar.setAttribute('data-testid', 'prototype-preview-hint')
-  bar.style.cssText = 'position:fixed;top:12px;right:12px;z-index:2147483647;max-width:360px;padding:8px 12px;border-radius:8px;background:rgba(20,20,24,.9);color:#fff;font:13px/1.5 system-ui,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,.3);display:flex;align-items:center;gap:8px'
+  bar.style.cssText = 'position:fixed;top:12px;right:12px;z-index:2147483647;max-width:380px;padding:8px 12px;border-radius:8px;background:rgba(20,20,24,.92);color:#fff;font:13px/1.5 system-ui,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,.3);display:flex;flex-direction:column;gap:6px'
+  const topRow = document.createElement('div')
+  topRow.style.cssText = 'display:flex;align-items:center;gap:8px'
   const text = document.createElement('span')
   text.textContent = HINT_TEXT
   const toggle = document.createElement('button')
@@ -194,7 +229,28 @@ function installHint(): HTMLElement {
     toggle.setAttribute('aria-pressed', String(selectionMode))
     if (!selectionMode) clearHighlight()
   })
-  bar.append(text, toggle)
+  topRow.append(text, toggle)
+
+  const errRow = document.createElement('div')
+  errRow.setAttribute('data-testid', 'prototype-preview-error')
+  errRow.style.cssText = 'display:none;align-items:center;justify-content:space-between;gap:8px;padding:6px 8px;border-radius:6px;background:rgba(220,38,38,.25);border:1px solid rgba(248,113,113,.55);color:#fecaca;font-size:12px;word-break:break-word'
+  const errMsg = document.createElement('span')
+  errMsg.setAttribute('data-testid', 'prototype-preview-error-text')
+  const errDismiss = document.createElement('button')
+  errDismiss.type = 'button'
+  errDismiss.setAttribute('data-testid', 'prototype-preview-error-dismiss')
+  errDismiss.textContent = '×'
+  errDismiss.style.cssText = 'flex:none;border:none;background:transparent;color:inherit;font-size:14px;line-height:1;padding:0 4px;cursor:pointer'
+  errDismiss.addEventListener('click', () => {
+    errorCount = 0
+    errRow.style.display = 'none'
+    errMsg.textContent = ''
+  })
+  errRow.append(errMsg, errDismiss)
+  errorBanner = errRow
+  errorText = errMsg
+
+  bar.append(topRow, errRow)
   ;(document.documentElement ?? document.body).append(bar)
   return bar
 }
@@ -211,6 +267,8 @@ function install(): void {
   window.addEventListener('keydown', onKeyDown, true)
   window.addEventListener('keyup', onKeyUp, true)
   window.addEventListener('blur', onBlur)
+  window.addEventListener('error', onWindowError)
+  window.addEventListener('unhandledrejection', onUnhandledRejection)
 }
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install, { once: true })

@@ -143,4 +143,40 @@ describe('需求投影', () => {
     expect(row?.reviews).toEqual([])
     expect(row?.approvedVersion).toBeUndefined()
   })
+
+  it('透传 S 级轻量修补计数与历史摘要，旧 YAML 缺省时保持未定义', () => {
+    const withAmend = requirementTextToRow('REQ-06.yaml', [
+      'id: REQ-06',
+      'title: 微调投影',
+      'state: confirmed',
+      'amendCount: 2',
+      'amendments:',
+      '  - at: 2026-11-22T10:00:00+08:00',
+      '    summary: 报销表单新增发票号字段',
+      '    files:',
+      '      - src/expense/form.tsx',
+      '    actor: maniu-intake',
+      '  - at: 2026-11-22T11:00:00+08:00',
+      '    summary: 调整提交按钮文案',
+      '  - at: 2026-11-22T12:00:00+08:00',
+    ].join('\n'))
+
+    expect(withAmend?.amendCount).toBe(2)
+    expect(withAmend?.amendments).toEqual([
+      {
+        at: '2026-11-22T10:00:00+08:00',
+        summary: '报销表单新增发票号字段',
+        files: ['src/expense/form.tsx'],
+        actor: 'maniu-intake',
+      },
+      {
+        at: '2026-11-22T11:00:00+08:00',
+        summary: '调整提交按钮文案',
+      },
+    ])
+
+    const legacy = requirementTextToRow('REQ-07.yaml', 'id: REQ-07\ntitle: 旧需求\nstate: confirmed')
+    expect(legacy?.amendCount).toBeUndefined()
+    expect(legacy?.amendments).toBeUndefined()
+  })
 })

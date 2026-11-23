@@ -118,7 +118,7 @@ describe('掩码自检', () => {
 
 describe('空看板工具面', () => {
   it('只放开立项需要的读取、建任务与立项落盘能力，外加出方案、起草与改写需求', () => {
-    expect(UNSCOPEED_SURFACE).toEqual(['file_read', 'file_list', 'project_draft', 'spec_query', 'spec_draft', 'task_read', 'task_draft', 'proposal_draft', 'requirement_draft', 'requirement_revise', 'requirement_propose', 'requirement_patch_propose', 'requirement_review_draft', 'requirement_split_plan', 'prototype_draft', 'prototype_patch', 'git_status', 'git_diff'])
+    expect(UNSCOPEED_SURFACE).toEqual(['file_read', 'file_list', 'project_draft', 'spec_query', 'spec_draft', 'task_read', 'task_draft', 'proposal_draft', 'requirement_draft', 'requirement_revise', 'requirement_propose', 'requirement_patch_propose', 'requirement_amend', 'requirement_review_draft', 'requirement_split_plan', 'prototype_draft', 'prototype_patch', 'git_status', 'git_diff'])
     expect(UNSCOPEED_SURFACE).not.toContain('file_edit')
     expect(UNSCOPEED_SURFACE).not.toContain('cmd_run')
     expect(UNSCOPEED_SURFACE).not.toContain('spec_bind')
@@ -154,7 +154,7 @@ describe('空看板工具面', () => {
 
 describe('角色天花板', () => {
   it('实施角色等于全集去掉只对特定角色开放的工具', () => {
-    const roleOnly = ['role_draft', 'requirement_draft', 'requirement_revise', 'requirement_propose', 'requirement_patch_propose', 'requirement_review_draft', 'requirement_split_plan', 'prototype_draft', 'prototype_patch']
+    const roleOnly = ['role_draft', 'requirement_draft', 'requirement_revise', 'requirement_propose', 'requirement_patch_propose', 'requirement_amend', 'requirement_review_draft', 'requirement_split_plan', 'prototype_draft', 'prototype_patch']
     expect([...ROLE_TOOLS.dev].sort()).toEqual(
       allToolNames().filter(name => !roleOnly.includes(name)),
     )
@@ -242,6 +242,24 @@ describe('角色天花板', () => {
       for (const role of ROLES) {
         if (role === 'intake' && state !== 'closed') continue
         expect(allowedTools(state, role)).not.toContain('requirement_propose')
+      }
+    }
+  })
+
+  it('S 级轻量修补只进需求分析师，非终态可见、终态 closed 与非授权角色不可见', () => {
+    expect(ROLE_TOOLS.intake).toContain('requirement_amend')
+    for (const role of ROLES) {
+      if (role !== 'intake') expect(ROLE_TOOLS[role]).not.toContain('requirement_amend')
+    }
+    for (const state of ['drafting', 'contracted', 'implementing', 'verifying', null] as const) {
+      expect(allowedTools(state, 'intake')).toContain('requirement_amend')
+    }
+    expect(allowedTools('closed', 'intake')).not.toContain('requirement_amend')
+    expect(SURFACE.closed).not.toContain('requirement_amend')
+    for (const state of [...STATES, null] as const) {
+      for (const role of ROLES) {
+        if (role === 'intake' && state !== 'closed') continue
+        expect(allowedTools(state, role)).not.toContain('requirement_amend')
       }
     }
   })

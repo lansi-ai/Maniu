@@ -2,7 +2,17 @@
 /** 立项提示词与人才库人设同源：向导只发项目事实，纪律只在 maniu-intake 人设里。 */
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { buildIntakePrompt, buildManagerSplitPrompt, buildRequirementCreatePrompt, buildReviewPrompt, buildRevisePrompt, type IntakeProject } from '../src/intake/prompts.ts'
+import {
+  buildIntakePrompt,
+  buildManagerSplitPrompt,
+  buildRequirementAmendPrompt,
+  buildRequirementCreatePrompt,
+  buildRequirementDeltaPrompt,
+  buildRequirementMilestonePrompt,
+  buildReviewPrompt,
+  buildRevisePrompt,
+  type IntakeProject,
+} from '../src/intake/prompts.ts'
 
 const PROJECT: IntakeProject = {
   name: '仓库 A',
@@ -270,5 +280,65 @@ describe('内置角色人设源', () => {
     expect(PROFILE).toContain('首条立项消息若附带「用户已说明的项目初步想法（第 1 问已答）」，第 1 问视为已答')
     expect(PROFILE).toContain('严禁按仓库文件夹名盲猜软件类别重问第 1 问')
     expect(PROFILE).toContain('直接围绕用户想法从第 2 问起生成贴合业务的选项')
+  })
+})
+
+describe('T-305 三级通道提示词构造', () => {
+  it('S 级微调提示词指导调用 requirement_amend、遵守升级护栏并关联或新建 C 级快修任务', () => {
+    const prompt = buildRequirementAmendPrompt(
+      { id: 'REQ-01', title: '报销管理' },
+      '# 报销管理\n\n- 原文规则',
+      '报销表单新增发票号字段',
+      {
+        activeTasks: [{ id: 'T-01', title: '报销表单', state: 'implementing' }],
+        tracks: ['h5（H5 前端）', 'api（接口）'],
+        amendCount: 4,
+      },
+    )
+    expect(prompt).toContain('S 级轻量微调')
+    expect(prompt).toContain('requirement_amend')
+    expect(prompt).toContain('affected_files')
+    expect(prompt).toContain('irreversible')
+    expect(prompt).toContain('escalateTo')
+    expect(prompt).toContain('必须立即停止写盘')
+    expect(prompt).toContain('保持需求状态为 confirmed，不重走评审，不新建 REQ-xx')
+    expect(prompt).toContain('T-01（报销表单，implementing）')
+    expect(prompt).toContain('C 级快修任务')
+    expect(prompt).toContain('needsConsistencyCheck')
+    expect(prompt).toContain('# 报销管理')
+  })
+
+  it('M 级增量修订提示词只围绕差异章节起草修订提案且不推翻老任务', () => {
+    const prompt = buildRequirementDeltaPrompt(
+      { id: 'REQ-01', title: '报销管理', version: 2 },
+      '# 报销管理\n\n- 原文规则',
+      '调整退款冲减统计口径',
+    )
+    expect(prompt).toContain('M 级增量修订')
+    expect(prompt).toContain('REQ-01（报销管理）v2')
+    expect(prompt).toContain('只围绕本次差异章节起草修订提案')
+    expect(prompt).toContain('不要推翻或改动已完成的老任务')
+    expect(prompt).toContain('requirement_propose')
+    expect(prompt).toContain('mode 为 new')
+    expect(prompt).toContain('target 为 REQ-01')
+    expect(prompt).toContain('base_version 为 2')
+  })
+
+  it('L 级独立里程碑提示词明确另起 REQ-xx 且不打断当前在途开发', () => {
+    const prompt = buildRequirementMilestonePrompt(
+      '加入 Windows 桌面版',
+      {
+        base: { id: 'REQ-01', title: '报销管理', version: 1 },
+        tracks: ['h5（H5 前端）', 'api（接口）'],
+        nextRequirementId: 'REQ-02',
+      },
+    )
+    expect(prompt).toContain('L 级独立里程碑立项')
+    expect(prompt).toContain('REQ-02')
+    expect(prompt).toContain('不会打断、修改或阻塞当前正在进行的需求与在途开发任务')
+    expect(prompt).toContain('h5（H5 前端）')
+    expect(prompt).toContain('requirement_propose')
+    expect(prompt).toContain('target: REQ-01')
+    expect(prompt).toContain('base_version: 1')
   })
 })

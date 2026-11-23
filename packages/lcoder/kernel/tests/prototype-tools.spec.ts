@@ -102,7 +102,7 @@ describe('prototype_draft', () => {
 
   it('质量不合格时返回结构化失败项且不落盘半成品', async () => {
     const { spec, id } = makeSpec()
-    const bad = '<!doctype html><html><head></head><body><script>alert(1)</script><h1>原型测试需求</h1><p>一段正文</p></body></html>'
+    const bad = '<!doctype html><html><head></head><body><script src="https://evil.example/a.js"></script><h1>原型测试需求</h1><p>一段正文</p></body></html>'
     const result = await call(spec, { requirement: id, html: bad })
     expect(result.ok).toBe(false)
     const failed = result.failed as readonly { code: string }[]

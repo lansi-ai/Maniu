@@ -30,7 +30,7 @@
           - id: deepseek-flash
             name: DeepSeek Flash
             contextWindow: 1000000
-            maxTokens: 32768
+            maxTokens: 65536
             input: [text, image]
       lcoder-cloud-guest:
         displayName: 慢牛云（匿名立项）
@@ -41,7 +41,7 @@
           - id: deepseek-flash
             name: DeepSeek Flash
             contextWindow: 1000000
-            maxTokens: 32768
+            maxTokens: 65536
             input: [text]
 
 - insert:
