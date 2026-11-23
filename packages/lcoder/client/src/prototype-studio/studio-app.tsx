@@ -610,14 +610,18 @@ export function PrototypeStudioApp(props: PrototypeStudioAppProps): JSX.Element 
     return true
   }
 
-  /** 回合结束后重读暂存并把画布载到最新一版；暂存为空时回到正式版。 */
+  /** 回合结束后重读暂存：有暂存就立刻切到修改后、高亮本轮改动；没有就回到正式版。 */
   const refreshAfterTurn = useCallback((): void => {
     void refreshStaged().then((view) => {
-      loadHtml(view.staged === null ? view.committedHtml : view.staged.html, view.committedHtml)
+      const next = view.staged
+      setShowingBefore(false)
+      setHighlight(next !== null)
+      void bridge?.highlightPrototypeStudioPaths?.(next === null ? [] : next.changedDomPaths)
+      loadHtml(next === null ? view.committedHtml : next.html, view.committedHtml)
     }).catch((cause: unknown) => {
       setNotice(cause instanceof Error ? cause.message : String(cause))
     })
-  }, [refreshStaged, loadHtml])
+  }, [refreshStaged, loadHtml, bridge])
 
   const isFullscreen = viewMode === 'fullscreen-pinned'
 
@@ -739,17 +743,6 @@ export function PrototypeStudioApp(props: PrototypeStudioAppProps): JSX.Element 
           </div>
         )}
 
-        {staged !== null && (
-          <ChangeCard
-            t={t}
-            staged={staged}
-            busy={busy}
-            syncStatus={syncStatus}
-            onCommit={(applyDiff, amend) => { void commit(applyDiff, amend) }}
-            onDiscard={() => { void discard() }}
-          />
-        )}
-
         <CoDesignThread
           t={t}
           bridge={bridge}
@@ -759,6 +752,21 @@ export function PrototypeStudioApp(props: PrototypeStudioAppProps): JSX.Element 
           onStageComplete={refreshAfterTurn}
           onRunningChange={setTurnRunning}
           onProbeComplete={probeTurnComplete}
+          changeCard={staged === null
+            ? undefined
+            : (
+              <ChangeCard
+                t={t}
+                staged={staged}
+                busy={busy}
+                syncStatus={syncStatus}
+                showingBefore={showingBefore}
+                onViewChange={switchView}
+                onCompare={compareSideBySide}
+                onCommit={(applyDiff, amend) => { void commit(applyDiff, amend) }}
+                onDiscard={() => { void discard() }}
+              />
+            )}
         />
         <AnchorComposer t={t} bridge={bridge} running={turnRunning || busy} onSend={sendCoDesign} />
 

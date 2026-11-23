@@ -148,6 +148,7 @@ export interface StudioCoDesignInput {
 /**
  * 把协作流的一轮修改意见拼成给 maniu-prototype 的暂存指令。
  * 只要求模型调用 prototype_stage，不直接改正式版或需求正文；需求正文变更必须显式提案。
+ * 无锚点的一轮可能是闲聊：提示词要求这种输入直接回话，不调用任何工具。
  * @param input - 需求、基准说明、修改意见与点选锚点。
  * @returns 发给 maniu-prototype 会话的提示词。
  */
@@ -173,8 +174,41 @@ export function buildStudioCoDesignPrompt(input: StudioCoDesignInput): string {
       .join('\n')
   const instructionBlock = collected === '' ? '（未填写整体修改意见，按点选锚点与各自要求处理）' : collected
 
+  const patchRule = '不要直接覆盖正式版 HTML，也不要自行改动需求正文；优先用 prototype_stage 的 patches 做局部修改：每条 patch 给 domPath 与 action——remove 删除该元素，replace 同时给 newHtml 换成新片段，style 同时给 newCss 只改它的内联样式；这类改动不用重吐整份 HTML。'
+  const wholePageRule = '只有大范围跨区块改版（大多数区块都要变）才把完整 html 传给 prototype_stage。'
+  const summaryRule = `暂存条目 requirement 填 ${input.requirementId}；summary 给 1 到 4 条人话要点，让人不看代码就知道改了什么。`
+  const kindRule = "只动表现时 changeKind 填 'visual'；涉及业务规则、口径或字段增删时 changeKind 填 'business'，并同时给出 requirementProposedContent（提案后的需求正文全文），由人确认后才会同步。"
+  const retryRule = 'prototype_stage 返回失败项时按失败项修正后重试 1 到 2 次；仍失败就如实报告，不留半成品。'
+  const removeRule = '用户对某个选中元素填写「不需要 / 不要 / 去掉 / 删掉」等简短否定词时，代表「将该元素从界面上移除」，请直接删除该元素并暂存，切勿误解为「保持不变」。'
+  const noAskRule = '暂存预览不会覆盖正式文件，因此除非指令完全空白，否则直接按最合理的界面设计调用 prototype_stage 产出暂存结果供用户看图确认，严禁调用 ask_user_question 反问打断。'
+
+  const requirementLines = input.anchors.length === 0
+    ? [
+      '1. 先判断这一轮要不要动原型：用户若只是打招呼、询问现状或闲聊，没有提出任何修改要求，就不调用任何工具、也不改原型，用 1 到 2 句自然简短的话直接回复（例如请他按住 Alt 点选想改的元素，或直接说出想改哪里）。',
+      `2. 确实要改时${patchRule}`,
+      `3. ${wholePageRule}`,
+      `4. ${summaryRule}`,
+      '5. changedDomPaths 填本轮实际改动区域的 DOM 路径；只改样式也要填。',
+      `6. ${kindRule}`,
+      '7. 改动要落在目标元素的既有结构上，保持与当前组件素材库一致的样式语义；不引入外链与脚本。',
+      `8. ${retryRule}`,
+      `9. ${removeRule}`,
+      `10. ${noAskRule}`,
+    ]
+    : [
+      `1. 这一轮有明确的点选元素，按修改意见改这些元素：${patchRule}`,
+      `2. ${wholePageRule}`,
+      `3. ${summaryRule}`,
+      '4. changedDomPaths 填本轮实际改动区域的 DOM 路径，优先取上面点选锚点的 domPath；只改样式也要填。',
+      `5. ${kindRule}`,
+      '6. 改动要落在锚点元素的既有结构上，保持与当前组件素材库一致的样式语义；不引入外链与脚本。',
+      `7. ${retryRule}`,
+      `8. ${removeRule}`,
+      `9. ${noAskRule}`,
+    ]
+
   return [
-    `请修改需求 ${input.requirementId}「${input.requirementTitle}」的 HTML 原型，本轮只做增量打磨。`,
+    `请回应需求 ${input.requirementId}「${input.requirementTitle}」的这一轮原型意见：可能只是闲聊或询问现状，也可能是具体修改要求。`,
     '',
     '【当前基准】',
     input.baselineNote.trim(),
@@ -186,13 +220,6 @@ export function buildStudioCoDesignPrompt(input: StudioCoDesignInput): string {
     instructionBlock,
     '',
     '【交付要求】',
-    '1. 优先调用 prototype_stage 暂存本轮修改，不要直接覆盖正式版 HTML，也不要自行改动需求正文。',
-    `2. 暂存条目 requirement 填 ${input.requirementId}；summary 给 2 到 4 条人话要点，让人不看代码就知道改了什么。`,
-    '3. changedDomPaths 填本轮实际改动区域的 DOM 路径，优先取上面点选锚点的 domPath；只改样式也要填。',
-    "4. 只动表现时 changeKind 填 'visual'；涉及业务规则、口径或字段增删时 changeKind 填 'business'，并同时给出 requirementProposedContent（提案后的需求正文全文），由人确认后才会同步。",
-    '5. 改动要落在锚点元素的既有结构上，保持与当前组件素材库一致的样式语义；不引入外链与脚本。',
-    '6. prototype_stage 返回失败项时按失败项修正后重试 1 到 2 次；仍失败就如实报告，不留半成品。',
-    '7. 用户对某个选中元素填写「不需要 / 不要 / 去掉 / 删掉」等简短否定词时，代表「将该元素从界面上移除」，请直接删除该元素并暂存，切勿误解为「保持不变」。',
-    '8. 暂存预览不会覆盖正式文件，因此除非指令完全空白，否则直接按最合理的界面设计调用 prototype_stage 产出暂存结果供用户看图确认，严禁调用 ask_user_question 反问打断。',
+    ...requirementLines,
   ].join('\n')
 }

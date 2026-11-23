@@ -250,11 +250,15 @@ function isSelectionClick(event: MouseEvent): boolean {
 }
 
 function onKeyDown(event: KeyboardEvent): void {
-  if (event.key === 'Alt') altHeld = true
+  if (event.key !== 'Alt') return
+  altHeld = true
+  // Alt 是选择元素的修饰键：按键本身不交给窗口，避免弹出原生菜单栏抢走焦点。
+  event.preventDefault()
 }
 
 function onKeyUp(event: KeyboardEvent): void {
   if (event.key !== 'Alt') return
+  event.preventDefault()
   altHeld = false
   if (!selectionMode) clearHighlight()
 }

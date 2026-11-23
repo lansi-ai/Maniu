@@ -65,7 +65,7 @@ export interface StagedPrototype {
   readonly requirementId: string
   readonly html: string
   readonly changeKind: PrototypeChangeKind
-  /** 2–4 条给人读的改动摘要。 */
+  /** 1–4 条给人读的改动摘要。 */
   readonly summary: readonly string[]
   readonly changedDomPaths: readonly string[]
   readonly requirementDiff?: PrototypeRequirementDiff | undefined
@@ -134,12 +134,12 @@ export const PrototypeRequirementDiffSchema = z.object({
   summary: z.string().min(1),
 }).strict()
 
-/** 暂存原型的 wire 校验；摘要必须 2–4 条。 */
+/** 暂存原型的 wire 校验；摘要必须 1–4 条。 */
 export const StagedPrototypeSchema = z.object({
   requirementId: z.string().regex(/^REQ-\d{2,}$/),
   html: z.string(),
   changeKind: z.enum(['visual', 'business']),
-  summary: z.array(z.string().min(1)).min(2).max(4),
+  summary: z.array(z.string().min(1)).min(1).max(4),
   changedDomPaths: z.array(z.string()),
   requirementDiff: PrototypeRequirementDiffSchema.optional(),
   createdAt: z.string().min(1),

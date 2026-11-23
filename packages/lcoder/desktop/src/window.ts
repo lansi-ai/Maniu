@@ -134,6 +134,9 @@ export function createPrototypePreviewWindow(html: string): BrowserWindow {
     },
   })
   installPrototypeOfflineGuard(window.webContents.session)
+  // 预览窗口没有菜单：Alt 组合键只属于原型自身，不弹出原生菜单栏。
+  window.setMenu(null)
+  window.setMenuBarVisibility(false)
   void window.loadURL(prototypePreviewDataUrl(html))
   return window
 }
@@ -323,6 +326,9 @@ export function createPrototypeStudioWindow(request: PrototypeStudioOpenRequest)
   })
   const afterView = makePrototypeCanvas()
   const uiView = makeStudioUiView(request)
+  // 工作台窗口同样不带原生菜单：Alt 点选元素时不能先弹菜单栏。
+  window.setMenu(null)
+  window.setMenuBarVisibility(false)
   installPrototypeOfflineGuard(afterView.webContents.session)
   syncCanvasControls(afterView)
   window.contentView.addChildView(afterView)

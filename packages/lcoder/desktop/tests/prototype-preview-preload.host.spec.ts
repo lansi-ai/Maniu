@@ -139,6 +139,20 @@ describe('prototype-preview-preload', () => {
     expect(button.style.getPropertyValue('outline')).toContain('2px solid')
   })
 
+  it('Alt 按键不交给窗口：keydown 与 keyup 都拦住，其它按键放行', () => {
+    const altDown = new KeyboardEvent('keydown', { key: 'Alt', bubbles: true, cancelable: true })
+    window.dispatchEvent(altDown)
+    expect(altDown.defaultPrevented).toBe(true)
+
+    const altUp = new KeyboardEvent('keyup', { key: 'Alt', bubbles: true, cancelable: true })
+    window.dispatchEvent(altUp)
+    expect(altUp.defaultPrevented).toBe(true)
+
+    const other = new KeyboardEvent('keydown', { key: 'a', bubbles: true, cancelable: true })
+    window.dispatchEvent(other)
+    expect(other.defaultPrevented).toBe(false)
+  })
+
   it('普通提交放行；只有选中动作触发的提交才拦截', () => {
     document.body.innerHTML = '<form id="f"><button id="b">提交</button></form>'
     const form = document.querySelector<HTMLFormElement>('#f')

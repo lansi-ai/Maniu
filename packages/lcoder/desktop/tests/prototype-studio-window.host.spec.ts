@@ -50,6 +50,8 @@ const electron = vi.hoisted(() => {
     readonly options: WindowOptions
     readonly contentView = { addChildView: vi.fn(), removeChildView: vi.fn() }
     readonly webContents = { send: vi.fn() }
+    readonly setMenu = vi.fn()
+    readonly setMenuBarVisibility = vi.fn()
     readonly setParentWindow = vi.fn()
     readonly show = vi.fn()
     readonly listeners = new Map<string, Array<() => void>>()
@@ -147,6 +149,13 @@ describe('studioLayout', () => {
 })
 
 describe('createPrototypeStudioWindow', () => {
+  it('窗口不装原生菜单栏，Alt 点选不会先弹菜单', () => {
+    createPrototypeStudioWindow(REQUEST)
+    const window = onlyWindow()
+    expect(window.setMenu).toHaveBeenCalledWith(null)
+    expect(window.setMenuBarVisibility).toHaveBeenCalledWith(false)
+  })
+
   it('after/before 画布用原型 preload 与离线分区，uiView 用主窗 preload', () => {
     const studio = createPrototypeStudioWindow(REQUEST)
     studio.setMode('compare-side-by-side')
