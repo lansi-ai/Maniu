@@ -23,10 +23,10 @@ import {
   listPrototypeSnapshots, restorePrototypeSnapshot,
 } from '../prototype/remote.ts'
 import type { PrototypeSnapshotMeta } from '../prototype/remote.ts'
-import { AnchorComposer } from './anchor-composer.tsx'
+import { AnchorComposer, type StudioAnchorDraft } from './anchor-composer.tsx'
 import { ChangeCard } from './change-card.tsx'
-import { CoDesignThread } from './co-design-thread.tsx'
-import { studioBridge, type StudioBridge, type StudioSelectionInfo, type StudioViewMode } from './bridge.ts'
+import { CoDesignThread, type StudioTurnEcho } from './co-design-thread.tsx'
+import { studioBridge, type StudioBridge, type StudioViewMode } from './bridge.ts'
 
 /** 工作室根组件属性。 */
 export interface PrototypeStudioAppProps {
@@ -40,23 +40,20 @@ export interface PrototypeStudioAppProps {
 }
 
 const PROJECT_KEY = 'lcoder.m2.project'
-const ACTIVE_SESSION_KEY = 'lcoder.s1.session'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 /**
- * 会话号兜底：优先 URL，其次本需求上次用过的工作室会话，再取工作区作用域会话。
- * @param requirementId - 需求编号。
+ * 工作区作用域会话号：优先 URL 带来的会话号，其次本机项目档里的 scopeSessionId。
+ * 它只服务 prototype/* Remote 的会话作用域，与协作对话用的会话号是两件事。
  * @param initialSessionId - URL 显式带来的会话号。
- * @returns 会话号或 null。
+ * @returns 作用域会话号或 null。
  */
-export function resolveStudioSessionId(requirementId: string, initialSessionId?: string): string | null {
+export function resolveScopeSessionId(initialSessionId?: string): string | null {
   if (initialSessionId !== undefined && initialSessionId !== '') return initialSessionId
   try {
-    const stored = localStorage.getItem(`lcoder.studio.session.${requirementId}`)
-    if (stored !== null && stored !== '') return stored
     const raw = localStorage.getItem(PROJECT_KEY)
     if (raw !== null) {
       const value: unknown = JSON.parse(raw)
@@ -64,8 +61,25 @@ export function resolveStudioSessionId(requirementId: string, initialSessionId?:
         return value.scopeSessionId
       }
     }
-    const active = localStorage.getItem(ACTIVE_SESSION_KEY)
-    if (active !== null && active !== '') return active
+    return null
+  } catch {
+    // 偏好存储损坏时不猜作用域会话：Remote 缺会话号会显式报错，比拿错会话号安全。
+    return null
+  }
+}
+
+/**
+ * 协作对话会话号：只认本需求上次用过的工作室会话，绝不回落到工作区作用域会话。
+ * 首次发送时没有会话号就新建，避免把 scopeSessionId 当聊天会话号。
+ * @param requirementId - 需求编号。
+ * @param initialSessionId - 显式带来的会话号；测试与注入用。
+ * @returns 会话号或 null。
+ */
+export function resolveStudioSessionId(requirementId: string, initialSessionId?: string): string | null {
+  if (initialSessionId !== undefined && initialSessionId !== '') return initialSessionId
+  try {
+    const stored = localStorage.getItem(`lcoder.studio.session.${requirementId}`)
+    if (stored !== null && stored !== '') return stored
   } catch {
     // 偏好存储损坏时不猜会话：后续发消息会显式新建。
   }
@@ -106,11 +120,17 @@ export function PrototypeStudioApp(props: PrototypeStudioAppProps): JSX.Element 
   }), [bridge, props.call])
 
   const requirementId = props.requirementId
-  const [sessionId, setSessionId] = useState<string | null>(
-    () => resolveStudioSessionId(requirementId, props.initialSessionId),
+  // 作用域会话号只给 prototype/* Remote；协作对话有独立会话号，首次发送时才创建。
+  const scopeSessionId = useMemo(
+    () => resolveScopeSessionId(props.initialSessionId),
+    [props.initialSessionId],
   )
-  const sessionIdRef = useRef(sessionId)
-  sessionIdRef.current = sessionId
+  const [chatSessionId, setChatSessionId] = useState<string | null>(
+    () => resolveStudioSessionId(requirementId),
+  )
+  const chatSessionIdRef = useRef(chatSessionId)
+  chatSessionIdRef.current = chatSessionId
+  const [turn, setTurn] = useState<StudioTurnEcho | undefined>(undefined)
   const [staged, setStaged] = useState<StagedPrototype | null>(null)
   const [committedHtml, setCommittedHtml] = useState<string | null>(null)
   const [snapshots, setSnapshots] = useState<readonly PrototypeSnapshotMeta[]>([])
@@ -133,16 +153,16 @@ export function PrototypeStudioApp(props: PrototypeStudioAppProps): JSX.Element 
   }, [bridge])
 
   const refreshStaged = useCallback(async (): Promise<PrototypeStagedView> => {
-    const view = await getStagedPrototype(sessionIdRef.current ?? '', requirementId, invoke)
+    const view = await getStagedPrototype(scopeSessionId ?? '', requirementId, invoke)
     setStaged(view.staged)
     setCommittedHtml(view.committedHtml)
     return view
-  }, [invoke, requirementId])
+  }, [invoke, requirementId, scopeSessionId])
 
   const refreshSnapshots = useCallback(async (): Promise<void> => {
-    const items = await listPrototypeSnapshots(sessionIdRef.current ?? '', requirementId, invoke)
+    const items = await listPrototypeSnapshots(scopeSessionId ?? '', requirementId, invoke)
     setSnapshots(items)
-  }, [invoke, requirementId])
+  }, [invoke, requirementId, scopeSessionId])
 
   useEffect(() => {
     let disposed = false
@@ -192,7 +212,7 @@ export function PrototypeStudioApp(props: PrototypeStudioAppProps): JSX.Element 
     setNotice(undefined)
     try {
       const result: PrototypeCommitResult = await commitStagedPrototype({
-        sessionId: sessionIdRef.current ?? '',
+        sessionId: scopeSessionId ?? '',
         requirementId,
         ...(applyRequirementDiff ? { applyRequirementDiff: true } : {}),
         ...(amend ? { requirementAmendMode: 'amend' as const } : {}),
@@ -219,7 +239,7 @@ export function PrototypeStudioApp(props: PrototypeStudioAppProps): JSX.Element 
     setBusy(true)
     setNotice(undefined)
     try {
-      await discardStagedPrototype(sessionIdRef.current ?? '', requirementId, invoke)
+      await discardStagedPrototype(scopeSessionId ?? '', requirementId, invoke)
       const view = await refreshStaged()
       setShowingBefore(false)
       setHighlight(false)
@@ -238,7 +258,7 @@ export function PrototypeStudioApp(props: PrototypeStudioAppProps): JSX.Element 
     setBusy(true)
     setNotice(undefined)
     try {
-      const restored = await restorePrototypeSnapshot(sessionIdRef.current ?? '', requirementId, snapshotId, invoke)
+      const restored = await restorePrototypeSnapshot(scopeSessionId ?? '', requirementId, snapshotId, invoke)
       await Promise.all([refreshStaged(), refreshSnapshots()])
       loadHtml(restored.html, restored.html)
       setNotice(t('studio.restoreDone'))
@@ -250,7 +270,7 @@ export function PrototypeStudioApp(props: PrototypeStudioAppProps): JSX.Element 
   }
 
   const sendPrompt = async (prompt: string): Promise<boolean> => {
-    let sid = sessionIdRef.current
+    let sid = chatSessionIdRef.current
     if (sid === null) {
       const workspaceId = (() => {
         try {
@@ -277,8 +297,8 @@ export function PrototypeStudioApp(props: PrototypeStudioAppProps): JSX.Element 
         return false
       }
       sid = value.sessionId
-      sessionIdRef.current = sid
-      setSessionId(sid)
+      chatSessionIdRef.current = sid
+      setChatSessionId(sid)
       try {
         localStorage.setItem(`lcoder.studio.session.${requirementId}`, sid)
       } catch {
@@ -296,7 +316,7 @@ export function PrototypeStudioApp(props: PrototypeStudioAppProps): JSX.Element 
     return true
   }
 
-  const sendCoDesign = async (instruction: string, anchors: readonly StudioSelectionInfo[]): Promise<boolean> => {
+  const sendCoDesign = async (instruction: string, anchors: readonly StudioAnchorDraft[]): Promise<boolean> => {
     const prompt = buildStudioCoDesignPrompt({
       requirementId,
       requirementTitle: requirementId,
@@ -304,8 +324,19 @@ export function PrototypeStudioApp(props: PrototypeStudioAppProps): JSX.Element 
       instruction,
       anchors,
     })
-    return sendPrompt(prompt)
+    const accepted = await sendPrompt(prompt)
+    if (accepted) setTurn({ instruction, anchors })
+    return accepted
   }
+
+  /** 回合结束后重读暂存并把画布载到最新一版；暂存为空时回到正式版。 */
+  const refreshAfterTurn = useCallback((): void => {
+    void refreshStaged().then((view) => {
+      loadHtml(view.staged === null ? view.committedHtml : view.staged.html, view.committedHtml)
+    }).catch((cause: unknown) => {
+      setNotice(cause instanceof Error ? cause.message : String(cause))
+    })
+  }, [refreshStaged, loadHtml])
 
   const isFullscreen = viewMode === 'fullscreen-pinned'
 
@@ -417,8 +448,9 @@ export function PrototypeStudioApp(props: PrototypeStudioAppProps): JSX.Element 
         <CoDesignThread
           t={t}
           bridge={bridge}
-          sessionId={sessionId}
-          onStageComplete={() => { void refreshStaged() }}
+          sessionId={chatSessionId}
+          turn={turn}
+          onStageComplete={refreshAfterTurn}
           onRunningChange={setTurnRunning}
         />
         <AnchorComposer t={t} bridge={bridge} running={turnRunning || busy} onSend={sendCoDesign} />

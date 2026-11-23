@@ -15,6 +15,13 @@
   font-family: var(--app-font);
 }
 
+/* 分屏右侧栏占满整窗高度：内部只有对话流滚动，输入区沉底，页面本身不滚动。 */
+.studio-app:not(.studio-app-pinned) {
+  height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
+}
+
 .studio-app-pinned {
   min-height: auto;
   padding: 8px;
@@ -22,6 +29,8 @@
 
 .studio-body {
   display: flex;
+  flex: 1;
+  min-height: 0;
   flex-direction: column;
   gap: 10px;
   padding: 12px;
@@ -129,6 +138,18 @@
   background: var(--glass-surface-elevated);
 }
 
+/* 对话流吃掉剩余高度并自己滚动；其余区域保持自然高度，输入区固定沉底。 */
+.studio-thread {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.studio-composer {
+  flex: none;
+  margin-top: auto;
+}
+
 .studio-snapshot {
   display: flex;
   align-items: center;
@@ -201,11 +222,90 @@
   font-size: 12px;
 }
 
-.studio-turn-running,
 .studio-turn-brief {
   margin: 0;
   font-size: 12px;
   color: var(--muted-foreground, var(--foreground));
+}
+
+/* 本轮已发出的意见：先回显用户的锚点与逐项要求，再显示进度。 */
+.studio-user-turn {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--glass-outline);
+  border-radius: 10px;
+  background: var(--glass-inset-soft);
+  font-size: 12px;
+}
+
+.studio-user-instruction {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.studio-user-anchors {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.studio-user-anchor {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: baseline;
+}
+
+.studio-user-anchor-label {
+  font-weight: 600;
+}
+
+.studio-user-anchor-note {
+  color: var(--muted-foreground, var(--foreground));
+  word-break: break-word;
+}
+
+.studio-thread-empty {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted-foreground, var(--foreground));
+}
+
+.studio-turn-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted-foreground, var(--foreground));
+}
+
+.studio-turn-progress-bar {
+  position: relative;
+  overflow: hidden;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--glass-slot);
+}
+
+.studio-turn-progress-bar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: 40%;
+  border-radius: inherit;
+  background: var(--glass-slot-active-bg, var(--foreground));
+  animation: studio-turn-progress 1.2s ease-in-out infinite;
+}
+
+@keyframes studio-turn-progress {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(250%); }
 }
 
 .studio-turn-collapsed {
@@ -229,9 +329,30 @@
 
 .studio-anchor-list {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+/* 每个锚点一张小卡：上行胶囊（序号 + 可读名 + 删除），下行该元素的专属输入框。 */
+.studio-anchor-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 180px;
+  max-width: 260px;
+}
+
+.studio-anchor-note {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 5px 8px;
+  border: 1px solid var(--glass-outline);
+  border-radius: 8px;
+  background: var(--glass-inset-soft);
+  color: var(--foreground);
+  font: inherit;
+  font-size: 12px;
 }
 
 .studio-anchor-chip {
@@ -250,6 +371,11 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.studio-anchor-index {
+  flex: none;
+  color: var(--muted-foreground, var(--foreground));
 }
 
 .studio-anchor-remove {

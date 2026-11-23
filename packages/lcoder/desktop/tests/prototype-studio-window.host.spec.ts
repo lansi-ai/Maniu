@@ -8,8 +8,10 @@ interface FakeWebContents {
   readonly send: Mock
   readonly loadURL: Mock
   readonly loadFile: Mock
+  readonly on: Mock
   readonly session: { readonly webRequest: { readonly onBeforeRequest: Mock } }
   isDestroyed(): boolean
+  emit(event: string): void
 }
 
 interface ViewOptions { readonly webPreferences: Readonly<Record<string, unknown>> }
@@ -29,8 +31,17 @@ const electron = vi.hoisted(() => {
       const session = options.webPreferences.partition === 'lcoder-prototype-preview'
         ? sharedPrototypeSession
         : { webRequest: { onBeforeRequest: vi.fn() } }
+      const listeners = new Map<string, Array<() => void>>()
       this.webContents = {
-        send: vi.fn(), loadURL: vi.fn(), loadFile: vi.fn(), session, isDestroyed: () => false,
+        send: vi.fn(),
+        loadURL: vi.fn(),
+        loadFile: vi.fn(),
+        on: vi.fn((event: string, listener: () => void) => {
+          listeners.set(event, [...(listeners.get(event) ?? []), listener])
+        }),
+        emit: (event: string) => { for (const listener of listeners.get(event) ?? []) listener() },
+        session,
+        isDestroyed: () => false,
       }
       views.push(this)
     }
@@ -215,6 +226,23 @@ describe('createPrototypeStudioWindow', () => {
     studio.highlightPaths(['body > div'])
     expect(after.webContents.send).toHaveBeenLastCalledWith(IPC_CHANNELS.prototypeStudioInspectControl, { highlightDomPaths: ['body > div'] })
     expect(before.webContents.send).toHaveBeenLastCalledWith(IPC_CHANNELS.prototypeStudioInspectControl, { highlightDomPaths: ['body > div'] })
+  })
+
+  it('画布 did-finish-load 补发当前交互模式，重载后提示条也跟着收起', () => {
+    const studio = createPrototypeStudioWindow(REQUEST)
+    const after = viewAt(0)
+    after.webContents.send.mockClear()
+    after.webContents.emit('did-finish-load')
+    expect(after.webContents.send).toHaveBeenCalledExactlyOnceWith(
+      IPC_CHANNELS.prototypeStudioInspectControl, { interactionMode: 'interact' },
+    )
+
+    studio.setInteraction('select')
+    after.webContents.send.mockClear()
+    after.webContents.emit('did-finish-load')
+    expect(after.webContents.send).toHaveBeenCalledExactlyOnceWith(
+      IPC_CHANNELS.prototypeStudioInspectControl, { interactionMode: 'select' },
+    )
   })
 
   it('dispose 移除全部子视图与 resize 监听，不再暴露点选目标', () => {

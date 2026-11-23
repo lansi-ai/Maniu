@@ -240,6 +240,40 @@ describe('prototype-preview-preload', () => {
     expect(button.hasAttribute('data-lcoder-changed')).toBe(false)
     expect(button.style.getPropertyValue('outline')).toBe('')
   })
+
+  it('卡片容器自身没有文本时，从内层标题取可读元素名', () => {
+    document.body.innerHTML = '<div class="mini"><h3>本月已提交报销总额</h3><span>￥12,000</span></div>'
+    const target = document.querySelector<HTMLElement>('.mini')
+    if (target === null) throw new Error('missing card')
+    target.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, altKey: true }))
+    expect((electron.invoke.mock.calls.at(-1)?.[1] as PrototypeSelectionInfo).label).toBe('本月已提交报销总额')
+
+    // 内层没有标题/强调子节点时，退到整段文本的首段。
+    document.body.innerHTML = '<div class="mini"><div>本月已提交报销总额</div> <div>共 12 笔</div></div>'
+    const plain = document.querySelector<HTMLElement>('.mini')
+    if (plain === null) throw new Error('missing card')
+    plain.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, altKey: true }))
+    expect((electron.invoke.mock.calls.at(-1)?.[1] as PrototypeSelectionInfo).label).toBe('本月已提交报销总额')
+  })
+
+  it('工作台画布收到下行控制后收起提示条，只在运行时报错时露出红条且节点保留', () => {
+    const bar = document.querySelector<HTMLElement>('[data-testid="prototype-preview-hint"]')
+    const banner = document.querySelector<HTMLElement>('[data-testid="prototype-preview-error"]')
+    if (bar === null || banner === null) throw new Error('缺少提示条节点')
+
+    sendControl({ interactionMode: 'select' })
+    expect(bar.style.display).toBe('none')
+    expect(document.querySelector('[data-testid="prototype-preview-select-mode"]')).not.toBeNull()
+    expect(document.querySelector('[data-testid="prototype-preview-hint"]')).not.toBeNull()
+
+    window.dispatchEvent(new ErrorEvent('error', { message: 'ReferenceError: x is not defined' }))
+    expect(bar.style.display).toBe('flex')
+    expect(banner.style.display).toBe('flex')
+
+    document.querySelector<HTMLButtonElement>('[data-testid="prototype-preview-error-dismiss"]')?.click()
+    expect(banner.style.display).toBe('none')
+    expect(bar.style.display).toBe('none')
+  })
 })
 
 /** 触发 preload 订阅的工作台检查器控制。 */

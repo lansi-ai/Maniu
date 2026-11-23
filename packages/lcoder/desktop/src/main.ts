@@ -8,7 +8,7 @@ import type { DesktopLocaleId } from './contract.ts'
 import { readDesktopPreferences } from './desktop-locale.ts'
 import { releasedUserDataPath, resolveDesktopHome } from './home.ts'
 import { HostSupervisor, type HostLaunch } from './host-supervisor.ts'
-import { createStatePublisher, createWindowStatePublisher, registerIpc } from './ipc.ts'
+import { createStatePublisher, createWindowStatePublisher, registerIpc, STUDIO_BROADCAST_CHANNELS, type StudioUiReader } from './ipc.ts'
 import { HostLink } from './link.ts'
 import { createModelDebugLog } from './model-debug.ts'
 import { installMenu } from './menu.ts'
@@ -59,13 +59,26 @@ let closeConfirmed = false
 const runningTurns = new RunningTurns()
 const modelDebug = createModelDebugLog(process.env.LCODER_DEBUG === '1')
 
-const publisher = createStatePublisher(() => mainWindow)
+/** 当前 Prototype Studio 的协作界面；未打开时为 undefined。 */
+let studioUi: StudioUiReader | undefined
+
+const publisher = createStatePublisher(
+  () => mainWindow,
+  () => [studioUi?.studioUiWebContents()],
+)
 const windowState = createWindowStatePublisher(() => mainWindow)
 
+/**
+ * 广播一条主进程消息：主窗总是收；事件与流类消息同时送到工作台协作界面，
+ * 否则 Studio 的对话流收不到任何回显。任一目标已销毁就跳过它。
+ * @param channel - IPC 通道名。
+ * @param args - 通道载荷。
+ */
 function send(channel: string, ...args: readonly unknown[]): void {
   const target = mainWindow
-  if (target === undefined || target.isDestroyed()) return
-  target.webContents.send(channel, ...args)
+  if (target !== undefined && !target.isDestroyed()) target.webContents.send(channel, ...args)
+  if (!STUDIO_BROADCAST_CHANNELS.has(channel)) return
+  studioUi?.studioUiWebContents()?.send(channel, ...args)
 }
 
 function wireStateReplay(window: BrowserWindow): void {
@@ -200,7 +213,7 @@ if (!app.requestSingleInstanceLock()) {
   app.on('second-instance', () => { focusWindow() })
   app.whenReady().then(async () => {
     locale = readDesktopPreferences().locale
-    registerIpc({
+    studioUi = registerIpc({
       link: () => link,
       appInfo: () => ({ version: app.getVersion(), ...(link === undefined ? {} : { hostUrl: supervisor?.readyUrl ?? '' }) }),
       window: () => mainWindow,
