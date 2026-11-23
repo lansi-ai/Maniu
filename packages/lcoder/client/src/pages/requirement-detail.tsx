@@ -243,6 +243,8 @@ export interface RequirementDetailProps {
   readonly onGeneratePrototype?: ((prompt: string) => Promise<{ readonly ok: boolean; readonly message: string }>) | undefined
   /** 跳转到原型库页面预览或管理组件素材库。 */
   readonly onOpenPrototypeLibrary?: (() => void) | undefined
+  /** 跳到原型页查看项目活原型；参数是当前需求上下文。 */
+  readonly onOpenPrototype?: ((requirementId: string) => void) | undefined
   /** 从当前详情页打开统一「提变更 / 加功能」分流弹窗。 */
   readonly onChangeTriage?: (() => void) | undefined
   /** 统一分流弹窗打开期间不抢 Esc。 */
@@ -1472,6 +1474,9 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                   onGenerate={props.onGeneratePrototype}
                   onReload={props.onReload}
                   onManageLibraries={props.onOpenPrototypeLibrary}
+                  onOpenProjectPrototype={props.onOpenPrototype === undefined
+                    ? undefined
+                    : () => { props.onOpenPrototype?.(row.id) }}
                   t={t}
                 />
               )}

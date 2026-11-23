@@ -4,9 +4,10 @@
  *
  * `prefetch` 复用宿主已启用的 `ctx.web.fetch()`（web-fetch-http 提供方），
  * 只回结构化样式摘要；其余方法把原型产物写进会话工作区的
- * `.spec/prototypes/<编号>/`。全部是窄口：Web/Node 不在渲染端出现，
- * 不可信网页原文不回传，也不灌进模型；暂存与快照只经模型工具写暂存，
- * 正式版与需求正文的落盘由宿主按评审状态受控执行。
+ * `.spec/prototypes/<作用域目录>/`，作用域是需求编号或项目级统一活原型的
+ * `__project__`。全部是窄口：Web/Node 不在渲染端出现，不可信网页原文不回传，
+ * 也不灌进模型；暂存与快照只经模型工具写暂存，正式版与需求正文的落盘由宿主按
+ * 评审状态受控执行。
  *
  * 每个方法都返回裸业务值：typert 的 wire 信封自己包一层 `{ ok, value }`，
  * 方法再包一层就成了双层，界面只剥一层会拿到 `undefined`。失败一律抛
@@ -23,6 +24,7 @@ import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 
 import { assertRequirementId } from '../kernel/requirement-store.js'
 import { toRemoteError } from './errors.js'
+import { PROJECT_SCOPE_DIR } from './paths.js'
 import { assertFetchableUrl, isHtmlBody, PrototypeError, summarizeHtml } from './summary.js'
 import type { StyleSummary } from './summary.js'
 import {
@@ -113,8 +115,8 @@ export class PrototypeController extends TypertRemoteService {
   }
 
   /**
-   * 读一条需求的暂存原型与当前正式版 HTML。
-   * @param input - 会话号与需求编号。
+   * 读暂存原型与当前正式版 HTML；需求编号缺省时读项目级统一活原型。
+   * @param input - 会话号与可选需求编号。
    * @returns 暂存视图；没有暂存或没有正式版时对应字段为 null。
    * @throws {RemoteError} `PROTOTYPE/NO_WORKSPACE`，或读取失败折成的 `PROTOTYPE/FAILED`。
    */
@@ -122,17 +124,17 @@ export class PrototypeController extends TypertRemoteService {
   getStaged(input: PrototypeScopeInput): Promise<PrototypeStagedView> {
     return this.perform(() => {
       const root = this.specRootOf(input.sessionId)
-      const id = assertRequirementId(input.requirementId.trim())
+      const scopeDir = this.scopeDirOf(input.requirementId)
       return {
-        staged: readStagedPrototype(root, id),
-        committedHtml: readPrototypeHtml(root, id) ?? null,
+        staged: readStagedPrototype(root, scopeDir),
+        committedHtml: readPrototypeHtml(root, scopeDir) ?? null,
       }
     })
   }
 
   /**
    * 提交暂存：归档旧版、写回正式版，并按需求状态受控同步正文。
-   * @param input - 会话号、需求编号与可选的正文回写开关。
+   * @param input - 会话号、可选需求编号与可选的正文回写开关。
    * @returns 提交时刻、归档编号与正文同步结果。
    * @throws {RemoteError} `PROTOTYPE/NO_STAGED`、`PROTOTYPE/REQUIREMENT_BASELINE_CONFLICT`、
    * `PROTOTYPE/NO_WORKSPACE`，或落盘失败折成的 `PROTOTYPE/FAILED`。
@@ -141,14 +143,14 @@ export class PrototypeController extends TypertRemoteService {
   commitStaged(input: PrototypeCommitStagedInput): Promise<PrototypeCommitResult> {
     return this.perform(() => {
       const root = this.specRootOf(input.sessionId)
-      const id = assertRequirementId(input.requirementId.trim())
-      return commitStagedPrototype(root, id, input)
+      const scopeDir = this.scopeDirOf(input.requirementId)
+      return commitStagedPrototype(root, scopeDir, input)
     })
   }
 
   /**
-   * 丢弃一条需求的暂存原型；正式版与需求正文不受影响。
-   * @param input - 会话号与需求编号。
+   * 丢弃暂存原型；正式版与需求正文不受影响。
+   * @param input - 会话号与可选需求编号。
    * @returns 成功标记。
    * @throws {RemoteError} `PROTOTYPE/NO_WORKSPACE`，或删除失败折成的 `PROTOTYPE/FAILED`。
    */
@@ -156,15 +158,14 @@ export class PrototypeController extends TypertRemoteService {
   discardStaged(input: PrototypeScopeInput): Promise<PrototypeOkValue> {
     return this.perform(() => {
       const root = this.specRootOf(input.sessionId)
-      const id = assertRequirementId(input.requirementId.trim())
-      discardStagedPrototype(root, id)
+      discardStagedPrototype(root, this.scopeDirOf(input.requirementId))
       return { ok: true }
     })
   }
 
   /**
-   * 列出一条需求的历史快照，按时间倒序、最多 10 条。
-   * @param input - 会话号与需求编号。
+   * 列出历史快照，按时间倒序、最多 10 条；需求编号缺省时列项目级作用域。
+   * @param input - 会话号与可选需求编号。
    * @returns 快照元数据列表。
    * @throws {RemoteError} `PROTOTYPE/NO_WORKSPACE`，或读取失败折成的 `PROTOTYPE/FAILED`。
    */
@@ -172,14 +173,13 @@ export class PrototypeController extends TypertRemoteService {
   listSnapshots(input: PrototypeScopeInput): Promise<PrototypeListSnapshotsValue> {
     return this.perform(() => {
       const root = this.specRootOf(input.sessionId)
-      const id = assertRequirementId(input.requirementId.trim())
-      return { snapshots: listPrototypeSnapshots(root, id) }
+      return { snapshots: listPrototypeSnapshots(root, this.scopeDirOf(input.requirementId)) }
     })
   }
 
   /**
-   * 恢复一份历史快照：当前正式版先归档，再把快照写回并刷新 YAML 登记。
-   * @param input - 会话号、需求编号与快照编号。
+   * 恢复一份历史快照：当前正式版先归档，再把快照写回；需求级作用域同时刷新 YAML 登记。
+   * @param input - 会话号、可选需求编号与快照编号。
    * @returns 恢复时刻与恢复后的 HTML。
    * @throws {RemoteError} `PROTOTYPE/SNAPSHOT_NOT_FOUND`、`PROTOTYPE/NO_WORKSPACE`，
    * 或编号越界折成的 `PROTOTYPE/FAILED`。
@@ -188,8 +188,7 @@ export class PrototypeController extends TypertRemoteService {
   restoreSnapshot(input: PrototypeRestoreSnapshotInput): Promise<PrototypeRestoreSnapshotValue> {
     return this.perform(() => {
       const root = this.specRootOf(input.sessionId)
-      const id = assertRequirementId(input.requirementId.trim())
-      return restorePrototypeSnapshot(root, id, input.snapshotId)
+      return restorePrototypeSnapshot(root, this.scopeDirOf(input.requirementId), input.snapshotId)
     })
   }
 
@@ -205,6 +204,17 @@ export class PrototypeController extends TypertRemoteService {
     } catch (error: unknown) {
       throw toRemoteError(error)
     }
+  }
+
+  /**
+   * 把可选的需求编号折成原型作用域目录：缺省或空白表示项目级统一活原型。
+   * @param requirementId - 请求带来的需求编号。
+   * @returns 需求编号，或项目级目录 `__project__`。
+   * @throws 需求编号形态不合法。
+   */
+  private scopeDirOf(requirementId: string | undefined): string {
+    const id = requirementId?.trim() ?? ''
+    return id === '' ? PROJECT_SCOPE_DIR : assertRequirementId(id)
   }
 
   /**

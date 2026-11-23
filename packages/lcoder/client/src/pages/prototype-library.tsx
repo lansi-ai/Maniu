@@ -1,4 +1,7 @@
-/** 原型库页：内置 4 套组件素材库浏览、实时沙箱预览、设为默认与自定义库新建/复制/编辑/删除。 */
+/**
+ * 素材库页：分区 Tab 下的原型风格模板浏览（内置 4 套素材库、实时沙箱预览、设为默认与
+ * 自定义库新建/复制/编辑/删除）；品牌色板是预留分区，暂时只有空态。
+ */
 
 import { useEffect, useState } from 'react'
 import type { JSX } from 'react'
@@ -49,19 +52,24 @@ const EMPTY_FORM: FormState = {
   previewHtml: '',
 }
 
-/** 原型库页属性。 */
+/** 素材库页属性。 */
 export interface PrototypeLibraryPageProps {
   readonly t?: Translate | undefined
 }
 
+/** 素材库分区；首个分区是现有的原型风格模板，后续分区按需追加。 */
+type LibraryTab = 'styles' | 'brand'
+
 /**
- * 原型库页面：左侧展示全部组件素材库卡片，右侧提供沙箱预览与 Design Tokens / 组件规范详情。
+ * 素材库页面：分区 Tab 下左侧展示全部组件素材库卡片，右侧提供沙箱预览与 Design Tokens /
+ * 组件规范详情。
  * @param props - 本地化取词函数。
- * @returns 原型库主视图与编辑弹窗。
+ * @returns 素材库主视图与编辑弹窗。
  */
 export function PrototypeLibraryPage(props: PrototypeLibraryPageProps): JSX.Element {
   const t = props.t ?? zhText
   const state = usePrototypeLibraryState()
+  const [tab, setTab] = useState<LibraryTab>('styles')
   const [selectedId, setSelectedId] = useState<string>(state.defaultLibraryId)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [modal, setModal] = useState<ModalMode>({ kind: 'closed' })
@@ -197,7 +205,31 @@ export function PrototypeLibraryPage(props: PrototypeLibraryPageProps): JSX.Elem
         </div>
       </header>
 
-      <div className="proto-lib-layout">
+      <div className="proto-lib-tabs" role="tablist" aria-label={t('protoLib.tabsLabel')} data-testid="proto-lib-tabs">
+        <button
+          type="button"
+          role="tab"
+          className={tab === 'styles' ? 'proto-lib-tab proto-lib-tab-on' : 'proto-lib-tab'}
+          aria-selected={tab === 'styles'}
+          data-testid="proto-lib-tab-styles"
+          onClick={() => { setTab('styles') }}
+        >
+          {t('protoLib.tabStyles')}
+        </button>
+        <button
+          type="button"
+          role="tab"
+          className={tab === 'brand' ? 'proto-lib-tab proto-lib-tab-on' : 'proto-lib-tab'}
+          aria-selected={tab === 'brand'}
+          data-testid="proto-lib-tab-brand"
+          onClick={() => { setTab('brand') }}
+        >
+          {t('protoLib.tabBrand')}
+        </button>
+      </div>
+
+      {/* 首个分区常驻挂载，切走只隐藏：沙箱预览与编辑状态不因换 Tab 重建。 */}
+      <div className="proto-lib-layout" hidden={tab !== 'styles'}>
         <aside className="proto-lib-sidebar" aria-label={t('protoLib.listHeading', { count: state.libraries.length })}>
           <div className="proto-lib-list-head">
             <span>{t('protoLib.listHeading', { count: state.libraries.length })}</span>
@@ -423,6 +455,12 @@ export function PrototypeLibraryPage(props: PrototypeLibraryPageProps): JSX.Elem
           </div>
         </section>
       </div>
+
+      {tab === 'brand' && (
+        <div className="info-card proto-lib-reserved" data-testid="proto-lib-brand-panel">
+          <p className="empty" data-testid="proto-lib-brand-empty">{t('protoLib.brandEmpty')}</p>
+        </div>
+      )}
 
       <Modal.Root state={overlayState}>
         <Modal.Backdrop isDismissable variant="transparent" className="glass-modal-backdrop">
