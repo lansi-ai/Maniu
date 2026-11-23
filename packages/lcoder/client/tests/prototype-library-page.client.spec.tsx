@@ -113,7 +113,7 @@ afterEach(() => {
 })
 
 describe('左侧菜单与原型库挂载', () => {
-  it('原型库菜单位于人才库正下方、设置上方，点击后打开原型库页面', async () => {
+  it('原型库菜单位于人才库正下方、项目与设置之上，点击后打开原型库页面', async () => {
     installMinimalWindowApi()
     await act(async () => { root.render(<App />) })
     await flush()
@@ -122,11 +122,13 @@ describe('左侧菜单与原型库挂载', () => {
       .map(node => node.getAttribute('data-testid'))
     const talentsIndex = navIds.indexOf('nav-talents')
     const protoIndex = navIds.indexOf('nav-prototype-library')
+    const projectsIndex = navIds.indexOf('nav-projects')
     const settingsIndex = navIds.indexOf('nav-settings')
 
     expect(talentsIndex).toBeGreaterThanOrEqual(0)
     expect(protoIndex).toBe(talentsIndex + 1)
-    expect(settingsIndex).toBe(protoIndex + 1)
+    expect(projectsIndex).toBe(protoIndex + 1)
+    expect(settingsIndex).toBe(projectsIndex + 1)
 
     await pressElement(container.querySelector('[data-testid="nav-prototype-library"]'))
     expect(container.querySelector('[data-testid="page-prototype-library"]')).not.toBeNull()

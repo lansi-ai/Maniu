@@ -172,6 +172,17 @@ interface FinishedOp extends OpRun {
   readonly liveFeed?: OpLiveFeed
 }
 
+/** 页外状态筛选：`seq` 变化即重新应用，即使筛选值与上次相同。 */
+export interface RequirementStateFilter {
+  readonly seq: number
+  readonly value: string
+}
+
+/** 从总览页带来的入口意图；`seq` 变化才重新执行一次。 */
+export type RequirementsIntent =
+  | { readonly seq: number; readonly kind: 'intake' }
+  | { readonly seq: number; readonly kind: 'focus'; readonly id: string }
+
 /** 需求页属性。 */
 export interface RequirementsPageProps {
   readonly project: ProjectScope | null
@@ -208,6 +219,10 @@ export interface RequirementsPageProps {
   readonly onAnswerPending?: (ids: readonly string[]) => void
   /** 取词函数；缺省为中文词典。 */
   readonly t?: Translate
+  /** 总览漏斗带来的状态筛选；变化时覆盖页内选择。 */
+  readonly stateFilter?: RequirementStateFilter | undefined
+  /** 总览页带来的入口意图：立项向导或指定需求详情。 */
+  readonly intent?: RequirementsIntent | undefined
 }
 
 /**
@@ -219,6 +234,13 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
   const t = props.t ?? zhText
   const [text, setText] = useState('')
   const [state, setState] = useState('')
+  // 总览漏斗是页外控制：筛选代际变化时覆盖页内的状态选择，页内切换仍照常生效。
+  const appliedStateFilter = useRef(0)
+  const stateFilter = props.stateFilter
+  if (stateFilter !== undefined && stateFilter.seq !== appliedStateFilter.current) {
+    appliedStateFilter.current = stateFilter.seq
+    if (state !== stateFilter.value) setState(stateFilter.value)
+  }
   const [selected, setSelected] = useState<string | null>(null)
   /** 版本号徽标直达详情时携带的历史抽屉入口；普通行点击不带这个标志。 */
   const [historyEntry, setHistoryEntry] = useState<{ readonly seq: number; readonly open: boolean }>({ seq: 0, open: false })
@@ -1014,6 +1036,20 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
     })
     if (kept.length !== confirmSent.length) setConfirmSent(kept)
   }, [confirmSent, watches, props.sessions])
+
+  // 总览页的入口意图：同一个意图只执行一次，由 seq 区分重复点击。
+  const appliedIntent = useRef(0)
+  useEffect(() => {
+    const intent = props.intent
+    if (intent === undefined || intent.seq === appliedIntent.current) return
+    appliedIntent.current = intent.seq
+    if (props.project === null) return
+    if (intent.kind === 'intake') {
+      setWizard(true)
+      return
+    }
+    if (props.projection.requirements.some(row => row.id === intent.id)) setSelected(intent.id)
+  }, [props.intent, props.project, props.projection.requirements])
 
   /** 立项卡点「确认需求」：经宿主向该会话发确认指令，成功后保持轮询等落盘。 */
   const confirmIntake = async (key: string): Promise<void> => {

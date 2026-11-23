@@ -20,6 +20,8 @@ export interface ProjectInfoPageProps {
   readonly onReload: () => void
   /** preset 名册显示名；流程配置节的岗位名优先取它，读不到回退词典。 */
   readonly presetNames?: Readonly<Record<string, string>>
+  /** 嵌进弹窗时省略页面头部与内边距，只保留卡片内容。 */
+  readonly embedded?: boolean
 }
 
 /**
@@ -38,18 +40,20 @@ export function ProjectInfoPage(props: ProjectInfoPageProps): JSX.Element {
   }
 
   return (
-    <section className="page" data-testid="page-project-info">
-      <header className="page-head">
-        <div>
-          <h2>项目信息</h2>
-          <p className="page-sub">{props.project?.path ?? '未选择项目'}</p>
-        </div>
-        <div className="page-actions">
-          <Button variant="secondary" data-testid="project-info-reload" onPress={props.onReload}>
-            {props.loading ? '读取中…' : '刷新'}
-          </Button>
-        </div>
-      </header>
+    <section className={props.embedded === true ? 'project-info-embedded' : 'page'} data-testid="page-project-info">
+      {props.embedded !== true && (
+        <header className="page-head">
+          <div>
+            <h2>项目信息</h2>
+            <p className="page-sub">{props.project?.path ?? '未选择项目'}</p>
+          </div>
+          <div className="page-actions">
+            <Button variant="secondary" data-testid="project-info-reload" onPress={props.onReload}>
+              {props.loading ? '读取中…' : '刷新'}
+            </Button>
+          </div>
+        </header>
+      )}
 
       {props.project === null && <p className="empty" data-testid="project-info-no-project">先在「切换项目」里打开一个仓库。</p>}
       {props.error !== null && <pre className="problem" data-testid="project-info-problems">{props.error}</pre>}

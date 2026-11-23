@@ -14,12 +14,21 @@ function isPending(review: RequirementReviewRow): boolean {
 }
 
 /**
+ * 未处置的评审轮次，升序；与 kernel `requirement_approve` 的 pending 门禁同口径。
+ * @param reviews - 需求的评审轮次。
+ * @returns 未决轮次号；全部处置过时为空表。
+ */
+export function pendingReviewRounds(reviews: readonly RequirementReviewRow[]): number[] {
+  return reviews.filter(isPending).map(review => review.round).sort((left, right) => left - right)
+}
+
+/**
  * 是否还有未处置的评审轮次；与 kernel `requirement_approve` 的 pending 门禁同口径。
  * @param reviews - 需求的评审轮次。
  * @returns 存在未决轮次时为 true。
  */
 export function hasPendingReviews(reviews: readonly RequirementReviewRow[]): boolean {
-  return reviews.some(isPending)
+  return pendingReviewRounds(reviews).length > 0
 }
 
 /** 门禁判定的输入：需求的评审、版本、流程配置、岗位名册与当前正文。 */
@@ -119,7 +128,7 @@ export function canModifyDraft(params: RequirementGateParams): ModifyGate {
 export function canApproveRequirement(params: Omit<RequirementGateParams, 'versions'>): ApproveGate {
   const { reviews, flow, roster } = params
   if (reviews.length === 0) return { ok: false, block: { reason: 'noReview' } }
-  const pending = reviews.filter(isPending).map(review => review.round).sort((left, right) => left - right)
+  const pending = pendingReviewRounds(reviews)
   if (pending.length > 0) return { ok: false, block: { reason: 'pending', rounds: pending } }
   const missing = missingReviewRoles(flow, roster, reviews)
   if (missing.length > 0) return { ok: false, block: { reason: 'missingRoles', roles: missing } }
