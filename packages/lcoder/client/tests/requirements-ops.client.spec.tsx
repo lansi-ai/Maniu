@@ -166,6 +166,43 @@ describe('需求表列', () => {
   })
 })
 
+describe('列表版本徽标直达历史', () => {
+  it('点击版本号徽标直达详情并弹历史抽屉，不触发整行操作，关闭后普通行不误弹', async () => {
+    const withHistory: RequirementDocRow = {
+      ...DRAFT,
+      versions: [
+        { n: 1, at: '2026-11-16T09:00:00+08:00' },
+        { n: 2, at: '2026-11-17T09:00:00+08:00' },
+      ],
+      reviews: [{ round: 1, at: '2026-11-17T10:00:00+08:00', report: 'requirements/REQ-01/reviews/R1.md' }],
+    }
+    const calls: StartCall[] = []
+    renderPage(projectionOf([withHistory], []), calls)
+
+    const badge = document.querySelector<HTMLElement>('[data-testid="requirement-row-version"]')
+    expect(badge?.textContent).toBe('v2')
+    expect(badge?.closest('[data-testid="requirement-row"]')).not.toBeNull()
+    await act(async () => {
+      badge?.click()
+      await new Promise(resolve => setTimeout(resolve, 0))
+    })
+
+    expect(element('requirement-detail')).not.toBeNull()
+    expect(element('requirement-history-layer')?.hasAttribute('hidden')).toBe(false)
+    expect(element('requirement-history-trigger')?.textContent).toContain('v2')
+    expect(element('requirement-history-trigger')?.textContent).toContain('R1')
+    // 徽标只开详情，不触发评审/改稿等整行会话。
+    expect(calls).toHaveLength(0)
+
+    await press('requirement-detail-close')
+    expect(element('requirement-detail')).toBeNull()
+
+    await press('requirement-row')
+    expect(element('requirement-detail')).not.toBeNull()
+    expect(element('requirement-history-layer')?.hasAttribute('hidden')).toBe(true)
+  })
+})
+
 describe('需求表操作分支', () => {
   it('草稿行给评审与修改需求，点击评审不打开详情', async () => {
     const calls: StartCall[] = []

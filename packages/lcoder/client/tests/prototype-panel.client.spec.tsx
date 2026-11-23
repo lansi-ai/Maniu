@@ -133,6 +133,7 @@ describe('PrototypePanel', () => {
     await act(async () => {
       const input = container.querySelector<HTMLInputElement>('[data-testid="prototype-url-input"]')
       if (input === null) throw new Error('no url input')
+      // oxlint-disable-next-line typescript/unbound-method -- 原生 value setter 要用 call 绑定到该输入框。
       const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
       setter?.call(input, 'https://example.com')
       input.dispatchEvent(new Event('input', { bubbles: true }))
@@ -186,7 +187,7 @@ describe('PrototypePanel', () => {
     expect(generate).toHaveBeenCalledTimes(1)
     expect(chip.getAttribute('data-state')).toBe('running')
     expect(container.querySelector('[data-testid="prototype-section-status"]')?.textContent).toContain('顶部导航')
-    expect(String(generate.mock.calls[0]?.[0] ?? '')).toContain('只重做「顶部导航」区块')
+    expect(generate.mock.calls[0]?.[0] ?? '').toContain('只重做「顶部导航」区块')
 
     await act(async () => { resolveGenerate?.({ ok: true, message: '会话已发起' }) })
     expect(container.querySelector('[data-testid="prototype-section-status"]')).toBeNull()
@@ -253,6 +254,31 @@ describe('PrototypePanel', () => {
     expect(String(h.generate.mock.calls[0]?.[0] ?? '')).not.toContain('区块级重生成')
   })
 
+  it('已有原型默认收起生成配置，点重新生成配置才展开，预览与独立窗按钮常驻', async () => {
+    const h = harness(REGISTERED)
+    const api = installWindowApi()
+    await render(h.props)
+
+    // 预览与独立窗按钮在首屏；参考图与网页地址配置默认折叠。
+    expect(container.querySelector('[data-testid="prototype-preview"]')).not.toBeNull()
+    expect(container.querySelector('[data-testid="prototype-open-window"]')).not.toBeNull()
+    expect(container.querySelector('[data-testid="prototype-config"]')?.hasAttribute('hidden')).toBe(true)
+    expect(container.querySelector('[data-testid="prototype-config-toggle"]')?.textContent).toContain('重新生成配置')
+
+    await click('prototype-config-toggle')
+    expect(container.querySelector('[data-testid="prototype-config"]')?.hasAttribute('hidden')).toBe(false)
+    expect(container.querySelector('[data-testid="prototype-url-input"]')).not.toBeNull()
+    expect(container.querySelector('[data-testid="prototype-ref-input"]')).not.toBeNull()
+    expect(api.open).not.toHaveBeenCalled()
+  })
+
+  it('无原型时生成配置默认展开', async () => {
+    const h = harness()
+    await render(h.props)
+    expect(container.querySelector('[data-testid="prototype-config"]')?.hasAttribute('hidden')).toBe(false)
+    expect(container.querySelector('[data-testid="prototype-preview-empty"]')).not.toBeNull()
+  })
+
   it('生成失败显示可读错误', async () => {
     const h = harness()
     await render({ ...h.props, onGenerate: vi.fn(async () => ({ ok: false, message: '会话发起失败' })) })
@@ -285,6 +311,7 @@ describe('PrototypePanel', () => {
     await act(async () => {
       const input = container.querySelector<HTMLInputElement>('[data-testid="prototype-selection-instruction"]')
       if (input === null) throw new Error('no selection input')
+      // oxlint-disable-next-line typescript/unbound-method -- 原生 value setter 要用 call 绑定到该输入框。
       const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
       setter?.call(input, '把按钮改成主色')
       input.dispatchEvent(new Event('input', { bubbles: true }))

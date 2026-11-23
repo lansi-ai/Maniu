@@ -20,6 +20,13 @@ import { translate, type Translate } from '../locale.ts'
 
 const zhText: Translate = (key, params) => translate('zh', key, params)
 
+/** 宿主桥在未预载或单测环境可能缺席，或只挂了部分预览接口；按可选接口读取。 */
+type HostPrototypeBridge = Partial<Pick<typeof window.lcoder, 'openPrototypePreview' | 'onPrototypeSelection'>>
+
+function hostPrototype(): HostPrototypeBridge | undefined {
+  return window.lcoder
+}
+
 /** 原型区属性。 */
 export interface PrototypePanelProps {
   readonly row: RequirementDocRow
@@ -65,11 +72,18 @@ export function PrototypePanel(props: PrototypePanelProps): JSX.Element {
   const lastOpenedHtml = useRef<string | undefined>(undefined)
 
   const registration = props.row.prototype
+  /** 生成配置默认折叠：已有原型时预览留在首屏，无原型时展开配置供首次生成。 */
+  const [configOpen, setConfigOpen] = useState(registration === undefined)
   const quality = registration?.quality
   const adoptReady = quality !== undefined && quality.failed.length === 0 && quality.misses.length === 0
   const call = props.call
   const defaultCall: UnaryCall = (namespace, method, args) => window.lcoder.call(namespace, method, args)
   const invoke = call ?? defaultCall
+
+  // 生成完成、清除或切换需求后，配置折叠态回到与新原型登记匹配的位置。
+  useEffect(() => {
+    setConfigOpen(registration === undefined)
+  }, [registration?.path, registration?.generatedAt, props.row.id])
 
   // 原型登记变化（生成或清除后）时重读 HTML 到隔离预览；卸载后不再落状态。
   useEffect(() => {
@@ -92,14 +106,14 @@ export function PrototypePanel(props: PrototypePanelProps): JSX.Element {
   useEffect(() => {
     if (lastOpenedHtml.current === undefined || html === undefined || html === lastOpenedHtml.current) return
     lastOpenedHtml.current = html
-    void Promise.resolve(window.lcoder?.openPrototypePreview?.(html)).catch((cause: unknown) => {
+    void Promise.resolve(hostPrototype()?.openPrototypePreview?.(html)).catch((cause: unknown) => {
       setPreviewError(cause instanceof Error ? cause.message : String(cause))
     })
   }, [html])
 
   // 独立预览窗口的点选上报：只接元素信息，不反向给原型任何宿主数据。
   useEffect(() => {
-    const unsubscribe = window.lcoder?.onPrototypeSelection?.((info) => {
+    const unsubscribe = hostPrototype()?.onPrototypeSelection?.((info) => {
       setSelection(info)
       setInstruction('')
       setPatchNote(undefined)
@@ -112,7 +126,7 @@ export function PrototypePanel(props: PrototypePanelProps): JSX.Element {
     if (registration === undefined) return
     setRefs((current) => {
       const known = new Set(current.map(ref => ref.path))
-      const persisted = (registration.references ?? [])
+      const persisted = registration.references
         .map(path => ({ path, name: path.split('/').pop() ?? path }))
         .filter(ref => !known.has(ref.path))
       return persisted.length === 0 ? current : [...current, ...persisted]
@@ -187,7 +201,7 @@ export function PrototypePanel(props: PrototypePanelProps): JSX.Element {
     setPreviewError(undefined)
     lastOpenedHtml.current = html
     try {
-      await window.lcoder?.openPrototypePreview?.(html)
+      await hostPrototype()?.openPrototypePreview?.(html)
     } catch (cause: unknown) {
       setPreviewError(cause instanceof Error ? cause.message : String(cause))
     }
@@ -263,151 +277,60 @@ export function PrototypePanel(props: PrototypePanelProps): JSX.Element {
       <h4>{t('prototype.title')}</h4>
       <p className="detail-note" data-testid="prototype-hint">{t('prototype.hint')}</p>
 
-      <div className="prototype-inputs">
-        <div className="prototype-refs" data-testid="prototype-refs">
-          <span className="prototype-subtitle">{t('prototype.refTitle')}</span>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            className="prototype-file-input"
-            data-testid="prototype-ref-input"
-            hidden
-            onChange={(event) => { void pickImage(event) }}
-          />
-          <Button size="sm" variant="secondary" data-testid="prototype-ref-upload" isDisabled={busy !== null} onPress={() => { fileRef.current?.click() }}>
-            {busy === 'upload' ? t('prototype.refUploading') : t('prototype.refUpload')}
-          </Button>
-          {refs.length === 0
-            ? <p className="empty" data-testid="prototype-ref-empty">{t('prototype.refEmpty')}</p>
-            : (
-              <ul className="prototype-ref-list" data-testid="prototype-ref-list">
-                {refs.map(ref => (
-                  <li key={ref.path} data-testid="prototype-ref-item" data-path={ref.path}>
-                    {ref.dataUrl === undefined
-                      ? <span className="prototype-ref-thumb" aria-hidden="true" />
-                      : <img className="prototype-ref-thumb" data-testid="prototype-ref-thumb" src={ref.dataUrl} alt={ref.name} />}
-                    <span className="mono">{ref.name}</span>
-                    <Button
-                      isIconOnly
-                      size="sm"
-                      variant="ghost"
-                      data-testid="prototype-ref-remove"
-                      aria-label={t('prototype.refRemove')}
-                      onPress={() => { setRefs(current => current.filter(item => item.path !== ref.path)) }}
-                    >
-                      ×
-                    </Button>
-                  </li>
-                ))}
-              </ul>
-            )}
-        </div>
-
-        <div className="prototype-url" data-testid="prototype-url">
-          <span className="prototype-subtitle">{t('prototype.urlTitle')}</span>
-          <div className="prototype-url-row">
-            <input
-              className="prototype-url-input"
-              data-testid="prototype-url-input"
-              value={url}
-              placeholder={t('prototype.urlPlaceholder')}
-              onChange={event => setUrl(event.target.value)}
-            />
-            <Button size="sm" variant="secondary" data-testid="prototype-url-prefetch" isDisabled={busy !== null || url.trim() === ''} onPress={() => { void doPrefetch() }}>
-              {busy === 'prefetch' ? t('prototype.urlPrefetching') : t('prototype.urlPrefetch')}
-            </Button>
-            {summary !== undefined && (
-              <>
-                <Button size="sm" variant="ghost" data-testid="prototype-url-clear" onPress={() => { setSummary(undefined); setUrl('') }}>
-                  {t('prototype.urlClear')}
+      {/* 预览与产出信息置顶：已有原型时首屏直接看到预览、独立窗和采纳清除生成。 */}
+      <div className="prototype-preview" data-testid="prototype-preview">
+        <h5>{t('prototype.previewTitle')}</h5>
+        {registration === undefined
+          ? <p className="empty" data-testid="prototype-preview-empty">{t('prototype.previewEmpty')}</p>
+          : (
+            <>
+              <p className="detail-note" data-testid="prototype-generated-at">{t('prototype.generatedAt', { at: formatTimestamp(registration.generatedAt) })}</p>
+              <div className="prototype-window-actions">
+                <Button size="sm" variant="secondary" data-testid="prototype-open-window" isDisabled={html === undefined} onPress={() => { void doOpenWindow() }}>
+                  {t('prototype.openWindow')}
                 </Button>
-                <Button size="sm" variant="ghost" data-testid="prototype-url-ignore" onPress={() => { setSummary(undefined) }}>
-                  {t('prototype.urlIgnore')}
-                </Button>
-              </>
-            )}
-          </div>
-          {summary === undefined
-            ? <p className="empty" data-testid="prototype-summary-empty">{t('prototype.summaryEmpty')}</p>
-            : (
-              <div className="prototype-summary" data-testid="prototype-summary">
-                <h5>{t('prototype.summaryTitle')}</h5>
-                <p data-testid="prototype-summary-fields">
-                  {t('prototype.summaryFields', {
-                    colors: summary.colors.length === 0 ? t('prototype.summaryUnknown') : summary.colors.join('、'),
-                    font: summary.font === '' ? t('prototype.summaryUnknown') : summary.font,
-                    layout: summary.layout === '' ? t('prototype.summaryUnknown') : summary.layout,
-                    buttons: summary.buttonStyle === '' ? t('prototype.summaryUnknown') : summary.buttonStyle,
-                  })}
-                </p>
-                <p data-testid="prototype-summary-text">{t('prototype.summaryText', { text: summary.text })}</p>
+                <span className="detail-note" data-testid="prototype-window-note">{t('prototype.windowNote')}</span>
               </div>
-            )}
-        </div>
+              {previewError !== undefined && <p className="problem" data-testid="prototype-preview-error">{previewError}</p>}
+              {html === undefined
+                ? <p className="empty" data-testid="prototype-preview-loading">{t('prototype.previewLoading')}</p>
+                : (
+                  <iframe
+                    title={t('prototype.previewTitle')}
+                    className="prototype-frame"
+                    data-testid="prototype-iframe"
+                    sandbox=""
+                    srcDoc={html}
+                  />
+                )}
+              <p className="detail-note" data-testid="prototype-preview-note">{t('prototype.previewNote')}</p>
+            </>
+          )}
       </div>
 
-      <div className="prototype-actions" data-testid="prototype-actions">
-        <Button variant="primary" size="sm" data-testid="prototype-generate" isDisabled={props.running || busy !== null} onPress={() => { void doGenerate() }}>
-          {registration === undefined ? t('prototype.generate') : t('prototype.regenerate')}
-        </Button>
-        {registration !== undefined && (
-          <>
-            <Button variant="secondary" size="sm" data-testid="prototype-adopt" isDisabled={busy !== null || registration.adoptedAt !== undefined} onPress={() => { void doAdopt() }}>
-              {registration.adoptedAt === undefined ? t('prototype.adopt') : t('prototype.adopted')}
+      {selection !== undefined && (
+        <div className="prototype-selection-card" data-testid="prototype-selection-card">
+          <span className="prototype-subtitle">{t('prototype.selectionTitle')}</span>
+          <p className="mono" data-testid="prototype-selection-path">{t('prototype.selectionCard', { domPath: selection.domPath })}</p>
+          <div className="prototype-selection-row">
+            <input
+              className="prototype-selection-input"
+              data-testid="prototype-selection-instruction"
+              value={instruction}
+              placeholder={t('prototype.selectionInstruction')}
+              onChange={(event) => { setInstruction(event.target.value) }}
+            />
+            <Button
+              size="sm"
+              variant="primary"
+              data-testid="prototype-selection-apply"
+              isDisabled={props.running || patching || instruction.trim() === ''}
+              onPress={() => { void applyPatch() }}
+            >
+              {patching ? t('prototype.selectionApplying') : t('prototype.selectionApply')}
             </Button>
-            {!confirmClear
-              ? <Button variant="danger-soft" size="sm" data-testid="prototype-clear" isDisabled={busy !== null} onPress={() => { setConfirmClear(true) }}>
-                {t('prototype.clear')}
-              </Button>
-              : (
-                <span className="prototype-confirm" data-testid="prototype-clear-confirm">
-                  <span>{t('prototype.clearConfirm')}</span>
-                  <Button size="sm" variant="danger" data-testid="prototype-clear-yes" isDisabled={busy !== null} onPress={() => { void doClear() }}>
-                    {busy === 'clear' ? t('prototype.clearing') : t('prototype.clear')}
-                  </Button>
-                  <Button size="sm" variant="ghost" data-testid="prototype-clear-no" onPress={() => { setConfirmClear(false) }}>
-                    {t('prototype.clearCancel')}
-                  </Button>
-                </span>
-              )}
-          </>
-        )}
-      </div>
-
-      {registration !== undefined && (
-        <div className="prototype-section-tools" data-testid="prototype-section-tools">
-          <span className="prototype-subtitle">{t('prototype.regenerateSection')}</span>
-          <div className="prototype-section-chips" role="group" aria-label={t('prototype.regenerateSection')}>
-            {PROTOTYPE_SECTIONS.map((section) => {
-              const active = generatingSection === section
-              return (
-                <Button
-                  key={section}
-                  size="sm"
-                  variant="outline"
-                  className="prototype-section-chip"
-                  data-testid="prototype-regenerate-section"
-                  data-section={section}
-                  data-state={active ? 'running' : 'idle'}
-                  isDisabled={props.running || busy !== null || generatingSection !== undefined}
-                  onPress={() => { void doGenerate(section) }}
-                >
-                  {active ? t('prototype.sectionRedoing') : section}
-                </Button>
-              )
-            })}
           </div>
-          {generatingSection !== undefined && (
-            <span className="prototype-hint-running" data-testid="prototype-section-status">
-              {t('prototype.sectionStatus', { section: generatingSection })}
-            </span>
-          )}
-          {generatingSection === undefined && lastRedone !== undefined && (
-            <span className="prototype-hint-done" data-testid="prototype-section-done">
-              {t('prototype.sectionDone', { section: lastRedone })}
-            </span>
-          )}
+          {patchNote !== undefined && <p className="detail-note" data-testid="prototype-selection-status">{patchNote}</p>}
         </div>
       )}
 
@@ -461,61 +384,166 @@ export function PrototypePanel(props: PrototypePanelProps): JSX.Element {
         </div>
       )}
 
-      <div className="prototype-preview" data-testid="prototype-preview">
-        <h5>{t('prototype.previewTitle')}</h5>
-        {registration === undefined
-          ? <p className="empty" data-testid="prototype-preview-empty">{t('prototype.previewEmpty')}</p>
-          : (
-            <>
-              <p className="detail-note" data-testid="prototype-generated-at">{t('prototype.generatedAt', { at: formatTimestamp(registration.generatedAt) })}</p>
-              <div className="prototype-window-actions">
-                <Button size="sm" variant="secondary" data-testid="prototype-open-window" isDisabled={html === undefined} onPress={() => { void doOpenWindow() }}>
-                  {t('prototype.openWindow')}
-                </Button>
-                <span className="detail-note" data-testid="prototype-window-note">{t('prototype.windowNote')}</span>
-              </div>
-              {previewError !== undefined && <p className="problem" data-testid="prototype-preview-error">{previewError}</p>}
-              {html === undefined
-                ? <p className="empty" data-testid="prototype-preview-loading">{t('prototype.previewLoading')}</p>
-                : (
-                  <iframe
-                    title={t('prototype.previewTitle')}
-                    className="prototype-frame"
-                    data-testid="prototype-iframe"
-                    sandbox=""
-                    srcDoc={html}
-                  />
-                )}
-              <p className="detail-note" data-testid="prototype-preview-note">{t('prototype.previewNote')}</p>
-            </>
-          )}
+      <div className="prototype-actions" data-testid="prototype-actions">
+        <Button variant="primary" size="sm" data-testid="prototype-generate" isDisabled={props.running || busy !== null} onPress={() => { void doGenerate() }}>
+          {registration === undefined ? t('prototype.generate') : t('prototype.regenerate')}
+        </Button>
+        {registration !== undefined && (
+          <>
+            <Button variant="secondary" size="sm" data-testid="prototype-adopt" isDisabled={busy !== null || registration.adoptedAt !== undefined} onPress={() => { void doAdopt() }}>
+              {registration.adoptedAt === undefined ? t('prototype.adopt') : t('prototype.adopted')}
+            </Button>
+            {!confirmClear
+              ? <Button variant="danger-soft" size="sm" data-testid="prototype-clear" isDisabled={busy !== null} onPress={() => { setConfirmClear(true) }}>
+                {t('prototype.clear')}
+              </Button>
+              : (
+                <span className="prototype-confirm" data-testid="prototype-clear-confirm">
+                  <span>{t('prototype.clearConfirm')}</span>
+                  <Button size="sm" variant="danger" data-testid="prototype-clear-yes" isDisabled={busy !== null} onPress={() => { void doClear() }}>
+                    {busy === 'clear' ? t('prototype.clearing') : t('prototype.clear')}
+                  </Button>
+                  <Button size="sm" variant="ghost" data-testid="prototype-clear-no" onPress={() => { setConfirmClear(false) }}>
+                    {t('prototype.clearCancel')}
+                  </Button>
+                </span>
+              )}
+          </>
+        )}
       </div>
 
-      {selection !== undefined && (
-        <div className="prototype-selection-card" data-testid="prototype-selection-card">
-          <span className="prototype-subtitle">{t('prototype.selectionTitle')}</span>
-          <p className="mono" data-testid="prototype-selection-path">{t('prototype.selectionCard', { domPath: selection.domPath })}</p>
-          <div className="prototype-selection-row">
+      <button
+        type="button"
+        className="prototype-config-toggle"
+        data-testid="prototype-config-toggle"
+        data-open={configOpen ? 'true' : 'false'}
+        aria-expanded={configOpen}
+        onClick={() => { setConfigOpen(current => !current) }}
+      >
+        {configOpen ? t('prototype.configToggleClose') : t('prototype.configToggleOpen')}
+      </button>
+
+      <div className="prototype-config" data-testid="prototype-config" hidden={!configOpen}>
+        <div className="prototype-inputs">
+          <div className="prototype-refs" data-testid="prototype-refs">
+            <span className="prototype-subtitle">{t('prototype.refTitle')}</span>
             <input
-              className="prototype-selection-input"
-              data-testid="prototype-selection-instruction"
-              value={instruction}
-              placeholder={t('prototype.selectionInstruction')}
-              onChange={event => setInstruction(event.target.value)}
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              className="prototype-file-input"
+              data-testid="prototype-ref-input"
+              hidden
+              onChange={(event) => { void pickImage(event) }}
             />
-            <Button
-              size="sm"
-              variant="primary"
-              data-testid="prototype-selection-apply"
-              isDisabled={props.running || patching || instruction.trim() === ''}
-              onPress={() => { void applyPatch() }}
-            >
-              {patching ? t('prototype.selectionApplying') : t('prototype.selectionApply')}
+            <Button size="sm" variant="secondary" data-testid="prototype-ref-upload" isDisabled={busy !== null} onPress={() => { fileRef.current?.click() }}>
+              {busy === 'upload' ? t('prototype.refUploading') : t('prototype.refUpload')}
             </Button>
+            {refs.length === 0
+              ? <p className="empty" data-testid="prototype-ref-empty">{t('prototype.refEmpty')}</p>
+              : (
+                <ul className="prototype-ref-list" data-testid="prototype-ref-list">
+                  {refs.map(ref => (
+                    <li key={ref.path} data-testid="prototype-ref-item" data-path={ref.path}>
+                      {ref.dataUrl === undefined
+                        ? <span className="prototype-ref-thumb" aria-hidden="true" />
+                        : <img className="prototype-ref-thumb" data-testid="prototype-ref-thumb" src={ref.dataUrl} alt={ref.name} />}
+                      <span className="mono">{ref.name}</span>
+                      <Button
+                        isIconOnly
+                        size="sm"
+                        variant="ghost"
+                        data-testid="prototype-ref-remove"
+                        aria-label={t('prototype.refRemove')}
+                        onPress={() => { setRefs(current => current.filter(item => item.path !== ref.path)) }}
+                      >
+                        ×
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              )}
           </div>
-          {patchNote !== undefined && <p className="detail-note" data-testid="prototype-selection-status">{patchNote}</p>}
+
+          <div className="prototype-url" data-testid="prototype-url">
+            <span className="prototype-subtitle">{t('prototype.urlTitle')}</span>
+            <div className="prototype-url-row">
+              <input
+                className="prototype-url-input"
+                data-testid="prototype-url-input"
+                value={url}
+                placeholder={t('prototype.urlPlaceholder')}
+                onChange={(event) => { setUrl(event.target.value) }}
+              />
+              <Button size="sm" variant="secondary" data-testid="prototype-url-prefetch" isDisabled={busy !== null || url.trim() === ''} onPress={() => { void doPrefetch() }}>
+                {busy === 'prefetch' ? t('prototype.urlPrefetching') : t('prototype.urlPrefetch')}
+              </Button>
+              {summary !== undefined && (
+                <>
+                  <Button size="sm" variant="ghost" data-testid="prototype-url-clear" onPress={() => { setSummary(undefined); setUrl('') }}>
+                    {t('prototype.urlClear')}
+                  </Button>
+                  <Button size="sm" variant="ghost" data-testid="prototype-url-ignore" onPress={() => { setSummary(undefined) }}>
+                    {t('prototype.urlIgnore')}
+                  </Button>
+                </>
+              )}
+            </div>
+            {summary === undefined
+              ? <p className="empty" data-testid="prototype-summary-empty">{t('prototype.summaryEmpty')}</p>
+              : (
+                <div className="prototype-summary" data-testid="prototype-summary">
+                  <h5>{t('prototype.summaryTitle')}</h5>
+                  <p data-testid="prototype-summary-fields">
+                    {t('prototype.summaryFields', {
+                      colors: summary.colors.length === 0 ? t('prototype.summaryUnknown') : summary.colors.join('、'),
+                      font: summary.font === '' ? t('prototype.summaryUnknown') : summary.font,
+                      layout: summary.layout === '' ? t('prototype.summaryUnknown') : summary.layout,
+                      buttons: summary.buttonStyle === '' ? t('prototype.summaryUnknown') : summary.buttonStyle,
+                    })}
+                  </p>
+                  <p data-testid="prototype-summary-text">{t('prototype.summaryText', { text: summary.text })}</p>
+                </div>
+              )}
+          </div>
         </div>
-      )}
+
+        {registration !== undefined && (
+          <div className="prototype-section-tools" data-testid="prototype-section-tools">
+            <span className="prototype-subtitle">{t('prototype.regenerateSection')}</span>
+            <div className="prototype-section-chips" role="group" aria-label={t('prototype.regenerateSection')}>
+              {PROTOTYPE_SECTIONS.map((section) => {
+                const active = generatingSection === section
+                return (
+                  <Button
+                    key={section}
+                    size="sm"
+                    variant="outline"
+                    className="prototype-section-chip"
+                    data-testid="prototype-regenerate-section"
+                    data-section={section}
+                    data-state={active ? 'running' : 'idle'}
+                    isDisabled={props.running || busy !== null || generatingSection !== undefined}
+                    onPress={() => { void doGenerate(section) }}
+                  >
+                    {active ? t('prototype.sectionRedoing') : section}
+                  </Button>
+                )
+              })}
+            </div>
+            {generatingSection !== undefined && (
+              <span className="prototype-hint-running" data-testid="prototype-section-status">
+                {t('prototype.sectionStatus', { section: generatingSection })}
+              </span>
+            )}
+            {generatingSection === undefined && lastRedone !== undefined && (
+              <span className="prototype-hint-done" data-testid="prototype-section-done">
+                {t('prototype.sectionDone', { section: lastRedone })}
+              </span>
+            )}
+          </div>
+        )}
+      </div>
 
       {(localError !== undefined || genError !== undefined) && (
         <p className="problem" data-testid="prototype-error">

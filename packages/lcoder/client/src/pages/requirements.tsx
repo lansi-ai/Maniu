@@ -177,6 +177,8 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
   const [text, setText] = useState('')
   const [state, setState] = useState('')
   const [selected, setSelected] = useState<string | null>(null)
+  /** 版本号徽标直达详情时携带的历史抽屉入口；普通行点击不带这个标志。 */
+  const [historyEntry, setHistoryEntry] = useState<{ readonly seq: number; readonly open: boolean }>({ seq: 0, open: false })
   const [taskId, setTaskId] = useState<string | null>(null)
   const [readerPath, setReaderPath] = useState<string | null>(null)
   const [wizard, setWizard] = useState(false)
@@ -428,10 +430,11 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
     return launchCreate(buildRequirementCreatePrompt('', { id: row.id, title: row.title ?? row.id, version: baseVersion }))
   }
 
-  /** 打开详情并记住触发入口；关闭时把焦点交还它。 */
-  const openDetail = (row: RequirementDocRow): void => {
+  /** 打开详情并记住触发入口；历史入口额外记一次抽屉标志，关闭或切换需求即重置。 */
+  const openDetail = (row: RequirementDocRow, historyOpen = false): void => {
     const active = document.activeElement
     detailTriggerRef.current = active instanceof HTMLElement && active !== document.body ? active : null
+    setHistoryEntry(current => ({ seq: current.seq + 1, open: historyOpen }))
     setSelected(row.id)
   }
 
@@ -439,6 +442,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
   const closeDetail = (): void => {
     const id = selected
     setSelected(null)
+    setHistoryEntry(current => ({ seq: current.seq, open: false }))
     setModifyOpen(false)
     setModifyRow(null)
     setModifyText('')
@@ -1133,7 +1137,20 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
                         className={row.id === selected ? 'selected' : ''}
                         onAction={() => { openDetail(row) }}
                       >
-                        <Table.Cell className="mono">{row.id}</Table.Cell>
+                        <Table.Cell className="mono">
+                          {row.id}
+                          <button
+                            type="button"
+                            className="requirement-row-version"
+                            data-testid="requirement-row-version"
+                            data-requirement-id={row.id}
+                            aria-label={t('requirement.rowVersionTitle')}
+                            title={t('requirement.rowVersionTitle')}
+                            onClick={(event) => { event.stopPropagation(); openDetail(row, true) }}
+                          >
+                            {`v${row.versions.reduce((max, version) => Math.max(max, version.n), 1)}`}
+                          </button>
+                        </Table.Cell>
                         <Table.Cell>{row.title ?? row.id}</Table.Cell>
                         <Table.Cell>
                           <Chip size="sm" variant="soft" color={stateChipColor(row.state ?? '')}>
@@ -1204,8 +1221,9 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
               <div className="requirement-detail-scrim" aria-hidden="true" onClick={closeDetail} />
               <div className="requirement-detail-layer">
                 <RequirementDetail
-                  key={active.id}
+                  key={`${active.id}:${historyEntry.open ? `h${historyEntry.seq}` : 'detail'}`}
                   row={active}
+                  initialHistoryOpen={historyEntry.open}
                   project={props.project}
                   projection={props.projection}
                   sessions={props.sessions}
