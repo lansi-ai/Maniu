@@ -180,6 +180,7 @@ export function buildStudioCoDesignPrompt(input: StudioCoDesignInput): string {
   const kindRule = "只动表现时 changeKind 填 'visual'；涉及业务规则、口径或字段增删时 changeKind 填 'business'，并同时给出 requirementProposedContent（提案后的需求正文全文），由人确认后才会同步。"
   const retryRule = 'prototype_stage 返回失败项时按失败项修正后重试 1 到 2 次；仍失败就如实报告，不留半成品。'
   const removeRule = '用户对某个选中元素填写「不需要 / 不要 / 去掉 / 删掉」等简短否定词时，代表「将该元素从界面上移除」，请直接删除该元素并暂存，切勿误解为「保持不变」。'
+  const reportRule = '最后汇报只用 1 到 2 句人话说清最终改成了什么样；不复述工具调用与内部重试过程，也不要提 .spec/prototypes/ 这类内部文件路径。'
   const noAskRule = '暂存预览不会覆盖正式文件，因此除非指令完全空白，否则直接按最合理的界面设计调用 prototype_stage 产出暂存结果供用户看图确认，严禁调用 ask_user_question 反问打断。'
 
   const requirementLines = input.anchors.length === 0
@@ -194,6 +195,7 @@ export function buildStudioCoDesignPrompt(input: StudioCoDesignInput): string {
       `8. ${retryRule}`,
       `9. ${removeRule}`,
       `10. ${noAskRule}`,
+      `11. ${reportRule}`,
     ]
     : [
       `1. 这一轮有明确的点选元素，按修改意见改这些元素：${patchRule}`,
@@ -205,6 +207,7 @@ export function buildStudioCoDesignPrompt(input: StudioCoDesignInput): string {
       `7. ${retryRule}`,
       `8. ${removeRule}`,
       `9. ${noAskRule}`,
+      `10. ${reportRule}`,
     ]
 
   return [

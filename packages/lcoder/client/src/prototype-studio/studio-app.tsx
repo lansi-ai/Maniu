@@ -96,6 +96,34 @@ export function resolveStudioSessionId(requirementId: string, initialSessionId?:
   return null
 }
 
+/** 会话没有工作区时的 Remote 错误码：只有这种失败允许换会话号重试。 */
+const NO_WORKSPACE = 'PROTOTYPE/NO_WORKSPACE'
+
+/**
+ * prototype/* Remote 的会话号尝试顺序：先协作会话（暂存在它名下），再工作区作用域会话。
+ * 重启后旧协作会话尚未激活时解析不出工作区，靠后一个兜底。
+ * @param chatSessionId - 协作对话会话号。
+ * @param scopeSessionId - 工作区作用域会话号。
+ * @returns 去重后的候选会话号；两者都没有时为空数组。
+ */
+export function resolveRemoteSessionIds(
+  chatSessionId: string | null,
+  scopeSessionId: string | null,
+): readonly string[] {
+  const ids = [chatSessionId, scopeSessionId]
+    .filter((id): id is string => id !== null && id !== '')
+  return [...new Set(ids)]
+}
+
+/**
+ * 判断一次 Remote 失败是不是「会话不存在或没有工作区」。
+ * @param cause - 失败原因；unwrap 会把错误码放在 name 上。
+ * @returns 是否为可回退的失败。
+ */
+function isNoWorkspace(cause: unknown): boolean {
+  return cause instanceof Error && cause.name === NO_WORKSPACE
+}
+
 /**
  * 把同步回执映射成词典键；未知值按 none 处理。
  * @param status - 宿主回执状态。
@@ -140,6 +168,28 @@ export function PrototypeStudioApp(props: PrototypeStudioAppProps): JSX.Element 
   )
   const chatSessionIdRef = useRef(chatSessionId)
   chatSessionIdRef.current = chatSessionId
+
+  /**
+   * 用实际可用的会话号执行一次 prototype/* 调用。
+   * 首选协作会话；它报告没有工作区时就回退工作区作用域会话重试一次，其余失败直接上抛。
+   * @param run - 按会话号发起的调用。
+   * @returns 调用结果。
+   */
+  const withRemoteSession = useCallback(async <T,>(run: (sessionId: string) => Promise<T>): Promise<T> => {
+    const candidates = resolveRemoteSessionIds(chatSessionIdRef.current, scopeSessionId)
+    if (candidates.length === 0) return run('')
+    let failure: unknown
+    for (const sessionId of candidates) {
+      try {
+        return await run(sessionId)
+      } catch (cause: unknown) {
+        if (!isNoWorkspace(cause)) throw cause
+        failure = cause
+      }
+    }
+    throw failure
+  }, [scopeSessionId])
+
   /** 协作会话的跟随流；由本组件打开并交给协作流消费，保证发言前流已在。 */
   const [followStreamId, setFollowStreamId] = useState<string | null>(null)
   const streamRef = useRef<{ readonly sessionId: string; readonly id: string } | null>(null)
@@ -194,27 +244,48 @@ export function PrototypeStudioApp(props: PrototypeStudioAppProps): JSX.Element 
   }, [bridge])
 
   const refreshStaged = useCallback(async (): Promise<PrototypeStagedView> => {
-    const view = await getStagedPrototype(scopeSessionId ?? '', requirementId, invoke)
+    const view = await withRemoteSession(sessionId => getStagedPrototype(sessionId, requirementId, invoke))
     setStaged(view.staged)
     setCommittedHtml(view.committedHtml)
     return view
-  }, [invoke, requirementId, scopeSessionId])
+  }, [invoke, requirementId, withRemoteSession])
 
   const refreshSnapshots = useCallback(async (): Promise<void> => {
-    const items = await listPrototypeSnapshots(scopeSessionId ?? '', requirementId, invoke)
+    const items = await withRemoteSession(sessionId => listPrototypeSnapshots(sessionId, requirementId, invoke))
     setSnapshots(items)
-  }, [invoke, requirementId, scopeSessionId])
+  }, [invoke, requirementId, withRemoteSession])
+
+  /** 把一份暂存视图画到左侧画布：有暂存就默认展示修改后版本并高亮改动区域。 */
+  const showStagedView = useCallback((view: PrototypeStagedView): void => {
+    const next = view.staged
+    setStaged(next)
+    setCommittedHtml(view.committedHtml)
+    setShowingBefore(false)
+    setHighlight(next !== null)
+    void bridge?.highlightPrototypeStudioPaths?.(next === null ? [] : next.changedDomPaths)
+    loadHtml(next === null ? view.committedHtml : next.html, view.committedHtml)
+  }, [bridge, loadHtml])
 
   useEffect(() => {
     let disposed = false
     void Promise.all([refreshStaged(), refreshSnapshots()]).then(([view]) => {
       if (disposed) return
-      loadHtml(view.staged === null ? view.committedHtml : view.staged.html, view.committedHtml)
+      showStagedView(view)
     }).catch((cause: unknown) => {
       if (!disposed) setNotice(cause instanceof Error ? cause.message : String(cause))
     })
     return () => { disposed = true }
-  }, [refreshStaged, refreshSnapshots, loadHtml])
+  }, [refreshStaged, refreshSnapshots, showStagedView])
+
+  /** 已按哪个协作会话画过画布：换会话才重读暂存，首帧读取由挂载时的 effect 负责。 */
+  const paintedChatSessionRef = useRef(chatSessionId)
+  useEffect(() => {
+    if (paintedChatSessionRef.current === chatSessionId) return
+    paintedChatSessionRef.current = chatSessionId
+    void refreshStaged().then(showStagedView).catch((cause: unknown) => {
+      setNotice(cause instanceof Error ? cause.message : String(cause))
+    })
+  }, [chatSessionId, refreshStaged, showStagedView])
 
   const changeMode = (next: StudioViewMode): void => {
     setViewMode(next)
@@ -395,12 +466,12 @@ export function PrototypeStudioApp(props: PrototypeStudioAppProps): JSX.Element 
     setBusy(true)
     setNotice(undefined)
     try {
-      const result: PrototypeCommitResult = await commitStagedPrototype({
-        sessionId: scopeSessionId ?? '',
+      const result: PrototypeCommitResult = await withRemoteSession(sessionId => commitStagedPrototype({
+        sessionId,
         requirementId,
         ...(applyRequirementDiff ? { applyRequirementDiff: true } : {}),
         ...(amend ? { requirementAmendMode: 'amend' as const } : {}),
-      }, invoke)
+      }, invoke))
       setSyncStatus(result.requirementSync)
       const view = await refreshStaged()
       await refreshSnapshots()
@@ -423,7 +494,7 @@ export function PrototypeStudioApp(props: PrototypeStudioAppProps): JSX.Element 
     setBusy(true)
     setNotice(undefined)
     try {
-      await discardStagedPrototype(scopeSessionId ?? '', requirementId, invoke)
+      await withRemoteSession(sessionId => discardStagedPrototype(sessionId, requirementId, invoke))
       const view = await refreshStaged()
       setShowingBefore(false)
       setHighlight(false)
@@ -442,7 +513,8 @@ export function PrototypeStudioApp(props: PrototypeStudioAppProps): JSX.Element 
     setBusy(true)
     setNotice(undefined)
     try {
-      const restored = await restorePrototypeSnapshot(scopeSessionId ?? '', requirementId, snapshotId, invoke)
+      const restored = await withRemoteSession(sessionId =>
+        restorePrototypeSnapshot(sessionId, requirementId, snapshotId, invoke))
       await Promise.all([refreshStaged(), refreshSnapshots()])
       loadHtml(restored.html, restored.html)
       setNotice(t('studio.restoreDone'))
@@ -554,7 +626,7 @@ export function PrototypeStudioApp(props: PrototypeStudioAppProps): JSX.Element 
     const previous = probeRef.current
     let stopped = previous !== null && previous.sentAt === sentAt ? previous.stopped : 0
     try {
-      const view = await getStagedPrototype(scopeSessionId ?? '', requirementId, invoke)
+      const view = await withRemoteSession(sessionId => getStagedPrototype(sessionId, requirementId, invoke))
       setStaged(view.staged)
       setCommittedHtml(view.committedHtml)
       if (view.staged !== null) {
@@ -582,7 +654,7 @@ export function PrototypeStudioApp(props: PrototypeStudioAppProps): JSX.Element 
     }
     probeRef.current = { sentAt, stopped }
     return stopped >= STOPPED_PROBES_BEFORE_COMPLETE
-  }, [invoke, requirementId, scopeSessionId])
+  }, [invoke, requirementId, withRemoteSession])
 
   const sendCoDesign = async (instruction: string, anchors: readonly StudioAnchorDraft[]): Promise<boolean> => {
     const prompt = buildStudioCoDesignPrompt({
@@ -613,16 +685,10 @@ export function PrototypeStudioApp(props: PrototypeStudioAppProps): JSX.Element 
 
   /** 回合结束后重读暂存：有暂存就立刻切到修改后、高亮本轮改动；没有就回到正式版。 */
   const refreshAfterTurn = useCallback((): void => {
-    void refreshStaged().then((view) => {
-      const next = view.staged
-      setShowingBefore(false)
-      setHighlight(next !== null)
-      void bridge?.highlightPrototypeStudioPaths?.(next === null ? [] : next.changedDomPaths)
-      loadHtml(next === null ? view.committedHtml : next.html, view.committedHtml)
-    }).catch((cause: unknown) => {
+    void refreshStaged().then(showStagedView).catch((cause: unknown) => {
       setNotice(cause instanceof Error ? cause.message : String(cause))
     })
-  }, [refreshStaged, loadHtml, bridge])
+  }, [refreshStaged, showStagedView])
 
   const isFullscreen = viewMode === 'fullscreen-pinned'
   const modeLabel = isFullscreen ? t('studio.exitFullscreen') : t('studio.enterFullscreen')

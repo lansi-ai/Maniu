@@ -14,7 +14,7 @@ import { AnchorComposer, type StudioAnchorDraft } from '../src/prototype-studio/
 import { buildStudioCoDesignPrompt } from '../src/prototype/prompt.ts'
 import { ChangeCard } from '../src/prototype-studio/change-card.tsx'
 import { CoDesignThread, TURN_PROBE_INTERVAL_MS, type StudioTurnEcho } from '../src/prototype-studio/co-design-thread.tsx'
-import { PrototypeStudioApp, resolveStudioSessionId } from '../src/prototype-studio/studio-app.tsx'
+import { PrototypeStudioApp, resolveRemoteSessionIds, resolveStudioSessionId } from '../src/prototype-studio/studio-app.tsx'
 import { StudioDock } from '../src/prototype-studio/studio-dock.tsx'
 
 const t: Translate = (key, params) => translate('zh', key, params)
@@ -52,9 +52,20 @@ interface HarnessState {
   snapshots: readonly { readonly snapshotId: string; readonly createdAt: string; readonly bytes: number }[]
 }
 
+/**
+ * 会话作用域开关：`stagedIn` 里的会话才看得到暂存，`missing` 里的会话按没有工作区失败，
+ * `denied` 里的会话按普通失败返回；为 null 时不区分会话，所有会话都看得到暂存。
+ */
+interface SessionGate {
+  readonly stagedIn: readonly string[]
+  readonly missing: readonly string[]
+  readonly denied: readonly string[]
+}
+
 let container: HTMLDivElement
 let root: Root
 let state: HarnessState
+let sessionGate: SessionGate | null
 let calls: CallRecord[]
 let loadCalls: Record<string, unknown>[]
 let highlightCalls: string[][]
@@ -72,8 +83,20 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 /** 一元调用替身：原型 Remote 改 state，会话发消息只记账。 */
 async function fakeCall(namespace: string, method: string, args: object): Promise<unknown> {
   calls.push({ namespace, method, args: isRecord(args) ? args : {} })
+  const input = isRecord(args) && isRecord(args.input) ? args.input : undefined
+  const sessionId = typeof input?.sessionId === 'string' ? input.sessionId : ''
+  // 重启后旧协作会话尚未激活时，宿主就是这么回报的；只有这类失败允许换会话号重试。
+  if (namespace === 'prototype' && sessionGate !== null) {
+    if (sessionGate.missing.includes(sessionId)) {
+      return { ok: false, error: { code: 'PROTOTYPE/NO_WORKSPACE', message: '会话不存在或没有工作区' } }
+    }
+    if (sessionGate.denied.includes(sessionId)) {
+      return { ok: false, error: { code: 'PROTOTYPE/BAD_REQUEST', message: '参数不合法' } }
+    }
+  }
   if (namespace === 'prototype' && method === 'getStaged') {
-    return { ok: true, value: { staged: state.staged, committedHtml: state.committedHtml } }
+    const visible = sessionGate === null || sessionGate.stagedIn.includes(sessionId)
+    return { ok: true, value: { staged: visible ? state.staged : null, committedHtml: state.committedHtml } }
   }
   if (namespace === 'prototype' && method === 'listSnapshots') {
     return { ok: true, value: { snapshots: state.snapshots } }
@@ -126,6 +149,7 @@ beforeEach(() => {
     snapshots: [{ snapshotId: 'snap-1', createdAt: '2026-11-22T00:00:00.000Z', bytes: 128 }],
   }
   calls = []
+  sessionGate = null
   loadCalls = []
   highlightCalls = []
   modeCalls = []
@@ -340,10 +364,12 @@ describe('暂存控制条', () => {
     expect(modeCalls).toContain('compare-side-by-side')
     expect(loadCalls.at(-1)).toMatchObject({ html: VISUAL.html })
 
-    await click('studio-highlight-toggle')
+    // 打开即高亮本轮改动区域；第一次点击取消，再点一次恢复。
     expect(highlightCalls.at(-1)).toEqual([...VISUAL.changedDomPaths])
     await click('studio-highlight-toggle')
     expect(highlightCalls.at(-1)).toEqual([])
+    await click('studio-highlight-toggle')
+    expect(highlightCalls.at(-1)).toEqual([...VISUAL.changedDomPaths])
   })
 
   it('没有暂存时顶部不渲染占位操作条，对比图标禁用并说明原因', async () => {
@@ -469,6 +495,107 @@ describe('会话兜底', () => {
     expect(resolveStudioSessionId('REQ-01', 'url-session')).toBe('url-session')
     localStorage.setItem('lcoder.studio.session.REQ-01', 'stored-session')
     expect(resolveStudioSessionId('REQ-01')).toBe('stored-session')
+  })
+
+  it('prototype/* 先问协作会话、再用作用域会话兜底，同一会话号只问一次', () => {
+    expect(resolveRemoteSessionIds('chat-1', 'scope-1')).toEqual(['chat-1', 'scope-1'])
+    expect(resolveRemoteSessionIds('chat-1', 'chat-1')).toEqual(['chat-1'])
+    expect(resolveRemoteSessionIds(null, 'scope-1')).toEqual(['scope-1'])
+    expect(resolveRemoteSessionIds('', 'scope-1')).toEqual(['scope-1'])
+    expect(resolveRemoteSessionIds(null, null)).toEqual([])
+  })
+})
+
+/** 取 prototype/* 某方法依次用过的会话号。 */
+function prototypeSessions(method: string): readonly string[] {
+  return calls
+    .filter(call => call.namespace === 'prototype' && call.method === method)
+    .map(call => isRecord(call.args.input) && typeof call.args.input.sessionId === 'string' ? call.args.input.sessionId : '')
+}
+
+/** 取 prototype/* 某方法最后一次的 input 字段。 */
+function lastPrototypeInput(method: string): Record<string, unknown> | undefined {
+  const found = calls.filter(call => call.namespace === 'prototype' && call.method === method).at(-1)
+  return found !== undefined && isRecord(found.args.input) ? found.args.input : undefined
+}
+
+describe('暂存会话作用域', () => {
+  /** 本需求上次用过协作会话 chat-1；URL 带来的作用域会话号只作兜底。 */
+  const openScoped = async (): Promise<void> => {
+    localStorage.setItem('lcoder.studio.session.REQ-01', 'chat-1')
+    await renderApp(makeBridge(), 'scope-url')
+  }
+
+  it('协作会话有暂存时打开即显示修改后、高亮改动区域，对比图标可点', async () => {
+    sessionGate = { stagedIn: ['chat-1'], missing: [], denied: [] }
+    await openScoped()
+
+    // 暂存落在协作会话名下：prototype/* 先问它，作用域会话看不到暂存也不该被用来请求。
+    expect(prototypeSessions('getStaged')[0]).toBe('chat-1')
+    expect(prototypeSessions('listSnapshots')[0]).toBe('chat-1')
+    expect(loadCalls.at(-1)).toMatchObject({ html: VISUAL.html, beforeHtml: COMMITTED })
+    expect(highlightCalls.at(-1)).toEqual([...VISUAL.changedDomPaths])
+    expect(element('studio-staged-bar')?.getAttribute('data-staged')).toBe('true')
+    expect(element('studio-view-after')?.getAttribute('aria-pressed')).toBe('true')
+    const compare = element('studio-quick-compare') as HTMLButtonElement
+    expect(compare.disabled).toBe(false)
+    expect(compare.getAttribute('data-active')).toBe('false')
+
+    // 落盘与快照恢复同样走协作会话，不回到作用域会话。
+    await click('studio-commit-staged')
+    expect(lastPrototypeInput('commitStaged')?.sessionId).toBe('chat-1')
+    await click('studio-snapshots-trigger')
+    await click('studio-snapshot-restore')
+    expect(lastPrototypeInput('restoreSnapshot')?.sessionId).toBe('chat-1')
+  })
+
+  it('协作会话报没有工作区时回退作用域会话重试一次并拿到暂存', async () => {
+    sessionGate = { stagedIn: ['scope-url'], missing: ['chat-1'], denied: [] }
+    await openScoped()
+
+    expect(prototypeSessions('getStaged').slice(0, 2)).toEqual(['chat-1', 'scope-url'])
+    expect(element('studio-notice')).toBeNull()
+    expect(loadCalls.at(-1)).toMatchObject({ html: VISUAL.html, beforeHtml: COMMITTED })
+    expect(highlightCalls.at(-1)).toEqual([...VISUAL.changedDomPaths])
+    expect((element('studio-quick-compare') as HTMLButtonElement).disabled).toBe(false)
+
+    // 回退后的会话号同样用于写操作：放弃不该再撞上没有工作区。
+    await click('studio-discard-staged')
+    expect(lastPrototypeInput('discardStaged')?.sessionId).toBe('scope-url')
+    expect(loadCalls.at(-1)).toMatchObject({ html: COMMITTED })
+  })
+
+  it('对比图标在协作会话的暂存版与原版间瞬切', async () => {
+    sessionGate = { stagedIn: ['chat-1'], missing: [], denied: [] }
+    await openScoped()
+
+    await click('studio-quick-compare')
+    expect(loadCalls.at(-1)).toMatchObject({ html: COMMITTED, beforeHtml: COMMITTED })
+    expect(element('studio-quick-compare')?.getAttribute('data-active')).toBe('true')
+    expect(element('studio-view-before')?.getAttribute('aria-pressed')).toBe('true')
+
+    await click('studio-quick-compare')
+    expect(loadCalls.at(-1)).toMatchObject({ html: VISUAL.html, beforeHtml: COMMITTED })
+    expect(element('studio-quick-compare')?.getAttribute('data-active')).toBe('false')
+    expect(element('studio-view-after')?.getAttribute('aria-pressed')).toBe('true')
+  })
+
+  it('两个会话都报没有工作区时不再重试，直接报错', async () => {
+    sessionGate = { stagedIn: [], missing: ['chat-1', 'scope-url'], denied: [] }
+    await openScoped()
+
+    // 每类候选只问一次：没有第三个会话号可以再试。
+    expect(prototypeSessions('getStaged')).toEqual(['chat-1', 'scope-url'])
+    expect(element('studio-notice')?.textContent).toContain('会话不存在或没有工作区')
+    expect((element('studio-quick-compare') as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('其它失败不换会话重试，直接把错误交给界面', async () => {
+    sessionGate = { stagedIn: ['chat-1'], missing: [], denied: ['chat-1'] }
+    await openScoped()
+
+    expect(prototypeSessions('getStaged')).toEqual(['chat-1'])
+    expect(element('studio-notice')?.textContent).toContain('参数不合法')
   })
 })
 
