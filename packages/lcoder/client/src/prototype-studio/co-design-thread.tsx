@@ -7,7 +7,7 @@ import { useEffect, useReducer, useRef, useState } from 'react'
 import type { JSX } from 'react'
 import type { HostEvent } from '@maniu/desktop/contract'
 import type { EventOutcome } from '../contract.ts'
-import { interactionOf, pendingForSession, type PendingInteraction } from '../chat/pending.ts'
+import { interactionOf, pendingForSession, type PendingInteraction, type QuestionDrafts } from '../chat/pending.ts'
 import type { Translate } from '../locale.ts'
 import { QuestionCard, type AnswerResult } from '../shell/pending-cards.tsx'
 import { actionOfFrame, chatReducer, emptyChat, type ChatRow } from '../store.ts'
@@ -58,6 +58,8 @@ export function CoDesignThread(props: CoDesignThreadProps): JSX.Element {
   const { t, bridge, sessionId, onStageComplete, turn } = props
   const [chat, dispatch] = useReducer(chatReducer, emptyChat)
   const [pending, setPending] = useState<readonly PendingInteraction[]>([])
+  /** 草稿按交互 id 存在流组件里：流每帧重渲染（计时、进度）也不会丢用户填了一半的答案。 */
+  const [drafts, setDrafts] = useState<Readonly<Record<string, QuestionDrafts>>>({})
   const [eventRunning, setEventRunning] = useState(false)
   /** 本轮已发出、还没收到宿主运行态回执；让进度条立刻出现，不等首个事件。 */
   const [awaiting, setAwaiting] = useState(false)
@@ -202,8 +204,8 @@ export function CoDesignThread(props: CoDesignThreadProps): JSX.Element {
           t={t}
           interaction={interaction}
           onAnswer={answer}
-          value={undefined}
-          onChange={() => undefined}
+          value={drafts[interaction.id]}
+          onChange={(next) => { setDrafts(current => ({ ...current, [interaction.id]: next })) }}
         />
       ))}
       {hasTurn && (

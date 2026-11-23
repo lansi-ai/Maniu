@@ -65,8 +65,9 @@ $profileLocal = @"
 
 # 每一层：源码目录、产物文件、重建命令、生效方式。
 # script/label 可选：没有 bundle 脚本的包用它们给出等价的窄重建命令；缺省仍走 `run bundle`。
-# steps 可选：按顺序跑多条 pnpm 命令；kernel 的宿主路由表来自 typert 生成物，
-# 只跑 bundle 会留下没有新路由的旧产物，客户端调用就得到 HTTP 404。
+# steps 可选：按顺序跑多条 pnpm 命令。
+# kernel 的宿主路由表来自 typert 生成物，只跑 bundle 会留下没有新路由的旧产物，客户端调用就得到 HTTP 404；
+# 自研桌面端的 js 由 tsdown 从 lib/types 出，只跑 bundle 会留下没有新导出的旧 main.js 与旧 preload。
 $layers = @(
   @{ name = 'kernel';    source = 'packages\lcoder\kernel\src';    artifact = 'packages\lcoder\kernel\lib\index.js';         filter = '@maniu/kernel';    note = 'kernel 在宿主进程里加载：要重启实例';
      steps = @(
@@ -77,7 +78,11 @@ $layers = @(
   @{ name = 'workspace'; source = 'packages\lcoder\workspace\src'; artifact = 'packages\lcoder\workspace\lib\client.js';    filter = '@maniu/workspace'; note = '外壳产物由宿主直出：刷新页面即生效，不用重启' },
   @{ name = 'client';    source = 'packages\lcoder\client\src';    artifact = 'packages\lcoder\client\lib\dist\index.html'; filter = '@maniu/client';    script = @('--filter', '@maniu/client', 'exec', 'vite', 'build'); label = '@maniu/client vite build'; note = '新客户端产物由桌面端直出：刷新窗口即生效，不用重启' },
   @{ name = 'desktop';   source = 'apps\desktop\src';              artifact = 'apps\desktop\lib\main.js';                  filter = '@deepseek-ai/dsh-desktop'; note = '主进程/preload 改动：要重启实例' },
-  @{ name = 'lcoder-desktop'; source = 'packages\lcoder\desktop\src'; artifact = 'packages\lcoder\desktop\lib\preload.cjs'; filter = '@maniu/desktop'; note = '桌面主进程/preload 改动：要重启桌面实例' }
+  @{ name = 'lcoder-desktop'; source = 'packages\lcoder\desktop\src'; artifact = 'packages\lcoder\desktop\lib\preload.cjs'; filter = '@maniu/desktop'; note = '桌面主进程/preload 改动：要重启桌面实例';
+     steps = @(
+       @('--filter', '@maniu/desktop', 'exec', 'tsc', '-p', 'tsconfig.json'),
+       @('--filter', '@maniu/desktop', 'run', 'bundle')
+     ) }
 )
 
 # 原生命令往 stderr 写提示时，PS 5.1 在 Stop 偏好下会抛 NativeCommandError（哪怕退出码 0）。

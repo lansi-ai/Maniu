@@ -271,8 +271,8 @@ describe('锚点输入区', () => {
       instruction: '',
       anchors: sent,
     })
-    expect(prompt).toContain('针对该元素的修改要求：改成主色按钮')
-    expect(prompt).toContain('针对该元素的修改要求：按提交时间倒序')
+    expect(prompt).toContain('用户对该元素的修改指令：改成主色按钮')
+    expect(prompt).toContain('用户对该元素的修改指令：按提交时间倒序')
     expect(prompt).toContain('#1 本月已提交报销总额：改成主色按钮')
     expect(prompt).toContain('#2 待审批列表：按提交时间倒序')
   })
@@ -415,7 +415,7 @@ describe('协作对话会话隔离', () => {
     expect(request?.sessionId).not.toBe('scope-url')
     const content = Array.isArray(request?.content) ? request.content : []
     const text = isRecord(content[0]) && typeof content[0].text === 'string' ? content[0].text : ''
-    expect(text).toContain('针对该元素的修改要求：改成主色按钮')
+    expect(text).toContain('用户对该元素的修改指令：改成主色按钮')
     expect(text).toContain('#1 本月已提交报销总额：改成主色按钮')
 
     // 对话流立刻回显本轮锚点与要求，并进入运行进度。
