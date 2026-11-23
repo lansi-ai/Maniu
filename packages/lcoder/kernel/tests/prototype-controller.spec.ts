@@ -11,6 +11,7 @@ import { afterAll, describe, expect, it, vi } from 'vitest'
 import { createRequirement, loadRequirement } from '../src/kernel/requirement-store.js'
 import { PrototypeController } from '../src/prototype/controller.js'
 import { createPrototypeTools } from '../src/tools/prototype-tools.js'
+import { rejectsWithCode } from './prototype-remote-assert.js'
 
 const dirs: string[] = []
 afterAll(() => {
@@ -45,25 +46,22 @@ describe('prototype/prefetch', () => {
       truncated: false,
     }))
     const { controller } = make({ fetch })
-    const answer = await controller.prefetch({ url: 'https://example.com' })
+    const summary = await controller.prefetch({ url: 'https://example.com' })
     expect(fetch).toHaveBeenCalledWith({ url: 'https://example.com/' })
-    expect(answer).toMatchObject({ ok: true, value: { title: 'T', text: 'Hello' } })
-    if (answer.ok) expect(JSON.stringify(answer.value).length).toBeLessThan(4000)
+    expect(summary).toMatchObject({ title: 'T', text: 'Hello' })
+    expect(JSON.stringify(summary).length).toBeLessThan(4000)
   })
 
   it('非法 URL 与未启用的 web 服务都显式失败，不静默', async () => {
     const { controller } = make({ fetch: async () => ({ body: { kind: 'html', content: '<html></html>' } }) })
-    const bad = await controller.prefetch({ url: 'file:///etc/passwd' })
-    expect(bad).toMatchObject({ ok: false, error: { code: 'PROTOTYPE/INVALID_URL' } })
+    await rejectsWithCode(controller.prefetch({ url: 'file:///etc/passwd' }), 'PROTOTYPE/INVALID_URL')
     const noWeb = new PrototypeController(new Context())
-    const missing = await noWeb.prefetch({ url: 'https://example.com' })
-    expect(missing).toMatchObject({ ok: false, error: { code: 'PROTOTYPE/WEB_UNAVAILABLE' } })
+    await rejectsWithCode(noWeb.prefetch({ url: 'https://example.com' }), 'PROTOTYPE/WEB_UNAVAILABLE')
   })
 
   it('非 HTML 正文按不支持的内容失败', async () => {
     const { controller } = make({ fetch: async () => ({ body: { kind: 'text', content: 'plain' } }) })
-    const answer = await controller.prefetch({ url: 'https://example.com' })
-    expect(answer).toMatchObject({ ok: false, error: { code: 'PROTOTYPE/UNSUPPORTED_CONTENT' } })
+    await rejectsWithCode(controller.prefetch({ url: 'https://example.com' }), 'PROTOTYPE/UNSUPPORTED_CONTENT')
   })
 })
 
@@ -72,17 +70,16 @@ describe('prototype/uploadRef 与 clear', () => {
     const { controller, spec, id } = make()
     const data = Buffer.from('png-bytes').toString('base64')
     const uploaded = await controller.uploadRef({ sessionId: SessionId('s1'), requirementId: id, name: 'logo.png', data })
-    expect(uploaded).toMatchObject({ ok: true, value: { path: `prototypes/${id}/refs/logo.png` } })
+    expect(uploaded).toMatchObject({ path: `prototypes/${id}/refs/logo.png` })
     expect(existsSync(join(spec, 'prototypes', id, 'refs', 'logo.png'))).toBe(true)
 
     const tool = createPrototypeTools(spec).find(item => item.name === 'prototype_draft')
     if (tool === undefined) throw new Error('no tool')
-    const exec = tool.execute
     const good = '<!doctype html><html><head><title>Remote 测试</title></head><body><nav>导航</nav><h1>Remote 测试</h1><section><ul><li>Remote 测试</li></ul></section><footer>页脚</footer></body></html>'
-    await exec({ requirement: id, html: good }, {} as Parameters<typeof exec>[1])
+    await tool.execute({ requirement: id, html: good }, {} as Parameters<typeof tool.execute>[1])
 
     const cleared = await controller.clear({ sessionId: SessionId('s1'), requirementId: id })
-    expect(cleared).toEqual({ ok: true, value: { ok: true } })
+    expect(cleared).toEqual({ ok: true })
     expect(loadRequirement(spec, id).prototype).toBeUndefined()
     expect(existsSync(join(spec, 'prototypes', id))).toBe(false)
   })
@@ -95,7 +92,7 @@ describe('prototype/uploadRef 与 clear', () => {
     await tool.execute({ requirement: id, html: good }, {} as Parameters<typeof tool.execute>[1])
 
     const adopted = await controller.adopt({ sessionId: SessionId('s1'), requirementId: id })
-    expect(adopted).toEqual({ ok: true, value: { ok: true } })
+    expect(adopted).toEqual({ ok: true })
     expect(typeof loadRequirement(spec, id).prototype?.adoptedAt).toBe('string')
   })
 
@@ -103,7 +100,9 @@ describe('prototype/uploadRef 与 clear', () => {
     const ctx = new Context()
     ctx.provide('sessions', { get: () => undefined } as never)
     const controller = new PrototypeController(ctx)
-    const answer = await controller.uploadRef({ sessionId: SessionId('missing'), requirementId: 'REQ-01', name: 'a.png', data: 'YQ==' })
-    expect(answer).toMatchObject({ ok: false, error: { code: 'PROTOTYPE/NO_WORKSPACE' } })
+    await rejectsWithCode(
+      controller.uploadRef({ sessionId: SessionId('missing'), requirementId: 'REQ-01', name: 'a.png', data: 'YQ==' }),
+      'PROTOTYPE/NO_WORKSPACE',
+    )
   })
 })
