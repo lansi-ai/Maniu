@@ -39,6 +39,66 @@ export interface PrototypeRefReceipt {
   readonly bytes: number
 }
 
+/** 一次暂存改动的性质：visual 只动表现，business 涉及业务口径。 */
+export type PrototypeChangeKind = 'visual' | 'business'
+
+/** 落盘后需求正文的同步结果；`skipped_*` 都保留原正文不改。 */
+export type RequirementSyncStatus = 'none' | 'patched' | 'amended' | 'skipped_pending' | 'skipped_locked'
+
+/** 暂存原型携带的需求正文改动提案；正文基线始终由宿主读盘取得。 */
+export interface PrototypeRequirementDiff {
+  readonly baseContent: string
+  readonly proposedContent: string
+  readonly summary: string
+}
+
+/** 一条尚未落盘的原型打磨：只写 staged.json，不碰正式版与需求正文。 */
+export interface StagedPrototype {
+  readonly requirementId: string
+  readonly html: string
+  readonly changeKind: PrototypeChangeKind
+  /** 2–4 条给人读的改动摘要。 */
+  readonly summary: readonly string[]
+  readonly changedDomPaths: readonly string[]
+  readonly requirementDiff?: PrototypeRequirementDiff
+  readonly createdAt: string
+}
+
+/** 一份历史快照的展示元数据。 */
+export interface PrototypeSnapshotMeta {
+  readonly snapshotId: string
+  readonly createdAt: string
+  readonly bytes: number
+}
+
+/** `prototype/getStaged` 的回执：暂存视图与当前正式版 HTML。 */
+export interface PrototypeStagedView {
+  readonly staged: StagedPrototype | null
+  readonly committedHtml: string | null
+}
+
+/** `prototype/commitStaged` 的输入；`applyRequirementDiff` 为真才允许改需求正文。 */
+export interface PrototypeCommitStagedInput {
+  readonly sessionId: string
+  readonly requirementId: string
+  readonly applyRequirementDiff?: boolean
+  readonly requirementAmendMode?: 'patch' | 'amend'
+}
+
+/** `prototype/commitStaged` 的回执。 */
+export interface PrototypeCommitResult {
+  readonly committedAt: string
+  readonly snapshotId?: string
+  readonly requirementSync: RequirementSyncStatus
+  readonly message?: string
+}
+
+/** `prototype/restoreSnapshot` 的回执。 */
+export interface PrototypeRestoreSnapshotValue {
+  readonly restoredAt: string
+  readonly html: string
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
@@ -57,14 +117,14 @@ function stringList(value: unknown): readonly string[] {
  * @param fallback - 回执缺字段时的提示。
  * @returns 成功值。
  */
-function unwrap<T>(answer: RemoteResult, fallback: string): T {
+function unwrap(answer: RemoteResult, fallback: string): Record<string, unknown> {
   if (!answer.ok) {
     const error = new Error(answer.error.message)
     error.name = answer.error.code
     throw error
   }
   if (!isRecord(answer.value)) throw new Error(fallback)
-  return answer.value as T
+  return answer.value
 }
 
 /**
@@ -78,7 +138,7 @@ export async function prefetchStyle(
   call: UnaryCall = (namespace, method, args) => window.lcoder.call(namespace, method, args),
 ): Promise<PrototypeStyleSummary> {
   const answer = await call('prototype', 'prefetch', { input: { url } })
-  const value = unwrap<Record<string, unknown>>(answer, '样式摘要回执缺少字段')
+  const value = unwrap(answer, '样式摘要回执缺少字段')
   const urlText = text(value.url)
   const title = text(value.title)
   const bodyText = text(value.text)
@@ -115,7 +175,7 @@ export async function uploadPrototypeRef(
   call: UnaryCall = (namespace, method, args) => window.lcoder.call(namespace, method, args),
 ): Promise<PrototypeRefReceipt> {
   const answer = await call('prototype', 'uploadRef', { input: { sessionId, requirementId, name, data: base64 } })
-  const value = unwrap<Record<string, unknown>>(answer, '上传回执缺少字段')
+  const value = unwrap(answer, '上传回执缺少字段')
   const path = text(value.path)
   if (path === undefined) throw new Error('上传回执缺少 path')
   return { path, bytes: typeof value.bytes === 'number' ? value.bytes : 0 }
@@ -133,7 +193,7 @@ export async function clearPrototype(
   call: UnaryCall = (namespace, method, args) => window.lcoder.call(namespace, method, args),
 ): Promise<void> {
   const answer = await call('prototype', 'clear', { input: { sessionId, requirementId } })
-  unwrap<Record<string, unknown>>(answer, '清除回执缺少字段')
+  unwrap(answer, '清除回执缺少字段')
 }
 
 /**
@@ -148,7 +208,7 @@ export async function adoptPrototype(
   call: UnaryCall = (namespace, method, args) => window.lcoder.call(namespace, method, args),
 ): Promise<void> {
   const answer = await call('prototype', 'adopt', { input: { sessionId, requirementId } })
-  unwrap<Record<string, unknown>>(answer, '采纳回执缺少字段')
+  unwrap(answer, '采纳回执缺少字段')
 }
 
 /**
@@ -172,4 +232,160 @@ export async function readPrototypeHtml(
   if (!answer.ok) throw new Error(`${answer.error.code}: ${answer.error.message}`)
   if (!isRecord(answer.value) || typeof answer.value.text !== 'string') throw new Error('原型 HTML 回执缺少正文')
   return answer.value.text
+}
+
+const SYNC_STATUSES: readonly RequirementSyncStatus[] = ['none', 'patched', 'amended', 'skipped_pending', 'skipped_locked']
+
+/** 需求同步状态只认宿主枚举；未知值按 none 处理，不误报成功。 */
+function syncStatusOf(value: unknown): RequirementSyncStatus {
+  return SYNC_STATUSES.find(status => status === value) ?? 'none'
+}
+
+/**
+ * 解析需求正文提案；字段不全时按没有提案处理，不把半成品画进 Diff。
+ * @param value - 暂存条目上的 requirementDiff 字段。
+ * @returns 正文提案或 undefined。
+ */
+function requirementDiffOf(value: unknown): PrototypeRequirementDiff | undefined {
+  if (!isRecord(value)) return undefined
+  const baseContent = text(value.baseContent)
+  const proposedContent = text(value.proposedContent)
+  const summary = text(value.summary)
+  if (baseContent === undefined || proposedContent === undefined || summary === undefined) return undefined
+  return { baseContent, proposedContent, summary }
+}
+
+/**
+ * 解析一条暂存改动；字段不全时返回 null，界面按「没有暂存」处理。
+ * @param value - 回执里的 staged 字段。
+ * @returns 暂存原型或 null。
+ */
+function stagedOf(value: unknown): StagedPrototype | null {
+  if (!isRecord(value)) return null
+  const requirementId = text(value.requirementId)
+  const html = text(value.html)
+  const createdAt = text(value.createdAt)
+  const changeKind = value.changeKind === 'business' || value.changeKind === 'visual' ? value.changeKind : undefined
+  if (requirementId === undefined || html === undefined || createdAt === undefined || changeKind === undefined) return null
+  const requirementDiff = requirementDiffOf(value.requirementDiff)
+  return {
+    requirementId,
+    html,
+    changeKind,
+    summary: stringList(value.summary),
+    changedDomPaths: stringList(value.changedDomPaths),
+    ...(requirementDiff === undefined ? {} : { requirementDiff }),
+    createdAt,
+  }
+}
+
+/**
+ * 解析一份快照元数据；字段不全的条目直接丢弃。
+ * @param value - 快照列表里的一项。
+ * @returns 快照元数据或 undefined。
+ */
+function snapshotOf(value: unknown): PrototypeSnapshotMeta | undefined {
+  if (!isRecord(value)) return undefined
+  const snapshotId = text(value.snapshotId)
+  const createdAt = text(value.createdAt)
+  if (snapshotId === undefined || createdAt === undefined || typeof value.bytes !== 'number') return undefined
+  return { snapshotId, createdAt, bytes: value.bytes }
+}
+
+/**
+ * 读一条需求的暂存原型与当前正式版 HTML。
+ * @param sessionId - 作用域会话号。
+ * @param requirementId - 需求编号。
+ * @param call - 一元调用；默认走 preload。
+ * @returns 暂存视图；没有暂存或没有正式版时对应字段为 null。
+ */
+export async function getStagedPrototype(
+  sessionId: string,
+  requirementId: string,
+  call: UnaryCall = (namespace, method, args) => window.lcoder.call(namespace, method, args),
+): Promise<PrototypeStagedView> {
+  const answer = await call('prototype', 'getStaged', { input: { sessionId, requirementId } })
+  const value = unwrap(answer, '暂存视图回执缺少字段')
+  return {
+    staged: stagedOf(value.staged),
+    committedHtml: text(value.committedHtml) ?? null,
+  }
+}
+
+/**
+ * 提交暂存：归档旧版、写回正式版，并按需求状态受控同步正文。
+ * @param input - 会话号、需求编号与可选的正文回写开关。
+ * @param call - 一元调用；默认走 preload。
+ * @returns 落盘时刻、归档编号与正文同步结果。
+ */
+export async function commitStagedPrototype(
+  input: PrototypeCommitStagedInput,
+  call: UnaryCall = (namespace, method, args) => window.lcoder.call(namespace, method, args),
+): Promise<PrototypeCommitResult> {
+  const answer = await call('prototype', 'commitStaged', { input })
+  const value = unwrap(answer, '落盘回执缺少字段')
+  const committedAt = text(value.committedAt)
+  if (committedAt === undefined) throw new Error('落盘回执缺少 committedAt')
+  const snapshotId = text(value.snapshotId)
+  const message = text(value.message)
+  return {
+    committedAt,
+    ...(snapshotId === undefined ? {} : { snapshotId }),
+    requirementSync: syncStatusOf(value.requirementSync),
+    ...(message === undefined ? {} : { message }),
+  }
+}
+
+/**
+ * 丢弃一条需求的暂存原型；正式版与需求正文不受影响。
+ * @param sessionId - 作用域会话号。
+ * @param requirementId - 需求编号。
+ * @param call - 一元调用；默认走 preload。
+ */
+export async function discardStagedPrototype(
+  sessionId: string,
+  requirementId: string,
+  call: UnaryCall = (namespace, method, args) => window.lcoder.call(namespace, method, args),
+): Promise<void> {
+  const answer = await call('prototype', 'discardStaged', { input: { sessionId, requirementId } })
+  unwrap(answer, '放弃回执缺少字段')
+}
+
+/**
+ * 列出一条需求的历史快照，按时间倒序、最多 10 条。
+ * @param sessionId - 作用域会话号。
+ * @param requirementId - 需求编号。
+ * @param call - 一元调用；默认走 preload。
+ * @returns 快照元数据列表。
+ */
+export async function listPrototypeSnapshots(
+  sessionId: string,
+  requirementId: string,
+  call: UnaryCall = (namespace, method, args) => window.lcoder.call(namespace, method, args),
+): Promise<readonly PrototypeSnapshotMeta[]> {
+  const answer = await call('prototype', 'listSnapshots', { input: { sessionId, requirementId } })
+  const value = unwrap(answer, '快照列表回执缺少字段')
+  return Array.isArray(value.snapshots) ? value.snapshots.flatMap(entry => snapshotOf(entry) ?? []) : []
+}
+
+/**
+ * 恢复一份历史快照：当前正式版先归档，再把快照写回并刷新 YAML 登记。
+ * @param sessionId - 作用域会话号。
+ * @param requirementId - 需求编号。
+ * @param snapshotId - 快照编号。
+ * @param call - 一元调用；默认走 preload。
+ * @returns 恢复时刻与恢复后的 HTML。
+ */
+export async function restorePrototypeSnapshot(
+  sessionId: string,
+  requirementId: string,
+  snapshotId: string,
+  call: UnaryCall = (namespace, method, args) => window.lcoder.call(namespace, method, args),
+): Promise<PrototypeRestoreSnapshotValue> {
+  const answer = await call('prototype', 'restoreSnapshot', { input: { sessionId, requirementId, snapshotId } })
+  const value = unwrap(answer, '恢复回执缺少字段')
+  const restoredAt = text(value.restoredAt)
+  const html = text(value.html)
+  if (restoredAt === undefined || html === undefined) throw new Error('恢复回执缺少字段')
+  return { restoredAt, html }
 }

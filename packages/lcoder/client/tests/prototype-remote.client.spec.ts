@@ -1,8 +1,11 @@
 /** T-299：原型 Remote 的窄调用与提示词拼装。 */
 import { describe, expect, it, vi } from 'vitest'
 
-import { buildPrototypePrompt, styleSummaryText } from '../src/prototype/prompt.ts'
-import { prefetchStyle, uploadPrototypeRef, clearPrototype, adoptPrototype, readPrototypeHtml } from '../src/prototype/remote.ts'
+import { buildPrototypePrompt, buildStudioCoDesignPrompt, styleSummaryText } from '../src/prototype/prompt.ts'
+import {
+  adoptPrototype, clearPrototype, commitStagedPrototype, discardStagedPrototype, getStagedPrototype,
+  listPrototypeSnapshots, prefetchStyle, readPrototypeHtml, restorePrototypeSnapshot, uploadPrototypeRef,
+} from '../src/prototype/remote.ts'
 import { WORKSPACE_READ_LINES } from '../src/spec/files.ts'
 import { requirementTextToRow } from '../src/spec/rows.ts'
 
@@ -133,12 +136,117 @@ describe('原型提示词', () => {
 
 describe('原型投影', () => {
   it('旧 YAML 没有 prototype 字段仍可投影；新字段读出质量与采纳时刻', () => {
-    const old = requirementTextToRow('REQ-01.yaml', YAML.split('  path:')[0] + 'state: draft\n')
+    const old = requirementTextToRow('REQ-01.yaml', (YAML.split('  path:')[0] ?? '') + 'state: draft\n')
     expect(old?.prototype).toBeUndefined()
     const row = requirementTextToRow('REQ-01.yaml', YAML)
     expect(row?.prototype).toMatchObject({ path: 'prototypes/REQ-01/index.html' })
     expect(row?.prototype?.quality?.keywordHitRate).toBe(1)
     expect(row?.prototype?.quality?.hits).toEqual(['登录改造'])
     expect(row?.prototype?.adoptedAt).toBe('2026-11-20T02:00:00.000Z')
+  })
+})
+
+describe('原型工作室 Remote', () => {
+  it('getStaged 把入参包在 input 里并解出暂存条目、正式版与需求提案', async () => {
+    const call = vi.fn(async () => ({
+      ok: true as const,
+      value: {
+        staged: {
+          requirementId: 'REQ-01',
+          html: '<html>暂存版</html>',
+          changeKind: 'business',
+          summary: ['按钮改成主色', '新增验证码入口'],
+          changedDomPaths: ['body > button'],
+          requirementDiff: {
+            baseContent: '旧正文',
+            proposedContent: '新正文',
+            summary: '新增验证码入口',
+          },
+          createdAt: '2026-11-23T00:00:00.000Z',
+        },
+        committedHtml: '<html>正式版</html>',
+      },
+    }))
+    const view = await getStagedPrototype('s1', 'REQ-01', call)
+    expect(call).toHaveBeenCalledWith('prototype', 'getStaged', { input: { sessionId: 's1', requirementId: 'REQ-01' } })
+    expect(view.committedHtml).toBe('<html>正式版</html>')
+    expect(view.staged).toMatchObject({
+      changeKind: 'business',
+      summary: ['按钮改成主色', '新增验证码入口'],
+      changedDomPaths: ['body > button'],
+    })
+    expect(view.staged?.requirementDiff).toMatchObject({ baseContent: '旧正文', proposedContent: '新正文' })
+  })
+
+  it('commitStaged 原样透传输入并解析同步回执', async () => {
+    const call = vi.fn(async () => ({
+      ok: true as const,
+      value: { committedAt: '2026-11-23T01:00:00.000Z', snapshotId: 'snap-1', requirementSync: 'amended' },
+    }))
+    const result = await commitStagedPrototype({
+      sessionId: 's1', requirementId: 'REQ-01', applyRequirementDiff: true, requirementAmendMode: 'amend',
+    }, call)
+    expect(call).toHaveBeenCalledWith('prototype', 'commitStaged', {
+      input: {
+        sessionId: 's1', requirementId: 'REQ-01', applyRequirementDiff: true, requirementAmendMode: 'amend',
+      },
+    })
+    expect(result).toMatchObject({ snapshotId: 'snap-1', requirementSync: 'amended' })
+  })
+
+  it('discardStaged 只带作用域入参', async () => {
+    const call = vi.fn(async () => ({ ok: true as const, value: { ok: true } }))
+    await discardStagedPrototype('s1', 'REQ-01', call)
+    expect(call).toHaveBeenCalledWith('prototype', 'discardStaged', { input: { sessionId: 's1', requirementId: 'REQ-01' } })
+  })
+
+  it('listSnapshots 解出快照元数据并丢掉字段不全的条目', async () => {
+    const call = vi.fn(async () => ({
+      ok: true as const,
+      value: {
+        snapshots: [
+          { snapshotId: 'a', createdAt: '2026-11-23T00:00:00.000Z', bytes: 12 },
+          { snapshotId: 'b', createdAt: '2026-11-22T00:00:00.000Z' },
+        ],
+      },
+    }))
+    const snapshots = await listPrototypeSnapshots('s1', 'REQ-01', call)
+    expect(call).toHaveBeenCalledWith('prototype', 'listSnapshots', { input: { sessionId: 's1', requirementId: 'REQ-01' } })
+    expect(snapshots).toEqual([{ snapshotId: 'a', createdAt: '2026-11-23T00:00:00.000Z', bytes: 12 }])
+  })
+
+  it('restoreSnapshot 带快照编号并返回恢复后的 HTML', async () => {
+    const call = vi.fn(async () => ({
+      ok: true as const,
+      value: { restoredAt: '2026-11-23T02:00:00.000Z', html: '<html>旧版</html>' },
+    }))
+    const value = await restorePrototypeSnapshot('s1', 'REQ-01', 'snap-1', call)
+    expect(call).toHaveBeenCalledWith('prototype', 'restoreSnapshot', {
+      input: { sessionId: 's1', requirementId: 'REQ-01', snapshotId: 'snap-1' },
+    })
+    expect(value).toEqual({ restoredAt: '2026-11-23T02:00:00.000Z', html: '<html>旧版</html>' })
+  })
+})
+
+describe('原型协作提示词', () => {
+  it('带多个点选锚点，并要求 prototype_stage 暂存与需求正文提案', () => {
+    const prompt = buildStudioCoDesignPrompt({
+      requirementId: 'REQ-01',
+      requirementTitle: '登录改造',
+      baselineNote: '当前基准：本轮暂存版 HTML。',
+      instruction: '把登录按钮改成主色并加验证码入口',
+      anchors: [
+        { domPath: 'body > button:nth-child(2)', html: '<button>登录</button>', css: 'color: #333', label: '登录按钮' },
+        { domPath: 'form > input', html: '<input />', css: 'width: 100%', label: '邮箱' },
+      ],
+    })
+    expect(prompt).toContain('body > button:nth-child(2)')
+    expect(prompt).toContain('form > input')
+    expect(prompt).toContain('把登录按钮改成主色并加验证码入口')
+    expect(prompt).toContain('prototype_stage')
+    expect(prompt).toContain('2 到 4 条人话要点')
+    expect(prompt).toContain('changedDomPaths')
+    expect(prompt).toContain('requirementProposedContent')
+    expect(prompt).not.toContain('prototype_draft')
   })
 })

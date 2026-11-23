@@ -1,0 +1,296 @@
+/**
+ * Prototype Studio 协作端样式：沿用 index.css 的中性 Glass token，无紫调。
+ * 这里不放 -webkit-app-region: drag，也不加 backdrop-filter，避免影响宿主拖拽命中层。
+ */
+
+.studio-app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  padding: 12px;
+  box-sizing: border-box;
+  gap: 10px;
+  background: var(--ambient-bg-color);
+  color: var(--foreground);
+  font-family: var(--app-font);
+}
+
+.studio-app-pinned {
+  min-height: auto;
+  padding: 8px;
+}
+
+.studio-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  box-sizing: border-box;
+  border: 1px solid var(--glass-outline);
+  border-radius: 16px;
+  background: var(--glass-surface);
+  box-shadow: var(--glass-card-shadow);
+}
+
+.studio-body[hidden] {
+  display: none;
+}
+
+.studio-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.studio-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.studio-mode-toggle,
+.studio-snapshots-trigger,
+.studio-diff-toggle,
+.studio-turn-collapsed,
+.studio-segment {
+  border: 1px solid var(--glass-outline);
+  border-radius: 999px;
+  background: var(--glass-surface-elevated);
+  color: var(--foreground);
+  font: inherit;
+  font-size: 12px;
+  padding: 5px 12px;
+  cursor: pointer;
+}
+
+.studio-mode-toggle:hover,
+.studio-snapshots-trigger:hover,
+.studio-diff-toggle:hover,
+.studio-turn-collapsed:hover {
+  background: var(--glass-nav-hover);
+}
+
+.studio-staged-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--glass-outline);
+  border-radius: 12px;
+  background: var(--glass-inset-soft);
+}
+
+.studio-staged-idle,
+.studio-staged-live {
+  margin-right: auto;
+  font-size: 12px;
+}
+
+.studio-staged-live {
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.studio-staged-idle {
+  color: var(--muted-foreground, var(--foreground));
+}
+
+.studio-segmented {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 999px;
+  background: var(--glass-slot);
+}
+
+.studio-segment {
+  border-color: transparent;
+  background: transparent;
+  padding: 4px 10px;
+}
+
+.studio-segment-on {
+  background: var(--glass-slot-active-bg);
+  color: var(--glass-slot-active-fg);
+  box-shadow: var(--glass-slot-active-shadow);
+}
+
+.studio-snapshots,
+.studio-change-card,
+.studio-thread,
+.studio-composer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--glass-outline);
+  border-radius: 12px;
+  background: var(--glass-surface-elevated);
+}
+
+.studio-snapshot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.studio-snapshot span:first-child {
+  margin-right: auto;
+}
+
+.studio-empty,
+.studio-meta,
+.studio-sync,
+.studio-notice {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted-foreground, var(--foreground));
+}
+
+.studio-change-card h4 {
+  margin: 0;
+  font-size: 13px;
+}
+
+.studio-summary {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.studio-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.studio-diff {
+  max-height: 220px;
+  overflow: auto;
+  border-radius: 8px;
+  background: var(--glass-inset-soft);
+}
+
+.studio-diff-line {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.studio-diff-line code {
+  font-family: ui-monospace, Consolas, monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.studio-diff-added code {
+  color: #15803d;
+}
+
+.studio-diff-removed code {
+  color: #b91c1c;
+}
+
+.studio-amend {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.studio-turn-running,
+.studio-turn-brief {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted-foreground, var(--foreground));
+}
+
+.studio-turn-collapsed {
+  align-self: flex-start;
+}
+
+.studio-turn-brief {
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: var(--glass-inset-soft);
+}
+
+.studio-interaction-bar {
+  display: inline-flex;
+  align-self: flex-start;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 999px;
+  background: var(--glass-slot);
+}
+
+.studio-anchor-list {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.studio-anchor-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border: 1px solid var(--glass-outline);
+  border-radius: 999px;
+  background: var(--glass-slot);
+  font-size: 12px;
+  max-width: 240px;
+}
+
+.studio-anchor-chip span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.studio-anchor-remove {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.studio-instruction-row {
+  display: flex;
+  gap: 6px;
+}
+
+.studio-instruction-input {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 10px;
+  border: 1px solid var(--glass-outline);
+  border-radius: 999px;
+  background: var(--glass-surface-elevated);
+  color: var(--foreground);
+  font: inherit;
+  font-size: 12px;
+}
+
+.studio-floating {
+  align-self: flex-end;
+  padding: 12px 16px;
+  border: 1px solid var(--glass-outline);
+  border-radius: 999px;
+  background: var(--glass-surface-elevated);
+  box-shadow: var(--glass-shell-shadow);
+  color: var(--foreground);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.studio-floating-collapsed {
+  padding: 8px 14px;
+}

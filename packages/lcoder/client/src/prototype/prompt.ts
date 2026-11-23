@@ -1,5 +1,6 @@
 /** 原型生成提示词：把需求正文、样式摘要与参考图拼成给原型设计师的指令。 */
 
+import type { StudioSelectionInfo } from '../prototype-studio/bridge.ts'
 import { DEFAULT_PROTOTYPE_LIBRARY, type PrototypeLibrary } from './libraries.ts'
 import type { PrototypeStyleSummary } from './remote.ts'
 
@@ -130,5 +131,53 @@ export function buildPrototypePrompt(input: PrototypePromptInput): string {
     '7. 保持高效与精炼：需求正文与素材库规范已在上方完整给出，无需反复读取无关需求或旧原型文件，不要在思考过程里预写大段完整 HTML/CSS/JS 代码；将整份单文件原型控制在精炼紧凑的规模（约 250–450 行、3–6 条典型示例数据、复用通用样式类），确保单次输出就能完整调用 `prototype_draft` 落盘，避免超长被截断。',
     `8. 调用 prototype_draft：requirement 填 ${input.requirementId}，html 填完整 HTML，referenceSummary 填上面的样式摘要文本，referenceImages 填参考图相对路径数组。`,
     '9. 若 prototype_draft 返回失败项，按失败项修正后重试 1 到 2 次；仍失败就如实报告，不留半成品。',
+  ].join('\n')
+}
+
+/** 协作流一轮修改的输入：多个点选锚点、人的修改意见与当前基准 HTML 的说明。 */
+export interface StudioCoDesignInput {
+  readonly requirementId: string
+  readonly requirementTitle: string
+  /** 基准说明（例如「当前暂存版」）；只传说明，不把整份 HTML 塞进提示词。 */
+  readonly baselineNote: string
+  readonly instruction: string
+  readonly anchors: readonly StudioSelectionInfo[]
+}
+
+/**
+ * 把协作流的一轮修改意见拼成给 maniu-prototype 的暂存指令。
+ * 只要求模型调用 prototype_stage，不直接改正式版或需求正文；需求正文变更必须显式提案。
+ * @param input - 需求、基准说明、修改意见与点选锚点。
+ * @returns 发给 maniu-prototype 会话的提示词。
+ */
+export function buildStudioCoDesignPrompt(input: StudioCoDesignInput): string {
+  const anchorLines = input.anchors.length === 0
+    ? '（没有点选锚点，按修改意见自行定位 DOM 区域）'
+    : input.anchors.map((anchor, index) => [
+      `${index + 1}. DOM 路径：${anchor.domPath}`,
+      `   标签名：${anchor.label ?? '未命名'}`,
+      `   元素 HTML：${anchor.html}`,
+      `   关键样式：${anchor.css}`,
+    ].join('\n')).join('\n')
+
+  return [
+    `请修改需求 ${input.requirementId}「${input.requirementTitle}」的 HTML 原型，本轮只做增量打磨。`,
+    '',
+    '【当前基准】',
+    input.baselineNote.trim(),
+    '',
+    '【点选锚点】',
+    anchorLines,
+    '',
+    '【修改意见】',
+    input.instruction.trim(),
+    '',
+    '【交付要求】',
+    '1. 优先调用 prototype_stage 暂存本轮修改，不要直接覆盖正式版 HTML，也不要自行改动需求正文。',
+    `2. 暂存条目 requirement 填 ${input.requirementId}；summary 给 2 到 4 条人话要点，让人不看代码就知道改了什么。`,
+    '3. changedDomPaths 填本轮实际改动区域的 DOM 路径，优先取上面点选锚点的 domPath；只改样式也要填。',
+    "4. 只动表现时 changeKind 填 'visual'；涉及业务规则、口径或字段增删时 changeKind 填 'business'，并同时给出 requirementProposedContent（提案后的需求正文全文），由人确认后才会同步。",
+    '5. 改动要落在锚点元素的既有结构上，保持与当前组件素材库一致的样式语义；不引入外链与脚本。',
+    '6. prototype_stage 返回失败项时按失败项修正后重试 1 到 2 次；仍失败就如实报告，不留半成品。',
   ].join('\n')
 }

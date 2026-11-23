@@ -80,7 +80,7 @@ function ApprovalCard({ t, interaction, onAnswer }: {
  * @param props - 交互、词典与回执回调。
  * @returns 提问卡。
  */
-function QuestionCard({ t, interaction, onAnswer, value, onChange }: {
+export function QuestionCard({ t, interaction, onAnswer, value, onChange }: {
   readonly t: Translate
   readonly interaction: PendingInteraction
   readonly onAnswer: PendingCardsProps['onAnswer']
