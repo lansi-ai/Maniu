@@ -234,6 +234,10 @@ export function PrototypeStudioApp(props: PrototypeStudioAppProps): JSX.Element 
   } | null>(null)
   /** 拖完松手会紧跟一次 click；这一次点击不该触发折叠或展开。 */
   const suppressClickRef = useRef(false)
+  /** 首帧读取的卸载标记：effect 重跑或组件卸载后丢弃迟到的回执。 */
+  const stagedReadDisposedRef = useRef(false)
+  /** 读取标记要经函数返回：静态分析会把闭包里的 ref 误判成恒 false。 */
+  const isStagedReadDisposed = (): boolean => stagedReadDisposedRef.current
 
   const loadHtml = useCallback((html: string | null, beforeHtml: string | null): void => {
     if (html === null) return
@@ -266,26 +270,7 @@ export function PrototypeStudioApp(props: PrototypeStudioAppProps): JSX.Element 
     loadHtml(next === null ? view.committedHtml : next.html, view.committedHtml)
   }, [bridge, loadHtml])
 
-  useEffect(() => {
-    let disposed = false
-    void Promise.all([refreshStaged(), refreshSnapshots()]).then(([view]) => {
-      if (disposed) return
-      showStagedView(view)
-    }).catch((cause: unknown) => {
-      if (!disposed) setNotice(cause instanceof Error ? cause.message : String(cause))
-    })
-    return () => { disposed = true }
-  }, [refreshStaged, refreshSnapshots, showStagedView])
-
-  /** 已按哪个协作会话画过画布：换会话才重读暂存，首帧读取由挂载时的 effect 负责。 */
-  const paintedChatSessionRef = useRef(chatSessionId)
-  useEffect(() => {
-    if (paintedChatSessionRef.current === chatSessionId) return
-    paintedChatSessionRef.current = chatSessionId
-    void refreshStaged().then(showStagedView).catch((cause: unknown) => {
-      setNotice(cause instanceof Error ? cause.message : String(cause))
-    })
-  }, [chatSessionId, refreshStaged, showStagedView])
+  // 首帧读取放在 openFollowStream 定义之后：冷会话要先激活，否则会被当成「没有工作区」。
 
   const changeMode = (next: StudioViewMode): void => {
     setViewMode(next)
@@ -609,6 +594,22 @@ export function PrototypeStudioApp(props: PrototypeStudioAppProps): JSX.Element 
     if (chatSessionId === null) return
     void openFollowStream(chatSessionId)
   }, [chatSessionId, openFollowStream])
+
+  // 首帧读暂存：先激活协作会话，再读暂存并画到画布；快照失败不影响主画布。
+  useEffect(() => {
+    stagedReadDisposedRef.current = false
+    void (async () => {
+      if (chatSessionId !== null) await openFollowStream(chatSessionId)
+      if (isStagedReadDisposed()) return
+      const view = await refreshStaged()
+      if (isStagedReadDisposed()) return
+      showStagedView(view)
+    })().catch((cause: unknown) => {
+      if (!isStagedReadDisposed()) setNotice(cause instanceof Error ? cause.message : String(cause))
+    })
+    void refreshSnapshots().catch(() => undefined)
+    return () => { stagedReadDisposedRef.current = true }
+  }, [chatSessionId, openFollowStream, refreshStaged, refreshSnapshots, showStagedView])
 
   useEffect(() => () => {
     const opened = streamRef.current
