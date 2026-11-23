@@ -15,7 +15,7 @@ interface FakeWebContents {
 }
 
 interface ViewOptions { readonly webPreferences: Readonly<Record<string, unknown>> }
-interface WindowOptions { readonly title?: string }
+interface WindowOptions { readonly title?: string; readonly icon?: string }
 
 const electron = vi.hoisted(() => {
   const views: FakeCanvasView[] = []
@@ -54,6 +54,7 @@ const electron = vi.hoisted(() => {
     readonly show = vi.fn()
     readonly listeners = new Map<string, Array<() => void>>()
     private size: [number, number] = [1440, 900]
+    private contentSize: [number, number] = [1440, 900]
     constructor(options: WindowOptions) { this.options = options; windows.push(this) }
     on(event: string, listener: () => void): void {
       const list = this.listeners.get(event) ?? []
@@ -65,8 +66,14 @@ const electron = vi.hoisted(() => {
       this.listeners.set(event, (this.listeners.get(event) ?? []).filter(item => item !== listener))
     }
     emit(event: string): void { for (const listener of this.listeners.get(event) ?? []) listener() }
-    resizeTo(width: number, height: number): void { this.size = [width, height] }
+    resizeTo(width: number, height: number): void { this.size = [width, height]; this.contentSize = [width, height] }
+    /** 边框与内容区不同的窗口：getSize 比真实客户区大，布局取错了尺寸就会算错。 */
+    resizeFrameTo(frame: [number, number], content: [number, number]): void {
+      this.size = frame
+      this.contentSize = content
+    }
     getSize(): [number, number] { return this.size }
+    getContentSize(): [number, number] { return this.contentSize }
     isDestroyed(): boolean { return false }
   }
   return { views, windows, sharedPrototypeSession, FakeCanvasView, FakeStudioWindow, app: { isPackaged: false } }
@@ -214,6 +221,38 @@ describe('createPrototypeStudioWindow', () => {
     studio.setFloatingBounds({ x: 100, y: 200, width: 300, height: 240, collapsed: true })
     expect(ui.setBounds).toHaveBeenLastCalledWith({ x: 100, y: 200, width: 300, height: STUDIO_COLLAPSED_HEIGHT })
     expect(viewAt(1)).toBe(ui)
+  })
+
+  it('布局按真实客户区计算，不用含不可见缩放边的窗口尺寸', () => {
+    const studio = createPrototypeStudioWindow(REQUEST)
+    const window = onlyWindow()
+    window.resizeFrameTo([1460, 920], [1440, 900])
+    studio.setMode('split')
+    window.emit('resize')
+    // split：左画布占 68%（1440 - 461），其余给右侧协作界面，全部按 1440×900 客户区算。
+    expect(viewAt(0).setBounds).toHaveBeenLastCalledWith({ x: 0, y: 0, width: 979, height: 900 })
+    expect(viewAt(1).setBounds).toHaveBeenLastCalledWith({ x: 979, y: 0, width: 461, height: 900 })
+    studio.setMode('fullscreen-pinned')
+    expect(viewAt(0).setBounds).toHaveBeenLastCalledWith({ x: 0, y: 0, width: 1440, height: 900 })
+  })
+
+  it('浮窗矩形回执给出解析后的坐标，供渲染端定位拖拽起点', () => {
+    const studio = createPrototypeStudioWindow(REQUEST)
+    expect(studio.floatingRect()).toBeUndefined()
+    studio.setMode('fullscreen-pinned')
+    expect(studio.floatingRect()).toEqual({ x: 1036, y: 24, width: 380, height: 520 })
+    studio.setFloatingBounds({ x: 100, y: 200, width: 300, height: 240, collapsed: true })
+    expect(studio.floatingRect()).toEqual({ x: 100, y: 200, width: 300, height: STUDIO_COLLAPSED_HEIGHT })
+    studio.setMode('split')
+    expect(studio.floatingRect()).toBeUndefined()
+    studio.setMode('fullscreen-pinned')
+    studio.dispose()
+    expect(studio.floatingRect()).toBeUndefined()
+  })
+
+  it('工作台窗口使用应用图标，标题栏不再回退成 Electron 默认图标', () => {
+    createPrototypeStudioWindow(REQUEST)
+    expect(String(onlyWindow().options.icon)).toMatch(/maniu-windows\.ico$/)
   })
 
   it('下行检查器控制把交互模式与高亮路径送到两块画布', () => {

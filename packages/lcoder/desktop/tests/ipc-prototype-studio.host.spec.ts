@@ -6,7 +6,20 @@ import type { PrototypeSelectionInfo } from '../src/contract.ts'
 
 const electron = vi.hoisted(() => ({ handle: vi.fn(), send: vi.fn(), getPath: vi.fn(() => '') }))
 const studio = vi.hoisted(() => {
-  const window = { isDestroyed: vi.fn(() => false), setParentWindow: vi.fn(), once: vi.fn() }
+  const listeners = new Map<string, Array<(arg?: unknown) => void>>()
+  const window = {
+    isDestroyed: vi.fn(() => false),
+    once: vi.fn((event: string, listener: (arg?: unknown) => void) => {
+      listeners.set(event, [...(listeners.get(event) ?? []), listener])
+    }),
+    on: vi.fn((event: string, listener: (arg?: unknown) => void) => {
+      listeners.set(event, [...(listeners.get(event) ?? []), listener])
+    }),
+    hide: vi.fn(),
+    show: vi.fn(),
+    focus: vi.fn(),
+    close: vi.fn(),
+  }
   const uiState = { destroyed: false }
   const uiWebContents = { isDestroyed: () => uiState.destroyed, send: vi.fn() }
   const controller = {
@@ -16,10 +29,16 @@ const studio = vi.hoisted(() => {
     loadHtml: vi.fn(),
     highlightPaths: vi.fn(),
     setFloatingBounds: vi.fn(),
+    floatingRect: vi.fn(() => ({ x: 1, y: 2, width: 300, height: 240 })),
     uiWebContents: () => uiWebContents,
     dispose: vi.fn(),
   }
-  return { create: vi.fn(() => controller), controller, window, uiWebContents, uiState }
+  /** 触发窗口事件；返回该事件收到的参数，用来断言 preventDefault。 */
+  const emit = (event: string, arg?: unknown): void => {
+    for (const listener of listeners.get(event) ?? []) listener(arg)
+  }
+  const reset = (): void => { listeners.clear() }
+  return { create: vi.fn(() => controller), controller, window, uiWebContents, uiState, emit, reset }
 })
 vi.mock('electron', () => ({
   ipcMain: { handle: electron.handle },
@@ -40,14 +59,17 @@ type StudioUiReader = ReturnType<typeof registerIpc>
 /** 最近一次注册返回的协作界面读取器；主进程用它决定广播目标。 */
 let reader: StudioUiReader | undefined
 
-function makeWindow(): BrowserWindow {
+function makeWindow(): { readonly window: BrowserWindow; readonly once: ReturnType<typeof vi.fn> } {
+  const once = vi.fn()
   const window = {} as BrowserWindow
   Object.defineProperty(window, 'webContents', { value: { send: electron.send } })
   Object.defineProperty(window, 'isDestroyed', { value: () => false })
-  return window
+  Object.defineProperty(window, 'once', { value: once })
+  return { window, once }
 }
 
-const WINDOW = makeWindow()
+const MAIN = makeWindow()
+const WINDOW = MAIN.window
 type Handler = (event: unknown, value?: unknown) => unknown
 
 function install(): (channel: string) => Handler {
@@ -74,14 +96,19 @@ const VALID = { requirementId: 'R-1', html: '<html>after</html>', beforeHtml: '<
 beforeEach(() => {
   vi.clearAllMocks()
   studio.uiState.destroyed = false
+  studio.reset()
 })
 
 describe('lcoder:prototype-studio-open', () => {
-  it('合法请求创建工作台并设为主窗子窗', () => {
+  it('合法请求创建工作台，并用主窗关闭联动代替父子窗', () => {
     const open = install()(IPC_CHANNELS.prototypeStudioOpen)
     open({}, VALID)
     expect(studio.create).toHaveBeenCalledExactlyOnceWith(VALID)
-    expect(studio.window.setParentWindow).toHaveBeenCalledExactlyOnceWith(WINDOW)
+    expect(MAIN.once).toHaveBeenCalledWith('closed', expect.any(Function))
+    // 建窗即推送一次停靠状态：主窗据此知道工作台已经打开（未最小化不显示胶囊）。
+    expect(electron.send).toHaveBeenLastCalledWith(IPC_CHANNELS.prototypeStudioDockState, {
+      open: true, minimized: false, requirementId: 'R-1',
+    })
   })
 
   it('空 HTML、超限 HTML、缺需求标识与非法模式都拒绝', () => {
@@ -100,6 +127,60 @@ describe('lcoder:prototype-studio-open', () => {
     expect(studio.create).toHaveBeenCalledTimes(1)
     expect(studio.controller.loadHtml).toHaveBeenCalledTimes(1)
     expect(studio.controller.setMode).toHaveBeenCalledExactlyOnceWith('fullscreen-pinned')
+    // 最小化进主窗后再打开＝恢复：窗口唤醒并把停靠状态改回未最小化。
+    expect(studio.window.show).toHaveBeenCalledTimes(1)
+    expect(studio.window.focus).toHaveBeenCalledTimes(1)
+    expect(electron.send).toHaveBeenLastCalledWith(IPC_CHANNELS.prototypeStudioDockState, {
+      open: true, minimized: false, requirementId: 'R-1',
+    })
+  })
+})
+
+describe('工作台最小化停靠', () => {
+  it('最小化改成隐藏窗口，并把 minimized:true 的停靠状态推给主窗', () => {
+    const open = install()(IPC_CHANNELS.prototypeStudioOpen)
+    open({}, VALID)
+    const preventDefault = vi.fn()
+    studio.emit('minimize', { preventDefault })
+    expect(preventDefault).toHaveBeenCalledTimes(1)
+    expect(studio.window.hide).toHaveBeenCalledTimes(1)
+    expect(electron.send).toHaveBeenLastCalledWith(IPC_CHANNELS.prototypeStudioDockState, {
+      open: true, minimized: true, requirementId: 'R-1',
+    })
+  })
+
+  it('主窗 restore 唤醒窗口，close 直接关窗，非法动作拒绝', () => {
+    const get = install()
+    get(IPC_CHANNELS.prototypeStudioOpen)({}, VALID)
+    get(IPC_CHANNELS.prototypeStudioRestore)({}, 'restore')
+    expect(studio.window.show).toHaveBeenCalledTimes(1)
+    expect(studio.window.focus).toHaveBeenCalledTimes(1)
+    expect(electron.send).toHaveBeenLastCalledWith(IPC_CHANNELS.prototypeStudioDockState, {
+      open: true, minimized: false, requirementId: 'R-1',
+    })
+    get(IPC_CHANNELS.prototypeStudioRestore)({}, 'close')
+    expect(studio.window.close).toHaveBeenCalledTimes(1)
+    expect(() => get(IPC_CHANNELS.prototypeStudioRestore)({}, 'expand')).toThrow(/停靠/)
+  })
+
+  it('工作台关窗时清空停靠状态并释放视图；没有工作台时 restore 只同步状态', () => {
+    const get = install()
+    get(IPC_CHANNELS.prototypeStudioOpen)({}, VALID)
+    studio.emit('closed')
+    expect(studio.controller.dispose).toHaveBeenCalledTimes(1)
+    expect(electron.send).toHaveBeenLastCalledWith(IPC_CHANNELS.prototypeStudioDockState, {
+      open: false, minimized: false,
+    })
+    get(IPC_CHANNELS.prototypeStudioRestore)({}, 'restore')
+    expect(studio.window.show).toHaveBeenCalledTimes(0)
+  })
+
+  it('主窗重载后补发当前停靠状态', () => {
+    install()
+    reader?.replayStudioDock()
+    expect(electron.send).toHaveBeenLastCalledWith(IPC_CHANNELS.prototypeStudioDockState, {
+      open: false, minimized: false,
+    })
   })
 })
 
@@ -109,10 +190,12 @@ describe('工作台下行控制', () => {
     get(IPC_CHANNELS.prototypeStudioOpen)({}, VALID)
     get(IPC_CHANNELS.prototypeStudioSetMode)({}, 'compare-side-by-side')
     get(IPC_CHANNELS.prototypeStudioSetInteraction)({}, 'select')
-    get(IPC_CHANNELS.prototypeStudioSetFloatingBounds)({}, { x: 1, y: 2, width: 300, height: 240, collapsed: true })
+    const applied = get(IPC_CHANNELS.prototypeStudioSetFloatingBounds)({}, { x: 1, y: 2, width: 300, height: 240, collapsed: true })
     expect(studio.controller.setMode).toHaveBeenCalledWith('compare-side-by-side')
     expect(studio.controller.setInteraction).toHaveBeenCalledWith('select')
     expect(studio.controller.setFloatingBounds).toHaveBeenCalledWith({ x: 1, y: 2, width: 300, height: 240, collapsed: true })
+    // 回执带上宿主解析后的矩形：渲染端不知道视图在窗口里的位置，靠它定位拖拽起点。
+    expect(applied).toEqual({ x: 1, y: 2, width: 300, height: 240 })
     expect(() => get(IPC_CHANNELS.prototypeStudioSetMode)({}, 'bad')).toThrow(/模式/)
     expect(() => get(IPC_CHANNELS.prototypeStudioSetInteraction)({}, 'bad')).toThrow(/模式/)
     expect(() => get(IPC_CHANNELS.prototypeStudioSetFloatingBounds)({}, { x: 'bad' })).toThrow(/浮窗/)
@@ -143,6 +226,7 @@ describe('工作台点选转发', () => {
   it('同时送主窗与协作界面，label 保留并截断到 80 字符', () => {
     const get = install()
     get(IPC_CHANNELS.prototypeStudioOpen)({}, VALID)
+    electron.send.mockClear()
     get(IPC_CHANNELS.prototypeSelectionReport)({}, { ...info, label: 'x'.repeat(120) })
     const expected = { ...info, label: 'x'.repeat(80) }
     expect(electron.send).toHaveBeenCalledExactlyOnceWith(IPC_CHANNELS.prototypeSelection, expected)
@@ -162,6 +246,7 @@ describe('工作台点选转发', () => {
   it('协作界面销毁后只送主窗，不因工作台残留引用报错', () => {
     const get = install()
     get(IPC_CHANNELS.prototypeStudioOpen)({}, VALID)
+    electron.send.mockClear()
     studio.uiState.destroyed = true
     expect(() => get(IPC_CHANNELS.prototypeSelectionReport)({}, info)).not.toThrow()
     expect(electron.send).toHaveBeenCalledTimes(1)

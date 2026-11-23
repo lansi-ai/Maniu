@@ -2123,3 +2123,76 @@
   .proto-lib-spec-grid,
   .proto-lib-form-grid { grid-template-columns: 1fr; }
 }
+
+/* 最小化到主窗的 Prototype Studio：右下角 Glass 胶囊，恢复或关闭工作台。
+   主窗含拖拽区，这里同样只用实色 token，不加背景滤镜。 */
+.studio-dock {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(420px, 92vw);
+  padding: 8px 10px 8px 12px;
+  border: 1px solid var(--glass-outline);
+  border-radius: 999px;
+  background: var(--glass-surface-elevated);
+  box-shadow: var(--glass-shell-shadow);
+  color: var(--foreground);
+  font-size: 12px;
+}
+
+.studio-dock-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+.studio-dock-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.studio-dock-action {
+  flex: none;
+  padding: 4px 12px;
+  border: 1px solid var(--glass-outline);
+  border-radius: 999px;
+  background: var(--glass-slot-active-bg);
+  color: var(--glass-slot-active-fg);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.studio-dock-close {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.studio-dock-action:hover,
+.studio-dock-close:hover {
+  background: var(--glass-nav-hover);
+}
+
+/* 停靠胶囊出现时，右下角浮卡层整体上移，两者不互相遮挡。 */
+.app:has(.studio-dock) .op-layer {
+  bottom: 84px;
+}

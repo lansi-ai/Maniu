@@ -6,13 +6,13 @@ import type { PrototypeSelectionInfo } from '../src/contract.ts'
 
 const electron = vi.hoisted(() => ({ handle: vi.fn(), send: vi.fn(), getPath: vi.fn(() => '') }))
 const preview = vi.hoisted(() => {
-  const setParentWindow = vi.fn()
   const loadURL = vi.fn()
   const isDestroyed = vi.fn(() => false)
   const once = vi.fn()
+  const close = vi.fn()
   return {
-    create: vi.fn(() => ({ setParentWindow, loadURL, isDestroyed, once })),
-    setParentWindow, loadURL, isDestroyed, once,
+    create: vi.fn(() => ({ loadURL, isDestroyed, once, close })),
+    loadURL, isDestroyed, once, close,
   }
 })
 vi.mock('electron', () => ({
@@ -29,14 +29,17 @@ vi.mock('../src/window.ts', () => ({
 
 const { registerIpc } = await import('../src/ipc.ts')
 
-function makeWindow(): BrowserWindow {
+function makeWindow(): { readonly window: BrowserWindow; readonly once: ReturnType<typeof vi.fn> } {
+  const once = vi.fn()
   const window = {} as BrowserWindow
   Object.defineProperty(window, 'webContents', { value: { send: electron.send } })
   Object.defineProperty(window, 'isDestroyed', { value: () => false })
-  return window
+  Object.defineProperty(window, 'once', { value: once })
+  return { window, once }
 }
 
-const WINDOW = makeWindow()
+const MAIN = makeWindow()
+const WINDOW = MAIN.window
 
 type Handler = (event: unknown, value?: unknown) => unknown
 
@@ -70,11 +73,15 @@ describe('lcoder:prototype-preview-open', () => {
     expect(preview.create).not.toHaveBeenCalled()
   })
 
-  it('合法 HTML 创建独立预览并设为主窗子窗', () => {
+  it('合法 HTML 创建独立预览，关主窗时联动关掉预览而不是设父子窗', () => {
     const open = install()(IPC_CHANNELS.prototypePreviewOpen)
     open({}, '<html><body>原型</body></html>')
     expect(preview.create).toHaveBeenCalledExactlyOnceWith('<html><body>原型</body></html>')
-    expect(preview.setParentWindow).toHaveBeenCalledExactlyOnceWith(WINDOW)
+    // 独立窗口不再设父窗：主窗关闭时由一条显式监听关掉它。
+    expect(MAIN.once).toHaveBeenCalledWith('closed', expect.any(Function))
+    const closed = MAIN.once.mock.calls.find(call => call[0] === 'closed')?.[1] as (() => void) | undefined
+    closed?.()
+    expect(preview.close).toHaveBeenCalledTimes(1)
   })
 
   it('再次打开复用原窗口重载 HTML，元素级修改后不堆积新窗口', () => {

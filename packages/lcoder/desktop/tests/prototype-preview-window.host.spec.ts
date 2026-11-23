@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 interface FakeOptions {
   readonly title?: string
+  readonly icon?: string
   readonly webPreferences?: Readonly<Record<string, unknown>>
 }
 
@@ -65,6 +66,8 @@ describe('createPrototypePreviewWindow', () => {
     expect(String(prefs.preload)).toMatch(/prototype-preview-preload\.cjs$/)
     expect(window.options.title).toBe(PROTOTYPE_PREVIEW_TITLE)
     expect(window.options.title).toContain('沙箱')
+    // 独立预览窗也要应用图标，标题栏不回退成 Electron 默认图标。
+    expect(String(window.options.icon)).toMatch(/maniu-windows\.ico$/)
   })
 
   it('对独立 session 安装离线拦截：外链取消，内联与 file 放行', () => {

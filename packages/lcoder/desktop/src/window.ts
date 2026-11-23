@@ -122,6 +122,7 @@ export function createPrototypePreviewWindow(html: string): BrowserWindow {
     autoHideMenuBar: true,
     backgroundColor: '#ffffff',
     title: PROTOTYPE_PREVIEW_TITLE,
+    icon: appIconPath(),
     webPreferences: {
       preload,
       // 独立 partition：离线拦截只作用在本窗口，不影响主窗默认 session。
@@ -241,13 +242,15 @@ export function studioLayout(
 
 /** Prototype Studio 控制器：协调三块视图、下行检查器控制，并暴露点选转发目标。 */
 export interface PrototypeStudioController {
-  /** Studio 所在窗口；用于设置父窗与监听关闭。 */
+  /** Studio 所在窗口；最小化停靠与关闭监听由 IPC 层挂在这上面。 */
   readonly window: BrowserWindow
   setMode(mode: PrototypeStudioMode): void
   setInteraction(mode: PrototypeInteractionMode): void
   loadHtml(payload: PrototypeStudioHtmlPayload): void
   highlightPaths(paths: readonly string[]): void
   setFloatingBounds(bounds: PrototypeStudioFloatingBounds): void
+  /** 全屏置顶时协作界面的实际矩形；其它模式或未布局过时为空。 */
+  floatingRect(): StudioRect | undefined
   /** 协作界面 webContents；点选上报的转发目标，销毁后返回 undefined。 */
   uiWebContents(): WebContents | undefined
   /** 移除子视图与 resize 监听；由窗口 closed 事件调用，不销毁协作界面视图。 */
@@ -310,6 +313,7 @@ export function createPrototypeStudioWindow(request: PrototypeStudioOpenRequest)
     autoHideMenuBar: true,
     backgroundColor: '#f3f6fc',
     title: 'Prototype Studio',
+    icon: appIconPath(),
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -329,6 +333,7 @@ export function createPrototypeStudioWindow(request: PrototypeStudioOpenRequest)
   let mode: PrototypeStudioMode = request.mode ?? 'split'
   let interaction: PrototypeInteractionMode = 'interact'
   let bounds: PrototypeStudioFloatingBounds = { ...DEFAULT_FLOATING_BOUNDS }
+  let floating: StudioRect | undefined
   let disposed = false
 
   function ensureBeforeView(): WebContentsView {
@@ -359,8 +364,10 @@ export function createPrototypeStudioWindow(request: PrototypeStudioOpenRequest)
 
   function layout(): void {
     if (disposed || window.isDestroyed()) return
-    const size = window.getSize()
+    // 无边框窗口的 getSize 含不可见缩放边；按真实客户区算，画布底部才不被裁掉。
+    const size = window.getContentSize()
     const rects = studioLayout(mode, size[0] ?? 0, size[1] ?? 0, bounds)
+    floating = mode === 'fullscreen-pinned' ? rects.ui : undefined
     afterView.setBounds(rects.after)
     uiView.setBounds(rects.ui)
     uiView.setVisible(true)
@@ -407,6 +414,7 @@ export function createPrototypeStudioWindow(request: PrototypeStudioOpenRequest)
       bounds = { ...bounds, ...next }
       layout()
     },
+    floatingRect() { return disposed ? undefined : floating },
     uiWebContents() { return disposed ? undefined : uiView.webContents },
     dispose() {
       if (disposed) return

@@ -1,16 +1,21 @@
 // @vitest-environment jsdom
-/** T-315：原型工作室协作界面的锚点、改动卡、暂存条与全屏胶囊。 */
+/** T-315：原型工作室协作界面的锚点、改动卡、暂存条与全屏胶囊。T-318：拖拽、实时进度与发送时序。 */
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import type { JSX } from 'react'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { HostEvent, StreamFrame } from '@maniu/desktop/contract'
 import { translate, type Translate } from '../src/locale.ts'
 import type { StagedPrototype } from '../src/prototype/remote.ts'
 import type { StudioBridge, StudioSelectionInfo } from '../src/prototype-studio/bridge.ts'
 import { AnchorComposer, type StudioAnchorDraft } from '../src/prototype-studio/anchor-composer.tsx'
 import { buildStudioCoDesignPrompt } from '../src/prototype/prompt.ts'
 import { ChangeCard } from '../src/prototype-studio/change-card.tsx'
+import { CoDesignThread, TURN_PROBE_INTERVAL_MS, type StudioTurnEcho } from '../src/prototype-studio/co-design-thread.tsx'
 import { PrototypeStudioApp, resolveStudioSessionId } from '../src/prototype-studio/studio-app.tsx'
+import { StudioDock } from '../src/prototype-studio/studio-dock.tsx'
 
 const t: Translate = (key, params) => translate('zh', key, params)
 const COMMITTED = '<html><body>正式版</body></html>'
@@ -57,6 +62,8 @@ let modeCalls: string[]
 let boundsCalls: Record<string, unknown>[]
 let interactionCalls: string[]
 let selectionListeners: Array<(info: StudioSelectionInfo) => void>
+let frameListeners: Array<(streamId: string, frame: StreamFrame) => void>
+let eventListeners: Array<(event: HostEvent) => void>
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -125,6 +132,8 @@ beforeEach(() => {
   boundsCalls = []
   interactionCalls = []
   selectionListeners = []
+  frameListeners = []
+  eventListeners = []
   localStorage.clear()
   container = document.createElement('div')
   document.body.append(container)
@@ -424,5 +433,229 @@ describe('协作对话会话隔离', () => {
     expect(turn?.textContent).toContain('本月已提交报销总额')
     expect(turn?.textContent).toContain('改成主色按钮')
     expect(element('studio-turn-running')?.textContent).toContain('正在根据你的意见调整原型')
+  })
+})
+
+/** 带跟随流的宿主替身：开流顺序进 order，帧与事件交给测试触发。 */
+function makeStreamBridge(order?: string[]): StudioBridge {
+  return {
+    ...makeBridge(),
+    openStream: vi.fn(async () => {
+      order?.push('openStream')
+      return 'stream-1'
+    }),
+    cancelStream: vi.fn(async () => {}),
+    onStreamFrame: (listener) => {
+      frameListeners.push(listener)
+      return () => {
+        const index = frameListeners.indexOf(listener)
+        if (index >= 0) frameListeners.splice(index, 1)
+      }
+    },
+    onEvent: (listener) => {
+      eventListeners.push(listener)
+      return () => {
+        const index = eventListeners.indexOf(listener)
+        if (index >= 0) eventListeners.splice(index, 1)
+      }
+    },
+  }
+}
+
+/** 把一条跟随流帧送给当前挂载的订阅者。 */
+function emitFrame(value: unknown, streamId = 'stream-1'): void {
+  act(() => {
+    for (const listener of [...frameListeners]) listener(streamId, { kind: 'item', value })
+  })
+}
+
+/** 把一条宿主事件送给当前挂载的订阅者。 */
+function emitEvent(name: string, ...args: readonly unknown[]): void {
+  act(() => {
+    for (const listener of [...eventListeners]) listener({ name, args })
+  })
+}
+
+describe('发送时序', () => {
+  it('先建会话、再打开跟随流、回显本轮，最后才发消息', async () => {
+    const order: string[] = []
+    const bridge = makeStreamBridge(order)
+    const call = async (namespace: string, method: string, args: object) => {
+      if (namespace === 'session') order.push(`${namespace}/${method}`)
+      return fakeCall(namespace, method, args)
+    }
+    await render(<PrototypeStudioApp requirementId="REQ-01" t={t} bridge={bridge} call={call} />)
+
+    const input = element('studio-instruction-input') as HTMLInputElement
+    await act(async () => {
+      // oxlint-disable-next-line typescript/unbound-method -- 原生 value setter 要用 call 绑定到该输入框。
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set
+      setter?.call(input, '把主按钮改成主色')
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    await click('studio-send-instruction')
+
+    // 会话与跟随流都先于 prompt 就绪，宿主那次 running=true 才不会被漏掉。
+    expect(order).toEqual(['session/create', 'openStream', 'session/prompt'])
+    expect(element('studio-turn-running')).not.toBeNull()
+  })
+})
+
+describe('全屏浮窗拖拽', () => {
+  const pointer = (node: HTMLElement | null, type: string, screenX: number, screenY: number): void => {
+    act(() => {
+      node?.dispatchEvent(new MouseEvent(type, { bubbles: true, button: 0, screenX, screenY }))
+    })
+  }
+
+  it('按住顶栏拖动按指针位移更新浮窗坐标，样式不加 app-region', async () => {
+    const bridge = makeStreamBridge()
+    await renderApp(bridge)
+    await click('studio-mode-toggle')
+    const head = element('studio-head')
+    expect(head).not.toBeNull()
+
+    pointer(head, 'pointerdown', 900, 60)
+    // 自动贴位时先向宿主核对一次真实矩形；核对完成后才开始按位移写入坐标。
+    await flush()
+    pointer(head, 'pointermove', 700, 160)
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 40)) })
+    // 默认贴右上：x = 1024 - 380 - 24，y = 24；位移 (-200, +100) 直接加到起点上。
+    expect(boundsCalls.at(-1)).toMatchObject({
+      x: 1024 - 380 - 24 - 200,
+      y: 24 + 100,
+      width: 380,
+      height: 520,
+      collapsed: false,
+    })
+    pointer(head, 'pointerup', 700, 160)
+
+    // 浮窗拖拽只用指针事件：样式里不能出现 app-region 或背景滤镜（拖拽区红线）。
+    const css = readFileSync(resolve(process.cwd(), 'packages/lcoder/client/src/prototype-studio/studio.css'), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//gu, '')
+    expect(css).not.toContain('-webkit-app-region')
+    expect(css).not.toContain('backdrop-filter')
+  })
+
+  it('折叠胶囊也能拖；拖过的松手不再当作展开点击', async () => {
+    const bridge = makeStreamBridge()
+    await renderApp(bridge)
+    await click('studio-mode-toggle')
+    await click('studio-floating-collapse')
+    expect(element('studio-body')?.hidden).toBe(true)
+
+    const capsule = element('studio-floating-collapse')
+    pointer(capsule, 'pointerdown', 800, 40)
+    await flush()
+    pointer(capsule, 'pointermove', 760, 140)
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 40)) })
+    expect(boundsCalls.at(-1)).toMatchObject({ width: 260, height: 48, collapsed: true })
+    expect(boundsCalls.at(-1)?.y).toBe(24 + 100)
+    pointer(capsule, 'pointerup', 760, 140)
+
+    // 拖拽尾巴上那一次 click 不该展开面板。
+    await act(async () => { capsule?.click() })
+    await flush()
+    expect(element('studio-body')?.hidden).toBe(true)
+  })
+})
+
+describe('协作流实时进度', () => {
+  const turn = (): StudioTurnEcho => ({ instruction: '把主按钮改成主色', anchors: [], sentAt: Date.now() })
+
+  it('运行期展示工具步骤与人话正文，回合结束帧一到就退出等待', async () => {
+    const onStageComplete = vi.fn()
+    const bridge = makeStreamBridge()
+    await render(
+      <CoDesignThread t={t} bridge={bridge} sessionId="chat-1" streamId="stream-1" turn={turn()} onStageComplete={onStageComplete} />,
+    )
+    expect(element('studio-turn-running')).not.toBeNull()
+
+    // 本回合的 turn/start 先到，后面的 turn/end 才能算到这一轮头上。
+    emitFrame({ type: 'event', event: { type: 'turn/start', seq: 1, time: 1, data: {} } })
+    emitFrame({
+      type: 'event',
+      event: {
+        type: 'tool/call', seq: 2, time: 1,
+        data: { name: 'prototype_stage', arguments: '{"requirement":"REQ-01"}' },
+      },
+    })
+    await flush()
+    expect(element('studio-turn-activity')?.textContent).toContain('prototype_stage')
+    expect(element('studio-turn-activity')?.textContent).toContain('REQ-01')
+
+    emitFrame({
+      type: 'assistant-stream',
+      frame: {
+        type: 'chunk', attemptId: 'a1', revision: 2, index: 0,
+        chunk: { type: 'text-delta', text: '已把主按钮改成主色 ```html<div class="x"></div>``` 其余保持不动' },
+      },
+    })
+    await flush()
+    const live = element('studio-turn-live-text')
+    expect(live?.textContent).toContain('已把主按钮改成主色')
+    expect(live?.textContent).not.toContain('class="x"')
+
+    emitFrame({ type: 'event', event: { type: 'turn/end', seq: 3, time: 2, data: { reason: { kind: 'completed' } } } })
+    await flush()
+    expect(onStageComplete).toHaveBeenCalledTimes(1)
+    expect(element('studio-turn-running')).toBeNull()
+    expect(element('studio-turn-done')).not.toBeNull()
+  })
+
+  it('宿主运行态由 true 变 false 也立刻结束等待', async () => {
+    const onStageComplete = vi.fn()
+    const bridge = makeStreamBridge()
+    await render(
+      <CoDesignThread t={t} bridge={bridge} sessionId="chat-1" streamId="stream-1" turn={turn()} onStageComplete={onStageComplete} />,
+    )
+    emitEvent('api-session/status', 'chat-1', true)
+    await flush()
+    emitEvent('api-session/status', 'chat-1', false)
+    await flush()
+    expect(onStageComplete).toHaveBeenCalledTimes(1)
+    expect(element('studio-turn-running')).toBeNull()
+  })
+
+  it('等待期每两秒探测一次，暂存更新后退出等待', async () => {
+    vi.useFakeTimers()
+    try {
+      const onStageComplete = vi.fn()
+      const onProbeComplete = vi.fn(async () => true)
+      const bridge = makeStreamBridge()
+      await act(async () => {
+        root.render(
+          <CoDesignThread
+            t={t}
+            bridge={bridge}
+            sessionId="chat-1"
+            streamId="stream-1"
+            turn={turn()}
+            onStageComplete={onStageComplete}
+            onProbeComplete={onProbeComplete}
+          />,
+        )
+      })
+      await act(async () => { await vi.advanceTimersByTimeAsync(TURN_PROBE_INTERVAL_MS) })
+      expect(onProbeComplete).toHaveBeenCalledTimes(1)
+      expect(onStageComplete).toHaveBeenCalledTimes(1)
+      expect(element('studio-turn-running')).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
+describe('工作台停靠胶囊', () => {
+  it('显示需求编号，恢复与关闭各自回主进程', async () => {
+    const onRestore = vi.fn()
+    const onClose = vi.fn()
+    await render(<StudioDock t={t} requirementId="REQ-01" onRestore={onRestore} onClose={onClose} />)
+    expect(element('studio-minimized-dock')?.textContent).toContain('REQ-01')
+    expect(element('studio-dock-restore')?.textContent).toContain('恢复窗口')
+    await click('studio-dock-restore')
+    expect(onRestore).toHaveBeenCalledTimes(1)
+    await click('studio-dock-close')
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 })

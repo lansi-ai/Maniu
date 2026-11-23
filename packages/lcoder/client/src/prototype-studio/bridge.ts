@@ -38,6 +38,14 @@ export interface StudioFloatingBounds {
   readonly collapsed?: boolean
 }
 
+/** 宿主应用后的浮窗矩形；负坐标已解析成实际的贴边位置。 */
+export interface StudioFloatingRect {
+  readonly x: number
+  readonly y: number
+  readonly width: number
+  readonly height: number
+}
+
 /** 重载工作台画布的内容。 */
 export interface StudioHtmlPayload {
   readonly html: string
@@ -61,7 +69,7 @@ export interface StudioHostApi {
   setPrototypeStudioInteraction(mode: StudioInteractionMode): Promise<void>
   loadPrototypeStudioHtml(payload: StudioHtmlPayload): Promise<void>
   highlightPrototypeStudioPaths(paths: readonly string[]): Promise<void>
-  setPrototypeStudioFloatingBounds(bounds: StudioFloatingBounds): Promise<void>
+  setPrototypeStudioFloatingBounds(bounds: StudioFloatingBounds): Promise<StudioFloatingRect | undefined>
   onPrototypeSelection(listener: (info: StudioSelectionInfo) => void): () => void
 }
 

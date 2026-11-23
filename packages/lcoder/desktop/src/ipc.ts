@@ -7,8 +7,9 @@ import { dirname } from 'node:path'
 import { IPC_CHANNELS } from './contract.ts'
 import type {
   DesktopPreferences, DirectoryPickResult, EventOutcome, HostState, PrototypeInteractionMode,
-  PrototypeSelectionInfo, PrototypeStudioFloatingBounds, PrototypeStudioHtmlPayload, PrototypeStudioMode,
-  PrototypeStudioOpenRequest, UpdateCheck, WindowAction, WindowStateInfo,
+  PrototypeSelectionInfo, PrototypeStudioDockAction, PrototypeStudioDockState, PrototypeStudioFloatingBounds,
+  PrototypeStudioHtmlPayload, PrototypeStudioMode, PrototypeStudioOpenRequest, UpdateCheck, WindowAction,
+  WindowStateInfo,
 } from './contract.ts'
 import { DESKTOP_MESSAGES, fillDesktop, readDesktopPreferences, writeDesktopPreferences } from './desktop-locale.ts'
 import { isDesktopLocale, preferencePatchOf } from './preferences.ts'
@@ -46,6 +47,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 /** 工作台协作界面的读取器；未打开或已销毁时返回 undefined。 */
 export interface StudioUiReader {
   studioUiWebContents(): WebContents | undefined
+  /** 主窗重载完成后补发最新停靠状态，避免刷新后胶囊消失。 */
+  replayStudioDock(): void
 }
 
 /**
@@ -123,6 +126,10 @@ function isStudioMode(value: unknown): value is PrototypeStudioMode {
 
 function isInteractionMode(value: unknown): value is PrototypeInteractionMode {
   return value === 'interact' || value === 'select'
+}
+
+function isDockAction(value: unknown): value is PrototypeStudioDockAction {
+  return value === 'restore' || value === 'close'
 }
 
 /** 校验打开工作台的请求；只接受已知字段与受限长度的 HTML。 */
@@ -225,6 +232,38 @@ export function registerIpc(deps: IpcDependencies): StudioUiReader {
   let prototypePreview: BrowserWindow | undefined
   /** 当前 Prototype Studio；重新打开时复用，关闭时随事件清理。 */
   let prototypeStudio: PrototypeStudioController | undefined
+  /** 当前工作台需求编号；停靠胶囊上要显示它，窗口关掉后清空。 */
+  let studioRequirementId: string | undefined
+  /** 最新停靠状态；主窗重载后补发，胶囊不会因为一次刷新就消失。 */
+  let dockState: PrototypeStudioDockState = { open: false, minimized: false }
+  /** 主窗只挂一次关闭联动；重建的主窗是新对象，各挂各的。 */
+  const parentCloseWired = new WeakSet<BrowserWindow>()
+
+  /** 送出当前停靠状态；主窗未就绪时交给 replayStudioDock 补发。 */
+  function sendDockState(): void {
+    const target = deps.window()
+    if (target === undefined || target.isDestroyed()) return
+    target.webContents.send(IPC_CHANNELS.prototypeStudioDockState, dockState)
+  }
+
+  /** 提交并推送停靠状态；只在状态真正改变后调用。 */
+  function publishDockState(next: PrototypeStudioDockState): void {
+    dockState = next
+    sendDockState()
+  }
+
+  /**
+   * 主窗关闭时一并关掉独立窗口：它们不再设父窗，生命周期只靠这一条监听联动。
+   * @param parent - 发起预览或工作台的主窗。
+   */
+  function wireParentClose(parent: BrowserWindow): void {
+    if (parentCloseWired.has(parent)) return
+    parentCloseWired.add(parent)
+    parent.once('closed', () => {
+      if (prototypePreview !== undefined && !prototypePreview.isDestroyed()) prototypePreview.close()
+      if (prototypeStudio !== undefined && !prototypeStudio.window.isDestroyed()) prototypeStudio.window.close()
+    })
+  }
 
   ipcMain.handle(IPC_CHANNELS.call, async (_event: IpcMainInvokeEvent, value: unknown) => {
     const request = callRequest(value)
@@ -314,8 +353,8 @@ export function registerIpc(deps: IpcDependencies): StudioUiReader {
       return
     }
     const preview = createPrototypePreviewWindow(value)
-    // 设为主窗的子窗：关主窗时预览一并销毁，关停逻辑仍只看主窗，预览关窗不影响主窗。
-    if (parent !== undefined && !parent.isDestroyed()) preview.setParentWindow(parent)
+    // 不设主窗子窗：子窗会跟着主窗最小化并留下系统标题栏残条；关主窗时显式关掉它。
+    if (parent !== undefined && !parent.isDestroyed()) wireParentClose(parent)
     prototypePreview = preview
     preview.once('closed', () => { prototypePreview = undefined })
   })
@@ -338,17 +377,34 @@ export function registerIpc(deps: IpcDependencies): StudioUiReader {
     if (prototypeStudio !== undefined && !prototypeStudio.window.isDestroyed()) {
       prototypeStudio.loadHtml(request)
       prototypeStudio.setMode(request.mode ?? 'split')
+      // 最小化进主窗后再次打开等于恢复：唤醒窗口并撤掉停靠胶囊。
+      prototypeStudio.window.show()
+      prototypeStudio.window.focus()
+      studioRequirementId = request.requirementId
+      publishDockState({ open: true, minimized: false, requirementId: request.requirementId })
       return
     }
     const studio = createPrototypeStudioWindow(request)
     const parent = deps.window()
-    if (parent !== undefined && !parent.isDestroyed()) studio.window.setParentWindow(parent)
+    // 不设主窗子窗：子窗最小化后会在屏幕角落留下空标题栏；关主窗时由 wireParentClose 联动关闭。
+    if (parent !== undefined && !parent.isDestroyed()) wireParentClose(parent)
     prototypeStudio = studio
+    studioRequirementId = request.requirementId
+    studio.window.on('minimize', (event?: { readonly preventDefault: () => void }) => {
+      // 最小化改成隐藏：任务栏不占新条目，改由主窗右下角的停靠胶囊接管恢复。
+      // Electron 在 minimize 上实发事件对象，类型声明却写成无参，这里按可选事件读取。
+      event?.preventDefault()
+      studio.window.hide()
+      publishDockState({ open: true, minimized: true, requirementId: request.requirementId })
+    })
     studio.window.once('closed', () => {
       if (prototypeStudio !== studio) return
       studio.dispose()
       prototypeStudio = undefined
+      studioRequirementId = undefined
+      publishDockState({ open: false, minimized: false })
     })
+    publishDockState({ open: true, minimized: false, requirementId: request.requirementId })
   })
   ipcMain.handle(IPC_CHANNELS.prototypeStudioSetMode, (_event: IpcMainInvokeEvent, value: unknown) => {
     if (!isStudioMode(value)) throw new Error('lcoder: 工作台模式不合法')
@@ -376,6 +432,27 @@ export function registerIpc(deps: IpcDependencies): StudioUiReader {
     const bounds = floatingBoundsOf(value)
     if (bounds === undefined) throw new Error('lcoder: 浮窗位置不合法')
     prototypeStudio?.setFloatingBounds(bounds)
+    return prototypeStudio?.floatingRect()
+  })
+  ipcMain.handle(IPC_CHANNELS.prototypeStudioRestore, (_event: IpcMainInvokeEvent, value: unknown) => {
+    const action = isDockAction(value) ? value : undefined
+    if (action === undefined) throw new Error('lcoder: 停靠动作不合法')
+    const studio = prototypeStudio
+    if (studio === undefined || studio.window.isDestroyed()) {
+      publishDockState({ open: false, minimized: false })
+      return
+    }
+    if (action === 'close') {
+      studio.window.close()
+      return
+    }
+    studio.window.show()
+    studio.window.focus()
+    publishDockState({
+      open: true,
+      minimized: false,
+      ...(studioRequirementId === undefined ? {} : { requirementId: studioRequirementId }),
+    })
   })
 
   return {
@@ -383,6 +460,7 @@ export function registerIpc(deps: IpcDependencies): StudioUiReader {
       const ui = prototypeStudio?.uiWebContents()
       return ui === undefined || ui.isDestroyed() ? undefined : ui
     },
+    replayStudioDock() { sendDockState() },
   }
 }
 

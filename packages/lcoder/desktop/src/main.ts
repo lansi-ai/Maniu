@@ -82,8 +82,16 @@ function send(channel: string, ...args: readonly unknown[]): void {
 }
 
 function wireStateReplay(window: BrowserWindow): void {
-  window.webContents.on('did-finish-load', () => { publisher.replay(); windowState.replay() })
-  window.webContents.on('did-stop-loading', () => { publisher.replay(); windowState.replay() })
+  window.webContents.on('did-finish-load', () => {
+    publisher.replay()
+    windowState.replay()
+    studioUi?.replayStudioDock()
+  })
+  window.webContents.on('did-stop-loading', () => {
+    publisher.replay()
+    windowState.replay()
+    studioUi?.replayStudioDock()
+  })
 }
 
 function publishWindowState(): void {
