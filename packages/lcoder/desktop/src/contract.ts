@@ -29,6 +29,20 @@ export const IPC_CHANNELS = {
   prototypeSelectionReport: 'lcoder:prototype-selection-report',
   /** 主进程把点选元素转发给主窗渲染端。 */
   prototypeSelection: 'lcoder:prototype-selection',
+  /** 主窗请求打开 Prototype Studio 多视图工作台。 */
+  prototypeStudioOpen: 'lcoder:prototype-studio-open',
+  /** 切换工作台的视图模式。 */
+  prototypeStudioSetMode: 'lcoder:prototype-studio-set-mode',
+  /** 切换原型画布的交互/选择模式。 */
+  prototypeStudioSetInteraction: 'lcoder:prototype-studio-set-interaction',
+  /** 重载工作台的暂存版与正式版 HTML。 */
+  prototypeStudioLoadHtml: 'lcoder:prototype-studio-load-html',
+  /** 给原型画布标记需要修改的 DOM 路径。 */
+  prototypeStudioHighlightPaths: 'lcoder:prototype-studio-highlight-paths',
+  /** 设置全屏置顶模式下协作浮窗的位置与尺寸。 */
+  prototypeStudioSetFloatingBounds: 'lcoder:prototype-studio-set-floating-bounds',
+  /** 主进程下发到原型画布 preload 的检查器控制（交互模式与高亮路径）。 */
+  prototypeStudioInspectControl: 'lcoder:prototype-studio-inspect-control',
 } as const
 
 /** 宿主子进程生命周期状态。 */
@@ -158,7 +172,46 @@ export interface PrototypeSelectionInfo {
   readonly html: string
   /** 关键计算样式，形如 `color: #333; font-size: 16px`。 */
   readonly css: string
+  /** 元素的可读短名（aria-label、首段可见文本或标签标识），最多 80 字符。 */
+  readonly label?: string
 }
+
+/** Prototype Studio 的视图模式：分屏、全屏置顶浮窗、并排对比。 */
+export type PrototypeStudioMode = 'split' | 'fullscreen-pinned' | 'compare-side-by-side'
+
+/** 原型画布当前是普通交互还是元素选择。 */
+export type PrototypeInteractionMode = 'interact' | 'select'
+
+/** 全屏置顶模式下协作界面浮窗的位置与尺寸；x/y 为负表示靠右/靠上自动定位。 */
+export interface PrototypeStudioFloatingBounds {
+  readonly x: number
+  readonly y: number
+  readonly width: number
+  readonly height: number
+  /** 折叠后收缩为胶囊条，只保留标题高度。 */
+  readonly collapsed?: boolean
+}
+
+/** 打开 Prototype Studio 的请求；html 为暂存版，beforeHtml 为并排对比用的正式版。 */
+export interface PrototypeStudioOpenRequest {
+  readonly requirementId: string
+  readonly sessionId?: string
+  readonly html: string
+  readonly beforeHtml?: string
+  readonly mode?: PrototypeStudioMode
+}
+
+/** 重载工作台画布的内容；highlightDomPaths 是需要在暂存版上标记修改的 DOM 路径。 */
+export interface PrototypeStudioHtmlPayload {
+  readonly html: string
+  readonly beforeHtml?: string
+  readonly highlightDomPaths?: readonly string[]
+}
+
+/** 主进程下发到原型画布 preload 的检查器控制载荷。 */
+export type PrototypeStudioInspectControl =
+  | { readonly interactionMode: PrototypeInteractionMode }
+  | { readonly highlightDomPaths: readonly string[] }
 
 /** preload 暴露给渲染端的完整面。 */
 export interface LcoderApi {
@@ -212,4 +265,16 @@ export interface LcoderApi {
   openPrototypePreview(html: string): Promise<void>
   /** 订阅独立预览窗口的元素点选上报；返回取消订阅函数。 */
   onPrototypeSelection(listener: (info: PrototypeSelectionInfo) => void): () => void
+  /** 打开 Prototype Studio 多视图工作台；只由主窗口调用。 */
+  openPrototypeStudio(request: PrototypeStudioOpenRequest): Promise<void>
+  /** 切换工作台的视图模式。 */
+  setPrototypeStudioMode(mode: PrototypeStudioMode): Promise<void>
+  /** 切换原型画布的交互/选择模式。 */
+  setPrototypeStudioInteraction(mode: PrototypeInteractionMode): Promise<void>
+  /** 重载工作台暂存版与正式版 HTML。 */
+  loadPrototypeStudioHtml(payload: PrototypeStudioHtmlPayload): Promise<void>
+  /** 在暂存版画布上标记需要修改的 DOM 路径；空数组清除标记。 */
+  highlightPrototypeStudioPaths(paths: readonly string[]): Promise<void>
+  /** 设置全屏置顶模式下协作浮窗的位置与尺寸。 */
+  setPrototypeStudioFloatingBounds(bounds: PrototypeStudioFloatingBounds): Promise<void>
 }

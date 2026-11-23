@@ -4,15 +4,19 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { IPC_CHANNELS } from '../src/contract.ts'
 import type { PrototypeSelectionInfo } from '../src/contract.ts'
 
-const electron = vi.hoisted(() => ({ invoke: vi.fn(), exposeInMainWorld: vi.fn() }))
+const electron = vi.hoisted(() => ({ invoke: vi.fn(), on: vi.fn(), exposeInMainWorld: vi.fn() }))
 vi.mock('electron', () => ({
-  ipcRenderer: { invoke: electron.invoke },
+  ipcRenderer: { invoke: electron.invoke, on: electron.on },
   contextBridge: { exposeInMainWorld: electron.exposeInMainWorld },
 }))
 
 await import('../src/prototype-preview-preload.ts')
 
 const exposedEntry = electron.exposeInMainWorld.mock.calls.find(call => call[0] === 'lcoderPrototypePreview')
+/** 订阅发生在模块加载时；先留存监听器，避免 beforeEach 清空调用记录后拿不到。 */
+const inspectListenerCall = electron.on.mock.calls.find(
+  call => call[0] === IPC_CHANNELS.prototypeStudioInspectControl,
+)
 
 function exposed(): Record<string, (info: PrototypeSelectionInfo) => Promise<void>> {
   if (exposedEntry === undefined) throw new Error('没有暴露专用预览 API')
@@ -182,4 +186,66 @@ describe('prototype-preview-preload', () => {
     expect(banner.style.display).toBe('none')
     expect(electron.invoke).not.toHaveBeenCalled()
   })
+
+  it('上报元素的可读短名：aria-label 优先，其次可见文本，再退回标签标识', () => {
+    const button = document.querySelector<HTMLElement>('#go')
+    if (button === null) throw new Error('missing button')
+
+    button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, altKey: true }))
+    expect((electron.invoke.mock.calls[0]?.[1] as PrototypeSelectionInfo).label).toBe('Go')
+
+    electron.invoke.mockClear()
+    button.setAttribute('aria-label', '  前往   下一步  ')
+    button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, altKey: true }))
+    expect((electron.invoke.mock.calls[0]?.[1] as PrototypeSelectionInfo).label).toBe('前往 下一步')
+
+    electron.invoke.mockClear()
+    button.removeAttribute('aria-label')
+    button.textContent = ''
+    button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, altKey: true }))
+    expect((electron.invoke.mock.calls[0]?.[1] as PrototypeSelectionInfo).label).toBe('button#go')
+  })
+
+  it('工作台下行 select/interact 同步选择模式与提示条开关', () => {
+    expect(toggle().getAttribute('aria-pressed')).toBe('false')
+    sendControl({ interactionMode: 'select' })
+    expect(toggle().getAttribute('aria-pressed')).toBe('true')
+    expect(toggle().textContent).toContain('选择模式：开')
+
+    const button = document.querySelector<HTMLElement>('#go')
+    if (button === null) throw new Error('missing button')
+    const selectClick = new MouseEvent('click', { bubbles: true, cancelable: true })
+    button.dispatchEvent(selectClick)
+    expect(selectClick.defaultPrevented).toBe(true)
+    expect(electron.invoke).toHaveBeenCalledTimes(1)
+
+    sendControl({ interactionMode: 'interact' })
+    expect(toggle().getAttribute('aria-pressed')).toBe('false')
+    expect(toggle().textContent).toContain('选择模式：关')
+    const normalClick = new MouseEvent('click', { bubbles: true, cancelable: true })
+    button.dispatchEvent(normalClick)
+    expect(normalClick.defaultPrevented).toBe(false)
+    expect(electron.invoke).toHaveBeenCalledTimes(1)
+  })
+
+  it('工作台下行 highlightDomPaths 标记匹配元素，空数组清除标记', () => {
+    const button = document.querySelector<HTMLElement>('#go')
+    if (button === null) throw new Error('missing button')
+    const path = 'body:nth-child(2) > div#app:nth-child(1) > section.hero:nth-child(1) > button#go:nth-child(1)'
+    sendControl({ highlightDomPaths: [path] })
+    expect(button.getAttribute('data-lcoder-changed')).toBe('true')
+    expect(button.style.getPropertyValue('outline')).toContain('dashed')
+
+    sendControl({ highlightDomPaths: [] })
+    expect(button.hasAttribute('data-lcoder-changed')).toBe(false)
+    expect(button.style.getPropertyValue('outline')).toBe('')
+  })
 })
+
+/** 触发 preload 订阅的工作台检查器控制。 */
+function sendControl(payload: unknown): void {
+  const entry = inspectListenerCall
+  if (entry === undefined) throw new Error('没有订阅工作台检查器控制')
+  const listener = entry[1] as (event: unknown, value: unknown) => void
+  listener({}, payload)
+}

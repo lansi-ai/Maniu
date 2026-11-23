@@ -88,6 +88,16 @@ const api: LcoderApi = {
   },
   openPrototypePreview: html => ipcRenderer.invoke(IPC_CHANNELS.prototypePreviewOpen, html) as Promise<void>,
   onPrototypeSelection,
+  openPrototypeStudio: request => ipcRenderer.invoke(IPC_CHANNELS.prototypeStudioOpen, request) as Promise<void>,
+  setPrototypeStudioMode: mode => ipcRenderer.invoke(IPC_CHANNELS.prototypeStudioSetMode, mode) as Promise<void>,
+  setPrototypeStudioInteraction: mode =>
+    ipcRenderer.invoke(IPC_CHANNELS.prototypeStudioSetInteraction, mode) as Promise<void>,
+  loadPrototypeStudioHtml: payload =>
+    ipcRenderer.invoke(IPC_CHANNELS.prototypeStudioLoadHtml, payload) as Promise<void>,
+  highlightPrototypeStudioPaths: paths =>
+    ipcRenderer.invoke(IPC_CHANNELS.prototypeStudioHighlightPaths, paths) as Promise<void>,
+  setPrototypeStudioFloatingBounds: bounds =>
+    ipcRenderer.invoke(IPC_CHANNELS.prototypeStudioSetFloatingBounds, bounds) as Promise<void>,
 }
 
 contextBridge.exposeInMainWorld('lcoder', api)

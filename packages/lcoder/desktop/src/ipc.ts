@@ -6,13 +6,17 @@ import { statSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { IPC_CHANNELS } from './contract.ts'
 import type {
-  DesktopPreferences, DirectoryPickResult, EventOutcome, HostState, PrototypeSelectionInfo, UpdateCheck,
-  WindowAction, WindowStateInfo,
+  DesktopPreferences, DirectoryPickResult, EventOutcome, HostState, PrototypeInteractionMode,
+  PrototypeSelectionInfo, PrototypeStudioFloatingBounds, PrototypeStudioHtmlPayload, PrototypeStudioMode,
+  PrototypeStudioOpenRequest, UpdateCheck, WindowAction, WindowStateInfo,
 } from './contract.ts'
 import { DESKTOP_MESSAGES, fillDesktop, readDesktopPreferences, writeDesktopPreferences } from './desktop-locale.ts'
 import { isDesktopLocale, preferencePatchOf } from './preferences.ts'
 import type { HostLink } from './link.ts'
-import { createPrototypePreviewWindow, MAX_PROTOTYPE_PREVIEW_BYTES, prototypePreviewDataUrl } from './window.ts'
+import {
+  createPrototypePreviewWindow, createPrototypeStudioWindow, MAX_PROTOTYPE_PREVIEW_BYTES, prototypePreviewDataUrl,
+  type PrototypeStudioController,
+} from './window.ts'
 
 interface IpcDependencies {
   readonly link: () => HostLink | undefined
@@ -77,7 +81,7 @@ function windowAction(value: unknown): WindowAction | undefined {
  */
 function selectionInfoOf(value: unknown): PrototypeSelectionInfo | undefined {
   if (!isRecord(value)
-    || typeof value.domPath !== 'string' || value.domPath === '' || value.domPath.length > 2000
+    || typeof value.domPath !== 'string' || value.domPath === ''
     || typeof value.html !== 'string' || typeof value.css !== 'string') {
     return undefined
   }
@@ -85,6 +89,74 @@ function selectionInfoOf(value: unknown): PrototypeSelectionInfo | undefined {
     domPath: value.domPath.slice(0, 2000),
     html: value.html.slice(0, 8000),
     css: value.css.slice(0, 4000),
+    ...(typeof value.label === 'string' && value.label.trim() !== ''
+      ? { label: value.label.trim().slice(0, 80) }
+      : {}),
+  }
+}
+
+/** 工作台 HTML 必须是非空字符串且不超过预览字节上限。 */
+function validStudioHtml(value: unknown): value is string {
+  return typeof value === 'string' && value.trim() !== '' && Buffer.byteLength(value, 'utf8') <= MAX_PROTOTYPE_PREVIEW_BYTES
+}
+
+function isStudioMode(value: unknown): value is PrototypeStudioMode {
+  return value === 'split' || value === 'fullscreen-pinned' || value === 'compare-side-by-side'
+}
+
+function isInteractionMode(value: unknown): value is PrototypeInteractionMode {
+  return value === 'interact' || value === 'select'
+}
+
+/** 校验打开工作台的请求；只接受已知字段与受限长度的 HTML。 */
+function studioOpenRequestOf(value: unknown): PrototypeStudioOpenRequest | undefined {
+  if (!isRecord(value)
+    || typeof value.requirementId !== 'string' || value.requirementId.trim() === ''
+    || !validStudioHtml(value.html)) return undefined
+  if (value.sessionId !== undefined && typeof value.sessionId !== 'string') return undefined
+  if (value.beforeHtml !== undefined && !validStudioHtml(value.beforeHtml)) return undefined
+  if (value.mode !== undefined && !isStudioMode(value.mode)) return undefined
+  return {
+    requirementId: value.requirementId,
+    html: value.html,
+    ...(typeof value.sessionId === 'string' ? { sessionId: value.sessionId } : {}),
+    ...(typeof value.beforeHtml === 'string' ? { beforeHtml: value.beforeHtml } : {}),
+    ...(isStudioMode(value.mode) ? { mode: value.mode } : {}),
+  }
+}
+
+/** 校验工作台 HTML 重载载荷；highlightDomPaths 每条路径都受限长度。 */
+function studioHtmlPayloadOf(value: unknown): PrototypeStudioHtmlPayload | undefined {
+  if (!isRecord(value) || !validStudioHtml(value.html)) return undefined
+  if (value.beforeHtml !== undefined && !validStudioHtml(value.beforeHtml)) return undefined
+  let highlightDomPaths: string[] | undefined
+  if (value.highlightDomPaths !== undefined) {
+    if (!Array.isArray(value.highlightDomPaths)) return undefined
+    highlightDomPaths = []
+    for (const path of value.highlightDomPaths) {
+      if (typeof path !== 'string') return undefined
+      highlightDomPaths.push(path.slice(0, 2000))
+    }
+  }
+  return {
+    html: value.html,
+    ...(typeof value.beforeHtml === 'string' ? { beforeHtml: value.beforeHtml } : {}),
+    ...(highlightDomPaths === undefined ? {} : { highlightDomPaths }),
+  }
+}
+
+/** 校验浮窗位置；四个坐标/尺寸都必须是有限数，collapsed 必须是布尔。 */
+function floatingBoundsOf(value: unknown): PrototypeStudioFloatingBounds | undefined {
+  if (!isRecord(value)) return undefined
+  const { x, y, width, height, collapsed } = value
+  if (typeof x !== 'number' || !Number.isFinite(x)
+    || typeof y !== 'number' || !Number.isFinite(y)
+    || typeof width !== 'number' || !Number.isFinite(width)
+    || typeof height !== 'number' || !Number.isFinite(height)) return undefined
+  if (collapsed !== undefined && typeof collapsed !== 'boolean') return undefined
+  return {
+    x, y, width, height,
+    ...(typeof collapsed === 'boolean' ? { collapsed } : {}),
   }
 }
 
@@ -133,6 +205,8 @@ function pickerDefaultPath(value: unknown): string | undefined {
 export function registerIpc(deps: IpcDependencies): void {
   /** 当前独立预览窗口；元素级修改后复用它重载，不堆积多个窗口。 */
   let prototypePreview: BrowserWindow | undefined
+  /** 当前 Prototype Studio；重新打开时复用，关闭时随事件清理。 */
+  let prototypeStudio: PrototypeStudioController | undefined
 
   ipcMain.handle(IPC_CHANNELS.call, async (_event: IpcMainInvokeEvent, value: unknown) => {
     const request = callRequest(value)
@@ -234,6 +308,56 @@ export function registerIpc(deps: IpcDependencies): void {
     if (target !== undefined && !target.isDestroyed()) {
       target.webContents.send(IPC_CHANNELS.prototypeSelection, info)
     }
+    // 工作台打开时，选中元素也要送到协作界面，让同一需求下的模型侧看到同一份上报。
+    const studioUi = prototypeStudio?.uiWebContents()
+    if (studioUi !== undefined && !studioUi.isDestroyed()) {
+      studioUi.send(IPC_CHANNELS.prototypeSelection, info)
+    }
+  })
+  ipcMain.handle(IPC_CHANNELS.prototypeStudioOpen, (_event: IpcMainInvokeEvent, value: unknown) => {
+    const request = studioOpenRequestOf(value)
+    if (request === undefined) throw new Error('lcoder: 工作台参数不合法')
+    if (prototypeStudio !== undefined && !prototypeStudio.window.isDestroyed()) {
+      prototypeStudio.loadHtml(request)
+      prototypeStudio.setMode(request.mode ?? 'split')
+      return
+    }
+    const studio = createPrototypeStudioWindow(request)
+    const parent = deps.window()
+    if (parent !== undefined && !parent.isDestroyed()) studio.window.setParentWindow(parent)
+    prototypeStudio = studio
+    studio.window.once('closed', () => {
+      if (prototypeStudio !== studio) return
+      studio.dispose()
+      prototypeStudio = undefined
+    })
+  })
+  ipcMain.handle(IPC_CHANNELS.prototypeStudioSetMode, (_event: IpcMainInvokeEvent, value: unknown) => {
+    if (!isStudioMode(value)) throw new Error('lcoder: 工作台模式不合法')
+    prototypeStudio?.setMode(value)
+  })
+  ipcMain.handle(IPC_CHANNELS.prototypeStudioSetInteraction, (_event: IpcMainInvokeEvent, value: unknown) => {
+    if (!isInteractionMode(value)) throw new Error('lcoder: 交互模式不合法')
+    prototypeStudio?.setInteraction(value)
+  })
+  ipcMain.handle(IPC_CHANNELS.prototypeStudioLoadHtml, (_event: IpcMainInvokeEvent, value: unknown) => {
+    const payload = studioHtmlPayloadOf(value)
+    if (payload === undefined) throw new Error('lcoder: 工作台 HTML 不合法')
+    prototypeStudio?.loadHtml(payload)
+  })
+  ipcMain.handle(IPC_CHANNELS.prototypeStudioHighlightPaths, (_event: IpcMainInvokeEvent, value: unknown) => {
+    if (!Array.isArray(value)) throw new Error('lcoder: 高亮路径不合法')
+    const paths: string[] = []
+    for (const path of value) {
+      if (typeof path !== 'string') throw new Error('lcoder: 高亮路径不合法')
+      paths.push(path.slice(0, 2000))
+    }
+    prototypeStudio?.highlightPaths(paths)
+  })
+  ipcMain.handle(IPC_CHANNELS.prototypeStudioSetFloatingBounds, (_event: IpcMainInvokeEvent, value: unknown) => {
+    const bounds = floatingBoundsOf(value)
+    if (bounds === undefined) throw new Error('lcoder: 浮窗位置不合法')
+    prototypeStudio?.setFloatingBounds(bounds)
   })
 }
 

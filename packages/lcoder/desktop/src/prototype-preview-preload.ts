@@ -13,8 +13,15 @@ import type { PrototypeSelectionInfo } from './contract.ts'
 
 const MAX_HTML_CHARS = 8000
 const MAX_CSS_CHARS = 4000
+const MAX_LABEL_CHARS = 80
+const LABEL_TEXT_CHARS = 24
 const HIGHLIGHT_OUTLINE = '2px solid #4f8cff'
+const CHANGED_OUTLINE = '2px dashed rgba(245, 158, 11, .95)'
 const HINT_TEXT = '按住 Alt 点击元素选中并交给 AI 修改 · 或直接点击操作原型'
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
 
 /** 页面唯一可见的上报口；把元素信息单向交给主进程，不回读任何宿主数据。 */
 const api = {
@@ -22,6 +29,23 @@ const api = {
     ipcRenderer.invoke(IPC_CHANNELS.prototypeSelectionReport, info) as Promise<void>,
 }
 contextBridge.exposeInMainWorld('lcoderPrototypePreview', api)
+
+// 工作台下行控制只进隔离世界，不进 contextBridge：原型页面拿不到这些能力。
+ipcRenderer.on(IPC_CHANNELS.prototypeStudioInspectControl, (_event, payload: unknown) => {
+  if (!isRecord(payload)) return
+  const interaction = payload.interactionMode
+  if (interaction === 'select' || interaction === 'interact') {
+    setSelectionMode(interaction === 'select')
+    return
+  }
+  if (!Array.isArray(payload.highlightDomPaths)) return
+  const paths: string[] = []
+  for (const path of payload.highlightDomPaths) {
+    if (typeof path !== 'string') return
+    paths.push(path.slice(0, 2000))
+  }
+  applyHighlightPaths(paths)
+})
 
 function safeName(value: string): string {
   return value.replace(/[^A-Za-z0-9_-]/g, '')
@@ -76,11 +100,29 @@ function cssOf(element: Element): string {
   return lines.join('; ').slice(0, MAX_CSS_CHARS)
 }
 
+/** 元素的可读短名：优先 aria-label，其次首段可见文本，再退回标签/id/类标识。 */
+function labelOf(element: Element): string {
+  const aria = (element.getAttribute('aria-label') ?? '').trim().replace(/\s+/g, ' ')
+  if (aria !== '') return aria.slice(0, MAX_LABEL_CHARS)
+  const textNode = Array.from(element.childNodes).find(
+    node => node.nodeType === Node.TEXT_NODE && (node.textContent ?? '').trim() !== '',
+  )
+  if (textNode !== undefined) {
+    const text = (textNode.textContent ?? '').trim().replace(/\s+/g, ' ').slice(0, LABEL_TEXT_CHARS)
+    if (text !== '') return text
+  }
+  const tag = element.tagName.toLowerCase()
+  const id = safeName(element.getAttribute('id') ?? '')
+  const firstClass = safeName((element.getAttribute('class') ?? '').trim().split(/\s+/)[0] ?? '')
+  return `${tag}${id === '' ? '' : `#${id}`}${firstClass === '' ? '' : `.${firstClass}`}`.slice(0, MAX_LABEL_CHARS)
+}
+
 function report(element: Element): void {
   const info: PrototypeSelectionInfo = {
     domPath: domPathOf(element),
     html: safeHtml(element.outerHTML),
     css: cssOf(element),
+    label: labelOf(element),
   }
   void api.reportSelection(info).catch((error: unknown) => {
     // 上报失败只丢这次点选，不把未处理拒绝抛回原型页面。
@@ -95,6 +137,7 @@ let altHeld = false
 let selectionMode = false
 let suppressSubmit = false
 let hintBar: HTMLElement | undefined
+let selectModeToggle: HTMLButtonElement | undefined
 let errorBanner: HTMLElement | undefined
 let errorText: HTMLElement | undefined
 let errorCount = 0
@@ -115,6 +158,48 @@ function setHighlight(target: HTMLElement): void {
   previousOutline = target.style.getPropertyValue('outline')
   previousPriority = target.style.getPropertyPriority('outline')
   target.style.setProperty('outline', HIGHLIGHT_OUTLINE, 'important')
+}
+
+interface ChangedMark {
+  readonly element: HTMLElement
+  readonly hadAttribute: boolean
+  readonly outline: string
+  readonly priority: string
+}
+let changedMarks: ChangedMark[] = []
+
+/** 清掉工作台高亮标记，恢复元素原有的属性与 outline。 */
+function clearChangedMarks(): void {
+  for (const mark of changedMarks) {
+    if (!mark.hadAttribute) mark.element.removeAttribute('data-lcoder-changed')
+    if (mark.outline === '') mark.element.style.removeProperty('outline')
+    else mark.element.style.setProperty('outline', mark.outline, mark.priority)
+  }
+  changedMarks = []
+}
+
+/** 给单个匹配元素加修改标识；先存原样以便还原。 */
+function markChanged(element: HTMLElement): void {
+  if (changedMarks.some(mark => mark.element === element)) return
+  changedMarks.push({
+    element,
+    hadAttribute: element.hasAttribute('data-lcoder-changed'),
+    outline: element.style.getPropertyValue('outline'),
+    priority: element.style.getPropertyPriority('outline'),
+  })
+  element.setAttribute('data-lcoder-changed', 'true')
+  element.style.setProperty('outline', CHANGED_OUTLINE, 'important')
+}
+
+/** 按 DOM 路径集合标记待修改元素；空集合只清旧标记。 */
+function applyHighlightPaths(paths: readonly string[]): void {
+  clearChangedMarks()
+  if (paths.length === 0) return
+  const wanted = new Set(paths)
+  for (const element of document.querySelectorAll('*')) {
+    if (!(element instanceof HTMLElement)) continue
+    if (wanted.has(domPathOf(element))) markChanged(element)
+  }
 }
 
 function onOver(event: MouseEvent): void {
@@ -180,6 +265,16 @@ function selectModeLabel(): string {
   return selectionMode ? '选择模式：开' : '选择模式：关'
 }
 
+/** 提示条按钮与工作台下行控制共用的选择模式切换；退出选择模式时清掉悬停高亮。 */
+function setSelectionMode(next: boolean): void {
+  selectionMode = next
+  if (selectModeToggle !== undefined) {
+    selectModeToggle.textContent = selectModeLabel()
+    selectModeToggle.setAttribute('aria-pressed', String(next))
+  }
+  if (!next) clearHighlight()
+}
+
 /** 把原型脚本的运行时报错节流展示到顶部提示条，避免点击无反应却静默无提示。 */
 function recordRuntimeError(message: string): void {
   errorCount += 1
@@ -223,12 +318,8 @@ function installHint(): HTMLElement {
   toggle.setAttribute('aria-pressed', 'false')
   toggle.textContent = selectModeLabel()
   toggle.style.cssText = 'flex:none;border:1px solid rgba(255,255,255,.35);border-radius:6px;background:transparent;color:inherit;font:inherit;padding:2px 8px;cursor:pointer'
-  toggle.addEventListener('click', () => {
-    selectionMode = !selectionMode
-    toggle.textContent = selectModeLabel()
-    toggle.setAttribute('aria-pressed', String(selectionMode))
-    if (!selectionMode) clearHighlight()
-  })
+  toggle.addEventListener('click', () => { setSelectionMode(!selectionMode) })
+  selectModeToggle = toggle
   topRow.append(text, toggle)
 
   const errRow = document.createElement('div')
@@ -251,7 +342,8 @@ function installHint(): HTMLElement {
   errorText = errMsg
 
   bar.append(topRow, errRow)
-  ;(document.documentElement ?? document.body).append(bar)
+  const root = document.documentElement
+  root.append(bar)
   return bar
 }
 

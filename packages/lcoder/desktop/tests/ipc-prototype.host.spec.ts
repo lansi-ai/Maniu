@@ -22,6 +22,7 @@ vi.mock('electron', () => ({
 }))
 vi.mock('../src/window.ts', () => ({
   createPrototypePreviewWindow: preview.create,
+  createPrototypeStudioWindow: vi.fn(),
   MAX_PROTOTYPE_PREVIEW_BYTES: 512 * 1024,
   prototypePreviewDataUrl: (html: string) => `data:${html}`,
 }))
