@@ -42,7 +42,9 @@ describe('parseReviewReport', () => {
 
   it('抽出摘要与待改项，逐条取优先级并保留续行', () => {
     const parsed = parseReviewReport(REPORT)
-    expect(parsed.summary).toBe('整体判断：需求基本可用，但边界没写清。')
+    expect(parsed.summary).toContain('整体判断：需求基本可用，但边界没写清。')
+    // 「结论」也是摘要标题：该段文字并入摘要，但待改项条目不受影响。
+    expect(parsed.summary).toContain('需要修改。')
     expect(parsed.todos).toHaveLength(3)
     expect(parsed.todos[0]?.priority).toBe('high')
     expect(parsed.todos[0]?.text).toContain('正文「范围」一节')
@@ -174,5 +176,75 @@ describe('parseReviewReport 四要素与分类', () => {
     expect(parsed.todos[0]?.title).toBe('正文「范围」一节')
     expect(parsed.todos[0]?.text).not.toContain('续行：说明重试次数')
     expect(parsed.todos[1]?.text).toContain('续行：说明重试次数')
+  })
+})
+
+describe('parseReviewReport Markdown 表格', () => {
+  /** 与 lcoder/scripts/seed-sandbox.mjs 里 REQ-01 的 R1 报告同款。 */
+  const SEED_TABLE_REPORT = `# REQ-01 评审报告 R1
+
+## 评审结论
+整体流程清晰，建议补充以下 3 项细节后再定稿：
+
+| 编号 | 严重度 | 所在章节 | 问题说明 | 修改建议 |
+| --- | --- | --- | --- | --- |
+| 1 | 高 | 报销录入表单 | 未明确单笔报销金额上限及超限提示 | 补充单笔上限 5000 元校验，超限需拆单或备注审批说明 |
+| 2 | 中 | 报销录入表单 | 缺少凭证/发票附件字段说明 | 明确支持上传图片或 PDF 发票，或勾选「无票说明」 |
+| 3 | 低 | 近期报销记录列表 | 未定义空态展示文案 | 补充无记录时的空态引导文案与新建按钮 |
+`
+
+  it('混排章节：引导句进摘要，表格行产出 3 条待改项并拆出四要素', () => {
+    const parsed = parseReviewReport(SEED_TABLE_REPORT)
+    expect(parsed.summary).toBe('整体流程清晰，建议补充以下 3 项细节后再定稿：')
+    expect(parsed.todos).toHaveLength(3)
+    const [first, second, third] = parsed.todos
+    expect(first?.priority).toBe('high')
+    expect(first?.location).toBe('报销录入表单')
+    expect(first?.title).toBe('未明确单笔报销金额上限及超限提示')
+    expect(first?.problem).toBe('未明确单笔报销金额上限及超限提示')
+    expect(first?.suggestion).toBe('补充单笔上限 5000 元校验，超限需拆单或备注审批说明')
+    expect(first?.text).toContain('未明确单笔报销金额上限及超限提示')
+    expect(first?.text).toContain('位置：报销录入表单')
+    expect(first?.text).toContain('建议：补充单笔上限 5000 元校验')
+    expect(first?.summary).toContain('未明确单笔报销金额上限及超限提示')
+    expect(second?.priority).toBe('medium')
+    expect(second?.location).toBe('报销录入表单')
+    expect(second?.problem).toBe('缺少凭证/发票附件字段说明')
+    expect(second?.suggestion).toBe('明确支持上传图片或 PDF 发票，或勾选「无票说明」')
+    expect(third?.priority).toBe('low')
+    expect(third?.location).toBe('近期报销记录列表')
+    expect(third?.problem).toBe('未定义空态展示文案')
+    expect(third?.suggestion).toBe('补充无记录时的空态引导文案与新建按钮')
+  })
+
+  it('表格待改项与列表解析保持同一字段契约，并按优先级稳定排序', () => {
+    const parsed = parseReviewReport(SEED_TABLE_REPORT)
+    expect(parsed.todos.map(todo => todo.priority)).toEqual(['high', 'medium', 'low'])
+    for (const todo of parsed.todos) {
+      expect(Object.keys(todo).sort()).toEqual([
+        'location', 'priority', 'problem', 'suggestion', 'summary', 'text', 'title',
+      ])
+      expect(todo.title.length).toBeGreaterThan(0)
+      expect(todo.location.length).toBeGreaterThan(0)
+      expect(todo.problem.length).toBeGreaterThan(0)
+      expect(todo.suggestion.length).toBeGreaterThan(0)
+      expect(todo.summary.length).toBeGreaterThan(0)
+      expect(todo.summary.length).toBeLessThanOrEqual(73)
+    }
+  })
+
+  it('独立待改项标题下的表格同样解析，表头与分隔行不进入结果', () => {
+    const parsed = parseReviewReport(`## 问题清单
+
+| 优先级 | 位置 | 问题说明 | 修改建议 |
+| --- | --- | --- | --- |
+| 高 | 验收口径 | 异常返回码缺失 | 补一条异常返回码 |
+| 低 | 背景 | 竞品对比无关 | 删掉竞品对比 |`)
+    expect(parsed.todos).toHaveLength(2)
+    expect(parsed.todos[0]?.priority).toBe('high')
+    expect(parsed.todos[0]?.location).toBe('验收口径')
+    expect(parsed.todos[0]?.problem).toBe('异常返回码缺失')
+    expect(parsed.todos[1]?.priority).toBe('low')
+    expect(parsed.todos.every(todo => !todo.text.includes('优先级') || todo.text.includes('优先级：'))).toBe(true)
   })
 })

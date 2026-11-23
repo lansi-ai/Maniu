@@ -629,6 +629,9 @@
   background: color-mix(in oklab, var(--warning) 16%, var(--surface));
   color: var(--foreground);
 }
+/* 待处置黄条在正文等非评审面出现时，跳转入口贴在横幅右侧。 */
+.requirement-review-pending-banner { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.requirement-review-pending-banner .requirement-goto-review { flex: none; white-space: nowrap; }
 /* 需求头部的状态级全局动作与文档操作栏分组；作废关闭单独置右。 */
 .requirement-global-ops { margin: 0 0 0 auto; }
 .requirement-global-ops .requirement-close,

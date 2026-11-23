@@ -465,6 +465,7 @@ export const ZH = {
   'requirement.todoPriorityNone': '未标',
   'requirement.reviewDecided': '本轮报告只读留档。',
   'requirement.reviewPendingReason': 'R{round} 评审待处理：当前需求版本已锁定，请在下方表格逐条确认「采纳 / 拒绝 / 有疑问」后提交。',
+  'requirement.gotoReview': '去处理评审',
   'requirement.reviewPendingProposal': '有待对比的改稿提案，请到需求页顶部「去对比」确认落盘。',
   'requirement.reviewBlockedPending': 'R{round} 评审尚未处理，请先采纳改稿或放弃本轮意见，再发起下一轮评审。',
   'requirement.reviewBlockedRepeat': '本轮评审（R{round}）已处置但正文未改稿，请先修改需求产出新版本，或放弃本轮意见后再评审。',

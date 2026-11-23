@@ -467,6 +467,7 @@ export const EN: Readonly<Record<MessageKey, string>> = {
   'requirement.todoPriorityNone': 'Unmarked',
   'requirement.reviewDecided': 'This round is kept read-only.',
   'requirement.reviewPendingReason': 'Review R{round} is undecided: this requirement version is locked. Confirm each item as Accept / Reject / Question in the table below, then submit.',
+  'requirement.gotoReview': 'Go to review',
   'requirement.reviewPendingProposal': 'A revision proposal is waiting. Use "Compare" at the top of the requirements page to confirm it.',
   'requirement.reviewBlockedPending': 'Review R{round} is undecided. Accept and revise, or discard this round, before starting another review.',
   'requirement.reviewBlockedRepeat': 'Round R{round} is decided but the body has not changed. Revise the requirement to a new version, or discard this round, before reviewing again.',
