@@ -1526,16 +1526,16 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
           )}
         </div>
       </DetailDrawer>
-      <div className="history-layer" data-testid="requirement-history-layer" hidden={!historyOpen}>
-        <div className="history-scrim" data-testid="requirement-history-scrim" onClick={() => { setHistoryOpen(false) }} />
+      <div className="requirement-history-layer" data-testid="requirement-history-layer" hidden={!historyOpen}>
+        <div className="requirement-history-scrim" data-testid="requirement-history-scrim" onClick={() => { setHistoryOpen(false) }} />
         <aside
-          className="history-panel"
+          className="requirement-history-panel"
           data-testid="requirement-history-drawer"
           role="dialog"
           aria-modal="true"
           aria-label={t('requirement.historyTitle')}
         >
-          <div className="history-bar">
+          <div className="requirement-history-bar">
             <h3>{t('requirement.historyTitle')}</h3>
             <Button
               isIconOnly
@@ -1548,7 +1548,7 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
               <X aria-hidden="true" />
             </Button>
           </div>
-          <div className="history-scroll">
+          <div className="requirement-history-scroll">
             {historyEntries.length === 0 && (
               <p className="empty" data-testid="requirement-history-empty">{t('requirement.historyEmpty')}</p>
             )}
@@ -1561,12 +1561,12 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                 </li>
                 {historyEntries.map(entry => entry.kind === 'version'
                   ? (
-                    <li key={entry.key} className="history-entry" data-testid="requirement-timeline-version" data-version={entry.n}>
-                      <span className="history-entry-head">
+                    <li key={entry.key} className="requirement-history-entry" data-testid="requirement-timeline-version" data-version={entry.n}>
+                      <span className="requirement-history-entry-head">
                         <Chip size="sm" variant="soft" className="tag">{t('requirement.timelineVersion', { n: entry.n })}</Chip>
                         <span className="time">{formatTimestamp(entry.at)}</span>
                       </span>
-                      <span className="history-entry-actions">
+                      <span className="requirement-history-actions">
                         <Button
                           variant="ghost"
                           size="sm"
@@ -1600,7 +1600,7 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                         )}
                       </span>
                       {historyDoc === entry.key && (
-                        <div className="history-snapshot" data-testid="requirement-version-document" data-version={entry.n}>
+                        <div className="requirement-history-snapshot" data-testid="requirement-version-document" data-version={entry.n}>
                           <p className="detail-note requirement-doc-readonly">{t('requirement.versionDocReadonly')}</p>
                           {activeVersionDoc === undefined && (
                             <p className="empty" data-testid="requirement-version-document-loading">{t('requirement.versionDocLoading')}</p>
@@ -1622,8 +1622,8 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                     </li>
                   )
                   : (
-                    <li key={entry.key} className="history-entry" data-testid="requirement-timeline-review" data-round={entry.review.round} data-path={specPath(entry.review.report)}>
-                      <div className="history-review" data-testid="requirement-review-history-item" data-round={entry.review.round}>
+                    <li key={entry.key} className="requirement-history-entry" data-testid="requirement-timeline-review" data-round={entry.review.round} data-path={specPath(entry.review.report)}>
+                      <div className="requirement-history-review" data-testid="requirement-review-history-item" data-round={entry.review.round}>
                         <span>
                           {t('requirement.timelineReview', { round: entry.review.round })}
                           <span data-testid="requirement-review-history-status" data-decision={decisionOf(entry.review)}>
@@ -1631,7 +1631,7 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                           </span>
                           <span className="time">{formatTimestamp(entry.review.at)}</span>
                         </span>
-                        <span className="history-entry-actions">
+                        <span className="requirement-history-actions">
                           <Button
                             variant="ghost"
                             size="sm"
@@ -1667,7 +1667,7 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                         </span>
                       </div>
                       {historyDoc === entry.key && (
-                        <div className="history-snapshot" data-testid="requirement-history-report" data-round={entry.review.round}>
+                        <div className="requirement-history-snapshot" data-testid="requirement-history-report" data-round={entry.review.round}>
                           <p className="detail-note requirement-doc-readonly" data-testid="requirement-history-report-readonly">{t('requirement.historyReportReadonly')}</p>
                           {activeHistoryReport === undefined && (
                             <p className="empty" data-testid="requirement-history-report-loading">{t('requirement.reportLoading')}</p>
