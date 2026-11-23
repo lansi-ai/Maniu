@@ -3604,6 +3604,28 @@ tracks:
       dep: []
       inferred: false
       note: "A 级 kernel 修复工单，来源用户 2026-11-23 实机排查：T-321 后仍无暂存显示。监督用 CDP 实测根因：window.lcoder.call 的 prototype/getStaged 返回双层 {ok:true,value:{ok:true,value:{staged,committedHtml}}}，前端 unwrap 只剥一层致 view.staged 恒 undefined，界面无暂存条与对比图标置灰；staged.json 本身完好 28580 字节。根因是 T-312 设计缺陷：kernel prototype controller 九个 Remote 方法返回 PrototypeResult 自带 ok/value，而 typert 协议自身也包 ok/value，session/create 单层可证，故 prototype 全部双层；kernel 测试直调 controller 与 client 测试 mock call 都不走 wire 故全绿。用户批准方案 A 根治并补充两要求。范围一 controller 九个 Remote 方法改为返回裸值 T（StyleSummary 与 PrototypeRefValue 与 PrototypeOkValue 与 PrototypeStagedView 与 PrototypeCommitResult 等），删除 resultOf/failureOf 包装。范围二 失败统一转 RemoteError（@deepseek-ai/dsh-typert-protocol，参考 talents/service.ts 的 notFound）：以 declaration merging 扩展 RemoteErrorDetailsMap 声明全部 PROTOTYPE 码（NO_WORKSPACE 与 NO_STAGED 与 SNAPSHOT_NOT_FOUND 与 REQUIREMENT_BASELINE_CONFLICT 与 INVALID_URL 与 WEB_UNAVAILABLE 与 UNSUPPORTED_CONTENT 与 FAILED），PrototypeError 与未知异常转 RemoteError 且 code 与 message 透传过 typert wire。范围三 kernel 测试更新为直调裸值与 throw RemoteError 断言，并新增一条走真实 typert wire 序列化的测试断言客户端收到单层 ok/value 且 code 透传。范围四门禁按序 fast-check kernel 与 rebuild kernel（确保 typert.host.js 与 typert.client 侧产物重新生成且 getStaged result schema 与裸值一致）与 fast-check client。最后监督在主检出 rebuild 与重启实例后用 CDP 实机验证 getStaged 返回单层且界面出现暂存条与对比图标可点。边界不碰上游 packages 非 lcoder 与 apps，严禁整仓 build artifacts typecheck lint 全量 vitest。未授权不提交不推送。2026-11-23 监督窗口登记。"
+    - id: T-323
+      title: 阶段A 项目级统一活原型与原型菜单与素材库更名
+      status: todo
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-23'
+      date: '2026-11-23'
+      dep: [T-322]
+      inferred: false
+      note: "A 级跨层工单（阶段 A），来源用户 2026-11-23 独立工单。前置依赖 T-322（prototype Remote 双层包装根治），因本阶段会重写 prototype paths/store/controller 同一层。范围一项目级统一活原型：将项目级主原型确立为单一活原型真源，同时向后兼容读取已有 .spec/prototypes/REQ-xx/ 的正式版与 staged.json 与快照避免 seed-sandbox 丢数据，支持项目全局视角读取当前活原型与暂存与快照，同时保留传入具体 requirementId（需求详情页打开工作室）时携带该需求上下文做增量修改。范围二左侧新增原型一级菜单：app.tsx 的 PageId 与 NAV_TOP 加 prototype 放在 requirements 之后 tasks 之前形成需求原型任务主线；新增项目级原型主页面可复用升级 prototype-panel，直接展示当前项目活原型实时预览，顶部操作区含在原型工作室打开与独立窗口试玩与暂存修改状态提示与历史快照入口；保留需求详情交互原型 Tab 作为快捷入口看到同一份活原型且打开工作室自动带当前 REQ 上下文。范围三原 prototype-library 菜单在 locale-zh 与 locale-en 由原型库更名为素材库（英文 Asset library）消除与原型菜单歧义，prototype-library 组件将原组件风格模板收敛为素材库第一个子功能 Tab 例如原型风格模板并预留子 Tab 结构。边界只改 packages lcoder 下文件严禁改上游核心包与 AGENTS/CLAUDE，所有客户端可见文案走 locale 字典与 t 严禁硬编码，若改 Remote 签名或返回类型必须 rebuild kernel 重新生成 typert.host.js 与 typert.client.ts。门禁 fast-check kernel（如改）与 rebuild kernel（如改）与 fast-check client 与 verify-client-ui-i18n 与 rebuild client，补单元测试覆盖项目级活原型兼容读取与 prototype 导航页渲染与素材库子 Tab 切换。未授权不提交不推送。2026-11-23 监督窗口登记。"
+    - id: T-324
+      title: 阶段B 总览默认主页与左侧导航上下分层收口
+      status: todo
+      face: 用户端
+      type: 开发
+      owner: lance
+      created: '2026-11-23'
+      date: '2026-11-23'
+      dep: [T-323]
+      inferred: false
+      note: "A 级 client 工单（阶段 B），来源用户 2026-11-23 独立工单。前置依赖 T-323（导航与原型菜单）。范围一新增总览 Dashboard 页面并设为默认主页：app.tsx 的 PageId 加 dashboard 且默认页从 chat 改 dashboard（无项目或未选中项目时按现有逻辑引导项目选择或立项）；严格聚焦当前激活项目 ProjectScope 不做跨项目磁盘扫描；四个区块为项目头部与唯一主行动卡 Next Action（项目名与栈与路径摘要与右上切换项目按钮跳 projects 页，按真实状态算唯一主行动：空项目从想法开始立项 或 有待裁决评审去处理 R1 或 有未落盘暂存原型去确认原型修改 或 有待开发待验收任务直达任务页）、项目进度漏斗（需求草稿已确认已上线与任务待开工开发中待验收已完成数量，点数字带筛选跳需求或任务页）、当前项目活原型状态卡（版本与暂存摘要与打开原型工作室与独立窗口试玩入口）、近期动态与快捷入口（最近活跃需求任务与提变更加功能）。范围二左侧导航上下分层：NAV_TOP 为 dashboard 与 requirements 与 prototype 与 tasks 与 chat；NAV_BOTTOM 贴底为 talents 与 prototype-library 素材库 与 projects 与 settings；原独立 project-info 核心摘要融入总览头部与信息卡不再占一级入口，排查并更新所有引用 project-info 或默认 chat 跳转的测试与调用点。零新持久化 schema：Dashboard 数据全部从现有 SpecProjection 与 sessions 与 project 与 getStagedPrototype 只读派生不新增磁盘存储格式。边界只改 packages lcoder 下文件严禁改上游核心包，文案走 locale 与 t 严禁硬编码。门禁 fast-check client 与 verify-client-ui-i18n 与 rebuild client，补 Dashboard 状态派生单测覆盖空项目与待评审与有暂存原型与有待验收任务四种 Next Action 分支及导航默认页与跳转。未授权不提交不推送。2026-11-23 监督窗口登记。"
 
 
 milestones:
