@@ -320,18 +320,21 @@ export function createPrototypeStudioWindow(request: PrototypeStudioOpenRequest)
   const afterView = makePrototypeCanvas()
   const uiView = makeStudioUiView(request)
   installPrototypeOfflineGuard(afterView.webContents.session)
+  syncCanvasControls(afterView)
   window.contentView.addChildView(afterView)
   window.contentView.addChildView(uiView)
 
   let beforeView: WebContentsView | undefined
   let beforeHtml = request.beforeHtml
   let mode: PrototypeStudioMode = request.mode ?? 'split'
+  let interaction: PrototypeInteractionMode = 'interact'
   let bounds: PrototypeStudioFloatingBounds = { ...DEFAULT_FLOATING_BOUNDS }
   let disposed = false
 
   function ensureBeforeView(): WebContentsView {
     if (beforeView !== undefined) return beforeView
     const view = makePrototypeCanvas()
+    syncCanvasControls(view)
     window.contentView.addChildView(view)
     beforeView = view
     return view
@@ -341,6 +344,17 @@ export function createPrototypeStudioWindow(request: PrototypeStudioOpenRequest)
     if (disposed) return
     afterView.webContents.send(IPC_CHANNELS.prototypeStudioInspectControl, payload)
     beforeView?.webContents.send(IPC_CHANNELS.prototypeStudioInspectControl, payload)
+  }
+
+  /**
+   * 画布载入完成后补发当前交互模式：切到选择模式再重载画布时，
+   * preload 不会自己记住上一帧的模式，提示条的显隐也要跟着这次控制。
+   */
+  function syncCanvasControls(view: WebContentsView): void {
+    view.webContents.on('did-finish-load', () => {
+      if (disposed) return
+      view.webContents.send(IPC_CHANNELS.prototypeStudioInspectControl, { interactionMode: interaction })
+    })
   }
 
   function layout(): void {
@@ -373,7 +387,10 @@ export function createPrototypeStudioWindow(request: PrototypeStudioOpenRequest)
       }
       layout()
     },
-    setInteraction(next) { sendToCanvases({ interactionMode: next }) },
+    setInteraction(next) {
+      interaction = next
+      sendToCanvases({ interactionMode: next })
+    },
     loadHtml(payload) {
       void afterView.webContents.loadURL(prototypePreviewDataUrl(payload.html))
       if (payload.beforeHtml !== undefined && payload.beforeHtml !== '') {

@@ -65,8 +65,15 @@ $profileLocal = @"
 
 # 每一层：源码目录、产物文件、重建命令、生效方式。
 # script/label 可选：没有 bundle 脚本的包用它们给出等价的窄重建命令；缺省仍走 `run bundle`。
+# steps 可选：按顺序跑多条 pnpm 命令；kernel 的宿主路由表来自 typert 生成物，
+# 只跑 bundle 会留下没有新路由的旧产物，客户端调用就得到 HTTP 404。
 $layers = @(
-  @{ name = 'kernel';    source = 'packages\lcoder\kernel\src';    artifact = 'packages\lcoder\kernel\lib\index.js';         filter = '@maniu/kernel';    note = 'kernel 在宿主进程里加载：要重启实例' },
+  @{ name = 'kernel';    source = 'packages\lcoder\kernel\src';    artifact = 'packages\lcoder\kernel\lib\index.js';         filter = '@maniu/kernel';    note = 'kernel 在宿主进程里加载：要重启实例';
+     steps = @(
+       @('--filter', '@maniu/kernel', 'exec', 'tsc', '-p', 'tsconfig.json'),
+       @('exec', 'tsx', 'scripts/generate-typert.ts'),
+       @('--filter', '@maniu/kernel', 'run', 'bundle')
+     ) },
   @{ name = 'workspace'; source = 'packages\lcoder\workspace\src'; artifact = 'packages\lcoder\workspace\lib\client.js';    filter = '@maniu/workspace'; note = '外壳产物由宿主直出：刷新页面即生效，不用重启' },
   @{ name = 'client';    source = 'packages\lcoder\client\src';    artifact = 'packages\lcoder\client\lib\dist\index.html'; filter = '@maniu/client';    script = @('--filter', '@maniu/client', 'exec', 'vite', 'build'); label = '@maniu/client vite build'; note = '新客户端产物由桌面端直出：刷新窗口即生效，不用重启' },
   @{ name = 'desktop';   source = 'apps\desktop\src';              artifact = 'apps\desktop\lib\main.js';                  filter = '@deepseek-ai/dsh-desktop'; note = '主进程/preload 改动：要重启实例' },
@@ -253,7 +260,11 @@ foreach ($name in $plan) {
   # 变量名不能叫 $layer：PowerShell 变量名大小写不敏感，会和带 ValidateSet 的参数 $Layer 撞上。
   $target = $layers | Where-Object { $_.name -eq $name } | Select-Object -First 1
   if ($null -eq $target) { Write-Host ("✗ 不认识的层：" + $name) -ForegroundColor Red; exit 1 }
-  if ($target.ContainsKey('script')) {
+  if ($target.ContainsKey('steps')) {
+    foreach ($step in $target.steps) {
+      if (-not (Invoke-Native ('pnpm ' + ($step -join ' ')) $step $root)) { exit 1 }
+    }
+  } elseif ($target.ContainsKey('script')) {
     if (-not (Invoke-Native $target.label $target.script $root)) { exit 1 }
   } else {
     if (-not (Invoke-Native ($target.filter + ' bundle') @('--filter', $target.filter, 'run', 'bundle') $root)) { exit 1 }

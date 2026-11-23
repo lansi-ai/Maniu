@@ -1,6 +1,6 @@
 /** 原型生成提示词：把需求正文、样式摘要与参考图拼成给原型设计师的指令。 */
 
-import type { StudioSelectionInfo } from '../prototype-studio/bridge.ts'
+import type { StudioAnchorDraft } from '../prototype-studio/anchor-composer.tsx'
 import { DEFAULT_PROTOTYPE_LIBRARY, type PrototypeLibrary } from './libraries.ts'
 import type { PrototypeStyleSummary } from './remote.ts'
 
@@ -141,7 +141,8 @@ export interface StudioCoDesignInput {
   /** 基准说明（例如「当前暂存版」）；只传说明，不把整份 HTML 塞进提示词。 */
   readonly baselineNote: string
   readonly instruction: string
-  readonly anchors: readonly StudioSelectionInfo[]
+  /** 每个锚点带自己的修改要求；note 为空表示这一项见整体修改意见。 */
+  readonly anchors: readonly StudioAnchorDraft[]
 }
 
 /**
@@ -156,9 +157,21 @@ export function buildStudioCoDesignPrompt(input: StudioCoDesignInput): string {
     : input.anchors.map((anchor, index) => [
       `${index + 1}. DOM 路径：${anchor.domPath}`,
       `   标签名：${anchor.label ?? '未命名'}`,
+      `   针对该元素的修改要求：${anchor.note?.trim() || '（未单独指定，见下方整体修改意见）'}`,
       `   元素 HTML：${anchor.html}`,
       `   关键样式：${anchor.css}`,
     ].join('\n')).join('\n')
+
+  // 只填了逐锚点意见时，把各锚点要求汇总成整体修改意见，模型不必回头猜全局指令。
+  const instruction = input.instruction.trim()
+  const collected = instruction !== ''
+    ? instruction
+    : input.anchors
+      .map((anchor, index) => ({ anchor, note: (anchor.note ?? '').trim(), index }))
+      .filter(item => item.note !== '')
+      .map(item => `#${String(item.index + 1)} ${item.anchor.label ?? item.anchor.domPath}：${item.note}`)
+      .join('\n')
+  const instructionBlock = collected === '' ? '（未填写整体修改意见，按点选锚点与各自要求处理）' : collected
 
   return [
     `请修改需求 ${input.requirementId}「${input.requirementTitle}」的 HTML 原型，本轮只做增量打磨。`,
@@ -170,7 +183,7 @@ export function buildStudioCoDesignPrompt(input: StudioCoDesignInput): string {
     anchorLines,
     '',
     '【修改意见】',
-    input.instruction.trim(),
+    instructionBlock,
     '',
     '【交付要求】',
     '1. 优先调用 prototype_stage 暂存本轮修改，不要直接覆盖正式版 HTML，也不要自行改动需求正文。',

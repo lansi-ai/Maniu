@@ -34,6 +34,11 @@ vi.mock('../src/window.ts', () => ({
 }))
 
 const { registerIpc } = await import('../src/ipc.ts')
+const { STUDIO_BROADCAST_CHANNELS } = await import('../src/ipc.ts')
+type StudioUiReader = ReturnType<typeof registerIpc>
+
+/** 最近一次注册返回的协作界面读取器；主进程用它决定广播目标。 */
+let reader: StudioUiReader | undefined
 
 function makeWindow(): BrowserWindow {
   const window = {} as BrowserWindow
@@ -46,7 +51,7 @@ const WINDOW = makeWindow()
 type Handler = (event: unknown, value?: unknown) => unknown
 
 function install(): (channel: string) => Handler {
-  registerIpc({
+  reader = registerIpc({
     link: () => undefined,
     appInfo: () => ({ version: '0.0.0' }),
     window: () => WINDOW,
@@ -161,5 +166,36 @@ describe('工作台点选转发', () => {
     expect(() => get(IPC_CHANNELS.prototypeSelectionReport)({}, info)).not.toThrow()
     expect(electron.send).toHaveBeenCalledTimes(1)
     expect(studio.uiWebContents.send).not.toHaveBeenCalled()
+  })
+})
+
+describe('工作台广播目标', () => {
+  it('协作界面读取器只在工作台打开且未销毁时返回 webContents', () => {
+    const get = install()
+    expect(reader?.studioUiWebContents()).toBeUndefined()
+    get(IPC_CHANNELS.prototypeStudioOpen)({}, VALID)
+    expect(reader?.studioUiWebContents()).toBe(studio.uiWebContents)
+    studio.uiState.destroyed = true
+    expect(reader?.studioUiWebContents()).toBeUndefined()
+  })
+
+  it('事件、流帧、提问撤回与宿主状态都广播给协作界面，窗口类通道不广播', () => {
+    for (const channel of [
+      IPC_CHANNELS.events,
+      IPC_CHANNELS.waterfall,
+      IPC_CHANNELS.waterfallCancel,
+      IPC_CHANNELS.streamFrame,
+      IPC_CHANNELS.hostState,
+    ]) {
+      expect(STUDIO_BROADCAST_CHANNELS.has(channel)).toBe(true)
+    }
+    for (const channel of [
+      IPC_CHANNELS.window,
+      IPC_CHANNELS.closeRequest,
+      IPC_CHANNELS.prototypeStudioSetMode,
+      IPC_CHANNELS.prototypeSelection,
+    ]) {
+      expect(STUDIO_BROADCAST_CHANNELS.has(channel)).toBe(false)
+    }
   })
 })

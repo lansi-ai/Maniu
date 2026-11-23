@@ -7,7 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { translate, type Translate } from '../src/locale.ts'
 import type { StagedPrototype } from '../src/prototype/remote.ts'
 import type { StudioBridge, StudioSelectionInfo } from '../src/prototype-studio/bridge.ts'
-import { AnchorComposer } from '../src/prototype-studio/anchor-composer.tsx'
+import { AnchorComposer, type StudioAnchorDraft } from '../src/prototype-studio/anchor-composer.tsx'
+import { buildStudioCoDesignPrompt } from '../src/prototype/prompt.ts'
 import { ChangeCard } from '../src/prototype-studio/change-card.tsx'
 import { PrototypeStudioApp, resolveStudioSessionId } from '../src/prototype-studio/studio-app.tsx'
 
@@ -82,6 +83,7 @@ async function fakeCall(namespace: string, method: string, args: object): Promis
     state.committedHtml = '<html><body>恢复版</body></html>'
     return { ok: true, value: { restoredAt: '2026-11-23T02:00:00.000Z', html: state.committedHtml } }
   }
+  if (namespace === 'session' && method === 'create') return { ok: true, value: { sessionId: 'chat-1' } }
   if (namespace === 'session' && method === 'prompt') return { ok: true, value: {} }
   return { ok: true, value: {} }
 }
@@ -221,6 +223,59 @@ describe('锚点输入区', () => {
     await render(<AnchorComposer t={t} bridge={makeBridge()} running onSend={vi.fn(async () => true)} />)
     expect((element('studio-send-instruction') as HTMLButtonElement).disabled).toBe(true)
   })
+
+  it('每个锚点渲染独立输入框，只填逐锚点意见也能发送并绑定到提示词', async () => {
+    const onSend = vi.fn(async () => true)
+    await render(<AnchorComposer t={t} bridge={makeBridge()} running={false} onSend={onSend} />)
+
+    const emit = (domPath: string, label: string): void => {
+      act(() => {
+        for (const listener of [...selectionListeners]) {
+          listener({ domPath, html: '<div />', css: 'color: #333', label })
+        }
+      })
+    }
+    emit('body > div.mini:nth-child(1)', '本月已提交报销总额')
+    emit('body > section.card:nth-child(2)', '待审批列表')
+
+    const notes = elements('studio-anchor-note') as HTMLInputElement[]
+    expect(notes).toHaveLength(2)
+    expect(notes.map(note => note.getAttribute('data-dom-path'))).toEqual([
+      'body > div.mini:nth-child(1)', 'body > section.card:nth-child(2)',
+    ])
+    expect(notes[0]?.placeholder).toContain('针对此元素怎么改')
+    expect((element('studio-instruction-input') as HTMLInputElement).placeholder).toContain('补充整体修改意见（可选）')
+
+    const type = async (input: HTMLInputElement, value: string): Promise<void> => {
+      await act(async () => {
+        // oxlint-disable-next-line typescript/unbound-method -- 原生 value setter 要用 call 绑定到该输入框。
+        const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set
+        setter?.call(input, value)
+        input.dispatchEvent(new Event('input', { bubbles: true }))
+      })
+    }
+    await type(notes[0] as HTMLInputElement, '改成主色按钮')
+    await type(notes[1] as HTMLInputElement, '按提交时间倒序')
+
+    // 全局意见留空也能发送：判定只看逐锚点意见。
+    expect((element('studio-send-instruction') as HTMLButtonElement).disabled).toBe(false)
+    await click('studio-send-instruction')
+    expect(onSend).toHaveBeenCalledTimes(1)
+    const [, sent] = onSend.mock.calls[0] as [string, readonly StudioAnchorDraft[]]
+    expect(sent.map(anchor => anchor.note)).toEqual(['改成主色按钮', '按提交时间倒序'])
+
+    const prompt = buildStudioCoDesignPrompt({
+      requirementId: 'REQ-01',
+      requirementTitle: 'REQ-01',
+      baselineNote: '当前基准：本轮暂存版 HTML。',
+      instruction: '',
+      anchors: sent,
+    })
+    expect(prompt).toContain('针对该元素的修改要求：改成主色按钮')
+    expect(prompt).toContain('针对该元素的修改要求：按提交时间倒序')
+    expect(prompt).toContain('#1 本月已提交报销总额：改成主色按钮')
+    expect(prompt).toContain('#2 待审批列表：按提交时间倒序')
+  })
 })
 
 describe('暂存改动卡', () => {
@@ -322,5 +377,52 @@ describe('会话兜底', () => {
     expect(resolveStudioSessionId('REQ-01', 'url-session')).toBe('url-session')
     localStorage.setItem('lcoder.studio.session.REQ-01', 'stored-session')
     expect(resolveStudioSessionId('REQ-01')).toBe('stored-session')
+  })
+})
+
+describe('协作对话会话隔离', () => {
+  it('发送后立即回显用户回合；聊天会话号独立于 URL 的作用域会话号', async () => {
+    localStorage.setItem('lcoder.m2.project', JSON.stringify({ workspaceId: 'ws-1', scopeSessionId: 'scope-stored' }))
+    const bridge = makeBridge()
+    await renderApp(bridge, 'scope-url')
+
+    // 作用域会话号只服务 prototype/*：URL 显式值优先于本机项目档。
+    const staged = calls.find(call => call.namespace === 'prototype' && call.method === 'getStaged')
+    expect(isRecord(staged?.args.input) && staged?.args.input.sessionId).toBe('scope-url')
+
+    act(() => {
+      for (const listener of [...selectionListeners]) {
+        listener({ domPath: 'body > div.mini:nth-child(1)', html: '<div />', css: 'color: #333', label: '本月已提交报销总额' })
+      }
+    })
+    const note = element('studio-anchor-note') as HTMLInputElement
+    await act(async () => {
+      // oxlint-disable-next-line typescript/unbound-method -- 原生 value setter 要用 call 绑定到该输入框。
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set
+      setter?.call(note, '改成主色按钮')
+      note.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    await click('studio-send-instruction')
+
+    const created = calls.find(call => call.namespace === 'session' && call.method === 'create')
+    expect(created).toBeDefined()
+    expect(isRecord(created?.args.request) && created?.args.request.agentPreset).toBe('maniu-prototype')
+    expect(localStorage.getItem('lcoder.studio.session.REQ-01')).toBe('chat-1')
+
+    const promptCall = calls.find(call => call.namespace === 'session' && call.method === 'prompt')
+    const request = isRecord(promptCall?.args.request) ? promptCall?.args.request : undefined
+    expect(request?.sessionId).toBe('chat-1')
+    expect(request?.sessionId).not.toBe('scope-url')
+    const content = Array.isArray(request?.content) ? request.content : []
+    const text = isRecord(content[0]) && typeof content[0].text === 'string' ? content[0].text : ''
+    expect(text).toContain('针对该元素的修改要求：改成主色按钮')
+    expect(text).toContain('#1 本月已提交报销总额：改成主色按钮')
+
+    // 对话流立刻回显本轮锚点与要求，并进入运行进度。
+    const turn = element('studio-user-turn')
+    expect(turn).not.toBeNull()
+    expect(turn?.textContent).toContain('本月已提交报销总额')
+    expect(turn?.textContent).toContain('改成主色按钮')
+    expect(element('studio-turn-running')?.textContent).toContain('正在根据你的意见调整原型')
   })
 })

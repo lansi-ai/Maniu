@@ -1,6 +1,6 @@
 /** 窄 IPC 注册：校验载荷后转给 link / 窗口；渲染端拿不到宿主 cookie。 */
 
-import { dialog, ipcMain, type BrowserWindow, type IpcMainInvokeEvent, type OpenDialogOptions } from 'electron'
+import { dialog, ipcMain, type BrowserWindow, type IpcMainInvokeEvent, type OpenDialogOptions, type WebContents } from 'electron'
 import { Buffer } from 'node:buffer'
 import { statSync } from 'node:fs'
 import { dirname } from 'node:path'
@@ -42,6 +42,23 @@ interface CallRequest {
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
+
+/** 工作台协作界面的读取器；未打开或已销毁时返回 undefined。 */
+export interface StudioUiReader {
+  studioUiWebContents(): WebContents | undefined
+}
+
+/**
+ * 除主窗外也要送到工作台协作界面的广播通道：事件、流帧、提问撤回与宿主状态。
+ * Studio 的对话流只经这些通道拿回显，漏一个就只剩空进度条。
+ */
+export const STUDIO_BROADCAST_CHANNELS: ReadonlySet<string> = new Set([
+  IPC_CHANNELS.events,
+  IPC_CHANNELS.waterfall,
+  IPC_CHANNELS.waterfallCancel,
+  IPC_CHANNELS.streamFrame,
+  IPC_CHANNELS.hostState,
+])
 
 function callRequest(value: unknown): CallRequest | undefined {
   if (!isRecord(value) || typeof value.namespace !== 'string' || typeof value.method !== 'string' || !isRecord(value.args)) {
@@ -201,8 +218,9 @@ function pickerDefaultPath(value: unknown): string | undefined {
 /**
  * 注册 S1 的 IPC 面。
  * @param deps - 当前连接、应用信息与主窗口读取器。
+ * @returns 当前工作台协作界面的读取器；主进程用它把事件与流广播给 Studio。
  */
-export function registerIpc(deps: IpcDependencies): void {
+export function registerIpc(deps: IpcDependencies): StudioUiReader {
   /** 当前独立预览窗口；元素级修改后复用它重载，不堆积多个窗口。 */
   let prototypePreview: BrowserWindow | undefined
   /** 当前 Prototype Studio；重新打开时复用，关闭时随事件清理。 */
@@ -359,6 +377,13 @@ export function registerIpc(deps: IpcDependencies): void {
     if (bounds === undefined) throw new Error('lcoder: 浮窗位置不合法')
     prototypeStudio?.setFloatingBounds(bounds)
   })
+
+  return {
+    studioUiWebContents() {
+      const ui = prototypeStudio?.uiWebContents()
+      return ui === undefined || ui.isDestroyed() ? undefined : ui
+    },
+  }
 }
 
 /** 宿主状态推送面。 */
@@ -373,15 +398,22 @@ export interface StatePublisher {
 /**
  * 建一个会记住最新状态、并在页面加载完成后补发的推送器。
  * @param window - 主窗口读取器。
+ * @param extras - 额外接收同一份状态的 webContents 读取器；工作台协作界面也在其中。
  * @returns 推送器。
  */
-export function createStatePublisher(window: () => BrowserWindow | undefined): StatePublisher {
+export function createStatePublisher(
+  window: () => BrowserWindow | undefined,
+  extras: () => readonly (WebContents | undefined)[] = () => [],
+): StatePublisher {
   let latest: HostState = { kind: 'starting' }
   const send = (): void => {
     const target = window()
     // 加载期也发送：丢失由渲染端挂载时的 hostStateNow 补读，而不是永久停在 starting。
     if (target !== undefined && !target.isDestroyed()) {
       target.webContents.send(IPC_CHANNELS.hostState, latest)
+    }
+    for (const extra of extras()) {
+      if (extra !== undefined && !extra.isDestroyed()) extra.send(IPC_CHANNELS.hostState, latest)
     }
   }
   return {

@@ -15,6 +15,10 @@ const MAX_HTML_CHARS = 8000
 const MAX_CSS_CHARS = 4000
 const MAX_LABEL_CHARS = 80
 const LABEL_TEXT_CHARS = 24
+/** 内层文字兜底只取首段前 18 字，够认元素又不把整段说明塞进胶囊。 */
+const LABEL_FALLBACK_CHARS = 18
+/** 元素自身没有直接文本时，先从这些标题/强调子节点里取可读名。 */
+const LABEL_CHILD_SELECTOR = 'h1,h2,h3,h4,h5,h6,button,label,strong,th,td,span'
 const HIGHLIGHT_OUTLINE = '2px solid #4f8cff'
 const CHANGED_OUTLINE = '2px dashed rgba(245, 158, 11, .95)'
 const HINT_TEXT = '按住 Alt 点击元素选中并交给 AI 修改 · 或直接点击操作原型'
@@ -35,6 +39,7 @@ ipcRenderer.on(IPC_CHANNELS.prototypeStudioInspectControl, (_event, payload: unk
   if (!isRecord(payload)) return
   const interaction = payload.interactionMode
   if (interaction === 'select' || interaction === 'interact') {
+    hideHintForStudio()
     setSelectionMode(interaction === 'select')
     return
   }
@@ -100,10 +105,13 @@ function cssOf(element: Element): string {
   return lines.join('; ').slice(0, MAX_CSS_CHARS)
 }
 
-/** 元素的可读短名：优先 aria-label，其次首段可见文本，再退回标签/id/类标识。 */
+/** 元素的可读短名：优先 aria-label/placeholder/alt，其次直接可见文本与内层标题，最后退回标签/id/类标识。 */
 function labelOf(element: Element): string {
-  const aria = (element.getAttribute('aria-label') ?? '').trim().replace(/\s+/g, ' ')
-  if (aria !== '') return aria.slice(0, MAX_LABEL_CHARS)
+  const attributes = ['aria-label', 'placeholder', 'alt'] as const
+  for (const name of attributes) {
+    const value = (element.getAttribute(name) ?? '').trim().replace(/\s+/g, ' ')
+    if (value !== '') return value.slice(0, MAX_LABEL_CHARS)
+  }
   const textNode = Array.from(element.childNodes).find(
     node => node.nodeType === Node.TEXT_NODE && (node.textContent ?? '').trim() !== '',
   )
@@ -111,10 +119,27 @@ function labelOf(element: Element): string {
     const text = (textNode.textContent ?? '').trim().replace(/\s+/g, ' ').slice(0, LABEL_TEXT_CHARS)
     if (text !== '') return text
   }
+  // 卡片容器常把文案放在内层标题里，自身只有空白文本；取首个标题/强调子节点的首段。
+  const nested = element.querySelector(LABEL_CHILD_SELECTOR)
+  if (nested !== null) {
+    const text = firstSegmentOf(nested.textContent, LABEL_TEXT_CHARS)
+    if (text !== '') return text
+  }
+  const own = firstSegmentOf(element.textContent, LABEL_FALLBACK_CHARS)
+  if (own !== '') return own
   const tag = element.tagName.toLowerCase()
   const id = safeName(element.getAttribute('id') ?? '')
   const firstClass = safeName((element.getAttribute('class') ?? '').trim().split(/\s+/)[0] ?? '')
   return `${tag}${id === '' ? '' : `#${id}`}${firstClass === '' ? '' : `.${firstClass}`}`.slice(0, MAX_LABEL_CHARS)
+}
+
+/** 按换行与空白切出首段非空可见文本，再截到给定字数。 */
+function firstSegmentOf(text: string, chars: number): string {
+  for (const segment of text.split(/\s+/)) {
+    const value = segment.trim()
+    if (value !== '') return value.slice(0, chars)
+  }
+  return ''
 }
 
 function report(element: Element): void {
@@ -137,10 +162,14 @@ let altHeld = false
 let selectionMode = false
 let suppressSubmit = false
 let hintBar: HTMLElement | undefined
+/** 提示条顶部说明行；工作台画布有自己的交互条，这一行要收起。 */
+let hintTopRow: HTMLElement | undefined
 let selectModeToggle: HTMLButtonElement | undefined
 let errorBanner: HTMLElement | undefined
 let errorText: HTMLElement | undefined
 let errorCount = 0
+/** 当前是否露出一条运行时报错；有错误时提示条整体不能收起。 */
+let errorVisible = false
 let lastErrorPaintAt = 0
 const ERROR_THROTTLE_MS = 200
 
@@ -275,6 +304,15 @@ function setSelectionMode(next: boolean): void {
   if (!next) clearHighlight()
 }
 
+/**
+ * 工作台画布自带交互条：收到下行控制后收起提示条，只在运行时报错时保留红色错误条。
+ * DOM 节点保留，独立预览窗口没有下行控制时照常显示提示。
+ */
+function hideHintForStudio(): void {
+  if (hintTopRow !== undefined) hintTopRow.style.display = 'none'
+  if (hintBar !== undefined && !errorVisible) hintBar.style.display = 'none'
+}
+
 /** 把原型脚本的运行时报错节流展示到顶部提示条，避免点击无反应却静默无提示。 */
 function recordRuntimeError(message: string): void {
   errorCount += 1
@@ -285,6 +323,8 @@ function recordRuntimeError(message: string): void {
   const clean = message.trim() === '' ? '未知脚本错误' : message.trim().slice(0, 140)
   const suffix = errorCount > 1 ? `（已发生 ${String(errorCount)} 次）` : ''
   errorText.textContent = `原型脚本报错${suffix}：${clean}`
+  errorVisible = true
+  if (hintBar !== undefined) hintBar.style.display = 'flex'
   errorBanner.style.display = 'flex'
 }
 
@@ -320,6 +360,7 @@ function installHint(): HTMLElement {
   toggle.style.cssText = 'flex:none;border:1px solid rgba(255,255,255,.35);border-radius:6px;background:transparent;color:inherit;font:inherit;padding:2px 8px;cursor:pointer'
   toggle.addEventListener('click', () => { setSelectionMode(!selectionMode) })
   selectModeToggle = toggle
+  hintTopRow = topRow
   topRow.append(text, toggle)
 
   const errRow = document.createElement('div')
@@ -334,8 +375,11 @@ function installHint(): HTMLElement {
   errDismiss.style.cssText = 'flex:none;border:none;background:transparent;color:inherit;font-size:14px;line-height:1;padding:0 4px;cursor:pointer'
   errDismiss.addEventListener('click', () => {
     errorCount = 0
+    errorVisible = false
     errRow.style.display = 'none'
     errMsg.textContent = ''
+    // 错误条收起后，工作台画布仍不需要提示条；独立预览窗口保持原样。
+    if (hintBar !== undefined && hintTopRow?.style.display === 'none') hintBar.style.display = 'none'
   })
   errRow.append(errMsg, errDismiss)
   errorBanner = errRow
