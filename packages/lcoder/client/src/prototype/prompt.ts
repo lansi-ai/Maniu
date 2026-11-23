@@ -157,7 +157,7 @@ export function buildStudioCoDesignPrompt(input: StudioCoDesignInput): string {
     : input.anchors.map((anchor, index) => [
       `${index + 1}. DOM 路径：${anchor.domPath}`,
       `   标签名：${anchor.label ?? '未命名'}`,
-      `   针对该元素的修改要求：${anchor.note?.trim() || '（未单独指定，见下方整体修改意见）'}`,
+      `   用户对该元素的修改指令：${anchor.note?.trim() || '（未单独指定，见下方整体修改意见）'}`,
       `   元素 HTML：${anchor.html}`,
       `   关键样式：${anchor.css}`,
     ].join('\n')).join('\n')
@@ -192,5 +192,7 @@ export function buildStudioCoDesignPrompt(input: StudioCoDesignInput): string {
     "4. 只动表现时 changeKind 填 'visual'；涉及业务规则、口径或字段增删时 changeKind 填 'business'，并同时给出 requirementProposedContent（提案后的需求正文全文），由人确认后才会同步。",
     '5. 改动要落在锚点元素的既有结构上，保持与当前组件素材库一致的样式语义；不引入外链与脚本。',
     '6. prototype_stage 返回失败项时按失败项修正后重试 1 到 2 次；仍失败就如实报告，不留半成品。',
+    '7. 用户对某个选中元素填写「不需要 / 不要 / 去掉 / 删掉」等简短否定词时，代表「将该元素从界面上移除」，请直接删除该元素并暂存，切勿误解为「保持不变」。',
+    '8. 暂存预览不会覆盖正式文件，因此除非指令完全空白，否则直接按最合理的界面设计调用 prototype_stage 产出暂存结果供用户看图确认，严禁调用 ask_user_question 反问打断。',
   ].join('\n')
 }

@@ -87,11 +87,10 @@ function Stop-RepoProcessTrees {
   }
 }
 
-# 在独立进程里启动桌面端（构建或跳过构建），返回启动器 PID。
+# 在独立进程里启动桌面端（先按层增量重建，返回启动器 PID）。
 # 日志由调用方先准备好；这里只负责命令与环境的拼装，不做就绪判定。
 # 默认启动新客户端（packages/lcoder/desktop 的 launch.mjs）；-Legacy 回退旧壳的 dev/start:desktop。
-# 新客户端的构建只需 build:artifacts：根 tsdown 的 Client 面同时产出 client/lib/dist，
-# Host 面产出 desktop lib（含 preload.cjs 与 host-entry.js）。
+# 新客户端启动前跑 rebuild.cmd 按层增量重建：只重编源码比产物新的层，装配源与 profile 依赖一并保障。
 function Start-DesktopInstance {
   param(
     [Parameter(Mandatory = $true)][string]$Root,
@@ -122,7 +121,10 @@ function Start-DesktopInstance {
       $command = "$pnpm run $scriptName"
     } else {
       $launch = "$pnpm --filter @maniu/desktop run launch"
-      $command = if ($SkipBuild) { $launch } else { "$pnpm run build:artifacts && $launch" }
+      # 启动前先按层增量重建：各层产物都是最新时 rebuild 0.2 秒跳过，改过哪层就只重编哪层。
+      # -SkipBuild（start-desktop -Fast）也走这条：它省掉的是整仓 build:artifacts，不是新的源码。
+      $rebuild = 'call "' + (Join-Path $Root 'lcoder\scripts\rebuild.cmd') + '"'
+      $command = "$rebuild && $launch"
     }
     $process = Start-Process -FilePath 'cmd.exe' `
       -ArgumentList '/d', '/c', "$command > `"$LogPath`" 2>&1" `

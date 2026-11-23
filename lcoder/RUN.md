@@ -101,15 +101,15 @@ kernel 按下面的顺序确定 `.spec` 目录：
 验收只认桌面端实例，web 实例只当判别器用。**默认入口是 `lcoder\scripts\start-desktop.cmd`，拉起新客户端**（`packages/lcoder/desktop` 的 `launch.mjs`）；`-Legacy` 回退旧壳。
 
 ```txt
-lcoder\scripts\start-desktop.cmd            # 停本检出旧实例 → build:artifacts → launch → 等到宿主就绪
-lcoder\scripts\start-desktop.cmd -Fast      # 跳过构建（产物没变时最快）
+lcoder\scripts\start-desktop.cmd            # 停本检出旧实例 → 按层增量 rebuild → launch → 等到宿主就绪
+lcoder\scripts\start-desktop.cmd -Fast      # 只省掉整仓构建；新客户端仍按层增量重建（各层最新时最快）
 lcoder\scripts\start-desktop.cmd -Legacy    # 起旧壳（dev:desktop 路径）
 ```
 
 新客户端这条链：
 
 - **停旧实例**按路径判定，只认本检出：新客户端的 `.dsh-home\electron-user-data`、以本检出 `packages\lcoder\desktop` 为 app 路径的 electron（含宿主子进程），以及旧壳的 `--user-data-dir` 与 `dev.ts` 启动器。不碰 worktree、主检出或本机安装版。
-- **构建**只跑 `pnpm run build:artifacts`：根 tsdown 的 Host 面产出 `packages/lcoder/desktop/lib`（`main.js`、`host-entry.js`、`preload.cjs`），Client 面同时产出 `packages/lcoder/client/lib/dist`。不需要再单独构建桌面外壳。`-NoBuild` / `-Fast` 跳过构建，改过源码别用。
+- **构建**先跑 `lcoder\scripts\rebuild.cmd` 按层增量重建：只重编源码比产物新的层——改过 `packages/lcoder/desktop` 就重跑它的 `tsc -p tsconfig.json` 加 `tsdown` bundle（产出 `lib/types`、`lib/preload.cjs` 与 `lib/prototype-preview-preload.cjs`），改过 client 就重跑 vite build——并保障装配副本与 profile 依赖；各层产物都是最新时 0.2 秒跳过。不需要再单独构建桌面外壳。`-NoBuild` / `-Fast` 只省掉整仓 `build:artifacts` 这条兜底，增量重建照跑。
 - **启动**执行 `pnpm --filter @maniu/desktop run launch`。宿主监听随机端口，inspector 固定 `9829/9822/9830`（`DSH_DESKTOP_MAIN_INSPECT_PORT` / `DSH_DESKTOP_RENDERER_DEBUG_PORT` / `DSH_DESKTOP_HOST_INSPECT_PORT` 可覆盖）。
 - **就绪**认日志里的 `lcoder desktop: 宿主已就绪 http://127.0.0.1:<port>/?token=<redacted>`，随后打印窗口与地址。宿主自己也会打一行 `dsh web:`，新客户端不用它判就绪。
 - `-ListOnly` 只列会停哪些进程；`-KeepRunning` 不停旧实例；`-KeepFollowing` 就绪后继续跟随。`-Smoke` 只对旧壳有效：默认新客户端下会提示并忽略，需要旧壳运行时冒烟时写 `-Smoke -Legacy`。`lcoder\scripts\smoke.cmd` 同样只跑旧壳（它直接执行 `pnpm run start:desktop`，不经过 start-desktop）；新客户端的验收入口是 `t187-s1-probe.mjs` / `t189-m2-probe.mjs` / `t190-m3-probe.mjs` / `t195-approval-probe.mjs`。
