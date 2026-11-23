@@ -315,7 +315,7 @@ export function createPrototypeStudioWindow(request: PrototypeStudioOpenRequest)
     resizable: true,
     autoHideMenuBar: true,
     backgroundColor: '#f3f6fc',
-    title: 'Prototype Studio',
+    title: `原型工作室 · ${request.requirementId}`,
     icon: appIconPath(),
     webPreferences: {
       contextIsolation: true,

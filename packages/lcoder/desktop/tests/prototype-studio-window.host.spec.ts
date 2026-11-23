@@ -149,6 +149,11 @@ describe('studioLayout', () => {
 })
 
 describe('createPrototypeStudioWindow', () => {
+  it('窗口标题中文化并带需求编号', () => {
+    createPrototypeStudioWindow(REQUEST)
+    expect(onlyWindow().options.title).toBe('原型工作室 · R-1')
+  })
+
   it('窗口不装原生菜单栏，Alt 点选不会先弹菜单', () => {
     createPrototypeStudioWindow(REQUEST)
     const window = onlyWindow()
