@@ -4,8 +4,8 @@ import { contextBridge, ipcRenderer } from 'electron'
 import { IPC_CHANNELS } from './contract.ts'
 import type {
   CloseRequest, DesktopLocaleId, DesktopPreferences, DirectoryPickResult, EventOutcome, HostEvent, HostState,
-  HostWaterfall, HostWaterfallCancel, LcoderApi, PrototypeSelectionInfo, RemoteResult, StreamFrame, UpdateCheck,
-  WindowStateInfo,
+  HostWaterfall, HostWaterfallCancel, LcoderApi, PrototypeSelectionInfo, PrototypeStudioDockAction,
+  PrototypeStudioDockState, PrototypeStudioFloatingRect, RemoteResult, StreamFrame, UpdateCheck, WindowStateInfo,
 } from './contract.ts'
 
 function onHostState(listener: (state: HostState) => void): () => void {
@@ -56,6 +56,12 @@ function onPrototypeSelection(listener: (info: PrototypeSelectionInfo) => void):
   return () => { ipcRenderer.removeListener(IPC_CHANNELS.prototypeSelection, handler) }
 }
 
+function onPrototypeStudioDockState(listener: (state: PrototypeStudioDockState) => void): () => void {
+  const handler = (_event: Electron.IpcRendererEvent, state: PrototypeStudioDockState): void => { listener(state) }
+  ipcRenderer.on(IPC_CHANNELS.prototypeStudioDockState, handler)
+  return () => { ipcRenderer.removeListener(IPC_CHANNELS.prototypeStudioDockState, handler) }
+}
+
 const api: LcoderApi = {
   hostState: onHostState,
   hostStateNow: () => ipcRenderer.invoke(IPC_CHANNELS.hostStateNow) as Promise<HostState>,
@@ -97,7 +103,10 @@ const api: LcoderApi = {
   highlightPrototypeStudioPaths: paths =>
     ipcRenderer.invoke(IPC_CHANNELS.prototypeStudioHighlightPaths, paths) as Promise<void>,
   setPrototypeStudioFloatingBounds: bounds =>
-    ipcRenderer.invoke(IPC_CHANNELS.prototypeStudioSetFloatingBounds, bounds) as Promise<void>,
+    ipcRenderer.invoke(IPC_CHANNELS.prototypeStudioSetFloatingBounds, bounds) as Promise<PrototypeStudioFloatingRect | undefined>,
+  onPrototypeStudioDockState,
+  controlPrototypeStudioDock: (action: PrototypeStudioDockAction) =>
+    ipcRenderer.invoke(IPC_CHANNELS.prototypeStudioRestore, action) as Promise<void>,
 }
 
 contextBridge.exposeInMainWorld('lcoder', api)

@@ -4,7 +4,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { JSX } from 'react'
+import type { JSX, PointerEvent as ReactPointerEvent } from 'react'
 import { Button } from '@heroui/react'
 import type { Translate } from '../locale.ts'
 import { translate, type MessageKey } from '../locale.ts'
@@ -40,6 +40,15 @@ export interface PrototypeStudioAppProps {
 }
 
 const PROJECT_KEY = 'lcoder.m2.project'
+
+/** 探测路径连续几次看到会话停止才算完成：避免排队中的消息被误判成已结束。 */
+const STOPPED_PROBES_BEFORE_COMPLETE = 2
+
+/** 折叠胶囊与展开浮窗的默认尺寸，与桌面端浮窗几何一致。 */
+const FLOATING_EXPANDED = { width: 380, height: 520 } as const
+const FLOATING_COLLAPSED = { width: 260, height: 48 } as const
+/** 贴边默认间距，与桌面端 STUDIO_FLOATING_MARGIN 一致。 */
+const FLOATING_MARGIN = 24
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -130,6 +139,14 @@ export function PrototypeStudioApp(props: PrototypeStudioAppProps): JSX.Element 
   )
   const chatSessionIdRef = useRef(chatSessionId)
   chatSessionIdRef.current = chatSessionId
+  /** 协作会话的跟随流；由本组件打开并交给协作流消费，保证发言前流已在。 */
+  const [followStreamId, setFollowStreamId] = useState<string | null>(null)
+  const streamRef = useRef<{ readonly sessionId: string; readonly id: string } | null>(null)
+  const openingRef = useRef<{ readonly sessionId: string; readonly promise: Promise<string | null> } | null>(null)
+  /** 探测计数按本轮 sentAt 记账，换一轮就重新数。 */
+  const probeRef = useRef<{ readonly sentAt: number; readonly stopped: number } | null>(null)
+  const tRef = useRef(t)
+  tRef.current = t
   const [turn, setTurn] = useState<StudioTurnEcho | undefined>(undefined)
   const [staged, setStaged] = useState<StagedPrototype | null>(null)
   const [committedHtml, setCommittedHtml] = useState<string | null>(null)
@@ -143,6 +160,29 @@ export function PrototypeStudioApp(props: PrototypeStudioAppProps): JSX.Element 
   const [syncStatus, setSyncStatus] = useState<RequirementSyncStatus | undefined>(undefined)
   const [notice, setNotice] = useState<string | undefined>(undefined)
   const [turnRunning, setTurnRunning] = useState(false)
+  /** 最近一次写给宿主的浮窗矩形；拖拽与折叠都以它为起点。 */
+  const floatingRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null)
+  /** 一次指针拖拽的起点与目标；rAF 合并同一帧内的多次移动。 */
+  const dragRef = useRef<{
+    readonly pointerId: number
+    readonly width: number
+    readonly height: number
+    readonly collapsed: boolean
+    startX: number
+    startY: number
+    originX: number
+    originY: number
+    lastX: number
+    lastY: number
+    /** 起点坐标是否已确定；自动贴位的浮窗要先向宿主核对一次真实矩形。 */
+    resolved: boolean
+    pendingX: number
+    pendingY: number
+    moved: boolean
+    frame: number | null
+  } | null>(null)
+  /** 拖完松手会紧跟一次 click；这一次点击不该触发折叠或展开。 */
+  const suppressClickRef = useRef(false)
 
   const loadHtml = useCallback((html: string | null, beforeHtml: string | null): void => {
     if (html === null) return
@@ -180,14 +220,157 @@ export function PrototypeStudioApp(props: PrototypeStudioAppProps): JSX.Element 
     void bridge?.setPrototypeStudioMode?.(next)
   }
 
+  /**
+   * 把浮窗矩形写给宿主；折叠、拖拽都走这一条，避免两条路径各记一份坐标。
+   * @param next - 完整矩形与折叠标记。
+   */
+  const applyFloating = (next: {
+    readonly x: number
+    readonly y: number
+    readonly width: number
+    readonly height: number
+    readonly collapsed: boolean
+  }): void => {
+    floatingRef.current = { x: next.x, y: next.y, width: next.width, height: next.height }
+    const applied = bridge?.setPrototypeStudioFloatingBounds?.(next)
+    if (applied === undefined) return
+    void applied.then((rect) => {
+      // 自动贴位的矩形由宿主解析；记下真实坐标，下一次拖拽才有准确起点。
+      if (rect !== undefined && (next.x < 0 || next.y < 0)) {
+        floatingRef.current = { x: rect.x, y: rect.y, width: rect.width, height: rect.height }
+      }
+    }).catch(() => undefined)
+  }
+
   const toggleFloating = (): void => {
+    // 刚拖过的那一次 click 是拖拽的尾巴，不当作折叠/展开。
+    if (suppressClickRef.current) {
+      suppressClickRef.current = false
+      return
+    }
+    const known = floatingRef.current
+    const x = known === null ? -1 : known.x
+    const y = known === null ? -1 : known.y
     if (floatingCollapsed) {
       setFloatingCollapsed(false)
-      void bridge?.setPrototypeStudioFloatingBounds?.({ x: -1, y: -1, width: 380, height: 520, collapsed: false })
+      applyFloating({ x, y, ...FLOATING_EXPANDED, collapsed: false })
       return
     }
     setFloatingCollapsed(true)
-    void bridge?.setPrototypeStudioFloatingBounds?.({ x: -1, y: -1, width: 260, height: 48, collapsed: true })
+    applyFloating({ x, y, ...FLOATING_COLLAPSED, collapsed: true })
+  }
+
+  /**
+   * 按下浮窗顶栏或折叠胶囊，开始一次指针拖拽。
+   * 用指针坐标换算窗口位置并交给宿主 setFloatingBounds：不设 app-region，画布拖拽命中层不受影响。
+   * @param event - 指针按下事件。
+   * @param collapsed - 起点是折叠胶囊还是展开浮窗。
+   */
+  const beginFloatingDrag = (event: ReactPointerEvent<HTMLElement>, collapsed: boolean): void => {
+    if (viewMode !== 'fullscreen-pinned' || event.button !== 0) return
+    const target = event.target
+    if (target instanceof Element) {
+      const button = target.closest('button')
+      // 顶栏里的按钮自己响应点击；胶囊本身就是按钮，按在它上面照样算拖拽。
+      if (button !== null && button !== event.currentTarget) return
+    }
+    suppressClickRef.current = false
+    const known = floatingRef.current
+    const size = collapsed ? FLOATING_COLLAPSED : (known ?? FLOATING_EXPANDED)
+    const resolved = known !== null && known.x >= 0 && known.y >= 0
+    // 视图自己不知道在工作室窗口里的位置：自动贴位时先按可视宽度估一个，再向宿主核对真实矩形。
+    const originX = resolved ? known.x : Math.max(0, window.innerWidth - size.width - FLOATING_MARGIN)
+    const originY = resolved ? known.y : FLOATING_MARGIN
+    const drag = {
+      pointerId: event.pointerId,
+      width: size.width,
+      height: size.height,
+      collapsed,
+      startX: event.screenX,
+      startY: event.screenY,
+      originX,
+      originY,
+      lastX: event.screenX,
+      lastY: event.screenY,
+      resolved,
+      pendingX: originX,
+      pendingY: originY,
+      moved: false,
+      frame: null,
+    }
+    dragRef.current = drag
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId)
+    } catch {
+      // 合成指针或没有指针捕获的环境：仍按元素上收到的移动量继续拖。
+    }
+    if (drag.resolved) return
+    const applied = bridge?.setPrototypeStudioFloatingBounds?.({ x: -1, y: -1, ...size, collapsed })
+    if (applied === undefined) {
+      drag.resolved = true
+      return
+    }
+    void applied.then((rect) => {
+      if (dragRef.current !== drag) return
+      if (rect !== undefined) {
+        drag.originX = rect.x
+        drag.originY = rect.y
+        // 用最近一次指针位置当新起点：核对期间发生的位移不会被重复计入。
+        drag.startX = drag.lastX
+        drag.startY = drag.lastY
+        drag.pendingX = rect.x
+        drag.pendingY = rect.y
+        floatingRef.current = { x: rect.x, y: rect.y, width: rect.width, height: rect.height }
+      }
+      drag.resolved = true
+    }).catch(() => { drag.resolved = true })
+  }
+
+  const moveFloatingDrag = (event: ReactPointerEvent<HTMLElement>): void => {
+    const drag = dragRef.current
+    if (drag === null || drag.pointerId !== event.pointerId) return
+    drag.lastX = event.screenX
+    drag.lastY = event.screenY
+    if (!drag.moved && Math.abs(event.screenX - drag.startX) + Math.abs(event.screenY - drag.startY) > 3) {
+      drag.moved = true
+    }
+    if (!drag.resolved) return
+    drag.pendingX = drag.originX + (event.screenX - drag.startX)
+    drag.pendingY = drag.originY + (event.screenY - drag.startY)
+    if (drag.frame !== null) return
+    drag.frame = window.requestAnimationFrame(() => {
+      drag.frame = null
+      if (dragRef.current !== drag) return
+      applyFloating({
+        x: Math.round(drag.pendingX),
+        y: Math.round(drag.pendingY),
+        width: drag.width,
+        height: drag.height,
+        collapsed: drag.collapsed,
+      })
+    })
+  }
+
+  const endFloatingDrag = (event: ReactPointerEvent<HTMLElement>): void => {
+    const drag = dragRef.current
+    if (drag === null || drag.pointerId !== event.pointerId) return
+    dragRef.current = null
+    if (drag.frame !== null) window.cancelAnimationFrame(drag.frame)
+    if (drag.moved) {
+      suppressClickRef.current = true
+      applyFloating({
+        x: Math.round(drag.pendingX),
+        y: Math.round(drag.pendingY),
+        width: drag.width,
+        height: drag.height,
+        collapsed: drag.collapsed,
+      })
+    }
+    try {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    } catch {
+      // 没有指针捕获时无需释放。
+    }
   }
 
   const switchView = (before: boolean): void => {
@@ -269,52 +452,136 @@ export function PrototypeStudioApp(props: PrototypeStudioAppProps): JSX.Element 
     }
   }
 
-  const sendPrompt = async (prompt: string): Promise<boolean> => {
-    let sid = chatSessionIdRef.current
-    if (sid === null) {
-      const workspaceId = (() => {
-        try {
-          const raw = localStorage.getItem(PROJECT_KEY)
-          const value: unknown = raw === null ? undefined : JSON.parse(raw)
-          return isRecord(value) && typeof value.workspaceId === 'string' ? value.workspaceId : undefined
-        } catch {
-          return undefined
-        }
-      })()
-      const created = await invoke('session', 'create', {
-        request: {
-          ...(workspaceId === undefined ? {} : { workspaceId }),
-          agentPreset: 'maniu-prototype',
-        },
-      })
-      if (!created.ok) {
-        setNotice(`${created.error.code}: ${created.error.message}`)
-        return false
-      }
-      const value: unknown = created.value
-      if (!isRecord(value) || typeof value.sessionId !== 'string') {
-        setNotice(t('studio.sessionCreateFailed'))
-        return false
-      }
-      sid = value.sessionId
-      chatSessionIdRef.current = sid
-      setChatSessionId(sid)
+  /**
+   * 取协作会话号：本需求上次用过就沿用，没有就新建一个 maniu-prototype 会话。
+   * @returns 会话号；建会话失败时返回 null 并已在界面上报错。
+   */
+  const ensureChatSession = useCallback(async (): Promise<string | null> => {
+    const existing = chatSessionIdRef.current
+    if (existing !== null) return existing
+    const workspaceId = (() => {
       try {
-        localStorage.setItem(`lcoder.studio.session.${requirementId}`, sid)
+        const raw = localStorage.getItem(PROJECT_KEY)
+        const value: unknown = raw === null ? undefined : JSON.parse(raw)
+        return isRecord(value) && typeof value.workspaceId === 'string' ? value.workspaceId : undefined
       } catch {
-        // 会话已在内存里生效；存储失败不影响本轮发送。
+        return undefined
       }
-    }
-    const answer = await invoke('session', 'prompt', {
-      request: { requestId: requestId(), sessionId: sid, mode: 'queue', content: [{ type: 'text', text: prompt }] },
+    })()
+    const created = await invoke('session', 'create', {
+      request: {
+        ...(workspaceId === undefined ? {} : { workspaceId }),
+        agentPreset: 'maniu-prototype',
+      },
     })
-    if (!answer.ok) {
-      setNotice(`${answer.error.code}: ${answer.error.message}`)
-      return false
+    if (!created.ok) {
+      setNotice(`${created.error.code}: ${created.error.message}`)
+      return null
     }
-    setNotice(undefined)
-    return true
-  }
+    const value: unknown = created.value
+    if (!isRecord(value) || typeof value.sessionId !== 'string') {
+      setNotice(tRef.current('studio.sessionCreateFailed'))
+      return null
+    }
+    const sid = value.sessionId
+    chatSessionIdRef.current = sid
+    setChatSessionId(sid)
+    try {
+      localStorage.setItem(`lcoder.studio.session.${requirementId}`, sid)
+    } catch {
+      // 会话已在内存里生效；存储失败不影响本轮发送。
+    }
+    return sid
+  }, [invoke, requirementId])
+
+  /**
+   * 为协作会话打开跟随流；同一会话复用同一条流，换会话时先撤旧的。
+   * @param sid - 协作会话号。
+   * @returns 流标识；宿主没有开流能力时返回 null。
+   */
+  const openFollowStream = useCallback(async (sid: string): Promise<string | null> => {
+    const opened = streamRef.current
+    if (opened !== null && opened.sessionId === sid) return opened.id
+    const opening = openingRef.current
+    if (opening !== null && opening.sessionId === sid) return opening.promise
+    const openStream = bridge?.openStream
+    if (openStream === undefined) return null
+    if (opened !== null) {
+      streamRef.current = null
+      setFollowStreamId(null)
+      void bridge?.cancelStream?.(opened.id)
+    }
+    const promise = openStream('session', 'follow', {
+      request: {
+        address: { kind: 'session', sessionId: sid },
+        // 本轮由用户主动发起：请求后台激活，宿主不会因为窗口没人看就缓起这一轮。
+        activate: true,
+        assistantStream: true,
+        maxMessages: 20,
+      },
+    }).then((id) => {
+      streamRef.current = { sessionId: sid, id }
+      setFollowStreamId(id)
+      return id
+    }).catch(() => null)
+    openingRef.current = { sessionId: sid, promise }
+    void promise.finally(() => {
+      if (openingRef.current?.promise === promise) openingRef.current = null
+    })
+    return promise
+  }, [bridge])
+
+  // 进入即跟随已有会话：历史回合能回显，实时进度也不用等下一次发送。
+  useEffect(() => {
+    if (chatSessionId === null) return
+    void openFollowStream(chatSessionId)
+  }, [chatSessionId, openFollowStream])
+
+  useEffect(() => () => {
+    const opened = streamRef.current
+    streamRef.current = null
+    if (opened !== null) void bridge?.cancelStream?.(opened.id)
+  }, [bridge])
+
+  /**
+   * 等待期探测：暂存比本轮新、或会话连续两次报告已停止，就当作这一轮结束。
+   * 事件通道偶发漏帧时靠它退出等待，不再永久卡在「正在调整原型」。
+   * @param sentAt - 本轮发出时刻。
+   * @returns 是否可以结束本轮等待。
+   */
+  const probeTurnComplete = useCallback(async (sentAt: number): Promise<boolean> => {
+    const previous = probeRef.current
+    let stopped = previous !== null && previous.sentAt === sentAt ? previous.stopped : 0
+    try {
+      const view = await getStagedPrototype(scopeSessionId ?? '', requirementId, invoke)
+      setStaged(view.staged)
+      setCommittedHtml(view.committedHtml)
+      if (view.staged !== null) {
+        const created = Date.parse(view.staged.createdAt)
+        if (Number.isFinite(created) && created > sentAt) {
+          probeRef.current = null
+          return true
+        }
+      }
+    } catch {
+      // 单次探测失败不改变等待：事件通道与回合结束帧仍是权威信号。
+    }
+    const sid = chatSessionIdRef.current
+    if (sid === null) return false
+    try {
+      const listed = await invoke('session', 'list', { _request: {} })
+      const value: unknown = listed.ok ? listed.value : undefined
+      if (isRecord(value) && Array.isArray(value.items)) {
+        const items: readonly unknown[] = value.items
+        const found = items.find(item => isRecord(item) && item.sessionId === sid)
+        stopped = isRecord(found) && found.running === false ? stopped + 1 : 0
+      }
+    } catch {
+      // 同上：探测失败不提前结束等待。
+    }
+    probeRef.current = { sentAt, stopped }
+    return stopped >= STOPPED_PROBES_BEFORE_COMPLETE
+  }, [invoke, requirementId, scopeSessionId])
 
   const sendCoDesign = async (instruction: string, anchors: readonly StudioAnchorDraft[]): Promise<boolean> => {
     const prompt = buildStudioCoDesignPrompt({
@@ -324,9 +591,23 @@ export function PrototypeStudioApp(props: PrototypeStudioAppProps): JSX.Element 
       instruction,
       anchors,
     })
-    const accepted = await sendPrompt(prompt)
-    if (accepted) setTurn({ instruction, anchors })
-    return accepted
+    // 顺序固定：先拿到会话号，再确保跟随流已打开，再回显本轮，最后才发消息。
+    // 反过来的话宿主会在流打开前就报 running=true，界面收不到那次回执，永远等不到结束。
+    const sid = await ensureChatSession()
+    if (sid === null) return false
+    await openFollowStream(sid)
+    setNotice(undefined)
+    setTurn({ instruction, anchors, sentAt: Date.now() })
+    const accepted = await invoke('session', 'prompt', {
+      request: { requestId: requestId(), sessionId: sid, mode: 'queue', content: [{ type: 'text', text: prompt }] },
+    })
+    if (!accepted.ok) {
+      setNotice(`${accepted.error.code}: ${accepted.error.message}`)
+      // 没被接受就不该留在等待态；清掉本轮回显让发送入口立即恢复。
+      setTurn(undefined)
+      return false
+    }
+    return true
   }
 
   /** 回合结束后重读暂存并把画布载到最新一版；暂存为空时回到正式版。 */
@@ -342,29 +623,53 @@ export function PrototypeStudioApp(props: PrototypeStudioAppProps): JSX.Element 
 
   return (
     <div className={`studio-app${isFullscreen ? ' studio-app-pinned' : ''}`} data-testid="studio-app" data-requirement-id={requirementId}>
-      {isFullscreen && (
+      {isFullscreen && floatingCollapsed && (
         <button
           type="button"
-          className={floatingCollapsed ? 'studio-floating studio-floating-collapsed' : 'studio-floating'}
+          className="studio-floating studio-floating-collapsed"
           data-testid="studio-floating-collapse"
-          aria-expanded={!floatingCollapsed}
+          aria-expanded={false}
           onClick={toggleFloating}
+          onPointerDown={(event) => { beginFloatingDrag(event, true) }}
+          onPointerMove={moveFloatingDrag}
+          onPointerUp={endFloatingDrag}
+          onPointerCancel={endFloatingDrag}
         >
-          {floatingCollapsed ? t('studio.collapsedCapsule') : t('studio.expandCapsule')}
+          {t('studio.expandCapsule', { id: requirementId })}
         </button>
       )}
       <div className="studio-body" data-testid="studio-body" hidden={isFullscreen && floatingCollapsed}>
-        <header className="studio-head">
+        <header
+          className={isFullscreen ? 'studio-head studio-head-draggable' : 'studio-head'}
+          data-testid="studio-head"
+          onPointerDown={(event) => { beginFloatingDrag(event, false) }}
+          onPointerMove={moveFloatingDrag}
+          onPointerUp={endFloatingDrag}
+          onPointerCancel={endFloatingDrag}
+        >
           <span className="studio-title" data-testid="studio-title">{t('studio.title', { id: requirementId })}</span>
-          <button
-            type="button"
-            className="studio-mode-toggle"
-            data-testid="studio-mode-toggle"
-            data-mode={viewMode}
-            onClick={() => { changeMode(isFullscreen ? 'split' : 'fullscreen-pinned') }}
-          >
-            {isFullscreen ? t('studio.exitFullscreen') : t('studio.enterFullscreen')}
-          </button>
+          <div className="studio-head-actions">
+            {isFullscreen && (
+              <button
+                type="button"
+                className="studio-mode-toggle"
+                data-testid="studio-floating-collapse"
+                aria-expanded
+                onClick={toggleFloating}
+              >
+                {t('studio.collapsePanel')}
+              </button>
+            )}
+            <button
+              type="button"
+              className="studio-mode-toggle"
+              data-testid="studio-mode-toggle"
+              data-mode={viewMode}
+              onClick={() => { changeMode(isFullscreen ? 'split' : 'fullscreen-pinned') }}
+            >
+              {isFullscreen ? t('studio.exitFullscreen') : t('studio.enterFullscreen')}
+            </button>
+          </div>
         </header>
 
         <div className="studio-staged-bar" data-testid="studio-staged-bar" data-staged={staged === null ? 'false' : 'true'}>
@@ -449,9 +754,11 @@ export function PrototypeStudioApp(props: PrototypeStudioAppProps): JSX.Element 
           t={t}
           bridge={bridge}
           sessionId={chatSessionId}
+          streamId={followStreamId}
           turn={turn}
           onStageComplete={refreshAfterTurn}
           onRunningChange={setTurnRunning}
+          onProbeComplete={probeTurnComplete}
         />
         <AnchorComposer t={t} bridge={bridge} running={turnRunning || busy} onSend={sendCoDesign} />
 

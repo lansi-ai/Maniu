@@ -43,6 +43,10 @@ export const IPC_CHANNELS = {
   prototypeStudioSetFloatingBounds: 'lcoder:prototype-studio-set-floating-bounds',
   /** 主进程下发到原型画布 preload 的检查器控制（交互模式与高亮路径）。 */
   prototypeStudioInspectControl: 'lcoder:prototype-studio-inspect-control',
+  /** 主进程把工作台的停靠状态推给主窗（最小化后显示恢复胶囊）。 */
+  prototypeStudioDockState: 'lcoder:prototype-studio-dock-state',
+  /** 主窗请求恢复或关闭停靠的工作台。 */
+  prototypeStudioRestore: 'lcoder:prototype-studio-restore',
 } as const
 
 /** 宿主子进程生命周期状态。 */
@@ -192,6 +196,14 @@ export interface PrototypeStudioFloatingBounds {
   readonly collapsed?: boolean
 }
 
+/** 已应用的浮窗矩形：负坐标已解析成实际的贴边位置。 */
+export interface PrototypeStudioFloatingRect {
+  readonly x: number
+  readonly y: number
+  readonly width: number
+  readonly height: number
+}
+
 /** 打开 Prototype Studio 的请求；html 为暂存版，beforeHtml 为并排对比用的正式版。 */
 export interface PrototypeStudioOpenRequest {
   readonly requirementId: string
@@ -212,6 +224,22 @@ export interface PrototypeStudioHtmlPayload {
 export type PrototypeStudioInspectControl =
   | { readonly interactionMode: PrototypeInteractionMode }
   | { readonly highlightDomPaths: readonly string[] }
+
+/**
+ * Prototype Studio 在主窗上的停靠状态。
+ *
+ * 工作台最小化后不占系统任务栏条目：主窗右下角据此显示恢复胶囊，
+ * `open` 为 false 表示工作台已关闭，胶囊随之消失。
+ */
+export interface PrototypeStudioDockState {
+  readonly open: boolean
+  readonly minimized: boolean
+  /** 胶囊上显示的需求编号；工作台已关闭时缺省。 */
+  readonly requirementId?: string
+}
+
+/** 主窗对停靠工作台的动作：恢复窗口或直接关闭。 */
+export type PrototypeStudioDockAction = 'restore' | 'close'
 
 /** preload 暴露给渲染端的完整面。 */
 export interface LcoderApi {
@@ -275,6 +303,20 @@ export interface LcoderApi {
   loadPrototypeStudioHtml(payload: PrototypeStudioHtmlPayload): Promise<void>
   /** 在暂存版画布上标记需要修改的 DOM 路径；空数组清除标记。 */
   highlightPrototypeStudioPaths(paths: readonly string[]): Promise<void>
-  /** 设置全屏置顶模式下协作浮窗的位置与尺寸。 */
-  setPrototypeStudioFloatingBounds(bounds: PrototypeStudioFloatingBounds): Promise<void>
+  /**
+   * 设置全屏置顶模式下协作浮窗的位置与尺寸。
+   * @param bounds - 期望的浮窗矩形；x/y 为负表示按窗口尺寸自动贴右/贴上。
+   * @returns 应用后的实际矩形，负坐标已解析；工作台未打开时为空。
+   */
+  setPrototypeStudioFloatingBounds(bounds: PrototypeStudioFloatingBounds): Promise<PrototypeStudioFloatingRect | undefined>
+  /**
+   * 订阅 Prototype Studio 的停靠状态；返回取消订阅函数。
+   * @param listener - 收到最新停靠状态的渲染端回调。
+   */
+  onPrototypeStudioDockState(listener: (state: PrototypeStudioDockState) => void): () => void
+  /**
+   * 恢复或关闭最小化到主窗的工作台。
+   * @param action - `restore` 唤醒窗口，`close` 直接关掉它。
+   */
+  controlPrototypeStudioDock(action: PrototypeStudioDockAction): Promise<void>
 }

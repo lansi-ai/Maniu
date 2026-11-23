@@ -118,16 +118,9 @@ export function AnchorComposer(props: AnchorComposerProps): JSX.Element {
                 <div key={anchor.domPath} className="studio-anchor-item" data-dom-path={anchor.domPath}>
                   <span className="studio-anchor-chip" data-testid="studio-anchor-chip" data-dom-path={anchor.domPath}>
                     <span className="studio-anchor-index">{`#${String(index + 1)}`}</span>
-                    <span>{t('studio.anchorChip', { label: anchor.label === undefined || anchor.label === '' ? anchor.domPath : anchor.label })}</span>
-                    <button
-                      type="button"
-                      className="studio-anchor-remove"
-                      data-testid="studio-anchor-remove"
-                      aria-label={t('studio.removeAnchor')}
-                      onClick={() => { setAnchors(current => current.filter(item => item.domPath !== anchor.domPath)) }}
-                    >
-                      ×
-                    </button>
+                    <span className="studio-anchor-name">
+                      {t('studio.anchorChip', { label: anchor.label === undefined || anchor.label === '' ? anchor.domPath : anchor.label })}
+                    </span>
                   </span>
                   <input
                     className="studio-anchor-note"
@@ -138,6 +131,15 @@ export function AnchorComposer(props: AnchorComposerProps): JSX.Element {
                     aria-label={t('studio.anchorNotePlaceholder')}
                     onChange={(event) => { setAnchorNote(anchor.domPath, event.target.value) }}
                   />
+                  <button
+                    type="button"
+                    className="studio-anchor-remove"
+                    data-testid="studio-anchor-remove"
+                    aria-label={t('studio.removeAnchor')}
+                    onClick={() => { setAnchors(current => current.filter(item => item.domPath !== anchor.domPath)) }}
+                  >
+                    ×
+                  </button>
                 </div>
               ))}
               <Button size="sm" variant="ghost" data-testid="studio-anchors-clear" onPress={() => { setAnchors([]) }}>

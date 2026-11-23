@@ -6,7 +6,7 @@ import {
   FileText, FolderGit2, Info, LayoutTemplate, MessageSquare, Settings, SquareKanban, Users,
   type LucideIcon,
 } from 'lucide-react'
-import type { CloseRequest, EventOutcome, HostEvent, HostState, HostWaterfall, HostWaterfallCancel } from '@maniu/desktop/contract'
+import type { CloseRequest, EventOutcome, HostEvent, HostState, HostWaterfall, HostWaterfallCancel, PrototypeStudioDockState } from '@maniu/desktop/contract'
 import { actionOfFrame, chatReducer, emptyChat, summaryOf, type ChatAction, type SessionSummary } from './store.ts'
 import { translate, type MessageKey, type Translate } from './locale.ts'
 import { browserStorage, markWelcomeSeen, usePreferences, welcomeSeen } from './prefs.ts'
@@ -39,6 +39,8 @@ import { interactionOf, type PendingInteraction } from './chat/pending.ts'
 import { useSessionControl } from './chat/use-session-control.ts'
 import { createFrameBatcher, type FrameBatcher } from './chat/stream-batch.ts'
 import { useTalents } from './talents/use-talents.ts'
+import { studioDockApi } from './prototype-studio/dock-api.ts'
+import { StudioDock } from './prototype-studio/studio-dock.tsx'
 import { INTAKE_PRESET_ID, isIntakePreset } from './talents/model.ts'
 import { hasIntakeWork } from './intake/eligibility.ts'
 import { INTAKE_CONFIRM_PROMPT } from './intake/prompts.ts'
@@ -146,6 +148,8 @@ export function App(): JSX.Element {
   // 作答弹窗的打开状态提升到 App：任务卡入口与中性兜底入口都经这里打开同一个弹窗。
   const [answerIds, setAnswerIds] = useState<readonly string[] | null>(null)
   const [closeRequest, setCloseRequest] = useState<CloseRequest | null>(null)
+  /** 最小化到主窗的工作台；非 null 时右下角显示停靠胶囊。 */
+  const [studioDock, setStudioDock] = useState<PrototypeStudioDockState | null>(null)
   const [titles, setTitles] = useState<Readonly<Record<string, string>>>({})
   const [catalog, setCatalog] = useState<{ readonly value: unknown; readonly error: string | null }>({
     value: null,
@@ -243,6 +247,14 @@ export function App(): JSX.Element {
     } catch (error: unknown) {
       setCatalog({ value: null, error: error instanceof Error ? error.message : String(error) })
     }
+  }, [])
+
+  useEffect(() => {
+    // 工作台最小化后由主进程推状态；主窗重载时主进程会补发一次当前值。
+    const off = studioDockApi()?.onPrototypeStudioDockState?.((state) => {
+      setStudioDock(state.open && state.minimized ? state : null)
+    })
+    return () => { off?.() }
   }, [])
 
   useEffect(() => {
@@ -866,6 +878,18 @@ export function App(): JSX.Element {
               onAnswer={answer}
               onClose={() => { setAnswerIds(null) }}
             />
+
+            {studioDock !== null && (
+              <StudioDock
+                t={t}
+                requirementId={studioDock.requirementId}
+                onRestore={() => { void studioDockApi()?.controlPrototypeStudioDock?.('restore') }}
+                onClose={() => {
+                  setStudioDock(null)
+                  void studioDockApi()?.controlPrototypeStudioDock?.('close')
+                }}
+              />
+            )}
           </div>
         </main>
       )}
