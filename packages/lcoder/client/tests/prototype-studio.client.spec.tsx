@@ -346,6 +346,41 @@ describe('暂存控制条', () => {
     expect(highlightCalls.at(-1)).toEqual([])
   })
 
+  it('没有暂存时顶部不渲染占位操作条，对比图标禁用并说明原因', async () => {
+    state.staged = null
+    const bridge = makeBridge()
+    await renderApp(bridge)
+    expect(element('studio-staged-bar')).toBeNull()
+    expect(container.textContent).not.toContain('暂无未落盘的修改')
+    const compare = element('studio-quick-compare') as HTMLButtonElement
+    expect(compare.disabled).toBe(true)
+    expect(compare.getAttribute('title')).toBe('暂无可对比的修改')
+    expect(compare.getAttribute('aria-label')).toBe('暂无可对比的修改')
+    // 没有暂存也不影响历史快照与全屏切换入口。
+    expect(element('studio-snapshots-trigger')).not.toBeNull()
+    expect(element('studio-mode-toggle')).not.toBeNull()
+  })
+
+  it('顶部对比图标在暂存版与原版间一键瞬切，原版态高亮', async () => {
+    const bridge = makeBridge()
+    await renderApp(bridge)
+    const compare = (): HTMLElement | null => element('studio-quick-compare')
+    expect(compare()?.getAttribute('title')).toBe('点击查看原版')
+    expect(compare()?.getAttribute('aria-label')).toBe('点击查看原版')
+    expect(compare()?.getAttribute('data-active')).toBe('false')
+
+    await click('studio-quick-compare')
+    expect(loadCalls.at(-1)).toMatchObject({ html: COMMITTED, beforeHtml: COMMITTED })
+    expect(compare()?.getAttribute('data-active')).toBe('true')
+    expect(compare()?.getAttribute('aria-pressed')).toBe('true')
+    expect(compare()?.getAttribute('title')).toBe('点击切回修改后')
+
+    await click('studio-quick-compare')
+    expect(loadCalls.at(-1)).toMatchObject({ html: VISUAL.html, beforeHtml: COMMITTED })
+    expect(compare()?.getAttribute('data-active')).toBe('false')
+    expect(compare()?.getAttribute('title')).toBe('点击查看原版')
+  })
+
   it('确认落盘刷新正式版、放弃回退、快照恢复重载画布，线上入参都包 input', async () => {
     const bridge = makeBridge()
     await renderApp(bridge)
@@ -353,7 +388,7 @@ describe('暂存控制条', () => {
     expect(calls.some(call => call.namespace === 'prototype' && call.method === 'commitStaged'
       && isRecord(call.args.input) && call.args.input.requirementId === 'REQ-01')).toBe(true)
     expect(loadCalls.at(-1)).toMatchObject({ html: COMMITTED })
-    expect(element('studio-staged-bar')?.getAttribute('data-staged')).toBe('false')
+    expect(element('studio-staged-bar')).toBeNull()
 
     state.staged = BUSINESS
     await renderApp(bridge)

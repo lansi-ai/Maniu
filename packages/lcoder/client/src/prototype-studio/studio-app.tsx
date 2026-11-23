@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { JSX, PointerEvent as ReactPointerEvent } from 'react'
 import { Button } from '@heroui/react'
+import { GitCompareArrows, History, Maximize2, Minimize2, PanelRightClose } from 'lucide-react'
 import type { Translate } from '../locale.ts'
 import { translate, type MessageKey } from '../locale.ts'
 import { usePreferences } from '../prefs.ts'
@@ -624,6 +625,10 @@ export function PrototypeStudioApp(props: PrototypeStudioAppProps): JSX.Element 
   }, [refreshStaged, loadHtml, bridge])
 
   const isFullscreen = viewMode === 'fullscreen-pinned'
+  const modeLabel = isFullscreen ? t('studio.exitFullscreen') : t('studio.enterFullscreen')
+  const quickCompareLabel = staged === null
+    ? t('studio.quickCompareUnavailable')
+    : t(showingBefore ? 'studio.quickCompareToAfter' : 'studio.quickCompareToBefore')
 
   return (
     <div className={`studio-app${isFullscreen ? ' studio-app-pinned' : ''}`} data-testid="studio-app" data-requirement-id={requirementId}>
@@ -652,80 +657,105 @@ export function PrototypeStudioApp(props: PrototypeStudioAppProps): JSX.Element 
           onPointerCancel={endFloatingDrag}
         >
           <span className="studio-title" data-testid="studio-title">{t('studio.title', { id: requirementId })}</span>
-          <div className="studio-head-actions">
+          <div className="studio-head-actions" data-testid="studio-head-actions">
             {isFullscreen && (
-              <button
-                type="button"
-                className="studio-mode-toggle"
+              <Button
+                isIconOnly
+                size="sm"
+                variant="ghost"
+                className="studio-icon-button"
                 data-testid="studio-floating-collapse"
                 aria-expanded
-                onClick={toggleFloating}
+                aria-label={t('studio.collapsePanel')}
+                ref={(node) => { if (node !== null) node.title = t('studio.collapsePanel') }}
+                onPress={toggleFloating}
               >
-                {t('studio.collapsePanel')}
-              </button>
+                <PanelRightClose aria-hidden="true" size={16} />
+              </Button>
             )}
-            <button
-              type="button"
-              className="studio-mode-toggle"
+            <Button
+              isIconOnly
+              size="sm"
+              variant={showingBefore ? 'primary' : 'ghost'}
+              className={showingBefore ? 'studio-icon-button studio-icon-button-active' : 'studio-icon-button'}
+              data-testid="studio-quick-compare"
+              data-active={showingBefore ? 'true' : 'false'}
+              aria-label={quickCompareLabel}
+              aria-pressed={showingBefore}
+              isDisabled={staged === null}
+              ref={(node) => { if (node !== null) node.title = quickCompareLabel }}
+              onPress={() => { switchView(!showingBefore) }}
+            >
+              <GitCompareArrows aria-hidden="true" size={16} />
+            </Button>
+            <Button
+              isIconOnly
+              size="sm"
+              variant="ghost"
+              className="studio-icon-button"
+              data-testid="studio-snapshots-trigger"
+              aria-expanded={snapshotsOpen}
+              aria-label={t('studio.snapshots')}
+              ref={(node) => { if (node !== null) node.title = t('studio.snapshots') }}
+              onPress={() => { setSnapshotsOpen(current => !current) }}
+            >
+              <History aria-hidden="true" size={16} />
+            </Button>
+            <Button
+              isIconOnly
+              size="sm"
+              variant="ghost"
+              className="studio-icon-button"
               data-testid="studio-mode-toggle"
               data-mode={viewMode}
-              onClick={() => { changeMode(isFullscreen ? 'split' : 'fullscreen-pinned') }}
+              aria-label={modeLabel}
+              ref={(node) => { if (node !== null) node.title = modeLabel }}
+              onPress={() => { changeMode(isFullscreen ? 'split' : 'fullscreen-pinned') }}
             >
-              {isFullscreen ? t('studio.exitFullscreen') : t('studio.enterFullscreen')}
-            </button>
+              {isFullscreen ? <Minimize2 aria-hidden="true" size={16} /> : <Maximize2 aria-hidden="true" size={16} />}
+            </Button>
           </div>
         </header>
 
-        <div className="studio-staged-bar" data-testid="studio-staged-bar" data-staged={staged === null ? 'false' : 'true'}>
-          <span className={staged === null ? 'studio-staged-idle' : 'studio-staged-live'} data-testid="studio-staged-state">
-            {staged === null ? t('studio.stagedIdle') : t('studio.stagedPending')}
-          </span>
-          {staged !== null && (
-            <>
-              <div className="studio-segmented" role="group" aria-label={t('studio.viewSwitch')}>
-                <button
-                  type="button"
-                  className={showingBefore ? 'studio-segment studio-segment-on' : 'studio-segment'}
-                  data-testid="studio-view-before"
-                  aria-pressed={showingBefore}
-                  onClick={() => { switchView(true) }}
-                >
-                  {t('studio.viewBefore')}
-                </button>
-                <button
-                  type="button"
-                  className={!showingBefore ? 'studio-segment studio-segment-on' : 'studio-segment'}
-                  data-testid="studio-view-after"
-                  aria-pressed={!showingBefore}
-                  onClick={() => { switchView(false) }}
-                >
-                  {t('studio.viewAfter')}
-                </button>
-              </div>
-              <Button size="sm" variant="secondary" data-testid="studio-compare-side-by-side" isDisabled={busy} onPress={compareSideBySide}>
-                {t('studio.compareSideBySide')}
-              </Button>
-              <Button size="sm" variant={highlight ? 'primary' : 'secondary'} data-testid="studio-highlight-toggle" isDisabled={busy} onPress={toggleHighlight}>
-                {t('studio.highlightChanges')}
-              </Button>
-              <Button size="sm" variant="primary" data-testid="studio-commit-staged" isDisabled={busy} onPress={() => { void commit(false, false) }}>
-                {t('studio.confirmCommit')}
-              </Button>
-              <Button size="sm" variant="secondary" data-testid="studio-discard-staged" isDisabled={busy} onPress={() => { void discard() }}>
-                {t('studio.discard')}
-              </Button>
-            </>
-          )}
-          <button
-            type="button"
-            className="studio-snapshots-trigger"
-            data-testid="studio-snapshots-trigger"
-            aria-expanded={snapshotsOpen}
-            onClick={() => { setSnapshotsOpen(current => !current) }}
-          >
-            {t('studio.snapshots')}
-          </button>
-        </div>
+        {staged !== null && (
+          <div className="studio-staged-bar" data-testid="studio-staged-bar" data-staged="true">
+            <span className="studio-staged-live" data-testid="studio-staged-state">
+              {t('studio.stagedPending')}
+            </span>
+            <div className="studio-segmented" role="group" aria-label={t('studio.viewSwitch')}>
+              <button
+                type="button"
+                className={showingBefore ? 'studio-segment studio-segment-on' : 'studio-segment'}
+                data-testid="studio-view-before"
+                aria-pressed={showingBefore}
+                onClick={() => { switchView(true) }}
+              >
+                {t('studio.viewBefore')}
+              </button>
+              <button
+                type="button"
+                className={!showingBefore ? 'studio-segment studio-segment-on' : 'studio-segment'}
+                data-testid="studio-view-after"
+                aria-pressed={!showingBefore}
+                onClick={() => { switchView(false) }}
+              >
+                {t('studio.viewAfter')}
+              </button>
+            </div>
+            <Button size="sm" variant="secondary" data-testid="studio-compare-side-by-side" isDisabled={busy} onPress={compareSideBySide}>
+              {t('studio.compareSideBySide')}
+            </Button>
+            <Button size="sm" variant={highlight ? 'primary' : 'secondary'} data-testid="studio-highlight-toggle" isDisabled={busy} onPress={toggleHighlight}>
+              {t('studio.highlightChanges')}
+            </Button>
+            <Button size="sm" variant="primary" data-testid="studio-commit-staged" isDisabled={busy} onPress={() => { void commit(false, false) }}>
+              {t('studio.confirmCommit')}
+            </Button>
+            <Button size="sm" variant="secondary" data-testid="studio-discard-staged" isDisabled={busy} onPress={() => { void discard() }}>
+              {t('studio.discard')}
+            </Button>
+          </div>
+        )}
 
         {snapshotsOpen && (
           <div className="studio-snapshots" data-testid="studio-snapshots">

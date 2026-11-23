@@ -81,8 +81,6 @@
   font-weight: 600;
 }
 
-.studio-mode-toggle,
-.studio-snapshots-trigger,
 .studio-diff-toggle,
 .studio-segment {
   border: 1px solid var(--glass-outline);
@@ -95,10 +93,32 @@
   cursor: pointer;
 }
 
-.studio-mode-toggle:hover,
-.studio-snapshots-trigger:hover,
 .studio-diff-toggle:hover {
   background: var(--glass-nav-hover);
+}
+
+/* 顶栏图标按钮：32×32 圆角，悬停与高亮沿用 Glass token。 */
+.studio-icon-button {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  padding: 0;
+  border: 1px solid var(--glass-outline);
+  border-radius: 10px;
+  background: var(--glass-surface-elevated);
+  color: var(--foreground);
+}
+
+.studio-icon-button:hover {
+  background: var(--glass-nav-hover);
+}
+
+.studio-icon-button-active,
+.studio-icon-button[data-active='true'] {
+  border-color: transparent;
+  background: var(--glass-slot-active-bg);
+  color: var(--glass-slot-active-fg);
+  box-shadow: var(--glass-slot-active-shadow);
 }
 
 .studio-staged-bar {
@@ -106,25 +126,17 @@
   align-items: center;
   flex-wrap: wrap;
   gap: 6px;
-  padding: 8px;
+  padding: 6px 8px;
   border: 1px solid var(--glass-outline);
   border-radius: 12px;
   background: var(--glass-inset-soft);
 }
 
-.studio-staged-idle,
 .studio-staged-live {
   margin-right: auto;
   font-size: 12px;
-}
-
-.studio-staged-live {
   font-weight: 600;
   color: var(--foreground);
-}
-
-.studio-staged-idle {
-  color: var(--muted-foreground, var(--foreground));
 }
 
 .studio-segmented {
