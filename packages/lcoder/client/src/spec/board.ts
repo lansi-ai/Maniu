@@ -89,6 +89,37 @@ export function filterTasks(tasks: readonly TaskRow[], filter: TaskFilter): Task
   })
 }
 
+/** 任务漏斗阶段：把六列折成「待开工 / 开发中 / 待验收 / 已完成」四段。 */
+export type TaskStage = 'pending' | 'implementing' | 'verifying' | 'closed'
+
+/** 阶段与看板列的对应，顺序即总览漏斗的视觉顺序。 */
+export const TASK_STAGES: readonly { readonly id: TaskStage; readonly columns: readonly BoardColumnId[] }[] = [
+  { id: 'pending', columns: ['drafting', 'discussion', 'contracted'] },
+  { id: 'implementing', columns: ['implementing'] },
+  { id: 'verifying', columns: ['verifying'] },
+  { id: 'closed', columns: ['closed'] },
+]
+
+/**
+ * 任务所属的漏斗阶段。
+ * @param task - 任务行。
+ * @returns 六列折叠后的阶段。
+ */
+export function stageOf(task: TaskRow): TaskStage {
+  switch (boardColumnOf(task)) {
+    case 'drafting':
+    case 'discussion':
+    case 'contracted':
+      return 'pending'
+    case 'implementing':
+      return 'implementing'
+    case 'verifying':
+      return 'verifying'
+    case 'closed':
+      return 'closed'
+  }
+}
+
 /** 一条需求的状态分类。 */
 export function requirementStateLabel(state: string | undefined): string {
   if (state === 'draft') return '草稿'

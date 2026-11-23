@@ -9,10 +9,10 @@ import type { SpecProjection } from '../spec/load.ts'
 import type { TaskRow } from '../spec/rows.ts'
 import type { SessionSummary } from '../store.ts'
 import {
-  BOARD_COLUMNS, STATE_LABELS, boardColumnOf, emptyTaskFilter, filterTasks, runStatusOf, sortTasks,
-  type TaskFilter,
+  BOARD_COLUMNS, STATE_LABELS, boardColumnOf, emptyTaskFilter, filterTasks, runStatusOf, sortTasks, stageOf,
+  type TaskFilter, type TaskStage,
 } from '../spec/board.ts'
-import { translate, type Translate } from '../locale.ts'
+import { translate, type MessageKey, type Translate } from '../locale.ts'
 import { TaskDetail } from './task-detail.tsx'
 import { ReaderOverlay } from './reader.tsx'
 import { FlowPanel } from './flow-panel.tsx'
@@ -28,8 +28,19 @@ export interface TasksPageProps {
   /** 只显示该需求关联的任务；null 表示不过滤。 */
   readonly requirementFilter: string | null
   readonly onClearRequirementFilter: () => void
+  /** 只显示该漏斗阶段的任务；undefined 表示不过滤。 */
+  readonly stageFilter?: TaskStage | undefined
+  readonly onClearStageFilter?: (() => void) | undefined
   /** 取词函数；缺省为中文词典。 */
   readonly t?: Translate
+}
+
+/** 阶段名的词典键；筛选提示复用同一组文案。 */
+const STAGE_LABEL_KEY: Readonly<Record<TaskStage, MessageKey>> = {
+  pending: 'task.stage.pending',
+  implementing: 'task.stage.implementing',
+  verifying: 'task.stage.verifying',
+  closed: 'task.stage.closed',
 }
 
 /**
@@ -51,10 +62,13 @@ export function TasksPage(props: TasksPageProps): JSX.Element {
   )
   const rows = useMemo(() => {
     const matched = filterTasks(props.projection.tasks, filter)
-    return sortTasks(props.requirementFilter === null
+    const staged = props.stageFilter === undefined
       ? matched
-      : matched.filter(task => task.requirement === props.requirementFilter))
-  }, [props.projection.tasks, props.requirementFilter, filter])
+      : matched.filter(task => stageOf(task) === props.stageFilter)
+    return sortTasks(props.requirementFilter === null
+      ? staged
+      : staged.filter(task => task.requirement === props.requirementFilter))
+  }, [props.projection.tasks, props.requirementFilter, props.stageFilter, filter])
   const roles = useMemo(
     () => [...new Set(props.projection.roles.map(role => role.id))].sort(),
     [props.projection.roles],
@@ -179,6 +193,22 @@ export function TasksPage(props: TasksPageProps): JSX.Element {
           >
             {t('task.clearRequirementFilter')}
           </Button>
+        </div>
+      )}
+
+      {props.stageFilter !== undefined && (
+        <div className="filter-bar" data-testid="task-stage-filter">
+          <Chip variant="soft" color="accent">{t('task.stageFilter', { stage: t(STAGE_LABEL_KEY[props.stageFilter]) })}</Chip>
+          {props.onClearStageFilter !== undefined && (
+            <Button
+              variant="ghost"
+              size="sm"
+              data-testid="task-stage-filter-clear"
+              onPress={props.onClearStageFilter}
+            >
+              {t('task.clearStageFilter')}
+            </Button>
+          )}
         </div>
       )}
 

@@ -67,8 +67,23 @@
 }
 .nav-sub { color: var(--muted); font-size: 11px; }
 
-/* 导航项连续排列：上下组直接相邻，底部组靠 margin-top 自然留白，不画分隔线。 */
-.nav-list { display: flex; flex-direction: column; gap: 2px; -webkit-app-region: no-drag; }
+/* 导航：上组占据剩余高度并可滚动，下组始终贴底；上下组都不压缩。 */
+.nav-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-height: 0;
+  -webkit-app-region: no-drag;
+}
+
+.nav-group-top {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 0;
+  overflow-y: auto;
+}
 
 .nav-item {
   display: flex;
@@ -106,7 +121,16 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
+  flex: 0 0 auto;
   margin-top: auto;
+  padding-top: 6px;
+  border-top: 1px solid var(--glass-divider);
+}
+
+/* 窄窗口：左栏收窄但保留图标与标签，上下分层不塌。 */
+@media (max-width: 760px) {
+  .nav { width: 176px; flex-basis: 176px; padding: 12px 8px; }
+  .nav-item { padding: 0 10px; }
 }
 
 /* 右栏：顶栏与主画布纵向排列，撑满剩余宽度；玻璃底由这里提供。 */
@@ -2243,3 +2267,96 @@
 }
 .proto-lib-reserved { padding: 18px; }
 .proto-lib-layout[hidden] { display: none; }
+
+/* 总览：项目头部、唯一主行动、进度漏斗、活原型与近期动态。 */
+.dashboard-page { gap: 14px; }
+.dashboard-head { align-items: flex-start; }
+.dashboard-head-main { min-width: 0; }
+.dashboard-head-main .page-sub { margin-top: 2px; }
+.dashboard-empty { display: flex; justify-content: center; padding: 40px 24px; }
+.dashboard-empty-body { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; max-width: 460px; }
+.dashboard-empty-icon { color: var(--accent); }
+.dashboard-empty-body h2 { margin: 0; font-size: 18px; }
+.dashboard-empty-body .page-sub { margin: 0; }
+.dashboard-next {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 16px 18px;
+  border: 1px solid var(--accent);
+  border-radius: 14px;
+  background: var(--accent-soft);
+}
+.dashboard-next-copy { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.dashboard-next-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.dashboard-next-title { margin: 0; font-size: 15px; font-weight: 600; color: var(--foreground); }
+.dashboard-next-hint { margin: 0; font-size: 12px; color: var(--muted); }
+.dashboard-funnels,
+.dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+.dashboard-funnel,
+.dashboard-card { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; }
+.dashboard-funnel h3,
+.dashboard-card h3 { margin: 0; font-size: 14px; }
+.dashboard-stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 8px; }
+.dashboard-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border: 1px solid var(--separator);
+  border-radius: 12px;
+  background: var(--glass-slot);
+  color: var(--foreground);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 160ms ease, background-color 160ms ease;
+}
+.dashboard-stat:hover { border-color: var(--accent); background: var(--glass-nav-hover); }
+.dashboard-stat-value { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.dashboard-stat-label { font-size: 11px; color: var(--muted); }
+.dashboard-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.dashboard-card .detail-line { margin: 0; }
+.dashboard-card-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.dashboard-recent-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.dashboard-recent-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--foreground);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.dashboard-recent-item:hover { border-color: var(--separator); background: var(--glass-nav-hover); }
+.dashboard-recent-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+.dashboard-recent-id { flex: 0 0 auto; font-size: 11px; color: var(--muted); }
+.dashboard-recent-time { font-size: 11px; color: var(--muted); }
+.project-info-embedded { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+.dashboard-detail-panel { max-height: min(86vh, 900px); }
+@media (max-width: 760px) {
+  .dashboard-funnels,
+  .dashboard-grid { grid-template-columns: 1fr; }
+  .dashboard-next { flex-direction: column; align-items: flex-start; }
+}

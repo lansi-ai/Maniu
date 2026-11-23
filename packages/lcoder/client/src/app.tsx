@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import type { JSX } from 'react'
 import {
-  FileText, FolderGit2, Frame, Info, LayoutTemplate, MessageSquare, Settings, SquareKanban, Users,
+  FileText, FolderGit2, Frame, LayoutDashboard, LayoutTemplate, MessageSquare, Settings, SquareKanban, Users,
   type LucideIcon,
 } from 'lucide-react'
 import type { CloseRequest, EventOutcome, HostEvent, HostState, HostWaterfall, HostWaterfallCancel, PrototypeStudioDockState } from '@maniu/desktop/contract'
@@ -13,14 +13,15 @@ import { browserStorage, markWelcomeSeen, usePreferences, welcomeSeen } from './
 import { useCloudSession } from './account/use-cloud.ts'
 import { PersonalCenter } from './account/personal-center.tsx'
 import type { IntakeResult } from './pages/intake-wizard.tsx'
-import { ProjectInfoPage } from './pages/project-info.tsx'
+import { DashboardPage } from './pages/dashboard.tsx'
 import { ProjectsPage } from './pages/projects.tsx'
-import { RequirementsPage } from './pages/requirements.tsx'
+import { RequirementsPage, type RequirementsIntent, type RequirementStateFilter } from './pages/requirements.tsx'
 import { SettingsPage } from './pages/settings.tsx'
 import { TasksPage } from './pages/tasks.tsx'
 import { TalentsPage } from './pages/talents.tsx'
 import { PrototypeLibraryPage } from './pages/prototype-library.tsx'
 import { PrototypePage } from './pages/prototype-page.tsx'
+import type { TaskStage } from './spec/board.ts'
 import { ChatView } from './shell/chat-view.tsx'
 import { visibleSessionsOf } from './shell/session-groups.ts'
 import { PendingLayer, type AnswerResult } from './shell/pending-notification.tsx'
@@ -48,7 +49,7 @@ import { INTAKE_CONFIRM_PROMPT } from './intake/prompts.ts'
 import { titleIntakeSession } from './intake/session-title.ts'
 
 /** 工作台页面。 */
-type PageId = 'chat' | 'requirements' | 'prototype' | 'tasks' | 'projects' | 'project-info' | 'talents' | 'prototype-library' | 'settings' | 'account'
+type PageId = 'dashboard' | 'chat' | 'requirements' | 'prototype' | 'tasks' | 'projects' | 'talents' | 'prototype-library' | 'settings' | 'account'
 
 /** 新会话默认使用的角色；工作台作用域会话靠它拿到人机命令面。 */
 const WORKBENCH_PRESET = 'maniu-workbench'
@@ -59,20 +60,20 @@ interface NavItem {
   readonly icon: LucideIcon
 }
 
-/** 导航上组：对话与研发过程。 */
+/** 导航上组：围绕当前项目的主工作区。 */
 const NAV_TOP: readonly NavItem[] = [
-  { id: 'chat', key: 'nav.chat', icon: MessageSquare },
+  { id: 'dashboard', key: 'nav.dashboard', icon: LayoutDashboard },
   { id: 'requirements', key: 'nav.requirements', icon: FileText },
   { id: 'prototype', key: 'nav.prototype', icon: Frame },
   { id: 'tasks', key: 'nav.tasks', icon: SquareKanban },
+  { id: 'chat', key: 'nav.chat', icon: MessageSquare },
 ]
 
-/** 导航下组：项目与个人配置，贴底显示。 */
+/** 导航下组：全局资源与切换，贴底显示。 */
 const NAV_BOTTOM: readonly NavItem[] = [
-  { id: 'projects', key: 'nav.projects', icon: FolderGit2 },
-  { id: 'project-info', key: 'nav.projectInfo', icon: Info },
   { id: 'talents', key: 'nav.talents', icon: Users },
   { id: 'prototype-library', key: 'nav.prototypeLibrary', icon: LayoutTemplate },
+  { id: 'projects', key: 'nav.projects', icon: FolderGit2 },
   { id: 'settings', key: 'nav.settings', icon: Settings },
 ]
 
@@ -134,10 +135,17 @@ export function App(): JSX.Element {
   const [chat, dispatch] = useReducer(chatReducer, emptyChat)
   const [notice, setNotice] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
-  const [page, setPage] = useState<PageId>('chat')
-  const [returnPage, setReturnPage] = useState<PageId>('chat')
+  const [page, setPage] = useState<PageId>('dashboard')
+  const [returnPage, setReturnPage] = useState<PageId>('dashboard')
   /** 原型页从需求详情带来的上下文；进导航的「原型」时清空，回到项目级视图。 */
   const [prototypeContext, setPrototypeContext] = useState<string | null>(null)
+  /** 需求页的状态筛选；总览漏斗设置，导航直达时清空。 */
+  const [requirementStateFilter, setRequirementStateFilter] = useState<RequirementStateFilter>({ seq: 0, value: '' })
+  /** 任务页的漏斗阶段筛选；总览漏斗设置，导航直达时清空。 */
+  const [taskStageFilter, setTaskStageFilter] = useState<TaskStage | null>(null)
+  /** 需求页的一次性入口意图；seq 区分重复点击。 */
+  const [requirementIntent, setRequirementIntent] = useState<RequirementsIntent | undefined>(undefined)
+  const requirementIntentSeq = useRef(0)
   const [project, setProject] = useState<ProjectScope | null>(savedProject)
   const [intakeResult, setIntakeResult] = useState<IntakeResult | null>(null)
   // 立项结果属于发起它的项目；切项目即清除，避免新仓向导显示别仓旧结果。
@@ -512,7 +520,10 @@ export function App(): JSX.Element {
     }
     setProject(next)
     localStorage.setItem(PROJECT_KEY, JSON.stringify(next))
-    setPage('tasks')
+    setRequirementStateFilter(current => ({ seq: current.seq + 1, value: '' }))
+    setTaskStageFilter(null)
+    setTaskRequirement(null)
+    setPage('dashboard')
     await loadSessions()
   }, [loadSessions, sessions])
 
@@ -581,6 +592,38 @@ export function App(): JSX.Element {
     selectSession(sessionId)
     setPage('chat')
   }, [selectSession])
+
+  /**
+   * 打开需求页；带入口意图时交给页内执行一次（立项向导或指定需求详情）。
+   * @param intent - 可选入口意图，不带时按导航直达处理。
+   */
+  const openRequirements = useCallback((intent?: { readonly kind: 'intake' } | { readonly kind: 'focus'; readonly id: string }): void => {
+    setRequirementStateFilter(current => ({ seq: current.seq + 1, value: '' }))
+    if (intent !== undefined) {
+      requirementIntentSeq.current += 1
+      setRequirementIntent({ seq: requirementIntentSeq.current, ...intent })
+    }
+    setPage('requirements')
+  }, [])
+
+  /**
+   * 打开需求页并带上状态筛选。
+   * @param value - 需求状态；'' 表示全部。
+   */
+  const openRequirementsFiltered = useCallback((value: string): void => {
+    setRequirementStateFilter(current => ({ seq: current.seq + 1, value }))
+    setPage('requirements')
+  }, [])
+
+  /**
+   * 打开任务页；可带漏斗阶段筛选。
+   * @param stage - 可选阶段筛选，不带时按导航直达处理。
+   */
+  const openTasks = useCallback((stage?: TaskStage): void => {
+    setTaskStageFilter(stage ?? null)
+    setTaskRequirement(null)
+    setPage('tasks')
+  }, [])
 
   // 立项浮卡的确认入口：向既有立项会话发「确认需求」，不新建会话、不跳转对话。
   const confirmIntake = useCallback(async (sessionId: string): Promise<{ readonly ok: boolean; readonly message: string }> => {
@@ -686,6 +729,11 @@ export function App(): JSX.Element {
         aria-current={selected ? 'page' : undefined}
         onClick={() => {
           if (item.id === 'prototype') setPrototypeContext(null)
+          if (item.id === 'requirements') setRequirementStateFilter(current => ({ seq: current.seq + 1, value: '' }))
+          if (item.id === 'tasks') {
+            setTaskStageFilter(null)
+            setTaskRequirement(null)
+          }
           setPage(item.id)
         }}
       >
@@ -735,8 +783,10 @@ export function App(): JSX.Element {
               </span>
             </div>
             <div className="nav-list window-no-drag">
-              {nav.top.map(navButton)}
-              <div className="nav-bottom">
+              <div className="nav-group-top" data-testid="navgroup-top">
+                {nav.top.map(navButton)}
+              </div>
+              <div className="nav-bottom" data-testid="navgroup-bottom">
                 {nav.bottom.map(navButton)}
               </div>
             </div>
@@ -754,6 +804,32 @@ export function App(): JSX.Element {
             />
 
             <div className="shell-body">
+              {page === 'dashboard' && (
+                <DashboardPage
+                  t={t}
+                  project={project}
+                  projection={projection.projection}
+                  loading={projection.loading}
+                  error={projection.error}
+                  onReload={projection.reload}
+                  requirementIds={requirementIds}
+                  presetNames={flowRoleNames}
+                  onSwitchProject={() => { setPage('projects') }}
+                  onOpenRequirements={(state) => {
+                    if (state === undefined) openRequirements()
+                    else openRequirementsFiltered(state)
+                  }}
+                  onOpenTasks={(stage) => { openTasks(stage) }}
+                  onOpenPrototype={(requirementId) => {
+                    setPrototypeContext(requirementId ?? null)
+                    setPage('prototype')
+                  }}
+                  onOpenChat={() => { setPage('chat') }}
+                  onStartIntake={() => { openRequirements({ kind: 'intake' }) }}
+                  onOpenRequirement={(requirementId) => { openRequirements({ kind: 'focus', id: requirementId }) }}
+                />
+              )}
+
               {page === 'chat' && (
                 <ChatView
                   t={t}
@@ -805,6 +881,7 @@ export function App(): JSX.Element {
                   onOpenSession={openSession}
                   onOpenTasks={(requirementId) => {
                     setTaskRequirement(requirementId)
+                    setTaskStageFilter(null)
                     setPage('tasks')
                   }}
                   onOpenPrototypeLibrary={() => { setPage('prototype-library') }}
@@ -812,6 +889,8 @@ export function App(): JSX.Element {
                     setPrototypeContext(requirementId)
                     setPage('prototype')
                   }}
+                  stateFilter={requirementStateFilter}
+                  intent={requirementIntent}
                   t={t}
                 />
               </div>
@@ -836,6 +915,8 @@ export function App(): JSX.Element {
                   onReload={projection.reload}
                   requirementFilter={taskRequirement}
                   onClearRequirementFilter={() => { setTaskRequirement(null) }}
+                  stageFilter={taskStageFilter ?? undefined}
+                  onClearStageFilter={() => { setTaskStageFilter(null) }}
                   t={t}
                 />
               )}
@@ -848,18 +929,6 @@ export function App(): JSX.Element {
                   t={t}
                   onSelect={(workspace) => { void chooseWorkspace(workspace) }}
                   onOpened={(workspace) => { void chooseWorkspace(workspace) }}
-                />
-              )}
-
-              {page === 'project-info' && (
-                <ProjectInfoPage
-                  t={t}
-                  project={project}
-                  projection={projection.projection}
-                  loading={projection.loading}
-                  error={projection.error}
-                  onReload={projection.reload}
-                  presetNames={flowRoleNames}
                 />
               )}
 

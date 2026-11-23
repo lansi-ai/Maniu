@@ -9,21 +9,11 @@ import type { JSX } from 'react'
 import { Button } from '@heroui/react'
 import { History, RefreshCw } from 'lucide-react'
 
-import type { LcoderApi } from '../contract.ts'
 import type { Translate } from '../locale.ts'
 import type { PrototypeSnapshotMeta, PrototypeStagedView, UnaryCall } from '../prototype/remote.ts'
 import { getStagedPrototype, listPrototypeSnapshots, restorePrototypeSnapshot } from '../prototype/remote.ts'
-import { studioBridge } from '../prototype-studio/bridge.ts'
+import { causeText, openPreview, openStudio as openStudioWindow } from '../prototype/open.ts'
 import { formatTimestamp } from './requirement-report.ts'
-
-function lcoderBridge(): Partial<LcoderApi> | undefined {
-  return 'lcoder' in window ? window.lcoder : undefined
-}
-
-/** 把任意抛出物折成一句可读原因。 */
-function causeText(cause: unknown): string {
-  return cause instanceof Error ? cause.message : String(cause)
-}
 
 /** 原型页属性。 */
 export interface PrototypePageProps {
@@ -108,12 +98,11 @@ export function PrototypePage(props: PrototypePageProps): JSX.Element {
     if (html === null || studioRequirementId === undefined) return
     setNotice(undefined)
     try {
-      await studioBridge()?.openPrototypeStudio?.({
+      await openStudioWindow({
         requirementId: studioRequirementId,
         ...(scopeSessionId === null ? {} : { sessionId: scopeSessionId }),
         html,
         beforeHtml: committedHtml ?? html,
-        mode: 'split',
       })
     } catch (cause: unknown) {
       setNotice(t('prototypePage.openFailed', { detail: causeText(cause) }))
@@ -124,7 +113,7 @@ export function PrototypePage(props: PrototypePageProps): JSX.Element {
     if (html === null) return
     setNotice(undefined)
     try {
-      await lcoderBridge()?.openPrototypePreview?.(html)
+      await openPreview(html)
     } catch (cause: unknown) {
       setNotice(t('prototypePage.openFailed', { detail: causeText(cause) }))
     }
