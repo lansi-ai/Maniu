@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-/** T-238 阶段时间线（T-250 起为头部下方横排 chips），以及「至少一轮评审」才可确认。T-286：时间线移到正文阅读区之后，正文随文档标签切换。T-287：时间线节点保留但不再展示。 */
+/** T-238 阶段时间线；T-311：时间线迁入历史抽屉，按时间倒序展示版本快照与只读评审报告。 */
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -152,27 +152,31 @@ describe('需求详情阶段时间线', () => {
     expect(reviews[0]?.textContent).toContain('评审 R1')
     expect(reviews[0]?.textContent).toContain('2026-11-17 10:30')
 
+    // 混排条目按落盘时间倒序：v2(11:00) → R1(10:30) → v1(09:00)。
     const versions = container.querySelectorAll('[data-testid="requirement-timeline-version"]')
     expect(versions).toHaveLength(2)
-    expect(versions[0]?.textContent).toContain('版本 v1')
-    expect(versions[1]?.textContent).toContain('版本 v2')
-    expect(versions[1]?.textContent).toContain('2026-11-17 11:00')
+    expect(versions[0]?.textContent).toContain('版本 v2')
+    expect(versions[0]?.textContent).toContain('2026-11-17 11:00')
+    expect(versions[1]?.textContent).toContain('版本 v1')
 
     const approved = element('requirement-timeline-approved')
     expect(approved?.textContent).toContain('2026-11-17 12:00')
     expect(approved?.textContent).toContain('批准版本 v2')
 
-    expect(container.querySelectorAll('[data-testid="requirement-timeline-split"]')).toHaveLength(0)
-    expect(element('requirement-timeline-split-empty')).toBeNull()
-    // 阶段进度不再在阅读区下方展示，节点保留供既有查询。
-    expect(element('requirement-timeline')?.hasAttribute('hidden')).toBe(true)
+    expect(element('requirement-history-drawer')).not.toBeNull()
+    expect(element('requirement-history-layer')?.hasAttribute('hidden')).toBe(true)
   })
 
-  it('点击评审 chip 直接打开报告，版本快照仍走独立入口', async () => {
+  it('历史抽屉内联展开只读报告，版本快照仍走独立入口', async () => {
     const calls = callsOf()
     await renderDetail(ROW, calls)
 
-    await pressSelector('[data-testid="requirement-timeline-review"]')
+    await pressSelector('[data-testid="requirement-history-report-toggle"][data-round="1"]')
+    expect(element('requirement-history-report')?.getAttribute('data-round')).toBe('1')
+    expect(element('requirement-history-report-readonly')?.textContent).toContain('只读')
+    expect(calls.readers).toEqual([])
+
+    await pressSelector('[data-testid="requirement-open-report"][data-path=".spec/requirements/REQ-01/reviews/R1.md"]')
     expect(calls.readers).toEqual(['.spec/requirements/REQ-01/reviews/R1.md'])
 
     await pressSelector('[data-testid="requirement-open-version"][data-version="1"]')
@@ -180,6 +184,31 @@ describe('需求详情阶段时间线', () => {
 
     await pressSelector('[data-testid="requirement-open-version"][data-version="2"]')
     expect(calls.readers[2]).toBe('.spec/requirements/REQ-01/versions/v2.md')
+  })
+
+  it('右上角历史入口打开抽屉：看版本快照、只读评审与对比上一版', async () => {
+    const calls = callsOf()
+    await renderDetail(ROW, calls)
+
+    expect(element('requirement-history-layer')?.hasAttribute('hidden')).toBe(true)
+    await pressSelector('[data-testid="requirement-history-trigger"]')
+    expect(element('requirement-history-layer')?.hasAttribute('hidden')).toBe(false)
+    expect(element('requirement-history-trigger')?.textContent).toContain('v2')
+    expect(element('requirement-history-trigger')?.textContent).toContain('R1')
+
+    await pressSelector('[data-testid="requirement-history-version-toggle"][data-version="2"]')
+    expect(element('requirement-version-document')?.getAttribute('data-version')).toBe('2')
+    expect(element('requirement-version-document-body')?.textContent).toContain('评审报告')
+
+    await pressSelector('[data-testid="requirement-history-report-toggle"][data-round="1"]')
+    expect(element('requirement-history-report')?.textContent).toContain('只读')
+    expect(element('requirement-history-report-body')?.textContent).toContain('评审报告')
+
+    await pressSelector('[data-testid="requirement-compare-version"][data-version="2"]')
+    expect(element('requirement-version-compare')?.getAttribute('data-version')).toBe('2')
+
+    await pressSelector('[data-testid="requirement-history-close"]')
+    expect(element('requirement-history-layer')?.hasAttribute('hidden')).toBe(true)
   })
 
   it('有关联任务时查看任务进入任务页', async () => {
@@ -190,28 +219,26 @@ describe('需求详情阶段时间线', () => {
   })
 })
 
-describe('文档标签驱动当前正文', () => {
-  it('待处置报告标签只给采纳/放弃，切到版本标签渲染该版本快照', async () => {
+describe('工作面切换', () => {
+  it('待处置评审默认进入评审处理面，切到正文面才看到草稿动作，版本快照在历史抽屉展开', async () => {
     const calls = callsOf()
     await renderDetail(ROW, calls)
 
-    // 最新一轮待处置：默认落在报告标签，草稿动作隐藏但留在 DOM。
+    // 最新一轮待处置：默认落在评审处理面，草稿动作隐藏但留在 DOM。
     expect(element('requirement-review-decision')).not.toBeNull()
     expect(element('requirement-actions-draft')?.hasAttribute('hidden')).toBe(true)
     expect(element('requirement-review-report')?.hasAttribute('hidden')).toBe(false)
-    expect(element('requirement-actions')?.getAttribute('data-active-doc')).toBe('r1')
+    expect(element('requirement-workface-review')?.getAttribute('data-active')).toBe('true')
 
-    await pressSelector('[data-testid="requirement-doc-tab-draft"]')
+    await pressSelector('[data-testid="requirement-workface-body"]')
     expect(element('requirement-review-decision')).toBeNull()
     expect(element('requirement-actions-draft')?.hasAttribute('hidden')).toBe(false)
     expect(element('requirement-document-body')?.textContent).toContain('需求正文')
+    expect(element('requirement-review-report')?.hasAttribute('hidden')).toBe(true)
 
-    await pressSelector('[data-testid="requirement-doc-tab-version"][data-version="2"]')
-    expect(element('requirement-actions-version')?.querySelector('[data-testid="requirement-compare-version"]')).not.toBeNull()
+    await pressSelector('[data-testid="requirement-history-version-toggle"][data-version="2"]')
+    expect(element('requirement-version-document')?.getAttribute('data-version')).toBe('2')
     expect(element('requirement-version-document-body')?.textContent).toContain('评审报告')
-    expect(element('requirement-document')?.hasAttribute('hidden')).toBe(true)
-    // 时间线与既有 chips 仍是可查询的独立区块，只是不再展示。
-    expect(element('requirement-timeline')?.hasAttribute('hidden')).toBe(true)
     expect(container.querySelectorAll('[data-testid="requirement-timeline-version"]')).toHaveLength(2)
   })
 })

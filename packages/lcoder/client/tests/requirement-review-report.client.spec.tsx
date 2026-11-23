@@ -244,14 +244,14 @@ describe('内联评审报告', () => {
     expect(element('requirement-report-body')?.textContent).toContain('R3.md')
   })
 
-  it('历史轮次逐轮可打开报告，时刻按可读格式展示', async () => {
+  it('历史抽屉逐轮可打开报告，时刻按可读格式展示', async () => {
     const calls = callsOf()
     await renderDetail(REVIEWED, calls)
-    expect(element('requirement-report-history-toggle')).toBeNull()
     const items = container.querySelectorAll('[data-testid="requirement-review-history-item"]')
-    expect(items).toHaveLength(1)
-    expect(items[0]?.getAttribute('data-round')).toBe('1')
-    expect(items[0]?.textContent).toContain('2026-11-17 10:00')
+    expect(items).toHaveLength(2)
+    expect(items[0]?.getAttribute('data-round')).toBe('2')
+    expect(items[1]?.getAttribute('data-round')).toBe('1')
+    expect(items[1]?.textContent).toContain('2026-11-17 10:00')
     await pressSelector('[data-testid="requirement-review-history-item"][data-round="1"] [data-testid="requirement-open-report"]')
     expect(calls.readers).toEqual(['.spec/requirements/REQ-01/reviews/R1.md'])
   })
@@ -344,7 +344,7 @@ describe('评审结论三态与处置动作', () => {
     expect(element('requirement-actions-draft')?.hasAttribute('hidden')).toBe(true)
     expect(element('requirement-detail-review')?.closest('[hidden]')).not.toBeNull()
 
-    await pressSelector('[data-testid="requirement-doc-tab-draft"]')
+    await pressSelector('[data-testid="requirement-workface-body"]')
     expect(element('requirement-actions-review')).toBeNull()
     expect(element('requirement-review-accept')).toBeNull()
     expect(element('requirement-actions-draft')?.hasAttribute('hidden')).toBe(false)
@@ -354,9 +354,10 @@ describe('评审结论三态与处置动作', () => {
 
   it('待处理轮次的结论由标签徽标表达，操作栏只给采纳与放弃并标出报告时间', async () => {
     await renderDetail(REVIEWED, callsOf())
-    const tab = element('requirement-doc-tab-review')
-    expect(tab?.getAttribute('data-decision')).toBe('pending')
+    const tab = element('requirement-workface-review')
+    expect(tab?.getAttribute('data-pending')).toBe('true')
     expect(tab?.textContent).toContain('待处理')
+    expect(element('requirement-workface-pending-badge')?.textContent).toContain('待处理')
     expect(element('requirement-timeline-review-status')?.textContent).toContain('待处理')
     expect(element('requirement-review-accept')?.textContent).toContain('提交所选处理')
     expect(countText('accepted')).toBe('采纳 0')
@@ -416,9 +417,9 @@ describe('评审结论三态与处置动作', () => {
       ],
     }
     await renderDetail(accepted, calls)
-    const tab = element('requirement-doc-tab-review')
-    expect(tab?.getAttribute('data-decision')).toBe('accepted')
-    expect(tab?.textContent).toContain('已采纳（→ v3）')
+    const tab = element('requirement-workface-review')
+    expect(tab?.getAttribute('data-pending')).toBe('false')
+    expect(element('requirement-timeline-review-status')?.textContent).toContain('已采纳')
     expect(element('requirement-review-decision')).toBeNull()
     expect(element('requirement-review-status')).toBeNull()
     expect((element('requirement-detail-review') as HTMLButtonElement).disabled).toBe(false)
@@ -429,16 +430,17 @@ describe('评审结论三态与处置动作', () => {
     const calls = callsOf()
     await renderDetail(REVIEWED, calls)
     const items = container.querySelectorAll('[data-testid="requirement-review-history-item"]')
-    expect(items).toHaveLength(1)
-    const historyStatus = items[0]?.querySelector('[data-testid="requirement-review-history-status"]')
+    expect(items).toHaveLength(2)
+    const pending = container.querySelector('[data-testid="requirement-review-history-item"][data-round="2"]')
+    const historyStatus = pending?.querySelector('[data-testid="requirement-review-history-status"]')
     expect(historyStatus?.getAttribute('data-decision')).toBe('pending')
-    const reject = items[0]?.querySelector('[data-testid="requirement-review-history-reject"]')
+    const reject = pending?.querySelector('[data-testid="requirement-review-history-reject"]')
     expect(reject).not.toBeNull()
     await act(async () => {
       ;(reject as HTMLElement).click()
       await new Promise(resolve => setTimeout(resolve, 0))
     })
-    expect(commands).toEqual(['/requirement_review_decide REQ-01 1 rejected'])
+    expect(commands).toEqual(['/requirement_review_decide REQ-01 2 rejected'])
     expect(calls.reload).toHaveBeenCalledTimes(1)
   })
 
@@ -639,17 +641,19 @@ describe('结构化待改项表格与逐条裁决', () => {
     expect(container.querySelectorAll('[data-testid="requirement-review-batch"]')).toHaveLength(0)
   })
 
-  it('待处理报告标签不再显示只读徽标，已处置轮次仍显示', async () => {
+  it('待处置评审面显示待处理高亮，已处置评审面转为只读说明', async () => {
     await renderDetail(REVIEWED, callsOf())
-    expect(element('requirement-doc-tab-review')?.getAttribute('data-decision')).toBe('pending')
-    expect(element('requirement-doc-tab-review')?.querySelector('[data-state="locked"]')).toBeNull()
+    expect(element('requirement-workface-review')?.getAttribute('data-pending')).toBe('true')
+    expect(element('requirement-workface-pending-badge')).not.toBeNull()
+    expect(element('requirement-review-decided')).toBeNull()
 
     const decided: RequirementDocRow = {
       ...REVIEWED,
       reviews: REVIEWED.reviews.map(review => ({ ...review, decision: 'accepted' as const })),
     }
     await renderDetail(decided, callsOf())
-    expect(element('requirement-doc-tab-review')?.querySelector('[data-state="locked"]')).not.toBeNull()
+    expect(element('requirement-workface-review')?.getAttribute('data-pending')).toBe('false')
+    expect(element('requirement-review-decided')).not.toBeNull()
   })
 
   it('报告时间与 Markdown 切换同处第三层操作行右侧的元信息组', async () => {

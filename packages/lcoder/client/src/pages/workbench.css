@@ -699,6 +699,96 @@
 .requirement-doc-tab-badge[data-state='locked'],
 .requirement-doc-tab-badge[data-state='rejected'] { color: var(--muted); border-color: var(--separator); }
 .detail-section[data-doc-active='true'] { box-shadow: inset 3px 0 0 var(--accent); }
+
+/* T-311 工作面顶栏：最多四枚标签，待处理评审用警示色高亮，不引入新色相。 */
+.requirement-workfaces { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 8px 0 4px; padding-bottom: 8px; border-bottom: 1px solid var(--glass-divider); }
+.requirement-workface {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  background: var(--glass-surface);
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 160ms ease, background-color 160ms ease, color 160ms ease;
+}
+.requirement-workface:hover { color: var(--foreground); border-color: var(--accent); }
+.requirement-workface:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.requirement-workface[data-active='true'] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--foreground);
+  font-weight: 600;
+}
+.requirement-workface[data-pending='true'][data-active='true'] {
+  border-color: var(--warning);
+  background: color-mix(in oklab, var(--warning) 16%, var(--surface));
+}
+.requirement-workface-badge { padding: 1px 6px; border-radius: 999px; border: 1px solid var(--warning); color: var(--warning-foreground); font-size: 10px; }
+.requirement-face[hidden],
+.requirement-doc-pane [hidden],
+.requirement-history-layer[hidden] { display: none; }
+
+/* 列表版本徽标：点它直达详情的历史抽屉，不触发整行操作。 */
+.requirement-row-version {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  background: var(--glass-surface);
+  color: var(--muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+.requirement-row-version:hover { color: var(--foreground); border-color: var(--accent); }
+.requirement-row-version:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* 历史抽屉：玻璃中性面板从右侧盖住详情，遮罩只压内容区，不触碰拖拽区。 */
+.requirement-history-layer { position: absolute; inset: 0; z-index: 9; display: flex; justify-content: flex-end; }
+.requirement-history-scrim { position: absolute; inset: 0; background: color-mix(in oklab, var(--background) 45%, transparent); }
+.requirement-history-panel {
+  position: relative;
+  width: min(46vw, 520px);
+  max-width: 92vw;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  border: 1px solid var(--glass-border);
+  border-radius: 14px 0 0 14px;
+  background: var(--glass-surface-elevated);
+  box-shadow: var(--glass-card-shadow);
+  color: var(--foreground);
+}
+.requirement-history-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.requirement-history-bar h3 { margin: 0; font-size: 15px; }
+.requirement-history-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; }
+.requirement-history-scroll .timeline-chips { flex-direction: column; align-items: stretch; }
+.requirement-history-entry { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; padding: 8px 10px; }
+.requirement-history-entry-head { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.requirement-history-actions { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.requirement-history-review { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.requirement-history-snapshot { width: 100%; padding: 8px 10px; border: 1px solid var(--glass-divider); border-radius: 10px; background: var(--glass-surface); }
+.requirement-history-snapshot .requirement-doc-readonly { margin: 0 0 6px; }
+
+/* 原型配置折叠：预览常驻，配置按需展开，收起态零占位。 */
+.prototype-config[hidden] { display: none; }
+.prototype-config-toggle {
+  align-self: flex-start;
+  padding: 4px 10px;
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  background: var(--glass-surface);
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+.prototype-config-toggle:hover { color: var(--foreground); border-color: var(--accent); }
+.prototype-config-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 /* 待处置黄线只属于横幅自身；正文区不再叠加贯穿摘要、工具栏与表格的警示色条。 */
 
 /* 阶段进度横排 chips：创建/评审/版本/过审，评审 chip 本身可点开报告。 */

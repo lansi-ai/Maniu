@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
 import type { JSX } from 'react'
 import { Button, Chip, Separator } from '@heroui/react'
-import { ChevronDown, ChevronRight, ChevronUp, RotateCw, Sparkles } from 'lucide-react'
+import { ChevronDown, ChevronRight, ChevronUp, RotateCw, Sparkles, X } from 'lucide-react'
 import type { ProjectScope } from '../workspace/use-workspaces.ts'
 import type { SpecProjection } from '../spec/load.ts'
 import type { ProposalRow, RequirementChangeRow, RequirementDocRow, RequirementReviewRow, RequirementSplitPlanEntryRow } from '../spec/rows.ts'
@@ -34,6 +34,9 @@ type ReviewDecision = 'pending' | 'accepted' | 'rejected'
 
 /** 起草态的三段交互：未评审、最新一轮待处置、最新一轮已处置。 */
 type ReviewPhase = 'unreviewed' | ReviewDecision
+
+/** 详情顶面的四块工作面；正文与评审共用文档加载逻辑，原型与任务各自独立成屏。 */
+type Workface = 'body' | 'review' | 'prototype' | 'tasks'
 
 function decisionOf(review: RequirementReviewRow): ReviewDecision {
   return review.decision === 'accepted' || review.decision === 'rejected' ? review.decision : 'pending'
@@ -232,6 +235,8 @@ export interface RequirementDetailProps {
   readonly onApplied?: () => void
   /** 阅读层打开时详情不抢 Esc。 */
   readonly readerOpen?: boolean | undefined
+  /** 列表版本号徽标直达时置开历史抽屉；普通行点击保持关闭。 */
+  readonly initialHistoryOpen?: boolean | undefined
   /** 当前需求的在途后台操作；非空时锁定业务按钮，patch 待裁决阶段仍可查看差异。 */
   readonly runningOp?: RunningOpKind | null | undefined
   /** 后台发起 maniu-prototype 会话生成原型；提示词由原型区拼好。 */
@@ -266,8 +271,12 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
   const [result, setResult] = useState<CommandOutcome | null>(null)
   const [ignored, setIgnored] = useState<ReadonlySet<string>>(() => new Set())
   const [assigns, setAssigns] = useState<Readonly<Record<string, CommandOutcome>>>({})
-  /** 独立文档栏的用户选择；未选择时按阶段派生默认标签（待处置联动最新评审报告）。 */
-  const [docOverride, setDocOverride] = useState<string | null>(null)
+  /** 历史抽屉的打开态；列表版本徽标直达时置开。 */
+  const [historyOpen, setHistoryOpen] = useState(props.initialHistoryOpen === true)
+  /** 历史抽屉内展开的版本快照或评审报告标签。 */
+  const [historyDoc, setHistoryDoc] = useState<string | null>(null)
+  /** 历史评审报告的读取结果；与当前报告的读取状态分开，避免互相覆盖。 */
+  const [historyReport, setHistoryReport] = useState<ReportState>({ status: 'loading' })
   /** 报告 Markdown 原文默认隐藏，只有结构化视图无法表达时才展开。 */
   const [showRawMarkdown, setShowRawMarkdown] = useState(false)
   /** 核心摘要默认折叠到两行，点击摘要条展开全文。 */
@@ -298,26 +307,36 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
     null,
   )
   const latestRound = latestReview?.round
-  const historyReviews = latestReview === null
-    ? []
-    : row.reviews.filter(review => review.round !== latestReview.round).sort((left, right) => right.round - left.round)
   const phase: ReviewPhase = latestReview === null ? 'unreviewed' : decisionOf(latestReview)
 
-  // 未手动切换时，待处置评审联动到最新报告标签，其余状态落在当前草稿。
-  const activeDoc = docOverride ?? (phase === 'pending' && latestRound !== undefined ? `r${String(latestRound)}` : 'draft')
+  /** 当前工作面：待处置评审优先落到评审处理，其余状态落在正文。 */
+  const [workface, setWorkface] = useState<Workface>(phase === 'pending' ? 'review' : 'body')
+  /** 有评审才显示评审处理面；终态、有任务或有拆分方案才显示关联任务面，草稿期隐藏。 */
+  const reviewFaceVisible = row.reviews.length > 0
+  const prototypeFaceVisible = props.onGeneratePrototype !== undefined
+  const tasksFaceVisible = state === 'confirmed' || state === 'released' || state === 'closed'
+    || related.length > 0 || row.splitPlan !== undefined
+
+  // 正文与评审面各自只展示一份当前文档；历史快照与历史报告移入历史抽屉。
+  const activeDoc = workface === 'review' && latestRound !== undefined ? `r${String(latestRound)}` : 'draft'
   const activeDocKind = docKindOf(activeDoc)
-  const activeVersion = activeDocKind === 'version' ? Number(activeDoc.slice(1)) : undefined
-  /** 当前阅读的报告轮次；非报告标签时报告区按最新一轮留档。 */
-  const activeReview = activeDocKind === 'report'
-    ? row.reviews.find(review => review.round === Number(activeDoc.slice(1))) ?? latestReview
-    : latestReview
+  /** 评审面只承载最新一轮；历史轮次在抽屉里只读展开。 */
+  const activeReview = workface === 'review' ? latestReview : null
   const reportPath = activeReview === null ? null : specPath(activeReview.report)
   const [report, setReport] = useState<ReportState>({ status: 'loading' })
   const [compareVersion, setCompareVersion] = useState<number | null>(null)
   const [versionDiff, setVersionDiff] = useState<VersionDiffState>({ status: 'idle' })
   const [versionDoc, setVersionDoc] = useState<VersionDocState>({ status: 'loading' })
-  /** 与当前标签匹配的版本快照结果；上一版结果不复用到新标签。 */
-  const activeVersionDoc = versionDoc.status !== 'loading' && versionDoc.version === activeVersion ? versionDoc : undefined
+  /** 历史抽屉当前展开的快照与报告：按标签前缀分流，上一项正文不复用到新项。 */
+  const historyVersion = historyDoc?.startsWith('v') === true ? Number(historyDoc.slice(1)) : undefined
+  const historyReview = historyDoc?.startsWith('r') === true
+    ? row.reviews.find(review => review.round === Number(historyDoc.slice(1))) ?? null
+    : null
+  const historyReportPath = historyReview === null ? null : specPath(historyReview.report)
+  const activeVersionDoc = versionDoc.status !== 'loading' && versionDoc.version === historyVersion ? versionDoc : undefined
+  const activeHistoryReport = historyReportPath !== null && historyReport.status !== 'loading' && historyReport.path === historyReportPath
+    ? historyReport
+    : undefined
 
   // 内联报告与阅读器走同一条宿主文件通道；轮次或项目变化时重读，卸载后不再落状态。
   useEffect(() => {
@@ -348,24 +367,43 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
     setNoteFocused(null)
   }, [reportPath])
 
-  // 版本快照正文与阅读器走同一条宿主文件通道；切到某个版本标签才读取该版本。
+  // 版本快照正文与阅读器走同一条宿主文件通道；历史抽屉展开某版时才读取该版。
   useEffect(() => {
-    if (activeVersion === undefined) return
+    if (historyVersion === undefined) return
     let disposed = false
     setVersionDoc({ status: 'loading' })
-    void readWorkspaceText(props.project.scopeSessionId, versionPath(row.id, activeVersion), REPORT_LINES)
+    void readWorkspaceText(props.project.scopeSessionId, versionPath(row.id, historyVersion), REPORT_LINES)
       .then((answer) => {
         if (disposed) return
         setVersionDoc(answer.ok
-          ? { status: 'ready', version: activeVersion, text: answer.text }
-          : { status: 'failed', version: activeVersion, message: `${answer.error.code}: ${answer.error.message}` })
+          ? { status: 'ready', version: historyVersion, text: answer.text }
+          : { status: 'failed', version: historyVersion, message: `${answer.error.code}: ${answer.error.message}` })
       })
       .catch((cause: unknown) => {
         if (disposed) return
-        setVersionDoc({ status: 'failed', version: activeVersion, message: cause instanceof Error ? cause.message : String(cause) })
+        setVersionDoc({ status: 'failed', version: historyVersion, message: cause instanceof Error ? cause.message : String(cause) })
       })
     return () => { disposed = true }
-  }, [activeVersion, row.id, props.project.scopeSessionId])
+  }, [historyVersion, row.id, props.project.scopeSessionId])
+
+  // 历史评审报告复用同一条宿主文件通道；与当前报告分开保存，抽屉里只读展开。
+  useEffect(() => {
+    if (historyReportPath === null) return
+    let disposed = false
+    setHistoryReport({ status: 'loading' })
+    void readWorkspaceText(props.project.scopeSessionId, historyReportPath, REPORT_LINES)
+      .then((answer) => {
+        if (disposed) return
+        setHistoryReport(answer.ok
+          ? { status: 'ready', path: historyReportPath, text: answer.text }
+          : { status: 'failed', path: historyReportPath, message: `${answer.error.code}: ${answer.error.message}` })
+      })
+      .catch((cause: unknown) => {
+        if (disposed) return
+        setHistoryReport({ status: 'failed', path: historyReportPath, message: cause instanceof Error ? cause.message : String(cause) })
+      })
+    return () => { disposed = true }
+  }, [historyReportPath, props.project.scopeSessionId])
 
   // 版本对照只读：读 v(n-1) 与 v(n) 两份快照做逐行差异，不写回规格库。
   useEffect(() => {
@@ -406,6 +444,7 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
       if (event.key !== 'Escape' || props.readerOpen === true || props.triageOpen === true) return
       event.stopPropagation()
       if (batchMenuOpen) setBatchMenuOpen(false)
+      else if (historyOpen) setHistoryOpen(false)
       else if (compareVersion !== null) setCompareVersion(null)
       else if (props.diffOpen === true) props.onCloseDiff?.()
       else if (modify.open) props.onModifyCancel?.()
@@ -415,6 +454,7 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
     return () => { window.removeEventListener('keydown', onKey, true) }
   }, [
     batchMenuOpen,
+    historyOpen,
     compareVersion,
     props.diffOpen,
     props.onClose,
@@ -626,6 +666,21 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
     todoNoteRef.current?.focus()
   }, [reviewUi.expanded, reviewUi.verdicts])
 
+  /** 历史入口标签：版本号取最新快照，无快照按 v1；有评审时并列最新轮次。 */
+  const historyVersionLabel = row.versions.reduce((max, version) => Math.max(max, version.n), 1)
+  const historyTriggerLabel = latestReview === null
+    ? t('requirement.historyTriggerNoReview', { version: historyVersionLabel })
+    : t('requirement.historyTrigger', { version: historyVersionLabel, round: latestReview.round })
+
+  /** 历史抽屉的混排条目：版本快照与评审报告按落盘时间倒序。 */
+  type HistoryEntry =
+    | { readonly kind: 'version'; readonly key: string; readonly at: string; readonly n: number }
+    | { readonly kind: 'review'; readonly key: string; readonly at: string; readonly review: RequirementReviewRow }
+  const historyEntries: readonly HistoryEntry[] = [
+    ...row.versions.map(version => ({ kind: 'version' as const, key: `v${String(version.n)}`, at: version.at, n: version.n })),
+    ...row.reviews.map(review => ({ kind: 'review' as const, key: `r${String(review.round)}`, at: review.at, review })),
+  ].sort((left, right) => right.at.localeCompare(left.at))
+
   return (
     <>
       <DetailDrawer
@@ -647,6 +702,16 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
               onPress={props.onReload}
             >
               <RotateCw aria-hidden="true" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="requirement-history-trigger"
+              data-testid="requirement-history-trigger"
+              aria-expanded={historyOpen}
+              onPress={() => { setHistoryOpen(true) }}
+            >
+              {historyTriggerLabel}
             </Button>
           </div>
         )}
@@ -779,63 +844,63 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
           style={props.diffOpen === true ? { display: 'none' } : undefined}
         >
           <div className="detail-content-pane">
-            <div className="requirement-doc-tabs" data-testid="requirement-doc-tabs" role="tablist" aria-label={t('requirement.docTabsLabel')}>
+            <div className="requirement-workfaces" data-testid="requirement-doc-tabs" role="tablist" aria-label={t('requirement.workfaceTabsLabel')}>
               <button
                 type="button"
-                className="requirement-doc-tab"
-                data-testid="requirement-doc-tab-draft"
-                data-kind="draft"
-                data-active={activeDoc === 'draft' ? 'true' : 'false'}
+                className="requirement-workface"
+                data-testid="requirement-workface-body"
+                data-active={workface === 'body' ? 'true' : 'false'}
                 role="tab"
-                aria-selected={activeDoc === 'draft'}
-                onClick={() => { setDocOverride('draft') }}
+                aria-selected={workface === 'body'}
+                onClick={() => { setWorkface('body') }}
               >
-                <span>{t('requirement.docTabDraft')}</span>
-                <span className="requirement-doc-tab-badge" data-state={modifyGate.ok ? 'editable' : 'locked'}>
-                  {modifyGate.ok ? t('requirement.docTabEditable') : t('requirement.docTabLocked')}
-                </span>
+                {t('requirement.workface.body')}
               </button>
-              {row.versions.map(version => (
+              {reviewFaceVisible && (
                 <button
-                  key={`tab-version-${String(version.n)}`}
                   type="button"
-                  className="requirement-doc-tab"
-                  data-testid="requirement-doc-tab-version"
-                  data-version={version.n}
-                  data-kind="version"
-                  data-active={activeDoc === `v${String(version.n)}` ? 'true' : 'false'}
+                  className="requirement-workface"
+                  data-testid="requirement-workface-review"
+                  data-active={workface === 'review' ? 'true' : 'false'}
+                  data-pending={phase === 'pending' ? 'true' : 'false'}
                   role="tab"
-                  aria-selected={activeDoc === `v${String(version.n)}`}
-                  onClick={() => { setDocOverride(`v${String(version.n)}`) }}
+                  aria-selected={workface === 'review'}
+                  onClick={() => { setWorkface('review') }}
                 >
-                  <span>{t('requirement.timelineVersion', { n: version.n })}</span>
-                  <span className="requirement-doc-tab-badge" data-state="locked">{t('requirement.docTabLocked')}</span>
+                  {t('requirement.workface.review')}
+                  {phase === 'pending' && (
+                    <span className="requirement-workface-badge" data-testid="requirement-workface-pending-badge">
+                      {t('requirement.workface.pending')}
+                    </span>
+                  )}
                 </button>
-              ))}
-              {row.reviews.map((review) => {
-                const key = `r${String(review.round)}`
-                return (
-                  <button
-                    key={`tab-review-${String(review.round)}`}
-                    type="button"
-                    className="requirement-doc-tab"
-                    data-testid="requirement-doc-tab-review"
-                    data-round={review.round}
-                    data-kind="report"
-                    data-decision={decisionOf(review)}
-                    data-active={activeDoc === key ? 'true' : 'false'}
-                    role="tab"
-                    aria-selected={activeDoc === key}
-                    onClick={() => { setDocOverride(key) }}
-                  >
-                    <span>{t('requirement.reportTitle', { round: review.round })}</span>
-                    <span className="requirement-doc-tab-badge" data-state={decisionOf(review)}>{decisionLabel(t, review)}</span>
-                    {decisionOf(review) !== 'pending' && (
-                      <span className="requirement-doc-tab-badge" data-state="locked">{t('requirement.docTabReadonly')}</span>
-                    )}
-                  </button>
-                )
-              })}
+              )}
+              {prototypeFaceVisible && (
+                <button
+                  type="button"
+                  className="requirement-workface"
+                  data-testid="requirement-workface-prototype"
+                  data-active={workface === 'prototype' ? 'true' : 'false'}
+                  role="tab"
+                  aria-selected={workface === 'prototype'}
+                  onClick={() => { setWorkface('prototype') }}
+                >
+                  {t('requirement.workface.prototype')}
+                </button>
+              )}
+              {tasksFaceVisible && (
+                <button
+                  type="button"
+                  className="requirement-workface"
+                  data-testid="requirement-workface-tasks"
+                  data-active={workface === 'tasks' ? 'true' : 'false'}
+                  role="tab"
+                  aria-selected={workface === 'tasks'}
+                  onClick={() => { setWorkface('tasks') }}
+                >
+                  {t('requirement.workface.tasks')}
+                </button>
+              )}
             </div>
             {/* 第三层：当前选中文档的专属操作栏，紧贴标签栏下方。 */}
             <div
@@ -849,7 +914,7 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
               <div
                 className="requirement-op-group"
                 data-testid="requirement-actions-draft"
-                hidden={activeDocKind !== 'draft'}
+                hidden={workface !== 'body'}
               >
                 {state === 'draft' && (
                   <>
@@ -980,32 +1045,14 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                   </div>
                 </div>
               )}
-              {activeVersion !== undefined && (
-                <div className="requirement-op-group" data-testid="requirement-actions-version" data-version={activeVersion}>
-                  {activeVersion >= 2 && (
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      data-testid="requirement-compare-version"
-                      data-version={activeVersion}
-                      onPress={() => { setCompareVersion(activeVersion) }}
-                    >
-                      {t('requirement.comparePreviousVersion')}
-                    </Button>
-                  )}
-                  <span className="requirement-doc-readonly" data-testid="requirement-version-readonly">
-                    {t('requirement.versionDocReadonly')}
-                  </span>
-                </div>
-              )}
             </div>
-            {/* 第四层：当前文档正文，只展示选中标签的内容，其余留在 DOM 供既有查询。 */}
+            {/* 第四层：正文与评审按工作面各渲染一屏，其余节点留在 DOM 供既有查询。 */}
             <div className="requirement-doc-pane" data-testid="requirement-doc-pane" data-active-doc={activeDoc}>
               <section
                 className="detail-section requirement-document"
                 data-testid="requirement-document"
-                data-doc-active={activeDocKind === 'draft' ? 'true' : 'false'}
-                hidden={activeDocKind !== 'draft'}
+                data-doc-active={workface === 'body' ? 'true' : 'false'}
+                hidden={workface !== 'body'}
               >
                 <h4>{t('requirement.bodyTitle')}</h4>
                 <div className="markdown-body document-body" data-testid="requirement-document-body">
@@ -1014,41 +1061,13 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                     : renderMarkdown(row.text)}
                 </div>
               </section>
-              <section
-                className="detail-section requirement-version-document"
-                data-testid="requirement-version-document"
-                data-doc-active={activeDocKind === 'version' ? 'true' : 'false'}
-                hidden={activeVersion === undefined}
-                {...(activeVersion === undefined ? {} : { 'data-version': activeVersion })}
-              >
-                {activeVersion !== undefined && (
-                  <>
-                    <h4>{t('requirement.timelineVersion', { n: activeVersion })}</h4>
-                    {activeVersionDoc === undefined && (
-                      <p className="empty" data-testid="requirement-version-document-loading">{t('requirement.versionDocLoading')}</p>
-                    )}
-                    {activeVersionDoc?.status === 'failed' && (
-                      <p className="problem" data-testid="requirement-version-document-failed">
-                        {t('requirement.versionDocFailed', { detail: activeVersionDoc.message })}
-                      </p>
-                    )}
-                    {activeVersionDoc?.status === 'ready' && (
-                      <div className="markdown-body document-body" data-testid="requirement-version-document-body">
-                        {activeVersionDoc.text.trim() === ''
-                          ? <p className="empty">{t('requirement.versionDocEmpty')}</p>
-                          : renderMarkdown(activeVersionDoc.text)}
-                      </div>
-                    )}
-                  </>
-                )}
-              </section>
 
               <section
                 className="detail-section"
                 data-testid="requirement-review-report"
-                data-doc-active={activeDocKind === 'report' ? 'true' : 'false'}
+                data-doc-active={workface === 'review' ? 'true' : 'false'}
                 data-pending-report={activeReview !== null && decisionOf(activeReview) === 'pending' ? 'true' : 'false'}
-                hidden={activeDocKind !== 'report'}
+                hidden={workface !== 'review'}
                 {...(activeReview === null ? {} : { 'data-round': activeReview.round })}
               >
                 <Separator className="detail-divider" />
@@ -1285,124 +1304,13 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                             )}
                         </>
                       )}
-                      {historyReviews.length > 0 && (
-                        <ul className="requirement-report-history plain-list compact">
-                          {historyReviews.map(review => (
-                            <li key={review.round} data-testid="requirement-review-history-item" data-round={review.round}>
-                              <span>
-                                {t('requirement.timelineReview', { round: review.round })}
-                                {decisionChip(review, 'requirement-review-history-status')}
-                                <span className="time">{formatTimestamp(review.at)}</span>
-                              </span>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                data-testid="requirement-open-report"
-                                data-path={specPath(review.report)}
-                                onPress={() => { props.onOpenReader(specPath(review.report)) }}
-                              >
-                                {t('requirement.openReport')}
-                              </Button>
-                              {decisionOf(review) === 'pending' && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  data-testid="requirement-review-history-reject"
-                                  data-round={review.round}
-                                  isDisabled={locked}
-                                  ref={(node) => { if (node !== null) node.title = lockedHint ?? t('requirement.reviewRejectHistoryTitle') }}
-                                  onPress={() => { void execute(`reviewReject-${String(review.round)}`, `/requirement_review_decide ${row.id} ${review.round} rejected`) }}
-                                >
-                                  {t('requirement.reviewRejectHistory')}
-                                </Button>
-                              )}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
                     </>
                   )}
               </section>
             </div>
-            {/* 阶段进度属全局信息，不随文档标签切换；节点保留供既有查询，不再在阅读区下方展示。 */}
-            <section
-              className="detail-section"
-              data-testid="requirement-timeline"
-              hidden
-            >
-              <h4>{t('requirement.timeline')}</h4>
-              <ul className="timeline-chips">
-                <li data-testid="requirement-timeline-opened">
-                  <Chip size="sm" variant="soft" className="tag">{t('requirement.timelineOpened')}</Chip>
-                  <span className="time">{formatTimestamp(row.openedAt ?? '—')}</span>
-                </li>
-                {row.reviews.map(review => (
-                  <li
-                    key={`review-${String(review.round)}`}
-                    className="chip-link"
-                    data-testid="requirement-timeline-review"
-                    data-round={review.round}
-                    data-path={specPath(review.report)}
-                    role="button"
-                    tabIndex={0}
-                    aria-label={t('requirement.timelineReview', { round: review.round })}
-                    onClick={() => { props.onOpenReader(specPath(review.report)) }}
-                    onKeyDown={(event) => {
-                      if (event.key !== 'Enter' && event.key !== ' ') return
-                      event.preventDefault()
-                      props.onOpenReader(specPath(review.report))
-                    }}
-                  >
-                    <Chip size="sm" variant="soft" color="accent" className="tag">{t('requirement.timelineReview', { round: review.round })}</Chip>
-                    {decisionChip(review, 'requirement-timeline-review-status')}
-                    <span className="time">{formatTimestamp(review.at)}</span>
-                  </li>
-                ))}
-                {row.reviews.length === 0 && (
-                  <li className="empty" data-testid="requirement-timeline-review-empty">{t('requirement.noReviews')}</li>
-                )}
-                {row.versions.map(version => (
-                  <li key={`version-${String(version.n)}`} data-testid="requirement-timeline-version" data-version={version.n}>
-                    <Chip size="sm" variant="soft" className="tag">{t('requirement.timelineVersion', { n: version.n })}</Chip>
-                    <span className="time">{formatTimestamp(version.at)}</span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      data-testid="requirement-open-version"
-                      data-version={version.n}
-                      data-path={versionPath(row.id, version.n)}
-                      onPress={() => { props.onOpenReader(versionPath(row.id, version.n)) }}
-                    >
-                      {t('requirement.openSnapshot')}
-                    </Button>
-                    {version.n >= 2 && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        data-testid="requirement-compare-version"
-                        data-version={version.n}
-                        onPress={() => { setCompareVersion(version.n) }}
-                      >
-                        {t('requirement.comparePreviousVersion')}
-                      </Button>
-                    )}
-                  </li>
-                ))}
-                {row.versions.length === 0 && (
-                  <li className="empty" data-testid="requirement-timeline-version-empty">{t('requirement.noVersions')}</li>
-                )}
-                <li data-testid="requirement-timeline-approved">
-                  <Chip size="sm" variant="soft" className="tag">{t('requirement.timelineApproved')}</Chip>
-                  <span className="time">{formatTimestamp(row.approvedAt ?? '—')}</span>
-                  <span>{row.approvedVersion === undefined
-                    ? t('requirement.notApproved')
-                    : t('requirement.timelineApprovedVersion', { n: row.approvedVersion })}</span>
-                </li>
-              </ul>
-            </section>
 
             {plan !== undefined && (
-              <section className="detail-section" data-testid="requirement-split-plan">
+              <section className="detail-section" data-testid="requirement-split-plan" hidden={workface !== 'tasks'}>
                 <Separator className="detail-divider" />
                 <h4>{t('requirement.splitPlanTitle')}</h4>
                 <p className="detail-note">{t('requirement.splitPlanAt', { at: formatTimestamp(plan.at) })}</p>
@@ -1520,10 +1428,10 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
               </section>
             )}
 
-            <section className="detail-section" data-testid="requirement-related">
+            <section className="detail-section" data-testid="requirement-related" hidden={workface !== 'tasks'}>
               <Separator className="detail-divider" />
               <div className="detail-drawer-head">
-                <h4>关联任务</h4>
+                <h4>{t('requirement.workface.tasks')}</h4>
                 {related.length > 0 && (
                   <Button variant="ghost" size="sm" data-testid="requirement-view-tasks" onPress={props.onOpenTasks}>
                     {t('requirement.opTasks')}
@@ -1531,7 +1439,7 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                 )}
               </div>
               {related.length === 0
-                ? <p className="empty">还没有拆出任务。</p>
+                ? <p className="empty">{t('requirement.noSplit')}</p>
                 : (
                   <ul className="plain-list compact">
                     {related.map(task => (
@@ -1545,17 +1453,19 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                 )}
             </section>
 
-            {props.onGeneratePrototype !== undefined && (
-              <PrototypePanel
-                row={row}
-                scopeSessionId={props.project.scopeSessionId}
-                running={props.runningOp === 'prototype'}
-                onGenerate={props.onGeneratePrototype}
-                onReload={props.onReload}
-                onManageLibraries={props.onOpenPrototypeLibrary}
-                t={t}
-              />
-            )}
+            <div className="requirement-face" data-testid="requirement-face-prototype" hidden={workface !== 'prototype'}>
+              {props.onGeneratePrototype !== undefined && (
+                <PrototypePanel
+                  row={row}
+                  scopeSessionId={props.project.scopeSessionId}
+                  running={props.runningOp === 'prototype'}
+                  onGenerate={props.onGeneratePrototype}
+                  onReload={props.onReload}
+                  onManageLibraries={props.onOpenPrototypeLibrary}
+                  t={t}
+                />
+              )}
+            </div>
           </div>
           {modify.open && (
             <aside className="modify-pane" data-testid="requirement-modify-pane">
@@ -1616,6 +1526,185 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
           )}
         </div>
       </DetailDrawer>
+      <div className="history-layer" data-testid="requirement-history-layer" hidden={!historyOpen}>
+        <div className="history-scrim" data-testid="requirement-history-scrim" onClick={() => { setHistoryOpen(false) }} />
+        <aside
+          className="history-panel"
+          data-testid="requirement-history-drawer"
+          role="dialog"
+          aria-modal="true"
+          aria-label={t('requirement.historyTitle')}
+        >
+          <div className="history-bar">
+            <h3>{t('requirement.historyTitle')}</h3>
+            <Button
+              isIconOnly
+              variant="ghost"
+              size="sm"
+              data-testid="requirement-history-close"
+              aria-label={t('drawer.close')}
+              onPress={() => { setHistoryOpen(false) }}
+            >
+              <X aria-hidden="true" />
+            </Button>
+          </div>
+          <div className="history-scroll">
+            {historyEntries.length === 0 && (
+              <p className="empty" data-testid="requirement-history-empty">{t('requirement.historyEmpty')}</p>
+            )}
+            <section className="detail-section" data-testid="requirement-timeline">
+              <h4>{t('requirement.timeline')}</h4>
+              <ul className="timeline-chips history-list">
+                <li data-testid="requirement-timeline-opened">
+                  <Chip size="sm" variant="soft" className="tag">{t('requirement.timelineOpened')}</Chip>
+                  <span className="time">{formatTimestamp(row.openedAt ?? '—')}</span>
+                </li>
+                {historyEntries.map(entry => entry.kind === 'version'
+                  ? (
+                    <li key={entry.key} className="history-entry" data-testid="requirement-timeline-version" data-version={entry.n}>
+                      <span className="history-entry-head">
+                        <Chip size="sm" variant="soft" className="tag">{t('requirement.timelineVersion', { n: entry.n })}</Chip>
+                        <span className="time">{formatTimestamp(entry.at)}</span>
+                      </span>
+                      <span className="history-entry-actions">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          data-testid="requirement-history-version-toggle"
+                          data-version={entry.n}
+                          aria-expanded={historyDoc === entry.key}
+                          onPress={() => { setHistoryDoc(current => current === entry.key ? null : entry.key) }}
+                        >
+                          {historyDoc === entry.key ? t('requirement.historyVersionHide') : t('requirement.historyVersionShow')}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          data-testid="requirement-open-version"
+                          data-version={entry.n}
+                          data-path={versionPath(row.id, entry.n)}
+                          onPress={() => { props.onOpenReader(versionPath(row.id, entry.n)) }}
+                        >
+                          {t('requirement.openSnapshot')}
+                        </Button>
+                        {entry.n >= 2 && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            data-testid="requirement-compare-version"
+                            data-version={entry.n}
+                            onPress={() => { setCompareVersion(entry.n) }}
+                          >
+                            {t('requirement.comparePreviousVersion')}
+                          </Button>
+                        )}
+                      </span>
+                      {historyDoc === entry.key && (
+                        <div className="history-snapshot" data-testid="requirement-version-document" data-version={entry.n}>
+                          <p className="detail-note requirement-doc-readonly">{t('requirement.versionDocReadonly')}</p>
+                          {activeVersionDoc === undefined && (
+                            <p className="empty" data-testid="requirement-version-document-loading">{t('requirement.versionDocLoading')}</p>
+                          )}
+                          {activeVersionDoc?.status === 'failed' && (
+                            <p className="problem" data-testid="requirement-version-document-failed">
+                              {t('requirement.versionDocFailed', { detail: activeVersionDoc.message })}
+                            </p>
+                          )}
+                          {activeVersionDoc?.status === 'ready' && (
+                            <div className="markdown-body document-body" data-testid="requirement-version-document-body">
+                              {activeVersionDoc.text.trim() === ''
+                                ? <p className="empty">{t('requirement.versionDocEmpty')}</p>
+                                : renderMarkdown(activeVersionDoc.text)}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </li>
+                  )
+                  : (
+                    <li key={entry.key} className="history-entry" data-testid="requirement-timeline-review" data-round={entry.review.round} data-path={specPath(entry.review.report)}>
+                      <div className="history-review" data-testid="requirement-review-history-item" data-round={entry.review.round}>
+                        <span>
+                          {t('requirement.timelineReview', { round: entry.review.round })}
+                          <span data-testid="requirement-review-history-status" data-decision={decisionOf(entry.review)}>
+                            {decisionChip(entry.review, 'requirement-timeline-review-status')}
+                          </span>
+                          <span className="time">{formatTimestamp(entry.review.at)}</span>
+                        </span>
+                        <span className="history-entry-actions">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            data-testid="requirement-history-report-toggle"
+                            data-round={entry.review.round}
+                            aria-expanded={historyDoc === entry.key}
+                            onPress={() => { setHistoryDoc(current => current === entry.key ? null : entry.key) }}
+                          >
+                            {historyDoc === entry.key ? t('requirement.historyReportHide') : t('requirement.historyReportShow')}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            data-testid="requirement-open-report"
+                            data-path={specPath(entry.review.report)}
+                            onPress={() => { props.onOpenReader(specPath(entry.review.report)) }}
+                          >
+                            {t('requirement.openReport')}
+                          </Button>
+                          {decisionOf(entry.review) === 'pending' && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              data-testid="requirement-review-history-reject"
+                              data-round={entry.review.round}
+                              isDisabled={locked}
+                              ref={(node) => { if (node !== null) node.title = lockedHint ?? t('requirement.reviewRejectHistoryTitle') }}
+                              onPress={() => { void execute(`reviewReject-${String(entry.review.round)}`, `/requirement_review_decide ${row.id} ${entry.review.round} rejected`) }}
+                            >
+                              {t('requirement.reviewRejectHistory')}
+                            </Button>
+                          )}
+                        </span>
+                      </div>
+                      {historyDoc === entry.key && (
+                        <div className="history-snapshot" data-testid="requirement-history-report" data-round={entry.review.round}>
+                          <p className="detail-note requirement-doc-readonly" data-testid="requirement-history-report-readonly">{t('requirement.historyReportReadonly')}</p>
+                          {activeHistoryReport === undefined && (
+                            <p className="empty" data-testid="requirement-history-report-loading">{t('requirement.reportLoading')}</p>
+                          )}
+                          {activeHistoryReport?.status === 'failed' && (
+                            <p className="problem" data-testid="requirement-history-report-failed">
+                              {t('requirement.reportFailed', { detail: activeHistoryReport.message })}
+                            </p>
+                          )}
+                          {activeHistoryReport?.status === 'ready' && (
+                            <div className="markdown-body document-body" data-testid="requirement-history-report-body">
+                              {renderMarkdown(activeHistoryReport.text)}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </li>
+                  ),
+                )}
+                {row.reviews.length === 0 && (
+                  <li className="empty" data-testid="requirement-timeline-review-empty">{t('requirement.noReviews')}</li>
+                )}
+                {row.versions.length === 0 && (
+                  <li className="empty" data-testid="requirement-timeline-version-empty">{t('requirement.noVersions')}</li>
+                )}
+                <li data-testid="requirement-timeline-approved">
+                  <Chip size="sm" variant="soft" className="tag">{t('requirement.timelineApproved')}</Chip>
+                  <span className="time">{formatTimestamp(row.approvedAt ?? '—')}</span>
+                  <span>{row.approvedVersion === undefined
+                    ? t('requirement.notApproved')
+                    : t('requirement.timelineApprovedVersion', { n: row.approvedVersion })}</span>
+                </li>
+              </ul>
+            </section>
+          </div>
+        </aside>
+      </div>
       {compareVersion !== null && (
         <div className="compare-layer" data-testid="requirement-version-compare" data-version={compareVersion}>
           <div className="compare-panel" role="dialog" aria-modal="true" aria-label={t('requirement.versionCompareTitle')}>
