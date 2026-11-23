@@ -244,9 +244,26 @@ describe('原型协作提示词', () => {
     expect(prompt).toContain('form > input')
     expect(prompt).toContain('把登录按钮改成主色并加验证码入口')
     expect(prompt).toContain('prototype_stage')
-    expect(prompt).toContain('2 到 4 条人话要点')
+    expect(prompt).toContain('patches')
+    expect(prompt).toContain('remove')
+    expect(prompt).toContain('1 到 4 条人话要点')
     expect(prompt).toContain('changedDomPaths')
     expect(prompt).toContain('requirementProposedContent')
+    expect(prompt).not.toContain('prototype_draft')
+  })
+
+  it('没有点选锚点时先分流：闲聊直接回话不调工具，要改才用 patches 局部暂存', () => {
+    const prompt = buildStudioCoDesignPrompt({
+      requirementId: 'REQ-01',
+      requirementTitle: '登录改造',
+      baselineNote: '当前基准：正式版 HTML。',
+      instruction: '你好',
+      anchors: [],
+    })
+    expect(prompt).toContain('不调用任何工具')
+    expect(prompt).toContain('1 到 2 句')
+    expect(prompt).toContain('patches')
+    expect(prompt).toContain('只有大范围跨区块改版')
     expect(prompt).not.toContain('prototype_draft')
   })
 })

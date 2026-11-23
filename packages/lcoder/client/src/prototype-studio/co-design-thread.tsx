@@ -4,7 +4,7 @@
  */
 
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
-import type { JSX } from 'react'
+import type { JSX, ReactNode } from 'react'
 import type { HostEvent, StreamFrame } from '@maniu/desktop/contract'
 import type { EventOutcome } from '../contract.ts'
 import { interactionOf, pendingForSession, type PendingInteraction, type QuestionDrafts } from '../chat/pending.ts'
@@ -32,6 +32,17 @@ export interface StudioTurnEcho {
   readonly sentAt: number
 }
 
+/** 一轮已经收束的协作轮次：用户说了什么、助手回了什么、耗时多久。 */
+export interface StudioSettledRound {
+  readonly instruction: string
+  readonly anchors: readonly StudioAnchorDraft[]
+  /** 与 {@link StudioTurnEcho.sentAt} 同值，作历史列表的键。 */
+  readonly sentAt: number
+  readonly seconds: number
+  /** 助手正文摘要；模型没有文字回复时为空串。 */
+  readonly reply: string
+}
+
 /** 协作流属性。 */
 export interface CoDesignThreadProps {
   readonly t: Translate
@@ -50,6 +61,8 @@ export interface CoDesignThreadProps {
    * 缺省时只靠运行态回执与回合结束帧。
    */
   readonly onProbeComplete?: ((sentAt: number) => Promise<boolean>) | undefined
+  /** 最新一轮收束后要显示的暂存改动卡；卡片跟在该轮回复后面。 */
+  readonly changeCard?: ReactNode | undefined
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -149,9 +162,8 @@ export function CoDesignThread(props: CoDesignThreadProps): JSX.Element {
   /** 本回合在流里看到的回合开始/结束时间；开场快照里的历史回合不算。 */
   const [turnStartAt, setTurnStartAt] = useState(0)
   const [turnEndAt, setTurnEndAt] = useState(0)
-  const [collapsed, setCollapsed] = useState(false)
-  const [seconds, setSeconds] = useState(0)
-  const [brief, setBrief] = useState('')
+  /** 已收束的轮次按发出顺序累积：每轮都有用户气泡、助手回复与耗时角标。 */
+  const [rounds, setRounds] = useState<readonly StudioSettledRound[]>([])
   const streamIdRef = useRef<string | null>(streamId ?? null)
   const bufferedFramesRef = useRef<Array<{ readonly streamId: string; readonly frame: StreamFrame }>>([])
   const startedRef = useRef<number | null>(null)
@@ -159,6 +171,8 @@ export function CoDesignThread(props: CoDesignThreadProps): JSX.Element {
   const runningSinceRef = useRef(0)
   const settledRef = useRef(0)
   const briefRef = useRef('')
+  /** 本回合流式写出的助手正文；回合收束时 chat 行还没落行，它兜底成回复气泡。 */
+  const liveReplyRef = useRef('')
   const lastTurnRef = useRef<StudioTurnEcho | undefined>(undefined)
   const stageCompleteRef = useRef(onStageComplete)
   stageCompleteRef.current = onStageComplete
@@ -168,17 +182,21 @@ export function CoDesignThread(props: CoDesignThreadProps): JSX.Element {
   const applying = turn !== undefined && turn.sentAt > settledAt
   const activeSentAt = turn === undefined ? 0 : turn.sentAt
 
-  /** 结束本轮等待：折叠耗时条、放行发送入口，并让上层刷新暂存与画布。 */
+  /** 结束本轮等待：把这一轮连同助手回复收进历史，放行发送入口，并让上层刷新暂存与画布。 */
   const settle = useCallback((): void => {
     const active = lastTurnRef.current
     if (active === undefined || settledRef.current >= active.sentAt) return
     settledRef.current = active.sentAt
     const start = startedRef.current
     startedRef.current = null
-    setSeconds(start === null ? 0 : Math.max(0, Math.round((Date.now() - start) / 1000)))
-    setBrief(briefRef.current)
-    setCollapsed(true)
+    const seconds = start === null ? 0 : Math.max(0, Math.round((Date.now() - start) / 1000))
+    // chat 行要等下一帧才落行；回复优先取已落行的摘要，否则用本轮流式正文。
+    const reply = briefRef.current !== '' ? briefRef.current : liveReplyRef.current.trim()
     setSettledAt(active.sentAt)
+    setRounds(current => [
+      ...current.filter(round => round.sentAt !== active.sentAt),
+      { instruction: active.instruction, anchors: active.anchors, sentAt: active.sentAt, seconds, reply },
+    ])
     stageCompleteRef.current()
   }, [])
 
@@ -220,9 +238,19 @@ export function CoDesignThread(props: CoDesignThreadProps): JSX.Element {
     lastTurnRef.current = turn
     startedRef.current = Date.now()
     briefRef.current = ''
+    liveReplyRef.current = ''
     runningSinceRef.current = 0
-    setCollapsed(false)
+    // 上一轮的回合开始/结束时刻不能算到新一轮头上，否则会立刻误判本轮已结束。
+    setTurnStartAt(0)
+    setTurnEndAt(0)
+    // 新的一轮不继承上一轮的过程快照：活动行与流式正文都从空白开始。
+    setFeed(emptyOpLiveFeed())
   }, [turn])
+
+  useEffect(() => {
+    const text = humanTextOf(feed.snippet).trim()
+    if (text !== '') liveReplyRef.current = text
+  }, [feed])
 
   /** 保障 1：本轮发出后宿主报过运行中，再回到 false 就结束等待。 */
   useEffect(() => {
@@ -315,6 +343,8 @@ export function CoDesignThread(props: CoDesignThreadProps): JSX.Element {
     }
   }
 
+  const latestSettled = rounds.length === 0 ? undefined : rounds[rounds.length - 1]
+
   return (
     <section className="studio-thread" data-testid="studio-thread">
       {questions.map(interaction => (
@@ -327,29 +357,25 @@ export function CoDesignThread(props: CoDesignThreadProps): JSX.Element {
           onChange={(next) => { setDrafts(current => ({ ...current, [interaction.id]: next })) }}
         />
       ))}
-      {hasTurn && (
-        <div className="studio-user-turn" data-testid="studio-user-turn">
-          {turn.instruction.trim() !== '' && (
-            <p className="studio-user-instruction" data-testid="studio-user-instruction">{turn.instruction.trim()}</p>
-          )}
-          {turnAnchors.length > 0 && (
-            <ul className="studio-user-anchors" data-testid="studio-user-anchors">
-              {turnAnchors.map((anchor, index) => (
-                <li key={anchor.domPath} className="studio-user-anchor" data-dom-path={anchor.domPath}>
-                  <span className="studio-user-anchor-label">
-                    {`#${String(index + 1)} ${anchor.label === undefined || anchor.label === '' ? anchor.domPath : anchor.label}`}
-                  </span>
-                  {(anchor.note ?? '').trim() !== '' && (
-                    <span className="studio-user-anchor-note" data-testid="studio-user-anchor-note">{anchor.note?.trim()}</span>
-                  )}
-                </li>
-              ))}
-            </ul>
+      {rounds.map(round => (
+        <div key={round.sentAt} className="studio-round" data-testid="studio-round" data-sent-at={round.sentAt}>
+          <UserTurn instruction={round.instruction} anchors={round.anchors} />
+          <div className="studio-turn-done" data-testid="studio-turn-done">
+            <span className="studio-turn-badge" data-testid="studio-turn-collapsed">
+              {t('studio.turnDone', { seconds: round.seconds })}
+            </span>
+            {round.reply !== '' && (
+              <p className="studio-turn-brief" data-testid="studio-turn-brief">{round.reply}</p>
+            )}
+          </div>
+          {round === latestSettled && props.changeCard !== undefined && props.changeCard !== null && (
+            <div className="studio-round-card" data-testid="studio-round-card">{props.changeCard}</div>
           )}
         </div>
-      )}
-      {applying
-        ? (
+      ))}
+      {applying && (
+        <>
+          {hasTurn && <UserTurn instruction={turn.instruction} anchors={turnAnchors} />}
           <div className="studio-turn-progress" data-testid="studio-turn-running" role="status">
             <span className="studio-turn-progress-bar" aria-hidden="true" />
             <span className="studio-turn-progress-text">{t('studio.turnApplying')}</span>
@@ -360,17 +386,45 @@ export function CoDesignThread(props: CoDesignThreadProps): JSX.Element {
               <p className="studio-turn-live-text" data-testid="studio-turn-live-text">{streamText}</p>
             )}
           </div>
-        )
-        : settledAt > 0
-          ? (
-            <div className="studio-turn-done" data-testid="studio-turn-done">
-              <button type="button" className="studio-turn-collapsed" data-testid="studio-turn-collapsed" aria-expanded={!collapsed} onClick={() => { setCollapsed(current => !current) }}>
-                {t('studio.turnDone', { seconds })}
-              </button>
-              {!collapsed && <p className="studio-turn-brief" data-testid="studio-turn-brief">{brief}</p>}
-            </div>
-          )
-          : !hasTurn && <p className="studio-thread-empty" data-testid="studio-thread-empty">{t('studio.threadEmpty')}</p>}
+        </>
+      )}
+      {!applying && rounds.length === 0 && !hasTurn && (
+        <p className="studio-thread-empty" data-testid="studio-thread-empty">{t('studio.threadEmpty')}</p>
+      )}
     </section>
+  )
+}
+
+/**
+ * 一轮用户意见：整体指令与逐锚点要求。历史轮与正在跑的轮共用同一外观。
+ * @param props - 用户指令与点选锚点。
+ * @returns 用户气泡；指令与锚点都为空时不渲染。
+ */
+function UserTurn(props: {
+  readonly instruction: string
+  readonly anchors: readonly StudioAnchorDraft[]
+}): JSX.Element | null {
+  const instruction = props.instruction.trim()
+  if (instruction === '' && props.anchors.length === 0) return null
+  return (
+    <div className="studio-user-turn" data-testid="studio-user-turn">
+      {instruction !== '' && (
+        <p className="studio-user-instruction" data-testid="studio-user-instruction">{instruction}</p>
+      )}
+      {props.anchors.length > 0 && (
+        <ul className="studio-user-anchors" data-testid="studio-user-anchors">
+          {props.anchors.map((anchor, index) => (
+            <li key={anchor.domPath} className="studio-user-anchor" data-dom-path={anchor.domPath}>
+              <span className="studio-user-anchor-label">
+                {`#${String(index + 1)} ${anchor.label === undefined || anchor.label === '' ? anchor.domPath : anchor.label}`}
+              </span>
+              {(anchor.note ?? '').trim() !== '' && (
+                <span className="studio-user-anchor-note" data-testid="studio-user-anchor-note">{anchor.note?.trim()}</span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   )
 }

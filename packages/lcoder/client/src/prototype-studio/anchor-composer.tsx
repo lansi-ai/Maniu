@@ -1,5 +1,5 @@
 /**
- * 协作流输入区：点选锚点胶囊、交互/点选切换与修改指令发送。
+ * 协作流输入区：点选锚点胶囊、逐锚点修改要求与修改指令发送。
  * 只经宿主桥接读写画布状态，不直接操作任何文件。
  */
 
@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react'
 import type { JSX } from 'react'
 import { Button } from '@heroui/react'
 import type { Translate } from '../locale.ts'
-import type { StudioBridge, StudioInteractionMode, StudioSelectionInfo } from './bridge.ts'
+import type { StudioBridge, StudioSelectionInfo } from './bridge.ts'
 
 /** 点选锚点与该元素的专属修改要求；note 为空表示没为这一项单独指定。 */
 export interface StudioAnchorDraft extends StudioSelectionInfo {
@@ -46,7 +46,6 @@ export function appendAnchor(
 export function AnchorComposer(props: AnchorComposerProps): JSX.Element {
   const { t, bridge, running } = props
   const [anchors, setAnchors] = useState<readonly StudioAnchorDraft[]>([])
-  const [interaction, setInteraction] = useState<StudioInteractionMode>('interact')
   const [instruction, setInstruction] = useState('')
   const [sending, setSending] = useState(false)
 
@@ -56,12 +55,6 @@ export function AnchorComposer(props: AnchorComposerProps): JSX.Element {
     })
     return () => { unsubscribe?.() }
   }, [bridge])
-
-  const switchInteraction = (mode: StudioInteractionMode): void => {
-    if (interaction === mode) return
-    setInteraction(mode)
-    void Promise.resolve(bridge?.setPrototypeStudioInteraction?.(mode)).catch(() => undefined)
-  }
 
   /** 只改一个锚点的专属要求；其它锚点的输入保持原样。 */
   const setAnchorNote = (domPath: string, note: string): void => {
@@ -88,65 +81,49 @@ export function AnchorComposer(props: AnchorComposerProps): JSX.Element {
 
   return (
     <section className="studio-composer" data-testid="studio-anchor-composer">
-      <div className="studio-interaction-bar" data-testid="studio-interaction-toggle" role="group" aria-label={t('studio.interactionMode')}>
-        <button
-          type="button"
-          className={interaction === 'interact' ? 'studio-segment studio-segment-on' : 'studio-segment'}
-          data-testid="studio-interaction-interact"
-          aria-pressed={interaction === 'interact'}
-          onClick={() => { switchInteraction('interact') }}
-        >
-          {t('studio.interactMode')}
-        </button>
-        <button
-          type="button"
-          className={interaction === 'select' ? 'studio-segment studio-segment-on' : 'studio-segment'}
-          data-testid="studio-interaction-select"
-          aria-pressed={interaction === 'select'}
-          onClick={() => { switchInteraction('select') }}
-        >
-          {t('studio.selectMode')}
-        </button>
-      </div>
+      {anchors.length === 0
+        ? <p className="studio-anchor-hint" data-testid="studio-anchor-empty">{t('studio.anchorEmpty')}</p>
+        : (
+          <div className="studio-anchor-head" data-testid="studio-anchor-head">
+            <span className="studio-anchor-count" data-testid="studio-anchors-count">
+              {t('studio.anchorsSelected', { count: anchors.length })}
+            </span>
+            <Button size="sm" variant="ghost" data-testid="studio-anchors-clear" isDisabled={busy} onPress={() => { setAnchors([]) }}>
+              {t('studio.clearAnchors')}
+            </Button>
+          </div>
+        )}
 
       <div className="studio-anchor-list" data-testid="studio-anchor-list">
-        {anchors.length === 0
-          ? <span className="studio-empty">{t('studio.anchorEmpty')}</span>
-          : (
-            <>
-              {anchors.map((anchor, index) => (
-                <div key={anchor.domPath} className="studio-anchor-item" data-dom-path={anchor.domPath}>
-                  <span className="studio-anchor-chip" data-testid="studio-anchor-chip" data-dom-path={anchor.domPath}>
-                    <span className="studio-anchor-index">{`#${String(index + 1)}`}</span>
-                    <span className="studio-anchor-name">
-                      {t('studio.anchorChip', { label: anchor.label === undefined || anchor.label === '' ? anchor.domPath : anchor.label })}
-                    </span>
-                  </span>
-                  <input
-                    className="studio-anchor-note"
-                    data-testid="studio-anchor-note"
-                    data-dom-path={anchor.domPath}
-                    value={anchor.note ?? ''}
-                    placeholder={t('studio.anchorNotePlaceholder')}
-                    aria-label={t('studio.anchorNotePlaceholder')}
-                    onChange={(event) => { setAnchorNote(anchor.domPath, event.target.value) }}
-                  />
-                  <button
-                    type="button"
-                    className="studio-anchor-remove"
-                    data-testid="studio-anchor-remove"
-                    aria-label={t('studio.removeAnchor')}
-                    onClick={() => { setAnchors(current => current.filter(item => item.domPath !== anchor.domPath)) }}
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-              <Button size="sm" variant="ghost" data-testid="studio-anchors-clear" onPress={() => { setAnchors([]) }}>
-                {t('studio.clearAnchors')}
-              </Button>
-            </>
-          )}
+        {anchors.map((anchor, index) => {
+          const label = anchor.label === undefined || anchor.label === '' ? anchor.domPath : anchor.label
+          return (
+            <div key={anchor.domPath} className="studio-anchor-item" data-dom-path={anchor.domPath}>
+              <span className="studio-anchor-chip" data-testid="studio-anchor-chip" data-dom-path={anchor.domPath} title={label}>
+                <span className="studio-anchor-index">{`#${String(index + 1)}`}</span>
+                <span className="studio-anchor-name">{label}</span>
+              </span>
+              <input
+                className="studio-anchor-note"
+                data-testid="studio-anchor-note"
+                data-dom-path={anchor.domPath}
+                value={anchor.note ?? ''}
+                placeholder={t('studio.anchorNotePlaceholder')}
+                aria-label={t('studio.anchorNotePlaceholder')}
+                onChange={(event) => { setAnchorNote(anchor.domPath, event.target.value) }}
+              />
+              <button
+                type="button"
+                className="studio-anchor-remove"
+                data-testid="studio-anchor-remove"
+                aria-label={t('studio.removeAnchor')}
+                onClick={() => { setAnchors(current => current.filter(item => item.domPath !== anchor.domPath)) }}
+              >
+                ×
+              </button>
+            </div>
+          )
+        })}
       </div>
 
       <div className="studio-instruction-row">

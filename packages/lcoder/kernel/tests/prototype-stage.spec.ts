@@ -139,8 +139,8 @@ describe('prototype_stage 暂存不碰正式版与需求正文', () => {
       requirementId: id,
       html: HTML,
       changeKind: 'visual',
-      summary: ['只有一条'],
-    })).rejects.toThrow(/2 到 4 条/)
+      summary: [],
+    })).rejects.toThrow(/1 到 4 条/)
     expect(existsSync(join(spec, 'prototypes', id, 'staged.json'))).toBe(false)
   })
 
@@ -355,5 +355,172 @@ describe('5 个暂存 Remote 的统一 { input } 契约', () => {
       })
       expect(restored.ok).toBe(true)
     }
+  })
+})
+
+/** patches 的目标元素在 {@link HTML} 里的 DOM 路径。 */
+const LI_PATH = 'body:nth-child(2) > section.features:nth-child(3) > ul:nth-child(1) > li:nth-child(1)'
+const H1_PATH = 'body:nth-child(2) > h1:nth-child(2)'
+const NAV_PATH = 'body:nth-child(2) > nav:nth-child(1)'
+const FOOTER_PATH = 'body:nth-child(2) > footer:nth-child(4)'
+const LI_HTML = '<li>一段正文</li>'
+
+/**
+ * 断言只改动了目标区间：目标前后的字节逐字一致。
+ * @param before - 改动前 HTML。
+ * @param after - 改动后 HTML。
+ * @param removed - 被替换掉的原文。
+ * @param added - 替换进去的新文。
+ */
+function expectOnlyEdited(before: string, after: string, removed: string, added: string): void {
+  const at = before.indexOf(removed)
+  expect(at).toBeGreaterThan(-1)
+  expect(after).toBe(before.slice(0, at) + added + before.slice(at + removed.length))
+}
+
+describe('prototype_stage 的 patches 在现有原型上做局部修改', () => {
+  it('remove 删掉目标元素，其余字节不变且正式版与正文零改动', async () => {
+    const { spec, id } = makeSpec()
+    seedCommitted(spec, id)
+    const indexPath = join(spec, 'prototypes', id, 'index.html')
+    const committedBefore = readFileSync(indexPath, 'utf8')
+
+    const result = await callStage(spec, {
+      requirementId: id,
+      changeKind: 'visual',
+      summary: ['删掉列表里那条正文'],
+      patches: [{ domPath: LI_PATH, action: 'remove' }],
+    })
+
+    expect(result.ok).toBe(true)
+    expect(result.patch_count).toBe(1)
+    const stored = readStagedPrototype(spec, id)
+    expect(stored).not.toBeNull()
+    expectOnlyEdited(committedBefore, stored?.html ?? '', LI_HTML, '')
+    expect(stored?.changedDomPaths).toEqual([LI_PATH])
+    expect(readFileSync(indexPath, 'utf8')).toBe(committedBefore)
+    expect(readFileSync(join(spec, 'requirements', `${id}.md`), 'utf8')).toBe(CONTENT)
+  })
+
+  it('replace 换掉目标元素、style 只改目标元素的内联样式，两条 patch 按序生效', async () => {
+    const { spec, id } = makeSpec()
+    seedCommitted(spec, id)
+    const replacement = '<h1 class="headline">原型测试需求 · 已改</h1>'
+
+    const result = await callStage(spec, {
+      requirementId: id,
+      changeKind: 'visual',
+      summary: ['换掉标题', '导航换一个颜色'],
+      patches: [
+        { domPath: H1_PATH, action: 'replace', newHtml: replacement },
+        { domPath: NAV_PATH, action: 'style', newCss: 'color: #ff0000' },
+      ],
+    })
+
+    expect(result.ok).toBe(true)
+    const stored = readStagedPrototype(spec, id)
+    expect(stored?.html).toBe(HTML
+      .replace('<h1>原型测试需求</h1>', replacement)
+      .replace('<nav>', '<nav style="color: #ff0000">'))
+    expect(stored?.changedDomPaths).toEqual([H1_PATH, NAV_PATH])
+  })
+
+  it('没传 html 时以暂存版为基准，而不是磁盘正式版', async () => {
+    const { spec, id } = makeSpec()
+    seedCommitted(spec, id)
+    const stagedBase = HTML.replace('页脚', '暂存页脚')
+    writeStagedPrototype(spec, id, stage(id, stagedBase))
+
+    const result = await callStage(spec, {
+      requirementId: id,
+      changeKind: 'visual',
+      summary: ['页脚换个颜色'],
+      patches: [{ domPath: FOOTER_PATH, action: 'style', newCss: 'color: #00aa00' }],
+    })
+
+    expect(result.ok).toBe(true)
+    expect(readStagedPrototype(spec, id)?.html)
+      .toBe(stagedBase.replace('<footer>', '<footer style="color: #00aa00">'))
+  })
+
+  it('domPath 没有精确命中时按末段标签降级匹配唯一元素', async () => {
+    const { spec, id } = makeSpec()
+    seedCommitted(spec, id)
+
+    const result = await callStage(spec, {
+      requirementId: id,
+      changeKind: 'visual',
+      summary: ['删掉列表里那条正文'],
+      patches: [{ domPath: 'li:nth-child(1)', action: 'remove' }],
+    })
+
+    expect(result.ok).toBe(true)
+    expectOnlyEdited(HTML, readStagedPrototype(spec, id)?.html ?? '', LI_HTML, '')
+  })
+
+  it('降级匹配到多个同类元素时报错，不猜也不误删', async () => {
+    const { spec, id } = makeSpec()
+    const twoItems = HTML.replace('<ul><li>一段正文</li></ul>', '<ul><li>一段正文</li><li>第二项</li></ul>')
+    writeCommitted(spec, id, twoItems)
+
+    await expect(callStage(spec, {
+      requirementId: id,
+      changeKind: 'visual',
+      summary: ['删掉列表里那条正文'],
+      patches: [{ domPath: 'li:nth-child(1)', action: 'remove' }],
+    })).rejects.toThrow(/降级匹配到 2 个元素/)
+    expect(existsSync(join(spec, 'prototypes', id, 'staged.json'))).toBe(false)
+    expect(readFileSync(join(spec, 'prototypes', id, 'index.html'), 'utf8')).toBe(twoItems)
+  })
+
+  it('目标元素不存在、replace 缺 newHtml、质量门禁失败都报错且不写暂存', async () => {
+    const { spec, id } = makeSpec()
+    seedCommitted(spec, id)
+    const stagedPath = join(spec, 'prototypes', id, 'staged.json')
+
+    await expect(callStage(spec, {
+      requirementId: id,
+      changeKind: 'visual',
+      summary: ['删一个不存在的元素'],
+      patches: [{ domPath: 'body:nth-child(2) > table#nope:nth-child(9)', action: 'remove' }],
+    })).rejects.toThrow(/找不到元素/)
+    expect(existsSync(stagedPath)).toBe(false)
+
+    await expect(callStage(spec, {
+      requirementId: id,
+      changeKind: 'visual',
+      summary: ['换掉标题'],
+      patches: [{ domPath: H1_PATH, action: 'replace' }],
+    })).rejects.toThrow(/必须给非空 newHtml/)
+    expect(existsSync(stagedPath)).toBe(false)
+
+    // 删掉导航会让必需区块缺失：结构化失败，暂存文件不落盘。
+    const rejected = await callStage(spec, {
+      requirementId: id,
+      changeKind: 'visual',
+      summary: ['删掉导航'],
+      patches: [{ domPath: NAV_PATH, action: 'remove' }],
+    })
+    expect(rejected.ok).toBe(false)
+    expect((rejected.failed as readonly { code: string }[]).map(item => item.code)).toContain('MISSING_SECTIONS')
+    expect(existsSync(stagedPath)).toBe(false)
+  })
+
+  it('html 与 patches 都缺、或还没有原型就只给 patches 时都报错', async () => {
+    const { spec, id } = makeSpec()
+
+    await expect(callStage(spec, {
+      requirementId: id,
+      changeKind: 'visual',
+      summary: ['只有摘要'],
+    })).rejects.toThrow(/html 或至少一条 patches/)
+
+    await expect(callStage(spec, {
+      requirementId: id,
+      changeKind: 'visual',
+      summary: ['删掉列表项'],
+      patches: [{ domPath: LI_PATH, action: 'remove' }],
+    })).rejects.toThrow(/先传完整 html/)
+    expect(existsSync(join(spec, 'prototypes', id, 'staged.json'))).toBe(false)
   })
 })

@@ -189,10 +189,16 @@ function renderApp(bridge: StudioBridge, initialSessionId = 'session-1'): Promis
 }
 
 describe('锚点输入区', () => {
-  it('点选挂多锚点、按 DOM 路径去重、单项移除与清空，切换交互同步桥接', async () => {
+  it('点选挂多锚点、按 DOM 路径去重、单项移除与清空，输入区不再切换画布交互模式', async () => {
     const bridge = makeBridge()
     const onSend = vi.fn(async () => true)
     await render(<AnchorComposer t={t} bridge={bridge} running={false} onSend={onSend} />)
+
+    // 没选锚点时只留一行 Alt 点选提示；试玩 / 点选按钮已移除。
+    expect(element('studio-anchor-empty')?.textContent).toContain('按住 Alt')
+    expect(element('studio-interaction-toggle')).toBeNull()
+    expect(element('studio-interaction-interact')).toBeNull()
+    expect(element('studio-interaction-select')).toBeNull()
 
     const emit = (domPath: string, label: string): void => {
       act(() => {
@@ -205,16 +211,18 @@ describe('锚点输入区', () => {
     emit('body > button', '重复点选')
     emit('form > input', '邮箱')
     expect(elements('studio-anchor-chip')).toHaveLength(2)
-    expect(elements('studio-anchor-chip').map(node => node.textContent).join(' ')).toContain('📍 登录')
-
-    await click('studio-interaction-select')
-    expect(interactionCalls).toContain('select')
+    expect(elements('studio-anchor-chip').map(node => node.textContent).join(' ')).toContain('登录')
+    // 名称胶囊给出全称，超宽时靠 CSS 省略。
+    expect(elements('studio-anchor-chip')[0]?.getAttribute('title')).toBe('登录')
+    expect(element('studio-anchors-count')?.textContent).toContain('2')
+    expect(element('studio-anchor-empty')).toBeNull()
 
     const removeButtons = elements('studio-anchor-remove')
     await act(async () => { removeButtons[0]?.click() })
     expect(elements('studio-anchor-chip')).toHaveLength(1)
     await click('studio-anchors-clear')
     expect(elements('studio-anchor-chip')).toHaveLength(0)
+    expect(interactionCalls).toEqual([])
 
     const input = element('studio-instruction-input') as HTMLInputElement
     await act(async () => {
@@ -360,6 +368,46 @@ describe('暂存控制条', () => {
     const restore = calls.find(call => call.namespace === 'prototype' && call.method === 'restoreSnapshot')
     expect(isRecord(restore?.args.input) && restore?.args.input.snapshotId).toBe('snap-1')
     expect(loadCalls.at(-1)).toMatchObject({ html: '<html><body>恢复版</body></html>' })
+  })
+
+  it('回合完成后自动切到修改后、高亮改动区域，并在该轮回复后紧跟改动卡', async () => {
+    state.staged = null
+    const bridge = makeStreamBridge()
+    await renderApp(bridge)
+    expect(element('studio-change-card-visual')).toBeNull()
+
+    const input = element('studio-instruction-input') as HTMLInputElement
+    await act(async () => {
+      // oxlint-disable-next-line typescript/unbound-method -- 原生 value setter 要用 call 绑定到该输入框。
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set
+      setter?.call(input, '把主按钮改成主色')
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    await click('studio-send-instruction')
+    expect(element('studio-turn-running')).not.toBeNull()
+
+    // 这一轮宿主暂存出结果：回合结束后画布自动切到修改后，并高亮改动区域。
+    state.staged = VISUAL
+    emitEvent('api-session/status', 'chat-1', true)
+    await flush()
+    emitEvent('api-session/status', 'chat-1', false)
+    await flush()
+
+    expect(loadCalls.at(-1)).toMatchObject({ html: VISUAL.html, beforeHtml: COMMITTED })
+    expect(highlightCalls.at(-1)).toEqual([...VISUAL.changedDomPaths])
+    expect(element('studio-view-after')?.getAttribute('aria-pressed')).toBe('true')
+    const card = element('studio-change-card-visual')
+    expect(card).not.toBeNull()
+    expect(element('studio-round-card')?.contains(card)).toBe(true)
+
+    // 卡片自带前后瞬切与并排对比，不用再回顶部暂存条操作。
+    expect(element('studio-card-view-before')).not.toBeNull()
+    expect(element('studio-card-compare')).not.toBeNull()
+    await click('studio-card-view-before')
+    expect(loadCalls.at(-1)).toMatchObject({ html: COMMITTED, beforeHtml: COMMITTED })
+    expect(element('studio-card-view-after')?.getAttribute('aria-pressed')).toBe('false')
+    await click('studio-card-compare')
+    expect(modeCalls).toContain('compare-side-by-side')
   })
 
   it('全屏折叠为胶囊再展开不丢暂存态与会话', async () => {
@@ -601,6 +649,54 @@ describe('协作流实时进度', () => {
     expect(onStageComplete).toHaveBeenCalledTimes(1)
     expect(element('studio-turn-running')).toBeNull()
     expect(element('studio-turn-done')).not.toBeNull()
+    // 助手回复默认可见：耗时只作角标，不再靠折叠按钮才能看到正文。
+    expect(element('studio-turn-brief')?.textContent).toContain('已把主按钮改成主色')
+    expect(element('studio-turn-done')?.querySelector('button')).toBeNull()
+  })
+
+  it('多轮回合累积成历史列表，每轮都有用户气泡、助手回复与耗时角标', async () => {
+    const bridge = makeStreamBridge()
+    const first: StudioTurnEcho = { instruction: '把主按钮改成主色', anchors: [], sentAt: Date.now() }
+    await render(
+      <CoDesignThread t={t} bridge={bridge} sessionId="chat-1" streamId="stream-1" turn={first} onStageComplete={vi.fn()} />,
+    )
+    emitFrame({ type: 'event', event: { type: 'turn/start', seq: 1, time: 1, data: {} } })
+    emitFrame({
+      type: 'assistant-stream',
+      frame: {
+        type: 'chunk', attemptId: 'a1', revision: 1, index: 0,
+        chunk: { type: 'text-delta', text: '已经把主按钮改成主色' },
+      },
+    })
+    emitFrame({ type: 'event', event: { type: 'turn/end', seq: 2, time: 2, data: { reason: { kind: 'completed' } } } })
+    await flush()
+    expect(elements('studio-round')).toHaveLength(1)
+
+    const second: StudioTurnEcho = {
+      instruction: '把卡片间距调大', anchors: [], sentAt: Math.max(Date.now(), first.sentAt + 1),
+    }
+    await act(async () => {
+      root.render(
+        <CoDesignThread t={t} bridge={bridge} sessionId="chat-1" streamId="stream-1" turn={second} onStageComplete={vi.fn()} />,
+      )
+    })
+    await flush()
+    emitFrame({ type: 'event', event: { type: 'turn/start', seq: 3, time: 3, data: {} } })
+    emitFrame({
+      type: 'assistant-stream',
+      frame: {
+        type: 'chunk', attemptId: 'a2', revision: 1, index: 0,
+        chunk: { type: 'text-delta', text: '卡片间距已调大' },
+      },
+    })
+    emitFrame({ type: 'event', event: { type: 'turn/end', seq: 4, time: 4, data: { reason: { kind: 'completed' } } } })
+    await flush()
+
+    expect(elements('studio-round')).toHaveLength(2)
+    expect(elements('studio-user-turn')).toHaveLength(2)
+    const replies = elements('studio-turn-brief').map(node => node.textContent).join(' | ')
+    expect(replies).toContain('已经把主按钮改成主色')
+    expect(replies).toContain('卡片间距已调大')
   })
 
   it('宿主运行态由 true 变 false 也立刻结束等待', async () => {

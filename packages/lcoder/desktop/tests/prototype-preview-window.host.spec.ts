@@ -13,6 +13,8 @@ interface FakeWindow {
     readonly session: { readonly webRequest: { readonly onBeforeRequest: ReturnType<typeof vi.fn> } }
   }
   readonly loadURL: ReturnType<typeof vi.fn>
+  readonly setMenu: ReturnType<typeof vi.fn>
+  readonly setMenuBarVisibility: ReturnType<typeof vi.fn>
   readonly setParentWindow: ReturnType<typeof vi.fn>
 }
 
@@ -22,6 +24,8 @@ const electron = vi.hoisted(() => {
     readonly options: FakeOptions
     readonly webContents: FakeWindow['webContents']
     readonly loadURL = vi.fn()
+    readonly setMenu = vi.fn()
+    readonly setMenuBarVisibility = vi.fn()
     readonly setParentWindow = vi.fn()
     constructor(options: FakeOptions) {
       this.options = options
@@ -68,6 +72,9 @@ describe('createPrototypePreviewWindow', () => {
     expect(window.options.title).toContain('沙箱')
     // 独立预览窗也要应用图标，标题栏不回退成 Electron 默认图标。
     expect(String(window.options.icon)).toMatch(/maniu-windows\.ico$/)
+    // Alt 只属于原型：窗口没有原生菜单栏。
+    expect(window.setMenu).toHaveBeenCalledWith(null)
+    expect(window.setMenuBarVisibility).toHaveBeenCalledWith(false)
   })
 
   it('对独立 session 安装离线拦截：外链取消，内联与 file 放行', () => {

@@ -57,7 +57,7 @@ export interface StagedPrototype {
   readonly requirementId: string
   readonly html: string
   readonly changeKind: PrototypeChangeKind
-  /** 2–4 条给人读的改动摘要。 */
+  /** 1–4 条给人读的改动摘要。 */
   readonly summary: readonly string[]
   readonly changedDomPaths: readonly string[]
   readonly requirementDiff?: PrototypeRequirementDiff
