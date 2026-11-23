@@ -18,6 +18,7 @@ import { readImageBase64 } from '../chat/attachments.ts'
 import type { RequirementDocRow } from '../spec/rows.ts'
 import { formatTimestamp } from './requirement-report.ts'
 import { translate, type Translate } from '../locale.ts'
+import { studioBridge } from '../prototype-studio/bridge.ts'
 
 function lcoderBridge(): Partial<LcoderApi> | undefined {
   return 'lcoder' in window ? window.lcoder : undefined
@@ -224,6 +225,22 @@ export function PrototypePanel(props: PrototypePanelProps): JSX.Element {
     }
   }
 
+  const doOpenStudio = async (): Promise<void> => {
+    if (html === undefined) return
+    setPreviewError(undefined)
+    try {
+      await studioBridge()?.openPrototypeStudio?.({
+        requirementId: props.row.id,
+        sessionId: props.scopeSessionId,
+        html,
+        beforeHtml: html,
+        mode: 'split',
+      })
+    } catch (cause: unknown) {
+      setPreviewError(cause instanceof Error ? cause.message : String(cause))
+    }
+  }
+
   const applyPatch = async (): Promise<void> => {
     if (selection === undefined || instruction.trim() === '' || props.running || patching) return
     setPatching(true)
@@ -306,6 +323,9 @@ export function PrototypePanel(props: PrototypePanelProps): JSX.Element {
               <div className="prototype-window-actions">
                 <Button size="sm" variant="secondary" data-testid="prototype-open-window" isDisabled={html === undefined} onPress={() => { void doOpenWindow() }}>
                   {t('prototype.openWindow')}
+                </Button>
+                <Button size="sm" variant="primary" data-testid="prototype-open-studio" isDisabled={html === undefined} onPress={() => { void doOpenStudio() }}>
+                  {t('prototype.openStudio')}
                 </Button>
                 <span className="detail-note" data-testid="prototype-window-note">{t('prototype.windowNote')}</span>
               </div>
