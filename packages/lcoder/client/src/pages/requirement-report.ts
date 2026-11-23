@@ -39,6 +39,24 @@ const CATEGORY_PLAIN = /^[\u4e00-\u9fa5A-Za-z（）()、\s]{2,16}$/u
 const KNOWN_CATEGORIES: readonly string[] = [
   '文档完备性', '合理性', '需求角度', '技术实现角度', '技术可行性', '技术角度', '实现角度', '边界与例外',
 ]
+/** 作为摘要段识别的二级标题；待改项表格也可以落在这些标题下。 */
+const SUMMARY_HEADINGS: ReadonlySet<string> = new Set(['摘要', '评审结论', '总体结论', '结论'])
+/** 作为待改项段识别的二级标题。 */
+const TODO_HEADINGS: ReadonlySet<string> = new Set(['待改项', '问题清单', '评审意见', '修改建议'])
+/** Markdown 表格列到待改项字段的映射；`id` 列只占位，不进入展示字段。 */
+type TableColumn = 'id' | 'priority' | 'location' | 'problem' | 'suggestion'
+const TABLE_HEADER: Readonly<Record<string, TableColumn | undefined>> = {
+  '编号': 'id', '序号': 'id', '#': 'id',
+  '严重度': 'priority', '优先级': 'priority', '级别': 'priority',
+  '所在章节': 'location', '章节': 'location', '位置': 'location', '涉及位置': 'location',
+  '问题说明': 'problem', '问题描述': 'problem', '问题': 'problem', '说明': 'problem',
+  '修改建议': 'suggestion', '建议': 'suggestion', '整改建议': 'suggestion', '处理建议': 'suggestion',
+}
+/** 无表头时按列数推断：五列含编号，四列以严重度开头。 */
+const FALLBACK_COLUMNS: readonly TableColumn[] = ['id', 'priority', 'location', 'problem', 'suggestion']
+const FOUR_COLUMNS: readonly TableColumn[] = ['priority', 'location', 'problem', 'suggestion']
+/** 分隔行的每个单元格形如 `---`、`:---:` 或 `---:`。 */
+const TABLE_SEPARATOR_CELL = /^:?-{2,}:?$/u
 /** 摘要字数上限；超出补省略号。 */
 const SUMMARY_CHARS = 72
 
@@ -174,6 +192,87 @@ function parseTodos(text: string): readonly ReviewTodo[] {
 }
 
 /**
+ * 判断一行是否为 Markdown 表格行：以 `|` 开头且至少还有一根分隔符。
+ * @param line - 报告原文的一行。
+ * @returns 是否按表格数据处理。
+ */
+function isTableRow(line: string): boolean {
+  const trimmed = line.trim()
+  return trimmed.startsWith('|') && trimmed.indexOf('|', 1) > 0
+}
+
+/**
+ * 去掉行首行尾的 `|` 后按 `|` 切列，单元格去首尾空白。
+ * @param line - 一行 Markdown 表格文本。
+ * @returns 单元格数组。
+ */
+function splitTableCells(line: string): string[] {
+  const inner = line.trim().replace(/^\|/u, '').replace(/\|$/u, '')
+  return inner.split('|').map(cell => cell.trim())
+}
+
+/**
+ * 把表格里的严重度/优先级文字归一到既有优先级枚举。
+ * @param text - 表格优先级列的文本。
+ * @returns 归一后的优先级，未识别时缺省。
+ */
+function tablePriority(text: string): ReviewPriority | undefined {
+  const value = text.trim()
+  if (value.includes('高') || /high/iu.test(value)) return 'high'
+  if (value.includes('中') || /medium/iu.test(value)) return 'medium'
+  if (value.includes('低') || /low/iu.test(value)) return 'low'
+  return undefined
+}
+
+/**
+ * 解析一段连续的 Markdown 表格行，产出与列表解析同契约的待改项。
+ *
+ * 表头按列名映射，缺列名时按四列或五列的位置推断；分隔行与表头行跳过。
+ * 单元格文本先经 `cleanField` 归一化，再拼成合成条目交给 `parseTodoItem`
+ * 拆字段，保证 title/location/problem/suggestion 的口径与列表解析一致。
+ * @param lines - 同一张表格的连续行。
+ * @returns 表格数据行对应的待改项。
+ */
+function parseTableTodos(lines: readonly string[]): readonly ReviewTodo[] {
+  const todos: ReviewTodo[] = []
+  let columns: readonly TableColumn[] | undefined
+
+  for (const line of lines) {
+    const cells = splitTableCells(line)
+    if (cells.length === 0 || cells.every(cell => TABLE_SEPARATOR_CELL.test(cell))) continue
+    if (columns === undefined) {
+      const mapped = cells.map(cell => TABLE_HEADER[cell.trim()])
+      if (mapped.filter(column => column !== undefined).length >= 2) {
+        columns = cells.map((cell, index) => TABLE_HEADER[cell.trim()] ?? FALLBACK_COLUMNS[index] ?? 'id')
+        continue
+      }
+      columns = cells.length === 4
+        ? FOUR_COLUMNS
+        : cells.length >= 5
+          ? FALLBACK_COLUMNS
+          : []
+    }
+    const cell = (column: TableColumn): string => {
+      const index = columns?.indexOf(column) ?? -1
+      return index < 0 ? '' : (cells[index] ?? '').trim()
+    }
+    const problem = cleanField(cell('problem'))
+    const location = cleanField(cell('location'))
+    const suggestion = cleanField(cell('suggestion'))
+    if (problem === '' && location === '' && suggestion === '') continue
+    const priority = tablePriority(cell('priority'))
+    const itemText = [
+      problem,
+      location === '' ? '' : `位置：${location}`,
+      suggestion === '' ? '' : `建议：${suggestion}`,
+      priority === undefined ? '' : `优先级：${priority === 'high' ? '高' : priority === 'medium' ? '中' : '低'}`,
+    ].filter(part => part !== '').join('。')
+    todos.push({ text: itemText, summary: summaryOf(itemText), ...parseTodoItem(itemText), problem })
+  }
+  return todos
+}
+
+/**
  * 把 ISO 时间戳按原文时区截断成 `YYYY-MM-DD HH:mm`；非法值原样返回。
  * @param value - 详情里展示的时间字符串。
  * @returns 可读时间或原始字符串。
@@ -188,6 +287,8 @@ export function formatTimestamp(value: string): string {
  * 从完整评审报告里抽出「摘要」与「待改项」两段。
  *
  * 只认二级标题，标题外的正文一律忽略；续行缩进归入上一条待改项，空行只是分隔。
+ * 摘要段与待改项段都支持列表和 Markdown 表格：同节混排时表格行不进摘要，
+ * 表格按表头列名或固定列数拆出四要素，列表仍沿用原有续行与分类规则。
  * 待改项按高、中、低、无优先级稳定排序，同级保持原报告顺序。
  * @param text - `requirement_review_draft` 落盘的完整 Markdown 报告。
  * @returns 摘要文本与按优先级排序的待改项列表。
@@ -195,20 +296,37 @@ export function formatTimestamp(value: string): string {
 export function parseReviewReport(text: string): ParsedReviewReport {
   const summaryLines: string[] = []
   const todoLines: string[] = []
+  const tableBlocks: string[][] = []
+  let tableBlock: string[] = []
   let section: 'summary' | 'todos' | undefined
+
+  const flushTable = (): void => {
+    if (tableBlock.length === 0) return
+    tableBlocks.push(tableBlock)
+    tableBlock = []
+  }
 
   for (const line of text.replace(/\r\n?/g, '\n').split('\n')) {
     const heading = /^##\s+(.+?)\s*$/u.exec(line)
     if (heading !== null) {
+      flushTable()
       const title = heading[1]?.trim() ?? ''
-      section = title === '摘要' ? 'summary' : title === '待改项' ? 'todos' : undefined
+      section = SUMMARY_HEADINGS.has(title) ? 'summary' : TODO_HEADINGS.has(title) ? 'todos' : undefined
       continue
     }
+    if (isTableRow(line)) {
+      if (section !== undefined) tableBlock.push(line)
+      continue
+    }
+    flushTable()
     if (section === 'summary') summaryLines.push(line)
     if (section === 'todos') todoLines.push(line)
   }
+  flushTable()
 
-  const todos = [...parseTodos(todoLines.join('\n'))]
-    .sort((left, right) => priorityRank(left.priority) - priorityRank(right.priority))
+  const todos = [
+    ...parseTodos(todoLines.join('\n')),
+    ...tableBlocks.flatMap(block => parseTableTodos(block)),
+  ].sort((left, right) => priorityRank(left.priority) - priorityRank(right.priority))
   return { summary: summaryLines.join('\n').trim(), todos }
 }

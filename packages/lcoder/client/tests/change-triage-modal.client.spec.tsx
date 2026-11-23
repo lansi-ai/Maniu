@@ -369,7 +369,8 @@ describe('需求页与详情页统一入口与三级通道路由', () => {
     await renderRow(CONFIRMED_REQ)
     expect(element('requirement-amend-count')?.textContent).toContain('2')
     expect(element('requirement-detail-change-triage')).not.toBeNull()
-    expect(element('requirement-global-actions')?.lastElementChild?.getAttribute('data-testid')).toBe('requirement-close')
+    expect(element('requirement-close')?.closest('[data-testid="requirement-actions"]')).not.toBeNull()
+    expect(element('requirement-actions')?.lastElementChild?.getAttribute('data-testid')).toBe('requirement-close')
     await press('requirement-detail-change-triage')
     expect(openTriage).toHaveBeenCalledTimes(1)
 

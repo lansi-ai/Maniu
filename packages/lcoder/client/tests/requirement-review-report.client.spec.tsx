@@ -315,7 +315,7 @@ describe('文档操作栏的确认与改稿', () => {
     expect(element('requirement-report-baseline-changed')).toBeNull()
   })
 
-  it('待处置评审送审即锁定：文档操作栏的修改需求禁用，改走报告里的采纳/放弃', async () => {
+  it('待处置评审送审即锁定：修改需求禁用，正文面黄条可一键回评审面', async () => {
     const calls = callsOf()
     await renderDetail(REVIEWED, calls)
     const revise = element('requirement-detail-revise') as HTMLButtonElement
@@ -326,9 +326,15 @@ describe('文档操作栏的确认与改稿', () => {
     expect(calls.modifyRequest).not.toHaveBeenCalled()
     expect(calls.revise).not.toHaveBeenCalled()
     expect(element('requirement-action-result')).toBeNull()
-    expect(element('requirement-review-pending-reason')?.textContent).toBe(
-      'R2 评审待处理：当前需求版本已锁定，请在下方表格逐条确认「采纳 / 拒绝 / 有疑问」后提交。',
+    // 评审面下方就是裁决栏，不重复顶部黄条；正文面才给带跳转入口的黄条。
+    expect(element('requirement-review-pending-reason')).toBeNull()
+    await pressSelector('[data-testid="requirement-workface-body"]')
+    expect(element('requirement-review-pending-reason')?.textContent).toContain(
+      'R2 评审待处理：当前需求版本已锁定',
     )
+    expect(element('requirement-goto-review')).not.toBeNull()
+    await press('requirement-goto-review')
+    expect(element('requirement-workface-review')?.getAttribute('data-active')).toBe('true')
   })
 })
 

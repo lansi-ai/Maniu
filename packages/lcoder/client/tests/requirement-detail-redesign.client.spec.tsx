@@ -343,9 +343,12 @@ describe('头部单行标题', () => {
     expect(element('requirement-detail-id')?.textContent).toBe('REQ-01')
     const titleRow = container.querySelector('.requirement-title-row') as HTMLElement
     expect(titleRow).not.toBeNull()
-    for (const id of ['requirement-detail-title', 'requirement-state-badge', 'requirement-detail-id', 'requirement-global-actions', 'requirement-close']) {
+    for (const id of ['requirement-detail-title', 'requirement-state-badge', 'requirement-detail-id', 'requirement-global-actions']) {
       expect(titleRow.contains(element(id))).toBe(true)
     }
+    // 关闭按钮收进文档操作栏末尾，不再与标题徽标同排。
+    expect(titleRow.contains(element('requirement-close'))).toBe(false)
+    expect(element('requirement-close')?.closest('[data-testid="requirement-actions"]')).not.toBeNull()
     const body = element('requirement-document-body')
     expect(body).not.toBeNull()
     expect(body?.className).toContain('markdown-body')
@@ -630,17 +633,13 @@ describe('评审三态驱动的主次操作', () => {
     }],
   }
 
-  it('最新一轮待处置时只保留醒目横幅，评审/改稿/确认都禁用并联动报告标签', async () => {
+  it('最新一轮待处置时禁用评审/改稿/确认，正文面给跳转黄条而评审面不重复', async () => {
     const calls = callsOf()
     await renderDetail(PENDING, calls)
     const review = element('requirement-detail-review') as HTMLButtonElement
     expect(review.disabled).toBe(true)
     expect(review.title).toContain('R1 评审尚未处理')
     expect(review.getAttribute('data-variant')).toBe('secondary')
-    const banner = element('requirement-review-pending-reason')
-    expect(banner?.textContent).toContain('R1 评审待处理')
-    expect(banner?.textContent).toContain('当前需求版本已锁定')
-    expect(banner?.className).toContain('detail-warning')
     // 待处置态不再叠加灰色的阶段提示与确认原因。
     expect(element('requirement-phase-hint')).toBeNull()
     expect(element('requirement-approve-hint')).toBeNull()
@@ -657,6 +656,20 @@ describe('评审三态驱动的主次操作', () => {
     expect(element('requirement-review-report')?.getAttribute('data-pending-report')).toBe('true')
     expect(element('requirement-document-body')).not.toBeNull()
     expect(element('requirement-timeline')).not.toBeNull()
+    // 评审面下方已有裁决栏，不再重复顶部黄条；正文面才显示带跳转入口的黄条。
+    expect(element('requirement-review-pending-reason')).toBeNull()
+    expect(element('requirement-goto-review')).toBeNull()
+    await openTab('[data-testid="requirement-workface-body"]')
+    const banner = element('requirement-review-pending-reason')
+    expect(banner?.textContent).toContain('R1 评审待处理')
+    expect(banner?.textContent).toContain('当前需求版本已锁定')
+    expect(banner?.className).toContain('detail-warning')
+    expect(element('requirement-goto-review')).not.toBeNull()
+    // 正文锁定期不渲染置灰的草稿操作栏，避免空白占位条。
+    expect(element('requirement-actions')?.hasAttribute('hidden')).toBe(true)
+    await press('requirement-goto-review')
+    expect(element('requirement-workface-review')?.getAttribute('data-active')).toBe('true')
+    expect(element('requirement-review-pending-reason')).toBeNull()
     await press('requirement-detail-review')
     expect(calls.review).not.toHaveBeenCalled()
   })
@@ -792,13 +805,14 @@ describe('文档栏四层顺序与专属操作栏', () => {
     expect(actions.compareDocumentPosition(docPane) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     const titleRow = element('requirement-detail-title')?.parentElement as HTMLElement
     expect(titleRow.className).toContain('requirement-title-row')
-    for (const id of ['requirement-detail-title', 'requirement-state-badge', 'requirement-detail-id', 'requirement-global-actions', 'requirement-close']) {
+    for (const id of ['requirement-detail-title', 'requirement-state-badge', 'requirement-detail-id', 'requirement-global-actions']) {
       expect(titleRow.contains(element(id))).toBe(true)
     }
+    expect(titleRow.contains(element('requirement-close'))).toBe(false)
     expect(element('requirement-global-actions')?.closest('.requirement-hero')).not.toBeNull()
-    expect(element('requirement-close')?.closest('.requirement-hero')).not.toBeNull()
-    // 关闭按钮排在全局动作行的最末，标题行内没有独立占行的动作区。
-    const ops = element('requirement-global-actions') as HTMLElement
+    // 关闭按钮从标题徽标旁移到文档操作栏末尾，锁定期不渲染。
+    expect(element('requirement-close')?.closest('[data-testid="requirement-actions"]')).not.toBeNull()
+    const ops = element('requirement-actions') as HTMLElement
     expect(ops.lastElementChild?.getAttribute('data-testid')).toBe('requirement-close')
     expect(element('requirement-actions')?.getAttribute('data-active-doc')).toBe('draft')
   })
@@ -916,5 +930,46 @@ describe('在途操作互斥锁定', () => {
     await renderLockedDetail(DRAFT, { runningOp: 'review', onModifyRequest })
     await press('requirement-detail-revise')
     expect(onModifyRequest).not.toHaveBeenCalled()
+  })
+})
+
+describe('表格格式评审报告的紧凑裁决表', () => {
+  /** 与 seed-sandbox.mjs 里 REQ-01 的 R1 报告同款，表格落在「评审结论」节。 */
+  const TABLE_REPORT = `# REQ-01 评审报告 R1
+
+## 评审结论
+整体流程清晰，建议补充以下 3 项细节后再定稿：
+
+| 编号 | 严重度 | 所在章节 | 问题说明 | 修改建议 |
+| --- | --- | --- | --- | --- |
+| 1 | 高 | 报销录入表单 | 未明确单笔报销金额上限及超限提示 | 补充单笔上限 5000 元校验，超限需拆单或备注审批说明 |
+| 2 | 中 | 报销录入表单 | 缺少凭证/发票附件字段说明 | 明确支持上传图片或 PDF 发票，或勾选「无票说明」 |
+| 3 | 低 | 近期报销记录列表 | 未定义空态展示文案 | 补充无记录时的空态引导文案与新建按钮 |
+`
+  const PENDING: RequirementDocRow = {
+    ...DRAFT,
+    versions: [{ n: 1, at: '2026-11-17T09:00:00+08:00' }],
+    reviews: [{ round: 1, at: '2026-11-17T10:30:00+08:00', report: 'requirements/REQ-01/reviews/R1.md', role: 'maniu-pm' }],
+  }
+
+  it('评审面渲染三行逐条裁决与优先级徽标，勾选后提交所选处理可点', async () => {
+    reportText = TABLE_REPORT
+    await renderDetail(PENDING, callsOf())
+    expect(element('requirement-workface-review')?.getAttribute('data-active')).toBe('true')
+    expect(element('requirement-review-summary-bar')?.textContent).toContain('整体流程清晰')
+    const rows = container.querySelectorAll('[data-testid="requirement-review-todo-row"]')
+    expect(rows).toHaveLength(3)
+    expect(rows[0]?.querySelector('.review-todo-priority')?.getAttribute('data-priority')).toBe('high')
+    expect(rows[1]?.querySelector('.review-todo-priority')?.getAttribute('data-priority')).toBe('medium')
+    expect(rows[2]?.querySelector('.review-todo-priority')?.getAttribute('data-priority')).toBe('low')
+    const verdicts = container.querySelectorAll('[data-testid="requirement-review-todo-verdict"]')
+    expect(verdicts).toHaveLength(9)
+    expect(Array.from(verdicts).slice(0, 3).map(node => node.getAttribute('data-verdict'))).toEqual(['accept', 'reject', 'question'])
+    const accept = element('requirement-review-accept') as HTMLButtonElement
+    expect(accept.textContent).toContain('提交所选处理')
+    expect(accept.disabled).toBe(false)
+    await openTab('[data-testid="requirement-review-todo-verdict"][data-index="1"][data-verdict="reject"]')
+    expect(accept.getAttribute('data-rejected')).toBe('1')
+    expect(accept.disabled).toBe(false)
   })
 })

@@ -804,19 +804,6 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                     {t('requirement.opRelease')}
                   </Button>
                 )}
-                {(state === 'draft' || state === 'confirmed' || state === 'released') && (
-                  <Button
-                    variant="danger-soft"
-                    size="sm"
-                    className="requirement-close"
-                    data-testid="requirement-close"
-                    isDisabled={locked}
-                    ref={(node) => { if (node !== null) node.title = lockedHint ?? t('requirement.opCloseTitle') }}
-                    onPress={() => { void execute('close', `/requirement_close ${row.id}`) }}
-                  >
-                    {t('requirement.opClose')}
-                  </Button>
-                )}
               </div>
             </div>
             {showGuide && (
@@ -825,8 +812,18 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
             {lockedHint !== undefined && (
               <p className="detail-note" data-testid="requirement-op-locked-hint">{lockedHint}</p>
             )}
-            {bannerVisible && (
-              <p className="detail-warning" data-testid="requirement-review-pending-reason">{reviewPendingReason}</p>
+            {bannerVisible && workface !== 'review' && (
+              <div className="detail-warning requirement-review-pending-banner" data-testid="requirement-review-pending-reason">
+                <span>{reviewPendingReason}</span>
+                <button
+                  type="button"
+                  className="link-button requirement-goto-review"
+                  data-testid="requirement-goto-review"
+                  onClick={() => { setWorkface('review') }}
+                >
+                  {t('requirement.gotoReview')}
+                </button>
+              </div>
             )}
             {proposalVisible && (
               <p className="detail-warning" data-testid="requirement-review-proposal-hint">{t('requirement.reviewPendingProposal')}</p>
@@ -908,6 +905,7 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
               data-testid="requirement-actions"
               data-active-doc={activeDoc}
               data-active-doc-kind={activeDocKind}
+              hidden={workface === 'body' && phase === 'pending' ? true : undefined}
               role="toolbar"
               aria-label={t('requirement.actionsLabel')}
             >
@@ -1045,6 +1043,19 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                   </div>
                 </div>
               )}
+              {phase !== 'pending' && (state === 'draft' || state === 'confirmed' || state === 'released') && (
+                <Button
+                  variant="danger-soft"
+                  size="sm"
+                  className="requirement-close"
+                  data-testid="requirement-close"
+                  isDisabled={locked}
+                  ref={(node) => { if (node !== null) node.title = lockedHint ?? t('requirement.opCloseTitle') }}
+                  onPress={() => { void execute('close', `/requirement_close ${row.id}`) }}
+                >
+                  {t('requirement.opClose')}
+                </Button>
+              )}
             </div>
             {/* 第四层：正文与评审按工作面各渲染一屏，其余节点留在 DOM 供既有查询。 */}
             <div className="requirement-doc-pane" data-testid="requirement-doc-pane" data-active-doc={activeDoc}>
@@ -1054,7 +1065,6 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                 data-doc-active={workface === 'body' ? 'true' : 'false'}
                 hidden={workface !== 'body'}
               >
-                <h4>{t('requirement.bodyTitle')}</h4>
                 <div className="markdown-body document-body" data-testid="requirement-document-body">
                   {row.text.trim() === ''
                     ? <p className="empty">{t('requirement.bodyEmpty')}</p>
