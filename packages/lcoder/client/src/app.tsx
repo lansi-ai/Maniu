@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import type { JSX } from 'react'
 import {
-  FileText, FolderGit2, Info, LayoutTemplate, MessageSquare, Settings, SquareKanban, Users,
+  FileText, FolderGit2, Frame, Info, LayoutTemplate, MessageSquare, Settings, SquareKanban, Users,
   type LucideIcon,
 } from 'lucide-react'
 import type { CloseRequest, EventOutcome, HostEvent, HostState, HostWaterfall, HostWaterfallCancel, PrototypeStudioDockState } from '@maniu/desktop/contract'
@@ -20,6 +20,7 @@ import { SettingsPage } from './pages/settings.tsx'
 import { TasksPage } from './pages/tasks.tsx'
 import { TalentsPage } from './pages/talents.tsx'
 import { PrototypeLibraryPage } from './pages/prototype-library.tsx'
+import { PrototypePage } from './pages/prototype-page.tsx'
 import { ChatView } from './shell/chat-view.tsx'
 import { visibleSessionsOf } from './shell/session-groups.ts'
 import { PendingLayer, type AnswerResult } from './shell/pending-notification.tsx'
@@ -47,7 +48,7 @@ import { INTAKE_CONFIRM_PROMPT } from './intake/prompts.ts'
 import { titleIntakeSession } from './intake/session-title.ts'
 
 /** 工作台页面。 */
-type PageId = 'chat' | 'requirements' | 'tasks' | 'projects' | 'project-info' | 'talents' | 'prototype-library' | 'settings' | 'account'
+type PageId = 'chat' | 'requirements' | 'prototype' | 'tasks' | 'projects' | 'project-info' | 'talents' | 'prototype-library' | 'settings' | 'account'
 
 /** 新会话默认使用的角色；工作台作用域会话靠它拿到人机命令面。 */
 const WORKBENCH_PRESET = 'maniu-workbench'
@@ -62,6 +63,7 @@ interface NavItem {
 const NAV_TOP: readonly NavItem[] = [
   { id: 'chat', key: 'nav.chat', icon: MessageSquare },
   { id: 'requirements', key: 'nav.requirements', icon: FileText },
+  { id: 'prototype', key: 'nav.prototype', icon: Frame },
   { id: 'tasks', key: 'nav.tasks', icon: SquareKanban },
 ]
 
@@ -134,6 +136,8 @@ export function App(): JSX.Element {
   const [sending, setSending] = useState(false)
   const [page, setPage] = useState<PageId>('chat')
   const [returnPage, setReturnPage] = useState<PageId>('chat')
+  /** 原型页从需求详情带来的上下文；进导航的「原型」时清空，回到项目级视图。 */
+  const [prototypeContext, setPrototypeContext] = useState<string | null>(null)
   const [project, setProject] = useState<ProjectScope | null>(savedProject)
   const [intakeResult, setIntakeResult] = useState<IntakeResult | null>(null)
   // 立项结果属于发起它的项目；切项目即清除，避免新仓向导显示别仓旧结果。
@@ -650,6 +654,11 @@ export function App(): JSX.Element {
     () => visibleSessionsOf(sessions, project, workspaces.items, active),
     [active, project, sessions, workspaces.items],
   )
+  // 原型页的工作室需要一个需求上下文；投影按编号升序，这里翻成新到旧。
+  const requirementIds = useMemo(
+    () => projection.projection.requirements.map(row => row.id).reverse(),
+    [projection.projection.requirements],
+  )
 
   const gateKind: 'booting' | 'cloud-error' | 'signed-out' | 'ready' =
     host.kind !== 'ready'
@@ -675,7 +684,10 @@ export function App(): JSX.Element {
         data-testid={`nav-${item.id}`}
         className={selected ? 'nav-item active' : 'nav-item'}
         aria-current={selected ? 'page' : undefined}
-        onClick={() => { setPage(item.id) }}
+        onClick={() => {
+          if (item.id === 'prototype') setPrototypeContext(null)
+          setPage(item.id)
+        }}
       >
         <Icon className="nav-icon" aria-hidden="true" />
         <span className="nav-label">{item.label}</span>
@@ -796,9 +808,23 @@ export function App(): JSX.Element {
                     setPage('tasks')
                   }}
                   onOpenPrototypeLibrary={() => { setPage('prototype-library') }}
+                  onOpenPrototype={(requirementId) => {
+                    setPrototypeContext(requirementId)
+                    setPage('prototype')
+                  }}
                   t={t}
                 />
               </div>
+
+              {page === 'prototype' && (
+                <PrototypePage
+                  t={t}
+                  scopeSessionId={project?.scopeSessionId ?? null}
+                  requirementIds={requirementIds}
+                  initialRequirementId={prototypeContext ?? undefined}
+                  onOpenRequirements={() => { setPage('requirements') }}
+                />
+              )}
 
               {page === 'tasks' && (
                 <TasksPage

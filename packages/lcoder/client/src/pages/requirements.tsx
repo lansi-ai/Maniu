@@ -196,6 +196,8 @@ export interface RequirementsPageProps {
   readonly onOpenTasks: (requirementId: string) => void
   /** 跳到原型库页面预览或管理组件素材库。 */
   readonly onOpenPrototypeLibrary?: (() => void) | undefined
+  /** 跳到原型页查看项目活原型；参数是当前需求上下文。 */
+  readonly onOpenPrototype?: ((requirementId: string) => void) | undefined
   /** preset 名册显示名；浮卡子标题取它，读不到回退词典。 */
   readonly presetNames?: Readonly<Record<string, string>>
   /** 当前是否有等待人工回答或审批的交互；交互期间暂停浮卡超时倒计时。 */
@@ -1552,6 +1554,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
                   onChangeTriage={() => { openChangeTriage(active.id) }}
                   onGeneratePrototype={prompt => generatePrototype(active, prompt)}
                   onOpenPrototypeLibrary={props.onOpenPrototypeLibrary}
+                  onOpenPrototype={props.onOpenPrototype}
                   t={t}
                 />
               </div>

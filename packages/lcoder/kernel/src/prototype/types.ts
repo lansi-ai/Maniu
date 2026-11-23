@@ -56,6 +56,7 @@ export interface PrototypeRequirementDiff {
  * 一次尚未落盘的原型打磨：只写 `staged.json`，不碰正式版 `index.html` 与需求正文。
  */
 export interface StagedPrototype {
+  /** 作用域标识：需求编号（`REQ-01`）或项目级统一活原型的 `__project__`。 */
   readonly requirementId: string
   readonly html: string
   readonly changeKind: PrototypeChangeKind
@@ -98,10 +99,11 @@ export interface PrototypeRestoreSnapshotValue {
   readonly html: string
 }
 
-/** `getStaged` / `discardStaged` / `listSnapshots` 的输入。 */
+/** 暂存/快照 Remote 的输入；`requirementId` 缺省时作用于项目级统一活原型。 */
 export interface PrototypeScopeInput {
   readonly sessionId: SessionId
-  readonly requirementId: string
+  /** 需求编号；缺省或空白表示项目级统一活原型。 */
+  readonly requirementId?: string | undefined
 }
 
 /** `commitStaged` 的输入；`applyRequirementDiff` 为真才允许改需求正文。 */
@@ -128,9 +130,12 @@ export const PrototypeRequirementDiffSchema = z.object({
   summary: z.string().min(1),
 }).strict()
 
+/** 原型作用域标识的 wire 校验：需求编号，或项目级统一活原型的固定目录名。 */
+const PROTOTYPE_SCOPE_ID = /^(?:REQ-\d{2,}|__project__)$/
+
 /** 暂存原型的 wire 校验；摘要必须 1–4 条。 */
 export const StagedPrototypeSchema = z.object({
-  requirementId: z.string().regex(/^REQ-\d{2,}$/),
+  requirementId: z.string().regex(PROTOTYPE_SCOPE_ID),
   html: z.string(),
   changeKind: z.enum(['visual', 'business']),
   summary: z.array(z.string().min(1)).min(1).max(4),
@@ -146,10 +151,10 @@ export const PrototypeSnapshotMetaSchema = z.object({
   bytes: z.number().int().min(0),
 }).strict()
 
-/** `getStaged` 的 wire 输入校验。 */
+/** `getStaged` / `discardStaged` / `listSnapshots` 的 wire 输入校验；缺省需求编号表示项目级。 */
 export const PrototypeScopeInputSchema = z.object({
   sessionId: z.string().min(1),
-  requirementId: z.string().regex(/^REQ-\d{2,}$/),
+  requirementId: z.string().regex(/^REQ-\d{2,}$/).optional(),
 }).strict()
 
 /** `commitStaged` 的 wire 输入校验。 */

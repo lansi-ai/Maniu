@@ -9,8 +9,10 @@ import type { ChangeEvent, JSX } from 'react'
 import { Button, Separator } from '@heroui/react'
 
 import type { LcoderApi, PrototypeSelectionInfo } from '../contract.ts'
-import type { PrototypeStyleSummary, UnaryCall } from '../prototype/remote.ts'
-import { adoptPrototype, clearPrototype, prefetchStyle, readPrototypeHtml, uploadPrototypeRef } from '../prototype/remote.ts'
+import type { PrototypeStagedView, PrototypeStyleSummary, UnaryCall } from '../prototype/remote.ts'
+import {
+  adoptPrototype, clearPrototype, getStagedPrototype, prefetchStyle, readPrototypeHtml, uploadPrototypeRef,
+} from '../prototype/remote.ts'
 import { buildPrototypePrompt, PROTOTYPE_SECTIONS } from '../prototype/prompt.ts'
 import type { PrototypeRefView, PrototypeSection } from '../prototype/prompt.ts'
 import { resolveLibraryCopy, resolvePrototypeLibrary, usePrototypeLibraryState } from '../prototype/libraries.ts'
@@ -38,6 +40,8 @@ export interface PrototypePanelProps {
   ) => Promise<{ readonly ok: boolean; readonly message: string }>
   readonly onReload: () => void
   readonly onManageLibraries?: (() => void) | undefined
+  /** 跳到原型页查看项目活原型；缺省时不显示入口。 */
+  readonly onOpenProjectPrototype?: (() => void) | undefined
   readonly call?: UnaryCall | undefined
   readonly t?: Translate | undefined
 }
@@ -62,6 +66,8 @@ export function PrototypePanel(props: PrototypePanelProps): JSX.Element {
   const [confirmClear, setConfirmClear] = useState(false)
   const [html, setHtml] = useState<string | undefined>(undefined)
   const [previewError, setPreviewError] = useState<string | undefined>(undefined)
+  /** 项目级统一活原型：需求详情展示同一份活原型，工作室仍带当前 REQ-xx 上下文。 */
+  const [projectView, setProjectView] = useState<PrototypeStagedView | null>(null)
   const [generatingSection, setGeneratingSection] = useState<PrototypeSection | undefined>(undefined)
   const [lastRedone, setLastRedone] = useState<PrototypeSection | undefined>(undefined)
   const [selection, setSelection] = useState<PrototypeSelectionInfo | undefined>(undefined)
@@ -97,6 +103,12 @@ export function PrototypePanel(props: PrototypePanelProps): JSX.Element {
   const defaultCall: UnaryCall = (namespace, method, args) => window.lcoder.call(namespace, method, args)
   const invoke = call ?? defaultCall
 
+  /** 面板首屏优先展示项目级统一活原型；项目级没有原型时回退到需求自己的正式版。 */
+  const projectHtml = projectView === null ? undefined : projectView.staged?.html ?? projectView.committedHtml ?? undefined
+  const previewHtml = projectHtml ?? html
+  /** 需求有登记但 HTML 还没读回来：画加载态，不误报「还没有原型」。 */
+  const previewPending = previewHtml === undefined && registration !== undefined
+
   // 生成完成、清除或切换需求后，配置折叠态回到与新原型登记匹配的位置。
   useEffect(() => {
     setConfigOpen(registration === undefined)
@@ -119,14 +131,23 @@ export function PrototypePanel(props: PrototypePanelProps): JSX.Element {
     return () => { disposed = true }
   }, [registration?.path, registration?.generatedAt, props.scopeSessionId])
 
-  // 元素级修改后 html 变化：若已开过独立窗口，复用它刷新，不堆积多个窗口。
+  // 项目级活原型与需求登记分开读：项目级读不到时保留需求自己的预览，不把面板画空。
   useEffect(() => {
-    if (lastOpenedHtml.current === undefined || html === undefined || html === lastOpenedHtml.current) return
-    lastOpenedHtml.current = html
-    void Promise.resolve(lcoderBridge()?.openPrototypePreview?.(html)).catch((cause: unknown) => {
+    let disposed = false
+    void getStagedPrototype(props.scopeSessionId, undefined, invoke)
+      .then((view) => { if (!disposed) setProjectView(view) })
+      .catch(() => { if (!disposed) setProjectView(null) })
+    return () => { disposed = true }
+  }, [props.scopeSessionId, props.row.id, registration?.path, registration?.generatedAt])
+
+  // 预览内容变化（元素级修改或项目活原型更新）：若已开过独立窗口，复用它刷新，不堆积多个窗口。
+  useEffect(() => {
+    if (lastOpenedHtml.current === undefined || previewHtml === undefined || previewHtml === lastOpenedHtml.current) return
+    lastOpenedHtml.current = previewHtml
+    void Promise.resolve(lcoderBridge()?.openPrototypePreview?.(previewHtml)).catch((cause: unknown) => {
       setPreviewError(cause instanceof Error ? cause.message : String(cause))
     })
-  }, [html])
+  }, [previewHtml])
 
   // 独立预览窗口的点选上报：只接元素信息，不反向给原型任何宿主数据。
   useEffect(() => {
@@ -215,25 +236,25 @@ export function PrototypePanel(props: PrototypePanelProps): JSX.Element {
   }
 
   const doOpenWindow = async (): Promise<void> => {
-    if (html === undefined) return
+    if (previewHtml === undefined) return
     setPreviewError(undefined)
-    lastOpenedHtml.current = html
+    lastOpenedHtml.current = previewHtml
     try {
-      await lcoderBridge()?.openPrototypePreview?.(html)
+      await lcoderBridge()?.openPrototypePreview?.(previewHtml)
     } catch (cause: unknown) {
       setPreviewError(cause instanceof Error ? cause.message : String(cause))
     }
   }
 
   const doOpenStudio = async (): Promise<void> => {
-    if (html === undefined) return
+    if (previewHtml === undefined) return
     setPreviewError(undefined)
     try {
       await studioBridge()?.openPrototypeStudio?.({
         requirementId: props.row.id,
         sessionId: props.scopeSessionId,
-        html,
-        beforeHtml: html,
+        html: previewHtml,
+        beforeHtml: previewHtml,
         mode: 'split',
       })
     } catch (cause: unknown) {
@@ -315,32 +336,37 @@ export function PrototypePanel(props: PrototypePanelProps): JSX.Element {
       {/* 预览与产出信息置顶：已有原型时首屏直接看到预览、独立窗和采纳清除生成。 */}
       <div className="prototype-preview" data-testid="prototype-preview">
         <h5>{t('prototype.previewTitle')}</h5>
-        {registration === undefined
-          ? <p className="empty" data-testid="prototype-preview-empty">{t('prototype.previewEmpty')}</p>
+        {previewHtml === undefined
+          ? previewPending
+            ? <p className="empty" data-testid="prototype-preview-loading">{t('prototype.previewLoading')}</p>
+            : <p className="empty" data-testid="prototype-preview-empty">{t('prototype.previewEmpty')}</p>
           : (
             <>
-              <p className="detail-note" data-testid="prototype-generated-at">{t('prototype.generatedAt', { at: formatTimestamp(registration.generatedAt) })}</p>
+              {registration !== undefined && (
+                <p className="detail-note" data-testid="prototype-generated-at">{t('prototype.generatedAt', { at: formatTimestamp(registration.generatedAt) })}</p>
+              )}
               <div className="prototype-window-actions">
-                <Button size="sm" variant="secondary" data-testid="prototype-open-window" isDisabled={html === undefined} onPress={() => { void doOpenWindow() }}>
+                <Button size="sm" variant="secondary" data-testid="prototype-open-window" onPress={() => { void doOpenWindow() }}>
                   {t('prototype.openWindow')}
                 </Button>
-                <Button size="sm" variant="primary" data-testid="prototype-open-studio" isDisabled={html === undefined} onPress={() => { void doOpenStudio() }}>
+                <Button size="sm" variant="primary" data-testid="prototype-open-studio" onPress={() => { void doOpenStudio() }}>
                   {t('prototype.openStudio')}
                 </Button>
+                {props.onOpenProjectPrototype !== undefined && (
+                  <Button size="sm" variant="ghost" data-testid="prototype-open-project" onPress={() => { props.onOpenProjectPrototype?.() }}>
+                    {t('prototype.openProjectPrototype')}
+                  </Button>
+                )}
                 <span className="detail-note" data-testid="prototype-window-note">{t('prototype.windowNote')}</span>
               </div>
               {previewError !== undefined && <p className="problem" data-testid="prototype-preview-error">{previewError}</p>}
-              {html === undefined
-                ? <p className="empty" data-testid="prototype-preview-loading">{t('prototype.previewLoading')}</p>
-                : (
-                  <iframe
-                    title={t('prototype.previewTitle')}
-                    className="prototype-frame"
-                    data-testid="prototype-iframe"
-                    sandbox=""
-                    srcDoc={html}
-                  />
-                )}
+              <iframe
+                title={t('prototype.previewTitle')}
+                className="prototype-frame"
+                data-testid="prototype-iframe"
+                sandbox=""
+                srcDoc={previewHtml}
+              />
               <p className="detail-note" data-testid="prototype-preview-note">{t('prototype.previewNote')}</p>
             </>
           )}

@@ -2,8 +2,10 @@
  * 原型产物工具：`prototype_draft` 是模型把完整单文件 HTML 落盘的唯一入口。
  *
  * 它只写 `.spec/prototypes/<需求编号>/index.html`，并把路径、生成时刻与参考
- * 信息登记进该需求 YAML 的可选 `prototype` 字段。HTML 不执行、不注入：这里
- * 只把它当字节写盘，预览由客户端在隔离 iframe 里只读渲染。
+ * 信息登记进该需求 YAML 的可选 `prototype` 字段。`prototype_stage` 另有项目级
+ * 作用域：不传需求编号时暂存到 `.spec/prototypes/__project__/`，服务项目级统一
+ * 活原型。HTML 不执行、不注入：这里只把它当字节写盘，预览由客户端在隔离 iframe
+ * 里只读渲染。
  */
 import { Buffer } from 'node:buffer'
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
@@ -12,10 +14,10 @@ import { dirname } from 'node:path'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 
-import { assertRequirementId, loadRequirement, readRequirementDocument, saveRequirement } from '../kernel/requirement-store.js'
+import { assertRequirementId, listRequirementIds, loadRequirement, readRequirementDocument, saveRequirement } from '../kernel/requirement-store.js'
 import { hasSpecRoot, resolveRoot } from '../kernel/spec-root.js'
 import type { RootInput } from '../kernel/spec-root.js'
-import { assertPrototypeRelativePath, MAX_HTML_BYTES, prototypePath } from '../prototype/paths.js'
+import { assertPrototypeRelativePath, isProjectScopeDir, MAX_HTML_BYTES, prototypePath, prototypeScopeDir } from '../prototype/paths.js'
 import { describeFailures, validatePrototypeHtml } from '../prototype/quality.js'
 import { readPrototypeHtml, readStagedPrototype, writeStagedPrototype } from '../prototype/store.js'
 import type { StagedPrototype } from '../prototype/types.js'
@@ -345,15 +347,27 @@ function applyStagePatches(html: string, patches: readonly StagePatch[]): string
 /**
  * 取局部修改的基准 HTML：优先当前暂存版，其次正式版；都没有就要求先传完整 html。
  * @param root - 规格根。
- * @param id - 需求编号。
+ * @param scopeDir - 作用域目录名；需求编号或项目级目录。
  * @returns 基准 HTML。
  */
-function stageBaseHtml(root: string, id: string): string {
-  const stagedBase = readStagedPrototype(root, id)
+function stageBaseHtml(root: string, scopeDir: string): string {
+  const stagedBase = readStagedPrototype(root, scopeDir)
   if (stagedBase !== null && stagedBase.html.trim() !== '') return stagedBase.html
-  const committed = readPrototypeHtml(root, id)
+  const committed = readPrototypeHtml(root, scopeDir)
   if (committed !== undefined && committed.trim() !== '') return committed
-  throw new Error('prototype_stage：这条需求还没有原型可供局部修改；先传完整 html 生成首版')
+  throw new Error('prototype_stage：当前作用域还没有原型可供局部修改；先传完整 html 生成首版')
+}
+
+/**
+ * 取质量门禁用的需求正文：需求级作用域用它自己的正文，项目级作用域用最近一条需求的正文。
+ * @param root - 规格根。
+ * @param scopeDir - 作用域目录名；需求编号或项目级目录。
+ * @returns 需求正文；没有需求时为空串（关键词命中率按满分处理）。
+ */
+function prototypeScopeText(root: string, scopeDir: string): string {
+  if (!isProjectScopeDir(scopeDir)) return readRequirementDocument(root, scopeDir) ?? ''
+  const latest = listRequirementIds(root).at(-1)
+  return latest === undefined ? '' : readRequirementDocument(root, latest) ?? ''
 }
 
 /**
@@ -551,9 +565,9 @@ export function createPrototypeTools(rootInput: RootInput): ToolDefinition[] {
     defineTool({
       name: 'prototype_stage',
       description:
-        '把一次交互/多轮打磨的原型改动暂存为 staged.json，不覆盖正式版 index.html、不改需求正文。requirementId 是已存在的需求编号，html 是完整单文件 HTML（非空、≤512KB、无外链脚本）；局部修改优先用 patches，按 domPath 对当前基准（暂存版优先，其次正式版）做 remove/replace/style，不必重吐整份 HTML，只有大范围跨区块改版才传完整 html。changeKind 区分 visual（只动表现）与 business（涉及业务口径），summary 是 1 到 4 条人话摘要，changedDomPaths 是本次涉及的元素路径（patch 的 domPath 会自动并入）。requirementProposedContent 可选，给出拟定的需求正文全文；正文基线由宿主读盘取得，不采信模型传入的旧正文。先过质量门禁，失败不动任何文件；确认后由宿主受控提交落盘。',
+        '把一次交互/多轮打磨的原型改动暂存为 staged.json，不覆盖正式版 index.html、不改需求正文。requirementId 可选：不传时把改动暂存为项目级统一活原型（.spec/prototypes/__project__/），传时暂存到该需求自己的原型。html 是完整单文件 HTML（非空、≤512KB、无外链脚本）；局部修改优先用 patches，按 domPath 对当前基准（暂存版优先，其次正式版）做 remove/replace/style，不必重吐整份 HTML，只有大范围跨区块改版才传完整 html。changeKind 区分 visual（只动表现）与 business（涉及业务口径），summary 是 1 到 4 条人话摘要，changedDomPaths 是本次涉及的元素路径（patch 的 domPath 会自动并入）。requirementProposedContent 可选，给出拟定的需求正文全文；正文基线由宿主读盘取得，不采信模型传入的旧正文，项目级暂存不改任何需求正文。先过质量门禁，失败不动任何文件；确认后由宿主受控提交落盘。',
       parameters: {
-        requirementId: { type: 'string', required: true, description: '已存在的需求编号，如 REQ-01' },
+        requirementId: { type: 'string', description: '需求编号，如 REQ-01；可选，不传表示项目级统一活原型' },
         html: { type: 'string', description: '大范围改版时的完整单文件 HTML，内联 CSS、无脚本外链；与 patches 至少给一个，≤512KB' },
         patches: {
           type: 'array',
@@ -582,8 +596,10 @@ export function createPrototypeTools(rootInput: RootInput): ToolDefinition[] {
           throw new Error('这个仓库还没有 .spec 规格库；先起草一条需求，原型才有暂存落点')
         }
 
-        const id = assertRequirementId(args.requirementId.trim())
-        loadRequirement(root, id)
+        const rawId = typeof args.requirementId === 'string' ? args.requirementId.trim() : ''
+        const id = rawId === '' ? undefined : assertRequirementId(rawId)
+        const scopeDir = prototypeScopeDir(id)
+        if (id !== undefined) loadRequirement(root, id)
         const rawHtml = typeof args.html === 'string' ? args.html : ''
         const patches = stagePatchesOf(args.patches)
         const hasHtml = rawHtml.trim() !== ''
@@ -606,16 +622,17 @@ export function createPrototypeTools(rootInput: RootInput): ToolDefinition[] {
         // patch 的目标元素都属于本轮改动：与显式路径合并去重，界面的改动范围才完整。
         const changedDomPaths: string[] = [...new Set([...patches.map(patch => patch.domPath), ...explicitPaths])]
 
-        const base = hasHtml ? rawHtml : stageBaseHtml(root, id)
+        const base = hasHtml ? rawHtml : stageBaseHtml(root, scopeDir)
         const html = assertHtml(patches.length === 0 ? base : applyStagePatches(base, patches), 'prototype_stage')
 
         // 正文基线只认磁盘当前值：模型既不能指定旧正文，也不能借暂存改写已确认需求。
-        const baseContent = readRequirementDocument(root, id) ?? ''
+        const baseContent = prototypeScopeText(root, scopeDir)
         const quality = validatePrototypeHtml(html, baseContent)
         if (!quality.ok) {
           return {
             ok: false,
-            requirement_id: id,
+            ...(id === undefined ? {} : { requirement_id: id }),
+            scope: id === undefined ? 'project' : 'requirement',
             failed: quality.failed.map(issue => ({ code: issue.code, message: issue.message })),
             retry: '按 failed 里的失败项修正 HTML 或 patches 后重试 1 到 2 次；本次没有写入任何文件。',
             reason: describeFailures(quality),
@@ -623,11 +640,12 @@ export function createPrototypeTools(rootInput: RootInput): ToolDefinition[] {
         }
 
         const rawProposed = args.requirementProposedContent
-        const proposed: string | undefined = typeof rawProposed === 'string' && rawProposed.trim() !== ''
-          ? rawProposed
-          : undefined
+        // 项目级暂存不关联任何需求，正文提案无处可落，直接丢弃而不是留成假提案。
+        const proposed: string | undefined = id === undefined || typeof rawProposed !== 'string' || rawProposed.trim() === ''
+          ? undefined
+          : rawProposed
         const staged: StagedPrototype = {
-          requirementId: id,
+          requirementId: scopeDir,
           html,
           changeKind,
           summary,
@@ -643,16 +661,17 @@ export function createPrototypeTools(rootInput: RootInput): ToolDefinition[] {
             }),
           createdAt: new Date().toISOString(),
         }
-        writeStagedPrototype(root, id, staged)
+        writeStagedPrototype(root, scopeDir, staged)
         return {
           ok: true,
-          requirement_id: id,
+          ...(id === undefined ? {} : { requirement_id: id }),
+          scope: id === undefined ? 'project' : 'requirement',
           change_kind: changeKind,
           summary,
           changed_dom_paths: changedDomPaths,
           patch_count: patches.length,
           created_at: staged.createdAt,
-          staged_path: `.spec/prototypes/${id}/staged.json`,
+          staged_path: `.spec/prototypes/${scopeDir}/staged.json`,
           ...(proposed === undefined
             ? {}
             : { requirement_diff: { baseLength: baseContent.length, proposedLength: proposed.length } }),

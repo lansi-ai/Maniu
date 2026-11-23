@@ -54,6 +54,7 @@ export interface PrototypeRequirementDiff {
 
 /** 一条尚未落盘的原型打磨：只写 staged.json，不碰正式版与需求正文。 */
 export interface StagedPrototype {
+  /** 作用域标识：需求编号（`REQ-01`）或项目级统一活原型的 `__project__`。 */
   readonly requirementId: string
   readonly html: string
   readonly changeKind: PrototypeChangeKind
@@ -80,7 +81,8 @@ export interface PrototypeStagedView {
 /** `prototype/commitStaged` 的输入；`applyRequirementDiff` 为真才允许改需求正文。 */
 export interface PrototypeCommitStagedInput {
   readonly sessionId: string
-  readonly requirementId: string
+  /** 需求编号；缺省表示项目级统一活原型。 */
+  readonly requirementId?: string | undefined
   readonly applyRequirementDiff?: boolean
   readonly requirementAmendMode?: 'patch' | 'amend'
 }
@@ -293,18 +295,30 @@ function snapshotOf(value: unknown): PrototypeSnapshotMeta | undefined {
 }
 
 /**
- * 读一条需求的暂存原型与当前正式版 HTML。
+ * 组装暂存/快照 Remote 的作用域输入：需求编号缺省或空白时按项目级统一活原型处理，
+ * 不把空串发给只接受需求编号形态的 wire 校验。
  * @param sessionId - 作用域会话号。
- * @param requirementId - 需求编号。
+ * @param requirementId - 需求编号；`undefined` 或空白表示项目级。
+ * @returns wire 上的 input 字段。
+ */
+function scopeInput(sessionId: string, requirementId: string | undefined): { sessionId: string; requirementId?: string } {
+  const id = requirementId?.trim() ?? ''
+  return id === '' ? { sessionId } : { sessionId, requirementId: id }
+}
+
+/**
+ * 读暂存原型与当前正式版 HTML；需求编号缺省时读项目级统一活原型。
+ * @param sessionId - 作用域会话号。
+ * @param requirementId - 需求编号；`undefined` 表示项目级。
  * @param call - 一元调用；默认走 preload。
  * @returns 暂存视图；没有暂存或没有正式版时对应字段为 null。
  */
 export async function getStagedPrototype(
   sessionId: string,
-  requirementId: string,
+  requirementId: string | undefined,
   call: UnaryCall = (namespace, method, args) => window.lcoder.call(namespace, method, args),
 ): Promise<PrototypeStagedView> {
-  const answer = await call('prototype', 'getStaged', { input: { sessionId, requirementId } })
+  const answer = await call('prototype', 'getStaged', { input: scopeInput(sessionId, requirementId) })
   const value = unwrap(answer, '暂存视图回执缺少字段')
   return {
     staged: stagedOf(value.staged),
@@ -337,52 +351,52 @@ export async function commitStagedPrototype(
 }
 
 /**
- * 丢弃一条需求的暂存原型；正式版与需求正文不受影响。
+ * 丢弃暂存原型；正式版与需求正文不受影响。
  * @param sessionId - 作用域会话号。
- * @param requirementId - 需求编号。
+ * @param requirementId - 需求编号；`undefined` 表示项目级。
  * @param call - 一元调用；默认走 preload。
  */
 export async function discardStagedPrototype(
   sessionId: string,
-  requirementId: string,
+  requirementId: string | undefined,
   call: UnaryCall = (namespace, method, args) => window.lcoder.call(namespace, method, args),
 ): Promise<void> {
-  const answer = await call('prototype', 'discardStaged', { input: { sessionId, requirementId } })
+  const answer = await call('prototype', 'discardStaged', { input: scopeInput(sessionId, requirementId) })
   unwrap(answer, '放弃回执缺少字段')
 }
 
 /**
- * 列出一条需求的历史快照，按时间倒序、最多 10 条。
+ * 列历史快照，按时间倒序、最多 10 条；需求编号缺省时列项目级作用域。
  * @param sessionId - 作用域会话号。
- * @param requirementId - 需求编号。
+ * @param requirementId - 需求编号；`undefined` 表示项目级。
  * @param call - 一元调用；默认走 preload。
  * @returns 快照元数据列表。
  */
 export async function listPrototypeSnapshots(
   sessionId: string,
-  requirementId: string,
+  requirementId: string | undefined,
   call: UnaryCall = (namespace, method, args) => window.lcoder.call(namespace, method, args),
 ): Promise<readonly PrototypeSnapshotMeta[]> {
-  const answer = await call('prototype', 'listSnapshots', { input: { sessionId, requirementId } })
+  const answer = await call('prototype', 'listSnapshots', { input: scopeInput(sessionId, requirementId) })
   const value = unwrap(answer, '快照列表回执缺少字段')
   return Array.isArray(value.snapshots) ? value.snapshots.flatMap(entry => snapshotOf(entry) ?? []) : []
 }
 
 /**
- * 恢复一份历史快照：当前正式版先归档，再把快照写回并刷新 YAML 登记。
+ * 恢复一份历史快照：当前正式版先归档，再把快照写回；需求级作用域同时刷新 YAML 登记。
  * @param sessionId - 作用域会话号。
- * @param requirementId - 需求编号。
+ * @param requirementId - 需求编号；`undefined` 表示项目级。
  * @param snapshotId - 快照编号。
  * @param call - 一元调用；默认走 preload。
  * @returns 恢复时刻与恢复后的 HTML。
  */
 export async function restorePrototypeSnapshot(
   sessionId: string,
-  requirementId: string,
+  requirementId: string | undefined,
   snapshotId: string,
   call: UnaryCall = (namespace, method, args) => window.lcoder.call(namespace, method, args),
 ): Promise<PrototypeRestoreSnapshotValue> {
-  const answer = await call('prototype', 'restoreSnapshot', { input: { sessionId, requirementId, snapshotId } })
+  const answer = await call('prototype', 'restoreSnapshot', { input: { ...scopeInput(sessionId, requirementId), snapshotId } })
   const value = unwrap(answer, '恢复回执缺少字段')
   const restoredAt = text(value.restoredAt)
   const html = text(value.html)
