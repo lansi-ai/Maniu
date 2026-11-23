@@ -28,7 +28,7 @@ import type { BuiltinRoleId } from '../schema/roles.js'
  * 签署是人机命令（`ctx.commands`，不经过模型回合），见 docs/cookbook/adding-a-tool.md。
  */
 export const SURFACE: Readonly<Record<TaskState, readonly string[]>> = {
-  drafting: ['file_read', 'file_list', 'project_draft', 'spec_query', 'spec_draft', 'spec_bind', 'task_read', 'task_draft', 'contract_draft', 'proposal_draft', 'requirement_draft', 'requirement_revise', 'requirement_propose', 'requirement_patch_propose', 'requirement_amend', 'requirement_review_draft', 'requirement_split_plan', 'prototype_draft', 'prototype_patch', 'git_status', 'git_diff', 'role_draft'],
+  drafting: ['file_read', 'file_list', 'project_draft', 'spec_query', 'spec_draft', 'spec_bind', 'task_read', 'task_draft', 'contract_draft', 'proposal_draft', 'requirement_draft', 'requirement_revise', 'requirement_propose', 'requirement_patch_propose', 'requirement_amend', 'requirement_review_draft', 'requirement_split_plan', 'prototype_draft', 'prototype_patch', 'prototype_stage', 'git_status', 'git_diff', 'role_draft'],
   contracted: [
     'file_read',
     'file_list',
@@ -56,6 +56,7 @@ export const SURFACE: Readonly<Record<TaskState, readonly string[]>> = {
     'deliverable_draft',
     'prototype_draft',
     'prototype_patch',
+    'prototype_stage',
     'role_draft',
   ],
   implementing: [
@@ -85,6 +86,7 @@ export const SURFACE: Readonly<Record<TaskState, readonly string[]>> = {
     'deliverable_draft',
     'prototype_draft',
     'prototype_patch',
+    'prototype_stage',
     'role_draft',
   ],
   verifying: [
@@ -114,6 +116,7 @@ export const SURFACE: Readonly<Record<TaskState, readonly string[]>> = {
     'deliverable_draft',
     'prototype_draft',
     'prototype_patch',
+    'prototype_stage',
     'task_close',
     'role_draft',
   ],
@@ -157,6 +160,7 @@ export const UNSCOPEED_SURFACE: readonly string[] = [
   'requirement_split_plan',
   'prototype_draft',
   'prototype_patch',
+  'prototype_stage',
   'git_status',
   'git_diff',
 ]
@@ -179,7 +183,7 @@ export const ROLES: readonly RoleId[] = BUILTIN_ROLES
  * `contract_sign` 不在任何一行里，它是人机命令（见文件头那条注意）。
  * `dev` 这一行必须等于 `allToolNames()` 去掉只对特定角色开放的 `role_draft`、`requirement_draft`、
  * `requirement_revise`、`requirement_propose`、`requirement_patch_propose`、`requirement_amend`、`requirement_review_draft`
- * `requirement_split_plan` 与 `prototype_draft`、`prototype_patch`，否则新增工具会静默地对实施角色隐身，`surface.spec.ts` 用一条断言钉住这个等式。
+ * `requirement_split_plan`、`prototype_draft`、`prototype_patch` 与 `prototype_stage`，否则新增工具会静默地对实施角色隐身，`surface.spec.ts` 用一条断言钉住这个等式。
  */
 export const ROLE_TOOLS: Readonly<Record<RoleId, readonly string[]>> = {
   /** 立项/需求分析师：读产品文档、列目录、读规格、读任务，起草需求、按评审报告改稿、出需求变更提案，以及对已确认需求执行 S 级轻量修补。 */
@@ -240,11 +244,11 @@ export const ROLE_TOOLS: Readonly<Record<RoleId, readonly string[]>> = {
   'requirement-editor': ['file_read', 'file_list', 'spec_query', 'task_read', 'requirement_patch_propose'],
   /**
    * 原型设计师：只读需求与规格，产出单文件 HTML 原型并调用 prototype_draft，
-   * 或按点选上报调用 prototype_patch 做元素级修改。
-   * 仅放行读取与原型落盘；没有 file_edit / cmd_run / 签署 / 过审 / 拆分类能力。
+   * 按点选上报调用 prototype_patch 做元素级修改，或用 prototype_stage 暂存多轮打磨。
+   * 仅放行读取与原型暂存/落盘；没有 file_edit / cmd_run / 签署 / 过审 / 拆分类能力。
    * `ask_user_question` 由 preset 的 ask-user 工具提供，不在本包掩码里，列出仅作口径。
    */
-  prototype: ['file_read', 'file_list', 'spec_query', 'task_read', 'prototype_draft', 'prototype_patch', 'ask_user_question'],
+  prototype: ['file_read', 'file_list', 'spec_query', 'task_read', 'prototype_draft', 'prototype_patch', 'prototype_stage', 'ask_user_question'],
 }
 
 /**

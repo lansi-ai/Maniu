@@ -50,7 +50,7 @@ const HTML2 = HTML.replace('页脚', '原型测试需求 一段正文 页脚')
 
 describe('prototype_draft', () => {
   it('只注册一个工具，落盘 HTML 并登记到需求的可选 prototype 字段', async () => {
-    expect(createPrototypeTools('x').map(tool => tool.name)).toEqual(['prototype_draft', 'prototype_patch'])
+    expect(createPrototypeTools('x').map(tool => tool.name)).toEqual(['prototype_draft', 'prototype_patch', 'prototype_stage'])
     const { spec, id } = makeSpec()
     const result = await call(spec, {
       requirement: id,

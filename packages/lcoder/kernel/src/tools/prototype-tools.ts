@@ -17,6 +17,8 @@ import { hasSpecRoot, resolveRoot } from '../kernel/spec-root.js'
 import type { RootInput } from '../kernel/spec-root.js'
 import { assertPrototypeRelativePath, MAX_HTML_BYTES, prototypePath } from '../prototype/paths.js'
 import { describeFailures, validatePrototypeHtml } from '../prototype/quality.js'
+import { writeStagedPrototype } from '../prototype/store.js'
+import type { StagedPrototype } from '../prototype/types.js'
 import type { RequirementPrototype } from '../schema/spec.js'
 
 const renderJson = (_args: unknown, value: unknown): { type: 'text'; text: string }[] => [
@@ -75,8 +77,8 @@ function scanTags(html: string): TagToken[] {
   }
   const insideRaw = (index: number): boolean => rawRanges.some(range => index >= range.start && index < range.end)
   for (const match of html.matchAll(/<\/?([a-zA-Z][a-zA-Z0-9-]*)\b[^>]*>/g)) {
-    const raw = match[0] ?? ''
-    const start = match.index ?? 0
+    // oxlint-disable-next-line typescript/no-useless-default-assignment -- noUncheckedIndexedAccess 下这两个下标仍可能缺省，默认值供类型检查使用。
+    const { 0: raw = '', index: start = 0 } = match
     if (insideRaw(start)) continue
     tokens.push({ start, end: start + raw.length, closing: raw.startsWith('</'), tag: (match[1] ?? '').toLowerCase(), raw })
   }
@@ -177,16 +179,20 @@ function withCss(html: string, span: ElementSpan, css: string): string {
     merged = [...base, css].join('; ')
   }
   const safe = merged.replace(/["']/g, '')
-  const next = existing === null
-    ? `${openTag.slice(0, -1).replace(/\s*\/?$/, '')} style="${safe}">`
-    : openTag.replace(existing[0] ?? '', ` style="${safe}"`)
+  let next: string
+  if (existing === null) {
+    next = `${openTag.slice(0, -1).replace(/\s*\/?$/, '')} style="${safe}">`
+  } else {
+    const [matched = ''] = existing
+    next = openTag.replace(matched, ` style="${safe}"`)
+  }
   return html.slice(0, span.start) + next + html.slice(openEnd + 1)
 }
 
 /**
  * 建原型工具；可见性由 `surface.ts` 白名单决定，新增默认不可见。
  * @param rootInput - 规格根解析（按会话工作区）。
- * @returns `prototype_draft` 与 `prototype_patch` 工具定义。
+ * @returns `prototype_draft`、`prototype_patch` 与 `prototype_stage` 工具定义。
  */
 export function createPrototypeTools(rootInput: RootInput): ToolDefinition[] {
   return [
@@ -205,6 +211,7 @@ export function createPrototypeTools(rootInput: RootInput): ToolDefinition[] {
         },
       },
       output: { schema: { type: 'json' }, render: renderJson },
+      // oxlint-disable-next-line typescript/require-await -- execute 的契约要求返回 Promise（ToolDefinition.execute），这里是同步实现。
       async execute(args, exec) {
         const root = resolveRoot(rootInput, exec)
         if (!hasSpecRoot(root)) {
@@ -292,6 +299,7 @@ export function createPrototypeTools(rootInput: RootInput): ToolDefinition[] {
         newCss: { type: 'string', description: '只改样式时的 CSS 声明，如 `color: #333`；与 newHtml 二选一' },
       },
       output: { schema: { type: 'json' }, render: renderJson },
+      // oxlint-disable-next-line typescript/require-await -- execute 的契约要求返回 Promise（ToolDefinition.execute），这里是同步实现。
       async execute(args, exec) {
         const root = resolveRoot(rootInput, exec)
         if (!hasSpecRoot(root)) {
@@ -370,6 +378,93 @@ export function createPrototypeTools(rootInput: RootInput): ToolDefinition[] {
           generated_at: generatedAt,
           bytes: Buffer.byteLength(patched, 'utf8'),
           note: '元素级修改已落盘并通过质量校验。客户端负责刷新预览窗口；本工具不执行网页内容。',
+        }
+      },
+    }),
+    defineTool({
+      name: 'prototype_stage',
+      description:
+        '把一次交互/多轮打磨的原型改动暂存为 staged.json，不覆盖正式版 index.html、不改需求正文。requirementId 是已存在的需求编号，html 是完整单文件 HTML（非空、≤512KB、无外链脚本），changeKind 区分 visual（只动表现）与 business（涉及业务口径），summary 是 2 到 4 条人话摘要，changedDomPaths 是本次涉及的元素路径。requirementProposedContent 可选，给出拟定的需求正文全文；正文基线由宿主读盘取得，不采信模型传入的旧正文。先过质量门禁，失败不动任何文件；确认后由宿主受控提交落盘。',
+      parameters: {
+        requirementId: { type: 'string', required: true, description: '已存在的需求编号，如 REQ-01' },
+        html: { type: 'string', required: true, description: '打磨后的完整单文件 HTML，内联 CSS、无脚本外链；≤512KB' },
+        changeKind: { type: 'string', enum: ['visual', 'business'], required: true, description: 'visual 只动表现；business 涉及业务口径' },
+        summary: { type: 'array', items: { type: 'string' }, required: true, description: '2 到 4 条给人读的改动摘要' },
+        changedDomPaths: { type: 'array', items: { type: 'string' }, description: '本次改动涉及的 DOM 路径；可选' },
+        requirementProposedContent: { type: 'string', description: '拟定的需求正文全文；可选，正文基线仍由宿主读盘' },
+      },
+      output: { schema: { type: 'json' }, render: renderJson },
+      // oxlint-disable-next-line typescript/require-await -- execute 的契约要求返回 Promise（ToolDefinition.execute），这里是同步实现。
+      async execute(args, exec) {
+        const root = resolveRoot(rootInput, exec)
+        if (!hasSpecRoot(root)) {
+          throw new Error('这个仓库还没有 .spec 规格库；先起草一条需求，原型才有暂存落点')
+        }
+
+        const id = assertRequirementId(args.requirementId.trim())
+        loadRequirement(root, id)
+        const html = assertHtml(args.html)
+        // changeKind 的取值由工具参数的 enum 约束，execute 不再重复判定。
+        const changeKind = args.changeKind
+        const rawSummary = args.summary
+        if (!Array.isArray(rawSummary) || rawSummary.length < 2 || rawSummary.length > 4
+          || rawSummary.some(item => typeof item !== 'string' || item.trim() === '')) {
+          throw new Error('prototype_stage 的 summary 必须是 2 到 4 条非空的人话摘要')
+        }
+        const summary: string[] = rawSummary.map((item: string) => item.trim())
+        const rawPaths = args.changedDomPaths ?? []
+        if (!Array.isArray(rawPaths) || rawPaths.some(item => typeof item !== 'string')) {
+          throw new Error('prototype_stage 的 changedDomPaths 必须是字符串数组')
+        }
+        const changedDomPaths: string[] = rawPaths.map((item: string) => item.trim()).filter(item => item !== '')
+
+        // 正文基线只认磁盘当前值：模型既不能指定旧正文，也不能借暂存改写已确认需求。
+        const baseContent = readRequirementDocument(root, id) ?? ''
+        const quality = validatePrototypeHtml(html, baseContent)
+        if (!quality.ok) {
+          return {
+            ok: false,
+            requirement_id: id,
+            failed: quality.failed.map(issue => ({ code: issue.code, message: issue.message })),
+            retry: '按 failed 里的失败项修正 HTML 后重试 1 到 2 次；本次没有写入任何文件。',
+            reason: describeFailures(quality),
+          }
+        }
+
+        const rawProposed = args.requirementProposedContent
+        const proposed: string | undefined = typeof rawProposed === 'string' && rawProposed.trim() !== ''
+          ? rawProposed
+          : undefined
+        const staged: StagedPrototype = {
+          requirementId: id,
+          html,
+          changeKind,
+          summary,
+          changedDomPaths,
+          ...(proposed === undefined
+            ? {}
+            : {
+              requirementDiff: {
+                baseContent,
+                proposedContent: proposed,
+                summary: summary.join('；'),
+              },
+            }),
+          createdAt: new Date().toISOString(),
+        }
+        writeStagedPrototype(root, id, staged)
+        return {
+          ok: true,
+          requirement_id: id,
+          change_kind: changeKind,
+          summary,
+          changed_dom_paths: changedDomPaths,
+          created_at: staged.createdAt,
+          staged_path: `.spec/prototypes/${id}/staged.json`,
+          ...(proposed === undefined
+            ? {}
+            : { requirement_diff: { baseLength: baseContent.length, proposedLength: proposed.length } }),
+          note: '暂存已写入 staged.json；正式版 index.html 与需求正文未改动，确认后由宿主受控提交。',
         }
       },
     }),
