@@ -56,6 +56,14 @@ describe('visibleSessionsOf', () => {
     const sessions = [row('shell', { blank: true }), row('keep', { cwd: 'E:/any' })]
     expect(visibleSessionsOf(sessions, null, WORKSPACES, null).map(item => item.sessionId)).toEqual(['keep'])
   })
+
+  it('后台发起成功的运行中会话已脱离空白壳，对话页不再过滤它', () => {
+    const sessions = [
+      row('prototype-run', { blank: false, running: true, agentPreset: 'maniu-prototype', cwd: 'E:/Repo' }),
+      row('blank-run', { blank: true, running: true, cwd: 'E:/Repo' }),
+    ]
+    expect(visibleSessionsOf(sessions, PROJECT, WORKSPACES, null).map(item => item.sessionId)).toEqual(['prototype-run'])
+  })
 })
 
 describe('isFlowSession', () => {

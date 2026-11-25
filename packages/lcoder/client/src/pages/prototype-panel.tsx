@@ -6,7 +6,7 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import type { ChangeEvent, JSX } from 'react'
-import { Button, Separator } from '@heroui/react'
+import { Button, Modal, Separator, useOverlayState } from '@heroui/react'
 
 import type { LcoderApi, PrototypeSelectionInfo } from '../contract.ts'
 import type { PrototypeStagedView, PrototypeStyleSummary, UnaryCall } from '../prototype/remote.ts'
@@ -21,6 +21,9 @@ import type { RequirementDocRow } from '../spec/rows.ts'
 import { formatTimestamp } from './requirement-report.ts'
 import { translate, type Translate } from '../locale.ts'
 import { studioBridge } from '../prototype-studio/bridge.ts'
+import { useOpLiveFeeds } from '../shell/op-live-feed.ts'
+import { OperationCardsPortal } from '../shell/operation-cards-portal.tsx'
+import { prototypeRegenCardKey, prototypeRegenCardView } from '../prototype/regen-card.ts'
 
 function lcoderBridge(): Partial<LcoderApi> | undefined {
   return 'lcoder' in window ? window.lcoder : undefined
@@ -34,20 +37,29 @@ export interface PrototypePanelProps {
   readonly scopeSessionId: string
   /** 页面级后台会话是否在跑；跑时锁定生成类按钮。 */
   readonly running: boolean
-  /** 后台发起一条 maniu-prototype 会话；提示词由本区拼好。 */
+  /** 后台发起一条 maniu-prototype 会话；提示词由本区拼好，成功时带回会话号。 */
   readonly onGenerate: (
     prompt: string,
-  ) => Promise<{ readonly ok: boolean; readonly message: string }>
+  ) => Promise<{ readonly ok: boolean; readonly message: string; readonly sessionId?: string }>
   readonly onReload: () => void
   readonly onManageLibraries?: (() => void) | undefined
   /** 跳到原型页查看项目活原型；缺省时不显示入口。 */
   readonly onOpenProjectPrototype?: (() => void) | undefined
+  /** 浮卡「查看对话」入口；缺省时不显示跳转按钮。 */
+  readonly onOpenSession?: ((sessionId: string) => void) | undefined
   readonly call?: UnaryCall | undefined
   readonly t?: Translate | undefined
 }
 
 /** 一次原型操作的忙碌标识。 */
 type BusyKind = 'upload' | 'prefetch' | 'clear' | 'adopt' | null
+
+/** 面板持有的原型生成浮卡：状态随生成会话结束与暂存登记推进。 */
+interface PanelRegenCard {
+  readonly sessionId: string
+  readonly status: 'running' | 'done' | 'failed'
+  readonly minimized: boolean
+}
 
 /**
  * 画出需求详情的原型区。
@@ -70,6 +82,20 @@ export function PrototypePanel(props: PrototypePanelProps): JSX.Element {
   const [projectView, setProjectView] = useState<PrototypeStagedView | null>(null)
   const [generatingSection, setGeneratingSection] = useState<PrototypeSection | undefined>(undefined)
   const [lastRedone, setLastRedone] = useState<PrototypeSection | undefined>(undefined)
+  /** 待确认的生成目标；null 表示没有打开确认框。 */
+  const [generateConfirmTarget, setGenerateConfirmTarget] = useState<{ readonly section?: PrototypeSection } | null>(null)
+  /** 生成浮卡：发起后显示进度，结束按暂存是否落盘收口为完成或失败。 */
+  const [regenCard, setRegenCard] = useState<PanelRegenCard | null>(null)
+  const sawCardRunningRef = useRef(false)
+  const cardBaselineGeneratedAtRef = useRef<string | undefined>(undefined)
+  const cardSessionIds = regenCard !== null && regenCard.status === 'running' ? [regenCard.sessionId] : []
+  const cardLiveFeeds = useOpLiveFeeds(cardSessionIds)
+  const generateOverlay = useOverlayState({
+    isOpen: generateConfirmTarget !== null,
+    onOpenChange: (open) => {
+      if (!open) setGenerateConfirmTarget(null)
+    },
+  })
   const [selection, setSelection] = useState<PrototypeSelectionInfo | undefined>(undefined)
   const [instruction, setInstruction] = useState('')
   const [patching, setPatching] = useState(false)
@@ -102,6 +128,20 @@ export function PrototypePanel(props: PrototypePanelProps): JSX.Element {
   const call = props.call
   const defaultCall: UnaryCall = (namespace, method, args) => window.lcoder.call(namespace, method, args)
   const invoke = call ?? defaultCall
+
+  // 生成结束后按暂存登记的生成时间收口浮卡：有新的暂存版本算完成，否则算失败。
+  useEffect(() => {
+    if (regenCard === null || regenCard.status !== 'running') return
+    if (props.running) {
+      sawCardRunningRef.current = true
+      return
+    }
+    const generatedAt = registration?.generatedAt
+    const landed = generatedAt !== undefined && generatedAt !== cardBaselineGeneratedAtRef.current
+    if (!landed && !sawCardRunningRef.current) return
+    sawCardRunningRef.current = false
+    setRegenCard(current => current === null ? current : { ...current, status: landed ? 'done' : 'failed' })
+  }, [props.running, regenCard, registration?.generatedAt])
 
   /** 面板首屏优先展示项目级统一活原型；项目级没有原型时回退到需求自己的正式版。 */
   const projectHtml = projectView === null ? undefined : projectView.staged?.html ?? projectView.committedHtml ?? undefined
@@ -227,12 +267,33 @@ export function PrototypePanel(props: PrototypePanelProps): JSX.Element {
       })
       const answer = await props.onGenerate(prompt)
       if (!answer.ok) setGenError(answer.message)
-      else if (section !== undefined) setLastRedone(section)
+      else {
+        if (section !== undefined) setLastRedone(section)
+        if (answer.sessionId !== undefined) {
+          sawCardRunningRef.current = false
+          cardBaselineGeneratedAtRef.current = registration?.generatedAt
+          setRegenCard({ sessionId: answer.sessionId, status: 'running', minimized: false })
+        }
+      }
     } catch (cause: unknown) {
       setGenError(cause instanceof Error ? cause.message : String(cause))
     } finally {
       setGeneratingSection(undefined)
     }
+  }
+
+  /** 生成类入口统一先开确认框；运行中或忙时不再响应。 */
+  const askGenerate = (section?: PrototypeSection): void => {
+    if (props.running || busy !== null || generatingSection !== undefined) return
+    setGenError(undefined)
+    setGenerateConfirmTarget(section === undefined ? {} : { section })
+  }
+
+  /** 确认后才真正发起；取消由弹窗关闭处理，不调用 onGenerate。 */
+  const confirmGenerate = (): void => {
+    const target = generateConfirmTarget
+    setGenerateConfirmTarget(null)
+    void doGenerate(target?.section)
   }
 
   const doOpenWindow = async (): Promise<void> => {
@@ -439,7 +500,7 @@ export function PrototypePanel(props: PrototypePanelProps): JSX.Element {
                 size="sm"
                 data-testid="prototype-quality-regenerate"
                 isDisabled={props.running || busy !== null}
-                onPress={() => { void doGenerate() }}
+                onPress={() => { askGenerate() }}
               >
                 {t('prototype.regenerate')}
               </Button>
@@ -449,7 +510,7 @@ export function PrototypePanel(props: PrototypePanelProps): JSX.Element {
       )}
 
       <div className="prototype-actions" data-testid="prototype-actions">
-        <Button variant="primary" size="sm" data-testid="prototype-generate" isDisabled={props.running || busy !== null} onPress={() => { void doGenerate() }}>
+        <Button variant="primary" size="sm" data-testid="prototype-generate" isDisabled={props.running || busy !== null} onPress={() => { askGenerate() }}>
           {registration === undefined ? t('prototype.generate') : t('prototype.regenerate')}
         </Button>
         {registration !== undefined && (
@@ -634,7 +695,7 @@ export function PrototypePanel(props: PrototypePanelProps): JSX.Element {
                     data-section={section}
                     data-state={active ? 'running' : 'idle'}
                     isDisabled={props.running || busy !== null || generatingSection !== undefined}
-                    onPress={() => { void doGenerate(section) }}
+                    onPress={() => { askGenerate(section) }}
                   >
                     {active ? t('prototype.sectionRedoing') : section}
                   </Button>
@@ -660,6 +721,66 @@ export function PrototypePanel(props: PrototypePanelProps): JSX.Element {
           {t('prototype.error', { detail: localError ?? genError ?? '' })}
         </p>
       )}
+
+      <Modal.Root state={generateOverlay}>
+        <Modal.Backdrop variant="transparent" className="glass-modal-backdrop">
+          <Modal.Container placement="center" size="md" className="glass-modal">
+            <Modal.Dialog
+              className="glass-modal-panel"
+              data-testid="prototype-generate-confirm-dialog"
+              aria-label={t('prototype.regenConfirmTitle')}
+            >
+              <Modal.Header>
+                <Modal.Heading>{t('prototype.regenConfirmTitle')}</Modal.Heading>
+                <Modal.CloseTrigger data-testid="prototype-generate-confirm-close" aria-label={t('prototype.regenConfirmCancel')} />
+              </Modal.Header>
+              <Modal.Body>
+                <p data-testid="prototype-generate-confirm-text">{t('prototype.regenConfirmBody')}</p>
+                <div className="prototype-confirm">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    data-testid="prototype-generate-confirm-cancel"
+                    onPress={() => { setGenerateConfirmTarget(null) }}
+                  >
+                    {t('prototype.regenConfirmCancel')}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    data-testid="prototype-generate-confirm"
+                    onPress={confirmGenerate}
+                  >
+                    {t('prototype.regenConfirmSubmit')}
+                  </Button>
+                </div>
+              </Modal.Body>
+            </Modal.Dialog>
+          </Modal.Container>
+        </Modal.Backdrop>
+      </Modal.Root>
+
+      <OperationCardsPortal
+        cards={regenCard === null
+          ? []
+          : [prototypeRegenCardView({
+            sessionId: regenCard.sessionId,
+            status: regenCard.status,
+            minimized: regenCard.minimized,
+            t,
+            ...(cardLiveFeeds[regenCard.sessionId] === undefined ? {} : { liveFeed: cardLiveFeeds[regenCard.sessionId] }),
+          })]}
+        onToggleMinimize={(key) => {
+          setRegenCard(current => current !== null && prototypeRegenCardKey(current.sessionId) === key
+            ? { ...current, minimized: !current.minimized }
+            : current)
+        }}
+        onOpenSession={(sessionId) => { props.onOpenSession?.(sessionId) }}
+        onClose={(key) => {
+          setRegenCard(current => current !== null && prototypeRegenCardKey(current.sessionId) === key ? null : current)
+        }}
+        t={t}
+      />
     </section>
   )
 }

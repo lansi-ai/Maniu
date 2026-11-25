@@ -99,6 +99,16 @@ beforeEach(() => {
     configurable: true,
     value: { escape: (value: string) => value.replace(/[^\w-]/g, '\\$&') },
   })
+  if (typeof globalThis.ResizeObserver === 'undefined') {
+    Object.defineProperty(globalThis, 'ResizeObserver', {
+      configurable: true,
+      value: class {
+        observe(): void {}
+        unobserve(): void {}
+        disconnect(): void {}
+      },
+    })
+  }
   localStorage.clear()
   container = document.createElement('div')
   document.body.appendChild(container)
@@ -264,6 +274,7 @@ describe('PrototypePanel 素材库联动', () => {
       if (node !== null) setSelectValue(node, 'mobile-card')
     })
     await pressElement(container.querySelector('[data-testid="prototype-generate"]'))
+    await pressElement(document.body.querySelector('[data-testid="prototype-generate-confirm"]'))
 
     const mobile = BUILTIN_PROTOTYPE_LIBRARIES[3]
     expect(mobile).toBeDefined()

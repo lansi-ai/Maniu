@@ -189,7 +189,7 @@ function followOpens(): CallRecord[] {
 }
 
 describe('评审后台发起', () => {
-  it('不选中会话、不跳对话页，会话仍登记进列表', async () => {
+  it('不抢占当前页面，切到对话页自动打开仍在运行的会话并显示运行中标记', async () => {
     await renderApp()
     await press('nav-requirements')
     expect(element('page-requirements')).not.toBeNull()
@@ -200,16 +200,26 @@ describe('评审后台发起', () => {
     const create = calls.find(item => item.namespace === 'session' && item.method === 'create')
     expect((create?.args.request as Record<string, unknown>).agentPreset).toBe('maniu-pm')
     expect(calls.some(item => item.namespace === 'session' && item.method === 'prompt')).toBe(true)
+    // 后台发起不抢页面：发起时仍停在需求页，不订阅对话流。
     expect(followOpens()).toHaveLength(0)
     expect(localStorage.getItem(SESSION_KEY)).toBeNull()
     expect(element('page-requirements')).not.toBeNull()
     expect(element('session-list')).toBeNull()
-    expect(element('requirement-op-running')?.textContent).toContain('评审进行中')
+    expect(element('requirement-op-running')?.textContent).toContain('需求评审')
 
+    // 切到对话页：会话已从空白壳转成运行中，不再被 visibleSessionsOf 过滤，并自动打开。
     await press('nav-chat')
     const items = [...container.querySelectorAll('[data-testid="session-item"]')]
     expect(items.map(node => node.getAttribute('data-session-id'))).toEqual(createdSessions)
-    expect(followOpens()).toHaveLength(0)
+    expect(items.map(node => node.getAttribute('data-running'))).toEqual(['true'])
+    expect(element('session-running')).not.toBeNull()
+    expect(localStorage.getItem(SESSION_KEY)).toBe(createdSessions[0])
+    const opened = followOpens()
+    expect(opened).toHaveLength(1)
+    const request = opened[0]?.args.request as Record<string, unknown> | undefined
+    const address = request?.address as Record<string, unknown> | undefined
+    expect(address?.sessionId).toBe(createdSessions[0])
+    expect(request?.assistantStream).toBe(true)
   })
 })
 
@@ -264,20 +274,26 @@ describe('立项等待确认的宿主通道', () => {
 })
 
 describe('操作浮卡跨页存活', () => {
-  it('切到对话页再回需求页，运行卡仍在且隐藏期不丢状态', async () => {
+  it('最小化后切到对话页再回需求页，浮卡与最小化状态都不丢', async () => {
     withRequirement = true
     await renderApp()
     await press('nav-requirements')
     await press('requirement-op-review')
     expect(element('requirement-op-running')).not.toBeNull()
 
+    await press('op-minimize')
+    const capsule = element('op-capsule')
+    expect(capsule).not.toBeNull()
+
     await press('nav-chat')
     const host = element('requirements-host') as HTMLElement | null
     expect(host?.style.display).toBe('none')
-    expect(element('requirement-op-running')).not.toBeNull()
+    // 浮卡 portal 到 body，页面宿主隐藏后仍可见且保持最小化。
+    expect(element('op-capsule')).toBe(capsule)
 
     await press('nav-requirements')
     expect((element('requirements-host') as HTMLElement | null)?.style.display).not.toBe('none')
+    await press('op-capsule')
     expect(element('requirement-op-running')).not.toBeNull()
   })
 })

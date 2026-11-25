@@ -3749,3 +3749,41 @@
 .office-field-wide {
   grid-column: 1 / -1;
 }
+
+/* T-331：悬浮任务卡挂到 body 后的共享固定列；卡片本身仍用 styles.css 的 .op-layer 布局。
+   需求页与原型页都 portal 到同一列，多个入口同时有卡片时纵向堆叠而不是互相覆盖。 */
+.op-portal-host {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(520px, 92vw);
+  pointer-events: none;
+}
+.op-portal-layer {
+  pointer-events: none;
+}
+.op-portal-layer .op-layer {
+  position: static;
+  width: 100%;
+  pointer-events: auto;
+}
+
+/* 原型页重新生成的最后一步确认：沿用弹窗内的浅色块，不新增视觉体系。 */
+.prototype-regen-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--separator);
+  border-radius: 12px;
+  background: var(--surface-secondary);
+}
+.prototype-regen-confirm p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}

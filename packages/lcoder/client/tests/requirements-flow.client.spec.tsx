@@ -81,7 +81,8 @@ afterEach(() => {
 })
 
 function element(testId: string): Element | null {
-  return container.querySelector(`[data-testid="${testId}"]`)
+  // 浮卡 portal 到 body 的共享挂载点，查询范围要覆盖整页。
+  return document.querySelector(`[data-testid="${testId}"]`)
 }
 
 async function press(testId: string): Promise<void> {
@@ -144,7 +145,7 @@ describe('auto 节点内自动衔接', () => {
     await press('requirement-op-review')
     expect(h.started).toHaveLength(1)
     expect(h.started[0]?.preset).toBe('maniu-pm')
-    expect(container.querySelectorAll('.op-card')).toHaveLength(1)
+    expect(document.querySelectorAll('.op-card')).toHaveLength(1)
     // 多岗卡按配置条目显示名列步骤。
     expect(element('requirement-op-running')?.textContent).toContain('项目经理')
     expect(element('requirement-op-running')?.textContent).toContain('副项目经理')
@@ -154,7 +155,7 @@ describe('auto 节点内自动衔接', () => {
     expect(h.started).toHaveLength(2)
     // 名册岗位条目折算成继承角色的 preset 发起。
     expect(h.started[1]?.preset).toBe('maniu-pm')
-    expect(container.querySelectorAll('.op-card')).toHaveLength(1)
+    expect(document.querySelectorAll('.op-card')).toHaveLength(1)
     expect(element('requirement-op-running')).not.toBeNull()
     expect(element('op-next-role')).toBeNull()
     const steps = [...(element('requirement-op-running')?.querySelectorAll('li') ?? [])]
