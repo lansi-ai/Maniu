@@ -396,6 +396,7 @@ describe('原型页重新生成与增量补充', () => {
 
   it('全部有效需求重生成：排除 closed，支持切换是否包含草稿需求', async () => {
     const call = pageCall({ staged: null, committedHtml: HTML })
+    const onOpenSession = vi.fn()
     const onStartSession = vi.fn(async () => ({ ok: true, message: 'started', sessionId: 'gen-1' }))
     await act(async () => {
       root.render(
@@ -403,6 +404,7 @@ describe('原型页重新生成与增量补充', () => {
           {...pageProps(call, {
             requirements: REQUIREMENTS,
             onStartSession,
+            onOpenSession,
           })}
         />,
       )
@@ -433,6 +435,12 @@ describe('原型页重新生成与增量补充', () => {
     await flush()
 
     await pressElement(document.body.querySelector('[data-testid="prototype-regen-submit"]'))
+    // 第一步只是确认框：真正发起前 onStartSession 一次都不能调。
+    expect(onStartSession).not.toHaveBeenCalled()
+    expect(document.body.querySelector('[data-testid="prototype-regen-confirm-text"]')?.textContent)
+      .toContain('当前正式版不会丢失')
+
+    await pressElement(document.body.querySelector('[data-testid="prototype-regen-confirm"]'))
     expect(onStartSession).toHaveBeenCalledTimes(1)
     const [prompt, preset] = onStartSession.mock.calls[0] ?? []
     expect(preset).toBe('maniu-prototype')
@@ -441,6 +449,16 @@ describe('原型页重新生成与增量补充', () => {
     expect(prompt).not.toContain('REQ-03')
     expect(prompt).toContain('企业级中后台')
     expect(prompt).toContain('prototype_stage')
+
+    // 发起后悬浮任务卡挂到 body，切页也不会被页面宿主隐藏。
+    const card = document.body.querySelector('[data-testid="operation-cards"]')
+    expect(card).not.toBeNull()
+    expect(card?.querySelector('h3')?.textContent).toBe('重新生成原型')
+    const steps = [...(card?.querySelectorAll('.op-step-text') ?? [])].map(node => node.textContent ?? '')
+    expect(steps).toContain('AI 编写原型')
+    expect(steps).toContain('写入暂存完成')
+    await pressElement(card?.querySelector('[data-testid="op-view-session"]') ?? null)
+    expect(onOpenSession).toHaveBeenCalledWith('gen-1')
   })
 
   it('增量补充指定需求：把当前正式版 HTML 与目标需求正文一起发给后台，并在结束后自动切到待确认修改', async () => {
@@ -469,6 +487,7 @@ describe('原型页重新生成与增量补充', () => {
     await flush()
 
     await pressElement(document.body.querySelector('[data-testid="prototype-regen-submit"]'))
+    await pressElement(document.body.querySelector('[data-testid="prototype-regen-confirm"]'))
     expect(onStartSession).toHaveBeenCalledTimes(1)
     const [prompt] = onStartSession.mock.calls[0] ?? []
     expect(prompt).toContain('增量补充')
@@ -512,6 +531,8 @@ describe('原型页重新生成与增量补充', () => {
     expect(container.querySelector('[data-testid="prototype-version-staged"]')?.getAttribute('aria-current')).toBe('true')
     expect(container.querySelector('iframe[data-testid="prototype-page-iframe"]')?.getAttribute('srcdoc')).toContain('暂存页脚')
     expect(container.querySelector('[data-testid="prototype-page-notice"]')?.textContent).toContain('待确认修改')
+    // 暂存落盘后浮卡从运行中收口为完成，不再显示实时过程。
+    expect(document.body.querySelector('[data-testid="requirement-op-success"]')).not.toBeNull()
   })
 
   it('生成会话结束但未产出暂存原型时，提示并可点击查看生成过程', async () => {
@@ -529,6 +550,7 @@ describe('原型页重新生成与增量补充', () => {
 
     await pressElement(container.querySelector('[data-testid="prototype-action-regenerate"]'))
     await pressElement(document.body.querySelector('[data-testid="prototype-regen-submit"]'))
+    await pressElement(document.body.querySelector('[data-testid="prototype-regen-confirm"]'))
 
     await act(async () => {
       root.render(

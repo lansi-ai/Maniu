@@ -97,7 +97,8 @@ afterEach(() => {
 })
 
 function element(testId: string): Element | null {
-  return container.querySelector(`[data-testid="${testId}"]`)
+  // 浮卡 portal 到 body 的共享挂载点，查询范围要覆盖整页。
+  return document.querySelector(`[data-testid="${testId}"]`)
 }
 
 async function press(testId: string): Promise<void> {

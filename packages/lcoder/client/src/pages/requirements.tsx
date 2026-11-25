@@ -33,7 +33,8 @@ import { translate, type MessageKey, type Translate } from '../locale.ts'
 import {
   pendingForSession, questionCountForSession, unmappedPending, type PendingInteraction,
 } from '../chat/pending.ts'
-import { OperationCards, type OperationCardView, type OperationStep, type OperationStepState } from '../shell/operation-cards.tsx'
+import type { OperationCardView, OperationStep, OperationStepState } from '../shell/operation-cards.tsx'
+import { OperationCardsPortal } from '../shell/operation-cards-portal.tsx'
 import { useOpLiveFeeds, type OpLiveFeed } from '../shell/op-live-feed.ts'
 import { RequirementDetail, type ModifyState, type RunningOpKind } from './requirement-detail.tsx'
 import { TaskDetail } from './task-detail.tsx'
@@ -1781,7 +1782,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
         </button>
       )}
 
-      <OperationCards
+      <OperationCardsPortal
         cards={cards}
         onToggleMinimize={toggleMinimize}
         onOpenSession={props.onOpenSession}

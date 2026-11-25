@@ -44,6 +44,18 @@ let root: Root
 
 beforeEach(() => {
   Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', { configurable: true, value: true })
+  // HeroUI Modal 的 react-aria 依赖在 jsdom 里调用 CSS.escape，需补最小实现。
+  Object.defineProperty(globalThis, 'CSS', { configurable: true, value: { escape: (value: string) => value.replace(/[^\w-]/g, '\\$&') } })
+  if (typeof globalThis.ResizeObserver === 'undefined') {
+    Object.defineProperty(globalThis, 'ResizeObserver', {
+      configurable: true,
+      value: class {
+        observe(): void {}
+        unobserve(): void {}
+        disconnect(): void {}
+      },
+    })
+  }
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
@@ -126,6 +138,19 @@ async function click(testId: string): Promise<void> {
   await act(async () => { node.click() })
 }
 
+/** 确认弹窗与生成浮卡都 portal 到 body，查询范围要覆盖整页。 */
+async function clickInBody(testId: string): Promise<void> {
+  const node = document.body.querySelector<HTMLElement>(`[data-testid="${testId}"]`)
+  if (node === null) throw new Error(`missing ${testId}`)
+  await act(async () => { node.click() })
+}
+
+/** 点生成入口后再点确认，模拟用户走完二次确认。 */
+async function confirmGenerate(testId: string): Promise<void> {
+  await click(testId)
+  await clickInBody('prototype-generate-confirm')
+}
+
 describe('PrototypePanel', () => {
   it('生成按钮把需求正文、样式摘要与参考图拼进提示词，并用原型人才后台发起', async () => {
     const h = harness()
@@ -140,7 +165,7 @@ describe('PrototypePanel', () => {
     })
     await click('prototype-url-prefetch')
     expect(container.querySelector('[data-testid="prototype-summary"]')).not.toBeNull()
-    await click('prototype-generate')
+    await confirmGenerate('prototype-generate')
 
     expect(h.generate).toHaveBeenCalledTimes(1)
     const prompt = String(h.generate.mock.calls[0]?.[0] ?? '')
@@ -167,6 +192,7 @@ describe('PrototypePanel', () => {
     const buttons = container.querySelectorAll('[data-testid="prototype-regenerate-section"]')
     expect(buttons.length).toBe(5)
     await click('prototype-regenerate-section')
+    await clickInBody('prototype-generate-confirm')
     const prompt = String(h.generate.mock.calls[0]?.[0] ?? '')
     expect(prompt).toContain('区块级重生成')
     expect(prompt).toContain('顶部导航')
@@ -183,6 +209,7 @@ describe('PrototypePanel', () => {
     const chip = container.querySelector<HTMLElement>('[data-testid="prototype-regenerate-section"][data-section="顶部导航"]')
     if (chip === null) throw new Error('missing section chip')
     await act(async () => { chip.click() })
+    await clickInBody('prototype-generate-confirm')
 
     expect(generate).toHaveBeenCalledTimes(1)
     expect(chip.getAttribute('data-state')).toBe('running')
@@ -250,6 +277,7 @@ describe('PrototypePanel', () => {
     expect(guide).toContain('1')
     expect(guide).toContain('参考')
     await click('prototype-quality-regenerate')
+    await clickInBody('prototype-generate-confirm')
     expect(h.generate).toHaveBeenCalledTimes(1)
     expect(String(h.generate.mock.calls[0]?.[0] ?? '')).not.toContain('区块级重生成')
   })
@@ -282,7 +310,7 @@ describe('PrototypePanel', () => {
   it('生成失败显示可读错误', async () => {
     const h = harness()
     await render({ ...h.props, onGenerate: vi.fn(async () => ({ ok: false, message: '会话发起失败' })) })
-    await click('prototype-generate')
+    await confirmGenerate('prototype-generate')
     expect(container.querySelector('[data-testid="prototype-error"]')?.textContent).toContain('会话发起失败')
   })
 
@@ -353,5 +381,34 @@ describe('PrototypePanel', () => {
     await act(async () => { root.render(<PrototypePanel {...props} row={updatedRow} />) })
     expect(api.open).toHaveBeenCalledTimes(2)
     expect(api.open).toHaveBeenLastCalledWith(changed)
+  })
+
+  it('重新生成先弹二次确认；取消不发起，确认后发起并显示带查看对话的悬浮任务卡', async () => {
+    const h = harness()
+    const onOpenSession = vi.fn()
+    const generate = vi.fn(async () => ({ ok: true, message: '会话已发起', sessionId: 'gen-panel' }))
+    await render({ ...h.props, onGenerate: generate, onOpenSession })
+
+    await click('prototype-generate')
+    expect(document.body.querySelector('[data-testid="prototype-generate-confirm-text"]')?.textContent)
+      .toContain('重新生成将基于当前需求与所选风格覆盖暂存原型')
+    expect(generate).not.toHaveBeenCalled()
+
+    await clickInBody('prototype-generate-confirm-cancel')
+    expect(generate).not.toHaveBeenCalled()
+    expect(document.body.querySelector('[data-testid="prototype-generate-confirm-dialog"]')).toBeNull()
+
+    await confirmGenerate('prototype-generate')
+    expect(generate).toHaveBeenCalledTimes(1)
+
+    const card = document.body.querySelector('[data-testid="operation-cards"]')
+    expect(card).not.toBeNull()
+    expect(card?.querySelector('h3')?.textContent).toBe('重新生成原型')
+    const steps = [...(card?.querySelectorAll('.op-step-text') ?? [])].map(node => node.textContent ?? '')
+    expect(steps).toContain('AI 编写原型')
+    expect(steps).toContain('写入暂存完成')
+
+    await clickInBody('op-view-session')
+    expect(onOpenSession).toHaveBeenCalledWith('gen-panel')
   })
 })

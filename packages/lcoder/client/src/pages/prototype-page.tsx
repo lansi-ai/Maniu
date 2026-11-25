@@ -12,6 +12,8 @@ import { Loader2 } from 'lucide-react'
 
 import type { SessionSummary } from '../store.ts'
 import { useOpLiveFeeds, type OpLiveFeed } from '../shell/op-live-feed.ts'
+import { OperationCardsPortal } from '../shell/operation-cards-portal.tsx'
+import { prototypeRegenCardKey, prototypeRegenCardView } from '../prototype/regen-card.ts'
 import type { Translate } from '../locale.ts'
 import type { PrototypeSnapshotMeta, PrototypeStagedView, UnaryCall } from '../prototype/remote.ts'
 import {
@@ -86,6 +88,13 @@ type VersionSelection =
   | { readonly kind: 'committed' }
   | { readonly kind: 'snapshot'; readonly snapshotId: string }
 
+/** 页面持有的原型生成浮卡；状态随生成会话结束与暂存落盘推进。 */
+interface PrototypeRegenCard {
+  readonly sessionId: string
+  readonly status: 'running' | 'done' | 'failed'
+  readonly minimized: boolean
+}
+
 function formatLocalTimestamp(iso: string): string {
   const ms = Date.parse(iso)
   if (Number.isNaN(ms)) return formatTimestamp(iso)
@@ -143,15 +152,21 @@ export function PrototypePage(props: PrototypePageProps): JSX.Element {
   const [targetRequirementId, setTargetRequirementId] = useState('')
   const [extraInstruction, setExtraInstruction] = useState('')
   const [submittingRegen, setSubmittingRegen] = useState(false)
+  const [regenConfirmOpen, setRegenConfirmOpen] = useState(false)
   const [generatingSessionId, setGeneratingSessionId] = useState<string | null>(null)
   const [lastSessionId, setLastSessionId] = useState<string | null>(null)
   const [noticeHasSessionLink, setNoticeHasSessionLink] = useState(false)
+  const [opCard, setOpCard] = useState<PrototypeRegenCard | null>(null)
   const sawGeneratingRunningRef = useRef(false)
   const baselineStagedAtRef = useRef<string | null>(null)
-  const liveSessionIds = useMemo(
-    () => (generatingSessionId === null ? [] : [generatingSessionId]),
-    [generatingSessionId],
-  )
+  const liveSessionIds = useMemo(() => {
+    const ids: string[] = []
+    if (generatingSessionId !== null) ids.push(generatingSessionId)
+    if (opCard !== null && opCard.status === 'running' && opCard.sessionId !== generatingSessionId) {
+      ids.push(opCard.sessionId)
+    }
+    return ids
+  }, [generatingSessionId, opCard])
   const liveFeeds = useOpLiveFeeds(liveSessionIds)
   const activeFeed = generatingSessionId === null ? undefined : liveFeeds[generatingSessionId]
   const libraryState = usePrototypeLibraryState()
@@ -164,7 +179,9 @@ export function PrototypePage(props: PrototypePageProps): JSX.Element {
   const regenOverlay = useOverlayState({
     isOpen: regenOpen,
     onOpenChange: (open) => {
-      if (!submittingRegen) setRegenOpen(open)
+      if (submittingRegen) return
+      setRegenOpen(open)
+      if (!open) setRegenConfirmOpen(false)
     },
   })
 
@@ -342,6 +359,7 @@ export function PrototypePage(props: PrototypePageProps): JSX.Element {
     const nextView = await load(true)
     const hasNewStaged = nextView?.staged !== null && nextView?.staged !== undefined
       && nextView.staged.createdAt !== baselineStagedAtRef.current
+    setOpCard(current => current === null ? current : { ...current, status: hasNewStaged ? 'done' : 'failed' })
     if (hasNewStaged) {
       setNoticeHasSessionLink(false)
       setNotice(t('prototypePage.regenFinished'))
@@ -401,15 +419,15 @@ export function PrototypePage(props: PrototypePageProps): JSX.Element {
     setTargetRequirementId(defaultTarget)
     setSelectedLibraryId(libraryState.defaultLibraryId)
     setExtraInstruction('')
+    setRegenConfirmOpen(false)
     setRegenOpen(true)
   }
 
-  const submitRegenerate = async (): Promise<void> => {
-    if (props.onStartSession === undefined || submittingRegen || isGenerating) return
-    let prompt: string | null = null
+  /** 按当前弹窗选项拼出重新生成提示词；条件不满足时返回 null，不发起任何会话。 */
+  const regenPrompt = (): string | null => {
     if (regenMode === 'all') {
-      if (allModeRequirements.length === 0) return
-      prompt = buildProjectPrototypeRegeneratePrompt({
+      if (allModeRequirements.length === 0) return null
+      return buildProjectPrototypeRegeneratePrompt({
         mode: 'all',
         requirements: allModeRequirements.map(row => ({
           id: row.id,
@@ -420,9 +438,10 @@ export function PrototypePage(props: PrototypePageProps): JSX.Element {
         library: activeLibrary,
         extraInstruction,
       })
-    } else if (regenMode === 'single') {
-      if (selectedTargetRequirement === undefined) return
-      prompt = buildProjectPrototypeRegeneratePrompt({
+    }
+    if (regenMode === 'single') {
+      if (selectedTargetRequirement === undefined) return null
+      return buildProjectPrototypeRegeneratePrompt({
         mode: 'single',
         requirement: {
           id: selectedTargetRequirement.id,
@@ -433,21 +452,35 @@ export function PrototypePage(props: PrototypePageProps): JSX.Element {
         library: activeLibrary,
         extraInstruction,
       })
-    } else {
-      if (selectedTargetRequirement === undefined || committedHtml === null) return
-      prompt = buildProjectPrototypeRegeneratePrompt({
-        mode: 'incremental',
-        requirement: {
-          id: selectedTargetRequirement.id,
-          title: selectedTargetRequirement.title ?? selectedTargetRequirement.id,
-          state: requirementStateLabel(selectedTargetRequirement.state, t),
-          text: selectedTargetRequirement.text,
-        },
-        currentHtml: committedHtml,
-        library: activeLibrary,
-        extraInstruction,
-      })
     }
+    if (selectedTargetRequirement === undefined || committedHtml === null) return null
+    return buildProjectPrototypeRegeneratePrompt({
+      mode: 'incremental',
+      requirement: {
+        id: selectedTargetRequirement.id,
+        title: selectedTargetRequirement.title ?? selectedTargetRequirement.id,
+        state: requirementStateLabel(selectedTargetRequirement.state, t),
+        text: selectedTargetRequirement.text,
+      },
+      currentHtml: committedHtml,
+      library: activeLibrary,
+      extraInstruction,
+    })
+  }
+
+  /** 弹窗内的第一步：只打开最终确认，不发起会话。 */
+  const submitRegenerate = (): void => {
+    if (props.onStartSession === undefined || submittingRegen || isGenerating) return
+    if (regenPrompt() === null) return
+    setRegenConfirmOpen(true)
+  }
+
+  /** 最终确认后才拼提示词并调用宿主发起生成。 */
+  const confirmRegenerate = async (): Promise<void> => {
+    if (props.onStartSession === undefined || submittingRegen || isGenerating) return
+    const prompt = regenPrompt()
+    if (prompt === null) return
+    setRegenConfirmOpen(false)
     setSubmittingRegen(true)
     setError(null)
     setNotice(undefined)
@@ -465,6 +498,7 @@ export function PrototypePage(props: PrototypePageProps): JSX.Element {
         sawGeneratingRunningRef.current = false
         setLastSessionId(result.sessionId)
         setGeneratingSessionId(result.sessionId)
+        setOpCard({ sessionId: result.sessionId, status: 'running', minimized: false })
       }
     } catch (cause: unknown) {
       setNotice(t('prototypePage.regenStartFailed', { detail: causeText(cause) }))
@@ -884,36 +918,96 @@ export function PrototypePage(props: PrototypePageProps): JSX.Element {
                     <p className="problem" data-testid="prototype-regen-no-requirements">{t('prototypePage.regenNoRequirements')}</p>
                   )}
 
-                  <div className="prototype-regen-actions">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      data-testid="prototype-regen-cancel"
-                      isDisabled={submittingRegen}
-                      onPress={() => { setRegenOpen(false) }}
-                    >
-                      {t('prototypePage.regenCancel')}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="primary"
-                      data-testid="prototype-regen-submit"
-                      isDisabled={
-                        submittingRegen
-                        || isGenerating
-                        || (regenMode === 'all' ? allModeRequirements.length === 0 : selectedTargetRequirement === undefined)
-                      }
-                      onPress={() => { void submitRegenerate() }}
-                    >
-                      {t('prototypePage.regenSubmit')}
-                    </Button>
-                  </div>
+                  {regenConfirmOpen
+                    ? (
+                      <div
+                        className="prototype-regen-confirm"
+                        data-testid="prototype-regen-confirm-panel"
+                        role="alertdialog"
+                        aria-label={t('prototypePage.regenConfirmTitle')}
+                      >
+                        <strong data-testid="prototype-regen-confirm-title">{t('prototypePage.regenConfirmTitle')}</strong>
+                        <p data-testid="prototype-regen-confirm-text">
+                          {hasPrototype
+                            ? t('prototypePage.regenConfirmKeep')
+                            : t('prototypePage.regenConfirmBody')}
+                        </p>
+                        <div className="prototype-regen-actions">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            data-testid="prototype-regen-confirm-cancel"
+                            isDisabled={submittingRegen}
+                            onPress={() => { setRegenConfirmOpen(false) }}
+                          >
+                            {t('prototypePage.regenConfirmCancel')}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="primary"
+                            data-testid="prototype-regen-confirm"
+                            isDisabled={submittingRegen || isGenerating}
+                            onPress={() => { void confirmRegenerate() }}
+                          >
+                            {t('prototypePage.regenConfirmSubmit')}
+                          </Button>
+                        </div>
+                      </div>
+                    )
+                    : (
+                      <div className="prototype-regen-actions">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          data-testid="prototype-regen-cancel"
+                          isDisabled={submittingRegen}
+                          onPress={() => { setRegenOpen(false) }}
+                        >
+                          {t('prototypePage.regenCancel')}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="primary"
+                          data-testid="prototype-regen-submit"
+                          isDisabled={
+                            submittingRegen
+                            || isGenerating
+                            || (regenMode === 'all' ? allModeRequirements.length === 0 : selectedTargetRequirement === undefined)
+                          }
+                          onPress={submitRegenerate}
+                        >
+                          {t('prototypePage.regenSubmit')}
+                        </Button>
+                      </div>
+                    )}
                 </div>
               </Modal.Body>
             </Modal.Dialog>
           </Modal.Container>
         </Modal.Backdrop>
       </Modal.Root>
+
+      <OperationCardsPortal
+        cards={opCard === null
+          ? []
+          : [prototypeRegenCardView({
+            sessionId: opCard.sessionId,
+            status: opCard.status,
+            minimized: opCard.minimized,
+            t,
+            ...(liveFeeds[opCard.sessionId] === undefined ? {} : { liveFeed: liveFeeds[opCard.sessionId] }),
+          })]}
+        onToggleMinimize={(key) => {
+          setOpCard(current => current !== null && prototypeRegenCardKey(current.sessionId) === key
+            ? { ...current, minimized: !current.minimized }
+            : current)
+        }}
+        onOpenSession={(sessionId) => { props.onOpenSession?.(sessionId) }}
+        onClose={(key) => {
+          setOpCard(current => current !== null && prototypeRegenCardKey(current.sessionId) === key ? null : current)
+        }}
+        t={t}
+      />
     </section>
   )
 }

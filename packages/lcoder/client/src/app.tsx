@@ -185,6 +185,8 @@ export function App(): JSX.Element {
   const composerRef = useRef<HTMLTextAreaElement>(null)
   const sendingRef = useRef(false)
   const hostEventSeen = useRef(false)
+  /** 最近一次后台发起且仍在运行的会话；切到对话页时优先把它带到眼前。 */
+  const backgroundSessionRef = useRef<string | null>(null)
   // 流式帧先排队、按 80ms 合并提交；逐帧 dispatch 会让整段消息与背景层反复重绘。
   const batcherRef = useRef<FrameBatcher<ChatAction> | null>(null)
   batcherRef.current ??= createFrameBatcher<ChatAction>((actions) => {
@@ -230,6 +232,8 @@ export function App(): JSX.Element {
   }, [batcher, closeStream])
 
   const selectSession = useCallback((sessionId: string) => {
+    // 用户或宿主主动选中会话后，不再让切页自动跳到更早的后台生成会话。
+    backgroundSessionRef.current = null
     setActive(sessionId)
     activeRef.current = sessionId
     localStorage.setItem(SESSION_KEY, sessionId)
@@ -529,6 +533,22 @@ export function App(): JSX.Element {
     await loadSessions()
   }, [loadSessions, sessions])
 
+  /** 后台发起成功后把会话从空白壳改成运行中：否则对话页会把空白会话当作未使用而隐藏。 */
+  const markSessionRunning = useCallback((sessionId: string, agentPreset: string, cwd: string): void => {
+    const stamp = Date.now()
+    setSessions((current) => {
+      const existing = current.find(item => item.sessionId === sessionId)
+      const next: SessionSummary = {
+        ...(existing ?? { sessionId, cwd, agentPreset }),
+        sessionId,
+        updatedAt: stamp,
+        running: true,
+        blank: false,
+      }
+      return sortSessions([...current.filter(item => item.sessionId !== sessionId), next])
+    })
+  }, [])
+
   const launchSession = useCallback(async (prompt: string, agentPreset = WORKBENCH_PRESET, route = true): Promise<{
     readonly ok: boolean
     readonly message: string
@@ -576,6 +596,9 @@ export function App(): JSX.Element {
       },
     })
     if (!sent.ok) return { ok: false, message: `${sent.error.code}: ${sent.error.message}` }
+    // 指令已入队：立即转成运行中，首帧与 session/list 回来前也不会被当作空白壳隐藏。
+    markSessionRunning(sessionId, agentPreset, project.path)
+    if (!route) backgroundSessionRef.current = sessionId
     const message = t('flow.startSent', { id: sessionId.slice(0, 8) })
     // route=false 时后台发起：会话只登记进列表，不抢占当前页面。
     if (route) {
@@ -583,8 +606,12 @@ export function App(): JSX.Element {
       setPage('chat')
     }
     await loadSessions()
+    // session/list 可能晚于首帧返回旧的 running=false；后台会话在对话页入口处再确认一次运行态。
+    if (!route && backgroundSessionRef.current === sessionId) {
+      markSessionRunning(sessionId, agentPreset, project.path)
+    }
     return { ok: true, message, sessionId }
-  }, [loadSessions, project, selectSession, t])
+  }, [loadSessions, markSessionRunning, project, selectSession, t])
 
   const startSession = useCallback(async (prompt: string, agentPreset?: string) => {
     return launchSession(prompt, agentPreset, false)
@@ -594,6 +621,25 @@ export function App(): JSX.Element {
     selectSession(sessionId)
     setPage('chat')
   }, [selectSession])
+
+  // 切到对话页时把最近一次后台运行的会话带到眼前：active 为空或已结束时直接打开它，
+  // 用户不必在「流程执行记录」里自己找正在跑的生成会话。
+  useEffect(() => {
+    if (page !== 'chat') return
+    const pending = backgroundSessionRef.current
+    if (pending === null) return
+    const target = sessions.find(item => item.sessionId === pending)
+    if (target === undefined || !target.running) {
+      backgroundSessionRef.current = null
+      return
+    }
+    if (active !== null) {
+      const current = sessions.find(item => item.sessionId === active)
+      if (current?.running === true) return
+    }
+    backgroundSessionRef.current = null
+    selectSession(pending)
+  }, [active, page, selectSession, sessions])
 
   /**
    * 打开需求页；带入口意图时交给页内执行一次（立项向导或指定需求详情）。
