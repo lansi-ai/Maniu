@@ -264,6 +264,48 @@ describe('task_draft 立项', () => {
     )
   })
 
+  it('update_draft=true 时原地更新 drafting 任务并保留 opened_at 与 role，非 drafting 拒绝', async () => {
+    const { spec } = makeRepo()
+    const created = await call(spec, 'task_draft', {
+      title: '待调整任务',
+      description: '初始描述',
+      grade: 'B',
+      track: 'api',
+    })
+    const beforeYaml = readFileSync(join(spec, 'tasks', `${created.task_id}.yaml`), 'utf8')
+    const openedMatch = beforeYaml.match(/^opened_at:\s*(.+)$/m)
+    const updated = await call(spec, 'task_draft', {
+      task_id: created.task_id,
+      update_draft: true,
+      title: '调整后的任务标题',
+      description: '更新后的描述',
+      grade: 'A',
+      track: 'h5',
+    })
+    expect(updated).toMatchObject({
+      task_id: created.task_id,
+      created: false,
+      grade: 'A',
+      track: 'h5',
+      description: '更新后的描述',
+    })
+    const afterYaml = readFileSync(join(spec, 'tasks', `${created.task_id}.yaml`), 'utf8')
+    expect(afterYaml).toContain('title: 调整后的任务标题')
+    if (openedMatch?.[1]) {
+      expect(afterYaml).toContain(`opened_at: ${openedMatch[1]}`)
+    }
+
+    writeFileSync(join(spec, 'tasks', 'T-09.yaml'), [
+      'id: T-09', 'title: 已进入开发', 'grade: B', 'state: contracted', 'rules: []',
+      'scope:', '  irreversible: []', '  allowed_paths: []', 'evidence_required: []',
+      'opened_at: 2026-11-02T15:00:00+08:00', 'closed_at: null', '',
+    ].join('\n'), 'utf8')
+
+    await expect(
+      call(spec, 'task_draft', { task_id: 'T-09', update_draft: true, title: '改不动', grade: 'B' }),
+    ).rejects.toThrow(/只有待确认（drafting）状态的任务允许更新/)
+  })
+
   it('非法编号、空标题、越界分级一律拒绝', async () => {
     const { spec } = makeRepo()
     await expect(call(spec, 'task_draft', { task_id: 't1', title: 'x', grade: 'A' })).rejects.toThrow(/非法的任务编号/)

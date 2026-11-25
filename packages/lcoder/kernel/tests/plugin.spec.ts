@@ -202,6 +202,7 @@ describe('插件装配', () => {
         'lcoder.command(task_assign)',
         'lcoder.command(task_contract)',
         'lcoder.command(task_split_ready)',
+        'lcoder.command(task_discard)',
         'lcoder.command(task_schedule)',
         'lcoder.command(flow_status)',
         'lcoder.command(flow_log)',
@@ -213,15 +214,16 @@ describe('插件装配', () => {
         'lcoder.command(requirement_release)',
         'lcoder.command(requirement_close)',
         'lcoder.command(requirement_review_decide)',
+        'lcoder.command(role_upsert)',
         'lcoder.command(deploy)',
       ].sort(),
     )
     harness.runEffects()
     expect(harness.registrations.map(r => r.name).sort()).toEqual(TOOL_NAMES)
     expect(harness.commands.map(c => c.name)).toEqual([
-      'contract_sign', 'task_bind', 'task_assign', 'task_contract', 'task_split_ready', 'task_schedule',
+      'contract_sign', 'task_bind', 'task_assign', 'task_contract', 'task_discard', 'task_split_ready', 'task_schedule',
       'flow_status', 'flow_log', 'flow_save', 'agent_bind', 'proposal_approve', 'proposal_reject',
-      'requirement_approve', 'requirement_release', 'requirement_close', 'requirement_review_decide', 'deploy',
+      'requirement_approve', 'requirement_release', 'requirement_close', 'requirement_review_decide', 'role_upsert', 'deploy',
     ])
   })
 

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { SessionSummary } from '../src/store.ts'
 import type { ProjectScope, WorkspaceRow } from '../src/workspace/use-workspaces.ts'
 import { isFlowSession, normalizedPath, seedHiddenOf, visibleSessionsOf } from '../src/shell/session-groups.ts'
+import { sessionLabel } from '../src/shell/chat-view.tsx'
 
 function row(sessionId: string, extra: Partial<SessionSummary> = {}): SessionSummary {
   return { sessionId, updatedAt: 1, running: false, blank: false, ...extra }
@@ -74,5 +75,13 @@ describe('seedHiddenOf', () => {
     expect(seedHiddenOf(row('chat'), '需求评审：请对 REQ-01 做评审')).toBe(true)
     expect(seedHiddenOf(row('chat'), '你好，帮我看下代码')).toBe(false)
     expect(seedHiddenOf(null, '需求拆分：请把 REQ-02 拆开')).toBe(false)
+  })
+})
+
+describe('sessionLabel', () => {
+  it('优先使用实时标题，其次使用列表投影自带的 title，最后回退 cwd 尾段', () => {
+    expect(sessionLabel(row('s1', { title: '投影标题', cwd: 'E:/seed-sandbox' }), { s1: '最新改名' })).toBe('最新改名')
+    expect(sessionLabel(row('s1', { title: '投影标题', cwd: 'E:/seed-sandbox' }), {})).toBe('投影标题')
+    expect(sessionLabel(row('s1', { cwd: 'E:/seed-sandbox' }), {})).toBe('seed-sandbox')
   })
 })

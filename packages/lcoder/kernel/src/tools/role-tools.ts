@@ -67,6 +67,7 @@ export function createRoleTools(specRootInput: RootInput): ToolDefinition[] {
         name: { type: 'string', required: true, description: '显示名，如「Vue 工程师」' },
         inherits: { type: 'string', required: true, description: `继承哪个内置角色：${ROLES.join(' / ')}` },
         persona: { type: 'string', description: '可选的提示词前缀，说明这个岗位怎么干活；不改变工具面' },
+        derived_from: { type: 'string', description: '可选的派生来源标注（如「慢牛项目经理」或 maniu-pm）' },
         signals: {
           type: 'object',
           additionalProperties: false,
@@ -97,6 +98,7 @@ export function createRoleTools(specRootInput: RootInput): ToolDefinition[] {
           throw new Error(`inherits 只接受内置角色：${ROLES.join(' / ')}；收到 ${inherits}`)
         }
         const persona = args.persona?.trim()
+        const derivedFrom = args.derived_from?.trim()
         const signals = normalizeSignals(args.signals)
 
         const written = upsertRole(specRoot, {
@@ -104,6 +106,7 @@ export function createRoleTools(specRootInput: RootInput): ToolDefinition[] {
           name,
           inherits,
           ...(persona === undefined || persona === '' ? {} : { persona }),
+          ...(derivedFrom === undefined || derivedFrom === '' ? {} : { derived_from: derivedFrom }),
           ...(signals === undefined ? {} : { signals }),
         })
 
@@ -113,6 +116,7 @@ export function createRoleTools(specRootInput: RootInput): ToolDefinition[] {
             name,
             inherits,
             ...(persona === undefined || persona === '' ? {} : { persona }),
+            ...(derivedFrom === undefined || derivedFrom === '' ? {} : { derived_from: derivedFrom }),
             ...(signals === undefined ? {} : { signals }),
           },
           roles: written.roles.length,

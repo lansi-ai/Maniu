@@ -37,6 +37,11 @@ contextBridge.exposeInMainWorld('lcoderPrototypePreview', api)
 // 工作台下行控制只进隔离世界，不进 contextBridge：原型页面拿不到这些能力。
 ipcRenderer.on(IPC_CHANNELS.prototypeStudioInspectControl, (_event, payload: unknown) => {
   if (!isRecord(payload)) return
+  if (typeof payload.compareBadge === 'string') {
+    const edge = payload.resizeEdge === 'left' || payload.resizeEdge === 'right' ? payload.resizeEdge : undefined
+    applyCompareOverlay(payload.compareBadge, edge)
+    return
+  }
   const interaction = payload.interactionMode
   if (interaction === 'select' || interaction === 'interact') {
     hideHintForStudio()
@@ -172,6 +177,137 @@ let errorCount = 0
 let errorVisible = false
 let lastErrorPaintAt = 0
 const ERROR_THROTTLE_MS = 200
+let compareBadgeEl: HTMLElement | undefined
+let resizeHandleEl: HTMLElement | undefined
+let resizeGripEl: HTMLElement | undefined
+let draggingResize = false
+let lastResizeScreenX = 0
+let pendingDeltaX = 0
+let resizeRafId: number | null = null
+
+const GRIP_IDLE_BG = 'rgba(148,163,184,.58)'
+const GRIP_ACTIVE_BG = 'rgba(79,140,255,.9)'
+const HANDLE_BORDER_IDLE = 'rgba(148,163,184,.28)'
+const HANDLE_BORDER_ACTIVE = 'rgba(79,140,255,.65)'
+
+function flushCompareResize(): void {
+  if (resizeRafId !== null) {
+    window.cancelAnimationFrame(resizeRafId)
+    resizeRafId = null
+  }
+  if (pendingDeltaX === 0) return
+  const deltaX = pendingDeltaX
+  pendingDeltaX = 0
+  ipcRenderer.send(IPC_CHANNELS.prototypeStudioCompareResize, { deltaX })
+}
+
+function resetCompareResizeState(): void {
+  if (resizeRafId !== null) {
+    window.cancelAnimationFrame(resizeRafId)
+    resizeRafId = null
+  }
+  pendingDeltaX = 0
+  draggingResize = false
+  resizeHandleEl?.remove()
+  resizeHandleEl = undefined
+  resizeGripEl = undefined
+}
+
+function paintHandleActive(active: boolean): void {
+  if (resizeGripEl !== undefined) {
+    resizeGripEl.style.background = active ? GRIP_ACTIVE_BG : GRIP_IDLE_BG
+  }
+  if (resizeHandleEl !== undefined) {
+    const edge = resizeHandleEl.getAttribute('data-edge')
+    const borderColor = active ? HANDLE_BORDER_ACTIVE : HANDLE_BORDER_IDLE
+    resizeHandleEl.style.borderLeft = edge === 'left' ? `1px solid ${borderColor}` : 'none'
+    resizeHandleEl.style.borderRight = edge === 'right' ? `1px solid ${borderColor}` : 'none'
+  }
+}
+
+/** 渲染或移除并排对比的版本角标与中缝拖拽抓手；挂在 documentElement 上防止被 body 重写清掉。 */
+function applyCompareOverlay(badgeText: string, resizeEdge?: 'left' | 'right'): void {
+  if (badgeText === '') {
+    compareBadgeEl?.remove()
+    compareBadgeEl = undefined
+    resetCompareResizeState()
+    return
+  }
+  if (compareBadgeEl === undefined) {
+    const badge = document.createElement('div')
+    badge.setAttribute('data-testid', 'prototype-compare-badge')
+    badge.style.cssText = 'position:fixed;top:10px;left:10px;z-index:2147483646;pointer-events:none;padding:3px 10px;border-radius:999px;background:rgba(15,23,42,.68);color:#f8fafc;font:600 11px/1.4 system-ui,sans-serif;user-select:none'
+    document.documentElement.append(badge)
+    compareBadgeEl = badge
+  }
+  compareBadgeEl.textContent = badgeText
+  if (resizeEdge === undefined) {
+    resetCompareResizeState()
+    return
+  }
+  if (resizeHandleEl === undefined) {
+    const handle = document.createElement('div')
+    handle.setAttribute('data-testid', 'prototype-compare-resize-handle')
+    handle.title = '左右拖动调整对比宽度'
+    handle.style.cssText = 'position:fixed;top:0;bottom:0;width:10px;z-index:2147483646;cursor:col-resize;background:transparent;touch-action:none;display:flex;align-items:center;justify-content:center;box-sizing:border-box'
+    const grip = document.createElement('div')
+    grip.setAttribute('data-testid', 'prototype-compare-resize-grip')
+    grip.style.cssText = `width:4px;height:44px;border-radius:999px;background:${GRIP_IDLE_BG};pointer-events:none;transition:background .15s ease`
+    handle.append(grip)
+    resizeGripEl = grip
+
+    handle.addEventListener('pointerenter', () => { paintHandleActive(true) })
+    handle.addEventListener('pointerleave', () => { if (!draggingResize) paintHandleActive(false) })
+    handle.addEventListener('pointerdown', (event: PointerEvent) => {
+      if (event.button !== 0) return
+      draggingResize = true
+      lastResizeScreenX = event.screenX
+      pendingDeltaX = 0
+      paintHandleActive(true)
+      event.preventDefault()
+      event.stopPropagation()
+      const capture: unknown = Reflect.get(handle, 'setPointerCapture')
+      if (typeof capture === 'function') handle.setPointerCapture(event.pointerId)
+    })
+    handle.addEventListener('pointermove', (event: PointerEvent) => {
+      if (!draggingResize) return
+      const step = event.screenX - lastResizeScreenX
+      if (step === 0) return
+      lastResizeScreenX = event.screenX
+      pendingDeltaX += step
+      if (typeof window.requestAnimationFrame !== 'function') {
+        flushCompareResize()
+        return
+      }
+      if (resizeRafId !== null) return
+      resizeRafId = window.requestAnimationFrame(() => {
+        resizeRafId = null
+        flushCompareResize()
+      })
+    })
+    const stopResize = (event: PointerEvent): void => {
+      if (!draggingResize) return
+      draggingResize = false
+      flushCompareResize()
+      paintHandleActive(false)
+      const release: unknown = Reflect.get(handle, 'releasePointerCapture')
+      if (typeof release === 'function') handle.releasePointerCapture(event.pointerId)
+    }
+    handle.addEventListener('pointerup', stopResize)
+    handle.addEventListener('pointercancel', stopResize)
+    document.documentElement.append(handle)
+    resizeHandleEl = handle
+  }
+  resizeHandleEl.setAttribute('data-edge', resizeEdge)
+  if (resizeEdge === 'left') {
+    resizeHandleEl.style.left = '0px'
+    resizeHandleEl.style.right = 'auto'
+  } else {
+    resizeHandleEl.style.right = '0px'
+    resizeHandleEl.style.left = 'auto'
+  }
+  paintHandleActive(draggingResize)
+}
 
 function clearHighlight(): void {
   if (highlighted === undefined) return
@@ -272,8 +408,9 @@ function onBlur(): void {
 function onClick(event: MouseEvent): void {
   const target = event.target
   if (!(target instanceof Element)) return
-  // 提示条自身的点击由按钮监听处理，不参与元素选中，也不影响原型交互。
+  // 提示条与中缝抓手自身的点击不参与元素选中，也不影响原型交互。
   if (hintBar !== undefined && hintBar.contains(target)) return
+  if (resizeHandleEl !== undefined && resizeHandleEl.contains(target)) return
   // 每次点击先复位提交抑制，只有本次被判定为选中才重新置位。
   suppressSubmit = false
   if (!isSelectionClick(event)) return

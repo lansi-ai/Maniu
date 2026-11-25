@@ -45,4 +45,19 @@ describe('summaryOf agentPreset', () => {
     expect(summaryOf(row({ projections: { values: {} } }))?.agentPreset).toBeUndefined()
     expect(summaryOf(row({ agentPreset: 42 }))?.agentPreset).toBeUndefined()
   })
+
+  it('优先从宿主 projections.values.title 读取会话标题，并回退顶层 title', () => {
+    const fromProjection = summaryOf(row({
+      projections: { kind: 'sequenced', asOfSeq: 4, values: { title: '  REQ-01 需求评审  ' } },
+    }))
+    expect(fromProjection?.title).toBe('REQ-01 需求评审')
+
+    const fromTop = summaryOf(row({
+      projections: { kind: 'sequenced', asOfSeq: 4, values: { title: null } },
+      title: '手动重命名标题',
+    }))
+    expect(fromTop?.title).toBe('手动重命名标题')
+
+    expect(summaryOf(row({ projections: { values: { title: '   ' } } }))?.title).toBeUndefined()
+  })
 })

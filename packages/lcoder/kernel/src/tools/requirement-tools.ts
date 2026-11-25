@@ -175,6 +175,164 @@ function splitPlanEntriesOf(
   })
 }
 
+/** 单条结构化评审待改项。 */
+export interface StructuredReviewItem {
+  readonly priority: 'high' | 'medium' | 'low'
+  readonly title: string
+  readonly location: string
+  readonly problem: string
+  readonly suggestion: string
+  readonly category?: string | undefined
+}
+
+/** 结构化评审报告输入，由内核统一渲染为标准 Markdown。 */
+export interface StructuredReviewReportInput {
+  readonly summary: string
+  readonly conclusion: '可以确认' | '需要修改'
+  readonly items: readonly StructuredReviewItem[]
+}
+
+const PRIORITY_ZH: Record<StructuredReviewItem['priority'], string> = {
+  high: '高',
+  medium: '中',
+  low: '低',
+}
+
+function normalizeInline(value: string): string {
+  return value.trim().replace(/\s+/g, ' ')
+}
+
+function formatStructuredReviewItem(item: StructuredReviewItem): string {
+  const priority = PRIORITY_ZH[item.priority]
+  const title = normalizeInline(item.title)
+  const location = normalizeInline(item.location)
+  const problem = normalizeInline(item.problem)
+  const suggestion = normalizeInline(item.suggestion)
+  return `- [${priority}] **${title}** —— 位置：${location}。问题：${problem}。建议：${suggestion}`
+}
+
+/**
+ * 将结构化评审输入渲染为标准 Markdown 评审报告。
+ * @param input - 摘要、结论与待改项列表。
+ * @returns 规范化的 Markdown 评审报告文本。
+ */
+export function renderStructuredReviewReport(input: StructuredReviewReportInput): string {
+  const sections: string[] = [
+    `## 摘要\n${input.summary.trim()}`,
+    `## 结论\n${input.conclusion}`,
+  ]
+
+  if (input.items.length === 0) {
+    sections.push('## 待改项\n无')
+    return sections.join('\n\n')
+  }
+
+  const hasCategory = input.items.some(item => (item.category ?? '').trim() !== '')
+  if (!hasCategory) {
+    const lines = input.items.map(formatStructuredReviewItem)
+    sections.push(`## 待改项\n${lines.join('\n')}`)
+    return sections.join('\n\n')
+  }
+
+  const groups = new Map<string, StructuredReviewItem[]>()
+  const uncategorized: StructuredReviewItem[] = []
+  for (const item of input.items) {
+    const category = (item.category ?? '').trim()
+    if (category === '') {
+      uncategorized.push(item)
+      continue
+    }
+    const bucket = groups.get(category)
+    if (bucket !== undefined) {
+      bucket.push(item)
+    } else {
+      groups.set(category, [item])
+    }
+  }
+  if (uncategorized.length > 0) {
+    const existingOther = groups.get('其他')
+    if (existingOther !== undefined) {
+      existingOther.push(...uncategorized)
+    } else {
+      groups.set('其他', uncategorized)
+    }
+  }
+
+  const categoryBlocks: string[] = []
+  for (const [category, groupItems] of groups) {
+    categoryBlocks.push(`### ${category}\n${groupItems.map(formatStructuredReviewItem).join('\n')}`)
+  }
+  sections.push(`## 待改项\n\n${categoryBlocks.join('\n\n')}`)
+  return sections.join('\n\n')
+}
+
+function parseStructuredReviewItems(raw: unknown): StructuredReviewItem[] {
+  if (!Array.isArray(raw)) {
+    throw new Error('requirement_review_draft 结构化提交需要 items 数组（无待改项传 []）')
+  }
+  return raw.map((entry: unknown, index: number) => {
+    const where = `第 ${String(index + 1)} 条待改项`
+    if (entry === null || typeof entry !== 'object') {
+      throw new Error(`${where}必须是对象`)
+    }
+    const item = entry as Record<string, unknown>
+    const priority = item['priority']
+    if (priority !== 'high' && priority !== 'medium' && priority !== 'low') {
+      throw new Error(`${where}的 priority 必须是 high、medium 或 low`)
+    }
+    const title = item['title']
+    const location = item['location']
+    const problem = item['problem']
+    const suggestion = item['suggestion']
+    if (
+      typeof title !== 'string' || title.trim() === '' ||
+      typeof location !== 'string' || location.trim() === '' ||
+      typeof problem !== 'string' || problem.trim() === '' ||
+      typeof suggestion !== 'string' || suggestion.trim() === ''
+    ) {
+      throw new Error(`${where}缺字段：title、location、problem、suggestion 都要非空`)
+    }
+    const category = item['category']
+    if (category !== undefined && typeof category !== 'string') {
+      throw new Error(`${where}的 category 必须是字符串`)
+    }
+    return {
+      priority,
+      title,
+      location,
+      problem,
+      suggestion,
+      ...(category === undefined ? {} : { category }),
+    }
+  })
+}
+
+function parseDismissedIssues(raw: unknown): Array<{ title: string; reason: string }> {
+  if (raw === undefined) return []
+  if (!Array.isArray(raw)) {
+    throw new Error('requirement_review_draft 的 dismissed 必须是数组')
+  }
+  return raw.map((entry: unknown, index: number) => {
+    const where = `第 ${String(index + 1)} 条排除项`
+    if (entry === null || typeof entry !== 'object') {
+      throw new Error(`${where}必须是对象`)
+    }
+    const item = entry as Record<string, unknown>
+    const title = item['title']
+    const reason = item['reason']
+    if (
+      typeof title !== 'string' || title.trim() === '' ||
+      typeof reason !== 'string' || reason.trim() === ''
+    ) {
+      throw new Error(`${where}缺字段：title 与 reason 都要非空`)
+    }
+    return {
+      title: title.trim(),
+      reason: reason.trim(),
+    }
+  })
+}
+
 /**
  * 建需求工具：起草、评审、改稿、需求变更提案、已确认需求 S 级修补与拆分岗位建议；可见性由角色天花板收窄。
  * @param rootInput - 规格根解析（按会话工作区）。
@@ -240,19 +398,69 @@ export function createRequirementTools(rootInput: RootInput): ToolDefinition[] {
     defineTool({
       name: 'requirement_review_draft',
       description:
-        '给一条起草态需求追加一轮评审，报告写到 `.spec/requirements/<编号>/reviews/R<轮次>.md`，并把轮次记进 YAML。参数 id 是需求编号，report 是完整 Markdown 评审报告；要求需求 state 为 draft 且正文已存在。本工具只追加评审，不改需求状态与正文——改稿由需求分析师用 requirement_revise 做，过审由人完成。',
+        '给一条起草态需求追加一轮评审，报告写到 `.spec/requirements/<编号>/reviews/R<轮次>.md`，并把轮次记进 YAML。优先使用结构化参数（summary + conclusion + items），由内核统一渲染为标准 Markdown 报告；report 仅用于兼容旧调用。要求需求 state 为 draft 且正文已存在。本工具只追加评审，不改需求状态与正文——改稿由需求分析师用 requirement_revise 做，过审由人完成。',
       parameters: {
         id: { type: 'string', required: true, description: '需求编号，如 REQ-01' },
-        report: { type: 'string', required: true, description: '完整的评审报告，Markdown；去空白后必须非空' },
+        summary: { type: 'string', description: '两三句给出整体判断与最关键的问题；结构化提交时必填' },
+        conclusion: { type: 'string', enum: ['可以确认', '需要修改'], description: '评审结论；结构化提交时必填' },
+        items: {
+          type: 'array',
+          description: '待改项列表；无待改项传空数组 []',
+          items: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              priority: { type: 'string', enum: ['high', 'medium', 'low'], required: true, description: '严重度：high（高）/ medium（中）/ low（低）' },
+              title: { type: 'string', required: true, description: '一句话核心问题，不带优先级前缀' },
+              location: { type: 'string', required: true, description: '涉及章节与条款位置' },
+              problem: { type: 'string', required: true, description: '具体问题说明' },
+              suggestion: { type: 'string', required: true, description: '可执行的修改建议' },
+              category: { type: 'string', description: '可选评审维度（如 文档完备性 / 合理性 / 需求角度 / 技术实现角度）' },
+            },
+          },
+        },
+        report: { type: 'string', description: '兼容旧调用的完整 Markdown 评审报告；仅在未提供结构化字段时作为兜底' },
+        dismissed: {
+          type: 'array',
+          description: '评审确认环节中用户判定为「非本期 / 刻意不做」的条目；记入 YAML 元数据（不改需求正文），后续评审自动忽略',
+          items: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              title: { type: 'string', required: true, description: '被排除的问题简述' },
+              reason: { type: 'string', required: true, description: '排除理由（如非本期范围、用户确认保持现状）' },
+            },
+          },
+        },
       },
       output: { schema: { type: 'json' }, render: renderJson },
       // oxlint-disable-next-line typescript/require-await -- execute 的契约要求返回 Promise（ToolDefinition.execute），这里是同步实现。
       async execute(args, exec) {
         const root = resolveRoot(rootInput, exec)
         const id = assertRequirementId(args.id.trim())
-        if (args.report.trim() === '') {
-          throw new Error('requirement_review_draft 需要非空的 report：评审报告不能为空')
+
+        let reportText: string
+        let autoAccepted = false
+        if (args.summary !== undefined || args.conclusion !== undefined || args.items !== undefined) {
+          if (typeof args.summary !== 'string' || args.summary.trim() === '') {
+            throw new Error('requirement_review_draft 结构化提交需要非空的 summary')
+          }
+          if (args.conclusion !== '可以确认' && args.conclusion !== '需要修改') {
+            throw new Error('requirement_review_draft 结构化提交的 conclusion 必须是「可以确认」或「需要修改」')
+          }
+          const items = parseStructuredReviewItems(args.items)
+          autoAccepted = args.conclusion === '可以确认' && items.length === 0
+          reportText = renderStructuredReviewReport({
+            summary: args.summary,
+            conclusion: args.conclusion,
+            items,
+          })
+        } else if (typeof args.report === 'string' && args.report.trim() !== '') {
+          reportText = args.report
+        } else {
+          throw new Error('requirement_review_draft 需要提供结构化的 summary + conclusion + items，或非空的 report')
         }
+        const dismissed = parseDismissedIssues(args.dismissed)
 
         let requirement
         try {
@@ -274,11 +482,13 @@ export function createRequirementTools(rootInput: RootInput): ToolDefinition[] {
         if (stale !== undefined) throw new Error(stale)
 
         const review = recordRequirementReview(root, id, {
-          report: args.report,
+          report: reportText,
           at: new Date().toISOString(),
           baseContent: document,
           ...(sessionId === undefined ? {} : { sessionId }),
           ...(role === undefined ? {} : { role }),
+          ...(dismissed.length > 0 ? { dismissed } : {}),
+          ...(autoAccepted ? { autoAccepted: true } : {}),
         })
 
         return {
@@ -286,6 +496,7 @@ export function createRequirementTools(rootInput: RootInput): ToolDefinition[] {
           round: review.round,
           report_path: review.relativeReport,
           state: review.requirement.state,
+          ...(dismissed.length > 0 ? { dismissed_count: dismissed.length } : {}),
           note: '评审报告已落盘，只追加评审记录；本工具不改需求状态与正文，改稿与过审都不由本工具完成。',
         }
       },

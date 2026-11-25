@@ -1,10 +1,19 @@
 /** 原型工作台 IPC：入参校验、下行控制转发，以及点选同时送主窗与协作界面。 */
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import type { BrowserWindow } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { IPC_CHANNELS } from '../src/contract.ts'
 import type { PrototypeSelectionInfo } from '../src/contract.ts'
 
-const electron = vi.hoisted(() => ({ handle: vi.fn(), send: vi.fn(), getPath: vi.fn(() => '') }))
+const electron = vi.hoisted(() => ({
+  handle: vi.fn(),
+  on: vi.fn(),
+  send: vi.fn(),
+  getPath: vi.fn(() => ''),
+  nativeTheme: { themeSource: 'dark' },
+}))
 const studio = vi.hoisted(() => {
   const listeners = new Map<string, Array<(arg?: unknown) => void>>()
   const window = {
@@ -29,6 +38,7 @@ const studio = vi.hoisted(() => {
     loadHtml: vi.fn(),
     highlightPaths: vi.fn(),
     setFloatingBounds: vi.fn(),
+    nudgeCompareRatio: vi.fn(),
     floatingRect: vi.fn(() => ({ x: 1, y: 2, width: 300, height: 240 })),
     uiWebContents: () => uiWebContents,
     dispose: vi.fn(),
@@ -41,9 +51,10 @@ const studio = vi.hoisted(() => {
   return { create: vi.fn(() => controller), controller, window, uiWebContents, uiState, emit, reset }
 })
 vi.mock('electron', () => ({
-  ipcMain: { handle: electron.handle },
+  ipcMain: { handle: electron.handle, on: electron.on },
   dialog: { showOpenDialog: vi.fn() },
   app: { getPath: electron.getPath },
+  nativeTheme: electron.nativeTheme,
 }))
 vi.mock('../src/window.ts', () => ({
   createPrototypePreviewWindow: vi.fn(),
@@ -281,6 +292,41 @@ describe('工作台广播目标', () => {
       IPC_CHANNELS.prototypeSelection,
     ]) {
       expect(STUDIO_BROADCAST_CHANNELS.has(channel)).toBe(false)
+    }
+  })
+})
+
+describe('对比模式、中缝调宽与主题同步', () => {
+  it('compare-fullscreen-pinned 模式放行，compare-resize 校验 deltaX 后转发给工作台', () => {
+    const get = install()
+    get(IPC_CHANNELS.prototypeStudioOpen)({}, VALID)
+    get(IPC_CHANNELS.prototypeStudioSetMode)({}, 'compare-fullscreen-pinned')
+    expect(studio.controller.setMode).toHaveBeenCalledWith('compare-fullscreen-pinned')
+
+    const onEntry = electron.on.mock.calls.find(call => call[0] === IPC_CHANNELS.prototypeStudioCompareResize)
+    if (onEntry === undefined) throw new Error('没有注册 prototypeStudioCompareResize')
+    const resizeListener = onEntry[1] as Handler
+    resizeListener({}, { deltaX: 24 })
+    expect(studio.controller.nudgeCompareRatio).toHaveBeenCalledExactlyOnceWith(24)
+
+    studio.controller.nudgeCompareRatio.mockClear()
+    resizeListener({}, { deltaX: Number.NaN })
+    resizeListener({}, { deltaX: '24' })
+    resizeListener({}, null)
+    expect(studio.controller.nudgeCompareRatio).not.toHaveBeenCalled()
+  })
+
+  it('preferencesWrite 同步 nativeTheme.themeSource', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'lcoder-theme-'))
+    electron.getPath.mockReturnValue(dir)
+    try {
+      const write = install()(IPC_CHANNELS.preferencesWrite)
+      write({}, { skin: 'light' })
+      expect(electron.nativeTheme.themeSource).toBe('light')
+      write({}, { skin: 'dark' })
+      expect(electron.nativeTheme.themeSource).toBe('dark')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
     }
   })
 })

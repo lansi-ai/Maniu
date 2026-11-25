@@ -179,4 +179,38 @@ describe('需求投影', () => {
     expect(legacy?.amendCount).toBeUndefined()
     expect(legacy?.amendments).toBeUndefined()
   })
+
+  it('透传评审已排除项 dismissed_issues，空或缺失时省略 dismissedIssues', () => {
+    const withDismissed = requirementTextToRow('REQ-08.yaml', [
+      'id: REQ-08',
+      'title: 排除项投影',
+      'state: draft',
+      'dismissed_issues:',
+      '  - title: 支持多租户隔离',
+      '    reason: 本期仅单租户内部使用',
+      '    round: 1',
+      '    at: 2026-11-24T10:00:00+08:00',
+      '  - title: 坏条目缺少轮次',
+      '    reason: 应被跳过',
+      '    round: 0',
+      '    at: 2026-11-24T10:05:00+08:00',
+    ].join('\n'))
+
+    expect(withDismissed?.dismissedIssues).toEqual([
+      {
+        title: '支持多租户隔离',
+        reason: '本期仅单租户内部使用',
+        round: 1,
+        at: '2026-11-24T10:00:00+08:00',
+      },
+    ])
+
+    const emptyDismissed = requirementTextToRow('REQ-09.yaml', [
+      'id: REQ-09',
+      'title: 空排除项',
+      'dismissed_issues: []',
+    ].join('\n'))
+    expect(emptyDismissed?.dismissedIssues).toBeUndefined()
+    expect('dismissedIssues' in (emptyDismissed ?? {})).toBe(false)
+  })
 })

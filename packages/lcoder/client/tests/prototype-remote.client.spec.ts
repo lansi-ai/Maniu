@@ -3,8 +3,9 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { buildPrototypePrompt, buildStudioCoDesignPrompt, styleSummaryText } from '../src/prototype/prompt.ts'
 import {
-  adoptPrototype, clearPrototype, commitStagedPrototype, discardStagedPrototype, getStagedPrototype,
-  listPrototypeSnapshots, prefetchStyle, readPrototypeHtml, restorePrototypeSnapshot, uploadPrototypeRef,
+  adoptPrototype, clearPrototype, commitStagedPrototype, discardStagedPrototype, getPrototypeSnapshot,
+  getStagedPrototype, listPrototypeSnapshots, prefetchStyle, readPrototypeHtml, restorePrototypeSnapshot,
+  uploadPrototypeRef,
 } from '../src/prototype/remote.ts'
 import { WORKSPACE_READ_LINES } from '../src/spec/files.ts'
 import { requirementTextToRow } from '../src/spec/rows.ts'
@@ -265,5 +266,19 @@ describe('原型协作提示词', () => {
     expect(prompt).toContain('patches')
     expect(prompt).toContain('只有大范围跨区块改版')
     expect(prompt).not.toContain('prototype_draft')
+  })
+})
+
+describe('getPrototypeSnapshot', () => {
+  it('把 sessionId 与 snapshotId 包在 input 里并返回只读 { html }', async () => {
+    const call = vi.fn(async () => ({
+      ok: true as const,
+      value: { html: '<html>历史版本</html>' },
+    }))
+    const value = await getPrototypeSnapshot('session-1', undefined, '1769000000000-0', call)
+    expect(call).toHaveBeenCalledWith('prototype', 'getSnapshot', {
+      input: { sessionId: 'session-1', snapshotId: '1769000000000-0' },
+    })
+    expect(value).toEqual({ html: '<html>历史版本</html>' })
   })
 })

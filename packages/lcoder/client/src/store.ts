@@ -10,6 +10,7 @@ export interface SessionSummary {
   readonly parentSessionId?: string
   readonly origin?: string
   readonly agentPreset?: string
+  readonly title?: string
 }
 
 /** 聊天里一条图片附件：只保留预览与尺寸需要的字段。 */
@@ -652,10 +653,25 @@ function agentPresetOf(value: Record<string, unknown>): string | undefined {
   return typeof value.agentPreset === 'string' ? value.agentPreset : undefined
 }
 
+/** 列表载荷里的标题：宿主线形在 `projections.values.title`，旧载荷在顶层。 */
+function titleOf(value: Record<string, unknown>): string | undefined {
+  if (isRecord(value.projections) && isRecord(value.projections.values)
+    && typeof value.projections.values.title === 'string') {
+    const trimmed = value.projections.values.title.trim()
+    if (trimmed !== '') return trimmed
+  }
+  if (typeof value.title === 'string') {
+    const trimmed = value.title.trim()
+    if (trimmed !== '') return trimmed
+  }
+  return undefined
+}
+
 /** 把 `session/list` 与事件载荷裁成列表项。 */
 export function summaryOf(value: unknown): SessionSummary | undefined {
   if (!isRecord(value) || typeof value.sessionId !== 'string' || typeof value.updatedAt !== 'number') return undefined
   const agentPreset = agentPresetOf(value)
+  const title = titleOf(value)
   return {
     sessionId: value.sessionId,
     updatedAt: value.updatedAt,
@@ -665,5 +681,6 @@ export function summaryOf(value: unknown): SessionSummary | undefined {
     ...(typeof value.parentSessionId === 'string' ? { parentSessionId: value.parentSessionId } : {}),
     ...(typeof value.origin === 'string' ? { origin: value.origin } : {}),
     ...(agentPreset === undefined ? {} : { agentPreset }),
+    ...(title === undefined ? {} : { title }),
   }
 }

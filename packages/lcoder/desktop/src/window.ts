@@ -1,6 +1,6 @@
 /** 主窗口：frameless、默认 1280×800、只加载本地渲染产物。 */
 
-import { app, BrowserWindow, WebContentsView, type WebContents } from 'electron'
+import { app, BrowserWindow, nativeTheme, WebContentsView, type WebContents } from 'electron'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { IPC_CHANNELS } from './contract.ts'
@@ -29,6 +29,24 @@ export function clientIndex(): string {
     : join(REPO_ROOT, 'packages', 'lcoder', 'client', 'lib', 'dist', 'index.html')
 }
 
+const DARK_WINDOW_BG = '#111111'
+const LIGHT_WINDOW_BG = '#f3f6fc'
+
+function themeWindowBackgroundColor(): string {
+  return nativeTheme.shouldUseDarkColors ? DARK_WINDOW_BG : LIGHT_WINDOW_BG
+}
+
+/** 随系统/应用外观变化同步窗口原生背景与标题栏底色，关窗时注销监听。 */
+function syncWindowThemeBackground(window: BrowserWindow): void {
+  const onThemeUpdated = (): void => {
+    if (!window.isDestroyed()) window.setBackgroundColor(themeWindowBackgroundColor())
+  }
+  nativeTheme.on('updated', onThemeUpdated)
+  window.once('closed', () => {
+    nativeTheme.removeListener('updated', onThemeUpdated)
+  })
+}
+
 /** 创建唯一的 S1 主窗口。 */
 export function createMainWindow(): BrowserWindow {
   const preload = join(import.meta.dirname, '..', 'preload.cjs')
@@ -45,7 +63,7 @@ export function createMainWindow(): BrowserWindow {
     frame: false,
     show: false,
     autoHideMenuBar: true,
-    backgroundColor: '#f3f6fc',
+    backgroundColor: themeWindowBackgroundColor(),
     title: 'Maniu',
     icon: appIconPath(),
     webPreferences: {
@@ -57,6 +75,7 @@ export function createMainWindow(): BrowserWindow {
       backgroundThrottling: false,
     },
   })
+  syncWindowThemeBackground(window)
   window.once('ready-to-show', () => { window.show() })
   void window.loadFile(index)
   return window
@@ -159,6 +178,10 @@ export interface StudioLayout {
 
 /** 分屏模式下原型画布占窗宽的比例。 */
 export const STUDIO_CANVAS_RATIO = 0.68
+/** 并排对比模式下左右画布之间的分隔缝宽度。 */
+export const STUDIO_COMPARE_GAP = 4
+const STUDIO_COMPARE_RATIO_MIN = 0.25
+const STUDIO_COMPARE_RATIO_MAX = 0.75
 /** 协作界面最小宽度，窄窗时优先保证它可读。 */
 export const STUDIO_UI_MIN_WIDTH = 340
 /** 全屏置顶浮窗与窗边的间距。 */
@@ -199,11 +222,12 @@ function floatingRect(width: number, height: number, bounds: PrototypeStudioFloa
 }
 
 /**
- * 按窗口尺寸纯计算三模式的视图矩形；不触碰任何视图对象，便于确定性地验证布局。
+ * 按窗口尺寸纯计算四模式的视图矩形；不触碰任何视图对象，便于确定性地验证布局。
  * @param mode - 当前视图模式。
  * @param width - 窗口内容宽度。
  * @param height - 窗口内容高度。
  * @param bounds - 全屏置顶模式的浮窗位置与尺寸。
+ * @param compareRatio - 并排对比时左画布占对比总宽的比例，钳位在 `[0.25, 0.75]`。
  * @returns 各视图的矩形与左画布可见性。
  */
 export function studioLayout(
@@ -211,9 +235,13 @@ export function studioLayout(
   width: number,
   height: number,
   bounds: PrototypeStudioFloatingBounds = DEFAULT_FLOATING_BOUNDS,
+  compareRatio = 0.5,
 ): StudioLayout {
   const w = Math.max(0, Math.floor(width))
   const h = Math.max(0, Math.floor(height))
+  const ratio = Number.isFinite(compareRatio)
+    ? clamp(compareRatio, STUDIO_COMPARE_RATIO_MIN, STUDIO_COMPARE_RATIO_MAX)
+    : 0.5
   if (mode === 'fullscreen-pinned') {
     return {
       after: { x: 0, y: 0, width: w, height: h },
@@ -222,15 +250,27 @@ export function studioLayout(
       ui: floatingRect(w, h, bounds),
     }
   }
+  if (mode === 'compare-fullscreen-pinned') {
+    const available = Math.max(0, w - STUDIO_COMPARE_GAP)
+    const beforeWidth = Math.round(available * ratio)
+    const afterWidth = available - beforeWidth
+    return {
+      before: { x: 0, y: 0, width: beforeWidth, height: h },
+      after: { x: beforeWidth + STUDIO_COMPARE_GAP, y: 0, width: afterWidth, height: h },
+      beforeVisible: true,
+      ui: floatingRect(w, h, bounds),
+    }
+  }
   const uiWidth = clamp(w - Math.round(w * STUDIO_CANVAS_RATIO), STUDIO_UI_MIN_WIDTH, w)
   const canvasWidth = w - uiWidth
   const ui: StudioRect = { x: canvasWidth, y: 0, width: uiWidth, height: h }
   if (mode === 'compare-side-by-side') {
-    const beforeWidth = Math.floor(canvasWidth / 2)
-    const afterWidth = canvasWidth - beforeWidth
+    const available = Math.max(0, canvasWidth - STUDIO_COMPARE_GAP)
+    const beforeWidth = Math.round(available * ratio)
+    const afterWidth = available - beforeWidth
     return {
       before: { x: 0, y: 0, width: beforeWidth, height: h },
-      after: { x: beforeWidth, y: 0, width: afterWidth, height: h },
+      after: { x: beforeWidth + STUDIO_COMPARE_GAP, y: 0, width: afterWidth, height: h },
       beforeVisible: true,
       ui,
     }
@@ -252,6 +292,8 @@ export interface PrototypeStudioController {
   loadHtml(payload: PrototypeStudioHtmlPayload): void
   highlightPaths(paths: readonly string[]): void
   setFloatingBounds(bounds: PrototypeStudioFloatingBounds): void
+  /** 按像素增量微调并排对比的左右比例，钳位在 `[0.25, 0.75]` 后重新布局。 */
+  nudgeCompareRatio(deltaPx: number): void
   /** 全屏置顶时协作界面的实际矩形；其它模式或未布局过时为空。 */
   floatingRect(): StudioRect | undefined
   /** 协作界面 webContents；点选上报的转发目标，销毁后返回 undefined。 */
@@ -297,6 +339,28 @@ function makeStudioUiView(request: PrototypeStudioOpenRequest): WebContentsView 
   return view
 }
 
+const STUDIO_COMPARE_ZOOM_BASE_WIDTH = 1120
+const STUDIO_COMPARE_ZOOM_MIN = 0.45
+
+function isCompareMode(mode: PrototypeStudioMode): boolean {
+  return mode === 'compare-side-by-side' || mode === 'compare-fullscreen-pinned'
+}
+
+function isFloatingMode(mode: PrototypeStudioMode): boolean {
+  return mode === 'fullscreen-pinned' || mode === 'compare-fullscreen-pinned'
+}
+
+function zoomForComparePane(paneWidth: number): number {
+  return clamp(paneWidth / STUDIO_COMPARE_ZOOM_BASE_WIDTH, STUDIO_COMPARE_ZOOM_MIN, 1)
+}
+
+function compareControlFor(role: 'before' | 'after', active: boolean): PrototypeStudioInspectControl {
+  if (!active) return { compareBadge: '' }
+  return role === 'before'
+    ? { compareBadge: '修改前 · 正式版', resizeEdge: 'right' }
+    : { compareBadge: '修改后 · 待确认', resizeEdge: 'left' }
+}
+
 /**
  * 创建 Prototype Studio 工作台：独立窗口 + 三块 WebContentsView。
  *
@@ -314,7 +378,7 @@ export function createPrototypeStudioWindow(request: PrototypeStudioOpenRequest)
     useContentSize: true,
     resizable: true,
     autoHideMenuBar: true,
-    backgroundColor: '#f3f6fc',
+    backgroundColor: themeWindowBackgroundColor(),
     title: `原型工作室 · ${request.requirementId}`,
     icon: appIconPath(),
     webPreferences: {
@@ -324,47 +388,72 @@ export function createPrototypeStudioWindow(request: PrototypeStudioOpenRequest)
       backgroundThrottling: false,
     },
   })
+  syncWindowThemeBackground(window)
   const afterView = makePrototypeCanvas()
   const uiView = makeStudioUiView(request)
   // 工作台窗口同样不带原生菜单：Alt 点选元素时不能先弹菜单栏。
   window.setMenu(null)
   window.setMenuBarVisibility(false)
   installPrototypeOfflineGuard(afterView.webContents.session)
-  syncCanvasControls(afterView)
-  window.contentView.addChildView(afterView)
-  window.contentView.addChildView(uiView)
 
   let beforeView: WebContentsView | undefined
   let beforeHtml = request.beforeHtml
   let mode: PrototypeStudioMode = request.mode ?? 'split'
   let interaction: PrototypeInteractionMode = 'interact'
   let bounds: PrototypeStudioFloatingBounds = { ...DEFAULT_FLOATING_BOUNDS }
+  let compareRatio = 0.5
+  let afterZoom = 1
+  let beforeZoom = 1
   let floating: StudioRect | undefined
   let disposed = false
+
+  syncCanvasControls(afterView, 'after')
+  window.contentView.addChildView(afterView)
+  window.contentView.addChildView(uiView)
 
   function ensureBeforeView(): WebContentsView {
     if (beforeView !== undefined) return beforeView
     const view = makePrototypeCanvas()
-    syncCanvasControls(view)
+    syncCanvasControls(view, 'before')
     window.contentView.addChildView(view)
+    // 后挂载的 beforeView 默认在栈顶，把 uiView 重新置顶以防悬浮浮窗被画布遮挡。
+    window.contentView.addChildView(uiView)
     beforeView = view
     return view
   }
 
   function sendToCanvases(payload: PrototypeStudioInspectControl): void {
-    if (disposed) return
-    afterView.webContents.send(IPC_CHANNELS.prototypeStudioInspectControl, payload)
-    beforeView?.webContents.send(IPC_CHANNELS.prototypeStudioInspectControl, payload)
+    if (disposed || window.isDestroyed()) return
+    if (!afterView.webContents.isDestroyed()) {
+      afterView.webContents.send(IPC_CHANNELS.prototypeStudioInspectControl, payload)
+    }
+    if (beforeView !== undefined && !beforeView.webContents.isDestroyed()) {
+      beforeView.webContents.send(IPC_CHANNELS.prototypeStudioInspectControl, payload)
+    }
+  }
+
+  function syncCompareBadges(active: boolean): void {
+    if (disposed || window.isDestroyed()) return
+    if (!afterView.webContents.isDestroyed()) {
+      afterView.webContents.send(IPC_CHANNELS.prototypeStudioInspectControl, compareControlFor('after', active))
+    }
+    if (beforeView !== undefined && !beforeView.webContents.isDestroyed()) {
+      beforeView.webContents.send(IPC_CHANNELS.prototypeStudioInspectControl, compareControlFor('before', active))
+    }
   }
 
   /**
-   * 画布载入完成后补发当前交互模式：切到选择模式再重载画布时，
-   * preload 不会自己记住上一帧的模式，提示条的显隐也要跟着这次控制。
+   * 画布载入完成后补发当前交互模式、缩放因子与并排角标：切到选择模式或对比模式
+   * 再重载画布时，preload 不会自己记住上一帧的状态，提示条与角标也要跟着这次控制。
    */
-  function syncCanvasControls(view: WebContentsView): void {
+  function syncCanvasControls(view: WebContentsView, role: 'before' | 'after'): void {
     view.webContents.on('did-finish-load', () => {
-      if (disposed) return
+      if (disposed || view.webContents.isDestroyed()) return
+      view.webContents.setZoomFactor(role === 'before' ? beforeZoom : afterZoom)
       view.webContents.send(IPC_CHANNELS.prototypeStudioInspectControl, { interactionMode: interaction })
+      if (isCompareMode(mode)) {
+        view.webContents.send(IPC_CHANNELS.prototypeStudioInspectControl, compareControlFor(role, true))
+      }
     })
   }
 
@@ -372,33 +461,43 @@ export function createPrototypeStudioWindow(request: PrototypeStudioOpenRequest)
     if (disposed || window.isDestroyed()) return
     // 无边框窗口的 getSize 含不可见缩放边；按真实客户区算，画布底部才不被裁掉。
     const size = window.getContentSize()
-    const rects = studioLayout(mode, size[0] ?? 0, size[1] ?? 0, bounds)
-    floating = mode === 'fullscreen-pinned' ? rects.ui : undefined
+    const rects = studioLayout(mode, size[0] ?? 0, size[1] ?? 0, bounds, compareRatio)
+    floating = isFloatingMode(mode) ? rects.ui : undefined
+    const comparing = isCompareMode(mode)
+    afterZoom = comparing ? zoomForComparePane(rects.after.width) : 1
+    beforeZoom = comparing && rects.before !== undefined ? zoomForComparePane(rects.before.width) : 1
     afterView.setBounds(rects.after)
+    if (!afterView.webContents.isDestroyed()) afterView.webContents.setZoomFactor(afterZoom)
     uiView.setBounds(rects.ui)
     uiView.setVisible(true)
     if (beforeView !== undefined) {
       beforeView.setVisible(rects.beforeVisible)
       if (rects.before !== undefined) beforeView.setBounds(rects.before)
+      if (!beforeView.webContents.isDestroyed()) beforeView.webContents.setZoomFactor(beforeZoom)
     }
   }
 
   window.on('resize', layout)
   window.once('ready-to-show', () => { window.show() })
   void afterView.webContents.loadURL(prototypePreviewDataUrl(request.html))
-  if (mode === 'compare-side-by-side' && beforeHtml !== undefined) {
+  if (isCompareMode(mode) && beforeHtml !== undefined) {
     void ensureBeforeView().webContents.loadURL(prototypePreviewDataUrl(beforeHtml))
   }
   layout()
+  if (isCompareMode(mode)) syncCompareBadges(true)
 
   return {
     window,
     setMode(next) {
+      const wasCompare = isCompareMode(mode)
+      const nowCompare = isCompareMode(next)
       mode = next
-      if (next === 'compare-side-by-side' && beforeHtml !== undefined && beforeView === undefined) {
+      if (nowCompare && beforeHtml !== undefined && beforeView === undefined) {
         void ensureBeforeView().webContents.loadURL(prototypePreviewDataUrl(beforeHtml))
       }
       layout()
+      if (nowCompare) syncCompareBadges(true)
+      else if (wasCompare) syncCompareBadges(false)
     },
     setInteraction(next) {
       interaction = next
@@ -420,11 +519,23 @@ export function createPrototypeStudioWindow(request: PrototypeStudioOpenRequest)
       bounds = { ...bounds, ...next }
       layout()
     },
+    nudgeCompareRatio(deltaPx) {
+      if (disposed || window.isDestroyed() || !Number.isFinite(deltaPx)) return
+      const size = window.getContentSize()
+      const w = Math.max(0, Math.floor(size[0] ?? 0))
+      const totalCompareWidth = mode === 'compare-fullscreen-pinned'
+        ? Math.max(1, w - STUDIO_COMPARE_GAP)
+        : Math.max(1, w - clamp(w - Math.round(w * STUDIO_CANVAS_RATIO), STUDIO_UI_MIN_WIDTH, w) - STUDIO_COMPARE_GAP)
+      compareRatio = clamp(compareRatio + deltaPx / totalCompareWidth, STUDIO_COMPARE_RATIO_MIN, STUDIO_COMPARE_RATIO_MAX)
+      layout()
+    },
     floatingRect() { return disposed ? undefined : floating },
     uiWebContents() { return disposed ? undefined : uiView.webContents },
     dispose() {
       if (disposed) return
       disposed = true
+      // Electron 在 `closed` 回调里触发 dispose 时窗口已销毁，再碰监听或子视图会抛 Object has been destroyed。
+      if (window.isDestroyed()) return
       window.removeListener('resize', layout)
       for (const view of [afterView, uiView, ...(beforeView === undefined ? [] : [beforeView])]) {
         window.contentView.removeChildView(view)

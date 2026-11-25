@@ -8,13 +8,15 @@ import { IPC_CHANNELS } from '../src/contract.ts'
 
 const electron = vi.hoisted(() => ({
   handle: vi.fn(),
+  on: vi.fn(),
   showOpenDialog: vi.fn(),
   getPath: vi.fn(),
 }))
 vi.mock('electron', () => ({
-  ipcMain: { handle: electron.handle },
+  ipcMain: { handle: electron.handle, on: electron.on },
   dialog: { showOpenDialog: electron.showOpenDialog },
   app: { getPath: electron.getPath },
+  nativeTheme: { themeSource: 'dark' },
 }))
 const { registerIpc } = await import('../src/ipc.ts')
 

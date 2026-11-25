@@ -1,9 +1,9 @@
-/** 任务看板的六列与筛选；列是展示派生，不写回任务文件。 */
+/** 任务看板的五列与筛选；列是展示派生，不写回任务文件。 */
 
 import type { TaskRow } from './rows.ts'
 
 /** 看板列 id。 */
-export type BoardColumnId = 'drafting' | 'discussion' | 'contracted' | 'implementing' | 'verifying' | 'closed'
+export type BoardColumnId = 'discussion' | 'contracted' | 'implementing' | 'verifying' | 'closed'
 
 /** 一列。 */
 export interface BoardColumn {
@@ -11,38 +11,96 @@ export interface BoardColumn {
   readonly label: string
 }
 
-/** 看板六列，顺序即视觉顺序。 */
+/** 看板五列，顺序即视觉顺序。 */
 export const BOARD_COLUMNS: readonly BoardColumn[] = [
-  { id: 'drafting', label: '需求确认' },
-  { id: 'discussion', label: '方案讨论' },
-  { id: 'contracted', label: '已签约' },
-  { id: 'implementing', label: '实施中' },
-  { id: 'verifying', label: '验证中' },
-  { id: 'closed', label: '已收口' },
+  { id: 'discussion', label: '待确认' },
+  { id: 'contracted', label: '待开发' },
+  { id: 'implementing', label: '开发中' },
+  { id: 'verifying', label: '待验收' },
+  { id: 'closed', label: '已完成' },
 ]
 
 /** 任务状态的中文名。 */
 export const STATE_LABELS: Readonly<Record<string, string>> = {
-  drafting: '起草',
-  contracted: '已签约',
-  implementing: '实施中',
-  verifying: '验证中',
-  closed: '已收口',
+  drafting: '待确认',
+  contracted: '待开发',
+  implementing: '开发中',
+  verifying: '待验收',
+  closed: '已完成',
   unknown: '未知状态',
 }
 
+const TRACK_LABELS: Readonly<Record<string, string>> = {
+  general: '通用基础',
+  h5: '前端页面',
+  web: '前端页面',
+  frontend: '前端页面',
+  fe: '前端页面',
+  api: '后端接口',
+  server: '后端接口',
+  backend: '后端接口',
+  data: '数据模型',
+  db: '数据模型',
+  desktop: '桌面端',
+  mobile: '移动端',
+  finance: '财务业务',
+}
+
 /**
- * 看板列：drafting 里已标轨或有岗位的进「方案讨论」，其余留在「需求确认」。
+ * 把内部 track 标识转成人类可读的端/模块名；去掉「轨」黑话。
+ * @param track - 原始轨标识。
+ * @returns 可读名称；缺省返回 undefined。
+ */
+export function trackLabel(track: string | undefined): string | undefined {
+  if (track === undefined) return undefined
+  const key = track.trim().toLowerCase()
+  if (key === '') return undefined
+  return TRACK_LABELS[key] ?? track.trim()
+}
+
+/** 内部内置角色 id → 中文可读名称。 */
+const BUILTIN_ROLE_LABELS: Readonly<Record<string, string>> = {
+  dev: '开发工程师',
+  architect: '架构师',
+  pm: '产品经理',
+  manager: '研发经理',
+  intake: '需求分析',
+  review: '评审专家',
+  prototype: '原型设计师',
+  git: '版本管理',
+  ops: '运维发布',
+  scheduler: '调度协调',
+  flow: '流程管理',
+  'requirement-editor': '需求整理',
+}
+
+/**
+ * 把任务负责人 id 转成中文显示名（优先查项目 .spec/roles.yaml，其次查内置角色中文名）。
+ * @param roleId - 任务上的 role 字段。
+ * @param roles - 项目岗位名册。
+ * @returns 可读中文名称。
+ */
+export function roleLabel(
+  roleId: string | undefined,
+  roles: readonly { readonly id: string; readonly name: string }[] = [],
+): string | undefined {
+  if (roleId === undefined) return undefined
+  const key = roleId.trim()
+  if (key === '') return undefined
+  const custom = roles.find(item => item.id === key)
+  if (custom !== undefined) return custom.name
+  return BUILTIN_ROLE_LABELS[key] ?? key
+}
+
+/**
+ * 看板列：drafting 统一归入「待确认」，其余按状态落列。
  * @param task - 任务行。
  * @returns 列 id。
  */
 export function boardColumnOf(task: TaskRow): BoardColumnId {
   if (task.state === 'contracted' || task.state === 'implementing'
     || task.state === 'verifying' || task.state === 'closed') return task.state
-  if (task.state === 'drafting') {
-    return task.track === undefined && task.role === undefined ? 'drafting' : 'discussion'
-  }
-  return 'drafting'
+  return 'discussion'
 }
 
 /** 一条任务的运行态。 */
@@ -94,7 +152,7 @@ export type TaskStage = 'pending' | 'implementing' | 'verifying' | 'closed'
 
 /** 阶段与看板列的对应，顺序即总览漏斗的视觉顺序。 */
 export const TASK_STAGES: readonly { readonly id: TaskStage; readonly columns: readonly BoardColumnId[] }[] = [
-  { id: 'pending', columns: ['drafting', 'discussion', 'contracted'] },
+  { id: 'pending', columns: ['discussion', 'contracted'] },
   { id: 'implementing', columns: ['implementing'] },
   { id: 'verifying', columns: ['verifying'] },
   { id: 'closed', columns: ['closed'] },
@@ -103,11 +161,10 @@ export const TASK_STAGES: readonly { readonly id: TaskStage; readonly columns: r
 /**
  * 任务所属的漏斗阶段。
  * @param task - 任务行。
- * @returns 六列折叠后的阶段。
+ * @returns 五列折叠后的阶段。
  */
 export function stageOf(task: TaskRow): TaskStage {
   switch (boardColumnOf(task)) {
-    case 'drafting':
     case 'discussion':
     case 'contracted':
       return 'pending'
@@ -129,7 +186,51 @@ export function requirementStateLabel(state: string | undefined): string {
   return '未知状态'
 }
 
-/** 任务在某一列里的排序：编号升序。 */
-export function sortTasks(tasks: readonly TaskRow[]): TaskRow[] {
-  return [...tasks].sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0))
+/**
+ * 计算一条任务当前尚未完成的依赖前置编号。
+ * @param task - 目标任务。
+ * @param allTasks - 全量任务，用于查前置任务是否已收口。
+ * @returns 未完成（state !== 'closed'）的前置任务编号列表。
+ */
+export function blockingDependenciesOf(task: TaskRow, allTasks: readonly TaskRow[]): readonly string[] {
+  if (task.dependsOn.length === 0) return []
+  const states = new Map<string, string>()
+  for (const row of allTasks) states.set(row.id, row.state)
+  return task.dependsOn.filter(depId => states.get(depId) !== 'closed')
+}
+
+function numericPartOf(id: string): { readonly prefix: string; readonly num: number | null } {
+  const match = /^(.*?)(\d+)$/u.exec(id.trim())
+  if (match === null) return { prefix: id, num: null }
+  return { prefix: match[1] ?? '', num: Number(match[2]) }
+}
+
+/**
+ * 任务编号自然数字比较（T-02 排在 T-10 前）。
+ * @param leftId - 左侧编号。
+ * @param rightId - 右侧编号。
+ * @returns 比较结果。
+ */
+export function compareTaskIds(leftId: string, rightId: string): number {
+  const left = numericPartOf(leftId)
+  const right = numericPartOf(rightId)
+  if (left.prefix === right.prefix && left.num !== null && right.num !== null) {
+    return left.num - right.num
+  }
+  return leftId < rightId ? -1 : leftId > rightId ? 1 : 0
+}
+
+/**
+ * 任务在列里的排序：无未完成前置（「可开始」）优先，其次按编号自然数字升序。
+ * @param tasks - 待排序任务。
+ * @param allTasks - 全量任务上下文（用于判定依赖是否已完成）。
+ * @returns 排序后的任务副本。
+ */
+export function sortTasks(tasks: readonly TaskRow[], allTasks: readonly TaskRow[] = tasks): TaskRow[] {
+  return [...tasks].sort((left, right) => {
+    const leftBlocked = blockingDependenciesOf(left, allTasks).length > 0 ? 1 : 0
+    const rightBlocked = blockingDependenciesOf(right, allTasks).length > 0 ? 1 : 0
+    if (leftBlocked !== rightBlocked) return leftBlocked - rightBlocked
+    return compareTaskIds(left.id, right.id)
+  })
 }

@@ -133,7 +133,7 @@ beforeEach(() => {
 afterEach(() => {
   act(() => { root.unmount() })
   container.remove()
-  document.querySelectorAll('.pending-dialog-backdrop').forEach(node => node.remove())
+  document.querySelectorAll('.pending-dialog-backdrop').forEach((node) => { node.remove() })
   Reflect.deleteProperty(window, 'lcoder')
 })
 
@@ -253,12 +253,72 @@ describe('带会话上下文弹窗', () => {
     expect(call).not.toHaveBeenCalled()
     expect(document.body.textContent).not.toContain('来源会话不可用')
   })
+
+  it('助手消息带 reasoning 时默认折叠渲染 history-thinking', async () => {
+    historyResult = {
+      ok: true,
+      value: {
+        records: [
+          {
+            type: 'event',
+            event: {
+              type: 'assistant/message',
+              data: {
+                message: {
+                  content: [
+                    { type: 'reasoning', text: '先分析需求再作答' },
+                    { type: 'text', text: '正式回复内容' },
+                  ],
+                },
+              },
+            },
+          },
+        ],
+      },
+    }
+    renderLayer([QUESTION])
+    await open(['e1'])
+    const details = element('history-thinking') as HTMLDetailsElement
+    expect(details.open).toBe(false)
+    expect(details.querySelector('summary')?.textContent).toBe(t('chat.processThought'))
+    expect(details.querySelector('.history-thinking-body')?.textContent).toBe('先分析需求再作答')
+    expect(element('pending-dialog-history').textContent).toContain('正式回复内容')
+  })
+
+  it('超过 260 字符的用户消息默认折叠进 history-prompt-fold', async () => {
+    const firstLine = `第一行需求描述：${'甲'.repeat(120)}`
+    const longPrompt = `\n\n${firstLine}\n${'乙'.repeat(200)}`
+    historyResult = {
+      ok: true,
+      value: {
+        records: [
+          {
+            type: 'event',
+            event: {
+              type: 'user/message',
+              data: {
+                source: { kind: 'user' },
+                content: [{ type: 'text', text: longPrompt }],
+              },
+            },
+          },
+        ],
+      },
+    }
+    renderLayer([QUESTION])
+    await open(['e1'])
+    const details = element('history-prompt-fold') as HTMLDetailsElement
+    expect(details.open).toBe(false)
+    const summary = details.querySelector('summary')?.textContent ?? ''
+    expect(summary).toBe(`${firstLine.slice(0, 100)}...`)
+    expect(details.querySelector('.history-text.markdown-body')?.textContent).toContain('乙'.repeat(20))
+  })
 })
 
 describe('样式红线', () => {
   it('弹窗用 Glass 表面并盖过标题栏，拖拽区无滤镜，通知浮层样式已删', () => {
-    const styles = readFileSync(resolve(process.cwd(), 'packages/lcoder/client/src/styles.css'), 'utf8')
-    const index = readFileSync(resolve(process.cwd(), 'packages/lcoder/client/src/index.css'), 'utf8')
+    const styles = readFileSync(resolve(import.meta.dirname, '../src/styles.css'), 'utf8')
+    const index = readFileSync(resolve(import.meta.dirname, '../src/index.css'), 'utf8')
     expect(styles).not.toContain('.pending-layer')
     expect(styles).not.toContain('.shell:has(.pending-layer) .op-layer')
     expect(styles).toContain('position: fixed;\n  inset: 0;\n  z-index: 60;')

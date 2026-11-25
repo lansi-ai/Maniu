@@ -251,13 +251,19 @@ describe('四态操作栏与指引句', () => {
     const review = element('requirement-detail-review') as HTMLButtonElement
     expect(review.disabled).toBe(false)
     expect(review.getAttribute('data-variant')).toBe('primary')
-    expect(review.textContent).toContain('发起评审')
+    expect(review.textContent).toContain('评审')
     expect(element('requirement-detail-revise')).not.toBeNull()
     expect(element('requirement-split')).toBeNull()
     expect(element('requirement-detail-create-based')).toBeNull()
-    expect(element('requirement-guide')?.textContent).toContain('待评审')
+    expect(element('requirement-guide')).toBeNull()
     expect((element('requirement-approve') as HTMLButtonElement).disabled).toBe(true)
-    expect(element('requirement-phase-hint')?.textContent).toContain('第 1 步')
+    expect(element('requirement-phase-hint')).toBeNull()
+    const draftButtons = Array.from(element('requirement-global-actions')?.querySelectorAll('button') ?? [])
+    expect(draftButtons.map(node => node.getAttribute('data-testid'))).toEqual([
+      'requirement-detail-review',
+      'requirement-detail-revise',
+      'requirement-approve',
+    ])
   })
 
   it('confirmed 无关联任务给拆分与基于此版本新建，不再渲染确认按钮', async () => {
@@ -269,7 +275,9 @@ describe('四态操作栏与指引句', () => {
     expect(element('requirement-split')).not.toBeNull()
     expect(element('requirement-detail-create-based')).not.toBeNull()
     expect(element('requirement-detail-tasks')).toBeNull()
-    expect(element('requirement-guide')?.textContent).toContain('已确认')
+    expect(element('requirement-guide')).toBeNull()
+    const globalButtons = Array.from(element('requirement-global-actions')?.querySelectorAll('button') ?? [])
+    expect(globalButtons[0]?.getAttribute('data-testid')).toBe('requirement-release')
   })
 
   it('confirmed 有关联任务时拆分换成查看任务', async () => {
@@ -292,7 +300,7 @@ describe('四态操作栏与指引句', () => {
     expect(again.disabled).toBe(false)
     await press('requirement-split-again')
     expect(calls.split).toHaveBeenCalledTimes(1)
-    expect(element('requirement-action-result')?.textContent).toContain('拆分指令已发送')
+    expect(element('requirement-action-result')).toBeNull()
   })
 
   it('有岗位建议时不再重复给补充拆分入口', async () => {
@@ -316,7 +324,7 @@ describe('四态操作栏与指引句', () => {
       expect(element('requirement-detail-revise')).toBeNull()
       expect(element('requirement-detail-tasks')).not.toBeNull()
       expect(element('requirement-detail-create-based')).not.toBeNull()
-      expect(element('requirement-guide')?.textContent).toContain(state === 'released' ? '已上线' : '已关闭')
+      expect(element('requirement-guide')).toBeNull()
     }
   })
 
@@ -326,29 +334,28 @@ describe('四态操作栏与指引句', () => {
     expect(element('requirement-approve')).toBeNull()
     expect(element('requirement-split')).toBeNull()
     expect(element('requirement-detail-create-based')).toBeNull()
-    expect(element('requirement-detail-reload')).not.toBeNull()
+    expect(element('requirement-detail-reload')).toBeNull()
     expect(element('requirement-document-body')).not.toBeNull()
-    expect(element('requirement-guide')?.textContent).toContain('状态未知')
+    expect(element('requirement-guide')).toBeNull()
   })
 })
 
 describe('头部单行标题', () => {
-  it('大标题取 row.title，状态徽标、REQ 编号与全局动作同排；正文内联在详情主区，首屏即可读', async () => {
+  it('大标题取 row.title，状态徽标、版本徽标、REQ 编号与全局动作同排；正文内联在详情主区，首屏即可读', async () => {
     await renderDetail(DRAFT, callsOf())
     const title = element('requirement-detail-title')
     expect(title?.textContent).toBe('佣金改造')
     expect(title?.tagName).toBe('H2')
     expect(element('requirement-state-badge')?.textContent).toBe('草稿')
     expect(element('requirement-state-badge')?.className).toContain('state-draft')
-    expect(element('requirement-detail-id')?.textContent).toBe('REQ-01')
+    expect(element('requirement-version-badge')?.textContent).toBe('v2')
+    expect(element('requirement-detail-id')).toBeNull()
     const titleRow = container.querySelector('.requirement-title-row') as HTMLElement
     expect(titleRow).not.toBeNull()
-    for (const id of ['requirement-detail-title', 'requirement-state-badge', 'requirement-detail-id', 'requirement-global-actions']) {
+    for (const id of ['requirement-detail-title', 'requirement-state-badge', 'requirement-version-badge', 'requirement-global-actions']) {
       expect(titleRow.contains(element(id))).toBe(true)
     }
-    // 关闭按钮收进文档操作栏末尾，不再与标题徽标同排。
-    expect(titleRow.contains(element('requirement-close'))).toBe(false)
-    expect(element('requirement-close')?.closest('[data-testid="requirement-actions"]')).not.toBeNull()
+    expect(element('requirement-close')).toBeNull()
     const body = element('requirement-document-body')
     expect(body).not.toBeNull()
     expect(body?.className).toContain('markdown-body')
@@ -386,7 +393,7 @@ describe('确认需求的配齐口径', () => {
     const approve = element('requirement-approve') as HTMLButtonElement
     expect(approve.disabled).toBe(true)
     expect(approve.title).toContain('至少完成一轮评审')
-    expect(element('requirement-approve-hint')?.textContent).toContain('至少完成一轮评审')
+    expect(element('requirement-approve-hint')).toBeNull()
   })
 
   it('有评审且无流程配置时可确认', async () => {
@@ -403,7 +410,7 @@ describe('确认需求的配齐口径', () => {
     expect(approve.disabled).toBe(true)
     expect(approve.title).toContain('评审未配齐')
     expect(approve.title).toContain('maniu-manager')
-    expect(element('requirement-approve-hint')?.textContent).toContain('maniu-manager')
+    expect(element('requirement-approve-hint')).toBeNull()
   })
 
   it('双岗各消费一轮署名评审后配齐可确认', async () => {
@@ -486,11 +493,10 @@ describe('评审报告单份 Markdown', () => {
     expect(element('requirement-review-todos')).toBeNull()
   })
 
-  it('报告生成时间移入操作栏右侧，按可读格式展示', async () => {
+  it('不再在操作栏右侧显示冗余的报告生成时间', async () => {
     await renderDetail(DRAFT, callsOf())
     await openTab('[data-testid="requirement-workface-review"]')
-    expect(element('requirement-review-at')?.textContent).toBe('2026-11-17 10:30')
-    expect(element('requirement-review-at')?.closest('[data-testid="requirement-actions-review"]')).not.toBeNull()
+    expect(element('requirement-review-at')).toBeNull()
   })
 })
 
@@ -567,20 +573,20 @@ describe('版本对照只读入口', () => {
 })
 
 describe('发布与关闭通道', () => {
-  it('四态有无矩阵：draft 只有关闭，confirmed 上线加关闭，released 只有关闭，closed 无写操作', async () => {
+  it('四态有无矩阵：详情不再渲染关闭按钮，confirmed 有上线按钮，其他态无上线按钮', async () => {
     await renderDetail(DRAFT, callsOf())
-    expect(element('requirement-close')).not.toBeNull()
+    expect(element('requirement-close')).toBeNull()
     expect(element('requirement-release')).toBeNull()
 
     const confirmed: RequirementDocRow = { ...DRAFT, state: 'confirmed' }
     await renderDetail(confirmed, callsOf())
     expect(element('requirement-release')).not.toBeNull()
-    expect(element('requirement-close')).not.toBeNull()
+    expect(element('requirement-close')).toBeNull()
 
     const released: RequirementDocRow = { ...DRAFT, state: 'released' }
     await renderDetail(released, callsOf())
     expect(element('requirement-release')).toBeNull()
-    expect(element('requirement-close')).not.toBeNull()
+    expect(element('requirement-close')).toBeNull()
 
     const closed: RequirementDocRow = { ...DRAFT, state: 'closed' }
     await renderDetail(closed, callsOf())
@@ -589,29 +595,74 @@ describe('发布与关闭通道', () => {
     expect(element('requirement-approve')).toBeNull()
   })
 
-  it('关闭与上线点击走对应人机命令字符串并展示回执', async () => {
-    await renderDetail(DRAFT, callsOf())
-    await press('requirement-close')
-    expect(commands).toEqual(['/requirement_close REQ-01'])
-    expect(element('requirement-action-result')?.getAttribute('data-ok')).toBe('true')
-
+  it('上线点击走对应人机命令字符串，成功不渲染回执行', async () => {
     const confirmed: RequirementDocRow = { ...DRAFT, state: 'confirmed' }
     await renderDetail(confirmed, callsOf())
     await press('requirement-release')
     expect(commands[commands.length - 1]).toBe('/requirement_release REQ-01')
+    expect(element('requirement-action-result')).toBeNull()
   })
 
   it('kernel 拒绝时按钮仍可点，失败给可读提示', async () => {
-    commandError = 'REQ-01 已上线，是终态，不再关闭；要记录后续变更请另开一条需求'
-    const released: RequirementDocRow = { ...DRAFT, state: 'released' }
-    await renderDetail(released, callsOf())
-    const close = element('requirement-close') as HTMLButtonElement
-    expect(close.disabled).toBe(false)
-    await press('requirement-close')
-    expect(commands).toEqual(['/requirement_close REQ-01'])
+    commandError = 'REQ-01 尚有未完成任务，暂不能上线'
+    const confirmed: RequirementDocRow = { ...DRAFT, state: 'confirmed' }
+    await renderDetail(confirmed, callsOf())
+    const release = element('requirement-release') as HTMLButtonElement
+    expect(release.disabled).toBe(false)
+    await press('requirement-release')
+    expect(commands).toEqual(['/requirement_release REQ-01'])
     const result = element('requirement-action-result')
     expect(result?.getAttribute('data-ok')).toBe('false')
-    expect(result?.textContent).toContain('不再关闭')
+    expect(result?.textContent).toContain('暂不能上线')
+  })
+
+  it('需求正文支持「页面居中 / Web 宽屏」两种阅读版式切换并持久化偏好', async () => {
+    localStorage.removeItem('lcoder.requirement.docLayout')
+    await renderDetail(DRAFT, callsOf())
+    expect(element('requirement-document-body')?.getAttribute('data-doc-layout')).toBe('page')
+    expect(element('requirement-doc-layout-page')?.getAttribute('aria-pressed')).toBe('true')
+
+    await press('requirement-doc-layout-web')
+    expect(element('requirement-document-body')?.getAttribute('data-doc-layout')).toBe('web')
+    expect(element('requirement-doc-layout-web')?.getAttribute('aria-pressed')).toBe('true')
+    expect(localStorage.getItem('lcoder.requirement.docLayout')).toBe('web')
+
+    await press('requirement-doc-layout-page')
+    expect(element('requirement-document-body')?.getAttribute('data-doc-layout')).toBe('page')
+    expect(localStorage.getItem('lcoder.requirement.docLayout')).toBe('page')
+  })
+
+  it('需求正文支持字号放大缩小并持久化偏好，全屏预览可打开及 Esc / 按钮退出', async () => {
+    localStorage.removeItem('lcoder.requirement.docFontSize')
+    await renderDetail(DRAFT, callsOf())
+    expect(element('requirement-document-body')?.getAttribute('data-doc-font-size')).toBe('15')
+    expect(element('requirement-doc-font-value')?.textContent).toBe('15px')
+
+    await press('requirement-doc-font-inc')
+    expect(element('requirement-document-body')?.getAttribute('data-doc-font-size')).toBe('16')
+    expect(localStorage.getItem('lcoder.requirement.docFontSize')).toBe('16')
+
+    await press('requirement-doc-font-dec')
+    await press('requirement-doc-font-dec')
+    expect(element('requirement-document-body')?.getAttribute('data-doc-font-size')).toBe('14')
+    expect(localStorage.getItem('lcoder.requirement.docFontSize')).toBe('14')
+
+    await press('requirement-doc-fullscreen')
+    const layer = document.body.querySelector('[data-testid="requirement-doc-fullscreen-layer"]')
+    expect(layer).not.toBeNull()
+    expect(document.body.querySelector('[data-testid="requirement-doc-fullscreen-body"]')?.getAttribute('data-doc-font-size')).toBe('14')
+
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))
+    })
+    expect(document.body.querySelector('[data-testid="requirement-doc-fullscreen-layer"]')).toBeNull()
+
+    await press('requirement-doc-fullscreen')
+    expect(document.body.querySelector('[data-testid="requirement-doc-fullscreen-layer"]')).not.toBeNull()
+    const exitBtn = document.body.querySelector('[data-testid="requirement-doc-exit-fullscreen"]') as HTMLElement | null
+    expect(exitBtn).not.toBeNull()
+    await act(async () => { exitBtn?.click() })
+    expect(document.body.querySelector('[data-testid="requirement-doc-fullscreen-layer"]')).toBeNull()
   })
 })
 
@@ -674,56 +725,64 @@ describe('评审三态驱动的主次操作', () => {
     expect(calls.review).not.toHaveBeenCalled()
   })
 
-  it('已采纳生成新版后解锁复评与原地改稿，确认恢复主按钮', async () => {
+  it('已采纳生成新版后解锁复评与原地改稿，确认恢复主按钮且排在最左', async () => {
     await renderDetail(DRAFT, callsOf())
     const review = element('requirement-detail-review') as HTMLButtonElement
     expect(review.disabled).toBe(false)
-    expect(review.textContent).toContain('发起复评')
+    expect(review.textContent).toContain('评审')
     expect(review.getAttribute('data-variant')).toBe('secondary')
     expect((element('requirement-detail-revise') as HTMLButtonElement).disabled).toBe(false)
-    expect(element('requirement-guide')?.textContent).toContain('已生成 v2')
+    expect(element('requirement-guide')).toBeNull()
     expect((element('requirement-approve') as HTMLButtonElement).getAttribute('data-variant')).toBe('primary')
+    const draftButtons = Array.from(element('requirement-global-actions')?.querySelectorAll('button') ?? [])
+    expect(draftButtons.map(node => node.getAttribute('data-testid'))).toEqual([
+      'requirement-approve',
+      'requirement-detail-review',
+      'requirement-detail-revise',
+    ])
   })
 
   it('已放弃时可重新评审或定稿，但原地改稿仍锁定', async () => {
     await renderDetail(REJECTED, callsOf())
     expect((element('requirement-detail-review') as HTMLButtonElement).disabled).toBe(false)
     expect((element('requirement-detail-revise') as HTMLButtonElement).disabled).toBe(true)
-    expect(element('requirement-guide')?.textContent).toContain('已放弃 R1')
+    expect(element('requirement-guide')).toBeNull()
     expect((element('requirement-approve') as HTMLButtonElement).getAttribute('data-variant')).toBe('primary')
+    const draftButtons = Array.from(element('requirement-global-actions')?.querySelectorAll('button') ?? [])
+    expect(draftButtons[0]?.getAttribute('data-testid')).toBe('requirement-approve')
   })
 
-  it('刷新收进右上角工具组，当前正文不再有重复的全屏阅读器入口', async () => {
+  it('右上角工具组保留历史记录入口，不再保留冗余刷新与全屏阅读器入口', async () => {
     await renderDetail(DRAFT, callsOf())
     const tools = element('requirement-quick-tools')
     expect(tools).not.toBeNull()
     expect(tools?.closest('.detail-drawer-bar')).not.toBeNull()
-    expect(tools?.querySelector('[data-testid="requirement-detail-reload"]')).not.toBeNull()
+    expect(tools?.querySelector('[data-testid="requirement-history-trigger"]')).not.toBeNull()
+    expect(tools?.querySelector('[data-testid="requirement-detail-reload"]')).toBeNull()
     expect(tools?.querySelector('[data-testid="requirement-open-reader"]')).toBeNull()
     expect(element('requirement-actions')?.querySelector('[data-testid="requirement-detail-reload"]')).toBeNull()
   })
 })
 
 describe('后台发起与次级动作', () => {
-  it('评审与基于此版本新建都走页面回调并展示回执，不跳转', async () => {
+  it('评审与基于此版本新建都走页面回调且不跳转，成功不渲染回执行', async () => {
     const calls = callsOf()
     await renderDetail(DRAFT, calls)
     await press('requirement-detail-review')
     expect(calls.review).toHaveBeenCalledTimes(1)
-    expect(element('requirement-action-result')?.textContent).toContain('评审指令已发送')
+    expect(element('requirement-action-result')).toBeNull()
 
     const confirmed: RequirementDocRow = { ...DRAFT, state: 'confirmed' }
     await renderDetail(confirmed, calls)
     await press('requirement-detail-create-based')
     expect(calls.createBased).toHaveBeenCalledTimes(1)
-    expect(element('requirement-action-result')?.textContent).toContain('新建指令已发送')
+    expect(element('requirement-action-result')).toBeNull()
   })
 
-  it('刷新是常驻次级动作，当前正文首屏可读且不再叠全屏阅读器入口', async () => {
+  it('详情不再渲染冗余刷新按钮，当前正文首屏可读且不再叠全屏阅读器入口', async () => {
     const calls = callsOf()
     await renderDetail(DRAFT, calls)
-    await press('requirement-detail-reload')
-    expect(calls.reload).toHaveBeenCalledTimes(1)
+    expect(element('requirement-detail-reload')).toBeNull()
     expect(element('requirement-document-body')?.textContent).toContain('这是正文的第 1 行')
     expect(element('requirement-open-reader')).toBeNull()
   })
@@ -737,9 +796,11 @@ describe('独立文档切换栏', () => {
     expect(bodyTab?.textContent).toContain('需求正文')
     expect(bodyTab?.getAttribute('data-active')).toBe('true')
 
-    // 草稿期不显示关联任务面；有评审才显示评审处理面。
+    // 草稿期不显示关联任务面；有评审才显示评审处理面；不再渲染交互原型工作面。
     expect(element('requirement-workface-review')).not.toBeNull()
     expect(element('requirement-workface-review')?.getAttribute('data-pending')).toBe('false')
+    expect(element('requirement-workface-prototype')).toBeNull()
+    expect(element('requirement-face-prototype')).toBeNull()
     expect(element('requirement-workface-tasks')).toBeNull()
 
     const confirmed: RequirementDocRow = { ...DRAFT, state: 'confirmed' }
@@ -763,8 +824,9 @@ describe('工作面按阶段收敛', () => {
     expect(element('requirement-workface-body')?.getAttribute('data-active')).toBe('true')
     expect(element('requirement-workface-review')).toBeNull()
     expect(element('requirement-workface-tasks')).toBeNull()
-    expect(element('requirement-history-trigger')?.textContent).toContain('v1')
-    expect(element('requirement-history-trigger')?.textContent).not.toContain('R')
+    expect(element('requirement-version-badge')?.textContent).toBe('v1')
+    expect(element('requirement-history-trigger')?.getAttribute('aria-label')).toContain('v1')
+    expect(element('requirement-history-trigger')?.getAttribute('aria-label')).not.toContain('R')
   })
 
   it('pending 评审默认进入评审处理并高亮', async () => {
@@ -778,8 +840,9 @@ describe('工作面按阶段收敛', () => {
     expect(element('requirement-workface-pending-badge')).not.toBeNull()
     expect(element('requirement-review-report')?.hasAttribute('hidden')).toBe(false)
     expect(element('requirement-document')?.hasAttribute('hidden')).toBe(true)
-    expect(element('requirement-history-trigger')?.textContent).toContain('v2')
-    expect(element('requirement-history-trigger')?.textContent).toContain('R2')
+    expect(element('requirement-version-badge')?.textContent).toBe('v2')
+    expect(element('requirement-history-trigger')?.getAttribute('aria-label')).toContain('v2')
+    expect(element('requirement-history-trigger')?.getAttribute('aria-label')).toContain('R2')
   })
 })
 
@@ -805,43 +868,40 @@ describe('文档栏四层顺序与专属操作栏', () => {
     expect(actions.compareDocumentPosition(docPane) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     const titleRow = element('requirement-detail-title')?.parentElement as HTMLElement
     expect(titleRow.className).toContain('requirement-title-row')
-    for (const id of ['requirement-detail-title', 'requirement-state-badge', 'requirement-detail-id', 'requirement-global-actions']) {
+    for (const id of ['requirement-detail-title', 'requirement-state-badge', 'requirement-version-badge', 'requirement-global-actions']) {
       expect(titleRow.contains(element(id))).toBe(true)
     }
-    expect(titleRow.contains(element('requirement-close'))).toBe(false)
+    expect(element('requirement-detail-id')).toBeNull()
+    expect(element('requirement-close')).toBeNull()
     expect(element('requirement-global-actions')?.closest('.requirement-hero')).not.toBeNull()
-    // 关闭按钮从标题徽标旁移到文档操作栏末尾，锁定期不渲染。
-    expect(element('requirement-close')?.closest('[data-testid="requirement-actions"]')).not.toBeNull()
-    const ops = element('requirement-actions') as HTMLElement
-    expect(ops.lastElementChild?.getAttribute('data-testid')).toBe('requirement-close')
     expect(element('requirement-actions')?.getAttribute('data-active-doc')).toBe('draft')
   })
 
-  it('草稿标签只给评审/修改/确认三按钮，正文显示当前草稿', async () => {
+  it('草稿标签在顶部操作栏提供评审/修改/确认三按钮，正文显示当前草稿', async () => {
     await renderDetail(DRAFT, callsOf())
-    const draftGroup = element('requirement-actions-draft') as HTMLElement
-    expect(hidden(draftGroup)).toBe(false)
+    const globalGroup = element('requirement-global-actions') as HTMLElement
+    expect(hidden(globalGroup)).toBe(false)
     expect(element('requirement-detail-review')?.closest('[hidden]')).toBeNull()
     expect(element('requirement-detail-revise')).not.toBeNull()
     expect(element('requirement-approve')).not.toBeNull()
     expect(element('requirement-actions-review')).toBeNull()
     expect(element('requirement-actions-version')).toBeNull()
+    expect(hidden(element('requirement-actions'))).toBe(true)
     expect(hidden(element('requirement-document'))).toBe(false)
     expect(hidden(element('requirement-review-report'))).toBe(true)
   })
 
-  it('待处置报告标签只给采纳/放弃，草稿三按钮隐藏但仍在 DOM', async () => {
+  it('待处置报告标签提供采纳/放弃决策栏，顶部操作栏仍保持可见', async () => {
     const calls = callsOf()
     await renderDetail(PENDING, calls)
     expect(element('requirement-actions-review')?.getAttribute('data-decision')).toBe('pending')
     expect(element('requirement-review-accept')?.textContent).toContain('提交所选处理')
-    expect(element('requirement-review-count')?.textContent).toContain('采纳 0')
-    expect(element('requirement-review-reject')?.textContent).toContain('整轮放弃（全部不改）')
+    expect(element('requirement-review-count')).toBeNull()
+    expect(element('requirement-review-reject')?.textContent).toContain('放弃本轮')
     // 采纳走 requirement_revise 直接落新版本，不再有「去顶部对比」的灰字提示。
     expect(element('requirement-review-accept-hint')).toBeNull()
-    expect(element('requirement-review-at')?.textContent).toBe('2026-11-17 10:30')
-    expect(hidden(element('requirement-actions-draft'))).toBe(true)
-    // 既有查询仍能拿到草稿按钮，只是当前标签下不可见。
+    expect(element('requirement-review-at')).toBeNull()
+    expect(hidden(element('requirement-actions'))).toBe(false)
     expect(element('requirement-detail-review')).not.toBeNull()
     expect(element('requirement-detail-revise')).not.toBeNull()
     expect(element('requirement-approve')).not.toBeNull()
@@ -854,10 +914,10 @@ describe('文档栏四层顺序与专属操作栏', () => {
     expect(commands).toEqual(['/requirement_review_decide REQ-01 1 rejected'])
   })
 
-  it('切回草稿标签只给草稿三按钮并隐藏报告区，待处置仍禁用', async () => {
+  it('切回草稿标签隐藏报告区与决策栏，待处置仍禁用顶部三按钮', async () => {
     await renderDetail(PENDING, callsOf())
     await openTab('[data-testid="requirement-workface-body"]')
-    expect(hidden(element('requirement-actions-draft'))).toBe(false)
+    expect(hidden(element('requirement-actions'))).toBe(true)
     expect(element('requirement-actions-review')).toBeNull()
     expect(element('requirement-review-decision')).toBeNull()
     expect((element('requirement-detail-review') as HTMLButtonElement).disabled).toBe(true)
@@ -867,14 +927,11 @@ describe('文档栏四层顺序与专属操作栏', () => {
     expect(element('requirement-review-report')).not.toBeNull()
   })
 
-  it('历史抽屉展开版本快照并给对比上一版，只读展示且不写盘', async () => {
+  it('历史抽屉只保留打开快照与对比上一版入口，不渲染冗余查看按钮', async () => {
     await renderDetail(DRAFT, callsOf())
-    await openTab('[data-testid="requirement-history-version-toggle"][data-version="2"]')
-    const snapshot = element('requirement-version-document')
-    expect(snapshot?.getAttribute('data-version')).toBe('2')
-    expect(snapshot?.textContent).toContain('只读')
+    expect(container.querySelector('[data-testid="requirement-history-version-toggle"]')).toBeNull()
+    expect(container.querySelector('[data-testid="requirement-open-version"][data-version="2"]')).not.toBeNull()
     expect(container.querySelector('[data-testid="requirement-compare-version"][data-version="2"]')).not.toBeNull()
-    expect(element('requirement-version-document-body')?.textContent).toContain('新版正文')
     // 时间线版本 chips 仍在 DOM 供既有查询。
     expect(container.querySelectorAll('[data-testid="requirement-timeline-version"]')).toHaveLength(2)
 
@@ -882,9 +939,13 @@ describe('文档栏四层顺序与专属操作栏', () => {
     expect(element('requirement-version-compare')?.getAttribute('data-version')).toBe('2')
   })
 
-  it('已处置报告标签只读：给结论徽标与只读说明，没有写操作按钮', async () => {
+  it('已处置报告标签只读：给单行状态条，没有写操作按钮', async () => {
     await renderDetail(DRAFT, callsOf())
     await openTab('[data-testid="requirement-workface-review"]')
+    const bar = element('requirement-review-decided-bar')
+    expect(bar).not.toBeNull()
+    expect(bar?.contains(element('requirement-review-decided-status'))).toBe(true)
+    expect(bar?.contains(element('requirement-review-decided'))).toBe(true)
     expect(element('requirement-review-decided-status')?.textContent).toContain('已采纳')
     expect(element('requirement-review-decided')?.textContent).toContain('只读')
     expect(element('requirement-review-accept')).toBeNull()
@@ -896,7 +957,7 @@ describe('文档栏四层顺序与专属操作栏', () => {
 describe('在途操作互斥锁定', () => {
   it('runningOp 非空时详情业务按钮全部锁定并给出对应提示', async () => {
     await renderLockedDetail(DRAFT, { runningOp: 'review' })
-    for (const id of ['requirement-detail-review', 'requirement-detail-revise', 'requirement-approve', 'requirement-close']) {
+    for (const id of ['requirement-detail-review', 'requirement-detail-revise', 'requirement-approve']) {
       expect((element(id) as HTMLButtonElement).disabled).toBe(true)
     }
     expect(element('requirement-op-locked-hint')?.textContent).toContain('需求评审')

@@ -241,7 +241,11 @@ describe('后台发起与完成判定', () => {
 
   it('拆分完成以拆分计划出现为判据', async () => {
     const h = harness()
-    h.render(projectionOf([CONFIRMED]))
+    const singleSplitFlow = {
+      source: 'file' as const,
+      nodes: [{ node: 'split' as const, roles: ['maniu-manager'], auto: false }],
+    }
+    h.render({ ...projectionOf([CONFIRMED]), flow: singleSplitFlow })
     await press('requirement-op-split')
     expect(element('requirement-op-running')?.textContent).toContain('拆分进行中')
 
@@ -250,22 +254,63 @@ describe('后台发起与完成判定', () => {
       ...CONFIRMED,
       splitPlan: { at: '2026-11-17T11:00:00+08:00', entries: [{ task: 'T-01', role: 'dev' }] },
     }
-    h.render(projectionOf([planned]))
+    h.render({ ...projectionOf([planned]), flow: singleSplitFlow })
     await act(async () => { await Promise.resolve() })
     expect(element('requirement-op-success')?.textContent).toContain('拆分完成')
   })
 
   it('拆分完成也以会话回合结束后的关联任务增量为判据', async () => {
     const h = harness()
-    h.render(projectionOf([CONFIRMED]))
+    const singleSplitFlow = {
+      source: 'file' as const,
+      nodes: [{ node: 'split' as const, roles: ['maniu-manager'], auto: false }],
+    }
+    h.render({ ...projectionOf([CONFIRMED]), flow: singleSplitFlow })
     await press('requirement-op-split')
 
     await tick(4000)
-    h.render(projectionOf([CONFIRMED], [task('T-01', 'REQ-02')]), false, {
+    h.render({ ...projectionOf([CONFIRMED], [task('T-01', 'REQ-02')]), flow: singleSplitFlow }, false, {
       sessions: [{ sessionId: 'session-op-1', updatedAt: 1, running: false, blank: false }],
     })
     await act(async () => { await Promise.resolve() })
     expect(element('requirement-op-success')?.textContent).toContain('拆分完成')
+  })
+
+  it('默认两棒生成任务：架构师询问选型并落盘技术方案后，自动接力研发经理并注入方案基线', async () => {
+    const h = harness()
+    h.render(projectionOf([CONFIRMED]))
+    await press('requirement-op-split')
+    expect(h.started).toHaveLength(1)
+    expect(h.started[0]?.preset).toBe('maniu-architect')
+    expect(h.started[0]?.prompt).toContain('ask_user_question')
+
+    const techPlan = {
+      id: 'P-01',
+      title: '[REQ-02] 报表中心技术方案',
+      problem: '明确后端与数据库选型',
+      options: [{ name: '方案一', summary: 'TypeScript + PostgreSQL', cost: '低' }],
+      recommendation: '采用 TypeScript + PostgreSQL',
+      decision: 'draft' as const,
+      decidedAt: null,
+    }
+    // 仍有未回答提问时（awaitingAnswer: true），即使回合状态短暂变化也不提前接力第二棒。
+    h.render(projectionOf([CONFIRMED], [], [techPlan]), false, {
+      awaitingAnswer: true,
+      sessions: [{ sessionId: 'session-op-1', updatedAt: 1, running: false, blank: false }],
+    })
+    await act(async () => { await Promise.resolve() })
+    expect(h.started).toHaveLength(1)
+
+    // 回答完毕且回合结束后，自动接力第二棒研发经理，并将 P-01 技术方案注入提示词。
+    h.render(projectionOf([CONFIRMED], [], [techPlan]), false, {
+      awaitingAnswer: false,
+      sessions: [{ sessionId: 'session-op-1', updatedAt: 2, running: false, blank: false }],
+    })
+    await act(async () => { await Promise.resolve() })
+    expect(h.started).toHaveLength(2)
+    expect(h.started[1]?.preset).toBe('maniu-manager')
+    expect(h.started[1]?.prompt).toContain('P-01')
+    expect(h.started[1]?.prompt).toContain('采用 TypeScript + PostgreSQL')
   })
 
   it('会话仍在跑时第一条任务落盘不提前报拆分完成', async () => {
@@ -505,6 +550,46 @@ describe('超时提示与入口', () => {
     expect(element('requirement-op-running')).not.toBeNull()
     expect(element('requirement-op-timeout')).toBeNull()
   })
+
+  it('流式输出高频刷新时不会饿死 4 秒轮询与 deadline 顺延，超过 5 分钟仍正常刷新且不误报超时', async () => {
+    let streamListener: ((streamId: string, frame: { kind: 'item'; value: unknown }) => void) | null = null
+    Object.defineProperty(window, 'lcoder', {
+      configurable: true,
+      value: {
+        call: vi.fn(async () => ({ ok: true, value: { text: '# 评审报告' } })),
+        openStream: vi.fn(async () => 'live-stream-3'),
+        cancelStream: vi.fn(async () => undefined),
+        onStreamFrame: vi.fn((listener: (streamId: string, frame: { kind: 'item'; value: unknown }) => void) => {
+          streamListener = listener
+          return () => { streamListener = null }
+        }),
+      },
+    })
+
+    const h = harness({ ok: true, message: 'ok', sessionId: 'live-stream-3' })
+    h.render(projectionOf([DRAFT]))
+    await press('requirement-op-review')
+    await tick(10)
+
+    const initialReloads = h.reload.mock.calls.length
+    // 模拟 6 分钟内每 2 秒就有一次流式输出增量（低于 4 秒轮询间隔，过去会一直重置定时器导致假超时）。
+    for (let step = 0; step < 180; step += 1) {
+      act(() => {
+        streamListener?.('live-stream-3', {
+          kind: 'item',
+          value: {
+            type: 'assistant-stream',
+            frame: { type: 'chunk', chunk: { type: 'text-delta', text: `进度 ${String(step)}\n` } },
+          },
+        })
+      })
+      await tick(2000)
+    }
+
+    expect(h.reload.mock.calls.length).toBeGreaterThan(initialReloads)
+    expect(element('requirement-op-running')).not.toBeNull()
+    expect(element('requirement-op-timeout')).toBeNull()
+  })
 })
 
 describe('后台会话恢复提示', () => {
@@ -546,13 +631,14 @@ describe('在途操作并发互斥锁定', () => {
     h.render(projectionOf([DRAFT]))
     await press('requirement-op-review')
 
-    // 列表行：发起评审与修改需求都按「该需求任意在途」禁用。
+    // 列表行：评审、修改与关闭都按「该需求任意在途」禁用。
     expect((element('requirement-op-review') as HTMLButtonElement).disabled).toBe(true)
     expect((element('requirement-op-revise') as HTMLButtonElement).disabled).toBe(true)
+    expect((element('requirement-op-close') as HTMLButtonElement).disabled).toBe(true)
 
-    // 详情：打开后评审/修改需求/确认需求/关闭全部锁定，并显示对应提示。
+    // 详情：打开后评审/修改/定稿全部锁定，并显示对应提示。
     await press('requirement-row')
-    for (const id of ['requirement-detail-review', 'requirement-detail-revise', 'requirement-approve', 'requirement-close']) {
+    for (const id of ['requirement-detail-review', 'requirement-detail-revise', 'requirement-approve']) {
       expect((element(id) as HTMLButtonElement).disabled).toBe(true)
     }
     expect(element('requirement-op-locked-hint')?.textContent).toContain('需求评审')
@@ -589,7 +675,7 @@ describe('在途操作并发互斥锁定', () => {
     expect(element('requirement-op-running')).not.toBeNull()
     expect((element('requirement-detail-review') as HTMLButtonElement).disabled).toBe(true)
     expect((element('requirement-detail-revise') as HTMLButtonElement).disabled).toBe(true)
-    expect((element('requirement-close') as HTMLButtonElement).disabled).toBe(true)
+    expect((element('requirement-op-close') as HTMLButtonElement).disabled).toBe(true)
     expect(element('requirement-op-locked-hint')?.textContent).toContain('修改提案')
 
     // 待裁决阶段说明栏仍展开，查看差异例外不禁用。

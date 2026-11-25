@@ -9,7 +9,8 @@ import type { SpecProjection } from '../spec/load.ts'
 import type { TaskRow } from '../spec/rows.ts'
 import type { SessionSummary } from '../store.ts'
 import {
-  BOARD_COLUMNS, STATE_LABELS, boardColumnOf, emptyTaskFilter, filterTasks, runStatusOf, sortTasks, stageOf,
+  BOARD_COLUMNS, STATE_LABELS, blockingDependenciesOf, boardColumnOf, emptyTaskFilter,
+  filterTasks, roleLabel, runStatusOf, sortTasks, stageOf, trackLabel,
   type TaskFilter, type TaskStage,
 } from '../spec/board.ts'
 import { translate, type MessageKey, type Translate } from '../locale.ts'
@@ -25,6 +26,11 @@ export interface TasksPageProps {
   readonly loading: boolean
   readonly error: string | null
   readonly onReload: () => void
+  readonly onStartSession?: ((
+    prompt: string,
+    agentPreset?: string,
+  ) => Promise<{ readonly ok: boolean; readonly message: string; readonly sessionId?: string }>) | undefined
+  readonly onOpenSession?: ((sessionId: string) => void) | undefined
   /** 只显示该需求关联的任务；null 表示不过滤。 */
   readonly requirementFilter: string | null
   readonly onClearRequirementFilter: () => void
@@ -65,9 +71,12 @@ export function TasksPage(props: TasksPageProps): JSX.Element {
     const staged = props.stageFilter === undefined
       ? matched
       : matched.filter(task => stageOf(task) === props.stageFilter)
-    return sortTasks(props.requirementFilter === null
-      ? staged
-      : staged.filter(task => task.requirement === props.requirementFilter))
+    return sortTasks(
+      props.requirementFilter === null
+        ? staged
+        : staged.filter(task => task.requirement === props.requirementFilter),
+      props.projection.tasks,
+    )
   }, [props.projection.tasks, props.requirementFilter, props.stageFilter, filter])
   const roles = useMemo(
     () => [...new Set(props.projection.roles.map(role => role.id))].sort(),
@@ -230,7 +239,15 @@ export function TasksPage(props: TasksPageProps): JSX.Element {
                 </Card.Header>
                 <Card.Content className="board-body">
                   {columnRows.map(row => (
-                    <TaskCard key={row.id} task={row} running={running} selected={row.id === selected} onOpen={setSelected} />
+                    <TaskCard
+                      key={row.id}
+                      task={row}
+                      allTasks={props.projection.tasks}
+                      roles={props.projection.roles}
+                      running={running}
+                      selected={row.id === selected}
+                      onOpen={setSelected}
+                    />
                   ))}
                   {columnRows.length === 0 && (
                     <EmptyState className="board-empty">
@@ -252,9 +269,9 @@ export function TasksPage(props: TasksPageProps): JSX.Element {
               <Table.Header>
                 <Table.Column isRowHeader>编号</Table.Column>
                 <Table.Column>标题</Table.Column>
-                <Table.Column>列</Table.Column>
+                <Table.Column>阶段</Table.Column>
                 <Table.Column>需求/方案</Table.Column>
-                <Table.Column>轨</Table.Column>
+                <Table.Column>所属端</Table.Column>
                 <Table.Column>依赖</Table.Column>
                 <Table.Column>开立</Table.Column>
               </Table.Header>
@@ -271,7 +288,7 @@ export function TasksPage(props: TasksPageProps): JSX.Element {
                     <Table.Cell>{row.title}</Table.Cell>
                     <Table.Cell><Chip size="sm" variant="secondary">{columnLabelOf(row)}</Chip></Table.Cell>
                     <Table.Cell>{row.requirement ?? row.proposal ?? '—'}</Table.Cell>
-                    <Table.Cell>{row.track ?? '—'}</Table.Cell>
+                    <Table.Cell>{trackLabel(row.track) ?? '—'}</Table.Cell>
                     <Table.Cell>{row.dependsOn.length === 0 ? '—' : row.dependsOn.join('、')}</Table.Cell>
                     <Table.Cell className="mono">{row.openedAt?.slice(0, 10) ?? '—'}</Table.Cell>
                   </Table.Row>
@@ -292,6 +309,8 @@ export function TasksPage(props: TasksPageProps): JSX.Element {
           onClose={() => { setSelected(null) }}
           onOpenDoc={setReaderPath}
           onReload={props.onReload}
+          onStartSession={props.onStartSession}
+          onOpenSession={props.onOpenSession}
         />
       )}
 
@@ -321,11 +340,16 @@ function columnLabelOf(task: TaskRow): string {
 
 function TaskCard(props: {
   readonly task: TaskRow
+  readonly allTasks: readonly TaskRow[]
+  readonly roles: readonly { readonly id: string; readonly name: string }[]
   readonly running: ReadonlySet<string>
   readonly selected: boolean
   readonly onOpen: (id: string) => void
 }): JSX.Element {
   const status = runStatusOf(props.task, props.running)
+  const blockedBy = blockingDependenciesOf(props.task, props.allTasks)
+  const area = trackLabel(props.task.track)
+  const assignee = roleLabel(props.task.role, props.roles)
   return (
     <button
       type="button"
@@ -333,18 +357,25 @@ function TaskCard(props: {
       data-testid="task-card"
       data-task-id={props.task.id}
       data-run-status={status}
+      data-ready={props.task.state !== 'closed' && blockedBy.length === 0 ? 'true' : 'false'}
       onClick={() => { props.onOpen(props.task.id) }}
     >
       <span className="task-card-head">
         <span className="mono task-card-id">{props.task.id}</span>
-        <Chip size="sm" variant="soft" color="accent">等级 {props.task.grade}</Chip>
+        <span className="task-card-head-badges">
+          {props.task.state !== 'closed' && (
+            blockedBy.length === 0
+              ? <Chip size="sm" variant="soft" color="success" data-testid="task-card-ready">可开始</Chip>
+              : <Chip size="sm" variant="soft" color="warning" data-testid="task-card-blocked">需先完成 {blockedBy.join('、')}</Chip>
+          )}
+          <Chip size="sm" variant="soft" color="accent">{props.task.grade}</Chip>
+        </span>
       </span>
       <span className="task-card-title">{props.task.title}</span>
-      <span className="task-card-tags">
-        <Chip size="sm" variant="secondary">{STATE_LABELS[props.task.state] ?? props.task.state}</Chip>
-        {props.task.requirement !== undefined && <Chip size="sm" variant="secondary">{props.task.requirement}</Chip>}
-        {props.task.track !== undefined && <Chip size="sm" variant="secondary">轨 {props.task.track}</Chip>}
-        {props.task.role !== undefined && <Chip size="sm" variant="secondary">岗位 {props.task.role}</Chip>}
+      <span className="task-card-meta">
+        {props.task.requirement !== undefined && <span className="task-card-meta-item">{props.task.requirement}</span>}
+        {area !== undefined && <span className="task-card-meta-item">{area}</span>}
+        {assignee !== undefined && <span className="task-card-meta-item">{assignee}</span>}
         {status === 'running' && <Chip size="sm" variant="soft" color="success">运行中</Chip>}
         {status === 'queued' && <Chip size="sm" variant="soft" color="warning">已认领</Chip>}
       </span>

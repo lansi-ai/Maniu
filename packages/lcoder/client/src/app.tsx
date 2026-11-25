@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import type { JSX } from 'react'
 import {
-  FileText, FolderGit2, Frame, LayoutDashboard, LayoutTemplate, MessageSquare, Settings, SquareKanban, Users,
+  Building2, FileText, FolderGit2, Frame, LayoutDashboard, LayoutTemplate, MessageSquare, Settings, SquareKanban, Users,
   type LucideIcon,
 } from 'lucide-react'
 import type { CloseRequest, EventOutcome, HostEvent, HostState, HostWaterfall, HostWaterfallCancel, PrototypeStudioDockState } from '@maniu/desktop/contract'
@@ -18,6 +18,7 @@ import { ProjectsPage } from './pages/projects.tsx'
 import { RequirementsPage, type RequirementsIntent, type RequirementStateFilter } from './pages/requirements.tsx'
 import { SettingsPage } from './pages/settings.tsx'
 import { TasksPage } from './pages/tasks.tsx'
+import { OfficePage } from './pages/office.tsx'
 import { TalentsPage } from './pages/talents.tsx'
 import { PrototypeLibraryPage } from './pages/prototype-library.tsx'
 import { PrototypePage } from './pages/prototype-page.tsx'
@@ -49,7 +50,7 @@ import { INTAKE_CONFIRM_PROMPT } from './intake/prompts.ts'
 import { titleIntakeSession } from './intake/session-title.ts'
 
 /** 工作台页面。 */
-type PageId = 'dashboard' | 'chat' | 'requirements' | 'prototype' | 'tasks' | 'projects' | 'talents' | 'prototype-library' | 'settings' | 'account'
+type PageId = 'dashboard' | 'chat' | 'requirements' | 'prototype' | 'tasks' | 'office' | 'projects' | 'talents' | 'prototype-library' | 'settings' | 'account'
 
 /** 新会话默认使用的角色；工作台作用域会话靠它拿到人机命令面。 */
 const WORKBENCH_PRESET = 'maniu-workbench'
@@ -66,6 +67,7 @@ const NAV_TOP: readonly NavItem[] = [
   { id: 'requirements', key: 'nav.requirements', icon: FileText },
   { id: 'prototype', key: 'nav.prototype', icon: Frame },
   { id: 'tasks', key: 'nav.tasks', icon: SquareKanban },
+  { id: 'office', key: 'nav.office', icon: Building2 },
   { id: 'chat', key: 'nav.chat', icon: MessageSquare },
 ]
 
@@ -895,15 +897,20 @@ export function App(): JSX.Element {
                 />
               </div>
 
-              {page === 'prototype' && (
+              <div style={page === 'prototype' ? { display: 'contents' } : { display: 'none' }} data-testid="prototype-host">
                 <PrototypePage
                   t={t}
                   scopeSessionId={project?.scopeSessionId ?? null}
                   requirementIds={requirementIds}
+                  requirements={projection.projection.requirements}
+                  sessions={sessions}
+                  onStartSession={startSession}
+                  onOpenSession={openSession}
                   initialRequirementId={prototypeContext ?? undefined}
+                  visible={page === 'prototype'}
                   onOpenRequirements={() => { setPage('requirements') }}
                 />
-              )}
+              </div>
 
               {page === 'tasks' && (
                 <TasksPage
@@ -913,6 +920,8 @@ export function App(): JSX.Element {
                   loading={projection.loading}
                   error={projection.error}
                   onReload={projection.reload}
+                  onStartSession={startSession}
+                  onOpenSession={openSession}
                   requirementFilter={taskRequirement}
                   onClearRequirementFilter={() => { setTaskRequirement(null) }}
                   stageFilter={taskStageFilter ?? undefined}
@@ -944,6 +953,18 @@ export function App(): JSX.Element {
                   state={cloud.state}
                   t={t}
                   onBack={() => { setPage(returnPage) }}
+                />
+              )}
+
+              {page === 'office' && (
+                <OfficePage
+                  t={t}
+                  project={project}
+                  projection={projection.projection}
+                  sessions={sessions}
+                  talents={talents}
+                  onReload={projection.reload}
+                  onOpenSession={openSession}
                 />
               )}
 

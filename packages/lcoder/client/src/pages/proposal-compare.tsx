@@ -8,7 +8,7 @@ import { readWorkspaceText, WORKSPACE_READ_LINES } from '../spec/files.ts'
 import { changedEntries, diffLines } from '../spec/diff.ts'
 import type { DiffLine } from '../spec/diff.ts'
 import { runCommand, type CommandOutcome } from '../commands/run.ts'
-import { renderMarkdown } from '../markdown/markdown.tsx'
+import { MarkdownDocumentViewer } from '../markdown/document-viewer.tsx'
 import { translate, type Translate } from '../locale.ts'
 
 const zhText: Translate = (key, params) => translate('zh', key, params)
@@ -137,7 +137,7 @@ export function ProposalDiff(props: ProposalDiffProps): JSX.Element {
         {change.mode === 'new' && (
           <section className="detail-section">
             <h4>{t('compare.newBody')}</h4>
-            <div className="markdown-body tall" data-testid="compare-new-body">{renderMarkdown(change.content)}</div>
+            <MarkdownDocumentViewer text={change.content} t={t} bodyTestId="compare-new-body" compact tall />
           </section>
         )}
 

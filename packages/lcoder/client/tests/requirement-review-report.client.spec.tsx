@@ -286,7 +286,7 @@ describe('文档操作栏的确认与改稿', () => {
     expect(approve.disabled).toBe(false)
     await press('requirement-approve')
     expect(commands).toEqual(['/requirement_approve REQ-01'])
-    expect(element('requirement-action-result')?.textContent).toContain('REQ-01 已过审')
+    expect(element('requirement-action-result')).toBeNull()
   })
 
   it('已确认状态不再渲染确认与改稿按钮，改动走基于此版本新建', async () => {
@@ -339,7 +339,7 @@ describe('文档操作栏的确认与改稿', () => {
 })
 
 describe('评审结论三态与处置动作', () => {
-  it('报告与草稿标签各自只给当前文档的动作，标签栏在操作栏上方', async () => {
+  it('报告标签展示评审决策栏，草稿按钮统一位于顶部操作栏', async () => {
     await renderDetail(REVIEWED, callsOf())
     const tabs = element('requirement-doc-tabs') as HTMLElement
     const actions = element('requirement-actions') as HTMLElement
@@ -347,18 +347,17 @@ describe('评审结论三态与处置动作', () => {
     expect(element('requirement-actions-review')?.getAttribute('data-round')).toBe('2')
     expect(element('requirement-review-accept')).not.toBeNull()
     expect(element('requirement-review-reject')).not.toBeNull()
-    expect(element('requirement-actions-draft')?.hasAttribute('hidden')).toBe(true)
-    expect(element('requirement-detail-review')?.closest('[hidden]')).not.toBeNull()
+    expect(element('requirement-global-actions')?.querySelector('[data-testid="requirement-detail-review"]')).not.toBeNull()
 
     await pressSelector('[data-testid="requirement-workface-body"]')
     expect(element('requirement-actions-review')).toBeNull()
     expect(element('requirement-review-accept')).toBeNull()
-    expect(element('requirement-actions-draft')?.hasAttribute('hidden')).toBe(false)
+    expect(element('requirement-actions')?.hasAttribute('hidden')).toBe(true)
     expect(element('requirement-detail-review')).not.toBeNull()
     expect(element('requirement-document-body')).not.toBeNull()
   })
 
-  it('待处理轮次的结论由标签徽标表达，操作栏只给采纳与放弃并标出报告时间', async () => {
+  it('待处理轮次的结论由标签徽标表达，操作栏只给采纳与放弃并隐藏无用时间戳', async () => {
     await renderDetail(REVIEWED, callsOf())
     const tab = element('requirement-workface-review')
     expect(tab?.getAttribute('data-pending')).toBe('true')
@@ -366,11 +365,11 @@ describe('评审结论三态与处置动作', () => {
     expect(element('requirement-workface-pending-badge')?.textContent).toContain('待处理')
     expect(element('requirement-timeline-review-status')?.textContent).toContain('待处理')
     expect(element('requirement-review-accept')?.textContent).toContain('提交所选处理')
-    expect(countText('accepted')).toBe('采纳 0')
-    expect(countText('questioned')).toBe('待澄清 0')
-    expect(countText('rejected')).toBe('拒绝 0')
-    expect(element('requirement-review-reject')?.textContent).toContain('整轮放弃（全部不改）')
-    expect(element('requirement-review-at')?.textContent).toBe('2026-11-17 11:00')
+    expect(countText('accepted')).toBeNull()
+    expect(countText('questioned')).toBeNull()
+    expect(countText('rejected')).toBeNull()
+    expect(element('requirement-review-reject')?.textContent).toContain('放弃本轮')
+    expect(element('requirement-review-at')).toBeNull()
     // 采纳走 requirement_revise 直接落新版本，「去顶部对比」的灰字提示已删除。
     expect(element('requirement-review-accept-hint')).toBeNull()
   })
@@ -391,7 +390,7 @@ describe('评审结论三态与处置动作', () => {
       questioned: [],
       rejected: [],
     })
-    expect(element('requirement-action-result')?.textContent).toContain('改稿指令已发送')
+    expect(element('requirement-action-result')).toBeNull()
   })
 
   it('放弃本轮意见走 decide 命令并刷新投影；采纳生成新版后解锁复评', async () => {
@@ -400,7 +399,7 @@ describe('评审结论三态与处置动作', () => {
     await press('requirement-review-reject')
     expect(commands).toEqual(['/requirement_review_decide REQ-01 2 rejected'])
     expect(calls.reload).toHaveBeenCalledTimes(1)
-    expect(element('requirement-action-result')?.getAttribute('data-ok')).toBe('true')
+    expect(element('requirement-action-result')).toBeNull()
 
     const accepted: RequirementDocRow = {
       ...REVIEWED,
@@ -429,7 +428,7 @@ describe('评审结论三态与处置动作', () => {
     expect(element('requirement-review-decision')).toBeNull()
     expect(element('requirement-review-status')).toBeNull()
     expect((element('requirement-detail-review') as HTMLButtonElement).disabled).toBe(false)
-    expect(element('requirement-guide')?.textContent).toContain('已生成 v3')
+    expect(element('requirement-guide')).toBeNull()
   })
 
   it('历史轮次逐轮展示结论徽标，待处理的可一键标记放弃', async () => {
@@ -657,18 +656,35 @@ describe('结构化待改项表格与逐条裁决', () => {
       ...REVIEWED,
       reviews: REVIEWED.reviews.map(review => ({ ...review, decision: 'accepted' as const })),
     }
+    reportText = STRUCTURED_REPORT
     await renderDetail(decided, callsOf())
     expect(element('requirement-workface-review')?.getAttribute('data-pending')).toBe('false')
-    expect(element('requirement-review-decided')).not.toBeNull()
+    const decidedBar = element('requirement-review-decided-bar')
+    expect(decidedBar).not.toBeNull()
+    expect(decidedBar?.contains(element('requirement-review-decided-status'))).toBe(true)
+    expect(decidedBar?.contains(element('requirement-review-decided'))).toBe(true)
+    expect(element('requirement-review-batch-trigger')).toBeNull()
+    expect(container.querySelectorAll('.review-todo-table thead th')).toHaveLength(2)
+    expect(container.querySelectorAll('.review-todo-verdict')).toHaveLength(0)
+    await pressSelector('[data-testid="requirement-review-todo-row"][data-index="0"]')
+    const detailCell = container.querySelector('.todo-detail-row td') as HTMLTableCellElement | null
+    expect(detailCell?.colSpan).toBe(2)
   })
 
-  it('报告时间与 Markdown 切换同处第三层操作行右侧的元信息组', async () => {
+  it('不再显示评审时间戳，Markdown 原文图标按钮随视图留在下方工具栏', async () => {
     await renderDetail(REVIEWED, callsOf())
-    const meta = container.querySelector('.requirement-review-meta')
-    expect(meta).not.toBeNull()
-    expect(meta?.querySelector('[data-testid="requirement-review-at"]')?.textContent).toBe('2026-11-17 11:00')
-    expect(meta?.querySelector('[data-testid="requirement-report-markdown-toggle"]')).not.toBeNull()
+    expect(element('requirement-review-at')).toBeNull()
+    const toolbar = element('requirement-review-toolbar')
+    const toggle = toolbar?.querySelector('[data-testid="requirement-report-markdown-toggle"]')
+    expect(toggle).not.toBeNull()
+    expect(toggle?.getAttribute('aria-label')).toBe('查看报告 Markdown 原文')
     expect(container.querySelector('.review-report-topbar')).toBeNull()
+
+    await press('requirement-report-markdown-toggle')
+    const docToolbar = element('requirement-review-report')?.querySelector('.requirement-doc-toolbar')
+    const backToggle = docToolbar?.querySelector('[data-testid="requirement-report-markdown-toggle"]')
+    expect(backToggle).not.toBeNull()
+    expect(backToggle?.getAttribute('aria-label')).toBe('收起 Markdown 原文')
   })
 
   it('整份报告都无分类时表头只显示级别，级别列标记收窄', async () => {
@@ -727,21 +743,21 @@ describe('评审表样式契约', () => {
 describe('T-290 评审操作层级与展开布局', () => {
   beforeEach(() => { reportText = STRUCTURED_REPORT })
 
-  it('操作栏只有一个主提交与一个次放弃，计数徽标在主按钮旁，元信息在另一侧', async () => {
+  it('操作栏只保留主提交与次放弃，裁决计数与 Markdown 图标切换在下方工具栏右侧', async () => {
     reportText = STRUCTURED_REPORT
     await renderDetail(REVIEWED, callsOf())
     const actions = element('requirement-actions-review') as HTMLElement
     expect(actions.querySelectorAll('[data-testid="requirement-review-accept"]')).toHaveLength(1)
     expect(actions.querySelectorAll('[data-testid="requirement-review-reject"]')).toHaveLength(1)
-    const primary = actions.querySelector('.review-primary-action') as HTMLElement
-    expect(primary).not.toBeNull()
-    expect(primary.querySelector('[data-testid="requirement-review-accept"]')).not.toBeNull()
-    expect(primary.querySelectorAll('[data-testid="requirement-review-count"]')).toHaveLength(3)
-    expect(primary.querySelector('[data-testid="requirement-review-reject"]')).toBeNull()
-    const meta = actions.querySelector('.requirement-review-meta') as HTMLElement
-    expect(meta.querySelector('[data-testid="requirement-review-at"]')).not.toBeNull()
-    expect(meta.querySelector('[data-testid="requirement-report-markdown-toggle"]')).not.toBeNull()
-    expect(primary.compareDocumentPosition(meta) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(actions.querySelectorAll('[data-testid="requirement-review-count"]')).toHaveLength(0)
+    expect(actions.querySelector('[data-testid="requirement-report-markdown-toggle"]')).toBeNull()
+    expect(actions.querySelector('[data-testid="requirement-review-at"]')).toBeNull()
+
+    const toolbar = element('requirement-review-toolbar') as HTMLElement
+    const right = toolbar.querySelector('.review-toolbar-right') as HTMLElement
+    expect(right).not.toBeNull()
+    expect(right.querySelectorAll('[data-testid="requirement-review-count"]')).toHaveLength(3)
+    expect(right.querySelector('[data-testid="requirement-report-markdown-toggle"]')).not.toBeNull()
   })
 
   it('优先级筛选是连体分段控件，四项各带计数且只有一个选中', async () => {
@@ -786,5 +802,22 @@ describe('T-290 评审操作层级与展开布局', () => {
     expect(element('requirement-review-todo-detail')?.getAttribute('data-index')).toBe('0')
     const note = container.querySelector('[data-testid="requirement-review-todo-note"][data-index="0"]')
     expect(document.activeElement).toBe(note)
+  })
+
+  it('结论为可以确认且无待改项时渲染确认通过按钮，点击后发送 accepted 裁决并刷新', async () => {
+    reportText = '## 结论\n可以确认\n\n## 待改项\n无'
+    const calls = callsOf()
+    await renderDetail(REVIEWED, calls)
+
+    expect(element('requirement-review-accept')).toBeNull()
+    const passBtn = element('requirement-review-pass') as HTMLButtonElement | null
+    expect(passBtn).not.toBeNull()
+    expect(passBtn?.disabled).toBe(false)
+    expect(passBtn?.textContent).toBe('确认通过')
+    expect(element('requirement-review-reject')).not.toBeNull()
+
+    await press('requirement-review-pass')
+    expect(commands).toContain('/requirement_review_decide REQ-01 2 accepted')
+    expect(calls.reload).toHaveBeenCalledTimes(1)
   })
 })

@@ -142,22 +142,25 @@ function callsOf(): DetailCalls {
 }
 
 describe('需求详情阶段时间线', () => {
-  it('列出创建、评审、版本与过审，时刻可读且不再拆出关联任务', async () => {
+  it('列出创建、评审、版本与过审，v1 合并显示创建标识且不重复出现独立创建项', async () => {
     await renderDetail(ROW, callsOf())
 
-    expect(element('requirement-timeline-opened')?.textContent).toContain('2026-11-17 09:00')
+    expect(element('requirement-timeline-opened')).toBeNull()
 
     const reviews = container.querySelectorAll('[data-testid="requirement-timeline-review"]')
     expect(reviews).toHaveLength(1)
     expect(reviews[0]?.textContent).toContain('评审 R1')
     expect(reviews[0]?.textContent).toContain('2026-11-17 10:30')
 
-    // 混排条目按落盘时间倒序：v2(11:00) → R1(10:30) → v1(09:00)。
+    // 混排条目按落盘时间倒序：v2(11:00，最新) → R1(10:30) → v1(09:00，创建)。
     const versions = container.querySelectorAll('[data-testid="requirement-timeline-version"]')
     expect(versions).toHaveLength(2)
     expect(versions[0]?.textContent).toContain('版本 v2')
+    expect(versions[0]?.textContent).toContain('最新')
     expect(versions[0]?.textContent).toContain('2026-11-17 11:00')
     expect(versions[1]?.textContent).toContain('版本 v1')
+    expect(versions[1]?.textContent).toContain('创建')
+    expect(versions[1]?.textContent).toContain('2026-11-17 09:00')
 
     const approved = element('requirement-timeline-approved')
     expect(approved?.textContent).toContain('2026-11-17 12:00')
@@ -167,14 +170,12 @@ describe('需求详情阶段时间线', () => {
     expect(element('requirement-history-layer')?.hasAttribute('hidden')).toBe(true)
   })
 
-  it('历史抽屉内联展开只读报告，版本快照仍走独立入口', async () => {
+  it('历史抽屉只保留打开快照与打开报告入口，不重复渲染查看按钮', async () => {
     const calls = callsOf()
     await renderDetail(ROW, calls)
 
-    await pressSelector('[data-testid="requirement-history-report-toggle"][data-round="1"]')
-    expect(element('requirement-history-report')?.getAttribute('data-round')).toBe('1')
-    expect(element('requirement-history-report-readonly')?.textContent).toContain('只读')
-    expect(calls.readers).toEqual([])
+    expect(container.querySelector('[data-testid="requirement-history-report-toggle"]')).toBeNull()
+    expect(container.querySelector('[data-testid="requirement-history-version-toggle"]')).toBeNull()
 
     await pressSelector('[data-testid="requirement-open-report"][data-path=".spec/requirements/REQ-01/reviews/R1.md"]')
     expect(calls.readers).toEqual(['.spec/requirements/REQ-01/reviews/R1.md'])
@@ -186,23 +187,19 @@ describe('需求详情阶段时间线', () => {
     expect(calls.readers[2]).toBe('.spec/requirements/REQ-01/versions/v2.md')
   })
 
-  it('右上角历史入口打开抽屉：看版本快照、只读评审与对比上一版', async () => {
+  it('右上角历史入口打开抽屉：打开快照与对比上一版', async () => {
     const calls = callsOf()
     await renderDetail(ROW, calls)
 
     expect(element('requirement-history-layer')?.hasAttribute('hidden')).toBe(true)
     await pressSelector('[data-testid="requirement-history-trigger"]')
     expect(element('requirement-history-layer')?.hasAttribute('hidden')).toBe(false)
-    expect(element('requirement-history-trigger')?.textContent).toContain('v2')
-    expect(element('requirement-history-trigger')?.textContent).toContain('R1')
+    expect(element('requirement-version-badge')?.textContent).toBe('v2')
+    expect(element('requirement-history-trigger')?.getAttribute('aria-label')).toContain('v2')
+    expect(element('requirement-history-trigger')?.getAttribute('aria-label')).toContain('R1')
 
-    await pressSelector('[data-testid="requirement-history-version-toggle"][data-version="2"]')
-    expect(element('requirement-version-document')?.getAttribute('data-version')).toBe('2')
-    expect(element('requirement-version-document-body')?.textContent).toContain('评审报告')
-
-    await pressSelector('[data-testid="requirement-history-report-toggle"][data-round="1"]')
-    expect(element('requirement-history-report')?.textContent).toContain('只读')
-    expect(element('requirement-history-report-body')?.textContent).toContain('评审报告')
+    await pressSelector('[data-testid="requirement-open-version"][data-version="2"]')
+    expect(calls.readers).toContain('.spec/requirements/REQ-01/versions/v2.md')
 
     await pressSelector('[data-testid="requirement-compare-version"][data-version="2"]')
     expect(element('requirement-version-compare')?.getAttribute('data-version')).toBe('2')
@@ -224,21 +221,19 @@ describe('工作面切换', () => {
     const calls = callsOf()
     await renderDetail(ROW, calls)
 
-    // 最新一轮待处置：默认落在评审处理面，草稿动作隐藏但留在 DOM。
+    // 最新一轮待处置：默认落在评审处理面，评审决策栏可见，顶部操作栏也保持统一位置。
     expect(element('requirement-review-decision')).not.toBeNull()
-    expect(element('requirement-actions-draft')?.hasAttribute('hidden')).toBe(true)
+    expect(element('requirement-actions')?.hasAttribute('hidden')).toBe(false)
     expect(element('requirement-review-report')?.hasAttribute('hidden')).toBe(false)
     expect(element('requirement-workface-review')?.getAttribute('data-active')).toBe('true')
 
     await pressSelector('[data-testid="requirement-workface-body"]')
     expect(element('requirement-review-decision')).toBeNull()
-    expect(element('requirement-actions-draft')?.hasAttribute('hidden')).toBe(false)
+    expect(element('requirement-actions')?.hasAttribute('hidden')).toBe(true)
+    expect(element('requirement-global-actions')?.querySelector('[data-testid="requirement-detail-review"]')).not.toBeNull()
     expect(element('requirement-document-body')?.textContent).toContain('需求正文')
     expect(element('requirement-review-report')?.hasAttribute('hidden')).toBe(true)
 
-    await pressSelector('[data-testid="requirement-history-version-toggle"][data-version="2"]')
-    expect(element('requirement-version-document')?.getAttribute('data-version')).toBe('2')
-    expect(element('requirement-version-document-body')?.textContent).toContain('评审报告')
     expect(container.querySelectorAll('[data-testid="requirement-timeline-version"]')).toHaveLength(2)
   })
 })
@@ -248,7 +243,8 @@ describe('确认需求的评审门槛', () => {
     await renderDetail(UNREVIEWED, callsOf())
     const approve = element('requirement-approve') as HTMLButtonElement
     expect(approve.disabled).toBe(true)
-    expect(element('requirement-approve-hint')?.textContent).toContain('至少完成一轮评审')
+    expect(approve.title).toContain('至少完成一轮评审')
+    expect(element('requirement-approve-hint')).toBeNull()
   })
 
   it('有一轮已处置的评审后可以确认', async () => {

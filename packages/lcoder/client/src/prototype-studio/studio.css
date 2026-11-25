@@ -73,10 +73,15 @@
 .studio-head-actions {
   display: inline-flex;
   align-items: center;
+  flex-shrink: 0;
   gap: 6px;
 }
 
 .studio-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 13px;
   font-weight: 600;
 }
@@ -124,33 +129,59 @@
 .studio-staged-bar {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
+  justify-content: space-between;
   gap: 6px;
+  min-width: 0;
   padding: 6px 8px;
   border: 1px solid var(--glass-outline);
   border-radius: 12px;
   background: var(--glass-inset-soft);
 }
 
-.studio-staged-live {
-  margin-right: auto;
+.studio-compare-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex-shrink: 1;
+}
+
+.studio-compare-label {
   font-size: 12px;
   font-weight: 600;
   color: var(--foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.studio-compare-exit {
+  flex-shrink: 0;
+}
+
+.studio-staged-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .studio-segmented {
   display: inline-flex;
+  flex-shrink: 0;
   gap: 2px;
   padding: 2px;
   border-radius: 999px;
   background: var(--glass-slot);
+  white-space: nowrap;
 }
 
 .studio-segment {
   border-color: transparent;
   background: transparent;
-  padding: 4px 10px;
+  padding: 4px 8px;
+  white-space: nowrap;
 }
 
 .studio-segment-on {
@@ -159,7 +190,6 @@
   box-shadow: var(--glass-slot-active-shadow);
 }
 
-.studio-snapshots,
 .studio-change-card,
 .studio-thread,
 .studio-composer {
@@ -182,17 +212,6 @@
 .studio-composer {
   flex: none;
   margin-top: auto;
-}
-
-.studio-snapshot {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-}
-
-.studio-snapshot span:first-child {
-  margin-right: auto;
 }
 
 .studio-empty,

@@ -38,13 +38,13 @@ export function flowConfigPath(root: string): string {
   return join(root, FLOW_CONFIG_FILE)
 }
 
-/** 缺文件时的内置预制流程：评审自动衔接，其余节点人工触发。 */
+/** 缺文件时的内置预制流程：评审与拆分均自动衔接，其余节点人工触发。 */
 export const PRESET_FLOW: FlowConfig = FlowConfig.parse({
   nodes: [
     { node: 'intake', roles: ['maniu-intake'], auto: false },
     { node: 'review', roles: ['maniu-pm'], auto: true },
     { node: 'revise', roles: ['maniu-intake'], auto: false },
-    { node: 'split', roles: ['maniu-manager'], auto: false },
+    { node: 'split', roles: ['maniu-architect', 'maniu-manager'], auto: true },
   ],
 })
 
@@ -196,6 +196,7 @@ function assertFlowRoles(root: string, config: FlowConfig, path: string): void {
   const unknown: string[] = []
   const incapable: string[] = []
   for (const node of config.nodes) {
+    const unionCeiling = new Set<string>()
     for (const id of node.roles) {
       const entryRoot = entryRootOf(id, roles)
       if (entryRoot === undefined) {
@@ -203,9 +204,18 @@ function assertFlowRoles(root: string, config: FlowConfig, path: string): void {
         continue
       }
       const ceiling = new Set(ROLE_TOOLS[entryRoot])
+      for (const tool of ceiling) unionCeiling.add(tool)
+      // split 多角色接力时允许分工（如架构师出 proposal_draft、研发经理拆任务），其余节点仍逐条目校验。
+      if (node.node === 'split' && node.roles.length > 1) continue
       const lacking = NODE_REQUIRED_TOOLS[node.node].filter(tool => !ceiling.has(tool))
       if (lacking.length > 0) {
         incapable.push(`${node.node} 节点的 ${id}（根 ${entryRoot}）没有 ${lacking.join('、')}`)
+      }
+    }
+    if (node.node === 'split' && node.roles.length > 1 && unknown.length === 0) {
+      const lacking = NODE_REQUIRED_TOOLS[node.node].filter(tool => !unionCeiling.has(tool))
+      if (lacking.length > 0) {
+        incapable.push(`${node.node} 节点合并角色仍缺少 ${lacking.join('、')}`)
       }
     }
   }

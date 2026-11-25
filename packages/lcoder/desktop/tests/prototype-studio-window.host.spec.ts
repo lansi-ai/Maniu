@@ -9,18 +9,32 @@ interface FakeWebContents {
   readonly loadURL: Mock
   readonly loadFile: Mock
   readonly on: Mock
+  readonly setZoomFactor: Mock
   readonly session: { readonly webRequest: { readonly onBeforeRequest: Mock } }
   isDestroyed(): boolean
   emit(event: string): void
 }
 
 interface ViewOptions { readonly webPreferences: Readonly<Record<string, unknown>> }
-interface WindowOptions { readonly title?: string; readonly icon?: string }
+interface WindowOptions { readonly title?: string; readonly icon?: string; readonly backgroundColor?: string }
 
 const electron = vi.hoisted(() => {
   const views: FakeCanvasView[] = []
   const windows: FakeStudioWindow[] = []
   const sharedPrototypeSession = { webRequest: { onBeforeRequest: vi.fn() } }
+  const themeListeners = new Map<string, Array<() => void>>()
+  const nativeTheme = {
+    shouldUseDarkColors: false,
+    on: vi.fn((event: string, listener: () => void) => {
+      themeListeners.set(event, [...(themeListeners.get(event) ?? []), listener])
+    }),
+    removeListener: vi.fn((event: string, listener: () => void) => {
+      themeListeners.set(event, (themeListeners.get(event) ?? []).filter(item => item !== listener))
+    }),
+    emit: (event: string) => {
+      for (const listener of themeListeners.get(event) ?? []) listener()
+    },
+  }
   class FakeCanvasView {
     readonly webPreferences: Readonly<Record<string, unknown>>
     readonly webContents: FakeWebContents
@@ -36,6 +50,7 @@ const electron = vi.hoisted(() => {
         send: vi.fn(),
         loadURL: vi.fn(),
         loadFile: vi.fn(),
+        setZoomFactor: vi.fn(),
         on: vi.fn((event: string, listener: () => void) => {
           listeners.set(event, [...(listeners.get(event) ?? []), listener])
         }),
@@ -48,11 +63,18 @@ const electron = vi.hoisted(() => {
   }
   class FakeStudioWindow {
     readonly options: WindowOptions
-    readonly contentView = { addChildView: vi.fn(), removeChildView: vi.fn() }
+    private destroyed = false
+    readonly contentView = {
+      addChildView: vi.fn(),
+      removeChildView: vi.fn(() => {
+        if (this.destroyed) throw new TypeError('Object has been destroyed')
+      }),
+    }
     readonly webContents = { send: vi.fn() }
     readonly setMenu = vi.fn()
     readonly setMenuBarVisibility = vi.fn()
     readonly setParentWindow = vi.fn()
+    readonly setBackgroundColor = vi.fn()
     readonly show = vi.fn()
     readonly listeners = new Map<string, Array<() => void>>()
     private size: [number, number] = [1440, 900]
@@ -65,6 +87,7 @@ const electron = vi.hoisted(() => {
     }
     once(event: string, listener: () => void): void { this.on(event, listener) }
     removeListener(event: string, listener: () => void): void {
+      if (this.destroyed) throw new TypeError('Object has been destroyed')
       this.listeners.set(event, (this.listeners.get(event) ?? []).filter(item => item !== listener))
     }
     emit(event: string): void { for (const listener of this.listeners.get(event) ?? []) listener() }
@@ -76,18 +99,23 @@ const electron = vi.hoisted(() => {
     }
     getSize(): [number, number] { return this.size }
     getContentSize(): [number, number] { return this.contentSize }
-    isDestroyed(): boolean { return false }
+    destroy(): void { this.destroyed = true }
+    isDestroyed(): boolean { return this.destroyed }
   }
-  return { views, windows, sharedPrototypeSession, FakeCanvasView, FakeStudioWindow, app: { isPackaged: false } }
+  return {
+    views, windows, sharedPrototypeSession, nativeTheme, themeListeners, FakeCanvasView, FakeStudioWindow,
+    app: { isPackaged: false },
+  }
 })
 vi.mock('electron', () => ({
   app: electron.app,
   BrowserWindow: electron.FakeStudioWindow,
   WebContentsView: electron.FakeCanvasView,
+  nativeTheme: electron.nativeTheme,
 }))
 
 const {
-  createPrototypeStudioWindow, studioLayout, DEFAULT_FLOATING_BOUNDS, STUDIO_COLLAPSED_HEIGHT,
+  createPrototypeStudioWindow, studioLayout, DEFAULT_FLOATING_BOUNDS, STUDIO_COLLAPSED_HEIGHT, STUDIO_COMPARE_GAP,
 } = await import('../src/window.ts')
 
 type FakeView = InstanceType<typeof electron.FakeCanvasView>
@@ -98,6 +126,8 @@ const REQUEST = { requirementId: 'R-1', sessionId: 'S-1', html: '<html>after</ht
 beforeEach(() => {
   electron.views.length = 0
   electron.windows.length = 0
+  electron.themeListeners.clear()
+  electron.nativeTheme.shouldUseDarkColors = false
   vi.clearAllMocks()
 })
 
@@ -122,12 +152,29 @@ describe('studioLayout', () => {
     expect(rects.beforeVisible).toBe(false)
   })
 
-  it('compare-side-by-side：左侧 68% 均分给 before/after，协作界面仍在右 32%', () => {
+  it('compare-side-by-side：左侧 68% 扣除分隔缝后按比例分给 before/after，协作界面仍在右 32%', () => {
     const rects = studioLayout('compare-side-by-side', 1000, 800)
-    expect(rects.before).toEqual({ x: 0, y: 0, width: 330, height: 800 })
-    expect(rects.after).toEqual({ x: 330, y: 0, width: 330, height: 800 })
+    expect(STUDIO_COMPARE_GAP).toBe(4)
+    expect(rects.before).toEqual({ x: 0, y: 0, width: 328, height: 800 })
+    expect(rects.after).toEqual({ x: 332, y: 0, width: 328, height: 800 })
     expect(rects.ui).toEqual({ x: 660, y: 0, width: 340, height: 800 })
     expect(rects.beforeVisible).toBe(true)
+  })
+
+  it('compare-fullscreen-pinned：整窗扣除分隔缝后按比例分给 before/after，浮窗置顶且比例钳位在 0.25..0.75', () => {
+    const rects = studioLayout('compare-fullscreen-pinned', 1004, 800, DEFAULT_FLOATING_BOUNDS, 0.5)
+    expect(rects.before).toEqual({ x: 0, y: 0, width: 500, height: 800 })
+    expect(rects.after).toEqual({ x: 504, y: 0, width: 500, height: 800 })
+    expect(rects.beforeVisible).toBe(true)
+    expect(rects.ui).toEqual({ x: 600, y: 24, width: 380, height: 520 })
+
+    const clampedMin = studioLayout('compare-fullscreen-pinned', 1004, 800, DEFAULT_FLOATING_BOUNDS, 0.1)
+    expect(clampedMin.before?.width).toBe(250)
+    expect(clampedMin.after.width).toBe(750)
+
+    const clampedMax = studioLayout('compare-fullscreen-pinned', 1004, 800, DEFAULT_FLOATING_BOUNDS, 0.9)
+    expect(clampedMax.before?.width).toBe(750)
+    expect(clampedMax.after.width).toBe(250)
   })
 
   it('fullscreen-pinned：画布铺满，协作界面按浮窗矩形置右上，折叠收缩为胶囊高度', () => {
@@ -309,5 +356,85 @@ describe('createPrototypeStudioWindow', () => {
     window.resizeTo(1000, 700)
     window.emit('resize')
     expect(viewAt(0).setBounds.mock.calls.length).toBe(callsBefore)
+  })
+
+  it('窗口已销毁后再调 dispose 不抛 Object has been destroyed', () => {
+    const studio = createPrototypeStudioWindow(REQUEST)
+    studio.setMode('fullscreen-pinned')
+    const window = onlyWindow()
+    window.destroy()
+    expect(() => { studio.dispose() }).not.toThrow()
+    expect(studio.uiWebContents()).toBeUndefined()
+    expect(studio.floatingRect()).toBeUndefined()
+  })
+
+  it('并排对比启用自动 PC 视口缩放、下发版本角标并在退出时恢复，did-finish-load 补发缩放与角标', () => {
+    const studio = createPrototypeStudioWindow(REQUEST)
+    const [after, ui] = [viewAt(0), viewAt(1)]
+    expect(after.webContents.setZoomFactor).toHaveBeenLastCalledWith(1)
+
+    studio.setMode('compare-fullscreen-pinned')
+    const before = viewAt(2)
+    // 1440 - 4 = 1436，每侧 718px，718 / 1120 ≈ 0.64107
+    const expectedZoom = 718 / 1120
+    expect(after.webContents.setZoomFactor).toHaveBeenLastCalledWith(expectedZoom)
+    expect(before.webContents.setZoomFactor).toHaveBeenLastCalledWith(expectedZoom)
+    expect(after.webContents.send).toHaveBeenLastCalledWith(
+      IPC_CHANNELS.prototypeStudioInspectControl,
+      { compareBadge: '修改后 · 待确认', resizeEdge: 'left' },
+    )
+    expect(before.webContents.send).toHaveBeenLastCalledWith(
+      IPC_CHANNELS.prototypeStudioInspectControl,
+      { compareBadge: '修改前 · 正式版', resizeEdge: 'right' },
+    )
+    // ensureBeforeView 会把 uiView 重新置顶，确保悬浮浮窗不被 beforeView 遮挡。
+    const addCalls = onlyWindow().contentView.addChildView.mock.calls
+    expect(addCalls.at(-1)?.[0]).toBe(ui)
+    expect(studio.floatingRect()).toEqual({ x: 1036, y: 24, width: 380, height: 520 })
+
+    before.webContents.send.mockClear()
+    before.webContents.setZoomFactor.mockClear()
+    before.webContents.emit('did-finish-load')
+    expect(before.webContents.setZoomFactor).toHaveBeenCalledWith(expectedZoom)
+    expect(before.webContents.send).toHaveBeenCalledWith(
+      IPC_CHANNELS.prototypeStudioInspectControl,
+      { compareBadge: '修改前 · 正式版', resizeEdge: 'right' },
+    )
+
+    studio.setMode('split')
+    expect(after.webContents.setZoomFactor).toHaveBeenLastCalledWith(1)
+    expect(before.webContents.setZoomFactor).toHaveBeenLastCalledWith(1)
+    expect(after.webContents.send).toHaveBeenLastCalledWith(
+      IPC_CHANNELS.prototypeStudioInspectControl,
+      { compareBadge: '' },
+    )
+  })
+
+  it('nudgeCompareRatio 按像素增量调整并排比例并钳位在 [0.25, 0.75]', () => {
+    const studio = createPrototypeStudioWindow(REQUEST)
+    studio.setMode('compare-fullscreen-pinned')
+    const [after, , before] = [viewAt(0), viewAt(1), viewAt(2)]
+    studio.nudgeCompareRatio(1436)
+    expect(before.setBounds).toHaveBeenLastCalledWith({ x: 0, y: 0, width: 1077, height: 900 })
+    expect(after.setBounds).toHaveBeenLastCalledWith({ x: 1081, y: 0, width: 359, height: 900 })
+    studio.nudgeCompareRatio(-3000)
+    expect(before.setBounds).toHaveBeenLastCalledWith({ x: 0, y: 0, width: 359, height: 900 })
+    expect(after.setBounds).toHaveBeenLastCalledWith({ x: 363, y: 0, width: 1077, height: 900 })
+  })
+
+  it('窗口背景色随 nativeTheme 切换并在 closed 时移除监听', () => {
+    electron.nativeTheme.shouldUseDarkColors = true
+    createPrototypeStudioWindow(REQUEST)
+    const window = onlyWindow()
+    expect(window.options.backgroundColor).toBe('#111111')
+
+    electron.nativeTheme.shouldUseDarkColors = false
+    electron.nativeTheme.emit('updated')
+    expect(window.setBackgroundColor).toHaveBeenLastCalledWith('#f3f6fc')
+
+    window.emit('closed')
+    electron.nativeTheme.shouldUseDarkColors = true
+    electron.nativeTheme.emit('updated')
+    expect(window.setBackgroundColor).toHaveBeenCalledTimes(1)
   })
 })

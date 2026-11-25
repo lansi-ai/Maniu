@@ -54,6 +54,7 @@ function ApprovalCard({ t, interaction, onAnswer }: {
       {view.reason === undefined ? null : <p className="pending-reason" data-testid="approval-reason">{view.reason}</p>}
       <div className="pending-actions">
         <Button
+          size="sm"
           variant="secondary"
           data-testid="approval-deny"
           isDisabled={busy !== null}
@@ -62,6 +63,7 @@ function ApprovalCard({ t, interaction, onAnswer }: {
           {busy === 'deny' ? t('chat.answering') : t('chat.reject')}
         </Button>
         <Button
+          size="sm"
           variant="primary"
           data-testid="approval-allow"
           isDisabled={busy !== null}
@@ -152,6 +154,7 @@ export function QuestionCard({ t, interaction, onAnswer, value, onChange }: {
       </div>
       <div className="pending-actions">
         <Button
+          size="sm"
           variant="primary"
           data-testid="question-submit"
           isDisabled={answer === null || busy}

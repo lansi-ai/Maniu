@@ -9,8 +9,10 @@ import {
   buildRequirementCreatePrompt,
   buildRequirementDeltaPrompt,
   buildRequirementMilestonePrompt,
+  buildRequirementPatchPrompt,
   buildReviewPrompt,
   buildRevisePrompt,
+  REQUIREMENT_PRD_STANDARD,
   type IntakeProject,
 } from '../src/intake/prompts.ts'
 
@@ -104,13 +106,55 @@ describe('需求评审提示词', () => {
     expect(prompt).toContain('4. 技术实现角度：')
   })
 
-  it('报告固定摘要/结论/待改项三段，待改项写明位置、建议与优先级', () => {
+  it('指导用结构化 requirement_review_draft 落盘（含 summary、conclusion 与 items 各必填字段）', () => {
     const prompt = buildReviewPrompt({ id: 'REQ-01', title: '待评审需求' }, '# 正文\n\n内容')
-    expect(prompt).toContain('## 摘要')
-    expect(prompt).toContain('## 结论')
-    expect(prompt).toContain('## 待改项')
-    expect(prompt).toContain('可执行的修改建议与优先级（高/中/低）')
-    expect(prompt).toContain('不改名、不合并')
+    expect(prompt).toContain('requirement_review_draft')
+    expect(prompt).toContain('自动把结构化字段渲染成标准 Markdown 报告落盘')
+    expect(prompt).toContain('id：REQ-01')
+    expect(prompt).toContain('summary：')
+    expect(prompt).toContain('conclusion：')
+    expect(prompt).toContain("'可以确认' 或 '需要修改'")
+    expect(prompt).toContain('items：')
+    expect(prompt).toContain('priority：')
+    expect(prompt).toContain('title：')
+    expect(prompt).toContain('location：')
+    expect(prompt).toContain('不超过 10 条')
+    expect(prompt).toContain('problem：')
+    expect(prompt).toContain('suggestion：')
+    expect(prompt).toContain('category')
+    expect(prompt).toContain('dismissed')
+  })
+
+  it('锁定初始边界与交付颗粒度，严禁把 Non-Goals 当缺失并执行收敛门槛与交互确认', () => {
+    expect(REQUIREMENT_PRD_STANDARD).toContain('交付颗粒度定位（如轻量可用版 / 完整生产级）')
+    expect(REQUIREMENT_PRD_STANDARD).toContain('本期不做（Non-Goals，把容易被评审追问但本期不做的边缘项写清楚）')
+
+    const prompt = buildReviewPrompt({ id: 'REQ-01', title: '待评审需求' }, '# 正文\n\n内容')
+    expect(prompt).toContain('严禁把《需求正文》中「本期不做（Non-Goals）」明确列出的边缘项当作缺失或待改项提出')
+    expect(prompt).toContain('严禁突破需求既定的初始边界与交付颗粒度定位')
+    expect(prompt).toContain('无高优硬伤必给「可以确认」')
+    expect(prompt).toContain("`conclusion` 必须为 `'可以确认'`")
+    expect(prompt).toContain('ask_user_question')
+    expect(prompt).toContain('改写入 `dismissed`')
+    expect(prompt).toContain('REQ-xx.yaml')
+  })
+
+  it('复评回归模式（completedRounds >= 1）切换为第 R(N+1) 轮核验并注入历史排除清单', () => {
+    const prompt = buildReviewPrompt({ id: 'REQ-01', title: '待评审需求' }, '# 正文\n\n内容', {
+      completedRounds: 2,
+      previousReport: 'requirements/REQ-01/reviews/R2.md',
+      dismissedIssues: [
+        { title: '支持多租户隔离', reason: '本期仅单租户内部使用' },
+        { title: '导出 PDF 报表', reason: 'Non-Goals 明确排除' },
+      ],
+    })
+    expect(prompt).toContain('回归核验模式（第 R3 轮复评）')
+    expect(prompt).toContain('.spec/requirements/REQ-01/reviews/R2.md')
+    expect(prompt).toContain('严禁重提上一轮已被拒绝/排除的问题')
+    expect(prompt).not.toContain('四个角度都要写到，不能合并或省略')
+    expect(prompt).toContain('《已确认非本期 / 永久排除清单（严禁再次提出）》')
+    expect(prompt).toContain('1. 支持多租户隔离（排除原因：本期仅单租户内部使用）')
+    expect(prompt).toContain('2. 导出 PDF 报表（排除原因：Non-Goals 明确排除）')
   })
 })
 
@@ -340,5 +384,60 @@ describe('T-305 三级通道提示词构造', () => {
     expect(prompt).toContain('requirement_propose')
     expect(prompt).toContain('target: REQ-01')
     expect(prompt).toContain('base_version: 1')
+  })
+})
+
+describe('统一 6 段式 Spec-Driven PRD 标准固化', () => {
+  const REQUIRED_SECTIONS = [
+    '## 背景与目标',
+    '## 适用角色与范围边界',
+    '## 核心用户流程',
+    '## 功能与业务规则',
+    '## 权限、空态与异常边界',
+    '## 验收标准',
+  ] as const
+
+  const assertPrdStandard = (prompt: string): void => {
+    for (const section of REQUIRED_SECTIONS) {
+      expect(prompt).toContain(section)
+    }
+    expect(prompt).toContain('EARS')
+    expect(prompt).toContain('当 <触发> 时，系统应 <响应>')
+    expect(prompt).toContain('AC-1')
+    expect(prompt).toContain('评审意见回应表')
+    expect(prompt).toContain('正文纯净')
+    expect(prompt).toContain('零模糊词')
+    expect(prompt).toContain('What ≠ How')
+  }
+
+  it('导出 REQUIREMENT_PRD_STANDARD 并完整包含 6 段式、EARS、AC 编号与三条红线', () => {
+    assertPrdStandard(REQUIREMENT_PRD_STANDARD)
+  })
+
+  it('立项、新建、评审、修订、补丁、增量与里程碑提示词均固化 6 段式标准与正文纯净红线', () => {
+    const prompts = [
+      buildIntakePrompt(PROJECT, 'fresh'),
+      buildIntakePrompt(PROJECT, 'onboarding'),
+      buildRequirementCreatePrompt('支持导出 CSV'),
+      buildReviewPrompt({ id: 'REQ-01', title: '需求一' }, '# 正文'),
+      buildRevisePrompt({ id: 'REQ-01', title: '需求一' }, '# 正文', 'requirements/REQ-01/reviews/R1.md', 1),
+      buildRequirementPatchPrompt({ id: 'REQ-01', title: '需求一' }, '# 正文', '补充空态提示'),
+      buildRequirementDeltaPrompt({ id: 'REQ-01', title: '需求一', version: 2 }, '# 正文', '新增导出字段'),
+      buildRequirementMilestonePrompt('新增桌面端'),
+    ]
+    for (const prompt of prompts) {
+      assertPrdStandard(prompt)
+    }
+  })
+
+  it('修订提示词明确禁止把评审意见回应表或修改过程写进正文', () => {
+    const prompt = buildRevisePrompt(
+      { id: 'REQ-01', title: '需求一' },
+      '# 正文',
+      'requirements/REQ-01/reviews/R1.md',
+      1,
+    )
+    expect(prompt).toContain('严禁在正文或正文末尾追加「评审意见回应表」「本轮修改了什么」或任何修改过程说明')
+    expect(prompt).not.toContain('并在正文里回应评审意见')
   })
 })

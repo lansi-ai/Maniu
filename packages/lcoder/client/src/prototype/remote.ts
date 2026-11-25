@@ -101,6 +101,11 @@ export interface PrototypeRestoreSnapshotValue {
   readonly html: string
 }
 
+/** `prototype/getSnapshot` 的回执：只读历史版本 HTML。 */
+export interface PrototypeSnapshotHtmlValue {
+  readonly html: string
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
@@ -402,4 +407,25 @@ export async function restorePrototypeSnapshot(
   const html = text(value.html)
   if (restoredAt === undefined || html === undefined) throw new Error('恢复回执缺少字段')
   return { restoredAt, html }
+}
+
+/**
+ * 只读读取指定历史快照的 HTML，不改写正式版或任何磁盘文件。
+ * @param sessionId - 作用域会话号。
+ * @param requirementId - 需求编号；`undefined` 表示项目级。
+ * @param snapshotId - 快照编号。
+ * @param call - 一元调用；默认走 preload。
+ * @returns 只读快照 HTML。
+ */
+export async function getPrototypeSnapshot(
+  sessionId: string,
+  requirementId: string | undefined,
+  snapshotId: string,
+  call: UnaryCall = (namespace, method, args) => window.lcoder.call(namespace, method, args),
+): Promise<PrototypeSnapshotHtmlValue> {
+  const answer = await call('prototype', 'getSnapshot', { input: { ...scopeInput(sessionId, requirementId), snapshotId } })
+  const value = unwrap(answer, '快照回执缺少字段')
+  const html = text(value.html)
+  if (html === undefined) throw new Error('快照回执缺少 html')
+  return { html }
 }

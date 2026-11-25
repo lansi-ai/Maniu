@@ -2,8 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { JSX } from 'react'
+import { createPortal } from 'react-dom'
 import { Button, Card, Chip, SearchField, SearchFieldClearButton, SearchFieldGroup, SearchFieldInput, Separator, Table, Tabs } from '@heroui/react'
-import { Plus, RefreshCw, Sparkles } from 'lucide-react'
+import { Plus, Sparkles, X } from 'lucide-react'
+import { runCommand } from '../commands/run.ts'
 import type { ProjectScope } from '../workspace/use-workspaces.ts'
 import type { SpecProjection } from '../spec/load.ts'
 import type { SessionSummary } from '../store.ts'
@@ -11,6 +13,7 @@ import type { ProposalRow, RequirementDocRow, RequirementReviewRow } from '../sp
 import { requirementStateLabel } from '../spec/board.ts'
 import { hasIntakeWork } from '../intake/eligibility.ts'
 import {
+  buildArchitectPlanPrompt,
   buildIntakeFollowupPrompt,
   buildManagerSplitPrompt,
   buildRequirementAmendPrompt,
@@ -23,7 +26,7 @@ import {
   BUILTIN_SPLIT_TRACKS,
   type ReviewDecisions,
 } from '../intake/prompts.ts'
-import { INTAKE_PRESET_ID, MANAGER_PRESET_ID, PM_PRESET_ID, PROTOTYPE_PRESET_ID, REQUIREMENT_EDITOR_PRESET_ID } from '../talents/model.ts'
+import { INTAKE_PRESET_ID, MANAGER_PRESET_ID, PM_PRESET_ID, REQUIREMENT_EDITOR_PRESET_ID } from '../talents/model.ts'
 import { entryRoot, flowNodeOf, flowRoleLabel, flowRoleSource, presetOfRole, presetRoot } from '../flow/config.ts'
 import { canModifyDraft, canReviewRequirement } from './requirement-gate.ts'
 import { translate, type MessageKey, type Translate } from '../locale.ts'
@@ -49,7 +52,7 @@ const OP_POLL_MS = 4000
 const OP_TIMEOUT_MS = 5 * 60 * 1000
 
 /** 后台操作类型；立项调研、新建需求、草稿修改与 S/M/L 变更通道都走后台浮卡，不强制跳转对话。 */
-type OpKind = 'intake' | 'create' | 'review' | 'revise' | 'patch' | 'amend' | 'delta' | 'milestone' | 'split' | 'prototype'
+type OpKind = 'intake' | 'create' | 'review' | 'revise' | 'patch' | 'amend' | 'delta' | 'milestone' | 'split'
 
 const OP_RUNNING_KEY: Readonly<Record<OpKind, MessageKey>> = {
   intake: 'requirement.opRunning.intake',
@@ -61,7 +64,6 @@ const OP_RUNNING_KEY: Readonly<Record<OpKind, MessageKey>> = {
   delta: 'requirement.opRunning.delta',
   milestone: 'requirement.opRunning.milestone',
   split: 'requirement.opRunning.split',
-  prototype: 'requirement.opRunning.prototype',
 }
 
 const OP_DONE_KEY: Readonly<Record<OpKind, MessageKey>> = {
@@ -74,7 +76,6 @@ const OP_DONE_KEY: Readonly<Record<OpKind, MessageKey>> = {
   delta: 'requirement.opDone.delta',
   milestone: 'requirement.opDone.milestone',
   split: 'requirement.opDone.split',
-  prototype: 'requirement.opDone.prototype',
 }
 
 const OP_TITLE_KEY: Readonly<Record<OpKind, MessageKey>> = {
@@ -87,7 +88,6 @@ const OP_TITLE_KEY: Readonly<Record<OpKind, MessageKey>> = {
   delta: 'requirement.opTitle.delta',
   milestone: 'requirement.opTitle.milestone',
   split: 'requirement.opTitle.split',
-  prototype: 'requirement.opTitle.prototype',
 }
 
 /** 需求状态到 HeroUI Chip 语义色的映射；文案仍走 board 的词典标签。 */
@@ -109,7 +109,6 @@ const OP_PRESET: Readonly<Record<OpKind, string>> = {
   delta: INTAKE_PRESET_ID,
   milestone: INTAKE_PRESET_ID,
   split: MANAGER_PRESET_ID,
-  prototype: PROTOTYPE_PRESET_ID,
 }
 
 /** 一次节点运行的身份：一节点一卡，卡内按岗位推进。 */
@@ -132,8 +131,6 @@ interface OpWatch extends OpRun {
   readonly versions: number
   readonly related: number
   readonly planAt: string | null
-  /** 发起原型生成时已有的原型生成时刻；完成看它是否变化。 */
-  readonly prototypeAt: string | null
   /** 发起 S 级轻量修补时已有的补丁计数；完成看它是否增加。 */
   readonly amendCount: number
   readonly requirements: number
@@ -257,6 +254,9 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
   const [modifyRow, setModifyRow] = useState<RequirementDocRow | null>(null)
   const [patchError, setPatchError] = useState<string | null>(null)
   const [compareId, setCompareId] = useState<string | null>(null)
+  const [closeTarget, setCloseTarget] = useState<RequirementDocRow | null>(null)
+  const [closing, setClosing] = useState(false)
+  const [closeError, setCloseError] = useState<string | null>(null)
   /** 打开详情前的焦点入口；关闭详情后归位。 */
   const detailTriggerRef = useRef<HTMLElement | null>(null)
   // 正在就地预览概要的浮卡键；会话号从对应 watch 上取，避免把会话号塞进卡片外观。
@@ -292,7 +292,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
       ?? paused.find(item => item.requirementId === requirementId)
     if (inFlight === undefined) return null
     const kind = inFlight.kind
-    return kind === 'review' || kind === 'revise' || kind === 'patch' || kind === 'split' || kind === 'prototype' || kind === 'amend' || kind === 'delta' ? kind : null
+    return kind === 'review' || kind === 'revise' || kind === 'patch' || kind === 'split' || kind === 'amend' || kind === 'delta' ? kind : null
   }
 
   const rows = useMemo(() => {
@@ -327,27 +327,67 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
     task => task.requirement === requirementId || task.proposal === requirementId,
   )
 
-  const splitPromptOf = (row: RequirementDocRow): string => {
+  const splitPromptOf = (
+    row: RequirementDocRow,
+    preset: string,
+    previousProposalIds?: readonly string[],
+  ): string => {
+    if (presetRoot(preset) === 'architect') {
+      return buildArchitectPlanPrompt(
+        { id: row.id, title: row.title ?? row.id },
+        row.text,
+        props.projection.proposals.map(item => ({
+          id: item.id,
+          title: item.title,
+          recommendation: item.recommendation,
+        })),
+      )
+    }
     const extra = (props.projection.project?.tracks ?? []).map(track => `${track.id}（${track.name}）`)
+    const technicalPlan = (
+      previousProposalIds === undefined
+        ? undefined
+        : [...props.projection.proposals].reverse().find(item => !previousProposalIds.includes(item.id))
+    ) ?? [...props.projection.proposals].reverse().find(item => item.title.includes(`[${row.id}]`))
     return buildManagerSplitPrompt(
       { id: row.id, title: row.title ?? row.id },
       row.text,
       [...BUILTIN_SPLIT_TRACKS, ...extra],
+      technicalPlan === undefined
+        ? undefined
+        : {
+          id: technicalPlan.id,
+          title: technicalPlan.title,
+          recommendation: technicalPlan.recommendation,
+        },
     )
   }
 
-  const promptOf = (kind: OpKind, row: RequirementDocRow | null, decisions?: ReviewDecisions): string => {
+  const promptOf = (
+    kind: OpKind,
+    row: RequirementDocRow | null,
+    decisions?: ReviewDecisions,
+    preset?: string,
+    previousProposalIds?: readonly string[],
+  ): string => {
     if (row === null) {
       return buildIntakeFollowupPrompt({ name: props.project?.title ?? '', path: props.project?.path ?? '' })
     }
     const requirement = { id: row.id, title: row.title ?? row.id }
-    if (kind === 'review') return buildReviewPrompt(requirement, row.text)
+    if (kind === 'review') {
+      const sorted = [...row.reviews].sort((left, right) => left.round - right.round)
+      return buildReviewPrompt(requirement, row.text, {
+        completedRounds: row.reviews.length,
+        previousReport: sorted[sorted.length - 1]?.report,
+        dismissedIssues: row.dismissedIssues,
+      })
+    }
     if (kind === 'revise') {
       const sorted = [...row.reviews].sort((left, right) => left.round - right.round)
       const baseVersion = row.versions.reduce((max, version) => Math.max(max, version.n), 0) || 1
       return buildRevisePrompt(requirement, row.text, sorted[sorted.length - 1]?.report, baseVersion, decisions)
     }
-    return splitPromptOf(row)
+    return splitPromptOf(row, preset ?? OP_PRESET.split, previousProposalIds)
   }
 
   /** 当前投影里该需求的磁盘事实基线；下一岗发起时按它记增量起点。 */
@@ -358,7 +398,6 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
       versions: row?.versions.length ?? 0,
       related: requirementId === null ? 0 : relatedOf(requirementId).length,
       planAt: row?.splitPlan?.at ?? null,
-      prototypeAt: row?.prototype?.generatedAt ?? null,
       amendCount: row?.amendCount ?? row?.amendments?.length ?? 0,
       requirements: props.projection.requirements.length,
       proposalIds: props.projection.proposals.map(item => item.id),
@@ -373,7 +412,11 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
   }
 
   /** 发起节点里的某一岗；成功登记基线，失败首岗只给提示、后续岗转失败卡。 */
-  const launchRole = async (run: OpRun, roleIndex: number): Promise<{ readonly ok: boolean; readonly message: string }> => {
+  const launchRole = async (
+    run: OpRun,
+    roleIndex: number,
+    previousProposalIds?: readonly string[],
+  ): Promise<{ readonly ok: boolean; readonly message: string }> => {
     const roleId = run.roles[roleIndex]
     if (roleId === undefined) return { ok: false, message: '流程配置里没有这一岗' }
     const row = run.requirementId === null
@@ -383,7 +426,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
     setOpNotice(null)
     let answer: { readonly ok: boolean; readonly message: string; readonly sessionId?: string }
     try {
-      answer = await props.onStartSession(promptOf(run.kind, row, run.decisions), preset)
+      answer = await props.onStartSession(promptOf(run.kind, row, run.decisions, preset, previousProposalIds), preset)
     } catch (cause: unknown) {
       const message = cause instanceof Error ? cause.message : String(cause)
       setOpNotice(message)
@@ -444,7 +487,6 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
       versions: 0,
       related: 0,
       planAt: null,
-      prototypeAt: null,
       amendCount: 0,
       requirements: props.projection.requirements.length,
       proposalIds: props.projection.proposals.map(item => item.id),
@@ -483,7 +525,6 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
       versions: 0,
       related: 0,
       planAt: null,
-      prototypeAt: null,
       amendCount: 0,
       requirements: props.projection.requirements.length,
       proposalIds: props.projection.proposals.map(item => item.id),
@@ -729,39 +770,6 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
   const revise = (row: RequirementDocRow, decisions?: ReviewDecisions) => startNode('revise', row, decisions)
   const split = (row: RequirementDocRow) => startNode('split', row)
 
-  /** 原型生成后台会话：提示词由原型区拼好，固定派给 maniu-prototype 人才。 */
-  const generatePrototype = async (
-    row: RequirementDocRow,
-    prompt: string,
-  ): Promise<{ readonly ok: boolean; readonly message: string }> => {
-    setOpNotice(null)
-    let answer: { readonly ok: boolean; readonly message: string; readonly sessionId?: string }
-    try {
-      answer = await props.onStartSession(prompt, PROTOTYPE_PRESET_ID)
-    } catch (cause: unknown) {
-      const message = cause instanceof Error ? cause.message : String(cause)
-      setOpNotice(message)
-      return { ok: false, message }
-    }
-    if (!answer.ok) {
-      setOpNotice(answer.message)
-      return answer
-    }
-    setWatches(current => [...current, {
-      key: `prototype-${row.id}-${String(Date.now())}`,
-      kind: 'prototype',
-      requirementId: row.id,
-      roles: [PROTOTYPE_PRESET_ID],
-      roleIndex: 0,
-      auto: false,
-      sessionId: answer.sessionId ?? null,
-      ...baselineOf(row.id),
-      roleSig: null,
-      deadline: Date.now() + OP_TIMEOUT_MS,
-    }])
-    return answer
-  }
-
   // 完成判定以投影里的磁盘事实为准：评审见增轮（有配置时最新一轮署名根须等于当前条目根）、
   // 改稿见增版、拆分见岗位建议落盘或会话回合结束后关联任务增加、立项与新建需求见需求条数增量。
   // 落盘后按 auto 决定自动发起下一岗还是停下等人；提案被拒绝时立即收口成取消卡，不空转到超时。
@@ -797,8 +805,13 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
         return latest?.role !== undefined && presetRoot(latest.role) === watch.roleSig
       }
       if (watch.kind === 'revise') return row.versions.length > watch.versions
-      if (watch.kind === 'prototype') {
-        return row.prototype !== undefined && row.prototype.generatedAt !== watch.prototypeAt
+      const currentRole = watch.roles[watch.roleIndex] ?? ''
+      const currentPreset = presetOfRole(currentRole, props.projection.roles) ?? OP_PRESET.split
+      if (presetRoot(currentPreset) === 'architect') {
+        const hasPendingQuestion = watch.sessionId !== null && pendingForSession(props.pending ?? [], watch.sessionId).length > 0
+        if (hasPendingQuestion || props.awaitingAnswer) return false
+        const proposalLanded = props.projection.proposals.some(proposal => !watch.proposalIds.includes(proposal.id))
+        return splitTurnEndedOf(watch) && (proposalLanded || watch.roleIndex + 1 < watch.roles.length)
       }
       const related = props.projection.tasks.filter(
         task => task.requirement === row.id || task.proposal === row.id,
@@ -834,7 +847,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
         })
         if (watch.requirementId !== null) setSelected(watch.requirementId)
       } else if (watch.auto) {
-        void launchRole(watch, next)
+        void launchRole(watch, next, watch.proposalIds)
       } else {
         setPaused(current => [...current, {
           key: watch.key,
@@ -849,24 +862,87 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
     }
     if (finishedNow.length > 0) setFinished(current => [...current, ...finishedNow])
     props.onReload()
-  }, [watches, props.projection, props.onReload, props.sessions])
+  }, [watches, props.projection, props.onReload, props.sessions, props.pending, props.awaitingAnswer])
 
-  // 固定间隔轮询投影；读取中不叠加请求，卸载或无操作时清理；超时或回合异常终止转失败卡。
-  // 交互期（等待人工确认概要、待对比提案、或全局有待答/待审批交互）以及岗位仍在运行/持续输出时不误判超时，并顺延 deadline；
-  // max-tokens 截断自动续跑已下沉到 Harness 插件层（@maniu/kernel），若同回合续跑结束后仍未落盘，经 1 轮投影补读确认后立即报明确原因。
+  /** 人工衔接：点「下一岗位」才发起下一岗。 */
+  const nextRole = (key: string): void => {
+    const run = paused.find(item => item.key === key)
+    if (run === undefined) return
+    setPaused(current => current.filter(item => item.key !== key))
+    void launchRole(run, run.roleIndex)
+  }
+
+  // 立项等待确认：会话回合结束（跑过且不在跑）而需求条数未增；发过确认的卡等回合再次跑起前不重复判定。
+  const awaitingConfirmOf = (watch: OpWatch): boolean => {
+    if (watch.kind !== 'intake' || watch.sessionId === null) return false
+    if (props.projection.requirements.length > watch.requirements) return false
+    if (confirmSent.includes(watch.key) || !sawRunning.includes(watch.key)) return false
+    const session = props.sessions.find(item => item.sessionId === watch.sessionId)
+    return session !== undefined && !session.running && !session.blank
+  }
+
+  /** 一次提案型操作产出的变更载荷是否对得上：新建与独立立项看 new，增量修订看基于目标需求的 new，改稿看 revise，草稿修改看 patch。 */
+  const changeMatchesWatch = (watch: OpWatch, change: NonNullable<ProposalRow['requirementChange']>): boolean => {
+    if (watch.kind === 'create' || watch.kind === 'milestone') return change.mode === 'new'
+    if (watch.kind === 'delta') return change.mode === 'new' && (change.target === undefined || change.target === watch.requirementId)
+    if (watch.kind === 'revise') return change.mode === 'revise' && change.target === watch.requirementId
+    if (watch.kind === 'patch') return change.mode === 'patch' && change.target === watch.requirementId
+    return false
+  }
+
+  // 提案等待对比：发起后新出现的起草态需求变更提案算本次操作的产物。
+  const pendingProposalOf = (watch: OpWatch): ProposalRow | undefined => {
+    if (watch.kind !== 'create' && watch.kind !== 'delta' && watch.kind !== 'milestone' && watch.kind !== 'revise' && watch.kind !== 'patch') {
+      return undefined
+    }
+    return props.projection.proposals.find((proposal) => {
+      const change = proposal.requirementChange
+      if (proposal.decision !== 'draft' || change === undefined) return false
+      if (watch.proposalIds.includes(proposal.id)) return false
+      return changeMatchesWatch(watch, change)
+    })
+  }
+
+  const pollRef = useRef({
+    watches,
+    onReload: props.onReload,
+    sessions: props.sessions,
+    awaitingAnswer: props.awaitingAnswer,
+    sawRunning,
+    liveFeeds,
+    awaitingConfirmOf,
+    pendingProposalOf,
+  })
+  pollRef.current = {
+    watches,
+    onReload: props.onReload,
+    sessions: props.sessions,
+    awaitingAnswer: props.awaitingAnswer,
+    sawRunning,
+    liveFeeds,
+    awaitingConfirmOf,
+    pendingProposalOf,
+  }
+  const hasWatches = watches.length > 0
+
+  // 固定间隔轮询投影；读取中不叠加请求，卸载或无操作时清理；仅依赖 hasWatches 避免流式输出高频刷新重置定时器。
   useEffect(() => {
-    if (watches.length === 0) {
+    if (!hasWatches) {
       endedGraceRef.current.clear()
       return
     }
     const timer = setInterval(() => {
+      const currentState = pollRef.current
+      if (currentState.watches.length === 0) return
       const now = Date.now()
       const sessionOf = (item: OpWatch): SessionSummary | undefined =>
-        item.sessionId === null ? undefined : props.sessions.find(entry => entry.sessionId === item.sessionId)
+        item.sessionId === null ? undefined : currentState.sessions.find(entry => entry.sessionId === item.sessionId)
       const feedOf = (item: OpWatch): OpLiveFeed | undefined =>
-        item.sessionId === null ? undefined : liveFeeds[item.sessionId]
+        item.sessionId === null ? undefined : currentState.liveFeeds[item.sessionId]
       const interactive = (item: OpWatch): boolean =>
-        awaitingConfirmOf(item) || props.awaitingAnswer === true || pendingProposalOf(item) !== undefined
+        currentState.awaitingConfirmOf(item)
+        || currentState.awaitingAnswer === true
+        || currentState.pendingProposalOf(item) !== undefined
       const activeWork = (item: OpWatch): boolean => {
         const session = sessionOf(item)
         if (session?.running === true) return true
@@ -878,7 +954,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
 
       const earlyFailed: { readonly watch: OpWatch; readonly reason: OpFailReason }[] = []
       let needGraceReload = false
-      for (const item of watches) {
+      for (const item of currentState.watches) {
         if (interactive(item) || activeWork(item)) {
           endedGraceRef.current.delete(item.key)
           continue
@@ -891,7 +967,7 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
           terminal = { kind: 'max-tokens' }
         } else if (turnEnd?.kind === 'error') {
           terminal = { kind: 'error', message: turnEnd.message }
-        } else if (sawRunning.includes(item.key) && session !== undefined && !session.running && !session.blank) {
+        } else if (currentState.sawRunning.includes(item.key) && session !== undefined && !session.running && !session.blank) {
           terminal = { kind: 'ended' }
         }
         if (terminal === undefined) {
@@ -909,8 +985,8 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
       }
 
       const earlyKeys = new Set(earlyFailed.map(entry => entry.watch.key))
-      const expired = watches.filter(item => !earlyKeys.has(item.key) && now >= item.deadline && !keepAlive(item))
-      const frozen = watches.filter(item => !earlyKeys.has(item.key) && now >= item.deadline && keepAlive(item))
+      const expired = currentState.watches.filter(item => !earlyKeys.has(item.key) && now >= item.deadline && !keepAlive(item))
+      const frozen = currentState.watches.filter(item => !earlyKeys.has(item.key) && now >= item.deadline && keepAlive(item))
       if (frozen.length > 0) {
         setWatches(current => current.map(item =>
           frozen.some(entry => entry.key === item.key)
@@ -953,54 +1029,13 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
             }
           }),
         ])
+        if (expired.length > 0 && !loadingRef.current) currentState.onReload()
         return
       }
-      if (needGraceReload || !loadingRef.current) props.onReload()
+      if (needGraceReload || !loadingRef.current) currentState.onReload()
     }, OP_POLL_MS)
     return () => { clearInterval(timer) }
-  }, [
-    watches, props.onReload, props.sessions, props.awaitingAnswer,
-    confirmSent, sawRunning, props.projection.requirements.length, props.projection.proposals, liveFeeds,
-  ])
-
-  /** 人工衔接：点「下一岗位」才发起下一岗。 */
-  const nextRole = (key: string): void => {
-    const run = paused.find(item => item.key === key)
-    if (run === undefined) return
-    setPaused(current => current.filter(item => item.key !== key))
-    void launchRole(run, run.roleIndex)
-  }
-
-  // 立项等待确认：会话回合结束（跑过且不在跑）而需求条数未增；发过确认的卡等回合再次跑起前不重复判定。
-  const awaitingConfirmOf = (watch: OpWatch): boolean => {
-    if (watch.kind !== 'intake' || watch.sessionId === null) return false
-    if (props.projection.requirements.length > watch.requirements) return false
-    if (confirmSent.includes(watch.key) || !sawRunning.includes(watch.key)) return false
-    const session = props.sessions.find(item => item.sessionId === watch.sessionId)
-    return session !== undefined && !session.running && !session.blank
-  }
-
-  /** 一次提案型操作产出的变更载荷是否对得上：新建与独立立项看 new，增量修订看基于目标需求的 new，改稿看 revise，草稿修改看 patch。 */
-  const changeMatchesWatch = (watch: OpWatch, change: NonNullable<ProposalRow['requirementChange']>): boolean => {
-    if (watch.kind === 'create' || watch.kind === 'milestone') return change.mode === 'new'
-    if (watch.kind === 'delta') return change.mode === 'new' && (change.target === undefined || change.target === watch.requirementId)
-    if (watch.kind === 'revise') return change.mode === 'revise' && change.target === watch.requirementId
-    if (watch.kind === 'patch') return change.mode === 'patch' && change.target === watch.requirementId
-    return false
-  }
-
-  // 提案等待对比：发起后新出现的起草态需求变更提案算本次操作的产物。
-  const pendingProposalOf = (watch: OpWatch): ProposalRow | undefined => {
-    if (watch.kind !== 'create' && watch.kind !== 'delta' && watch.kind !== 'milestone' && watch.kind !== 'revise' && watch.kind !== 'patch') {
-      return undefined
-    }
-    return props.projection.proposals.find((proposal) => {
-      const change = proposal.requirementChange
-      if (proposal.decision !== 'draft' || change === undefined) return false
-      if (watch.proposalIds.includes(proposal.id)) return false
-      return changeMatchesWatch(watch, change)
-    })
-  }
+  }, [hasWatches])
 
   // 提案被拒绝：本次操作的产物不再可能落盘，浮卡立即收口，不等需求条数/版本增量或超时。
   const rejectedProposalOf = (watch: OpWatch): ProposalRow | undefined => {
@@ -1050,6 +1085,38 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
     }
     if (props.projection.requirements.some(row => row.id === intent.id)) setSelected(intent.id)
   }, [props.intent, props.project, props.projection.requirements])
+
+  // Esc 关闭列表行的关闭确认弹窗；关闭请求进行中不响应。
+  useEffect(() => {
+    if (closeTarget === null) return
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape' || closing) return
+      event.stopPropagation()
+      setCloseTarget(null)
+      setCloseError(null)
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => { window.removeEventListener('keydown', onKey, true) }
+  }, [closeTarget, closing])
+
+  const confirmClose = async (): Promise<void> => {
+    if (closeTarget === null || props.project === null || closing) return
+    setClosing(true)
+    setCloseError(null)
+    try {
+      const outcome = await runCommand(props.project.scopeSessionId, `/requirement_close ${closeTarget.id}`)
+      if (outcome.ok) {
+        setCloseTarget(null)
+        props.onReload()
+      } else {
+        setCloseError(t('requirement.closeFailed', { detail: outcome.text }))
+      }
+    } catch (cause: unknown) {
+      setCloseError(t('requirement.closeFailed', { detail: cause instanceof Error ? cause.message : String(cause) }))
+    } finally {
+      setClosing(false)
+    }
+  }
 
   /** 立项卡点「确认需求」：经宿主向该会话发确认指令，成功后保持轮询等落盘。 */
   const confirmIntake = async (key: string): Promise<void> => {
@@ -1314,14 +1381,6 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
               </Tabs.List>
             </Tabs.ListContainer>
           </Tabs>
-          <Button
-            variant="secondary"
-            data-testid="requirement-reload"
-            onPress={props.onReload}
-          >
-            <RefreshCw size={14} className={props.loading ? 'req-spin' : undefined} />
-            {props.loading ? '读取中…' : '刷新'}
-          </Button>
           <span title={blockedIntake ? t('requirement.intakeBlocked') : undefined}>
             <Button
               variant="primary"
@@ -1543,6 +1602,19 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
                                 {t('requirement.opTasks')}
                               </Button>
                             )}
+                            {row.state !== 'closed' && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="requirement-row-close"
+                                data-testid="requirement-op-close"
+                                isDisabled={runningOpOf(row.id) !== null}
+                                ref={(node) => { if (node !== null) node.title = t('requirement.opCloseTitle') }}
+                                onPress={() => { setCloseError(null); setCloseTarget(row) }}
+                              >
+                                {t('requirement.opClose')}
+                              </Button>
+                            )}
                           </div>
                         </Table.Cell>
                       </Table.Row>
@@ -1588,9 +1660,6 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
                   triageOpen={triageOpen}
                   runningOp={runningOpOf(active.id)}
                   onChangeTriage={() => { openChangeTriage(active.id) }}
-                  onGeneratePrototype={prompt => generatePrototype(active, prompt)}
-                  onOpenPrototypeLibrary={props.onOpenPrototypeLibrary}
-                  onOpenPrototype={props.onOpenPrototype}
                   t={t}
                 />
               </div>
@@ -1724,6 +1793,65 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
         {...(props.onAnswerPending === undefined ? {} : { onAnswerRequest: answerPending })}
         t={t}
       />
+
+      {closeTarget !== null && createPortal(
+        <div
+          className="pending-dialog-backdrop"
+          data-testid="requirement-close-backdrop"
+          onClick={(event) => {
+            if (event.target === event.currentTarget && !closing) {
+              setCloseTarget(null)
+              setCloseError(null)
+            }
+          }}
+        >
+          <div
+            className="pending-dialog"
+            style={{ width: 'min(440px, calc(100vw - 32px))' }}
+            role="dialog"
+            aria-modal="true"
+            aria-label={t('requirement.closeConfirmTitle')}
+            data-testid="requirement-close-confirm-dialog"
+          >
+            <header className="pending-dialog-head">
+              <h2>{t('requirement.closeConfirmTitle')}</h2>
+              <button
+                type="button"
+                className="pending-dialog-close"
+                data-testid="requirement-close-dismiss"
+                aria-label={t('requirement.closeConfirmCancel')}
+                disabled={closing}
+                onClick={() => { setCloseTarget(null); setCloseError(null) }}
+              >
+                <X size={18} aria-hidden="true" />
+              </button>
+            </header>
+            <p>{t('requirement.closeConfirmBody', { id: closeTarget.id, title: closeTarget.title ?? closeTarget.id })}</p>
+            {closeError !== null && <p className="problem" data-testid="requirement-close-error">{closeError}</p>}
+            <div className="pending-actions">
+              <Button
+                size="sm"
+                variant="secondary"
+                data-testid="requirement-close-cancel"
+                isDisabled={closing}
+                onPress={() => { setCloseTarget(null); setCloseError(null) }}
+              >
+                {t('requirement.closeConfirmCancel')}
+              </Button>
+              <Button
+                size="sm"
+                variant="danger"
+                data-testid="requirement-close-confirm"
+                isDisabled={closing}
+                onPress={() => { void confirmClose() }}
+              >
+                {t('requirement.closeConfirmSubmit')}
+              </Button>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
     </section>
   )
 }

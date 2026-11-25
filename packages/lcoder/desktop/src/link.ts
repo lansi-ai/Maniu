@@ -41,6 +41,7 @@ const UNARY_ALLOWED = new Set([
   'prototype/commitStaged',
   'prototype/discardStaged',
   'prototype/listSnapshots',
+  'prototype/getSnapshot',
   'prototype/restoreSnapshot',
   'workspace/create',
   'workspace/initializeDefault',
@@ -93,7 +94,9 @@ const COMMAND_ALLOWED = new Set([
   'requirement_approve',
   'requirement_release',
   'requirement_close',
+  'requirement_review_decide',
   'task_contract',
+  'task_discard',
   'task_bind',
   'task_assign',
   'task_split_ready',
@@ -105,6 +108,7 @@ const COMMAND_ALLOWED = new Set([
   'flow_log',
   'flow_save',
   'agent_bind',
+  'role_upsert',
 ])
 
 /** 一条命令行里的命令名；不是 `/name` 形状时为空串。 */

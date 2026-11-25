@@ -276,8 +276,8 @@ describe('需求页与详情页统一入口与三级通道路由', () => {
       )
     })
 
-    // 顶栏既有与新增入口并存
-    expect(element('requirement-reload')).not.toBeNull()
+    // 顶栏既有与新增入口并存；冗余刷新按钮已移除
+    expect(element('requirement-reload')).toBeNull()
     expect(element('intake-open')).not.toBeNull()
     expect(element('requirement-new-open')).not.toBeNull()
     expect(element('change-triage-open')).not.toBeNull()
@@ -369,8 +369,7 @@ describe('需求页与详情页统一入口与三级通道路由', () => {
     await renderRow(CONFIRMED_REQ)
     expect(element('requirement-amend-count')?.textContent).toContain('2')
     expect(element('requirement-detail-change-triage')).not.toBeNull()
-    expect(element('requirement-close')?.closest('[data-testid="requirement-actions"]')).not.toBeNull()
-    expect(element('requirement-actions')?.lastElementChild?.getAttribute('data-testid')).toBe('requirement-close')
+    expect(element('requirement-close')).toBeNull()
     await press('requirement-detail-change-triage')
     expect(openTriage).toHaveBeenCalledTimes(1)
 

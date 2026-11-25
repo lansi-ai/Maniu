@@ -4,9 +4,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { IPC_CHANNELS } from '../src/contract.ts'
 import type { PrototypeSelectionInfo } from '../src/contract.ts'
 
-const electron = vi.hoisted(() => ({ invoke: vi.fn(), on: vi.fn(), exposeInMainWorld: vi.fn() }))
+const electron = vi.hoisted(() => ({ invoke: vi.fn(), on: vi.fn(), send: vi.fn(), exposeInMainWorld: vi.fn() }))
 vi.mock('electron', () => ({
-  ipcRenderer: { invoke: electron.invoke, on: electron.on },
+  ipcRenderer: { invoke: electron.invoke, on: electron.on, send: electron.send },
   contextBridge: { exposeInMainWorld: electron.exposeInMainWorld },
 }))
 
@@ -287,6 +287,35 @@ describe('prototype-preview-preload', () => {
     document.querySelector<HTMLButtonElement>('[data-testid="prototype-preview-error-dismiss"]')?.click()
     expect(banner.style.display).toBe('none')
     expect(bar.style.display).toBe('none')
+  })
+
+  it('并排对比下发 compareBadge 与 resizeEdge，渲染角标并支持拖拽中缝按 screenX 稳定上报 deltaX，清空时移除', () => {
+    sendControl({ compareBadge: '修改前 · 正式版', resizeEdge: 'right' })
+    const badge = document.querySelector<HTMLElement>('[data-testid="prototype-compare-badge"]')
+    const handle = document.querySelector<HTMLElement>('[data-testid="prototype-compare-resize-handle"]')
+    const grip = document.querySelector<HTMLElement>('[data-testid="prototype-compare-resize-grip"]')
+    if (badge === null || handle === null || grip === null) throw new Error('缺少并排对比角标、抓手或把手胶囊')
+    expect(badge.textContent).toBe('修改前 · 正式版')
+    expect(badge.style.pointerEvents).toBe('none')
+    expect(handle.style.width).toBe('10px')
+    expect(handle.style.cursor).toBe('col-resize')
+    expect(handle.title).toBe('左右拖动调整对比宽度')
+    expect(handle.getAttribute('data-edge')).toBe('right')
+
+    // 拖动中即使 clientX 因视图平移/缩放反向跳变，仍只按 screenX 计算稳定增量，不抖动。
+    handle.dispatchEvent(new MouseEvent('pointerdown', {
+      bubbles: true, cancelable: true, button: 0, screenX: 100, clientX: 4,
+    }))
+    handle.dispatchEvent(new MouseEvent('pointermove', {
+      bubbles: true, cancelable: true, screenX: 118, clientX: -12,
+    }))
+    handle.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, cancelable: true }))
+    expect(electron.send).toHaveBeenCalledExactlyOnceWith(IPC_CHANNELS.prototypeStudioCompareResize, { deltaX: 18 })
+
+    sendControl({ compareBadge: '' })
+    expect(document.querySelector('[data-testid="prototype-compare-badge"]')).toBeNull()
+    expect(document.querySelector('[data-testid="prototype-compare-resize-handle"]')).toBeNull()
+    expect(document.querySelector('[data-testid="prototype-compare-resize-grip"]')).toBeNull()
   })
 })
 

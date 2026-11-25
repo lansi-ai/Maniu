@@ -40,6 +40,7 @@ function textOf(value: unknown): string {
 export interface SessionMessage {
   readonly role: 'user' | 'assistant' | 'context'
   readonly text: string
+  readonly reasoning?: string | undefined
 }
 
 /**
@@ -69,8 +70,25 @@ export function messagesOf(records: unknown): SessionMessage[] {
       continue
     }
     if (event.type === 'assistant/message' && isRecord(event.data.message)) {
-      const text = textOf(event.data.message.content)
-      if (text.trim() !== '') out.push({ role: 'assistant', text })
+      const content = event.data.message.content
+      if (Array.isArray(content)) {
+        const reasoningParts: string[] = []
+        const textParts: string[] = []
+        for (const block of content) {
+          const part = textOf(block).trim()
+          if (part === '') continue
+          if (isRecord(block) && block.type === 'reasoning') reasoningParts.push(part)
+          else textParts.push(part)
+        }
+        const reasoning = reasoningParts.join('\n\n').trim()
+        const text = textParts.join('\n\n').trim()
+        if (text !== '' || reasoning !== '') {
+          out.push({ role: 'assistant', text, ...(reasoning !== '' ? { reasoning } : {}) })
+        }
+      } else {
+        const text = textOf(content)
+        if (text.trim() !== '') out.push({ role: 'assistant', text })
+      }
     }
   }
   return out

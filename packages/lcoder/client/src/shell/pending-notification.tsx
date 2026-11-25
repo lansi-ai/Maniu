@@ -39,6 +39,11 @@ export interface PendingLayerProps {
   readonly onClose: () => void
 }
 
+function promptSummary(text: string): string {
+  const firstLine = text.split(/\r?\n/u).map(line => line.trim()).find(line => line !== '') ?? ''
+  return firstLine.length > 100 ? `${firstLine.slice(0, 100)}...` : firstLine
+}
+
 /**
  * 把确定关联的会话标识翻成展示标题；没有这个名字时返回 null，由调用方用中性文案兜底。
  * @param sessionId - 会话标识。
@@ -179,7 +184,24 @@ export function PendingLayer({
                       ? t('pending.historyAssistant')
                       : t('pending.historyContext')}
                 </span>
-                <div className="history-text">{renderMarkdown(message.text)}</div>
+                {message.reasoning !== undefined && message.reasoning !== ''
+                  ? (
+                    <details className="history-thinking" data-testid="history-thinking">
+                      <summary>{t('chat.processThought')}</summary>
+                      <div className="history-thinking-body">{message.reasoning}</div>
+                    </details>
+                  )
+                  : null}
+                {message.role === 'user' && message.text.length > 260
+                  ? (
+                    <details className="history-prompt-fold" data-testid="history-prompt-fold">
+                      <summary>{promptSummary(message.text)}</summary>
+                      <div className="history-text markdown-body">{renderMarkdown(message.text)}</div>
+                    </details>
+                  )
+                  : message.text !== ''
+                    ? <div className="history-text markdown-body">{renderMarkdown(message.text)}</div>
+                    : null}
               </div>
             ))
             : null}

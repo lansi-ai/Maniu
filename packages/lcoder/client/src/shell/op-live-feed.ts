@@ -37,6 +37,8 @@ export interface OpLiveFeed {
   readonly retryMax?: number | null | undefined
   /** 最新输出片段（已截断末尾，供浮卡实时展示）。 */
   readonly snippet: string
+  /** 最新思考过程片段（已截断末尾，供浮卡折叠区展示）。 */
+  readonly reasoning?: string | undefined
   /** 最近一次工具返回结果的简短摘要。 */
   readonly lastToolNote?: string | undefined
   /** 最近一次收到任意有效帧或事件的本机时间戳（毫秒）。 */
@@ -47,7 +49,8 @@ export interface OpLiveFeed {
   readonly freshStep?: boolean | undefined
 }
 
-const SNIPPET_LIMIT = 360
+const SNIPPET_LIMIT = 280
+const REASONING_LIMIT = 600
 const FLUSH_INTERVAL_MS = 120
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -60,26 +63,91 @@ function clampTail(text: string, limit = SNIPPET_LIMIT): string {
   return `…${trimmed.slice(trimmed.length - (limit - 1))}`
 }
 
-/** 从工具参数 JSON 里挑出最具可读性的短标签，避免把整段 HTML 塞进状态栏。 */
+function isMarkdownTableBlock(block: string): boolean {
+  const lines = block.split('\n').map(line => line.trim()).filter(line => line !== '')
+  if (lines.length === 0) return false
+  return lines.every(line => /^\|.*\|$/u.test(line) || /^\|?[\s:-]+\|[\s|:-]*$/u.test(line))
+}
+
+/** 从模型输出正文抽取最新核心段落，过滤 Markdown 表格碎片与半截句首。 */
+function extractKeySnippet(text: string, limit = SNIPPET_LIMIT): string {
+  const normalized = text.replace(/\r\n/gu, '\n').trim()
+  if (normalized === '') return ''
+  const paragraphs = normalized.split(/\n{2,}/u).map(part => part.trim()).filter(part => part !== '')
+  const prose = paragraphs.filter(part => !isMarkdownTableBlock(part))
+  const pool = prose.length > 0 ? prose : paragraphs
+  if (pool.length === 0) return ''
+
+  let chosen = pool[pool.length - 1] ?? ''
+  for (let index = pool.length - 2; index >= 0; index -= 1) {
+    const candidate = `${pool[index] ?? ''}\n\n${chosen}`
+    if (candidate.length > limit) break
+    chosen = candidate
+  }
+  if (chosen.length <= limit) return chosen
+
+  const rawSlice = chosen.slice(chosen.length - (limit - 1))
+  const boundary = rawSlice.search(/[。！？.!?\n]/u)
+  if (boundary >= 0 && boundary < Math.floor(rawSlice.length * 0.4)) {
+    const trimmed = rawSlice.slice(boundary + 1).trimStart()
+    if (trimmed !== '') return `…${trimmed}`
+  }
+  return `…${rawSlice}`
+}
+
+function clampDetail(text: string): string {
+  const clean = text.trim()
+  return clean.length > 64 ? `${clean.slice(0, 64)}…` : clean
+}
+
+/** 从工具参数 JSON 里挑出最具可读性的短标签，避免把整段 HTML 或原始 JSON 塞进状态栏。 */
 function toolDetailOf(rawArgs: unknown): string | undefined {
-  if (typeof rawArgs !== 'string' || rawArgs.trim() === '') return undefined
+  if (typeof rawArgs !== 'string') return undefined
+  const trimmed = rawArgs.trim()
+  if (trimmed === '') return undefined
   try {
-    const parsed: unknown = JSON.parse(rawArgs)
+    const parsed: unknown = JSON.parse(trimmed)
     if (isRecord(parsed)) {
+      if (Array.isArray(parsed.questions) && parsed.questions.length > 0) {
+        const first: unknown = parsed.questions[0]
+        if (isRecord(first) && typeof first.header === 'string' && first.header.trim() !== '') {
+          return clampDetail(first.header)
+        }
+        return undefined
+      }
       for (const key of ['requirement', 'path', 'id', 'task_id', 'keyword', 'module', 'domPath', 'title']) {
         const value = parsed[key]
         if (typeof value === 'string' && value.trim() !== '') {
-          const clean = value.trim()
-          return clean.length > 64 ? `${clean.slice(0, 64)}…` : clean
+          return clampDetail(value)
         }
       }
     }
   } catch {
     // 非 JSON 参数（或流式截断）时退回纯文本短摘。
   }
-  const singleLine = rawArgs.replace(/\s+/gu, ' ').trim()
-  if (singleLine === '' || singleLine === '{}') return undefined
+  if (trimmed.startsWith('{') || trimmed.startsWith('[')) return undefined
+  const singleLine = trimmed.replace(/\s+/gu, ' ')
   return singleLine.length > 64 ? `${singleLine.slice(0, 64)}…` : singleLine
+}
+
+function cleanToolNote(summary: string): string {
+  const trimmed = summary.trim()
+  if (trimmed === '') return ''
+  if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return summary
+  try {
+    const parsed: unknown = JSON.parse(trimmed)
+    if (isRecord(parsed)) {
+      for (const key of ['path', 'message', 'status', 'title']) {
+        const value = parsed[key]
+        if (typeof value === 'string' && value.trim() !== '') {
+          return value.trim()
+        }
+      }
+    }
+  } catch {
+    // 非合法 JSON 片段时同样不透传原始花括号/方括号文本。
+  }
+  return ''
 }
 
 function errorMessageOf(error: unknown): string {
@@ -118,6 +186,8 @@ function applyDurableEvent(state: OpLiveFeed, event: Record<string, unknown>, no
       return {
         ...state,
         phase: 'thinking',
+        reasoning: undefined,
+        lastToolNote: undefined,
         turnEnd: undefined,
         freshStep: true,
         lastActivityAt: now,
@@ -141,6 +211,7 @@ function applyDurableEvent(state: OpLiveFeed, event: Record<string, unknown>, no
         ...state,
         step,
         phase: state.phase === 'connecting' || state.phase === 'idle' ? 'thinking' : state.phase,
+        lastToolNote: undefined,
         turnEnd: undefined,
         freshStep: true,
         lastActivityAt: now,
@@ -161,9 +232,12 @@ function applyDurableEvent(state: OpLiveFeed, event: Record<string, unknown>, no
     }
     case 'tool/result': {
       const message = data !== undefined && isRecord(data.message) ? data.message : undefined
-      const summary = message === undefined ? '' : resultSummary(message.content)
+      const rawSummary = message === undefined ? '' : resultSummary(message.content)
+      const summary = cleanToolNote(rawSummary)
       const isError = message?.isError === true
-      const note = summary === '' ? state.lastToolNote : (isError ? `⚠ ${summary}` : summary)
+      // 探测路径导致的 ENOENT 属于正常试探，不向用户浮卡暴露系统绝对路径报错。
+      const transientMiss = isError && /\bENOENT\b|no such file or directory/iu.test(summary)
+      const note = summary === '' || transientMiss ? state.lastToolNote : (isError ? `⚠ ${summary}` : summary)
       return {
         ...state,
         ...(note === undefined ? {} : { lastToolNote: note }),
@@ -186,15 +260,13 @@ function applyDurableEvent(state: OpLiveFeed, event: Record<string, unknown>, no
           toolName = block.name
         }
       }
-      const nextSnippet = text !== ''
-        ? clampTail(text)
-        : reasoning !== ''
-          ? clampTail(reasoning)
-          : state.snippet
+      const nextSnippet = text !== '' ? extractKeySnippet(text) : state.snippet
+      const nextReasoning = reasoning !== '' ? clampTail(reasoning, REASONING_LIMIT) : state.reasoning
       return {
         ...state,
         ...(toolName === undefined ? {} : { toolName }),
         snippet: nextSnippet,
+        ...(nextReasoning === undefined ? {} : { reasoning: nextReasoning }),
         freshStep: true,
         lastActivityAt: now,
       }
@@ -233,11 +305,11 @@ function applyDurableEvent(state: OpLiveFeed, event: Record<string, unknown>, no
 function applyChunk(state: OpLiveFeed, chunk: unknown, now: number): OpLiveFeed {
   if (!isRecord(chunk) || typeof chunk.type !== 'string') return state
   if (chunk.type === 'reasoning-delta' && typeof chunk.text === 'string' && chunk.text !== '') {
-    const base = state.freshStep === true || state.phase !== 'thinking' ? '' : state.snippet
+    const base = state.freshStep === true || state.phase !== 'thinking' ? '' : (state.reasoning ?? '')
     return {
       ...state,
       phase: 'thinking',
-      snippet: clampTail(base + chunk.text),
+      reasoning: clampTail(base + chunk.text, REASONING_LIMIT),
       freshStep: false,
       turnEnd: undefined,
       lastActivityAt: now,
@@ -248,7 +320,7 @@ function applyChunk(state: OpLiveFeed, chunk: unknown, now: number): OpLiveFeed 
     return {
       ...state,
       phase: 'streaming',
-      snippet: clampTail(base + chunk.text),
+      snippet: extractKeySnippet(base + chunk.text),
       freshStep: false,
       turnEnd: undefined,
       lastActivityAt: now,

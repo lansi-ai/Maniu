@@ -63,7 +63,7 @@ describe('预制回落与节点查找', () => {
   it('部分配置只覆盖对应节点，其余仍走预制', () => {
     const flow = flowTextToRow('nodes: [{node: review, roles: [maniu-review], auto: false}]')
     expect(flowNodeOf(flow, 'review')).toEqual({ node: 'review', roles: ['maniu-review'], auto: false })
-    expect(flowNodeOf(flow, 'split')).toEqual({ node: 'split', roles: ['maniu-manager'], auto: false })
+    expect(flowNodeOf(flow, 'split')).toEqual({ node: 'split', roles: ['maniu-architect', 'maniu-manager'], auto: true })
     expect(flowNodesOf(flow).map(node => node.node)).toEqual(['intake', 'review', 'revise', 'split'])
   })
 })

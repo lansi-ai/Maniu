@@ -6,11 +6,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { JSX, PointerEvent as ReactPointerEvent } from 'react'
 import { Button } from '@heroui/react'
-import { GitCompareArrows, History, Maximize2, Minimize2, PanelRightClose } from 'lucide-react'
+import { GitCompareArrows, Maximize2, Minimize2, PanelRightClose } from 'lucide-react'
 import type { Translate } from '../locale.ts'
 import { translate, type MessageKey } from '../locale.ts'
 import { usePreferences } from '../prefs.ts'
-import { formatTimestamp } from '../pages/requirement-report.ts'
 import { buildStudioCoDesignPrompt } from '../prototype/prompt.ts'
 import type {
   PrototypeCommitResult,
@@ -21,9 +20,7 @@ import type {
 } from '../prototype/remote.ts'
 import {
   commitStagedPrototype, discardStagedPrototype, getStagedPrototype,
-  listPrototypeSnapshots, restorePrototypeSnapshot,
 } from '../prototype/remote.ts'
-import type { PrototypeSnapshotMeta } from '../prototype/remote.ts'
 import { AnchorComposer, type StudioAnchorDraft } from './anchor-composer.tsx'
 import { ChangeCard } from './change-card.tsx'
 import { CoDesignThread, type StudioTurnEcho } from './co-design-thread.tsx'
@@ -201,12 +198,11 @@ export function PrototypeStudioApp(props: PrototypeStudioAppProps): JSX.Element 
   const [turn, setTurn] = useState<StudioTurnEcho | undefined>(undefined)
   const [staged, setStaged] = useState<StagedPrototype | null>(null)
   const [committedHtml, setCommittedHtml] = useState<string | null>(null)
-  const [snapshots, setSnapshots] = useState<readonly PrototypeSnapshotMeta[]>([])
   const [viewMode, setViewMode] = useState<StudioViewMode>('split')
+  const isFullscreen = viewMode === 'fullscreen-pinned' || viewMode === 'compare-fullscreen-pinned'
+  const isComparing = viewMode === 'compare-side-by-side' || viewMode === 'compare-fullscreen-pinned'
   const [floatingCollapsed, setFloatingCollapsed] = useState(false)
   const [showingBefore, setShowingBefore] = useState(false)
-  const [highlight, setHighlight] = useState(false)
-  const [snapshotsOpen, setSnapshotsOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [syncStatus, setSyncStatus] = useState<RequirementSyncStatus | undefined>(undefined)
   const [notice, setNotice] = useState<string | undefined>(undefined)
@@ -254,18 +250,12 @@ export function PrototypeStudioApp(props: PrototypeStudioAppProps): JSX.Element 
     return view
   }, [invoke, requirementId, withRemoteSession])
 
-  const refreshSnapshots = useCallback(async (): Promise<void> => {
-    const items = await withRemoteSession(sessionId => listPrototypeSnapshots(sessionId, requirementId, invoke))
-    setSnapshots(items)
-  }, [invoke, requirementId, withRemoteSession])
-
   /** 把一份暂存视图画到左侧画布：有暂存就默认展示修改后版本并高亮改动区域。 */
   const showStagedView = useCallback((view: PrototypeStagedView): void => {
     const next = view.staged
     setStaged(next)
     setCommittedHtml(view.committedHtml)
     setShowingBefore(false)
-    setHighlight(next !== null)
     void bridge?.highlightPrototypeStudioPaths?.(next === null ? [] : next.changedDomPaths)
     loadHtml(next === null ? view.committedHtml : next.html, view.committedHtml)
   }, [bridge, loadHtml])
@@ -324,7 +314,7 @@ export function PrototypeStudioApp(props: PrototypeStudioAppProps): JSX.Element 
    * @param collapsed - 起点是折叠胶囊还是展开浮窗。
    */
   const beginFloatingDrag = (event: ReactPointerEvent<HTMLElement>, collapsed: boolean): void => {
-    if (viewMode !== 'fullscreen-pinned' || event.button !== 0) return
+    if (!isFullscreen || event.button !== 0) return
     const target = event.target
     if (target instanceof Element) {
       const button = target.closest('button')
@@ -431,19 +421,28 @@ export function PrototypeStudioApp(props: PrototypeStudioAppProps): JSX.Element 
   }
 
   const switchView = (before: boolean): void => {
+    if (isComparing) {
+      changeMode(isFullscreen ? 'fullscreen-pinned' : 'split')
+    }
     setShowingBefore(before)
     loadHtml(before ? committedHtml : staged?.html ?? null, committedHtml)
   }
 
-  const compareSideBySide = (): void => {
-    changeMode('compare-side-by-side')
-    loadHtml(staged?.html ?? committedHtml, committedHtml)
+  const toggleCompare = (): void => {
+    if (staged === null) return
+    if (isComparing) {
+      changeMode(isFullscreen ? 'fullscreen-pinned' : 'split')
+      loadHtml(showingBefore ? committedHtml : staged.html, committedHtml)
+      return
+    }
+    changeMode(isFullscreen ? 'compare-fullscreen-pinned' : 'compare-side-by-side')
+    loadHtml(staged.html, committedHtml)
   }
 
-  const toggleHighlight = (): void => {
-    const next = !highlight
-    setHighlight(next)
-    void bridge?.highlightPrototypeStudioPaths?.(next && staged !== null ? staged.changedDomPaths : [])
+  const toggleFullscreen = (): void => {
+    changeMode(isFullscreen
+      ? (isComparing ? 'compare-side-by-side' : 'split')
+      : (isComparing ? 'compare-fullscreen-pinned' : 'fullscreen-pinned'))
   }
 
   const commit = async (applyRequirementDiff: boolean, amend: boolean): Promise<void> => {
@@ -459,9 +458,7 @@ export function PrototypeStudioApp(props: PrototypeStudioAppProps): JSX.Element 
       }, invoke))
       setSyncStatus(result.requirementSync)
       const view = await refreshStaged()
-      await refreshSnapshots()
       setShowingBefore(false)
-      setHighlight(false)
       void bridge?.highlightPrototypeStudioPaths?.([])
       loadHtml(view.committedHtml, view.committedHtml)
       setNotice(result.requirementSync === 'skipped_pending'
@@ -482,27 +479,9 @@ export function PrototypeStudioApp(props: PrototypeStudioAppProps): JSX.Element 
       await withRemoteSession(sessionId => discardStagedPrototype(sessionId, requirementId, invoke))
       const view = await refreshStaged()
       setShowingBefore(false)
-      setHighlight(false)
       void bridge?.highlightPrototypeStudioPaths?.([])
       loadHtml(view.committedHtml, view.committedHtml)
       setNotice(t('studio.discardDone'))
-    } catch (cause: unknown) {
-      setNotice(cause instanceof Error ? cause.message : String(cause))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const restore = async (snapshotId: string): Promise<void> => {
-    if (busy) return
-    setBusy(true)
-    setNotice(undefined)
-    try {
-      const restored = await withRemoteSession(sessionId =>
-        restorePrototypeSnapshot(sessionId, requirementId, snapshotId, invoke))
-      await Promise.all([refreshStaged(), refreshSnapshots()])
-      loadHtml(restored.html, restored.html)
-      setNotice(t('studio.restoreDone'))
     } catch (cause: unknown) {
       setNotice(cause instanceof Error ? cause.message : String(cause))
     } finally {
@@ -595,7 +574,7 @@ export function PrototypeStudioApp(props: PrototypeStudioAppProps): JSX.Element 
     void openFollowStream(chatSessionId)
   }, [chatSessionId, openFollowStream])
 
-  // 首帧读暂存：先激活协作会话，再读暂存并画到画布；快照失败不影响主画布。
+  // 首帧读暂存：先激活协作会话，再读暂存并画到画布。
   useEffect(() => {
     stagedReadDisposedRef.current = false
     void (async () => {
@@ -607,9 +586,8 @@ export function PrototypeStudioApp(props: PrototypeStudioAppProps): JSX.Element 
     })().catch((cause: unknown) => {
       if (!isStagedReadDisposed()) setNotice(cause instanceof Error ? cause.message : String(cause))
     })
-    void refreshSnapshots().catch(() => undefined)
     return () => { stagedReadDisposedRef.current = true }
-  }, [chatSessionId, openFollowStream, refreshStaged, refreshSnapshots, showStagedView])
+  }, [chatSessionId, openFollowStream, refreshStaged, showStagedView])
 
   useEffect(() => () => {
     const opened = streamRef.current
@@ -691,11 +669,10 @@ export function PrototypeStudioApp(props: PrototypeStudioAppProps): JSX.Element 
     })
   }, [refreshStaged, showStagedView])
 
-  const isFullscreen = viewMode === 'fullscreen-pinned'
   const modeLabel = isFullscreen ? t('studio.exitFullscreen') : t('studio.enterFullscreen')
-  const quickCompareLabel = staged === null
+  const compareLabel = staged === null
     ? t('studio.quickCompareUnavailable')
-    : t(showingBefore ? 'studio.quickCompareToAfter' : 'studio.quickCompareToBefore')
+    : t(isComparing ? 'studio.exitCompare' : 'studio.toggleCompare')
 
   return (
     <div className={`studio-app${isFullscreen ? ' studio-app-pinned' : ''}`} data-testid="studio-app" data-requirement-id={requirementId}>
@@ -743,30 +720,17 @@ export function PrototypeStudioApp(props: PrototypeStudioAppProps): JSX.Element 
             <Button
               isIconOnly
               size="sm"
-              variant={showingBefore ? 'primary' : 'ghost'}
-              className={showingBefore ? 'studio-icon-button studio-icon-button-active' : 'studio-icon-button'}
-              data-testid="studio-quick-compare"
-              data-active={showingBefore ? 'true' : 'false'}
-              aria-label={quickCompareLabel}
-              aria-pressed={showingBefore}
+              variant={isComparing ? 'primary' : 'ghost'}
+              className={isComparing ? 'studio-icon-button studio-icon-button-active' : 'studio-icon-button'}
+              data-testid="studio-compare-toggle"
+              data-active={isComparing ? 'true' : 'false'}
+              aria-label={compareLabel}
+              aria-pressed={isComparing}
               isDisabled={staged === null}
-              ref={(node) => { if (node !== null) node.title = quickCompareLabel }}
-              onPress={() => { switchView(!showingBefore) }}
+              ref={(node) => { if (node !== null) node.title = compareLabel }}
+              onPress={toggleCompare}
             >
               <GitCompareArrows aria-hidden="true" size={16} />
-            </Button>
-            <Button
-              isIconOnly
-              size="sm"
-              variant="ghost"
-              className="studio-icon-button"
-              data-testid="studio-snapshots-trigger"
-              aria-expanded={snapshotsOpen}
-              aria-label={t('studio.snapshots')}
-              ref={(node) => { if (node !== null) node.title = t('studio.snapshots') }}
-              onPress={() => { setSnapshotsOpen(current => !current) }}
-            >
-              <History aria-hidden="true" size={16} />
             </Button>
             <Button
               isIconOnly
@@ -777,7 +741,7 @@ export function PrototypeStudioApp(props: PrototypeStudioAppProps): JSX.Element 
               data-mode={viewMode}
               aria-label={modeLabel}
               ref={(node) => { if (node !== null) node.title = modeLabel }}
-              onPress={() => { changeMode(isFullscreen ? 'split' : 'fullscreen-pinned') }}
+              onPress={toggleFullscreen}
             >
               {isFullscreen ? <Minimize2 aria-hidden="true" size={16} /> : <Maximize2 aria-hidden="true" size={16} />}
             </Button>
@@ -786,57 +750,52 @@ export function PrototypeStudioApp(props: PrototypeStudioAppProps): JSX.Element 
 
         {staged !== null && (
           <div className="studio-staged-bar" data-testid="studio-staged-bar" data-staged="true">
-            <span className="studio-staged-live" data-testid="studio-staged-state">
-              {t('studio.stagedPending')}
-            </span>
-            <div className="studio-segmented" role="group" aria-label={t('studio.viewSwitch')}>
-              <button
-                type="button"
-                className={showingBefore ? 'studio-segment studio-segment-on' : 'studio-segment'}
-                data-testid="studio-view-before"
-                aria-pressed={showingBefore}
-                onClick={() => { switchView(true) }}
-              >
-                {t('studio.viewBefore')}
-              </button>
-              <button
-                type="button"
-                className={!showingBefore ? 'studio-segment studio-segment-on' : 'studio-segment'}
-                data-testid="studio-view-after"
-                aria-pressed={!showingBefore}
-                onClick={() => { switchView(false) }}
-              >
-                {t('studio.viewAfter')}
-              </button>
-            </div>
-            <Button size="sm" variant="secondary" data-testid="studio-compare-side-by-side" isDisabled={busy} onPress={compareSideBySide}>
-              {t('studio.compareSideBySide')}
-            </Button>
-            <Button size="sm" variant={highlight ? 'primary' : 'secondary'} data-testid="studio-highlight-toggle" isDisabled={busy} onPress={toggleHighlight}>
-              {t('studio.highlightChanges')}
-            </Button>
-            <Button size="sm" variant="primary" data-testid="studio-commit-staged" isDisabled={busy} onPress={() => { void commit(false, false) }}>
-              {t('studio.confirmCommit')}
-            </Button>
-            <Button size="sm" variant="secondary" data-testid="studio-discard-staged" isDisabled={busy} onPress={() => { void discard() }}>
-              {t('studio.discard')}
-            </Button>
-          </div>
-        )}
-
-        {snapshotsOpen && (
-          <div className="studio-snapshots" data-testid="studio-snapshots">
-            {snapshots.length === 0
-              ? <p className="studio-empty">{t('studio.snapshotsEmpty')}</p>
-              : snapshots.slice(0, 10).map(snapshot => (
-                <div key={snapshot.snapshotId} className="studio-snapshot" data-testid="studio-snapshot" data-snapshot-id={snapshot.snapshotId}>
-                  <span>{formatTimestamp(snapshot.createdAt)}</span>
-                  <span>{t('studio.snapshotBytes', { bytes: snapshot.bytes })}</span>
-                  <Button size="sm" variant="secondary" data-testid="studio-snapshot-restore" isDisabled={busy} onPress={() => { void restore(snapshot.snapshotId) }}>
-                    {t('studio.restoreSnapshot')}
+            {isComparing
+              ? (
+                <div className="studio-compare-status" data-testid="studio-compare-status">
+                  <span className="studio-compare-label">{t('studio.comparingLabel')}</span>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="studio-compare-exit"
+                    data-testid="studio-compare-exit"
+                    isDisabled={busy}
+                    onPress={toggleCompare}
+                  >
+                    {t('studio.exitCompare')}
                   </Button>
                 </div>
-              ))}
+              )
+              : (
+                <div className="studio-segmented" role="group" aria-label={t('studio.viewSwitch')}>
+                  <button
+                    type="button"
+                    className={showingBefore ? 'studio-segment studio-segment-on' : 'studio-segment'}
+                    data-testid="studio-view-before"
+                    aria-pressed={showingBefore}
+                    onClick={() => { switchView(true) }}
+                  >
+                    {t('studio.viewBefore')}
+                  </button>
+                  <button
+                    type="button"
+                    className={!showingBefore ? 'studio-segment studio-segment-on' : 'studio-segment'}
+                    data-testid="studio-view-after"
+                    aria-pressed={!showingBefore}
+                    onClick={() => { switchView(false) }}
+                  >
+                    {t('studio.viewAfter')}
+                  </button>
+                </div>
+              )}
+            <div className="studio-staged-actions">
+              <Button size="sm" variant="primary" data-testid="studio-commit-staged" isDisabled={busy} onPress={() => { void commit(false, false) }}>
+                {t('studio.confirmCommit')}
+              </Button>
+              <Button size="sm" variant="secondary" data-testid="studio-discard-staged" isDisabled={busy} onPress={() => { void discard() }}>
+                {t('studio.discard')}
+              </Button>
+            </div>
           </div>
         )}
 
@@ -857,9 +816,6 @@ export function PrototypeStudioApp(props: PrototypeStudioAppProps): JSX.Element 
                 staged={staged}
                 busy={busy}
                 syncStatus={syncStatus}
-                showingBefore={showingBefore}
-                onViewChange={switchView}
-                onCompare={compareSideBySide}
                 onCommit={(applyDiff, amend) => { void commit(applyDiff, amend) }}
                 onDiscard={() => { void discard() }}
               />

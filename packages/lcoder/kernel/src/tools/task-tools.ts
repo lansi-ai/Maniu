@@ -198,6 +198,7 @@ export function createTaskTools(specRootInput: RootInput): ToolDefinition[] {
         track: { type: 'string', description: '这条任务归属的轨：内置轨 h5 / admin / api / desktop / host / general，或 .spec/project.yaml 的 tracks 里项目追加的轨 id；一任务一轨，未知轨会被拒绝' },
         depends_on: { type: 'array', items: { type: 'string' }, description: '前置任务编号；这些任务收口之前本条不会开始' },
         task_id: { type: 'string', description: '指定编号，形如 T-014；省略则取现有 T- 编号之后的下一个空号' },
+        update_draft: { type: 'boolean', description: '为 true 时按 task_id 原地更新已有的 drafting 状态任务（保留 opened_at 与 role），非 drafting 拒绝更新' },
       },
       output: { schema: { type: 'json' }, render: renderJson },
       // oxlint-disable-next-line typescript/require-await -- execute 的契约要求返回 Promise（ToolDefinition.execute），这里是同步实现。
@@ -206,36 +207,47 @@ export function createTaskTools(specRootInput: RootInput): ToolDefinition[] {
         const title = args.title.trim()
         if (title === '') throw new Error('task_draft 需要非空的 title：一句话说清这个任务要办成什么')
 
-        const grade = args.grade.trim().toUpperCase()
-        if (grade !== 'A' && grade !== 'B' && grade !== 'C') {
+        const rawGrade = args.grade.trim().toUpperCase()
+        if (rawGrade !== 'A' && rawGrade !== 'B' && rawGrade !== 'C') {
           throw new Error(`task_draft 的 grade 只能是 A、B、C，收到：${args.grade}`)
         }
+        const grade: 'A' | 'B' | 'C' = rawGrade
 
         const existing = hasSpecRoot(specRoot) ? listTasks(specRoot) : []
+        const isUpdateDraft = args.update_draft === true
 
-        const duplicate = findByTitle(existing, title)
-        if (duplicate !== undefined) {
-          return {
-            task_id: duplicate.id,
-            path: taskPath(specRoot, duplicate.id),
-            state: duplicate.state,
-            grade: duplicate.grade,
-            rules: duplicate.rules,
-            description: duplicate.description,
-            ...(duplicate.category === undefined ? {} : { category: duplicate.category }),
-            ...(duplicate.change_type === undefined ? {} : { change_type: duplicate.change_type }),
-            ...(duplicate.track === undefined ? {} : { track: duplicate.track }),
-            ...(duplicate.proposal === undefined ? {} : { proposal: duplicate.proposal }),
-            ...(duplicate.requirement === undefined ? {} : { requirement: duplicate.requirement }),
-            attachments: duplicate.attachments,
-            created: false,
-            note: `已有一个同标题任务 ${duplicate.id}（${duplicate.state}），没有重复新建。要继续就基于它起草契约。`,
+        if (!isUpdateDraft) {
+          const duplicate = findByTitle(existing, title)
+          if (duplicate !== undefined) {
+            return {
+              task_id: duplicate.id,
+              path: taskPath(specRoot, duplicate.id),
+              state: duplicate.state,
+              grade: duplicate.grade,
+              rules: duplicate.rules,
+              description: duplicate.description,
+              ...(duplicate.category === undefined ? {} : { category: duplicate.category }),
+              ...(duplicate.change_type === undefined ? {} : { change_type: duplicate.change_type }),
+              ...(duplicate.track === undefined ? {} : { track: duplicate.track }),
+              ...(duplicate.proposal === undefined ? {} : { proposal: duplicate.proposal }),
+              ...(duplicate.requirement === undefined ? {} : { requirement: duplicate.requirement }),
+              attachments: duplicate.attachments,
+              created: false,
+              note: `已有一个同标题任务 ${duplicate.id}（${duplicate.state}），没有重复新建。要继续就基于它起草契约。`,
+            }
           }
         }
 
         const id = args.task_id === undefined ? nextTaskId(existing) : assertTaskId(args.task_id)
         const occupied = existing.find(task => task.id === id)
-        if (occupied !== undefined) {
+        if (isUpdateDraft) {
+          if (args.task_id === undefined || occupied === undefined) {
+            throw new Error(`update_draft=true 必须传入已存在的 task_id（收到：${args.task_id ?? '未传'}）`)
+          }
+          if (occupied.state !== 'drafting') {
+            throw new Error(`${id} 当前处于「${occupied.state}」，只有待确认（drafting）状态的任务允许更新`)
+          }
+        } else if (occupied !== undefined) {
           throw new Error(`任务编号 ${id} 已被「${occupied.title}」占用；省略 task_id 可自动取下一个空号`)
         }
 
@@ -267,23 +279,53 @@ export function createTaskTools(specRootInput: RootInput): ToolDefinition[] {
           if (cycle !== undefined) throw new Error(`depends_on 会成环：${cycle.join(' 依赖 ')}`)
         }
 
-        const task = openTask({
-          id,
-          title,
-          description: args.description ?? '',
-          ...(args.category === undefined ? {} : { category: args.category }),
-          ...(args.change_type === undefined ? {} : { change_type: args.change_type }),
-          attachments: args.attachments ?? [],
-          grade,
-          rules: requestedRules,
-          scope: { irreversible: args.irreversible ?? [], allowed_paths: args.allowed_paths ?? [] },
-          evidence_required: args.evidence_required ?? [],
-          ...(proposalId === undefined ? {} : { proposal: proposalId }),
-          ...(requirementId === undefined ? {} : { requirement: requirementId }),
-          ...(track === undefined ? {} : { track }),
-          ...(dependsOn.length === 0 ? {} : { depends_on: dependsOn }),
-          opened_at: new Date().toISOString(),
-        })
+        const nextCategory = isUpdateDraft && occupied !== undefined ? (args.category ?? occupied.category) : args.category
+        const nextChangeType = isUpdateDraft && occupied !== undefined ? (args.change_type ?? occupied.change_type) : args.change_type
+        const nextProposal = isUpdateDraft && occupied !== undefined ? (proposalId ?? occupied.proposal) : proposalId
+        const nextRequirement = isUpdateDraft && occupied !== undefined ? (requirementId ?? occupied.requirement) : requirementId
+        const nextTrack = isUpdateDraft && occupied !== undefined ? (track ?? occupied.track) : track
+
+        const task = isUpdateDraft && occupied !== undefined
+          ? {
+            ...openTask({
+              id,
+              title,
+              description: args.description ?? occupied.description,
+              ...(nextCategory === undefined ? {} : { category: nextCategory }),
+              ...(nextChangeType === undefined ? {} : { change_type: nextChangeType }),
+              attachments: args.attachments ?? occupied.attachments,
+              grade,
+              rules: args.rules === undefined ? occupied.rules : requestedRules,
+              scope: {
+                irreversible: args.irreversible ?? occupied.scope.irreversible,
+                allowed_paths: args.allowed_paths ?? occupied.scope.allowed_paths,
+              },
+              evidence_required: args.evidence_required ?? occupied.evidence_required,
+              ...(nextProposal === undefined ? {} : { proposal: nextProposal }),
+              ...(nextRequirement === undefined ? {} : { requirement: nextRequirement }),
+              ...(nextTrack === undefined ? {} : { track: nextTrack }),
+              depends_on: args.depends_on === undefined ? occupied.depends_on : dependsOn,
+              opened_at: occupied.opened_at,
+            }),
+            ...(occupied.role === undefined ? {} : { role: occupied.role }),
+          }
+          : openTask({
+            id,
+            title,
+            description: args.description ?? '',
+            ...(args.category === undefined ? {} : { category: args.category }),
+            ...(args.change_type === undefined ? {} : { change_type: args.change_type }),
+            attachments: args.attachments ?? [],
+            grade,
+            rules: requestedRules,
+            scope: { irreversible: args.irreversible ?? [], allowed_paths: args.allowed_paths ?? [] },
+            evidence_required: args.evidence_required ?? [],
+            ...(proposalId === undefined ? {} : { proposal: proposalId }),
+            ...(requirementId === undefined ? {} : { requirement: requirementId }),
+            ...(track === undefined ? {} : { track }),
+            ...(dependsOn.length === 0 ? {} : { depends_on: dependsOn }),
+            opened_at: new Date().toISOString(),
+          })
         assertAttachmentsInsideSpec(specRoot, task.attachments)
         const path = saveTask(specRoot, task)
 
@@ -301,8 +343,11 @@ export function createTaskTools(specRootInput: RootInput): ToolDefinition[] {
           ...(task.requirement === undefined ? {} : { requirement: task.requirement }),
           attachments: task.attachments,
           depends_on: task.depends_on,
-          created: true,
-          note: '任务已建，状态 drafting。契约用 contract_draft 起草；签署只能由人完成，本工具不提供签署。',
+          created: !isUpdateDraft,
+          ...(isUpdateDraft ? { updated: true } : {}),
+          note: isUpdateDraft
+            ? `任务 ${task.id} 已更新（仍处于 drafting）。`
+            : '任务已建，状态 drafting。契约用 contract_draft 起草；签署只能由人完成，本工具不提供签署。',
         }
       },
     }),

@@ -27,7 +27,7 @@ export interface StudioSelectionInfo {
 export type StudioInteractionMode = 'interact' | 'select'
 
 /** Prototype Studio 的视图模式。 */
-export type StudioViewMode = 'split' | 'fullscreen-pinned' | 'compare-side-by-side'
+export type StudioViewMode = 'split' | 'fullscreen-pinned' | 'compare-side-by-side' | 'compare-fullscreen-pinned'
 
 /** 全屏置顶模式下协作浮窗的位置与尺寸；x/y 为负表示靠右/靠上自动定位。 */
 export interface StudioFloatingBounds {

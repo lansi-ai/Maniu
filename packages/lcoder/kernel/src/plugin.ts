@@ -22,9 +22,11 @@ import { createRequirementApproveCommand } from './commands/requirement-approve.
 import { createRequirementCloseCommand } from './commands/requirement-close.js'
 import { createRequirementReleaseCommand } from './commands/requirement-release.js'
 import { createRequirementReviewDecideCommand } from './commands/requirement-review-decide.js'
+import { createRoleUpsertCommand } from './commands/role-upsert.js'
 import { createTaskAssignCommand } from './commands/task-assign.js'
 import { createTaskBindCommand } from './commands/task-bind.js'
 import { createTaskContractCommand } from './commands/task-contract.js'
+import { createTaskDiscardCommand } from './commands/task-discard.js'
 import { createTaskScheduleCommand } from './commands/task-schedule.js'
 import { createTaskSplitReadyCommand } from './commands/task-split-ready.js'
 import { createEditTools, spawnRunner } from './tools/edit-tools.js'
@@ -199,6 +201,7 @@ export function apply(ctx: PluginContext, config: LcoderConfig = {}): void {
     createTaskBindCommand(rootInput),
     createTaskAssignCommand(rootInput),
     createTaskContractCommand(rootInput),
+    createTaskDiscardCommand(rootInput),
     createTaskSplitReadyCommand(rootInput),
     createTaskScheduleCommand(rootInput),
     createFlowStatusCommand(rootInput),
@@ -211,6 +214,7 @@ export function apply(ctx: PluginContext, config: LcoderConfig = {}): void {
     createRequirementReleaseCommand(rootInput),
     createRequirementCloseCommand(rootInput),
     createRequirementReviewDecideCommand(rootInput),
+    createRoleUpsertCommand(rootInput),
     createDeployCommand(rootInput),
   ]
   for (const command of commands) {

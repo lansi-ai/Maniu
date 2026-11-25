@@ -335,10 +335,9 @@ describe('总览项目详情弹窗', () => {
 })
 
 describe('总览活原型卡', () => {
-  it('有需求时工作室带上需求上下文，独立窗口试玩同一份 HTML', async () => {
+  it('有需求时主按钮显示修改原型，去掉独立窗口试玩按钮；有暂存时显示确认修改', async () => {
     const studio = vi.fn(async (_request: unknown): Promise<void> => {})
-    const preview = vi.fn(async (_html: string): Promise<void> => {})
-    Object.defineProperty(window, 'lcoder', { configurable: true, value: { openPrototypeStudio: studio, openPrototypePreview: preview } })
+    Object.defineProperty(window, 'lcoder', { configurable: true, value: { openPrototypeStudio: studio } })
     await renderDashboard({
       projection: projectionOf([requirement('REQ-01', 'confirmed')]),
       requirementIds: ['REQ-01'],
@@ -346,10 +345,27 @@ describe('总览活原型卡', () => {
     })
 
     expect(element('dashboard-prototype-status')?.textContent).toContain('主原型已就绪')
+    expect(element('dashboard-open-window')).toBeNull()
+    expect(element('dashboard-open-studio')?.textContent).toContain('修改原型')
     await press(element('dashboard-open-studio'))
     expect(studio).toHaveBeenCalledWith(expect.objectContaining({ requirementId: 'REQ-01', sessionId: 'session-scope', html: HTML }))
-    await press(element('dashboard-open-window'))
-    expect(preview).toHaveBeenCalledWith(HTML)
+
+    await renderDashboard({
+      projection: projectionOf([requirement('REQ-01', 'confirmed')]),
+      requirementIds: ['REQ-01'],
+      call: prototypeCall({
+        staged: {
+          requirementId: '__project__',
+          html: HTML,
+          changeKind: 'visual',
+          summary: ['调色'],
+          changedDomPaths: [],
+          createdAt: '2026-11-24T00:00:00.000Z',
+        },
+        committedHtml: HTML,
+      }),
+    })
+    expect(element('dashboard-open-studio')?.textContent).toContain('确认修改')
   })
 
   it('没有需求时禁用工作室并说明原因', async () => {
@@ -451,7 +467,7 @@ describe('默认主页与左侧导航', () => {
 
     const top = [...(element('navgroup-top')?.querySelectorAll('[data-testid^="nav-"]') ?? [])]
       .map(node => node.getAttribute('data-testid'))
-    expect(top).toEqual(['nav-dashboard', 'nav-requirements', 'nav-prototype', 'nav-tasks', 'nav-chat'])
+    expect(top).toEqual(['nav-dashboard', 'nav-requirements', 'nav-prototype', 'nav-tasks', 'nav-office', 'nav-chat'])
 
     const bottom = [...(element('navgroup-bottom')?.querySelectorAll('[data-testid^="nav-"]') ?? [])]
       .map(node => node.getAttribute('data-testid'))

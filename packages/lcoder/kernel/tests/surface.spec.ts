@@ -334,7 +334,8 @@ describe('角色天花板', () => {
 
   it('只有产品角色能出方案；方案批准是人机命令，不在任何角色的工具面里', () => {
     expect(ROLE_TOOLS.pm).toContain('proposal_draft')
-    for (const role of ['intake', 'architect', 'review'] as const) {
+    expect(ROLE_TOOLS.architect).toContain('proposal_draft')
+    for (const role of ['intake', 'review'] as const) {
       expect(ROLE_TOOLS[role]).not.toContain('proposal_draft')
     }
     // 终态只读：连产品也不能在 closed 上继续出方案。

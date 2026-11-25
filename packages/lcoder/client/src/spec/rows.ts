@@ -49,6 +49,7 @@ export interface JobRoleRow {
   readonly name: string
   readonly inherits: string
   readonly persona?: string
+  readonly derivedFrom?: string
   readonly signals?: RoleSignals
 }
 
@@ -148,6 +149,14 @@ export interface RequirementAmendmentRow {
   readonly actor?: string
 }
 
+/** 评审确认中经人判定为「非本期 / 刻意不做」的排除项。 */
+export interface RequirementDismissedIssueRow {
+  readonly title: string
+  readonly reason: string
+  readonly round: number
+  readonly at: string
+}
+
 /** 需求行（含正文）。 */
 export interface RequirementDocRow {
   readonly id: string
@@ -172,6 +181,8 @@ export interface RequirementDocRow {
   readonly amendCount?: number
   /** S 级轻量修补历史摘要；旧需求缺省。 */
   readonly amendments?: readonly RequirementAmendmentRow[]
+  /** 评审确认中经人判定为非本期的排除项；无排除项或旧需求缺省。 */
+  readonly dismissedIssues?: readonly RequirementDismissedIssueRow[]
 }
 
 /** 规则行。 */
@@ -655,6 +666,25 @@ export function requirementTextToRow(fileName: string, text: string): Omit<Requi
       ...(actor === undefined ? {} : { actor }),
     }]
   })
+  const rawDismissed = Array.isArray(fields.dismissed_issues) ? fields.dismissed_issues : []
+  const dismissedIssues: RequirementDismissedIssueRow[] = rawDismissed.flatMap((entry: unknown) => {
+    const record = recordOf(entry)
+    const titleText = asText(record?.title)
+    const reason = asText(record?.reason)
+    const round = record?.round
+    const at = asText(record?.at)
+    if (
+      titleText === undefined
+      || reason === undefined
+      || typeof round !== 'number'
+      || !Number.isInteger(round)
+      || round < 1
+      || at === undefined
+    ) {
+      return []
+    }
+    return [{ title: titleText, reason, round, at }]
+  })
   return {
     id: asText(fields.id) ?? fileName.replace(/\.yaml$/, ''),
     title,
@@ -672,6 +702,7 @@ export function requirementTextToRow(fileName: string, text: string): Omit<Requi
     ...(prototype === undefined ? {} : { prototype }),
     ...(amendCount === null ? {} : { amendCount }),
     ...(amendments.length > 0 ? { amendments } : {}),
+    ...(dismissedIssues.length > 0 ? { dismissedIssues } : {}),
   }
 }
 
@@ -752,12 +783,14 @@ export function rolesTextToRows(text: string): JobRoleRow[] {
     const inherits = asText(fields?.inherits)
     if (id === undefined || name === undefined || inherits === undefined) return []
     const persona = asText(fields?.persona)
+    const derivedFrom = asText(fields?.derived_from)
     const signals = roleSignalsOf(fields?.signals)
     return [{
       id,
       name,
       inherits,
       ...(persona === undefined ? {} : { persona }),
+      ...(derivedFrom === undefined ? {} : { derivedFrom }),
       ...(signals === undefined ? {} : { signals }),
     }]
   })

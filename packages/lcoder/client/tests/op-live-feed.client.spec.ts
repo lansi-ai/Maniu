@@ -24,7 +24,8 @@ describe('foldOpLiveFrame', () => {
       },
     }, 1200)
     expect(feed.phase).toBe('thinking')
-    expect(feed.snippet).toContain('先拆分概览与报销列表两个视图')
+    expect(feed.reasoning).toContain('先拆分概览与报销列表两个视图')
+    expect(feed.snippet).toBe('')
 
     feed = foldOpLiveFrame(feed, {
       type: 'assistant-stream',
@@ -38,6 +39,7 @@ describe('foldOpLiveFrame', () => {
     }, 1300)
     expect(feed.phase).toBe('streaming')
     expect(feed.snippet).toBe('现在生成 REQ-01 多页 SPA 原型。')
+    expect(feed.reasoning).toContain('先拆分概览与报销列表两个视图')
 
     feed = foldOpLiveFrame(feed, {
       type: 'assistant-stream',
@@ -147,5 +149,184 @@ describe('foldOpLiveFrame', () => {
     expect(feed.step).toBe(3)
     expect(feed.phase).toBe('streaming')
     expect(feed.snippet).toBe('正在写入原型页面。')
+  })
+
+  it('assistant/message 分别写入 reasoning 与 snippet，turn/start 与 snapshot 清空 reasoning', () => {
+    let feed = emptyOpLiveFeed(4000)
+    feed = foldOpLiveFrame(feed, {
+      type: 'event',
+      event: {
+        type: 'assistant/message',
+        seq: 1,
+        time: 4100,
+        data: {
+          message: {
+            content: [
+              { type: 'reasoning', text: '先检查需求边界条件。' },
+              { type: 'text', text: '需求边界已确认。' },
+            ],
+          },
+        },
+      },
+    }, 4100)
+    expect(feed.reasoning).toBe('先检查需求边界条件。')
+    expect(feed.snippet).toBe('需求边界已确认。')
+
+    feed = foldOpLiveFrame(feed, {
+      type: 'event',
+      event: {
+        type: 'assistant/message',
+        seq: 2,
+        time: 4200,
+        data: { message: { content: [] } },
+      },
+    }, 4200)
+    expect(feed.reasoning).toBe('先检查需求边界条件。')
+    expect(feed.snippet).toBe('需求边界已确认。')
+
+    feed = foldOpLiveFrame(feed, {
+      type: 'event',
+      event: { type: 'turn/start', seq: 3, time: 4300, data: { turn: 2 } },
+    }, 4300)
+    expect(feed.reasoning).toBeUndefined()
+
+    feed = foldOpLiveFrame(feed, {
+      type: 'assistant-stream',
+      frame: {
+        type: 'chunk',
+        attemptId: 'a3',
+        revision: 1,
+        index: 0,
+        chunk: { type: 'reasoning-delta', index: 0, text: '新一轮思考' },
+      },
+    }, 4400)
+    expect(feed.reasoning).toBe('新一轮思考')
+
+    feed = foldOpLiveFrame(feed, { type: 'snapshot', cursor: 4, records: [] }, 4500)
+    expect(feed.reasoning).toBeUndefined()
+  })
+
+  it('toolDetailOf 不透传原始 JSON，且从 questions 提取 header；tool/result 清洗 JSON 摘要', () => {
+    let feed = emptyOpLiveFeed(5000)
+    feed = foldOpLiveFrame(feed, {
+      type: 'event',
+      event: {
+        type: 'tool/call',
+        seq: 1,
+        time: 5100,
+        data: {
+          name: 'ask_user_question',
+          arguments: JSON.stringify({ questions: [{ id: 'q1', header: '确认部署环境' }] }),
+        },
+      },
+    }, 5100)
+    expect(feed.toolDetail).toBe('确认部署环境')
+
+    feed = foldOpLiveFrame(feed, {
+      type: 'event',
+      event: {
+        type: 'tool/call',
+        seq: 2,
+        time: 5200,
+        data: { name: 'ask_user_question', arguments: '{"questions":[{"id":"q1"}]}' },
+      },
+    }, 5200)
+    expect(feed.toolDetail).toBeUndefined()
+
+    feed = foldOpLiveFrame(feed, {
+      type: 'event',
+      event: {
+        type: 'tool/call',
+        seq: 3,
+        time: 5300,
+        data: { name: 'custom_tool', arguments: '{"foo":"bar","nested":[1,2]}' },
+      },
+    }, 5300)
+    expect(feed.toolDetail).toBeUndefined()
+
+    feed = foldOpLiveFrame(feed, {
+      type: 'event',
+      event: {
+        type: 'tool/result',
+        seq: 4,
+        time: 5400,
+        data: { message: { content: [{ type: 'text', text: '{"message":"已保存原型"}' }] } },
+      },
+    }, 5400)
+    expect(feed.lastToolNote).toBe('已保存原型')
+
+    feed = foldOpLiveFrame(feed, {
+      type: 'event',
+      event: {
+        type: 'tool/result',
+        seq: 5,
+        time: 5500,
+        data: { message: { content: [{ type: 'text', text: '{"ok":true,"count":3}' }] } },
+      },
+    }, 5500)
+    expect(feed.lastToolNote).toBe('已保存原型')
+  })
+
+  it('试探路径的 ENOENT 报错不污染浮卡摘要，且 step/start 清空上一步工具提示', () => {
+    let feed = emptyOpLiveFeed(6000)
+    feed = foldOpLiveFrame(feed, {
+      type: 'event',
+      event: {
+        type: 'tool/result',
+        seq: 1,
+        time: 6100,
+        data: {
+          message: {
+            isError: true,
+            content: [{ type: 'text', text: "Error: ENOENT: no such file or directory, open 'E:\\a\\REQ-01\\requirement.yaml'" }],
+          },
+        },
+      },
+    }, 6100)
+    expect(feed.lastToolNote).toBeUndefined()
+
+    feed = foldOpLiveFrame(feed, {
+      type: 'event',
+      event: {
+        type: 'tool/result',
+        seq: 2,
+        time: 6200,
+        data: { message: { content: [{ type: 'text', text: '{"message":"已读取需求"}' }] } },
+      },
+    }, 6200)
+    expect(feed.lastToolNote).toBe('已读取需求')
+
+    feed = foldOpLiveFrame(feed, {
+      type: 'event',
+      event: { type: 'step/start', seq: 3, time: 6300, data: { step: 5 } },
+    }, 6300)
+    expect(feed.lastToolNote).toBeUndefined()
+  })
+
+  it('正文摘要自动过滤前置 Markdown 表格碎片，只保留最新核心说明段落', () => {
+    const feed = foldOpLiveFrame(emptyOpLiveFeed(7000), {
+      type: 'event',
+      event: {
+        type: 'assistant/message',
+        seq: 1,
+        time: 7100,
+        data: {
+          message: {
+            content: [{
+              type: 'text',
+              text: [
+                '| 条目 | 检查点 | 结果 |',
+                '| --- | --- | --- |',
+                '| 3 (低) | 空态文案 | ✓ |',
+                '',
+                '只剩一处需要你拍板：spec_query 查到 R-02 与 v2 口径互斥。',
+              ].join('\n'),
+            }],
+          },
+        },
+      },
+    }, 7100)
+    expect(feed.snippet).toBe('只剩一处需要你拍板：spec_query 查到 R-02 与 v2 口径互斥。')
+    expect(feed.snippet).not.toContain('空态文案')
   })
 })

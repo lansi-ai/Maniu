@@ -99,6 +99,16 @@ export interface PrototypeRestoreSnapshotValue {
   readonly html: string
 }
 
+/** `getSnapshot` 的输入。 */
+export interface PrototypeGetSnapshotInput extends PrototypeScopeInput {
+  readonly snapshotId: string
+}
+
+/** `getSnapshot` 的回执：只读返回指定历史版本的 HTML。 */
+export interface PrototypeGetSnapshotValue {
+  readonly html: string
+}
+
 /** 暂存/快照 Remote 的输入；`requirementId` 缺省时作用于项目级统一活原型。 */
 export interface PrototypeScopeInput {
   readonly sessionId: SessionId
@@ -190,5 +200,13 @@ export const PrototypeListSnapshotsValueSchema = z.object({
 /** `restoreSnapshot` 的 wire 输出校验。 */
 export const PrototypeRestoreSnapshotValueSchema = z.object({
   restoredAt: z.string().min(1),
+  html: z.string(),
+}).strict()
+
+/** `getSnapshot` 的 wire 输入校验；快照编号必须是不含分隔符的安全形态。 */
+export const PrototypeGetSnapshotInputSchema = PrototypeRestoreSnapshotInputSchema
+
+/** `getSnapshot` 的 wire 输出校验。 */
+export const PrototypeGetSnapshotValueSchema = z.object({
   html: z.string(),
 }).strict()

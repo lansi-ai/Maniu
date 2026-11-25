@@ -73,16 +73,18 @@ describe('操作进度浮卡', () => {
     expect(element('operation-cards')).toBeNull()
   })
 
-  it('进行中卡给标题、岗位子标题、来源标注与状态色指示', () => {
+  it('进行中卡去掉标题下岗位副标题，改为横向进度条首节点展示岗位并保留状态色指示', () => {
     render([cardOf()])
     const card = element('requirement-op-running')
     expect(card?.className).toContain('op-running')
     expect(card?.querySelector('h3')?.textContent).toBe('需求评审')
-    expect(card?.querySelector('.op-sub')?.textContent).toBe('项目经理 · 内置岗位')
+    expect(card?.querySelector('.op-sub')).toBeNull()
+    expect(element('op-step-role')?.textContent).toBe('项目经理')
+    expect(element('op-step-role')?.getAttribute('title')).toBe('项目经理 · 内置岗位')
     expect(card?.querySelectorAll('.op-step-done')).toHaveLength(1)
     expect(card?.querySelectorAll('.op-step-active')).toHaveLength(1)
     expect(card?.querySelectorAll('.op-step-pending')).toHaveLength(2)
-    expect(card?.textContent).toContain('评审进行中')
+    expect(card?.querySelector('.op-steps.op-steps-horizontal')?.getAttribute('title')).toContain('评审进行中')
   })
 
   it('进行中卡只能最小化与查看对话，不能关闭', () => {
@@ -209,14 +211,17 @@ describe('操作进度浮卡', () => {
     expect(onOpenSession).toHaveBeenCalledWith('session-1')
   })
 
-  it('未提供确认回调时不画确认按钮；非等待确认卡沿用查看对话文案', () => {
+  it('未提供确认回调时不画确认按钮；非等待确认卡把查看对话放到右上角图标按钮', () => {
     render([cardOf({ awaitingConfirm: true })])
     expect(element('op-confirm-intake')).toBeNull()
     expect(element('op-view-session')?.textContent).toBe('查看概要')
 
     render([cardOf()])
     expect(element('op-confirm-intake')).toBeNull()
-    expect(element('op-view-session')?.textContent).toBe('查看对话')
+    expect(container.querySelector('.op-actions')).toBeNull()
+    const headView = container.querySelector('.op-head-actions [data-testid="op-view-session"]')
+    expect(headView).not.toBeNull()
+    expect(headView?.getAttribute('aria-label')).toBe('查看对话')
   })
 
   it('提供就地概要回调时，「查看概要」走回调而非跳转对话', () => {
@@ -260,7 +265,7 @@ describe('提案等待对比浮卡', () => {
     expect(element('op-go-compare')?.textContent).toBe('去对比')
     press('op-go-compare')
     expect(onCompare).toHaveBeenCalledWith('P-01')
-    expect(element('op-view-session')?.textContent).toBe('查看对话')
+    expect(element('op-view-session')?.getAttribute('aria-label')).toBe('查看对话')
     press('op-view-session')
     expect(onOpenSession).toHaveBeenCalledWith('session-1')
   })
@@ -406,5 +411,59 @@ describe('浮卡实时工作过程面板', () => {
     })])
     expect(element('op-live-panel')).not.toBeNull()
     expect(element('op-live-output')?.textContent).toContain('正在写入最终原型内容')
+  })
+
+  it('实时面板支持折叠思考过程与 Markdown 渲染正文', () => {
+    render([cardOf({
+      liveFeed: {
+        phase: 'streaming',
+        step: 3,
+        reasoning: '先梳理模块依赖，再输出最终说明。',
+        snippet: '**已完成** `REQ-01` 评审',
+        lastActivityAt: 1000,
+      },
+    })])
+    const thinking = element('op-live-thinking') as HTMLDetailsElement | null
+    expect(thinking).not.toBeNull()
+    expect(thinking?.open).toBe(false)
+    expect(thinking?.querySelector('summary')?.textContent).toBe(t('chat.processThought'))
+    expect(thinking?.querySelector('.op-live-thinking-body')?.textContent).toContain('先梳理模块依赖')
+
+    const output = element('op-live-output')
+    expect(output?.className).toContain('markdown-body')
+    expect(output?.querySelector('strong')?.textContent).toBe('已完成')
+    expect(output?.querySelector('code')?.textContent).toBe('REQ-01')
+
+    expect(container.querySelector('.op-steps.op-steps-horizontal')).not.toBeNull()
+    expect(container.querySelector('.op-steps-popover')).toBeNull()
+  })
+
+  it('拖拽标题栏可移动浮卡并限制在视口内，点击右上角按钮不触发拖拽', () => {
+    render([cardOf()])
+    const card = element('requirement-op-running') as HTMLElement | null
+    const head = card?.querySelector('.op-head') as HTMLElement | null
+    const minBtn = element('op-minimize') as HTMLElement | null
+    if (card === null || head === null || minBtn === null) throw new Error('missing card elements')
+
+    expect(card.dataset.dragging).toBe('false')
+    act(() => {
+      minBtn.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0, clientX: 100, clientY: 100 }))
+    })
+    expect(card.dataset.dragging).toBe('false')
+
+    act(() => {
+      head.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0, clientX: 300, clientY: 300 }))
+    })
+    expect(card.dataset.dragging).toBe('true')
+
+    act(() => {
+      window.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 250, clientY: 260 }))
+    })
+    expect(card.style.transform).toBe('translate(-50px, -40px)')
+
+    act(() => {
+      window.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, clientX: 250, clientY: 260 }))
+    })
+    expect(card.dataset.dragging).toBe('false')
   })
 })

@@ -1,18 +1,26 @@
 /** 任务详情：契约、范围、证据、交付物、附件、调度与命令动作。 */
 
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { JSX } from 'react'
-import { Button, Chip, Separator } from '@heroui/react'
+import { Button, Chip } from '@heroui/react'
+import { Loader2 } from 'lucide-react'
 import type { SpecProjection } from '../spec/load.ts'
 import type { ContractRow, TaskRow } from '../spec/rows.ts'
 import type { ProjectScope } from '../workspace/use-workspaces.ts'
 import type { SessionSummary } from '../store.ts'
-import { STATE_LABELS } from '../spec/board.ts'
-import { renderMarkdown } from '../markdown/markdown.tsx'
+import { STATE_LABELS, roleLabel, trackLabel } from '../spec/board.ts'
+import { translate, type Translate } from '../locale.ts'
+import { buildTaskImplementPlanPrompt, buildTaskModifyPrompt } from '../intake/prompts.ts'
+import { MANAGER_PRESET_ID } from '../talents/model.ts'
+import { useOpLiveFeeds, type OpLiveFeed } from '../shell/op-live-feed.ts'
+import { MarkdownDocumentViewer } from '../markdown/document-viewer.tsx'
 import { runCommand, type CommandOutcome } from '../commands/run.ts'
 import { scheduleTask } from '../flow/scheduling.ts'
 import { DetailDrawer } from './detail-drawer.tsx'
 import { TaskAttachments } from './task-attachments.tsx'
+
+const zhText: Translate = (key, params) => translate('zh', key, params)
+const ARCHITECT_PRESET_ID = 'maniu-architect'
 
 /** 任务详情属性。 */
 export interface TaskDetailProps {
@@ -23,6 +31,53 @@ export interface TaskDetailProps {
   readonly onClose: () => void
   readonly onOpenDoc: (path: string) => void
   readonly onReload: () => void
+  readonly onStartSession?: ((
+    prompt: string,
+    agentPreset?: string,
+  ) => Promise<{ readonly ok: boolean; readonly message: string; readonly sessionId?: string }>) | undefined
+  readonly onOpenSession?: ((sessionId: string) => void) | undefined
+  readonly t?: Translate | undefined
+}
+
+const TECHNICAL_SECTION_RE = /(?:^|\n)\s*(?:#{2,3}\s*(?:技术实施细节|技术细节|实施方案|技术方案)|(?:范围|技术方案|技术实施|验收标准|验收)[：:])/u
+
+function cleanInternalRefs(text: string): string {
+  return text.replace(/^(?:按|根据|依据)\s*P-\d+(?:\s*方案\s*[A-Za-z0-9]+)?\s*/u, '').trim()
+}
+
+/**
+ * 把任务说明拆成「简洁人话概述」与「技术实施细节」两部分，默认只展示前者。
+ * @param raw - 原始任务描述正文。
+ * @returns 概述与可选的技术实施细节。
+ */
+export function splitTaskDescription(raw: string): { readonly summary: string; readonly technical: string } {
+  const trimmed = raw.trim()
+  if (trimmed === '') return { summary: '', technical: '' }
+
+  const match = TECHNICAL_SECTION_RE.exec(trimmed)
+  if (match !== null) {
+    const idx = match.index === 0 ? 0 : match.index + 1
+    const head = cleanInternalRefs(trimmed.slice(0, idx))
+    const tail = trimmed.slice(idx).trim()
+    if (head !== '') return { summary: head, technical: tail }
+    // 如果整段开头就是技术标题，至少抽出首行/首句作为概述。
+    const lines = tail.split('\n').map(line => line.trim()).filter(line => line !== '')
+    const first = cleanInternalRefs(lines[0] ?? '')
+    return {
+      summary: first,
+      technical: lines.length > 1 ? tail : '',
+    }
+  }
+
+  const cleaned = cleanInternalRefs(trimmed)
+  const paragraphs = cleaned.split(/\n{2,}/u).map(part => part.trim()).filter(part => part !== '')
+  if (paragraphs.length > 1) {
+    return {
+      summary: paragraphs[0] ?? cleaned,
+      technical: paragraphs.slice(1).join('\n\n'),
+    }
+  }
+  return { summary: cleaned, technical: '' }
 }
 
 function contractOf(projection: SpecProjection, taskId: string): ContractRow | undefined {
@@ -31,7 +86,7 @@ function contractOf(projection: SpecProjection, taskId: string): ContractRow | u
 
 function textList(values: readonly string[]): JSX.Element {
   if (values.length === 0) return <p className="empty">—</p>
-  return <ul className="plain-list compact">{values.map(value => <li key={value}>{value}</li>)}</ul>
+  return <ul className="task-clean-list">{values.map(value => <li key={value}>{value}</li>)}</ul>
 }
 
 /**
@@ -40,11 +95,75 @@ function textList(values: readonly string[]): JSX.Element {
  * @returns 详情面板。
  */
 export function TaskDetail(props: TaskDetailProps): JSX.Element {
+  const t = props.t ?? zhText
   const task = props.task
   const contract = contractOf(props.projection, task.id)
   const [role, setRole] = useState(task.role ?? '')
+  const [techOpen, setTechOpen] = useState(false)
+  const [modifyOpen, setModifyOpen] = useState(false)
+  const [modifyNote, setModifyNote] = useState('')
+  const [discardConfirm, setDiscardConfirm] = useState(false)
+  const [bgOp, setBgOp] = useState<{ readonly kind: 'advance' | 'modify'; readonly sessionId: string } | null>(null)
+  const sawBgRunningRef = useRef(false)
+  const descriptionParts = useMemo(() => splitTaskDescription(task.description), [task.description])
+
+  useEffect(() => {
+    setRole(task.role ?? '')
+    setTechOpen(false)
+    setModifyOpen(false)
+    setModifyNote('')
+    setDiscardConfirm(false)
+    setBgOp(null)
+    sawBgRunningRef.current = false
+  }, [task.id, task.role])
+
   const [busy, setBusy] = useState<string | null>(null)
   const [result, setResult] = useState<CommandOutcome | null>(null)
+  const bgSessionIds = useMemo(() => (bgOp === null ? [] : [bgOp.sessionId]), [bgOp])
+  const bgFeeds = useOpLiveFeeds(bgSessionIds)
+  const activeBgFeed = bgOp === null ? undefined : bgFeeds[bgOp.sessionId]
+
+  const finishBgOp = useCallback(async (op: { readonly kind: 'advance' | 'modify'; readonly sessionId: string }, turnEnd?: OpLiveFeed['turnEnd']): Promise<void> => {
+    sawBgRunningRef.current = false
+    setBgOp(null)
+    if (turnEnd?.kind === 'error') {
+      setResult({ ok: false, text: t('task.advancePlanFailed', { detail: turnEnd.message }) })
+      return
+    }
+    if (op.kind === 'modify') {
+      setModifyOpen(false)
+      setModifyNote('')
+      setResult({ ok: true, text: t('task.modifyDone') })
+      props.onReload()
+      return
+    }
+    setBusy('ready')
+    try {
+      const outcome = await runCommand(props.project.scopeSessionId, `/task_split_ready ${task.id}`)
+      setResult(outcome.ok ? { ok: true, text: t('task.advancePlanDone') } : outcome)
+      if (outcome.ok) props.onReload()
+    } finally {
+      setBusy(null)
+    }
+  }, [props, t, task.id])
+
+  useEffect(() => {
+    if (bgOp === null || activeBgFeed?.turnEnd === undefined) return
+    void finishBgOp(bgOp, activeBgFeed.turnEnd)
+  }, [activeBgFeed?.turnEnd, bgOp, finishBgOp])
+
+  useEffect(() => {
+    if (bgOp === null) return
+    const session = props.sessions.find(item => item.sessionId === bgOp.sessionId)
+    if (session?.running === true) {
+      sawBgRunningRef.current = true
+      return
+    }
+    if (sawBgRunningRef.current) {
+      void finishBgOp(bgOp, activeBgFeed?.turnEnd)
+    }
+  }, [activeBgFeed?.turnEnd, bgOp, finishBgOp, props.sessions])
+
   const schedule = useMemo(() => {
     const ruleModules: Record<string, string> = {}
     for (const rule of props.projection.rules) ruleModules[rule.id] = rule.module
@@ -52,17 +171,103 @@ export function TaskDetail(props: TaskDetailProps): JSX.Element {
   }, [props.project.path, props.projection.rules, props.projection.tasks, props.sessions, task])
 
   const execute = async (kind: string, line: string): Promise<void> => {
-    if (busy !== null) return
+    if (busy !== null || bgOp !== null) return
     setBusy(kind)
     setResult(null)
     try {
       const outcome = await runCommand(props.project.scopeSessionId, line)
       setResult(outcome)
-      if (outcome.ok) props.onReload()
+      if (outcome.ok) {
+        props.onReload()
+        if (kind === 'discard') props.onClose()
+      }
     } finally {
       setBusy(null)
     }
   }
+
+  const technicalPlan = useMemo(() => {
+    if (task.proposal === undefined) return undefined
+    const found = props.projection.proposals.find(item => item.id === task.proposal)
+    return found === undefined
+      ? undefined
+      : { id: found.id, title: found.title, recommendation: found.recommendation }
+  }, [props.projection.proposals, task.proposal])
+
+  const siblingTasks = useMemo(
+    () => props.projection.tasks
+      .filter(item => (task.requirement !== undefined ? item.requirement === task.requirement : item.proposal === task.proposal))
+      .map(item => ({ id: item.id, title: item.title, state: item.state, dependsOn: item.dependsOn })),
+    [props.projection.tasks, task.proposal, task.requirement],
+  )
+
+  const confirmAndAdvance = async (): Promise<void> => {
+    if (busy !== null || bgOp !== null) return
+    const targetRole = role.trim()
+    if (targetRole === '' && task.role === undefined) {
+      setResult({ ok: false, text: t('task.roleMissingForReady') })
+      return
+    }
+    setBusy('advance')
+    setResult(null)
+    try {
+      if (targetRole !== '' && targetRole !== task.role) {
+        const assigned = await runCommand(props.project.scopeSessionId, `/task_assign ${task.id} ${targetRole}`)
+        if (!assigned.ok) {
+          setResult(assigned)
+          return
+        }
+        props.onReload()
+      }
+      if (props.onStartSession === undefined) {
+        const outcome = await runCommand(props.project.scopeSessionId, `/task_split_ready ${task.id}`)
+        setResult(outcome)
+        if (outcome.ok) props.onReload()
+        return
+      }
+      const prompt = buildTaskImplementPlanPrompt(task, siblingTasks, technicalPlan)
+      const started = await props.onStartSession(prompt, ARCHITECT_PRESET_ID)
+      if (!started.ok) {
+        setResult({ ok: false, text: started.message })
+        return
+      }
+      if (started.sessionId !== undefined) {
+        sawBgRunningRef.current = false
+        setBgOp({ kind: 'advance', sessionId: started.sessionId })
+      }
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const submitModify = async (): Promise<void> => {
+    const note = modifyNote.trim()
+    if (note === '' || busy !== null || bgOp !== null || props.onStartSession === undefined) return
+    setBusy('modify')
+    setResult(null)
+    try {
+      const prompt = buildTaskModifyPrompt(task, note, technicalPlan)
+      const started = await props.onStartSession(prompt, MANAGER_PRESET_ID)
+      if (!started.ok) {
+        setResult({ ok: false, text: started.message })
+        return
+      }
+      if (started.sessionId !== undefined) {
+        sawBgRunningRef.current = false
+        setBgOp({ kind: 'modify', sessionId: started.sessionId })
+      }
+    } finally {
+      setBusy(null)
+    }
+  }
+  const trackText = trackLabel(task.track)
+  const blockingDeps = useMemo(() => {
+    if (task.dependsOn.length === 0) return []
+    const byId = new Map(props.projection.tasks.map(item => [item.id, item]))
+    return task.dependsOn.filter(depId => byId.get(depId)?.state !== 'closed')
+  }, [props.projection.tasks, task.dependsOn])
+  const showContractSection = contract !== undefined || task.state !== 'drafting'
+
   return (
     <DetailDrawer
       testId="task-detail"
@@ -77,141 +282,322 @@ export function TaskDetail(props: TaskDetailProps): JSX.Element {
         </div>
       )}
     >
-      <h3 data-testid="task-detail-title">{task.title}</h3>
+      <div className="task-detail-shell">
+        <header className="task-detail-hero">
+          <h3 className="task-detail-title" data-testid="task-detail-title">{task.title}</h3>
+          <div className="task-detail-chips">
+            {trackText !== undefined && (
+              <span className="task-detail-pill">
+                <span className="task-detail-pill-label">所属端</span>
+                <strong>{trackText}</strong>
+              </span>
+            )}
+            <span className="task-detail-pill">
+              <span className="task-detail-pill-label">负责人</span>
+              <strong>{roleLabel(task.role, props.projection.roles) ?? '待指定'}</strong>
+            </span>
+            <span className="task-detail-pill">
+              <span className="task-detail-pill-label">执行顺序</span>
+              <strong>{blockingDeps.length === 0 ? '可立即开始' : `需先完成 ${blockingDeps.join('、')}`}</strong>
+            </span>
+            {(task.requirement ?? task.proposal) !== undefined && (
+              <span className="task-detail-pill">
+                <span className="task-detail-pill-label">关联</span>
+                <strong className="mono">{task.requirement ?? task.proposal}</strong>
+              </span>
+            )}
+          </div>
+        </header>
 
-      <section className="detail-section" data-testid="task-description">
-        <h4>说明</h4>
-        <Separator className="detail-divider" />
-        {task.description.trim() === '' ? <p className="empty">（没有描述）</p> : <div className="markdown-body">{renderMarkdown(task.description)}</div>}
-      </section>
-
-      <section className="detail-section" data-testid="task-contract-section">
-        <h4>契约</h4>
-        <Separator className="detail-divider" />
-        {contract === undefined
-          ? <p className="empty" data-testid="task-contract-missing">还没有契约（`.spec/contracts/{task.id}.contract.yaml`）。</p>
-          : (
-            <>
-              <p className="detail-line">
-                签署：
-                <span data-testid="task-contract-signed">
-                  {contract.signedBy === null ? '未签署' : contract.signedBy === 'human' ? '人签' : `AI 自签（${contract.signedActor ?? '未知角色'}）`}
-                </span>
-                {contract.signedAt === null ? '' : ` · ${contract.signedAt}`}
-              </p>
-              <h5>要改什么</h5>
-              {textList(contract.change)}
-              <h5>不改什么</h5>
-              {textList(contract.notChange)}
-              <h5>验收</h5>
-              <ul className="plain-list compact" data-testid="task-acceptance">
-                {contract.acceptance.map(item => <li key={item}>{item}</li>)}
-              </ul>
-              <h5>失败条件</h5>
-              {textList(contract.failIf)}
-            </>
+        <section className="task-detail-action-card" data-testid="task-actions">
+          {task.state === 'drafting'
+            ? (
+              <>
+                <div className="task-detail-action-row">
+                  <label className="task-detail-role-field">
+                    <span className="task-detail-role-label">负责人</span>
+                    <input
+                      className="search task-detail-role-input"
+                      data-testid="task-role-input"
+                      list="task-role-options"
+                      value={role}
+                      placeholder="选择或输入岗位（如 api-dev）"
+                      onChange={(event) => { setRole(event.target.value) }}
+                    />
+                    <datalist id="task-role-options">
+                      {props.projection.roles.map(item => (
+                        <option key={item.id} value={item.id}>{item.name}</option>
+                      ))}
+                    </datalist>
+                  </label>
+                  <div className="task-detail-action-buttons">
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      data-testid="task-confirm-advance"
+                      isDisabled={busy !== null || bgOp !== null}
+                      onPress={() => { void confirmAndAdvance() }}
+                    >
+                      {bgOp?.kind === 'advance' && <Loader2 className="prototype-spin" size={14} aria-hidden="true" />}
+                      <span>{bgOp?.kind === 'advance' ? t('task.confirmAdvancing') : t('task.confirmAdvance')}</span>
+                    </Button>
+                    {props.onStartSession !== undefined && (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        data-testid="task-modify-toggle"
+                        isDisabled={busy !== null || bgOp !== null}
+                        onPress={() => { setDiscardConfirm(false); setModifyOpen(current => !current) }}
+                      >
+                        {t('task.modify')}
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      data-testid="task-discard-toggle"
+                      isDisabled={busy !== null || bgOp !== null}
+                      onPress={() => { setModifyOpen(false); setDiscardConfirm(current => !current) }}
+                    >
+                      {t('task.discard')}
+                    </Button>
+                  </div>
+                </div>
+                {bgOp !== null && props.onOpenSession !== undefined && (
+                  <div className="prototype-generating-bar" data-testid="task-bg-running">
+                    <span className="prototype-generating-bar-main">
+                      <Loader2 className="prototype-spin" size={14} aria-hidden="true" />
+                      <span>{bgOp.kind === 'advance' ? t('task.confirmAdvancing') : t('task.modifyRunning')}</span>
+                    </span>
+                    <Button size="sm" variant="ghost" data-testid="task-bg-view-session" onPress={() => { props.onOpenSession?.(bgOp.sessionId) }}>
+                      {t('task.viewSession')}
+                    </Button>
+                  </div>
+                )}
+                {modifyOpen && (
+                  <div className="task-modify-box" data-testid="task-modify-box">
+                    <textarea
+                      className="prototype-regen-textarea"
+                      data-testid="task-modify-input"
+                      value={modifyNote}
+                      placeholder={t('task.modifyPlaceholder')}
+                      onChange={(event) => { setModifyNote(event.target.value) }}
+                    />
+                    <div className="action-row">
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        data-testid="task-modify-submit"
+                        isDisabled={busy !== null || bgOp !== null || modifyNote.trim() === ''}
+                        onPress={() => { void submitModify() }}
+                      >
+                        {t('task.modifySubmit')}
+                      </Button>
+                      <Button size="sm" variant="ghost" onPress={() => { setModifyOpen(false) }}>
+                        {t('task.cancel')}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                {discardConfirm && (
+                  <div className="action-row" data-testid="task-discard-confirm-box">
+                    <span className="detail-note">{t('task.discardConfirm')}</span>
+                    <Button
+                      size="sm"
+                      variant="danger"
+                      data-testid="task-discard-confirm"
+                      isDisabled={busy !== null || bgOp !== null}
+                      onPress={() => { void execute('discard', `/task_discard ${task.id}`) }}
+                    >
+                      {t('task.discardConfirmAction')}
+                    </Button>
+                    <Button size="sm" variant="ghost" onPress={() => { setDiscardConfirm(false) }}>
+                      {t('task.cancel')}
+                    </Button>
+                  </div>
+                )}
+              </>
+            )
+            : (
+              <div className="task-detail-action-row">
+                <div className="task-detail-action-buttons">
+                  <Button variant="primary" size="sm" data-testid="task-sign" isDisabled={busy !== null || contract === undefined} onPress={() => { void execute('sign', `/contract_sign ${task.id}`) }}>签署契约</Button>
+                  <Button variant="secondary" size="sm" data-testid="task-bind" isDisabled={busy !== null} onPress={() => { void execute('bind', `/task_bind ${task.id}`) }}>认领到当前会话</Button>
+                  <Button variant="secondary" size="sm" data-testid="task-contract" isDisabled={busy !== null || contract === undefined} onPress={() => { void execute('contract', `/task_contract ${task.id}`) }}>确认契约签约</Button>
+                </div>
+                <div className="task-detail-role-field">
+                  <input className="search task-detail-role-input" data-testid="task-role-input" value={role} placeholder="岗位 id" onChange={(event) => { setRole(event.target.value) }} />
+                  <Button variant="secondary" size="sm" data-testid="task-assign" isDisabled={busy !== null || role.trim() === ''} onPress={() => { void execute('assign', `/task_assign ${task.id} ${role.trim()}`) }}>分配岗位</Button>
+                </div>
+              </div>
+            )}
+          {result !== null && (
+            <p className={result.ok ? 'detail-line' : 'problem'} data-testid="task-action-result" data-ok={result.ok ? 'true' : 'false'}>
+              {result.text}
+            </p>
           )}
-      </section>
+        </section>
 
-      <section className="detail-section" data-testid="task-scope">
-        <h4>范围与证据</h4>
-        <Separator className="detail-divider" />
-        <dl className="kv">
-          <dt>允许路径</dt><dd data-testid="task-paths">{task.paths.length === 0 ? '—' : task.paths.join('、')}</dd>
-          <dt>不可逆动作</dt><dd>{task.irreversible.length === 0 ? '—' : task.irreversible.join('、')}</dd>
-          <dt>证据要求</dt><dd data-testid="task-evidence">{task.evidence.length === 0 ? '—' : task.evidence.join('、')}</dd>
-          <dt>规则</dt><dd>{task.rules.length === 0 ? '—' : task.rules.join('、')}</dd>
-          <dt>依赖</dt><dd>{task.dependsOn.length === 0 ? '—' : task.dependsOn.join('、')}</dd>
-          <dt>轨 / 岗位</dt><dd>{`${task.track ?? '—'} / ${task.role ?? '—'}`}</dd>
-          <dt>认领会话</dt><dd className="mono">{task.session ?? '—'}</dd>
-          <dt>需求 / 方案</dt><dd>{task.requirement ?? task.proposal ?? '—'}</dd>
-        </dl>
-      </section>
+        <div className="task-detail-grid">
+          <div className="task-detail-main">
+            <section className="task-detail-card" data-testid="task-description">
+              <h4 className="task-detail-card-title">任务说明</h4>
+              {descriptionParts.summary === ''
+                ? <p className="empty">（没有描述）</p>
+                : <p className="task-summary-text">{descriptionParts.summary}</p>}
+              {descriptionParts.technical !== '' && (
+                <div className="task-tech-entry">
+                  <button
+                    type="button"
+                    className="task-tech-toggle"
+                    data-testid="task-tech-toggle"
+                    aria-expanded={techOpen}
+                    onClick={() => { setTechOpen(current => !current) }}
+                  >
+                    {techOpen ? t('task.hideTechnicalDetails') : t('task.showTechnicalDetails')}
+                  </button>
+                  {techOpen && (
+                    <div className="task-tech-details" data-testid="task-tech-details">
+                      <MarkdownDocumentViewer text={descriptionParts.technical} title={task.title} subtitle={task.id} compact />
+                    </div>
+                  )}
+                </div>
+              )}
+            </section>
 
-      <section className="detail-section" data-testid="task-deliverable">
-        <h4>交付物</h4>
-        <Separator className="detail-divider" />
-        {task.deliverable === undefined
-          ? <p className="empty">没有交付索引。</p>
-          : (
-            <>
-              <p className="detail-line">{task.deliverable.summary}</p>
-              <ul className="plain-list compact">
-                {task.deliverable.docs.map(doc => (
-                  <li key={doc}>
-                    <Button variant="ghost" size="sm" data-testid="task-doc" onPress={() => { props.onOpenDoc(doc) }}>{doc}</Button>
-                  </li>
-                ))}
-                {task.deliverable.commands.map(command => <li key={command}><code>{command}</code></li>)}
-              </ul>
-            </>
-          )}
-      </section>
+            {showContractSection && (
+              <section className="task-detail-card" data-testid="task-contract-section">
+                <h4 className="task-detail-card-title">开发契约</h4>
+                {contract === undefined
+                  ? <p className="empty" data-testid="task-contract-missing">暂未生成契约。</p>
+                  : (
+                    <div className="task-contract-body">
+                      <p className="detail-line">
+                        签署：
+                        <span data-testid="task-contract-signed">
+                          {contract.signedBy === null ? '未签署' : contract.signedBy === 'human' ? '人签' : `AI 自签（${contract.signedActor ?? '未知角色'}）`}
+                        </span>
+                        {contract.signedAt === null ? '' : ` · ${contract.signedAt}`}
+                      </p>
+                      <h5>要改什么</h5>
+                      {textList(contract.change)}
+                      <h5>不改什么</h5>
+                      {textList(contract.notChange)}
+                      <h5>验收标准</h5>
+                      <ul className="task-clean-list" data-testid="task-acceptance">
+                        {contract.acceptance.map(item => <li key={item}>{item}</li>)}
+                      </ul>
+                      <h5>失败条件</h5>
+                      {textList(contract.failIf)}
+                    </div>
+                  )}
+              </section>
+            )}
 
-      <section className="detail-section" data-testid="task-attachments">
-        <h4>附件</h4>
-        <Separator className="detail-divider" />
-        {task.attachments.length === 0
-          ? <p className="empty">没有附件。</p>
-          : (
-            <>
-              <ul className="plain-list compact">
-                {task.attachments.map(path => <li key={path}><code>{path}</code></li>)}
-              </ul>
-              <TaskAttachments scopeSessionId={props.project.scopeSessionId} paths={task.attachments} />
-            </>
-          )}
-      </section>
+            {task.deliverable !== undefined && (
+              <section className="task-detail-card" data-testid="task-deliverable">
+                <h4 className="task-detail-card-title">交付物</h4>
+                <p className="detail-line">{task.deliverable.summary}</p>
+                <ul className="task-clean-list">
+                  {task.deliverable.docs.map(doc => (
+                    <li key={doc}>
+                      <Button variant="ghost" size="sm" data-testid="task-doc" onPress={() => { props.onOpenDoc(doc) }}>{doc}</Button>
+                    </li>
+                  ))}
+                  {task.deliverable.commands.map(command => <li key={command}><code>{command}</code></li>)}
+                </ul>
+              </section>
+            )}
 
-      <section className="detail-section" data-testid="task-schedule">
-        <h4>调度建议</h4>
-        <Separator className="detail-divider" />
-        <p className="detail-line" data-testid="schedule-verdict" data-verdict={schedule.verdict}>
-          判定：<strong>{schedule.verdict}</strong>
-          {schedule.chosen === undefined ? '' : ` · ${schedule.chosen.slice(0, 8)}`}
-        </p>
-        <ul className="plain-list compact">
-          {schedule.reasons.map(reason => <li key={reason}>{reason}</li>)}
-          {schedule.candidates.filter(candidate => candidate.rejected !== undefined).slice(0, 4).map(candidate => (
-            <li key={candidate.sessionId}>
-              <strong className="mono">{candidate.sessionId.slice(0, 8)}</strong>
-              <span>{candidate.rejected}</span>
-            </li>
-          ))}
-        </ul>
-        <Button
-          variant="secondary"
-          size="sm"
-          data-testid="schedule-record"
-          isDisabled={busy !== null}
-          onPress={() => {
-            void execute('schedule', `/task_schedule ${task.id} ${JSON.stringify({ verdict: schedule.verdict, reasons: schedule.reasons })}`)
-          }}
-        >
-          记录调度判定
-        </Button>
-        <p className="detail-note">待审批/队列信息不在窄 IPC 面内，判定按会话忙闲与认领历史给出。</p>
-      </section>
+            {task.attachments.length > 0 && (
+              <section className="task-detail-card" data-testid="task-attachments">
+                <h4 className="task-detail-card-title">附件</h4>
+                <ul className="task-clean-list">
+                  {task.attachments.map(path => <li key={path}><code>{path}</code></li>)}
+                </ul>
+                <TaskAttachments scopeSessionId={props.project.scopeSessionId} paths={task.attachments} />
+              </section>
+            )}
+          </div>
 
-      <section className="detail-section" data-testid="task-actions">
-        <h4>动作（命令通道）</h4>
-        <Separator className="detail-divider" />
-        <div className="action-row">
-          <Button variant="primary" size="sm" data-testid="task-sign" isDisabled={busy !== null || contract === undefined} onPress={() => { void execute('sign', `/contract_sign ${task.id}`) }}>签署契约</Button>
-          <Button variant="secondary" size="sm" data-testid="task-bind" isDisabled={busy !== null} onPress={() => { void execute('bind', `/task_bind ${task.id}`) }}>认领到当前会话</Button>
-          <Button variant="secondary" size="sm" data-testid="task-contract" isDisabled={busy !== null || contract === undefined} onPress={() => { void execute('contract', `/task_contract ${task.id}`) }}>确认契约签约</Button>
-          <Button variant="secondary" size="sm" data-testid="task-split-ready" isDisabled={busy !== null} onPress={() => { void execute('ready', `/task_split_ready ${task.id}`) }}>推进到待开发</Button>
+          <aside className="task-detail-aside">
+            <section className="task-detail-card" data-testid="task-scope">
+              <h4 className="task-detail-card-title">改动范围与约束</h4>
+              <dl className="task-scope-list">
+                <div className="task-scope-item">
+                  <dt>允许修改路径</dt>
+                  <dd data-testid="task-paths">
+                    {task.paths.length === 0
+                      ? <span className="empty">暂未限定</span>
+                      : (
+                        <div className="task-path-chips">
+                          {task.paths.map(path => <code key={path} className="task-path-chip">{path}</code>)}
+                        </div>
+                      )}
+                  </dd>
+                </div>
+                {task.dependsOn.length > 0 && (
+                  <div className="task-scope-item">
+                    <dt>前置依赖</dt>
+                    <dd className="mono">{task.dependsOn.join('、')}</dd>
+                  </div>
+                )}
+                {task.rules.length > 0 && (
+                  <div className="task-scope-item">
+                    <dt>规范约束</dt>
+                    <dd className="mono">{task.rules.join('、')}</dd>
+                  </div>
+                )}
+                {task.evidence.length > 0 && (
+                  <div className="task-scope-item">
+                    <dt>验收命令</dt>
+                    <dd data-testid="task-evidence">{task.evidence.join('、')}</dd>
+                  </div>
+                )}
+                {task.irreversible.length > 0 && (
+                  <div className="task-scope-item">
+                    <dt>不可逆动作</dt>
+                    <dd>{task.irreversible.join('、')}</dd>
+                  </div>
+                )}
+                {task.session !== undefined && (
+                  <div className="task-scope-item">
+                    <dt>认领会话</dt>
+                    <dd className="mono">{task.session}</dd>
+                  </div>
+                )}
+              </dl>
+            </section>
+
+            {task.state !== 'drafting' && (
+              <details className="task-detail-card task-schedule-disclosure" data-testid="task-schedule">
+                <summary className="task-schedule-summary">
+                  <span>调度建议</span>
+                  <span className="mono" data-testid="schedule-verdict" data-verdict={schedule.verdict}>
+                    {schedule.verdict}{schedule.chosen === undefined ? '' : ` · ${schedule.chosen.slice(0, 8)}`}
+                  </span>
+                </summary>
+                <div className="task-schedule-body">
+                  <ul className="task-clean-list">
+                    {schedule.reasons.map(reason => <li key={reason}>{reason}</li>)}
+                  </ul>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    data-testid="schedule-record"
+                    isDisabled={busy !== null}
+                    onPress={() => {
+                      void execute('schedule', `/task_schedule ${task.id} ${JSON.stringify({ verdict: schedule.verdict, reasons: schedule.reasons })}`)
+                    }}
+                  >
+                    记录调度判定
+                  </Button>
+                </div>
+              </details>
+            )}
+          </aside>
         </div>
-        <div className="action-row">
-          <input className="search" data-testid="task-role-input" value={role} placeholder="岗位 id" onChange={(event) => { setRole(event.target.value) }} />
-          <Button variant="secondary" size="sm" data-testid="task-assign" isDisabled={busy !== null || role.trim() === ''} onPress={() => { void execute('assign', `/task_assign ${task.id} ${role.trim()}`) }}>分配岗位</Button>
-        </div>
-        {result !== null && (
-          <p className={result.ok ? 'detail-line' : 'problem'} data-testid="task-action-result" data-ok={result.ok ? 'true' : 'false'}>
-            {result.text}
-          </p>
-        )}
-      </section>
+      </div>
     </DetailDrawer>
   )
 }

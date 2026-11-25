@@ -227,7 +227,7 @@ describe('岗位到 preset 的折算', () => {
     expect(h.started).toHaveLength(1)
     expect(h.started[0]?.preset).toBe('maniu-pm')
     expect(element('requirement-op-running')?.textContent).toContain('副项目经理')
-    expect(element('requirement-op-running')?.textContent).toContain('自定义岗位')
+    expect(element('op-step-role')?.getAttribute('title')).toContain('自定义岗位')
   })
 
   it('无 flow.yaml 时评审仍走预制 maniu-pm，无署名增轮即完成', async () => {

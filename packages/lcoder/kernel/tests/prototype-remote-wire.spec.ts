@@ -43,6 +43,7 @@ const BARE_RESULT_SYMBOLS: Readonly<Record<string, string>> = {
   'prototype/commitStaged': '@maniu/kernel/prototype/types#PrototypeCommitResult',
   'prototype/discardStaged': '@maniu/kernel/prototype/types#PrototypeOkValue',
   'prototype/listSnapshots': '@maniu/kernel/prototype/types#PrototypeListSnapshotsValue',
+  'prototype/getSnapshot': '@maniu/kernel/prototype/types#PrototypeGetSnapshotValue',
   'prototype/restoreSnapshot': '@maniu/kernel/prototype/types#PrototypeRestoreSnapshotValue',
 }
 
@@ -127,7 +128,7 @@ function recordOf(value: unknown): Record<string, unknown> {
 }
 
 describe('生成的 typert 结果 codec 与裸值一致', () => {
-  it('9 个原型方法的结果类型都是裸业务值，不再是 PrototypeResult', () => {
+  it('10 个原型方法的结果类型都是裸业务值，不再是 PrototypeResult', () => {
     for (const [endpoint, symbol] of Object.entries(BARE_RESULT_SYMBOLS)) {
       const result = descriptorOf(endpoint).result
       expect(result.mode).toBe('strict')
@@ -157,6 +158,18 @@ describe('生成的 typert 结果 codec 与裸值一致', () => {
     const codec = resultCodecOf('prototype/getStaged')
     expect(codec.parse(envelope.value)).toEqual(bare)
     expect(() => codec.parse({ ok: true, value: bare })).toThrow()
+  })
+
+  it('getSnapshot 过 JSON 载体后直接拿到 { html } 裸值', async () => {
+    const { controller, id } = makeFixture()
+    const committed = await controller.commitStaged({ sessionId: SessionId('s1'), requirementId: id })
+    const snapshotId = committed.snapshotId ?? ''
+    const bare = await controller.getSnapshot({ sessionId: SessionId('s1'), requirementId: id, snapshotId })
+    const wire = overTheWire({ ok: true, value: bare })
+    const envelope = recordOf(wire)
+    expect(envelope.ok).toBe(true)
+    const codec = resultCodecOf('prototype/getSnapshot')
+    expect(codec.parse(envelope.value)).toEqual({ html: HTML })
   })
 
   it('失败是 RemoteError，PROTOTYPE/* 码原样过 wire', async () => {

@@ -50,7 +50,7 @@ function review(round: number, role?: string): RequirementReview {
 }
 
 describe('预制回落', () => {
-  it('无文件走内置预制：四节点各一岗，评审自动衔接，其余人工', () => {
+  it('无文件走内置预制：评审与拆分均自动衔接（架构出方案接研发经理拆任务），其余人工', () => {
     const root = makeSpec()
     const snapshot = loadFlowConfig(root)
     expect(snapshot.source).toBe('preset')
@@ -60,7 +60,7 @@ describe('预制回落', () => {
       { node: 'intake', roles: ['maniu-intake'], auto: false },
       { node: 'review', roles: ['maniu-pm'], auto: true },
       { node: 'revise', roles: ['maniu-intake'], auto: false },
-      { node: 'split', roles: ['maniu-manager'], auto: false },
+      { node: 'split', roles: ['maniu-architect', 'maniu-manager'], auto: true },
     ])
   })
 

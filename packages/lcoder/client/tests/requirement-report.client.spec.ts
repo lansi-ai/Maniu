@@ -1,7 +1,7 @@
 // @vitest-environment node
 /** 需求详情纯函数：时间戳展示格式与评审报告三段解析。 */
 import { describe, expect, it } from 'vitest'
-import { formatTimestamp, parseReviewReport } from '../src/pages/requirement-report.ts'
+import { formatTimestamp, isConfirmableReviewReport, parseReviewReport } from '../src/pages/requirement-report.ts'
 
 describe('formatTimestamp', () => {
   it('带时区的 ISO 时刻按原文截成日期加时分', () => {
@@ -246,5 +246,81 @@ describe('parseReviewReport Markdown 表格', () => {
     expect(parsed.todos[0]?.problem).toBe('异常返回码缺失')
     expect(parsed.todos[1]?.priority).toBe('low')
     expect(parsed.todos.every(todo => !todo.text.includes('优先级') || todo.text.includes('优先级：'))).toBe(true)
+  })
+})
+
+describe('parseReviewReport 兼容多种优先级前缀与 R2.md 格式', () => {
+  it('解析标准结构化 Markdown：- [高] **一句话核心问题** —— 位置：...。问题：...。建议：...', () => {
+    const parsed = parseReviewReport(`## 待改项
+
+### 文档完备性
+
+- [高] **代发订单未说明是否计入佣金** —— 位置：## 适用角色与范围边界。问题：仅写了自营订单规则。建议：补充代发订单不参与佣金分摊
+- [中] **缺少空态提示** —— 位置：## 权限、空态与异常边界。问题：无记录时未说明展示内容。建议：补充空态引导文案
+- [低] **验收标准缺少编号** —— 位置：## 验收标准。问题：使用了无序列表。建议：改为 AC-1、AC-2 编号`)
+
+    expect(parsed.todos).toHaveLength(3)
+    expect(parsed.todos[0]).toMatchObject({
+      priority: 'high',
+      category: '文档完备性',
+      title: '代发订单未说明是否计入佣金',
+      location: '## 适用角色与范围边界',
+      problem: '仅写了自营订单规则',
+      suggestion: '补充代发订单不参与佣金分摊',
+    })
+    expect(parsed.todos[1]?.priority).toBe('medium')
+    expect(parsed.todos[2]?.priority).toBe('low')
+  })
+
+  it('解析 R2.md 真实格式（- **高**｜位置：`## ...`...。建议：...），title 不得为裸优先级词', () => {
+    const parsed = parseReviewReport(`## 待改项
+
+- **高**｜位置：\`## 核心用户流程\` 流程 2（审批流转）缺少驳回后重新提交的状态说明。建议：补充驳回后回到草稿态并允许重新提交的规则
+- **中**｜位置：\`## 功能与业务规则\` 第 3 条使用了「合理提示」等模糊词。建议：改为明确提示文案「金额不能超过 5000 元」
+- **低**｜位置：\`## 背景与目标\` 背景描述偏长。建议：精简为两句话`)
+
+    expect(parsed.todos).toHaveLength(3)
+    expect(parsed.todos.map(todo => todo.priority)).toEqual(['high', 'medium', 'low'])
+    for (const todo of parsed.todos) {
+      expect(['高', '中', '低']).not.toContain(todo.title)
+      expect(todo.title.length).toBeGreaterThan(0)
+      expect(todo.title).not.toContain('`')
+      expect(todo.title).not.toContain('## ')
+      expect(todo.location.length).toBeGreaterThan(0)
+      expect(todo.suggestion.length).toBeGreaterThan(0)
+    }
+    expect(parsed.todos[0]?.title).toBe('核心用户流程 流程 2（审批流转）缺少驳回后重新提交的状态说明')
+    expect(parsed.todos[0]?.suggestion).toBe('补充驳回后回到草稿态并允许重新提交的规则')
+    expect(parsed.todos[1]?.title).toBe('功能与业务规则 第 3 条使用了「合理提示」等模糊词')
+    expect(parsed.todos[2]?.title).toBe('背景与目标 背景描述偏长')
+  })
+
+  it('解析 [P0] / 【P1】 / 高｜... 等优先级变体', () => {
+    const parsed = parseReviewReport(`## 待改项
+
+- [P0] **登录超时未提示** —— 位置：第 5 章。问题：超时后直接跳转。建议：增加 Toast 提示
+- 【P1】 验收标准缺少错误码 —— 位置：第 6 章。建议：补充 401/403 说明
+- 高｜位置：背景与目标。问题：缺少量化指标。建议：补充转化率目标
+- [P2] **字段命名不统一** —— 位置：第 4 章。问题：同一字段叫法不一致。建议：统一为「报销单号」`)
+
+    expect(parsed.todos).toHaveLength(4)
+    expect(parsed.todos.map(todo => todo.priority)).toEqual(['high', 'high', 'medium', 'low'])
+    expect(parsed.todos[0]?.title).toBe('登录超时未提示')
+    expect(parsed.todos[1]?.title).toBe('背景与目标')
+    expect(parsed.todos[2]?.title).toBe('验收标准缺少错误码')
+    expect(parsed.todos[3]?.title).toBe('字段命名不统一')
+  })
+})
+
+describe('isConfirmableReviewReport', () => {
+  it('结论为可以确认且无待改项时返回 true', () => {
+    expect(isConfirmableReviewReport('## 结论\n可以确认\n\n## 待改项\n无')).toBe(true)
+    expect(isConfirmableReviewReport('## 评审结论\n整体完备，可以确认。')).toBe(true)
+  })
+
+  it('结论含需要修改或存在待改项时返回 false', () => {
+    expect(isConfirmableReviewReport('## 结论\n需要修改\n\n## 待改项\n无')).toBe(false)
+    expect(isConfirmableReviewReport('## 结论\n可以确认，但仍需要修改部分边界\n\n## 待改项\n无')).toBe(false)
+    expect(isConfirmableReviewReport('## 结论\n可以确认\n\n## 待改项\n- 位置：范围。建议：补充边界。')).toBe(false)
   })
 })

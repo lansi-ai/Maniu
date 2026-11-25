@@ -1,6 +1,6 @@
 /** LCoder 自研壳主进程：起宿主、接链路、开窗口、装系统面与窄 IPC。 */
 
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, nativeTheme } from 'electron'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { IPC_CHANNELS } from './contract.ts'
@@ -220,7 +220,9 @@ if (!app.requestSingleInstanceLock()) {
 } else {
   app.on('second-instance', () => { focusWindow() })
   app.whenReady().then(async () => {
-    locale = readDesktopPreferences().locale
+    const preferences = readDesktopPreferences()
+    locale = preferences.locale
+    nativeTheme.themeSource = preferences.skin === 'light' ? 'light' : 'dark'
     studioUi = registerIpc({
       link: () => link,
       appInfo: () => ({ version: app.getVersion(), ...(link === undefined ? {} : { hostUrl: supervisor?.readyUrl ?? '' }) }),

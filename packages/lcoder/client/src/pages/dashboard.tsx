@@ -13,7 +13,7 @@ import { ArrowRight, Frame, LayoutDashboard, MessageSquare, Sparkles } from 'luc
 import type { MessageKey, Translate } from '../locale.ts'
 import type { PrototypeSnapshotMeta, PrototypeStagedView, UnaryCall } from '../prototype/remote.ts'
 import { getStagedPrototype, listPrototypeSnapshots } from '../prototype/remote.ts'
-import { causeText, openPreview, openStudio } from '../prototype/open.ts'
+import { causeText, openStudio } from '../prototype/open.ts'
 import type { SpecProjection } from '../spec/load.ts'
 import type { TaskStage } from '../spec/board.ts'
 import type { ProjectScope } from '../workspace/use-workspaces.ts'
@@ -210,17 +210,6 @@ export function DashboardPage(props: DashboardPageProps): JSX.Element {
     }
   }
 
-  const openPreviewWindow = async (): Promise<void> => {
-    const html = staged?.html ?? committedHtml
-    if (html === null) return
-    setNotice(null)
-    try {
-      await openPreview(html)
-    } catch (cause: unknown) {
-      setNotice(t('dashboard.openFailed', { detail: causeText(cause) }))
-    }
-  }
-
   if (props.project === null) {
     return (
       <section className="page dashboard-page" data-testid="page-dashboard">
@@ -394,15 +383,7 @@ export function DashboardPage(props: DashboardPageProps): JSX.Element {
               onPress={() => { void openStudioWindow() }}
             >
               <Frame size={14} aria-hidden="true" />
-              {t('dashboard.openStudio')}
-            </Button>
-            <Button
-              variant="secondary"
-              data-testid="dashboard-open-window"
-              isDisabled={staged === null && committedHtml === null}
-              onPress={() => { void openPreviewWindow() }}
-            >
-              {t('dashboard.openWindow')}
+              {staged !== null ? t('dashboard.confirmChanges') : t('dashboard.editPrototype')}
             </Button>
           </div>
           {studioRequirementId === undefined && (

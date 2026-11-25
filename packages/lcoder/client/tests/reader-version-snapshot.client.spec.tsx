@@ -25,6 +25,7 @@ async function fakeCall(namespace: string, method: string, args: Record<string, 
 }
 
 beforeEach(() => {
+  localStorage.clear()
   Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', { configurable: true, value: true })
   reads = []
   Object.defineProperty(window, 'lcoder', { configurable: true, value: { call: vi.fn(fakeCall) } })
@@ -50,32 +51,59 @@ describe('版本快照阅读', () => {
   it('每一版按自己的路径取数并渲染对应内容', async () => {
     for (const [path, text] of Object.entries(SNAPSHOTS)) {
       await open(path)
-      const doc = container.querySelector('[data-testid="reader-doc"]')
+      const doc = document.body.querySelector('[data-testid="reader-doc"]')
       expect(doc?.textContent).toContain(text.split('\n')[1])
-      expect(container.querySelector('[data-testid="markdown-reader"]')?.getAttribute('data-reader-path')).toBe(path)
+      expect(document.body.querySelector('[data-testid="markdown-reader"]')?.getAttribute('data-reader-path')).toBe(path)
     }
     expect(reads).toEqual(Object.keys(SNAPSHOTS).map(path => ({ scope: 'session-scope', path })))
   })
 
-  it('阅读器正文复用 markdown-body 语义排版与不透明表面类', async () => {
+  it('阅读器正文复用 markdown-body 语义排版与统一全屏层', async () => {
     await open('.spec/requirements/REQ-01/versions/v2.md')
-    const doc = container.querySelector('[data-testid="reader-doc"]') as HTMLElement
+    const doc = document.body.querySelector('[data-testid="reader-doc"]') as HTMLElement
     expect(doc.className).toContain('markdown-body')
     expect(doc.className).toContain('reader-doc')
     expect(doc.querySelector('h1')?.textContent).toContain('版本二')
-    expect((container.querySelector('.reader-panel') as HTMLElement).className).toContain('reader-panel')
+    expect(document.body.querySelector('[data-testid="markdown-reader"]')?.className).toContain('requirement-doc-fullscreen-layer')
   })
 
-  it('输入框聚焦时键入 + - = 0 不触发阅读器缩放', async () => {
+  it('输入框聚焦时键入 + - = 0 不触发阅读器字号调节，支持快捷键、字号按钮与版式切换', async () => {
     await open('.spec/requirements/REQ-01/versions/v2.md')
+    const doc = document.body.querySelector('[data-testid="reader-doc"]') as HTMLElement
+    expect(doc.getAttribute('data-doc-layout')).toBe('page')
+    expect(doc.getAttribute('data-doc-font-size')).toBe('15')
+    expect(document.body.querySelector('[data-testid="reader-doc-font-value"]')?.textContent).toBe('15px')
+
     const input = document.createElement('textarea')
     container.append(input)
     input.focus()
     for (const key of ['+', '=', '-', '0']) {
       act(() => { input.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true })) })
     }
-    expect(container.querySelector('[data-testid="reader-zoom"]')?.textContent).toBe('100%')
+    expect(document.body.querySelector('[data-testid="reader-doc-font-value"]')?.textContent).toBe('15px')
+    expect(doc.getAttribute('data-doc-font-size')).toBe('15')
+
     act(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key: '+' })) })
-    expect(container.querySelector('[data-testid="reader-zoom"]')?.textContent).toBe('110%')
+    expect(document.body.querySelector('[data-testid="reader-doc-font-value"]')?.textContent).toBe('16px')
+    expect(doc.getAttribute('data-doc-font-size')).toBe('16')
+
+    const incBtn = document.body.querySelector('[data-testid="reader-doc-font-inc"]') as HTMLButtonElement
+    act(() => { incBtn.click() })
+    expect(document.body.querySelector('[data-testid="reader-doc-font-value"]')?.textContent).toBe('17px')
+    expect(doc.getAttribute('data-doc-font-size')).toBe('17')
+
+    act(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key: '0' })) })
+    expect(document.body.querySelector('[data-testid="reader-doc-font-value"]')?.textContent).toBe('15px')
+    expect(doc.getAttribute('data-doc-font-size')).toBe('15')
+
+    const webBtn = document.body.querySelector('[data-testid="reader-doc-layout-web"]') as HTMLButtonElement
+    act(() => { webBtn.click() })
+    expect(doc.getAttribute('data-doc-layout')).toBe('web')
+    expect(webBtn.getAttribute('aria-pressed')).toBe('true')
+
+    const pageBtn = document.body.querySelector('[data-testid="reader-doc-layout-page"]') as HTMLButtonElement
+    act(() => { pageBtn.click() })
+    expect(doc.getAttribute('data-doc-layout')).toBe('page')
+    expect(pageBtn.getAttribute('aria-pressed')).toBe('true')
   })
 })

@@ -139,7 +139,7 @@ describe('任务页需求过滤', () => {
     const cards = [...container.querySelectorAll('[data-testid="task-card"]')]
     const assigned = cards.find(card => card.getAttribute('data-task-id') === 'T-01')
     const unassigned = cards.find(card => card.getAttribute('data-task-id') === 'T-02')
-    expect(assigned?.textContent).toContain('岗位 vue')
-    expect(unassigned?.textContent).not.toContain('岗位')
+    expect(assigned?.textContent).toContain('vue')
+    expect(unassigned?.textContent).not.toContain('vue')
   })
 })

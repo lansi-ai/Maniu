@@ -497,6 +497,15 @@ export const RequirementReview = z.object({
 })
 export type RequirementReview = z.infer<typeof RequirementReview>
 
+/** 评审确认中经人判定为「非本期 / 刻意不做」的排除项；记在 YAML 元数据里，不污染需求正文。 */
+export const RequirementDismissedIssue = z.object({
+  title: z.string().min(1),
+  reason: z.string().min(1),
+  round: z.number().int().positive(),
+  at: IsoDateTime,
+})
+export type RequirementDismissedIssue = z.infer<typeof RequirementDismissedIssue>
+
 /**
  * 一条需求的 HTML 原型登记：HTML 本体在 `prototypes/<ID>/index.html`，
  * 这里只记路径、生成时刻与生成时用的参考。
@@ -588,6 +597,8 @@ export const Requirement = z
     versions: z.array(RequirementVersion).default([]),
     /** 评审轮次；缺省为空数组。 */
     reviews: z.array(RequirementReview).default([]),
+    /** 评审确认中经人判定为「非本期 / 刻意不做」的排除项；缺省为空数组。 */
+    dismissed_issues: z.array(RequirementDismissedIssue).default([]),
     /** 人过审的时刻；未过审缺省。 */
     approved_at: IsoDateTime.optional(),
     /** 人过审时锁定的正文版本号；未过审缺省。 */
@@ -730,6 +741,8 @@ export const JobRole = z
     inherits: z.enum(BUILTIN_ROLES),
     /** 可选的提示词前缀。 */
     persona: z.string().min(1).optional(),
+    /** 可选的派生来源标注（如系统人才库 preset id 或显示名）。 */
+    derived_from: z.string().min(1).optional(),
     /** 可选的可机读信号；缺省表示这个岗位没有声明任何词或落点。 */
     signals: RoleSignals.optional(),
   })

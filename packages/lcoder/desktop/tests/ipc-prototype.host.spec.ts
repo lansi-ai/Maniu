@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { IPC_CHANNELS } from '../src/contract.ts'
 import type { PrototypeSelectionInfo } from '../src/contract.ts'
 
-const electron = vi.hoisted(() => ({ handle: vi.fn(), send: vi.fn(), getPath: vi.fn(() => '') }))
+const electron = vi.hoisted(() => ({ handle: vi.fn(), on: vi.fn(), send: vi.fn(), getPath: vi.fn(() => '') }))
 const preview = vi.hoisted(() => {
   const loadURL = vi.fn()
   const isDestroyed = vi.fn(() => false)
@@ -16,9 +16,10 @@ const preview = vi.hoisted(() => {
   }
 })
 vi.mock('electron', () => ({
-  ipcMain: { handle: electron.handle },
+  ipcMain: { handle: electron.handle, on: electron.on },
   dialog: { showOpenDialog: vi.fn() },
   app: { getPath: electron.getPath },
+  nativeTheme: { themeSource: 'dark' },
 }))
 vi.mock('../src/window.ts', () => ({
   createPrototypePreviewWindow: preview.create,

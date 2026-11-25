@@ -61,6 +61,122 @@ export function styleSummaryText(summary: PrototypeStyleSummary | undefined): st
  * @param input - 需求、摘要、参考图、可选区块或选中元素上下文。
  * @returns 发给 maniu-prototype 会话的提示词。
  */
+function commonDeliveryRules(library: PrototypeLibrary): readonly string[] {
+  return [
+    '1. 产出完整单文件 HTML：内联 CSS + 自包含内联 `<script>` 交互逻辑，零外部依赖、无 `<script src>`、无 http(s) 外链、不调用 `fetch`/`XMLHttpRequest`/`WebSocket`/`eval`/`window.open`。',
+    '2. **真实多页面应用架构（单文件 SPA，严禁把所有功能堆在一个长页面里）**：',
+    '   - 必须提供清晰的左侧侧边栏或顶部导航栏，按真实软件信息架构拆分为多个独立页面视图（例如：概览/仪表盘、业务列表页、草稿/审批页等），同一时刻只展示当前激活的一个视图，其余视图隐藏，点击导航真实切换页面；',
+    '   - **表单与列表必须分离**：新建/编辑表单放在独立表单页、居中弹窗（Modal）或右侧抽屉（Drawer）中，点击「+ 新建」或「编辑」才打开/切换；点击记录行可查看详情抽屉/详情页，绝不把大录入表单、大数据表格和统计卡片全堆在同一屏上下滚动；',
+    '   - 业务应用不要强行堆砌官网式 Hero 广告横幅与营销页脚；**严禁把“需求要点 / 验收口径 / 背景与目标 / 状态机说明”等 PRD 文档文字画成软件界面卡片**，只呈现真实终端用户会看到的界面。',
+    `3. 严格遵循所选组件素材库「${library.name}」的 Design Tokens 与组件 HTML/CSS 规范，保持组件形态、圆角、边框与色彩语义一致。`,
+    '4. 必须实现真实可点击的前端假数据交互：页面切换、弹窗/抽屉开关、新建、编辑、删除、提交表单、搜索筛选等均须在内存态实时响应并更新界面，供用户在独立预览窗口直接试玩。',
+    '5. 脚本防错红线：所有 `getElementById`/`querySelector` 结果读写属性前必须先判空（如 `if (el) el.textContent = ...`）；严禁在表单 `reset` 事件监听里再次调用 `form.reset()` 引发死循环；确保脚本引用的每个 `id` 在 HTML 中都存在；避免表单默认整页刷新（使用 `event.preventDefault()`）。',
+    '6. 覆盖需求正文里的真实产品功能点，自然融入业务术语与关键词。',
+    '7. 保持高效与精炼：需求正文与素材库规范已在上方完整给出，无需反复读取无关需求或旧原型文件，不要在思考过程里预写大段完整 HTML/CSS/JS 代码；将整份单文件原型控制在精炼紧凑的规模（约 250–450 行、3–6 条典型示例数据、复用通用样式类），确保单次输出就能完整落盘，避免超长被截断。',
+  ]
+}
+
+/** 项目级原型重新生成时的需求条目。 */
+export interface ProjectPrototypeRequirementInput {
+  readonly id: string
+  readonly title: string
+  readonly state: string
+  readonly text: string
+}
+
+/** 项目级原型重新生成提示词的输入：支持全量有效需求、指定需求覆盖与增量补充三种模式。 */
+export type ProjectPrototypeRegenerateInput =
+  | {
+    readonly mode: 'all'
+    readonly requirements: readonly ProjectPrototypeRequirementInput[]
+    readonly library?: PrototypeLibrary | undefined
+    readonly extraInstruction?: string | undefined
+  }
+  | {
+    readonly mode: 'single'
+    readonly requirement: ProjectPrototypeRequirementInput
+    readonly library?: PrototypeLibrary | undefined
+    readonly extraInstruction?: string | undefined
+  }
+  | {
+    readonly mode: 'incremental'
+    readonly requirement: ProjectPrototypeRequirementInput
+    readonly currentHtml: string
+    readonly library?: PrototypeLibrary | undefined
+    readonly extraInstruction?: string | undefined
+  }
+
+function formatRequirementBlock(item: ProjectPrototypeRequirementInput): string {
+  const title = item.title.trim() === '' ? item.id : `${item.id}「${item.title.trim()}」`
+  return [
+    `### ${title}（状态：${item.state}）`,
+    item.text.trim(),
+  ].join('\n')
+}
+
+/**
+ * 为项目级统一活原型页构造「重新生成 / 增量补充」提示词。
+ * 产出统一调用 `prototype_stage`（不传 requirementId）暂存到 `__project__`，
+ * 让用户在原型页预览对比后再确认覆盖正式版，不直接改需求正文。
+ * @param input - 生成模式（all / single / incremental）、需求正文与可选补充要求。
+ * @returns 发给 maniu-prototype 会话的提示词。
+ */
+export function buildProjectPrototypeRegeneratePrompt(input: ProjectPrototypeRegenerateInput): string {
+  const library = input.library ?? DEFAULT_PROTOTYPE_LIBRARY
+  const extra = input.extraInstruction?.trim() ?? ''
+  const extraBlock = extra === '' ? [] : ['', '【用户补充要求】', extra]
+
+  const headerAndScope: string[] = input.mode === 'all'
+    ? [
+      `请综合项目当前全部有效需求（共 ${String(input.requirements.length)} 条），重新生成项目级统一 HTML 原型。`,
+      '请将所有需求的核心页面、导航入口与业务流程有机整合到同一套单文件 SPA 原型中，不要遗漏任何一条有效需求的主要功能。',
+      '',
+      '【有效需求列表】',
+      input.requirements.map(formatRequirementBlock).join('\n\n'),
+    ]
+    : input.mode === 'single'
+      ? [
+        `请仅依据需求 ${input.requirement.id}「${input.requirement.title}」重新生成项目级 HTML 原型。`,
+        '',
+        '【目标需求正文】',
+        formatRequirementBlock(input.requirement),
+      ]
+      : [
+        `请在现有项目原型基础上，增量补充融入需求 ${input.requirement.id}「${input.requirement.title}」的功能与界面。`,
+        '保留现有原型已有的导航、页面模块、数据结构与样式风格，不要推倒重做或删除既有功能；按需求正文新增或扩展对应的导航入口、视图、表单或列表交互。',
+        '',
+        '【待融入需求正文】',
+        formatRequirementBlock(input.requirement),
+        '',
+        '【当前正式版原型 HTML（增量基线）】',
+        input.currentHtml,
+      ]
+
+  const stageSummaryHint = input.mode === 'all'
+    ? '综合全部有效需求重新生成项目原型'
+    : input.mode === 'single'
+      ? `按 ${input.requirement.id} 重新生成项目原型`
+      : `在现有原型上增量补充 ${input.requirement.id}`
+
+  return [
+    ...headerAndScope,
+    ...extraBlock,
+    '',
+    `【组件素材库（${library.name}）】`,
+    `风格定位：${library.summary}`,
+    'Design Tokens：',
+    library.designTokens,
+    '组件 HTML/CSS 规范：',
+    library.componentGuidelines,
+    '',
+    '【交付要求】',
+    ...commonDeliveryRules(library),
+    `8. 调用 prototype_stage 暂存结果：**不要传 requirementId**（留空即暂存为项目级统一活原型），html 填完整单文件 HTML，changeKind 填 'visual'，summary 填 1 到 4 条人话摘要（例如「${stageSummaryHint}」）。`,
+    '9. 若 prototype_stage 返回失败项，按失败项修正后重试 1 到 2 次；仍失败就如实报告，不留半成品。',
+    '10. 最后用 1 到 2 句人话总结本次生成或补充了哪些页面/模块，不复述内部工具细节或文件路径。',
+  ].join('\n')
+}
+
 export function buildPrototypePrompt(input: PrototypePromptInput): string {
   const library = input.library ?? DEFAULT_PROTOTYPE_LIBRARY
 
@@ -119,16 +235,7 @@ export function buildPrototypePrompt(input: PrototypePromptInput): string {
     refLines,
     '',
     '【交付要求】',
-    '1. 产出完整单文件 HTML：内联 CSS + 自包含内联 `<script>` 交互逻辑，零外部依赖、无 `<script src>`、无 http(s) 外链、不调用 `fetch`/`XMLHttpRequest`/`WebSocket`/`eval`/`window.open`。',
-    '2. **真实多页面应用架构（单文件 SPA，严禁把所有功能堆在一个长页面里）**：',
-    '   - 必须提供清晰的左侧侧边栏或顶部导航栏，按真实软件信息架构拆分为多个独立页面视图（例如：概览/仪表盘、业务列表页、草稿/审批页等），同一时刻只展示当前激活的一个视图，其余视图隐藏，点击导航真实切换页面；',
-    '   - **表单与列表必须分离**：新建/编辑表单放在独立表单页、居中弹窗（Modal）或右侧抽屉（Drawer）中，点击「+ 新建」或「编辑」才打开/切换；点击记录行可查看详情抽屉/详情页，绝不把大录入表单、大数据表格和统计卡片全堆在同一屏上下滚动；',
-    '   - 业务应用不要强行堆砌官网式 Hero 广告横幅与营销页脚；**严禁把“需求要点 / 验收口径 / 背景与目标 / 状态机说明”等 PRD 文档文字画成软件界面卡片**，只呈现真实终端用户会看到的界面。',
-    `3. 严格遵循所选组件素材库「${library.name}」的 Design Tokens 与组件 HTML/CSS 规范，保持组件形态、圆角、边框与色彩语义一致。`,
-    '4. 必须实现真实可点击的前端假数据交互：页面切换、弹窗/抽屉开关、新建、编辑、删除、提交表单、搜索筛选等均须在内存态实时响应并更新界面，供用户在独立预览窗口直接试玩。',
-    '5. 脚本防错红线：所有 `getElementById`/`querySelector` 结果读写属性前必须先判空（如 `if (el) el.textContent = ...`）；严禁在表单 `reset` 事件监听里再次调用 `form.reset()` 引发死循环；确保脚本引用的每个 `id` 在 HTML 中都存在；避免表单默认整页刷新（使用 `event.preventDefault()`）。',
-    '6. 覆盖需求正文里的真实产品功能点，自然融入业务术语与关键词。',
-    '7. 保持高效与精炼：需求正文与素材库规范已在上方完整给出，无需反复读取无关需求或旧原型文件，不要在思考过程里预写大段完整 HTML/CSS/JS 代码；将整份单文件原型控制在精炼紧凑的规模（约 250–450 行、3–6 条典型示例数据、复用通用样式类），确保单次输出就能完整调用 `prototype_draft` 落盘，避免超长被截断。',
+    ...commonDeliveryRules(library),
     `8. 调用 prototype_draft：requirement 填 ${input.requirementId}，html 填完整 HTML，referenceSummary 填上面的样式摘要文本，referenceImages 填参考图相对路径数组。`,
     '9. 若 prototype_draft 返回失败项，按失败项修正后重试 1 到 2 次；仍失败就如实报告，不留半成品。',
   ].join('\n')

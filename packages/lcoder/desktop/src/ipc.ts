@@ -1,6 +1,9 @@
 /** 窄 IPC 注册：校验载荷后转给 link / 窗口；渲染端拿不到宿主 cookie。 */
 
-import { dialog, ipcMain, type BrowserWindow, type IpcMainInvokeEvent, type OpenDialogOptions, type WebContents } from 'electron'
+import {
+  dialog, ipcMain, nativeTheme, type BrowserWindow, type IpcMainInvokeEvent, type OpenDialogOptions,
+  type WebContents,
+} from 'electron'
 import { Buffer } from 'node:buffer'
 import { statSync } from 'node:fs'
 import { dirname } from 'node:path'
@@ -121,7 +124,10 @@ function validStudioHtml(value: unknown): value is string {
 }
 
 function isStudioMode(value: unknown): value is PrototypeStudioMode {
-  return value === 'split' || value === 'fullscreen-pinned' || value === 'compare-side-by-side'
+  return value === 'split'
+    || value === 'fullscreen-pinned'
+    || value === 'compare-side-by-side'
+    || value === 'compare-fullscreen-pinned'
 }
 
 function isInteractionMode(value: unknown): value is PrototypeInteractionMode {
@@ -339,6 +345,7 @@ export function registerIpc(deps: IpcDependencies): StudioUiReader {
   ipcMain.handle(IPC_CHANNELS.preferencesWrite, (_event: IpcMainInvokeEvent, value: unknown) => {
     const next = writeDesktopPreferences(preferencePatchOf(value))
     deps.applyLocale(next.locale)
+    nativeTheme.themeSource = next.skin === 'light' ? 'light' : 'dark'
     return next
   })
   ipcMain.handle(IPC_CHANNELS.prototypePreviewOpen, (_event: IpcMainInvokeEvent, value: unknown) => {
@@ -433,6 +440,10 @@ export function registerIpc(deps: IpcDependencies): StudioUiReader {
     if (bounds === undefined) throw new Error('lcoder: 浮窗位置不合法')
     prototypeStudio?.setFloatingBounds(bounds)
     return prototypeStudio?.floatingRect()
+  })
+  ipcMain.on(IPC_CHANNELS.prototypeStudioCompareResize, (_event, value: unknown) => {
+    if (!isRecord(value) || typeof value.deltaX !== 'number' || !Number.isFinite(value.deltaX)) return
+    prototypeStudio?.nudgeCompareRatio(value.deltaX)
   })
   ipcMain.handle(IPC_CHANNELS.prototypeStudioRestore, (_event: IpcMainInvokeEvent, value: unknown) => {
     const action = isDockAction(value) ? value : undefined

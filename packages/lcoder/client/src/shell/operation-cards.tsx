@@ -1,8 +1,9 @@
 /** 操作进度浮卡：后台操作的标题、岗位、步骤与状态色；可最小化成胶囊，查看对话自愿跳转。 */
 
-import { useEffect, useRef, type JSX } from 'react'
+import { useEffect, useRef, useState, type JSX, type PointerEvent as ReactPointerEvent } from 'react'
 import { Button } from '@heroui/react'
-import { AlertTriangle, CheckCircle2, Loader2, Minus, X } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Loader2, MessageSquareText, Minus, X } from 'lucide-react'
+import { renderMarkdown } from '../markdown/markdown.tsx'
 import type { Translate } from '../locale.ts'
 import type { OpLiveFeed } from './op-live-feed.ts'
 
@@ -100,28 +101,39 @@ function OpLivePanel({
   readonly t: Translate
 }): JSX.Element | null {
   const bodyRef = useRef<HTMLDivElement>(null)
-  const hasContent = feed.snippet !== '' || (feed.lastToolNote !== undefined && feed.lastToolNote !== '')
+  const hasReasoning = feed.reasoning !== undefined && feed.reasoning !== ''
+  const hasContent = feed.snippet !== '' || hasReasoning || (feed.lastToolNote !== undefined && feed.lastToolNote !== '')
   useEffect(() => {
     const node = bodyRef.current
     if (node !== null) node.scrollTop = node.scrollHeight
-  }, [feed.snippet, feed.lastToolNote, feed.phase, feed.toolChars])
+  }, [feed.snippet, feed.reasoning, feed.lastToolNote, feed.phase, feed.toolChars])
 
   if (status === 'done') return null
   if (status === 'failed' && !hasContent) return null
 
-  const bodyText = feed.snippet !== ''
-    ? feed.snippet
-    : feed.lastToolNote !== undefined && feed.lastToolNote !== ''
-      ? feed.lastToolNote
-      : t('op.live.empty')
+  const fallbackText = feed.lastToolNote !== undefined && feed.lastToolNote !== ''
+    ? feed.lastToolNote
+    : t('op.live.empty')
 
   return (
-    <section className="op-live" data-testid="op-live-panel" aria-label={t('op.live.title')}>
+    <section className="op-live" data-testid="op-live-panel" data-status={status} aria-label={t('op.live.title')}>
       <div className="op-live-head">
         {status === 'running' && <span className="op-live-pulse" aria-hidden="true" />}
         <span className="op-live-phase" data-testid="op-live-phase">{livePhaseLabel(feed, t)}</span>
       </div>
-      <div ref={bodyRef} className="op-live-body" data-testid="op-live-output">{bodyText}</div>
+      {hasReasoning && (
+        <details className="op-live-thinking" data-testid="op-live-thinking">
+          <summary>{t('chat.processThought')}</summary>
+          <div className="op-live-thinking-body">{feed.reasoning}</div>
+        </details>
+      )}
+      {feed.snippet !== '' ? (
+        <div ref={bodyRef} className="op-live-body markdown-body" data-testid="op-live-output">
+          {renderMarkdown(feed.snippet)}
+        </div>
+      ) : (
+        <div ref={bodyRef} className="op-live-body" data-testid="op-live-output">{fallbackText}</div>
+      )}
       {feed.snippet !== '' && feed.lastToolNote !== undefined && feed.lastToolNote !== '' && (
         <p className="op-live-tool-note" data-testid="op-live-tool-note">{feed.lastToolNote}</p>
       )}
@@ -160,15 +172,228 @@ export interface OperationCardsProps {
 }
 
 /**
+ * 单张非最小化浮卡：支持标题栏拖拽移动、顶部快捷查看对话及底部操作区。
+ * @param props - 卡片数据与操作回调。
+ * @returns 浮卡元素。
+ */
+function OpCardItem({
+  card,
+  onToggleMinimize,
+  onOpenSession,
+  onClose,
+  onNextRole,
+  onConfirmIntake,
+  onCompare,
+  onViewSummary,
+  onAnswerRequest,
+  t,
+}: Omit<OperationCardsProps, 'cards'> & { readonly card: OperationCardView }): JSX.Element {
+  const dragRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null)
+  const [offset, setOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
+  const [dragging, setDragging] = useState(false)
+
+  useEffect(() => {
+    if (card.minimized) {
+      setOffset({ x: 0, y: 0 })
+      setDragging(false)
+    }
+  }, [card.minimized])
+
+  useEffect(() => {
+    if (!dragging) return
+    const onMove = (event: PointerEvent): void => {
+      const drag = dragRef.current
+      if (drag === null) return
+      const rawX = drag.originX + (event.clientX - drag.startX)
+      const rawY = drag.originY + (event.clientY - drag.startY)
+      const x = Math.max(-window.innerWidth + 120, Math.min(20, rawX))
+      const y = Math.max(-window.innerHeight + 120, Math.min(20, rawY))
+      setOffset({ x, y })
+    }
+    const onUp = (): void => {
+      dragRef.current = null
+      setDragging(false)
+    }
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+    window.addEventListener('pointercancel', onUp)
+    return () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      window.removeEventListener('pointercancel', onUp)
+    }
+  }, [dragging])
+
+  const onHeadPointerDown = (event: ReactPointerEvent<HTMLElement>): void => {
+    if (event.button !== 0) return
+    if (event.target instanceof Element && event.target.closest('button, .op-head-actions') !== null) return
+    dragRef.current = { startX: event.clientX, startY: event.clientY, originX: offset.x, originY: offset.y }
+    setDragging(true)
+  }
+
+  const sessionId = card.sessionId
+  const testId = card.status === 'running'
+    ? 'requirement-op-running'
+    : card.status === 'done'
+      ? 'requirement-op-success'
+      : 'requirement-op-timeout'
+  const showAnswer = card.pendingCount !== undefined && card.pendingCount > 0
+    && card.pendingKey !== undefined && onAnswerRequest !== undefined
+  const showConfirm = card.awaitingConfirm === true && card.status === 'running' && onConfirmIntake !== undefined
+  const showCompare = card.compareProposalId !== undefined && card.status === 'running' && onCompare !== undefined
+  const showNextRole = card.nextRoleLabel !== undefined && card.status === 'running' && onNextRole !== undefined
+  const showViewSummary = sessionId !== null && card.awaitingConfirm === true
+  const hasBottomActions = showAnswer || showConfirm || showCompare || showNextRole || showViewSummary
+
+  return (
+    <article
+      className={`op-card op-${card.status}`}
+      data-testid={testId}
+      data-op-key={card.key}
+      data-dragging={dragging ? 'true' : 'false'}
+      style={offset.x !== 0 || offset.y !== 0 ? { transform: `translate(${String(offset.x)}px, ${String(offset.y)}px)` } : undefined}
+    >
+      <header className="op-head" onPointerDown={onHeadPointerDown}>
+        <StatusIcon status={card.status} />
+        <div className="op-heading">
+          <h3>{card.title}</h3>
+          {card.pendingCount !== undefined && card.pendingCount > 0 ? (
+            <span className="op-step-answer op-pending-pill" data-testid="op-pending-count">
+              {t('op.pendingCount', { count: card.pendingCount })}
+            </span>
+          ) : null}
+        </div>
+        <div className="op-head-actions">
+          {sessionId !== null && card.awaitingConfirm !== true && (
+            <Button
+              isIconOnly
+              size="sm"
+              variant="ghost"
+              className="op-icon-button"
+              data-testid={card.status === 'failed' ? 'requirement-op-timeout-session' : 'op-view-session'}
+              aria-label={t('op.viewSession')}
+              ref={(node) => { if (node !== null) node.title = t('op.viewSession') }}
+              onPress={() => { onOpenSession(sessionId) }}
+            >
+              <MessageSquareText size={14} aria-hidden="true" />
+            </Button>
+          )}
+          <Button
+            isIconOnly
+            size="sm"
+            variant="ghost"
+            className="op-icon-button"
+            data-testid="op-minimize"
+            aria-label={t('op.minimize')}
+            onPress={() => { onToggleMinimize(card.key) }}
+          >
+            <Minus aria-hidden="true" />
+          </Button>
+          {card.status !== 'running' && (
+            <Button
+              isIconOnly
+              size="sm"
+              variant="ghost"
+              className="op-icon-button"
+              data-testid={card.status === 'failed' ? 'requirement-op-timeout-reload' : 'op-close'}
+              aria-label={card.status === 'failed' ? t('requirement.opTimeoutReload') : t('op.close')}
+              onPress={() => { onClose(card.key) }}
+            >
+              <X aria-hidden="true" />
+            </Button>
+          )}
+        </div>
+      </header>
+      <ol className="op-steps op-steps-horizontal" title={card.statusText}>
+        {card.steps.map((step, index) => (
+          <li
+            key={`${card.key}-${String(index)}`}
+            className={`op-step-${step.state}`}
+            {...(index === 0 ? { 'data-testid': 'op-step-role', title: `${card.roleLabel} · ${card.sourceLabel}` } : {})}
+          >
+            <span className="op-step-dot" aria-hidden="true" />
+            <span className="op-step-text">{index === 0 ? card.roleLabel : step.label}</span>
+          </li>
+        ))}
+      </ol>
+      {(card.liveFeed === undefined || card.status !== 'running') && (
+        <p className={card.status === 'failed' ? 'op-status op-status-error' : 'op-status'}>{card.statusText}</p>
+      )}
+      {card.liveFeed !== undefined && (
+        <OpLivePanel feed={card.liveFeed} status={card.status} t={t} />
+      )}
+      {hasBottomActions && (
+        <div className="op-actions">
+          {showAnswer && (
+            <Button
+              size="sm"
+              variant="primary"
+              data-testid="op-answer-pending"
+              onPress={() => { onAnswerRequest(card.pendingKey ?? '') }}
+            >
+              {t('op.answerPending')}
+            </Button>
+          )}
+          {showConfirm && (
+            <Button
+              size="sm"
+              variant="primary"
+              data-testid="op-confirm-intake"
+              onPress={() => { onConfirmIntake(card.key) }}
+            >
+              {t('op.confirmIntake')}
+            </Button>
+          )}
+          {showCompare && (
+            <Button
+              size="sm"
+              variant="primary"
+              data-testid="op-go-compare"
+              data-proposal-id={card.compareProposalId}
+              onPress={() => { onCompare(card.compareProposalId ?? '') }}
+            >
+              {t('op.goCompare')}
+            </Button>
+          )}
+          {showNextRole && (
+            <Button
+              size="sm"
+              variant="primary"
+              data-testid="op-next-role"
+              onPress={() => { onNextRole(card.key) }}
+            >
+              {t('op.nextRole')}
+            </Button>
+          )}
+          {showViewSummary && (
+            <Button
+              size="sm"
+              variant="ghost"
+              data-testid="op-view-session"
+              onPress={() => {
+                if (onViewSummary !== undefined) onViewSummary(card.key)
+                else onOpenSession(sessionId)
+              }}
+            >
+              {t('op.viewSummary')}
+            </Button>
+          )}
+        </div>
+      )}
+    </article>
+  )
+}
+
+/**
  * 画右下角浮卡堆叠；最小化态只留标题与状态色胶囊。
  * @param props - 卡片事实与三个回调。
  * @returns 浮卡层；没有卡片时不渲染。
  */
-export function OperationCards(props: OperationCardsProps): JSX.Element | null {
-  if (props.cards.length === 0) return null
+export function OperationCards({ cards, ...handlers }: OperationCardsProps): JSX.Element | null {
+  if (cards.length === 0) return null
   return (
     <div className="op-layer" data-testid="operation-cards">
-      {props.cards.map((card) => {
+      {cards.map((card) => {
         if (card.minimized) {
           return (
             <button
@@ -177,128 +402,15 @@ export function OperationCards(props: OperationCardsProps): JSX.Element | null {
               className={`op-capsule op-${card.status}`}
               data-testid="op-capsule"
               data-op-key={card.key}
-              title={props.t('op.expand')}
-              onClick={() => { props.onToggleMinimize(card.key) }}
+              title={handlers.t('op.expand')}
+              onClick={() => { handlers.onToggleMinimize(card.key) }}
             >
               <span className="op-dot" aria-hidden="true" />
               <span>{card.title}</span>
             </button>
           )
         }
-        const sessionId = card.sessionId
-        const testId = card.status === 'running'
-          ? 'requirement-op-running'
-          : card.status === 'done'
-            ? 'requirement-op-success'
-            : 'requirement-op-timeout'
-        return (
-          <article key={card.key} className={`op-card op-${card.status}`} data-testid={testId} data-op-key={card.key}>
-            <header className="op-head">
-              <StatusIcon status={card.status} />
-              <div className="op-heading">
-                <h3>{card.title}</h3>
-                <p className="op-sub">{card.roleLabel} · {card.sourceLabel}</p>
-              </div>
-              <div className="op-head-actions">
-                <Button
-                  isIconOnly
-                  size="sm"
-                  variant="ghost"
-                  className="op-icon-button"
-                  data-testid="op-minimize"
-                  aria-label={props.t('op.minimize')}
-                  onPress={() => { props.onToggleMinimize(card.key) }}
-                >
-                  <Minus aria-hidden="true" />
-                </Button>
-                {card.status !== 'running' && (
-                  <Button
-                    isIconOnly
-                    size="sm"
-                    variant="ghost"
-                    className="op-icon-button"
-                    data-testid={card.status === 'failed' ? 'requirement-op-timeout-reload' : 'op-close'}
-                    aria-label={card.status === 'failed' ? props.t('requirement.opTimeoutReload') : props.t('op.close')}
-                    onPress={() => { props.onClose(card.key) }}
-                  >
-                    <X aria-hidden="true" />
-                  </Button>
-                )}
-              </div>
-            </header>
-            <ol className="op-steps">
-              {card.steps.map((step, index) => (
-                <li key={`${card.key}-${String(index)}`} className={`op-step-${step.state}`}>{step.label}</li>
-              ))}
-              {card.pendingCount !== undefined && card.pendingCount > 0 ? (
-                <li className="op-step-answer" data-testid="op-pending-count">
-                  {props.t('op.pendingCount', { count: card.pendingCount })}
-                </li>
-              ) : null}
-            </ol>
-            <p className="op-status">{card.statusText}</p>
-            {card.liveFeed !== undefined && (
-              <OpLivePanel feed={card.liveFeed} status={card.status} t={props.t} />
-            )}
-            <div className="op-actions">
-              {card.pendingCount !== undefined && card.pendingCount > 0
-                && card.pendingKey !== undefined && props.onAnswerRequest !== undefined && (
-                <Button
-                  size="sm"
-                  variant="primary"
-                  data-testid="op-answer-pending"
-                  onPress={() => { props.onAnswerRequest?.(card.pendingKey ?? '') }}
-                >
-                  {props.t('op.answerPending')}
-                </Button>
-              )}
-              {card.awaitingConfirm === true && card.status === 'running' && props.onConfirmIntake !== undefined && (
-                <Button
-                  size="sm"
-                  variant="primary"
-                  data-testid="op-confirm-intake"
-                  onPress={() => { props.onConfirmIntake?.(card.key) }}
-                >
-                  {props.t('op.confirmIntake')}
-                </Button>
-              )}
-              {card.compareProposalId !== undefined && card.status === 'running' && props.onCompare !== undefined && (
-                <Button
-                  size="sm"
-                  variant="primary"
-                  data-testid="op-go-compare"
-                  data-proposal-id={card.compareProposalId}
-                  onPress={() => { props.onCompare?.(card.compareProposalId ?? '') }}
-                >
-                  {props.t('op.goCompare')}
-                </Button>
-              )}
-              {card.nextRoleLabel !== undefined && card.status === 'running' && props.onNextRole !== undefined && (
-                <Button
-                  size="sm"
-                  variant="primary"
-                  data-testid="op-next-role"
-                  onPress={() => { props.onNextRole?.(card.key) }}
-                >
-                  {props.t('op.nextRole')}
-                </Button>
-              )}
-              {sessionId !== null && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  data-testid={card.status === 'failed' ? 'requirement-op-timeout-session' : 'op-view-session'}
-                  onPress={() => {
-                    if (card.awaitingConfirm === true && props.onViewSummary !== undefined) props.onViewSummary(card.key)
-                    else props.onOpenSession(sessionId)
-                  }}
-                >
-                  {card.awaitingConfirm === true ? props.t('op.viewSummary') : props.t('op.viewSession')}
-                </Button>
-              )}
-            </div>
-          </article>
-        )
+        return <OpCardItem key={card.key} card={card} {...handlers} />
       })}
     </div>
   )

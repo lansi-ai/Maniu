@@ -112,8 +112,8 @@
  * 覆盖其 --accent 派生色；danger / danger-soft 不在此选择器内，警示语义保持不变。
  * 分段项和标签页虽然也带 primary 变体，但必须保持浮起胶囊而非反色实心块，故排除在外。
  */
-#root .button--primary:not(.bento-segment):not([role='tab']),
-#root .gradient-primary:not(.bento-segment):not([role='tab']) {
+:is(#root, .pending-dialog-backdrop, .requirement-doc-fullscreen-layer, .glass-modal-backdrop) .button--primary:not(.bento-segment):not([role='tab']),
+:is(#root, .pending-dialog-backdrop, .requirement-doc-fullscreen-layer, .glass-modal-backdrop) .gradient-primary:not(.bento-segment):not([role='tab']) {
   --button-bg: var(--primary-pill-bg);
   --button-bg-hover: var(--primary-pill-hover);
   --button-bg-pressed: var(--primary-pill-hover);

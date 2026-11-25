@@ -229,6 +229,295 @@ describe('需求评审', () => {
       .rejects.toThrow(/非空的 report/)
     expect(read(spec, 'REQ-01').reviews).toEqual([])
   })
+
+  it('结构化评审参数按规范渲染 Markdown 并写入 R1.md（无 category 与有 category 分组）', async () => {
+    const { spec } = makeRepo()
+    await call(spec, { title: '佣金改造', content: CONTENT })
+
+    const first = await callTool(spec, 'requirement_review_draft', {
+      id: 'REQ-01',
+      summary: '  整体边界清晰，\n但缺少代发订单的退货结算口径。  ',
+      conclusion: '需要修改',
+      items: [
+        {
+          priority: 'high',
+          title: '缺少代发退货\n结算口径',
+          location: '第 2 节\t退货流程',
+          problem: '未说明代发订单部分退货时佣金如何冲回。',
+          suggestion: '补充按退货金额比例冲回的计算公式与示例。',
+        },
+        {
+          priority: 'low',
+          title: '术语命名不统一',
+          location: '全文',
+          problem: '「分润」与「佣金」混用。',
+          suggestion: '统一改为「佣金」。',
+        },
+      ],
+    })
+    expect(first).toMatchObject({ requirement_id: 'REQ-01', round: 1, report_path: 'requirements/REQ-01/reviews/R1.md' })
+    expect(readFileSync(requirementReviewPath(spec, 'REQ-01', 1), 'utf8')).toBe([
+      '## 摘要',
+      '整体边界清晰，',
+      '但缺少代发订单的退货结算口径。',
+      '',
+      '## 结论',
+      '需要修改',
+      '',
+      '## 待改项',
+      '- [高] **缺少代发退货 结算口径** —— 位置：第 2 节 退货流程。问题：未说明代发订单部分退货时佣金如何冲回。。建议：补充按退货金额比例冲回的计算公式与示例。',
+      '- [低] **术语命名不统一** —— 位置：全文。问题：「分润」与「佣金」混用。。建议：统一改为「佣金」。',
+    ].join('\n'))
+
+    reviseRequirement(spec, 'REQ-01', { content: '# 佣金改造\n\n已补充口径。', at: '2099-01-01T00:00:00Z' })
+    await callTool(spec, 'requirement_review_draft', {
+      id: 'REQ-01',
+      summary: '各维度检查发现两处小问题。',
+      conclusion: '需要修改',
+      items: [
+        {
+          priority: 'medium',
+          category: '文档完备性',
+          title: '缺少验收用例',
+          location: '第 4 节',
+          problem: '只有正向流程，没有异常分支验收条件。',
+          suggestion: '增加超时与重复回调的验收条目。',
+        },
+        {
+          priority: 'low',
+          title: '补充修订记录',
+          location: '文末',
+          problem: '未写变更原因。',
+          suggestion: '补一句变更说明。',
+        },
+        {
+          priority: 'high',
+          category: '文档完备性',
+          title: '接口字段未定义',
+          location: '第 3 节',
+          problem: '未给出回调签名字段名。',
+          suggestion: '列出签名字段及类型。',
+        },
+      ],
+    })
+    expect(readFileSync(requirementReviewPath(spec, 'REQ-01', 2), 'utf8')).toBe([
+      '## 摘要',
+      '各维度检查发现两处小问题。',
+      '',
+      '## 结论',
+      '需要修改',
+      '',
+      '## 待改项',
+      '',
+      '### 文档完备性',
+      '- [中] **缺少验收用例** —— 位置：第 4 节。问题：只有正向流程，没有异常分支验收条件。。建议：增加超时与重复回调的验收条目。',
+      '- [高] **接口字段未定义** —— 位置：第 3 节。问题：未给出回调签名字段名。。建议：列出签名字段及类型。',
+      '',
+      '### 其他',
+      '- [低] **补充修订记录** —— 位置：文末。问题：未写变更原因。。建议：补一句变更说明。',
+    ].join('\n'))
+  })
+
+  it('结构化评审 items 为空数组时渲染「无」', async () => {
+    const { spec } = makeRepo()
+    await call(spec, { title: '佣金改造', content: CONTENT })
+
+    await callTool(spec, 'requirement_review_draft', {
+      id: 'REQ-01',
+      summary: '需求完整、边界清晰，可直接确认。',
+      conclusion: '可以确认',
+      items: [],
+    })
+    expect(readFileSync(requirementReviewPath(spec, 'REQ-01', 1), 'utf8')).toBe([
+      '## 摘要',
+      '需求完整、边界清晰，可直接确认。',
+      '',
+      '## 结论',
+      '可以确认',
+      '',
+      '## 待改项',
+      '无',
+    ].join('\n'))
+  })
+
+  it('结构化评审缺字段或空白字段时抛出清晰中文报错且不落盘', async () => {
+    const { spec } = makeRepo()
+    await call(spec, { title: '佣金改造', content: CONTENT })
+
+    await expect(callTool(spec, 'requirement_review_draft', {
+      id: 'REQ-01',
+      summary: '   ',
+      conclusion: '可以确认',
+      items: [],
+    })).rejects.toThrow(/非空的 summary/)
+
+    await expect(callTool(spec, 'requirement_review_draft', {
+      id: 'REQ-01',
+      summary: '整体可过',
+      conclusion: '通过',
+      items: [],
+    })).rejects.toThrow(/conclusion/)
+
+    await expect(callTool(spec, 'requirement_review_draft', {
+      id: 'REQ-01',
+      summary: '整体可过',
+      conclusion: '需要修改',
+      items: [
+        {
+          priority: 'high',
+          title: '  ',
+          location: '第 1 节',
+          problem: '缺字段',
+          suggestion: '补齐',
+        },
+      ],
+    })).rejects.toThrow(/第 1 条待改项缺字段/)
+
+    expect(existsSync(requirementReviewPath(spec, 'REQ-01', 1))).toBe(false)
+    expect(read(spec, 'REQ-01').reviews).toEqual([])
+  })
+
+  it('评审携带 dismissed 时将排除项写入 YAML 元数据且不改需求正文', async () => {
+    const { spec } = makeRepo()
+    await call(spec, { title: '佣金改造', content: CONTENT })
+
+    const res = await callTool(spec, 'requirement_review_draft', {
+      id: 'REQ-01',
+      summary: '核心逻辑完整，部分建议用户确认非本期范围。',
+      conclusion: '可以确认',
+      items: [],
+      dismissed: [
+        { title: '支持多币种结算', reason: '非本期范围，二期再做' },
+        { title: '  导出 Excel 报表  ', reason: '  用户确认保持现状  ' },
+      ],
+    })
+
+    expect(res).toMatchObject({
+      requirement_id: 'REQ-01',
+      round: 1,
+      dismissed_count: 2,
+    })
+    expect(readFileSync(join(spec, 'requirements', 'REQ-01.md'), 'utf8')).toBe(CONTENT)
+
+    const saved = read(spec, 'REQ-01')
+    expect(saved.dismissed_issues).toHaveLength(2)
+    expect(saved.dismissed_issues[0]).toMatchObject({
+      title: '支持多币种结算',
+      reason: '非本期范围，二期再做',
+      round: 1,
+    })
+    expect(Date.parse(saved.dismissed_issues[0]!.at)).not.toBeNaN()
+    expect(saved.dismissed_issues[1]).toMatchObject({
+      title: '导出 Excel 报表',
+      reason: '用户确认保持现状',
+      round: 1,
+    })
+  })
+
+  it('跨轮次重复排除同一 title（忽略大小写与首尾空白）时自动去重', async () => {
+    const { spec } = makeRepo()
+    await call(spec, { title: '佣金改造', content: CONTENT })
+
+    await callTool(spec, 'requirement_review_draft', {
+      id: 'REQ-01',
+      summary: '第 1 轮评审',
+      conclusion: '需要修改',
+      items: [],
+      dismissed: [
+        { title: 'Legacy API Compatibility', reason: '非本期范围' },
+      ],
+    })
+    decideRequirementReview(spec, 'REQ-01', {
+      round: 1,
+      decision: 'rejected',
+      at: new Date().toISOString(),
+    })
+
+    await callTool(spec, 'requirement_review_draft', {
+      id: 'REQ-01',
+      summary: '第 2 轮评审',
+      conclusion: '可以确认',
+      items: [],
+      dismissed: [
+        { title: '  legacy api compatibility  ', reason: '重复提交应被去重' },
+        { title: '新增批量导入', reason: '下期规划' },
+      ],
+    })
+
+    const saved = read(spec, 'REQ-01')
+    expect(saved.dismissed_issues).toHaveLength(2)
+    expect(saved.dismissed_issues[0]).toMatchObject({
+      title: 'Legacy API Compatibility',
+      reason: '非本期范围',
+      round: 1,
+    })
+    expect(saved.dismissed_issues[1]).toMatchObject({
+      title: '新增批量导入',
+      reason: '下期规划',
+      round: 2,
+    })
+  })
+
+  it('dismissed 中 title 或 reason 为空白时抛出清晰中文报错且不落盘', async () => {
+    const { spec } = makeRepo()
+    await call(spec, { title: '佣金改造', content: CONTENT })
+
+    await expect(callTool(spec, 'requirement_review_draft', {
+      id: 'REQ-01',
+      summary: '整体可过',
+      conclusion: '可以确认',
+      items: [],
+      dismissed: [{ title: '   ', reason: '非本期范围' }],
+    })).rejects.toThrow(/第 1 条排除项缺字段/)
+
+    await expect(callTool(spec, 'requirement_review_draft', {
+      id: 'REQ-01',
+      summary: '整体可过',
+      conclusion: '可以确认',
+      items: [],
+      dismissed: [{ title: '支持多币种', reason: '   ' }],
+    })).rejects.toThrow(/第 1 条排除项缺字段/)
+
+    expect(existsSync(requirementReviewPath(spec, 'REQ-01', 1))).toBe(false)
+    expect(read(spec, 'REQ-01').dismissed_issues).toEqual([])
+  })
+
+  it('结构化评审结论为「可以确认」且无待改项时自动通过，有待改项且「需要修改」时保持未处置', async () => {
+    const { spec } = makeRepo()
+    await call(spec, { title: '佣金改造', content: CONTENT })
+
+    await callTool(spec, 'requirement_review_draft', {
+      id: 'REQ-01',
+      summary: '文档完整，无待改项。',
+      conclusion: '可以确认',
+      items: [],
+    })
+    const acceptedReview = read(spec, 'REQ-01').reviews[0]
+    expect(acceptedReview?.decision).toBe('accepted')
+    expect(Date.parse(acceptedReview?.decided_at ?? '')).not.toBeNaN()
+    expect(acceptedReview?.decision_note).toBe('评审结论为可以确认且无待改项，自动通过')
+
+    const { spec: spec2 } = makeRepo()
+    await call(spec2, { title: '佣金改造', content: CONTENT })
+    await callTool(spec2, 'requirement_review_draft', {
+      id: 'REQ-01',
+      summary: '仍有细节需要补充。',
+      conclusion: '需要修改',
+      items: [
+        {
+          priority: 'medium',
+          title: '补充异常流',
+          location: '第 2 节 异常流程',
+          problem: '未说明超时后的处理逻辑。',
+          suggestion: '补充超时重试与降级策略。',
+        },
+      ],
+    })
+    const pendingReview = read(spec2, 'REQ-01').reviews[0]
+    expect(pendingReview?.decision).toBeUndefined()
+    expect(pendingReview?.decided_at).toBeUndefined()
+    expect(pendingReview?.decision_note).toBeUndefined()
+  })
 })
 
 describe('评审轮次门禁', () => {

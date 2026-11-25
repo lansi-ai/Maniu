@@ -319,6 +319,28 @@ export function listSnapshots(specRoot: string, scopeDir: string): PrototypeSnap
 }
 
 /**
+ * 只读读取一份历史快照的 HTML，不修改任何磁盘文件。
+ * @param specRoot - 规格根。
+ * @param scopeDir - 作用域目录名；需求编号或 `__project__`。
+ * @param snapshotId - 历史列表给出的安全编号。
+ * @returns 快照 HTML 原文。
+ */
+export function readSnapshotHtml(
+  specRoot: string,
+  scopeDir: string,
+  snapshotId: string,
+): string {
+  const hit = firstScoped(prototypeReadScopes(specRoot, scopeDir), (dir) => {
+    const path = prototypeSnapshotPath(specRoot, dir, snapshotId)
+    return existsSync(path) ? readFileSync(path, 'utf8') : undefined
+  })
+  if (hit === undefined) {
+    throw new PrototypeError('这份快照不存在', 'PROTOTYPE/SNAPSHOT_NOT_FOUND')
+  }
+  return hit.value
+}
+
+/**
  * 恢复一份历史快照：当前正式版先归档，再把快照原子写回 `index.html`；
  * 需求级作用域同步刷新 YAML 登记，项目级作用域不碰任何需求文件。
  * @param specRoot - 规格根。
@@ -331,14 +353,7 @@ export function restoreSnapshot(
   scopeDir: string,
   snapshotId: string,
 ): PrototypeRestoreSnapshotValue {
-  const hit = firstScoped(prototypeReadScopes(specRoot, scopeDir), (dir) => {
-    const path = prototypeSnapshotPath(specRoot, dir, snapshotId)
-    return existsSync(path) ? readFileSync(path, 'utf8') : undefined
-  })
-  if (hit === undefined) {
-    throw new PrototypeError('这份快照不存在', 'PROTOTYPE/SNAPSHOT_NOT_FOUND')
-  }
-  const html = hit.value
+  const html = readSnapshotHtml(specRoot, scopeDir, snapshotId)
   saveSnapshot(specRoot, scopeDir, readPrototypeHtml(specRoot, scopeDir))
   writeAtomic(prototypePath(specRoot, scopeDir, 'index.html'), html)
   const restoredAt = new Date().toISOString()

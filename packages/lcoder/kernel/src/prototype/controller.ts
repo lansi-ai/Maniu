@@ -1,6 +1,6 @@
 /**
  * 原型宿主 Remote：`prefetch` / `uploadRef` / `clear` / `adopt`，以及暂存与快照的
- * `getStaged` / `commitStaged` / `discardStaged` / `listSnapshots` / `restoreSnapshot`。
+ * `getStaged` / `commitStaged` / `discardStaged` / `listSnapshots` / `getSnapshot` / `restoreSnapshot`。
  *
  * `prefetch` 复用宿主已启用的 `ctx.web.fetch()`（web-fetch-http 提供方），
  * 只回结构化样式摘要；其余方法把原型产物写进会话工作区的
@@ -16,6 +16,7 @@
  */
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-session'
+import type {} from '@deepseek-ai/dsh-session-query'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type {} from '@deepseek-ai/dsh-web'
 import { join } from 'node:path'
@@ -24,16 +25,17 @@ import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 
 import { assertRequirementId } from '../kernel/requirement-store.js'
 import { toRemoteError } from './errors.js'
-import { PROJECT_SCOPE_DIR } from './paths.js'
+import { isProjectScopeDir, PROJECT_SCOPE_DIR } from './paths.js'
 import { assertFetchableUrl, isHtmlBody, PrototypeError, summarizeHtml } from './summary.js'
 import type { StyleSummary } from './summary.js'
 import {
   adoptPrototype, clearPrototype, commitStagedPrototype, discardStagedPrototype,
-  listSnapshots as listPrototypeSnapshots, readPrototypeHtml, readStagedPrototype,
+  listSnapshots as listPrototypeSnapshots, readPrototypeHtml, readSnapshotHtml, readStagedPrototype,
   restoreSnapshot as restorePrototypeSnapshot, writePrototypeRef,
 } from './store.js'
 import type {
   PrototypeAdoptInput, PrototypeClearInput, PrototypeCommitStagedInput, PrototypeCommitResult,
+  PrototypeGetSnapshotInput, PrototypeGetSnapshotValue,
   PrototypeListSnapshotsValue, PrototypeOkValue, PrototypePrefetchInput, PrototypeRefValue,
   PrototypeRestoreSnapshotInput, PrototypeRestoreSnapshotValue, PrototypeScopeInput,
   PrototypeStagedView, PrototypeUploadInput,
@@ -75,8 +77,8 @@ export class PrototypeController extends TypertRemoteService {
    */
   @Remote
   uploadRef(input: PrototypeUploadInput): Promise<PrototypeRefValue> {
-    return this.perform(() => {
-      const root = this.specRootOf(input.sessionId)
+    return this.perform(async () => {
+      const root = await this.specRootOf(input.sessionId)
       const id = assertRequirementId(input.requirementId.trim())
       return writePrototypeRef(root, id, input.name, input.data)
     })
@@ -90,8 +92,8 @@ export class PrototypeController extends TypertRemoteService {
    */
   @Remote
   clear(input: PrototypeClearInput): Promise<PrototypeOkValue> {
-    return this.perform(() => {
-      const root = this.specRootOf(input.sessionId)
+    return this.perform(async () => {
+      const root = await this.specRootOf(input.sessionId)
       const id = assertRequirementId(input.requirementId.trim())
       clearPrototype(root, id)
       return { ok: true }
@@ -106,8 +108,8 @@ export class PrototypeController extends TypertRemoteService {
    */
   @Remote
   adopt(input: PrototypeAdoptInput): Promise<PrototypeOkValue> {
-    return this.perform(() => {
-      const root = this.specRootOf(input.sessionId)
+    return this.perform(async () => {
+      const root = await this.specRootOf(input.sessionId)
       const id = assertRequirementId(input.requirementId.trim())
       adoptPrototype(root, id, new Date().toISOString())
       return { ok: true }
@@ -115,19 +117,22 @@ export class PrototypeController extends TypertRemoteService {
   }
 
   /**
-   * 读暂存原型与当前正式版 HTML；需求编号缺省时读项目级统一活原型。
+   * 读暂存原型与当前正式版 HTML；需求编号缺省时读项目级统一活原型，需求自身尚无正式版时回退到项目级正式版。
    * @param input - 会话号与可选需求编号。
    * @returns 暂存视图；没有暂存或没有正式版时对应字段为 null。
    * @throws {RemoteError} `PROTOTYPE/NO_WORKSPACE`，或读取失败折成的 `PROTOTYPE/FAILED`。
    */
   @Remote
   getStaged(input: PrototypeScopeInput): Promise<PrototypeStagedView> {
-    return this.perform(() => {
-      const root = this.specRootOf(input.sessionId)
+    return this.perform(async () => {
+      const root = await this.specRootOf(input.sessionId)
       const scopeDir = this.scopeDirOf(input.requirementId)
+      const committedHtml = readPrototypeHtml(root, scopeDir)
+        ?? (!isProjectScopeDir(scopeDir) ? readPrototypeHtml(root, PROJECT_SCOPE_DIR) : undefined)
+        ?? null
       return {
         staged: readStagedPrototype(root, scopeDir),
-        committedHtml: readPrototypeHtml(root, scopeDir) ?? null,
+        committedHtml,
       }
     })
   }
@@ -141,8 +146,8 @@ export class PrototypeController extends TypertRemoteService {
    */
   @Remote
   commitStaged(input: PrototypeCommitStagedInput): Promise<PrototypeCommitResult> {
-    return this.perform(() => {
-      const root = this.specRootOf(input.sessionId)
+    return this.perform(async () => {
+      const root = await this.specRootOf(input.sessionId)
       const scopeDir = this.scopeDirOf(input.requirementId)
       return commitStagedPrototype(root, scopeDir, input)
     })
@@ -156,8 +161,8 @@ export class PrototypeController extends TypertRemoteService {
    */
   @Remote
   discardStaged(input: PrototypeScopeInput): Promise<PrototypeOkValue> {
-    return this.perform(() => {
-      const root = this.specRootOf(input.sessionId)
+    return this.perform(async () => {
+      const root = await this.specRootOf(input.sessionId)
       discardStagedPrototype(root, this.scopeDirOf(input.requirementId))
       return { ok: true }
     })
@@ -171,9 +176,24 @@ export class PrototypeController extends TypertRemoteService {
    */
   @Remote
   listSnapshots(input: PrototypeScopeInput): Promise<PrototypeListSnapshotsValue> {
-    return this.perform(() => {
-      const root = this.specRootOf(input.sessionId)
+    return this.perform(async () => {
+      const root = await this.specRootOf(input.sessionId)
       return { snapshots: listPrototypeSnapshots(root, this.scopeDirOf(input.requirementId)) }
+    })
+  }
+
+  /**
+   * 只读读取指定历史快照的 HTML，不改写正式版与任何磁盘状态。
+   * @param input - 会话号、可选需求编号与快照编号。
+   * @returns 快照 HTML 原文。
+   * @throws {RemoteError} `PROTOTYPE/SNAPSHOT_NOT_FOUND`、`PROTOTYPE/NO_WORKSPACE`，
+   * 或编号越界折成的 `PROTOTYPE/FAILED`。
+   */
+  @Remote
+  getSnapshot(input: PrototypeGetSnapshotInput): Promise<PrototypeGetSnapshotValue> {
+    return this.perform(async () => {
+      const root = await this.specRootOf(input.sessionId)
+      return { html: readSnapshotHtml(root, this.scopeDirOf(input.requirementId), input.snapshotId) }
     })
   }
 
@@ -186,8 +206,8 @@ export class PrototypeController extends TypertRemoteService {
    */
   @Remote
   restoreSnapshot(input: PrototypeRestoreSnapshotInput): Promise<PrototypeRestoreSnapshotValue> {
-    return this.perform(() => {
-      const root = this.specRootOf(input.sessionId)
+    return this.perform(async () => {
+      const root = await this.specRootOf(input.sessionId)
       return restorePrototypeSnapshot(root, this.scopeDirOf(input.requirementId), input.snapshotId)
     })
   }
@@ -218,16 +238,23 @@ export class PrototypeController extends TypertRemoteService {
   }
 
   /**
-   * 从会话号解析规格根；cold 会话或没有工作区时显式失败。
+   * 从会话号解析规格根；先查内存热会话，未命中时回退查询 `sessionQuery` 冷会话，仍无工作区时显式失败。
    * @param sessionId - 会话号。
    * @returns 规格根绝对路径。
    */
-  private specRootOf(sessionId: SessionId): string {
-    const sessions = this.ctx.get('sessions')
-    const header = sessions?.get(sessionId)?.header
-    if (header === undefined || header.cwd === undefined) {
-      throw new PrototypeError('会话不存在或没有工作区', 'PROTOTYPE/NO_WORKSPACE')
+  private async specRootOf(sessionId: SessionId): Promise<string> {
+    const hotCwd = this.ctx.get('sessions')?.get(sessionId)?.header.cwd
+    if (hotCwd !== undefined && hotCwd !== '') {
+      return join(hotCwd, '.spec')
     }
-    return join(header.cwd, '.spec')
+    const sessionQuery = this.ctx.get('sessionQuery')
+    if (sessionQuery !== undefined) {
+      const records = await sessionQuery.listSessions()
+      const coldCwd = records.find(record => record.header.id === sessionId)?.header.cwd
+      if (coldCwd !== undefined && coldCwd !== '') {
+        return join(coldCwd, '.spec')
+      }
+    }
+    throw new PrototypeError('会话不存在或没有工作区', 'PROTOTYPE/NO_WORKSPACE')
   }
 }

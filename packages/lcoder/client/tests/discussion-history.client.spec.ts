@@ -1,7 +1,7 @@
 /** 讨论历史：从宿主列表线形认出 maniu-pm 会话。 */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { summaryOf, type SessionSummary } from '../src/store.ts'
-import { readDiscussionHistory } from '../src/discussion/history.ts'
+import { messagesOf, readDiscussionHistory } from '../src/discussion/history.ts'
 
 const PROJECT = 'E:/repo'
 const RECORDS = [
@@ -89,5 +89,68 @@ describe('readDiscussionHistory', () => {
       groups: [],
       message: '没有找到带参会身份的讨论会话。',
     })
+  })
+})
+
+describe('messagesOf', () => {
+  it('将 assistant/message 中的 reasoning 与 text 拆开保留', () => {
+    const messages = messagesOf([
+      {
+        type: 'event',
+        event: {
+          type: 'assistant/message',
+          data: {
+            message: {
+              content: [
+                { type: 'reasoning', text: '先检查上下文。' },
+                { type: 'reasoning', text: '再确认边界。' },
+                { type: 'text', text: '结论如下。' },
+              ],
+            },
+          },
+        },
+      },
+      {
+        type: 'event',
+        event: {
+          type: 'assistant/message',
+          data: {
+            message: {
+              content: [
+                { type: 'reasoning', text: '仅思考无正文。' },
+              ],
+            },
+          },
+        },
+      },
+      {
+        type: 'event',
+        event: {
+          type: 'assistant/message',
+          data: {
+            message: {
+              content: '纯文本回退。',
+            },
+          },
+        },
+      },
+    ])
+
+    expect(messages).toEqual([
+      {
+        role: 'assistant',
+        text: '结论如下。',
+        reasoning: '先检查上下文。\n\n再确认边界。',
+      },
+      {
+        role: 'assistant',
+        text: '',
+        reasoning: '仅思考无正文。',
+      },
+      {
+        role: 'assistant',
+        text: '纯文本回退。',
+      },
+    ])
   })
 })

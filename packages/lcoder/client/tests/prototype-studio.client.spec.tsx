@@ -320,21 +320,26 @@ describe('锚点输入区', () => {
 })
 
 describe('暂存改动卡', () => {
-  it('视觉卡列摘要与 DOM 区域数并给出确认/放弃', async () => {
+  it('视觉卡只列摘要与 DOM 区域数，不再渲染重复操作按钮', async () => {
     await render(<ChangeCard t={t} staged={VISUAL} busy={false} onCommit={vi.fn()} onDiscard={vi.fn()} />)
     expect(element('studio-change-card-visual')).not.toBeNull()
     expect(element('studio-change-summary')?.textContent).toContain('按钮改成主色')
     expect(element('studio-change-dom-count')?.textContent).toContain('2')
-    expect(element('studio-change-card-confirm')).not.toBeNull()
-    expect(element('studio-change-card-discard')).not.toBeNull()
+    expect(element('studio-change-card-confirm')).toBeNull()
+    expect(element('studio-change-card-discard')).toBeNull()
+    expect(element('studio-card-view-before')).toBeNull()
+    expect(element('studio-card-view-after')).toBeNull()
+    expect(element('studio-card-compare')).toBeNull()
   })
 
-  it('需求变更卡展开 Diff 显示增删行并区分同步与仅落盘', async () => {
+  it('需求变更卡展开 Diff 显示增删行并区分同步与仅落盘，不渲染重复画布切换按钮', async () => {
     const onCommit = vi.fn()
     await render(<ChangeCard t={t} staged={BUSINESS} busy={false} syncStatus="skipped_pending" onCommit={onCommit} onDiscard={vi.fn()} />)
     expect(element('studio-change-card-business')).not.toBeNull()
     expect(element('studio-change-requirement-summary')?.textContent).toContain('新增验证码入口')
     expect(element('studio-change-sync')?.getAttribute('data-sync')).toBe('skipped_pending')
+    expect(element('studio-card-view-before')).toBeNull()
+    expect(element('studio-card-compare')).toBeNull()
 
     await click('studio-diff-toggle')
     expect(elements('studio-diff-line').some(node => node.getAttribute('data-kind') === 'added')).toBe(true)
@@ -349,65 +354,86 @@ describe('暂存改动卡', () => {
 })
 
 describe('暂存控制条', () => {
-  it('修改前后瞬切、并排对比与高亮都走宿主画布面', async () => {
+  it('修改前后瞬切与并排对比走宿主画布面，无历史图标与高亮按钮', async () => {
     const bridge = makeBridge()
     await renderApp(bridge)
     expect(element('studio-staged-bar')?.getAttribute('data-staged')).toBe('true')
-    expect(element('studio-staged-state')?.textContent).toContain('未落盘')
+    expect(element('studio-snapshots-trigger')).toBeNull()
+    expect(element('studio-snapshots')).toBeNull()
+    expect(element('studio-highlight-toggle')).toBeNull()
 
     await click('studio-view-before')
     expect(loadCalls.at(-1)).toMatchObject({ html: COMMITTED, beforeHtml: COMMITTED })
     await click('studio-view-after')
     expect(loadCalls.at(-1)).toMatchObject({ html: VISUAL.html, beforeHtml: COMMITTED })
 
-    await click('studio-compare-side-by-side')
-    expect(modeCalls).toContain('compare-side-by-side')
-    expect(loadCalls.at(-1)).toMatchObject({ html: VISUAL.html })
+    // 打开即自动高亮本轮改动区域。
+    expect(highlightCalls.at(-1)).toEqual([...VISUAL.changedDomPaths])
 
-    // 打开即高亮本轮改动区域；第一次点击取消，再点一次恢复。
-    expect(highlightCalls.at(-1)).toEqual([...VISUAL.changedDomPaths])
-    await click('studio-highlight-toggle')
-    expect(highlightCalls.at(-1)).toEqual([])
-    await click('studio-highlight-toggle')
-    expect(highlightCalls.at(-1)).toEqual([...VISUAL.changedDomPaths])
+    // 顶栏并排对比开关可进可退，退出后恢复修改前/修改后分段胶囊。
+    await click('studio-compare-toggle')
+    expect(modeCalls.at(-1)).toBe('compare-side-by-side')
+    expect(element('studio-compare-toggle')?.getAttribute('data-active')).toBe('true')
+    expect(element('studio-compare-status')?.textContent).toContain('并排对比中')
+    expect(element('studio-view-before')).toBeNull()
+
+    await click('studio-compare-exit')
+    expect(modeCalls.at(-1)).toBe('split')
+    expect(element('studio-compare-toggle')?.getAttribute('data-active')).toBe('false')
+    expect(element('studio-view-before')).not.toBeNull()
+    await click('studio-view-before')
+    expect(loadCalls.at(-1)).toMatchObject({ html: COMMITTED, beforeHtml: COMMITTED })
   })
 
-  it('没有暂存时顶部不渲染占位操作条，对比图标禁用并说明原因', async () => {
+  it('没有暂存时顶部不渲染占位操作条，并排对比图标禁用并说明原因', async () => {
     state.staged = null
     const bridge = makeBridge()
     await renderApp(bridge)
     expect(element('studio-staged-bar')).toBeNull()
     expect(container.textContent).not.toContain('暂无未落盘的修改')
-    const compare = element('studio-quick-compare') as HTMLButtonElement
+    const compare = element('studio-compare-toggle') as HTMLButtonElement
     expect(compare.disabled).toBe(true)
     expect(compare.getAttribute('title')).toBe('暂无可对比的修改')
     expect(compare.getAttribute('aria-label')).toBe('暂无可对比的修改')
-    // 没有暂存也不影响历史快照与全屏切换入口。
-    expect(element('studio-snapshots-trigger')).not.toBeNull()
+    expect(element('studio-snapshots-trigger')).toBeNull()
     expect(element('studio-mode-toggle')).not.toBeNull()
   })
 
-  it('顶部对比图标在暂存版与原版间一键瞬切，原版态高亮', async () => {
+  it('顶部并排对比图标可进可退，全屏悬浮态保留并排对比且支持退出', async () => {
     const bridge = makeBridge()
     await renderApp(bridge)
-    const compare = (): HTMLElement | null => element('studio-quick-compare')
-    expect(compare()?.getAttribute('title')).toBe('点击查看原版')
-    expect(compare()?.getAttribute('aria-label')).toBe('点击查看原版')
+    const compare = (): HTMLElement | null => element('studio-compare-toggle')
+    expect(compare()?.getAttribute('title')).toBe('并排对比')
+    expect(compare()?.getAttribute('aria-label')).toBe('并排对比')
     expect(compare()?.getAttribute('data-active')).toBe('false')
 
-    await click('studio-quick-compare')
-    expect(loadCalls.at(-1)).toMatchObject({ html: COMMITTED, beforeHtml: COMMITTED })
+    await click('studio-compare-toggle')
+    expect(modeCalls.at(-1)).toBe('compare-side-by-side')
+    expect(loadCalls.at(-1)).toMatchObject({ html: VISUAL.html, beforeHtml: COMMITTED })
     expect(compare()?.getAttribute('data-active')).toBe('true')
     expect(compare()?.getAttribute('aria-pressed')).toBe('true')
-    expect(compare()?.getAttribute('title')).toBe('点击切回修改后')
+    expect(compare()?.getAttribute('title')).toBe('退出对比')
 
-    await click('studio-quick-compare')
-    expect(loadCalls.at(-1)).toMatchObject({ html: VISUAL.html, beforeHtml: COMMITTED })
+    // 切全屏时保留并排对比状态，且显示浮窗折叠胶囊。
+    await click('studio-mode-toggle')
+    expect(modeCalls.at(-1)).toBe('compare-fullscreen-pinned')
+    expect(element('studio-app')?.className).toContain('studio-app-pinned')
+    expect(element('studio-floating-collapse')).not.toBeNull()
+
+    // 悬浮态退出并排对比回到 fullscreen-pinned。
+    await click('studio-compare-toggle')
+    expect(modeCalls.at(-1)).toBe('fullscreen-pinned')
     expect(compare()?.getAttribute('data-active')).toBe('false')
-    expect(compare()?.getAttribute('title')).toBe('点击查看原版')
+    expect(element('studio-app')?.className).toContain('studio-app-pinned')
+
+    // 悬浮态再次进入并排对比，再切回分屏保留并排对比。
+    await click('studio-compare-toggle')
+    expect(modeCalls.at(-1)).toBe('compare-fullscreen-pinned')
+    await click('studio-mode-toggle')
+    expect(modeCalls.at(-1)).toBe('compare-side-by-side')
   })
 
-  it('确认落盘刷新正式版、放弃回退、快照恢复重载画布，线上入参都包 input', async () => {
+  it('确认落盘刷新正式版、放弃回退重载画布，线上入参都包 input', async () => {
     const bridge = makeBridge()
     await renderApp(bridge)
     await click('studio-commit-staged')
@@ -422,16 +448,9 @@ describe('暂存控制条', () => {
     expect(calls.some(call => call.namespace === 'prototype' && call.method === 'discardStaged'
       && isRecord(call.args.input) && call.args.input.requirementId === 'REQ-01')).toBe(true)
     expect(loadCalls.at(-1)).toMatchObject({ html: COMMITTED })
-
-    await click('studio-snapshots-trigger')
-    expect(elements('studio-snapshot')).toHaveLength(1)
-    await click('studio-snapshot-restore')
-    const restore = calls.find(call => call.namespace === 'prototype' && call.method === 'restoreSnapshot')
-    expect(isRecord(restore?.args.input) && restore?.args.input.snapshotId).toBe('snap-1')
-    expect(loadCalls.at(-1)).toMatchObject({ html: '<html><body>恢复版</body></html>' })
   })
 
-  it('回合完成后自动切到修改后、高亮改动区域，并在该轮回复后紧跟改动卡', async () => {
+  it('回合完成后自动切到修改后、高亮改动区域，并在该轮回复后紧跟精简改动卡', async () => {
     state.staged = null
     const bridge = makeStreamBridge()
     await renderApp(bridge)
@@ -460,15 +479,10 @@ describe('暂存控制条', () => {
     const card = element('studio-change-card-visual')
     expect(card).not.toBeNull()
     expect(element('studio-round-card')?.contains(card)).toBe(true)
-
-    // 卡片自带前后瞬切与并排对比，不用再回顶部暂存条操作。
-    expect(element('studio-card-view-before')).not.toBeNull()
-    expect(element('studio-card-compare')).not.toBeNull()
-    await click('studio-card-view-before')
-    expect(loadCalls.at(-1)).toMatchObject({ html: COMMITTED, beforeHtml: COMMITTED })
-    expect(element('studio-card-view-after')?.getAttribute('aria-pressed')).toBe('false')
-    await click('studio-card-compare')
-    expect(modeCalls).toContain('compare-side-by-side')
+    // 视觉卡不再渲染重复操作按钮，操作统一收口在顶部暂存控制条。
+    expect(element('studio-card-view-before')).toBeNull()
+    expect(element('studio-card-compare')).toBeNull()
+    expect(element('studio-change-card-confirm')).toBeNull()
   })
 
   it('全屏折叠为胶囊再展开不丢暂存态与会话', async () => {
@@ -481,7 +495,7 @@ describe('暂存控制条', () => {
     await click('studio-floating-collapse')
     expect(boundsCalls.at(-1)).toMatchObject({ x: -1, y: -1, width: 260, height: 48, collapsed: true })
     expect(element('studio-body')?.hidden).toBe(true)
-    expect(element('studio-staged-state')?.textContent).toContain('未落盘')
+    expect(element('studio-staged-bar')).not.toBeNull()
 
     await click('studio-floating-collapse')
     expect(boundsCalls.at(-1)).toMatchObject({ x: -1, y: -1, width: 380, height: 520, collapsed: false })
@@ -526,27 +540,23 @@ describe('暂存会话作用域', () => {
     await renderApp(makeBridge(), 'scope-url')
   }
 
-  it('协作会话有暂存时打开即显示修改后、高亮改动区域，对比图标可点', async () => {
+  it('协作会话有暂存时打开即显示修改后、高亮改动区域，并排对比图标可点', async () => {
     sessionGate = { stagedIn: ['chat-1'], missing: [], denied: [] }
     await openScoped()
 
     // 暂存落在协作会话名下：prototype/* 先问它，作用域会话看不到暂存也不该被用来请求。
     expect(prototypeSessions('getStaged')[0]).toBe('chat-1')
-    expect(prototypeSessions('listSnapshots')[0]).toBe('chat-1')
     expect(loadCalls.at(-1)).toMatchObject({ html: VISUAL.html, beforeHtml: COMMITTED })
     expect(highlightCalls.at(-1)).toEqual([...VISUAL.changedDomPaths])
     expect(element('studio-staged-bar')?.getAttribute('data-staged')).toBe('true')
     expect(element('studio-view-after')?.getAttribute('aria-pressed')).toBe('true')
-    const compare = element('studio-quick-compare') as HTMLButtonElement
+    const compare = element('studio-compare-toggle') as HTMLButtonElement
     expect(compare.disabled).toBe(false)
     expect(compare.getAttribute('data-active')).toBe('false')
 
-    // 落盘与快照恢复同样走协作会话，不回到作用域会话。
+    // 落盘同样走协作会话，不回到作用域会话。
     await click('studio-commit-staged')
     expect(lastPrototypeInput('commitStaged')?.sessionId).toBe('chat-1')
-    await click('studio-snapshots-trigger')
-    await click('studio-snapshot-restore')
-    expect(lastPrototypeInput('restoreSnapshot')?.sessionId).toBe('chat-1')
   })
 
   it('协作会话报没有工作区时回退作用域会话重试一次并拿到暂存', async () => {
@@ -557,7 +567,7 @@ describe('暂存会话作用域', () => {
     expect(element('studio-notice')).toBeNull()
     expect(loadCalls.at(-1)).toMatchObject({ html: VISUAL.html, beforeHtml: COMMITTED })
     expect(highlightCalls.at(-1)).toEqual([...VISUAL.changedDomPaths])
-    expect((element('studio-quick-compare') as HTMLButtonElement).disabled).toBe(false)
+    expect((element('studio-compare-toggle') as HTMLButtonElement).disabled).toBe(false)
 
     // 回退后的会话号同样用于写操作：放弃不该再撞上没有工作区。
     await click('studio-discard-staged')
@@ -565,19 +575,22 @@ describe('暂存会话作用域', () => {
     expect(loadCalls.at(-1)).toMatchObject({ html: COMMITTED })
   })
 
-  it('对比图标在协作会话的暂存版与原版间瞬切', async () => {
+  it('并排对比图标可进可退，退出后可切修改前', async () => {
     sessionGate = { stagedIn: ['chat-1'], missing: [], denied: [] }
     await openScoped()
 
-    await click('studio-quick-compare')
-    expect(loadCalls.at(-1)).toMatchObject({ html: COMMITTED, beforeHtml: COMMITTED })
-    expect(element('studio-quick-compare')?.getAttribute('data-active')).toBe('true')
-    expect(element('studio-view-before')?.getAttribute('aria-pressed')).toBe('true')
+    await click('studio-compare-toggle')
+    expect(modeCalls.at(-1)).toBe('compare-side-by-side')
+    expect(element('studio-compare-toggle')?.getAttribute('data-active')).toBe('true')
 
-    await click('studio-quick-compare')
-    expect(loadCalls.at(-1)).toMatchObject({ html: VISUAL.html, beforeHtml: COMMITTED })
-    expect(element('studio-quick-compare')?.getAttribute('data-active')).toBe('false')
+    await click('studio-compare-toggle')
+    expect(modeCalls.at(-1)).toBe('split')
+    expect(element('studio-compare-toggle')?.getAttribute('data-active')).toBe('false')
     expect(element('studio-view-after')?.getAttribute('aria-pressed')).toBe('true')
+
+    await click('studio-view-before')
+    expect(loadCalls.at(-1)).toMatchObject({ html: COMMITTED, beforeHtml: COMMITTED })
+    expect(element('studio-view-before')?.getAttribute('aria-pressed')).toBe('true')
   })
 
   it('两个会话都报没有工作区时不再重试，直接报错', async () => {
@@ -587,7 +600,7 @@ describe('暂存会话作用域', () => {
     // 每类候选只问一次：没有第三个会话号可以再试。
     expect(prototypeSessions('getStaged')).toEqual(['chat-1', 'scope-url'])
     expect(element('studio-notice')?.textContent).toContain('会话不存在或没有工作区')
-    expect((element('studio-quick-compare') as HTMLButtonElement).disabled).toBe(true)
+    expect((element('studio-compare-toggle') as HTMLButtonElement).disabled).toBe(true)
   })
 
   it('其它失败不换会话重试，直接把错误交给界面', async () => {
@@ -767,6 +780,28 @@ describe('全屏浮窗拖拽', () => {
     await act(async () => { capsule?.click() })
     await flush()
     expect(element('studio-body')?.hidden).toBe(true)
+  })
+
+  it('全屏并排对比态（compare-fullscreen-pinned）下顶栏拖拽依然生效', async () => {
+    const bridge = makeStreamBridge()
+    await renderApp(bridge)
+    await click('studio-mode-toggle')
+    await click('studio-compare-toggle')
+    expect(modeCalls.at(-1)).toBe('compare-fullscreen-pinned')
+
+    const head = element('studio-head')
+    pointer(head, 'pointerdown', 900, 60)
+    await flush()
+    pointer(head, 'pointermove', 850, 110)
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 40)) })
+    expect(boundsCalls.at(-1)).toMatchObject({
+      x: 1024 - 380 - 24 - 50,
+      y: 24 + 50,
+      width: 380,
+      height: 520,
+      collapsed: false,
+    })
+    pointer(head, 'pointerup', 850, 110)
   })
 })
 

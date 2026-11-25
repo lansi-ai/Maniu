@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import type { JSX } from 'react'
 import { Button } from '@heroui/react'
 import { translate, type Translate } from '../locale.ts'
-import { renderMarkdown } from '../markdown/markdown.tsx'
+import { MarkdownDocumentViewer } from '../markdown/document-viewer.tsx'
 import { readLastAssistantText } from '../intake/summary.ts'
 import { DetailDrawer } from './detail-drawer.tsx'
 
@@ -57,7 +57,7 @@ export function IntakeSummary(props: IntakeSummaryProps): JSX.Element {
       {read.status === 'loading' && <p className="detail-note" data-testid="intake-summary-loading">{t('intake.summaryLoading')}</p>}
       {read.status === 'empty' && <p className="empty" data-testid="intake-summary-empty">{t('intake.summaryEmpty')}</p>}
       {read.status === 'ready' && (
-        <div className="markdown-body tall" data-testid="intake-summary-body">{renderMarkdown(read.text)}</div>
+        <MarkdownDocumentViewer text={read.text} title={t('intake.summaryTitle')} t={t} bodyTestId="intake-summary-body" compact tall />
       )}
       <div className="action-row">
         <Button variant="primary" data-testid="intake-summary-confirm" onPress={props.onConfirm}>

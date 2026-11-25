@@ -12,7 +12,7 @@ const PRESET_BY_KIND: Readonly<Record<FlowNodeKind, FlowNodeRow>> = {
   intake: { node: 'intake', roles: ['maniu-intake'], auto: false },
   review: { node: 'review', roles: ['maniu-pm'], auto: true },
   revise: { node: 'revise', roles: ['maniu-intake'], auto: false },
-  split: { node: 'split', roles: ['maniu-manager'], auto: false },
+  split: { node: 'split', roles: ['maniu-architect', 'maniu-manager'], auto: true },
 }
 
 /** 预制流程的节点清单，按固定顺序。 */

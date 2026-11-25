@@ -17,10 +17,6 @@ export interface ChangeCardProps {
   readonly busy: boolean
   /** 最近一次落盘的需求同步回执；未落盘时不传。 */
   readonly syncStatus?: RequirementSyncStatus | undefined
-  /** 画布当前是否显示修改前；给了切换回调才渲染卡内前后瞬切。 */
-  readonly showingBefore?: boolean | undefined
-  readonly onViewChange?: ((before: boolean) => void) | undefined
-  readonly onCompare?: (() => void) | undefined
   /** applyRequirementDiff 为真表示同步需求正文，amend 为真时用 amend 模式。 */
   readonly onCommit: (applyRequirementDiff: boolean, amend: boolean) => void
   readonly onDiscard: () => void
@@ -62,56 +58,12 @@ export function ChangeCard(props: ChangeCardProps): JSX.Element {
     ? null
     : <p className="studio-sync" data-testid="studio-change-sync" data-sync={syncStatus}>{t('studio.requirementSync', { status: t(syncMessageKey(syncStatus)) })}</p>
 
-  const showingBefore = props.showingBefore === true
-  const viewSwitch = props.onViewChange === undefined
-    ? null
-    : (
-      <div className="studio-segmented" role="group" aria-label={t('studio.viewSwitch')}>
-        <button
-          type="button"
-          className={showingBefore ? 'studio-segment studio-segment-on' : 'studio-segment'}
-          data-testid="studio-card-view-before"
-          aria-pressed={showingBefore}
-          onClick={() => { props.onViewChange?.(true) }}
-        >
-          {t('studio.viewBefore')}
-        </button>
-        <button
-          type="button"
-          className={showingBefore ? 'studio-segment' : 'studio-segment studio-segment-on'}
-          data-testid="studio-card-view-after"
-          aria-pressed={!showingBefore}
-          onClick={() => { props.onViewChange?.(false) }}
-        >
-          {t('studio.viewAfter')}
-        </button>
-      </div>
-    )
-
-  const compareButton = props.onCompare === undefined
-    ? null
-    : (
-      <Button size="sm" variant="secondary" data-testid="studio-card-compare" isDisabled={busy} onPress={props.onCompare}>
-        {t('studio.compareSideBySide')}
-      </Button>
-    )
-
   if (!isBusiness) {
     return (
       <CardFrame testId="studio-change-card-visual" title={t('studio.changeVisual')}>
         {summaryList}
         <p className="studio-meta" data-testid="studio-change-dom-count">{t('studio.domAreaCount', { count: staged.changedDomPaths.length })}</p>
         {statusLine}
-        <div className="studio-card-actions">
-          {viewSwitch}
-          {compareButton}
-          <Button size="sm" variant="primary" data-testid="studio-change-card-confirm" isDisabled={busy} onPress={() => { props.onCommit(false, false) }}>
-            {t('studio.confirmCommit')}
-          </Button>
-          <Button size="sm" variant="secondary" data-testid="studio-change-card-discard" isDisabled={busy} onPress={() => { props.onDiscard() }}>
-            {t('studio.discard')}
-          </Button>
-        </div>
       </CardFrame>
     )
   }
@@ -156,8 +108,6 @@ export function ChangeCard(props: ChangeCardProps): JSX.Element {
       </label>
       {statusLine}
       <div className="studio-card-actions">
-        {viewSwitch}
-        {compareButton}
         <Button size="sm" variant="primary" data-testid="studio-change-card-confirm-sync" isDisabled={busy} onPress={() => { props.onCommit(true, amend) }}>
           {t('studio.confirmCommitSync')}
         </Button>

@@ -189,8 +189,9 @@ describe('列表版本徽标直达历史', () => {
 
     expect(element('requirement-detail')).not.toBeNull()
     expect(element('requirement-history-layer')?.hasAttribute('hidden')).toBe(false)
-    expect(element('requirement-history-trigger')?.textContent).toContain('v2')
-    expect(element('requirement-history-trigger')?.textContent).toContain('R1')
+    expect(element('requirement-version-badge')?.textContent).toBe('v2')
+    expect(element('requirement-history-trigger')?.getAttribute('aria-label')).toContain('v2')
+    expect(element('requirement-history-trigger')?.getAttribute('aria-label')).toContain('R1')
     // 徽标只开详情，不触发评审/改稿等整行会话。
     expect(calls).toHaveLength(0)
 
@@ -204,12 +205,13 @@ describe('列表版本徽标直达历史', () => {
 })
 
 describe('需求表操作分支', () => {
-  it('草稿行给评审与修改需求，点击评审不打开详情', async () => {
+  it('草稿行给评审、修改与关闭，点击评审不打开详情', async () => {
     const calls: StartCall[] = []
     renderPage(projectionOf([DRAFT], []), calls)
 
-    expect(element('requirement-op-review')).not.toBeNull()
-    expect(element('requirement-op-revise')).not.toBeNull()
+    expect(element('requirement-op-review')?.textContent).toBe('评审')
+    expect(element('requirement-op-revise')?.textContent).toBe('修改')
+    expect(element('requirement-op-close')?.textContent).toBe('关闭')
     expect(element('requirement-op-split')).toBeNull()
 
     await press('requirement-op-review')
@@ -274,17 +276,17 @@ describe('需求表操作分支', () => {
     expect(document.activeElement).toBe(trigger)
   })
 
-  it('已过审且没有关联任务时给拆分，交给研发经理', async () => {
+  it('已过审且没有关联任务时给生成任务，首棒交给架构师出技术方案', async () => {
     const calls: StartCall[] = []
     renderPage(projectionOf([CONFIRMED_EMPTY], []), calls)
 
     expect(element('requirement-op-tasks')).toBeNull()
     await press('requirement-op-split')
     expect(calls).toHaveLength(1)
-    expect(calls[0]?.preset).toBe('maniu-manager')
-    expect(calls[0]?.prompt).toContain('需求拆分：请把需求 REQ-02（待拆分需求）')
-    expect(calls[0]?.prompt).toContain('requirement_split_plan')
-    expect(calls[0]?.prompt).toContain('不分配岗位')
+    expect(calls[0]?.preset).toBe('maniu-architect')
+    expect(calls[0]?.prompt).toContain('技术方案设计：请为已定稿需求 REQ-02（待拆分需求）')
+    expect(calls[0]?.prompt).toContain('ask_user_question')
+    expect(calls[0]?.prompt).toContain('proposal_draft')
   })
 
   it('已有关联任务时给查看任务，不改发会话', async () => {
@@ -387,5 +389,105 @@ describe('后台会话恢复入口', () => {
       [{ sessionId: 'session-idle', updatedAt: 1, running: false, blank: false }],
     )
     expect(element('requirement-background-recovery')).toBeNull()
+  })
+})
+
+describe('列表行关闭需求与二次确认', () => {
+  const CLOSED: RequirementDocRow = {
+    id: 'REQ-04',
+    title: '已关闭需求',
+    text: '已关闭正文',
+    state: 'closed',
+    options: [],
+    versions: [],
+    reviews: [],
+  }
+
+  it('非已关闭行显示关闭按钮，已关闭行不显示；取消关闭不发命令', async () => {
+    const commandCalls: Array<{ readonly ns: string; readonly method: string; readonly payload: unknown }> = []
+    Object.defineProperty(window, 'lcoder', {
+      configurable: true,
+      value: {
+        call: async (ns: string, method: string, payload: unknown) => {
+          if (ns === 'commands' && method === 'execute') {
+            commandCalls.push({ ns, method, payload })
+            return { ok: true, value: { result: { kind: 'success', text: '已关闭' } } }
+          }
+          return { ok: false, error: { code: 'unmocked', message: 'unmocked' } }
+        },
+      },
+    })
+
+    renderPage(projectionOf([DRAFT], []), [])
+    expect(element('requirement-op-close')).not.toBeNull()
+
+    await press('requirement-op-close')
+    expect(element('requirement-detail')).toBeNull()
+    expect(element('requirement-close-confirm-dialog')?.textContent).toContain('REQ-01')
+
+    await press('requirement-close-cancel')
+    expect(element('requirement-close-confirm-dialog')).toBeNull()
+    expect(commandCalls).toHaveLength(0)
+
+    renderPage(projectionOf([CLOSED], []), [])
+    expect(element('requirement-op-close')).toBeNull()
+  })
+
+  it('确认关闭发送 /requirement_close 并刷新；失败时保留弹窗并提示错误', async () => {
+    let reloadCount = 0
+    const commandCalls: Array<{ readonly ns: string; readonly method: string; readonly payload: unknown }> = []
+    let failNext = true
+    Object.defineProperty(window, 'lcoder', {
+      configurable: true,
+      value: {
+        call: async (ns: string, method: string, payload: unknown) => {
+          if (ns === 'commands' && method === 'execute') {
+            commandCalls.push({ ns, method, payload })
+            if (failNext) {
+              return { ok: true, value: { result: { kind: 'error', text: '关闭被拒绝' } } }
+            }
+            return { ok: true, value: { result: { kind: 'success', text: '已关闭' } } }
+          }
+          return { ok: false, error: { code: 'unmocked', message: 'unmocked' } }
+        },
+      },
+    })
+
+    act(() => {
+      root.render(
+        <RequirementsPage
+          project={PROJECT}
+          projection={projectionOf([DRAFT], [])}
+          sessions={[]}
+          loading={false}
+          error={null}
+          intakeResult={null}
+          onClearIntakeResult={() => {}}
+          onReload={() => { reloadCount += 1 }}
+          onStartIntake={async () => ({ ok: true, message: 'ok' })}
+          onStartSession={async () => ({ ok: true, message: 'ok' })}
+          onOpenSession={() => {}}
+          onOpenTasks={() => {}}
+        />,
+      )
+    })
+
+    await press('requirement-op-close')
+    await press('requirement-close-confirm')
+    expect(commandCalls).toHaveLength(1)
+    expect(commandCalls[0]).toEqual({
+      ns: 'commands',
+      method: 'execute',
+      payload: { agentId: 'session-scope', line: '/requirement_close REQ-01', submittedAttachments: [] },
+    })
+    expect(element('requirement-close-confirm-dialog')).not.toBeNull()
+    expect(element('requirement-close-error')?.textContent).toContain('关闭需求失败：关闭被拒绝')
+    expect(reloadCount).toBe(0)
+
+    failNext = false
+    await press('requirement-close-confirm')
+    expect(commandCalls).toHaveLength(2)
+    expect(element('requirement-close-confirm-dialog')).toBeNull()
+    expect(reloadCount).toBe(1)
   })
 })

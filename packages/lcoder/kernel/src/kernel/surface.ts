@@ -188,8 +188,8 @@ export const ROLES: readonly RoleId[] = BUILTIN_ROLES
 export const ROLE_TOOLS: Readonly<Record<RoleId, readonly string[]>> = {
   /** 立项/需求分析师：读产品文档、列目录、读规格、读任务，起草需求、按评审报告改稿、出需求变更提案，以及对已确认需求执行 S 级轻量修补。 */
   intake: ['file_read', 'file_list', 'project_draft', 'spec_query', 'spec_draft', 'task_read', 'task_draft', 'requirement_draft', 'requirement_revise', 'requirement_propose', 'requirement_amend'],
-  /** 架构/契约：加上给规格条目绑落点和起草契约，仍然动不了代码。 */
-  architect: ['file_read', 'file_list', 'spec_query', 'spec_bind', 'task_read', 'task_draft', 'contract_draft', 'deliverable_draft'],
+  /** 架构/契约：加上给规格条目绑落点、出技术方案和起草契约，仍然动不了代码。 */
+  architect: ['file_read', 'file_list', 'spec_query', 'spec_bind', 'task_read', 'task_draft', 'proposal_draft', 'contract_draft', 'deliverable_draft'],
   /** 项目经理：谈需求、出方案、拆任务并出评审报告；不给改稿、不给契约、不给改代码。 */
   pm: ['file_read', 'file_list', 'spec_query', 'spec_draft', 'task_read', 'task_draft', 'proposal_draft', 'requirement_review_draft'],
   /** 实施：除只对特定角色开放的写入口外，状态说了算。 */

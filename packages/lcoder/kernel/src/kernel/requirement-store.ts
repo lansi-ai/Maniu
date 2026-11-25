@@ -13,7 +13,7 @@ import { dirname, join } from 'node:path'
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml'
 
 import { Requirement, RequirementSplitPlan } from '../schema/spec.js'
-import type { RequirementAmendment, RequirementOption, RequirementReview, RequirementVersion } from '../schema/spec.js'
+import type { RequirementAmendment, RequirementDismissedIssue, RequirementOption, RequirementReview, RequirementVersion } from '../schema/spec.js'
 import { listFiles, matchPattern } from '../schema/validate.js'
 import { loadFlowConfig, missingReviewRootSet, presetBuiltinRoot } from './flow-config.js'
 
@@ -240,6 +240,7 @@ export function createRequirement(root: string, input: RequirementDraftInput): R
     opened_at: input.opened_at,
     versions: [version],
     reviews: [],
+    dismissed_issues: [],
   }
   try {
     saveRequirement(root, requirement)
@@ -416,6 +417,10 @@ export interface RequirementReviewInput {
   readonly sessionId?: string
   /** 产出这轮评审的会话 preset id（署名）；缺省表示旧式无署名评审。 */
   readonly role?: string
+  /** 评审确认环节中用户判定为「非本期 / 刻意不做」的排除项。 */
+  readonly dismissed?: readonly { readonly title: string; readonly reason: string }[]
+  /** 评审结论为「可以确认」且无待改项时，直接将本轮评审标记为自动通过。 */
+  readonly autoAccepted?: boolean
 }
 
 /** 一次评审落盘的结果。 */
@@ -524,6 +529,21 @@ export function recordRequirementReview(root: string, id: string, input: Require
   const relativeReport = requirementReviewRelativePath(id, round)
   writeText(reportPath, input.report)
 
+  const seen = new Set(requirement.dismissed_issues.map(item => item.title.trim().toLowerCase()))
+  const dismissedIssues: RequirementDismissedIssue[] = [...requirement.dismissed_issues]
+  for (const item of input.dismissed ?? []) {
+    const title = item.title.trim()
+    const key = title.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    dismissedIssues.push({
+      title,
+      reason: item.reason.trim(),
+      round,
+      at: input.at,
+    })
+  }
+
   const reviewed: Requirement = {
     ...requirement,
     reviews: [
@@ -535,8 +555,16 @@ export function recordRequirementReview(root: string, id: string, input: Require
         ...(input.baseContent === undefined ? {} : { base_content: input.baseContent }),
         ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }),
         ...(input.role === undefined ? {} : { role: input.role }),
+        ...(input.autoAccepted === true
+          ? {
+            decision: 'accepted' as const,
+            decided_at: input.at,
+            decision_note: '评审结论为可以确认且无待改项，自动通过',
+          }
+          : {}),
       },
     ],
+    dismissed_issues: dismissedIssues,
   }
   try {
     saveRequirement(root, reviewed)

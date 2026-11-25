@@ -47,6 +47,8 @@ export const IPC_CHANNELS = {
   prototypeStudioDockState: 'lcoder:prototype-studio-dock-state',
   /** 主窗请求恢复或关闭停靠的工作台。 */
   prototypeStudioRestore: 'lcoder:prototype-studio-restore',
+  /** 原型画布 preload 单向通知主进程微调并排对比的左右比例。 */
+  prototypeStudioCompareResize: 'lcoder:prototype-studio-compare-resize',
 } as const
 
 /** 宿主子进程生命周期状态。 */
@@ -180,8 +182,12 @@ export interface PrototypeSelectionInfo {
   readonly label?: string
 }
 
-/** Prototype Studio 的视图模式：分屏、全屏置顶浮窗、并排对比。 */
-export type PrototypeStudioMode = 'split' | 'fullscreen-pinned' | 'compare-side-by-side'
+/** Prototype Studio 的视图模式：分屏、全屏置顶浮窗、并排对比、悬浮态并排对比。 */
+export type PrototypeStudioMode =
+  | 'split'
+  | 'fullscreen-pinned'
+  | 'compare-side-by-side'
+  | 'compare-fullscreen-pinned'
 
 /** 原型画布当前是普通交互还是元素选择。 */
 export type PrototypeInteractionMode = 'interact' | 'select'
@@ -224,6 +230,7 @@ export interface PrototypeStudioHtmlPayload {
 export type PrototypeStudioInspectControl =
   | { readonly interactionMode: PrototypeInteractionMode }
   | { readonly highlightDomPaths: readonly string[] }
+  | { readonly compareBadge: string; readonly resizeEdge?: 'left' | 'right' | undefined }
 
 /**
  * Prototype Studio 在主窗上的停靠状态。

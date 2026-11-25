@@ -1,6 +1,6 @@
 /** 对话页：会话列表、聊天正文、审批/提问卡与输入器。 */
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { JSX, RefObject } from 'react'
 import { Button, Input } from '@heroui/react'
 import { Pencil } from 'lucide-react'
@@ -49,8 +49,27 @@ export interface ChatViewProps {
   readonly onSelectModel: (provider: string, model: string) => Promise<boolean>
 }
 
+const SIDEBAR_WIDTH_KEY = 'lcoder.chat.sidebarWidth'
+const SIDEBAR_DEFAULT_WIDTH = 260
+const SIDEBAR_MIN_WIDTH = 200
+const SIDEBAR_MAX_WIDTH = 520
+
+function clampSidebarWidth(width: number): number {
+  return Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, Math.round(width)))
+}
+
+function readSidebarWidth(): number {
+  try {
+    const raw = Number(localStorage.getItem(SIDEBAR_WIDTH_KEY))
+    if (Number.isFinite(raw) && raw >= SIDEBAR_MIN_WIDTH && raw <= SIDEBAR_MAX_WIDTH) return Math.round(raw)
+  } catch {
+    // 忽略本地存储读取失败，回落默认宽度。
+  }
+  return SIDEBAR_DEFAULT_WIDTH
+}
+
 /**
- * 会话短名：已改名的标题优先，其次 cwd 尾段，最后是会话标识前缀。
+ * 会话短名：已改名或事件缓存标题优先，其次列表投影自带标题，其次 cwd 尾段，最后是会话标识前缀。
  * @param session - 会话摘要。
  * @param titles - 已读到的标题。
  * @returns 展示名。
@@ -58,6 +77,7 @@ export interface ChatViewProps {
 export function sessionLabel(session: SessionSummary, titles: Readonly<Record<string, string>>): string {
   const title = titles[session.sessionId]
   if (title !== undefined && title !== '') return title
+  if (session.title !== undefined && session.title !== '') return session.title
   if (session.cwd !== undefined) {
     const parts = session.cwd.split(/[\\/]/).filter(part => part !== '')
     const tail = parts[parts.length - 1]
@@ -91,6 +111,36 @@ export function ChatView({
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
   const [renameProblem, setRenameProblem] = useState<string | null>(null)
+  const [sidebarWidth, setSidebarWidth] = useState<number>(readSidebarWidth)
+  const [resizing, setResizing] = useState(false)
+  const resizeRef = useRef<{ readonly startX: number; readonly startWidth: number } | null>(null)
+
+  useEffect(() => {
+    if (!resizing) return
+    const onMove = (event: PointerEvent): void => {
+      const drag = resizeRef.current
+      if (drag === null) return
+      const next = clampSidebarWidth(drag.startWidth + (event.clientX - drag.startX))
+      setSidebarWidth(next)
+      try {
+        localStorage.setItem(SIDEBAR_WIDTH_KEY, String(next))
+      } catch {
+        // 忽略本地存储写入失败。
+      }
+    }
+    const stop = (): void => {
+      resizeRef.current = null
+      setResizing(false)
+    }
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', stop)
+    window.addEventListener('pointercancel', stop)
+    return () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', stop)
+      window.removeEventListener('pointercancel', stop)
+    }
+  }, [resizing])
 
   const beginRename = (): void => {
     if (active === null) return
@@ -136,25 +186,31 @@ export function ChatView({
         <ul className="session-group-items">
           {items.length === 0
             ? <li className="session-group-empty">{kind === 'chat' ? t('chat.groupEmptyChat') : t('chat.groupEmptyFlow')}</li>
-            : items.map(session => (
-              <li key={session.sessionId}>
-                <button
-                  type="button"
-                  data-testid="session-item"
-                  data-session-id={session.sessionId}
-                  data-running={session.running ? 'true' : 'false'}
-                  className={session.sessionId === active ? 'session active' : 'session'}
-                  onClick={() => { onSelect(session.sessionId) }}
-                >
-                  <span className="dot" />
-                  <span className="label">{sessionLabel(session, titles)}</span>
-                  {session.agentPreset !== undefined && talentNames[currentPresetId(session.agentPreset)] !== undefined
-                    ? <span className="session-talent" data-testid="session-talent">{talentNames[currentPresetId(session.agentPreset)]}</span>
-                    : null}
-                  {session.running && <span className="running">{t('chat.running')}</span>}
-                </button>
-              </li>
-            ))}
+            : items.map((session) => {
+              const label = sessionLabel(session, titles)
+              const talent = session.agentPreset === undefined ? undefined : talentNames[currentPresetId(session.agentPreset)]
+              const fullTitle = talent === undefined ? label : `${label} · ${talent}`
+              return (
+                <li key={session.sessionId}>
+                  <button
+                    type="button"
+                    data-testid="session-item"
+                    data-session-id={session.sessionId}
+                    data-running={session.running ? 'true' : 'false'}
+                    className={session.sessionId === active ? 'session active' : 'session'}
+                    title={fullTitle}
+                    onClick={() => { onSelect(session.sessionId) }}
+                  >
+                    <span className="dot" />
+                    <span className="label">{label}</span>
+                    {talent !== undefined
+                      ? <span className="session-talent" data-testid="session-talent">{talent}</span>
+                      : null}
+                    {session.running && <span className="running">{t('chat.running')}</span>}
+                  </button>
+                </li>
+              )
+            })}
         </ul>
       )}
     </li>
@@ -162,7 +218,10 @@ export function ChatView({
 
   return (
     <>
-      <aside className="sidebar">
+      <aside
+        className="sidebar"
+        style={{ width: `${String(sidebarWidth)}px`, flexBasis: `${String(sidebarWidth)}px` }}
+      >
         <div className="sidebar-head">
           <span>{t('chat.sessions')}</span>
           <Button
@@ -181,6 +240,20 @@ export function ChatView({
         </ul>
         {notice !== null && <p className="notice" data-testid="notice">{notice}</p>}
       </aside>
+      <div
+        className="sidebar-resizer"
+        data-testid="sidebar-resizer"
+        data-dragging={resizing ? 'true' : 'false'}
+        role="separator"
+        aria-orientation="vertical"
+        aria-label={t('chat.sessions')}
+        onPointerDown={(event) => {
+          if (event.button !== 0) return
+          event.preventDefault()
+          resizeRef.current = { startX: event.clientX, startWidth: sidebarWidth }
+          setResizing(true)
+        }}
+      />
 
       <section className="chat">
         <div className="chat-head">

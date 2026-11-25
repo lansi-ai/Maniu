@@ -28,9 +28,20 @@ export interface ParsedReviewReport {
 
 const ISO_TIMESTAMP = /^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?$/
 const ITEM_LINE = /^\s*(?:[-*+]|\d+[.)])\s+/u
-const PRIORITY_LABEL = /(?:优先级\s*[:：]?\s*)(高|中|低)|[【\[]\s*(高|中|低)\s*[】\]]/u
+const PRIORITY_LABEL = new RegExp(
+  [
+    '(?:优先级\\s*[:：]?\\s*)(高优?|中优?|低优?|P[012])',
+    '[【\\[]\\s*(高优?|中优?|低优?|P[012])\\s*[】\\]]',
+    '^\\*\\*\\s*(高优?|中优?|低优?|P[012])\\s*\\*\\*(?:\\s*[｜|:：—\\-]\\s*|\\s+)',
+    '^(高优?|中优?|低优?|P[012])\\s*[｜|:：]\\s*',
+  ].join('|'),
+  'iu',
+)
 /** 摘要里去掉全部优先级标记；与 PRIORITY_LABEL 同源，但不保留 exec 的 lastIndex 状态。 */
-const PRIORITY_MARK = new RegExp(PRIORITY_LABEL, 'gu')
+const PRIORITY_MARK = new RegExp(PRIORITY_LABEL.source, 'giu')
+/** 仅匹配裸优先级词，防止把优先级当作待改项标题。 */
+const BARE_PRIORITY = /^(?:高优?|中优?|低优?|P[012])$/iu
+const LEADING_SEPARATORS = /^[｜|:：—\-\s]+/u
 /** 分类子标题：`### 文档完备性` 或更细的 `#### 边界与例外`。 */
 const CATEGORY_HEADING = /^#{3,4}\s+(.+?)\s*$/u
 /** 无 Markdown 标记的分类子标题：纯中文/字母短行，不含冒号与优先级标记。 */
@@ -60,6 +71,11 @@ const TABLE_SEPARATOR_CELL = /^:?-{2,}:?$/u
 /** 摘要字数上限；超出补省略号。 */
 const SUMMARY_CHARS = 72
 
+/** 截断超长文本到摘要上限。 */
+function clampSummary(text: string): string {
+  return text.length > SUMMARY_CHARS ? `${text.slice(0, SUMMARY_CHARS)}…` : text
+}
+
 /**
  * 从待改项正文生成精简摘要：去掉冗余优先级标记，取第一句，超长按字数截断。
  * 完整正文仍留在 `text` 字段供展开阅读。
@@ -67,14 +83,28 @@ const SUMMARY_CHARS = 72
  * @returns 可单独展示的简明摘要。
  */
 function summaryOf(text: string): string {
-  const cleaned = text.replace(PRIORITY_MARK, ' ').replace(/\s+/gu, ' ').trim()
+  const cleaned = text.replace(PRIORITY_MARK, ' ').replace(/\s+/gu, ' ').trim().replace(LEADING_SEPARATORS, '')
   const firstSentence = /^(.+?[。！？.!?])/u.exec(cleaned)?.[1] ?? cleaned
-  return firstSentence.length > SUMMARY_CHARS ? `${firstSentence.slice(0, SUMMARY_CHARS)}…` : firstSentence
+  return clampSummary(firstSentence)
 }
 
 /** 未标注优先级的待改项排在三级之后。 */
 function priorityRank(priority: ReviewPriority | undefined): number {
   return priority === 'high' ? 0 : priority === 'medium' ? 1 : priority === 'low' ? 2 : 3
+}
+
+/**
+ * 把正则捕获到的优先级词归一到三级枚举。
+ * @param mark - 优先级关键词（高/中/低/P0/P1/P2）。
+ * @returns 归一后的优先级，未识别时缺省。
+ */
+function mapPriority(mark: string | undefined): ReviewPriority | undefined {
+  if (mark === undefined) return undefined
+  const upper = mark.toUpperCase()
+  if (upper.startsWith('高') || upper === 'P0') return 'high'
+  if (upper.startsWith('中') || upper === 'P1') return 'medium'
+  if (upper.startsWith('低') || upper === 'P2') return 'low'
+  return undefined
 }
 
 /**
@@ -91,6 +121,11 @@ function cleanField(text: string): string {
     .trim()
 }
 
+/** 去掉反引号与 Markdown 标题井号，使派生标题干净可读。 */
+function stripMarkdownMarkers(text: string): string {
+  return cleanField(text.replace(/`/gu, '').replace(/(?:^|\s)#{1,6}\s+/gu, ' '))
+}
+
 /**
  * 把一条待改项拆成标题、位置、问题与建议四个展示字段。
  * @param itemText - 去掉列表符号后的完整正文。
@@ -98,28 +133,37 @@ function cleanField(text: string): string {
  */
 function parseTodoItem(itemText: string): Pick<ReviewTodo, 'title' | 'location' | 'problem' | 'suggestion' | 'priority'> {
   const label = PRIORITY_LABEL.exec(itemText)
-  const mark = label?.[1] ?? label?.[2]
-  const priority: ReviewPriority | undefined = mark === '高'
-    ? 'high'
-    : mark === '中'
-      ? 'medium'
-      : mark === '低'
-        ? 'low'
-        : undefined
-  const work = itemText.replace(PRIORITY_MARK, ' ').replace(/\s*\n\s*/gu, ' ').replace(/[ \t]+/gu, ' ').trim()
+  const mark = label?.[1] ?? label?.[2] ?? label?.[3] ?? label?.[4]
+  const priority = mapPriority(mark)
+  let work = itemText
+    .replace(PRIORITY_MARK, ' ')
+    .replace(/\s*\n\s*/gu, ' ')
+    .replace(/[ \t]+/gu, ' ')
+    .trim()
+    .replace(LEADING_SEPARATORS, '')
 
-  // 标题：开头加粗的一句话优先；否则取破折号前，或第一句。
+  // 标题：开头加粗的一句话（非裸优先级词）优先；否则取破折号前，或第一句。
   let title = ''
   let rest = work
   const bold = /^\*\*(.+?)\*\*/u.exec(work)
   if (bold !== null) {
-    title = cleanField(bold[1] ?? '')
-    rest = work.slice(bold[0].length).trim()
-  } else {
+    const candidate = cleanField(bold[1] ?? '')
+    if (candidate !== '' && !BARE_PRIORITY.test(candidate)) {
+      title = candidate
+      rest = work.slice(bold[0].length).trim()
+    } else {
+      work = work.slice(bold[0].length).replace(LEADING_SEPARATORS, '').trim()
+      rest = work
+    }
+  }
+  if (title === '') {
     const dash = work.indexOf('——')
     const stop = dash >= 0 ? dash : work.search(/[。！？.!?]/u)
     const raw = (stop >= 0 ? work.slice(0, stop) : work).trim()
-    title = cleanField(raw.replace(/^位置[:：]\s*/u, ''))
+    const cleaned = stripMarkdownMarkers(raw.replace(/^位置[:：]\s*/u, ''))
+    if (cleaned !== '' && !BARE_PRIORITY.test(cleaned)) {
+      title = clampSummary(cleaned)
+    }
   }
 
   const locationMatch = /位置[:：]?\s*([^。；;！？\n]+)/u.exec(rest)
@@ -132,11 +176,23 @@ function parseTodoItem(itemText: string): Pick<ReviewTodo, 'title' | 'location' 
   const afterLocation = locationMatch === null
     ? beforeSuggestion
     : beforeSuggestion.slice(locationMatch.index + locationMatch[0].length)
-  const problem = cleanField(afterLocation.replace(/^[。；;，,、\s]+/u, '').replace(/^问题[:：]?\s*/u, ''))
+  const problem = cleanField(afterLocation.replace(/^[。；;，,、—\-\s]+/u, '').replace(/^问题[:：]?\s*/u, ''))
+
+  if (title === '' || BARE_PRIORITY.test(title)) {
+    const firstProblemSentence = /^(.+?[。！？.!?])/u.exec(problem)?.[1] ?? problem
+    const fromProblem = clampSummary(cleanField(firstProblemSentence))
+    const fromLocation = clampSummary(stripMarkdownMarkers(location))
+    const fromWork = summaryOf(work)
+    title = fromProblem !== '' && !BARE_PRIORITY.test(fromProblem)
+      ? fromProblem
+      : fromLocation !== '' && !BARE_PRIORITY.test(fromLocation)
+        ? fromLocation
+        : fromWork
+  }
 
   return {
     ...(priority === undefined ? {} : { priority }),
-    title: title === '' ? summaryOf(itemText) : title,
+    title: title === '' || BARE_PRIORITY.test(title) ? summaryOf(itemText) : title,
     location,
     problem,
     suggestion,
@@ -329,4 +385,26 @@ export function parseReviewReport(text: string): ParsedReviewReport {
     ...tableBlocks.flatMap(block => parseTableTodos(block)),
   ].sort((left, right) => priorityRank(left.priority) - priorityRank(right.priority))
   return { summary: summaryLines.join('\n').trim(), todos }
+}
+
+/**
+ * 判断评审报告是否达到「可以确认」且无待改项的直接过审条件。
+ * @param text - 评审报告 Markdown 原文。
+ * @returns 结论小节包含「可以确认」、不含「需要修改」且解析后无待改项时返回 true。
+ */
+export function isConfirmableReviewReport(text: string): boolean {
+  const conclusionLines: string[] = []
+  let inConclusion = false
+  for (const line of text.replace(/\r\n?/g, '\n').split('\n')) {
+    if (/^##\s+(?:结论|评审结论|总体结论)\s*$/u.test(line)) {
+      inConclusion = true
+      continue
+    }
+    if (inConclusion && /^##\s+/u.test(line)) break
+    if (inConclusion) conclusionLines.push(line)
+  }
+  const conclusion = conclusionLines.join('\n')
+  return conclusion.includes('可以确认')
+    && !conclusion.includes('需要修改')
+    && parseReviewReport(text).todos.length === 0
 }
