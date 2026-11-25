@@ -45,12 +45,6 @@ const V3 = `# 需求标题
 需要记录操作人。
 `
 
-const SNAPSHOTS: Readonly<Record<string, string>> = {
-  '.spec/requirements/REQ-01/versions/v1.md': V1,
-  '.spec/requirements/REQ-01/versions/v2.md': V2,
-  '.spec/requirements/REQ-01/versions/v3.md': V3,
-}
-
 const ROW: RequirementDocRow = {
   id: 'REQ-01',
   title: '修改批注需求',
@@ -71,6 +65,39 @@ const SINGLE: RequirementDocRow = {
   title: '单版本需求',
   text: V1,
   versions: [{ n: 1, at: '2026-11-18T09:00:00+08:00', note: '初稿' }],
+}
+
+const LONG_V1 = `# 长文需求
+
+## 背景
+${'甲'.repeat(200)}乙
+`
+
+const LONG_V2 = `# 长文需求
+
+## 背景
+${'甲'.repeat(200)}丙
+`
+
+const LONG_ROW: RequirementDocRow = {
+  id: 'REQ-03',
+  title: '长文需求',
+  text: LONG_V2,
+  state: 'draft',
+  options: [],
+  versions: [
+    { n: 1, at: '2026-11-18T09:00:00+08:00', note: '初稿' },
+    { n: 2, at: '2026-11-19T10:00:00+08:00', note: '改一处措辞' },
+  ],
+  reviews: [],
+}
+
+const SNAPSHOTS: Readonly<Record<string, string>> = {
+  '.spec/requirements/REQ-01/versions/v1.md': V1,
+  '.spec/requirements/REQ-01/versions/v2.md': V2,
+  '.spec/requirements/REQ-01/versions/v3.md': V3,
+  '.spec/requirements/REQ-03/versions/v1.md': LONG_V1,
+  '.spec/requirements/REQ-03/versions/v2.md': LONG_V2,
 }
 
 function projectionOf(row: RequirementDocRow): SpecProjection {
@@ -223,6 +250,37 @@ describe('正文高亮与批注卡', () => {
     expect(all('requirement-annotation-earlier')).toHaveLength(0)
     await press(historyToggle)
     expect(all('requirement-annotation-earlier')).toHaveLength(1)
+  })
+
+  it('短片段不渲染折叠按钮', async () => {
+    await renderDetail(ROW)
+    await press(element('requirement-annotation-toggle'))
+    expect(element('requirement-annotation-segment-toggle')).toBeNull()
+  })
+
+  it('长片段按字数折叠，展开后显示全部并可再收起', async () => {
+    await renderDetail(LONG_ROW)
+    await press(element('requirement-annotation-toggle'))
+    const toggles = all('requirement-annotation-segment-toggle')
+    expect(toggles).toHaveLength(1)
+    expect(toggles[0]?.getAttribute('aria-expanded')).toBe('false')
+    expect(toggles[0]?.textContent).toContain('展开全文')
+    const folded = element('requirement-annotation-segments')
+    expect(folded?.textContent).toContain('片段已折叠')
+    expect(folded?.textContent).toContain('…')
+    expect(folded?.textContent).not.toContain('丙')
+
+    await press(toggles[0] ?? null)
+    const expandedToggle = element('requirement-annotation-segment-toggle')
+    expect(expandedToggle?.getAttribute('aria-expanded')).toBe('true')
+    expect(expandedToggle?.textContent).toContain('收起')
+    const unfolded = element('requirement-annotation-segments')
+    expect(unfolded?.textContent).toContain('丙')
+    expect(unfolded?.textContent).not.toContain('片段已折叠')
+
+    await press(expandedToggle)
+    expect(element('requirement-annotation-segment-toggle')?.textContent).toContain('展开全文')
+    expect(element('requirement-annotation-segments')?.textContent).not.toContain('丙')
   })
 })
 

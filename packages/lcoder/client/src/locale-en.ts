@@ -647,7 +647,7 @@ export const EN: Readonly<Record<MessageKey, string>> = {
   'requirement.annotations.expandEarlier': 'Show {count} earlier changes',
   'requirement.annotations.collapseEarlier': 'Hide earlier changes',
   'requirement.annotations.expandSegments': 'Show full text',
-  'requirement.annotations.collapseSegments': 'Fold text',
+  'requirement.annotations.collapseSegments': 'Collapse',
   'requirement.annotations.segmentsFolded': 'Text folded',
   'requirement.annotations.empty': 'No annotations for this version.',
   'requirement.annotations.loading': 'Loading version snapshots…',

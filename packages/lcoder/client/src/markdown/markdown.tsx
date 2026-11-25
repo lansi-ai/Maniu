@@ -79,6 +79,64 @@ function listKind(line: string): 'ul' | 'ol' {
   return /^\d/u.test(line.trim()) ? 'ol' : 'ul'
 }
 
+/** 行首缩进宽度：制表符按一级（2 列）折算。 */
+function listIndent(line: string): number {
+  const prefix = /^[ \t]*/u.exec(line)?.[0] ?? ''
+  let width = 0
+  for (const ch of prefix) width += ch === '\t' ? 2 : 1
+  return width
+}
+
+/** 去掉行首的列表符号，保留条目正文。 */
+function listItemText(line: string): string {
+  return line.trim().replace(/^(?:[-*+]|\d{1,3}[.)])\s+/u, '')
+}
+
+/** 一层列表：条目自带更深缩进的子列表。 */
+interface ParsedList {
+  readonly kind: 'ul' | 'ol'
+  readonly items: readonly ParsedListItem[]
+}
+
+/** 一个列表条目与它下面的子列表。 */
+interface ParsedListItem {
+  readonly text: string
+  readonly children: readonly ParsedList[]
+}
+
+/** 从 `start` 解析同缩进的一层列表，遇到更深的行就收成上一条目的子列表。 */
+function parseList(lines: readonly string[], start: number, indent: number): [ParsedList, number] {
+  const kind = listKind(lines[start] ?? '')
+  const items: ParsedListItem[] = []
+  let index = start
+  while (index < lines.length) {
+    const line = lines[index] ?? ''
+    if (!isListLine(line) || listIndent(line) !== indent || listKind(line) !== kind) break
+    const text = listItemText(line)
+    index += 1
+    const children: ParsedList[] = []
+    while (index < lines.length && isListLine(lines[index] ?? '') && listIndent(lines[index] ?? '') > indent) {
+      const nested = listIndent(lines[index] ?? '')
+      const [child, next] = parseList(lines, index, nested)
+      children.push(child)
+      index = next
+    }
+    items.push({ text, children })
+  }
+  return [{ kind, items }, index]
+}
+
+/** 把解析结果渲染成嵌套的无序或有序列表，条目正文继续走行内语法。 */
+function renderList(list: ParsedList, key: string): JSX.Element {
+  const children = list.items.map((item, itemIndex) => (
+    <li key={String(itemIndex)}>
+      {inline(item.text, `${key}-${String(itemIndex)}`)}
+      {item.children.map((child, childIndex) => renderList(child, `${key}-${String(itemIndex)}-${String(childIndex)}`))}
+    </li>
+  ))
+  return list.kind === 'ol' ? <ol key={key}>{children}</ol> : <ul key={key}>{children}</ul>
+}
+
 /**
  * 把 Markdown 文本渲染成块级元素。
  * @param text - 文档原文。
@@ -134,14 +192,9 @@ export function renderMarkdown(text: string): ReactNode[] {
       continue
     }
     if (isListLine(line)) {
-      const kind = listKind(line)
-      const items: string[] = []
-      while (index < lines.length && isListLine(lines[index] ?? '')) {
-        items.push((lines[index] ?? '').replace(/^(?:[-*+]|\d{1,3}[.)])\s+/u, ''))
-        index += 1
-      }
-      const children = items.map((item, itemIndex) => <li key={String(itemIndex)}>{inline(item, `${key}-${String(itemIndex)}`)}</li>)
-      blocks.push(kind === 'ol' ? <ol key={key}>{children}</ol> : <ul key={key}>{children}</ul>)
+      const [list, next] = parseList(lines, index, listIndent(line))
+      blocks.push(renderList(list, key))
+      index = next
       continue
     }
     if (/^(?:---+|\*\*\*+|___+)$/u.test(line.trim())) {
