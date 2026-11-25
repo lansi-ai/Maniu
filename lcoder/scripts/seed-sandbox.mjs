@@ -168,6 +168,27 @@ function buildSeedFiles() {
 - **AC-6**：当员工点击某条草稿记录的「删除」按钮时，应从近期报销记录列表中移除该记录，并同步刷新本地草稿计数。
 `
 
+  // T-328：同一需求的三版快照，覆盖段落词级修改、新增章节与整段删除，供修改批注视图开箱演示。
+  const req01ObsoleteSection = `
+## 旧版离线导出
+
+早期版本允许员工把报销单导出为本地 CSV 文件，新版不再保留该入口。
+`
+  const req01SafetySection = `
+## 安全与审计
+
+报销单与草稿的读写仅限当前登录员工本人；任何批量导出与下载入口都不在本期范围。
+`
+  const req01V1Md = req01Md
+    .replace('轻量级的单页报销录入与近期记录查看能力', '单页报销录入与近期记录查看能力')
+    .replace('将表单退回率降低 50% 以上。', '将表单退回率降低 30% 以上。')
+    .replace('- **关联约束**：依赖 `REQ-04` 提供当前登录员工身份；报销单正式提交后的状态流转与审批通知遵循 `REQ-03` 规则。\n', '')
+    .replace('- 当员工点击「提交审批」或「暂存草稿」且报销金额小于或等于 0、或非合法数字时，系统应阻断操作并在表单反馈区提示「请输入大于 0 的报销金额」。\n', '')
+    + req01ObsoleteSection
+  const req01V2Md = req01Md + req01ObsoleteSection + req01SafetySection
+  const req01V3Md = (req01Md + req01SafetySection)
+    .replace('轻量级的单页报销录入与近期记录查看能力', '轻量的单页报销录入与近期记录查看能力')
+
   const req01ReviewR1 = `# REQ-01 评审报告 R1
 
 ## 评审结论
@@ -1095,6 +1116,22 @@ versions:
   - n: 1
     at: '2026-11-18T09:00:00+08:00'
     note: 初稿
+  - n: 2
+    at: '2026-11-19T10:00:00+08:00'
+    note: 补充单笔金额校验、关联约束与安全审计边界
+  - n: 3
+    at: '2026-11-23T14:20:00+08:00'
+    note: 细化录入描述并移除旧版离线导出章节
+amendCount: 2
+amendments:
+  - at: '2026-11-19T10:00:00+08:00'
+    summary: 补充单笔金额校验与跨需求关联约束，明确安全审计边界
+    files: [.spec/requirements/REQ-01.md]
+    actor: maniu-pm
+  - at: '2026-11-23T14:20:00+08:00'
+    summary: 细化报销录入轻量化描述并移除旧版离线导出入口
+    files: [.spec/requirements/REQ-01.md]
+    actor: maniu-pm
 reviews:
   - round: 1
     at: '2026-11-18T11:30:00+08:00'
@@ -1113,8 +1150,10 @@ prototype:
     hits: [报销, 费用, 金额, 表单, 审批, 列表, 草稿, 提交, 差旅]
     misses: [餐饮]
 `,
-    '.spec/requirements/REQ-01.md': req01Md,
-    '.spec/requirements/REQ-01/versions/v1.md': req01Md,
+    '.spec/requirements/REQ-01.md': req01V3Md,
+    '.spec/requirements/REQ-01/versions/v1.md': req01V1Md,
+    '.spec/requirements/REQ-01/versions/v2.md': req01V2Md,
+    '.spec/requirements/REQ-01/versions/v3.md': req01V3Md,
     '.spec/requirements/REQ-01/reviews/R1.md': req01ReviewR1,
     '.spec/prototypes/REQ-01/index.html': req01PrototypeHtml,
 
