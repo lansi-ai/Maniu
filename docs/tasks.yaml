@@ -3692,6 +3692,18 @@ tracks:
       dep: []
       inferred: false
       note: "B 级 client 交互与视觉工单，来源用户 2026-11-25 独立工单：任务详情顶部负责人胶囊只显示人名点击原地弹人物名片浮卡并在浮卡内提供更换负责人入口不跳页面。只改 packages/lcoder 下文件主要涉及 client/src/spec/board.ts 与 pages/task-detail.tsx 与 workbench.css 与 locale zh en 及对应单测，严禁改上游核心包与 AGENTS CLAUDE，可见文案与 aria-label title 走 locale 与 t，界面绝不露出英文角色 id 如 fe-dev api-engineer。与并行工单 T-329 仅共享 workbench.css 与 locale 文件，实现时只在文件末尾追加新规则与新键、不重排既有块以降低冲突。范围一人名与岗位解析纯函数 parseRoleIdentity(roleId, roles) 放 board.ts：personName 按短横或破折号或中点或竖线分隔取后段人名无后缀则 undefined；roleTitle 复用 roleTitleOf；displayName 有人名优先人名否则回退岗位名绝不展示英文 id。范围二顶部负责人胶囊改为单一可点击入口去掉独立铅笔图标按钮，整个胶囊为轻交互按钮带柔和 hover 底与键盘访问与 aria-expanded；已分配显示负责人加极小首字圆形头像加人名仅人名紧凑清爽，未分配显示负责人待指定。范围三点击弹人物名片浮卡紧贴胶囊下方约 280 至 310px 圆角 12px surface 背景 border 边框柔和阴影亮暗主题一致，点外部或按 Esc 收起且不关闭任务详情抽屉。名片态已分配默认进入：头部首字头像加人名加岗位小徽标加派生来源轻标签若有 derivedFrom 如来自实施；职责简介展示 persona 为空不占行；擅长范围若 signals.preferredPaths 或 strong 非空以轻量小标签展示否则省略；当前任务统计直接从 props.projection.tasks 统计该角色任务概况如名下三个任务一进行中一已完成零新后端接口；底部更换负责人按钮点击在同一浮卡内原地切改派态不关弹窗不跳页面。改派态未分配点击胶囊直接进入或从名片态切换进入：从名片态切入时头部给小返回按钮回名片；保留既有完整改派闭环本项目办公室成员每行人名加岗位徽标区分同岗位多人无英文 id 当前负责人带勾选标记点击任意成员执行 /task_assign 任务号 角色号 保存并关闭浮卡；保留底部从人才库选岗位并添人与新建项目岗位并添人 scope project 入口。范围四更新补充 task-role-assign.client.spec.tsx 与受影响 task-detail 单测覆盖胶囊仅显示人名且无铅笔与英文 id、点击已分配胶囊弹名片展示姓名岗位职责名下任务数、名片内更换负责人原地切改派列表且可完成改派与从人才库添人与新建项目级岗位添人、未分配点击直接进改派态、点外部或 Esc 收起。门禁 fast-check client 与 verify-client-ui-i18n 与 rebuild client；汇报改动文件与实测结果。未授权不提交不推送。2026-11-25 监督窗口登记。"
+    - id: T-331
+      title: 修复重新生成原型的二次确认与悬浮任务卡及对话实时输出
+      status: todo
+      face: 用户端
+      type: 缺陷
+      owner: lance
+      created: '2026-11-25'
+      date: '2026-11-25'
+      dep: []
+      inferred: false
+      note: "B 级 client 缺陷修复，来源用户 2026-11-25 独立工单：点击重新生成原型存在三个体验与联动问题缺二次确认、没有悬浮任务卡、切到对话页看不到实时输出。只改 packages/lcoder 下文件严禁改上游核心包与 AGENTS CLAUDE，文案与提示走 locale zh en 与 t。与并行工单 T-329 T-330 共享 workbench.css 与 locale 文件，实现只在末尾追加不重排。范围一补齐二次确认：需求详情原型区 prototype-panel.tsx 点击重新生成 prototype-generate 或 prototype-quality-regenerate 时先弹清晰确认提示将基于当前需求与所选风格覆盖暂存原型是否继续确认后再调 doGenerate；原型页 prototype-page.tsx 确认入口在真正提交 AI 生成前给出明确确认，若有暂存或正式版则明确告知将生成新暂存版本且不会丢失旧正式版确认后再触发 onStartSession。范围二接入统一悬浮任务进度卡片 OperationCards：prototype-page.tsx 在确认发起生成拿到 sessionId 后弹出 OperationCards 悬浮卡复用 shell/operation-cards.tsx 与 useOpLiveFeeds，卡片展示任务标题如重新生成原型与步骤状态发起生成到 AI 编写原型到写入暂存完成与实时流式输出与工具动态与可拖动最小化关闭与查看对话按钮点击调用 onOpenSession 直达会话；app.tsx 切页时确保 OperationCards 不被 display none 吞掉例如 createPortal 到 body 或提升全局挂载层，避免从原型页切到总览需求任务时卡片消失；prototype-panel.tsx 需求详情内触发重新生成同样接入 requirements.tsx 现有 OperationCards 卡片列表保持两处入口一致。范围三修复切到对话看不到输出：app.tsx launchSession 在 session prompt 返回 ok 后立即把本地 sessions 中该 sessionId 更新为 blank false 与 running true 不再停留在 blank true running false 被 visibleSessionsOf 过滤隐藏；记录最近一次后台启动的运行中会话或当用户切到对话页且 active 为空或已结束或在流程执行记录有 running true 会话时自动展开并高亮运行中标记，确保手动切到对话页也能一眼看到正在运行的重新生成原型会话，点击或任务浮卡查看对话进入后立刻看到实时流式输出并核查 selectSession 打开运行中会话是否正常订阅 session stream 并渲染已有增量帧。范围四更新单测：prototype-panel 与 prototype-page 覆盖点重新生成先弹确认未确认不调 onStartSession 确认后弹 OperationCards 显示实时进度与查看对话；session-groups 与 app 覆盖 launchSession route false 发送 prompt 成功后会话立刻 blank false running true 不被 visibleSessionsOf 过滤打开能看到流式输出。门禁 fast-check client 与 verify-client-ui-i18n 与 rebuild client；汇报改动文件与验证结果。未授权不提交不推送。2026-11-25 监督窗口登记。"
+
 
 
 
