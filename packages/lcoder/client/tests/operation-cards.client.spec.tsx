@@ -74,18 +74,20 @@ describe('操作进度浮卡', () => {
     expect(element('operation-cards')).toBeNull()
   })
 
-  it('进行中卡去掉标题下岗位副标题，改为横向进度条首节点展示岗位并保留状态色指示', () => {
+  it('进行中卡为窄卡：第一行标题与操作，第二行步骤进度，第三行细进度条，不显示底部提示', () => {
     render([cardOf()])
     const card = element('requirement-op-running')
     expect(card?.className).toContain('op-running')
     expect(card?.querySelector('h3')?.textContent).toBe('需求评审')
     expect(card?.querySelector('.op-sub')).toBeNull()
-    expect(element('op-step-role')?.textContent).toBe('项目经理')
-    expect(element('op-step-role')?.getAttribute('title')).toBe('项目经理 · 内置岗位')
-    expect(card?.querySelectorAll('.op-step-done')).toHaveLength(1)
-    expect(card?.querySelectorAll('.op-step-active')).toHaveLength(1)
-    expect(card?.querySelectorAll('.op-step-pending')).toHaveLength(2)
-    expect(card?.querySelector('.op-steps.op-steps-horizontal')?.getAttribute('title')).toContain('评审进行中')
+    expect(card?.querySelector('.op-step-role')).toBeNull()
+    expect(card?.querySelector('.op-steps')).toBeNull()
+    expect(element('op-step-progress')?.textContent).toBe('第 2 步 / 共 4 步 · 岗位工作中')
+    const bar = element('op-progress-bar')
+    expect(bar?.getAttribute('data-status')).toBe('running')
+    expect(bar?.getAttribute('aria-valuenow')).toBe('1')
+    expect(bar?.querySelector('.op-progress-fill')?.getAttribute('style')).toContain('25%')
+    expect(card?.querySelector('.op-status')).toBeNull()
   })
 
   it('进行中卡只能最小化与查看对话，不能关闭', () => {
@@ -99,7 +101,7 @@ describe('操作进度浮卡', () => {
     expect(onToggleMinimize).toHaveBeenCalledWith('review-REQ-01-1')
   })
 
-  it('完成卡状态色指示、四步全完成、可关闭', () => {
+  it('完成卡状态色指示、四步全完成、可关闭，底部提示只在结束态显示', () => {
     render([cardOf({
       status: 'done',
       statusText: '评审完成：REQ-01 的最新报告已在详情中展示。',
@@ -112,12 +114,15 @@ describe('操作进度浮卡', () => {
     })])
     const card = element('requirement-op-success')
     expect(card?.className).toContain('op-done')
-    expect(card?.querySelectorAll('.op-step-done')).toHaveLength(4)
+    expect(element('op-step-progress')?.textContent).toBe('第 4 步 / 共 4 步 · 完成')
+    expect(element('op-progress-bar')?.getAttribute('data-status')).toBe('done')
+    expect(element('op-progress-bar')?.querySelector('.op-progress-fill')?.getAttribute('style')).toContain('100%')
+    expect(card?.querySelector('.op-status')?.textContent).toContain('评审完成')
     press('op-close')
     expect(onClose).toHaveBeenCalledWith('review-REQ-01-1')
   })
 
-  it('失败卡警示色指示，保留打开会话与手动刷新入口', () => {
+  it('失败卡警示色指示，进度停在被删步骤前最后开始的节点，保留打开会话与手动刷新入口', () => {
     render([cardOf({
       status: 'failed',
       statusText: '等待超时：REQ-01 的操作仍未见结果，可打开会话查看进度或手动刷新。',
@@ -131,7 +136,8 @@ describe('操作进度浮卡', () => {
     const card = element('requirement-op-timeout')
     expect(card?.className).toContain('op-failed')
     expect(card?.textContent).toContain('等待超时')
-    expect(card?.querySelectorAll('.op-step-failed')).toHaveLength(1)
+    expect(element('op-step-progress')?.textContent).toBe('第 2 步 / 共 4 步 · 岗位工作中')
+    expect(element('op-progress-bar')?.getAttribute('data-status')).toBe('failed')
     press('requirement-op-timeout-session')
     expect(onOpenSession).toHaveBeenCalledWith('session-1')
     press('requirement-op-timeout-reload')
@@ -203,7 +209,7 @@ describe('操作进度浮卡', () => {
     })
     const card = element('requirement-op-running')
     expect(card?.className).toContain('op-running')
-    expect(card?.textContent).toContain('等待你确认')
+    expect(card?.querySelector('.op-status')).toBeNull()
     expect(element('op-confirm-intake')?.textContent).toBe('确认需求')
     expect(element('op-view-session')?.textContent).toBe('查看概要')
     press('op-confirm-intake')
@@ -262,7 +268,6 @@ describe('提案等待对比浮卡', () => {
         />,
       )
     })
-    expect(element('requirement-op-running')?.textContent).toContain('提案待你对比确认')
     expect(element('op-go-compare')?.textContent).toBe('去对比')
     press('op-go-compare')
     expect(onCompare).toHaveBeenCalledWith('P-01')
@@ -495,7 +500,7 @@ describe('浮卡实时工作过程面板', () => {
     expect(output?.querySelector('strong')?.textContent).toBe('已完成')
     expect(output?.querySelector('code')?.textContent).toBe('REQ-01')
 
-    expect(container.querySelector('.op-steps.op-steps-horizontal')).not.toBeNull()
+    expect(element('op-progress')).not.toBeNull()
     expect(container.querySelector('.op-steps-popover')).toBeNull()
   })
 

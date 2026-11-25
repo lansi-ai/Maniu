@@ -224,7 +224,8 @@ describe('新建需求入口', () => {
 
     h.render(projectionOf([REQ], [NEW_PROPOSAL]))
     const card = element('requirement-op-running')
-    expect(card?.textContent).toContain('提案待你对比确认')
+    expect(card?.textContent).toContain('新建需求')
+    expect(card?.querySelector('.op-status')).toBeNull()
     expect(element('op-go-compare')).not.toBeNull()
 
     await press('op-go-compare')
@@ -278,7 +279,7 @@ describe('改稿提案等待态', () => {
     expect(element('requirement-document-body')?.textContent).toContain('自营订单按下限兜底')
 
     h.render(projectionOf([REQ], [PATCH_PROPOSAL]))
-    expect(element('requirement-op-running')?.textContent).toContain('提案待你对比确认')
+    expect(element('op-go-compare')?.textContent).toBe('去对比')
     expect(element('requirement-modify-view-diff')).not.toBeNull()
     await press('op-go-compare')
     expect(element('requirement-inline-compare')).not.toBeNull()

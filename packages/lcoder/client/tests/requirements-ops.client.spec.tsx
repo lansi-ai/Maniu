@@ -366,7 +366,7 @@ describe('交互期不误杀超时', () => {
 })
 
 describe('后台会话恢复入口', () => {
-  it('在跑的游离会话给出提示与查看对话入口，未跟踪会话不提示', async () => {
+  it('在跑的游离会话以运行卡出现并可查看对话，未跟踪会话不出现', async () => {
     const opened: string[] = []
     renderPage(
       projectionOf([DRAFT], []),
@@ -375,11 +375,13 @@ describe('后台会话恢复入口', () => {
       [{ sessionId: 'session-orphan', updatedAt: 1, running: true, blank: false }],
       (id) => { opened.push(id) },
     )
-    expect(element('requirement-background-recovery')?.textContent).toContain('有后台任务正在运行')
-    const entry = element('requirement-background-recovery-open')
-    expect(entry?.getAttribute('data-session-id')).toBe('session-orphan')
-    expect(entry?.textContent).toContain('查看对话')
-    await press('requirement-background-recovery-open')
+    expect(element('requirement-background-recovery')).toBeNull()
+    const card = document.querySelector('[data-op-key="recovered-session-orphan"]')
+    expect(card).not.toBeNull()
+    expect(card?.getAttribute('data-testid')).toBe('requirement-op-running')
+    expect(card?.textContent).toContain('后台任务')
+    expect(element('op-view-session')?.getAttribute('aria-label')).toBe('查看对话')
+    await press('op-view-session')
     expect(opened).toEqual(['session-orphan'])
 
     renderPage(
@@ -388,7 +390,8 @@ describe('后台会话恢复入口', () => {
       () => {},
       [{ sessionId: 'session-idle', updatedAt: 1, running: false, blank: false }],
     )
-    expect(element('requirement-background-recovery')).toBeNull()
+    expect(document.querySelector('[data-op-key="recovered-session-orphan"]')).toBeNull()
+    expect(document.querySelector('[data-op-key="recovered-session-idle"]')).toBeNull()
   })
 })
 

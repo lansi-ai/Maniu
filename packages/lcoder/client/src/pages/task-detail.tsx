@@ -4,17 +4,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { JSX } from 'react'
 import { Button, Chip } from '@heroui/react'
 import { createPortal } from 'react-dom'
-import { ArrowLeft, Check, FileText, Loader2, Pencil, SlidersHorizontal, Trash2, X } from 'lucide-react'
+import { ArrowLeft, Check, ChevronDown, FileText, Loader2, Pencil, Trash2, X } from 'lucide-react'
 import type { SpecProjection } from '../spec/load.ts'
 import type { ContractRow, TaskRow } from '../spec/rows.ts'
 import type { ProjectScope } from '../workspace/use-workspaces.ts'
 import type { SessionSummary } from '../store.ts'
 import { STATE_LABELS, parseRoleIdentity, roleTitleOf, ruleTitleOf, trackLabel } from '../spec/board.ts'
 import { translate, type Translate } from '../locale.ts'
-import { buildTaskImplementPlanPrompt, buildTaskModifyPrompt } from '../intake/prompts.ts'
+import { buildTaskDesignPrompt, buildTaskImplementPlanPrompt, buildTaskModifyPrompt } from '../intake/prompts.ts'
 import { MANAGER_PRESET_ID } from '../talents/model.ts'
 import { useOpLiveFeeds, type OpLiveFeed } from '../shell/op-live-feed.ts'
 import { DocumentReaderDialog } from '../markdown/document-viewer.tsx'
+import { renderMarkdown } from '../markdown/markdown.tsx'
 import { runCommand, type CommandOutcome } from '../commands/run.ts'
 import { scheduleTask } from '../flow/scheduling.ts'
 import { PRESET_ROLE_KEY, presetRoot } from '../flow/config.ts'
@@ -71,47 +72,313 @@ export interface TaskDetailProps {
 
 const TECHNICAL_SECTION_RE = /(?:^|\n)\s*(?:#{2,3}\s*(?:技术实施细节|技术细节|实施方案|技术方案)|(?:范围|技术方案|技术实施|验收标准|验收)[：:])/u
 
+/** 详细设计二级标题；只在行首独立成行时才分段，避免正文里提到这个词被误切。 */
+const DESIGN_HEADING_RE = /^##[ \t]*详细设计[ \t]*$/mu
+
+/** 详细设计小节标题：三级/四级标题或整行加粗小标题。 */
+const DESIGN_BLOCK_HEAD_RE = /^(?:#{3,4}[ \t]+(.+?)[ \t]*|\*\*(.+?)\*\*[ \t]*)$/u
+
+const DESIGN_LIST_ITEM_RE = /^(?:[-*+][ \t]+|\d+[.)][ \t]+)/u
+
+/** 详细设计的分块、折叠与阅读器阈值；三处判定共用同一组常量。 */
+export const DESIGN_LIMITS = {
+  /** 合计不超过该条数时，所有块默认展开。 */
+  expandItems: 12,
+  /** 合计超过该条数时，卡片只保留概述与第一块，其余进阅读器。 */
+  readerItems: 30,
+  /** 正文超过该字数时，同样收进阅读器。 */
+  readerChars: 3000,
+} as const
+
+/** 详细设计里一个可折叠的块：小标题、正文与条目数。 */
+export interface DesignBlock {
+  readonly title: string
+  readonly body: string
+  readonly items: number
+}
+
 function cleanInternalRefs(text: string): string {
   return text.replace(/^(?:按|根据|依据)\s*P-\d+(?:\s*方案\s*[A-Za-z0-9]+)?\s*/u, '').trim()
 }
 
-/**
- * 把任务说明拆成「简洁人话概述」与「技术实施细节」两部分，默认只展示前者。
- * @param raw - 原始任务描述正文。
- * @returns 概述与可选的技术实施细节。
- */
-export function splitTaskDescription(raw: string): { readonly summary: string; readonly technical: string } {
-  const trimmed = raw.trim()
-  if (trimmed === '') return { summary: '', technical: '' }
+/** 从正文里抽出 `## 详细设计` 到下一个二级标题之间的内容。 */
+function extractDesignSection(text: string): { readonly rest: string; readonly design: string } {
+  const match = DESIGN_HEADING_RE.exec(text)
+  if (match === null) return { rest: text, design: '' }
+  const contentStart = match.index + match[0].length
+  const tail = text.slice(contentStart)
+  const nextHeading = /^##(?!#)[ \t]*\S/mu.exec(tail)
+  const contentEnd = nextHeading === null ? text.length : contentStart + nextHeading.index
+  return {
+    rest: `${text.slice(0, match.index)}\n${text.slice(contentEnd)}`.trim(),
+    design: text.slice(contentStart, contentEnd).trim(),
+  }
+}
 
-  const match = TECHNICAL_SECTION_RE.exec(trimmed)
+/**
+ * 把任务说明拆成「简洁人话概述」「详细设计」与「技术实施细节」三部分。
+ * 详细设计先抽出，剩余正文再按原有技术标题识别，避免设计里的「验收标准：」被误判为技术段。
+ * @param raw - 原始任务描述正文。
+ * @returns 概述、可选的详细设计与可选的技术实施细节。
+ */
+export function splitTaskDescription(raw: string): {
+  readonly summary: string
+  readonly design: string
+  readonly technical: string
+} {
+  const trimmed = raw.trim()
+  if (trimmed === '') return { summary: '', design: '', technical: '' }
+
+  const { rest, design } = extractDesignSection(trimmed)
+  const body = rest.trim()
+  if (body === '') return { summary: '', design, technical: '' }
+
+  const match = TECHNICAL_SECTION_RE.exec(body)
   if (match !== null) {
     const idx = match.index === 0 ? 0 : match.index + 1
-    const head = cleanInternalRefs(trimmed.slice(0, idx))
-    const tail = trimmed.slice(idx).trim()
-    if (head !== '') return { summary: head, technical: tail }
+    const head = cleanInternalRefs(body.slice(0, idx))
+    const tail = body.slice(idx).trim()
+    if (head !== '') return { summary: head, design, technical: tail }
     // 如果整段开头就是技术标题，至少抽出首行/首句作为概述。
     const lines = tail.split('\n').map(line => line.trim()).filter(line => line !== '')
     const first = cleanInternalRefs(lines[0] ?? '')
     return {
       summary: first,
+      design,
       technical: lines.length > 1 ? tail : '',
     }
   }
 
-  const cleaned = cleanInternalRefs(trimmed)
+  const cleaned = cleanInternalRefs(body)
   const paragraphs = cleaned.split(/\n{2,}/u).map(part => part.trim()).filter(part => part !== '')
   if (paragraphs.length > 1) {
     return {
       summary: paragraphs[0] ?? cleaned,
+      design,
       technical: paragraphs.slice(1).join('\n\n'),
     }
   }
-  return { summary: cleaned, technical: '' }
+  return { summary: cleaned, design, technical: '' }
+}
+
+/** 数一块详细设计里的条目：优先数列项，没有列表时按自然段计。 */
+function countDesignItems(body: string): number {
+  let listItems = 0
+  let paragraphs = 0
+  let inParagraph = false
+  for (const rawLine of body.split('\n')) {
+    const line = rawLine.trim()
+    if (line === '') {
+      inParagraph = false
+      continue
+    }
+    if (DESIGN_LIST_ITEM_RE.test(line)) {
+      listItems += 1
+      inParagraph = false
+      continue
+    }
+    if (line.startsWith('|')) {
+      inParagraph = false
+      continue
+    }
+    if (!inParagraph) {
+      paragraphs += 1
+      inParagraph = true
+    }
+  }
+  return listItems > 0 ? listItems : paragraphs
+}
+
+/**
+ * 按 `###`/`####` 或整行加粗小标题把详细设计拆成块；没有小标题时整段算一块。
+ * @param design - 详细设计正文（不含 `## 详细设计` 标题）。
+ * @returns 顺序排列的设计块及各自的条目数。
+ */
+export function parseDesignBlocks(design: string): readonly DesignBlock[] {
+  const trimmed = design.trim()
+  if (trimmed === '') return []
+  const blocks: { title: string; lines: string[] }[] = []
+  let current: { title: string; lines: string[] } = { title: '', lines: [] }
+  const flush = (): void => {
+    if (current.title !== '' || current.lines.some(line => line.trim() !== '')) blocks.push(current)
+  }
+  for (const line of trimmed.split('\n')) {
+    const match = DESIGN_BLOCK_HEAD_RE.exec(line.trim())
+    if (match === null) {
+      current.lines.push(line)
+      continue
+    }
+    flush()
+    current = { title: (match[1] ?? match[2] ?? '').trim(), lines: [] }
+  }
+  flush()
+  return blocks.map((block) => {
+    const body = block.lines.join('\n').trim()
+    return { title: block.title, body, items: countDesignItems(body) }
+  })
+}
+
+/** 详细设计的展示预算：条目合计、字数与是否超出卡片容量。 */
+export interface DesignBudget {
+  readonly blocks: readonly DesignBlock[]
+  readonly items: number
+  readonly chars: number
+  readonly oversized: boolean
+}
+
+/**
+ * 计算详细设计的展示预算；卡片折叠、全部展开与阅读器兜底共用这一处判定。
+ * @param design - 详细设计正文（不含 `## 详细设计` 标题）。
+ * @returns 分块、条目合计、字数与是否需要收进阅读器。
+ */
+export function measureDesign(design: string): DesignBudget {
+  const blocks = parseDesignBlocks(design)
+  const items = blocks.reduce((sum, block) => sum + block.items, 0)
+  const chars = design.trim().length
+  return {
+    blocks,
+    items,
+    chars,
+    oversized: items > DESIGN_LIMITS.readerItems || chars > DESIGN_LIMITS.readerChars,
+  }
 }
 
 function contractOf(projection: SpecProjection, taskId: string): ContractRow | undefined {
   return projection.contracts.find(contract => contract.id === taskId)
+}
+
+/** 详细设计区块属性。 */
+interface TaskDesignSectionProps {
+  readonly design: string
+  readonly taskId: string
+  /** 后台正在补写详细设计：空态换成骨架行。 */
+  readonly generating: boolean
+  /** 上一次补写失败：给出说明与重试入口。 */
+  readonly failed: boolean
+  readonly canGenerate: boolean
+  readonly onGenerate: () => void
+  readonly t: Translate
+}
+
+/**
+ * 任务说明里的详细设计：按块折叠、超长收进阅读器，空态可直接让 AI 补写。
+ * @param props - 设计正文、补写状态与取词函数。
+ * @returns 详细设计区块。
+ */
+function TaskDesignSection(props: TaskDesignSectionProps): JSX.Element {
+  const t = props.t
+  const budget = useMemo(() => measureDesign(props.design), [props.design])
+  const [openBlocks, setOpenBlocks] = useState<readonly number[] | null>(null)
+  const [readerOpen, setReaderOpen] = useState(false)
+
+  if (props.design === '') {
+    return (
+      <section className="task-design is-empty" data-testid="task-design">
+        <div className="task-design-head">
+          <span className="task-design-title">{t('task.design.title')}</span>
+        </div>
+        {props.generating
+          ? (
+            <div className="task-design-skeleton" data-testid="task-design-skeleton" aria-hidden="true">
+              <span /><span /><span />
+            </div>
+          )
+          : props.failed
+            ? (
+              <>
+                <p className="task-design-note" data-testid="task-design-failed">{t('task.design.failed')}</p>
+                {props.canGenerate && (
+                  <button type="button" className="task-design-link" data-testid="task-design-retry" onClick={props.onGenerate}>
+                    {t('task.design.retry')}
+                  </button>
+                )}
+              </>
+            )
+            : (
+              <>
+                <p className="task-design-note" data-testid="task-design-empty">{t('task.design.empty')}</p>
+                {props.canGenerate && (
+                  <button type="button" className="task-design-link" data-testid="task-design-generate" onClick={props.onGenerate}>
+                    {t('task.design.generate')}
+                  </button>
+                )}
+              </>
+            )}
+      </section>
+    )
+  }
+
+  const totalItems = budget.items
+  const oversized = budget.oversized
+  const visible = oversized ? budget.blocks.slice(0, 1) : budget.blocks
+  const defaultAllOpen = totalItems <= DESIGN_LIMITS.expandItems
+  const isOpen = (index: number): boolean =>
+    openBlocks === null ? defaultAllOpen || index === 0 : openBlocks.includes(index)
+  const allOpen = visible.every((_, index) => isOpen(index))
+  const toggleBlock = (index: number): void => {
+    setOpenBlocks((current) => {
+      const base = current ?? visible.flatMap((__, position) => (defaultAllOpen || position === 0 ? [position] : []))
+      return base.includes(index) ? base.filter(item => item !== index) : [...base, index]
+    })
+  }
+  const toggleAll = (): void => {
+    setOpenBlocks(allOpen ? [] : visible.map((_, index) => index))
+  }
+
+  return (
+    <section className="task-design" data-testid="task-design">
+      <div className="task-design-head">
+        <span className="task-design-title">{t('task.design.title')}</span>
+        {!oversized && budget.blocks.length >= 3 && (
+          <button type="button" className="task-design-all" data-testid="task-design-toggle-all" onClick={toggleAll}>
+            {allOpen ? t('task.design.collapseAll') : t('task.design.expandAll')}
+          </button>
+        )}
+      </div>
+      {visible.map((block, index) => (block.title === ''
+        ? (
+          <div key={`block-${String(index)}`} className="task-design-prose markdown-body" data-testid="task-design-block">
+            {renderMarkdown(block.body)}
+          </div>
+        )
+        : (
+          <div key={`block-${String(index)}`} className="task-design-block" data-testid="task-design-block" data-title={block.title}>
+            <button
+              type="button"
+              className="task-design-block-head"
+              data-testid="task-design-block-toggle"
+              aria-expanded={isOpen(index)}
+              onClick={(event) => {
+                toggleBlock(index)
+                const head = event.currentTarget
+                if (typeof head.scrollIntoView === 'function') head.scrollIntoView({ block: 'nearest' })
+              }}
+            >
+              <span className="task-design-block-title">{block.title}</span>
+              <span className="task-design-block-count">· {t('task.design.itemsCount', { count: block.items })}</span>
+              <ChevronDown size={14} className="task-design-chevron" aria-hidden="true" />
+            </button>
+            <div className={`task-design-body${isOpen(index) ? ' is-open' : ''}`}>
+              <div className="task-design-prose markdown-body">{renderMarkdown(block.body)}</div>
+            </div>
+          </div>
+        )))}
+      {oversized && (
+        <button type="button" className="task-design-link" data-testid="task-design-view-full" onClick={() => { setReaderOpen(true) }}>
+          {t('task.design.viewFull', { count: totalItems })}
+        </button>
+      )}
+      <DocumentReaderDialog
+        open={readerOpen}
+        text={props.design}
+        title={t('task.design.title')}
+        subtitle={props.taskId}
+        t={t}
+        testIdPrefix="task-design"
+        onClose={() => { setReaderOpen(false) }}
+      />
+    </section>
+  )
 }
 
 function textList(values: readonly string[]): JSX.Element {
@@ -144,12 +411,12 @@ export function TaskDetail(props: TaskDetailProps): JSX.Element {
   const aliveRef = useRef(true)
   const isAlive = (): boolean => aliveRef.current
   const [techReaderOpen, setTechReaderOpen] = useState(false)
-  const [scopeOpen, setScopeOpen] = useState(false)
   const [advanceConfirmOpen, setAdvanceConfirmOpen] = useState(false)
   const [modifyOpen, setModifyOpen] = useState(false)
   const [modifyNote, setModifyNote] = useState('')
   const [discardConfirm, setDiscardConfirm] = useState(false)
-  const [bgOp, setBgOp] = useState<{ readonly kind: 'advance' | 'modify'; readonly sessionId: string } | null>(null)
+  const [designFailed, setDesignFailed] = useState(false)
+  const [bgOp, setBgOp] = useState<{ readonly kind: 'advance' | 'modify' | 'design'; readonly sessionId: string } | null>(null)
   const sawBgRunningRef = useRef(false)
   const descriptionParts = useMemo(() => splitTaskDescription(task.description), [task.description])
 
@@ -241,11 +508,11 @@ export function TaskDetail(props: TaskDetailProps): JSX.Element {
 
   useEffect(() => {
     setTechReaderOpen(false)
-    setScopeOpen(false)
     setAdvanceConfirmOpen(false)
     setModifyOpen(false)
     setModifyNote('')
     setDiscardConfirm(false)
+    setDesignFailed(false)
     setBgOp(null)
     setPickerOpen(false)
     sawBgRunningRef.current = false
@@ -286,11 +553,22 @@ export function TaskDetail(props: TaskDetailProps): JSX.Element {
   const bgFeeds = useOpLiveFeeds(bgSessionIds)
   const activeBgFeed = bgOp === null ? undefined : bgFeeds[bgOp.sessionId]
 
-  const finishBgOp = useCallback(async (op: { readonly kind: 'advance' | 'modify'; readonly sessionId: string }, turnEnd?: OpLiveFeed['turnEnd']): Promise<void> => {
+  const finishBgOp = useCallback(async (op: { readonly kind: 'advance' | 'modify' | 'design'; readonly sessionId: string }, turnEnd?: OpLiveFeed['turnEnd']): Promise<void> => {
     sawBgRunningRef.current = false
     setBgOp(null)
     if (turnEnd?.kind === 'error') {
+      if (op.kind === 'design') {
+        setDesignFailed(true)
+        setResult({ ok: false, text: t('task.design.failed') })
+        return
+      }
       setResult({ ok: false, text: t('task.advancePlanFailed', { detail: turnEnd.message }) })
+      return
+    }
+    if (op.kind === 'design') {
+      setDesignFailed(false)
+      setResult({ ok: true, text: t('task.design.done') })
+      props.onReload()
       return
     }
     if (op.kind === 'modify') {
@@ -540,6 +818,36 @@ export function TaskDetail(props: TaskDetailProps): JSX.Element {
       setBusy(null)
     }
   }
+  /** 待确认任务缺详细设计时，让研发经理原地补写；完成后刷新任务说明。 */
+  const generateDesign = async (): Promise<void> => {
+    if (busy !== null || bgOp !== null || props.onStartSession === undefined) return
+    setBusy('design')
+    setResult(null)
+    setDesignFailed(false)
+    try {
+      const requirementText = props.projection.requirements.find(row => row.id === task.requirement)?.text ?? ''
+      const prompt = buildTaskDesignPrompt(task, requirementText)
+      const started = await props.onStartSession(prompt, MANAGER_PRESET_ID)
+      if (!started.ok) {
+        setDesignFailed(true)
+        setResult({ ok: false, text: started.message })
+        return
+      }
+      if (started.sessionId !== undefined) {
+        sawBgRunningRef.current = false
+        setBgOp({ kind: 'design', sessionId: started.sessionId })
+      }
+    } finally {
+      setBusy(null)
+    }
+  }
+  const gradeText = task.grade === 'A'
+    ? t('task.scope.gradeA')
+    : task.grade === 'B'
+      ? t('task.scope.gradeB')
+      : task.grade === 'C'
+        ? t('task.scope.gradeC')
+        : undefined
   const trackText = trackLabel(task.track)
   const blockingDeps = useMemo(() => {
     if (task.dependsOn.length === 0) return []
@@ -558,7 +866,6 @@ export function TaskDetail(props: TaskDetailProps): JSX.Element {
       head={(
         <div className="task-detail-head">
           <span className="mono">{task.id}</span>
-          <Chip size="sm" variant="soft" color="accent">{task.grade}</Chip>
           <Chip size="sm" variant="soft">{STATE_LABELS[task.state] ?? task.state}</Chip>
         </div>
       )}
@@ -587,9 +894,6 @@ export function TaskDetail(props: TaskDetailProps): JSX.Element {
                 onClick={toggleAssignee}
               >
                 <span className="task-detail-pill-label">{t('task.assignee.label')}</span>
-                {assigneeName !== undefined && (
-                  <span className="task-assignee-avatar" aria-hidden="true">{initialOf(assigneeName)}</span>
-                )}
                 <strong data-testid="task-assignee-name">{displayRole}</strong>
               </button>
               {pickerOpen && (
@@ -849,7 +1153,7 @@ export function TaskDetail(props: TaskDetailProps): JSX.Element {
                   <div className="prototype-generating-bar" data-testid="task-bg-running">
                     <span className="prototype-generating-bar-main">
                       <Loader2 className="prototype-spin" size={14} aria-hidden="true" />
-                      <span>{bgOp.kind === 'advance' ? t('task.confirmAdvancing') : t('task.modifyRunning')}</span>
+                      <span>{bgOp.kind === 'advance' ? t('task.confirmAdvancing') : bgOp.kind === 'design' ? t('task.design.running') : t('task.modifyRunning')}</span>
                     </span>
                     <Button size="sm" variant="ghost" data-testid="task-bg-view-session" onPress={() => { props.onOpenSession?.(bgOp.sessionId) }}>
                       {t('task.viewSession')}
@@ -918,7 +1222,7 @@ export function TaskDetail(props: TaskDetailProps): JSX.Element {
 
         <div className="task-detail-grid">
           <div className="task-detail-main">
-            <section className="task-detail-card" data-testid="task-description">
+            <section className="task-detail-card" data-testid="task-description" key={task.id}>
               <div className="task-detail-card-head">
                 <h4 className="task-detail-card-title">任务说明</h4>
                 {descriptionParts.technical !== '' && (
@@ -939,83 +1243,30 @@ export function TaskDetail(props: TaskDetailProps): JSX.Element {
               {descriptionParts.summary === ''
                 ? <p className="empty">（没有描述）</p>
                 : <p className="task-summary-text">{descriptionParts.summary}</p>}
-            </section>
+              {(descriptionParts.design !== '' || task.state === 'drafting') && (
+                <TaskDesignSection
+                  design={descriptionParts.design}
+                  taskId={task.id}
+                  generating={bgOp?.kind === 'design'}
+                  failed={designFailed}
+                  canGenerate={props.onStartSession !== undefined && task.state === 'drafting' && bgOp === null && busy === null}
+                  onGenerate={() => { void generateDesign() }}
+                  t={t}
+                />
+              )}
 
-            {showContractSection && (
-              <section className="task-detail-card" data-testid="task-contract-section">
-                <h4 className="task-detail-card-title">开发契约</h4>
-                {contract === undefined
-                  ? <p className="empty" data-testid="task-contract-missing">暂未生成契约。</p>
-                  : (
-                    <div className="task-contract-body">
-                      <p className="detail-line">
-                        签署：
-                        <span data-testid="task-contract-signed">
-                          {contract.signedBy === null ? '未签署' : contract.signedBy === 'human' ? '人签' : `AI 自签（${contract.signedActor ?? '未知角色'}）`}
-                        </span>
-                        {contract.signedAt === null ? '' : ` · ${contract.signedAt}`}
-                      </p>
-                      <h5>要改什么</h5>
-                      {textList(contract.change)}
-                      <h5>不改什么</h5>
-                      {textList(contract.notChange)}
-                      <h5>验收标准</h5>
-                      <ul className="task-clean-list" data-testid="task-acceptance">
-                        {contract.acceptance.map(item => <li key={item}>{item}</li>)}
-                      </ul>
-                      <h5>失败条件</h5>
-                      {textList(contract.failIf)}
+              <details className="task-detail-disclosure" data-testid="task-scope">
+                <summary className="task-detail-disclosure-head">
+                  <ChevronDown className="task-detail-disclosure-chevron" size={14} aria-hidden="true" />
+                  <span>{t('task.scopeDetails')}</span>
+                </summary>
+                <dl className="task-scope-list">
+                  {gradeText !== undefined && (
+                    <div className="task-scope-item">
+                      <dt>{t('task.scope.gradeLabel')}</dt>
+                      <dd data-testid="task-scope-grade">{gradeText}</dd>
                     </div>
                   )}
-              </section>
-            )}
-
-            {task.deliverable !== undefined && (
-              <section className="task-detail-card" data-testid="task-deliverable">
-                <h4 className="task-detail-card-title">交付物</h4>
-                <p className="detail-line">{task.deliverable.summary}</p>
-                <ul className="task-clean-list">
-                  {task.deliverable.docs.map(doc => (
-                    <li key={doc}>
-                      <Button variant="ghost" size="sm" data-testid="task-doc" onPress={() => { props.onOpenDoc(doc) }}>{doc}</Button>
-                    </li>
-                  ))}
-                  {task.deliverable.commands.map(command => <li key={command}><code>{command}</code></li>)}
-                </ul>
-              </section>
-            )}
-
-            {task.attachments.length > 0 && (
-              <section className="task-detail-card" data-testid="task-attachments">
-                <h4 className="task-detail-card-title">附件</h4>
-                <ul className="task-clean-list">
-                  {task.attachments.map(path => <li key={path}><code>{path}</code></li>)}
-                </ul>
-                <TaskAttachments scopeSessionId={props.project.scopeSessionId} paths={task.attachments} />
-              </section>
-            )}
-          </div>
-
-          <aside className="task-detail-aside">
-            <section className="task-detail-card" data-testid="task-scope">
-              <div className="task-detail-card-head">
-                <h4 className="task-detail-card-title">改动范围与约束</h4>
-                <Button
-                  isIconOnly
-                  className="task-detail-icon-action"
-                  variant="ghost"
-                  size="sm"
-                  data-testid="task-scope-toggle"
-                  aria-label={t('task.scopeDetails')}
-                  aria-expanded={scopeOpen}
-                  ref={(node) => { if (node !== null) node.title = t('task.scopeDetails') }}
-                  onPress={() => { setScopeOpen(current => !current) }}
-                >
-                  <SlidersHorizontal size={15} aria-hidden="true" />
-                </Button>
-              </div>
-              {scopeOpen && (
-                <dl className="task-scope-list">
                   <div className="task-scope-item">
                     <dt>允许修改路径</dt>
                     <dd data-testid="task-paths">
@@ -1059,10 +1310,69 @@ export function TaskDetail(props: TaskDetailProps): JSX.Element {
                     </div>
                   )}
                 </dl>
+              </details>
+
+              {showContractSection && (
+                <details className="task-detail-disclosure" data-testid="task-contract-section">
+                  <summary className="task-detail-disclosure-head">
+                    <ChevronDown className="task-detail-disclosure-chevron" size={14} aria-hidden="true" />
+                    <span>开发契约</span>
+                  </summary>
+                  {contract === undefined
+                    ? <p className="empty" data-testid="task-contract-missing">暂未生成契约。</p>
+                    : (
+                      <div className="task-contract-body">
+                        <p className="detail-line">
+                          签署：
+                          <span data-testid="task-contract-signed">
+                            {contract.signedBy === null ? '未签署' : contract.signedBy === 'human' ? '人签' : `AI 自签（${contract.signedActor ?? '未知角色'}）`}
+                          </span>
+                          {contract.signedAt === null ? '' : ` · ${contract.signedAt}`}
+                        </p>
+                        <h5>要改什么</h5>
+                        {textList(contract.change)}
+                        <h5>不改什么</h5>
+                        {textList(contract.notChange)}
+                        <h5>验收标准</h5>
+                        <ul className="task-clean-list" data-testid="task-acceptance">
+                          {contract.acceptance.map(item => <li key={item}>{item}</li>)}
+                        </ul>
+                        <h5>失败条件</h5>
+                        {textList(contract.failIf)}
+                      </div>
+                    )}
+                </details>
               )}
             </section>
 
-            {task.state !== 'drafting' && (
+            {task.deliverable !== undefined && (
+              <section className="task-detail-card" data-testid="task-deliverable">
+                <h4 className="task-detail-card-title">交付物</h4>
+                <p className="detail-line">{task.deliverable.summary}</p>
+                <ul className="task-clean-list">
+                  {task.deliverable.docs.map(doc => (
+                    <li key={doc}>
+                      <Button variant="ghost" size="sm" data-testid="task-doc" onPress={() => { props.onOpenDoc(doc) }}>{doc}</Button>
+                    </li>
+                  ))}
+                  {task.deliverable.commands.map(command => <li key={command}><code>{command}</code></li>)}
+                </ul>
+              </section>
+            )}
+
+            {task.attachments.length > 0 && (
+              <section className="task-detail-card" data-testid="task-attachments">
+                <h4 className="task-detail-card-title">附件</h4>
+                <ul className="task-clean-list">
+                  {task.attachments.map(path => <li key={path}><code>{path}</code></li>)}
+                </ul>
+                <TaskAttachments scopeSessionId={props.project.scopeSessionId} paths={task.attachments} />
+              </section>
+            )}
+          </div>
+
+          {task.state !== 'drafting' && (
+            <aside className="task-detail-aside">
               <details className="task-detail-card task-schedule-disclosure" data-testid="task-schedule">
                 <summary className="task-schedule-summary">
                   <span>调度建议</span>
@@ -1087,8 +1397,8 @@ export function TaskDetail(props: TaskDetailProps): JSX.Element {
                   </Button>
                 </div>
               </details>
-            )}
-          </aside>
+            </aside>
+          )}
         </div>
       </div>
       {advanceConfirmOpen && createPortal(

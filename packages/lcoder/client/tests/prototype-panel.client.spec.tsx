@@ -404,9 +404,10 @@ describe('PrototypePanel', () => {
     const card = document.body.querySelector('[data-testid="operation-cards"]')
     expect(card).not.toBeNull()
     expect(card?.querySelector('h3')?.textContent).toBe('重新生成原型')
-    const steps = [...(card?.querySelectorAll('.op-step-text') ?? [])].map(node => node.textContent ?? '')
-    expect(steps).toContain('AI 编写原型')
-    expect(steps).toContain('写入暂存完成')
+    const progress = card?.querySelector('[data-testid="op-step-progress"]')?.textContent ?? ''
+    expect(progress).toContain('第 2 步 / 共 3 步')
+    expect(progress).toContain('AI 编写原型')
+    expect(card?.querySelector('[data-testid="op-progress-bar"]')?.getAttribute('aria-valuemax')).toBe('3')
 
     await clickInBody('op-view-session')
     expect(onOpenSession).toHaveBeenCalledWith('gen-panel')
