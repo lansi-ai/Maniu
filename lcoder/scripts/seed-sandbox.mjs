@@ -12,6 +12,7 @@
  * 用法：
  *   node lcoder/scripts/seed-sandbox.mjs             # 重建/还原种子仓（默认）
  *   node lcoder/scripts/seed-sandbox.mjs --reset     # 同上
+ *   node lcoder/scripts/seed-sandbox.mjs --force     # 同上（强制清空旧产物后重建）
  *   node lcoder/scripts/seed-sandbox.mjs --status    # 只读查看当前种子仓状态与 git 改动
  *   node lcoder/scripts/seed-sandbox.mjs --target <dir>  # 指定输出目录
  */
@@ -37,7 +38,7 @@ function parseArgs(argv) {
     const arg = argv[i]
     if (arg === '--status') {
       mode = 'status'
-    } else if (arg === '--reset') {
+    } else if (arg === '--reset' || arg === '--force') {
       mode = 'reset'
     } else if (arg === '--target' && argv[i + 1]) {
       target = resolve(argv[i + 1])
@@ -47,7 +48,7 @@ function parseArgs(argv) {
         'LCoder 测试种子仓生成/重置工具',
         '',
         '用法：',
-        '  node lcoder/scripts/seed-sandbox.mjs [--reset | --status] [--target <dir>]',
+        '  node lcoder/scripts/seed-sandbox.mjs [--reset | --force | --status] [--target <dir>]',
         '',
         `默认目录：${DEFAULT_TARGET}`,
       ].join('\n'))
@@ -347,6 +348,195 @@ function buildSeedFiles() {
 </html>
 `
 
+  const projectPrototypeHtml = `<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>轻报销 LiteExpense · 项目级统一活原型</title>
+  <style>
+    :root { --bg: #f4f7fb; --card: #ffffff; --ink: #172033; --muted: #5a667a; --line: #dce3ee; --accent: #1d4ed8; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--ink); }
+    nav { display: flex; justify-content: space-between; align-items: center; padding: 14px 24px; background: var(--card); border-bottom: 1px solid var(--line); }
+    .brand { font-weight: 700; font-size: 16px; }
+    .nav-meta { display: flex; gap: 16px; color: var(--muted); font-size: 13px; }
+    main { max-width: 960px; margin: 24px auto; padding: 0 20px; display: grid; gap: 20px; }
+    .hero, .features, .list, .summary { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px 24px; }
+    .hero h1 { margin: 0 0 8px; font-size: 22px; }
+    .hero p { margin: 0; color: var(--muted); font-size: 14px; }
+    h2 { margin: 0 0 14px; font-size: 16px; }
+    .metrics { display: flex; gap: 24px; font-size: 14px; }
+    .metric strong { display: block; margin-top: 6px; font-size: 20px; color: var(--accent); }
+    form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    label { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
+    input, select { padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; color: var(--ink); }
+    .actions { grid-column: 1 / -1; display: flex; gap: 10px; margin-top: 6px; }
+    button { padding: 8px 16px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); cursor: pointer; font-size: 13px; }
+    button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--line); }
+    th { color: var(--muted); font-weight: 600; }
+    footer { text-align: center; color: var(--muted); font-size: 12px; padding: 20px; }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="brand">轻报销 LiteExpense · 项目统一视图</div>
+    <div class="nav-meta">
+      <span>当前员工：林小牛</span>
+      <span>本月已提交：<strong id="month-total">¥ 1,280.00</strong></span>
+    </div>
+  </nav>
+  <main>
+    <div class="hero">
+      <h1>员工报销单填写与提交</h1>
+      <p>项目当前正式版活原型：报销录入、月度汇总与近期记录在同一页完成，提交前即时校验必填项与金额。</p>
+    </div>
+    <section class="summary">
+      <h2>月度汇总</h2>
+      <div class="metrics">
+        <span class="metric">总笔数<strong id="m-total">2</strong></span>
+        <span class="metric">待审批笔数<strong id="m-pending">1</strong></span>
+        <span class="metric">已通过金额<strong id="m-approved">¥ 420.00</strong></span>
+      </div>
+    </section>
+    <section class="features">
+      <h2>报销录入表单</h2>
+      <form id="expense-form">
+        <label>费用类型
+          <select name="category" id="field-category">
+            <option>差旅</option><option>餐饮</option><option>办公</option><option>交通</option>
+          </select>
+        </label>
+        <label>报销金额（元）
+          <input id="field-amount" type="number" step="0.01" min="0.01" placeholder="例如：328.50" />
+        </label>
+        <label>发生日期
+          <input id="field-date" type="date" value="2026-11-22" />
+        </label>
+        <label>事由说明
+          <input id="field-reason" type="text" placeholder="例如：客户拜访高铁往返" />
+        </label>
+        <div class="actions">
+          <button type="button" id="btn-save-draft">暂存草稿</button>
+          <button type="submit" class="primary" id="btn-submit">提交审批</button>
+          <span id="form-feedback" style="font-size:12px;color:#1d4ed8;align-self:center;"></span>
+        </div>
+      </form>
+    </section>
+    <section class="list">
+      <h2>近期报销记录列表</h2>
+      <table>
+        <thead>
+          <tr><th>单号</th><th>费用类型</th><th>金额</th><th>事由说明</th><th>状态</th><th>操作</th></tr>
+        </thead>
+        <tbody id="expense-tbody"></tbody>
+      </table>
+    </section>
+  </main>
+  <footer class="footer">轻报销 LiteExpense · 项目级统一活原型（历史版本可在原型页只读预览与恢复）</footer>
+  <script>
+    (function () {
+      const rows = [
+        { id: 'EXP-202611-01', category: '差旅', amount: 860, reason: '上海客户回访动车票', status: '待审批' },
+        { id: 'EXP-202611-02', category: '餐饮', amount: 420, reason: '团队项目复盘工作餐', status: '已通过' },
+      ];
+      let seq = 3;
+      const tbody = document.getElementById('expense-tbody');
+      const totalEl = document.getElementById('month-total');
+      const feedback = document.getElementById('form-feedback');
+      const form = document.getElementById('expense-form');
+      const catEl = document.getElementById('field-category');
+      const amtEl = document.getElementById('field-amount');
+      const reasonEl = document.getElementById('field-reason');
+
+      function render() {
+        tbody.innerHTML = '';
+        let sum = 0;
+        let pending = 0;
+        let approved = 0;
+        for (const item of rows) {
+          sum += item.amount;
+          if (item.status === '待审批') pending += 1;
+          if (item.status === '已通过') approved += item.amount;
+          const tr = document.createElement('tr');
+          tr.innerHTML =
+            '<td>' + item.id + '</td><td>' + item.category + '</td>' +
+            '<td>¥ ' + item.amount.toFixed(2) + '</td><td>' + item.reason + '</td>' +
+            '<td>' + item.status + '</td>' +
+            '<td><button type="button" data-del="' + item.id + '">删除</button></td>';
+          tbody.appendChild(tr);
+        }
+        totalEl.textContent = '¥ ' + sum.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        document.getElementById('m-total').textContent = String(rows.length);
+        document.getElementById('m-pending').textContent = String(pending);
+        document.getElementById('m-approved').textContent = '¥ ' + approved.toFixed(2);
+      }
+
+      function addRecord(status) {
+        const amount = Number(amtEl.value);
+        const reason = reasonEl.value.trim();
+        if (!Number.isFinite(amount) || amount <= 0) {
+          feedback.style.color = '#dc2626';
+          feedback.textContent = '请输入大于 0 的报销金额';
+          return;
+        }
+        if (reason === '') {
+          feedback.style.color = '#dc2626';
+          feedback.textContent = '请填写事由说明';
+          return;
+        }
+        const id = 'EXP-202611-' + String(seq).padStart(2, '0');
+        seq += 1;
+        rows.unshift({ id: id, category: catEl.value, amount: amount, reason: reason, status: status });
+        amtEl.value = '';
+        reasonEl.value = '';
+        feedback.style.color = '#15803d';
+        feedback.textContent = '已' + (status === '草稿' ? '暂存草稿' : '提交审批') + '：' + id;
+        render();
+      }
+
+      form.addEventListener('submit', function (event) { event.preventDefault(); addRecord('待审批') });
+      document.getElementById('btn-save-draft').addEventListener('click', function () { addRecord('草稿') });
+      tbody.addEventListener('click', function (event) {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) return;
+        const id = target.getAttribute('data-del');
+        if (!id) return;
+        const idx = rows.findIndex(function (r) { return r.id === id });
+        if (idx >= 0) {
+          rows.splice(idx, 1);
+          feedback.style.color = '#1d4ed8';
+          feedback.textContent = '已删除报销单：' + id;
+          render();
+        }
+      });
+      render();
+    })();
+  </script>
+</body>
+</html>
+`
+
+  const projectPrototypeSnapshotV1Html = req01PrototypeHtml
+    .replace('REQ-01 员工报销单原型', '项目级活原型 · 历史版本 v1')
+    .replace('REQ-01 种子原型', '项目级历史版本 v1')
+  const projectPrototypeSnapshotV2Html = projectPrototypeHtml.replace('项目级统一活原型', '项目级活原型 · 历史版本 v2')
+  const projectSnapshotV1Id = `${Date.parse('2026-11-20T10:00:00+08:00')}-1`
+  const projectSnapshotV2Id = `${Date.parse('2026-11-22T15:00:00+08:00')}-1`
+  const projectStaged = {
+    requirementId: '__project__',
+    html: projectPrototypeHtml,
+    changeKind: 'visual',
+    summary: [
+      '合并报销录入与近期记录为单一项目级活原型',
+      '顶部补齐当前员工与本月已提交总额展示',
+    ],
+    changedDomPaths: ['nav.nav-meta', 'section.list'],
+    createdAt: '2026-11-23T10:00:00+08:00',
+  }
+
   const req02Md = `# REQ-02 报销单列表筛选与月度汇总
 
 ## 背景与目标
@@ -546,26 +736,6 @@ function buildSeedFiles() {
 - **AC-5**：当员工删除「月度通勤」模板后，该模板不再出现在下拉列表中，且此前使用该模板提交的报销单记录仍完整保留。
 `
 
-  const contractT01 = {
-    id: 'T-01',
-    change: [
-      'src/expense.mjs：新增单笔报销审批限额判定逻辑（超 5000 元需二级审批）',
-      'tests/expense.test.mjs：补充限额边界用例（4999.99 / 5000 / 5000.01）',
-    ],
-    not_change: [
-      '不改 R-01 已确认的金额汇总公式',
-      '不改 REQ-04 登录与权限模型',
-    ],
-    acceptance: [
-      'node tests/expense.test.mjs 全部通过',
-      '超限额单据返回 requiresSecondaryApproval: true',
-    ],
-    affected_tests: ['node tests/expense.test.mjs'],
-    fail_if: [
-      '修改了 R-01 的 calculateTotal 精度舍入行为',
-    ],
-  }
-
   const contractT02 = {
     id: 'T-02',
     change: [
@@ -651,7 +821,10 @@ function buildSeedFiles() {
 - \`REQ-02\`（\`confirmed\` 已确认态，已微调 2 次）：→ 测「提变更 / 加功能」S/M/L 自动分流、手动改选、真实跑 \`requirement_amend\`
 - \`REQ-03\`（\`confirmed\` 已确认态，已微调 4 次）：→ 再做 1 次 S 级微调立刻触发「累计 5 次一致性核对提醒」
 - \`REQ-04\`（\`released\` 已上线态）：→ 测终态需求禁打 S 级（走 M/L）与基于此版本新建
-- \`T-01\` ~ \`T-05\`：覆盖 \`drafting / contracted / implementing / verifying / closed\` 全部任务状态
+- \`T-01\`（\`drafting\` 待确认）：AI 已分配给接口工程师、尚无契约 → 点「确认」测二次确认弹窗（提示将生成方案并由接口工程师开发）
+- \`T-02\` ~ \`T-05\`：覆盖 \`contracted / implementing / verifying / closed\`，契约与证据按状态齐备，无超前产物
+- 办公室岗位：\`fe-dev\`（林夕）、\`fe-dev-2\`（周澄）、\`api-engineer\`（陈默）、\`qa-engineer\`（苏晴）→ 测同岗位多人与岗位分配
+- \`.spec/prototypes/__project__/\`：项目级统一活原型（正式版 + 待打磨 \`staged.json\` + 历史快照）→ 测暂存预览与历史恢复
 - \`P-01\`：待审批提案（\`draft\`），可测提案对比与批准/拒绝
 
 ## 如何还原
@@ -792,13 +965,41 @@ credentials: []
 `,
     '.spec/roles.yaml': `roles:
   - id: fe-dev
-    name: 前端工程师
+    name: 前端工程师-林夕
     inherits: dev
-    persona: 专注轻报销 Web 页面、表单交互与组件可用性。
+    derived_from: 实施
+    persona: 负责轻报销 Web 录入页与近期记录列表的前端实现，重视表单校验反馈与交互可用性。
     signals:
       strong: [html, css, form, table]
-      medium: [页面, 表单, 列表]
+      medium: [页面, 表单, 列表, 原型]
       preferredPaths: [src/]
+  - id: fe-dev-2
+    name: 前端工程师-周澄
+    inherits: dev
+    derived_from: 实施
+    persona: 负责报销列表筛选与月度汇总卡片的前端实现，重视筛选联动与金额展示精度。
+    signals:
+      strong: [html, css, form, table]
+      medium: [页面, 筛选, 汇总]
+      preferredPaths: [src/]
+  - id: api-engineer
+    name: 接口工程师-陈默
+    inherits: dev
+    derived_from: 实施
+    persona: 负责金额计算、月度汇总与审批流转的接口实现，重视分位精度与错误码清晰。
+    signals:
+      strong: [node, api, mjs, schema]
+      medium: [接口, 汇总, 校验]
+      preferredPaths: [src/, tests/]
+  - id: qa-engineer
+    name: 测试工程师-苏晴
+    inherits: dev
+    derived_from: 实施
+    persona: 负责轻报销核心域与页面交互的验收测试，重视边界用例与证据日志完整。
+    signals:
+      strong: [test, assert, vitest]
+      medium: [测试, 用例, 验收]
+      preferredPaths: [tests/]
 `,
     '.spec/flow.yaml': `nodes:
   - node: intake
@@ -830,7 +1031,8 @@ tasks: []
   - id: R-01
     module: expense
     kind: formula
-    text: total = round(sum(round(amount * 100)) / 100, 2)
+    title: 月度汇总金额按分累加保留两位小数
+    text: 月度汇总金额按分累加保留两位小数；total = round(sum(round(amount * 100)) / 100, 2)
     source:
       doc: .spec/requirements/REQ-02.md
       quote: 月度汇总金额按分累加保留两位小数，仅统计 approved 状态
@@ -845,6 +1047,7 @@ tasks: []
   - id: R-02
     module: expense
     kind: rule
+    title: 单笔报销金额超过 5000 元需二级审批
     text: 单笔报销金额大于 5000 元时需触发二级审批
     source:
       doc: .spec/requirements/REQ-01/reviews/R1.md
@@ -914,6 +1117,13 @@ prototype:
     '.spec/requirements/REQ-01/versions/v1.md': req01Md,
     '.spec/requirements/REQ-01/reviews/R1.md': req01ReviewR1,
     '.spec/prototypes/REQ-01/index.html': req01PrototypeHtml,
+
+    '.spec/prototypes/__project__/index.html': projectPrototypeHtml,
+    '.spec/prototypes/__project__/staged.json': `${JSON.stringify(projectStaged, null, 2)}\n`,
+    [`.spec/prototypes/__project__/history/${projectSnapshotV1Id}.html`]: projectPrototypeSnapshotV1Html,
+    [`.spec/prototypes/__project__/history/${projectSnapshotV2Id}.html`]: projectPrototypeSnapshotV2Html,
+    '.spec/prototypes/__project__/snapshots/v1-initial.html': projectPrototypeSnapshotV1Html,
+    '.spec/prototypes/__project__/snapshots/v2-summary.html': projectPrototypeSnapshotV2Html,
 
     '.spec/requirements/REQ-02.yaml': `id: REQ-02
 title: 报销单列表筛选与月度汇总
@@ -1046,8 +1256,8 @@ opened_at: '2026-11-21T16:00:00+08:00'
 `,
 
     '.spec/tasks/T-01.yaml': `id: T-01
-title: 报销单大额审批限额判定（含不可逆项，需人工签署）
-description: 单笔报销超过 5000 元时标记需要二级审批，触及审批限额策略，需人工签署契约。
+title: 报销单大额审批限额判定
+description: 单笔报销超过 5000 元时，需要标记为走二级审批，避免大额费用只经一级审批就通过。
 category: data
 change_type: feature
 grade: B
@@ -1055,19 +1265,24 @@ state: drafting
 rules: [R-02]
 requirement: REQ-02
 track: finance
-role: dev
+role: api-engineer
 scope:
-  irreversible: [approval_limit]
+  irreversible: []
   allowed_paths: [src/, tests/]
 evidence_required: [build, test]
 opened_at: '2026-11-21T10:00:00+08:00'
 closed_at: null
 `,
-    '.spec/contracts/T-01.contract.yaml': renderContractYaml(contractT01, null),
 
     '.spec/tasks/T-02.yaml': `id: T-02
 title: 月度汇总支持按费用类型筛选
-description: 为 summarizeMonthly 增加可选 category 筛选，保持 R-01 金额计算口径不变。
+description: |-
+  财务核对月度支出时，希望能按差旅、餐饮等费用类型单独看汇总金额，不用再从总表里手工挑。
+
+  ### 技术实施细节
+  - summarizeMonthly 增加可选 category 参数，先按费用类型过滤命中记录再汇总。
+  - 仍按整数分累加计算 approvedTotal，保持 R-01 口径不变。
+  - tests/expense.test.mjs 补充按费用类型筛选的单测。
 category: api
 change_type: feature
 grade: B
@@ -1075,7 +1290,7 @@ state: contracted
 rules: [R-01]
 requirement: REQ-02
 track: api
-role: dev
+role: api-engineer
 scope:
   irreversible: []
   allowed_paths: [src/, tests/]
@@ -1087,7 +1302,13 @@ closed_at: null
 
     '.spec/tasks/T-03.yaml': `id: T-03
 title: 报销表单基础字段错误码细化
-description: 补齐负数金额与空事由的错误码及单测，供页面精准高亮报错字段。
+description: |-
+  员工填错金额或漏写事由时，页面应直接指出是哪一栏出了问题，而不是只给一句笼统提示。
+
+  ### 技术实施细节
+  - validateExpense 对非正数金额返回 INVALID_AMOUNT、对空白事由返回 EMPTY_REASON。
+  - 表单按错误码定位到对应字段并展示文案，不改动既有状态机枚举值。
+  - tests/expense.test.mjs 补充非法输入校验单测。
 category: page
 change_type: improvement
 grade: C
@@ -1107,7 +1328,12 @@ closed_at: null
 
     '.spec/tasks/T-04.yaml': `id: T-04
 title: 月度汇总补充待审批笔数统计
-description: 对齐 REQ-02 第二条 S 级微调，在月度汇总结果返回 pendingCount 并挂证据待收口。
+description: |-
+  月度汇总卡片需要显示「待审批笔数」副标题，财务才能一眼看出还有多少单据没处理。
+
+  ### 技术实施细节
+  - summarizeMonthly 返回 pendingCount，只统计当月状态为 pending 的单据。
+  - 已通过总金额计算逻辑保持不变，构建与测试证据已挂待验收。
 category: api
 change_type: improvement
 grade: C
@@ -1115,7 +1341,7 @@ state: verifying
 rules: [R-01]
 requirement: REQ-02
 track: api
-role: dev
+role: qa-engineer
 scope:
   irreversible: []
   allowed_paths: [src/, tests/]
@@ -1129,7 +1355,12 @@ closed_at: null
 
     '.spec/tasks/T-05.yaml': `id: T-05
 title: 报销金额分位汇总基线实现
-description: 实现 R-01 整数分累加汇总与基础单测，已随 REQ-04 上线收口。
+description: |-
+  先把报销金额汇总的分位精度做对，再让后续报表都基于同一套口径，已随 REQ-04 上线收口。
+
+  ### 技术实施细节
+  - calculateTotal 按整数分累加后还原为元并保留两位小数，对应 R-01。
+  - tests/expense.test.mjs 覆盖分位与浮点误差基线，构建与测试证据齐全。
 category: data
 change_type: feature
 grade: B
@@ -1137,7 +1368,7 @@ state: closed
 rules: [R-01]
 requirement: REQ-04
 track: api
-role: dev
+role: api-engineer
 scope:
   irreversible: []
   allowed_paths: [src/, tests/]
@@ -1246,7 +1477,10 @@ async function resetSandbox(targetDir) {
   console.log('  - REQ-03（已确认 v1）        ：已累计 4 次 [S级微调] → 再微调 1 次即触发第 5 次一致性核对提醒')
   console.log('  - REQ-04（已上线 v1）        ：已上线终态 → 测终态禁打 S 级（走 M/L）与基于此版本新建')
   console.log('  - REQ-05（草稿 v1 · 未送审）  ：无未决评审 → 测自由草稿原地修改与提变更草稿通道')
-  console.log('  - T-01 ~ T-05       ：覆盖 drafting / contracted / implementing / verifying / closed 全看板态')
+  console.log('  - T-01（待确认）    ：已分配接口工程师、无契约 → 测「确认」二次弹窗')
+  console.log('  - T-02 ~ T-05       ：覆盖 contracted / implementing / verifying / closed，产物与状态严格对齐')
+  console.log('  - 办公室岗位        ：fe-dev / fe-dev-2 / api-engineer / qa-engineer（同岗位可多人）')
+  console.log('  - __project__ 活原型：正式版 + staged.json + 历史快照 → 测暂存预览与历史恢复')
   console.log('  - P-01              ：待审提案（draft）→ 测提案对比与批准/拒绝')
   console.log('')
   console.log('测脏或改坏后，随时再次双击 `lcoder\\重置测试种子仓.cmd` 即可瞬间还原。')
