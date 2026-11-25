@@ -42,6 +42,12 @@ function formatHistoryTimestamp(value: string): string {
   return formatTimestamp(value)
 }
 
+/** 处置日期只留月日；时间戳解析不了时原样返回。 */
+function formatReviewDay(value: string): string {
+  const formatted = formatTimestamp(value)
+  return /^\d{4}-\d{2}-\d{2}/.test(formatted) ? formatted.slice(5, 10) : formatted
+}
+
 /** 详情页的操作口径按四态加未知态分流；未知态只留次级动作。 */
 type DetailState = 'draft' | 'confirmed' | 'released' | 'closed' | 'unknown'
 
@@ -120,6 +126,14 @@ function decisionLabel(t: Translate, review: RequirementReviewRow): string {
   return review.appliedVersion === undefined
     ? t('requirement.decision.accepted')
     : t('requirement.decision.acceptedVersion', { version: review.appliedVersion })
+}
+
+/** 已处置结论的完整说法：采纳且已产出新版本时点出版本号。 */
+function reviewDecisionText(t: Translate, review: RequirementReviewRow): string {
+  if (decisionOf(review) === 'rejected') return t('requirement.reviewDecidedRejected')
+  return review.appliedVersion === undefined
+    ? t('requirement.reviewDecidedAccepted')
+    : t('requirement.reviewDecidedAcceptedApplied', { version: review.appliedVersion })
 }
 
 /** 状态徽标的语义色；state-* 类名保留给现有选择器。 */
@@ -308,6 +322,12 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
   )
   const latestRound = latestReview?.round
   const phase: ReviewPhase = latestReview === null ? 'unreviewed' : decisionOf(latestReview)
+  /** 最新一轮已处置时进入只读视图：结论一行、意见轻量列表、无逐条裁决。 */
+  const isReadOnlyReview = latestReview !== null && decisionOf(latestReview) !== 'pending'
+  /** 已采纳并落版时可供跳转的版本号；放弃或无版本时缺省。 */
+  const appliedVersion = latestReview !== null && decisionOf(latestReview) === 'accepted'
+    ? latestReview.appliedVersion
+    : undefined
 
   /** 当前工作面：待处置评审优先落到评审处理，其余状态落在正文。 */
   const [workface, setWorkface] = useState<Workface>(phase === 'pending' ? 'review' : 'body')
@@ -336,6 +356,8 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
   const [annotationsOpen, setAnnotationsOpen] = useState(false)
   const [annotations, setAnnotations] = useState<AnnotationsState>({ status: 'idle' })
   const [annotationFilter, setAnnotationFilter] = useState<VersionFilter>('all')
+  /** 从结论行跳转时待校正的批注版本；批注数据就绪后决定筛选还是回退全部。 */
+  const [pendingAnnotationVersion, setPendingAnnotationVersion] = useState<number | null>(null)
   const [selectedAnnotation, setSelectedAnnotation] = useState<string | null>(null)
   const [expandedAnnotations, setExpandedAnnotations] = useState<ReadonlySet<string>>(() => new Set())
   const [expandedSegments, setExpandedSegments] = useState<ReadonlySet<string>>(() => new Set())
@@ -402,6 +424,7 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
     setAnnotationsOpen(false)
     setAnnotations({ status: 'idle' })
     setAnnotationFilter('all')
+    setPendingAnnotationVersion(null)
     setSelectedAnnotation(null)
     setExpandedAnnotations(new Set())
     setExpandedSegments(new Set())
@@ -456,6 +479,23 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
     if (annotations.status !== 'ready') return null
     return deriveRevisionAnnotations(annotations.snapshots, row.text, row.amendments ?? [])
   }, [annotations, row.text, row.amendments])
+
+  // 批注数据就绪后校正版本筛选：目标版本不在数据里时回到全部，避免筛出空列表。
+  useEffect(() => {
+    if (pendingAnnotationVersion === null) return
+    if (annotations.status === 'idle' || annotations.status === 'loading') return
+    const known = revisionData !== null && revisionData.versions.includes(pendingAnnotationVersion)
+    setAnnotationFilter(known ? pendingAnnotationVersion : 'all')
+    setPendingAnnotationVersion(null)
+  }, [pendingAnnotationVersion, annotations.status, revisionData])
+
+  /** 结论行的版本入口：回到正文、展开批注并按该版本筛选，数据就绪后再校正。 */
+  const openVersionChanges = (version: number): void => {
+    setWorkface('body')
+    setAnnotationsOpen(true)
+    setAnnotationFilter(version)
+    setPendingAnnotationVersion(version)
+  }
 
   // 卡与正文同处一行，选中后只对正文节点做行内轻量滚动兜底，不跨段跳转。
   const focusAnnotation = (id: string): void => {
@@ -659,9 +699,12 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
   const countByPriority = (priority: ReviewPriority | 'all'): number => priority === 'all'
     ? todos.length
     : todos.filter(todo => todo.priority === priority).length
+  /** 意见少或优先级只有一种时筛选没有区分度，整体收起并让筛选保持「全部」。 */
+  const priorityKinds = new Set(todos.map(todo => todo.priority ?? 'none')).size
+  const showPriorityFilter = todos.length > 5 && priorityKinds > 1
   const visibleTodos = todos
     .map((todo, index) => ({ todo, index }))
-    .filter(({ todo }) => priorityFilter === 'all' || todo.priority === priorityFilter)
+    .filter(({ todo }) => !showPriorityFilter || priorityFilter === 'all' || todo.priority === priorityFilter)
 
   const setVerdict = (index: number, verdict: TodoVerdict): void => {
     setReviewUi(current => ({ ...current, verdicts: { ...current.verdicts, [index]: verdict } }))
@@ -1014,10 +1057,37 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                     )
                     : (
                       <div className="requirement-review-decided-bar" data-testid="requirement-review-decided-bar">
-                        {decisionChip(activeReview, 'requirement-review-decided-status')}
-                        <span className="requirement-doc-readonly" data-testid="requirement-review-decided">
-                          {t('requirement.reviewDecided')}
+                        <span className="review-decided-line" data-testid="requirement-review-decided" data-decision={decisionOf(activeReview)}>
+                          <span className="review-decided-dot" data-decision={decisionOf(activeReview)} aria-hidden="true" />
+                          {t('requirement.reviewDecidedLine', {
+                            round: activeReview.round,
+                            decision: reviewDecisionText(t, activeReview),
+                            date: formatReviewDay(activeReview.decidedAt ?? activeReview.at),
+                          })}
                         </span>
+                        {decisionOf(activeReview) === 'accepted' && appliedVersion !== undefined && canAnnotate && (
+                          <button
+                            type="button"
+                            className="link-button review-decided-action"
+                            data-testid="requirement-review-open-changes"
+                            onClick={() => { openVersionChanges(appliedVersion) }}
+                          >
+                            {t('requirement.reviewOpenChanges', { version: appliedVersion })}
+                          </button>
+                        )}
+                        {hasTodos && (
+                          <button
+                            type="button"
+                            className="link-button review-decided-action"
+                            data-testid="requirement-report-markdown-toggle"
+                            aria-label={t(showRawMarkdown ? 'requirement.reviewMarkdownHide' : 'requirement.reviewMarkdownShow')}
+                            aria-pressed={showRawMarkdown}
+                            title={t(showRawMarkdown ? 'requirement.reviewMarkdownHide' : 'requirement.reviewMarkdownShow')}
+                            onClick={() => { setShowRawMarkdown(current => !current) }}
+                          >
+                            {t(showRawMarkdown ? 'requirement.reviewMarkdownHideText' : 'requirement.reviewMarkdownShowText')}
+                          </button>
+                        )}
                       </div>
                     )}
                 </div>
@@ -1116,7 +1186,6 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                 hidden={workface !== 'review'}
                 {...(activeReview === null ? {} : { 'data-round': activeReview.round })}
               >
-                <Separator className="detail-divider" />
                 {activeReview === null || reportPath === null
                   ? (
                     <>
@@ -1135,7 +1204,6 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                         </p>
                       )}
                       {activeReport?.status === 'ready' && (() => {
-                        const isReadOnlyReview = decisionOf(activeReview) !== 'pending'
                         return (
                           <>
                             {hasTodos && !showRawMarkdown
@@ -1163,27 +1231,29 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                                       {summaryExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                                     </span>
                                   </div>
-                                  <div className="review-todo-toolbar" data-testid="requirement-review-toolbar">
-                                    <div className="review-segmented" role="group" aria-label={t('requirement.reviewFilterLabel')}>
-                                      {(['all', 'high', 'medium', 'low'] as const).map(priority => (
-                                        <button
-                                          key={priority}
-                                          type="button"
-                                          className={`review-segment${priorityFilter === priority ? ' is-active' : ''}`}
-                                          data-testid="requirement-review-filter"
-                                          data-priority={priority}
-                                          aria-pressed={priorityFilter === priority}
-                                          onClick={() => { setPriorityFilter(priority) }}
-                                        >
-                                          {priority === 'all'
-                                            ? t('requirement.reviewFilterAll', { count: countByPriority('all') })
-                                            : t(FILTER_KEY[priority], { count: countByPriority(priority) })}
-                                        </button>
-                                      ))}
-                                    </div>
-                                    <div className="review-toolbar-right">
+                                  {(showPriorityFilter || !isReadOnlyReview) && (
+                                    <div className="review-todo-toolbar" data-testid="requirement-review-toolbar">
+                                      {showPriorityFilter && (
+                                        <div className="review-segmented" role="group" aria-label={t('requirement.reviewFilterLabel')}>
+                                          {(['all', 'high', 'medium', 'low'] as const).map(priority => (
+                                            <button
+                                              key={priority}
+                                              type="button"
+                                              className={`review-segment${priorityFilter === priority ? ' is-active' : ''}`}
+                                              data-testid="requirement-review-filter"
+                                              data-priority={priority}
+                                              aria-pressed={priorityFilter === priority}
+                                              onClick={() => { setPriorityFilter(priority) }}
+                                            >
+                                              {priority === 'all'
+                                                ? t('requirement.reviewFilterAll', { count: countByPriority('all') })
+                                                : t(FILTER_KEY[priority], { count: countByPriority(priority) })}
+                                            </button>
+                                          ))}
+                                        </div>
+                                      )}
                                       {!isReadOnlyReview && (
-                                        <>
+                                        <div className="review-toolbar-right">
                                           <span className="review-decision-counts">
                                             <span className="review-decision-count" data-testid="requirement-review-count" data-kind="accepted">
                                               {t('requirement.reviewCountAccepted', { count: decisions.accepted.length })}
@@ -1245,64 +1315,96 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                                               </>
                                             )}
                                           </div>
-                                        </>
+                                          <Button
+                                            isIconOnly
+                                            variant="secondary"
+                                            size="sm"
+                                            className="review-markdown-toggle"
+                                            data-testid="requirement-report-markdown-toggle"
+                                            aria-label={t('requirement.reviewMarkdownShow')}
+                                            ref={(node) => { if (node !== null) node.title = t('requirement.reviewMarkdownShow') }}
+                                            onPress={() => { setShowRawMarkdown(true) }}
+                                          >
+                                            <FileCode2 size={14} aria-hidden="true" />
+                                          </Button>
+                                        </div>
                                       )}
-                                      <Button
-                                        isIconOnly
-                                        variant="secondary"
-                                        size="sm"
-                                        className="review-markdown-toggle"
-                                        data-testid="requirement-report-markdown-toggle"
-                                        aria-label={t('requirement.reviewMarkdownShow')}
-                                        ref={(node) => { if (node !== null) node.title = t('requirement.reviewMarkdownShow') }}
-                                        onPress={() => { setShowRawMarkdown(true) }}
-                                      >
-                                        <FileCode2 size={14} aria-hidden="true" />
-                                      </Button>
                                     </div>
-                                  </div>
+                                  )}
                                   <div className="table-wrap review-todo-wrap" data-testid="requirement-review-todos">
-                                    <table className="data-table review-todo-table" data-has-category={hasAnyCategory ? 'true' : 'false'}>
-                                      <thead>
-                                        <tr>
-                                          <th scope="col">{t(hasAnyCategory ? 'requirement.reviewColLevel' : 'requirement.reviewColLevelOnly')}</th>
-                                          <th scope="col">{t('requirement.reviewColIssue')}</th>
-                                          {!isReadOnlyReview && <th scope="col">{t('requirement.reviewColVerdict')}</th>}
-                                        </tr>
-                                      </thead>
+                                    <table
+                                      className={`data-table review-todo-table${isReadOnlyReview ? ' is-readonly' : ''}`}
+                                      data-has-category={hasAnyCategory ? 'true' : 'false'}
+                                      data-readonly={isReadOnlyReview ? 'true' : 'false'}
+                                    >
+                                      {!isReadOnlyReview && (
+                                        <thead>
+                                          <tr>
+                                            <th scope="col">{t(hasAnyCategory ? 'requirement.reviewColLevel' : 'requirement.reviewColLevelOnly')}</th>
+                                            <th scope="col">{t('requirement.reviewColIssue')}</th>
+                                            <th scope="col">{t('requirement.reviewColVerdict')}</th>
+                                          </tr>
+                                        </thead>
+                                      )}
                                       <tbody>
                                         {visibleTodos.map(({ todo, index }) => {
                                           const verdict = verdictOf(index)
                                           const expanded = reviewUi.expanded === index
+                                          const note = (reviewUi.notes[index] ?? '').trim()
                                           return (
                                             <Fragment key={index}>
                                               <tr
-                                                className={`review-todo-row${verdict === 'reject' ? ' is-rejected' : ''}${expanded ? ' is-expanded' : ''}`}
+                                                className={`review-todo-row${expanded ? ' is-expanded' : ''}`}
                                                 data-testid="requirement-review-todo-row"
                                                 data-index={index}
                                                 data-verdict={verdict}
                                                 onClick={() => { toggleExpanded(index) }}
                                               >
                                                 <td className="review-todo-level">
-                                                  <Chip
-                                                    size="sm"
-                                                    variant="soft"
-                                                    color={PRIORITY_COLOR[todo.priority ?? 'none']}
-                                                    className="review-todo-priority"
-                                                    data-priority={todo.priority ?? 'none'}
-                                                  >
-                                                    {t(priorityLabelKey(todo.priority))}
-                                                  </Chip>
-                                                  {todo.category !== undefined && (
-                                                    <span className="review-todo-category">{todo.category}</span>
-                                                  )}
+                                                  {isReadOnlyReview
+                                                    ? (
+                                                      <Chip
+                                                        size="sm"
+                                                        variant="soft"
+                                                        color={PRIORITY_COLOR[todo.priority ?? 'none']}
+                                                        className="review-todo-priority"
+                                                        data-priority={todo.priority ?? 'none'}
+                                                      >
+                                                        {todo.category !== undefined && todo.category !== ''
+                                                          ? todo.category
+                                                          : t(priorityLabelKey(todo.priority))}
+                                                      </Chip>
+                                                    )
+                                                    : (
+                                                      <>
+                                                        <Chip
+                                                          size="sm"
+                                                          variant="soft"
+                                                          color={PRIORITY_COLOR[todo.priority ?? 'none']}
+                                                          className="review-todo-priority"
+                                                          data-priority={todo.priority ?? 'none'}
+                                                        >
+                                                          {t(priorityLabelKey(todo.priority))}
+                                                        </Chip>
+                                                        {todo.category !== undefined && (
+                                                          <span className="review-todo-category">{todo.category}</span>
+                                                        )}
+                                                      </>
+                                                    )}
                                                 </td>
                                                 <td className="review-todo-title">
                                                   <span className="review-todo-title-inner">
-                                                    <span className="review-todo-arrow" aria-hidden="true">
-                                                      {expanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
-                                                    </span>
+                                                    {!isReadOnlyReview && (
+                                                      <span className="review-todo-arrow" aria-hidden="true">
+                                                        {expanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+                                                      </span>
+                                                    )}
                                                     <strong>{todo.title}</strong>
+                                                    {isReadOnlyReview && (
+                                                      <span className="review-todo-arrow" aria-hidden="true">
+                                                        {expanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+                                                      </span>
+                                                    )}
                                                   </span>
                                                 </td>
                                                 {!isReadOnlyReview && (
@@ -1347,22 +1449,31 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                                                           <h6>{t('requirement.reviewTodoSuggestion')}</h6>
                                                           <p>{todo.suggestion || '—'}</p>
                                                         </section>
-                                                        <section className="todo-detail-block todo-detail-note">
-                                                          <h6>{t('requirement.reviewTodoNote')}</h6>
-                                                          <textarea
-                                                            ref={index === reviewUi.expanded ? todoNoteRef : undefined}
-                                                            data-testid="requirement-review-todo-note"
-                                                            data-index={index}
-                                                            value={reviewUi.notes[index] ?? ''}
-                                                            rows={noteRows(index)}
-                                                            placeholder={verdict === 'question'
-                                                              ? t('requirement.reviewTodoQuestionPlaceholder')
-                                                              : t('requirement.reviewTodoNotePlaceholder')}
-                                                            onFocus={() => { setNoteFocused(index) }}
-                                                            onBlur={() => { setNoteFocused(current => current === index ? null : current) }}
-                                                            onChange={(event) => { setNote(index, event.target.value) }}
-                                                          />
-                                                        </section>
+                                                        {isReadOnlyReview
+                                                          ? note !== '' && (
+                                                            <section className="todo-detail-block todo-detail-note">
+                                                              <h6>{t('requirement.reviewTodoNote')}</h6>
+                                                              <p data-testid="requirement-review-todo-note" data-index={index}>{note}</p>
+                                                            </section>
+                                                          )
+                                                          : (
+                                                            <section className="todo-detail-block todo-detail-note">
+                                                              <h6>{t('requirement.reviewTodoNote')}</h6>
+                                                              <textarea
+                                                                ref={index === reviewUi.expanded ? todoNoteRef : undefined}
+                                                                data-testid="requirement-review-todo-note"
+                                                                data-index={index}
+                                                                value={reviewUi.notes[index] ?? ''}
+                                                                rows={noteRows(index)}
+                                                                placeholder={verdict === 'question'
+                                                                  ? t('requirement.reviewTodoQuestionPlaceholder')
+                                                                  : t('requirement.reviewTodoNotePlaceholder')}
+                                                                onFocus={() => { setNoteFocused(index) }}
+                                                                onBlur={() => { setNoteFocused(id => (id === index ? null : id)) }}
+                                                                onChange={(event) => { setNote(index, event.target.value) }}
+                                                              />
+                                                            </section>
+                                                          )}
                                                       </div>
                                                     </div>
                                                   </td>
@@ -1383,7 +1494,7 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                                   bodyTestId="requirement-report-body"
                                   controlsTestIdPrefix="requirement-report-doc"
                                   compact
-                                  toolbarExtra={hasTodos
+                                  toolbarExtra={hasTodos && !isReadOnlyReview
                                     ? (
                                       <Button
                                         isIconOnly
