@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { JSX } from 'react'
 import { Button, Chip } from '@heroui/react'
-import { Loader2, Pencil } from 'lucide-react'
+import { createPortal } from 'react-dom'
+import { FileText, Loader2, Pencil, SlidersHorizontal, Trash2, X } from 'lucide-react'
 import type { SpecProjection } from '../spec/load.ts'
 import type { ContractRow, TaskRow } from '../spec/rows.ts'
 import type { ProjectScope } from '../workspace/use-workspaces.ts'
@@ -13,7 +14,7 @@ import { translate, type Translate } from '../locale.ts'
 import { buildTaskImplementPlanPrompt, buildTaskModifyPrompt } from '../intake/prompts.ts'
 import { MANAGER_PRESET_ID } from '../talents/model.ts'
 import { useOpLiveFeeds, type OpLiveFeed } from '../shell/op-live-feed.ts'
-import { MarkdownDocumentViewer } from '../markdown/document-viewer.tsx'
+import { DocumentReaderDialog } from '../markdown/document-viewer.tsx'
 import { runCommand, type CommandOutcome } from '../commands/run.ts'
 import { scheduleTask } from '../flow/scheduling.ts'
 import { PRESET_ROLE_KEY, presetRoot } from '../flow/config.ts'
@@ -135,7 +136,9 @@ export function TaskDetail(props: TaskDetailProps): JSX.Element {
   const [creating, setCreating] = useState(false)
   const aliveRef = useRef(true)
   const isAlive = (): boolean => aliveRef.current
-  const [techOpen, setTechOpen] = useState(false)
+  const [techReaderOpen, setTechReaderOpen] = useState(false)
+  const [scopeOpen, setScopeOpen] = useState(false)
+  const [advanceConfirmOpen, setAdvanceConfirmOpen] = useState(false)
   const [modifyOpen, setModifyOpen] = useState(false)
   const [modifyNote, setModifyNote] = useState('')
   const [discardConfirm, setDiscardConfirm] = useState(false)
@@ -186,13 +189,24 @@ export function TaskDetail(props: TaskDetailProps): JSX.Element {
   useEffect(() => () => { aliveRef.current = false }, [])
 
   useEffect(() => {
-    setTechOpen(false)
+    setTechReaderOpen(false)
+    setScopeOpen(false)
+    setAdvanceConfirmOpen(false)
     setModifyOpen(false)
     setModifyNote('')
     setDiscardConfirm(false)
     setBgOp(null)
     sawBgRunningRef.current = false
   }, [task.id, task.role])
+
+  useEffect(() => {
+    if (!advanceConfirmOpen) return
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') setAdvanceConfirmOpen(false)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => { window.removeEventListener('keydown', onKeyDown) }
+  }, [advanceConfirmOpen])
 
   const [busy, setBusy] = useState<string | null>(null)
   const [result, setResult] = useState<CommandOutcome | null>(null)
@@ -407,6 +421,16 @@ export function TaskDetail(props: TaskDetailProps): JSX.Element {
     }
   }
 
+  /** 主按钮先弹二次确认；缺负责人时沿用 confirmAndAdvance 内的缺人提示直接拦截。 */
+  const requestAdvance = (): void => {
+    const targetRole = task.role?.trim() ?? ''
+    if (targetRole === '' && suggestedRole === undefined) {
+      void confirmAndAdvance()
+      return
+    }
+    setAdvanceConfirmOpen(true)
+  }
+
   const submitModify = async (): Promise<void> => {
     const note = modifyNote.trim()
     if (note === '' || busy !== null || bgOp !== null || props.onStartSession === undefined) return
@@ -439,6 +463,7 @@ export function TaskDetail(props: TaskDetailProps): JSX.Element {
     <DetailDrawer
       testId="task-detail"
       closeTestId="task-detail-close"
+      expandable={false}
       onClose={props.onClose}
       attributes={{ 'data-task-id': task.id }}
       head={(
@@ -603,30 +628,36 @@ export function TaskDetail(props: TaskDetailProps): JSX.Element {
                       size="sm"
                       data-testid="task-confirm-advance"
                       isDisabled={busy !== null || bgOp !== null}
-                      onPress={() => { void confirmAndAdvance() }}
+                      onPress={requestAdvance}
                     >
                       {bgOp?.kind === 'advance' && <Loader2 className="prototype-spin" size={14} aria-hidden="true" />}
                       <span>{bgOp?.kind === 'advance' ? t('task.confirmAdvancing') : t('task.confirmAdvance')}</span>
                     </Button>
                     {props.onStartSession !== undefined && (
                       <Button
+                        isIconOnly
                         variant="secondary"
                         size="sm"
                         data-testid="task-modify-toggle"
+                        aria-label={t('task.modify')}
+                        ref={(node) => { if (node !== null) node.title = t('task.modify') }}
                         isDisabled={busy !== null || bgOp !== null}
                         onPress={() => { setDiscardConfirm(false); setModifyOpen(current => !current) }}
                       >
-                        {t('task.modify')}
+                        <Pencil size={14} aria-hidden="true" />
                       </Button>
                     )}
                     <Button
+                      isIconOnly
                       variant="ghost"
                       size="sm"
                       data-testid="task-discard-toggle"
+                      aria-label={t('task.discard')}
+                      ref={(node) => { if (node !== null) node.title = t('task.discard') }}
                       isDisabled={busy !== null || bgOp !== null}
                       onPress={() => { setModifyOpen(false); setDiscardConfirm(current => !current) }}
                     >
-                      {t('task.discard')}
+                      <Trash2 size={14} aria-hidden="true" />
                     </Button>
                   </div>
                 </div>
@@ -704,28 +735,26 @@ export function TaskDetail(props: TaskDetailProps): JSX.Element {
         <div className="task-detail-grid">
           <div className="task-detail-main">
             <section className="task-detail-card" data-testid="task-description">
-              <h4 className="task-detail-card-title">任务说明</h4>
+              <div className="task-detail-card-head">
+                <h4 className="task-detail-card-title">任务说明</h4>
+                {descriptionParts.technical !== '' && (
+                  <Button
+                    isIconOnly
+                    className="task-detail-icon-action"
+                    variant="ghost"
+                    size="sm"
+                    data-testid="task-tech-open"
+                    aria-label={t('task.showTechnicalDetails')}
+                    ref={(node) => { if (node !== null) node.title = t('task.showTechnicalDetails') }}
+                    onPress={() => { setTechReaderOpen(true) }}
+                  >
+                    <FileText size={15} aria-hidden="true" />
+                  </Button>
+                )}
+              </div>
               {descriptionParts.summary === ''
                 ? <p className="empty">（没有描述）</p>
                 : <p className="task-summary-text">{descriptionParts.summary}</p>}
-              {descriptionParts.technical !== '' && (
-                <div className="task-tech-entry">
-                  <button
-                    type="button"
-                    className="task-tech-toggle"
-                    data-testid="task-tech-toggle"
-                    aria-expanded={techOpen}
-                    onClick={() => { setTechOpen(current => !current) }}
-                  >
-                    {techOpen ? t('task.hideTechnicalDetails') : t('task.showTechnicalDetails')}
-                  </button>
-                  {techOpen && (
-                    <div className="task-tech-details" data-testid="task-tech-details">
-                      <MarkdownDocumentViewer text={descriptionParts.technical} title={task.title} subtitle={task.id} compact />
-                    </div>
-                  )}
-                </div>
-              )}
             </section>
 
             {showContractSection && (
@@ -785,51 +814,68 @@ export function TaskDetail(props: TaskDetailProps): JSX.Element {
 
           <aside className="task-detail-aside">
             <section className="task-detail-card" data-testid="task-scope">
-              <h4 className="task-detail-card-title">改动范围与约束</h4>
-              <dl className="task-scope-list">
-                <div className="task-scope-item">
-                  <dt>允许修改路径</dt>
-                  <dd data-testid="task-paths">
-                    {task.paths.length === 0
-                      ? <span className="empty">暂未限定</span>
-                      : (
-                        <div className="task-path-chips">
-                          {task.paths.map(path => <code key={path} className="task-path-chip">{path}</code>)}
-                        </div>
-                      )}
-                  </dd>
-                </div>
-                {task.dependsOn.length > 0 && (
+              <div className="task-detail-card-head">
+                <h4 className="task-detail-card-title">改动范围与约束</h4>
+                <Button
+                  isIconOnly
+                  className="task-detail-icon-action"
+                  variant="ghost"
+                  size="sm"
+                  data-testid="task-scope-toggle"
+                  aria-label={t('task.scopeDetails')}
+                  aria-expanded={scopeOpen}
+                  ref={(node) => { if (node !== null) node.title = t('task.scopeDetails') }}
+                  onPress={() => { setScopeOpen(current => !current) }}
+                >
+                  <SlidersHorizontal size={15} aria-hidden="true" />
+                </Button>
+              </div>
+              {scopeOpen && (
+                <dl className="task-scope-list">
                   <div className="task-scope-item">
-                    <dt>前置依赖</dt>
-                    <dd className="mono">{task.dependsOn.join('、')}</dd>
+                    <dt>允许修改路径</dt>
+                    <dd data-testid="task-paths">
+                      {task.paths.length === 0
+                        ? <span className="empty">暂未限定</span>
+                        : (
+                          <div className="task-path-chips">
+                            {task.paths.map(path => <code key={path} className="task-path-chip">{path}</code>)}
+                          </div>
+                        )}
+                    </dd>
                   </div>
-                )}
-                {task.rules.length > 0 && (
-                  <div className="task-scope-item">
-                    <dt>规范约束</dt>
-                    <dd data-testid="task-rules">{ruleLabels.join('、')}</dd>
-                  </div>
-                )}
-                {task.evidence.length > 0 && (
-                  <div className="task-scope-item">
-                    <dt>验收命令</dt>
-                    <dd data-testid="task-evidence">{task.evidence.join('、')}</dd>
-                  </div>
-                )}
-                {task.irreversible.length > 0 && (
-                  <div className="task-scope-item">
-                    <dt>不可逆动作</dt>
-                    <dd>{task.irreversible.join('、')}</dd>
-                  </div>
-                )}
-                {task.session !== undefined && (
-                  <div className="task-scope-item">
-                    <dt>认领会话</dt>
-                    <dd className="mono">{task.session}</dd>
-                  </div>
-                )}
-              </dl>
+                  {task.dependsOn.length > 0 && (
+                    <div className="task-scope-item">
+                      <dt>前置依赖</dt>
+                      <dd className="mono">{task.dependsOn.join('、')}</dd>
+                    </div>
+                  )}
+                  {task.rules.length > 0 && (
+                    <div className="task-scope-item">
+                      <dt>规范约束</dt>
+                      <dd data-testid="task-rules">{ruleLabels.join('、')}</dd>
+                    </div>
+                  )}
+                  {task.evidence.length > 0 && (
+                    <div className="task-scope-item">
+                      <dt>验收命令</dt>
+                      <dd data-testid="task-evidence">{task.evidence.join('、')}</dd>
+                    </div>
+                  )}
+                  {task.irreversible.length > 0 && (
+                    <div className="task-scope-item">
+                      <dt>不可逆动作</dt>
+                      <dd>{task.irreversible.join('、')}</dd>
+                    </div>
+                  )}
+                  {task.session !== undefined && (
+                    <div className="task-scope-item">
+                      <dt>认领会话</dt>
+                      <dd className="mono">{task.session}</dd>
+                    </div>
+                  )}
+                </dl>
+              )}
             </section>
 
             {task.state !== 'drafting' && (
@@ -861,6 +907,59 @@ export function TaskDetail(props: TaskDetailProps): JSX.Element {
           </aside>
         </div>
       </div>
+      {advanceConfirmOpen && createPortal(
+        <div
+          className="pending-dialog-backdrop"
+          data-testid="task-advance-confirm-backdrop"
+          onClick={(event) => { if (event.target === event.currentTarget) setAdvanceConfirmOpen(false) }}
+        >
+          <div
+            className="pending-dialog"
+            style={{ width: 'min(420px, calc(100vw - 32px))' }}
+            role="dialog"
+            aria-modal="true"
+            aria-label={t('task.advanceConfirmTitle')}
+            data-testid="task-advance-confirm-dialog"
+          >
+            <header className="pending-dialog-head">
+              <h2>{t('task.advanceConfirmTitle')}</h2>
+              <button
+                type="button"
+                className="pending-dialog-close"
+                data-testid="task-advance-confirm-dismiss"
+                aria-label={t('drawer.close')}
+                onClick={() => { setAdvanceConfirmOpen(false) }}
+              >
+                <X size={18} aria-hidden="true" />
+              </button>
+            </header>
+            <p data-testid="task-advance-confirm-hint">{t('task.advanceConfirmHint', { role: displayRole })}</p>
+            <div className="pending-actions">
+              <Button size="sm" variant="secondary" data-testid="task-advance-confirm-cancel" onPress={() => { setAdvanceConfirmOpen(false) }}>
+                {t('task.cancel')}
+              </Button>
+              <Button
+                size="sm"
+                variant="primary"
+                data-testid="task-advance-confirm-start"
+                onPress={() => { setAdvanceConfirmOpen(false); void confirmAndAdvance() }}
+              >
+                {t('task.advanceConfirmStart')}
+              </Button>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
+      <DocumentReaderDialog
+        open={techReaderOpen}
+        text={descriptionParts.technical}
+        title={task.title}
+        subtitle={task.id}
+        t={t}
+        testIdPrefix="task-tech"
+        onClose={() => { setTechReaderOpen(false) }}
+      />
     </DetailDrawer>
   )
 }

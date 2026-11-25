@@ -24,6 +24,8 @@ export interface DetailDrawerProps {
   readonly attributes?: Readonly<Record<string, string>>
   /** 打开即铺满工作区可见区；默认 false 不影响任务详情等其它抽屉。 */
   readonly defaultExpanded?: boolean
+  /** 是否渲染右上角放大/还原图标；默认 true，任务详情传 false 隐藏放大入口。 */
+  readonly expandable?: boolean
   readonly children: ReactNode
 }
 
@@ -42,12 +44,13 @@ interface ViewportRect {
  * 表单输入与滚动位置都留在原地。放大态覆盖宿主页面的可见区域（标题栏与左侧
  * 导航在页面之外，因此不被遮住），宿主未布局时退回普通右栏。
  * @param props - 文案、身份、关闭回调与内容。
- * @returns 带放大/还原与关闭的抽屉。
+ * @returns 带关闭与可选放大/还原的抽屉。
  */
 export function DetailDrawer(props: DetailDrawerProps): JSX.Element {
   const t = props.t ?? zhText
   const ref = useRef<HTMLElement>(null)
-  const [expanded, setExpanded] = useState(props.defaultExpanded === true)
+  const [expandedState, setExpandedState] = useState(props.defaultExpanded === true)
+  const expanded = props.expandable === false ? false : expandedState
   const [rect, setRect] = useState<ViewportRect | null>(null)
 
   useLayoutEffect(() => {
@@ -98,19 +101,21 @@ export function DetailDrawer(props: DetailDrawerProps): JSX.Element {
         <div className="detail-drawer-leading">{props.head}</div>
         <div className="detail-drawer-controls">
           {props.actions}
-          <Button
-            isIconOnly
-            className="detail-drawer-icon"
-            variant="ghost"
-            size="sm"
-            data-testid={`${props.testId}-expand`}
-            aria-label={label}
-            aria-pressed={expanded}
-            ref={(node) => { if (node !== null) node.title = label }}
-            onPress={() => { setExpanded(current => !current) }}
-          >
-            {expanded ? <Minimize2 aria-hidden="true" /> : <Maximize2 aria-hidden="true" />}
-          </Button>
+          {props.expandable !== false && (
+            <Button
+              isIconOnly
+              className="detail-drawer-icon"
+              variant="ghost"
+              size="sm"
+              data-testid={`${props.testId}-expand`}
+              aria-label={label}
+              aria-pressed={expanded}
+              ref={(node) => { if (node !== null) node.title = label }}
+              onPress={() => { setExpandedState(current => !current) }}
+            >
+              {expanded ? <Minimize2 aria-hidden="true" /> : <Maximize2 aria-hidden="true" />}
+            </Button>
+          )}
           <Button
             isIconOnly
             className="detail-drawer-icon"

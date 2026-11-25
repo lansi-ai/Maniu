@@ -7,7 +7,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { JSX } from 'react'
 import { createPortal } from 'react-dom'
 import { Button } from '@heroui/react'
-import { FileText, Maximize2, Minimize2, Minus, Plus, StretchHorizontal } from 'lucide-react'
+import { FileText, Maximize2, Minimize2, Minus, Plus, StretchHorizontal, X } from 'lucide-react'
 import { translate, type Translate } from '../locale.ts'
 import { renderMarkdown } from './markdown.tsx'
 
@@ -222,6 +222,100 @@ export function DocViewControls(props: DocViewControlsProps): JSX.Element {
   )
 }
 
+/** 受控全屏文档阅读弹层属性。 */
+export interface DocumentReaderDialogProps {
+  /** 打开状态由调用方持有；关闭时组件不渲染任何节点。 */
+  readonly open: boolean
+  readonly text: string
+  readonly title?: string | undefined
+  readonly subtitle?: string | undefined
+  readonly emptyText?: string | undefined
+  readonly t?: Translate | undefined
+  /** data-testid 前缀；默认 `doc`。 */
+  readonly testIdPrefix?: string | undefined
+  readonly onClose: () => void
+}
+
+/**
+ * 渲染受控全屏文档阅读弹层，内建版式/字号调节、Esc 关闭与关闭按钮。
+ * @param props - 打开状态、Markdown 原文、标题与关闭回调。
+ * @returns 打开时为 portal 到 body 的阅读层，关闭时为空片段。
+ */
+export function DocumentReaderDialog(props: DocumentReaderDialogProps): JSX.Element {
+  const t = props.t ?? zhText
+  const { layout, fontSize, setLayout, stepFontSize } = useDocViewPrefs()
+  const prefix = props.testIdPrefix ?? 'doc'
+
+  useEffect(() => {
+    if (!props.open) return
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      event.stopPropagation()
+      props.onClose()
+    }
+    window.addEventListener('keydown', onKeyDown, true)
+    return () => { window.removeEventListener('keydown', onKeyDown, true) }
+  }, [props.open, props.onClose])
+
+  if (!props.open) return <></>
+
+  const content = props.text.trim() === ''
+    ? (props.emptyText === undefined ? null : <p className="empty">{props.emptyText}</p>)
+    : renderMarkdown(props.text)
+
+  return createPortal(
+    <div
+      className="requirement-doc-fullscreen-layer"
+      data-testid={`${prefix}-fullscreen-layer`}
+      role="dialog"
+      aria-modal="true"
+      aria-label={props.title ?? props.subtitle ?? ''}
+    >
+      <header className="requirement-doc-fullscreen-bar">
+        <div className="requirement-doc-fullscreen-title">
+          {props.subtitle !== undefined && <span className="mono">{props.subtitle}</span>}
+          {props.title !== undefined && <strong>{props.title}</strong>}
+        </div>
+        <DocViewControls
+          layout={layout}
+          fontSize={fontSize}
+          onLayoutChange={setLayout}
+          onStepFont={stepFontSize}
+          t={props.t}
+          fullscreen
+          allowFullscreen
+          onToggleFullscreen={props.onClose}
+          testIdPrefix={prefix}
+        />
+        <Button
+          isIconOnly
+          size="sm"
+          variant="ghost"
+          data-testid={`${prefix}-reader-close`}
+          aria-label={t('drawer.close')}
+          ref={(node) => { if (node !== null) node.title = t('drawer.close') }}
+          onPress={props.onClose}
+        >
+          <X size={14} aria-hidden="true" />
+        </Button>
+      </header>
+      <div className="requirement-doc-fullscreen-scroll">
+        <div
+          className="markdown-body document-body"
+          data-testid={`${prefix}-fullscreen-body`}
+          data-doc-layout={layout}
+          data-doc-font-size={fontSize}
+          style={{ fontSize: `${String(fontSize)}px` }}
+        >
+          {content}
+        </div>
+      </div>
+    </div>,
+    document.body,
+  )
+}
+
 /** 统一 Markdown 文档阅读器属性。 */
 export interface MarkdownDocumentViewerProps {
   readonly text: string
@@ -251,18 +345,6 @@ export function MarkdownDocumentViewer(props: MarkdownDocumentViewerProps): JSX.
   const allowFullscreen = props.allowFullscreen !== false
   const effectiveLayout: DocLayout = props.compact === true ? 'web' : layout
   const bodyClass = `markdown-body document-body${props.tall === true ? ' tall' : ''}${props.className === undefined ? '' : ` ${props.className}`}`
-
-  useEffect(() => {
-    if (!fullscreen) return
-    const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key !== 'Escape') return
-      event.preventDefault()
-      event.stopPropagation()
-      setFullscreen(false)
-    }
-    window.addEventListener('keydown', onKeyDown, true)
-    return () => { window.removeEventListener('keydown', onKeyDown, true) }
-  }, [fullscreen])
 
   const content = props.text.trim() === ''
     ? (props.emptyText === undefined ? null : <p className="empty">{props.emptyText}</p>)
@@ -294,45 +376,16 @@ export function MarkdownDocumentViewer(props: MarkdownDocumentViewerProps): JSX.
       >
         {content}
       </div>
-      {allowFullscreen && fullscreen && createPortal(
-        <div
-          className="requirement-doc-fullscreen-layer"
-          data-testid={`${prefix}-fullscreen-layer`}
-          role="dialog"
-          aria-modal="true"
-          aria-label={props.title ?? props.subtitle ?? ''}
-        >
-          <header className="requirement-doc-fullscreen-bar">
-            <div className="requirement-doc-fullscreen-title">
-              {props.subtitle !== undefined && <span className="mono">{props.subtitle}</span>}
-              {props.title !== undefined && <strong>{props.title}</strong>}
-            </div>
-            <DocViewControls
-              layout={layout}
-              fontSize={fontSize}
-              onLayoutChange={setLayout}
-              onStepFont={stepFontSize}
-              t={props.t}
-              fullscreen
-              allowFullscreen
-              onToggleFullscreen={() => { setFullscreen(false) }}
-              testIdPrefix={prefix}
-            />
-          </header>
-          <div className="requirement-doc-fullscreen-scroll">
-            <div
-              className="markdown-body document-body"
-              data-testid={`${prefix}-fullscreen-body`}
-              data-doc-layout={layout}
-              data-doc-font-size={fontSize}
-              style={{ fontSize: `${String(fontSize)}px` }}
-            >
-              {content}
-            </div>
-          </div>
-        </div>,
-        document.body,
-      )}
+      <DocumentReaderDialog
+        open={allowFullscreen && fullscreen}
+        text={props.text}
+        title={props.title}
+        subtitle={props.subtitle}
+        emptyText={props.emptyText}
+        t={props.t}
+        testIdPrefix={prefix}
+        onClose={() => { setFullscreen(false) }}
+      />
     </>
   )
 }

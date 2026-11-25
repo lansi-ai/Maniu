@@ -3122,26 +3122,22 @@
   gap: 8px;
   align-items: flex-start;
 }
-.task-tech-entry {
-  margin-top: 10px;
+.task-detail-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
 }
-.task-tech-toggle {
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--muted);
-  font-size: 12px;
-  cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 3px;
+.task-detail-card-head .task-detail-card-title {
+  margin-bottom: 0;
 }
-.task-tech-toggle:hover {
-  color: var(--foreground);
+.task-detail-icon-action {
+  flex: none;
 }
-.task-tech-details {
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px dashed var(--separator);
+.task-detail-icon-action svg {
+  width: 15px;
+  height: 15px;
 }
 
 /* 素材库分区 Tab：首个分区是原型风格模板，后续分区按需追加。 */
