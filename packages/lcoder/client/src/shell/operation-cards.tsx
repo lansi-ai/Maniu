@@ -1,4 +1,4 @@
-/** 操作进度浮卡：后台操作的标题、岗位、步骤与状态色；可最小化成胶囊，查看对话自愿跳转。 */
+/** 操作进度浮卡：后台操作的标题、岗位、步骤、人话动作与耗时；可最小化成胶囊，查看对话自愿跳转。 */
 
 import { useEffect, useRef, useState, type JSX, type PointerEvent as ReactPointerEvent } from 'react'
 import { Button } from '@heroui/react'
@@ -42,11 +42,55 @@ export interface OperationCardView {
   readonly pendingKey?: string
   /** 后台会话的实时过程与最新输出；运行中持续更新，失败时可留作最后现场。 */
   readonly liveFeed?: OpLiveFeed
+  /** 操作开始时间（毫秒）；缺省时由浮卡在首次挂载时记录。 */
+  readonly startedAt?: number
 }
 
+/** 流式生成大小统一按 KB 显示，保留一位小数。 */
 function formatLiveSize(chars: number): string {
-  if (chars >= 1024) return `${(chars / 1024).toFixed(1)} KB`
-  return `${String(chars)} B`
+  return `${(chars / 1024).toFixed(1)} KB`
+}
+
+/** 工具名词段按非字母数字切分，供类别匹配；这些词段不直接展示。 */
+function toolNameTokens(toolName: string | undefined): readonly string[] {
+  if (toolName === undefined) return []
+  return toolName.toLowerCase().split(/[^a-z0-9]+/u).filter(token => token !== '')
+}
+
+/** 已知工具名首段；用于在任意展示文本里识别人眼可辨的下划线工具名。 */
+const TOOL_NAME_HEADS = [
+  'requirement', 'spec', 'prototype', 'task', 'review', 'read', 'write', 'edit', 'patch',
+  'glob', 'grep', 'search', 'list', 'fetch', 'find', 'lookup', 'todo', 'apply', 'web', 'session',
+] as const
+
+const SNAKE_TOOL_NAME = new RegExp(`\\b(?:${TOOL_NAME_HEADS.join('|')})(?:_[a-z0-9]+)+\\b`, 'gu')
+
+/**
+ * 把模型工具名映射为面向用户的动作短语。
+ * @param toolName - 模型工具名；缺省或无法识别时按兜底动作处理。
+ * @param t - 取词函数。
+ * @returns 不含下划线英文工具名的动作文案。
+ */
+export function toolActionLabel(toolName: string | undefined, t: Translate): string {
+  const tokens = toolNameTokens(toolName)
+  const has = (candidates: readonly string[]): boolean => candidates.some(candidate => tokens.includes(candidate))
+  if (has(['review'])) return t('op.action.review')
+  if (has(['requirement', 'spec', 'revise', 'amend'])) return t('op.action.requirementWrite')
+  if (has(['prototype'])) return t('op.action.prototype')
+  if (has(['task', 'todo', 'plan'])) return t('op.action.task')
+  if (has(['read', 'glob', 'grep', 'search', 'list', 'fetch', 'find', 'lookup'])) return t('op.action.read')
+  if (has(['write', 'edit', 'patch', 'apply'])) return t('op.action.write')
+  return t('op.action.generic')
+}
+
+/**
+ * 把展示文本里出现的下划线工具名替换为动作短语。
+ * @param text - 工具参数摘要或工具结果摘要。
+ * @param t - 取词函数。
+ * @returns 不含下划线英文工具名的展示文本。
+ */
+function humanizeToolText(text: string, t: Translate): string {
+  return text.replace(SNAKE_TOOL_NAME, (token: string) => toolActionLabel(token, t))
 }
 
 function livePhaseLabel(feed: OpLiveFeed, t: Translate): string {
@@ -59,18 +103,19 @@ function livePhaseLabel(feed: OpLiveFeed, t: Translate): string {
     case 'streaming':
       return `${prefix}${t('op.live.streaming')}`
     case 'tool-streaming': {
-      const tool = feed.toolName ?? 'tool'
+      const action = toolActionLabel(feed.toolName, t)
       if (feed.toolChars !== undefined && feed.toolChars > 0) {
-        return `${prefix}${t('op.live.toolStreamingChars', { tool, size: formatLiveSize(feed.toolChars) })}`
+        return `${prefix}${t('op.live.toolStreamingAction', { action, size: formatLiveSize(feed.toolChars) })}`
       }
-      return `${prefix}${t('op.live.toolStreaming', { tool })}`
+      return `${prefix}${action}`
     }
     case 'tool-running': {
-      const tool = feed.toolName ?? 'tool'
-      if (feed.toolDetail !== undefined && feed.toolDetail !== '') {
-        return `${prefix}${t('op.live.toolRunningDetail', { tool, detail: feed.toolDetail })}`
+      const action = toolActionLabel(feed.toolName, t)
+      const detail = feed.toolDetail === undefined ? '' : humanizeToolText(feed.toolDetail, t)
+      if (detail !== '' && detail !== action) {
+        return `${prefix}${t('op.live.toolRunningAction', { action, detail })}`
       }
-      return `${prefix}${t('op.live.toolRunning', { tool })}`
+      return `${prefix}${action}`
     }
     case 'retrying': {
       const attempt = feed.retryAttempt ?? 1
@@ -102,7 +147,8 @@ function OpLivePanel({
 }): JSX.Element | null {
   const bodyRef = useRef<HTMLDivElement>(null)
   const hasReasoning = feed.reasoning !== undefined && feed.reasoning !== ''
-  const hasContent = feed.snippet !== '' || hasReasoning || (feed.lastToolNote !== undefined && feed.lastToolNote !== '')
+  const lastToolNote = feed.lastToolNote === undefined ? '' : humanizeToolText(feed.lastToolNote, t)
+  const hasContent = feed.snippet !== '' || hasReasoning || lastToolNote !== ''
   useEffect(() => {
     const node = bodyRef.current
     if (node !== null) node.scrollTop = node.scrollHeight
@@ -111,9 +157,7 @@ function OpLivePanel({
   if (status === 'done') return null
   if (status === 'failed' && !hasContent) return null
 
-  const fallbackText = feed.lastToolNote !== undefined && feed.lastToolNote !== ''
-    ? feed.lastToolNote
-    : t('op.live.empty')
+  const fallbackText = lastToolNote !== '' ? lastToolNote : t('op.live.empty')
 
   return (
     <section className="op-live" data-testid="op-live-panel" data-status={status} aria-label={t('op.live.title')}>
@@ -134,22 +178,34 @@ function OpLivePanel({
       ) : (
         <div ref={bodyRef} className="op-live-body" data-testid="op-live-output">{fallbackText}</div>
       )}
-      {feed.snippet !== '' && feed.lastToolNote !== undefined && feed.lastToolNote !== '' && (
-        <p className="op-live-tool-note" data-testid="op-live-tool-note">{feed.lastToolNote}</p>
+      {feed.snippet !== '' && lastToolNote !== '' && (
+        <p className="op-live-tool-note" data-testid="op-live-tool-note">{lastToolNote}</p>
       )}
     </section>
   )
 }
 
 /**
- * 状态图标：运行中旋转、完成绿勾、失败警示；颜色由卡的状态类决定。
+ * 秒数转等宽计时文本：不足一分钟只写秒数，满一分钟用「分 + 两位秒」。
+ * @param seconds - 已取整的耗时秒数。
+ * @returns 供耗时徽标展示的时间文本。
+ */
+function formatElapsed(seconds: number): string {
+  if (seconds < 60) return `${String(seconds)}s`
+  const minutes = Math.floor(seconds / 60)
+  const rest = seconds % 60
+  return `${String(minutes)}m ${String(rest).padStart(2, '0')}s`
+}
+
+/**
+ * 状态图标：运行中旋转、完成描边对勾、失败警示；颜色由卡的状态类决定。
  * @param props - 浮卡状态。
  * @returns 状态图标。
  */
 function StatusIcon({ status }: { readonly status: OperationStatus }): JSX.Element {
   if (status === 'running') return <Loader2 className="op-status-icon op-spin" size={16} aria-hidden="true" />
-  if (status === 'done') return <CheckCircle2 className="op-status-icon" size={16} aria-hidden="true" />
-  return <AlertTriangle className="op-status-icon" size={16} aria-hidden="true" />
+  if (status === 'done') return <CheckCircle2 className="op-status-icon op-status-done" size={16} aria-hidden="true" />
+  return <AlertTriangle className="op-status-icon op-status-failed" size={16} aria-hidden="true" />
 }
 
 /** 浮卡列表属性。 */
@@ -231,6 +287,32 @@ function OpCardItem({
     setDragging(true)
   }
 
+  const startRef = useRef<number>(card.startedAt ?? Date.now())
+  const [now, setNow] = useState<number>(() => Date.now())
+  const [finishedAt, setFinishedAt] = useState<number | null>(null)
+
+  useEffect(() => {
+    if (card.startedAt !== undefined) startRef.current = card.startedAt
+  }, [card.startedAt])
+
+  useEffect(() => {
+    if (card.status === 'running') {
+      setFinishedAt(null)
+      setNow(Date.now())
+      const timer = setInterval(() => { setNow(Date.now()) }, 1000)
+      return () => { clearInterval(timer) }
+    }
+    setFinishedAt(previous => previous ?? Date.now())
+    return undefined
+  }, [card.status])
+
+  const elapsedEnd = card.status === 'running' ? now : (finishedAt ?? now)
+  const elapsedSeconds = Math.max(0, Math.floor((elapsedEnd - startRef.current) / 1000))
+  const elapsedTime = formatElapsed(elapsedSeconds)
+  const elapsedLabel = card.status === 'running'
+    ? t('op.elapsed', { time: elapsedTime })
+    : t('op.elapsedFinished', { time: elapsedTime })
+
   const sessionId = card.sessionId
   const testId = card.status === 'running'
     ? 'requirement-op-running'
@@ -247,7 +329,7 @@ function OpCardItem({
 
   return (
     <article
-      className={`op-card op-${card.status}`}
+      className={`op-card op-${card.status}${card.status === 'done' ? ' op-card-done-enter' : ''}`}
       data-testid={testId}
       data-op-key={card.key}
       data-dragging={dragging ? 'true' : 'false'}
@@ -263,6 +345,7 @@ function OpCardItem({
             </span>
           ) : null}
         </div>
+        <span className="op-elapsed" data-testid="op-elapsed" data-status={card.status}>{elapsedLabel}</span>
         <div className="op-head-actions">
           {sessionId !== null && card.awaitingConfirm !== true && (
             <Button
