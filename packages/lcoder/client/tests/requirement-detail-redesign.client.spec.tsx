@@ -939,18 +939,20 @@ describe('文档栏四层顺序与专属操作栏', () => {
     expect(element('requirement-version-compare')?.getAttribute('data-version')).toBe('2')
   })
 
-  it('已处置报告标签只读：给单行状态条，没有写操作按钮', async () => {
+  it('已处置报告标签只读：结论一行加两个入口，没有写操作按钮', async () => {
+    reportText = STRUCTURED_REPORT
     await renderDetail(DRAFT, callsOf())
     await openTab('[data-testid="requirement-workface-review"]')
     const bar = element('requirement-review-decided-bar')
     expect(bar).not.toBeNull()
-    expect(bar?.contains(element('requirement-review-decided-status'))).toBe(true)
     expect(bar?.contains(element('requirement-review-decided'))).toBe(true)
-    expect(element('requirement-review-decided-status')?.textContent).toContain('已采纳')
-    expect(element('requirement-review-decided')?.textContent).toContain('只读')
+    expect(element('requirement-review-decided')?.textContent).toBe('第 1 轮评审 · 已采纳，已改进为 v2 · 11-17')
+    expect(element('requirement-review-open-changes')?.textContent).toBe('查看 v2 的修改 →')
+    expect(element('requirement-report-markdown-toggle')?.textContent).toBe('查看评审原文')
     expect(element('requirement-review-accept')).toBeNull()
     expect(element('requirement-review-reject')).toBeNull()
-    expect(element('requirement-report-body')).not.toBeNull()
+    expect(element('requirement-report-body')).toBeNull()
+    expect(element('requirement-review-todos')).not.toBeNull()
   })
 })
 

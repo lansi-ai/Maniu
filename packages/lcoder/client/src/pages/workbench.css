@@ -1061,20 +1061,24 @@
 .requirement-doc-pane > [hidden] { display: none; }
 .requirement-op-group .detail-note,
 .requirement-op-group .detail-line { flex: 1 0 100%; margin: 0; }
-.requirement-doc-readonly { color: var(--muted); font-size: 12px; }
 /* 右上角紧凑工具组：刷新与查看原文不进核心流程操作栏。 */
 .requirement-quick-tools { display: inline-flex; align-items: center; gap: 2px; }
 /* 评审结论徽标与处置动作；报告时间与 Markdown 切换收进本组右侧的紧凑元信息组。 */
 .requirement-review-status { font-weight: 600; }
+/* 处置结论压成一行纯文字：小圆点标结论，右侧并列原文与版本改动入口。 */
 .requirement-review-decided-bar {
-  display: inline-flex;
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
-  padding: 5px 12px;
-  border-radius: 10px;
-  background: color-mix(in oklab, var(--surface-secondary) 75%, transparent);
-  border: 1px solid var(--separator);
+  gap: 14px;
+  font-size: 12.5px;
 }
+.review-decided-line { display: inline-flex; align-items: center; gap: 7px; flex: 1 1 auto; color: var(--foreground); }
+.review-decided-dot { flex: none; width: 7px; height: 7px; border-radius: 999px; background: var(--muted); }
+.review-decided-dot[data-decision='accepted'] { background: var(--success); }
+.review-decided-dot[data-decision='rejected'] { background: var(--muted); }
+.review-decided-action { font-size: 12px; white-space: nowrap; }
 .requirement-review-actions { flex: 1 1 auto; }
 .requirement-review-decision { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 0; }
 .requirement-review-decision .detail-note { margin: 0; }
@@ -1374,7 +1378,6 @@
 }
 .requirement-history-review { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; width: 100%; }
 .requirement-history-snapshot { width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
-.requirement-history-snapshot .requirement-doc-readonly { margin: 0 0 6px; }
 
 /* 原型配置折叠：预览常驻，配置按需展开，收起态零占位。 */
 .prototype-config[hidden] { display: none; }
@@ -1425,13 +1428,15 @@
   align-items: baseline;
   gap: 8px;
   padding: 8px 10px;
-  border: 1px solid var(--separator);
+  border: 0;
   border-radius: 10px;
-  background: var(--surface-secondary);
+  background: color-mix(in oklab, var(--accent) 8%, var(--surface));
   font-size: 13px;
   cursor: pointer;
+  transition: background-color 160ms ease;
 }
-.review-summary-bar:hover { border-color: var(--accent); }
+.review-summary-bar:hover { background: color-mix(in oklab, var(--accent) 14%, var(--surface)); }
+.review-summary-bar:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .review-summary-label { flex: 0 0 auto; color: var(--muted); font-weight: 600; }
 .review-summary-text {
   min-width: 0;
@@ -1523,6 +1528,15 @@
 .review-todo-table tbody tr.review-todo-row { cursor: pointer; }
 .review-todo-table tbody tr:nth-child(even) { background: color-mix(in oklab, var(--muted) 6%, var(--surface)); }
 .review-todo-table tbody tr.review-todo-row.is-expanded { background: var(--accent-soft); }
+/* 只读意见列表：无表头、无隔行底色，只用极淡分隔线分条，标题侧展开箭头贴右。 */
+.review-todo-table.is-readonly { min-width: 0; }
+.review-todo-table.is-readonly tbody tr { background: none; }
+.review-todo-table.is-readonly .review-todo-level { width: 128px; }
+.review-todo-table.is-readonly tbody tr.review-todo-row > td { box-shadow: inset 0 -1px 0 var(--separator); }
+.review-todo-table.is-readonly tbody tr.review-todo-row.is-expanded > td { box-shadow: none; }
+.review-todo-table.is-readonly .review-todo-title-inner { justify-content: space-between; }
+.review-todo-table.is-readonly .review-todo-title strong { flex: 1 1 auto; }
+.review-todo-table.is-readonly .review-todo-arrow { margin-left: 8px; }
 .review-todo-table td {
   height: 42px;
   padding: 8px 10px;
@@ -1597,8 +1611,6 @@
   color: var(--warning);
   font-weight: 600;
 }
-.review-todo-row.is-rejected { opacity: 0.62; }
-.review-todo-row.is-rejected .review-todo-title strong { text-decoration: line-through; }
 .review-todo-table tbody tr.todo-detail-row { cursor: default; }
 .review-todo-table tbody tr.todo-detail-row:hover { background: var(--surface); }
 .todo-detail-row > td { height: auto; padding: 0; white-space: normal; background: var(--surface); }
