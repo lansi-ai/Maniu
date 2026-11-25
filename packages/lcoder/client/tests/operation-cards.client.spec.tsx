@@ -47,6 +47,7 @@ beforeEach(() => {
 afterEach(() => {
   act(() => { root.unmount() })
   container.remove()
+  vi.useRealTimers()
 })
 
 function render(cards: readonly OperationCardView[]): void {
@@ -366,7 +367,7 @@ describe('任务卡内的待回答入口', () => {
 })
 
 describe('浮卡实时工作过程面板', () => {
-  it('进行中卡展示实时阶段、工具写入大小与最新输出片段', () => {
+  it('进行中卡展示实时阶段、人话动作与最新输出片段，不暴露英文工具名', () => {
     render([cardOf({
       liveFeed: {
         phase: 'tool-streaming',
@@ -379,11 +380,71 @@ describe('浮卡实时工作过程面板', () => {
       },
     })])
     expect(element('op-live-panel')).not.toBeNull()
-    expect(element('op-live-phase')?.textContent).toContain('第 2 步')
-    expect(element('op-live-phase')?.textContent).toContain('prototype_draft')
-    expect(element('op-live-phase')?.textContent).toContain('2.0 KB')
+    const phase = element('op-live-phase')?.textContent ?? ''
+    expect(phase).toContain('第 2 步')
+    expect(phase).toContain('正在生成原型画面')
+    expect(phase).toContain('2.0 KB')
+    expect(phase).not.toContain('prototype_draft')
     expect(element('op-live-output')?.textContent).toContain('多页 SPA 原型')
     expect(element('op-live-tool-note')?.textContent).toContain('REQ-01.md')
+  })
+
+  it('需求写入与资料检索分别给出人话动作，字节数统一按 KB 显示', () => {
+    render([cardOf({
+      liveFeed: {
+        phase: 'tool-streaming',
+        step: 1,
+        toolName: 'requirement_revise',
+        toolChars: 512,
+        snippet: '',
+        lastActivityAt: 1000,
+      },
+    })])
+    const writing = element('op-live-phase')?.textContent ?? ''
+    expect(writing).toContain('正在更新需求文档')
+    expect(writing).toContain('0.5 KB')
+    expect(writing).not.toContain('requirement_revise')
+
+    render([cardOf({
+      liveFeed: {
+        phase: 'tool-running',
+        step: 1,
+        toolName: 'read_file',
+        snippet: '',
+        lastActivityAt: 1000,
+      },
+    })])
+    const reading = element('op-live-phase')?.textContent ?? ''
+    expect(reading).toContain('正在查阅项目资料')
+    expect(reading).not.toContain('read_file')
+  })
+
+  it('工具详情若带原始工具名，替换为动作后再展示', () => {
+    render([cardOf({
+      liveFeed: {
+        phase: 'tool-running',
+        step: 3,
+        toolName: 'requirement_revise',
+        toolDetail: 'requirement_revise',
+        snippet: '',
+        lastActivityAt: 1000,
+      },
+    })])
+    const phase = element('op-live-phase')?.textContent ?? ''
+    expect(phase).toContain('正在更新需求文档')
+    expect(phase).not.toContain('requirement_revise')
+
+    render([cardOf({
+      liveFeed: {
+        phase: 'tool-running',
+        step: 3,
+        toolName: 'requirement_revise',
+        toolDetail: 'REQ-01',
+        snippet: '',
+        lastActivityAt: 1000,
+      },
+    })])
+    expect(element('op-live-phase')?.textContent).toBe('第 3 步 · 正在更新需求文档（REQ-01）')
   })
 
   it('完成卡不显示实时面板；失败卡保留最后输出以便排查', () => {
@@ -465,5 +526,46 @@ describe('浮卡实时工作过程面板', () => {
       window.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, clientX: 250, clientY: 260 }))
     })
     expect(card.dataset.dragging).toBe('false')
+  })
+})
+
+describe('浮卡实时耗时', () => {
+  it('运行中每秒递增，切到完成后定格最终用时', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-01-01T00:00:00Z'))
+    const startedAt = Date.now()
+    render([cardOf({ startedAt })])
+    expect(element('op-elapsed')?.textContent).toBe('0s')
+
+    act(() => { vi.advanceTimersByTime(14000) })
+    expect(element('op-elapsed')?.textContent).toBe('14s')
+
+    render([cardOf({ startedAt, status: 'done' })])
+    expect(element('op-elapsed')?.textContent).toBe('用时 14s')
+
+    act(() => { vi.advanceTimersByTime(5000) })
+    expect(element('op-elapsed')?.textContent).toBe('用时 14s')
+  })
+
+  it('满一分钟改用分与两位秒', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-01-01T00:00:00Z'))
+    render([cardOf({ startedAt: Date.now() })])
+    act(() => { vi.advanceTimersByTime(68000) })
+    expect(element('op-elapsed')?.textContent).toBe('1m 08s')
+  })
+})
+
+describe('浮卡完成态动效结构', () => {
+  it('完成卡带入场与对勾描边类，运行卡不带', () => {
+    render([cardOf({ status: 'done' })])
+    const card = element('requirement-op-success')
+    expect(card?.className).toContain('op-card-done-enter')
+    expect(card?.querySelector('.op-status-icon.op-status-done')).not.toBeNull()
+    expect(card?.querySelector('.op-status-done path')).not.toBeNull()
+
+    render([cardOf()])
+    expect(element('requirement-op-running')?.className).not.toContain('op-card-done-enter')
+    expect(element('requirement-op-running')?.querySelector('.op-status-done')).toBeNull()
   })
 })
