@@ -408,10 +408,21 @@ describe('统一 6 段式 Spec-Driven PRD 标准固化', () => {
     expect(prompt).toContain('正文纯净')
     expect(prompt).toContain('零模糊词')
     expect(prompt).toContain('What ≠ How')
+    expect(prompt).toContain('排版规则')
+    expect(prompt).toContain('一条一行')
   }
 
   it('导出 REQUIREMENT_PRD_STANDARD 并完整包含 6 段式、EARS、AC 编号与三条红线', () => {
     assertPrdStandard(REQUIREMENT_PRD_STANDARD)
+  })
+
+  it('排版规则要求列表化、范围边界分条、流程编号与字段表格', () => {
+    expect(REQUIREMENT_PRD_STANDARD).toContain('每条约 40 字以内')
+    expect(REQUIREMENT_PRD_STANDARD).toContain('步骤用有序列表')
+    expect(REQUIREMENT_PRD_STANDARD).toContain('字段 / 含义 / 取值与限制')
+    expect(REQUIREMENT_PRD_STANDARD).toContain('「场景 → 表现」')
+    expect(REQUIREMENT_PRD_STANDARD).toContain('每条 `AC-n` 单独一行')
+    expect(REQUIREMENT_PRD_STANDARD).toContain('每章节开头最多一句概述')
   })
 
   it('立项、新建、评审、修订、补丁、增量与里程碑提示词均固化 6 段式标准与正文纯净红线', () => {

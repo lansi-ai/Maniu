@@ -756,16 +756,24 @@
 .revision-seg-ellipsis { color: var(--muted); }
 .revision-seg-fold-note { margin-left: 6px; color: var(--muted); font-size: 11px; }
 .revision-annotation-more {
-  align-self: flex-start;
   border: 0;
   padding: 2px 0;
   background: transparent;
-  color: var(--muted);
-  font-size: 11px;
   cursor: pointer;
   transition: color 140ms ease;
 }
-.revision-annotation-more:hover { color: var(--accent); }
+/* `#root button:not(.button)` 的 `font: inherit` 与 `color: inherit` 优先级更高，
+   卡片内的两个按钮改用带 `#root` 前缀的作用域选择器取回链接式样。 */
+#root .revision-annotation-card .revision-annotation-more {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+#root .revision-annotation-card .revision-annotation-more:hover { color: var(--accent); }
 .revision-annotation-history { display: flex; flex-direction: column; gap: 6px; }
 .revision-annotation-earlier {
   display: flex;

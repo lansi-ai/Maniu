@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import type { JSX, KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { Button, Chip } from '@heroui/react'
-import { MessageSquareText } from 'lucide-react'
+import { ChevronDown, ChevronUp, MessageSquareText } from 'lucide-react'
 import { renderMarkdown } from '../markdown/markdown.tsx'
 import { visibleAnnotationBlockIds, visibleAnnotationCards } from '../spec/revision-annotations.ts'
 import type {
@@ -14,7 +14,8 @@ import type {
 } from '../spec/revision-annotations.ts'
 import type { MessageKey, Translate } from '../locale.ts'
 
-const BADGE_LIMIT = 160
+/** 批注卡默认显示的可见字数上限。 */
+const SEGMENT_CHAR_LIMIT = 160
 
 /** 变更类型标签的语义色与词典键。 */
 const KIND_STYLE: Readonly<Record<AnnotationCard['kind'], { readonly color: 'success' | 'warning' | 'danger'; readonly key: MessageKey }>> = {
@@ -67,6 +68,186 @@ export function AnnotationToggle(props: AnnotationToggleProps): JSX.Element {
   )
 }
 
+/** 带来源变更类型的单个字符，用于在不丢字的前提下改写片段文本。 */
+interface DiffChar {
+  readonly ch: string
+  readonly kind: DiffSegment['kind']
+}
+
+/** 按可见字数折叠片段的结果。 */
+export interface FoldedSegments {
+  readonly shown: readonly DiffSegment[]
+  readonly hidden: boolean
+}
+
+/** 把片段展开成字符序列，逐字符记下来源变更类型；按 UTF-16 码元拆分以与标记位置对齐。 */
+function toDiffChars(segments: readonly DiffSegment[]): DiffChar[] {
+  const chars: DiffChar[] = []
+  for (const segment of segments) {
+    for (let index = 0; index < segment.text.length; index += 1) {
+      chars.push({ ch: segment.text.charAt(index), kind: segment.kind })
+    }
+  }
+  return chars
+}
+
+/** 单词字符判定：字母、数字与下划线，用于避免把标识符里的下划线当成强调标记。 */
+function isWordChar(ch: string | undefined): boolean {
+  return ch !== undefined && /[\p{L}\p{N}_]/u.test(ch)
+}
+
+/** 去掉行首标题标记，并把行首无序列表符号换成圆点；缩进原样保留。 */
+function stripLineStartMarkers(chars: DiffChar[]): DiffChar[] {
+  const dropped = new Array<boolean>(chars.length).fill(false)
+  let lineStart = 0
+  while (lineStart < chars.length) {
+    let lineEnd = lineStart
+    while (lineEnd < chars.length && chars[lineEnd]?.ch !== '\n') lineEnd += 1
+    let marker = lineStart
+    while (marker < lineEnd && (chars[marker]?.ch === ' ' || chars[marker]?.ch === '\t')) marker += 1
+    let hashes = 0
+    let hashEnd = marker
+    while (hashEnd < lineEnd && chars[hashEnd]?.ch === '#' && hashes < 6) {
+      hashes += 1
+      hashEnd += 1
+    }
+    if (hashes > 0) {
+      for (let index = marker; index < hashEnd; index += 1) dropped[index] = true
+      while (hashEnd < lineEnd && (chars[hashEnd]?.ch === ' ' || chars[hashEnd]?.ch === '\t')) {
+        dropped[hashEnd] = true
+        hashEnd += 1
+      }
+    } else if (
+      marker + 1 < lineEnd
+      && (chars[marker]?.ch === '-' || chars[marker]?.ch === '*' || chars[marker]?.ch === '+')
+      && chars[marker + 1]?.ch === ' '
+    ) {
+      chars[marker] = { ch: '•', kind: chars[marker]?.kind ?? 'equal' }
+    }
+    lineStart = lineEnd + 1
+  }
+  return chars.filter((_char, index) => dropped[index] !== true)
+}
+
+/**
+ * 标记成对定界符的位置，只删标记、保留内容。
+ * @param text - 待处理文本。
+ * @param dropped - 与文本等长的删除标记，按位置写入。
+ * @param delimiter - 定界符字面量。
+ * @param pairedOnlyAtWordEdge - 是否要求开口前与收口后都是非单词边界。
+ */
+function markDelimiter(text: string, dropped: boolean[], delimiter: string, pairedOnlyAtWordEdge: boolean): void {
+  const width = delimiter.length
+  let index = 0
+  while (index < text.length) {
+    if (dropped[index] === true || !text.startsWith(delimiter, index)) {
+      index += 1
+      continue
+    }
+    const openEdge = !pairedOnlyAtWordEdge || index === 0 || !isWordChar(text[index - 1])
+    if (!openEdge || text[index + width] === undefined || /\s/u.test(text[index + width] ?? '')) {
+      index += width
+      continue
+    }
+    let closeAt = -1
+    let scan = index + width
+    while (scan < text.length) {
+      if (dropped[scan] === true) {
+        scan += 1
+        continue
+      }
+      if (text.startsWith(delimiter, scan) && scan > index + width) {
+        const closeEdge = !pairedOnlyAtWordEdge || scan + width >= text.length || !isWordChar(text[scan + width])
+        if (closeEdge && !/\s/u.test(text[scan - 1] ?? '')) {
+          closeAt = scan
+          break
+        }
+      }
+      scan += 1
+    }
+    if (closeAt === -1) {
+      index += width
+      continue
+    }
+    for (let offset = 0; offset < width; offset += 1) {
+      dropped[index + offset] = true
+      dropped[closeAt + offset] = true
+    }
+    index = closeAt + width
+  }
+}
+
+/** 标记反引号、链接地址与强调标记的位置；内容本身全部保留。 */
+function markInlineMarkers(text: string): boolean[] {
+  const dropped = new Array<boolean>(text.length).fill(false)
+  for (let index = 0; index < text.length; index += 1) {
+    if (text[index] === '`') dropped[index] = true
+  }
+  for (const match of text.matchAll(/\[([^\]\n]*)\]\(([^)\n]*)\)/gu)) {
+    const start = match.index
+    const label = match[1] ?? ''
+    dropped[start] = true
+    for (let index = start + 1 + label.length; index < start + match[0].length; index += 1) dropped[index] = true
+  }
+  markDelimiter(text, dropped, '**', false)
+  markDelimiter(text, dropped, '__', false)
+  markDelimiter(text, dropped, '*', true)
+  markDelimiter(text, dropped, '_', true)
+  return dropped
+}
+
+/**
+ * 清理批注片段里的 Markdown 标记，只改显示文本，不改片段类型。
+ *
+ * 段落行的标题与列表标记、强调、行内代码与链接都按显示语序改写；删除片段同样清理，
+ * 仍保留 `removed` 类型以便继续画删除线。
+ * @param segments - 待展示的词级片段。
+ * @returns 清理后的片段；相邻同类型片段合并，空片段丢弃。
+ */
+export function cleanDiffSegments(segments: readonly DiffSegment[]): readonly DiffSegment[] {
+  const chars = stripLineStartMarkers(toDiffChars(segments))
+  const text = chars.map(char => char.ch).join('')
+  const dropped = markInlineMarkers(text)
+  const merged: { kind: DiffSegment['kind']; text: string }[] = []
+  for (let index = 0; index < chars.length; index += 1) {
+    if (dropped[index] === true) continue
+    const char = chars[index]
+    if (char === undefined) continue
+    const last = merged[merged.length - 1]
+    if (last !== undefined && last.kind === char.kind) last.text += char.ch
+    else merged.push({ kind: char.kind, text: char.ch })
+  }
+  return merged
+}
+
+/**
+ * 从片段头部累计可见字数，超出上限时在片段中间截断并保持该片段类型。
+ * @param segments - 已清理的片段。
+ * @param limit - 可见字数上限；非正数表示不展示任何内容。
+ * @returns 折叠后的片段与是否存在被截掉的内容。
+ */
+export function foldSegmentsByChars(segments: readonly DiffSegment[], limit: number): FoldedSegments {
+  const shown: DiffSegment[] = []
+  let remaining = Math.max(limit, 0)
+  let hidden = false
+  for (const segment of segments) {
+    if (segment.text.length === 0) continue
+    if (remaining <= 0) {
+      hidden = true
+      continue
+    }
+    if (segment.text.length <= remaining) {
+      shown.push(segment)
+      remaining -= segment.text.length
+      continue
+    }
+    shown.push({ kind: segment.kind, text: segment.text.slice(0, remaining) })
+    remaining = 0
+    hidden = true
+  }
+  return { shown, hidden }
+}
+
 /** 词级片段的展示属性。 */
 interface SegmentViewProps {
   readonly segments: readonly DiffSegment[]
@@ -76,10 +257,9 @@ interface SegmentViewProps {
 
 /** 渲染红删除线与绿新增的片段；相同片段按原样排进正文语序。 */
 function SegmentView({ segments, folded, t }: SegmentViewProps): JSX.Element {
-  const shown = folded ? segments.slice(0, 12) : segments
   return (
     <>
-      {shown.map((segment, index) => {
+      {segments.map((segment, index) => {
         const key = `seg-${String(index)}`
         if (segment.kind === 'removed') return <del key={key} className="revision-seg-removed">{segment.text}</del>
         if (segment.kind === 'added') return <ins key={key} className="revision-seg-added">{segment.text}</ins>
@@ -327,12 +507,12 @@ function AnnotationCardView({
   card, selected, hovered, expanded, segmentsFolded, t, onSelect, onHover, onToggleExpand, onToggleSegments,
 }: AnnotationCardViewProps): JSX.Element {
   const style = KIND_STYLE[card.kind]
-  const segments = card.entries[0]?.segments ?? card.deletions.flatMap((entry, index) => [
+  const segments = cleanDiffSegments(card.entries[0]?.segments ?? card.deletions.flatMap((entry, index) => [
     ...(index === 0 ? [] : [{ kind: 'equal' as const, text: '\n' }]),
     ...entry.segments,
-  ])
-  const total = segments.reduce((sum, segment) => sum + segment.text.length, 0)
-  const canFold = total > BADGE_LIMIT || segments.length > 12
+  ]))
+  const fold = foldSegmentsByChars(segments, SEGMENT_CHAR_LIMIT)
+  const folded = fold.hidden && segmentsFolded
   const classes = ['revision-annotation-card', `is-${card.kind}`]
   if (selected) classes.push('is-selected')
   if (hovered) classes.push('is-hovered')
@@ -373,16 +553,22 @@ function AnnotationCardView({
         </p>
       )}
       <div className="revision-annotation-segments" data-testid="requirement-annotation-segments">
-        <SegmentView segments={segments} folded={canFold && segmentsFolded} t={t} />
+        <SegmentView segments={folded ? fold.shown : segments} folded={folded} t={t} />
       </div>
-      {canFold && (
+      {fold.hidden && (
         <button
           type="button"
           className="revision-annotation-more"
           data-testid="requirement-annotation-segment-toggle"
+          aria-expanded={!segmentsFolded}
           onClick={(event) => { event.stopPropagation(); onToggleSegments(card.id) }}
         >
-          {segmentsFolded ? t('requirement.annotations.expandSegments') : t('requirement.annotations.collapseSegments')}
+          {segmentsFolded
+            ? <ChevronDown size={14} aria-hidden="true" />
+            : <ChevronUp size={14} aria-hidden="true" />}
+          <span>
+            {segmentsFolded ? t('requirement.annotations.expandSegments') : t('requirement.annotations.collapseSegments')}
+          </span>
         </button>
       )}
       {card.entries.length > 1 && (
@@ -395,8 +581,13 @@ function AnnotationCardView({
             onClick={(event) => { event.stopPropagation(); onToggleExpand(card.id) }}
           >
             {expanded
-              ? t('requirement.annotations.collapseEarlier', { count: card.entries.length - 1 })
-              : t('requirement.annotations.expandEarlier', { count: card.entries.length - 1 })}
+              ? <ChevronUp size={14} aria-hidden="true" />
+              : <ChevronDown size={14} aria-hidden="true" />}
+            <span>
+              {expanded
+                ? t('requirement.annotations.collapseEarlier', { count: card.entries.length - 1 })
+                : t('requirement.annotations.expandEarlier', { count: card.entries.length - 1 })}
+            </span>
           </button>
           {expanded && card.entries.slice(1).map((entry, index) => (
             <div key={`${card.id}-${String(index)}`} className="revision-annotation-earlier" data-testid="requirement-annotation-earlier">
@@ -404,7 +595,7 @@ function AnnotationCardView({
                 {t('requirement.annotations.cardMeta', { version: entry.version, at: shortTime(entry.at) })}
               </span>
               <div className="revision-annotation-segments">
-                <SegmentView segments={entry.segments} folded={false} t={t} />
+                <SegmentView segments={cleanDiffSegments(entry.segments)} folded={false} t={t} />
               </div>
             </div>
           ))}
