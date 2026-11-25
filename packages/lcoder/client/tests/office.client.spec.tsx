@@ -212,7 +212,7 @@ describe('OfficePage', () => {
   })
 
   it('roleLabel 将英文 id 映射为中文名称', () => {
-    expect(roleLabel('pm-jason', PROJECTION.roles)).toBe('项目经理-Jason')
+    expect(roleLabel('pm-jason', PROJECTION.roles)).toBe('项目经理')
     expect(roleLabel('dev', PROJECTION.roles)).toBe('开发工程师')
   })
 })

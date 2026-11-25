@@ -17,11 +17,18 @@ export function roleTitleOf(name: string): string | undefined {
   return first === '' || !HAS_HAN.test(first) ? undefined : first
 }
 
+/** 已知规范的中文名（按 id）；优先展示，避免公式 id 直接暴露成裸编号。 */
+const RULE_TITLES: Readonly<Record<string, string>> = {
+  'R-01': '月度汇总金额按分累加保留两位小数',
+}
+
 /** 把规范条目取成中文名称或摘要；没有中文时回退编号。 */
 export function ruleTitleOf(rule: RuleRow): string {
   const summary = rule.text.split(/[\n。；;]/u, 1)[0]?.trim() ?? ''
   if (summary !== '' && HAS_HAN.test(summary)) return summary
   if (HAS_HAN.test(rule.module)) return rule.module
+  const known = RULE_TITLES[rule.id]
+  if (known !== undefined && HAS_HAN.test(known)) return known
   return rule.id
 }
 

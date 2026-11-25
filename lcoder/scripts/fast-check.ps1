@@ -102,7 +102,9 @@ if ($changed.Count -gt 0) {
 
 # -Specs 优先；否则每个触及子包跑自己目录下的全部用例。
 $testTargets = if ($Specs.Count -gt 0) { @($Specs | ForEach-Object { $_.Replace('\', '/') }) } else { @($touched | ForEach-Object { 'packages/lcoder/' + $_ }) }
-$testArguments = @('exec', 'vitest', 'run') + $testTargets + @('--maxWorkers=2')
+# client 用例挂 LCoder 专属配置（继承根配置 + jsdom polyfill），不碰上游根配置。
+$testConfig = if ($touched -contains 'client') { @('--config', (Join-Path $PSScriptRoot 'vitest.client.config.ts').Replace('\', '/')) } else { @() }
+$testArguments = @('exec', 'vitest', 'run') + $testTargets + @('--maxWorkers=2') + $testConfig
 $rebuildScript = Join-Path $PSScriptRoot 'rebuild.ps1'
 $rebuildArguments = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $rebuildScript, '-Layer', 'auto')
 if ($DryRun) { $rebuildArguments += '-DryRun' }
