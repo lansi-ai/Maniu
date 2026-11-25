@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-/** T-328 需求详情只读修改批注：开关自动隐藏、按需读盘与缓存、双栏联动与版本筛选。 */
+/** T-328/T-329 需求详情只读修改批注：开关与缓存、吸顶筛选条、逐块双栏配对与版本筛选。 */
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -223,6 +223,65 @@ describe('正文高亮与批注卡', () => {
     expect(all('requirement-annotation-earlier')).toHaveLength(0)
     await press(historyToggle)
     expect(all('requirement-annotation-earlier')).toHaveLength(1)
+  })
+})
+
+describe('逐块双栏布局', () => {
+  function rowOf(selector: string): Element | null {
+    return container.querySelector(selector)?.closest('[data-testid="requirement-annotation-row"]') ?? null
+  }
+
+  it('批注卡与对应修改段同处一行，筛选条不再集中堆卡', async () => {
+    await renderDetail(ROW)
+    await press(element('requirement-annotation-toggle'))
+    const row = rowOf('[data-testid="requirement-annotation-block"].is-modified')
+    expect(row).not.toBeNull()
+    const block = row?.querySelector('[data-testid="requirement-annotation-block"]')
+    const cards = row?.querySelectorAll('[data-testid="requirement-annotation-row-cards"] [data-testid="requirement-annotation-card"]')
+    const cardIds = [...(cards ?? [])].map(node => node.getAttribute('data-annotation-id'))
+    expect(cardIds.length).toBeGreaterThan(0)
+    expect(cardIds).toContain(block?.getAttribute('data-annotation-id'))
+    expect(element('requirement-annotation-track')?.querySelector('[data-testid="requirement-annotation-card"]')).toBeNull()
+  })
+
+  it('未修改段落所在行右侧留白，不渲染空卡片容器', async () => {
+    await renderDetail(ROW)
+    await press(element('requirement-annotation-toggle'))
+    const plainRows = all('requirement-annotation-row').filter(row =>
+      row.querySelector('[data-testid="requirement-annotation-block"]') === null
+      && row.querySelector('[data-testid="requirement-annotation-deleted"]') === null)
+    expect(plainRows.length).toBeGreaterThan(0)
+    for (const row of plainRows) {
+      expect(row.querySelector('[data-testid="requirement-annotation-card"]')).toBeNull()
+      expect(row.querySelector('[data-testid="requirement-annotation-row-cards"]')).toBeNull()
+    }
+  })
+
+  it('版本切换只让对应版本的卡出现在所属行', async () => {
+    await renderDetail(ROW)
+    await press(element('requirement-annotation-toggle'))
+    expect(rowOf('[data-testid="requirement-annotation-block"].is-added')?.querySelector('[data-testid="requirement-annotation-card"]')).not.toBeNull()
+    expect(rowOf('[data-testid="requirement-annotation-deleted"]')?.querySelector('[data-testid="requirement-annotation-card"]')).not.toBeNull()
+
+    await press(container.querySelector('[data-testid="requirement-annotation-filter"][data-version="2"]'))
+    expect(rowOf('[data-testid="requirement-annotation-block"].is-added')?.querySelector('[data-testid="requirement-annotation-card"]')).not.toBeNull()
+    expect(all('requirement-annotation-deleted')).toHaveLength(0)
+
+    await press(container.querySelector('[data-testid="requirement-annotation-filter"][data-version="3"]'))
+    expect(rowOf('[data-testid="requirement-annotation-block"].is-added')?.querySelector('[data-testid="requirement-annotation-card"]')).toBeNull()
+    const markerRow = rowOf('[data-testid="requirement-annotation-deleted"]')
+    expect(markerRow).not.toBeNull()
+    expect(markerRow?.querySelector('[data-testid="requirement-annotation-card"]')).not.toBeNull()
+  })
+
+  it('版本筛选条吸顶在抽屉滚动容器的正文之前，不随文档卡片一起滚动', async () => {
+    await renderDetail(ROW)
+    await press(element('requirement-annotation-toggle'))
+    const bar = element('requirement-annotation-filter-bar')
+    expect(bar).not.toBeNull()
+    expect(bar?.closest('[data-testid="requirement-document-body"]')).toBeNull()
+    expect(bar?.closest('.detail-drawer-body')).not.toBeNull()
+    expect(element('requirement-annotation-match')?.textContent).toContain('4')
   })
 })
 

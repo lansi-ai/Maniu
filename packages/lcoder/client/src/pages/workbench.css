@@ -583,7 +583,7 @@
   font-variant-numeric: tabular-nums;
   color: var(--muted);
 }
-/* 只读修改批注：正文左侧淡色高亮，右侧独立滚动的批注轨。 */
+/* 只读修改批注：吸顶版本筛选条 + 逐块双栏配对，卡片只出现在对应段落的右列。 */
 .requirement-annotation-toggle { position: relative; }
 .requirement-annotation-badge {
   position: absolute;
@@ -600,105 +600,222 @@
   font-variant-numeric: tabular-nums;
 }
 .requirement-document-layout { min-width: 0; }
-.requirement-document-layout.with-annotations { display: flex; align-items: flex-start; gap: 12px; }
-.requirement-document-main { flex: 1 1 auto; min-width: 0; }
-.requirement-annotation-rail {
-  flex: 0 0 300px;
-  width: 300px;
-  max-height: 560px;
-  overflow: auto;
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  background: var(--overlay);
-  box-shadow: var(--overlay-shadow);
+.requirement-document-main { min-width: 0; }
+/* 批注视图要给右侧卡列留出 296px，页面居中版心在开启批注时放宽；筛选条与版心对齐。 */
+.document-body.with-annotations[data-doc-layout='page'] { max-width: 1180px; }
+.requirement-document-main:has(.document-body.with-annotations[data-doc-layout='page']) .requirement-annotation-track {
+  max-width: 1180px;
+  margin-left: auto;
+  margin-right: auto;
 }
-.revision-annotation-track { display: flex; flex-direction: column; min-height: 0; }
-.revision-annotation-filters {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--separator);
+/* 筛选条挂在正文之前、详情抽屉滚动容器之内：sticky 才能随整段正文一起吸顶。 */
+.requirement-annotation-track {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  border-radius: 10px;
+  background: color-mix(in oklab, var(--background) 82%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
+.requirement-annotation-filter-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.revision-annotation-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .revision-annotation-pill {
   border: 1px solid var(--border);
   border-radius: 999px;
-  padding: 3px 10px;
+  padding: 3px 11px;
   background: var(--surface-secondary);
   color: var(--muted);
   font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
   cursor: pointer;
+  transition: border-color 140ms ease, background-color 140ms ease, color 140ms ease;
 }
-.revision-annotation-pill.is-active { border-color: var(--accent); color: var(--accent); background: var(--surface); }
-.revision-annotation-cards { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px 14px; }
+.revision-annotation-pill:hover { border-color: var(--accent); color: var(--foreground); }
+.revision-annotation-pill.is-active {
+  border-color: color-mix(in oklab, var(--accent) 60%, var(--border));
+  background: var(--accent-soft);
+  color: var(--foreground);
+  font-weight: 600;
+}
+.requirement-annotation-match {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+/* 逐块双栏：左列正文、右列该段自己的批注卡；未修改段落右侧自然留白。 */
+.revision-annotated-body { container-type: inline-size; display: flex; flex-direction: column; }
+.requirement-annotation-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 296px;
+  column-gap: 20px;
+  row-gap: 8px;
+  align-items: start;
+}
+.requirement-annotation-row + .requirement-annotation-row { margin-top: 4px; }
+.requirement-annotation-text { min-width: 0; }
+.requirement-annotation-row-cards { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+@container (max-width: 860px) {
+  .requirement-annotation-row { grid-template-columns: minmax(0, 1fr); row-gap: 6px; }
+  .requirement-annotation-row-cards { padding-left: 2px; }
+}
 .revision-annotation-card {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  padding: 9px 11px;
+  gap: 8px;
+  padding: 12px 14px 12px 16px;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 12px;
   background: var(--surface);
+  box-shadow: 0 2px 10px color-mix(in oklab, var(--foreground) 5%, transparent);
+  overflow: hidden;
   cursor: pointer;
-  transition: border-color 120ms ease, background 120ms ease;
+  scroll-margin-top: 64px;
+  transition: border-color 140ms ease, background-color 140ms ease, box-shadow 140ms ease;
 }
-.revision-annotation-card:hover { border-color: var(--accent); }
-.revision-annotation-card.is-selected { border-color: var(--accent); background: var(--surface-secondary); }
+/* 左侧 3px 语义色条用伪元素落在圆角内，不占卡片内边距。 */
+.revision-annotation-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 3px;
+  background: var(--border);
+}
+.revision-annotation-card.is-added::before { background: var(--success); }
+.revision-annotation-card.is-modified::before { background: var(--warning); }
+.revision-annotation-card.is-removed::before { background: var(--danger); }
+.revision-annotation-card:hover,
+.revision-annotation-card.is-hovered {
+  border-color: color-mix(in oklab, var(--accent) 45%, var(--border));
+  box-shadow: 0 4px 14px color-mix(in oklab, var(--foreground) 8%, transparent);
+}
+.revision-annotation-card.is-selected {
+  border-color: var(--accent);
+  background: var(--surface-secondary);
+  box-shadow: 0 4px 16px color-mix(in oklab, var(--accent) 18%, transparent);
+}
 .revision-annotation-card-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.revision-annotation-meta { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
-.revision-annotation-reason { margin: 0; font-size: 11.5px; color: var(--muted); }
+.revision-annotation-kind { font-size: 10.5px; }
+.revision-annotation-version {
+  padding: 0 7px;
+  border: 1px solid var(--separator);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  font-variant-numeric: tabular-nums;
+}
+.revision-annotation-meta {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.revision-annotation-reason {
+  margin: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11.5px;
+  line-height: 1.55;
+}
 .revision-annotation-segments {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: color-mix(in oklab, var(--surface-secondary) 70%, transparent);
+  color: var(--foreground);
   font-size: 12px;
   line-height: 1.6;
-  color: var(--foreground);
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
-.revision-seg-removed { color: var(--danger); text-decoration: line-through; background: color-mix(in oklab, var(--danger) 12%, transparent); }
-.revision-seg-added { color: var(--success); text-decoration: none; background: color-mix(in oklab, var(--success) 14%, transparent); }
+.revision-seg-removed {
+  border-radius: 3px;
+  background: color-mix(in oklab, var(--danger) 12%, transparent);
+  color: var(--danger);
+  text-decoration: line-through;
+}
+.revision-seg-added {
+  border-radius: 3px;
+  background: color-mix(in oklab, var(--success) 14%, transparent);
+  color: var(--success);
+  text-decoration: none;
+}
 .revision-seg-ellipsis { color: var(--muted); }
 .revision-seg-fold-note { margin-left: 6px; color: var(--muted); font-size: 11px; }
 .revision-annotation-more {
   align-self: flex-start;
   border: 0;
-  padding: 0;
+  padding: 2px 0;
   background: transparent;
-  color: var(--accent);
-  font-size: 11.5px;
-  cursor: pointer;
-}
-.revision-annotation-earlier { padding-top: 6px; border-top: 1px dashed var(--separator); }
-.revision-annotation-earlier-meta { font-size: 11px; color: var(--muted); }
-.revision-annotation-jump { position: absolute; top: 9px; right: 9px; color: var(--muted); }
-.revision-annotated-block {
-  margin: 4px 0;
-  padding: 2px 0 2px 11px;
-  border-left: 3px solid transparent;
-  border-radius: 0 8px 8px 0;
-  cursor: pointer;
-}
-.revision-annotated-block > :first-child { margin-top: 0; }
-.revision-annotated-block > :last-child { margin-bottom: 0; }
-.revision-annotated-block.is-added { border-left-color: var(--success); background: color-mix(in oklab, var(--success) 8%, transparent); }
-.revision-annotated-block.is-modified { border-left-color: var(--warning); background: color-mix(in oklab, var(--warning) 8%, transparent); }
-.revision-annotated-block.is-filtered-out { opacity: 0.55; }
-.revision-annotated-block.is-selected { box-shadow: inset 0 0 0 1px var(--accent); }
-.requirement-annotation-deleted {
-  display: inline-block;
-  margin: 2px 0;
-  padding: 2px 8px;
-  border: 1px dashed var(--separator);
-  border-radius: 999px;
-  background: var(--surface-secondary);
   color: var(--muted);
   font-size: 11px;
   cursor: pointer;
+  transition: color 140ms ease;
 }
-.requirement-annotation-deleted.is-selected { border-color: var(--danger); color: var(--danger); }
-@container (max-width: 900px) {
-  .requirement-document-layout.with-annotations { flex-direction: column; }
-  .requirement-annotation-rail { flex: 1 1 auto; width: 100%; max-height: 420px; }
+.revision-annotation-more:hover { color: var(--accent); }
+.revision-annotation-history { display: flex; flex-direction: column; gap: 6px; }
+.revision-annotation-earlier {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding-top: 8px;
+  border-top: 1px solid var(--separator);
+}
+.revision-annotation-earlier-meta { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.revision-annotated-block {
+  margin: 2px 0;
+  padding: 2px 10px;
+  border-left: 2.5px solid transparent;
+  border-radius: 8px;
+  scroll-margin-top: 64px;
+  transition: background-color 140ms ease, box-shadow 140ms ease;
+}
+.revision-annotated-block > :first-child { margin-top: 0; }
+.revision-annotated-block > :last-child { margin-bottom: 0; }
+.revision-annotated-block.is-added { border-left-color: var(--success); background: color-mix(in oklab, var(--success) 5%, transparent); }
+.revision-annotated-block.is-modified { border-left-color: var(--warning); background: color-mix(in oklab, var(--warning) 5%, transparent); }
+.revision-annotated-block[role='button'] { cursor: pointer; }
+.revision-annotated-block[role='button']:hover,
+.revision-annotated-block.is-hovered { background: color-mix(in oklab, var(--accent) 5%, transparent); }
+.revision-annotated-block.is-selected { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.revision-annotated-block.is-filtered-out {
+  border-left-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+.requirement-annotation-deleted {
+  display: inline-flex;
+  align-items: center;
+  margin: 2px 0;
+  padding: 1px 9px;
+  border: 1px solid color-mix(in oklab, var(--danger) 28%, transparent);
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--danger) 6%, transparent);
+  color: var(--danger);
+  font-size: 11px;
+  line-height: 1.8;
+  cursor: pointer;
+  scroll-margin-top: 64px;
+  transition: background-color 140ms ease, border-color 140ms ease;
+}
+.requirement-annotation-deleted:hover,
+.requirement-annotation-deleted.is-hovered { background: color-mix(in oklab, var(--danger) 12%, transparent); }
+.requirement-annotation-deleted.is-selected {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 1.5px color-mix(in oklab, var(--danger) 45%, transparent);
 }
 .requirement-doc-fullscreen-layer {
   position: fixed;

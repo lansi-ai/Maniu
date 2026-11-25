@@ -21,7 +21,7 @@ import { formatTimestamp, isConfirmableReviewReport, parseReviewReport, type Rev
 import type { ReviewDecisions } from '../intake/prompts.ts'
 import { DetailDrawer } from './detail-drawer.tsx'
 import { ProposalDiff } from './proposal-compare.tsx'
-import { AnnotatedDocumentBody, AnnotationToggle, RevisionAnnotationTrack } from './requirement-annotations.tsx'
+import { AnnotatedDocumentBody, AnnotationToggle, RevisionAnnotationFilters } from './requirement-annotations.tsx'
 
 const zhText: Translate = (key, params) => translate('zh', key, params)
 
@@ -457,11 +457,11 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
     return deriveRevisionAnnotations(annotations.snapshots, row.text, row.amendments ?? [])
   }, [annotations, row.text, row.amendments])
 
-  const focusAnnotation = (id: string, from: 'body' | 'track'): void => {
+  // 卡与正文同处一行，选中后只对正文节点做行内轻量滚动兜底，不跨段跳转。
+  const focusAnnotation = (id: string): void => {
     setSelectedAnnotation(id)
-    const target = from === 'body' ? 'track' : 'body'
     const counterpart = annotationLayoutRef.current?.querySelector(
-      `[data-annotation-id="${id}"][data-annotation-side="${target}"]`,
+      `[data-annotation-id="${id}"][data-annotation-side="body"]`,
     )
     if (counterpart !== null && counterpart !== undefined && typeof counterpart.scrollIntoView === 'function') {
       counterpart.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
@@ -1045,16 +1045,37 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                   </div>
                 )}
                 <div
-                  className={annotationsOpen ? 'requirement-document-layout with-annotations' : 'requirement-document-layout'}
+                  className="requirement-document-layout"
                   ref={annotationLayoutRef}
                 >
                   <div className="requirement-document-main">
+                    {annotationsOpen && (
+                      <div className="requirement-annotation-track" data-testid="requirement-annotation-track">
+                        {annotations.status === 'loading' && (
+                          <p className="empty" data-testid="requirement-annotation-loading">{t('requirement.annotations.loading')}</p>
+                        )}
+                        {annotations.status === 'failed' && (
+                          <p className="problem" data-testid="requirement-annotation-failed">
+                            {t('requirement.annotations.failed', { detail: annotations.message })}
+                          </p>
+                        )}
+                        {revisionData !== null && (
+                          <RevisionAnnotationFilters
+                            data={revisionData}
+                            filter={annotationFilter}
+                            t={t}
+                            onFilter={setAnnotationFilter}
+                          />
+                        )}
+                      </div>
+                    )}
                     <MarkdownDocumentViewer
                       text={row.text}
                       title={row.title ?? row.id}
                       subtitle={row.id}
                       emptyText={t('requirement.bodyEmpty')}
                       t={t}
+                      className={annotationsOpen ? 'with-annotations' : undefined}
                       bodyTestId="requirement-document-body"
                       controlsTestIdPrefix="requirement-doc"
                       toolbarExtra={canAnnotate
@@ -1073,39 +1094,17 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                             data={revisionData}
                             filter={annotationFilter}
                             selectedId={selectedAnnotation}
+                            expanded={expandedAnnotations}
+                            segmentExpanded={expandedSegments}
                             t={t}
-                            onSelect={(id) => { focusAnnotation(id, 'body') }}
+                            onSelect={focusAnnotation}
+                            onToggleExpand={(id) => { setExpandedAnnotations(current => toggleInSet(current, id)) }}
+                            onToggleSegments={(id) => { setExpandedSegments(current => toggleInSet(current, id)) }}
                           />
                         )
                         : undefined}
                     />
                   </div>
-                  {annotationsOpen && (
-                    <div className="requirement-annotation-rail" data-testid="requirement-annotation-rail">
-                      {annotations.status === 'loading' && (
-                        <p className="empty" data-testid="requirement-annotation-loading">{t('requirement.annotations.loading')}</p>
-                      )}
-                      {annotations.status === 'failed' && (
-                        <p className="problem" data-testid="requirement-annotation-failed">
-                          {t('requirement.annotations.failed', { detail: annotations.message })}
-                        </p>
-                      )}
-                      {revisionData !== null && (
-                        <RevisionAnnotationTrack
-                          data={revisionData}
-                          filter={annotationFilter}
-                          selectedId={selectedAnnotation}
-                          expanded={expandedAnnotations}
-                          segmentExpanded={expandedSegments}
-                          t={t}
-                          onFilter={setAnnotationFilter}
-                          onSelect={(id) => { focusAnnotation(id, 'track') }}
-                          onToggleExpand={(id) => { setExpandedAnnotations(current => toggleInSet(current, id)) }}
-                          onToggleSegments={(id) => { setExpandedSegments(current => toggleInSet(current, id)) }}
-                        />
-                      )}
-                    </div>
-                  )}
                 </div>
               </section>
 
