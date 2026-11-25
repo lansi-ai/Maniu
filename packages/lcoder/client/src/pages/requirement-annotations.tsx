@@ -1,8 +1,9 @@
-/** 需求正文的只读修改批注：正文高亮块与右侧批注轨双向联动，不提供输入或改稿入口。 */
+/** 需求正文的只读修改批注：吸顶版本筛选条与逐块双栏配对，不提供输入或改稿入口。 */
 
-import type { JSX } from 'react'
+import { useState } from 'react'
+import type { JSX, KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { Button, Chip } from '@heroui/react'
-import { ChevronDown, ChevronRight, MessageSquareText } from 'lucide-react'
+import { MessageSquareText } from 'lucide-react'
 import { renderMarkdown } from '../markdown/markdown.tsx'
 import { visibleAnnotationBlockIds, visibleAnnotationCards } from '../spec/revision-annotations.ts'
 import type {
@@ -90,232 +91,26 @@ function SegmentView({ segments, folded, t }: SegmentViewProps): JSX.Element {
   )
 }
 
-/** 左正文批注层属性。 */
-export interface AnnotatedDocumentBodyProps {
+/** 吸顶版本筛选条属性。 */
+export interface RevisionAnnotationFiltersProps {
   readonly data: RevisionAnnotations
   readonly filter: VersionFilter
-  readonly selectedId: string | null
-  readonly t: Translate
-  readonly onSelect: (id: string) => void
-}
-
-/**
- * 渲染带修改高亮与删除锚点的正文，块级节点按语义分块包裹。
- * @param props - 派生数据、筛选、选中项与回调。
- * @returns 正文节点，交给统一文档阅读器套用版式与字号。
- */
-export function AnnotatedDocumentBody({ data, filter, selectedId, t, onSelect }: AnnotatedDocumentBodyProps): JSX.Element {
-  const visibleBlocks = visibleAnnotationBlockIds(data.cards, filter)
-  const cardOf = new Map(data.cards.map(card => [card.blockId, card]))
-  const startDeletions = data.cards.filter(card =>
-    card.kind === 'removed' && card.anchor?.blockId === null && card.anchor.side === 'start')
-  const endDeletions = data.cards.filter(card =>
-    card.kind === 'removed' && card.anchor?.blockId === null && card.anchor.side === 'end')
-
-  const deletionMarker = (card: AnnotationCard): JSX.Element | null => {
-    if (card.kind !== 'removed') return null
-    const newest = card.deletions[0]
-    if (newest === undefined) return null
-    return (
-      <button
-        key={card.id}
-        type="button"
-        className={`requirement-annotation-deleted${selectedId === card.id ? ' is-selected' : ''}`}
-        data-testid="requirement-annotation-deleted"
-        data-annotation-id={card.id}
-        data-annotation-side="body"
-        aria-label={t('requirement.annotations.deletedMarker', {
-          version: newest.version,
-          at: shortTime(newest.at),
-          count: card.deletions.length,
-        })}
-        onClick={() => { onSelect(card.id) }}
-      >
-        {t('requirement.annotations.deletedMarker', {
-          version: newest.version,
-          at: shortTime(newest.at),
-          count: card.deletions.length,
-        })}
-      </button>
-    )
-  }
-
-  return (
-    <div className="revision-annotated-body" data-testid="requirement-annotated-body">
-      {startDeletions.map(deletionMarker)}
-      {data.blocks.map((block) => {
-        const card = cardOf.get(block.id)
-        const highlighted = card !== undefined && visibleBlocks.has(block.id)
-        const classes = ['revision-annotated-block']
-        if (card !== undefined) classes.push(`is-${card.kind}`)
-        if (highlighted) classes.push('is-visible')
-        if (card !== undefined && !highlighted) classes.push('is-filtered-out')
-        if (card !== undefined && selectedId === card.id) classes.push('is-selected')
-        const before = data.cards.filter(entry =>
-          entry.kind === 'removed' && entry.anchor?.blockId === block.id && entry.anchor.side === 'before')
-        const after = data.cards.filter(entry =>
-          entry.kind === 'removed' && entry.anchor?.blockId === block.id && entry.anchor.side === 'after')
-        return (
-          <div key={block.id}>
-            {before.map(deletionMarker)}
-            <div
-              className={classes.join(' ')}
-              data-testid={card === undefined ? undefined : 'requirement-annotation-block'}
-              data-block-id={block.id}
-              data-annotation-id={card?.id}
-              data-annotation-side={card === undefined ? undefined : 'body'}
-              data-change={card?.kind}
-              role={card === undefined ? undefined : 'button'}
-              tabIndex={card === undefined ? undefined : 0}
-              onClick={card === undefined ? undefined : () => { onSelect(card.id) }}
-              onKeyDown={card === undefined ? undefined : (event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                  event.preventDefault()
-                  onSelect(card.id)
-                }
-              }}
-            >
-              {renderMarkdown(block.text)}
-            </div>
-            {after.map(deletionMarker)}
-          </div>
-        )
-      })}
-      {endDeletions.map(deletionMarker)}
-    </div>
-  )
-}
-
-/** 右侧批注单卡属性。 */
-interface AnnotationCardViewProps {
-  readonly card: AnnotationCard
-  readonly selected: boolean
-  readonly expanded: boolean
-  readonly segmentsFolded: boolean
-  readonly t: Translate
-  readonly onSelect: (id: string) => void
-  readonly onToggleExpand: (id: string) => void
-  readonly onToggleSegments: (id: string) => void
-}
-
-/** 渲染一张批注卡：类型、版本时间、原因、词级片段与更早修改的演进。 */
-function AnnotationCardView({
-  card, selected, expanded, segmentsFolded, t, onSelect, onToggleExpand, onToggleSegments,
-}: AnnotationCardViewProps): JSX.Element {
-  const style = KIND_STYLE[card.kind]
-  const segments = card.entries[0]?.segments ?? card.deletions.flatMap((entry, index) => [
-    ...(index === 0 ? [] : [{ kind: 'equal' as const, text: '\n' }]),
-    ...entry.segments,
-  ])
-  const total = segments.reduce((sum, segment) => sum + segment.text.length, 0)
-  const canFold = total > BADGE_LIMIT || segments.length > 12
-  const meta = t('requirement.annotations.cardMeta', {
-    version: card.latestVersion,
-    at: shortTime(card.latestAt),
-  })
-  return (
-    <article
-      className={`revision-annotation-card is-${card.kind}${selected ? ' is-selected' : ''}`}
-      data-testid="requirement-annotation-card"
-      data-annotation-id={card.id}
-      data-annotation-side="track"
-      data-change={card.kind}
-      data-version={card.latestVersion}
-      role="button"
-      tabIndex={0}
-      onClick={() => { onSelect(card.id) }}
-      onKeyDown={(event) => {
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault()
-          onSelect(card.id)
-        }
-      }}
-    >
-      <div className="revision-annotation-card-head">
-        <Chip size="sm" variant="soft" color={style.color} className="tag" data-testid="requirement-annotation-kind">
-          {t(style.key)}
-        </Chip>
-        <span className="revision-annotation-meta" data-testid="requirement-annotation-meta">{meta}</span>
-      </div>
-      {card.reason !== undefined && card.reason !== '' && (
-        <p className="revision-annotation-reason" data-testid="requirement-annotation-reason">
-          {t('requirement.annotations.reasonLabel')} {card.reason}
-        </p>
-      )}
-      <div className="revision-annotation-segments" data-testid="requirement-annotation-segments">
-        <SegmentView segments={segments} folded={canFold && segmentsFolded} t={t} />
-      </div>
-      {canFold && (
-        <button
-          type="button"
-          className="revision-annotation-more"
-          data-testid="requirement-annotation-segment-toggle"
-          onClick={(event) => { event.stopPropagation(); onToggleSegments(card.id) }}
-        >
-          {segmentsFolded ? t('requirement.annotations.expandSegments') : t('requirement.annotations.collapseSegments')}
-        </button>
-      )}
-      {card.entries.length > 1 && (
-        <>
-          <button
-            type="button"
-            className="revision-annotation-more"
-            data-testid="requirement-annotation-history-toggle"
-            onClick={(event) => { event.stopPropagation(); onToggleExpand(card.id) }}
-          >
-            {expanded
-              ? t('requirement.annotations.collapseEarlier', { count: card.entries.length - 1 })
-              : t('requirement.annotations.expandEarlier', { count: card.entries.length - 1 })}
-          </button>
-          {expanded && card.entries.slice(1).map((entry, index) => (
-            <div key={`${card.id}-${String(index)}`} className="revision-annotation-earlier" data-testid="requirement-annotation-earlier">
-              <span className="revision-annotation-earlier-meta">
-                {t('requirement.annotations.cardMeta', { version: entry.version, at: shortTime(entry.at) })}
-              </span>
-              <div className="revision-annotation-segments">
-                <SegmentView segments={entry.segments} folded={false} t={t} />
-              </div>
-            </div>
-          ))}
-        </>
-      )}
-      <span className="revision-annotation-jump" aria-hidden="true">
-        {selected ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
-      </span>
-    </article>
-  )
-}
-
-/** 右侧独立批注轨属性。 */
-export interface RevisionAnnotationTrackProps {
-  readonly data: RevisionAnnotations
-  readonly filter: VersionFilter
-  readonly selectedId: string | null
-  readonly expanded: ReadonlySet<string>
-  readonly segmentExpanded: ReadonlySet<string>
   readonly t: Translate
   readonly onFilter: (filter: VersionFilter) => void
-  readonly onSelect: (id: string) => void
-  readonly onToggleExpand: (id: string) => void
-  readonly onToggleSegments: (id: string) => void
 }
 
 /**
- * 渲染版本筛选胶囊与按正文顺序排列的批注卡。
- * @param props - 派生数据、筛选与双向联动回调。
- * @returns 独立滚动的批注轨。
+ * 渲染批注视图顶部的版本胶囊与当前匹配条数。
+ * @param props - 派生数据、当前筛选与筛选回调。
+ * @returns 版本筛选条；由调用方放进吸顶容器。
  */
-export function RevisionAnnotationTrack({
-  data, filter, selectedId, expanded, segmentExpanded, t, onFilter, onSelect, onToggleExpand, onToggleSegments,
-}: RevisionAnnotationTrackProps): JSX.Element {
+export function RevisionAnnotationFilters({
+  data, filter, t, onFilter,
+}: RevisionAnnotationFiltersProps): JSX.Element {
   const visible = visibleAnnotationCards(data.cards, filter)
   const versions = data.versions.filter(version => version > 1)
   return (
-    <aside
-      className="revision-annotation-track"
-      data-testid="requirement-annotation-track"
-      aria-label={t('requirement.annotations.trackLabel')}
-    >
+    <div className="requirement-annotation-filter-bar" data-testid="requirement-annotation-filter-bar">
       <div className="revision-annotation-filters" role="group" aria-label={t('requirement.annotations.filterLabel')}>
         <button
           type="button"
@@ -341,24 +136,280 @@ export function RevisionAnnotationTrack({
           </button>
         ))}
       </div>
-      <div className="revision-annotation-cards" data-testid="requirement-annotation-cards">
-        {visible.length === 0 && (
-          <p className="empty" data-testid="requirement-annotation-empty">{t('requirement.annotations.empty')}</p>
-        )}
-        {visible.map(card => (
-          <AnnotationCardView
-            key={card.id}
-            card={card}
-            selected={selectedId === card.id}
-            expanded={expanded.has(card.id)}
-            segmentsFolded={!segmentExpanded.has(card.id)}
-            t={t}
-            onSelect={onSelect}
-            onToggleExpand={onToggleExpand}
-            onToggleSegments={onToggleSegments}
-          />
-        ))}
+      <span className="requirement-annotation-match" data-testid="requirement-annotation-match">
+        {visible.length === 0
+          ? t('requirement.annotations.empty')
+          : t('requirement.annotations.matchCount', { count: visible.length })}
+      </span>
+    </div>
+  )
+}
+
+/** 左正文批注层属性。 */
+export interface AnnotatedDocumentBodyProps {
+  readonly data: RevisionAnnotations
+  readonly filter: VersionFilter
+  readonly selectedId: string | null
+  readonly expanded: ReadonlySet<string>
+  readonly segmentExpanded: ReadonlySet<string>
+  readonly t: Translate
+  readonly onSelect: (id: string) => void
+  readonly onToggleExpand: (id: string) => void
+  readonly onToggleSegments: (id: string) => void
+}
+
+/**
+ * 渲染带修改高亮与删除锚点的正文；每个段落占一行，右侧列只放该段自己的批注卡。
+ * @param props - 派生数据、筛选、展开状态与回调。
+ * @returns 正文节点，交给统一文档阅读器套用版式与字号。
+ */
+export function AnnotatedDocumentBody({
+  data, filter, selectedId, expanded, segmentExpanded, t, onSelect, onToggleExpand, onToggleSegments,
+}: AnnotatedDocumentBodyProps): JSX.Element {
+  const [hoveredId, setHoveredId] = useState<string | null>(null)
+  const visibleCards = visibleAnnotationCards(data.cards, filter)
+  const visibleBlocks = visibleAnnotationBlockIds(data.cards, filter)
+  const cardOf = new Map(data.cards
+    .filter(card => card.kind !== 'removed')
+    .map(card => [card.blockId, card]))
+
+  const deletionMarker = (card: AnnotationCard): JSX.Element | null => {
+    const newest = card.deletions[0]
+    if (newest === undefined) return null
+    const classes = ['requirement-annotation-deleted']
+    if (selectedId === card.id) classes.push('is-selected')
+    if (hoveredId === card.id) classes.push('is-hovered')
+    return (
+      <button
+        key={card.id}
+        type="button"
+        className={classes.join(' ')}
+        data-testid="requirement-annotation-deleted"
+        data-annotation-id={card.id}
+        data-annotation-side="body"
+        aria-label={t('requirement.annotations.deletedMarker', {
+          version: newest.version,
+          at: shortTime(newest.at),
+          count: card.deletions.length,
+        })}
+        onClick={() => { onSelect(card.id) }}
+        onMouseEnter={() => { setHoveredId(card.id) }}
+        onMouseLeave={() => { setHoveredId(null) }}
+      >
+        {t('requirement.annotations.deletedMarkerShort', { version: newest.version, count: card.deletions.length })}
+      </button>
+    )
+  }
+
+  const cardView = (card: AnnotationCard): JSX.Element => (
+    <AnnotationCardView
+      key={card.id}
+      card={card}
+      selected={selectedId === card.id}
+      hovered={hoveredId === card.id}
+      expanded={expanded.has(card.id)}
+      segmentsFolded={!segmentExpanded.has(card.id)}
+      t={t}
+      onSelect={onSelect}
+      onHover={setHoveredId}
+      onToggleExpand={onToggleExpand}
+      onToggleSegments={onToggleSegments}
+    />
+  )
+
+  const anchorRow = (key: string, cards: readonly AnnotationCard[]): JSX.Element | null => {
+    if (cards.length === 0) return null
+    return (
+      <div
+        key={key}
+        className="requirement-annotation-row is-deletion-anchor"
+        data-testid="requirement-annotation-row"
+        data-block-id={key}
+      >
+        <div className="requirement-annotation-text">{cards.map(deletionMarker)}</div>
+        <div className="requirement-annotation-row-cards" data-testid="requirement-annotation-row-cards">
+          {cards.map(cardView)}
+        </div>
       </div>
-    </aside>
+    )
+  }
+
+  const startCards = visibleCards.filter(card =>
+    card.kind === 'removed' && card.anchor?.blockId === null && card.anchor.side === 'start')
+  const endCards = visibleCards.filter(card =>
+    card.kind === 'removed' && card.anchor?.blockId === null && card.anchor.side === 'end')
+
+  return (
+    <div className="revision-annotated-body" data-testid="requirement-annotated-body">
+      {anchorRow('start', startCards)}
+      {data.blocks.map((block) => {
+        const card = cardOf.get(block.id)
+        const highlighted = card !== undefined && visibleBlocks.has(block.id)
+        const activeCard = highlighted ? card : undefined
+        const classes = ['revision-annotated-block']
+        if (card !== undefined) classes.push(`is-${card.kind}`)
+        if (highlighted) classes.push('is-visible')
+        if (card !== undefined && !highlighted) classes.push('is-filtered-out')
+        if (card !== undefined && selectedId === card.id) classes.push('is-selected')
+        if (card !== undefined && hoveredId === card.id) classes.push('is-hovered')
+        const rowCards = [
+          ...(activeCard === undefined ? [] : [activeCard]),
+          ...visibleCards.filter(entry => entry.kind === 'removed' && entry.anchor?.blockId === block.id),
+        ]
+        const before = rowCards.filter(entry => entry.kind === 'removed' && entry.anchor?.side === 'before')
+        const after = rowCards.filter(entry => entry.kind === 'removed' && entry.anchor?.side === 'after')
+        const interactivity = activeCard === undefined
+          ? {}
+          : {
+            role: 'button' as const,
+            tabIndex: 0,
+            onClick: () => { onSelect(activeCard.id) },
+            onMouseEnter: () => { setHoveredId(activeCard.id) },
+            onMouseLeave: () => { setHoveredId(null) },
+            onKeyDown: (event: ReactKeyboardEvent<HTMLDivElement>) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault()
+                onSelect(activeCard.id)
+              }
+            },
+          }
+        return (
+          <div
+            key={block.id}
+            className="requirement-annotation-row"
+            data-testid="requirement-annotation-row"
+            data-block-id={block.id}
+          >
+            <div className="requirement-annotation-text">
+              {before.map(deletionMarker)}
+              <div
+                className={classes.join(' ')}
+                data-testid={card === undefined ? undefined : 'requirement-annotation-block'}
+                data-block-id={block.id}
+                data-annotation-id={card?.id}
+                data-annotation-side={card === undefined ? undefined : 'body'}
+                data-change={card?.kind}
+                {...interactivity}
+              >
+                {renderMarkdown(block.text)}
+              </div>
+              {after.map(deletionMarker)}
+            </div>
+            {rowCards.length > 0 && (
+              <div className="requirement-annotation-row-cards" data-testid="requirement-annotation-row-cards">
+                {rowCards.map(cardView)}
+              </div>
+            )}
+          </div>
+        )
+      })}
+      {anchorRow('end', endCards)}
+    </div>
+  )
+}
+
+/** 批注卡属性；`onHover` 传入 `null` 表示指针离开。 */
+interface AnnotationCardViewProps {
+  readonly card: AnnotationCard
+  readonly selected: boolean
+  readonly hovered: boolean
+  readonly expanded: boolean
+  readonly segmentsFolded: boolean
+  readonly t: Translate
+  readonly onSelect: (id: string) => void
+  readonly onHover: (id: string | null) => void
+  readonly onToggleExpand: (id: string) => void
+  readonly onToggleSegments: (id: string) => void
+}
+
+/** 渲染一张批注卡：类型、版本时间、原因、词级片段与更早修改的演进。 */
+function AnnotationCardView({
+  card, selected, hovered, expanded, segmentsFolded, t, onSelect, onHover, onToggleExpand, onToggleSegments,
+}: AnnotationCardViewProps): JSX.Element {
+  const style = KIND_STYLE[card.kind]
+  const segments = card.entries[0]?.segments ?? card.deletions.flatMap((entry, index) => [
+    ...(index === 0 ? [] : [{ kind: 'equal' as const, text: '\n' }]),
+    ...entry.segments,
+  ])
+  const total = segments.reduce((sum, segment) => sum + segment.text.length, 0)
+  const canFold = total > BADGE_LIMIT || segments.length > 12
+  const classes = ['revision-annotation-card', `is-${card.kind}`]
+  if (selected) classes.push('is-selected')
+  if (hovered) classes.push('is-hovered')
+  return (
+    <article
+      className={classes.join(' ')}
+      data-testid="requirement-annotation-card"
+      data-annotation-id={card.id}
+      data-annotation-side="track"
+      data-change={card.kind}
+      data-version={card.latestVersion}
+      role="button"
+      tabIndex={0}
+      onClick={() => { onSelect(card.id) }}
+      onMouseEnter={() => { onHover(card.id) }}
+      onMouseLeave={() => { onHover(null) }}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault()
+          onSelect(card.id)
+        }
+      }}
+    >
+      <div className="revision-annotation-card-head">
+        <Chip size="sm" variant="soft" color={style.color} className="tag revision-annotation-kind" data-testid="requirement-annotation-kind">
+          {t(style.key)}
+        </Chip>
+        <span className="revision-annotation-version" data-testid="requirement-annotation-version">
+          {t('requirement.annotations.filterVersion', { version: card.latestVersion })}
+        </span>
+        <time className="revision-annotation-meta" data-testid="requirement-annotation-meta" dateTime={card.latestAt}>
+          {shortTime(card.latestAt)}
+        </time>
+      </div>
+      {card.reason !== undefined && card.reason !== '' && (
+        <p className="revision-annotation-reason" data-testid="requirement-annotation-reason">
+          {t('requirement.annotations.reasonLabel')} {card.reason}
+        </p>
+      )}
+      <div className="revision-annotation-segments" data-testid="requirement-annotation-segments">
+        <SegmentView segments={segments} folded={canFold && segmentsFolded} t={t} />
+      </div>
+      {canFold && (
+        <button
+          type="button"
+          className="revision-annotation-more"
+          data-testid="requirement-annotation-segment-toggle"
+          onClick={(event) => { event.stopPropagation(); onToggleSegments(card.id) }}
+        >
+          {segmentsFolded ? t('requirement.annotations.expandSegments') : t('requirement.annotations.collapseSegments')}
+        </button>
+      )}
+      {card.entries.length > 1 && (
+        <div className="revision-annotation-history">
+          <button
+            type="button"
+            className="revision-annotation-more"
+            data-testid="requirement-annotation-history-toggle"
+            aria-expanded={expanded}
+            onClick={(event) => { event.stopPropagation(); onToggleExpand(card.id) }}
+          >
+            {expanded
+              ? t('requirement.annotations.collapseEarlier', { count: card.entries.length - 1 })
+              : t('requirement.annotations.expandEarlier', { count: card.entries.length - 1 })}
+          </button>
+          {expanded && card.entries.slice(1).map((entry, index) => (
+            <div key={`${card.id}-${String(index)}`} className="revision-annotation-earlier" data-testid="requirement-annotation-earlier">
+              <span className="revision-annotation-earlier-meta">
+                {t('requirement.annotations.cardMeta', { version: entry.version, at: shortTime(entry.at) })}
+              </span>
+              <div className="revision-annotation-segments">
+                <SegmentView segments={entry.segments} folded={false} t={t} />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </article>
   )
 }
