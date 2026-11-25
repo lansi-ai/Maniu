@@ -170,7 +170,7 @@ describe('纯中文岗位名', () => {
 })
 
 describe('TaskDetail 负责人改派', () => {
-  it('主操作区没有大输入框与 datalist，顶部只有中文岗位名与铅笔', () => {
+  it('主操作区没有大输入框与 datalist，顶部只有中文岗位名与铅笔', async () => {
     renderDetail()
     expect(container.querySelector('[data-testid="task-role-input"]')).toBeNull()
     expect(container.querySelector('[data-testid="task-assign"]')).toBeNull()
@@ -178,6 +178,7 @@ describe('TaskDetail 负责人改派', () => {
     expect(container.querySelector('input[list]')).toBeNull()
     expect(element('task-assignee-name').textContent).toBe('前端工程师')
     expect(element('task-assignee-edit').getAttribute('aria-label')).toBe('更改负责人')
+    await press('task-scope-toggle')
     expect(element('task-rules').textContent).toContain('订单导出必须校验权限')
     expect(element('task-rules').textContent).not.toContain('R-01')
     expect(element('task-confirm-advance')).not.toBeNull()
@@ -193,6 +194,14 @@ describe('TaskDetail 负责人改派', () => {
     renderDetail(data, task({ role: undefined, requirement: 'REQ-01' }))
     expect(element('task-assignee-name').textContent).toBe('接口工程师')
     await press('task-confirm-advance')
+    const start = document.body.querySelector<HTMLElement>('[data-testid="task-advance-confirm-start"]')
+    expect(start).not.toBeNull()
+    expect(start?.textContent).toContain('确认开始')
+    await act(async () => {
+      start!.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
     expect(commandLines()).toEqual(['/task_assign T-01 api-dev', '/task_split_ready T-01'])
   })
 

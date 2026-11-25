@@ -37,6 +37,7 @@ interface RenderOptions {
   readonly onClose?: () => void
   readonly actions?: JSX.Element
   readonly defaultExpanded?: boolean
+  readonly expandable?: boolean
 }
 
 function render(options: RenderOptions = {}): void {
@@ -57,6 +58,7 @@ function render(options: RenderOptions = {}): void {
           head={<h3>样例标题</h3>}
           {...options.actions === undefined ? {} : { actions: options.actions }}
           {...options.defaultExpanded === undefined ? {} : { defaultExpanded: options.defaultExpanded }}
+          {...options.expandable === undefined ? {} : { expandable: options.expandable }}
           attributes={{ 'data-sample': 'yes' }}
         >
           <input data-testid="sample-input" />
@@ -142,6 +144,17 @@ describe('DetailDrawer', () => {
     expect(container.querySelector<HTMLInputElement>('[data-testid="sample-input"]')).toBe(input)
     expect(input?.value).toBe('半句输入')
     expect(body?.scrollTop).toBe(120)
+  })
+
+  it('expandable=false 不渲染放大图标，关闭按钮与主体仍在', () => {
+    render({ expandable: false, defaultExpanded: true })
+    const aside = container.querySelector<HTMLElement>('[data-testid="sample-drawer"]')
+    expect(container.querySelector('[data-testid="sample-drawer-expand"]')).toBeNull()
+    expect(aside?.getAttribute('data-expanded')).toBe('false')
+    expect(aside?.classList.contains('is-expanded')).toBe(false)
+    expect(aside?.style.position).toBe('')
+    expect(aside?.querySelector('[data-testid="sample-close"]')).not.toBeNull()
+    expect(aside?.querySelector('[data-testid="sample-input"]')).not.toBeNull()
   })
 
   it('关闭后再次打开是收起的，词典与英文按钮文案齐全', () => {
