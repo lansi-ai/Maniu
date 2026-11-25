@@ -4,7 +4,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react'
-import type { JSX } from 'react'
+import type { JSX, ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Button } from '@heroui/react'
 import { FileText, Maximize2, Minimize2, Minus, Plus, StretchHorizontal, X } from 'lucide-react'
@@ -331,6 +331,8 @@ export interface MarkdownDocumentViewerProps {
   readonly allowFullscreen?: boolean | undefined
   /** 嵌入视图工具栏右侧的附加操作节点（仅内联阅读工具栏渲染）。 */
   readonly toolbarExtra?: JSX.Element | undefined
+  /** 替换内联正文节点的只读视图；全屏阅读仍使用 `text` 原文。 */
+  readonly bodyOverride?: ReactNode | undefined
 }
 
 /**
@@ -374,7 +376,7 @@ export function MarkdownDocumentViewer(props: MarkdownDocumentViewerProps): JSX.
         data-doc-font-size={fontSize}
         style={{ fontSize: `${String(fontSize)}px` }}
       >
-        {content}
+        {props.bodyOverride ?? content}
       </div>
       <DocumentReaderDialog
         open={allowFullscreen && fullscreen}

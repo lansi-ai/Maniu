@@ -1,6 +1,6 @@
 /** 需求详情：单行头部 + 文档 Tab 栏 + 当前文档专属操作栏 + 正文阅读区；关联任务在阅读区之后，阶段 chips 只保留 DOM。 */
 
-import { Fragment, useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import type { JSX } from 'react'
 import { Button, Chip, Separator } from '@heroui/react'
 import { ChevronDown, ChevronRight, ChevronUp, FileCode2, History, Sparkles, Table2, X } from 'lucide-react'
@@ -10,6 +10,8 @@ import type { ProposalRow, RequirementChangeRow, RequirementDocRow, RequirementR
 import type { SessionSummary } from '../store.ts'
 import { requirementStateLabel } from '../spec/board.ts'
 import { diffLines, type DiffLine } from '../spec/diff.ts'
+import { deriveRevisionAnnotations } from '../spec/revision-annotations.ts'
+import type { RevisionAnnotations, VersionFilter, VersionSnapshot } from '../spec/revision-annotations.ts'
 import { readWorkspaceText, WORKSPACE_READ_LINES } from '../spec/files.ts'
 import { runCommand, type CommandOutcome } from '../commands/run.ts'
 import { canApproveRequirement, canModifyDraft, canReviewRequirement, type ModifyBlockReason } from './requirement-gate.ts'
@@ -19,6 +21,7 @@ import { formatTimestamp, isConfirmableReviewReport, parseReviewReport, type Rev
 import type { ReviewDecisions } from '../intake/prompts.ts'
 import { DetailDrawer } from './detail-drawer.tsx'
 import { ProposalDiff } from './proposal-compare.tsx'
+import { AnnotatedDocumentBody, AnnotationToggle, RevisionAnnotationTrack } from './requirement-annotations.tsx'
 
 const zhText: Translate = (key, params) => translate('zh', key, params)
 
@@ -139,6 +142,13 @@ type VersionDiffState =
   | { readonly status: 'idle' }
   | { readonly status: 'loading' }
   | { readonly status: 'ready'; readonly lines: readonly DiffLine[] }
+  | { readonly status: 'failed'; readonly message: string }
+
+/** 只读批注的版本快照读取状态；缓存命中时直接进入 ready。 */
+type AnnotationsState =
+  | { readonly status: 'idle' }
+  | { readonly status: 'loading' }
+  | { readonly status: 'ready'; readonly snapshots: readonly VersionSnapshot[] }
   | { readonly status: 'failed'; readonly message: string }
 
 /** 当前文档标签承载的内容：草稿、历史版本快照或某一轮评审报告。 */
@@ -317,6 +327,19 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
   const [compareVersion, setCompareVersion] = useState<number | null>(null)
   const [versionDiff, setVersionDiff] = useState<VersionDiffState>({ status: 'idle' })
 
+  // 只读修改批注：默认关闭，开启后才按需求编号并发读取版本快照，读到的结果按编号与版本数缓存。
+  const latestVersion = row.versions.reduce((max, version) => Math.max(max, version.n), 0)
+  const canAnnotate = latestVersion >= 2 || (row.amendments?.length ?? 0) > 0
+  const annotationCacheKey = `${props.project.scopeSessionId}:${row.id}:${String(latestVersion)}`
+  const snapshotCache = useRef<Map<string, readonly VersionSnapshot[]>>(new Map())
+  const annotationLayoutRef = useRef<HTMLDivElement>(null)
+  const [annotationsOpen, setAnnotationsOpen] = useState(false)
+  const [annotations, setAnnotations] = useState<AnnotationsState>({ status: 'idle' })
+  const [annotationFilter, setAnnotationFilter] = useState<VersionFilter>('all')
+  const [selectedAnnotation, setSelectedAnnotation] = useState<string | null>(null)
+  const [expandedAnnotations, setExpandedAnnotations] = useState<ReadonlySet<string>>(() => new Set())
+  const [expandedSegments, setExpandedSegments] = useState<ReadonlySet<string>>(() => new Set())
+
   // 内联报告与阅读器走同一条宿主文件通道；轮次或项目变化时重读，卸载后不再落状态。
   useEffect(() => {
     if (reportPath === null) return
@@ -374,6 +397,83 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
     return () => { disposed = true }
   }, [compareVersion, row.id, props.project.scopeSessionId])
 
+  // 切换需求或版本数时收起批注并清空派生状态，避免沿用上一份需求的批注选中项。
+  useEffect(() => {
+    setAnnotationsOpen(false)
+    setAnnotations({ status: 'idle' })
+    setAnnotationFilter('all')
+    setSelectedAnnotation(null)
+    setExpandedAnnotations(new Set())
+    setExpandedSegments(new Set())
+  }, [row.id, latestVersion])
+
+  // 批注快照并发读取：缓存命中直接复用，失败带结构化原因；只读，不写回规格库。
+  useEffect(() => {
+    if (!annotationsOpen) return
+    const cached = snapshotCache.current.get(annotationCacheKey)
+    if (cached !== undefined) {
+      setAnnotations({ status: 'ready', snapshots: cached })
+      return
+    }
+    let disposed = false
+    setAnnotations({ status: 'loading' })
+    const ordered = [...row.versions].sort((left, right) => left.n - right.n)
+    void Promise.all(ordered.map(version =>
+      readWorkspaceText(props.project.scopeSessionId, versionPath(row.id, version.n), REPORT_LINES)))
+      .then((answers) => {
+        if (disposed) return
+        const failed = answers.find(answer => !answer.ok)
+        if (failed) {
+          setAnnotations({ status: 'failed', message: `${failed.error.code}: ${failed.error.message}` })
+          return
+        }
+        const snapshots: VersionSnapshot[] = ordered.map((version, index) => {
+          const answer = answers[index]
+          const text = answer !== undefined && answer.ok ? answer.text : ''
+          return {
+            version: version.n,
+            at: version.at,
+            ...(version.note === undefined ? {} : { note: version.note }),
+            text,
+          }
+        })
+        // 单版但有修补记录时，把当前正文当作一次修改，让批注仍可演示。
+        const lastAmendment = row.amendments?.[row.amendments.length - 1]
+        if (latestVersion <= 1 && lastAmendment !== undefined) {
+          snapshots.push({ version: 2, at: lastAmendment.at, note: lastAmendment.summary, text: row.text })
+        }
+        snapshotCache.current.set(annotationCacheKey, snapshots)
+        setAnnotations({ status: 'ready', snapshots })
+      })
+      .catch((cause: unknown) => {
+        if (disposed) return
+        setAnnotations({ status: 'failed', message: cause instanceof Error ? cause.message : String(cause) })
+      })
+    return () => { disposed = true }
+  }, [annotationsOpen, annotationCacheKey, row.id, row.text, latestVersion, props.project.scopeSessionId])
+
+  const revisionData = useMemo<RevisionAnnotations | null>(() => {
+    if (annotations.status !== 'ready') return null
+    return deriveRevisionAnnotations(annotations.snapshots, row.text, row.amendments ?? [])
+  }, [annotations, row.text, row.amendments])
+
+  const focusAnnotation = (id: string, from: 'body' | 'track'): void => {
+    setSelectedAnnotation(id)
+    const target = from === 'body' ? 'track' : 'body'
+    const counterpart = annotationLayoutRef.current?.querySelector(
+      `[data-annotation-id="${id}"][data-annotation-side="${target}"]`,
+    )
+    if (counterpart !== null && counterpart !== undefined && typeof counterpart.scrollIntoView === 'function') {
+      counterpart.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }
+  }
+  const toggleInSet = (current: ReadonlySet<string>, id: string): ReadonlySet<string> => {
+    const next = new Set(current)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    return next
+  }
+
   // 说明栏自动聚焦；收起后不残留焦点。
   useEffect(() => {
     if (modify.open) noteRef.current?.focus()
@@ -385,6 +485,7 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
       if (event.key !== 'Escape' || props.readerOpen === true || props.triageOpen === true) return
       event.stopPropagation()
       if (batchMenuOpen) setBatchMenuOpen(false)
+      else if (annotationsOpen) setAnnotationsOpen(false)
       else if (historyOpen) setHistoryOpen(false)
       else if (compareVersion !== null) setCompareVersion(null)
       else if (props.diffOpen === true) props.onCloseDiff?.()
@@ -395,6 +496,7 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
     return () => { window.removeEventListener('keydown', onKey, true) }
   }, [
     batchMenuOpen,
+    annotationsOpen,
     historyOpen,
     compareVersion,
     props.diffOpen,
@@ -942,15 +1044,69 @@ export function RequirementDetail(props: RequirementDetailProps): JSX.Element {
                     </button>
                   </div>
                 )}
-                <MarkdownDocumentViewer
-                  text={row.text}
-                  title={row.title ?? row.id}
-                  subtitle={row.id}
-                  emptyText={t('requirement.bodyEmpty')}
-                  t={t}
-                  bodyTestId="requirement-document-body"
-                  controlsTestIdPrefix="requirement-doc"
-                />
+                <div
+                  className={annotationsOpen ? 'requirement-document-layout with-annotations' : 'requirement-document-layout'}
+                  ref={annotationLayoutRef}
+                >
+                  <div className="requirement-document-main">
+                    <MarkdownDocumentViewer
+                      text={row.text}
+                      title={row.title ?? row.id}
+                      subtitle={row.id}
+                      emptyText={t('requirement.bodyEmpty')}
+                      t={t}
+                      bodyTestId="requirement-document-body"
+                      controlsTestIdPrefix="requirement-doc"
+                      toolbarExtra={canAnnotate
+                        ? (
+                          <AnnotationToggle
+                            open={annotationsOpen}
+                            count={revisionData?.changeCount ?? (latestVersion > 1 ? latestVersion - 1 : (row.amendments?.length ?? 0))}
+                            t={t}
+                            onToggle={() => { setAnnotationsOpen(current => !current) }}
+                          />
+                        )
+                        : undefined}
+                      bodyOverride={annotationsOpen && revisionData !== null
+                        ? (
+                          <AnnotatedDocumentBody
+                            data={revisionData}
+                            filter={annotationFilter}
+                            selectedId={selectedAnnotation}
+                            t={t}
+                            onSelect={(id) => { focusAnnotation(id, 'body') }}
+                          />
+                        )
+                        : undefined}
+                    />
+                  </div>
+                  {annotationsOpen && (
+                    <div className="requirement-annotation-rail" data-testid="requirement-annotation-rail">
+                      {annotations.status === 'loading' && (
+                        <p className="empty" data-testid="requirement-annotation-loading">{t('requirement.annotations.loading')}</p>
+                      )}
+                      {annotations.status === 'failed' && (
+                        <p className="problem" data-testid="requirement-annotation-failed">
+                          {t('requirement.annotations.failed', { detail: annotations.message })}
+                        </p>
+                      )}
+                      {revisionData !== null && (
+                        <RevisionAnnotationTrack
+                          data={revisionData}
+                          filter={annotationFilter}
+                          selectedId={selectedAnnotation}
+                          expanded={expandedAnnotations}
+                          segmentExpanded={expandedSegments}
+                          t={t}
+                          onFilter={setAnnotationFilter}
+                          onSelect={(id) => { focusAnnotation(id, 'track') }}
+                          onToggleExpand={(id) => { setExpandedAnnotations(current => toggleInSet(current, id)) }}
+                          onToggleSegments={(id) => { setExpandedSegments(current => toggleInSet(current, id)) }}
+                        />
+                      )}
+                    </div>
+                  )}
+                </div>
               </section>
 
               <section
