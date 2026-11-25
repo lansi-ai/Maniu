@@ -1,6 +1,6 @@
 /** 任务看板的五列与筛选；列是展示派生，不写回任务文件。 */
 
-import type { RuleRow, TaskRow } from './rows.ts'
+import type { RoleSignals, RuleRow, TaskRow } from './rows.ts'
 
 /** 岗位名里分隔人名的符号；取前段作为纯中文岗位名。 */
 const ROLE_TITLE_SEPARATOR = /[-—–·|｜]/u
@@ -114,11 +114,71 @@ export function roleLabel(
   roleId: string | undefined,
   roles: readonly { readonly id: string; readonly name: string }[] = [],
 ): string | undefined {
-  if (roleId === undefined) return undefined
-  const key = roleId.trim()
-  if (key === '') return undefined
-  const named = roles.find(item => item.id === key)?.name ?? BUILTIN_ROLE_LABELS[key] ?? key
-  return roleTitleOf(named)
+  return parseRoleIdentity(roleId, roles).roleTitle
+}
+
+/** 人物名片可用的名册字段；岗位行与人才库行都满足。 */
+export interface RoleIdentitySource {
+  readonly id: string
+  readonly name: string
+  /** 职责简介；缺省时名片不渲染职责段。 */
+  readonly persona?: string
+  /** 派生来源；有值时名片显示「来自 X」。 */
+  readonly derivedFrom?: string
+  /** 岗位信号；名片从 strong 与 preferredPaths 取擅长标签。 */
+  readonly signals?: RoleSignals
+}
+
+/** 从岗位 id 解析出的人物名片字段；缺失项由界面回退。 */
+export interface RoleIdentity {
+  /** 名册名的纯中文首段。 */
+  readonly roleTitle?: string
+  /** 名册名后段的人名；没有分隔或看着像英文 id 时缺省。 */
+  readonly personName?: string
+  /** 界面展示名：有人名用人名，否则用岗位名；找不到中文名时缺省。 */
+  readonly displayName?: string
+  /** 名册项透传的职责简介。 */
+  readonly persona?: string
+  /** 名册项透传的派生来源。 */
+  readonly derivedFrom?: string
+  /** 名册项透传的岗位信号。 */
+  readonly signals?: RoleSignals
+}
+
+/** 岗位名后段若是英文 id（如 fe-dev、role_1）就不当人名展示。 */
+const PERSON_ID_LIKE = /^(?:[a-z][a-z0-9]*(?:[-_][a-z0-9]+)*|[A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)+)$/u
+
+/**
+ * 把岗位 id 解析成人物名片字段：岗位名、人名与名册透传信息。
+ *
+ * 名册缺项时回退内置中文岗位名；仍然没有中文名时 `displayName` 缺省，
+ * 调用方据此显示「待指定」，英文 id 不会进入界面。
+ * @param roleId - 任务上的 role 字段或拆分计划建议的岗位 id。
+ * @param roles - 项目岗位名册；缺省时只用内置岗位名。
+ * @returns 解析结果；无法展示时各字段缺省。
+ */
+export function parseRoleIdentity(
+  roleId: string | undefined,
+  roles: readonly RoleIdentitySource[] = [],
+): RoleIdentity {
+  const key = roleId?.trim() ?? ''
+  if (key === '') return {}
+  const entry = roles.find(item => item.id === key)
+  const rawName = entry?.name ?? BUILTIN_ROLE_LABELS[key] ?? key
+  const roleTitle = roleTitleOf(rawName)
+  if (roleTitle === undefined) return {}
+  const trimmed = rawName.trim()
+  const separatorIndex = trimmed.search(ROLE_TITLE_SEPARATOR)
+  const tail = separatorIndex < 0 ? '' : trimmed.slice(separatorIndex + 1).trim()
+  const personName = tail === '' || tail === roleTitle || PERSON_ID_LIKE.test(tail) ? undefined : tail
+  return {
+    roleTitle,
+    ...(personName === undefined ? {} : { personName }),
+    displayName: personName ?? roleTitle,
+    ...(entry?.persona === undefined ? {} : { persona: entry.persona }),
+    ...(entry?.derivedFrom === undefined ? {} : { derivedFrom: entry.derivedFrom }),
+    ...(entry?.signals === undefined ? {} : { signals: entry.signals }),
+  }
 }
 
 /**
