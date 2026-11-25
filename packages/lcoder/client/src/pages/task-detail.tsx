@@ -4,12 +4,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { JSX } from 'react'
 import { Button, Chip } from '@heroui/react'
 import { createPortal } from 'react-dom'
-import { FileText, Loader2, Pencil, SlidersHorizontal, Trash2, X } from 'lucide-react'
+import { ArrowLeft, Check, FileText, Loader2, Pencil, SlidersHorizontal, Trash2, X } from 'lucide-react'
 import type { SpecProjection } from '../spec/load.ts'
 import type { ContractRow, TaskRow } from '../spec/rows.ts'
 import type { ProjectScope } from '../workspace/use-workspaces.ts'
 import type { SessionSummary } from '../store.ts'
-import { STATE_LABELS, roleLabel, roleTitleOf, ruleTitleOf, trackLabel } from '../spec/board.ts'
+import { STATE_LABELS, parseRoleIdentity, roleTitleOf, ruleTitleOf, trackLabel } from '../spec/board.ts'
 import { translate, type Translate } from '../locale.ts'
 import { buildTaskImplementPlanPrompt, buildTaskModifyPrompt } from '../intake/prompts.ts'
 import { MANAGER_PRESET_ID } from '../talents/model.ts'
@@ -45,6 +45,11 @@ function nextRoleId(used: readonly string[]): string {
   let index = 1
   while (used.includes(`role-${String(index)}`)) index += 1
   return `role-${String(index)}`
+}
+
+/** 取展示名的首字做圆形头像；空名不给头像。 */
+function initialOf(name: string): string {
+  return Array.from(name.trim())[0] ?? ''
 }
 
 /** 任务详情属性。 */
@@ -124,6 +129,8 @@ export function TaskDetail(props: TaskDetailProps): JSX.Element {
   const task = props.task
   const contract = contractOf(props.projection, task.id)
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [assigneePane, setAssigneePane] = useState<'profile' | 'picker'>('picker')
+  const assigneeAnchorRef = useRef<HTMLDivElement>(null)
   const [libraryLoaded, setLibraryLoaded] = useState(false)
   const [libraryError, setLibraryError] = useState<string | null>(null)
   const [projectId, setProjectId] = useState<string | null>(null)
@@ -147,19 +154,31 @@ export function TaskDetail(props: TaskDetailProps): JSX.Element {
   const descriptionParts = useMemo(() => splitTaskDescription(task.description), [task.description])
 
   const officeEntries = useMemo(() => {
-    const seen = new Set<string>()
-    const entries: { readonly id: string; readonly title: string }[] = []
+    const entries: {
+      readonly id: string
+      readonly displayName: string
+      readonly roleTitle: string
+      readonly personName?: string
+    }[] = []
     for (const role of props.projection.roles) {
-      const title = roleTitleOf(role.name)
-      if (title === undefined || seen.has(title)) continue
-      seen.add(title)
-      entries.push({ id: role.id, title })
+      const identity = parseRoleIdentity(role.id, props.projection.roles)
+      if (identity.displayName === undefined || identity.roleTitle === undefined) continue
+      entries.push({
+        id: role.id,
+        displayName: identity.displayName,
+        roleTitle: identity.roleTitle,
+        ...(identity.personName === undefined ? {} : { personName: identity.personName }),
+      })
     }
     return entries
   }, [props.projection.roles])
 
   const libraryEntries = useMemo<readonly LibraryEntry[]>(() => {
-    const seen = new Set(officeEntries.map(entry => entry.title))
+    const seen = new Set<string>()
+    for (const role of props.projection.roles) {
+      const title = roleTitleOf(role.name)
+      if (title !== undefined) seen.add(title)
+    }
     const entries: LibraryEntry[] = []
     const add = (key: string, title: string | undefined, presetId: string | undefined, talentId?: string): void => {
       if (title === undefined || seen.has(title)) return
@@ -169,7 +188,7 @@ export function TaskDetail(props: TaskDetailProps): JSX.Element {
     for (const preset of builtins) add(preset.id, builtinTitle(preset.id, t), preset.id)
     for (const row of projectTalents) add(row.id, roleTitleOf(row.name), row.config.basePreset, row.id)
     return entries
-  }, [builtins, officeEntries, projectTalents, t])
+  }, [builtins, projectTalents, props.projection.roles, t])
 
   /** 存量任务没有 role 时，用拆分计划的建议岗位兜底。 */
   const suggestedRole = useMemo(() => {
@@ -179,7 +198,39 @@ export function TaskDetail(props: TaskDetailProps): JSX.Element {
     return plan?.entries.find(entry => entry.task === task.id)?.role
   }, [props.projection.requirements, task.id, task.requirement, task.role])
 
-  const displayRole = roleLabel(task.role ?? suggestedRole, props.projection.roles) ?? t('task.unassigned')
+  const assigneeRoleId = task.role ?? suggestedRole
+  const assigneeIdentity = useMemo(
+    () => parseRoleIdentity(assigneeRoleId, props.projection.roles),
+    [assigneeRoleId, props.projection.roles],
+  )
+  const assigneeName = assigneeIdentity.displayName
+  const displayRole = assigneeName ?? t('task.unassigned')
+  const assigneeStats = useMemo(() => {
+    if (assigneeRoleId === undefined) return { total: 0, active: 0, done: 0 }
+    let total = 0
+    let active = 0
+    let done = 0
+    for (const item of props.projection.tasks) {
+      if (item.role !== assigneeRoleId) continue
+      total += 1
+      if (item.state === 'implementing') active += 1
+      else if (item.state === 'closed') done += 1
+    }
+    return { total, active, done }
+  }, [assigneeRoleId, props.projection.tasks])
+  const assigneeSkills = useMemo(() => {
+    const signals = assigneeIdentity.signals
+    if (signals === undefined) return []
+    const tags: string[] = []
+    const seen = new Set<string>()
+    for (const raw of [...signals.preferredPaths.slice(0, 6), ...signals.strong.slice(0, 6)]) {
+      const tag = raw.trim()
+      if (tag === '' || seen.has(tag)) continue
+      seen.add(tag)
+      tags.push(tag)
+    }
+    return tags
+  }, [assigneeIdentity.signals])
 
   const ruleLabels = useMemo(() => task.rules.map((id) => {
     const rule = props.projection.rules.find(item => item.id === id)
@@ -196,8 +247,29 @@ export function TaskDetail(props: TaskDetailProps): JSX.Element {
     setModifyNote('')
     setDiscardConfirm(false)
     setBgOp(null)
+    setPickerOpen(false)
     sawBgRunningRef.current = false
   }, [task.id, task.role])
+
+  useEffect(() => {
+    if (!pickerOpen) return
+    const onPointerDown = (event: Event): void => {
+      const anchor = assigneeAnchorRef.current
+      if (anchor !== null && event.target instanceof Node && anchor.contains(event.target)) return
+      setPickerOpen(false)
+    }
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape') return
+      event.stopPropagation()
+      setPickerOpen(false)
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [pickerOpen])
 
   useEffect(() => {
     if (!advanceConfirmOpen) return
@@ -296,9 +368,8 @@ export function TaskDetail(props: TaskDetailProps): JSX.Element {
     if (await runAssigneeCommand('assign', `/task_assign ${task.id} ${roleId}`)) setPickerOpen(false)
   }
 
-  /** 首次打开浮层时加载内置岗位与当前项目级人才库。 */
-  const openPicker = (): void => {
-    setPickerOpen(true)
+  /** 首次打开改派列表时加载内置岗位与当前项目级人才库。 */
+  const ensureLibrary = (): void => {
     setLibraryError(null)
     if (libraryLoaded) return
     setLibraryLoaded(true)
@@ -319,6 +390,24 @@ export function TaskDetail(props: TaskDetailProps): JSX.Element {
       if (talentAnswer !== null && !talentAnswer.ok) problems.push(`${talentAnswer.code}: ${talentAnswer.message}`)
       if (problems.length > 0) setLibraryError(t('task.assigneePicker.failure', { detail: problems.join('；') }))
     })()
+  }
+
+  /** 胶囊开关：已分配先进名片，未分配直接进改派列表。 */
+  const toggleAssignee = (): void => {
+    if (busy !== null) return
+    if (pickerOpen) {
+      setPickerOpen(false)
+      return
+    }
+    const hasAssignee = assigneeName !== undefined
+    setAssigneePane(hasAssignee ? 'profile' : 'picker')
+    setPickerOpen(true)
+    if (!hasAssignee) ensureLibrary()
+  }
+
+  const openAssigneePicker = (): void => {
+    setAssigneePane('picker')
+    ensureLibrary()
   }
 
   /** 按岗位往办公室添 1 名成员，返回新成员的岗位 id。 */
@@ -484,126 +573,221 @@ export function TaskDetail(props: TaskDetailProps): JSX.Element {
                 <strong>{trackText}</strong>
               </span>
             )}
-            <span className="task-detail-pill" data-testid="task-assignee-pill">
-              <span className="task-detail-pill-label">负责人</span>
-              <strong data-testid="task-assignee-name">{displayRole}</strong>
+            <div className="task-assignee-anchor" ref={assigneeAnchorRef}>
               <button
                 type="button"
-                className="task-detail-pencil"
-                data-testid="task-assignee-edit"
-                aria-label={t('task.changeAssignee')}
+                className="task-detail-pill task-assignee-pill"
+                data-testid="task-assignee-pill"
+                aria-haspopup="dialog"
+                aria-expanded={pickerOpen}
+                aria-label={assigneeName === undefined
+                  ? t('task.assigneeProfile.choose')
+                  : t('task.assigneeProfile.open', { name: assigneeName })}
                 disabled={busy !== null}
-                onClick={openPicker}
+                onClick={toggleAssignee}
               >
-                <Pencil size={12} aria-hidden="true" />
+                <span className="task-detail-pill-label">{t('task.assignee.label')}</span>
+                {assigneeName !== undefined && (
+                  <span className="task-assignee-avatar" aria-hidden="true">{initialOf(assigneeName)}</span>
+                )}
+                <strong data-testid="task-assignee-name">{displayRole}</strong>
               </button>
               {pickerOpen && (
-                <div className="task-assignee-popover" data-testid="task-assignee-popover">
-                  <div className="task-assignee-popover-head">
-                    <strong>{displayRole}</strong>
-                    <Button variant="ghost" size="sm" data-testid="task-assignee-close" onPress={() => { setPickerOpen(false) }}>
-                      {t('task.assigneePicker.cancel')}
-                    </Button>
-                  </div>
-                  <h5>{t('task.assigneePicker.office')}</h5>
-                  {officeEntries.length === 0
-                    ? <p className="empty">{t('task.assigneePicker.emptyOffice')}</p>
+                <div
+                  className="task-assignee-card"
+                  data-testid="task-assignee-popover"
+                  role="dialog"
+                  aria-label={t('task.assigneeProfile.title')}
+                >
+                  {assigneePane === 'profile' && assigneeName !== undefined
+                    ? (
+                      <div className="task-assignee-profile" data-testid="task-assignee-profile">
+                        <header className="task-assignee-profile-head">
+                          <span className="task-assignee-avatar is-large" aria-hidden="true">{initialOf(assigneeName)}</span>
+                          <span className="task-assignee-profile-identity">
+                            <strong className="task-assignee-profile-name" data-testid="task-assignee-profile-name">{assigneeName}</strong>
+                            <span className="task-assignee-profile-meta">
+                              {assigneeIdentity.roleTitle !== undefined
+                                && assigneeIdentity.roleTitle !== assigneeName
+                                && (
+                                  <span className="task-assignee-role-badge" data-testid="task-assignee-role-badge">
+                                    {assigneeIdentity.roleTitle}
+                                  </span>
+                                )}
+                              {assigneeIdentity.derivedFrom !== undefined && (
+                                <span className="task-assignee-derived" data-testid="task-assignee-derived">
+                                  {t('task.assigneeProfile.derivedFrom', { source: assigneeIdentity.derivedFrom })}
+                                </span>
+                              )}
+                            </span>
+                          </span>
+                        </header>
+                        {assigneeIdentity.persona !== undefined && assigneeIdentity.persona.trim() !== '' && (
+                          <section className="task-assignee-section">
+                            <h5>{t('task.assigneeProfile.duty')}</h5>
+                            <p className="task-assignee-persona" data-testid="task-assignee-persona">{assigneeIdentity.persona}</p>
+                          </section>
+                        )}
+                        {assigneeSkills.length > 0 && (
+                          <section className="task-assignee-section">
+                            <h5>{t('task.assigneeProfile.skills')}</h5>
+                            <div className="task-assignee-tags" data-testid="task-assignee-skills">
+                              {assigneeSkills.map(skill => (
+                                <span key={skill} className="task-assignee-tag">{skill}</span>
+                              ))}
+                            </div>
+                          </section>
+                        )}
+                        <p className="task-assignee-stats" data-testid="task-assignee-stats">
+                          {t('task.assigneeProfile.stats', assigneeStats)}
+                        </p>
+                        <div className="task-assignee-actions">
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            data-testid="task-assignee-change"
+                            isDisabled={busy !== null}
+                            onPress={openAssigneePicker}
+                          >
+                            {t('task.assigneeProfile.change')}
+                          </Button>
+                        </div>
+                      </div>
+                    )
                     : (
-                      <ul className="plain-list compact">
-                        {officeEntries.map(entry => (
-                          <li key={entry.id}>
-                            <button
-                              type="button"
-                              className="link-button"
-                              data-testid="task-assignee-option"
-                              data-role-id={entry.id}
-                              disabled={busy !== null}
-                              onClick={() => { void assign(entry.id) }}
-                            >
-                              {entry.title}
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  <h5>{t('task.assigneePicker.withoutOffice')}</h5>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    data-testid="task-assignee-from-talent"
-                    onPress={() => { setShowTalents(current => !current) }}
-                  >
-                    {t('task.assigneePicker.fromTalent')}
-                  </Button>
-                  {showTalents && (
-                    libraryEntries.length === 0
-                      ? <p className="empty">{t('task.assigneePicker.emptyTalent')}</p>
-                      : (
-                        <ul className="plain-list compact">
-                          {libraryEntries.map(entry => (
-                            <li key={entry.key}>
+                      <div className="task-assignee-picker" data-testid="task-assignee-picker">
+                        <div className="task-assignee-card-head">
+                          {assigneeName !== undefined
+                            ? (
                               <button
                                 type="button"
-                                className="link-button"
-                                data-testid="task-assignee-talent-option"
-                                data-role-title={entry.title}
-                                disabled={busy !== null}
-                                onClick={() => { void addFromTalent(entry) }}
+                                className="task-assignee-back"
+                                data-testid="task-assignee-back"
+                                aria-label={t('task.assigneeProfile.back')}
+                                onClick={() => { setAssigneePane('profile') }}
                               >
-                                {entry.title}
+                                <ArrowLeft size={14} aria-hidden="true" />
                               </button>
-                            </li>
-                          ))}
-                        </ul>
-                      )
-                  )}
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    data-testid="task-assignee-create-toggle"
-                    onPress={() => { setShowCreate(current => !current) }}
-                  >
-                    {t('task.assigneePicker.createRole')}
-                  </Button>
-                  {showCreate && (
-                    <div className="task-assignee-create" data-testid="task-assignee-create-form">
-                      <label className="field">
-                        <span>{t('task.assigneePicker.roleName')}</span>
-                        <input
-                          className="input"
-                          data-testid="task-assignee-new-name"
-                          value={newName}
-                          placeholder={t('task.assigneePicker.roleNamePlaceholder')}
-                          onChange={(event) => { setNewName(event.target.value) }}
-                        />
-                      </label>
-                      <label className="field">
-                        <span>{t('task.assigneePicker.duty')}</span>
-                        <textarea
-                          className="input"
-                          data-testid="task-assignee-new-duty"
-                          value={newDuty}
-                          placeholder={t('task.assigneePicker.dutyPlaceholder')}
-                          onChange={(event) => { setNewDuty(event.target.value) }}
-                        />
-                      </label>
-                      <div className="action-row">
+                            )
+                            : <span className="task-assignee-card-title">{t('task.assigneePicker.title')}</span>}
+                          <Button variant="ghost" size="sm" data-testid="task-assignee-close" onPress={() => { setPickerOpen(false) }}>
+                            {t('task.assigneePicker.cancel')}
+                          </Button>
+                        </div>
+                        <h5>{t('task.assigneePicker.office')}</h5>
+                        {officeEntries.length === 0
+                          ? <p className="empty">{t('task.assigneePicker.emptyOffice')}</p>
+                          : (
+                            <ul className="plain-list compact">
+                              {officeEntries.map(entry => (
+                                <li key={entry.id}>
+                                  <button
+                                    type="button"
+                                    className="link-button task-assignee-option"
+                                    data-testid="task-assignee-option"
+                                    data-role-id={entry.id}
+                                    disabled={busy !== null}
+                                    onClick={() => { void assign(entry.id) }}
+                                  >
+                                    <span className="task-assignee-option-name">{entry.displayName}</span>
+                                    {entry.personName !== undefined && (
+                                      <span className="task-assignee-role-badge">{entry.roleTitle}</span>
+                                    )}
+                                    {entry.id === assigneeRoleId && (
+                                      <span
+                                        className="task-assignee-current"
+                                        role="img"
+                                        aria-label={t('task.assigneePicker.current')}
+                                        data-testid="task-assignee-current"
+                                      >
+                                        <Check size={13} aria-hidden="true" />
+                                      </span>
+                                    )}
+                                  </button>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        <h5>{t('task.assigneePicker.withoutOffice')}</h5>
                         <Button
-                          variant="primary"
+                          variant="secondary"
                           size="sm"
-                          data-testid="task-assignee-create-submit"
-                          isDisabled={creating || newName.trim() === ''}
-                          onPress={() => { void createAndAssign() }}
+                          data-testid="task-assignee-from-talent"
+                          onPress={() => { setShowTalents(current => !current) }}
                         >
-                          {creating ? t('task.assigneePicker.busy') : t('task.assigneePicker.submit')}
+                          {t('task.assigneePicker.fromTalent')}
                         </Button>
+                        {showTalents && (
+                          libraryEntries.length === 0
+                            ? <p className="empty">{t('task.assigneePicker.emptyTalent')}</p>
+                            : (
+                              <ul className="plain-list compact">
+                                {libraryEntries.map(entry => (
+                                  <li key={entry.key}>
+                                    <button
+                                      type="button"
+                                      className="link-button"
+                                      data-testid="task-assignee-talent-option"
+                                      data-role-title={entry.title}
+                                      disabled={busy !== null}
+                                      onClick={() => { void addFromTalent(entry) }}
+                                    >
+                                      {entry.title}
+                                    </button>
+                                  </li>
+                                ))}
+                              </ul>
+                            )
+                        )}
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          data-testid="task-assignee-create-toggle"
+                          onPress={() => { setShowCreate(current => !current) }}
+                        >
+                          {t('task.assigneePicker.createRole')}
+                        </Button>
+                        {showCreate && (
+                          <div className="task-assignee-create" data-testid="task-assignee-create-form">
+                            <label className="field">
+                              <span>{t('task.assigneePicker.roleName')}</span>
+                              <input
+                                className="input"
+                                data-testid="task-assignee-new-name"
+                                value={newName}
+                                placeholder={t('task.assigneePicker.roleNamePlaceholder')}
+                                onChange={(event) => { setNewName(event.target.value) }}
+                              />
+                            </label>
+                            <label className="field">
+                              <span>{t('task.assigneePicker.duty')}</span>
+                              <textarea
+                                className="input"
+                                data-testid="task-assignee-new-duty"
+                                value={newDuty}
+                                placeholder={t('task.assigneePicker.dutyPlaceholder')}
+                                onChange={(event) => { setNewDuty(event.target.value) }}
+                              />
+                            </label>
+                            <div className="action-row">
+                              <Button
+                                variant="primary"
+                                size="sm"
+                                data-testid="task-assignee-create-submit"
+                                isDisabled={creating || newName.trim() === ''}
+                                onPress={() => { void createAndAssign() }}
+                              >
+                                {creating ? t('task.assigneePicker.busy') : t('task.assigneePicker.submit')}
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                        {libraryError !== null && <p className="problem" data-testid="task-assignee-library-error">{libraryError}</p>}
                       </div>
-                    </div>
-                  )}
-                  {libraryError !== null && <p className="problem" data-testid="task-assignee-library-error">{libraryError}</p>}
+                    )}
                 </div>
               )}
-            </span>
+            </div>
             <span className="task-detail-pill">
               <span className="task-detail-pill-label">执行顺序</span>
               <strong>{blockingDeps.length === 0 ? '可立即开始' : `需先完成 ${blockingDeps.join('、')}`}</strong>

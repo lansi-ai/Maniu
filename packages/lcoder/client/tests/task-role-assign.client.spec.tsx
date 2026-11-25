@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
-/** T-325：任务负责人只显示中文岗位名，顶部铅笔在抽屉内闭环改派、添人与建岗。 */
+/** T-330：任务负责人胶囊只显示人名，点开是人物名片，可原地切到改派、添人与建岗。 */
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { roleLabel, roleTitleOf, ruleTitleOf } from '../src/spec/board.ts'
+import { parseRoleIdentity, roleLabel, roleTitleOf, ruleTitleOf } from '../src/spec/board.ts'
 import type { RuleRow, TaskRow } from '../src/spec/rows.ts'
 import type { SpecProjection } from '../src/spec/load.ts'
 import type { ProjectScope } from '../src/workspace/use-workspaces.ts'
@@ -37,7 +37,14 @@ function task(overrides: Partial<TaskRow> = {}): TaskRow {
 }
 
 const ROLES = [
-  { id: 'fe-dev', name: '前端工程师-林夕', inherits: 'dev' },
+  {
+    id: 'fe-dev',
+    name: '前端工程师-林夕',
+    inherits: 'dev',
+    persona: '负责前端页面与交互实现。',
+    derivedFrom: '系统岗位库',
+    signals: { strong: ['React', 'TypeScript'], medium: [], preferredPaths: ['packages/lcoder/client'] },
+  },
   { id: 'api-dev', name: '接口工程师-陈默', inherits: 'dev' },
 ]
 
@@ -127,6 +134,8 @@ async function press(testId: string): Promise<void> {
     node.click()
     await Promise.resolve()
     await Promise.resolve()
+    await Promise.resolve()
+    await Promise.resolve()
   })
 }
 
@@ -152,7 +161,7 @@ function commandLines(): string[] {
     .map(call => (call.args as { line: string }).line)
 }
 
-describe('纯中文岗位名', () => {
+describe('纯中文岗位名与人物名片解析', () => {
   it('剥掉人名后缀，英文岗位 id 不进入界面', () => {
     expect(roleTitleOf('前端工程师-林夕')).toBe('前端工程师')
     expect(roleTitleOf('接口工程师—陈默')).toBe('接口工程师')
@@ -164,66 +173,108 @@ describe('纯中文岗位名', () => {
     expect(roleLabel('dev', ROLES)).toBe('开发工程师')
   })
 
+  it('把岗位名拆成人名与岗位名，并透传名册字段', () => {
+    expect(parseRoleIdentity('fe-dev', ROLES)).toEqual({
+      roleTitle: '前端工程师',
+      personName: '林夕',
+      displayName: '林夕',
+      persona: '负责前端页面与交互实现。',
+      derivedFrom: '系统岗位库',
+      signals: { strong: ['React', 'TypeScript'], medium: [], preferredPaths: ['packages/lcoder/client'] },
+    })
+    expect(parseRoleIdentity('dev')).toEqual({ roleTitle: '开发工程师', displayName: '开发工程师' })
+    expect(parseRoleIdentity('unknown-id', ROLES)).toEqual({})
+    expect(parseRoleIdentity(undefined, ROLES)).toEqual({})
+    expect(parseRoleIdentity('no-sep', [{ id: 'no-sep', name: '测试工程师' }]))
+      .toEqual({ roleTitle: '测试工程师', displayName: '测试工程师' })
+    expect(parseRoleIdentity('id-tail', [{ id: 'id-tail', name: '测试工程师-fe-dev' }]))
+      .toEqual({ roleTitle: '测试工程师', displayName: '测试工程师' })
+    expect(parseRoleIdentity('same', [{ id: 'same', name: '测试工程师-测试工程师' }]))
+      .toEqual({ roleTitle: '测试工程师', displayName: '测试工程师' })
+  })
+
   it('规范约束优先显示中文摘要', () => {
     expect(ruleTitleOf(RULE)).toBe('订单导出必须校验权限')
   })
 })
 
-describe('TaskDetail 负责人改派', () => {
-  it('主操作区没有大输入框与 datalist，顶部只有中文岗位名与铅笔', async () => {
+describe('TaskDetail 负责人人物名片', () => {
+  it('顶部胶囊只显示人名，没有铅笔按钮，也不泄露英文 id', () => {
     renderDetail()
     expect(container.querySelector('[data-testid="task-role-input"]')).toBeNull()
     expect(container.querySelector('[data-testid="task-assign"]')).toBeNull()
     expect(container.querySelector('datalist')).toBeNull()
     expect(container.querySelector('input[list]')).toBeNull()
-    expect(element('task-assignee-name').textContent).toBe('前端工程师')
-    expect(element('task-assignee-edit').getAttribute('aria-label')).toBe('更改负责人')
-    await press('task-scope-toggle')
-    expect(element('task-rules').textContent).toContain('订单导出必须校验权限')
-    expect(element('task-rules').textContent).not.toContain('R-01')
-    expect(element('task-confirm-advance')).not.toBeNull()
-  })
-
-  it('存量任务没有 role 时用 splitPlan 建议岗位展示并自动分配后推进', async () => {
-    const data = projection({
-      requirements: [{
-        id: 'REQ-01', text: '', options: [], versions: [], reviews: [],
-        splitPlan: { at: '2026-01-01T00:00:00.000Z', entries: [{ task: 'T-01', role: 'api-dev', reason: '接口' }] },
-      }],
-    })
-    renderDetail(data, task({ role: undefined, requirement: 'REQ-01' }))
-    expect(element('task-assignee-name').textContent).toBe('接口工程师')
-    await press('task-confirm-advance')
-    const start = document.body.querySelector<HTMLElement>('[data-testid="task-advance-confirm-start"]')
-    expect(start).not.toBeNull()
-    expect(start?.textContent).toContain('确认开始')
-    await act(async () => {
-      start!.click()
-      await Promise.resolve()
-      await Promise.resolve()
-    })
-    expect(commandLines()).toEqual(['/task_assign T-01 api-dev', '/task_split_ready T-01'])
-  })
-
-  it('铅笔浮层列出办公室中文岗位，点选即分配并收起', async () => {
-    renderDetail()
-    await press('task-assignee-edit')
-    const options = [...container.querySelectorAll<HTMLElement>('[data-testid="task-assignee-option"]')]
-    expect(options.map(node => node.textContent)).toEqual(['前端工程师', '接口工程师'])
+    expect(container.querySelector('[data-testid="task-assignee-edit"]')).toBeNull()
+    expect(element('task-assignee-name').textContent).toBe('林夕')
+    const pill = element('task-assignee-pill')
+    expect(pill.tagName).toBe('BUTTON')
+    expect(pill.getAttribute('aria-haspopup')).toBe('dialog')
+    expect(pill.getAttribute('aria-expanded')).toBe('false')
+    expect(pill.getAttribute('aria-label')).toBe('查看负责人名片：林夕')
+    expect(pill.textContent).toContain('负责人')
     expect(container.textContent).not.toContain('fe-dev')
+    expect(container.textContent).not.toContain('api-dev')
     expect(container.textContent).not.toContain('-林夕')
-    await act(async () => { options[1]?.click(); await Promise.resolve(); await Promise.resolve() })
+  })
+
+  it('点胶囊先看人物名片：姓名、岗位徽标、职责、擅长范围与名下任务数', async () => {
+    const data = projection({
+      tasks: [
+        task(),
+        task({ id: 'T-02', state: 'implementing' }),
+        task({ id: 'T-03', state: 'closed' }),
+        task({ id: 'T-04', role: 'api-dev', state: 'closed' }),
+      ],
+    })
+    renderDetail(data)
+    await press('task-assignee-pill')
+    expect(element('task-assignee-pill').getAttribute('aria-expanded')).toBe('true')
+    expect(element('task-assignee-profile-name').textContent).toBe('林夕')
+    expect(element('task-assignee-role-badge').textContent).toBe('前端工程师')
+    expect(element('task-assignee-derived').textContent).toBe('来自 系统岗位库')
+    expect(element('task-assignee-persona').textContent).toBe('负责前端页面与交互实现。')
+    const skills = element('task-assignee-skills')
+    expect(skills.textContent).toContain('packages/lcoder/client')
+    expect(skills.textContent).toContain('React')
+    expect(skills.textContent).toContain('TypeScript')
+    expect(element('task-assignee-stats').textContent).toBe('名下 3 个任务 · 1 进行中 · 1 已完成')
+    expect(container.querySelector('[data-testid="task-assignee-option"]')).toBeNull()
+  })
+
+  it('名片内「更换负责人」原地切到改派列表，可返回并完成改派', async () => {
+    renderDetail()
+    await press('task-assignee-pill')
+    await press('task-assignee-change')
+    expect(container.querySelector('[data-testid="task-assignee-profile"]')).toBeNull()
+    expect(element('task-assignee-picker')).not.toBeNull()
+    expect(element('task-assignee-back')).not.toBeNull()
+    const options = [...container.querySelectorAll<HTMLElement>('[data-testid="task-assignee-option"]')]
+    expect(options.map(node => node.getAttribute('data-role-id'))).toEqual(['fe-dev', 'api-dev'])
+    expect(options.map(node => node.textContent)).toEqual(['林夕前端工程师', '陈默接口工程师'])
+    expect(container.textContent).not.toContain('fe-dev')
+    expect(container.querySelector('[data-role-id="fe-dev"] [data-testid="task-assignee-current"]')).not.toBeNull()
+    await press('task-assignee-back')
+    expect(element('task-assignee-profile')).not.toBeNull()
+    await press('task-assignee-change')
+    const currentOptions = [...container.querySelectorAll<HTMLElement>('[data-testid="task-assignee-option"]')]
+    await act(async () => {
+      currentOptions[1]?.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
     expect(commandLines()).toEqual(['/task_assign T-01 api-dev'])
     expect(container.querySelector('[data-testid="task-assignee-popover"]')).toBeNull()
   })
 
   it('从人才库选岗位添人时先写名册再分配', async () => {
     renderDetail()
-    await press('task-assignee-edit')
+    await press('task-assignee-pill')
+    await press('task-assignee-change')
     await press('task-assignee-from-talent')
     const option = container.querySelector<HTMLElement>('[data-testid="task-assignee-talent-option"][data-role-title="测试工程师"]')
     expect(option?.textContent).toBe('测试工程师')
-    await act(async () => { option?.click(); await Promise.resolve(); await Promise.resolve(); await Promise.resolve() })
+    await act(async () => { option?.click(); await Promise.resolve(); await Promise.resolve() })
     expect(commandLines()).toEqual([
       '/role_upsert {"id":"role-1","name":"测试工程师-成员1","inherits":"dev"}',
       '/task_assign T-01 role-1',
@@ -232,7 +283,8 @@ describe('TaskDetail 负责人改派', () => {
 
   it('新建项目岗位按建岗、添人、分配串行执行，scope 固定为 project', async () => {
     renderDetail()
-    await press('task-assignee-edit')
+    await press('task-assignee-pill')
+    await press('task-assignee-change')
     await press('task-assignee-create-toggle')
     const name = element('task-assignee-new-name') as HTMLInputElement
     const duty = element('task-assignee-new-duty') as HTMLTextAreaElement
@@ -257,5 +309,58 @@ describe('TaskDetail 负责人改派', () => {
       '/task_assign T-01 role-1',
     ])
     expect(container.querySelector('[data-testid="task-assignee-popover"]')).toBeNull()
+  })
+
+  it('未分配时胶囊直接进改派列表，没有名片与返回入口', async () => {
+    renderDetail(projection(), task({ role: undefined }))
+    expect(element('task-assignee-name').textContent).toBe('待指定')
+    expect(container.querySelector('.task-assignee-avatar')).toBeNull()
+    expect(element('task-assignee-pill').getAttribute('aria-label')).toBe('指定负责人')
+    await press('task-assignee-pill')
+    expect(element('task-assignee-picker')).not.toBeNull()
+    expect(container.querySelector('[data-testid="task-assignee-profile"]')).toBeNull()
+    expect(container.querySelector('[data-testid="task-assignee-back"]')).toBeNull()
+    const options = [...container.querySelectorAll<HTMLElement>('[data-testid="task-assignee-option"]')]
+    expect(options.map(node => node.textContent)).toEqual(['林夕前端工程师', '陈默接口工程师'])
+  })
+
+  it('点外部或按 Esc 收起浮卡，任务详情抽屉保持打开', async () => {
+    renderDetail()
+    await press('task-assignee-pill')
+    expect(element('task-assignee-profile')).not.toBeNull()
+    await act(async () => {
+      document.body.dispatchEvent(new Event('pointerdown', { bubbles: true }))
+    })
+    expect(container.querySelector('[data-testid="task-assignee-popover"]')).toBeNull()
+    expect(element('task-detail')).not.toBeNull()
+
+    await press('task-assignee-pill')
+    expect(element('task-assignee-profile')).not.toBeNull()
+    await act(async () => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    })
+    expect(container.querySelector('[data-testid="task-assignee-popover"]')).toBeNull()
+    expect(element('task-detail')).not.toBeNull()
+  })
+
+  it('存量任务没有 role 时用 splitPlan 建议岗位展示并自动分配后推进', async () => {
+    const data = projection({
+      requirements: [{
+        id: 'REQ-01', text: '', options: [], versions: [], reviews: [],
+        splitPlan: { at: '2026-01-01T00:00:00.000Z', entries: [{ task: 'T-01', role: 'api-dev', reason: '接口' }] },
+      }],
+    })
+    renderDetail(data, task({ role: undefined, requirement: 'REQ-01' }))
+    expect(element('task-assignee-name').textContent).toBe('陈默')
+    await press('task-confirm-advance')
+    const start = document.body.querySelector<HTMLElement>('[data-testid="task-advance-confirm-start"]')
+    expect(start).not.toBeNull()
+    expect(start?.textContent).toContain('确认开始')
+    await act(async () => {
+      start!.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(commandLines()).toEqual(['/task_assign T-01 api-dev', '/task_split_ready T-01'])
   })
 })

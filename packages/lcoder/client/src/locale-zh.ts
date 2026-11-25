@@ -1273,6 +1273,18 @@ export const ZH = {
   'studio.snapshotsEmpty': '还没有历史快照。',
   'studio.snapshotBytes': '{bytes} 字节',
   'studio.restoreSnapshot': '恢复此版',
+  'task.assignee.label': '负责人',
+  'task.assigneeProfile.title': '负责人名片',
+  'task.assigneeProfile.choose': '指定负责人',
+  'task.assigneeProfile.open': '查看负责人名片：{name}',
+  'task.assigneeProfile.derivedFrom': '来自 {source}',
+  'task.assigneeProfile.duty': '职责简介',
+  'task.assigneeProfile.skills': '擅长范围',
+  'task.assigneeProfile.stats': '名下 {total} 个任务 · {active} 进行中 · {done} 已完成',
+  'task.assigneeProfile.change': '更换负责人',
+  'task.assigneeProfile.back': '返回名片',
+  'task.assigneePicker.title': '选择负责人',
+  'task.assigneePicker.current': '当前负责人',
 } as const
 
 /** 全部可用消息键。 */
