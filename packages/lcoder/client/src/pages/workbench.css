@@ -2916,6 +2916,69 @@
 .task-detail-pill-label {
   color: var(--muted);
 }
+.task-detail-pill {
+  position: relative;
+}
+.task-detail-pencil {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.task-detail-pencil:hover {
+  background: var(--surface-secondary);
+  color: var(--foreground);
+}
+.task-assignee-popover {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  left: 0;
+  width: min(340px, 90vw);
+  max-height: 60vh;
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid var(--separator);
+  border-radius: 10px;
+  background: var(--surface-secondary);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 18%);
+}
+.task-assignee-popover-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.task-assignee-popover h5 {
+  margin: 10px 0 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.task-assignee-popover .plain-list.compact li {
+  padding: 2px 6px;
+}
+.task-assignee-create {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+.task-assignee-create .field {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.task-assignee-create .input {
+  width: 100%;
+  min-height: 32px;
+}
 .task-detail-action-card {
   display: flex;
   flex-direction: column;

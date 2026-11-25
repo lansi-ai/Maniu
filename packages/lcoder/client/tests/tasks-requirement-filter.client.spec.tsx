@@ -8,6 +8,13 @@ import type { TaskRow } from '../src/spec/rows.ts'
 import type { SpecProjection } from '../src/spec/load.ts'
 import type { ProjectScope } from '../src/workspace/use-workspaces.ts'
 
+class ResizeObserverStub {
+  observe(): void {}
+  unobserve(): void {}
+  disconnect(): void {}
+}
+Object.defineProperty(globalThis, 'ResizeObserver', { configurable: true, value: ResizeObserverStub })
+
 const PROJECT: ProjectScope = {
   workspaceId: 'workspace-1',
   path: 'E:/repo',
@@ -120,6 +127,7 @@ describe('任务页需求过滤', () => {
   it('任务卡片从投影回显已持久化岗位，无需本会话重新分配', () => {
     const projection: SpecProjection = {
       ...PROJECTION,
+      roles: [{ id: 'vue', name: '前端工程师-林夕', inherits: 'dev' }],
       tasks: [task('T-01', 'REQ-01', 'vue'), task('T-02', 'REQ-02')],
     }
     act(() => {
@@ -139,7 +147,8 @@ describe('任务页需求过滤', () => {
     const cards = [...container.querySelectorAll('[data-testid="task-card"]')]
     const assigned = cards.find(card => card.getAttribute('data-task-id') === 'T-01')
     const unassigned = cards.find(card => card.getAttribute('data-task-id') === 'T-02')
-    expect(assigned?.textContent).toContain('vue')
-    expect(unassigned?.textContent).not.toContain('vue')
+    expect(assigned?.textContent).toContain('前端工程师')
+    expect(assigned?.textContent).not.toContain('vue')
+    expect(unassigned?.textContent).not.toContain('前端工程师')
   })
 })

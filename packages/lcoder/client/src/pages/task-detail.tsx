@@ -3,12 +3,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { JSX } from 'react'
 import { Button, Chip } from '@heroui/react'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Pencil } from 'lucide-react'
 import type { SpecProjection } from '../spec/load.ts'
 import type { ContractRow, TaskRow } from '../spec/rows.ts'
 import type { ProjectScope } from '../workspace/use-workspaces.ts'
 import type { SessionSummary } from '../store.ts'
-import { STATE_LABELS, roleLabel, trackLabel } from '../spec/board.ts'
+import { STATE_LABELS, roleLabel, roleTitleOf, ruleTitleOf, trackLabel } from '../spec/board.ts'
 import { translate, type Translate } from '../locale.ts'
 import { buildTaskImplementPlanPrompt, buildTaskModifyPrompt } from '../intake/prompts.ts'
 import { MANAGER_PRESET_ID } from '../talents/model.ts'
@@ -16,11 +16,35 @@ import { useOpLiveFeeds, type OpLiveFeed } from '../shell/op-live-feed.ts'
 import { MarkdownDocumentViewer } from '../markdown/document-viewer.tsx'
 import { runCommand, type CommandOutcome } from '../commands/run.ts'
 import { scheduleTask } from '../flow/scheduling.ts'
+import { PRESET_ROLE_KEY, presetRoot } from '../flow/config.ts'
+import { createTalent, listTalents, loadBuiltinPresets, loadProjectIdentity } from '../talents/api.ts'
+import type { BuiltinPresetView, TalentRow } from '../talents/model.ts'
 import { DetailDrawer } from './detail-drawer.tsx'
 import { TaskAttachments } from './task-attachments.tsx'
 
 const zhText: Translate = (key, params) => translate('zh', key, params)
 const ARCHITECT_PRESET_ID = 'maniu-architect'
+
+/** 人才库里可添人的一条岗位；talentId 只在项目级人才上有。 */
+interface LibraryEntry {
+  readonly key: string
+  readonly title: string
+  readonly inherits: string
+  readonly talentId?: string
+}
+
+/** 内置 preset 的中文名；没有词典键时不把英文 id 暴露到界面。 */
+function builtinTitle(presetId: string, t: Translate): string | undefined {
+  const key = PRESET_ROLE_KEY[presetId]
+  return roleTitleOf(key === undefined ? presetId.replace(/^maniu-/, '') : t(key))
+}
+
+/** 取一个没被名册占用的成员编号。 */
+function nextRoleId(used: readonly string[]): string {
+  let index = 1
+  while (used.includes(`role-${String(index)}`)) index += 1
+  return `role-${String(index)}`
+}
 
 /** 任务详情属性。 */
 export interface TaskDetailProps {
@@ -98,7 +122,19 @@ export function TaskDetail(props: TaskDetailProps): JSX.Element {
   const t = props.t ?? zhText
   const task = props.task
   const contract = contractOf(props.projection, task.id)
-  const [role, setRole] = useState(task.role ?? '')
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [libraryLoaded, setLibraryLoaded] = useState(false)
+  const [libraryError, setLibraryError] = useState<string | null>(null)
+  const [projectId, setProjectId] = useState<string | null>(null)
+  const [builtins, setBuiltins] = useState<readonly BuiltinPresetView[]>([])
+  const [projectTalents, setProjectTalents] = useState<readonly TalentRow[]>([])
+  const [showTalents, setShowTalents] = useState(false)
+  const [showCreate, setShowCreate] = useState(false)
+  const [newName, setNewName] = useState('')
+  const [newDuty, setNewDuty] = useState('')
+  const [creating, setCreating] = useState(false)
+  const aliveRef = useRef(true)
+  const isAlive = (): boolean => aliveRef.current
   const [techOpen, setTechOpen] = useState(false)
   const [modifyOpen, setModifyOpen] = useState(false)
   const [modifyNote, setModifyNote] = useState('')
@@ -107,8 +143,49 @@ export function TaskDetail(props: TaskDetailProps): JSX.Element {
   const sawBgRunningRef = useRef(false)
   const descriptionParts = useMemo(() => splitTaskDescription(task.description), [task.description])
 
+  const officeEntries = useMemo(() => {
+    const seen = new Set<string>()
+    const entries: { readonly id: string; readonly title: string }[] = []
+    for (const role of props.projection.roles) {
+      const title = roleTitleOf(role.name)
+      if (title === undefined || seen.has(title)) continue
+      seen.add(title)
+      entries.push({ id: role.id, title })
+    }
+    return entries
+  }, [props.projection.roles])
+
+  const libraryEntries = useMemo<readonly LibraryEntry[]>(() => {
+    const seen = new Set(officeEntries.map(entry => entry.title))
+    const entries: LibraryEntry[] = []
+    const add = (key: string, title: string | undefined, presetId: string | undefined, talentId?: string): void => {
+      if (title === undefined || seen.has(title)) return
+      seen.add(title)
+      entries.push({ key, title, inherits: presetRoot(presetId ?? '') ?? 'dev', ...(talentId === undefined ? {} : { talentId }) })
+    }
+    for (const preset of builtins) add(preset.id, builtinTitle(preset.id, t), preset.id)
+    for (const row of projectTalents) add(row.id, roleTitleOf(row.name), row.config.basePreset, row.id)
+    return entries
+  }, [builtins, officeEntries, projectTalents, t])
+
+  /** 存量任务没有 role 时，用拆分计划的建议岗位兜底。 */
+  const suggestedRole = useMemo(() => {
+    if (task.role !== undefined && task.role.trim() !== '') return undefined
+    if (task.requirement === undefined) return undefined
+    const plan = props.projection.requirements.find(row => row.id === task.requirement)?.splitPlan
+    return plan?.entries.find(entry => entry.task === task.id)?.role
+  }, [props.projection.requirements, task.id, task.requirement, task.role])
+
+  const displayRole = roleLabel(task.role ?? suggestedRole, props.projection.roles) ?? t('task.unassigned')
+
+  const ruleLabels = useMemo(() => task.rules.map((id) => {
+    const rule = props.projection.rules.find(item => item.id === id)
+    return rule === undefined ? id : ruleTitleOf(rule)
+  }), [props.projection.rules, task.rules])
+
+  useEffect(() => () => { aliveRef.current = false }, [])
+
   useEffect(() => {
-    setRole(task.role ?? '')
     setTechOpen(false)
     setModifyOpen(false)
     setModifyNote('')
@@ -186,6 +263,95 @@ export function TaskDetail(props: TaskDetailProps): JSX.Element {
     }
   }
 
+  /** 执行一条改派命令，返回结果供连续动作判断是否继续。 */
+  const runAssigneeCommand = async (kind: string, line: string): Promise<boolean> => {
+    if (busy !== null || bgOp !== null) return false
+    setBusy(kind)
+    setResult(null)
+    try {
+      const outcome = await runCommand(props.project.scopeSessionId, line)
+      setResult(outcome)
+      if (outcome.ok) props.onReload()
+      return outcome.ok
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const assign = async (roleId: string): Promise<void> => {
+    if (await runAssigneeCommand('assign', `/task_assign ${task.id} ${roleId}`)) setPickerOpen(false)
+  }
+
+  /** 首次打开浮层时加载内置岗位与当前项目级人才库。 */
+  const openPicker = (): void => {
+    setPickerOpen(true)
+    setLibraryError(null)
+    if (libraryLoaded) return
+    setLibraryLoaded(true)
+    void (async () => {
+      const identity = await loadProjectIdentity(props.project.path)
+      const id = identity.ok ? identity.value.projectId : null
+      if (!isAlive()) return
+      setProjectId(id)
+      const [presetAnswer, talentAnswer] = await Promise.all([
+        loadBuiltinPresets(),
+        id === null ? null : listTalents('project', id),
+      ])
+      if (!isAlive()) return
+      setBuiltins(presetAnswer.ok ? presetAnswer.value : [])
+      setProjectTalents(talentAnswer?.ok === true ? talentAnswer.value : [])
+      const problems: string[] = []
+      if (!presetAnswer.ok) problems.push(`${presetAnswer.code}: ${presetAnswer.message}`)
+      if (talentAnswer !== null && !talentAnswer.ok) problems.push(`${talentAnswer.code}: ${talentAnswer.message}`)
+      if (problems.length > 0) setLibraryError(t('task.assigneePicker.failure', { detail: problems.join('；') }))
+    })()
+  }
+
+  /** 按岗位往办公室添 1 名成员，返回新成员的岗位 id。 */
+  const addMember = async (title: string, inherits: string): Promise<string | undefined> => {
+    const used = props.projection.roles
+    const id = nextRoleId(used.map(role => role.id))
+    const count = used.filter(role => roleTitleOf(role.name) === title).length + 1
+    const line = `/role_upsert ${JSON.stringify({ id, name: `${title}-成员${String(count)}`, inherits })}`
+    return await runAssigneeCommand('addMember', line) ? id : undefined
+  }
+
+  const addFromTalent = async (entry: LibraryEntry): Promise<void> => {
+    const memberId = await addMember(entry.title, entry.inherits)
+    if (memberId !== undefined) await assign(memberId)
+  }
+
+  const createAndAssign = async (): Promise<void> => {
+    if (creating) return
+    if (projectId === null) {
+      setLibraryError(t('task.assigneePicker.projectIdMissing'))
+      return
+    }
+    const title = roleTitleOf(newName) ?? newName.trim()
+    if (title === '') return
+    setCreating(true)
+    try {
+      const duty = newDuty.trim()
+      // 新建岗位只写项目级人才库：scope 固定为 project，并绑定当前项目 id。
+      const created = await createTalent({
+        scope: 'project',
+        projectId,
+        name: title,
+        description: duty,
+        config: { version: 1, basePreset: 'maniu-dev', ...(duty === '' ? {} : { persona: duty }) },
+      })
+      if (!isAlive()) return
+      if (!created.ok) {
+        setLibraryError(t('task.assigneePicker.failure', { detail: `${created.code}: ${created.message}` }))
+        return
+      }
+      const memberId = await addMember(title, 'dev')
+      if (memberId !== undefined) await assign(memberId)
+    } finally {
+      if (isAlive()) setCreating(false)
+    }
+  }
+
   const technicalPlan = useMemo(() => {
     if (task.proposal === undefined) return undefined
     const found = props.projection.proposals.find(item => item.id === task.proposal)
@@ -203,16 +369,17 @@ export function TaskDetail(props: TaskDetailProps): JSX.Element {
 
   const confirmAndAdvance = async (): Promise<void> => {
     if (busy !== null || bgOp !== null) return
-    const targetRole = role.trim()
-    if (targetRole === '' && task.role === undefined) {
+    const targetRole = task.role?.trim() ?? ''
+    if (targetRole === '' && suggestedRole === undefined) {
       setResult({ ok: false, text: t('task.roleMissingForReady') })
       return
     }
     setBusy('advance')
     setResult(null)
     try {
-      if (targetRole !== '' && targetRole !== task.role) {
-        const assigned = await runCommand(props.project.scopeSessionId, `/task_assign ${task.id} ${targetRole}`)
+      const assignRole = targetRole !== '' ? targetRole : suggestedRole
+      if (assignRole !== undefined && assignRole !== task.role) {
+        const assigned = await runCommand(props.project.scopeSessionId, `/task_assign ${task.id} ${assignRole}`)
         if (!assigned.ok) {
           setResult(assigned)
           return
@@ -292,9 +459,125 @@ export function TaskDetail(props: TaskDetailProps): JSX.Element {
                 <strong>{trackText}</strong>
               </span>
             )}
-            <span className="task-detail-pill">
+            <span className="task-detail-pill" data-testid="task-assignee-pill">
               <span className="task-detail-pill-label">负责人</span>
-              <strong>{roleLabel(task.role, props.projection.roles) ?? '待指定'}</strong>
+              <strong data-testid="task-assignee-name">{displayRole}</strong>
+              <button
+                type="button"
+                className="task-detail-pencil"
+                data-testid="task-assignee-edit"
+                aria-label={t('task.changeAssignee')}
+                disabled={busy !== null}
+                onClick={openPicker}
+              >
+                <Pencil size={12} aria-hidden="true" />
+              </button>
+              {pickerOpen && (
+                <div className="task-assignee-popover" data-testid="task-assignee-popover">
+                  <div className="task-assignee-popover-head">
+                    <strong>{displayRole}</strong>
+                    <Button variant="ghost" size="sm" data-testid="task-assignee-close" onPress={() => { setPickerOpen(false) }}>
+                      {t('task.assigneePicker.cancel')}
+                    </Button>
+                  </div>
+                  <h5>{t('task.assigneePicker.office')}</h5>
+                  {officeEntries.length === 0
+                    ? <p className="empty">{t('task.assigneePicker.emptyOffice')}</p>
+                    : (
+                      <ul className="plain-list compact">
+                        {officeEntries.map(entry => (
+                          <li key={entry.id}>
+                            <button
+                              type="button"
+                              className="link-button"
+                              data-testid="task-assignee-option"
+                              data-role-id={entry.id}
+                              disabled={busy !== null}
+                              onClick={() => { void assign(entry.id) }}
+                            >
+                              {entry.title}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  <h5>{t('task.assigneePicker.withoutOffice')}</h5>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    data-testid="task-assignee-from-talent"
+                    onPress={() => { setShowTalents(current => !current) }}
+                  >
+                    {t('task.assigneePicker.fromTalent')}
+                  </Button>
+                  {showTalents && (
+                    libraryEntries.length === 0
+                      ? <p className="empty">{t('task.assigneePicker.emptyTalent')}</p>
+                      : (
+                        <ul className="plain-list compact">
+                          {libraryEntries.map(entry => (
+                            <li key={entry.key}>
+                              <button
+                                type="button"
+                                className="link-button"
+                                data-testid="task-assignee-talent-option"
+                                data-role-title={entry.title}
+                                disabled={busy !== null}
+                                onClick={() => { void addFromTalent(entry) }}
+                              >
+                                {entry.title}
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )
+                  )}
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    data-testid="task-assignee-create-toggle"
+                    onPress={() => { setShowCreate(current => !current) }}
+                  >
+                    {t('task.assigneePicker.createRole')}
+                  </Button>
+                  {showCreate && (
+                    <div className="task-assignee-create" data-testid="task-assignee-create-form">
+                      <label className="field">
+                        <span>{t('task.assigneePicker.roleName')}</span>
+                        <input
+                          className="input"
+                          data-testid="task-assignee-new-name"
+                          value={newName}
+                          placeholder={t('task.assigneePicker.roleNamePlaceholder')}
+                          onChange={(event) => { setNewName(event.target.value) }}
+                        />
+                      </label>
+                      <label className="field">
+                        <span>{t('task.assigneePicker.duty')}</span>
+                        <textarea
+                          className="input"
+                          data-testid="task-assignee-new-duty"
+                          value={newDuty}
+                          placeholder={t('task.assigneePicker.dutyPlaceholder')}
+                          onChange={(event) => { setNewDuty(event.target.value) }}
+                        />
+                      </label>
+                      <div className="action-row">
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          data-testid="task-assignee-create-submit"
+                          isDisabled={creating || newName.trim() === ''}
+                          onPress={() => { void createAndAssign() }}
+                        >
+                          {creating ? t('task.assigneePicker.busy') : t('task.assigneePicker.submit')}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                  {libraryError !== null && <p className="problem" data-testid="task-assignee-library-error">{libraryError}</p>}
+                </div>
+              )}
             </span>
             <span className="task-detail-pill">
               <span className="task-detail-pill-label">执行顺序</span>
@@ -314,22 +597,6 @@ export function TaskDetail(props: TaskDetailProps): JSX.Element {
             ? (
               <>
                 <div className="task-detail-action-row">
-                  <label className="task-detail-role-field">
-                    <span className="task-detail-role-label">负责人</span>
-                    <input
-                      className="search task-detail-role-input"
-                      data-testid="task-role-input"
-                      list="task-role-options"
-                      value={role}
-                      placeholder="选择或输入岗位（如 api-dev）"
-                      onChange={(event) => { setRole(event.target.value) }}
-                    />
-                    <datalist id="task-role-options">
-                      {props.projection.roles.map(item => (
-                        <option key={item.id} value={item.id}>{item.name}</option>
-                      ))}
-                    </datalist>
-                  </label>
                   <div className="task-detail-action-buttons">
                     <Button
                       variant="primary"
@@ -424,10 +691,6 @@ export function TaskDetail(props: TaskDetailProps): JSX.Element {
                   <Button variant="primary" size="sm" data-testid="task-sign" isDisabled={busy !== null || contract === undefined} onPress={() => { void execute('sign', `/contract_sign ${task.id}`) }}>签署契约</Button>
                   <Button variant="secondary" size="sm" data-testid="task-bind" isDisabled={busy !== null} onPress={() => { void execute('bind', `/task_bind ${task.id}`) }}>认领到当前会话</Button>
                   <Button variant="secondary" size="sm" data-testid="task-contract" isDisabled={busy !== null || contract === undefined} onPress={() => { void execute('contract', `/task_contract ${task.id}`) }}>确认契约签约</Button>
-                </div>
-                <div className="task-detail-role-field">
-                  <input className="search task-detail-role-input" data-testid="task-role-input" value={role} placeholder="岗位 id" onChange={(event) => { setRole(event.target.value) }} />
-                  <Button variant="secondary" size="sm" data-testid="task-assign" isDisabled={busy !== null || role.trim() === ''} onPress={() => { void execute('assign', `/task_assign ${task.id} ${role.trim()}`) }}>分配岗位</Button>
                 </div>
               </div>
             )}
@@ -545,7 +808,7 @@ export function TaskDetail(props: TaskDetailProps): JSX.Element {
                 {task.rules.length > 0 && (
                   <div className="task-scope-item">
                     <dt>规范约束</dt>
-                    <dd className="mono">{task.rules.join('、')}</dd>
+                    <dd data-testid="task-rules">{ruleLabels.join('、')}</dd>
                   </div>
                 )}
                 {task.evidence.length > 0 && (

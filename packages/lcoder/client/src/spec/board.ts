@@ -1,6 +1,29 @@
 /** 任务看板的五列与筛选；列是展示派生，不写回任务文件。 */
 
-import type { TaskRow } from './rows.ts'
+import type { RuleRow, TaskRow } from './rows.ts'
+
+/** 岗位名里分隔人名的符号；取前段作为纯中文岗位名。 */
+const ROLE_TITLE_SEPARATOR = /[-—–·|｜]/u
+/** 汉字判定：纯英文 id 不进界面。 */
+const HAS_HAN = /\p{Script=Han}/u
+
+/**
+ * 从岗位名或旧任务里的「岗位-人名」取纯中文岗位名。
+ * @param name - 原始岗位名或岗位 id。
+ * @returns 纯中文岗位名；无法展示时 undefined。
+ */
+export function roleTitleOf(name: string): string | undefined {
+  const first = name.trim().split(ROLE_TITLE_SEPARATOR, 1)[0]?.trim() ?? ''
+  return first === '' || !HAS_HAN.test(first) ? undefined : first
+}
+
+/** 把规范条目取成中文名称或摘要；没有中文时回退编号。 */
+export function ruleTitleOf(rule: RuleRow): string {
+  const summary = rule.text.split(/[\n。；;]/u, 1)[0]?.trim() ?? ''
+  if (summary !== '' && HAS_HAN.test(summary)) return summary
+  if (HAS_HAN.test(rule.module)) return rule.module
+  return rule.id
+}
 
 /** 看板列 id。 */
 export type BoardColumnId = 'discussion' | 'contracted' | 'implementing' | 'verifying' | 'closed'
@@ -87,9 +110,8 @@ export function roleLabel(
   if (roleId === undefined) return undefined
   const key = roleId.trim()
   if (key === '') return undefined
-  const custom = roles.find(item => item.id === key)
-  if (custom !== undefined) return custom.name
-  return BUILTIN_ROLE_LABELS[key] ?? key
+  const named = roles.find(item => item.id === key)?.name ?? BUILTIN_ROLE_LABELS[key] ?? key
+  return roleTitleOf(named)
 }
 
 /**
