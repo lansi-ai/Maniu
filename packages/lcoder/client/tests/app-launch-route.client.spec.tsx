@@ -238,7 +238,8 @@ describe('立项后台发起不跳转', () => {
     expect(localStorage.getItem(SESSION_KEY)).toBeNull()
     expect(followOpens()).toHaveLength(0)
     expect(element('intake-wizard')).toBeNull()
-    expect(element('requirement-op-running')?.textContent).toContain('正在进行需求调研')
+    expect(element('requirement-op-running')?.textContent).toContain('需求调研')
+    expect(element('op-step-progress')?.textContent).toContain('第 2 步 / 共 4 步')
   })
 })
 
@@ -259,7 +260,7 @@ describe('立项等待确认的宿主通道', () => {
     emit(true)
     emit(false)
     expect(element('op-confirm-intake')).not.toBeNull()
-    expect(element('requirement-op-running')?.textContent).toContain('等待你确认')
+    expect(element('requirement-op-running')?.textContent).toContain('需求调研')
 
     await press('op-confirm-intake')
     const prompts = calls.filter(item => item.namespace === 'session' && item.method === 'prompt')

@@ -324,6 +324,16 @@ describe('TaskDetail 负责人人物名片', () => {
     expect(options.map(node => node.textContent)).toEqual(['林夕前端工程师', '陈默接口工程师'])
   })
 
+  it('负责人胶囊只显示人名，头像只在名片里保留', async () => {
+    renderDetail()
+    expect(element('task-assignee-name').textContent).toBe('林夕')
+    expect(container.querySelector('.task-assignee-avatar')).toBeNull()
+
+    await press('task-assignee-pill')
+    expect(element('task-assignee-profile')).not.toBeNull()
+    expect(container.querySelectorAll('.task-assignee-avatar.is-large')).toHaveLength(1)
+  })
+
   it('点外部或按 Esc 收起浮卡，任务详情抽屉保持打开', async () => {
     renderDetail()
     await press('task-assignee-pill')

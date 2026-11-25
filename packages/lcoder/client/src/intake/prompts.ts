@@ -238,8 +238,16 @@ export function buildManagerSplitPrompt(
 - 若 \`.spec/prototypes/__project__/index.html\` 或 \`.spec/prototypes/${requirement.id}/index.html\` 存在，先读取确认界面结构，作为划分界面任务模块的依据。
 - 按业务与模块维度用 task_draft 建任务，state 一律 drafting。
 - **任务描述写法（简洁人话，留在「待确认」供人审核）**：
-  - description 只需要 1~2 段简洁易懂的人话，说清「这条任务要做成什么业务功能、完成后用户能看到什么效果」；**严禁在正文里写「按 P-03 方案 A」这类内部编号黑话**（方案编号只填在 proposal 字段中）。
-  - 在「待确认」阶段**不需要**提前写几百行底层技术实施细节、具体函数名或繁琐代码规范（这些会在人确认推进「待开发」时再结合最新仓库代码精准生成）。
+  - description 先用 1~2 段简洁易懂的人话，说清「这条任务要做成什么业务功能、完成后用户能看到什么效果」；**严禁在正文里写「按 P-03 方案 A」这类内部编号黑话**（方案编号只填在 proposal 字段中）。
+  - 概述后追加 \`## 详细设计\` 二级标题。详细设计回答「系统怎么运转」，读者是产品、业务与评审；**严禁出现文件路径、函数名或类名、接口地址、数据库表字段、技术栈与命令**，这些留给确认推进时再补的 \`## 技术实施细节\`。
+  - 详细设计按小标题 + 列表组织，依次写：
+    - 业务流程：有序列表，把先后顺序与分支写清；
+    - 系统规则：每条写成「当…时，系统应…」，写清状态、数值与校验；数字写明，禁止「合理」「适当」等模糊措辞；
+    - 空态与异常：没数据、权限不足、重复操作、中途失败时用户各看到什么；
+    - 用户能看到的结果（可选，最多 3 条）；
+    - 本任务不做：明确排除项，避免范围蔓延。
+  - 限长：每个小标题最多 8 条，每条约 60 字以内，整段详细设计约 800 字以内；写不下就提示「建议拆成更小的任务」，不要硬塞；同一规则不要重复。
+  - 在「待确认」阶段**不需要**提前写底层实现步骤、具体函数名或代码规范（这些在确认推进「待开发」时再结合最新仓库代码精准生成）。
 - 每条任务写 description、grade、rules、depends_on、scope.allowed_paths、track 与 requirement: ${requirement.id}。
 - 每条任务必须标一条轨，只能取：${tracks.join('、')}。
 - 空仓时第一条任务必须是「项目基础框架与脚手架」，所有功能任务在 depends_on 里依赖它；已有可运行框架只补实际缺口。
@@ -300,8 +308,53 @@ ${task.description.trim()}
 
 【执行要求】
 1. 调用 \`task_draft\` 时必须传入 \`task_id: "${task.id}"\` 与 \`update_draft: true\`，原地更新该任务（严禁新开任务）。
-2. description 保持简洁易懂的人话，不要出现「按 P-03 方案 A」这类内部编号黑话。
+2. description 保持简洁易懂的人话，不要出现「按 P-03 方案 A」这类内部编号黑话；已有 \`## 详细设计\` 必须保留，并按本次意见更新，不得删除或压缩。
 3. 若涉及所属端、依赖前置或路径边界调整，一并在参数中更新。完成后简短汇报改了什么。`
+}
+
+/**
+ * 构造「补写详细设计」提示词：给缺详细设计的待确认任务原地补上，不改状态与负责人。
+ * @param task - 当前任务信息。
+ * @param requirementText - 所属需求正文，作为业务范围依据；为空时只按任务标题与概述写。
+ * @returns 发给 maniu-manager 的提示词。
+ */
+export function buildTaskDesignPrompt(
+  task: {
+    readonly id: string
+    readonly title: string
+    readonly grade: string
+    readonly description: string
+    readonly track?: string | undefined
+    readonly proposal?: string | undefined
+    readonly requirement?: string | undefined
+    readonly dependsOn: readonly string[]
+    readonly paths: readonly string[]
+  },
+  requirementText: string,
+): string {
+  const scoped = requirementText.trim()
+  const requirementBlock = scoped === '' ? '（未提供需求正文，请只依据任务标题与当前说明）' : scoped
+  return `补充详细设计：任务 ${task.id}（${task.title}）还在「待确认」，但缺少可评审的详细设计。请只补写 description，不新建任务、不改状态与负责人。
+
+【所属需求正文（业务范围依据）】
+"""
+${requirementBlock}
+"""
+
+【当前任务信息】
+- 编号：${task.id}
+- 标题：${task.title}
+- 分级：${task.grade}
+- 所属端：${task.track ?? '未指定'}
+- 当前说明：
+${task.description.trim()}
+
+【执行要求】
+1. 调用 \`task_draft\` 时必须传入 \`task_id: "${task.id}"\` 与 \`update_draft: true\`，只更新 description。
+2. 保留现有概述并放在最前面；在概述后追加 \`## 详细设计\`，按「业务流程 / 系统规则 / 空态与异常 / 本任务不做」组织，用户能看到的结果可选写。
+3. 详细设计回答「系统怎么运转」，读者是产品、业务与评审；**严禁出现文件路径、函数名或类名、接口地址、数据库表字段、技术栈与命令**。
+4. 每个小标题最多 8 条、每条约 60 字、整段约 800 字以内；写不下就说明「建议拆成更小的任务」，不要硬塞；同一规则不重复。
+5. 不改任务状态、不改负责人、不写技术实施细节、不改业务代码，完成后简短汇报。`
 }
 
 /**
@@ -358,8 +411,8 @@ ${task.description.trim()}
 【执行要求】
 1. 先用 file_list / file_read 查看当前仓库最新代码与前序任务已落地的接口/目录结构；若有 \`.spec/prototypes/\` 原型文件且本任务涉及前端页面，务必读取并明确要求「页面布局、交互与视觉样式严格与对应原型保持一致」。
 2. 调用 \`task_draft\` 时必须传入 \`task_id: "${task.id}"\` 与 \`update_draft: true\`，原地更新该任务：
-   - **保留简洁易懂的人话目标作为第一段**（不要写「按 P-03 方案 A」等内部编号）；
-   - 在下方追加 \`## 技术实施细节\` 二级标题，写清精确的文件落点（并更新 \`allowed_paths\`）、接口/数据字段约定、命令以及可验证的验收标准。
+   - **保留简洁易懂的人话目标与已有的 \`## 详细设计\`**（不要写「按 P-03 方案 A」等内部编号）；**不得覆盖、合并或改写详细设计**；若详细设计与本次技术实现不一致，以详细设计为准，并在回复里明确指出不一致点；
+   - 在详细设计之后**追加** \`## 技术实施细节\` 二级标题，写清精确的文件落点（并更新 \`allowed_paths\`）、接口/数据字段约定、命令以及可验证的验收标准。
 3. 只更新任务描述与范围，不要修改业务代码、不要跑命令、不要新建其他任务。`
 }
 

@@ -986,13 +986,15 @@ html body {
 }
 
 /* 后台操作进度浮卡：右下角堆叠，HeroUI 卡片风格配状态图标与顶部流光，支持拖移与最小化成胶囊。 */
-.op-layer { position: absolute; right: 20px; bottom: 20px; z-index: 10; display: flex; flex-direction: column; gap: 10px; width: min(520px, 92vw); }
+.op-layer { position: absolute; right: 20px; bottom: 20px; z-index: 10; display: flex; flex-direction: column; gap: 10px; width: min(320px, 92vw); }
 .op-card {
   position: relative;
   padding: 16px 18px;
   display: flex;
   flex-direction: column;
   gap: 10px;
+  min-width: 0;
+  max-width: 100%;
   border: 1px solid var(--border);
   border-radius: 16px;
   background: var(--overlay);
@@ -1079,57 +1081,50 @@ html body {
   border-radius: 999px;
   background: var(--warning);
 }
-.op-steps.op-steps-horizontal {
-  margin: 0;
-  padding: 2px 0 0;
-  list-style: none;
+.op-progress {
   display: flex;
-  align-items: center;
-  gap: 0;
-}
-.op-steps.op-steps-horizontal li {
-  display: inline-flex;
-  align-items: center;
+  flex-direction: column;
   gap: 5px;
-  padding: 0;
-  font-size: 11.5px;
-  line-height: 1.4;
+  min-width: 0;
+}
+.op-progress-text {
+  margin: 0;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.45;
   color: var(--muted);
   white-space: nowrap;
-  flex: 0 0 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.op-steps.op-steps-horizontal li:not(:last-child) { flex: 1 1 auto; }
-.op-steps.op-steps-horizontal li:not(:last-child)::after {
-  content: '';
-  flex: 1 1 10px;
-  height: 1px;
-  margin: 0 6px;
-  background: var(--border);
-}
-.op-steps.op-steps-horizontal li.op-step-done:not(:last-child)::after {
-  background: color-mix(in oklab, var(--success) 40%, var(--border));
-}
-.op-step-dot {
-  width: 6px;
-  height: 6px;
-  flex: 0 0 6px;
-  border-radius: 50%;
+.op-progress-track {
+  position: relative;
+  height: 3px;
+  width: 100%;
+  border-radius: 999px;
   background: var(--field-background);
-  border: 1px solid var(--border);
+  overflow: hidden;
 }
-.op-steps.op-steps-horizontal li.op-step-done { color: var(--foreground); }
-.op-steps.op-steps-horizontal li.op-step-done .op-step-dot {
-  background: color-mix(in oklab, var(--success) 58%, var(--border));
-  border-color: transparent;
-}
-.op-steps.op-steps-horizontal li.op-step-active { color: var(--foreground); font-weight: 600; }
-.op-steps.op-steps-horizontal li.op-step-active .op-step-dot {
+.op-progress-fill {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: inherit;
   background: var(--accent);
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
+  transition: width 220ms ease;
 }
-.op-steps.op-steps-horizontal li.op-step-failed { color: var(--danger); }
-.op-steps.op-steps-horizontal li.op-step-failed .op-step-dot { background: var(--warning); border-color: var(--warning); }
+.op-progress-track[data-status='running'] .op-progress-fill {
+  background-image: linear-gradient(
+    90deg,
+    color-mix(in oklab, var(--accent) 68%, transparent) 0%,
+    var(--accent) 45%,
+    color-mix(in oklab, var(--accent) 68%, transparent) 100%
+  );
+  background-size: 220% 100%;
+  animation: op-flow 2.8s ease-in-out infinite;
+}
+.op-progress-track[data-status='done'] .op-progress-fill { background: var(--success); }
+.op-progress-track[data-status='failed'] .op-progress-fill { background: var(--danger); }
 .op-status { margin: 0; font-size: 12px; line-height: 1.5; color: var(--muted); }
 .op-card.op-done .op-status { margin-top: 2px; line-height: 1.6; }
 .op-status-error { color: var(--danger); }
@@ -1241,8 +1236,10 @@ html body {
   .op-card.op-done::after,
   .op-card-done-enter,
   .op-card-done-enter .op-status-done path,
+  .op-progress-track[data-status='running'] .op-progress-fill,
   .op-status-icon.op-spin { animation: none; }
   .op-card-done-enter .op-status-done path { stroke-dasharray: none; stroke-dashoffset: 0; }
+  .op-progress-fill { transition: none; }
 }
 
 /* 待确认的需求变更卡：标题、目标与分析摘要，入口打开对比视图。 */

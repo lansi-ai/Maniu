@@ -146,9 +146,11 @@ describe('auto 节点内自动衔接', () => {
     expect(h.started).toHaveLength(1)
     expect(h.started[0]?.preset).toBe('maniu-pm')
     expect(document.querySelectorAll('.op-card')).toHaveLength(1)
-    // 多岗卡按配置条目显示名列步骤。
-    expect(element('requirement-op-running')?.textContent).toContain('项目经理')
-    expect(element('requirement-op-running')?.textContent).toContain('副项目经理')
+    // 多岗卡按配置条目显示当前岗步骤与总步数。
+    const firstProgress = element('op-step-progress')?.textContent ?? ''
+    expect(firstProgress).toContain('第 1 步 / 共 3 步')
+    expect(firstProgress).toContain('项目经理')
+    expect(element('op-progress-bar')?.getAttribute('aria-valuemax')).toBe('3')
 
     h.render(projectionOf([review(1), review(2, 'maniu-pm')], TWO_ROLES_AUTO))
     await settle()
@@ -158,9 +160,10 @@ describe('auto 节点内自动衔接', () => {
     expect(document.querySelectorAll('.op-card')).toHaveLength(1)
     expect(element('requirement-op-running')).not.toBeNull()
     expect(element('op-next-role')).toBeNull()
-    const steps = [...(element('requirement-op-running')?.querySelectorAll('li') ?? [])]
-    expect(steps[0]?.className).toContain('op-step-done')
-    expect(steps[1]?.className).toContain('op-step-active')
+    const progress = element('op-step-progress')?.textContent ?? ''
+    expect(progress).toContain('第 2 步 / 共 3 步')
+    expect(progress).toContain('副项目经理')
+    expect(element('op-progress-bar')?.getAttribute('aria-valuenow')).toBe('1')
 
     h.render(projectionOf([review(1), review(2, 'maniu-pm'), review(3, 'maniu-pm')], TWO_ROLES_AUTO))
     await settle()
@@ -204,7 +207,9 @@ describe('manual 节点内等人点下一岗位', () => {
     await settle()
     expect(h.started).toHaveLength(1)
     expect(element('op-next-role')).not.toBeNull()
-    expect(element('requirement-op-running')?.textContent).toContain('下一岗位')
+    const pausedProgress = element('op-step-progress')?.textContent ?? ''
+    expect(pausedProgress).toContain('第 1 步 / 共 3 步')
+    expect(pausedProgress).toContain('项目经理')
     expect((element('requirement-op-review') as HTMLButtonElement).disabled).toBe(true)
 
     await press('op-next-role')
@@ -227,8 +232,8 @@ describe('岗位到 preset 的折算', () => {
     await press('requirement-op-review')
     expect(h.started).toHaveLength(1)
     expect(h.started[0]?.preset).toBe('maniu-pm')
-    expect(element('requirement-op-running')?.textContent).toContain('副项目经理')
-    expect(element('op-step-role')?.getAttribute('title')).toContain('自定义岗位')
+    expect(element('op-step-progress')?.getAttribute('title')).toContain('副项目经理')
+    expect(element('op-step-progress')?.getAttribute('title')).toContain('自定义岗位')
   })
 
   it('无 flow.yaml 时评审仍走预制 maniu-pm，无署名增轮即完成', async () => {

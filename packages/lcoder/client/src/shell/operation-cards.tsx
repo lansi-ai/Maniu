@@ -319,6 +319,15 @@ function OpCardItem({
     : card.status === 'done'
       ? 'requirement-op-success'
       : 'requirement-op-timeout'
+  const totalSteps = card.steps.length
+  // 进度行取最后一个已开始（done/active/failed）的步骤；全未开始时显示第 1 步。
+  const currentIndex = card.steps.reduce(
+    (last, step, index) => (step.state === 'pending' ? last : index),
+    0,
+  )
+  const currentStep = card.steps[currentIndex]
+  const doneSteps = card.steps.filter(step => step.state === 'done').length
+  const progressPercent = totalSteps === 0 ? 0 : Math.round((doneSteps / totalSteps) * 100)
   const showAnswer = card.pendingCount !== undefined && card.pendingCount > 0
     && card.pendingKey !== undefined && onAnswerRequest !== undefined
   const showConfirm = card.awaitingConfirm === true && card.status === 'running' && onConfirmIntake !== undefined
@@ -387,19 +396,34 @@ function OpCardItem({
           )}
         </div>
       </header>
-      <ol className="op-steps op-steps-horizontal" title={card.statusText}>
-        {card.steps.map((step, index) => (
-          <li
-            key={`${card.key}-${String(index)}`}
-            className={`op-step-${step.state}`}
-            {...(index === 0 ? { 'data-testid': 'op-step-role', title: `${card.roleLabel} · ${card.sourceLabel}` } : {})}
+      {totalSteps > 0 && (
+        <div className="op-progress" data-testid="op-progress">
+          <p
+            className="op-progress-text"
+            data-testid="op-step-progress"
+            title={`${card.roleLabel} · ${card.sourceLabel} · ${card.statusText}`}
           >
-            <span className="op-step-dot" aria-hidden="true" />
-            <span className="op-step-text">{index === 0 ? card.roleLabel : step.label}</span>
-          </li>
-        ))}
-      </ol>
-      {(card.liveFeed === undefined || card.status !== 'running') && (
+            {t('op.stepProgress', {
+              current: currentIndex + 1,
+              total: totalSteps,
+              label: currentStep?.label ?? card.roleLabel,
+            })}
+          </p>
+          <div
+            className="op-progress-track"
+            data-testid="op-progress-bar"
+            data-status={card.status}
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={totalSteps}
+            aria-valuenow={doneSteps}
+            aria-label={card.statusText}
+          >
+            <span className="op-progress-fill" style={{ width: `${String(progressPercent)}%` }} />
+          </div>
+        </div>
+      )}
+      {card.status !== 'running' && (
         <p className={card.status === 'failed' ? 'op-status op-status-error' : 'op-status'}>{card.statusText}</p>
       )}
       {card.liveFeed !== undefined && (

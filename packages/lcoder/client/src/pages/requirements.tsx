@@ -277,7 +277,18 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
     () => watches.flatMap(item => item.sessionId === null ? [] : [item.sessionId]),
     [watches],
   )
-  const liveFeeds = useOpLiveFeeds(watchSessionIds)
+  // 重启后恢复的后台会话没有本地浮卡：按会话补一张运行卡，保证「查看对话」入口不丢。
+  const orphanSessionIds = useMemo(
+    () => props.sessions
+      .filter(session => session.running && !watches.some(watch => watch.sessionId === session.sessionId))
+      .map(session => session.sessionId),
+    [props.sessions, watches],
+  )
+  const feedSessionIds = useMemo(
+    () => [...watchSessionIds, ...orphanSessionIds],
+    [watchSessionIds, orphanSessionIds],
+  )
+  const liveFeeds = useOpLiveFeeds(feedSessionIds)
   const loadingRef = useRef(props.loading)
   loadingRef.current = props.loading
   const flow = props.projection.flow
@@ -1171,10 +1182,6 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
   const summarySessionId = summaryKey === null
     ? null
     : watches.find(item => item.key === summaryKey)?.sessionId ?? null
-  // 会话在跑但本地没有对应浮卡：刷新或切项目后给出恢复入口，已在浮卡里的会话不重复提示。
-  const recoverySessions = props.sessions.filter(
-    session => session.running && !watches.some(watch => watch.sessionId === session.sessionId),
-  )
 
   const cards = useMemo<readonly OperationCardView[]>(() => {
     const labelCtx = {
@@ -1306,9 +1313,25 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
           : failStatusOf(item, idTextOf(item)),
         false, undefined, false, undefined, item.status === 'failed' ? item.liveFeed : undefined,
       ), item.sessionId)),
+      ...orphanSessionIds.map((sessionId) => {
+        const key = `recovered-${sessionId}`
+        const feed = liveFeeds[sessionId]
+        return withPending({
+          key,
+          title: t('requirement.recoveredTitle'),
+          roleLabel: t('requirement.recoveredRole'),
+          sourceLabel: t('requirement.recoveredRole'),
+          status: 'running' as const,
+          statusText: t('requirement.recoveredStatus'),
+          steps: [{ label: t('requirement.recoveredRole'), state: 'active' as const }],
+          sessionId,
+          minimized: minimizedKeys.includes(key),
+          ...(feed === undefined ? {} : { liveFeed: feed }),
+        }, sessionId)
+      }),
     ]
   }, [
-    watches, paused, finished, minimizedKeys, confirmSent, sawRunning, liveFeeds,
+    watches, paused, finished, minimizedKeys, confirmSent, sawRunning, liveFeeds, orphanSessionIds,
     props.pending, props.presetNames, props.projection, props.sessions, t,
   ])
 
@@ -1426,24 +1449,6 @@ export function RequirementsPage(props: RequirementsPageProps): JSX.Element {
 
       {opNotice !== null && (
         <p className="problem" data-testid="requirement-op-result">{t('requirement.opFailed', { detail: opNotice })}</p>
-      )}
-
-      {recoverySessions.length > 0 && (
-        <p className="requirement-recovery" data-testid="requirement-background-recovery">
-          <span>{t('requirement.backgroundRunning', { count: recoverySessions.length })}</span>
-          {recoverySessions.map(session => (
-            <Button
-              key={session.sessionId}
-              size="sm"
-              variant="ghost"
-              data-testid="requirement-background-recovery-open"
-              data-session-id={session.sessionId}
-              onPress={() => { props.onOpenSession(session.sessionId) }}
-            >
-              {t('requirement.viewConversation')}
-            </Button>
-          ))}
-        </p>
       )}
 
       {props.project !== null && pendingChanges.length > 0 && (

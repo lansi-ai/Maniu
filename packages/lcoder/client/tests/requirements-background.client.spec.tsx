@@ -205,7 +205,8 @@ describe('后台发起与完成判定', () => {
 
     expect(h.started).toHaveLength(1)
     expect(h.started[0]?.preset).toBe('maniu-pm')
-    expect(element('requirement-op-running')?.textContent).toContain('评审进行中')
+    expect(element('requirement-op-running')?.textContent).toContain('需求评审')
+    expect(element('op-step-progress')?.textContent).toContain('第 2 步 / 共 4 步')
     expect((element('requirement-op-review') as HTMLButtonElement).disabled).toBe(true)
     expect(h.reload).not.toHaveBeenCalled()
 
@@ -230,7 +231,7 @@ describe('后台发起与完成判定', () => {
     const h = harness()
     h.render(projectionOf([DRAFT]))
     await startModify('按说明改')
-    expect(element('requirement-op-running')?.textContent).toContain('修改进行中')
+    expect(element('requirement-op-running')?.textContent).toContain('修改需求')
 
     await tick(4000)
     // 应用只改正文，版本表与 DRAFT 一致；提案 approved 即完成。
@@ -248,7 +249,7 @@ describe('后台发起与完成判定', () => {
     }
     h.render({ ...projectionOf([CONFIRMED]), flow: singleSplitFlow })
     await press('requirement-op-split')
-    expect(element('requirement-op-running')?.textContent).toContain('拆分进行中')
+    expect(element('requirement-op-running')?.textContent).toContain('拆分并分配')
 
     await tick(4000)
     const planned: RequirementDocRow = {
@@ -593,36 +594,39 @@ describe('超时提示与入口', () => {
   })
 })
 
-describe('后台会话恢复提示', () => {
-  it('刷新后有在跑但不在本地浮卡的会话时给查看对话入口', async () => {
+describe('后台会话恢复入口', () => {
+  it('刷新后有在跑但不在本地浮卡的会话时补一张运行卡，可直达对话', async () => {
     const h = harness()
     h.render(projectionOf([DRAFT]), false, {
       sessions: [{ sessionId: 'session-bg-1', updatedAt: 1, running: true, blank: false }],
     })
-    const notice = element('requirement-background-recovery')
-    expect(notice).not.toBeNull()
-    expect(notice?.textContent).toContain('有后台任务正在运行')
-    await press('requirement-background-recovery-open')
+    expect(element('requirement-background-recovery')).toBeNull()
+    const card = document.querySelector('[data-op-key="recovered-session-bg-1"]')
+    expect(card).not.toBeNull()
+    expect(card?.getAttribute('data-testid')).toBe('requirement-op-running')
+    expect(card?.textContent).toContain('后台任务')
+    expect(element('op-view-session')?.getAttribute('aria-label')).toBe('查看对话')
+    await press('op-view-session')
     expect(h.openSession).toHaveBeenCalledWith('session-bg-1')
   })
 
-  it('会话已经在本地浮卡里时不重复提示', async () => {
+  it('会话已经在本地浮卡里时不重复补卡', async () => {
     const h = harness()
     h.render(projectionOf([DRAFT]))
     await press('requirement-op-review')
     h.render(projectionOf([DRAFT]), false, {
       sessions: [{ sessionId: 'session-op-1', updatedAt: 1, running: true, blank: false }],
     })
-    expect(element('requirement-background-recovery')).toBeNull()
+    expect(document.querySelector('[data-op-key="recovered-session-op-1"]')).toBeNull()
     expect(element('requirement-op-running')).not.toBeNull()
   })
 
-  it('没有在跑的会话时不显示提示', () => {
+  it('没有在跑的会话时不补卡', () => {
     const h = harness()
     h.render(projectionOf([DRAFT]), false, {
       sessions: [{ sessionId: 'session-bg-1', updatedAt: 1, running: false, blank: false }],
     })
-    expect(element('requirement-background-recovery')).toBeNull()
+    expect(document.querySelector('[data-op-key="recovered-session-bg-1"]')).toBeNull()
   })
 })
 

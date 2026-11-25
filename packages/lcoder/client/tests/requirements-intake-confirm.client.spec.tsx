@@ -177,22 +177,21 @@ function stubSummary(text: string): void {
 }
 
 describe('等待确认态判定', () => {
-  it('回合结束且需求未落盘时进入等待确认态：蓝边框、等待文案、确认与查看概要入口', async () => {
+  it('回合结束且需求未落盘时进入等待确认态：蓝边框、确认与查看概要入口', async () => {
     const h = harness()
     await startIntake(h)
     h.render(projectionOf([]), [sessionOf({ running: true })])
     expect(element('op-confirm-intake')).toBeNull()
-    expect(element('requirement-op-running')?.textContent).toContain('正在进行需求调研')
+    expect(element('requirement-op-running')?.textContent).toContain('需求调研')
 
     h.render(projectionOf([]), [sessionOf({ running: false })])
     const card = element('requirement-op-running')
     expect(card?.className).toContain('op-running')
-    expect(card?.textContent).toContain('等待你确认')
     expect(element('op-confirm-intake')?.textContent).toBe('确认需求')
     expect(element('op-view-session')?.textContent).toBe('查看概要')
-    expect(card?.querySelectorAll('.op-step-done')).toHaveLength(2)
-    expect(card?.querySelectorAll('.op-step-pending')).toHaveLength(2)
-    expect(card?.querySelectorAll('.op-step-active')).toHaveLength(0)
+    expect(element('op-step-progress')?.textContent).toBe('第 2 步 / 共 4 步 · 岗位工作中')
+    expect(element('op-progress-bar')?.getAttribute('aria-valuenow')).toBe('2')
+    expect(element('op-progress-bar')?.getAttribute('aria-valuemax')).toBe('4')
   })
 
   it('回合仍在跑或会话还是空白时不进入等待确认态', async () => {
@@ -203,7 +202,7 @@ describe('等待确认态判定', () => {
 
     h.render(projectionOf([]), [sessionOf({ running: false, blank: true })])
     expect(element('op-confirm-intake')).toBeNull()
-    expect(element('requirement-op-running')?.textContent).toContain('正在进行需求调研')
+    expect(element('requirement-op-running')?.textContent).toContain('需求调研')
   })
 
   it('会话从未跑过回合时不算回合结束，不进入等待确认态', async () => {
@@ -211,7 +210,7 @@ describe('等待确认态判定', () => {
     await startIntake(h)
     h.render(projectionOf([]), [sessionOf({ running: false })])
     expect(element('op-confirm-intake')).toBeNull()
-    expect(element('requirement-op-running')?.textContent).toContain('正在进行需求调研')
+    expect(element('requirement-op-running')?.textContent).toContain('需求调研')
   })
 
   it('回合结束但需求已落盘时直接转完成卡，不出现确认入口', async () => {
@@ -232,7 +231,7 @@ describe('确认入口与恢复轮询', () => {
     await press('op-confirm-intake')
     expect(h.confirmed).toEqual(['session-intake-1'])
     expect(element('op-confirm-intake')).toBeNull()
-    expect(element('requirement-op-running')?.textContent).toContain('确认已发送')
+    expect(element('op-step-progress')?.textContent).toBe('第 2 步 / 共 4 步 · 岗位工作中')
 
     const before = h.reload.mock.calls.length
     await tick(4000)
@@ -252,7 +251,7 @@ describe('确认入口与恢复轮询', () => {
 
     h.render(projectionOf([]), [sessionOf({ running: false })])
     expect(element('op-confirm-intake')).toBeNull()
-    expect(element('requirement-op-running')?.textContent).toContain('确认已发送')
+    expect(element('op-step-progress')?.textContent).toBe('第 2 步 / 共 4 步 · 岗位工作中')
 
     h.render(projectionOf([]), [sessionOf({ running: true })])
     h.render(projectionOf([]), [sessionOf({ running: false })])
